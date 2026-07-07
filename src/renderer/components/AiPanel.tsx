@@ -73,10 +73,12 @@ interface Props {
   onExpand: () => void
   expanded: boolean
   onConfigPatch?: (partial: Partial<AppConfig>) => void | Promise<void>
+  /** Notifica si la IA está generando respuesta en este panel. */
+  onBusyChange?: (busy: boolean) => void
 }
 
 export const AiPanel: React.FC<Props> = ({
-  config, sessionId, selectedText, getTerminalContext, onInjectLine, onCollapse, onExpand, expanded, onConfigPatch,
+  config, sessionId, selectedText, getTerminalContext, onInjectLine, onCollapse, onExpand, expanded, onConfigPatch, onBusyChange,
 }) => {
   const { t } = useT()
   const [messages, setMessages] = useState<AiMessageEntry[]>([])
@@ -101,6 +103,14 @@ export const AiPanel: React.FC<Props> = ({
   const getTerminalContextRef = useRef(getTerminalContext)
   getTerminalContextRef.current = getTerminalContext
   messagesRef.current = messages
+
+  useEffect(() => {
+    onBusyChange?.(loading || loopActive)
+  }, [loading, loopActive, onBusyChange])
+
+  useEffect(() => () => {
+    onBusyChange?.(false)
+  }, [onBusyChange])
 
   const confirmShell = useCallback((cmd: string) => {
     return new Promise<boolean>(resolve => {

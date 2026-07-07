@@ -571,9 +571,24 @@ export const TerminalPane: React.FC<Props> = ({
   const ptyInjectRef = useRef<(raw: string) => void>(() => {})
   const scrollbackSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const busySilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isBusyRef = useRef(false)
+  const ptyBusyRef = useRef(false)
+  const aiBusyRef = useRef(false)
+  const paneBusyRef = useRef(false)
   const onBusyChangeRef = useRef(onBusyChange)
   onBusyChangeRef.current = onBusyChange
+
+  const syncPaneBusyState = useCallback((): void => {
+    const next = ptyBusyRef.current || aiBusyRef.current
+    if (paneBusyRef.current === next) return
+    paneBusyRef.current = next
+    onBusyChangeRef.current?.(next)
+  }, [])
+
+  const handleAiBusyChange = useCallback((busy: boolean): void => {
+    if (aiBusyRef.current === busy) return
+    aiBusyRef.current = busy
+    syncPaneBusyState()
+  }, [syncPaneBusyState])
   const onPtyCwdInitializedRef = useRef(onPtyCwdInitialized)
   onPtyCwdInitializedRef.current = onPtyCwdInitialized
   const onPaneCwdChangedRef = useRef(onPaneCwdChanged)
@@ -1060,6 +1075,33 @@ export const TerminalPane: React.FC<Props> = ({
 
     const writeToPty = (data: string): void => { window.api.ptyWrite(sessionId, data) }
 
+    const BUSY_SILENCE_MS = 450
+
+    const clearBusySilenceTimer = (): void => {
+      if (busySilenceTimerRef.current) {
+        clearTimeout(busySilenceTimerRef.current)
+        busySilenceTimerRef.current = null
+      }
+    }
+
+    const scheduleBusyIdleClear = (): void => {
+      clearBusySilenceTimer()
+      busySilenceTimerRef.current = setTimeout(() => {
+        busySilenceTimerRef.current = null
+        if (!ptyBusyRef.current) return
+        ptyBusyRef.current = false
+        syncPaneBusyState()
+      }, BUSY_SILENCE_MS)
+    }
+
+    const markPaneBusy = (): void => {
+      if (!ptyBusyRef.current) {
+        ptyBusyRef.current = true
+        syncPaneBusyState()
+      }
+      scheduleBusyIdleClear()
+    }
+
     const absorbUserInput = (raw: string): void => {
       const { draft, completedLines } = feedCompletedUserLines(userLineDraftRef.current, raw)
       userLineDraftRef.current = draft
@@ -1067,11 +1109,7 @@ export const TerminalPane: React.FC<Props> = ({
         cmdSuggestPanelOpenRef.current = false
         setCmdSuggestCmd(null)
         setCmdSuggestDraft('')
-        // Marcar como ocupado al enviar un comando al PTY
-        if (!isBusyRef.current) {
-          isBusyRef.current = true
-          onBusyChangeRef.current?.(true)
-        }
+        markPaneBusy()
       }
       for (const line of completedLines) {
         if (isClearCommandLine(line)) {
@@ -1265,6 +1303,7 @@ export const TerminalPane: React.FC<Props> = ({
     let lastPtyErrorAt = 0
     const unsubData = window.api.onPtyData(sessionId, data => {
       if (!termAlive || termRef.current !== term) return
+      if (ptyBusyRef.current) scheduleBusyIdleClear()
       if (!scrollbackHydrated) {
         ptyDataBuffer.push(data)
         return
@@ -1282,8 +1321,10 @@ export const TerminalPane: React.FC<Props> = ({
       )
       if (busySilenceTimerRef.current) clearTimeout(busySilenceTimerRef.current)
       busySilenceTimerRef.current = null
-      isBusyRef.current = false
-      onBusyChangeRef.current?.(false)
+      if (ptyBusyRef.current) {
+        ptyBusyRef.current = false
+        syncPaneBusyState()
+      }
       if (config.autoRestartShell === false) return
       // Sin proceso, ptyWrite no hace nada → no hay eco en xterm; el onData del renderer
       // sigue alimentando sugerencias. Re-lanzar shell en el mismo sessionId si el panel sigue montado.
@@ -1333,9 +1374,9 @@ export const TerminalPane: React.FC<Props> = ({
         clearTimeout(busySilenceTimerRef.current)
         busySilenceTimerRef.current = null
       }
-      if (isBusyRef.current) {
-        isBusyRef.current = false
-        onBusyChangeRef.current?.(false)
+      if (ptyBusyRef.current) {
+        ptyBusyRef.current = false
+        syncPaneBusyState()
       }
       cdVisibleRef.current = false
       setCdVisible(false); setCdDraft(''); setCdLocalDirs([])
@@ -1695,6 +1736,7 @@ export const TerminalPane: React.FC<Props> = ({
           onCollapse={collapseAiPanel}
           expanded={aiExpanded}
           onConfigPatch={onConfigPatch}
+          onBusyChange={handleAiBusyChange}
         />
       </div>
 

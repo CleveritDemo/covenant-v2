@@ -94,6 +94,7 @@ export function columnGridTemplate(ratio: number): string {
 
 export function rowGridTemplate(ratio: number): string {
   const r = clampRatioStatic(ratio, DEFAULT_ROW_RATIO)
-  const pct = (r * 100).toFixed(3)
-  return `minmax(${MIN_PANE_HEIGHT_PX}px, ${pct}%) ${SPLIT_GUTTER_PX}px minmax(${MIN_PANE_HEIGHT_PX}px, 1fr)`
+  const topFr = Math.max(0.001, r)
+  const bottomFr = Math.max(0.001, 1 - r)
+  return `minmax(${MIN_PANE_HEIGHT_PX}px, ${topFr}fr) ${SPLIT_GUTTER_PX}px minmax(${MIN_PANE_HEIGHT_PX}px, ${bottomFr}fr)`
 }

@@ -181,7 +181,9 @@
   display: grid;
   width: 100%;
   height: 100%;
+  gap: 0;
   align-items: stretch;
+  align-content: stretch;
 }
 
 /* 3/4 paneles: una sola columna en el contenedor exterior (filas apiladas) */
@@ -194,8 +196,19 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  align-self: stretch;
   display: grid;
+  gap: 0;
   align-items: stretch;
+  align-content: stretch;
+  overflow: hidden;
+}
+
+.tab-terminal-split > .tab-terminal-split__cell {
+  height: 100%;
+  align-self: stretch;
+  overflow: hidden;
 }
 
 .tab-terminal-split__cell {
@@ -211,6 +224,8 @@
   flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .tab-terminal-split__cell > .tab-terminal-pane-cell > .terminal-pane {
@@ -219,13 +234,39 @@
 }
 
 .split-gutter {
+  position: relative;
   flex-shrink: 0;
   margin: 0;
   padding: 0;
   border: none;
-  background: color-mix(in srgb, var(--border) 4%, transparent);
-  z-index: 30;
+  background: color-mix(in srgb, var(--border) 48%, var(--bg));
+  z-index: 80;
   touch-action: none;
+  isolation: isolate;
+}
+
+.split-gutter::before {
+  content: '';
+  position: absolute;
+  pointer-events: auto;
+}
+
+.split-gutter--column::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 10px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+
+.split-gutter--row::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 10px;
+  transform: translateY(-50%);
+  cursor: row-resize;
 }
 
 .split-gutter--column {
@@ -244,14 +285,13 @@
 
 .split-gutter:hover:not(.split-gutter--disabled),
 .split-gutter--dragging {
-  background: color-mix(in srgb, var(--accent) 5%, var(--border));
-  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 12%, color-mix(in srgb, var(--border) 48%, var(--bg)));
 }
 
 .split-gutter--disabled {
   cursor: default;
   pointer-events: none;
-  opacity: 0.18;
+  opacity: 0.22;
 }
 
 body.body--split-dragging {
@@ -267,8 +307,30 @@ body.body--split-dragging * {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Sin hueco vertical entre filas de terminales (3/4 paneles) */
+.tab-terminal-split--panes-3 .tab-terminal-split__row .terminal-pane-body,
+.tab-terminal-split--panes-4 > .tab-terminal-split__row:first-of-type .terminal-pane-body {
+  padding-bottom: 0;
+}
+
+.tab-terminal-split--panes-3 > .tab-terminal-split__cell .terminal-pane-body,
+.tab-terminal-split--panes-4 > .tab-terminal-split__row:last-of-type .terminal-pane-body {
+  padding-top: var(--pane-toolbar-reserve, 0px);
+}
+
+.tab-terminal-split--panes-3 .tab-terminal-split__row .ai-panel--dock-collapsed,
+.tab-terminal-split--panes-4 > .tab-terminal-split__row:first-of-type .ai-panel--dock-collapsed {
+  padding-bottom: 0;
+}
+
+.tab-terminal-split--panes-3 > .tab-terminal-split__cell .ai-panel--dock-collapsed,
+.tab-terminal-split--panes-4 > .tab-terminal-split__row:last-of-type .ai-panel--dock-collapsed {
+  padding-top: 0;
 }
 
 

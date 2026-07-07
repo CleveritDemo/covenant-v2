@@ -7,10 +7,8 @@
   justify-content: center;
   padding: 20px;
   perspective: 1600px;
-  perspective-origin: 50% 42%;
-  background:
-    radial-gradient(circle at 50% 20%, var(--accent-veil-strong) 0%, transparent 28%),
-    rgba(0, 0, 0, 0.52);
+  perspective-origin: 50% 50%;
+  background: rgba(0, 0, 0, 0.52);
   animation: terminal-modal-backdrop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -25,9 +23,7 @@
   color: var(--text);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
-    0 0 0 1px var(--accent-veil),
-    0 18px 52px rgba(0, 0, 0, 0.42),
-    0 10px 36px var(--accent-glow-soft);
+    0 18px 52px rgba(0, 0, 0, 0.42);
   outline: none;
   overflow: hidden;
   transform-origin: 50% 60%;
@@ -58,9 +54,7 @@
     transform: translateY(0) scale(1) rotateX(0deg);
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
-      0 0 0 1px var(--accent-veil),
-      0 18px 52px rgba(0, 0, 0, 0.42),
-      0 10px 36px var(--accent-glow-soft);
+      0 18px 52px rgba(0, 0, 0, 0.42);
   }
 }
 

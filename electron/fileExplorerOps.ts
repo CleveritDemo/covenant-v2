@@ -18,6 +18,7 @@ import type {
   FileExplorerWriteResult,
 } from '../src/shared/fileExplorerTypes'
 import { FILE_EXPLORER_ERROR_CODES } from '../src/shared/fileExplorerErrorCodes'
+import { FILE_EXPLORER_HIDDEN_DIR_NAMES } from '../src/shared/fileExplorerHiddenDirs'
 import { resolveSafeProjectPath, writeProjectFile } from './agentFileOps'
 import { isExistingDirectory } from './shellCwdSync'
 
@@ -30,9 +31,7 @@ const BINARY_EXTENSIONS = new Set([
   'woff', 'woff2', 'ttf', 'eot', 'mp3', 'mp4', 'mov', 'avi', 'exe', 'dll', 'so', 'dylib',
 ])
 
-const HIDDEN_DIR_NAMES = new Set([
-  'node_modules', '.git', 'dist', 'build', '.next', 'coverage', '__pycache__',
-])
+const HIDDEN_DIR_NAMES = FILE_EXPLORER_HIDDEN_DIR_NAMES
 
 function resolveWorkingDir(cwdRaw: string): string | null {
   const trimmed = String(cwdRaw).trim()
@@ -376,27 +375,33 @@ export function searchProjectFiles(
     return {
       ok: false,
       paths: [],
+      hits: [],
       error: 'cwd inválido',
       code: FILE_EXPLORER_ERROR_CODES.CWD_INVALID,
     }
   }
 
   const query = String(queryRaw ?? '').trim().toLowerCase()
-  if (!query) return { ok: true, paths: [] }
+  if (!query) return { ok: true, paths: [], hits: [] }
 
   const globPattern = `*${query.replace(/[*?[\]{}]/g, '')}*`
   const rgPaths = runRgFileSearch(projectRoot, globPattern)
   if (rgPaths) {
+    // rg --files solo lista archivos; también buscar dirs por nombre en walk superficial
+    const fileHits = rgPaths.map(rel => ({ relPath: rel, isDirectory: false }))
+    const dirHits = collectMatchingDirs(projectRoot, query, FILE_EXPLORER_SEARCH_MAX_RESULTS - fileHits.length)
+    const hits = [...fileHits, ...dirHits].slice(0, FILE_EXPLORER_SEARCH_MAX_RESULTS)
     return {
       ok: true,
-      paths: rgPaths,
-      truncated: rgPaths.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS,
+      paths: hits.map(h => h.relPath),
+      hits,
+      truncated: hits.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS || rgPaths.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS,
     }
   }
 
-  const paths: string[] = []
+  const hits: Array<{ relPath: string; isDirectory: boolean }> = []
   const walk = (dir: string, relPrefix: string, depth: number): void => {
-    if (paths.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS || depth > 6) return
+    if (hits.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS || depth > 6) return
     let dirents: import('fs').Dirent[]
     try {
       dirents = readdirSync(dir, { withFileTypes: true })
@@ -405,23 +410,61 @@ export function searchProjectFiles(
     }
     dirents.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     for (const e of dirents) {
-      if (paths.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS) break
+      if (hits.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS) break
       if (e.name.startsWith('.')) continue
       if (e.isDirectory()) {
         if (HIDDEN_DIR_NAMES.has(e.name)) continue
         const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name
+        if (e.name.toLowerCase().includes(query) || rel.toLowerCase().includes(query)) {
+          hits.push({ relPath: rel, isDirectory: true })
+        }
         walk(resolve(dir, e.name), rel, depth + 1)
         continue
       }
       if (!e.isFile()) continue
       const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name
       if (e.name.toLowerCase().includes(query) || rel.toLowerCase().includes(query)) {
-        paths.push(rel)
+        hits.push({ relPath: rel, isDirectory: false })
       }
     }
   }
   walk(projectRoot, '', 0)
-  return { ok: true, paths, truncated: paths.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS }
+  return {
+    ok: true,
+    paths: hits.map(h => h.relPath),
+    hits,
+    truncated: hits.length >= FILE_EXPLORER_SEARCH_MAX_RESULTS,
+  }
+}
+
+function collectMatchingDirs(
+  projectRoot: string,
+  query: string,
+  max: number,
+): Array<{ relPath: string; isDirectory: boolean }> {
+  if (max <= 0) return []
+  const hits: Array<{ relPath: string; isDirectory: boolean }> = []
+  const walk = (dir: string, relPrefix: string, depth: number): void => {
+    if (hits.length >= max || depth > 6) return
+    let dirents: import('fs').Dirent[]
+    try {
+      dirents = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of dirents) {
+      if (hits.length >= max) break
+      if (!e.isDirectory() || e.name.startsWith('.')) continue
+      if (HIDDEN_DIR_NAMES.has(e.name)) continue
+      const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name
+      if (e.name.toLowerCase().includes(query) || rel.toLowerCase().includes(query)) {
+        hits.push({ relPath: rel, isDirectory: true })
+      }
+      walk(resolve(dir, e.name), rel, depth + 1)
+    }
+  }
+  walk(projectRoot, '', 0)
+  return hits
 }
 
 function runRgFileSearch(projectRoot: string, globPattern: string): string[] | null {

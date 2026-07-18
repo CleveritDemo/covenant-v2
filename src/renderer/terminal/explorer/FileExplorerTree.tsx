@@ -30,6 +30,9 @@ import {
   parentRelPath,
   pasteDestRelPath,
   relPathFromCwd,
+  resolveExplorerActionPaths,
+  seedMultiSelect,
+  filterRowsKeepingAncestors,
   sessionCwdPaneLabel,
   type ExplorerSelectedEntry,
 } from './explorerPathUtils'
@@ -50,8 +53,17 @@ interface FileExplorerTreeProps {
   onExpandedChange: (paths: string[]) => void
   onShowHiddenDirsChange: (show: boolean) => void
   onOpenOnSingleClickChange?: (value: boolean) => void
-  onSelectEntry: (relPath: string, isDirectory: boolean, e?: React.MouseEvent) => boolean | Promise<boolean>
+  onSelectEntry: (
+    relPath: string,
+    isDirectory: boolean,
+    e?: React.MouseEvent,
+    options?: { open?: boolean },
+  ) => boolean | Promise<boolean>
   onRequestConfirm?: (req: ExplorerConfirmRequest) => Promise<boolean>
+  /** Confirmar discard si las rutas afectan el archivo abierto dirty. */
+  canMutateOpenPaths?: (paths: string[]) => Promise<boolean>
+  /** Confirmar discard antes de resetear el árbol por cambio de cwd. */
+  canResetSessionRoot?: () => Promise<boolean>
   onFileCreated?: (relPath: string) => void
   onSessionRootChange?: () => void
   onCloseExplorer?: () => void
@@ -94,6 +106,8 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       onOpenOnSingleClickChange,
       onSelectEntry,
       onRequestConfirm,
+      canMutateOpenPaths,
+      canResetSessionRoot,
       onFileCreated,
       onSessionRootChange,
       onCloseExplorer,
@@ -115,8 +129,13 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const [rootError, setRootError] = useState<string | null>(null)
     const [filterQuery, setFilterQuery] = useState('')
     const [searchOpen, setSearchOpen] = useState(false)
-    const [globalSearchPaths, setGlobalSearchPaths] = useState<string[]>([])
+    const [globalSearchHits, setGlobalSearchHits] = useState<
+      Array<{ relPath: string; isDirectory: boolean }>
+    >([])
+    const [globalSearchTruncated, setGlobalSearchTruncated] = useState(false)
     const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
+    const [cutRelPaths, setCutRelPaths] = useState<Set<string>>(() => new Set())
+    const [dragOverRelPath, setDragOverRelPath] = useState<string | null>(null)
     const [toastMessage, setToastMessage] = useState<string | null>(null)
     const [newMenu, setNewMenu] = useState<{ x: number; y: number } | null>(null)
     const [createParentOverride, setCreateParentOverride] = useState<string | null>(null)
@@ -149,7 +168,11 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       setContextMenu(null)
     }, [])
 
-    const showToast = useCallback((error?: string, code?: Parameters<typeof fileExplorerErrorMessage>[2]) => {
+    const showToast = useCallback((message: string) => {
+      setToastMessage(message)
+    }, [])
+
+    const showErrorToast = useCallback((error?: string, code?: Parameters<typeof fileExplorerErrorMessage>[2]) => {
       setToastMessage(fileExplorerErrorMessage(t, error, code))
     }, [t])
 
@@ -175,11 +198,16 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       }
     }, [sessionId])
 
+    const loadDirGenRef = useRef(new Map<string, number>())
+
     const loadDir = useCallback(
       async (relPath: string): Promise<void> => {
+        const gen = (loadDirGenRef.current.get(relPath) ?? 0) + 1
+        loadDirGenRef.current.set(relPath, gen)
         setLoadingDirs(prev => new Set(prev).add(relPath))
         try {
           const result = await window.api.fileExplorerListDir(sessionId, relPath, showHiddenDirs)
+          if (loadDirGenRef.current.get(relPath) !== gen) return
           if (relPath === '') {
             setRootError(result.ok ? null : fileExplorerErrorMessage(t, result.error, result.code))
           }
@@ -189,11 +217,13 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
             return next
           })
         } finally {
-          setLoadingDirs(prev => {
-            const next = new Set(prev)
-            next.delete(relPath)
-            return next
-          })
+          if (loadDirGenRef.current.get(relPath) === gen) {
+            setLoadingDirs(prev => {
+              const next = new Set(prev)
+              next.delete(relPath)
+              return next
+            })
+          }
         }
       },
       [sessionId, showHiddenDirs, t],
@@ -220,18 +250,32 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     }, [loadDir, reloadExpandedDirs, refreshGitStatus])
 
     const resetTreeForNewCwd = useCallback(async (): Promise<void> => {
+      if (canResetSessionRoot) {
+        const ok = await canResetSessionRoot()
+        if (!ok) return
+      }
       lastManualResetAtRef.current = Date.now()
       setRootError(null)
       setContextMenu(null)
       loadedExpandedKeyRef.current = null
       setChildrenByDir(new Map())
       setMultiSelected(new Set())
+      setCutRelPaths(new Set())
+      setFilterQuery('')
+      setSearchOpen(false)
+      setGlobalSearchHits([])
+      setGlobalSearchTruncated(false)
+      setCreateMode(null)
+      setCreateName('')
+      setCreateError(null)
+      setCreateParentOverride(null)
+      setRenamingEntry(null)
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
       setTreeRootCwd(cwd)
       onSessionRootChange?.()
       window.api.fileExplorerWatchStart(sessionId)
       await loadDir('')
-    }, [loadDir, onSessionRootChange, sessionId])
+    }, [loadDir, onSessionRootChange, sessionId, canResetSessionRoot])
 
     const evictDirCache = useCallback((relPath: string): void => {
       const prefix = `${relPath}/`
@@ -301,6 +345,8 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       setCreateName('')
       setCreateError(null)
       setChildrenByDir(new Map())
+      setCutRelPaths(new Set())
+      setMultiSelected(new Set())
       loadedExpandedKeyRef.current = null
       loadedSessionRef.current = sessionId
       void window.api.getSessionCwd(sessionId).then(cwd => {
@@ -368,11 +414,23 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     )
 
     const getSelectedRelPaths = useCallback((): string[] => {
-      if (multiSelected.size > 0) return Array.from(multiSelected)
-      if (contextMenu?.target) return [contextMenu.target.relPath]
-      if (selectedRelPath) return [selectedRelPath]
-      return []
+      return resolveExplorerActionPaths(
+        multiSelected,
+        contextMenu?.target?.relPath,
+        selectedRelPath,
+      )
     }, [multiSelected, contextMenu, selectedRelPath])
+
+    const expandDirIfCollapsed = useCallback(
+      (relPath: string): void => {
+        if (expandedSet.has(relPath)) return
+        const next = new Set(expandedRelPaths)
+        next.add(relPath)
+        if (!childrenByDir.has(relPath)) void loadDir(relPath)
+        onExpandedChange(Array.from(next))
+      },
+      [expandedSet, expandedRelPaths, childrenByDir, loadDir, onExpandedChange],
+    )
 
     const handleSelectEntry = useCallback(
       async (relPath: string, isDirectory: boolean, e?: React.MouseEvent): Promise<void> => {
@@ -380,12 +438,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         const range = e?.shiftKey
 
         if (accel) {
-          setMultiSelected(prev => {
-            const next = new Set(prev)
-            if (next.has(relPath)) next.delete(relPath)
-            else next.add(relPath)
-            return next
-          })
+          setMultiSelected(prev => seedMultiSelect(prev, selectedRelPath, relPath))
           setLastClickedPath(relPath)
           return
         }
@@ -404,12 +457,15 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         setMultiSelected(new Set())
         setLastClickedPath(relPath)
 
-        if (!openOnSingleClick && !isDirectory) return
-
-        const ok = await onSelectEntry(relPath, isDirectory, e)
+        // Modo doble-click: seleccionar archivo sin abrirlo; abrir solo con doble click
+        const open = isDirectory ? false : openOnSingleClick
+        const ok = await onSelectEntry(relPath, isDirectory, e, { open })
         if (!ok) return
+
+        // Click en carpeta: seleccionar + expandir si está colapsada (cerrar = chevron/dblclick/←)
+        if (isDirectory) expandDirIfCollapsed(relPath)
       },
-      [lastClickedPath, onSelectEntry, openOnSingleClick],
+      [lastClickedPath, onSelectEntry, openOnSingleClick, expandDirIfCollapsed, selectedRelPath],
     )
 
     const handleDoubleClickEntry = useCallback(
@@ -419,7 +475,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           return
         }
         if (!openOnSingleClick) {
-          void onSelectEntry(relPath, false)
+          void onSelectEntry(relPath, false, undefined, { open: true })
         }
       },
       [toggleDir, onSelectEntry, openOnSingleClick],
@@ -481,9 +537,16 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       (e: React.MouseEvent, target: FileExplorerContextMenuTarget | null) => {
         e.preventDefault()
         e.stopPropagation()
+        if (target && multiSelected.size > 0 && !multiSelected.has(target.relPath)) {
+          setMultiSelected(new Set())
+          setLastClickedPath(target.relPath)
+          void onSelectEntry(target.relPath, target.isDirectory, undefined, {
+            open: false,
+          })
+        }
         setContextMenu({ x: e.clientX, y: e.clientY, target })
       },
-      [],
+      [multiSelected, onSelectEntry],
     )
 
     const onTreeContextMenu = useCallback(
@@ -513,18 +576,28 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       closeContextMenu()
       if (paths.length === 0) return
       void window.api.fileExplorerCopy(sessionId, paths).then(result => {
-        if (!result.ok) showToast(result.error, result.code)
+        if (!result.ok) {
+          showErrorToast(result.error, result.code)
+          return
+        }
+        setCutRelPaths(new Set())
+        showToast(t('fileExplorer.toast.copied', { count: result.count ?? paths.length }))
       })
-    }, [getSelectedRelPaths, closeContextMenu, sessionId, showToast])
+    }, [getSelectedRelPaths, closeContextMenu, sessionId, showErrorToast, showToast, t])
 
     const handleCut = useCallback(() => {
       const paths = getSelectedRelPaths()
       closeContextMenu()
       if (paths.length === 0) return
       void window.api.fileExplorerCut(sessionId, paths).then(result => {
-        if (!result.ok) showToast(result.error, result.code)
+        if (!result.ok) {
+          showErrorToast(result.error, result.code)
+          return
+        }
+        setCutRelPaths(new Set(paths))
+        showToast(t('fileExplorer.toast.cut', { count: result.count ?? paths.length }))
       })
-    }, [getSelectedRelPaths, closeContextMenu, sessionId, showToast])
+    }, [getSelectedRelPaths, closeContextMenu, sessionId, showErrorToast, showToast, t])
 
     const handleCopyName = useCallback(() => {
       const target = contextMenu?.target
@@ -547,12 +620,28 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       const dest = pasteDestRelPath(destEntry)
       void window.api.fileExplorerPaste(sessionId, dest).then(result => {
         if (!result.ok) {
-          showToast(result.error, result.code)
+          if (result.count && result.count > 0) {
+            showErrorToast(
+              result.error
+                ? `${result.error} (${t('fileExplorer.toast.pastePartial', { count: result.count })})`
+                : undefined,
+              result.code,
+            )
+            setCutRelPaths(new Set())
+            void reloadTree()
+            return
+          }
+          showErrorToast(result.error, result.code)
           return
         }
+        setCutRelPaths(new Set())
+        showToast(t('fileExplorer.toast.pasted', { count: result.count ?? 1 }))
         void reloadTree()
       })
-    }, [contextMenu, closeContextMenu, selectedEntry, sessionId, reloadTree, showToast])
+    }, [
+      contextMenu, closeContextMenu, selectedEntry, sessionId, reloadTree,
+      showErrorToast, showToast, t,
+    ])
 
     const startRename = useCallback(() => {
       const target = contextMenu?.target
@@ -602,10 +691,15 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     ])
 
     const performDelete = useCallback(async (paths: string[]): Promise<void> => {
+      if (paths.length === 0) return
+      if (canMutateOpenPaths) {
+        const ok = await canMutateOpenPaths(paths)
+        if (!ok) return
+      }
       for (const relPath of paths) {
         const result = await window.api.fileExplorerDelete(sessionId, relPath)
         if (!result.ok) {
-          showToast(result.error, result.code)
+          showErrorToast(result.error, result.code)
           return
         }
         const parent = parentRelPath(relPath)
@@ -614,27 +708,44 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       }
       setMultiSelected(new Set())
       await refreshGitStatus()
-    }, [sessionId, refreshAfterMutation, onEntryDeleted, refreshGitStatus, showToast])
+    }, [
+      sessionId, refreshAfterMutation, onEntryDeleted, refreshGitStatus,
+      showErrorToast, canMutateOpenPaths,
+    ])
+
+    const confirmAndDelete = useCallback((paths: string[], focusRow?: {
+      name: string
+      isDirectory: boolean
+    }) => {
+      if (paths.length === 0) return
+      const runDelete = (): void => { void performDelete(paths) }
+      if (onRequestConfirm) {
+        const firstName = focusRow?.name
+          ?? paths[0]?.split('/').pop()
+          ?? paths[0]
+          ?? ''
+        const message = paths.length > 1
+          ? t('fileExplorer.confirm.deleteMany', { count: paths.length })
+          : (focusRow?.isDirectory ?? false)
+            ? t('fileExplorer.confirm.deleteDir', { name: firstName })
+            : t('fileExplorer.confirm.deleteFile', { name: firstName })
+        void onRequestConfirm({ type: 'delete', message, onConfirm: runDelete })
+        return
+      }
+      runDelete()
+    }, [performDelete, onRequestConfirm, t])
 
     const handleDelete = useCallback(() => {
       const paths = getSelectedRelPaths()
       const target = contextMenu?.target
       closeContextMenu()
-      if (paths.length === 0) return
-
-      const runDelete = (): void => { void performDelete(paths) }
-
-      if (onRequestConfirm) {
-        const message = paths.length > 1
-          ? t('fileExplorer.confirm.deleteMany', { count: paths.length })
-          : target?.isDirectory
-            ? t('fileExplorer.confirm.deleteDir', { name: target.name })
-            : t('fileExplorer.confirm.deleteFile', { name: target?.name ?? paths[0] })
-        void onRequestConfirm({ type: 'delete', message, onConfirm: runDelete })
-        return
-      }
-      runDelete()
-    }, [getSelectedRelPaths, contextMenu, closeContextMenu, onRequestConfirm, performDelete, t])
+      confirmAndDelete(
+        paths,
+        target
+          ? { name: target.name, isDirectory: target.isDirectory }
+          : undefined,
+      )
+    }, [getSelectedRelPaths, contextMenu, closeContextMenu, confirmAndDelete])
 
     const handleRevealTerminalCwd = useCallback(async () => {
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
@@ -652,20 +763,35 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     }, [contextMenu, closeContextMenu, sessionId])
 
     const handleDropOnDir = useCallback(
-      (destRelPath: string, e: React.DragEvent): void => {
-        const src = dragRelPathRef.current ?? e.dataTransfer.getData('text/plain')
-        if (!src || src === destRelPath) return
-        if (isRelPathInside(src, destRelPath)) {
-          showToast(undefined, FILE_EXPLORER_ERROR_CODES.DROP_INTO_SELF)
+      async (destRelPath: string, e: React.DragEvent): Promise<void> => {
+        setDragOverRelPath(null)
+        const raw = dragRelPathRef.current ?? e.dataTransfer.getData('text/plain')
+        if (!raw) return
+        const sources = raw.includes('\n')
+          ? raw.split('\n').map(s => s.trim()).filter(Boolean)
+          : [raw]
+        const movePaths = sources.filter(src => {
+          if (!src || src === destRelPath) return false
+          if (isRelPathInside(src, destRelPath)) return false
+          return true
+        })
+        if (movePaths.length === 0) {
+          if (sources.some(src => isRelPathInside(src, destRelPath))) {
+            showErrorToast(undefined, FILE_EXPLORER_ERROR_CODES.DROP_INTO_SELF)
+          }
           return
         }
-        const dest = destRelPath ? `${destRelPath}/${src.split('/').pop()}` : src.split('/').pop()!
-        const parent = parentRelPath(dest)
-        const newName = dest.split('/').pop()!
-        const newRel = parent ? `${parent}/${newName}` : newName
-        void window.api.fileExplorerMove(sessionId, src, newRel).then(async result => {
+        if (canMutateOpenPaths) {
+          const ok = await canMutateOpenPaths(movePaths)
+          if (!ok) return
+        }
+        for (const src of movePaths) {
+          const newRel = destRelPath
+            ? `${destRelPath}/${src.split('/').pop()}`
+            : src.split('/').pop()!
+          const result = await window.api.fileExplorerMove(sessionId, src, newRel)
           if (!result.ok) {
-            showToast(result.error, result.code)
+            showErrorToast(result.error, result.code)
             return
           }
           let movedIsDir = false
@@ -679,10 +805,14 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           onEntryRenamed?.(src, newRel, movedIsDir)
           await refreshAfterMutation(destRelPath)
           await refreshAfterMutation(parentRelPath(src))
-          await refreshGitStatus()
-        })
+        }
+        setMultiSelected(new Set())
+        await refreshGitStatus()
       },
-      [sessionId, childrenByDir, refreshAfterMutation, refreshGitStatus, showToast, onEntryRenamed],
+      [
+        sessionId, childrenByDir, refreshAfterMutation, refreshGitStatus,
+        showErrorToast, onEntryRenamed, canMutateOpenPaths,
+      ],
     )
 
     const loadedFilterMatches = useMemo(() => {
@@ -702,18 +832,21 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     useEffect(() => {
       const q = filterQuery.trim()
       if (!q) return
+      // Solo expandir padres de matches ya cargados, con debounce largo para no expandir en cada tecla.
       const id = window.setTimeout(() => {
-        for (const rel of loadedFilterMatches) {
+        const limited = loadedFilterMatches.slice(0, 40)
+        for (const rel of limited) {
           expandParents(rel)
         }
-      }, 150)
+      }, 400)
       return () => window.clearTimeout(id)
     }, [filterQuery, loadedFilterMatches, expandParents])
 
     useEffect(() => {
       const q = filterQuery.trim()
       if (!q) {
-        setGlobalSearchPaths([])
+        setGlobalSearchHits([])
+        setGlobalSearchTruncated(false)
         setGlobalSearchLoading(false)
         return
       }
@@ -722,11 +855,21 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       const id = window.setTimeout(() => {
         void window.api.fileExplorerSearch(sessionId, q).then(result => {
           if (cancelled) return
-          setGlobalSearchPaths(result.ok ? result.paths : [])
+          if (result.ok) {
+            const hits = result.hits?.length
+              ? result.hits
+              : result.paths.map(relPath => ({ relPath, isDirectory: false }))
+            setGlobalSearchHits(hits)
+            setGlobalSearchTruncated(Boolean(result.truncated))
+          } else {
+            setGlobalSearchHits([])
+            setGlobalSearchTruncated(false)
+          }
           setGlobalSearchLoading(false)
         }).catch(() => {
           if (cancelled) return
-          setGlobalSearchPaths([])
+          setGlobalSearchHits([])
+          setGlobalSearchTruncated(false)
           setGlobalSearchLoading(false)
         })
       }, 200)
@@ -762,29 +905,27 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
 
       const q = filterQuery.trim().toLowerCase()
       if (!q) return rows
-      const filtered = rows.filter(
-        r => r.entry.name.toLowerCase().includes(q) || r.entry.relPath.toLowerCase().includes(q),
-      )
+      const filtered = filterRowsKeepingAncestors(rows, q)
       const seen = new Set(filtered.map(r => r.entry.relPath))
-      for (const relPath of globalSearchPaths) {
-        if (seen.has(relPath)) continue
-        const name = relPath.split('/').pop() ?? relPath
+      for (const hit of globalSearchHits) {
+        if (seen.has(hit.relPath)) continue
+        const name = hit.relPath.split('/').pop() ?? hit.relPath
         filtered.push({
-          entry: { name, relPath, isDirectory: false },
+          entry: { name, relPath: hit.relPath, isDirectory: hit.isDirectory },
           depth: 0,
           expanded: false,
           loading: false,
         })
-        seen.add(relPath)
+        seen.add(hit.relPath)
       }
       return filtered
-    }, [childrenByDir, expandedSet, loadingDirs, filterQuery, globalSearchPaths])
+    }, [childrenByDir, expandedSet, loadingDirs, filterQuery, globalSearchHits])
 
     const showSearchHint = useMemo(() => {
       const q = filterQuery.trim().toLowerCase()
       if (!q) return false
       if (globalSearchLoading) return true
-      if (loadedFilterMatches.length === 0 && globalSearchPaths.length === 0) return true
+      if (loadedFilterMatches.length === 0 && globalSearchHits.length === 0) return true
       if (loadedFilterMatches.length === 0) return false
       for (const rel of loadedFilterMatches) {
         const parts = rel.split('/').filter(Boolean)
@@ -795,7 +936,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         }
       }
       return false
-    }, [filterQuery, loadedFilterMatches, childrenByDir, globalSearchLoading, globalSearchPaths.length])
+    }, [filterQuery, loadedFilterMatches, childrenByDir, globalSearchLoading, globalSearchHits.length])
 
     const visibleRowsRef = useRef(visibleRows)
     visibleRowsRef.current = visibleRows
@@ -843,16 +984,62 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           requestAnimationFrame(() => searchInputRef.current?.focus())
           return
         }
+        if (e.key === 'Escape') {
+          if (cutRelPaths.size > 0) {
+            e.preventDefault()
+            setCutRelPaths(new Set())
+            return
+          }
+        }
+        if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+          const k = e.key.toLowerCase()
+          if (k === 'c') {
+            e.preventDefault()
+            handleCopy()
+            return
+          }
+          if (k === 'x') {
+            e.preventDefault()
+            handleCut()
+            return
+          }
+          if (k === 'v') {
+            e.preventDefault()
+            handlePaste()
+            return
+          }
+        }
 
         const rows = visibleRowsRef.current
         if (rows.length === 0) return
 
+        const selectFocusedRow = (index: number): void => {
+          const row = rows[index]
+          if (!row) return
+          setMultiSelected(new Set())
+          setLastClickedPath(row.entry.relPath)
+          void onSelectEntry(row.entry.relPath, row.entry.isDirectory, undefined, { open: false })
+        }
+
         if (e.key === 'ArrowDown') {
           e.preventDefault()
-          setFocusedRowIndex(i => Math.min(rows.length - 1, i + 1))
+          const next = Math.min(rows.length - 1, focusedRowIndex + 1)
+          setFocusedRowIndex(next)
+          selectFocusedRow(next)
         } else if (e.key === 'ArrowUp') {
           e.preventDefault()
-          setFocusedRowIndex(i => Math.max(0, i - 1))
+          const next = Math.max(0, focusedRowIndex - 1)
+          setFocusedRowIndex(next)
+          selectFocusedRow(next)
+        } else if (e.key === 'Home') {
+          e.preventDefault()
+          setFocusedRowIndex(0)
+          selectFocusedRow(0)
+        } else if (e.key === 'End') {
+          e.preventDefault()
+          const next = rows.length - 1
+          setFocusedRowIndex(next)
+          selectFocusedRow(next)
         } else if (e.key === 'ArrowRight') {
           e.preventDefault()
           const row = rows[focusedRowIndex]
@@ -862,9 +1049,22 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault()
           const row = rows[focusedRowIndex]
-          if (row?.entry.isDirectory && expandedSet.has(row.entry.relPath)) {
+          if (!row) return
+          if (row.entry.isDirectory && expandedSet.has(row.entry.relPath)) {
             toggleDir(row.entry.relPath)
+            return
           }
+          const parent = parentRelPath(row.entry.relPath)
+          if (!parent && !row.entry.relPath.includes('/')) return
+          const parentIdx = rows.findIndex(r => r.entry.relPath === parent)
+          if (parentIdx >= 0) {
+            setFocusedRowIndex(parentIdx)
+            selectFocusedRow(parentIdx)
+          }
+        } else if (e.key === ' ' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault()
+          const row = rows[focusedRowIndex]
+          if (row?.entry.isDirectory) toggleDir(row.entry.relPath)
         } else if (e.key === 'Enter') {
           e.preventDefault()
           const row = rows[focusedRowIndex]
@@ -889,27 +1089,35 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         } else if (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) {
           e.preventDefault()
           const row = rows[focusedRowIndex]
-          if (row) {
-            const paths = multiSelected.size > 0 ? Array.from(multiSelected) : [row.entry.relPath]
-            const runDelete = (): void => { void performDelete(paths) }
-            if (onRequestConfirm) {
-              const message = paths.length > 1
-                ? t('fileExplorer.confirm.deleteMany', { count: paths.length })
-                : row.entry.isDirectory
-                  ? t('fileExplorer.confirm.deleteDir', { name: row.entry.name })
-                  : t('fileExplorer.confirm.deleteFile', { name: row.entry.name })
-              void onRequestConfirm({ type: 'delete', message, onConfirm: runDelete })
-            } else {
-              runDelete()
-            }
-          }
+          const paths = resolveExplorerActionPaths(
+            multiSelected,
+            null,
+            row?.entry.relPath ?? selectedRelPath,
+          )
+          confirmAndDelete(
+            paths,
+            row
+              ? { name: row.entry.name, isDirectory: row.entry.isDirectory }
+              : undefined,
+          )
         }
       },
       [
-        focusedRowIndex, expandedSet, toggleDir, handleSelectEntry, multiSelected,
-        performDelete, onRequestConfirm, t,
+        focusedRowIndex, expandedSet, toggleDir, handleSelectEntry, handleDoubleClickEntry,
+        openOnSingleClick, onSelectEntry, multiSelected, confirmAndDelete, selectedRelPath,
+        handleCopy, handleCut, handlePaste, cutRelPaths.size,
       ],
     )
+
+    const handleDragStartEntry = useCallback((relPath: string, e: React.DragEvent) => {
+      const paths =
+        multiSelected.size > 0 && multiSelected.has(relPath)
+          ? Array.from(multiSelected)
+          : [relPath]
+      dragRelPathRef.current = paths.join('\n')
+      e.dataTransfer.setData('text/plain', paths.join('\n'))
+      e.dataTransfer.effectAllowed = 'move'
+    }, [multiSelected])
 
     const renderRow = (row: typeof visibleRows[number], index: number): React.ReactNode => (
       <FileExplorerTreeNode
@@ -923,6 +1131,8 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           Boolean(selectedIsDirectory) === row.entry.isDirectory
         }
         multiSelected={multiSelected.has(row.entry.relPath)}
+        cutMarked={cutRelPaths.has(row.entry.relPath)}
+        dragOver={dragOverRelPath === row.entry.relPath}
         gitStatus={gitStatusFromMap(gitStatusByPath, row.entry.relPath)}
         isRenaming={renamingEntry?.relPath === row.entry.relPath}
         renameValue={renameName}
@@ -932,8 +1142,13 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         onToggleDir={toggleDir}
         onSelectEntry={handleSelectEntry}
         onDoubleClickEntry={handleDoubleClickEntry}
-        onDragStartEntry={rel => { dragRelPathRef.current = rel }}
-        onDropOnDir={handleDropOnDir}
+        onDragStartEntry={handleDragStartEntry}
+        onDragOverDir={rel => setDragOverRelPath(rel)}
+        onDragLeaveDir={rel => {
+          setDragOverRelPath(prev => (prev === rel ? null : prev))
+        }}
+        onDropOnDir={(dest, ev) => { void handleDropOnDir(dest, ev) }}
+        nodeId={`explorer-row-${index}`}
         tabIndex={index === focusedRowIndex ? 0 : -1}
         onFocusNode={() => setFocusedRowIndex(index)}
       />
@@ -1014,6 +1229,11 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
                   : t('fileExplorer.search.hintExpand')}
               </span>
             )}
+            {globalSearchTruncated && !globalSearchLoading && (
+              <span className="file-explorer-tree__search-hint">
+                {t('fileExplorer.search.truncated')}
+              </span>
+            )}
           </div>
         )}
 
@@ -1072,8 +1292,25 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           className="file-explorer-tree"
           role="tree"
           tabIndex={0}
+          aria-activedescendant={
+            visibleRows[focusedRowIndex]
+              ? `explorer-row-${focusedRowIndex}`
+              : undefined
+          }
           onKeyDown={handleTreeKeyDown}
           onContextMenu={onTreeContextMenu}
+          onDragOver={e => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setDragOverRelPath('')
+          }}
+          onDragLeave={e => {
+            if (e.currentTarget === e.target) setDragOverRelPath(null)
+          }}
+          onDrop={e => {
+            e.preventDefault()
+            void handleDropOnDir('', e)
+          }}
         >
           {rootError && !loadingDirs.has('') && (
             <p className="file-explorer-tree__empty file-explorer-tree__empty--error" role="alert">

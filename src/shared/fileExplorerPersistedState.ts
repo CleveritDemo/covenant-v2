@@ -3,6 +3,8 @@ export interface FileExplorerPersistedState {
   open: boolean
   selectedRelPath: string | null
   selectedIsDirectory: boolean
+  /** Archivo abierto en el editor (puede diferir de la selección del árbol). */
+  openedRelPath: string | null
   expandedRelPaths: string[]
   /** Mostrar node_modules, .git, etc. */
   showHiddenDirs: boolean
@@ -18,6 +20,7 @@ export const DEFAULT_FILE_EXPLORER_STATE: FileExplorerPersistedState = {
   open: false,
   selectedRelPath: null,
   selectedIsDirectory: false,
+  openedRelPath: null,
   expandedRelPaths: DEFAULT_EXPANDED,
   showHiddenDirs: false,
   treeWidthPercent: 30,
@@ -40,10 +43,19 @@ export function normalizeFileExplorerState(raw: unknown): FileExplorerPersistedS
   if (treeWidthPercent < 20) treeWidthPercent = 20
   if (treeWidthPercent > 50) treeWidthPercent = 50
 
+  const selectedRelPath = typeof o.selectedRelPath === 'string' ? o.selectedRelPath : null
+  const selectedIsDirectory = o.selectedIsDirectory === true
+  let openedRelPath = typeof o.openedRelPath === 'string' ? o.openedRelPath : null
+  // Migración: si no había openedRelPath, abrir el archivo seleccionado.
+  if (openedRelPath === null && selectedRelPath && !selectedIsDirectory) {
+    openedRelPath = selectedRelPath
+  }
+
   return {
     open: o.open === true,
-    selectedRelPath: typeof o.selectedRelPath === 'string' ? o.selectedRelPath : null,
-    selectedIsDirectory: o.selectedIsDirectory === true,
+    selectedRelPath,
+    selectedIsDirectory,
+    openedRelPath,
     expandedRelPaths,
     showHiddenDirs: o.showHiddenDirs === true,
     treeWidthPercent,

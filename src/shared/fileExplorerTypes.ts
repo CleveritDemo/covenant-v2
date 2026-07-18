@@ -38,12 +38,18 @@ export type FileExplorerCreateFileResult = FileExplorerWriteResult
 
 export type FileExplorerClipboardResult =
   | { ok: true; count?: number }
-  | ({ ok: false } & FileExplorerErrorPayload)
+  | ({ ok: false; count?: number } & FileExplorerErrorPayload)
+
+export interface FileExplorerSearchHit {
+  relPath: string
+  isDirectory: boolean
+}
 
 export interface FileExplorerSearchResult {
   ok: boolean
-  /** Rutas relativas al cwd de la sesión */
+  /** Rutas relativas al cwd de la sesión (legacy; preferir `hits`). */
   paths: string[]
+  hits?: FileExplorerSearchHit[]
   truncated?: boolean
   error?: string
   code?: FileExplorerErrorCode

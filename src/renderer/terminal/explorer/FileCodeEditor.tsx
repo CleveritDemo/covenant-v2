@@ -3,6 +3,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { EditorState, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
+import { useT } from '@i18n/useT'
 import { getTheme } from '../../../themes/presets'
 import { createCodeMirrorTheme } from '../../../themes/codeMirrorTheme'
 import { languageExtensionForPath } from './languageFromPath'
@@ -47,6 +48,7 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
   },
   ref,
 ) {
+  const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -193,5 +195,5 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [readOnly])
 
-  return <div className="file-code-editor" ref={containerRef} aria-label="Editor de código" />
+  return <div className="file-code-editor" ref={containerRef} aria-label={t('fileExplorer.editor.codeEditorAria')} />
 })

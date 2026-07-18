@@ -173,25 +173,37 @@ export function pasteIntoExplorer(
   }
 
   let pasted = 0
-  const movedSources: string[] = []
 
   for (const { srcAbs, name } of sources) {
     if (isPathInside(srcAbs, destDirAbs) || resolve(srcAbs) === resolve(destDirAbs)) {
-      return { ok: false, error: 'no se puede pegar dentro de la propia selección', code: FILE_EXPLORER_ERROR_CODES.PASTE_INTO_SELF }
+      return {
+        ok: false,
+        count: pasted,
+        error: 'no se puede pegar dentro de la propia selección',
+        code: FILE_EXPLORER_ERROR_CODES.PASTE_INTO_SELF,
+      }
     }
     const targetAbs = uniqueDestAbs(destDirAbs, name)
     try {
       const srcStat = statSync(srcAbs)
       if (mode === 'cut') {
         renameSync(srcAbs, targetAbs)
-        movedSources.push(srcAbs)
       } else {
         cpSync(srcAbs, targetAbs, srcStat.isDirectory() ? { recursive: true } : undefined)
       }
       pasted++
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      return { ok: false, error: msg, code: FILE_EXPLORER_ERROR_CODES.PASTE_FAILED }
+      if (mode === 'cut' && pasted > 0) {
+        // Algunos items ya se movieron; limpiar clipboard para no reintentar lo movido.
+        setClipboardEntry(sessionId, { absPaths: [], mode: 'copy' })
+      }
+      return {
+        ok: false,
+        count: pasted,
+        error: msg,
+        code: FILE_EXPLORER_ERROR_CODES.PASTE_FAILED,
+      }
     }
   }
 

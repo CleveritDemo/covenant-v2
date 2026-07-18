@@ -48,6 +48,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   const [matchCount, setMatchCount] = useState(0)
   const [isBinary, setIsBinary] = useState(false)
   const [largeFileInfo, setLargeFileInfo] = useState<{ sizeBytes: number; maxBytes: number } | null>(null)
+  const [diskConflict, setDiskConflict] = useState(false)
   const editorRef = useRef<FileCodeEditorHandle>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
 
@@ -66,6 +67,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
     setMatchCount(0)
     setIsBinary(false)
     setLargeFileInfo(null)
+    setDiskConflict(false)
   }, [selectedPath])
 
   const focusFindInput = useCallback(() => {
@@ -114,6 +116,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
       const text = payload.content ?? ''
       setDraftContent(text)
       setSavedContent(text)
+      setDiskConflict(false)
     } finally {
       if (gen === loadGenRef.current) setLoading(false)
     }
@@ -126,13 +129,18 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
       setSavedContent('')
       setError(null)
       setSaveError(null)
+      setDiskConflict(false)
       return
     }
     void loadFile()
   }, [selectedPath, loadFile])
 
   useEffect(() => {
-    if (!fsReloadToken || !selectedPath || draftContent !== savedContent) return
+    if (!fsReloadToken || !selectedPath) return
+    if (draftContent !== savedContent) {
+      setDiskConflict(true)
+      return
+    }
     void loadFile()
   }, [fsReloadToken, selectedPath, draftContent, savedContent, loadFile])
 
@@ -190,6 +198,26 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
           </button>
         )}
       </div>
+
+      {diskConflict && (
+        <div className="file-editor-panel__disk-banner" role="status">
+          <span>{t('fileExplorer.editor.diskChanged')}</span>
+          <button
+            type="button"
+            className="file-editor-panel__special-btn"
+            onClick={() => { void loadFile() }}
+          >
+            {t('fileExplorer.editor.reloadFromDisk')}
+          </button>
+          <button
+            type="button"
+            className="file-editor-panel__special-btn"
+            onClick={() => setDiskConflict(false)}
+          >
+            {t('fileExplorer.editor.keepEditing')}
+          </button>
+        </div>
+      )}
 
       <div className="file-editor-panel__body">
         {loading && (

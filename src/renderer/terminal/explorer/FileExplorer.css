@@ -430,6 +430,20 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+.file-explorer-tree-node--cut {
+  opacity: 0.45;
+}
+
+.file-explorer-tree-node--drag-over {
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
+  outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.file-explorer-tree-node:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
+  outline-offset: -1px;
+}
+
 .file-explorer-tree-node__chevron-btn {
   flex-shrink: 0;
   width: 12px;
@@ -589,6 +603,19 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.file-editor-panel__disk-banner {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 

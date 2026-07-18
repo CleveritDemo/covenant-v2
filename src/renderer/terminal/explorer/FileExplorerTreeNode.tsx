@@ -13,6 +13,8 @@ interface FileExplorerTreeNodeProps {
   loading: boolean
   selected: boolean
   multiSelected: boolean
+  cutMarked?: boolean
+  dragOver?: boolean
   gitStatus?: ExplorerGitStatus | null
   isRenaming: boolean
   renameValue: string
@@ -23,7 +25,10 @@ interface FileExplorerTreeNodeProps {
   onSelectEntry: (relPath: string, isDirectory: boolean, e: React.MouseEvent) => void | Promise<void>
   onDoubleClickEntry: (relPath: string, isDirectory: boolean) => void
   onDragStartEntry?: (relPath: string, e: React.DragEvent) => void
+  onDragOverDir?: (relPath: string) => void
+  onDragLeaveDir?: (relPath: string) => void
   onDropOnDir?: (destRelPath: string, e: React.DragEvent) => void
+  nodeId?: string
   tabIndex?: number
   onFocusNode?: () => void
 }
@@ -35,6 +40,8 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
   loading,
   selected,
   multiSelected,
+  cutMarked = false,
+  dragOver = false,
   gitStatus = null,
   isRenaming,
   renameValue,
@@ -45,7 +52,10 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
   onSelectEntry,
   onDoubleClickEntry,
   onDragStartEntry,
+  onDragOverDir,
+  onDragLeaveDir,
   onDropOnDir,
+  nodeId,
   tabIndex = -1,
   onFocusNode,
 }) => {
@@ -116,6 +126,7 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
 
   return (
     <div
+      id={nodeId}
       role="treeitem"
       aria-selected={selected || multiSelected}
       aria-expanded={isDir ? expanded : undefined}
@@ -125,6 +136,8 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
         'file-explorer-tree-node',
         selected ? 'file-explorer-tree-node--selected' : '',
         multiSelected ? 'file-explorer-tree-node--multi-selected' : '',
+        cutMarked ? 'file-explorer-tree-node--cut' : '',
+        dragOver ? 'file-explorer-tree-node--drag-over' : '',
         isDir ? 'file-explorer-tree-node--dir' : 'file-explorer-tree-node--file',
       ].filter(Boolean).join(' ')}
       style={depthStyle}
@@ -134,13 +147,20 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
       draggable
       onDragStart={e => {
         onDragStartEntry?.(entry.relPath, e)
-        e.dataTransfer.setData('text/plain', entry.relPath)
-        e.dataTransfer.effectAllowed = 'move'
+        if (!e.dataTransfer.getData('text/plain')) {
+          e.dataTransfer.setData('text/plain', entry.relPath)
+          e.dataTransfer.effectAllowed = 'move'
+        }
       }}
       onDragOver={e => {
         if (!isDir || !onDropOnDir) return
         e.preventDefault()
+        e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
+        onDragOverDir?.(entry.relPath)
+      }}
+      onDragLeave={() => {
+        if (isDir) onDragLeaveDir?.(entry.relPath)
       }}
       onDrop={e => {
         if (!isDir || !onDropOnDir) return
@@ -152,26 +172,28 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
       onDoubleClick={() => onDoubleClickEntry(entry.relPath, isDir)}
       onFocus={onFocusNode}
     >
-      <button
-        type="button"
-        className="file-explorer-tree-node__chevron-btn"
-        tabIndex={-1}
-        aria-label={expanded ? t('fileExplorer.chevron.collapse') : t('fileExplorer.chevron.expand')}
-        onClick={e => {
-          e.stopPropagation()
-          if (isDir) onToggleDir(entry.relPath)
-        }}
-      >
-        {isDir ? (
-          loading ? (
+      {isDir ? (
+        <button
+          type="button"
+          className="file-explorer-tree-node__chevron-btn"
+          tabIndex={-1}
+          aria-label={expanded ? t('fileExplorer.chevron.collapse') : t('fileExplorer.chevron.expand')}
+          onClick={e => {
+            e.stopPropagation()
+            onToggleDir(entry.relPath)
+          }}
+        >
+          {loading ? (
             <Spinner aria-label={t('fileExplorer.editor.loading')} />
           ) : (
             <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={10} />
-          )
-        ) : (
+          )}
+        </button>
+      ) : (
+        <span className="file-explorer-tree-node__chevron" aria-hidden>
           <span className="file-explorer-tree-node__chevron-spacer" />
-        )}
-      </button>
+        </span>
+      )}
       <span className="file-explorer-tree-node__icon" aria-hidden>
         <FileExplorerEntryIcon name={entry.name} isDirectory={isDir} expanded={expanded} />
       </span>

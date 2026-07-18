@@ -408,6 +408,13 @@ const es = {
       hint: 'Buscando en el proyecto…',
       hintExpand: 'Expande carpetas o busca en todo el proyecto',
       shortcutTitle: 'Filtrar archivos',
+      truncated: 'Resultados truncados',
+    },
+    toast: {
+      copied: 'Copiado ({{count}})',
+      cut: 'Cortado ({{count}})',
+      pasted: 'Pegado ({{count}})',
+      pastePartial: '{{count}} pegados antes del error',
     },
     editor: {
       selectHint: 'Selecciona un archivo del árbol.',
@@ -418,6 +425,7 @@ const es = {
       saveHint: 'Guardar',
       findPlaceholder: 'Buscar en el archivo…',
       findAria: 'Buscar en el archivo',
+      codeEditorAria: 'Editor de código',
       noMatches: 'Sin coincidencias',
       matchCount: '{{count}} coincidencia',
       matchCount_plural: '{{count}} coincidencias',
@@ -428,6 +436,9 @@ const es = {
       largeFileHint: 'El archivo pesa {{size}} (límite {{max}}).',
       openLargeAnyway: 'Abrir igualmente',
       sizeLimit: 'Tamaño máx.: {{max}}',
+      diskChanged: 'El archivo cambió en disco.',
+      reloadFromDisk: 'Recargar',
+      keepEditing: 'Mantener edición',
     },
     chevron: {
       expand: 'Expandir carpeta',

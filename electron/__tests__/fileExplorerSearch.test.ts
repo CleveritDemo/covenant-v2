@@ -23,6 +23,18 @@ describe('searchProjectFiles', () => {
     const result = searchProjectFiles(dir, 'helloworld')
     expect(result.ok).toBe(true)
     expect(result.paths).toContain('src/helloWorld.ts')
+    expect(result.hits?.some(h => h.relPath === 'src/helloWorld.ts' && !h.isDirectory)).toBe(true)
+  })
+
+  it('types matching directories as directories', () => {
+    dir = join(tmpdir(), `fe-search-dir-${Date.now()}`)
+    mkdirSync(join(dir, 'uniqueDirName'), { recursive: true })
+    writeFileSync(join(dir, 'uniqueDirName', 'a.ts'), 'export {}')
+
+    const result = searchProjectFiles(dir, 'uniquedirname')
+    expect(result.ok).toBe(true)
+    const hit = result.hits?.find(h => h.relPath === 'uniqueDirName')
+    expect(hit?.isDirectory).toBe(true)
   })
 
   it('returns empty for blank query', () => {
@@ -31,5 +43,6 @@ describe('searchProjectFiles', () => {
     const result = searchProjectFiles(dir, '   ')
     expect(result.ok).toBe(true)
     expect(result.paths).toEqual([])
+    expect(result.hits).toEqual([])
   })
 })

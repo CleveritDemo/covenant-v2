@@ -406,6 +406,13 @@ const en = {
       hint: 'Searching project…',
       hintExpand: 'Expand folders or search the whole project',
       shortcutTitle: 'Filter files',
+      truncated: 'Results truncated',
+    },
+    toast: {
+      copied: 'Copied ({{count}})',
+      cut: 'Cut ({{count}})',
+      pasted: 'Pasted ({{count}})',
+      pastePartial: '{{count}} pasted before error',
     },
     editor: {
       selectHint: 'Select a file from the tree.',
@@ -416,6 +423,7 @@ const en = {
       saveHint: 'Save',
       findPlaceholder: 'Find in file…',
       findAria: 'Find in file',
+      codeEditorAria: 'Code editor',
       noMatches: 'No matches',
       matchCount: '{{count}} match',
       matchCount_plural: '{{count}} matches',
@@ -426,6 +434,9 @@ const en = {
       largeFileHint: 'File is {{size}} (limit {{max}}).',
       openLargeAnyway: 'Open anyway',
       sizeLimit: 'Max size: {{max}}',
+      diskChanged: 'File changed on disk.',
+      reloadFromDisk: 'Reload',
+      keepEditing: 'Keep editing',
     },
     chevron: {
       expand: 'Expand folder',

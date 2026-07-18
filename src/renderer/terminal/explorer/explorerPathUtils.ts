@@ -1,3 +1,7 @@
+import { DEFAULT_COLLAPSED_DIR_NAMES } from '@shared/fileExplorerHiddenDirs'
+
+export { DEFAULT_COLLAPSED_DIR_NAMES }
+
 /** Clave estable para comparar listas de carpetas expandidas sin depender de la referencia del array. */
 export function expandedPathsKey(paths: string[]): string {
   return paths.filter(Boolean).sort().join('\0')
@@ -79,17 +83,6 @@ export function remapChildRelPath(
   return null
 }
 
-/** Carpetas pesadas ocultas por defecto cuando showHiddenDirs es false. */
-export const DEFAULT_COLLAPSED_DIR_NAMES = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  'coverage',
-  '__pycache__',
-])
-
 /** True si child está dentro de parent o es el mismo (rutas relativas). */
 export function isRelPathInside(parent: string, child: string): boolean {
   if (parent === child) return true
@@ -106,4 +99,87 @@ export function relPathFromCwd(treeRootCwd: string, sessionCwd: string): string 
   const prefix = `${root}/`
   if (!cwd.startsWith(prefix)) return null
   return cwd.slice(prefix.length)
+}
+
+/**
+ * Rutas sobre las que opera copy/cut/delete del menú contextual.
+ * Si el target no está en la multi-selección, se opera solo sobre el target.
+ */
+export function resolveExplorerActionPaths(
+  multiSelected: ReadonlySet<string> | Iterable<string>,
+  contextTargetRelPath: string | null | undefined,
+  selectedRelPath: string | null | undefined,
+): string[] {
+  const multi = multiSelected instanceof Set ? multiSelected : new Set(multiSelected)
+  if (multi.size > 0) {
+    if (contextTargetRelPath && !multi.has(contextTargetRelPath)) {
+      return [contextTargetRelPath]
+    }
+    return Array.from(multi)
+  }
+  if (contextTargetRelPath) return [contextTargetRelPath]
+  if (selectedRelPath) return [selectedRelPath]
+  return []
+}
+
+/** True si alguna ruta mutada es el archivo abierto o un ancestro suyo. */
+export function pathsAffectOpenFile(
+  paths: readonly string[],
+  openedRelPath: string | null | undefined,
+): boolean {
+  if (!openedRelPath) return false
+  return paths.some(
+    p => openedRelPath === p || openedRelPath.startsWith(`${p}/`),
+  )
+}
+
+/**
+ * Semilla de multi-selección al empezar con ⌘/Ctrl+click:
+ * incluye la selección actual si aún no hay multi.
+ */
+export function seedMultiSelect(
+  multiSelected: ReadonlySet<string>,
+  selectedRelPath: string | null | undefined,
+  clickedRelPath: string,
+): Set<string> {
+  const next = new Set(multiSelected)
+  if (next.size === 0 && selectedRelPath && selectedRelPath !== clickedRelPath) {
+    next.add(selectedRelPath)
+  }
+  if (next.has(clickedRelPath)) next.delete(clickedRelPath)
+  else next.add(clickedRelPath)
+  return next
+}
+
+/** Ancestros de una ruta relativa (sin incluir la propia ruta). */
+export function ancestorRelPaths(relPath: string): string[] {
+  const parts = relPath.split('/').filter(Boolean)
+  if (parts.length <= 1) return []
+  const out: string[] = []
+  let acc = ''
+  for (let i = 0; i < parts.length - 1; i++) {
+    acc = acc ? `${acc}/${parts[i]!}` : parts[i]!
+    out.push(acc)
+  }
+  return out
+}
+
+/**
+ * Al filtrar, conservar filas match y sus ancestros ya presentes en el árbol
+ * para no aplanar el contexto.
+ */
+export function filterRowsKeepingAncestors<T extends { entry: { relPath: string; name: string } }>(
+  rows: T[],
+  queryLower: string,
+): T[] {
+  if (!queryLower) return rows
+  const matchPaths = new Set<string>()
+  for (const row of rows) {
+    const { name, relPath } = row.entry
+    if (name.toLowerCase().includes(queryLower) || relPath.toLowerCase().includes(queryLower)) {
+      matchPaths.add(relPath)
+      for (const a of ancestorRelPaths(relPath)) matchPaths.add(a)
+    }
+  }
+  return rows.filter(r => matchPaths.has(r.entry.relPath))
 }

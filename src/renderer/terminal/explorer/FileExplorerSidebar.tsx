@@ -9,6 +9,7 @@ import {
   type ExplorerSelectedEntry,
   expandedPathsKey,
   parentDirForCreate,
+  pathsAffectOpenFile,
   remapChildRelPath,
 } from './explorerPathUtils'
 import { useExplorerResize } from './useExplorerResize'
@@ -17,6 +18,7 @@ type ExplorerDetailState = Pick<
   FileExplorerPersistedState,
   | 'selectedRelPath'
   | 'selectedIsDirectory'
+  | 'openedRelPath'
   | 'expandedRelPaths'
   | 'showHiddenDirs'
   | 'treeWidthPercent'
@@ -58,6 +60,8 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
     const onToggleExplorerRef = useRef(onToggleExplorer)
     onToggleExplorerRef.current = onToggleExplorer
     const requestConfirmRef = useRef<((req: import('./ExplorerConfirmHost').ExplorerConfirmRequest) => Promise<boolean>) | null>(null)
+    const isEditorDirtyRef = useRef(isEditorDirty)
+    isEditorDirtyRef.current = isEditorDirty
 
     const { treeWidthPercent, onResizePointerDown } = useExplorerResize(
       explorerState.treeWidthPercent,
@@ -71,8 +75,7 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
         }
       : null
 
-    const openFilePath =
-      selectedEntry && !selectedEntry.isDirectory ? selectedEntry.relPath : null
+    const openFilePath = explorerState.openedRelPath
 
     const patchExplorer = useCallback(
       (patch: Partial<ExplorerDetailState>) => {
@@ -101,6 +104,13 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
       [patchExplorer],
     )
 
+    const setOpenedRelPath = useCallback(
+      (relPath: string | null) => {
+        patchExplorer({ openedRelPath: relPath })
+      },
+      [patchExplorer],
+    )
+
     useEffect(() => {
       const onKeyDown = (e: KeyboardEvent): void => {
         if (!e.metaKey && !e.ctrlKey) return
@@ -125,21 +135,51 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
       return () => window.removeEventListener('keydown', onKeyDown, true)
     }, [])
 
+    const canMutateOpenPaths = useCallback(
+      async (paths: string[]): Promise<boolean> => {
+        if (!isEditorDirtyRef.current || !openFilePath) return true
+        if (!pathsAffectOpenFile(paths, openFilePath)) return true
+        if (!requestConfirmRef.current) return true
+        return requestConfirmRef.current({ type: 'discardChanges', onConfirm: () => {} })
+      },
+      [openFilePath],
+    )
+
+    const canResetSessionRoot = useCallback(async (): Promise<boolean> => {
+      if (!isEditorDirtyRef.current || !openFilePath) return true
+      if (!requestConfirmRef.current) return true
+      return requestConfirmRef.current({ type: 'discardChanges', onConfirm: () => {} })
+    }, [openFilePath])
+
     const requestSelectEntry = useCallback(
-      async (relPath: string, isDirectory: boolean): Promise<boolean> => {
-        const same =
+      async (
+        relPath: string,
+        isDirectory: boolean,
+        _e?: React.MouseEvent,
+        options?: { open?: boolean },
+      ): Promise<boolean> => {
+        // Por defecto abrir archivos (compat); el árbol pasa open:false en modo doble-click / flechas.
+        const wantOpen = !isDirectory && options?.open !== false
+        const sameSelection =
           selectedEntry?.relPath === relPath && selectedEntry.isDirectory === isDirectory
-        if (same) return true
-        const changingAwayFromDirtyFile =
-          isEditorDirty && openFilePath && relPath !== openFilePath
-        if (changingAwayFromDirtyFile && requestConfirmRef.current) {
+        const sameOpen = !wantOpen || openFilePath === relPath
+        if (sameSelection && sameOpen) return true
+
+        const changingOpenedFile =
+          wantOpen && isEditorDirty && openFilePath != null && openFilePath !== relPath
+        if (changingOpenedFile && requestConfirmRef.current) {
           const ok = await requestConfirmRef.current({ type: 'discardChanges', onConfirm: () => {} })
           if (!ok) return false
         }
+
         setSelectedEntry({ relPath, isDirectory })
+        if (wantOpen) {
+          setOpenedRelPath(relPath)
+          if (openFilePath !== relPath) setIsEditorDirty(false)
+        }
         return true
       },
-      [selectedEntry, isEditorDirty, openFilePath, setSelectedEntry],
+      [selectedEntry, isEditorDirty, openFilePath, setSelectedEntry, setOpenedRelPath],
     )
 
     const handleFileSaved = useCallback(() => {
@@ -161,9 +201,10 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
     const handleFileCreated = useCallback(
       (relPath: string) => {
         setSelectedEntry({ relPath, isDirectory: false })
+        setOpenedRelPath(relPath)
         setIsEditorDirty(false)
       },
-      [setSelectedEntry],
+      [setSelectedEntry, setOpenedRelPath],
     )
 
     const handleCloseFile = useCallback(async () => {
@@ -173,9 +214,10 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
         if (!ok) return
       }
       const parent = parentDirForCreate(openFilePath)
+      setOpenedRelPath(null)
       setSelectedEntry(parent ? { relPath: parent, isDirectory: true } : null)
       setIsEditorDirty(false)
-    }, [openFilePath, isEditorDirty, setSelectedEntry])
+    }, [openFilePath, isEditorDirty, setSelectedEntry, setOpenedRelPath])
 
     const handleEntryDeleted = useCallback(
       (relPath: string) => {
@@ -188,33 +230,41 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
         }
         treeRef.current?.evictDirCache(relPath)
 
-        if (openFilePath === relPath || openFilePath?.startsWith(prefix)) {
+        const openAffected = openFilePath === relPath || Boolean(openFilePath?.startsWith(prefix))
+        if (openAffected) {
           setIsEditorDirty(false)
-          const parent = parentDirForCreate(relPath)
-          setSelectedEntry(parent ? { relPath: parent, isDirectory: true } : null)
-          return
+          setOpenedRelPath(null)
         }
-        if (selectedEntry?.relPath === relPath || selectedEntry?.relPath.startsWith(prefix)) {
+        if (
+          openAffected ||
+          selectedEntry?.relPath === relPath ||
+          selectedEntry?.relPath.startsWith(prefix)
+        ) {
           const parent = parentDirForCreate(relPath)
           setSelectedEntry(parent ? { relPath: parent, isDirectory: true } : null)
         }
       },
-      [openFilePath, selectedEntry, setSelectedEntry, explorerState.expandedRelPaths, patchExplorer],
+      [
+        openFilePath, selectedEntry, setSelectedEntry, setOpenedRelPath,
+        explorerState.expandedRelPaths, patchExplorer,
+      ],
     )
 
     const handleEntryRenamed = useCallback(
       (oldRelPath: string, newRelPath: string, isDirectory: boolean) => {
         if (openFilePath) {
-          const remapped = remapChildRelPath(openFilePath, oldRelPath, newRelPath)
-          if (remapped !== null) {
-            setSelectedEntry({ relPath: remapped, isDirectory: false })
+          const remappedOpen = remapChildRelPath(openFilePath, oldRelPath, newRelPath)
+          if (remappedOpen !== null) {
+            setOpenedRelPath(remappedOpen)
           }
-        } else if (selectedEntry?.relPath) {
+        }
+        if (selectedEntry?.relPath) {
           const remapped = remapChildRelPath(selectedEntry.relPath, oldRelPath, newRelPath)
           if (remapped !== null) {
             setSelectedEntry({
               relPath: remapped,
-              isDirectory: remapped === newRelPath ? isDirectory : selectedEntry.isDirectory,
+              isDirectory:
+                remapped === newRelPath ? isDirectory : selectedEntry.isDirectory,
             })
           }
         }
@@ -229,7 +279,10 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
           treeRef.current?.evictDirCache(oldRelPath)
         }
       },
-      [openFilePath, selectedEntry, setSelectedEntry, explorerState.expandedRelPaths, patchExplorer],
+      [
+        openFilePath, selectedEntry, setSelectedEntry, setOpenedRelPath,
+        explorerState.expandedRelPaths, patchExplorer,
+      ],
     )
 
     const onSessionRootChange = useCallback(() => {
@@ -237,6 +290,7 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
       patchExplorer({
         selectedRelPath: null,
         selectedIsDirectory: false,
+        openedRelPath: null,
         expandedRelPaths: DEFAULT_FILE_EXPLORER_STATE.expandedRelPaths,
       })
     }, [patchExplorer])
@@ -248,8 +302,9 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
       expandParents: (relPath: string) => { treeRef.current?.expandParents(relPath) },
       selectEntry: (relPath: string, isDirectory: boolean) => {
         setSelectedEntry({ relPath, isDirectory })
+        if (!isDirectory) setOpenedRelPath(relPath)
       },
-    }), [setSelectedEntry])
+    }), [setSelectedEntry, setOpenedRelPath])
 
     const treeStyle = {
       '--explorer-tree-width': `${treeWidthPercent}%`,
@@ -285,8 +340,10 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
                   onExpandedChange={handleExpandedChange}
                   onShowHiddenDirsChange={show => patchExplorer({ showHiddenDirs: show })}
                   onOpenOnSingleClickChange={value => patchExplorer({ openOnSingleClick: value })}
-                  onSelectEntry={(relPath, isDirectory) => requestSelectEntry(relPath, isDirectory)}
+                  onSelectEntry={requestSelectEntry}
                   onRequestConfirm={requestConfirm}
+                  canMutateOpenPaths={canMutateOpenPaths}
+                  canResetSessionRoot={canResetSessionRoot}
                   onFileCreated={handleFileCreated}
                   onSessionRootChange={onSessionRootChange}
                   onCloseExplorer={onToggleExplorer}

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ancestorRelPaths,
   buildNewRelPath,
   expandedPathsKey,
+  filterRowsKeepingAncestors,
   isRelPathInside,
   pasteDestRelPath,
+  pathsAffectOpenFile,
   remapChildRelPath,
   relPathFromCwd,
+  resolveExplorerActionPaths,
+  seedMultiSelect,
 } from '../explorerPathUtils'
 
 describe('remapChildRelPath', () => {
@@ -82,5 +87,62 @@ describe('relPathFromCwd', () => {
 
   it('returns null outside tree', () => {
     expect(relPathFromCwd('/proj', '/other')).toBeNull()
+  })
+})
+
+describe('resolveExplorerActionPaths', () => {
+  it('uses multi-select when target is inside it', () => {
+    expect(
+      resolveExplorerActionPaths(new Set(['a.ts', 'b.ts']), 'a.ts', 'c.ts'),
+    ).toEqual(['a.ts', 'b.ts'])
+  })
+
+  it('uses only target when target is outside multi-select', () => {
+    expect(
+      resolveExplorerActionPaths(new Set(['a.ts', 'b.ts']), 'c.ts', 'a.ts'),
+    ).toEqual(['c.ts'])
+  })
+
+  it('falls back to target then selection', () => {
+    expect(resolveExplorerActionPaths(new Set(), 'x.ts', 'y.ts')).toEqual(['x.ts'])
+    expect(resolveExplorerActionPaths(new Set(), null, 'y.ts')).toEqual(['y.ts'])
+    expect(resolveExplorerActionPaths(new Set(), null, null)).toEqual([])
+  })
+})
+
+describe('seedMultiSelect', () => {
+  it('seeds current selection when starting multi', () => {
+    expect(seedMultiSelect(new Set(), 'a.ts', 'b.ts')).toEqual(new Set(['a.ts', 'b.ts']))
+  })
+
+  it('toggles clicked path when already in multi', () => {
+    expect(seedMultiSelect(new Set(['a.ts', 'b.ts']), 'a.ts', 'b.ts')).toEqual(new Set(['a.ts']))
+  })
+})
+
+describe('pathsAffectOpenFile', () => {
+  it('detects open file and ancestors', () => {
+    expect(pathsAffectOpenFile(['src'], 'src/a.ts')).toBe(true)
+    expect(pathsAffectOpenFile(['src/a.ts'], 'src/a.ts')).toBe(true)
+    expect(pathsAffectOpenFile(['lib'], 'src/a.ts')).toBe(false)
+  })
+})
+
+describe('filterRowsKeepingAncestors', () => {
+  it('keeps ancestors of matches', () => {
+    const rows = [
+      { entry: { relPath: 'src', name: 'src' } },
+      { entry: { relPath: 'src/foo.ts', name: 'foo.ts' } },
+      { entry: { relPath: 'lib', name: 'lib' } },
+    ]
+    const filtered = filterRowsKeepingAncestors(rows, 'foo')
+    expect(filtered.map(r => r.entry.relPath)).toEqual(['src', 'src/foo.ts'])
+  })
+})
+
+describe('ancestorRelPaths', () => {
+  it('returns parents', () => {
+    expect(ancestorRelPaths('a/b/c.ts')).toEqual(['a', 'a/b'])
+    expect(ancestorRelPaths('file.ts')).toEqual([])
   })
 })

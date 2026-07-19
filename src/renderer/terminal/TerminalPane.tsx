@@ -1,15 +1,12 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { getTheme } from '@themes/presets'
 import type { AppConfig } from '@shared/configSchema'
-import { CONFIG_DEFAULTS } from '@shared/configSchema'
 import { feedCompletedUserLines } from '@renderer/history/feedCompletedUserLines'
 import { isClearCommandLine } from '@renderer/terminal/isClearCommand'
-import { stripLeadingShellPrompts } from '@renderer/terminal/stripShellPromptPrefix'
-import { AiPanel } from '@renderer/components/AiPanel'
 import { ConfirmTerminalModal } from '@renderer/components/ConfirmTerminalModal'
 import { GitPanelModal } from '@renderer/components/GitPanelModal'
 import { TerminalFindModal } from '@renderer/components/TerminalFindModal'
@@ -235,24 +232,6 @@ function shouldShowCmdSuggestPanel(
 
 
 
-
-/**
- * Extrae las últimas `maxLines` líneas del buffer visible de xterm.
- * Usa `buf.baseY + term.rows` para obtener el total real de líneas escritas
- * (evita contar líneas pre-asignadas vacías del scrollback).
- */
-function getScrollback(term: Terminal, maxLines: number): string {
-  const buf = term.buffer.active
-  const total = buf.baseY + term.rows
-  const from = Math.max(0, total - maxLines)
-  const lines: string[] = []
-  for (let i = from; i < total; i++) {
-    const line = buf.getLine(i)
-    if (line) lines.push(line.translateToString(true))
-  }
-  while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop()
-  return lines.join('\n')
-}
 
 function isTerminalScrolledUp(term: Terminal): boolean {
   try {
@@ -483,8 +462,6 @@ function createPlainPtyWriteBatcher(
 export interface TerminalRef {
   getSelection: () => string
   writeToTty: (data: string) => void
-  /** Alterna chat IA a pantalla completa en el panel ↔ colapsado (⌘I). */
-  toggleAiFullscreen: () => void
   /** Abre/cierra explorador de archivos a la derecha (⌘E). */
   toggleExplorer: () => void
   /** Viewport al final del scrollback (⌘Fin). */
@@ -508,9 +485,6 @@ export interface PaneToolbar {
 
 interface Props {
   sessionId: string
-  /** Cada panel: chat IA expandido (lo persiste App en session.json) */
-  aiExpanded: boolean
-  onAiExpandedChange: (expanded: boolean) => void
   fileExplorer: FileExplorerPersistedState
   onFileExplorerChange: (state: FileExplorerPersistedState) => void
   /** La pestaña está seleccionada en la barra */
@@ -533,8 +507,6 @@ interface Props {
   onRegisterRef: (ref: TerminalRef | null) => void
   /** Notifica si este panel tiene un proceso activo (true) o ha vuelto al prompt (false). */
   onBusyChange?: (busy: boolean) => void
-  /** Actualizar partes de la configuración global (p. ej. modo agente) */
-  onConfigPatch?: (partial: Partial<AppConfig>) => void | Promise<void>
   /**
    * Registra la misma confirmación que la cruz del panel para cierres por atajo (⌘W desde `App`).
    */
@@ -543,8 +515,6 @@ interface Props {
 
 export const TerminalPane: React.FC<Props> = ({
   sessionId,
-  aiExpanded,
-  onAiExpandedChange,
   fileExplorer,
   onFileExplorerChange,
   tabActive,
@@ -556,7 +526,6 @@ export const TerminalPane: React.FC<Props> = ({
   onRequestSplitPane,
   onRequestPaneFocus,
   config,
-  onConfigPatch,
   onTitleChange,
   onRegisterRef,
   onBusyChange,
@@ -572,32 +541,24 @@ export const TerminalPane: React.FC<Props> = ({
   const scrollbackSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const busySilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ptyBusyRef = useRef(false)
-  const aiBusyRef = useRef(false)
   const paneBusyRef = useRef(false)
   const onBusyChangeRef = useRef(onBusyChange)
   onBusyChangeRef.current = onBusyChange
 
   const syncPaneBusyState = useCallback((): void => {
-    const next = ptyBusyRef.current || aiBusyRef.current
+    const next = ptyBusyRef.current
     if (paneBusyRef.current === next) return
     paneBusyRef.current = next
     onBusyChangeRef.current?.(next)
   }, [])
-
-  const handleAiBusyChange = useCallback((busy: boolean): void => {
-    if (aiBusyRef.current === busy) return
-    aiBusyRef.current = busy
-    syncPaneBusyState()
-  }, [syncPaneBusyState])
   const onPtyCwdInitializedRef = useRef(onPtyCwdInitialized)
   onPtyCwdInitializedRef.current = onPtyCwdInitialized
   const onPaneCwdChangedRef = useRef(onPaneCwdChanged)
   onPaneCwdChangedRef.current = onPaneCwdChanged
-  const toggleAiFullscreenRef = useRef<() => void>(() => {})
   const toggleExplorerRef = useRef<() => void>(() => {})
   const scrollTerminalToBottomRef = useRef<() => void>(() => {})
   const refitTerminalRef = useRef<() => void>(() => {})
-  /** Fit coalescido (dock/sugerencias): evita runNow en ráfaga durante streaming. */
+  /** Fit coalescido (sugerencias): evita runNow en ráfaga. */
   const scheduleRefitTerminalRef = useRef<() => void>(() => {})
   const explorerRef = useRef<FileExplorerSidebarHandle>(null)
   const explorerOpen = fileExplorer.open
@@ -606,9 +567,15 @@ export const TerminalPane: React.FC<Props> = ({
   const onFileExplorerChangeRef = useRef(onFileExplorerChange)
   onFileExplorerChangeRef.current = onFileExplorerChange
   const fileExplorerRef = useRef(fileExplorer)
-  fileExplorerRef.current = fileExplorer
+  useEffect(() => {
+    fileExplorerRef.current = fileExplorer
+  }, [fileExplorer])
   const patchFileExplorer = useCallback((patch: Partial<FileExplorerPersistedState>) => {
-    onFileExplorerChangeRef.current({ ...fileExplorerRef.current, ...patch })
+    // Actualizar el ref en el acto para que patches seguidos (p. ej. toggles rápidos
+    // del explorador) no se pisen entre sí con un snapshot obsoleto.
+    const next = { ...fileExplorerRef.current, ...patch }
+    fileExplorerRef.current = next
+    onFileExplorerChangeRef.current(next)
   }, [])
   const configRef = useRef(config)
   configRef.current = config
@@ -631,7 +598,6 @@ export const TerminalPane: React.FC<Props> = ({
   recentCommandsRef.current = recentCommands
   const cmdHistorySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [aiSelectedText, setAiSelectedText] = useState('')
   const [confirmClosePaneOpen, setConfirmClosePaneOpen] = useState(false)
   const registerShortcutInterceptorRef = useRef(registerShortcutCloseInterceptor)
   registerShortcutInterceptorRef.current = registerShortcutCloseInterceptor
@@ -652,7 +618,7 @@ export const TerminalPane: React.FC<Props> = ({
   const [findModalBuffer, setFindModalBuffer] = useState<TerminalBufferFindMatch[]>([])
   const [findModalHistory, setFindModalHistory] = useState<string[]>([])
   const [quickOpenOpen, setQuickOpenOpen] = useState(false)
-  /** Foco en shell / barra del panel (no en chat IA); usado p. ej. para el botón de split. */
+  /** Foco en shell / barra del panel; usado p. ej. para el botón de split. */
   const [shellOrToolbarFocused, setShellOrToolbarFocused] = useState(false)
 
   const isActivePaneRef = useRef(isActivePane)
@@ -662,8 +628,6 @@ export const TerminalPane: React.FC<Props> = ({
   tabActiveRef.current = tabActive
 
   const paneRootRef = useRef<HTMLDivElement>(null)
-  const aiDockRef = useRef<HTMLDivElement>(null)
-
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
   onRequestPaneFocusRef.current = onRequestPaneFocus
 
@@ -671,10 +635,6 @@ export const TerminalPane: React.FC<Props> = ({
     const root = paneRootRef.current
     const ae = document.activeElement as HTMLElement | null
     if (!tabActiveRef.current || !isActivePaneRef.current || !root || !ae || !root.contains(ae)) {
-      setShellOrToolbarFocused(false)
-      return
-    }
-    if (ae.closest('.terminal-pane-ai-dock')) {
       setShellOrToolbarFocused(false)
       return
     }
@@ -741,60 +701,6 @@ export const TerminalPane: React.FC<Props> = ({
     }
   }, [sessionId])
 
-  /** Reserva espacio bajo el xterm cuando el dock IA está colapsado (overlay absolute). */
-  useLayoutEffect(() => {
-    const root = paneRootRef.current
-    const dock = aiDockRef.current
-    if (!root || !dock) return
-
-    let lastReserve = ''
-    let dockRefitTimer: ReturnType<typeof setTimeout> | null = null
-    const scheduleRefitAfterDockLayout = (): void => {
-      // Durante streaming del agente el dock crece a cada token; debounce evita
-      // refits en ráfaga que compiten con el repintado del canvas xterm (§7).
-      if (dockRefitTimer != null) clearTimeout(dockRefitTimer)
-      dockRefitTimer = setTimeout(() => {
-        dockRefitTimer = null
-        requestAnimationFrame(() => scheduleRefitTerminalRef.current())
-      }, 80)
-    }
-    const apply = (): void => {
-      if (aiExpanded) {
-        if (lastReserve === '0px') return
-        lastReserve = '0px'
-        root.style.setProperty('--terminal-ai-dock-reserve', '0px')
-        scheduleRefitAfterDockLayout()
-        return
-      }
-      const h = dock.getBoundingClientRect().height
-      const next = `${Math.ceil(h)}px`
-      if (next === lastReserve) return
-      lastReserve = next
-      root.style.setProperty('--terminal-ai-dock-reserve', next)
-      scheduleRefitAfterDockLayout()
-    }
-
-    apply()
-    if (aiExpanded) return
-
-    let dockRaf = 0
-    const ro = new ResizeObserver(() => {
-      if (dockRaf !== 0) return
-      dockRaf = requestAnimationFrame(() => {
-        dockRaf = 0
-        apply()
-      })
-    })
-    ro.observe(dock)
-    return () => {
-      ro.disconnect()
-      if (dockRaf !== 0) cancelAnimationFrame(dockRaf)
-      if (dockRefitTimer != null) {
-        clearTimeout(dockRefitTimer)
-        dockRefitTimer = null
-      }
-    }
-  }, [aiExpanded])
 
   const loadCdPaths = useCallback(async (): Promise<void> => {
     try {
@@ -857,35 +763,6 @@ export const TerminalPane: React.FC<Props> = ({
     }
   }, [recentCommands, cmdHistoryLoaded, sessionId])
 
-  const expandAiFromBar = useCallback(() => {
-    onRequestPaneFocusRef.current?.()
-    if (termRef.current) setAiSelectedText(termRef.current.getSelection())
-    onAiExpandedChange(true)
-  }, [onAiExpandedChange])
-
-  /** Cierra el panel IA y devuelve el foco al PTY (si no, el foco queda en la cabecera y no escribe el shell). */
-  const collapseAiPanel = useCallback(() => {
-    onAiExpandedChange(false)
-    queueMicrotask(() => { termRef.current?.focus() })
-  }, [onAiExpandedChange])
-
-  /** ⌘I (desde App): expandir / contraer panel IA sobre la terminal. */
-  const toggleAiFullscreen = useCallback(() => {
-    onRequestPaneFocusRef.current?.()
-    if (aiExpanded) {
-      collapseAiPanel()
-      return
-    }
-    if (termRef.current) setAiSelectedText(termRef.current.getSelection())
-    onAiExpandedChange(true)
-  }, [aiExpanded, collapseAiPanel, onAiExpandedChange])
-
-  // Called by AiPanel on each request to get fresh scrollback context
-  const getTerminalContext = useCallback((): string => {
-    if (!termRef.current) return ''
-    return getScrollback(termRef.current, configRef.current.maxContextLines)
-  }, [])
-
   const toggleExplorer = useCallback(() => {
     onRequestPaneFocusRef.current?.()
     const nextOpen = !fileExplorerRef.current.open
@@ -910,18 +787,8 @@ export const TerminalPane: React.FC<Props> = ({
   }, [])
 
   // Keep ref in sync so the effect below can expose it without re-running
-  toggleAiFullscreenRef.current = toggleAiFullscreen
   toggleExplorerRef.current = toggleExplorer
   scrollTerminalToBottomRef.current = scrollTerminalToBottom
-
-  /** IA: Ctrl+U + comando (misma ruta que teclear; limpia prompts copiados del modelo). */
-  const injectLineFromAi = useCallback((rawCmd: string) => {
-    onRequestPaneFocusRef.current?.()
-    const cmd = stripLeadingShellPrompts(rawCmd)
-    if (!cmd) return
-    ptyInjectRef.current('\x15' + cmd)
-    termRef.current?.focus()
-  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -1258,7 +1125,6 @@ export const TerminalPane: React.FC<Props> = ({
         writeToPty(data)
         term.focus()
       },
-      toggleAiFullscreen: () => toggleAiFullscreenRef.current(),
       toggleExplorer: () => toggleExplorerRef.current(),
       scrollToBottom: () => scrollTerminalToBottomRef.current(),
       serialize: () => serializeAddonRef.current?.serialize() ?? '',
@@ -1462,7 +1328,7 @@ export const TerminalPane: React.FC<Props> = ({
       window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))
     }, 60)
     return () => clearTimeout(t)
-  }, [aiExpanded, tabActive, isActivePane, sessionId])
+  }, [tabActive, isActivePane, sessionId])
 
   const handleCdPick = (path: string): void => {
     const cmd = `\x15cd ${shellSingleQuotePosix(path)}\r`
@@ -1594,9 +1460,6 @@ export const TerminalPane: React.FC<Props> = ({
     scheduleRefitTerminalRef.current()
   }, [showSuggestStack, visibleSnippets.length, visibleRecentMatches.length, visibleLocalDirs.length, visiblePaths.length])
 
-  const aiChatZoom =
-    (config.fontSize ?? CONFIG_DEFAULTS.fontSize) / CONFIG_DEFAULTS.fontSize
-
   return (
     <div
       ref={paneRootRef}
@@ -1605,7 +1468,6 @@ export const TerminalPane: React.FC<Props> = ({
         tabActive && isActivePane ? 'terminal-pane--focused' : '',
         tabActive && !isActivePane ? 'terminal-pane--inactive-pane' : '',
       ].filter(Boolean).join(' ')}
-      style={{ ['--terminal-pane-ai-chat-zoom' as string]: String(aiChatZoom) } as React.CSSProperties}
     >
       {tabActive && (
         <PaneToolbar
@@ -1654,10 +1516,6 @@ export const TerminalPane: React.FC<Props> = ({
           onMouseDown={e => {
             onRequestPaneFocusRef.current?.()
             if ((e.target as HTMLElement).closest('button')) return
-            if (aiExpanded) {
-              collapseAiPanel()
-              return
-            }
             termRef.current?.focus()
           }}
         >
@@ -1717,27 +1575,6 @@ export const TerminalPane: React.FC<Props> = ({
           />
         )}
         </div>
-      </div>
-
-      <div
-        ref={aiDockRef}
-        className={[
-          'terminal-pane-ai-dock',
-          aiExpanded ? 'terminal-pane-ai-dock--expanded' : 'terminal-pane-ai-dock--collapsed',
-        ].filter(Boolean).join(' ')}
-      >
-        <AiPanel
-          config={config}
-          sessionId={sessionId}
-          selectedText={aiSelectedText}
-          getTerminalContext={getTerminalContext}
-          onInjectLine={injectLineFromAi}
-          onExpand={expandAiFromBar}
-          onCollapse={collapseAiPanel}
-          expanded={aiExpanded}
-          onConfigPatch={onConfigPatch}
-          onBusyChange={handleAiBusyChange}
-        />
       </div>
 
       <TerminalFindModal

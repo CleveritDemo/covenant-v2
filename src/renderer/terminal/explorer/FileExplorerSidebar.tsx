@@ -86,12 +86,11 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
 
     const handleExpandedChange = useCallback(
       (paths: string[]) => {
-        if (expandedPathsKey(paths) === expandedPathsKey(explorerState.expandedRelPaths)) {
-          return
-        }
+        // Sin comparar contra explorerState: con clics rápidos las props aún no reflejan
+        // el último toggle y un early-return descartaría el update. El árbol ya deduplica.
         patchExplorer({ expandedRelPaths: paths })
       },
-      [explorerState.expandedRelPaths, patchExplorer],
+      [patchExplorer],
     )
 
     const setSelectedEntry = useCallback(

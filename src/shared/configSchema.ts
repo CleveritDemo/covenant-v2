@@ -78,6 +78,9 @@ export interface AppConfig {
   language: Language
   /** Reiniciar shell automáticamente tras exit en un panel de terminal. */
   autoRestartShell: boolean
+  /** Ejecutables usados por las ventanas de agente CLI. */
+  agentCliClaudeCommand: string
+  agentCliCursorCommand: string
   /** Mood de música activo en la barra de título. */
   musicMood?: string
 }
@@ -96,7 +99,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   githubToken: '',
   defaultModel: 'llama3.2',
   maxContextLines: 200,
-  themeId: 'vscodeDark',
+  themeId: 'tokyoNight',
   fontSize: 13,
   agentMode: false,
   agentLoop: false,
@@ -105,6 +108,8 @@ export const CONFIG_DEFAULTS: AppConfig = {
   musicPlaylistIdsByMood: {},
   language: 'en',
   autoRestartShell: true,
+  agentCliClaudeCommand: 'claude',
+  agentCliCursorCommand: 'agent',
   musicMood: 'focus',
 }
 
@@ -133,17 +138,18 @@ export function validateConfig(config: AppConfig): string[] {
       errors.push('ollamaBaseURL no es una URL válida')
     }
   }
-  if (config.aiProvider === 'anthropic' && !config.anthropicApiKey.trim()) {
-    errors.push('anthropicApiKey es obligatorio al usar Anthropic')
-  }
-  if (config.aiProvider === 'openai' && !config.openaiApiKey.trim()) {
-    errors.push('openaiApiKey es obligatorio al usar OpenAI')
-  }
+  // Las API keys del chat embebido ya no se configuran en la UI; no bloquear guardado.
   if (config.maxContextLines < 10 || config.maxContextLines > 2000) {
     errors.push('maxContextLines debe estar entre 10 y 2000')
   }
   if (config.fontSize < 9 || config.fontSize > 24) {
     errors.push('fontSize debe estar entre 9 y 24')
+  }
+  if (!config.agentCliClaudeCommand.trim()) {
+    errors.push('agentCliClaudeCommand no puede estar vacío')
+  }
+  if (!config.agentCliCursorCommand.trim()) {
+    errors.push('agentCliCursorCommand no puede estar vacío')
   }
   const pol = config.agentShellPolicy
   if (pol !== 'off' && pol !== 'ask' && pol !== 'always') {

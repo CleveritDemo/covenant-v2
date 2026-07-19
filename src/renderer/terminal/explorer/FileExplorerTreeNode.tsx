@@ -182,6 +182,10 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
             e.stopPropagation()
             onToggleDir(entry.relPath)
           }}
+          onDoubleClick={e => {
+            // Evita que el dblclick del chevron burbujee al row y haga un toggle extra.
+            e.stopPropagation()
+          }}
         >
           {loading ? (
             <Spinner aria-label={t('fileExplorer.editor.loading')} />

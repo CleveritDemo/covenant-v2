@@ -29,7 +29,6 @@ import {
   parentDirForCreate,
   parentRelPath,
   pasteDestRelPath,
-  relPathFromCwd,
   resolveExplorerActionPaths,
   seedMultiSelect,
   filterRowsKeepingAncestors,
@@ -157,6 +156,21 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const treeScrollRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const dragRelPathRef = useRef<string | null>(null)
+    /** Copia actual de carpetas expandidas; evita toggles perdidos con clics rápidos antes del re-render. */
+    const expandedRelPathsRef = useRef(expandedRelPaths)
+    const pendingExpandedKeyRef = useRef<string | null>(null)
+
+    useEffect(() => {
+      const key = expandedPathsKey(expandedRelPaths)
+      if (pendingExpandedKeyRef.current != null) {
+        if (pendingExpandedKeyRef.current === key) {
+          pendingExpandedKeyRef.current = null
+          expandedRelPathsRef.current = expandedRelPaths
+        }
+        return
+      }
+      expandedRelPathsRef.current = expandedRelPaths
+    }, [expandedRelPaths])
 
     const createParentPath = createParentOverride ?? parentDirForCreate(selectedRelPath, selectedIsDirectory)
 
@@ -288,10 +302,21 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       })
     }, [])
 
+    const commitExpandedPaths = useCallback(
+      (paths: string[]): void => {
+        const key = expandedPathsKey(paths)
+        if (key === expandedPathsKey(expandedRelPathsRef.current)) return
+        expandedRelPathsRef.current = paths
+        pendingExpandedKeyRef.current = key
+        onExpandedChange(paths)
+      },
+      [onExpandedChange],
+    )
+
     const expandParents = useCallback(
       (relPath: string) => {
         const parts = relPath.split('/').filter(Boolean)
-        const next = new Set(expandedRelPaths)
+        const next = new Set(expandedRelPathsRef.current)
         next.add('')
         if (parts.length > 1) {
           let acc = ''
@@ -300,15 +325,12 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
             next.add(acc)
           }
         }
-        const paths = Array.from(next)
-        if (expandedPathsKey(paths) !== expandedPathsKey(expandedRelPaths)) {
-          onExpandedChange(paths)
-        }
+        commitExpandedPaths(Array.from(next))
         for (const p of next) {
           if (p && !childrenByDir.has(p)) void loadDir(p)
         }
       },
-      [expandedRelPaths, onExpandedChange, childrenByDir, loadDir],
+      [commitExpandedPaths, childrenByDir, loadDir],
     )
 
     useImperativeHandle(ref, () => ({
@@ -396,21 +418,27 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       return () => window.clearInterval(id)
     }, [sessionId, resetTreeForNewCwd])
 
-    const toggleDir = useCallback(
-      (relPath: string): void => {
-        const next = new Set(expandedRelPaths)
-        if (next.has(relPath)) {
-          next.delete(relPath)
-        } else {
+    const setDirExpanded = useCallback(
+      (relPath: string, expanded: boolean): void => {
+        const next = new Set(expandedRelPathsRef.current)
+        if (expanded) {
+          if (next.has(relPath)) return
           next.add(relPath)
           if (!childrenByDir.has(relPath)) void loadDir(relPath)
+        } else if (!next.delete(relPath)) {
+          return
         }
-        const paths = Array.from(next)
-        if (expandedPathsKey(paths) !== expandedPathsKey(expandedRelPaths)) {
-          onExpandedChange(paths)
-        }
+        commitExpandedPaths(Array.from(next))
       },
-      [expandedRelPaths, childrenByDir, loadDir, onExpandedChange],
+      [childrenByDir, loadDir, commitExpandedPaths],
+    )
+
+    const toggleDir = useCallback(
+      (relPath: string): void => {
+        const isExpanded = expandedRelPathsRef.current.includes(relPath)
+        setDirExpanded(relPath, !isExpanded)
+      },
+      [setDirExpanded],
     )
 
     const getSelectedRelPaths = useCallback((): string[] => {
@@ -420,17 +448,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         selectedRelPath,
       )
     }, [multiSelected, contextMenu, selectedRelPath])
-
-    const expandDirIfCollapsed = useCallback(
-      (relPath: string): void => {
-        if (expandedSet.has(relPath)) return
-        const next = new Set(expandedRelPaths)
-        next.add(relPath)
-        if (!childrenByDir.has(relPath)) void loadDir(relPath)
-        onExpandedChange(Array.from(next))
-      },
-      [expandedSet, expandedRelPaths, childrenByDir, loadDir, onExpandedChange],
-    )
 
     const handleSelectEntry = useCallback(
       async (relPath: string, isDirectory: boolean, e?: React.MouseEvent): Promise<void> => {
@@ -457,28 +474,27 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         setMultiSelected(new Set())
         setLastClickedPath(relPath)
 
+        // Toggle de carpeta antes de await: la UI no debe esperar a la selección.
+        if (isDirectory) {
+          toggleDir(relPath)
+        }
+
         // Modo doble-click: seleccionar archivo sin abrirlo; abrir solo con doble click
         const open = isDirectory ? false : openOnSingleClick
-        const ok = await onSelectEntry(relPath, isDirectory, e, { open })
-        if (!ok) return
-
-        // Click en carpeta: seleccionar + expandir si está colapsada (cerrar = chevron/dblclick/←)
-        if (isDirectory) expandDirIfCollapsed(relPath)
+        await onSelectEntry(relPath, isDirectory, e, { open })
       },
-      [lastClickedPath, onSelectEntry, openOnSingleClick, expandDirIfCollapsed, selectedRelPath],
+      [lastClickedPath, onSelectEntry, openOnSingleClick, toggleDir, selectedRelPath],
     )
 
     const handleDoubleClickEntry = useCallback(
       (relPath: string, isDirectory: boolean): void => {
-        if (isDirectory) {
-          toggleDir(relPath)
-          return
-        }
+        // Carpetas: el click simple ya hace toggle; el dblclick no debe togglear de nuevo.
+        if (isDirectory) return
         if (!openOnSingleClick) {
           void onSelectEntry(relPath, false, undefined, { open: true })
         }
       },
-      [toggleDir, onSelectEntry, openOnSingleClick],
+      [onSelectEntry, openOnSingleClick],
     )
 
     const submitCreate = useCallback(async () => {
@@ -746,14 +762,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           : undefined,
       )
     }, [getSelectedRelPaths, contextMenu, closeContextMenu, confirmAndDelete])
-
-    const handleRevealTerminalCwd = useCallback(async () => {
-      const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
-      const rel = relPathFromCwd(treeRootCwd, cwd)
-      if (rel === null) return
-      if (rel) expandParents(rel)
-      void onSelectEntry(rel, true)
-    }, [sessionId, treeRootCwd, expandParents, onSelectEntry])
 
     const handleRevealInFinder = useCallback(() => {
       const target = contextMenu?.target
@@ -1170,15 +1178,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
               <span className="file-explorer-tree__hidden-dot" aria-hidden />
             )}
           </span>
-          <button
-            type="button"
-            className="file-explorer-tree__tool-btn"
-            title={t('fileExplorer.toolbar.revealCwd')}
-            aria-label={t('fileExplorer.toolbar.revealCwd')}
-            onClick={() => { void handleRevealTerminalCwd() }}
-          >
-            <Icon name="terminal" size={11} aria-hidden />
-          </button>
           <button
             type="button"
             className="file-explorer-tree__tool-btn"

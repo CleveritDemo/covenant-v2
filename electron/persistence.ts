@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameS
 import { app } from 'electron'
 import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
+import type { AgentChatEntry } from '../src/shared/agentCliTypes'
 
 const USER_DATA = (): string => app.getPath('userData')
 
@@ -17,8 +18,6 @@ export interface PersistedSession {
   activeTabId: string
   tabs: TabSession[]
   cwds: Record<string, string>
-  /** Por panel (sessionId / paneId): chat IA expandido; ausente u omitido = colapsado */
-  aiExpandedByPane?: Record<string, boolean>
   /** Por panel: explorador de archivos (abierto, selección, carpetas expandidas). */
   explorerByPane?: Record<string, FileExplorerPersistedState>
 }
@@ -44,7 +43,6 @@ export function loadSession(): PersistedSession | null {
       activeTabId,
       tabs: tabs as TabSession[],
       cwds: parsed.cwds ?? {},
-      aiExpandedByPane: parsed.aiExpandedByPane,
       explorerByPane: parsed.explorerByPane,
     }
   } catch {
@@ -208,6 +206,46 @@ export function saveScrollback(paneId: string, data: string): void {
 export function deleteScrollback(paneId: string): void {
   try {
     const path = scrollbackFile(paneId)
+    if (existsSync(path)) unlinkSync(path)
+  } catch { /* ignore */ }
+}
+
+// ─── Agent CLI chat history ─────────────────────────────────────────────────
+
+const agentChatDir = (): string => join(USER_DATA(), 'agent-chats')
+const agentChatFile = (paneId: string): string => join(agentChatDir(), `${paneId}.json`)
+
+function isAgentChatEntry(value: unknown): value is AgentChatEntry {
+  if (!value || typeof value !== 'object') return false
+  const entry = value as Record<string, unknown>
+  return (
+    typeof entry.id === 'string' &&
+    (entry.role === 'user' || entry.role === 'assistant' || entry.role === 'system') &&
+    typeof entry.content === 'string'
+  )
+}
+
+export function loadAgentChat(paneId: string): AgentChatEntry[] {
+  try {
+    const path = agentChatFile(paneId)
+    if (!existsSync(path)) return []
+    const data = JSON.parse(readFileSync(path, 'utf-8')) as unknown
+    return Array.isArray(data) ? data.filter(isAgentChatEntry) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
+  try {
+    ensureDir(agentChatDir())
+    writeFileSync(agentChatFile(paneId), JSON.stringify(entries), 'utf-8')
+  } catch { /* ignore */ }
+}
+
+export function deleteAgentChat(paneId: string): void {
+  try {
+    const path = agentChatFile(paneId)
     if (existsSync(path)) unlinkSync(path)
   } catch { /* ignore */ }
 }

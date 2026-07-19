@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { getTheme, getThemeChromeProfile, getThemesForPicker } from '@themes/presets'
+import { getTheme, getThemesForPicker } from '@themes/presets'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { ThemePreview } from './ThemePreview'
@@ -35,11 +35,11 @@ export const ThemePickerModal: React.FC<Props> = ({
   )
 
   const groupedThemes = useMemo(() => {
-    const glow = filteredThemes.filter(theme => getThemeChromeProfile(theme).category === 'glow')
-    const regular = filteredThemes.filter(theme => getThemeChromeProfile(theme).category === 'regular')
+    const cinematicDark = filteredThemes.filter(theme => theme.appearance !== 'light')
+    const cinematicLight = filteredThemes.filter(theme => theme.appearance === 'light')
     return [
-      { key: 'glow', title: 'Glow / cinematic', themes: glow },
-      { key: 'regular', title: 'Regular / clean', themes: regular },
+      { key: 'cinematic-dark', title: 'Cinematic — dark', themes: cinematicDark },
+      { key: 'cinematic-light', title: 'Cinematic — light', themes: cinematicLight },
     ].filter(group => group.themes.length > 0)
   }, [filteredThemes])
 

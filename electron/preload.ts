@@ -13,6 +13,20 @@ import type {
   FileExplorerSearchResult,
   FileExplorerWriteResult,
 } from '../src/shared/fileExplorerTypes'
+import type {
+  AgentChatEntry,
+  AgentCliStartRequest,
+  AgentCliUiEvent,
+} from '../src/shared/agentCliTypes'
+import type {
+  TabContextAnnotationRequest,
+  TabContextDeleteRequest,
+  TabContextDeleteResult,
+  TabContextDiscoveryRequest,
+  TabContextDiscoveryResult,
+  TabContextPreviewRequest,
+  TabContextPreviewResult,
+} from '../src/shared/tabContext'
 
 /** Un listener IPC por canal; evita MaxListenersExceeded con muchos paneles PTY. */
 function createPtyChannelMux<TArgs extends unknown[]>(
@@ -49,6 +63,8 @@ function createPtyChannelMux<TArgs extends unknown[]>(
 const subscribePtyData = createPtyChannelMux<[data: string]>(IPC.PTY_DATA)
 const subscribePtyExit = createPtyChannelMux<[code: number]>(IPC.PTY_EXIT)
 const subscribePtyError = createPtyChannelMux<[message: string]>(IPC.PTY_ERROR)
+const subscribeAgentCliEvent = createPtyChannelMux<[event: AgentCliUiEvent]>(IPC.AGENT_CLI_EVENT)
+const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_EXIT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
 
@@ -74,6 +90,43 @@ const api = {
   },
   onPtyError(sessionId: string, cb: (message: string) => void): () => void {
     return subscribePtyError(sessionId, cb)
+  },
+
+  startAgentTurn(request: AgentCliStartRequest): void {
+    ipcRenderer.send(IPC.AGENT_CLI_START, request)
+  },
+  stopAgentTurn(paneId: string): void {
+    ipcRenderer.send(IPC.AGENT_CLI_STOP, paneId)
+  },
+  onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
+    return subscribeAgentCliEvent(paneId, cb)
+  },
+  onAgentCliExit(paneId: string, cb: (code: number) => void): () => void {
+    return subscribeAgentCliExit(paneId, cb)
+  },
+  loadAgentChat(paneId: string): Promise<AgentChatEntry[]> {
+    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId)
+  },
+  saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, paneId, entries)
+  },
+  deleteAgentChat(paneId: string): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
+  },
+  previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_PREVIEW, request)
+  },
+  materializeTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_MATERIALIZE, request)
+  },
+  mergeTabContextAnnotations(request: TabContextAnnotationRequest): Promise<TabContextPreviewResult> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_MERGE_ANNOTATIONS, request)
+  },
+  discoverTabContexts(request: TabContextDiscoveryRequest): Promise<TabContextDiscoveryResult> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_DISCOVER, request)
+  },
+  deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
   },
 
   onShortcutCloseTab(cb: () => void): () => void {

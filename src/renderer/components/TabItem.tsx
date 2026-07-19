@@ -123,7 +123,7 @@ export const TabItem: React.FC<TabItemProps> = ({
         <Spinner variant="tab" aria-label={t('tabs.spinnerAriaLabel')} />
       ) : (
         <span className="tab-icon" aria-hidden="true">
-          <Icon name="terminal" size={10} />
+          <Icon name={tab.paneKinds?.[tab.activePaneId] === 'agent' ? 'bot' : 'terminal'} size={10} />
         </span>
       )}
 

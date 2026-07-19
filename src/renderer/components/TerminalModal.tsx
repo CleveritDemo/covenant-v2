@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
 import { Icon } from './ui/Icon'
 import './TerminalModal.css'
@@ -108,7 +109,10 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     bodyLayout !== 'default' ? `terminal-modal-body--${bodyLayout}` : '',
   ].filter(Boolean).join(' ')
 
-  return (
+  // Portal al body: mismo stacking y opacidad en todos los usos. Si el modal
+  // se monta dentro de un panel (p. ej. agent-pane con isolation/overflow),
+  // el fixed queda atrapado y el fondo se ve “transparente” o recortado.
+  return createPortal(
     <div
       className="terminal-modal-backdrop"
       style={{ '--modal-z': zIndex } as React.CSSProperties}
@@ -153,6 +157,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import './AiMarkdown.css'
 
 type MdBlock =
   | { type: 'h'; level: 1 | 2 | 3; text: string }

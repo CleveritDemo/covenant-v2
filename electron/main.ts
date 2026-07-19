@@ -36,7 +36,28 @@ import {
   loadInteractionsLog,
   saveInteractionsLog,
   deleteInteractionsLog,
+  loadAgentChat,
+  saveAgentChat,
+  deleteAgentChat,
 } from './persistence'
+import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
+import {
+  startAgentTurn,
+  stopAgentRun,
+  stopAgentRunsForWindow,
+} from './agentCliRuntime'
+import {
+  deleteTabContext,
+  discoverTabContexts,
+  materializeTabContext,
+  mergeAnnotations,
+} from './tabContextBuild'
+import type {
+  TabContextAnnotationRequest,
+  TabContextDeleteRequest,
+  TabContextDiscoveryRequest,
+  TabContextPreviewRequest,
+} from '../src/shared/tabContext'
 import { gatherProjectAiContextForCwd } from './projectAiContext'
 import { readAgentMdForCwd, writeAgentMdForCwd, gatherShallowFolderTree } from './agentMd'
 import { applyProjectPatch, readProjectFile, readProjectFileLines, writeProjectFile } from './agentFileOps'
@@ -77,6 +98,7 @@ import {
   stopAllFileExplorerWatches,
   stopFileExplorerWatch,
 } from './fileExplorerWatcher'
+import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
 
 const APP_DISPLAY_NAME = 'AI Terminal'
@@ -636,6 +658,103 @@ function registerIpc(): void {
     deleteInteractionsLog(paneId)
   })
 
+  ipcMain.handle(IPC.AGENT_CHAT_LOAD, (_e, paneId: string) => loadAgentChat(paneId))
+  ipcMain.on(IPC.AGENT_CHAT_SAVE, (_e, paneId: string, entries: unknown) => {
+    saveAgentChat(paneId, entries as AgentChatEntry[])
+  })
+  ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, paneId: string) => {
+    deleteAgentChat(paneId)
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
+    if (!request || typeof request.cwd !== 'string' || !request.context) {
+      return { ok: false, content: '', error: 'Solicitud inválida.' }
+    }
+    return materializeTabContext(request.context, request.cwd, {
+      content: request.content,
+    })
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_MATERIALIZE, (_event, request: TabContextPreviewRequest) => {
+    if (!request || typeof request.cwd !== 'string' || !request.context) {
+      return { ok: false, content: '', error: 'Solicitud inválida.' }
+    }
+    return materializeTabContext(request.context, request.cwd, {
+      content: request.content,
+      write: true,
+    })
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_MERGE_ANNOTATIONS, (_event, request: TabContextAnnotationRequest) => {
+    if (!request || typeof request.cwd !== 'string' || !request.context || !Array.isArray(request.annotations)) {
+      return { ok: false, content: '', error: 'Solicitud inválida.' }
+    }
+    return mergeAnnotations(request.context, request.cwd, request.annotations)
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_DISCOVER, (_event, request: TabContextDiscoveryRequest) => {
+    if (!request || typeof request.cwd !== 'string' || !request.cwd.trim()) {
+      return { ok: false, contexts: [], error: 'Solicitud inválida.' }
+    }
+    return discoverTabContexts(request.cwd)
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_DELETE, (_event, request: TabContextDeleteRequest) => {
+    if (!request || typeof request.cwd !== 'string' || !request.context) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return deleteTabContext(request.context, request.cwd)
+  })
+
+  ipcMain.on(IPC.AGENT_CLI_START, (event, request: AgentCliStartRequest) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    const reject = (paneId: string, message: string): void => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IPC.AGENT_CLI_EVENT, paneId, { type: 'error', message })
+        win.webContents.send(IPC.AGENT_CLI_EVENT, paneId, { type: 'done', code: 1 })
+        win.webContents.send(IPC.AGENT_CLI_EXIT, paneId, 1)
+      }
+    }
+    if (!request || typeof request.paneId !== 'string' || typeof request.prompt !== 'string') {
+      if (request && typeof request.paneId === 'string') {
+        reject(request.paneId, 'Solicitud de agente inválida.')
+      }
+      return
+    }
+    if (request.provider !== 'claude' && request.provider !== 'cursor') {
+      reject(request.paneId, 'Proveedor de agente no válido.')
+      return
+    }
+    if (!['ask', 'auto', 'plan'].includes(request.permissionMode)) {
+      reject(request.paneId, 'Modo de permisos no válido.')
+      return
+    }
+    if (request.model != null && typeof request.model !== 'string') {
+      reject(request.paneId, 'Modelo de agente no válido.')
+      return
+    }
+    if (request.images != null) {
+      if (!Array.isArray(request.images)) {
+        reject(request.paneId, 'Adjuntos de imagen no válidos.')
+        return
+      }
+      for (const image of request.images) {
+        if (!image || typeof image !== 'object') {
+          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          return
+        }
+        if (typeof image.name !== 'string' || typeof image.mimeType !== 'string') {
+          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          return
+        }
+        if (typeof image.base64 !== 'string' || !image.base64.trim()) {
+          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          return
+        }
+      }
+    }
+    startAgentTurn(win, request, readConfig(), app.getPath('home'))
+  })
+  ipcMain.on(IPC.AGENT_CLI_STOP, (_event, paneId: string) => {
+    if (typeof paneId === 'string') stopAgentRun(paneId)
+  })
+
   ipcMain.on(IPC.PTY_CREATE, (event, sessionId: string, cwd?: string) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
@@ -785,6 +904,7 @@ function createWindow(): BrowserWindow {
 
   win.on('closed', () => {
     const closedWinId = win.id
+    stopAgentRunsForWindow(closedWinId)
     for (const [id, entry] of [...ptySessions.entries()]) {
       if (entry.windowId === closedWinId) {
         killPty(id)
@@ -797,6 +917,8 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // Dock/Finder no heredan el PATH del shell; sin esto `spawn('agent')` falla con ENOENT.
+  applyLoginShellPath()
   applyAppBranding()
   registerIpc()
   createWindow()

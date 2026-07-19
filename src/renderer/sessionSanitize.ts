@@ -1,5 +1,11 @@
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
-import type { TabSession } from './App'
+import type {
+  AgentCliProvider,
+  AgentPaneMeta,
+  AgentPermissionMode,
+  PaneKind,
+  TabSession,
+} from '@shared/tabSession'
 import { normalizeTabSession } from './tabSplitSizes'
 
 export interface PersistedSessionInput {
@@ -7,7 +13,6 @@ export interface PersistedSessionInput {
   activeTabId: string
   tabs: TabSession[]
   cwds: Record<string, string>
-  aiExpandedByPane?: Record<string, boolean>
   explorerByPane?: Record<string, FileExplorerPersistedState>
 }
 
@@ -15,7 +20,6 @@ export interface SanitizedSession {
   tabs: TabSession[]
   activeTabId: string
   cwds: Record<string, string>
-  aiExpandedByPane: Record<string, boolean>
   explorerByPane: Record<string, FileExplorerPersistedState>
   orphanPaneIds: string[]
 }
@@ -27,11 +31,49 @@ function sanitizeTab(tab: TabSession): TabSession | null {
   const activePaneId = paneIds.includes(tab.activePaneId)
     ? tab.activePaneId
     : paneIds[paneIds.length - 1]!
+  const paneKinds: Record<string, PaneKind> = {}
+  const agentByPane: Record<string, AgentPaneMeta> = {}
+  for (const paneId of paneIds) {
+    if (tab.paneKinds?.[paneId] !== 'agent') continue
+    const raw = tab.agentByPane?.[paneId]
+    const provider: AgentCliProvider =
+      raw?.provider === 'cursor' || raw?.provider === 'claude' ? raw.provider : 'claude'
+    const rawMode = raw?.permissionMode as string | undefined
+    const permissionMode: AgentPermissionMode =
+      rawMode === 'auto' ? 'auto'
+      // 'readonly' es el nombre anterior del modo plan (sesiones ya guardadas).
+      : rawMode === 'plan' || rawMode === 'readonly' ? 'plan'
+      : 'ask'
+    paneKinds[paneId] = 'agent'
+    agentByPane[paneId] = {
+      provider,
+      permissionMode,
+      ...(typeof raw?.model === 'string' && raw.model.trim()
+        ? { model: raw.model.trim() }
+        : {}),
+      // Los ids se validan contra disco al descubrir; aquí solo se limpian tipos.
+      ...(Array.isArray(raw?.contextIds)
+        ? {
+            contextIds: raw.contextIds.filter(
+              (id): id is string => typeof id === 'string' && id.trim().length > 0,
+            ),
+          }
+        : {}),
+      ...(raw?.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
+      ...(typeof raw?.cliSessionId === 'string' && raw.cliSessionId.trim()
+        ? { cliSessionId: raw.cliSessionId.trim() }
+        : {}),
+    }
+  }
   return normalizeTabSession({
     ...tab,
     title: typeof tab.title === 'string' && tab.title.trim() ? tab.title : 'Terminal',
     paneIds,
     activePaneId,
+    ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
+    ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
+    // Catálogo = `.iaterminal`; no se persiste en session.json.
+    contexts: undefined,
   })
 }
 
@@ -64,10 +106,6 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
       .filter(([, cwd]) => Boolean(cwd?.trim())),
   )
 
-  const aiExpandedByPane = Object.fromEntries(
-    Object.entries(saved.aiExpandedByPane ?? {}).filter(([id]) => keptPaneIds.has(id)),
-  )
-
   const explorerByPane = Object.fromEntries(
     Object.entries(saved.explorerByPane ?? {}).filter(([id]) => keptPaneIds.has(id)),
   )
@@ -77,5 +115,5 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
   )
   const orphanPaneIds = [...allSavedPaneIds].filter(id => !keptPaneIds.has(id))
 
-  return { tabs, activeTabId, cwds, aiExpandedByPane, explorerByPane, orphanPaneIds }
+  return { tabs, activeTabId, cwds, explorerByPane, orphanPaneIds }
 }

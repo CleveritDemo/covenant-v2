@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import './AiMarkdown.css'
 
 const SHELL_LANGS = new Set([
   'bash', 'sh', 'zsh', 'shell', 'console', 'terminal', 'fish', 'ksh', 'csh',

@@ -13,6 +13,8 @@ import {
 import { TabBar, type TabBarHandle } from './components/TabBar'
 import { TabTerminalSplitLayout } from './components/TabTerminalSplitLayout'
 import { TerminalPane } from './terminal/TerminalPane'
+import { AgentPane } from './agent/AgentPane'
+import { AgentProviderPickerModal } from './agent/AgentProviderPickerModal'
 import {
   buildPaneDragThumbnail,
   PANE_DRAG_THUMB_HEADER_H,
@@ -37,7 +39,11 @@ import {
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import './styles/app.css'
 
-import type { TabSession } from '../shared/tabSession'
+import type {
+  AgentCliProvider,
+  AgentPaneMeta,
+  TabSession,
+} from '../shared/tabSession'
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
@@ -72,7 +78,19 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
     const activePaneId = paneIds.includes(tab.activePaneId)
       ? tab.activePaneId
       : paneIds[paneIds.length - 1]!
-    return normalizeTabSession({ ...tab, paneIds, activePaneId })
+    const paneKinds = Object.fromEntries(
+      Object.entries(tab.paneKinds ?? {}).filter(([id]) => paneIds.includes(id)),
+    )
+    const agentByPane = Object.fromEntries(
+      Object.entries(tab.agentByPane ?? {}).filter(([id]) => paneIds.includes(id)),
+    )
+    return normalizeTabSession({
+      ...tab,
+      paneIds,
+      activePaneId,
+      ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
+      ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
+    })
   })
   return { tabs: out, orphanPaneIds }
 }
@@ -98,11 +116,11 @@ export const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(CONFIG_DEFAULTS)
   const [configReady, setConfigReady] = useState(false)
   const [sessionReady, setSessionReady] = useState<SessionReady>({ loaded: false })
-  const [aiExpandedByPane, setAiExpandedByPane] = useState<Record<string, boolean>>({})
   const [explorerByPane, setExplorerByPane] = useState<Record<string, FileExplorerPersistedState>>({})
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
+  const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId: string } | null>(null)
   /** Reordenar paneles: contexto durante HTML5 DnD (evita cierres obsoletos en dragOver). */
   const paneReorderDragRef = useRef<{ tabId: string; dragPaneId: string } | null>(null)
   const [paneDragOverPaneId, setPaneDragOverPaneId] = useState<string | null>(null)
@@ -110,7 +128,6 @@ export const App: React.FC = () => {
   const termRefs = useRef<Map<string, {
     getSelection: () => string
     writeToTty: (s: string) => void
-    toggleAiFullscreen: () => void
     toggleExplorer: () => void
     serialize: () => string
     scrollToBottom: () => void
@@ -118,7 +135,6 @@ export const App: React.FC = () => {
   }>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
-  const aiExpandedByPaneRef = useRef<Record<string, boolean>>({})
   const explorerByPaneRef = useRef<Record<string, FileExplorerPersistedState>>({})
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
@@ -158,7 +174,6 @@ export const App: React.FC = () => {
       activeTabId: currentActiveTabId,
       tabs: currentTabs,
       cwds: { ...cwdsRef.current },
-      aiExpandedByPane: { ...aiExpandedByPaneRef.current },
       explorerByPane: { ...explorerByPaneRef.current },
     }
   }, [])
@@ -242,16 +257,12 @@ export const App: React.FC = () => {
             window.api.deleteAiChat(pid)
             window.api.deleteCmdHistory(pid)
             window.api.deleteInteractionsLog(pid)
+            window.api.deleteAgentChat(pid)
           }
         }, 0)
         cwdsRef.current = Object.fromEntries(
           Object.entries(sanitized.cwds).filter(([id]) => keptPaneIds.has(id)),
         )
-        const aiMap = Object.fromEntries(
-          Object.entries(sanitized.aiExpandedByPane).filter(([id]) => keptPaneIds.has(id)),
-        )
-        aiExpandedByPaneRef.current = aiMap
-        setAiExpandedByPane(aiMap)
         const explorerMap = Object.fromEntries(
           Object.entries(sanitized.explorerByPane)
             .filter(([id]) => keptPaneIds.has(id))
@@ -327,7 +338,6 @@ export const App: React.FC = () => {
             activeTabId: currentActiveTabId,
             tabs: currentTabs,
             cwds: cwdsRef.current,
-            aiExpandedByPane: { ...aiExpandedByPaneRef.current },
             explorerByPane: { ...explorerByPaneRef.current },
           })
         }
@@ -354,15 +364,6 @@ export const App: React.FC = () => {
     }
     return ids
   }, [tabs, busyPanes])
-
-  const handleAiExpandedChange = useCallback((paneId: string, expanded: boolean) => {
-    setAiExpandedByPane(prev => {
-      const next = { ...prev, [paneId]: expanded }
-      aiExpandedByPaneRef.current = next
-      return next
-    })
-    scheduleSaveSession()
-  }, [scheduleSaveSession])
 
   const handleFileExplorerChange = useCallback(
     (paneId: string, state: FileExplorerPersistedState) => {
@@ -394,12 +395,6 @@ export const App: React.FC = () => {
   const handleCloseTab = useCallback((tabId: string) => {
     const victim = tabsRef.current.find(t => t.id === tabId)
     if (victim) {
-      setAiExpandedByPane(ae => {
-        const next = { ...ae }
-        for (const p of victim.paneIds) delete next[p]
-        aiExpandedByPaneRef.current = next
-        return next
-      })
       setExplorerByPane(ex => {
         const next = { ...ex }
         for (const p of victim.paneIds) delete next[p]
@@ -408,7 +403,8 @@ export const App: React.FC = () => {
       })
       const paneIds = [...victim.paneIds]
       for (const pid of paneIds) {
-        window.api.ptyKill(pid)
+        if (victim.paneKinds?.[pid] === 'agent') window.api.stopAgentTurn(pid)
+        else window.api.ptyKill(pid)
         termRefs.current.delete(pid)
         splitSpawnCwdRef.current.delete(pid)
         delete cwdsRef.current[pid]
@@ -425,6 +421,7 @@ export const App: React.FC = () => {
           window.api.deleteAiChat(pid)
           window.api.deleteCmdHistory(pid)
           window.api.deleteInteractionsLog(pid)
+          window.api.deleteAgentChat(pid)
         }
       }, 0)
     }
@@ -445,19 +442,14 @@ export const App: React.FC = () => {
   const handleClosePane = useCallback((tabId: string, paneId: string) => {
     const t = tabsRef.current.find(x => x.id === tabId)
     if (!t || t.paneIds.length <= 1) return
-    setAiExpandedByPane(prev => {
-      const next = { ...prev }
-      delete next[paneId]
-      aiExpandedByPaneRef.current = next
-      return next
-    })
     setExplorerByPane(prev => {
       const next = { ...prev }
       delete next[paneId]
       explorerByPaneRef.current = next
       return next
     })
-    window.api.ptyKill(paneId)
+    if (t.paneKinds?.[paneId] === 'agent') window.api.stopAgentTurn(paneId)
+    else window.api.ptyKill(paneId)
     termRefs.current.delete(paneId)
     splitSpawnCwdRef.current.delete(paneId)
     delete cwdsRef.current[paneId]
@@ -479,25 +471,31 @@ export const App: React.FC = () => {
           tab.paneIds[Math.min(idx + 1, tab.paneIds.length - 1)]
         nextActive = prefer && nextPanes.includes(prefer) ? prefer : nextPanes[0]!
       }
-      return { ...tab, paneIds: nextPanes, activePaneId: nextActive }
+      const paneKinds = { ...(tab.paneKinds ?? {}) }
+      const agentByPane = { ...(tab.agentByPane ?? {}) }
+      delete paneKinds[paneId]
+      delete agentByPane[paneId]
+      return normalizeTabSession({
+        ...tab,
+        paneIds: nextPanes,
+        activePaneId: nextActive,
+        ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
+        ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
+      })
     }))
     setTimeout(() => {
       window.api.deleteScrollback(paneId)
       window.api.deleteAiChat(paneId)
       window.api.deleteCmdHistory(paneId)
       window.api.deleteInteractionsLog(paneId)
+      window.api.deleteAgentChat(paneId)
     }, 0)
   }, [])
 
   const handleSplitRight = useCallback(async (tabId: string, fromPaneId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
-    let cwd = ''
-    try {
-      cwd = await window.api.getSessionCwd(fromPaneId)
-    } catch {
-      /* usar cwd por defecto en main */
-    }
+    const cwd = await resolvePaneCwdForPersist(fromPaneId)
     const newPaneId = crypto.randomUUID()
     if (cwd) rememberPaneCwd(newPaneId, cwd)
     setTabs(prev => prev.map(t => {
@@ -511,7 +509,58 @@ export const App: React.FC = () => {
       return normalizeTabSession({ ...t, paneIds: next, activePaneId: newPaneId, splitSizes })
     }))
     scheduleSaveSession()
-  }, [rememberPaneCwd, scheduleSaveSession])
+  }, [rememberPaneCwd, resolvePaneCwdForPersist, scheduleSaveSession])
+
+  const handleAddAgentPane = useCallback(async (
+    tabId: string,
+    fromPaneId: string,
+    provider: AgentCliProvider,
+  ) => {
+    const current = tabsRef.current.find(tab => tab.id === tabId)
+    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    const cwd = await resolvePaneCwdForPersist(fromPaneId)
+    const paneId = crypto.randomUUID()
+    if (cwd) rememberPaneCwd(paneId, cwd)
+    setTabs(prev => prev.map(tab => {
+      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      const fromIndex = tab.paneIds.indexOf(fromPaneId)
+      if (fromIndex < 0) return tab
+      const paneIds = [...tab.paneIds]
+      paneIds.splice(fromIndex + 1, 0, paneId)
+      return normalizeTabSession({
+        ...tab,
+        paneIds,
+        activePaneId: paneId,
+        splitSizes: splitSizesAfterAddingPane(tab, paneIds.length),
+        paneKinds: { ...(tab.paneKinds ?? {}), [paneId]: 'agent' },
+        agentByPane: {
+          ...(tab.agentByPane ?? {}),
+          [paneId]: { provider, permissionMode: 'auto' },
+        },
+      })
+    }))
+    scheduleSaveSession()
+  }, [rememberPaneCwd, resolvePaneCwdForPersist, scheduleSaveSession])
+
+  const handleAgentMetaChange = useCallback((
+    tabId: string,
+    paneId: string,
+    meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
+  ) => {
+    setTabs(prev => prev.map(tab => {
+      if (tab.id !== tabId) return tab
+      const previous = tab.agentByPane?.[paneId] ?? { provider: 'claude', permissionMode: 'ask' }
+      const next = typeof meta === 'function' ? meta(previous) : meta
+      return { ...tab, agentByPane: { ...(tab.agentByPane ?? {}), [paneId]: next } }
+    }))
+  }, [])
+
+  const handleAgentCwdChange = useCallback((paneId: string, cwd: string) => {
+    rememberPaneCwd(paneId, cwd)
+    // Forzar re-render para que AgentPane reciba el cwd actualizado (viene de refs).
+    setTabs(prev => [...prev])
+    void saveSessionNow()
+  }, [rememberPaneCwd, saveSessionNow])
 
   const handleFocusPane = useCallback((tabId: string, paneId: string) => {
     setActiveTabId(tabId)
@@ -699,21 +748,6 @@ export const App: React.FC = () => {
 
   // Atajos de teclado globales (captura en fase de bajada para que funcionen con foco en xterm)
   useEffect(() => {
-    /**
-     * ⌘I: no bloquear si el foco está en el chat IA (p. ej. textarea), para poder colapsar
-     * con el mismo atajo. Sí bloquear en otros campos (ajustes, etc.).
-     */
-    const shouldBlockAiToggleShortcut = (ev: KeyboardEvent): boolean => {
-      const target = ev.target as HTMLElement | null
-      if (!target) return false
-      if (target.closest('.xterm')) return false
-      if (target.closest('.ai-panel')) return false
-      const tag = target.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-      if (target.isContentEditable) return true
-      return false
-    }
-
     const isFocusInFileExplorer = (): boolean => {
       const focus = document.activeElement
       return focus instanceof HTMLElement && focus.closest('.terminal-file-explorer') !== null
@@ -743,21 +777,6 @@ export const App: React.FC = () => {
     const onKeyDown = (e: KeyboardEvent): void => {
       const accel = e.metaKey || e.ctrlKey
       if (!accel) return
-
-      const isI = e.key === 'i' || e.key === 'I' || e.code === 'KeyI'
-
-      // ⌘I / Ctrl+I: alternar chat IA a pantalla completa ↔ colapsado (panel activo)
-      if (!e.altKey && !e.shiftKey && isI) {
-        if (shouldBlockAiToggleShortcut(e)) return
-        e.preventDefault()
-        e.stopPropagation()
-        const tabList = tabsRef.current
-        const aid = activeTabIdRef.current
-        const tab = tabList.find(t => t.id === aid)
-        if (!tab) return
-        termRefs.current.get(tab.activePaneId)?.toggleAiFullscreen()
-        return
-      }
 
       // ⌘Fin / Ctrl+Fin: ir al final del scrollback (panel activo)
       const isEndKey = e.key === 'End' || e.code === 'End'
@@ -821,6 +840,22 @@ export const App: React.FC = () => {
         return
       }
 
+      // ⌘A / Ctrl+A: nueva ventana de agente en la pestaña activa
+      if (e.key === 'a' || e.key === 'A' || e.code === 'KeyA') {
+        const target = e.target as HTMLElement | null
+        if (target && !target.closest('.xterm')) {
+          const tag = target.tagName
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+          if (target.isContentEditable) return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
+        if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+        setAgentPicker({ tabId: tab.id, fromPaneId: tab.activePaneId })
+        return
+      }
+
       // ⌘1–9: cambiar a la pestaña en esa posición
       const digit = parseInt(e.key, 10)
       if (digit >= 1 && digit <= 9) {
@@ -835,28 +870,49 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [handleAddTab])
 
-  const renderPaneCell = (tab: TabSession, paneId: string, layoutSlotClass?: string): React.ReactElement => (
-    <div
-      key={paneId}
-      data-pane-id={paneId}
-      className={[
-        'tab-terminal-pane-cell',
-        layoutSlotClass,
-        tab.paneIds.length > 1 && paneDragOverPaneId === paneId ? 'tab-terminal-pane-cell--drag-over' : '',
-      ].filter(Boolean).join(' ')}
-      {...(tab.paneIds.length > 1
+  const renderPaneCell = (
+    tab: TabSession,
+    paneId: string,
+    layoutSlotClass?: string,
+  ): React.ReactElement => {
+    const isAgent = tab.paneKinds?.[paneId] === 'agent'
+    const paneReorder =
+      tab.id === activeTabId && tab.paneIds.length > 1
         ? {
-            onDragEnter: (e: DragEvent) => { onPaneCellDragHover(tab.id, paneId, e) },
-            onDragOverCapture: (e: DragEvent) => { onPaneCellDragHover(tab.id, paneId, e) },
-            onDrop: (e: DragEvent) => { onPaneCellDrop(tab.id, paneId, e) },
-            onDragLeave: (e: DragEvent) => { onPaneCellDragLeave(paneId, e) },
+            enabled: true,
+            isGrabbed: paneDragSourcePaneId === paneId,
+            onDragHandleStart: (event: DragEvent) => {
+              onPaneReorderHandleDragStart(tab.id, paneId, event)
+            },
+            onDragHandleEnd: onPaneReorderHandleDragEnd,
           }
-        : {})}
-    >
+        : undefined
+    const registerClose = tab.paneIds.length > 1
+      ? (openConfirm: () => void) => registerPaneShortcutCloseIntercept(paneId, openConfirm)
+      : undefined
+
+    const content = isAgent ? (
+      <AgentPane
+        paneId={paneId}
+        meta={tab.agentByPane?.[paneId] ?? { provider: 'claude', permissionMode: 'ask' }}
+        cwd={splitSpawnCwdRef.current.get(paneId) || cwdsRef.current[paneId] || ''}
+        tabActive={tab.id === activeTabId}
+        isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
+        cwdSources={tab.paneIds
+          .filter(id => tab.paneKinds?.[id] !== 'agent')
+          .map((id, index) => ({ paneId: id, label: `Terminal ${index + 1}` }))}
+        onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
+        onCwdChange={cwd => handleAgentCwdChange(paneId, cwd)}
+        onRequestPaneFocus={() => handleFocusPane(tab.id, paneId)}
+        onClosePane={tab.paneIds.length > 1 ? () => handleClosePane(tab.id, paneId) : undefined}
+        onBusyChange={busy => handleBusyChange(paneId, busy)}
+        paneReorder={paneReorder}
+        registerShortcutCloseInterceptor={registerClose}
+        fontSize={config.fontSize ?? 13}
+      />
+    ) : (
       <TerminalPane
         sessionId={paneId}
-        aiExpanded={aiExpandedByPane[paneId] ?? false}
-        onAiExpandedChange={expanded => handleAiExpandedChange(paneId, expanded)}
         fileExplorer={explorerByPane[paneId] ?? DEFAULT_FILE_EXPLORER_STATE}
         onFileExplorerChange={state => handleFileExplorerChange(paneId, state)}
         tabActive={tab.id === activeTabId}
@@ -866,21 +922,9 @@ export const App: React.FC = () => {
         onPaneCwdChanged={persistPaneCwdOnCd}
         paneToolbar={{
           onClosePane: tab.paneIds.length > 1 ? () => handleClosePane(tab.id, paneId) : undefined,
-          paneReorder:
-            tab.id === activeTabId && tab.paneIds.length > 1
-              ? {
-                  enabled: true,
-                  isGrabbed: paneDragSourcePaneId === paneId,
-                  onDragHandleStart: e => { onPaneReorderHandleDragStart(tab.id, paneId, e) },
-                  onDragHandleEnd: onPaneReorderHandleDragEnd,
-                }
-              : undefined,
+          paneReorder,
         }}
-        registerShortcutCloseInterceptor={
-          tab.paneIds.length > 1
-            ? openConfirm => registerPaneShortcutCloseIntercept(paneId, openConfirm)
-            : undefined
-        }
+        registerShortcutCloseInterceptor={registerClose}
         onRequestSplitPane={
           tab.id === activeTabId && tab.activePaneId === paneId && tab.paneIds.length < MAX_PANES_PER_TAB
             ? () => { void handleSplitRight(tab.id, paneId) }
@@ -888,7 +932,6 @@ export const App: React.FC = () => {
         }
         onRequestPaneFocus={() => handleFocusPane(tab.id, paneId)}
         config={config}
-        onConfigPatch={patchConfig}
         onTitleChange={title => handleTabTitleChange(tab.id, title)}
         onBusyChange={busy => handleBusyChange(paneId, busy)}
         onRegisterRef={ref => {
@@ -896,8 +939,32 @@ export const App: React.FC = () => {
           else termRefs.current.delete(paneId)
         }}
       />
-    </div>
-  )
+    )
+
+    return (
+      <div
+        key={paneId}
+        data-pane-id={paneId}
+        className={[
+          'tab-terminal-pane-cell',
+          layoutSlotClass,
+          tab.paneIds.length > 1 && paneDragOverPaneId === paneId
+            ? 'tab-terminal-pane-cell--drag-over'
+            : '',
+        ].filter(Boolean).join(' ')}
+        {...(tab.paneIds.length > 1
+          ? {
+              onDragEnter: (event: DragEvent) => { onPaneCellDragHover(tab.id, paneId, event) },
+              onDragOverCapture: (event: DragEvent) => { onPaneCellDragHover(tab.id, paneId, event) },
+              onDrop: (event: DragEvent) => { onPaneCellDrop(tab.id, paneId, event) },
+              onDragLeave: (event: DragEvent) => { onPaneCellDragLeave(paneId, event) },
+            }
+          : {})}
+      >
+        {content}
+      </div>
+    )
+  }
 
   return (
     <div className="app-root">
@@ -992,6 +1059,21 @@ export const App: React.FC = () => {
         </div>
 
       </div>
+
+      <AgentProviderPickerModal
+        open={agentPicker !== null}
+        onClose={() => {
+          setAgentPicker(null)
+          focusActiveTerminalTextarea()
+        }}
+        onSelect={provider => {
+          const pending = agentPicker
+          setAgentPicker(null)
+          if (pending) {
+            void handleAddAgentPane(pending.tabId, pending.fromPaneId, provider)
+          }
+        }}
+      />
 
       {settingsOpen && (
         <SettingsModal

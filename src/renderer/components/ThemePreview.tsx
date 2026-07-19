@@ -77,12 +77,6 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({ theme, currentThemeI
             <span className="theme-picker-tp-cursor">▌</span>
           </div>
         </div>
-        <div className="theme-picker-tp-ai-dock">
-          <span className="theme-picker-tp-ai-hash">#</span>
-          <span className="theme-picker-tp-ai-label">ia</span>
-          <span className="theme-picker-tp-ai-model">local</span>
-          <span className="theme-picker-tp-ai-hint">▲</span>
-        </div>
       </div>
       <div className="theme-picker-preview-meta">
         <span className="theme-picker-preview-name">{theme.name}</span>

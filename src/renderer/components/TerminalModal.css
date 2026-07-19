@@ -8,7 +8,7 @@
   padding: 20px;
   perspective: 1600px;
   perspective-origin: 50% 50%;
-  background: rgba(0, 0, 0, 0.52);
+  background: rgba(0, 0, 0, 0.62);
   animation: terminal-modal-backdrop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -16,7 +16,8 @@
   display: flex;
   flex-direction: column;
   max-height: min(88vh, 900px);
-  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--surface));
+  /* Opaco siempre: un color-mix con surface podía dejar ver el chat detrás. */
+  background: var(--bg-secondary);
   border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent-border-soft));
   border-radius: var(--panel-radius, var(--radius));
   font-family: var(--font-mono);
@@ -102,6 +103,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent-border-soft));
   box-shadow: inset 0 -1px 0 var(--accent-veil);
   flex-shrink: 0;

@@ -8,6 +8,19 @@ export const IPC = {
   PTY_DATA: 'pty:data',
   PTY_EXIT: 'pty:exit',
   PTY_ERROR: 'pty:error',
+  // Agent CLI
+  AGENT_CLI_START: 'agentCli:start',
+  AGENT_CLI_STOP: 'agentCli:stop',
+  AGENT_CLI_EVENT: 'agentCli:event',
+  AGENT_CLI_EXIT: 'agentCli:exit',
+  AGENT_CHAT_LOAD: 'agentChat:load',
+  AGENT_CHAT_SAVE: 'agentChat:save',
+  AGENT_CHAT_DELETE: 'agentChat:delete',
+  TAB_CONTEXT_PREVIEW: 'tabContext:preview',
+  TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
+  TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
+  TAB_CONTEXT_DISCOVER: 'tabContext:discover',
+  TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config

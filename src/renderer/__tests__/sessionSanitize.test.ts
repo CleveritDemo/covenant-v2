@@ -49,6 +49,113 @@ describe('sanitizePersistedSession', () => {
       cwds: {},
     })).toBeNull()
   })
+
+  it('sanitizes agent pane metadata and keeps legacy panes as terminals', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Mixed',
+        paneIds: ['terminal', 'agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        agentByPane: {
+          agent: {
+            provider: 'cursor',
+            permissionMode: 'auto',
+            cliSessionId: ' chat-123 ',
+          },
+        },
+      }],
+      cwds: { terminal: '/tmp', agent: '/project' },
+    })
+
+    expect(result?.tabs[0]?.paneKinds).toEqual({ agent: 'agent' })
+    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
+      provider: 'cursor',
+      permissionMode: 'auto',
+      cliSessionId: 'chat-123',
+    })
+    expect(result?.tabs[0]?.paneKinds?.terminal).toBeUndefined()
+  })
+
+  it('migrates legacy readonly permission mode to plan', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Agent',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        agentByPane: {
+          agent: {
+            provider: 'claude',
+            permissionMode: 'readonly' as never,
+          },
+        },
+      }],
+      cwds: {},
+    })
+
+    expect(result?.tabs[0]?.agentByPane?.agent?.permissionMode).toBe('plan')
+  })
+
+  it('preserves agent model selection', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Agent',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        agentByPane: {
+          agent: {
+            provider: 'claude',
+            permissionMode: 'ask',
+            model: ' opus ',
+          },
+        },
+      }],
+      cwds: {},
+    })
+
+    expect(result?.tabs[0]?.agentByPane?.agent?.model).toBe('opus')
+  })
+
+  it('keeps assigned context ids without persisting the tab catalog', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Contexts',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        contexts: [
+          { id: 'ctx', name: ' Core ', fileName: ' core-files.md ', kind: 'files', paths: [' src/App.tsx '] },
+        ],
+        agentByPane: {
+          agent: {
+            provider: 'cursor',
+            permissionMode: 'ask',
+            contextIds: ['ctx', 'missing'],
+            autoImproveContexts: true,
+          },
+        },
+      }],
+      cwds: {},
+    })
+
+    expect(result?.tabs[0]?.contexts).toBeUndefined()
+    expect(result?.tabs[0]?.agentByPane?.agent?.contextIds).toEqual(['ctx', 'missing'])
+    expect(result?.tabs[0]?.agentByPane?.agent?.autoImproveContexts).toBe(true)
+  })
 })
 
 describe('deriveTabCounter', () => {

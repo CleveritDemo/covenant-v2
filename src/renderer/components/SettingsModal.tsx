@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import type { AppConfig, AiProvider, Language } from '@shared/configSchema'
-import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId, DEFAULT_MODEL_BY_PROVIDER } from '@shared/configSchema'
+import type { AppConfig, Language } from '@shared/configSchema'
+import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
@@ -9,9 +9,6 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { Icon } from './ui/Icon'
-import { OllamaSection } from './settings/OllamaSection'
-import { ApiKeyModelSection } from './settings/ApiKeyModelSection'
-import { PROVIDER_LABELS, ANTHROPIC_MODELS, OPENAI_MODELS } from './settings/providerMeta'
 import './SettingsModal.css'
 
 interface Props {
@@ -20,7 +17,6 @@ interface Props {
   onClose: () => void
 }
 
-const PROVIDERS: AiProvider[] = ['ollama', 'anthropic', 'openai']
 const LANGUAGES: { value: Language; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
@@ -29,14 +25,10 @@ const LANGUAGES: { value: Language; label: string }[] = [
 export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const { t } = useT()
   const [form, setForm] = useState({
-    aiProvider: config.aiProvider,
-    ollamaBaseURL: config.ollamaBaseURL,
-    anthropicApiKey: config.anthropicApiKey,
-    openaiApiKey: config.openaiApiKey,
     githubToken: config.githubToken,
-    defaultModel: config.defaultModel,
-    maxContextLines: String(config.maxContextLines),
     language: config.language,
+    agentCliClaudeCommand: config.agentCliClaudeCommand,
+    agentCliCursorCommand: config.agentCliCursorCommand,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [saving, setSaving] = useState(false)
@@ -44,25 +36,16 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
   useEffect(() => {
     setForm({
-      aiProvider: config.aiProvider,
-      ollamaBaseURL: config.ollamaBaseURL,
-      anthropicApiKey: config.anthropicApiKey,
-      openaiApiKey: config.openaiApiKey,
       githubToken: config.githubToken,
-      defaultModel: config.defaultModel,
-      maxContextLines: String(config.maxContextLines),
       language: config.language,
+      agentCliClaudeCommand: config.agentCliClaudeCommand,
+      agentCliCursorCommand: config.agentCliCursorCommand,
       musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
     })
   }, [config])
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]): void {
     setForm(prev => ({ ...prev, [key]: value }))
-    setErrors([])
-  }
-
-  function handleProviderChange(provider: AiProvider): void {
-    setForm(prev => ({ ...prev, aiProvider: provider, defaultModel: DEFAULT_MODEL_BY_PROVIDER[provider] }))
     setErrors([])
   }
 
@@ -89,14 +72,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
     const updated = mergeWithDefaults({
       ...config,
-      aiProvider: form.aiProvider,
-      ollamaBaseURL: form.ollamaBaseURL.trim(),
-      anthropicApiKey: form.anthropicApiKey.trim(),
-      openaiApiKey: form.openaiApiKey.trim(),
       githubToken: form.githubToken.trim(),
-      defaultModel: form.defaultModel.trim(),
-      maxContextLines: Number(form.maxContextLines),
       language: form.language,
+      agentCliClaudeCommand: form.agentCliClaudeCommand.trim(),
+      agentCliCursorCommand: form.agentCliCursorCommand.trim(),
       musicPlaylistIdsByMood,
     })
     const errs = validateConfig(updated)
@@ -127,69 +106,26 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
         </div>
       }
     >
-      <SettingsSection title={t('settings.providerSection')}>
-        <SettingsField label={t('settings.providerLabel')} hint={t('settings.providerHint')}>
-          <Select
-            value={form.aiProvider}
-            onChange={e => handleProviderChange(e.target.value as AiProvider)}
-          >
-            {PROVIDERS.map(p => (
-              <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
-            ))}
-          </Select>
-        </SettingsField>
-
-        {form.aiProvider === 'ollama' && (
-          <OllamaSection
-            baseURL={form.ollamaBaseURL}
-            model={form.defaultModel}
-            onBaseURLChange={v => update('ollamaBaseURL', v)}
-            onModelChange={v => update('defaultModel', v)}
-          />
-        )}
-
-        {form.aiProvider === 'anthropic' && (
-          <ApiKeyModelSection
-            keyLabel={t('settings.anthropicKeyLabel')}
-            keyPlaceholder={t('settings.anthropicKeyPlaceholder')}
-            keyHint={<>{t('settings.anthropicKeyHint')}</>}
-            apiKey={form.anthropicApiKey}
-            onApiKeyChange={v => update('anthropicApiKey', v)}
-            models={ANTHROPIC_MODELS}
-            modelLabel={t('settings.anthropicModelLabel')}
-            model={form.defaultModel}
-            onModelChange={v => update('defaultModel', v)}
-          />
-        )}
-
-        {form.aiProvider === 'openai' && (
-          <ApiKeyModelSection
-            keyLabel={t('settings.openaiKeyLabel')}
-            keyPlaceholder={t('settings.openaiKeyPlaceholder')}
-            keyHint={<>{t('settings.openaiKeyHint')}</>}
-            apiKey={form.openaiApiKey}
-            onApiKeyChange={v => update('openaiApiKey', v)}
-            models={OPENAI_MODELS}
-            modelLabel={t('settings.openaiModelLabel')}
-            model={form.defaultModel}
-            onModelChange={v => update('defaultModel', v)}
-          />
-        )}
-
-        <SettingsField
-          label={t('settings.contextLinesLabel')}
-          hint={t('settings.contextLinesHint')}
-        >
+      <SettingsSection title={t('settings.agentCliSection')}>
+        <p className="settings-hint settings-hint--block">{t('settings.agentCliHint')}</p>
+        <SettingsField label={t('settings.agentCliClaudeLabel')}>
           <Input
-            type="number"
-            min={10}
-            max={2000}
-            value={form.maxContextLines}
-            onChange={e => update('maxContextLines', e.target.value)}
+            type="text"
+            value={form.agentCliClaudeCommand}
+            onChange={e => update('agentCliClaudeCommand', e.target.value)}
+            placeholder="claude"
+            spellCheck={false}
           />
         </SettingsField>
-
-        <p className="settings-hint settings-hint--block">{t('settings.agentHint')}</p>
+        <SettingsField label={t('settings.agentCliCursorLabel')}>
+          <Input
+            type="text"
+            value={form.agentCliCursorCommand}
+            onChange={e => update('agentCliCursorCommand', e.target.value)}
+            placeholder="agent"
+            spellCheck={false}
+          />
+        </SettingsField>
       </SettingsSection>
 
       <SettingsSection title={t('settings.githubSection')}>

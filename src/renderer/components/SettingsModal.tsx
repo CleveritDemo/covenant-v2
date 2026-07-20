@@ -98,12 +98,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       zIndex={720}
       bodyLayout="spacious"
       footer={
-        <div className="modal-footer">
+        <>
           <Button variant="secondary" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>
             {saving ? t('common.saving') : t('common.save')}
           </Button>
-        </div>
+        </>
       }
     >
       <SettingsSection title={t('settings.agentCliSection')}>

@@ -1,0 +1,584 @@
+# Clases, metodos y variables
+<!-- iaterminal:context {"version":1,"id":"discovered-file:classes-methods-variables.md","name":"Clases, metodos y variables","fileName":"Clases-metodos-y-variables.md","kind":"symbols","rootPath":"src"} -->
+
+<!-- iaterminal:auto -->
+### src/ai/agentTypes.ts
+- `src/ai/agentTypes.ts#class:ToolCall` — interface `ToolCall`
+- `src/ai/agentTypes.ts#class:ToolResult` — interface `ToolResult`
+- `src/ai/agentTypes.ts#class:AgentTurnResult` — interface `AgentTurnResult`
+
+### src/ai/aiClient.ts
+- `src/ai/aiClient.ts#class:AiOptions` — interface `AiOptions`
+- `src/ai/aiClient.ts#function:chatAI`
+  - signature: `chatAI(messages: ChatMessage[], options: AiOptions): Promise<string>`
+  - inputs: `messages: ChatMessage[]`, `options: AiOptions`
+  - returns: `Promise<string>`
+- `src/ai/aiClient.ts#function:suggestGitCommitMessage`
+  - signature: `suggestGitCommitMessage(diffContext: string, options: AiOptions): Promise<string>`
+  - inputs: `diffContext: string`, `options: AiOptions`
+  - returns: `Promise<string>`
+- `src/ai/aiClient.ts#variable:trimmed` — variable `trimmed: inferred`
+- `src/ai/aiClient.ts#variable:messages` — variable `messages: ChatMessage[]`
+- `src/ai/aiClient.ts#variable:raw` — variable `raw: inferred`
+- `src/ai/aiClient.ts#variable:cleaned` — variable `cleaned: inferred`
+- `src/ai/aiClient.ts#variable:line` — variable `line: inferred`
+- `src/ai/aiClient.ts#function:aiOptionsFromConfig`
+  - signature: `aiOptionsFromConfig(config: AppConfig, overrides?: Partial<Pick<AiOptions, 'onToken' | 'onThinkingToken' | 'signal' | 'think'>>): AiOptions`
+  - inputs: `config: AppConfig`, `overrides?: Partial<Pick<AiOptions, 'onToken' | 'onThinkingToken' | 'signal' | 'think'>>`
+  - returns: `AiOptions`
+
+### src/ai/anthropicClient.ts
+- `src/ai/anthropicClient.ts#class:AnthropicOptions` — interface `AnthropicOptions`
+- `src/ai/anthropicClient.ts#class:AnthropicDelta` — interface `AnthropicDelta`
+- `src/ai/anthropicClient.ts#class:AnthropicEvent` — interface `AnthropicEvent`
+- `src/ai/anthropicClient.ts#function:chatAnthropic`
+  - signature: `chatAnthropic(messages: ChatMessage[], options: AnthropicOptions): Promise<string>`
+  - inputs: `messages: ChatMessage[]`, `options: AnthropicOptions`
+  - returns: `Promise<string>`
+- `src/ai/anthropicClient.ts#variable:systemMsg` — variable `systemMsg: inferred`
+- `src/ai/anthropicClient.ts#variable:chatMsgs` — variable `chatMsgs: inferred`
+- `src/ai/anthropicClient.ts#variable:body` — variable `body: Record<string, unknown>`
+- `src/ai/anthropicClient.ts#variable:headers` — variable `headers: Record<string, string>`
+- `src/ai/anthropicClient.ts#variable:res` — variable `res: Response`
+- `src/ai/anthropicClient.ts#variable:err` — variable `err: inferred`
+- `src/ai/anthropicClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/anthropicClient.ts#variable:full` — variable `full: inferred`
+- `src/ai/anthropicClient.ts#variable:event` — variable `event: inferred`
+- `src/ai/anthropicClient.ts#variable:delta` — variable `delta: inferred`
+- `src/ai/anthropicClient.ts#class:AnthropicTextBlock` — type `AnthropicTextBlock`
+- `src/ai/anthropicClient.ts#class:AnthropicToolUseBlock` — type `AnthropicToolUseBlock`
+- `src/ai/anthropicClient.ts#class:AnthropicToolResultBlock` — type `AnthropicToolResultBlock`
+- `src/ai/anthropicClient.ts#class:AnthropicAssistantContent` — type `AnthropicAssistantContent`
+- `src/ai/anthropicClient.ts#class:AnthropicUserContent` — type `AnthropicUserContent`
+- `src/ai/anthropicClient.ts#class:AnthropicNativeMessage` — interface `AnthropicNativeMessage`
+- `src/ai/anthropicClient.ts#function:chatMessagesToAnthropicNative`
+  - signature: `chatMessagesToAnthropicNative(messages: ChatMessage[]): AnthropicNativeMessage[]`
+  - inputs: `messages: ChatMessage[]`
+  - returns: `AnthropicNativeMessage[]`
+- `src/ai/anthropicClient.ts#function:appendAnthropicToolResults`
+  - signature: `appendAnthropicToolResults(messages: AnthropicNativeMessage[], assistantContent: AnthropicAssistantContent[], results: ToolResult[]): AnthropicNativeMessage[]`
+  - inputs: `messages: AnthropicNativeMessage[]`, `assistantContent: AnthropicAssistantContent[]`, `results: ToolResult[]`
+  - returns: `AnthropicNativeMessage[]`
+- `src/ai/anthropicClient.ts#variable:toolResultBlocks` — variable `toolResultBlocks: AnthropicToolResultBlock[]`
+- `src/ai/anthropicClient.ts#function:chatAnthropicAgentTurn`
+  - signature: `chatAnthropicAgentTurn(systemPrompt: string, messages: AnthropicNativeMessage[], tools: ToolDefinition[], options: AnthropicOptions, onToken?: (text: string) => void): Promise<{ result: AgentTurnResult; rawContent: AnthropicAssistantContent[] }>`
+  - inputs: `systemPrompt: string`, `messages: AnthropicNativeMessage[]`, `tools: ToolDefinition[]`, `options: AnthropicOptions`, `onToken?: (text: string) => void`
+  - returns: `Promise<{ result: AgentTurnResult; rawContent: AnthropicAssistantContent[] }>`
+- `src/ai/anthropicClient.ts#variable:body` — variable `body: Record<string, unknown>`
+- `src/ai/anthropicClient.ts#variable:agentHeaders` — variable `agentHeaders: Record<string, string>`
+- `src/ai/anthropicClient.ts#variable:agentRes` — variable `agentRes: Response`
+- `src/ai/anthropicClient.ts#variable:err` — variable `err: inferred`
+- `src/ai/anthropicClient.ts#variable:res` — variable `res: inferred`
+- `src/ai/anthropicClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/anthropicClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/anthropicClient.ts#variable:blocks` — variable `blocks: Array<{ type: string; id?: string; name?: string; jsonAcc?: string }>`
+- `src/ai/anthropicClient.ts#variable:event` — variable `event: inferred`
+- `src/ai/anthropicClient.ts#variable:blk` — variable `blk: inferred`
+- `src/ai/anthropicClient.ts#variable:delta` — variable `delta: inferred`
+- `src/ai/anthropicClient.ts#variable:idx` — variable `idx: inferred`
+- `src/ai/anthropicClient.ts#variable:blk` — variable `blk: inferred`
+- `src/ai/anthropicClient.ts#variable:rawContent` — variable `rawContent: AnthropicAssistantContent[]`
+- `src/ai/anthropicClient.ts#variable:toolCalls` — variable `toolCalls: import('./agentTypes').ToolCall[]`
+- `src/ai/anthropicClient.ts#variable:blk` — variable `blk: inferred`
+- `src/ai/anthropicClient.ts#variable:input` — variable `input: Record<string, unknown>`
+
+### src/ai/contextBuilder.ts
+- `src/ai/contextBuilder.ts#variable:MAX_FOLDER_TREE_IN_PROMPT` — variable `MAX_FOLDER_TREE_IN_PROMPT: inferred`
+- `src/ai/contextBuilder.ts#variable:MAX_AGENT_MD_IN_SYSTEM` — variable `MAX_AGENT_MD_IN_SYSTEM: inferred`
+- `src/ai/contextBuilder.ts#variable:INTERACTION_LOG_SUMMARY_MAX_WORDS` — variable `INTERACTION_LOG_SUMMARY_MAX_WORDS: inferred`
+- `src/ai/contextBuilder.ts#variable:MAX_TERMINAL_CONTEXT_CHARS` — variable `MAX_TERMINAL_CONTEXT_CHARS: inferred`
+- `src/ai/contextBuilder.ts#class:MentionedFile` — interface `MentionedFile`
+- `src/ai/contextBuilder.ts#class:RichContextOptions` — interface `RichContextOptions`
+- `src/ai/contextBuilder.ts#function:buildRichContext`
+  - signature: `buildRichContext(opts: RichContextOptions): string`
+  - inputs: `opts: RichContextOptions`
+  - returns: `string`
+- `src/ai/contextBuilder.ts#variable:{ baseInstruction, terminalContext, workspace, agentMd, agentMode, agentShellPolicy, interactionsLog, mentionedFiles = [], }` — variable `{ baseInstruction, terminalContext, workspace, agentMd, agentMode, agentShellPolicy, interactionsLog, mentionedFiles = [], }: inferred`
+- `src/ai/contextBuilder.ts#variable:out` — variable `out: inferred`
+- `src/ai/contextBuilder.ts#variable:tree` — variable `tree: inferred`
+- `src/ai/contextBuilder.ts#variable:truncated` — variable `truncated: inferred`
+- `src/ai/contextBuilder.ts#variable:list` — variable `list: inferred`
+- `src/ai/contextBuilder.ts#variable:gitStatus` — variable `gitStatus: inferred`
+- `src/ai/contextBuilder.ts#variable:gitDiff` — variable `gitDiff: inferred`
+- `src/ai/contextBuilder.ts#variable:pkg` — variable `pkg: inferred`
+- `src/ai/contextBuilder.ts#variable:f` — variable `f: inferred`
+- `src/ai/contextBuilder.ts#variable:agent` — variable `agent: inferred`
+- `src/ai/contextBuilder.ts#variable:term` — variable `term: inferred`
+- `src/ai/contextBuilder.ts#variable:termTruncated` — variable `termTruncated: inferred`
+- `src/ai/contextBuilder.ts#function:buildAgentModeInstructions`
+  - signature: `buildAgentModeInstructions(policy: AgentShellPolicy): string`
+  - inputs: `policy: AgentShellPolicy`
+  - returns: `string`
+- `src/ai/contextBuilder.ts#variable:shellNote` — variable `shellNote: inferred`
+
+### src/ai/ollamaClient.ts
+- `src/ai/ollamaClient.ts#class:OllamaOptions` — interface `OllamaOptions`
+- `src/ai/ollamaClient.ts#function:chatOllama`
+  - signature: `chatOllama(messages: ChatMessage[], options: OllamaOptions): Promise<string>`
+  - inputs: `messages: ChatMessage[]`, `options: OllamaOptions`
+  - returns: `Promise<string>`
+- `src/ai/ollamaClient.ts#variable:base` — variable `base: inferred`
+- `src/ai/ollamaClient.ts#variable:url` — variable `url: inferred`
+- `src/ai/ollamaClient.ts#variable:res` — variable `res: inferred`
+- `src/ai/ollamaClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/ollamaClient.ts#variable:reader` — variable `reader: inferred`
+- `src/ai/ollamaClient.ts#variable:decoder` — variable `decoder: inferred`
+- `src/ai/ollamaClient.ts#variable:full` — variable `full: inferred`
+- `src/ai/ollamaClient.ts#variable:lineBuffer` — variable `lineBuffer: inferred`
+- `src/ai/ollamaClient.ts#variable:insideThinkTag` — variable `insideThinkTag: inferred`
+- `src/ai/ollamaClient.ts#variable:thinkTagBuf` — variable `thinkTagBuf: inferred`
+- `src/ai/ollamaClient.ts#function:routeToken`
+  - signature: `routeToken(token: string): void`
+  - inputs: `token: string`
+  - returns: `void`
+- `src/ai/ollamaClient.ts#variable:remaining` — variable `remaining: inferred`
+- `src/ai/ollamaClient.ts#variable:closeIdx` — variable `closeIdx: inferred`
+- `src/ai/ollamaClient.ts#variable:suspectLen` — variable `suspectLen: inferred`
+- `src/ai/ollamaClient.ts#variable:safe` — variable `safe: inferred`
+- `src/ai/ollamaClient.ts#variable:suspect` — variable `suspect: inferred`
+- `src/ai/ollamaClient.ts#variable:thinkContent` — variable `thinkContent: inferred`
+- `src/ai/ollamaClient.ts#variable:openIdx` — variable `openIdx: inferred`
+- `src/ai/ollamaClient.ts#variable:suspectLen` — variable `suspectLen: inferred`
+- `src/ai/ollamaClient.ts#variable:safe` — variable `safe: inferred`
+- `src/ai/ollamaClient.ts#variable:suspect` — variable `suspect: inferred`
+- `src/ai/ollamaClient.ts#variable:before` — variable `before: inferred`
+- `src/ai/ollamaClient.ts#function:consumeJsonLine`
+  - signature: `consumeJsonLine(line: string): void`
+  - inputs: `line: string`
+  - returns: `void`
+- `src/ai/ollamaClient.ts#variable:t` — variable `t: inferred`
+- `src/ai/ollamaClient.ts#variable:json` — variable `json: inferred`
+- `src/ai/ollamaClient.ts#variable:thinkToken` — variable `thinkToken: string`
+- `src/ai/ollamaClient.ts#variable:token` — variable `token: string`
+- `src/ai/ollamaClient.ts#variable:{ done, value }` — variable `{ done, value }: inferred`
+- `src/ai/ollamaClient.ts#variable:lines` — variable `lines: inferred`
+- `src/ai/ollamaClient.ts#variable:line` — variable `line: inferred`
+- `src/ai/ollamaClient.ts#variable:tailLines` — variable `tailLines: inferred`
+- `src/ai/ollamaClient.ts#variable:line` — variable `line: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_AGENT_MD_IN_SYSTEM` — variable `MAX_AGENT_MD_IN_SYSTEM: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_BOOTSTRAP_TREE` — variable `MAX_BOOTSTRAP_TREE: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_BOOTSTRAP_LISTING` — variable `MAX_BOOTSTRAP_LISTING: inferred`
+- `src/ai/ollamaClient.ts#function:agentModeShellSuffix`
+  - signature: `agentModeShellSuffix(shellPolicy: AgentShellPolicy): string`
+  - inputs: `shellPolicy: AgentShellPolicy`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#variable:confirmHint` — variable `confirmHint: inferred`
+- `src/ai/ollamaClient.ts#function:agentModeSystemSuffix`
+  - signature: `agentModeSystemSuffix(shellPolicy: AgentShellPolicy): string`
+  - inputs: `shellPolicy: AgentShellPolicy`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#function:stripOuterMarkdownFence`
+  - signature: `stripOuterMarkdownFence(raw: string): string`
+  - inputs: `raw: string`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#variable:s` — variable `s: inferred`
+- `src/ai/ollamaClient.ts#variable:firstNl` — variable `firstNl: inferred`
+- `src/ai/ollamaClient.ts#variable:closing` — variable `closing: inferred`
+- `src/ai/ollamaClient.ts#variable:INTERACTION_LOG_SUMMARY_MAX_WORDS` — variable `INTERACTION_LOG_SUMMARY_MAX_WORDS: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_USER_CHARS_FOR_LOG_SUMMARY` — variable `MAX_USER_CHARS_FOR_LOG_SUMMARY: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_ASSISTANT_CHARS_FOR_LOG_SUMMARY` — variable `MAX_ASSISTANT_CHARS_FOR_LOG_SUMMARY: inferred`
+- `src/ai/ollamaClient.ts#function:stripThinkingTagsForSummary`
+  - signature: `stripThinkingTagsForSummary(s: string): string`
+  - inputs: `s: string`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#function:clampWords`
+  - signature: `clampWords(line: string, maxWords: number): string`
+  - inputs: `line: string`, `maxWords: number`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#variable:words` — variable `words: inferred`
+- `src/ai/ollamaClient.ts#function:summarizeInteractionForLog`
+  - signature: `summarizeInteractionForLog(userMessage: string, assistantMessage: string, options: Pick<OllamaOptions, 'baseURL' | 'model'> & { signal?: AbortSignal; think?: boolean }): Promise<string>`
+  - inputs: `userMessage: string`, `assistantMessage: string`, `options: Pick<OllamaOptions, 'baseURL' | 'model'> & { signal?: AbortSignal; think?: boolean }`
+  - returns: `Promise<string>`
+- `src/ai/ollamaClient.ts#variable:u` — variable `u: inferred`
+- `src/ai/ollamaClient.ts#variable:a` — variable `a: inferred`
+- `src/ai/ollamaClient.ts#variable:system` — variable `system: inferred`
+- `src/ai/ollamaClient.ts#variable:user` — variable `user: inferred`
+- `src/ai/ollamaClient.ts#variable:raw` — variable `raw: inferred`
+- `src/ai/ollamaClient.ts#variable:line` — variable `line: inferred`
+- `src/ai/ollamaClient.ts#variable:firstLine` — variable `firstLine: inferred`
+- `src/ai/ollamaClient.ts#function:fallbackInteractionLogLine`
+  - signature: `fallbackInteractionLogLine(userMessage: string, assistantMessage: string): string`
+  - inputs: `userMessage: string`, `assistantMessage: string`
+  - returns: `string`
+- `src/ai/ollamaClient.ts#variable:u` — variable `u: inferred`
+- `src/ai/ollamaClient.ts#variable:a` — variable `a: inferred`
+- `src/ai/ollamaClient.ts#variable:combined` — variable `combined: inferred`
+- `src/ai/ollamaClient.ts#function:makeInteractionLogEntry`
+  - signature: `makeInteractionLogEntry(userMessage: string, assistantMessage: string, options: Pick<OllamaOptions, 'baseURL' | 'model'> & { signal?: AbortSignal; think?: boolean }): Promise<string>`
+  - inputs: `userMessage: string`, `assistantMessage: string`, `options: Pick<OllamaOptions, 'baseURL' | 'model'> & { signal?: AbortSignal; think?: boolean }`
+  - returns: `Promise<string>`
+- `src/ai/ollamaClient.ts#variable:NO_AGENT_MD_UPDATE` — variable `NO_AGENT_MD_UPDATE: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_EXISTING_AGENT_IN_REFRESH` — variable `MAX_EXISTING_AGENT_IN_REFRESH: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_LAST_USER_IN_REFRESH` — variable `MAX_LAST_USER_IN_REFRESH: inferred`
+- `src/ai/ollamaClient.ts#variable:MAX_LAST_ASSISTANT_IN_REFRESH` — variable `MAX_LAST_ASSISTANT_IN_REFRESH: inferred`
+- `src/ai/ollamaClient.ts#function:buildAgentMdRefreshMessages`
+  - signature: `buildAgentMdRefreshMessages(existingAgentMd: string | null, folderTree: string, terminalContext: string, workspace: ProjectAiContextForAi | null, lastUserMessage: string, lastAssistantMessage: string): ChatMessage[]`
+  - inputs: `existingAgentMd: string | null`, `folderTree: string`, `terminalContext: string`, `workspace: ProjectAiContextForAi | null`, `lastUserMessage: string`, `lastAssistantMessage: string`
+  - returns: `ChatMessage[]`
+- `src/ai/ollamaClient.ts#variable:cwd` — variable `cwd: inferred`
+- `src/ai/ollamaClient.ts#variable:listing` — variable `listing: inferred`
+- `src/ai/ollamaClient.ts#variable:pkg` — variable `pkg: inferred`
+- `src/ai/ollamaClient.ts#variable:term` — variable `term: inferred`
+- `src/ai/ollamaClient.ts#variable:existing` — variable `existing: inferred`
+- `src/ai/ollamaClient.ts#variable:userSlice` — variable `userSlice: inferred`
+- `src/ai/ollamaClient.ts#variable:assist` — variable `assist: inferred`
+- `src/ai/ollamaClient.ts#variable:system` — variable `system: inferred`
+- `src/ai/ollamaClient.ts#variable:user` — variable `user: inferred`
+
+### src/ai/ollamaModels.ts
+- `src/ai/ollamaModels.ts#class:OllamaTagsResponse` — interface `OllamaTagsResponse`
+- `src/ai/ollamaModels.ts#function:fetchOllamaModelNames`
+  - signature: `fetchOllamaModelNames(baseURL: string): Promise<string[]>`
+  - inputs: `baseURL: string`
+  - returns: `Promise<string[]>`
+- `src/ai/ollamaModels.ts#variable:base` — variable `base: inferred`
+- `src/ai/ollamaModels.ts#variable:url` — variable `url: inferred`
+- `src/ai/ollamaModels.ts#variable:res` — variable `res: inferred`
+- `src/ai/ollamaModels.ts#variable:t` — variable `t: inferred`
+- `src/ai/ollamaModels.ts#variable:json` — variable `json: inferred`
+- `src/ai/ollamaModels.ts#variable:models` — variable `models: inferred`
+- `src/ai/ollamaModels.ts#variable:names` — variable `names: inferred`
+
+### src/ai/openaiClient.ts
+- `src/ai/openaiClient.ts#class:OpenAIOptions` — interface `OpenAIOptions`
+- `src/ai/openaiClient.ts#class:OpenAIDelta` — interface `OpenAIDelta`
+- `src/ai/openaiClient.ts#class:OpenAIChunk` — interface `OpenAIChunk`
+- `src/ai/openaiClient.ts#function:chatOpenAI`
+  - signature: `chatOpenAI(messages: ChatMessage[], options: OpenAIOptions): Promise<string>`
+  - inputs: `messages: ChatMessage[]`, `options: OpenAIOptions`
+  - returns: `Promise<string>`
+- `src/ai/openaiClient.ts#variable:res` — variable `res: inferred`
+- `src/ai/openaiClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/openaiClient.ts#variable:full` — variable `full: inferred`
+- `src/ai/openaiClient.ts#variable:chunk` — variable `chunk: inferred`
+- `src/ai/openaiClient.ts#variable:delta` — variable `delta: inferred`
+- `src/ai/openaiClient.ts#class:OpenAIToolCall` — interface `OpenAIToolCall`
+- `src/ai/openaiClient.ts#class:OpenAINativeMessage` — type `OpenAINativeMessage`
+- `src/ai/openaiClient.ts#class:OpenAIAgentChunk` — interface `OpenAIAgentChunk`
+- `src/ai/openaiClient.ts#function:chatMessagesToOpenAINative`
+  - signature: `chatMessagesToOpenAINative(messages: ChatMessage[]): OpenAINativeMessage[]`
+  - inputs: `messages: ChatMessage[]`
+  - returns: `OpenAINativeMessage[]`
+- `src/ai/openaiClient.ts#function:appendOpenAIToolResults`
+  - signature: `appendOpenAIToolResults(messages: OpenAINativeMessage[], assistantToolCalls: OpenAIToolCall[], assistantText: string | null, results: ToolResult[]): OpenAINativeMessage[]`
+  - inputs: `messages: OpenAINativeMessage[]`, `assistantToolCalls: OpenAIToolCall[]`, `assistantText: string | null`, `results: ToolResult[]`
+  - returns: `OpenAINativeMessage[]`
+- `src/ai/openaiClient.ts#variable:toolMessages` — variable `toolMessages: OpenAINativeMessage[]`
+- `src/ai/openaiClient.ts#function:chatOpenAIAgentTurn`
+  - signature: `chatOpenAIAgentTurn(messages: OpenAINativeMessage[], tools: ToolDefinition[], options: OpenAIOptions, onToken?: (text: string) => void): Promise<{ result: AgentTurnResult; rawToolCalls: OpenAIToolCall[]; assistantText: string }>`
+  - inputs: `messages: OpenAINativeMessage[]`, `tools: ToolDefinition[]`, `options: OpenAIOptions`, `onToken?: (text: string) => void`
+  - returns: `Promise<{ result: AgentTurnResult; rawToolCalls: OpenAIToolCall[]; assistantText: string }>`
+- `src/ai/openaiClient.ts#variable:res` — variable `res: inferred`
+- `src/ai/openaiClient.ts#variable:text` — variable `text: inferred`
+- `src/ai/openaiClient.ts#variable:assistantText` — variable `assistantText: inferred`
+- `src/ai/openaiClient.ts#variable:toolCallAccumulators` — variable `toolCallAccumulators: Map<number, { id: string; name: string; args: string }>`
+- `src/ai/openaiClient.ts#variable:chunk` — variable `chunk: inferred`
+- `src/ai/openaiClient.ts#variable:choice` — variable `choice: inferred`
+- `src/ai/openaiClient.ts#variable:delta` — variable `delta: inferred`
+- `src/ai/openaiClient.ts#variable:tc` — variable `tc: inferred`
+- `src/ai/openaiClient.ts#variable:acc` — variable `acc: inferred`
+- `src/ai/openaiClient.ts#variable:rawToolCalls` — variable `rawToolCalls: OpenAIToolCall[]`
+- `src/ai/openaiClient.ts#variable:toolCalls` — variable `toolCalls: import('./agentTypes').ToolCall[]`
+- `src/ai/openaiClient.ts#variable:[, acc]` — variable `[, acc]: inferred`
+- `src/ai/openaiClient.ts#variable:input` — variable `input: Record<string, unknown>`
+
+### src/ai/sseStream.ts
+- `src/ai/sseStream.ts#function:readSSEStream`
+  - signature: `readSSEStream(body: ReadableStream<Uint8Array>, onData: (data: string) => void): Promise<void>`
+  - inputs: `body: ReadableStream<Uint8Array>`, `onData: (data: string) => void`
+  - returns: `Promise<void>`
+- `src/ai/sseStream.ts#variable:reader` — variable `reader: inferred`
+- `src/ai/sseStream.ts#variable:decoder` — variable `decoder: inferred`
+- `src/ai/sseStream.ts#variable:lineBuffer` — variable `lineBuffer: inferred`
+- `src/ai/sseStream.ts#function:flushBuffer`
+  - signature: `flushBuffer(): void`
+  - inputs: (none)
+  - returns: `void`
+- `src/ai/sseStream.ts#variable:lines` — variable `lines: inferred`
+- `src/ai/sseStream.ts#variable:line` — variable `line: inferred`
+- `src/ai/sseStream.ts#variable:t` — variable `t: inferred`
+- `src/ai/sseStream.ts#variable:{ done, value }` — variable `{ done, value }: inferred`
+
+### src/ai/toolDefinitions.ts
+- `src/ai/toolDefinitions.ts#class:ToolName` — type `ToolName`
+- `src/ai/toolDefinitions.ts#class:JsonSchemaProperty` — interface `JsonSchemaProperty`
+- `src/ai/toolDefinitions.ts#class:JsonSchema` — interface `JsonSchema`
+- `src/ai/toolDefinitions.ts#class:ToolDefinition` — interface `ToolDefinition`
+- `src/ai/toolDefinitions.ts#variable:AI_TOOLS` — variable `AI_TOOLS: ToolDefinition[]`
+- `src/ai/toolDefinitions.ts#function:toAnthropicTools`
+  - signature: `toAnthropicTools(tools: ToolDefinition[]): Array<{ name: string; description: string; input_schema: JsonSchema }>`
+  - inputs: `tools: ToolDefinition[]`
+  - returns: `Array<{ name: string; description: string; input_schema: JsonSchema }>`
+- `src/ai/toolDefinitions.ts#function:toOpenAITools`
+  - signature: `toOpenAITools(tools: ToolDefinition[]): Array<{ type: 'function'; function: { name: string; description: string; parameters: JsonSchema } }>`
+  - inputs: `tools: ToolDefinition[]`
+  - returns: `Array<{ type: 'function'; function: { name: string; description: string; parameters: JsonSchema } }>`
+
+### src/ai/types.ts
+- `src/ai/types.ts#class:ChatMessage` — interface `ChatMessage`
+
+### src/i18n/index.ts
+- `src/i18n/index.ts#function:initI18n`
+  - signature: `initI18n(language = 'en'): Promise<void>`
+  - inputs: `language = 'en'`
+  - returns: `Promise<void>`
+
+### src/i18n/locales/en.ts
+- `src/i18n/locales/en.ts#variable:en` — variable `en: inferred`
+
+### src/i18n/locales/es.ts
+- `src/i18n/locales/es.ts#variable:es` — variable `es: inferred`
+
+### src/i18n/modKeyLabel.ts
+- `src/i18n/modKeyLabel.ts#function:modKeyLabel`
+  - signature: `modKeyLabel(): string`
+  - inputs: (none)
+  - returns: `string`
+- `src/i18n/modKeyLabel.ts#function:shortcutLabel`
+  - signature: `shortcutLabel(key: string): string`
+  - inputs: `key: string`
+  - returns: `string`
+- `src/i18n/modKeyLabel.ts#variable:mod` — variable `mod: inferred`
+
+### src/i18n/useT.ts
+- `src/i18n/useT.ts#function:useT`
+  - signature: `useT(): inferred/unspecified`
+  - inputs: (none)
+  - returns: `inferred/unspecified`
+
+### src/renderer/agent/AgentLoopIntervalModal.tsx
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#class:Props` — interface `Props`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#function:presetIdForMs`
+  - signature: `presetIdForMs(ms: number): LoopIntervalPresetId`
+  - inputs: `ms: number`
+  - returns: `LoopIntervalPresetId`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#function:AgentLoopIntervalModal`
+  - signature: `AgentLoopIntervalModal({ open, initialMs = LOOP_INTERVAL_PRESETS[0].ms, onConfirm, onClose, }): inferred/unspecified`
+  - inputs: `{ open, initialMs = LOOP_INTERVAL_PRESETS[0].ms, onConfirm, onClose, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:[selectedId, setSelectedId]` — variable `[selectedId, setSelectedId]: inferred`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:selectedMs` — variable `selectedMs: inferred`
+
+### src/renderer/agent/AgentPane.tsx
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_PENDING_IMAGES` — variable `MAX_PENDING_IMAGES: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_IMAGE_BYTES` — variable `MAX_IMAGE_BYTES: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_QUEUED_TURNS` — variable `MAX_QUEUED_TURNS: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_COMPOSER_ROWS` — variable `MAX_COMPOSER_ROWS: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:resizeComposerTextarea`
+  - signature: `resizeComposerTextarea(el: HTMLTextAreaElement): void`
+  - inputs: `el: HTMLTextAreaElement`
+  - returns: `void`
+- `src/renderer/agent/AgentPane.tsx#variable:styles` — variable `styles: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:lineHeight` — variable `lineHeight: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:padY` — variable `padY: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:maxH` — variable `maxH: inferred`
+- `src/renderer/agent/AgentPane.tsx#class:PendingImage` — interface `PendingImage`
+- `src/renderer/agent/AgentPane.tsx#class:QueuedTurn` — interface `QueuedTurn`
+- `src/renderer/agent/AgentPane.tsx#function:extensionForMime`
+  - signature: `extensionForMime(mimeType: string): string`
+  - inputs: `mimeType: string`
+  - returns: `string`
+- `src/renderer/agent/AgentPane.tsx#function:blobToBase64`
+  - signature: `blobToBase64(blob: Blob): Promise<string>`
+  - inputs: `blob: Blob`
+  - returns: `Promise<string>`
+- `src/renderer/agent/AgentPane.tsx#variable:reader` — variable `reader: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:result` — variable `result: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:comma` — variable `comma: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:blobToThumbnailDataUrl`
+  - signature: `blobToThumbnailDataUrl(blob: Blob): Promise<string | null>`
+  - inputs: `blob: Blob`
+  - returns: `Promise<string | null>`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_THUMB_DIM` — variable `MAX_THUMB_DIM: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:bitmap` — variable `bitmap: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:scale` — variable `scale: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:width` — variable `width: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:height` — variable `height: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:canvas` — variable `canvas: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:context` — variable `context: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:imagesFromClipboard`
+  - signature: `imagesFromClipboard(data: DataTransfer | null): File[]`
+  - inputs: `data: DataTransfer | null`
+  - returns: `File[]`
+- `src/renderer/agent/AgentPane.tsx#variable:files` — variable `files: File[]`
+- `src/renderer/agent/AgentPane.tsx#variable:item` — variable `item: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:file` — variable `file: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:file` — variable `file: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:materializeClipboardImage`
+  - signature: `materializeClipboardImage(file: File, fallbackName: string): Promise<PendingImage | null>`
+  - inputs: `file: File`, `fallbackName: string`
+  - returns: `Promise<PendingImage | null>`
+- `src/renderer/agent/AgentPane.tsx#variable:buffer` — variable `buffer: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:mimeType` — variable `mimeType: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:blob` — variable `blob: inferred`
+- `src/renderer/agent/AgentPane.tsx#class:AgentCwdSource` — interface `AgentCwdSource`
+- `src/renderer/agent/AgentPane.tsx#class:Props` — interface `Props`
+- `src/renderer/agent/AgentPane.tsx#function:systemMessage`
+  - signature: `systemMessage(content: string): AgentChatEntry`
+  - inputs: `content: string`
+  - returns: `AgentChatEntry`
+- `src/renderer/agent/AgentPane.tsx#function:AgentPane`
+  - signature: `AgentPane({ paneId, meta, cwd, tabActive, isActivePane, cwdSources, fontSize, onMetaChange, onCwdChange, onRequestPaneFocus, onClosePane, onBusyChange, paneReorder, registerShortcutCloseInterceptor, }): inferred/unspecified`
+  - inputs: `{ paneId, meta, cwd, tabActive, isActivePane, cwdSources, fontSize, onMetaChange, onCwdChange, onRequestPaneFocus, onClosePane, onBusyChange, paneReorder, registerShortcutCloseInterceptor, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentPane.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[messages, setMessages]` — variable `[messages, setMessages]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[input, setInput]` — variable `[input, setInput]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[pendingImages, setPendingImages]` — variable `[pendingImages, setPendingImages]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[queuedTurns, setQueuedTurns]` — variable `[queuedTurns, setQueuedTurns]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[busy, setBusy]` — variable `[busy, setBusy]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loaded, setLoaded]` — variable `[loaded, setLoaded]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[activity, setActivity]` — variable `[activity, setActivity]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[confirmClose, setConfirmClose]` — variable `[confirmClose, setConfirmClose]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[contextsOpen, setContextsOpen]` — variable `[contextsOpen, setContextsOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[contextsPickerOpen, setContextsPickerOpen]` — variable `[contextsPickerOpen, setContextsPickerOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[contextNotice, setContextNotice]` — variable `[contextNotice, setContextNotice]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[cwdChoices, setCwdChoices]` — variable `[cwdChoices, setCwdChoices]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopOpen, setLoopOpen]` — variable `[loopOpen, setLoopOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopIntervalModalOpen, setLoopIntervalModalOpen]` — variable `[loopIntervalModalOpen, setLoopIntervalModalOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopActive, setLoopActive]` — variable `[loopActive, setLoopActive]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopIteration, setLoopIteration]` — variable `[loopIteration, setLoopIteration]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[diskContexts, setDiskContexts]` — variable `[diskContexts, setDiskContexts]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[enteringIds, setEnteringIds]` — variable `[enteringIds, setEnteringIds]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[materializingIds, setMaterializingIds]` — variable `[materializingIds, setMaterializingIds]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[settlingId, setSettlingId]` — variable `[settlingId, setSettlingId]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:knownMessageIdsRef` — variable `knownMessageIdsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:messageContentLenRef` — variable `messageContentLenRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:activeAssistantIdRef` — variable `activeAssistantIdRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:lastAssistantIdRef` — variable `lastAssistantIdRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:turnClosedRef` — variable `turnClosedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loadedRef` — variable `loadedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:pendingCliEventsRef` — variable `pendingCliEventsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:applyCliEventRef` — variable `applyCliEventRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:completeTurnRef` — variable `completeTurnRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:liveSettleTimerRef` — variable `liveSettleTimerRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:messagesRef` — variable `messagesRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:metaRef` — variable `metaRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:diskContextsRef` — variable `diskContextsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:contextsPickerRef` — variable `contextsPickerRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:cwdRef` — variable `cwdRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:busyRef` — variable `busyRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopActiveRef` — variable `loopActiveRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopObjectiveRef` — variable `loopObjectiveRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopIterationRef` — variable `loopIterationRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopDoneRef` — variable `loopDoneRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:skipLoopContinueRef` — variable `skipLoopContinueRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopContinueTimerRef` — variable `loopContinueTimerRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopContinueDelayMsRef` — variable `loopContinueDelayMsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopContinueDelayMs, setLoopContinueDelayMs]` — variable `[loopContinueDelayMs, setLoopContinueDelayMs]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:contextWriteQueueRef` — variable `contextWriteQueueRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:discoveryHydratedRef` — variable `discoveryHydratedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:discoveredCwdRef` — variable `discoveredCwdRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:pendingModeHandoffRef` — variable `pendingModeHandoffRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:scrollRef` — variable `scrollRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:composerInputRef` — variable `composerInputRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:clearLoopTimer` — variable `clearLoopTimer: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:beginLiveSettle` — variable `beginLiveSettle: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:resolveWorkingCwd` — variable `resolveWorkingCwd: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:resolved` — variable `resolved: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:applyDiscoveredContexts` — variable `applyDiscoveredContexts: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:previousIds` — variable `previousIds: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:discoveredIds` — variable `discoveredIds: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:currentMeta` — variable `currentMeta: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:nextIds` — variable `nextIds: string[]`
+- `src/renderer/agent/AgentPane.tsx#variable:kept` — variable `kept: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:added` — variable `added: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:prev` — variable `prev: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:prepareContextDiscovery` — variable `prepareContextDiscovery: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:refreshDiskContexts` — variable `refreshDiskContexts: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:resolvedCwd` — variable `resolvedCwd: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:result` — variable `result: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:cancelled` — variable `cancelled: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:nextMessages` — variable `nextMessages: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:lastAssistant` — variable `lastAssistant: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:pending` — variable `pending: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:event` — variable `event: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:currentIds` — variable `currentIds: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:message` — variable `message: inferred`
+
+### src/renderer/agent/AgentPaneFooter.tsx
+- `src/renderer/agent/AgentPaneFooter.tsx#class:AgentPanePendingImage` — interface `AgentPanePendingImage`
+- `src/renderer/agent/AgentPaneFooter.tsx#class:AgentPaneFooterProps` — interface `AgentPaneFooterProps`
+- `src/renderer/agent/AgentPaneFooter.tsx#function:AgentPaneFooter`
+  - signature: `AgentPaneFooter({ pendingImages, composerDisabled, loopMode, busy, loopActive, input, showStop, showPlay, meta, diskContexts, selectedContextIds, selectedContexts, contextsPickerOpen, contextsPickerRef, contextsPickerLabel, contextNotice, composerInputRef, onInputChange, onComposerPaste, onComposerKeyDown, onRemovePendingImage, onToggleContextsPicker, onToggleContext, onOpenContextsModal, onAutoImproveChange, onSendClick, }): inferred/unspecified`
+  - inputs: `{ pendingImages, composerDisabled, loopMode, busy, loopActive, input, showStop, showPlay, meta, diskContexts, selectedContextIds, selectedContexts, contextsPickerOpen, contextsPickerRef, contextsPickerLabel, contextNotice, composerInputRef, onInputChange, onComposerPaste, onComposerKeyDown, onRemovePendingImage, onToggleContextsPicker, onToggleContext, onOpenContextsModal, onAutoImproveChange, onSendClick, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentPaneFooter.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentPaneFooter.tsx#variable:checked` — variable `checked: inferred`
+
+### src/renderer/agent/AgentPaneHeader.tsx
+- `src/renderer/agent/AgentPaneHeader.tsx#function:folderLabel`
+  - signature: `folderLabel(cwd: string): string`
+  - inputs: `cwd: string`
+  - returns: `string`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:normalized` — variable `normalized: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#class:AgentPaneHeaderProps` — interface `AgentPaneHeaderProps`
+- `src/renderer/agent/AgentPaneHeader.tsx#function:AgentPaneHeader`
+  - signature: `AgentPaneHeader({ meta, cwd, cwdSources, cwdChoices, busy, loopMode, loopActive, onClosePane, onRequestClose, onLoadCwdChoices, onSelectCwdSource, onChangeModel, onChangePermission, onToggleLoopMode, paneReorder, }): inferred/unspecified`
+  - inputs: `{ meta, cwd, cwdSources, cwdChoices, busy, loopMode, loopActive, onClosePane, onRequestClose, onLoadCwdChoices, onSelectCwdSource, onChangeModel, onChangePermission, onToggleLoopMode, paneReorder, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:PERMISSION_MODES` — variable `PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }>`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:modelOptions` — variable `modelOptions: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:selectedModel` — variable `selectedModel: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:modelIsCustom` — variable `modelIsCustom: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:providerLabel` — variable `providerLabel: inferred`
+- `src/renderer/agent/AgentPaneHeader.tsx#variable:selected` — variable `selected: inferred`
+
+### src/renderer/agent/AgentPaneMessages.tsx
+- `src/renderer/agent/AgentPaneMessages.tsx#class:AgentPaneQueuedTurn` — interface `AgentPaneQueuedTurn`
+- `src/renderer/agent/AgentPaneMessages.tsx#class:AgentBodySegment` — type `AgentBodySegment`
+- `src/renderer/agent/AgentPaneMessages.tsx#function:splitAgentBody`
+  - signature: `splitAgentBody(raw: string): AgentBodySegment[]`
+  - inputs: `raw: string`
+  - returns: `AgentBodySegment[]`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:segments` — variable `segments: AgentBodySegment[]`
+- `src/renderer/agent/AgentPaneMessages.tsx#function:pushText`
+  - signature: `pushText(chunk: string): void`
+  - inputs: `chunk: string`
+  - returns: `void`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:i` — variable `i: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:fence` — variable `fence: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:langEnd` — variable `langEnd: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:lang` — variable `lang: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:contentStart` — variable `contentStart: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:close` — variable `close: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#function:AssistantBody`
+  - signature: `AssistantBody({ content, live }): inferred/unspecified`
+  - inputs: `{ content, live }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:segments` — variable `segments: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#class:AgentPaneMessagesProps` — interface `AgentPaneMessagesProps`
+- `src/renderer/agent/AgentPaneMessages.tsx#function:AgentPaneMessages`
+  - signature: `AgentPaneMessages({ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onScrollToBottom, }): inferred/unspecified`
+  - inputs: `{ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onScrollToBottom, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:live` — variable `live: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:landing` — variable `landing: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:entering` — variable `entering: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:materializing` — variable `materializing: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:thinkingOnly` — variable `thinkingOnly: inferred`
+- `src/renderer/agent/AgentPaneMessages.tsx#variable:activityText` — variable `activityText: inferred`
+
+### src/renderer/agent/AgentProviderPickerModal.tsx
+- `src/renderer/agent/AgentProviderPickerModal.tsx#class:Props` — interface `Props`
+- `src/renderer/agent/AgentProviderPickerModal.tsx#variable:PROVIDERS` — variable `PROVIDERS: { id: AgentCliProvider; icon: 'bot' | 'sparkles'; titleKey: 'claude' | 'cursor' }[]`
+- `src/renderer/agent/AgentProviderPickerModal.tsx#function:AgentProviderPickerModal`
+<!-- /iaterminal:auto -->
+
+<!-- iaterminal:notes -->
+- `src/renderer/components/ai/useAiMessagesFollowScroll.ts#function:useAiMessagesFollowScroll` — Follow uses prior bottom; forceFollow on send
+
+## Orphaned
+
+- `src/renderer/agent/TabContextsModal.tsx#variable:KINDS` — Create UI includes notes kind
+- `src/renderer/agent/AgentPane.tsx#function:startTurn` — Calls forceFollow before appending messages
+- `src/shared/tabContext.ts#variable:ALL_CONTEXT_KINDS` — Host plus custom notes kinds
+- `src/shared/tabContext.ts#variable:CUSTOM_CONTEXT_KINDS` — User Markdown contexts list
+- `src/renderer/agent/TabContextsModal.tsx#variable:notesContent` — Draft body for custom Markdown
+<!-- /iaterminal:notes -->

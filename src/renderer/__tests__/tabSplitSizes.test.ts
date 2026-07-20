@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeSplitSizes, normalizeTabSession } from '../tabSplitSizes'
+import { normalizeSplitSizes, normalizeTabSession, columnRatioForAgentPriority } from '../tabSplitSizes'
 
 describe('tabSplitSizes', () => {
   it('returns undefined split sizes for single pane', () => {
@@ -20,5 +20,17 @@ describe('tabSplitSizes', () => {
       splitSizes: { columnRatio: 0.5 },
     })
     expect(tab.splitSizes).toBeUndefined()
+  })
+
+  it('favors agent pane in mixed two-pane layout', () => {
+    expect(
+      columnRatioForAgentPriority(['agent', 'term'], { agent: 'agent' }),
+    ).toBeCloseTo(0.64, 2)
+    expect(
+      columnRatioForAgentPriority(['term', 'agent'], { agent: 'agent' }),
+    ).toBeCloseTo(0.36, 2)
+    expect(
+      columnRatioForAgentPriority(['a', 'b'], { a: 'agent', b: 'agent' }),
+    ).toBe(0.5)
   })
 })

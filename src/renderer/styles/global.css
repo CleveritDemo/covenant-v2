@@ -32,9 +32,9 @@
 
   /* Fixed layout measures */
   --titlebar-height: 36px;
-  --tabbar-height: 32px;
+  --tabbar-height: 34px;
   --ai-panel-width: 360px;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', 'Menlo', monospace;
 }
 
@@ -51,31 +51,32 @@ html, body, #root {
   background: var(--bg);
   color: var(--text);
   font-size: 13px;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar);
-  border-radius: 3px;
+  background: color-mix(in srgb, var(--scrollbar) 80%, transparent);
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* Selection */
 ::selection {
-  background: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
   color: var(--text);
 }
 
 /* Focus ring */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
 }
 
 button {
@@ -100,11 +101,12 @@ input, textarea {
 
 input:focus, textarea:focus {
   border-color: var(--accent);
+  box-shadow: none;
 }
 
 /* Transition helper */
 .fade-in {
-  animation: fadeIn 0.15s ease;
+  animation: fadeIn 0.18s ease;
 }
 
 @keyframes fadeIn {

@@ -3,13 +3,13 @@
 
 > Últimos 10 cambios realizados por la IA. Generado automáticamente.
 
-- `2026-07-19T07:57:52.519Z` — `src/renderer/agent/AgentPane.tsx` — Orbe simplificado: capas glow/bubble/reflections y 8 partículas convergentes
-- `2026-07-19T07:57:52.519Z` — `src/renderer/agent/AgentPane.css` — Burbuja translúcida con borde luminoso y reflexiones; partículas atraídas desde fuera; eliminadas capas 3D anteriores
-- `2026-07-19T07:53:35.089Z` — `src/renderer/agent/AgentPane.css` — Nacimiento del orbe: fogonazo, rebote elástico con onda expansiva y aparición escalonada de nebulosa, anillos y motas
-- `2026-07-19T07:51:21.337Z` — `src/renderer/agent/AgentPane.tsx` — Añadidas capas nebula, rim y flare al orbe de thinking
-- `2026-07-19T07:51:21.337Z` — `src/renderer/agent/AgentPane.css` — Orbe rediseñado (vidrio con tres luces, nebulosa giratoria, contraluz, destello); eliminado anillo luminoso de burbuja live/landing
-- `2026-07-19T07:44:12.306Z` — `src/renderer/agent/AgentPane.tsx` — Thinking vacío renderiza orbe multicapa; al primer contenido vuelve a burbuja de chat
-- `2026-07-19T07:44:12.306Z` — `src/renderer/agent/AgentPane.css` — Orbe 3D grande con capas/anillos/levitación y transición morph a burbuja; eliminado indicador thinking plano
-- `2026-07-19T06:55:53.452Z` — `src/renderer/agent/AgentPane.tsx` — Eliminado avatar de burbujas del asistente y el FLIP en JS del aterrizaje; el settle ahora solo limpia la clase --landing
-- `2026-07-19T06:55:53.452Z` — `src/renderer/agent/AgentPane.css` — Burbujas del asistente centradas y extendidas (94%), entrada pop-center, live sin escala con anillo que se desvanece al aterrizar; CSS del avatar eliminado
-- `2026-07-19T06:48:47.727Z` — `src/renderer/agent/AgentPane.tsx` — Cola FIFO de mensajes: input habilitado durante busy, Enter encola, drenaje automático al liberarse el turno
+- `2026-07-20T01:32:15.262Z` — `src/renderer/components/ui/ChoiceCard.tsx` — New selectable card for modal pickers; props-only API
+- `2026-07-20T01:32:15.262Z` — `src/renderer/agent/AgentPaneHeader.tsx` — Extracted agent header; icon actions use Button
+- `2026-07-20T01:32:15.262Z` — `src/renderer/agent/AgentPaneMessages.tsx` — Extracted messages, queue, and scroll-bottom UI
+- `2026-07-20T01:32:15.262Z` — `src/renderer/agent/AgentPaneFooter.tsx` — Extracted attachments, contexts bar, and composer
+- `2026-07-20T01:32:15.262Z` — `src/renderer/agent/TabContextsList.tsx` — Extracted contexts sidebar list from modal
+- `2026-07-20T01:32:15.262Z` — `src/renderer/agent/TabContextsEditor.tsx` — Extracted contexts editor/preview panel
+- `2026-07-20T01:32:15.262Z` — `src/renderer/components/AppModals.tsx` — Host Settings/Theme/provider modals outside App JSX
+- `2026-07-20T01:32:15.262Z` — `src/renderer/terminal/explorer/ExplorerToolButton.tsx` — Dedicated explorer toolbar button without kit className
+- `2026-07-20T01:32:15.262Z` — `.cursor/rules/frontend-components.mdc` — Cursor rule: props-only kit; new component if look differs
+- `2026-07-20T01:32:15.262Z` — `docs/FRONTEND_AUDIT_PLAN.md` — Marked phases 0–5 complete with execution notes

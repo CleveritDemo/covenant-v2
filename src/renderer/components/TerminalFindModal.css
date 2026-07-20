@@ -1,7 +1,9 @@
 .terminal-find-intro {
-  margin: 0 0 10px;
-  color: var(--text);
-  font-size: 12px;
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .terminal-find-field {
@@ -12,7 +14,9 @@
 }
 
 .terminal-find-label {
+  font-family: var(--font-ui);
   font-size: 11px;
+  font-weight: 550;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
@@ -26,22 +30,28 @@
 .terminal-find-input {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--bg) 45%, var(--surface));
   color: var(--text);
 }
 
+.terminal-find-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
+}
+
 .terminal-find-submit {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 550;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--text);
   cursor: pointer;
   flex-shrink: 0;
@@ -49,13 +59,16 @@
 }
 
 .terminal-find-submit:hover {
-  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
+  background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--border) 35%, var(--text-muted));
 }
 
 .terminal-find-hint {
   margin: 0 0 12px;
-  font-size: 10px;
+  font-family: var(--font-ui);
+  font-size: 11px;
   color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .terminal-find-section {
@@ -67,9 +80,10 @@
 }
 
 .terminal-find-section-title {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
   margin: 0 0 8px;
@@ -78,7 +92,7 @@
 .terminal-find-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   max-height: min(42vh, 360px);
   overflow-y: auto;
   padding-right: 2px;
@@ -89,27 +103,28 @@
   width: 100%;
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.4;
-  padding: 6px 8px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  background: var(--surface);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--bg) 40%, var(--surface));
   color: var(--text);
   cursor: pointer;
   transition: border-color 0.1s, background 0.1s;
 }
 
 .terminal-find-item:hover {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 
 .terminal-find-item-meta {
   display: block;
-  font-size: 9px;
+  font-family: var(--font-ui);
+  font-size: 10px;
   color: var(--text-muted);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .terminal-find-preview {
@@ -122,29 +137,30 @@
 .terminal-find-mark {
   padding: 0 1px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
   color: var(--text);
 }
 
 .terminal-find-empty {
   margin: 0;
-  font-size: 11px;
+  font-family: var(--font-ui);
+  font-size: 12px;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 .terminal-find-footer-note {
-  font-size: 10px;
+  font-family: var(--font-ui);
+  font-size: 11px;
   color: var(--text-muted);
   margin-right: auto;
 }
 
 .terminal-find-close-footer {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;

@@ -51,5 +51,5 @@ export const Toggle: React.FC<ToggleProps> = ({
   )
 
   if (!title) return button
-  return <Tooltip content={title} className="toggle__tooltip-anchor">{button}</Tooltip>
+  return <Tooltip content={title}>{button}</Tooltip>
 }

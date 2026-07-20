@@ -1,21 +1,44 @@
 import { describe, expect, it } from 'vitest'
 import {
+  defaultAssignedContextIds,
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
   normalizeAnnotation,
 } from '../tabContext'
 
+describe('defaultAssignedContextIds', () => {
+  it('prefers folders and symbols over deps or changelog', () => {
+    const ids = defaultAssignedContextIds([
+      { id: '2601e189', name: 'dependences', fileName: 'dependences.md', kind: 'deps' },
+      { id: 'iaterminal:changelog', name: 'AI Changelog', fileName: 'changelog.md', kind: 'changelog' },
+      { id: 'discovered-file:folders.md', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
+      {
+        id: 'discovered-file:classes-methods-variables.md',
+        name: 'symbols',
+        fileName: 'classes-methods-variables.md',
+        kind: 'symbols',
+      },
+      { id: 'readme-1', name: 'README', fileName: 'readme.md', kind: 'readme' },
+    ])
+
+    expect(ids).toEqual([
+      'discovered-file:folders.md',
+      'discovered-file:classes-methods-variables.md',
+    ])
+  })
+})
+
 describe('extractTabContextUpdates', () => {
-  it('extracts a valid notes update and hides its protocol fence', () => {
+  it('extracts a valid folderTree update and hides its protocol fence', () => {
     const result = extractTabContextUpdates(
       'Trabajo terminado.\n```ia-terminal-context\n' +
-      '{"id":"ctx-1","kind":"notes","body":"Nueva decisión"}\n```\n',
+      '{"id":"ctx-1","kind":"folderTree","annotations":[{"key":"path:src","text":"Código fuente"}]}\n```\n',
     )
     expect(result.visibleText).toBe('Trabajo terminado.')
     expect(result.updates).toEqual([{
       id: 'ctx-1',
-      kind: 'notes',
-      body: 'Nueva decisión',
+      kind: 'folderTree',
+      annotations: [{ key: 'path:src', text: 'Código fuente' }],
     }])
   })
 
@@ -126,14 +149,14 @@ describe('extractTabContextUpdates', () => {
     const text = [
       'Sin cambios.',
       '```ia-terminal-context',
-      '{"id":"notes","kind":"notes","annotations":[{"key":"note:x","text":"Inventado"}]}',
+      '{"id":"folders","kind":"folderTree","annotations":[{"key":"path:src","text":"Inventado"}]}',
       '```',
     ].join('\n')
     const filtered = filterTabContextUpdatesByChangedPaths(text, [], [{
-      id: 'notes',
-      name: 'Notas',
-      fileName: 'notes.md',
-      kind: 'notes',
+      id: 'folders',
+      name: 'Folders',
+      fileName: 'folders.md',
+      kind: 'folderTree',
     }])
 
     expect(extractTabContextUpdates(filtered).updates).toEqual([])

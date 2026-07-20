@@ -64,7 +64,7 @@ export const ThemePickerModal: React.FC<Props> = ({
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {
       const el = e.target
-      if (el instanceof HTMLElement && el.closest('.theme-picker-filter')) return
+      if (el instanceof HTMLElement && el.closest('input[type="search"]')) return
       if (e.key === 'Enter' && focusedId && filteredThemes.length > 0) {
         e.preventDefault(); e.stopPropagation(); applyThemeId(focusedId); return
       }
@@ -113,7 +113,6 @@ export const ThemePickerModal: React.FC<Props> = ({
           <Input
             type="search"
             size="md"
-            className="theme-picker-filter"
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder={t('themePicker.filterPlaceholder')}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildLoopPrompt, LOOP_DONE_MARKER, stripLoopDoneMarker } from '../agentLoop'
+import {
+  buildLoopPrompt,
+  formatLoopIntervalMs,
+  LOOP_DONE_MARKER,
+  LOOP_INTERVAL_PRESETS,
+  stripLoopDoneMarker,
+} from '../agentLoop'
 
 describe('agentLoop', () => {
   it('builds a first-iteration prompt with the objective and done marker', () => {
@@ -24,5 +30,15 @@ describe('agentLoop', () => {
       text: 'Sigo trabajando',
       done: false,
     })
+  })
+
+  it('exposes interval presets and formats delay labels', () => {
+    expect(LOOP_INTERVAL_PRESETS.map(preset => preset.id)).toEqual([
+      '1m', '10m', '30m', '1h', '3h', '6h', '12h',
+    ])
+    expect(formatLoopIntervalMs(60_000)).toBe('1 min')
+    expect(formatLoopIntervalMs(10 * 60_000)).toBe('10 min')
+    expect(formatLoopIntervalMs(60 * 60_000)).toBe('1 h')
+    expect(formatLoopIntervalMs(12 * 60 * 60_000)).toBe('12 h')
   })
 })

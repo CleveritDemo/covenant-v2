@@ -23,6 +23,8 @@ export interface AgentCliStartRequest {
   model?: string
   /** Definiciones asignadas; main las materializa contra cwd justo al enviar. */
   contexts?: TabContext[]
+  /** Catálogo descubierto en disco (para sugerencias; no se adjuntan solos). */
+  discoveredContexts?: TabContext[]
   /** Inyecta el protocolo de actualización incremental de anotaciones. */
   autoImproveContexts?: boolean
   cliSessionId?: string
@@ -40,9 +42,18 @@ export type AgentCliUiEvent =
   /** Cierre ordenado del turno en el mismo canal que el stream (evita carreras con EXIT). */
   | { type: 'done'; code: number }
 
+/** Miniatura de un adjunto enviado; solo para mostrar en el historial del chat. */
+export interface AgentChatImage {
+  name: string
+  /** Data URL pequeña (miniatura), no la imagen original. */
+  dataUrl: string
+}
+
 export interface AgentChatEntry {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  /** Previews de imágenes adjuntas al mensaje del usuario. */
+  images?: AgentChatImage[]
 }
 

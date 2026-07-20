@@ -64,8 +64,7 @@ export const GitFileList: React.FC<GitFileListProps> = ({
           {stageableCount > 0 ? (
             <Button
               variant="ghost"
-              size="sm"
-              className="git-file-list__bulk-btn"
+              size="xs"
               disabled={!idle}
               onClick={onStageAll}
             >
@@ -75,8 +74,7 @@ export const GitFileList: React.FC<GitFileListProps> = ({
           {unstagedCount > 0 ? (
             <Button
               variant="ghost"
-              size="sm"
-              className="git-file-list__bulk-btn"
+              size="xs"
               disabled={!idle}
               onClick={onUnstageAll}
             >
@@ -114,9 +112,8 @@ export const GitFileList: React.FC<GitFileListProps> = ({
                 <div className="git-file-list__actions">
                   {canStage ? (
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="git-file-list__action-btn"
+                      variant="icon"
+                      size="xs"
                       disabled={!idle}
                       title={t('git.stageFileButton')}
                       aria-label={`${t('git.stageFileButton')} ${name}`}
@@ -127,9 +124,8 @@ export const GitFileList: React.FC<GitFileListProps> = ({
                   ) : null}
                   {canUnstage ? (
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="git-file-list__action-btn"
+                      variant="icon"
+                      size="xs"
                       disabled={!idle}
                       title={t('git.unstageFileButton')}
                       aria-label={`${t('git.unstageFileButton')} ${name}`}

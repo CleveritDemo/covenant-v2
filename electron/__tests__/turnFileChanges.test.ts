@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -42,5 +42,21 @@ describe('turn file changes', () => {
     writeFileSync(join(cwd, 'file.txt'), 'same')
 
     expect(changedWorkspacePaths(before, captureWorkspaceSnapshot(cwd))).toEqual([])
+  })
+
+  it('survives unreadable directories such as .Trash without throwing', () => {
+    const cwd = tempCwd()
+    writeFileSync(join(cwd, 'ok.txt'), 'visible')
+    mkdirSync(join(cwd, '.Trash'))
+    writeFileSync(join(cwd, '.Trash', 'secret.txt'), 'denied')
+    // Simula EPERM: quita permisos de listado al directorio protegido.
+    chmodSync(join(cwd, '.Trash'), 0)
+
+    expect(() => captureWorkspaceSnapshot(cwd)).not.toThrow()
+    const snapshot = captureWorkspaceSnapshot(cwd)
+    expect(snapshot.has('ok.txt')).toBe(true)
+    expect([...snapshot.keys()].some(path => path.includes('.Trash'))).toBe(false)
+
+    chmodSync(join(cwd, '.Trash'), 0o700)
   })
 })

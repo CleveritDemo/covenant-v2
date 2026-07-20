@@ -20,8 +20,7 @@ import {
   createTerminalRepaintScheduler,
   repaintTerminalCanvas,
 } from './terminalCanvasRepaint'
-import { CdSuggest } from './CdSuggest'
-import { CmdSuggest } from './CmdSuggest'
+import { TerminalSuggestStack } from './TerminalSuggestStack'
 import { TerminalScrollDown } from './TerminalScrollDown'
 import { SplitPaneButton } from './SplitPaneButton'
 import { FileExplorerSidebar, type FileExplorerSidebarHandle } from './explorer/FileExplorerSidebar'
@@ -1540,28 +1539,20 @@ export const TerminalPane: React.FC<Props> = ({
             />
           </div>
 
-          {(showCdSuggestPanel || showCmdSuggestPanel) && (
-            <div className="terminal-suggest-stack">
-              {showCdSuggestPanel && (
-                <CdSuggest
-                  visibleLocalDirs={visibleLocalDirs}
-                  visiblePaths={visiblePaths}
-                  onPickLocal={handleCdLocalPick}
-                  onPickRecent={handleCdPick}
-                />
-              )}
-              {showCmdSuggestPanel && (
-                <CmdSuggest
-                  visibleRecentMatches={visibleRecentMatches}
-                  visibleSnippets={visibleSnippets}
-                  cmdSuggestCmd={cmdSuggestCmd}
-                  cmdSuggestDraft={cmdSuggestDraft}
-                onPickRecent={handleRecentCmdPick}
-                onPickSnippet={handleCmdSnippetPick}
-              />
-              )}
-            </div>
-          )}
+          <TerminalSuggestStack
+            showCdSuggestPanel={showCdSuggestPanel}
+            showCmdSuggestPanel={showCmdSuggestPanel}
+            visibleLocalDirs={visibleLocalDirs}
+            visiblePaths={visiblePaths}
+            onPickCdLocal={handleCdLocalPick}
+            onPickCdRecent={handleCdPick}
+            visibleRecentMatches={visibleRecentMatches}
+            visibleSnippets={visibleSnippets}
+            cmdSuggestCmd={cmdSuggestCmd}
+            cmdSuggestDraft={cmdSuggestDraft}
+            onPickRecentCmd={handleRecentCmdPick}
+            onPickCmdSnippet={handleCmdSnippetPick}
+          />
         </div>
 
         {explorerOpen && (

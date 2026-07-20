@@ -31,8 +31,9 @@ export interface TerminalModalProps {
 }
 
 /**
- * Contenedor común para modales estilo terminal: backdrop, panel, tipografía mono.
- * El fondo no cierra el modal por defecto; se puede activar con `closeOnBackdrop`.
+ * Contenedor común para modales de la app.
+ * Sin props de className: el chrome solo se controla con size / panelVariant / bodyLayout.
+ * Entrada y blur son CSS puro (sin clases JS): StrictMode no puede cancelar el efecto.
  */
 export const TerminalModal: React.FC<TerminalModalProps> = ({
   open,
@@ -109,16 +110,14 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     bodyLayout !== 'default' ? `terminal-modal-body--${bodyLayout}` : '',
   ].filter(Boolean).join(' ')
 
-  // Portal al body: mismo stacking y opacidad en todos los usos. Si el modal
-  // se monta dentro de un panel (p. ej. agent-pane con isolation/overflow),
-  // el fixed queda atrapado y el fondo se ve “transparente” o recortado.
   return createPortal(
     <div
-      className="terminal-modal-backdrop"
+      className="terminal-modal-root"
       style={{ '--modal-z': zIndex } as React.CSSProperties}
       role="presentation"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
+      <div className="terminal-modal-scrim" aria-hidden="true" />
       <div
         ref={panelRef}
         className={[
@@ -143,7 +142,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
                 title={t('ui.closeTitle')}
                 aria-label={t('ui.closeAriaLabel')}
               >
-                <Icon name="close" size={12} />
+                <Icon name="close" size={14} />
               </button>
             )}
           </header>

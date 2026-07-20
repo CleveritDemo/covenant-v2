@@ -5,7 +5,6 @@ import './Tooltip.css'
 export interface TooltipProps {
   content: string
   children: React.ReactNode
-  className?: string
 }
 
 interface TooltipPosition {
@@ -14,7 +13,7 @@ interface TooltipPosition {
   side: 'top' | 'bottom'
 }
 
-export const Tooltip: React.FC<TooltipProps> = ({ content, children, className = '' }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ content, children }) => {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(false)
@@ -60,7 +59,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, children, className =
   return (
     <span
       ref={anchorRef}
-      className={['ui-tooltip', className].filter(Boolean).join(' ')}
+      className="ui-tooltip"
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}

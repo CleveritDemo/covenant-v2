@@ -37,14 +37,14 @@ export const ConfirmTerminalModal: React.FC<Props> = ({
       showHeaderClose={false}
       closeOnEscape
       footer={
-        <div className="confirm-terminal-actions">
+        <>
           <Button variant="secondary" size="sm" onClick={onCancel}>
             {t('ui.confirmNo')}
           </Button>
           <Button variant="primary" size="sm" onClick={confirm} autoFocus>
             {t('ui.confirmOk')}
           </Button>
-        </div>
+        </>
       }
     >
       <p className="confirm-terminal-message">{message}</p>

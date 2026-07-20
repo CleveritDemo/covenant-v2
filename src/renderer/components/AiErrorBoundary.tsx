@@ -27,7 +27,7 @@ export class AiErrorBoundary extends React.Component<
   override render(): React.ReactNode {
     if (this.state.error) {
       return (
-        <div className="ai-error" role="alert" style={{ margin: '6px 0' }}>
+        <div className="ai-error" role="alert">
           <span aria-hidden="true">!</span>
           <span>Error al renderizar la respuesta: {this.state.error.message}</span>
         </div>

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import {
   buildExplainPrompt,
   buildChatSystemPrompt,
@@ -624,26 +623,24 @@ export const AiPanel: React.FC<Props> = ({
         )}
       </div>
 
-      {createPortal(
+      {confirmingDelete && (
         <ConfirmTerminalModal
           open={confirmingDelete}
           message={t('ai.confirmDeleteMessage')}
           detail={t('ai.confirmDeleteDetail')}
           onConfirm={confirmDelete}
           onCancel={() => setConfirmingDelete(false)}
-        />,
-        document.body,
+        />
       )}
-      {createPortal(
+      {shellPrompt !== null && (
         <ConfirmTerminalModal
-          open={shellPrompt !== null}
+          open
           zIndex={760}
           message={t('ai.confirmShellMessage')}
           detail={shellPrompt?.cmd}
           onConfirm={handleShellConfirm}
           onCancel={handleShellCancel}
-        />,
-        document.body,
+        />
       )}
     </>
   )

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { Icon } from '../../components/ui/Icon'
+import { ExplorerToolButton } from './ExplorerToolButton'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { FileCodeEditor, type FileCodeEditorHandle } from './FileCodeEditor'
@@ -187,15 +188,14 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
           {saveHint}
         </span>
         {onClose && (
-          <button
-            type="button"
-            className="file-explorer-tree__tool-btn file-explorer-tree__tool-btn--close"
+          <ExplorerToolButton
+            variant="close"
             title={t('fileExplorer.editor.closeFile')}
             aria-label={t('fileExplorer.editor.closeFileAria')}
             onClick={onClose}
           >
             <Icon name="close" size={9} aria-hidden />
-          </button>
+          </ExplorerToolButton>
         )}
       </div>
 

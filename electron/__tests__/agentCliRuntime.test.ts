@@ -5,10 +5,13 @@ import { join } from 'path'
 import type { AppConfig } from '../../src/shared/configSchema'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import {
+  buildContextContinuationPrompt,
   commandAndArgs,
+  CONTEXT_FULL_REFRESH_INTERVAL_TURNS,
   materializeClipboardImages,
   normalizeClaudeEvent,
   normalizeCursorEvent,
+  shouldForceFullContextRefresh,
 } from '../agentCliRuntime'
 
 const baseConfig = {
@@ -108,6 +111,56 @@ describe('permission mode CLI flags', () => {
     )
     expect(claudePlan.args).toContain('--permission-mode')
     expect(claudePlan.args[claudePlan.args.indexOf('--permission-mode') + 1]).toBe('plan')
+  })
+
+  it('resumes both current CLI providers when a session exists', () => {
+    const cursor = commandAndArgs(
+      request({ provider: 'cursor', permissionMode: 'ask', cliSessionId: 'cursor-session' }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    const claude = commandAndArgs(
+      request({ provider: 'claude', permissionMode: 'ask', cliSessionId: 'claude-session' }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+
+    expect(cursor.args.slice(cursor.args.indexOf('--resume'), cursor.args.indexOf('--resume') + 2))
+      .toEqual(['--resume', 'cursor-session'])
+    expect(claude.args.slice(claude.args.indexOf('--resume'), claude.args.indexOf('--resume') + 2))
+      .toEqual(['--resume', 'claude-session'])
+  })
+})
+
+describe('portable context continuation', () => {
+  it('sends only host context when the CLI session can resume', () => {
+    const prompt = buildContextContinuationPrompt(
+      'INITIAL USER REQUEST',
+      'REQUESTED CONTEXT',
+      true,
+    )
+    expect(prompt).toContain('REQUESTED CONTEXT')
+    expect(prompt).not.toContain('INITIAL USER REQUEST')
+  })
+
+  it('restores the complete initial prompt when no session is available', () => {
+    const prompt = buildContextContinuationPrompt(
+      'INITIAL USER REQUEST AND CATALOG',
+      'REQUESTED CONTEXT',
+      false,
+    )
+    expect(prompt).toContain('INITIAL USER REQUEST AND CATALOG')
+    expect(prompt).toContain('REQUESTED CONTEXT')
+    expect(prompt).toContain('The CLI did not provide a resumable session')
+  })
+
+  it('forces a complete context refresh every ten session turns', () => {
+    expect(CONTEXT_FULL_REFRESH_INTERVAL_TURNS).toBe(10)
+    expect(shouldForceFullContextRefresh(null)).toBe(true)
+    expect(shouldForceFullContextRefresh(8)).toBe(false)
+    expect(shouldForceFullContextRefresh(9)).toBe(true)
   })
 })
 

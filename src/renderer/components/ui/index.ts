@@ -1,3 +1,12 @@
+/**
+ * Design system UI kit.
+ * Contrato: sin `className` ni estilos inline en props públicas.
+ * Personalizar solo con props tipadas (variant, size, pressed, etc.).
+ *
+ * Button / Input / etc. cubren patrones estándar. Si un control es
+ * visualmente distinto (p. ej. botón circular), crear un componente
+ * nuevo con su CSS y props — no forzar Button ni parchear con className.
+ */
 export { Icon } from './Icon'
 export type { IconName } from './Icon'
 
@@ -24,3 +33,6 @@ export type { InputProps, InputSize, InputVariant } from './Input'
 
 export { TextArea } from './TextArea'
 export type { TextAreaProps, TextAreaSize, TextAreaVariant } from './TextArea'
+
+export { ChoiceCard } from './ChoiceCard'
+export type { ChoiceCardProps } from './ChoiceCard'

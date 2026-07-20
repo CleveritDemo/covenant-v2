@@ -9,12 +9,15 @@ import type {
   AgentCliUiEvent,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
-import { filterTabContextUpdatesByChangedPaths } from '../src/shared/tabContext'
+import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
 import { initSessionCwd } from './cdRecentCapture'
 import {
   buildContextCatalogPrompt,
+  buildContextPromptDelivery,
   buildRequestedContextSections,
   extractContextSectionRequest,
+  type ContextDeliverySnapshot,
+  type ContextPromptDelivery,
 } from './tabContextBuild'
 import {
   appendAiChangelog,
@@ -29,6 +32,107 @@ interface AgentRun {
 }
 
 const agentRuns = new Map<string, AgentRun>()
+
+interface SessionContextDeliveryState {
+  snapshot: ContextDeliverySnapshot
+  turnsSinceFullRefresh: number
+}
+
+interface PlannedContextDelivery extends ContextPromptDelivery {
+  previousTurnsSinceFullRefresh: number
+}
+
+export const CONTEXT_FULL_REFRESH_INTERVAL_TURNS = 10
+const MAX_CONTEXT_DELIVERY_SESSIONS = 100
+const sessionContextDeliveries = new Map<string, SessionContextDeliveryState>()
+
+export interface ContextDeliveryMetrics {
+  catalogChars: number
+  sectionsRequested: number
+  sectionsDelivered: number
+  sectionsPreattached: number
+  annotationUpserts: number
+}
+
+const contextDeliveryMetrics: ContextDeliveryMetrics = {
+  catalogChars: 0,
+  sectionsRequested: 0,
+  sectionsDelivered: 0,
+  sectionsPreattached: 0,
+  annotationUpserts: 0,
+}
+
+export function getContextDeliveryMetrics(): ContextDeliveryMetrics {
+  return { ...contextDeliveryMetrics }
+}
+
+export function clearContextDeliveryMetrics(): void {
+  contextDeliveryMetrics.catalogChars = 0
+  contextDeliveryMetrics.sectionsRequested = 0
+  contextDeliveryMetrics.sectionsDelivered = 0
+  contextDeliveryMetrics.sectionsPreattached = 0
+  contextDeliveryMetrics.annotationUpserts = 0
+}
+
+export function shouldForceFullContextRefresh(turnsSinceFullRefresh: number | null): boolean {
+  return turnsSinceFullRefresh == null ||
+    turnsSinceFullRefresh >= CONTEXT_FULL_REFRESH_INTERVAL_TURNS - 1
+}
+
+function contextSessionKey(provider: AgentCliStartRequest['provider'], cliSessionId: string): string {
+  return `${provider}\0${cliSessionId}`
+}
+
+function planContextDelivery(
+  request: AgentCliStartRequest,
+  cwd: string,
+): PlannedContextDelivery {
+  const sessionKey = request.cliSessionId
+    ? contextSessionKey(request.provider, request.cliSessionId)
+    : null
+  const previous = sessionKey ? sessionContextDeliveries.get(sessionKey) : undefined
+  const forceFullRefresh = shouldForceFullContextRefresh(
+    previous?.turnsSinceFullRefresh ?? null,
+  )
+  const delivery = buildContextPromptDelivery(request.contexts ?? [], cwd, {
+    allowAnnotationUpdates: request.autoImproveContexts === true,
+    previousSnapshot: previous?.snapshot,
+    forceFullRefresh,
+    userPrompt: request.prompt,
+    discoveredContexts: request.discoveredContexts,
+  })
+  contextDeliveryMetrics.catalogChars += delivery.catalogChars
+  contextDeliveryMetrics.sectionsPreattached += delivery.preattachedSectionCount
+  return {
+    ...delivery,
+    previousTurnsSinceFullRefresh: previous?.turnsSinceFullRefresh ?? 0,
+  }
+}
+
+function commitContextDelivery(
+  request: AgentCliStartRequest,
+  cliSessionId: string,
+  delivery: PlannedContextDelivery,
+): void {
+  const key = contextSessionKey(request.provider, cliSessionId)
+  const turnsSinceFullRefresh = delivery.fullRefresh
+    ? 0
+    : delivery.previousTurnsSinceFullRefresh + 1
+  sessionContextDeliveries.delete(key)
+  sessionContextDeliveries.set(key, {
+    snapshot: delivery.snapshot,
+    turnsSinceFullRefresh,
+  })
+  while (sessionContextDeliveries.size > MAX_CONTEXT_DELIVERY_SESSIONS) {
+    const oldest = sessionContextDeliveries.keys().next().value as string | undefined
+    if (!oldest) break
+    sessionContextDeliveries.delete(oldest)
+  }
+}
+
+export function clearAgentContextDeliveryState(): void {
+  sessionContextDeliveries.clear()
+}
 
 const ALLOWED_IMAGE_MIME = new Set([
   'image/png',
@@ -202,25 +306,49 @@ function resolveWorkingDirectory(requested: string, fallback: string): string {
   }
 }
 
-function composePrompt(
+export function composePrompt(
   request: AgentCliStartRequest,
   cwd: string,
   imagePaths: string[] = [],
+  contextPrompt = buildContextCatalogPrompt(
+    Array.isArray(request.contexts) ? request.contexts : [],
+    cwd,
+    { allowAnnotationUpdates: request.autoImproveContexts === true },
+  ),
 ): string {
-  const contexts = Array.isArray(request.contexts) ? request.contexts : []
-  const contextCatalog = buildContextCatalogPrompt(contexts, cwd, {
-    allowAnnotationUpdates: request.autoImproveContexts === true,
-  })
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
   return [
-    ...(contextCatalog ? [contextCatalog, ''] : []),
+    ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(imageSection ? [imageSection] : []),
     '## User request',
     userPrompt,
+    '',
+    buildAiChangelogInstruction(),
+  ].join('\n')
+}
+
+export function buildContextContinuationPrompt(
+  initialPrompt: string,
+  contextResponse: string,
+  hasResumableSession: boolean,
+): string {
+  if (!hasResumableSession) {
+    return [
+      '## Restored initial turn',
+      'The CLI did not provide a resumable session, so the complete initial prompt follows.',
+      '',
+      initialPrompt,
+      '',
+      '## Host context response',
+      contextResponse,
+    ].join('\n')
+  }
+  return [
+    contextResponse,
     '',
     buildAiChangelogInstruction(),
   ].join('\n')
@@ -292,6 +420,9 @@ export function startAgentTurn(
   const beforeSnapshot = captureWorkspaceSnapshot(cwd)
   let latestSessionId = request.cliSessionId
   let changelogPersisted = false
+  const contextDelivery = planContextDelivery(request, cwd)
+  const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
+  let contextDeliveryCommitted = false
 
   const failBeforeSpawn = (message: string): void => {
     agentRuns.delete(request.paneId)
@@ -345,20 +476,21 @@ export function startAgentTurn(
           }
           if (event.type === 'assistant_final') {
             const sectionRequest = extractContextSectionRequest(event.text)
-            if (sectionRequest.requests.length && contextRound < 2) {
+            if (sectionRequest.fenceFound && contextRound < 2) {
               const payload = buildRequestedContextSections(
                 request.contexts ?? [],
                 cwd,
                 sectionRequest.requests,
+                sectionRequest.errors,
               )
-              continuationPrompt = [
-                ...(!latestSessionId
-                  ? ['## Original user request', request.prompt, '']
-                  : []),
+              contextDeliveryMetrics.sectionsRequested += sectionRequest.requests
+                .reduce((sum, item) => sum + (item.sections?.length ?? 1), 0)
+              contextDeliveryMetrics.sectionsDelivered += payload.sectionCount
+              continuationPrompt = buildContextContinuationPrompt(
+                initialPrompt,
                 payload.prompt,
-                '',
-                buildAiChangelogInstruction(),
-              ].join('\n')
+                Boolean(latestSessionId),
+              )
               send(win, request.paneId, {
                 type: 'context',
                 status: 'loading',
@@ -367,14 +499,26 @@ export function startAgentTurn(
               continue
             }
 
+            const finalText = sectionRequest.fenceFound
+              ? [
+                  sectionRequest.visibleText,
+                  '[Context request stopped: the maximum of two requests was reached.]',
+                  ...sectionRequest.errors.map(error => `[Context request error: ${error}]`),
+                ].filter(Boolean).join('\n\n')
+              : sectionRequest.visibleText
             const changedPaths = changedWorkspacePaths(
               beforeSnapshot,
               captureWorkspaceSnapshot(cwd),
             )
             const contextFilteredText = filterTabContextUpdatesByChangedPaths(
-              sectionRequest.visibleText,
+              finalText,
               changedPaths,
               request.contexts ?? [],
+            )
+            const annotationUpdates = extractTabContextUpdates(contextFilteredText).updates
+            contextDeliveryMetrics.annotationUpserts += annotationUpdates.reduce(
+              (sum, update) => sum + (update.annotations?.length ?? 0),
+              0,
             )
             const { visibleText, changes } = extractAiChangelog(contextFilteredText, changedPaths)
             if (changes.length && !changelogPersisted) {
@@ -417,6 +561,17 @@ export function startAgentTurn(
       // Un turno nuevo ya reemplazó este proceso: no cerrar el turno activo.
       if (!phaseStillActive && current) return
 
+      if (
+        code === 0 &&
+        contextRound === 0 &&
+        phaseStillActive &&
+        latestSessionId &&
+        !contextDeliveryCommitted
+      ) {
+        commitContextDelivery(request, latestSessionId, contextDelivery)
+        contextDeliveryCommitted = true
+      }
+
       if (continuationPrompt && code === 0 && phaseStillActive) {
         send(win, request.paneId, {
           type: 'context',
@@ -441,14 +596,18 @@ export function startAgentTurn(
     })
   }
 
-  startPhase(composePrompt(request, cwd, imagePaths), 0)
+  startPhase(initialPrompt, 0)
+}
+
+export function isAgentRunActive(paneId: string): boolean {
+  return agentRuns.has(paneId)
 }
 
 export function stopAgentRun(paneId: string): void {
   const run = agentRuns.get(paneId)
   if (!run) return
   agentRuns.delete(paneId)
-  try { run.proc.kill('SIGTERM') } catch { /* already exited */ }
+  try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
 }
 
 export function stopAgentRunsForWindow(windowId: number): void {

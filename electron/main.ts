@@ -43,6 +43,7 @@ import {
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import {
   startAgentTurn,
+  isAgentRunActive,
   stopAgentRun,
   stopAgentRunsForWindow,
 } from './agentCliRuntime'
@@ -753,6 +754,9 @@ function registerIpc(): void {
   })
   ipcMain.on(IPC.AGENT_CLI_STOP, (_event, paneId: string) => {
     if (typeof paneId === 'string') stopAgentRun(paneId)
+  })
+  ipcMain.handle(IPC.AGENT_CLI_IS_ACTIVE, (_event, paneId: string) => {
+    return typeof paneId === 'string' && isAgentRunActive(paneId)
   })
 
   ipcMain.on(IPC.PTY_CREATE, (event, sessionId: string, cwd?: string) => {

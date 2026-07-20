@@ -215,13 +215,21 @@ export function deleteScrollback(paneId: string): void {
 const agentChatDir = (): string => join(USER_DATA(), 'agent-chats')
 const agentChatFile = (paneId: string): string => join(agentChatDir(), `${paneId}.json`)
 
+function isAgentChatImage(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const image = value as Record<string, unknown>
+  return typeof image.name === 'string' && typeof image.dataUrl === 'string'
+}
+
 function isAgentChatEntry(value: unknown): value is AgentChatEntry {
   if (!value || typeof value !== 'object') return false
   const entry = value as Record<string, unknown>
   return (
     typeof entry.id === 'string' &&
     (entry.role === 'user' || entry.role === 'assistant' || entry.role === 'system') &&
-    typeof entry.content === 'string'
+    typeof entry.content === 'string' &&
+    (entry.images === undefined ||
+      (Array.isArray(entry.images) && entry.images.every(isAgentChatImage)))
   )
 }
 

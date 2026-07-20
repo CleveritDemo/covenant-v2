@@ -1,0 +1,290 @@
+import React from 'react'
+import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
+import { normalizeContextFileName, ALL_CONTEXT_KINDS } from '@shared/tabContext'
+import { useT } from '@i18n/useT'
+import { Button } from '../components/ui/Button'
+import { Icon } from '../components/ui/Icon'
+import { KIND_ICONS } from './tabContextKindIcons'
+
+export type PreviewState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; content: string; filePath: string }
+  | { status: 'empty'; filePath?: string }
+  | { status: 'error'; message: string }
+
+const KINDS: TabContextKind[] = [...ALL_CONTEXT_KINDS]
+
+interface Props {
+  draft: TabContext | null
+  contexts: TabContext[]
+  preview: PreviewState
+  notesContent: string
+  resolvedCwdLabel: string
+  duplicateMessage: string
+  readOnlyChangelog: boolean
+  onCreateNew: () => void
+  onUpdate: (patch: Partial<TabContext>) => void
+  onSelectKind: (kind: TabContextKind) => void
+  onNotesContentChange: (content: string) => void
+  onPreviewReset: () => void
+  onLoadPreview: () => void
+  onRegenerate: () => void
+  onSave: () => void
+  countAutoKeys: (content: string) => number
+  countAnnotations: (content: string) => number
+}
+
+export const TabContextsEditor: React.FC<Props> = ({
+  draft,
+  contexts,
+  preview,
+  notesContent,
+  resolvedCwdLabel,
+  duplicateMessage,
+  readOnlyChangelog,
+  onCreateNew,
+  onUpdate,
+  onSelectKind,
+  onNotesContentChange,
+  onPreviewReset,
+  onLoadPreview,
+  onRegenerate,
+  onSave,
+  countAutoKeys,
+  countAnnotations,
+}) => {
+  const { t } = useT()
+
+  if (!draft) {
+    return (
+      <section className="tab-contexts__editor">
+        <div className="tab-contexts__welcome">
+          <span className="tab-contexts__welcome-icon">
+            <Icon name="sparkles" size={30} />
+          </span>
+          <strong>{t('tabContexts.selectOrCreate')}</strong>
+          <p>{t('tabContexts.welcomeHint')}</p>
+          <Button onClick={onCreateNew}>
+            <Icon name="plus" size={14} />
+            {t('tabContexts.new')}
+          </Button>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="tab-contexts__editor">
+      {readOnlyChangelog ? (
+        <div className="tab-contexts__kind-banner">
+          <span className="tab-contexts__item-icon">
+            <Icon name="history" size={18} />
+          </span>
+          <div>
+            <strong>{t('tabContexts.kind_changelog')}</strong>
+            <small>{draft.fileName}</small>
+          </div>
+        </div>
+      ) : (
+        <div className="tab-contexts__kinds" role="radiogroup" aria-label={t('tabContexts.kind')}>
+          {KINDS.map(kind => (
+            <button
+              key={kind}
+              type="button"
+              disabled={kind === 'changelog' && contexts.some(context => context.kind === 'changelog')}
+              role="radio"
+              aria-checked={draft.kind === kind}
+              title={t(`tabContexts.kind_${kind}`)}
+              className={`tab-contexts__kind-card${draft.kind === kind ? ' tab-contexts__kind-card--active' : ''}`}
+              onClick={() => onSelectKind(kind)}
+            >
+              <Icon name={KIND_ICONS[kind]} size={16} />
+              <span>{t(`tabContexts.kind_${kind}`)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <label>
+        <span>{t('tabContexts.name')}</span>
+        <input
+          value={draft.name}
+          placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
+          onChange={event => {
+            const name = event.target.value
+            const currentDerived = normalizeContextFileName(draft.name || 'context')
+            const changelogDerived = normalizeContextFileName(draft.name || 'changelog')
+            onUpdate({
+              name,
+              ...(!draft.fileName
+                || draft.fileName === 'context.md'
+                || draft.fileName === 'changelog.md'
+                || draft.fileName === currentDerived
+                || draft.fileName === changelogDerived
+                ? {
+                    fileName: normalizeContextFileName(
+                      name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+                    ),
+                  }
+                : {}),
+            })
+          }}
+        />
+        {draft.kind === 'changelog' && (
+          <small>{t('tabContexts.changelogCreateHint')}</small>
+        )}
+      </label>
+      <label>
+        <span>{t('tabContexts.fileName')}</span>
+        <input
+          value={draft.fileName ?? normalizeContextFileName(
+            draft.name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+          )}
+          placeholder={draft.kind === 'changelog' ? 'ai-changelog.md' : 'project-structure.md'}
+          onChange={event => onUpdate({ fileName: event.target.value })}
+        />
+        <small>{`.iaterminal/${normalizeContextFileName(
+          draft.fileName || draft.name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+          draft.kind === 'changelog' ? 'changelog' : draft.id,
+        )}`}</small>
+      </label>
+
+      {draft.kind !== 'notes' && draft.kind !== 'changelog' && (
+        <label>
+          <span>{t('tabContexts.rootPath')}</span>
+          <input
+            value={draft.rootPath ?? ''}
+            placeholder={t('tabContexts.rootPlaceholder')}
+            onChange={event => onUpdate({ rootPath: event.target.value })}
+          />
+        </label>
+      )}
+
+      {(draft.kind === 'files' || draft.kind === 'symbols') && (
+        <label>
+          <span>{t('tabContexts.paths')}</span>
+          <textarea
+            rows={5}
+            value={(draft.paths ?? []).join('\n')}
+            placeholder={t('tabContexts.pathsPlaceholder')}
+            onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
+          />
+        </label>
+      )}
+
+      {draft.kind === 'symbols' && (
+        <fieldset>
+          <legend>{t('tabContexts.symbolKinds')}</legend>
+          {(['class', 'method', 'variable'] as TabContextSymbolKind[]).map(kind => (
+            <label key={kind} className="tab-contexts__check">
+              <input
+                type="checkbox"
+                checked={(draft.symbolKinds ?? ['class', 'method', 'variable']).includes(kind)}
+                onChange={event => {
+                  const current = draft.symbolKinds ?? ['class', 'method', 'variable']
+                  onUpdate({ symbolKinds: event.target.checked
+                    ? [...new Set([...current, kind])]
+                    : current.filter(item => item !== kind) })
+                }}
+              />
+              {t(`tabContexts.symbol_${kind}`)}
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      {draft.kind === 'notes' && (
+        <label>
+          <span>{t('tabContexts.notes')}</span>
+          <small>{t('tabContexts.customHint')}</small>
+          <textarea
+            rows={8}
+            value={notesContent}
+            placeholder={t('tabContexts.notesPlaceholder')}
+            onChange={event => {
+              onNotesContentChange(event.target.value)
+              onPreviewReset()
+            }}
+          />
+        </label>
+      )}
+
+      {draft.kind === 'changelog' && (
+        <p className="tab-contexts__cwd">{t('tabContexts.changelogReadOnly')}</p>
+      )}
+
+      {resolvedCwdLabel && (
+        <p className="tab-contexts__cwd">{t('tabContexts.cwdLabel', { cwd: resolvedCwdLabel })}</p>
+      )}
+
+      {duplicateMessage && preview.status !== 'error' && (
+        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
+          <p>{duplicateMessage}</p>
+        </div>
+      )}
+
+      {preview.status !== 'idle' && (
+        <div className={`tab-contexts__preview-panel tab-contexts__preview-panel--${preview.status}`}>
+          {preview.status === 'loading' && (
+            <p>{t('tabContexts.loading')}</p>
+          )}
+          {preview.status === 'empty' && (
+            <>
+              <p>{t('tabContexts.previewEmpty')}</p>
+              {preview.filePath && <small>{preview.filePath}</small>}
+            </>
+          )}
+          {preview.status === 'error' && (
+            <p>{preview.message}</p>
+          )}
+          {preview.status === 'success' && (
+            <>
+              <div className="tab-contexts__preview-meta">
+                <small>{preview.filePath}</small>
+                <small>
+                  {t('tabContexts.previewStats', {
+                    auto: countAutoKeys(preview.content),
+                    notes: countAnnotations(preview.content),
+                  })}
+                </small>
+              </div>
+              <pre className="tab-contexts__preview">{preview.content}</pre>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="tab-contexts__actions">
+        <Button variant="secondary" disabled={preview.status === 'loading'} onClick={() => { void onLoadPreview() }}>
+          {preview.status === 'loading' ? t('tabContexts.loading') : t('tabContexts.preview')}
+        </Button>
+        {draft.kind !== 'changelog' && <Button
+          variant="secondary"
+          disabled={
+            preview.status === 'loading' ||
+            !(draft.name ?? '').trim() ||
+            !(draft.fileName ?? '').trim() ||
+            Boolean(duplicateMessage)
+          }
+          title={t('tabContexts.regenerateHint')}
+          onClick={() => { void onRegenerate() }}
+        >
+          <Icon name="refresh" size={13} />
+          {t('tabContexts.regenerate')}
+        </Button>}
+        <Button
+          disabled={
+            Boolean(duplicateMessage) ||
+            (draft.kind === 'changelog'
+              ? false
+              : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
+          }
+          onClick={() => { void onSave() }}
+        >
+          {t('tabContexts.saveAndAssign')}
+        </Button>
+      </div>
+    </section>
+  )
+}

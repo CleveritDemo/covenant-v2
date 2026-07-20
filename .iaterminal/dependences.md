@@ -16,6 +16,7 @@
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:ui": "node scripts/check-ui-contract.mjs",
     "rebuild:native": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty"
   },
@@ -96,5 +97,11 @@
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->
-(no annotations yet)
+- `node-pty` — Native PTY in main
+- `@xterm/xterm` — Terminal UI
+- `electron` — Desktop shell
+- `react` — Renderer UI
+- `vitest` — Unit tests
+- `scripts:dev` — electron-vite dev
+- `scripts:dist` — macOS arm64 DMG
 <!-- /iaterminal:notes -->

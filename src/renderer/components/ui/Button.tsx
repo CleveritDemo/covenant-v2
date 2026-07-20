@@ -7,21 +7,28 @@ export type ButtonSize = 'xs' | 'sm' | 'md'
 export interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   variant?: ButtonVariant
   size?: ButtonSize
+  /** Estado visual “activo / pulsado” (p. ej. icon toggle). */
+  pressed?: boolean
   children?: React.ReactNode
-  className?: string
 }
 
 export const Button: React.FC<ButtonProps> = ({
   variant = 'ghost',
   size = 'md',
+  pressed = false,
   children,
   type = 'button',
-  className = '',
   ...rest
 }) => (
   <button
     type={type}
-    className={['btn', `btn--${variant}`, `btn--${size}`, className].filter(Boolean).join(' ')}
+    className={[
+      'btn',
+      `btn--${variant}`,
+      `btn--${size}`,
+      pressed ? 'btn--pressed' : '',
+    ].filter(Boolean).join(' ')}
+    aria-pressed={pressed || undefined}
     {...rest}
   >
     {children}

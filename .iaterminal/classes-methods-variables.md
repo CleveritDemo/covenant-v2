@@ -347,10 +347,33 @@
   - inputs: (none)
   - returns: `inferred/unspecified`
 
+### src/renderer/agent/AgentLoopIntervalModal.tsx
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#class:Props` — interface `Props`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#function:presetIdForMs`
+  - signature: `presetIdForMs(ms: number): LoopIntervalPresetId`
+  - inputs: `ms: number`
+  - returns: `LoopIntervalPresetId`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#function:AgentLoopIntervalModal`
+  - signature: `AgentLoopIntervalModal({ open, initialMs = LOOP_INTERVAL_PRESETS[0].ms, onConfirm, onClose, }): inferred/unspecified`
+  - inputs: `{ open, initialMs = LOOP_INTERVAL_PRESETS[0].ms, onConfirm, onClose, }`
+  - returns: `inferred/unspecified`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:{ t }` — variable `{ t }: inferred`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:[selectedId, setSelectedId]` — variable `[selectedId, setSelectedId]: inferred`
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#variable:selectedMs` — variable `selectedMs: inferred`
+
 ### src/renderer/agent/AgentPane.tsx
 - `src/renderer/agent/AgentPane.tsx#variable:MAX_PENDING_IMAGES` — variable `MAX_PENDING_IMAGES: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:MAX_IMAGE_BYTES` — variable `MAX_IMAGE_BYTES: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:MAX_QUEUED_TURNS` — variable `MAX_QUEUED_TURNS: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_COMPOSER_ROWS` — variable `MAX_COMPOSER_ROWS: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:resizeComposerTextarea`
+  - signature: `resizeComposerTextarea(el: HTMLTextAreaElement): void`
+  - inputs: `el: HTMLTextAreaElement`
+  - returns: `void`
+- `src/renderer/agent/AgentPane.tsx#variable:styles` — variable `styles: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:lineHeight` — variable `lineHeight: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:padY` — variable `padY: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:maxH` — variable `maxH: inferred`
 - `src/renderer/agent/AgentPane.tsx#class:PendingImage` — interface `PendingImage`
 - `src/renderer/agent/AgentPane.tsx#class:QueuedTurn` — interface `QueuedTurn`
 - `src/renderer/agent/AgentPane.tsx#function:extensionForMime`
@@ -364,6 +387,17 @@
 - `src/renderer/agent/AgentPane.tsx#variable:reader` — variable `reader: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:result` — variable `result: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:comma` — variable `comma: inferred`
+- `src/renderer/agent/AgentPane.tsx#function:blobToThumbnailDataUrl`
+  - signature: `blobToThumbnailDataUrl(blob: Blob): Promise<string | null>`
+  - inputs: `blob: Blob`
+  - returns: `Promise<string | null>`
+- `src/renderer/agent/AgentPane.tsx#variable:MAX_THUMB_DIM` — variable `MAX_THUMB_DIM: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:bitmap` — variable `bitmap: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:scale` — variable `scale: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:width` — variable `width: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:height` — variable `height: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:canvas` — variable `canvas: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:context` — variable `context: inferred`
 - `src/renderer/agent/AgentPane.tsx#function:imagesFromClipboard`
   - signature: `imagesFromClipboard(data: DataTransfer | null): File[]`
   - inputs: `data: DataTransfer | null`
@@ -425,22 +459,31 @@
 - `src/renderer/agent/AgentPane.tsx#variable:[activity, setActivity]` — variable `[activity, setActivity]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[confirmClose, setConfirmClose]` — variable `[confirmClose, setConfirmClose]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[contextsOpen, setContextsOpen]` — variable `[contextsOpen, setContextsOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[contextsPickerOpen, setContextsPickerOpen]` — variable `[contextsPickerOpen, setContextsPickerOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[contextNotice, setContextNotice]` — variable `[contextNotice, setContextNotice]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[cwdChoices, setCwdChoices]` — variable `[cwdChoices, setCwdChoices]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopOpen, setLoopOpen]` — variable `[loopOpen, setLoopOpen]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopIntervalModalOpen, setLoopIntervalModalOpen]` — variable `[loopIntervalModalOpen, setLoopIntervalModalOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopActive, setLoopActive]` — variable `[loopActive, setLoopActive]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopIteration, setLoopIteration]` — variable `[loopIteration, setLoopIteration]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[diskContexts, setDiskContexts]` — variable `[diskContexts, setDiskContexts]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[enteringIds, setEnteringIds]` — variable `[enteringIds, setEnteringIds]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[materializingIds, setMaterializingIds]` — variable `[materializingIds, setMaterializingIds]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[settlingId, setSettlingId]` — variable `[settlingId, setSettlingId]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:knownMessageIdsRef` — variable `knownMessageIdsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:messageContentLenRef` — variable `messageContentLenRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:activeAssistantIdRef` — variable `activeAssistantIdRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:lastAssistantIdRef` — variable `lastAssistantIdRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:turnClosedRef` — variable `turnClosedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loadedRef` — variable `loadedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:pendingCliEventsRef` — variable `pendingCliEventsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:applyCliEventRef` — variable `applyCliEventRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:completeTurnRef` — variable `completeTurnRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:liveSettleTimerRef` — variable `liveSettleTimerRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:messagesRef` — variable `messagesRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:metaRef` — variable `metaRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:diskContextsRef` — variable `diskContextsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:contextsPickerRef` — variable `contextsPickerRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:cwdRef` — variable `cwdRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:busyRef` — variable `busyRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:loopActiveRef` — variable `loopActiveRef: inferred`
@@ -449,10 +492,14 @@
 - `src/renderer/agent/AgentPane.tsx#variable:loopDoneRef` — variable `loopDoneRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:skipLoopContinueRef` — variable `skipLoopContinueRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:loopContinueTimerRef` — variable `loopContinueTimerRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:loopContinueDelayMsRef` — variable `loopContinueDelayMsRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[loopContinueDelayMs, setLoopContinueDelayMs]` — variable `[loopContinueDelayMs, setLoopContinueDelayMs]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:contextWriteQueueRef` — variable `contextWriteQueueRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:discoveryHydratedRef` — variable `discoveryHydratedRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:discoveredCwdRef` — variable `discoveredCwdRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:pendingModeHandoffRef` — variable `pendingModeHandoffRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:scrollRef` — variable `scrollRef: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:composerInputRef` — variable `composerInputRef: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:clearLoopTimer` — variable `clearLoopTimer: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:beginLiveSettle` — variable `beginLiveSettle: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:resolveWorkingCwd` — variable `resolveWorkingCwd: inferred`
@@ -465,20 +512,12 @@
 - `src/renderer/agent/AgentPane.tsx#variable:kept` — variable `kept: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:added` — variable `added: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:prev` — variable `prev: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:prepareContextDiscovery` — variable `prepareContextDiscovery: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:refreshDiskContexts` — variable `refreshDiskContexts: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:resolvedCwd` — variable `resolvedCwd: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:result` — variable `result: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:cancelled` — variable `cancelled: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:currentIds` — variable `currentIds: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:fresh` — variable `fresh: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:node` — variable `node: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:frame` — variable `frame: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:settled` — variable `settled: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:cancelled` — variable `cancelled: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:startTurn` — variable `startTurn: inferred`
 
 ### src/renderer/agent/AgentProviderPickerModal.tsx
 - `src/renderer/agent/AgentProviderPickerModal.tsx#class:Props` — interface `Props`
@@ -528,7 +567,6 @@
 - `src/renderer/agent/TabContextsModal.tsx#variable:{ t }` — variable `{ t }: inferred`
 - `src/renderer/agent/TabContextsModal.tsx#variable:[draft, setDraft]` — variable `[draft, setDraft]: inferred`
 - `src/renderer/agent/TabContextsModal.tsx#variable:[preview, setPreview]` — variable `[preview, setPreview]: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:[notesContent, setNotesContent]` — variable `[notesContent, setNotesContent]: inferred`
 - `src/renderer/agent/TabContextsModal.tsx#variable:[resolvedCwdLabel, setResolvedCwdLabel]` — variable `[resolvedCwdLabel, setResolvedCwdLabel]: inferred`
 - `src/renderer/agent/TabContextsModal.tsx#function:resolveCwd`
   - signature: `resolveCwd(): Promise<string>`
@@ -554,73 +592,25 @@
   - returns: `Promise<void>`
 - `src/renderer/agent/TabContextsModal.tsx#variable:workingCwd` — variable `workingCwd: inferred`
 - `src/renderer/agent/TabContextsModal.tsx#variable:normalized` — variable `normalized: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:error` — variable `error: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#function:regenerate`
-  - signature: `regenerate(): Promise<void>`
-  - inputs: (none)
-  - returns: `Promise<void>`
-- `src/renderer/agent/TabContextsModal.tsx#variable:workingCwd` — variable `workingCwd: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:normalized` — variable `normalized: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:content` — variable `content: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:error` — variable `error: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#function:removeContext`
-  - signature: `removeContext(context: TabContext): Promise<void>`
-  - inputs: `context: TabContext`
-  - returns: `Promise<void>`
-- `src/renderer/agent/TabContextsModal.tsx#variable:workingCwd` — variable `workingCwd: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:error` — variable `error: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#function:editContext`
-  - signature: `editContext(context: TabContext): Promise<void>`
-  - inputs: `context: TabContext`
-  - returns: `Promise<void>`
-- `src/renderer/agent/TabContextsModal.tsx#variable:workingCwd` — variable `workingCwd: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:error` — variable `error: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#function:loadPreview`
-  - signature: `loadPreview(): Promise<void>`
-  - inputs: (none)
-  - returns: `Promise<void>`
-- `src/renderer/agent/TabContextsModal.tsx#variable:workingCwd` — variable `workingCwd: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:result` — variable `result: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:content` — variable `content: inferred`
-- `src/renderer/agent/TabContextsModal.tsx#variable:error` — variable `error: inferred`
-
-### src/renderer/ai/agentLoopNative.ts
-- `src/renderer/ai/agentLoopNative.ts#variable:MAX_AGENT_ROUNDS` — variable `MAX_AGENT_ROUNDS: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:MAX_TOOL_RESULT_CHARS` — variable `MAX_TOOL_RESULT_CHARS: inferred`
-- `src/renderer/ai/agentLoopNative.ts#class:NativeAgentOptions` — interface `NativeAgentOptions`
-- `src/renderer/ai/agentLoopNative.ts#function:executeReadFile`
-  - signature: `executeReadFile(sessionId: string, input: Record<string, unknown>): Promise<string>`
-  - inputs: `sessionId: string`, `input: Record<string, unknown>`
-  - returns: `Promise<string>`
-- `src/renderer/ai/agentLoopNative.ts#variable:path` — variable `path: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:r` — variable `r: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:e` — variable `e: inferred`
-- `src/renderer/ai/agentLoopNative.ts#function:executeWriteFile`
-  - signature: `executeWriteFile(sessionId: string, input: Record<string, unknown>): Promise<string>`
-  - inputs: `sessionId: string`, `input: Record<string, unknown>`
-  - returns: `Promise<string>`
-- `src/renderer/ai/agentLoopNative.ts#variable:path` — variable `path: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:content` — variable `content: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:r` — variable `r: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:e` — variable `e: inferred`
-- `src/renderer/ai/agentLoopNative.ts#function:executeRunCommand`
-  - signature: `executeRunCommand(sessionId: string, input: Record<string, unknown>, policy: AgentShellPolicy, confirm?: (cmd: string) => Promise<boolean>): Promise<string>`
-  - inputs: `sessionId: string`, `input: Record<string, unknown>`, `policy: AgentShellPolicy`, `confirm?: (cmd: string) => Promise<boolean>`
-  - returns: `Promise<string>`
-- `src/renderer/ai/agentLoopNative.ts#variable:command` — variable `command: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:ok` — variable `ok: inferred`
-- `src/renderer/ai/agentLoopNative.ts#variable:r` — variable `r: inferred`
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->
+- `src/renderer/components/ai/useAiMessagesFollowScroll.ts#function:useAiMessagesFollowScroll` — Follow-scroll; retorna nearBottom para UI
+- `src/renderer/agent/AgentPane.tsx#function:resizeComposerTextarea` — Ajusta alto del composer al contenido
+- `src/renderer/agent/AgentLoopIntervalModal.tsx#function:AgentLoopIntervalModal` — Modal para elegir el intervalo entre iteraciones del loop
+
 ## Orphaned
 
 - `src/renderer/agent/AgentPane.tsx#interface:QueuedTurn` — mensaje encolado mientras la IA trabaja
 - `src/renderer/agent/AgentPane.tsx#function:dispatchMessage` — convierte adjuntos y lanza turno con contextos actuales
 - `src/renderer/agent/AgentPane.tsx#function:removeQueuedTurn` — quita mensaje de la cola y revoca previews
 - `src/renderer/agent/AgentPane.tsx#function:beginLiveSettle` — activa aterrizaje CSS puro tras estado live
+- `src/renderer/agent/AgentPane.tsx#const:activity` — Texto de tool activa; fila montada todo el turno
+- `src/renderer/agent/AgentPane.tsx#const:contextsPickerOpen` — Abre el menú desplegable de contextos
+- `src/renderer/agent/AgentPane.tsx#const:toggleContext` — Activa o desactiva un contextId en meta
+- `src/renderer/agent/AgentPane.tsx#const:scrollChatToBottom` — Scroll suave al final del chat
+- `src/shared/agentLoop.ts#variable:LOOP_INTERVAL_PRESETS` — Presets de espera entre reinicios del loop autónomo
+- `src/shared/tabContext.ts#function:defaultAssignedContextIds` — Defaults to folders and symbols only
+- `src/renderer/agent/TabContextsModal.tsx` — No notes kind in create UI
+- `src/shared/tabContext.ts#variable:HOST_CONTEXT_KINDS` — Host-only context kinds list
 <!-- /iaterminal:notes -->

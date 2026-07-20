@@ -7,8 +7,11 @@ export type WorkspaceSnapshot = Map<string, string>
 
 const SKIPPED_DIRECTORIES = new Set([
   '.git', '.iaterminal', 'node_modules', 'out', 'dist', 'build', 'coverage', '.next',
+  '.Trash', '.Trashes', '$Recycle.Bin', 'Library', 'Applications',
 ])
 const MAX_HASH_BYTES = 20 * 1024 * 1024
+/** Tope del fallback sin git: evita escanear el home entero. */
+const MAX_WALK_FILES = 8_000
 
 function normalizedPath(value: string): string {
   return value.split(sep).join('/').replace(/^\.\/+/, '')
@@ -32,14 +35,36 @@ function gitFiles(root: string): string[] | null {
   }
 }
 
+function shouldSkipDirectory(name: string): boolean {
+  if (SKIPPED_DIRECTORIES.has(name)) return true
+  // Directorios ocultos del sistema/home (.Trash, .ssh, …) suelen denegar
+  // readdir con EPERM y no aportan evidencia útil al filtro de anotaciones.
+  if (name.startsWith('.') && name !== '.') return true
+  return false
+}
+
 function walkFiles(root: string, directory = root, out: string[] = []): string[] {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (!SKIPPED_DIRECTORIES.has(entry.name)) {
-        walkFiles(root, join(directory, entry.name), out)
+  if (out.length >= MAX_WALK_FILES) return out
+  let entries
+  try {
+    entries = readdirSync(directory, { withFileTypes: true })
+  } catch {
+    // EPERM/EACCES (p. ej. ~/.Trash) u otros fallos de lectura: saltar.
+    return out
+  }
+  for (const entry of entries) {
+    if (out.length >= MAX_WALK_FILES) break
+    const absolute = join(directory, entry.name)
+    try {
+      if (entry.isDirectory()) {
+        if (!shouldSkipDirectory(entry.name)) {
+          walkFiles(root, absolute, out)
+        }
+      } else if (entry.isFile()) {
+        out.push(relative(root, absolute))
       }
-    } else if (entry.isFile()) {
-      out.push(relative(root, join(directory, entry.name)))
+    } catch {
+      // Entrada inaccesible o race (borrada entre listado y lstat): continuar.
     }
   }
   return out
@@ -60,8 +85,13 @@ function fingerprint(filePath: string): string | null {
 
 export function captureWorkspaceSnapshot(cwd: string): WorkspaceSnapshot {
   const root = resolve(cwd)
-  const paths = gitFiles(root) ?? walkFiles(root)
   const snapshot: WorkspaceSnapshot = new Map()
+  let paths: string[]
+  try {
+    paths = gitFiles(root) ?? walkFiles(root)
+  } catch {
+    return snapshot
+  }
   for (const path of paths) {
     const normalized = normalizedPath(path)
     if (!normalized || normalized.startsWith('.iaterminal/')) continue

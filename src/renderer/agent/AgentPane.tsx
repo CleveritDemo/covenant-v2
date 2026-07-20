@@ -6,30 +6,44 @@ import type {
 } from '@shared/tabSession'
 import type {
   AgentChatEntry,
+  AgentChatImage,
   AgentCliImageAttachment,
   AgentCliUiEvent,
 } from '@shared/agentCliTypes'
-import { modelsForProvider } from '@shared/agentCliModels'
 import type { TabContext } from '@shared/tabContext'
-import { extractTabContextUpdates } from '@shared/tabContext'
+import { extractTabContextUpdates, defaultAssignedContextIds } from '@shared/tabContext'
 import {
-  AGENT_LOOP_CONTINUE_DELAY_MS,
   buildLoopPrompt,
+  formatLoopIntervalMs,
+  LOOP_INTERVAL_PRESETS,
   MAX_AGENT_LOOP_ITERATIONS,
   stripLoopDoneMarker,
 } from '@shared/agentLoop'
 import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
-import { Icon } from '../components/ui/Icon'
-import { AiMarkdown } from '../components/AiMarkdown'
-import { AiCodeBlock } from '../components/AiCodeBlock'
 import { TabContextsModal } from './TabContextsModal'
+import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
+import { AgentPaneHeader } from './AgentPaneHeader'
+import { AgentPaneMessages } from './AgentPaneMessages'
+import { AgentPaneFooter } from './AgentPaneFooter'
+import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
 
 const MAX_PENDING_IMAGES = 6
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_QUEUED_TURNS = 10
+/** Alto máximo del composer en líneas visibles antes de scroll interno. */
+const MAX_COMPOSER_ROWS = 8
+
+function resizeComposerTextarea(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto'
+  const styles = getComputedStyle(el)
+  const lineHeight = parseFloat(styles.lineHeight) || 18
+  const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0)
+  const maxH = lineHeight * MAX_COMPOSER_ROWS + padY
+  el.style.height = `${Math.min(el.scrollHeight, maxH)}px`
+}
 
 interface PendingImage {
   id: string
@@ -64,6 +78,33 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('read failed'))
     reader.readAsDataURL(blob)
   })
+}
+
+/**
+ * Miniatura pequeña (máx. 96px) en data URL para persistir junto al mensaje.
+ * Se guarda la miniatura y no la imagen original para no inflar el historial.
+ */
+async function blobToThumbnailDataUrl(blob: Blob): Promise<string | null> {
+  const MAX_THUMB_DIM = 96
+  try {
+    const bitmap = await createImageBitmap(blob)
+    const scale = Math.min(1, MAX_THUMB_DIM / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) {
+      bitmap.close()
+      return null
+    }
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+    return canvas.toDataURL('image/webp', 0.75)
+  } catch {
+    return null
+  }
 }
 
 function imagesFromClipboard(data: DataTransfer | null): File[] {
@@ -109,72 +150,6 @@ async function materializeClipboardImage(
   }
 }
 
-type AgentBodySegment =
-  | { type: 'text'; content: string }
-  | { type: 'code'; lang: string; content: string }
-
-/**
- * Separa la respuesta del agente en segmentos de texto y bloques de código
- * cercados (```lang). El texto se renderiza como markdown y el código con
- * resaltado y botón de copiar, para lectura más cómoda por no-programadores.
- */
-function splitAgentBody(raw: string): AgentBodySegment[] {
-  const segments: AgentBodySegment[] = []
-  const pushText = (chunk: string): void => {
-    if (chunk.trim()) segments.push({ type: 'text', content: chunk.replace(/\s+$/, '') })
-  }
-  let i = 0
-  while (i < raw.length) {
-    const fence = raw.indexOf('```', i)
-    if (fence === -1) {
-      pushText(raw.slice(i))
-      break
-    }
-    if (fence > i) pushText(raw.slice(i, fence))
-    const langEnd = raw.indexOf('\n', fence + 3)
-    if (langEnd === -1) {
-      segments.push({ type: 'code', lang: raw.slice(fence + 3).trim(), content: '' })
-      break
-    }
-    const lang = raw.slice(fence + 3, langEnd).trim()
-    const contentStart = langEnd + 1
-    const close = raw.indexOf('\n```', contentStart)
-    if (close === -1) {
-      segments.push({ type: 'code', lang, content: raw.slice(contentStart) })
-      break
-    }
-    segments.push({ type: 'code', lang, content: raw.slice(contentStart, close).replace(/\s+$/, '') })
-    i = close + 4
-  }
-  return segments
-}
-
-const AssistantBody: React.FC<{ content: string; live: boolean }> = ({ content, live }) => {
-  const segments = splitAgentBody(content)
-  return (
-    <div className={live ? 'agent-pane__stream' : undefined}>
-      {segments.map((segment, index) =>
-        segment.type === 'code' ? (
-          <AiCodeBlock
-            key={index}
-            lang={segment.lang}
-            content={segment.content}
-            isStreaming={live}
-            isLastSegment={index === segments.length - 1}
-            onInsert={() => undefined}
-          />
-        ) : (
-          <AiMarkdown
-            key={index}
-            content={segment.content}
-            showCursor={live && index === segments.length - 1}
-          />
-        ),
-      )}
-    </div>
-  )
-}
-
 export interface AgentCwdSource {
   paneId: string
   label: string
@@ -201,11 +176,6 @@ interface Props {
     onDragHandleEnd: () => void
   }
   registerShortcutCloseInterceptor?: (openConfirm: () => void) => () => void
-}
-
-function folderLabel(cwd: string): string {
-  const normalized = cwd.replace(/[\\/]+$/, '')
-  return normalized.split(/[\\/]/).pop() || cwd || '—'
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -238,27 +208,39 @@ export const AgentPane: React.FC<Props> = ({
   const [activity, setActivity] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
   const [contextsOpen, setContextsOpen] = useState(false)
+  const [contextsPickerOpen, setContextsPickerOpen] = useState(false)
   const [contextNotice, setContextNotice] = useState('')
   const [cwdChoices, setCwdChoices] = useState<Record<string, string>>({})
   const [loopOpen, setLoopOpen] = useState(false)
+  const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
   const [loopIteration, setLoopIteration] = useState(0)
   /** Catálogo vivo desde `.iaterminal/*.md` (no se persiste en session). */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
   const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
+  /** Zoom de la burbuja de IA al materializar el primer token (no al crearla vacía). */
+  const [materializingIds, setMaterializingIds] = useState<ReadonlySet<string>>(() => new Set())
   /** Tras el live: aterrizaje suave de vuelta a la posición normal. */
   const [settlingId, setSettlingId] = useState<string | null>(null)
   const knownMessageIdsRef = useRef<Set<string> | null>(null)
+  /** Contenido previo por id: detecta el paso de vacío → primer token. */
+  const messageContentLenRef = useRef<Map<string, number>>(new Map())
   const activeAssistantIdRef = useRef<string | null>(null)
   /** Id del asistente del turno que acaba de cerrarse; acepta texto tardío tras done/EXIT. */
   const lastAssistantIdRef = useRef<string | null>(null)
   /** Evita procesar EXIT duplicado después de `done` (mismo turno). */
   const turnClosedRef = useRef(false)
+  /** Chat hidratado; hasta entonces se encolan eventos CLI (remount durante stream). */
+  const loadedRef = useRef(false)
+  const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
+  const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
+  const completeTurnRef = useRef<() => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
+  const contextsPickerRef = useRef<HTMLDivElement>(null)
   const cwdRef = useRef(cwd)
   const busyRef = useRef(busy)
   const loopActiveRef = useRef(false)
@@ -267,11 +249,17 @@ export const AgentPane: React.FC<Props> = ({
   const loopDoneRef = useRef(false)
   const skipLoopContinueRef = useRef(false)
   const loopContinueTimerRef = useRef<number | null>(null)
+  /** Pausa elegida en el modal antes de la siguiente iteración. */
+  const loopContinueDelayMsRef = useRef<number>(LOOP_INTERVAL_PRESETS[0].ms)
+  const [loopContinueDelayMs, setLoopContinueDelayMs] = useState<number>(LOOP_INTERVAL_PRESETS[0].ms)
   const contextWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const discoveryHydratedRef = useRef(false)
+  /** CWD al que pertenece diskContexts; impide reutilizar catálogo entre proyectos. */
+  const discoveredCwdRef = useRef<string | null>(null)
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const composerInputRef = useRef<HTMLTextAreaElement>(null)
   messagesRef.current = messages
   metaRef.current = meta
   diskContextsRef.current = diskContexts
@@ -320,7 +308,7 @@ export const AgentPane: React.FC<Props> = ({
     if (!discoveryHydratedRef.current) {
       discoveryHydratedRef.current = true
       nextIds = currentMeta.contextIds == null
-        ? discovered.map(context => context.id)
+        ? defaultAssignedContextIds(discovered)
         : currentMeta.contextIds.filter(id => discoveredIds.has(id))
     } else {
       const kept = (currentMeta.contextIds ?? []).filter(id => discoveredIds.has(id))
@@ -337,24 +325,35 @@ export const AgentPane: React.FC<Props> = ({
     }
   }, [onMetaChange])
 
+  const prepareContextDiscovery = useCallback((resolvedCwd: string): void => {
+    const next = resolvedCwd.trim()
+    if (discoveredCwdRef.current === next) return
+    discoveredCwdRef.current = next
+    setDiskContexts([])
+    diskContextsRef.current = []
+  }, [])
+
   const refreshDiskContexts = useCallback(async (): Promise<void> => {
     const resolvedCwd = await resolveWorkingCwd()
+    prepareContextDiscovery(resolvedCwd)
     if (!resolvedCwd) {
-      setDiskContexts([])
-      diskContextsRef.current = []
       return
     }
     const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
     if (!result.ok) return
     applyDiscoveredContexts(result.contexts)
-  }, [applyDiscoveredContexts, resolveWorkingCwd])
+  }, [applyDiscoveredContexts, prepareContextDiscovery, resolveWorkingCwd])
 
   useEffect(() => {
     let cancelled = false
+    loadedRef.current = false
+    pendingCliEventsRef.current = []
     setLoaded(false)
     knownMessageIdsRef.current = null
     setEnteringIds(new Set())
+    setMaterializingIds(new Set())
     setSettlingId(null)
+    messageContentLenRef.current = new Map()
     if (liveSettleTimerRef.current != null) {
       window.clearTimeout(liveSettleTimerRef.current)
       liveSettleTimerRef.current = null
@@ -363,6 +362,7 @@ export const AgentPane: React.FC<Props> = ({
     loopActiveRef.current = false
     loopDoneRef.current = false
     discoveryHydratedRef.current = false
+    discoveredCwdRef.current = null
     setDiskContexts([])
     diskContextsRef.current = []
     setLoopActive(false)
@@ -370,12 +370,40 @@ export const AgentPane: React.FC<Props> = ({
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
-    void window.api.loadAgentChat(paneId).then(entries => {
+    lastAssistantIdRef.current = null
+    turnClosedRef.current = false
+    void Promise.all([
+      window.api.loadAgentChat(paneId),
+      window.api.isAgentTurnActive(paneId).catch(() => false),
+    ]).then(([entries, turnActive]) => {
       if (cancelled) return
-      setMessages(entries)
+      let nextMessages = entries
+      if (turnActive) {
+        // Remount durante stream (split/resize de layout): reenganchar al turno vivo.
+        const lastAssistant = [...entries].reverse().find(message => message.role === 'assistant')
+        if (lastAssistant) {
+          activeAssistantIdRef.current = lastAssistant.id
+          lastAssistantIdRef.current = lastAssistant.id
+        } else {
+          const id = crypto.randomUUID()
+          activeAssistantIdRef.current = id
+          lastAssistantIdRef.current = id
+          nextMessages = [...entries, { id, role: 'assistant', content: '' }]
+        }
+        turnClosedRef.current = false
+        setBusy(true)
+      }
+      setMessages(nextMessages)
+      loadedRef.current = true
       setLoaded(true)
+      const pending = pendingCliEventsRef.current
+      pendingCliEventsRef.current = []
+      for (const event of pending) applyCliEventRef.current(event)
     }).catch(() => {
-      if (!cancelled) setLoaded(true)
+      if (!cancelled) {
+        loadedRef.current = true
+        setLoaded(true)
+      }
     })
     return () => { cancelled = true }
   }, [clearLoopTimer, paneId])
@@ -390,28 +418,74 @@ export const AgentPane: React.FC<Props> = ({
     const currentIds = messages.map(message => message.id)
     if (knownMessageIdsRef.current === null) {
       knownMessageIdsRef.current = new Set(currentIds)
+      for (const message of messages) {
+        messageContentLenRef.current.set(message.id, message.content.length)
+      }
       return
     }
-    const fresh = currentIds.filter(id => !knownMessageIdsRef.current!.has(id))
-    knownMessageIdsRef.current = new Set(currentIds)
-    if (!fresh.length) return
-    setEnteringIds(previous => {
-      const next = new Set(previous)
-      for (const id of fresh) next.add(id)
-      return next
+    // Solo animar al aparecer: mensajes del usuario siempre; el asistente
+    // vacío espera al primer token (materialize), no al crearse el placeholder.
+    const fresh = currentIds.filter(id => {
+      if (knownMessageIdsRef.current!.has(id)) return false
+      const message = messages.find(entry => entry.id === id)
+      if (!message) return false
+      if (message.role === 'assistant' && !message.content) return false
+      return true
     })
+    knownMessageIdsRef.current = new Set(currentIds)
+
+    const newlyMaterialized: string[] = []
+    for (const message of messages) {
+      const previousLen = messageContentLenRef.current.get(message.id) ?? 0
+      const nextLen = message.content.length
+      if (
+        message.role === 'assistant' &&
+        previousLen === 0 &&
+        nextLen > 0
+      ) {
+        newlyMaterialized.push(message.id)
+      }
+      messageContentLenRef.current.set(message.id, nextLen)
+    }
+    // Limpiar ids que ya no existen.
+    for (const id of [...messageContentLenRef.current.keys()]) {
+      if (!knownMessageIdsRef.current.has(id)) messageContentLenRef.current.delete(id)
+    }
+
+    if (fresh.length) {
+      setEnteringIds(previous => {
+        const next = new Set(previous)
+        for (const id of fresh) next.add(id)
+        return next
+      })
+    }
+    if (newlyMaterialized.length) {
+      setMaterializingIds(previous => {
+        const next = new Set(previous)
+        for (const id of newlyMaterialized) next.add(id)
+        return next
+      })
+    }
   }, [loaded, messages])
 
-  useEffect(() => {
-    const node = scrollRef.current
-    if (!node) return
-    // Diferir un frame: el pop-in ya tiene --enter y el layout está estable,
-    // así el scroll no pinta la burbuja “ya colocada” antes de animar.
-    const frame = window.requestAnimationFrame(() => {
-      node.scrollTop = node.scrollHeight
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [messages, activity])
+  // Solo sigue el fondo si el usuario está cerca del final; si sube a leer
+  // historial, no le robamos el scroll (antes forzaba scrollHeight siempre).
+  const { nearBottom, forceFollow } = useAiMessagesFollowScroll(
+    messages,
+    true,
+    scrollRef,
+    `${activity}\0${queuedTurns.length}`,
+  )
+
+  const scrollChatToBottom = (): void => {
+    forceFollow()
+  }
+
+  // Crece con cada salto de línea (Shift+Enter) hasta MAX_COMPOSER_ROWS.
+  useLayoutEffect(() => {
+    const el = composerInputRef.current
+    if (el) resizeComposerTextarea(el)
+  }, [input])
 
   // El aterrizaje es puro CSS (fade del anillo + escala); aquí solo se
   // limpia la clase --landing cuando termina. Antes se combinaba un FLIP
@@ -444,9 +518,8 @@ export const AgentPane: React.FC<Props> = ({
     let cancelled = false
     void resolveWorkingCwd().then(async resolvedCwd => {
       if (cancelled) return
+      prepareContextDiscovery(resolvedCwd)
       if (!resolvedCwd) {
-        setDiskContexts([])
-        diskContextsRef.current = []
         return
       }
       const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
@@ -454,7 +527,7 @@ export const AgentPane: React.FC<Props> = ({
       applyDiscoveredContexts(result.contexts)
     }).catch(() => undefined)
     return () => { cancelled = true }
-  }, [applyDiscoveredContexts, contextsOpen, cwd, resolveWorkingCwd])
+  }, [applyDiscoveredContexts, contextsOpen, cwd, prepareContextDiscovery, resolveWorkingCwd])
 
   const startTurn = useCallback(async (options: {
     prompt: string
@@ -462,16 +535,20 @@ export const AgentPane: React.FC<Props> = ({
     contexts: TabContext[]
     permissionMode?: AgentPermissionMode
     images?: AgentCliImageAttachment[]
+    displayImages?: AgentChatImage[]
   }): Promise<boolean> => {
     const assistant: AgentChatEntry = { id: crypto.randomUUID(), role: 'assistant', content: '' }
     const user: AgentChatEntry = {
       id: crypto.randomUUID(),
       role: 'user',
       content: options.displayUser,
+      ...(options.displayImages?.length ? { images: options.displayImages } : {}),
     }
     activeAssistantIdRef.current = assistant.id
     lastAssistantIdRef.current = assistant.id
     turnClosedRef.current = false
+    // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
+    forceFollow()
     setMessages(prev => [...prev, user, assistant])
     setActivity('')
     setBusy(true)
@@ -529,12 +606,13 @@ export const AgentPane: React.FC<Props> = ({
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
       ...(currentMeta.model?.trim() ? { model: currentMeta.model.trim() } : {}),
       contexts: assigned,
+      discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
     })
     return true
-  }, [onCwdChange, paneId, resolveWorkingCwd, t])
+  }, [forceFollow, onCwdChange, paneId, resolveWorkingCwd, t])
 
   const finishLoop = useCallback((reason: 'stopped' | 'done' | 'max'): void => {
     clearLoopTimer()
@@ -624,10 +702,14 @@ export const AgentPane: React.FC<Props> = ({
     loopContinueTimerRef.current = window.setTimeout(() => {
       loopContinueTimerRef.current = null
       if (loopActiveRef.current) runLoopIteration(nextIteration)
-    }, AGENT_LOOP_CONTINUE_DELAY_MS)
+    }, loopContinueDelayMsRef.current)
   }, [beginLiveSettle, clearLoopTimer, finishLoop, runLoopIteration, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
+    if (!loadedRef.current) {
+      pendingCliEventsRef.current.push(event)
+      return
+    }
     if (event.type === 'done') {
       completeTurn()
       return
@@ -656,19 +738,41 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'error') {
-      const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current ?? crypto.randomUUID()
-      activeAssistantIdRef.current = id
-      lastAssistantIdRef.current = id
+      let assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
+      if (!assistantId) {
+        const existing = [...messagesRef.current].reverse().find(message => message.role === 'assistant')
+        assistantId = existing?.id ?? crypto.randomUUID()
+        if (!existing) {
+          const createdId = assistantId
+          setMessages(prev => [...prev, { id: createdId, role: 'assistant', content: '' }])
+        }
+      }
+      activeAssistantIdRef.current = assistantId
+      lastAssistantIdRef.current = assistantId
+      setBusy(true)
+      turnClosedRef.current = false
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
-        const existing = prev.findIndex(message => message.id === id)
-        if (existing < 0) return [...prev, { id, role: 'assistant', content }]
-        return prev.map(message => message.id === id ? { ...message, content } : message)
+        const existing = prev.findIndex(message => message.id === assistantId)
+        if (existing < 0) return [...prev, { id: assistantId, role: 'assistant', content }]
+        return prev.map(message => message.id === assistantId ? { ...message, content } : message)
       })
       return
     }
-    const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
-    if (!id) return
+    // Tras remount el ref puede estar vacío: reenganchar al último asistente.
+    let assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
+    if (!assistantId) {
+      const existing = [...messagesRef.current].reverse().find(message => message.role === 'assistant')
+      assistantId = existing?.id ?? crypto.randomUUID()
+      if (!existing) {
+        const createdId = assistantId
+        setMessages(prev => [...prev, { id: createdId, role: 'assistant', content: '' }])
+      }
+      activeAssistantIdRef.current = assistantId
+      lastAssistantIdRef.current = assistantId
+      setBusy(true)
+      turnClosedRef.current = false
+    }
     if (event.type === 'assistant_final') {
       let { visibleText, updates } = extractTabContextUpdates(event.text)
       if (loopActiveRef.current) {
@@ -706,35 +810,41 @@ export const AgentPane: React.FC<Props> = ({
         window.setTimeout(() => setContextNotice(''), 3500)
       }
       setMessages(prev => prev.map(message =>
-        message.id === id ? { ...message, content: visibleText } : message))
+        message.id === assistantId ? { ...message, content: visibleText } : message))
       return
     }
     setMessages(prev => prev.map(message => {
-      if (message.id !== id) return message
+      if (message.id !== assistantId) return message
       return { ...message, content: message.content + event.text }
     }))
   }, [completeTurn, onMetaChange, t])
 
+  applyCliEventRef.current = applyCliEvent
+  completeTurnRef.current = completeTurn
+
   useEffect(() => {
-    const offEvent = window.api.onAgentCliEvent(paneId, applyCliEvent)
+    // Suscripción estable por paneId: no re-suscribir al re-render (resize/split
+    // recreaba callbacks y perdía eventos done/delta a mitad de stream).
+    const offEvent = window.api.onAgentCliEvent(paneId, event => {
+      applyCliEventRef.current(event)
+    })
     const offExit = window.api.onAgentCliExit(paneId, () => {
       // Fallback si el runtime antiguo no emite `done`, o si done se perdió.
-      completeTurn()
+      completeTurnRef.current()
     })
     return () => {
       offEvent()
       offExit()
     }
-  }, [applyCliEvent, completeTurn, paneId])
+  }, [paneId])
 
   useEffect(() => {
     return () => {
       clearLoopTimer()
-      if (loopActiveRef.current) {
-        window.api.stopAgentTurn(paneId)
-      }
+      // No llamar stopAgentTurn aquí: el layout (split/resize) remonta el panel
+      // y mataría un stream vivo. App ya detiene el turno al cerrar el pane.
     }
-  }, [clearLoopTimer, paneId])
+  }, [clearLoopTimer])
 
   useEffect(() => {
     if (!onClosePane || !registerShortcutCloseInterceptor) return
@@ -749,30 +859,36 @@ export const AgentPane: React.FC<Props> = ({
     const assigned = diskContextsRef.current.filter(context =>
       (metaRef.current.contextIds ?? []).includes(context.id))
     const images: AgentCliImageAttachment[] = []
+    const displayImages: AgentChatImage[] = []
     for (const [index, image] of imagesSnapshot.entries()) {
       try {
         const base64 = await blobToBase64(image.blob)
         if (!base64) continue
+        const name = image.name || `paste-${index + 1}${extensionForMime(image.mimeType)}`
         images.push({
-          name: image.name || `paste-${index + 1}${extensionForMime(image.mimeType)}`,
+          name,
           mimeType: image.mimeType,
           base64,
         })
+        const thumbnail = await blobToThumbnailDataUrl(image.blob)
+        if (thumbnail) displayImages.push({ name, dataUrl: thumbnail })
       } catch {
         // Ignorar adjuntos que no se pudieron leer.
       } finally {
         URL.revokeObjectURL(image.previewUrl)
       }
     }
-    const displayUser = [
-      prompt,
-      images.length ? t('agentPane.imagesAttached', { n: images.length }) : '',
-    ].filter(Boolean).join('\n')
+    // Sin miniaturas (fallo de canvas) se conserva el texto de respaldo.
+    const fallbackText = images.length && !displayImages.length
+      ? t('agentPane.imagesAttached', { n: images.length })
+      : ''
+    const displayUser = [prompt, fallbackText].filter(Boolean).join('\n')
     await startTurn({
       prompt,
-      displayUser: displayUser || t('agentPane.imageOnlyMessage'),
+      displayUser: displayUser || (displayImages.length ? '' : t('agentPane.imageOnlyMessage')),
       contexts: assigned,
       ...(images.length ? { images } : {}),
+      ...(displayImages.length ? { displayImages } : {}),
     })
   }, [startTurn, t])
 
@@ -909,15 +1025,29 @@ export const AgentPane: React.FC<Props> = ({
     setLoopOpen(true)
     setMessages(prev => [
       ...prev,
-      systemMessage(t('agentPane.loopStarted', { objective })),
+      systemMessage(t('agentPane.loopStarted', {
+        objective,
+        interval: formatLoopIntervalMs(loopContinueDelayMsRef.current),
+      })),
     ])
     runLoopIteration(1)
   }, [beginLiveSettle, clearLoopTimer, input, loopActive, onRequestPaneFocus, paneId, runLoopIteration, t])
 
   const toggleLoopMode = useCallback((): void => {
     if (loopActive) return
-    setLoopOpen(open => !open)
-  }, [loopActive])
+    if (loopOpen) {
+      setLoopOpen(false)
+      return
+    }
+    setLoopIntervalModalOpen(true)
+  }, [loopActive, loopOpen])
+
+  const confirmLoopInterval = useCallback((delayMs: number): void => {
+    loopContinueDelayMsRef.current = delayMs
+    setLoopContinueDelayMs(delayMs)
+    setLoopIntervalModalOpen(false)
+    setLoopOpen(true)
+  }, [])
 
   const loadCwdChoices = useCallback(async (): Promise<void> => {
     const entries = await Promise.all(cwdSources.map(async source => {
@@ -977,22 +1107,77 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
-    { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint') },
-    { value: 'auto', label: t('agentPane.permissionAuto'), hint: t('agentPane.permissionAutoHint') },
-    { value: 'plan', label: t('agentPane.permissionPlan'), hint: t('agentPane.permissionPlanHint') },
-  ]
+  // Cierra el desplegable de contextos al hacer clic fuera o Escape.
+  useEffect(() => {
+    if (!contextsPickerOpen) return
+    const onPointerDown = (event: MouseEvent): void => {
+      const root = contextsPickerRef.current
+      if (root && !root.contains(event.target as Node)) {
+        setContextsPickerOpen(false)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setContextsPickerOpen(false)
+    }
+    window.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [contextsPickerOpen])
 
-  const modelOptions = modelsForProvider(meta.provider)
-  const selectedModel = meta.model?.trim() ?? ''
-  const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
-  const providerLabel = meta.provider === 'claude' ? t('agentPane.claude') : t('agentPane.cursor')
+  // Si se abre el modal de administración o empieza un loop, cierra el picker.
+  useEffect(() => {
+    if (contextsOpen || loopActive) setContextsPickerOpen(false)
+  }, [contextsOpen, loopActive])
+
   const loopMode = loopOpen || loopActive
+  const selectedContextIds = meta.contextIds ?? []
+  const selectedContexts = diskContexts.filter(context => selectedContextIds.includes(context.id))
+  const contextsPickerLabel = selectedContexts.length === 0
+    ? t('tabContexts.pickerNone')
+    : selectedContexts.length === 1
+      ? selectedContexts[0].name
+      : t('tabContexts.pickerSelected', { n: selectedContexts.length })
   // Con el agente ocupado el input sigue habilitado para encolar mensajes;
   // solo el modo loop bloquea la escritura.
   const showStop = loopActive || busy
   const showPlay = loopMode && !loopActive && !busy
   const composerDisabled = loopActive
+
+  const handleEnteringAnimationEnd = useCallback((messageId: string): void => {
+    setEnteringIds(previous => {
+      if (!previous.has(messageId)) return previous
+      const next = new Set(previous)
+      next.delete(messageId)
+      return next
+    })
+  }, [])
+
+  const handleMaterializingAnimationEnd = useCallback((messageId: string): void => {
+    setMaterializingIds(previous => {
+      if (!previous.has(messageId)) return previous
+      const next = new Set(previous)
+      next.delete(messageId)
+      return next
+    })
+  }, [])
+
+  const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      if (loopActive) stop()
+      else if (showPlay) startLoop()
+      else send()
+    }
+  }, [loopActive, send, showPlay, startLoop, stop])
+
+  const handleSendClick = useCallback((): void => {
+    if (showStop) stop()
+    else if (showPlay) startLoop()
+    else send()
+  }, [send, showPlay, showStop, startLoop, stop])
 
   return (
     <div
@@ -1006,355 +1191,75 @@ export const AgentPane: React.FC<Props> = ({
       onMouseDown={onRequestPaneFocus}
     >
       {tabActive && (
-        <div className="agent-pane__header">
-          <div className="agent-pane__header-left">
-            {paneReorder?.enabled && (
-              <button
-                className="agent-pane__icon-button"
-                draggable
-                aria-label="Reordenar panel"
-                aria-pressed={paneReorder.isGrabbed}
-                onDragStart={paneReorder.onDragHandleStart}
-                onDragEnd={paneReorder.onDragHandleEnd}
-                onMouseDown={event => event.stopPropagation()}
-              >
-                <Icon name="drag-handle" size={13} />
-              </button>
-            )}
-            <span className="agent-pane__avatar" aria-hidden="true">
-              <Icon name="sparkles" size={13} />
-            </span>
-            <div className="agent-pane__identity">
-              <span className="agent-pane__provider">{providerLabel}</span>
-              <span className="agent-pane__cwd">
-                <span className="agent-pane__cwd-icon" aria-hidden="true">
-                  <Icon name="folder" size={11} />
-                </span>
-                <select
-                  className="agent-pane__cwd-select"
-                  value=""
-                  disabled={busy || cwdSources.length === 0}
-                  title={cwdSources.length ? t('agentPane.changeDirectory') : t('agentPane.noTerminals')}
-                  onFocus={() => { void loadCwdChoices() }}
-                  onChange={event => {
-                    const selected = event.target.value
-                    if (selected) void selectCwdSource(selected)
-                    event.target.value = ''
-                  }}
-                  onMouseDown={event => event.stopPropagation()}
-                >
-                  <option value="">{folderLabel(cwd)}</option>
-                  {cwdSources.map(source => (
-                    <option key={source.paneId} value={source.paneId}>
-                      {cwdChoices[source.paneId] || source.label}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </div>
-          </div>
-
-          <label className="agent-pane__model">
-            <span className="agent-pane__model-icon" aria-hidden="true">
-              <Icon name="brain" size={13} />
-            </span>
-            <select
-              value={selectedModel}
-              disabled={busy}
-              aria-label={t('agentPane.modelLabel')}
-              title={t('agentPane.modelHint')}
-              onChange={event => changeModel(event.target.value)}
-              onMouseDown={event => event.stopPropagation()}
-            >
-              <option value="">{t('agentPane.modelDefault')}</option>
-              {modelOptions.map(option => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-              {modelIsCustom && (
-                <option value={selectedModel}>{selectedModel}</option>
-              )}
-            </select>
-          </label>
-
-          <div
-            className="agent-pane__modes"
-            role="radiogroup"
-            aria-label={t('agentPane.permissionLabel')}
-          >
-            {PERMISSION_MODES.map(mode => (
-              <button
-                key={mode.value}
-                role="radio"
-                aria-checked={meta.permissionMode === mode.value}
-                className={[
-                  'agent-pane__mode',
-                  meta.permissionMode === mode.value ? 'agent-pane__mode--active' : '',
-                ].filter(Boolean).join(' ')}
-                title={mode.hint}
-                disabled={busy}
-                onClick={() => changePermission(mode.value)}
-                onMouseDown={event => event.stopPropagation()}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            className={[
-              'agent-pane__icon-button',
-              'agent-pane__loop-mode',
-              loopMode ? 'agent-pane__loop-mode--on' : '',
-            ].filter(Boolean).join(' ')}
-            aria-pressed={loopMode}
-            title={t('agentPane.loopTitle')}
-            disabled={loopActive}
-            onClick={toggleLoopMode}
-            onMouseDown={event => event.stopPropagation()}
-          >
-            <Icon name="refresh" size={13} />
-          </button>
-
-          {onClosePane && (
-            <button
-              className="agent-pane__icon-button agent-pane__close"
-              title={t('common.cancel')}
-              onClick={() => setConfirmClose(true)}
-              onMouseDown={event => event.stopPropagation()}
-            >
-              <Icon name="close" size={12} />
-            </button>
-          )}
-        </div>
-      )}
-
-      <div ref={scrollRef} className="agent-pane__messages">
-        {messages.length === 0 && (
-          <div className="agent-pane__empty">
-            <span className="agent-pane__empty-icon" aria-hidden="true">
-              <Icon name="sparkles" size={22} />
-            </span>
-            <strong>{t('agentPane.emptyTitle')}</strong>
-            <p>{t('agentPane.empty')}</p>
-          </div>
-        )}
-        {messages.map(message => {
-          const live = busy &&
-            message.role === 'assistant' &&
-            message.id === activeAssistantIdRef.current
-          const landing = !live && settlingId === message.id
-          const entering = enteringIds.has(message.id)
-          // Orbe solo mientras piensa sin texto; al primer token toma forma de burbuja.
-          const orb = live && !message.content
-          return (
-            <div
-              key={message.id}
-              className={[
-                'agent-pane__row',
-                `agent-pane__row--${message.role}`,
-                entering ? 'agent-pane__row--enter' : '',
-                live ? 'agent-pane__row--live' : '',
-                landing ? 'agent-pane__row--landing' : '',
-                orb ? 'agent-pane__row--orb' : '',
-              ].filter(Boolean).join(' ')}
-              onAnimationEnd={entering
-                ? event => {
-                    if (event.target !== event.currentTarget) return
-                    setEnteringIds(previous => {
-                      if (!previous.has(message.id)) return previous
-                      const next = new Set(previous)
-                      next.delete(message.id)
-                      return next
-                    })
-                  }
-                : undefined}
-            >
-              <div
-                className={[
-                  `agent-pane__bubble agent-pane__bubble--${message.role}`,
-                  live ? 'agent-pane__bubble--live' : '',
-                  landing ? 'agent-pane__bubble--landing' : '',
-                  orb ? 'agent-pane__bubble--orb' : '',
-                ].filter(Boolean).join(' ')}
-                aria-label={orb ? t('agentPane.thinking') : undefined}
-              >
-                {orb ? (
-                  <span className="agent-pane__orb" aria-hidden="true">
-                    <span className="agent-pane__orb-glow" />
-                    <span className="agent-pane__orb-bubble" />
-                    <span className="agent-pane__orb-reflections" />
-                    {Array.from({ length: 8 }, (_, index) => (
-                      <span
-                        key={index}
-                        className={`agent-pane__orb-particle agent-pane__orb-particle--${index + 1}`}
-                      />
-                    ))}
-                  </span>
-                ) : message.content
-                  ? (
-                      message.role === 'assistant'
-                        ? <AssistantBody content={message.content} live={live} />
-                        : (
-                            <span className={live ? 'agent-pane__stream' : undefined}>
-                              {message.content}
-                              {live && <span className="agent-pane__caret" aria-hidden="true" />}
-                            </span>
-                          )
-                    )
-                  : ''}
-              </div>
-            </div>
-          )
-        })}
-        {activity && (
-          <div className="agent-pane__activity">
-            <span className="agent-pane__activity-dot" aria-hidden="true" />
-            {loopActive
-              ? `${t('agentPane.loopBadge', { n: loopIteration })} · ${activity}`
-              : activity}
-          </div>
-        )}
-        {loopActive && !activity && busy && (
-          <div className="agent-pane__activity">
-            <span className="agent-pane__activity-dot" aria-hidden="true" />
-            {t('agentPane.loopWorking', { n: loopIteration })}
-          </div>
-        )}
-      </div>
-
-      {pendingImages.length > 0 && (
-        <div className="agent-pane__attachments" aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}>
-          {pendingImages.map(image => (
-            <div key={image.id} className="agent-pane__attachment">
-              <img src={image.previewUrl} alt={image.name} />
-              <button
-                type="button"
-                className="agent-pane__attachment-remove"
-                onClick={() => removePendingImage(image.id)}
-                disabled={composerDisabled}
-                title={t('agentPane.removeImage')}
-                aria-label={t('agentPane.removeImage')}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="agent-pane__contexts">
-        <div className="agent-pane__contexts-head">
-          <span>{t('tabContexts.barTitle')}</span>
-          <button
-            className="agent-pane__contexts-manage"
-            onClick={() => setContextsOpen(true)}
-            disabled={loopActive}
-          >
-            <Icon name="settings" size={12} />
-            {t('tabContexts.manage')}
-          </button>
-          <label
-            className="agent-pane__context-auto-improve"
-            title={t('tabContexts.autoImproveHint')}
-          >
-            <input
-              type="checkbox"
-              role="switch"
-              checked={meta.autoImproveContexts === true}
-              disabled={busy || loopActive || !(meta.contextIds?.length)}
-              onChange={event => onMetaChange(previous => ({
-                ...previous,
-                autoImproveContexts: event.target.checked,
-              }))}
-            />
-            <span aria-hidden="true" />
-            {t('tabContexts.autoImprove')}
-          </label>
-        </div>
-        {diskContexts.length > 0 && (
-          <div className="agent-pane__context-checks">
-            {diskContexts.map(context => (
-              <label key={context.id} title={t(`tabContexts.kind_${context.kind}`)}>
-                <input
-                  type="checkbox"
-                  checked={(meta.contextIds ?? []).includes(context.id)}
-                  disabled={busy || loopActive}
-                  onChange={() => toggleContext(context.id)}
-                />
-                <span>{context.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        {contextNotice && <div className="agent-pane__context-notice">{contextNotice}</div>}
-      </div>
-
-      <div className={['agent-pane__composer', loopMode ? 'agent-pane__composer--loop' : ''].filter(Boolean).join(' ')}>
-        {queuedTurns.length > 0 && (
-          <div
-            className="agent-pane__queue"
-            aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
-          >
-            {queuedTurns.map((item, index) => (
-              <span key={item.id} className="agent-pane__queue-chip" title={item.text}>
-                <span className="agent-pane__queue-pos" aria-hidden="true">{index + 1}</span>
-                <span className="agent-pane__queue-text">
-                  {item.text || t('agentPane.imageOnlyMessage')}
-                </span>
-                <button
-                  type="button"
-                  className="agent-pane__queue-remove"
-                  onClick={() => removeQueuedTurn(item.id)}
-                  title={t('agentPane.queueRemove')}
-                  aria-label={t('agentPane.queueRemove')}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <textarea
-          value={input}
-          placeholder={
-            loopMode ? t('agentPane.loopPlaceholder')
-              : busy ? t('agentPane.queuePlaceholder')
-                : t('agentPane.placeholder')
-          }
-          disabled={composerDisabled}
-          rows={1}
-          onChange={event => setInput(event.target.value)}
-          onPaste={handleComposerPaste}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              if (loopActive) stop()
-              else if (showPlay) startLoop()
-              else send()
-            }
-          }}
+        <AgentPaneHeader
+          meta={meta}
+          cwd={cwd}
+          cwdSources={cwdSources}
+          cwdChoices={cwdChoices}
+          busy={busy}
+          loopMode={loopMode}
+          loopActive={loopActive}
+          onClosePane={onClosePane}
+          onRequestClose={() => setConfirmClose(true)}
+          onLoadCwdChoices={() => { void loadCwdChoices() }}
+          onSelectCwdSource={sourcePaneId => { void selectCwdSource(sourcePaneId) }}
+          onChangeModel={changeModel}
+          onChangePermission={changePermission}
+          onToggleLoopMode={toggleLoopMode}
+          paneReorder={paneReorder}
         />
-        <button
-          className={[
-            'agent-pane__send',
-            showStop ? 'agent-pane__send--stop' : '',
-            showPlay ? 'agent-pane__send--play' : '',
-          ].filter(Boolean).join(' ')}
-          disabled={!showStop && !input.trim() && pendingImages.length === 0}
-          onClick={showStop ? stop : showPlay ? startLoop : send}
-          title={
-            showStop ? (loopActive ? t('agentPane.loopStop') : t('agentPane.stop'))
-              : showPlay ? t('agentPane.loopStart')
-                : t('agentPane.send')
-          }
-        >
-          <Icon
-            name={showStop ? 'stop' : showPlay ? 'play' : 'send'}
-            size={14}
-          />
-        </button>
-      </div>
+      )}
+
+      <AgentPaneMessages
+        scrollRef={scrollRef}
+        messages={messages}
+        busy={busy}
+        activity={activity}
+        loopActive={loopActive}
+        loopIteration={loopIteration}
+        queuedTurns={queuedTurns}
+        nearBottom={nearBottom}
+        activeAssistantId={activeAssistantIdRef.current}
+        enteringIds={enteringIds}
+        materializingIds={materializingIds}
+        settlingId={settlingId}
+        onEnteringAnimationEnd={handleEnteringAnimationEnd}
+        onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
+        onRemoveQueuedTurn={removeQueuedTurn}
+        onScrollToBottom={scrollChatToBottom}
+      />
+
+      <AgentPaneFooter
+        pendingImages={pendingImages}
+        composerDisabled={composerDisabled}
+        loopMode={loopMode}
+        busy={busy}
+        loopActive={loopActive}
+        input={input}
+        showStop={showStop}
+        showPlay={showPlay}
+        meta={meta}
+        diskContexts={diskContexts}
+        selectedContextIds={selectedContextIds}
+        selectedContexts={selectedContexts}
+        contextsPickerOpen={contextsPickerOpen}
+        contextsPickerRef={contextsPickerRef}
+        contextsPickerLabel={contextsPickerLabel}
+        contextNotice={contextNotice}
+        composerInputRef={composerInputRef}
+        onInputChange={setInput}
+        onComposerPaste={handleComposerPaste}
+        onComposerKeyDown={handleComposerKeyDown}
+        onRemovePendingImage={removePendingImage}
+        onToggleContextsPicker={() => setContextsPickerOpen(open => !open)}
+        onToggleContext={toggleContext}
+        onOpenContextsModal={() => setContextsOpen(true)}
+        onAutoImproveChange={checked => onMetaChange(previous => ({
+          ...previous,
+          autoImproveContexts: checked,
+        }))}
+        onSendClick={handleSendClick}
+      />
 
       <ConfirmTerminalModal
         open={confirmClose}
@@ -1381,6 +1286,12 @@ export const AgentPane: React.FC<Props> = ({
           })
         }}
         onClose={() => setContextsOpen(false)}
+      />
+      <AgentLoopIntervalModal
+        open={loopIntervalModalOpen}
+        initialMs={loopContinueDelayMs}
+        onConfirm={confirmLoopInterval}
+        onClose={() => setLoopIntervalModalOpen(false)}
       />
     </div>
   )

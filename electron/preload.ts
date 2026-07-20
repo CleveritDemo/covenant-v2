@@ -98,6 +98,9 @@ const api = {
   stopAgentTurn(paneId: string): void {
     ipcRenderer.send(IPC.AGENT_CLI_STOP, paneId)
   },
+  isAgentTurnActive(paneId: string): Promise<boolean> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, paneId)
+  },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)
   },

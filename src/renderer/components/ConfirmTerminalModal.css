@@ -1,50 +1,17 @@
 .confirm-terminal-message {
   margin: 0 0 6px;
   color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
 }
 
 .confirm-terminal-detail {
-  margin: 0 0 12px;
-  font-size: 11px;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--text-muted);
-}
-
-.confirm-terminal-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-.confirm-terminal-no,
-.confirm-terminal-ok {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  border: none;
-  transition: color 0.1s, background 0.1s;
-}
-
-.confirm-terminal-no {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.confirm-terminal-no:hover {
-  color: var(--text);
-  background: var(--surface);
-}
-
-.confirm-terminal-ok {
-  background: color-mix(in srgb, var(--danger) 22%, var(--surface));
-  color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
-}
-
-.confirm-terminal-ok:hover {
-  background: color-mix(in srgb, var(--danger) 32%, var(--surface));
 }

@@ -1,5 +1,6 @@
 import React from 'react'
 import { useT } from '@i18n/useT'
+import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
 
 interface FontSizeControlProps {
@@ -20,26 +21,28 @@ export const FontSizeControl: React.FC<FontSizeControlProps> = ({
   const { t } = useT()
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="icon"
+        size="sm"
         tabIndex={-1}
-        className="icon-btn font-size-btn"
         onClick={onDecrease}
         disabled={fontSize <= min}
         title={t('ui.decreaseFontTitle')}
+        aria-label={t('ui.decreaseFontTitle')}
       >
         <Icon name="zoom-out" size={14} />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="icon"
+        size="sm"
         tabIndex={-1}
-        className="icon-btn font-size-btn"
         onClick={onIncrease}
         disabled={fontSize >= max}
         title={t('ui.increaseFontTitle')}
+        aria-label={t('ui.increaseFontTitle')}
       >
         <Icon name="zoom-in" size={14} />
-      </button>
+      </Button>
     </>
   )
 }

@@ -8,6 +8,19 @@ export type TabContextKind =
   | 'readme'
   | 'changelog'
 
+/** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
+export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
+  'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog',
+] as const
+
+/** Markdown libre del usuario; se adjunta entero (sin catálogo / need-sections). */
+export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes'] as const
+
+/** Todos los kinds válidos en disco / UI (host + personalizados). */
+export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog',
+] as const
+
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
 
 export function normalizeContextFileName(value: string | null | undefined, fallback = 'context'): string {
@@ -117,7 +130,7 @@ export function extractTabContextUpdates(text: string): {
       if (
         typeof value.id === 'string' &&
         typeof value.kind === 'string' &&
-        ['folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog'].includes(value.kind)
+        HOST_CONTEXT_KINDS.includes(value.kind as TabContextKind)
       ) {
         const update: TabContextUpdate = {
           id: value.id,
@@ -135,7 +148,7 @@ export function extractTabContextUpdates(text: string): {
           update.annotations = value.annotations
             .map(normalizeAnnotation)
             .filter((item): item is TabContextAnnotation => item !== null)
-            .slice(0, 500)
+            .slice(0, 20)
         }
         updates.push(update)
       }
@@ -167,7 +180,7 @@ function annotationHasChangedEvidence(
 ): boolean {
   if (!changedPaths.size) return false
   if (context.kind === 'changelog') return false
-  if (context.kind === 'notes' || context.kind === 'git') return true
+  if (context.kind === 'git') return true
 
   const root = normalizedRelativePath(context.rootPath ?? '')
   const underRoot = [...changedPaths].filter(path =>
@@ -224,4 +237,27 @@ export function filterTabContextUpdatesByChangedPaths(
       return ''
     }
   })
+}
+
+/**
+ * Selección inicial: mapa + símbolos (materializados por el host).
+ * Excluye deps/changelog/readme/git hasta que el usuario los active.
+ */
+export function defaultAssignedContextIds(contexts: readonly TabContext[]): string[] {
+  if (!contexts.length) return []
+  const selected: string[] = []
+  const push = (id: string | undefined): void => {
+    if (!id || selected.includes(id)) return
+    selected.push(id)
+  }
+
+  push(contexts.find(context => context.kind === 'folderTree')?.id)
+  push(contexts.find(context => context.kind === 'symbols')?.id)
+
+  if (selected.length) return selected
+
+  // Fallback: estructura existente; nunca deps/changelog por defecto.
+  return contexts
+    .filter(context => context.kind === 'folderTree' || context.kind === 'symbols')
+    .map(context => context.id)
 }

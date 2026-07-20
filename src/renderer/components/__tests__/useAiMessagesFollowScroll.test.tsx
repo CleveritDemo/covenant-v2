@@ -173,6 +173,31 @@ describe('useAiMessagesFollowScroll', () => {
     expect(el.scrollTop).toBe(200)
   })
 
+  it('keeps following when content grows after a poisoned scroll event', async () => {
+    const { getByTestId, getByText } = render(
+      <ScrollHarness initial={[{ id: '1', isStreaming: true }]} initialHeight={1000} />,
+    )
+    const el = getByTestId('messages') as HTMLDivElement
+    Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true })
+    let height = 1000
+    Object.defineProperty(el, 'scrollHeight', {
+      get: () => height,
+      configurable: true,
+    })
+    el.scrollTop = 900
+    el.dispatchEvent(new Event('scroll'))
+
+    // El contenido crece y un scroll espurio ve "no near bottom" antes del layout effect.
+    height = 2000
+    el.dispatchEvent(new Event('scroll'))
+
+    await act(async () => {
+      getByText('grow-stream').click()
+    })
+
+    expect(el.scrollTop).toBe(1900)
+  })
+
   it('does not scroll when idle and user is reading history', async () => {
     const { getByTestId, getByText } = render(
       <ScrollHarness initial={[{ id: '1', isStreaming: false }]} initialHeight={1000} />,

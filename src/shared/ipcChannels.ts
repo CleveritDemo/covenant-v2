@@ -13,6 +13,8 @@ export const IPC = {
   AGENT_CLI_STOP: 'agentCli:stop',
   AGENT_CLI_EVENT: 'agentCli:event',
   AGENT_CLI_EXIT: 'agentCli:exit',
+  /** Renderer → main: ¿hay un turno de agente CLI en curso para este pane? */
+  AGENT_CLI_IS_ACTIVE: 'agentCli:isActive',
   AGENT_CHAT_LOAD: 'agentChat:load',
   AGENT_CHAT_SAVE: 'agentChat:save',
   AGENT_CHAT_DELETE: 'agentChat:delete',

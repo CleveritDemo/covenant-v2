@@ -5,6 +5,8 @@
 ia_terminal/  (project root; paths are relative to this folder)
 
 docs/
+    docs/AI_PROJECT_CONTEXT_GUIDE.md
+    docs/FRONTEND_AUDIT_PLAN.md
     docs/QA.md
 electron/
   electron/__tests__/
@@ -49,6 +51,7 @@ renderer/
       renderer/components/AiPanel.tsx
     renderer/styles.css
 scripts/
+    scripts/check-ui-contract.mjs
     scripts/generate-mac-icon.sh
 src/
   src/ai/
@@ -78,9 +81,16 @@ src/
         src/renderer/__tests__/sessionSanitize.test.ts
         src/renderer/__tests__/tabSplitSizes.test.ts
     src/renderer/agent/
+        src/renderer/agent/AgentLoopIntervalModal.tsx
         src/renderer/agent/AgentPane.css
         src/renderer/agent/AgentPane.tsx
+        src/renderer/agent/AgentPaneFooter.tsx
+        src/renderer/agent/AgentPaneHeader.tsx
+        src/renderer/agent/AgentPaneMessages.tsx
         src/renderer/agent/AgentProviderPickerModal.tsx
+        src/renderer/agent/tabContextKindIcons.ts
+        src/renderer/agent/TabContextsEditor.tsx
+        src/renderer/agent/TabContextsList.tsx
         src/renderer/agent/TabContextsModal.tsx
     src/renderer/ai/
         src/renderer/ai/agentLoopNative.ts
@@ -118,6 +128,8 @@ src/
           src/renderer/components/ui/Badge.tsx
           src/renderer/components/ui/Button.css
           src/renderer/components/ui/Button.tsx
+          src/renderer/components/ui/ChoiceCard.css
+          src/renderer/components/ui/ChoiceCard.tsx
           src/renderer/components/ui/Icon.tsx
           src/renderer/components/ui/index.ts
           src/renderer/components/ui/Input.css
@@ -146,6 +158,7 @@ src/
         src/renderer/components/AiPanel.tsx
         src/renderer/components/AiPanelHeader.tsx
         src/renderer/components/AiThinkingBlock.tsx
+        src/renderer/components/AppModals.tsx
         src/renderer/components/ConfirmTerminalModal.css
         src/renderer/components/ConfirmTerminalModal.tsx
         src/renderer/components/FontSizeControl.tsx
@@ -194,6 +207,7 @@ src/
           src/renderer/terminal/explorer/ExplorerConfirmHost.tsx
           src/renderer/terminal/explorer/explorerPathUtils.ts
           src/renderer/terminal/explorer/ExplorerToast.tsx
+          src/renderer/terminal/explorer/ExplorerToolButton.tsx
           src/renderer/terminal/explorer/FileCodeEditor.tsx
           src/renderer/terminal/explorer/FileEditorPanel.tsx
           src/renderer/terminal/explorer/fileEditorSearch.ts
@@ -222,6 +236,7 @@ src/
         src/renderer/terminal/TerminalPane.css
         src/renderer/terminal/TerminalPane.tsx
         src/renderer/terminal/TerminalScrollDown.tsx
+        src/renderer/terminal/TerminalSuggestStack.tsx
       src/renderer/App.tsx
       src/renderer/arrayReorder.ts
       src/renderer/dragThumbnailUtils.ts
@@ -280,5 +295,10 @@ src/
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->
-(no annotations yet)
+- `docs` — QA + agent context guides
+- `electron` — Main/preload/PTY/CLI/contexts
+- `src` — Renderer, shared, themes, i18n
+- `scripts` — Build/icon helpers
+- `electron/tabContextBuild.ts` — Materialize and deliver tab contexts
+- `src/renderer/agent` — Agent UI including context modal
 <!-- /iaterminal:notes -->

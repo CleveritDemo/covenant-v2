@@ -2,8 +2,7 @@ import React from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button } from '../components/ui/Button'
-import { Icon } from '../components/ui/Icon'
+import { ChoiceCard, Icon } from '../components/ui'
 import './AgentPane.css'
 
 interface Props {
@@ -11,6 +10,11 @@ interface Props {
   onSelect: (provider: AgentCliProvider) => void
   onClose: () => void
 }
+
+const PROVIDERS: { id: AgentCliProvider; icon: 'bot' | 'sparkles'; titleKey: 'claude' | 'cursor' }[] = [
+  { id: 'claude', icon: 'bot', titleKey: 'claude' },
+  { id: 'cursor', icon: 'sparkles', titleKey: 'cursor' },
+]
 
 export const AgentProviderPickerModal: React.FC<Props> = ({ open, onSelect, onClose }) => {
   const { t } = useT()
@@ -23,17 +27,18 @@ export const AgentProviderPickerModal: React.FC<Props> = ({ open, onSelect, onCl
       zIndex={760}
     >
       <p className="agent-provider-picker__description">{t('agentPane.pickerDescription')}</p>
-      <div className="agent-provider-picker__options">
-        <Button variant="secondary" onClick={() => onSelect('claude')}>
-          <Icon name="bot" size={16} />
-          {t('agentPane.claude')}
-        </Button>
-        <Button variant="secondary" onClick={() => onSelect('cursor')}>
-          <Icon name="sparkles" size={16} />
-          {t('agentPane.cursor')}
-        </Button>
+      <div className="agent-provider-picker__options" role="list">
+        {PROVIDERS.map(provider => (
+          <ChoiceCard
+            key={provider.id}
+            role="listitem"
+            icon={<Icon name={provider.icon} size={18} />}
+            onClick={() => onSelect(provider.id)}
+          >
+            <strong>{t(`agentPane.${provider.titleKey}`)}</strong>
+          </ChoiceCard>
+        ))}
       </div>
     </TerminalModal>
   )
 }
-

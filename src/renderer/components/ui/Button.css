@@ -11,7 +11,7 @@
   white-space: nowrap;
   cursor: pointer;
   border: none;
-  border-radius: calc(var(--radius) / 2);
+  border-radius: 8px;
   outline: none;
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
   -webkit-font-smoothing: antialiased;
@@ -48,7 +48,7 @@
 
 .btn--secondary:hover:not(:disabled) {
   background: var(--surface-hover);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-color: color-mix(in srgb, var(--border) 40%, var(--text-muted));
 }
 
 .btn--ghost {
@@ -88,16 +88,26 @@
   color: var(--text);
 }
 
-.btn--icon.active {
+.btn--pressed,
+.btn--icon.btn--pressed {
   background: var(--accent-dim);
   color: var(--text);
 }
 
 /* ── Sizes ────────────────────────────────────────── */
 .btn--xs {
-  font-size: 11px;
-  padding: 2px 5px;
+  font-size: 10px;
+  padding: 2px 6px;
   gap: 3px;
+  min-height: 22px;
+}
+
+.btn--icon.btn--xs {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 6px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .btn--sm {

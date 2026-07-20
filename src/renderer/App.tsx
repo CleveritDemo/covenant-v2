@@ -14,7 +14,7 @@ import { TabBar, type TabBarHandle } from './components/TabBar'
 import { TabTerminalSplitLayout } from './components/TabTerminalSplitLayout'
 import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
-import { AgentProviderPickerModal } from './agent/AgentProviderPickerModal'
+import { AppModals } from './components/AppModals'
 import {
   buildPaneDragThumbnail,
   PANE_DRAG_THUMB_HEADER_H,
@@ -24,11 +24,9 @@ import {
   DEFAULT_ROW_RATIO,
   normalizeSplitSizes,
   normalizeTabSession,
-  splitSizesAfterAddingPane,
+  splitSizesAfterAddingPanePreferAgent,
   type TabSplitSizes,
 } from './tabSplitSizes'
-import { SettingsModal } from './components/SettingsModal'
-import { ThemePickerModal } from './components/ThemePickerModal'
 import { Titlebar } from './components/Titlebar'
 import {
   computeTabInsertIndex,
@@ -42,6 +40,7 @@ import './styles/app.css'
 import type {
   AgentCliProvider,
   AgentPaneMeta,
+  PaneKind,
   TabSession,
 } from '../shared/tabSession'
 
@@ -99,6 +98,7 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
 type SessionReady = { loaded: boolean }
 
 let tabCounter = 0
+/** Nueva pestaña: panel de agente (producto centrado en agentes). */
 function newTab(title: string): TabSession {
   const paneId = crypto.randomUUID()
   return {
@@ -106,6 +106,10 @@ function newTab(title: string): TabSession {
     title,
     paneIds: [paneId],
     activePaneId: paneId,
+    paneKinds: { [paneId]: 'agent' },
+    agentByPane: {
+      [paneId]: { provider: 'claude', permissionMode: 'auto', autoImproveContexts: true },
+    },
   }
 }
 
@@ -505,7 +509,7 @@ export const App: React.FC = () => {
       if (idx < 0) return t
       const next = [...t.paneIds]
       next.splice(idx + 1, 0, newPaneId)
-      const splitSizes = splitSizesAfterAddingPane(t, next.length)
+      const splitSizes = splitSizesAfterAddingPanePreferAgent(t, next, t.paneKinds)
       return normalizeTabSession({ ...t, paneIds: next, activePaneId: newPaneId, splitSizes })
     }))
     scheduleSaveSession()
@@ -527,15 +531,16 @@ export const App: React.FC = () => {
       if (fromIndex < 0) return tab
       const paneIds = [...tab.paneIds]
       paneIds.splice(fromIndex + 1, 0, paneId)
+      const paneKinds: Record<string, PaneKind> = { ...(tab.paneKinds ?? {}), [paneId]: 'agent' }
       return normalizeTabSession({
         ...tab,
         paneIds,
         activePaneId: paneId,
-        splitSizes: splitSizesAfterAddingPane(tab, paneIds.length),
-        paneKinds: { ...(tab.paneKinds ?? {}), [paneId]: 'agent' },
+        splitSizes: splitSizesAfterAddingPanePreferAgent(tab, paneIds, paneKinds),
+        paneKinds,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: { provider, permissionMode: 'auto' },
+          [paneId]: { provider, permissionMode: 'auto', autoImproveContexts: true },
         },
       })
     }))
@@ -549,7 +554,11 @@ export const App: React.FC = () => {
   ) => {
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId) return tab
-      const previous = tab.agentByPane?.[paneId] ?? { provider: 'claude', permissionMode: 'ask' }
+      const previous = tab.agentByPane?.[paneId] ?? {
+        provider: 'claude',
+        permissionMode: 'ask',
+        autoImproveContexts: true,
+      }
       const next = typeof meta === 'function' ? meta(previous) : meta
       return { ...tab, agentByPane: { ...(tab.agentByPane ?? {}), [paneId]: next } }
     }))
@@ -894,7 +903,11 @@ export const App: React.FC = () => {
     const content = isAgent ? (
       <AgentPane
         paneId={paneId}
-        meta={tab.agentByPane?.[paneId] ?? { provider: 'claude', permissionMode: 'ask' }}
+        meta={tab.agentByPane?.[paneId] ?? {
+          provider: 'claude',
+          permissionMode: 'ask',
+          autoImproveContexts: true,
+        }}
         cwd={splitSpawnCwdRef.current.get(paneId) || cwdsRef.current[paneId] || ''}
         tabActive={tab.id === activeTabId}
         isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
@@ -947,6 +960,7 @@ export const App: React.FC = () => {
         data-pane-id={paneId}
         className={[
           'tab-terminal-pane-cell',
+          isAgent ? 'tab-terminal-pane-cell--agent' : 'tab-terminal-pane-cell--terminal',
           layoutSlotClass,
           tab.paneIds.length > 1 && paneDragOverPaneId === paneId
             ? 'tab-terminal-pane-cell--drag-over'
@@ -1060,39 +1074,31 @@ export const App: React.FC = () => {
 
       </div>
 
-      <AgentProviderPickerModal
-        open={agentPicker !== null}
-        onClose={() => {
+      <AppModals
+        config={config}
+        settingsOpen={settingsOpen}
+        themePickerOpen={themePickerOpen}
+        agentPicker={agentPicker}
+        onCloseSettings={() => {
+          setSettingsOpen(false)
+          focusActiveTerminalTextarea()
+        }}
+        onCloseThemePicker={() => {
+          setThemePickerOpen(false)
+          focusActiveTerminalTextarea()
+        }}
+        onCloseAgentPicker={() => {
           setAgentPicker(null)
           focusActiveTerminalTextarea()
         }}
-        onSelect={provider => {
+        onConfigSaved={handleConfigSaved}
+        onThemeChange={handleThemeChange}
+        onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)
           if (pending) {
             void handleAddAgentPane(pending.tabId, pending.fromPaneId, provider)
           }
-        }}
-      />
-
-      {settingsOpen && (
-        <SettingsModal
-          config={config}
-          onSave={handleConfigSaved}
-          onClose={() => {
-            setSettingsOpen(false)
-            focusActiveTerminalTextarea()
-          }}
-        />
-      )}
-
-      <ThemePickerModal
-        open={themePickerOpen}
-        currentThemeId={config.themeId}
-        onSelectTheme={handleThemeChange}
-        onClose={() => {
-          setThemePickerOpen(false)
-          focusActiveTerminalTextarea()
         }}
       />
     </div>

@@ -1,24 +1,41 @@
-.settings-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 12px;
-}
-
 .settings-section {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section-title {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-section__body {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--bg) 40%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: 10px;
 }
 
 .settings-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   font-size: 12px;
   font-weight: 500;
+  color: var(--text);
+}
+
+.settings-label__text {
+  font-size: 12px;
+  font-weight: 550;
   color: var(--text);
 }
 
@@ -44,6 +61,7 @@
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 400;
+  line-height: 1.45;
 }
 
 .settings-hint code {
@@ -52,12 +70,13 @@
   background: var(--surface);
   padding: 1px 4px;
   border-radius: 3px;
-  color: var(--accent);
+  color: var(--text);
 }
 
 .settings-hint--block {
   display: block;
-  line-height: 1.6;
+  line-height: 1.55;
+  margin: 0;
 }
 
 .settings-inline-link {
@@ -77,22 +96,15 @@
 }
 
 .settings-errors {
-  background: color-mix(in srgb, var(--danger) 10%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--border));
-  border-radius: calc(var(--radius) / 2);
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  border-radius: 10px;
   padding: 10px 12px;
   font-size: 12px;
   color: var(--danger);
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
 }
 
 .model-row {
@@ -113,9 +125,9 @@
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) / 2);
-  padding: 6px 32px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  padding: 7px 32px 7px 10px;
   cursor: pointer;
   outline: none;
   transition: border-color 0.15s, background-color 0.15s;
@@ -125,12 +137,12 @@
 }
 
 .model-select:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--border) 40%, var(--text-muted));
   background-color: var(--surface-hover);
 }
 
 .model-select:focus {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
 }
 
 .model-select:disabled {
@@ -151,16 +163,16 @@
   align-self: flex-start;
   padding: 6px 12px;
   font-size: 12px;
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) / 2);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
   cursor: pointer;
 }
 
 .model-refresh-btn:hover:not(:disabled) {
   background: var(--surface-hover);
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--border) 40%, var(--text-muted));
 }
 
 .model-refresh-btn:disabled {
@@ -179,8 +191,8 @@
   background: var(--accent);
   color: var(--accent-fg);
   border: none;
-  border-radius: calc(var(--radius) / 2);
-  padding: 7px 18px;
+  border-radius: 8px;
+  padding: 7px 16px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -193,12 +205,12 @@
 .btn-secondary {
   background: var(--surface);
   color: var(--text-muted);
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) / 2);
-  padding: 7px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  padding: 7px 16px;
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .btn-secondary:hover {
@@ -208,8 +220,8 @@
 
 /* Spotify (IDs de playlist en ajustes) */
 .settings-spotify-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 10px;
 }
 
@@ -222,13 +234,13 @@
   font-family: var(--font-mono);
   font-size: 12px;
   padding: 7px 9px;
-  border-radius: calc(var(--radius) / 2);
-  border: 1px solid var(--border);
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: var(--surface);
   color: var(--text);
 }
 
 .settings-spotify-row .settings-label--compact input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
 }

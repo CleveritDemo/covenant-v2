@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildAssignedContexts,
   buildContextCatalogPrompt,
+  buildContextPromptDelivery,
   buildContextSectionCatalog,
   buildRequestedContextSections,
+  clearTabContextMaterializationCache,
   deleteTabContext,
   discoverTabContexts,
   extractContextSectionRequest,
@@ -27,18 +29,19 @@ describe('tab context builders', () => {
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
-  it('materializes layered notes and preserves them on refresh', () => {
+  it('materializes annotation layer and preserves them on refresh', () => {
     const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
     const context = {
-      id: 'notes',
-      name: 'Decisiones',
-      fileName: 'decisiones.md',
-      kind: 'notes' as const,
+      id: 'tree',
+      name: 'Árbol',
+      fileName: 'arbol.md',
+      kind: 'folderTree' as const,
     }
-    const first = materializeTabContext(context, cwd, {
-      content: '- `note:ipc` — Usar IPC tipado',
-      write: true,
-    })
+    materializeTabContext(context, cwd, { write: true })
+    const first = mergeAnnotations(context, cwd, [
+      { key: 'src', text: 'Usar IPC tipado' },
+    ])
     expect(first.ok).toBe(true)
     expect(first.content).toContain('<!-- iaterminal:notes -->')
     expect(first.content).toContain('Usar IPC tipado')
@@ -46,7 +49,7 @@ describe('tab context builders', () => {
     const refreshed = materializeTabContext(context, cwd, { write: true })
     expect(refreshed.ok).toBe(true)
     expect(refreshed.notesContent).toContain('Usar IPC tipado')
-    expect(readFileSync(join(cwd, '.iaterminal', 'decisiones.md'), 'utf8'))
+    expect(readFileSync(join(cwd, '.iaterminal', 'arbol.md'), 'utf8'))
       .toContain('Usar IPC tipado')
   })
 
@@ -59,7 +62,7 @@ describe('tab context builders', () => {
       kind: 'symbols' as const,
       rootPath: 'src',
       paths: ['App.tsx'],
-      symbolKinds: ['class', 'method'] as const,
+      symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
     materializeTabContext(context, cwd, { write: true })
 
@@ -71,7 +74,7 @@ describe('tab context builders', () => {
       .toContain('<!-- iaterminal:context ')
   })
 
-  it('uses the H1 name for legacy Markdown without metadata', () => {
+  it('discovers notes markdown and skips files without context metadata', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, '.iaterminal'), { recursive: true })
     writeFileSync(
@@ -79,15 +82,26 @@ describe('tab context builders', () => {
       '# Nombre Original con Ñ y espacios\n\nNotas durables.',
       'utf8',
     )
+    writeFileSync(
+      join(cwd, '.iaterminal', 'legacy-notes.md'),
+      [
+        '# Legacy',
+        '<!-- iaterminal:context {"version":1,"id":"legacy-notes","name":"Legacy","fileName":"legacy-notes.md","kind":"notes"} -->',
+        '',
+        'Humano',
+      ].join('\n'),
+      'utf8',
+    )
 
     const result = discoverTabContexts(cwd)
 
     expect(result.ok).toBe(true)
-    expect(result.contexts[0]).toMatchObject({
-      name: 'Nombre Original con Ñ y espacios',
-      fileName: 'nombre-normalizado.md',
+    expect(result.contexts).toEqual([{
+      id: 'legacy-notes',
+      name: 'Legacy',
+      fileName: 'legacy-notes.md',
       kind: 'notes',
-    })
+    }])
   })
 
   it('discovers the AI changelog as a reserved read-only context', () => {
@@ -165,9 +179,9 @@ describe('tab context builders', () => {
       id: 'to-delete',
       name: 'Temporal',
       fileName: 'temporal.md',
-      kind: 'notes' as const,
+      kind: 'folderTree' as const,
     }
-    materializeTabContext(context, cwd, { content: 'bye', write: true })
+    materializeTabContext(context, cwd, { write: true })
     expect(existsSync(join(cwd, '.iaterminal', 'temporal.md'))).toBe(true)
 
     const deleted = deleteTabContext(context, cwd)
@@ -193,7 +207,7 @@ export class App {
       fileName: 'symbols.md',
       kind: 'symbols' as const,
       paths: ['src/App.tsx'],
-      symbolKinds: ['class', 'method'] as const,
+      symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
     materializeTabContext(context, cwd, { write: true })
     mergeAnnotations(context, cwd, [
@@ -235,7 +249,7 @@ export class App {
       fileName: 'large-symbols.md',
       kind: 'symbols' as const,
       paths,
-      symbolKinds: ['variable'] as const,
+      symbolKinds: ['variable'] as Array<'variable'>,
     }
 
     materializeTabContext(context, cwd, { write: true })
@@ -299,6 +313,8 @@ export class Widget {
 
   it('merges annotations by key and truncates to 10 words', () => {
     const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    mkdirSync(join(cwd, 'electron'), { recursive: true })
     const context = {
       id: 'tree',
       name: 'Árbol',
@@ -307,37 +323,47 @@ export class Widget {
     }
     materializeTabContext(context, cwd, { write: true })
     mergeAnnotations(context, cwd, [
-      { key: 'path:src', text: 'Código fuente principal' },
+      { key: 'src', text: 'Código fuente principal' },
     ])
     const merged = mergeAnnotations(context, cwd, [
       {
-        key: 'path:src',
+        key: 'src',
         text: 'uno dos tres cuatro cinco seis siete ocho nueve diez once doce',
       },
-      { key: 'path:electron', text: 'Proceso main de Electron' },
+      { key: 'electron', text: 'Proceso main de Electron' },
     ])
     expect(merged.ok).toBe(true)
     const notes = merged.notesContent ?? ''
-    expect(notes).toContain('path:src')
+    expect(notes).toContain('src')
     expect(notes).toContain('uno dos tres cuatro cinco seis siete ocho nueve diez')
     expect(notes).not.toContain('once')
-    expect(notes).toContain('path:electron')
+    expect(notes).toContain('electron')
     expect(parseAnnotations(notes)).toHaveLength(2)
   })
 
-  it('preserves human notes and the generated auto layer while merging', () => {
+  it('preserves freeform annotation text and the generated auto layer while merging', () => {
     const cwd = tempCwd()
     const context = {
-      id: 'notes',
-      name: 'Decisiones',
-      fileName: 'decisiones.md',
-      kind: 'notes' as const,
+      id: 'tree',
+      name: 'Árbol',
+      fileName: 'arbol.md',
+      kind: 'folderTree' as const,
     }
-    const initial = materializeTabContext(context, cwd, {
-      content: 'No eliminar esta decisión humana.\n\n- `note:old` — Nota anterior',
-      write: true,
-    })
-    const autoBefore = initial.content.match(
+    materializeTabContext(context, cwd, { write: true })
+    mergeAnnotations(context, cwd, [
+      { key: 'note:old', text: 'Nota anterior' },
+    ])
+    const filePath = join(cwd, '.iaterminal', 'arbol.md')
+    const raw = readFileSync(filePath, 'utf8')
+    writeFileSync(
+      filePath,
+      raw.replace(
+        '<!-- iaterminal:notes -->',
+        '<!-- iaterminal:notes -->\nNo eliminar esta decisión.\n',
+      ),
+      'utf8',
+    )
+    const autoBefore = raw.match(
       /<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/,
     )?.[1]
 
@@ -348,7 +374,7 @@ export class Widget {
       /<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/,
     )?.[1]
 
-    expect(merged.notesContent).toContain('No eliminar esta decisión humana.')
+    expect(merged.notesContent).toContain('No eliminar esta decisión.')
     expect(merged.notesContent).toContain('Nota anterior')
     expect(merged.notesContent).toContain('Cambio observado en esta interacción')
     expect(autoAfter).toBe(autoBefore)
@@ -381,7 +407,6 @@ export class Widget {
     const cwd = tempCwd()
     const contexts = [
       { id: 'tree', name: 'Árbol', fileName: 'arbol.md', kind: 'folderTree' },
-      { id: 'notes', name: 'Decisiones', fileName: 'decisiones.md', kind: 'notes' },
     ] as const
     const readOnlyPrompt = buildAssignedContexts([...contexts], cwd)
     const prompt = buildAssignedContexts([...contexts], cwd, {
@@ -389,12 +414,12 @@ export class Widget {
     })
     expect(readOnlyPrompt).not.toContain('## Context maintenance')
     expect(readOnlyPrompt).not.toContain('```ia-terminal-context')
-    expect(prompt).toContain('## Assigned tab contexts (authoritative)')
+    expect(prompt).toContain('## Assigned tab contexts')
     expect(prompt).toContain('## Context maintenance')
     expect(prompt).toContain('```ia-terminal-context')
     expect(prompt).toContain('annotations')
-    expect(prompt).toContain('must never be deleted')
-    expect(prompt).toContain('owned exclusively by deterministic host generation')
+    expect(prompt).toContain('Never edit iaterminal:auto')
+    expect(prompt).toContain('file-change evidence')
     expect(readFileSync(join(cwd, '.iaterminal', 'arbol.md'), 'utf8')).toContain('iaterminal:auto')
   })
 
@@ -472,4 +497,332 @@ export class Widget {
     expect(payload.prompt).toContain('Unknown section "missing"')
     expect(payload.prompt).not.toContain('"react"')
   })
+
+  it('catalogs all contexts; does not attach bodies by default', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const sourceValue = 1', 'utf8')
+    const files = {
+      id: 'files',
+      name: 'Archivos',
+      fileName: 'files.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts'],
+    }
+    const deps = {
+      id: 'dependencies',
+      name: 'Dependencies',
+      fileName: 'dependencies.md',
+      kind: 'deps' as const,
+    }
+    writeFileSync(join(cwd, 'package.json'), JSON.stringify({ name: 'demo' }), 'utf8')
+
+    const prompt = buildContextCatalogPrompt([deps, files], cwd)
+
+    expect(prompt).not.toContain('## Attached tab contexts')
+    expect(prompt).toContain('## Available tab contexts (on demand)')
+    expect(prompt).toContain('"id":"files"')
+    expect(prompt).toContain('"id":"dependencies"')
+    expect(prompt).not.toContain('sourceValue')
+    expect(prompt).toContain('Budget:')
+    expect(prompt).toContain('"sectionCount"')
+  })
+
+  it('lists only the largest catalog sections and reports omitted count', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    const paths: string[] = []
+    for (let index = 0; index < 30; index++) {
+      const rel = `src/file-${index}.ts`
+      paths.push(rel)
+      writeFileSync(join(cwd, rel), `export const v${index} = ${'x'.repeat(20 + index)}`, 'utf8')
+    }
+    const files = {
+      id: 'many-files',
+      name: 'Many files',
+      fileName: 'many-files.md',
+      kind: 'files' as const,
+      paths,
+    }
+    const delivery = buildContextPromptDelivery([files], cwd)
+    expect(delivery.prompt).toContain('"omitted":6')
+    expect(delivery.prompt).toContain('"sectionCount":30')
+    expect(delivery.catalogChars).toBeGreaterThan(0)
+  })
+
+  it('pre-attaches up to two path-matching sections and emits hints', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const one = 1', 'utf8')
+    writeFileSync(join(cwd, 'src', 'two.ts'), 'export const two = 2', 'utf8')
+    writeFileSync(join(cwd, 'src', 'three.ts'), 'export const three = 3', 'utf8')
+    const files = {
+      id: 'files',
+      name: 'Archivos',
+      fileName: 'files.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts', 'src/two.ts', 'src/three.ts'],
+    }
+    const delivery = buildContextPromptDelivery([files], cwd, {
+      userPrompt: 'Please inspect src/one.ts and src/two.ts for bugs',
+    })
+    expect(delivery.prompt).toContain('## Context hints')
+    expect(delivery.prompt).toContain('## Attached tab contexts')
+    expect(delivery.prompt).toContain('section-key: src/one.ts')
+    expect(delivery.preattachedSectionCount).toBe(2)
+    expect(delivery.prompt).toContain('export const one')
+  })
+
+  it('suggests unassigned host contexts from the user prompt', () => {
+    const cwd = tempCwd()
+    writeFileSync(join(cwd, 'package.json'), JSON.stringify({ name: 'demo' }), 'utf8')
+    const tree = {
+      id: 'tree',
+      name: 'Tree',
+      fileName: 'tree.md',
+      kind: 'folderTree' as const,
+    }
+    const deps = {
+      id: 'dependencies',
+      name: 'Dependencies',
+      fileName: 'dependencies.md',
+      kind: 'deps' as const,
+    }
+    const delivery = buildContextPromptDelivery([tree], cwd, {
+      userPrompt: 'Which npm dependencies does package.json declare?',
+      discoveredContexts: [tree, deps],
+    })
+    expect(delivery.prompt).toContain('## Suggested contexts (not attached)')
+    expect(delivery.prompt).toContain('dependencies')
+  })
+
+  it('rejects annotation keys missing from auto unless note: slug', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'App.tsx'), 'export class App {}', 'utf8')
+    const context = {
+      id: 'symbols',
+      name: 'Symbols',
+      fileName: 'symbols.md',
+      kind: 'symbols' as const,
+      paths: ['src/App.tsx'],
+      symbolKinds: ['class'] as Array<'class'>,
+    }
+    materializeTabContext(context, cwd, { write: true })
+    const merged = mergeAnnotations(context, cwd, [
+      { key: 'src/App.tsx#class:App', text: 'Root UI class' },
+      { key: 'src/Missing.tsx#class:Gone', text: 'Should be rejected' },
+      { key: 'note:arch', text: 'Durable slug allowed' },
+    ])
+    expect(merged.notesContent).toContain('Root UI class')
+    expect(merged.notesContent).toContain('Durable slug allowed')
+    expect(merged.notesContent).not.toContain('Should be rejected')
+  })
+
+  it('puts deps and changelog on the on-demand catalog, not as direct attachments', () => {
+    const cwd = tempCwd()
+    writeFileSync(join(cwd, 'package.json'), JSON.stringify({ name: 'demo', version: '1.0.0' }), 'utf8')
+    const deps = {
+      id: 'dependencies',
+      name: 'Dependencies',
+      fileName: 'dependencies.md',
+      kind: 'deps' as const,
+    }
+    const changelog = {
+      id: 'iaterminal:changelog',
+      name: 'AI Changelog',
+      fileName: 'changelog.md',
+      kind: 'changelog' as const,
+    }
+    materializeTabContext(changelog, cwd, { write: true })
+
+    const prompt = buildContextCatalogPrompt([deps, changelog], cwd)
+
+    expect(prompt).not.toContain('## Attached tab contexts')
+    expect(prompt).toContain('## Available tab contexts (on demand)')
+    expect(prompt).toContain('"id":"dependencies"')
+    expect(prompt).toContain('"id":"iaterminal:changelog"')
+  })
+
+  it('attaches custom notes directly without catalog or size caps', () => {
+    const cwd = tempCwd()
+    const body = `Convención durable.\n\n${'x'.repeat(9_000)}`
+    const notes = {
+      id: 'custom-notes',
+      name: 'Guía del equipo',
+      fileName: 'team-guide.md',
+      kind: 'notes' as const,
+    }
+    materializeTabContext(notes, cwd, { write: true, content: body })
+
+    const delivery = buildContextPromptDelivery([notes], cwd, { forceFullRefresh: true })
+
+    expect(delivery.prompt).toContain('## Attached tab contexts')
+    expect(delivery.prompt).toContain('Guía del equipo')
+    expect(delivery.prompt).toContain('Convención durable.')
+    expect(delivery.prompt).toContain('x'.repeat(100))
+    expect(delivery.prompt).not.toContain('"id":"custom-notes"')
+  })
+
+  it('leaves all contexts on demand regardless of size', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), `export const x = '${'x'.repeat(8_100)}'`, 'utf8')
+    const files = {
+      id: 'large-files',
+      name: 'Archivos grandes',
+      fileName: 'large-files.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts'],
+    }
+
+    const prompt = buildContextCatalogPrompt([files], cwd)
+
+    expect(prompt).not.toContain('## Attached tab contexts')
+    expect(prompt).toContain('## Available tab contexts (on demand)')
+    expect(prompt).toContain('"id":"large-files"')
+    expect(prompt).not.toContain('x'.repeat(100))
+  })
+
+  it('invalidates materialized sections when a source file changes', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    const source = join(cwd, 'src', 'one.ts')
+    writeFileSync(source, 'export const beforeValue = 1', 'utf8')
+    const context = {
+      id: 'cached-files',
+      name: 'Cached files',
+      fileName: 'cached-files.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts'],
+    }
+    clearTabContextMaterializationCache(cwd)
+    buildContextSectionCatalog([context], cwd)
+    writeFileSync(source, 'export const afterValue = 2', 'utf8')
+
+    const payload = buildRequestedContextSections([context], cwd, [
+      { id: context.id, sections: ['src/one.ts'] },
+    ])
+
+    expect(payload.prompt).toContain('afterValue')
+    expect(payload.prompt).not.toContain('beforeValue')
+  })
+
+  it('reports malformed requests and deduplicates section keys', () => {
+    const malformed = extractContextSectionRequest(
+      '```ia-terminal-need-sections\n{bad json}',
+    )
+    expect(malformed.fenceFound).toBe(true)
+    expect(malformed.visibleText).toBe('')
+    expect(malformed.errors).toContain('The context request fence is not closed.')
+    expect(malformed.errors).toContain('The context request contains invalid JSON.')
+
+    const duplicated = extractContextSectionRequest([
+      '```ia-terminal-need-sections',
+      JSON.stringify({
+        requests: [
+          { id: 'files', sections: ['one', 'one'] },
+          { id: 'files', sections: ['one', 'two'] },
+        ],
+      }),
+      '```',
+    ].join('\n'))
+    expect(duplicated.requests).toEqual([
+      { id: 'files', sections: ['one', 'two'] },
+    ])
+    expect(duplicated.errors).toEqual([])
+  })
+
+  it('enforces the global named-section limit in the protocol parser', () => {
+    const extracted = extractContextSectionRequest([
+      '```ia-terminal-need-sections',
+      JSON.stringify({
+        requests: [{
+          id: 'files',
+          sections: Array.from({ length: 10 }, (_, index) => `section-${index}`),
+        }],
+      }),
+      '```',
+    ].join('\n'))
+
+    expect(extracted.requests[0].sections).toHaveLength(8)
+    expect(extracted.errors).toContain('Too many section keys; maximum is 8.')
+  })
+
+  it('sends only contexts changed since the previous session snapshot', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const stable = 1', 'utf8')
+    writeFileSync(join(cwd, 'src', 'two.ts'), 'export const other = 1', 'utf8')
+    const filesA = {
+      id: 'files-delta',
+      name: 'Archivos delta',
+      fileName: 'files-delta.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts'],
+    }
+    const filesB = {
+      id: 'files-other',
+      name: 'Otros',
+      fileName: 'files-other.md',
+      kind: 'files' as const,
+      paths: ['src/two.ts'],
+    }
+    const first = buildContextPromptDelivery([filesA, filesB], cwd)
+    const unchanged = buildContextPromptDelivery([filesA, filesB], cwd, {
+      previousSnapshot: first.snapshot,
+    })
+
+    expect(first.fullRefresh).toBe(true)
+    expect(unchanged.fullRefresh).toBe(false)
+    expect(unchanged.prompt).toBe('')
+
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const stable = 2', 'utf8')
+    clearTabContextMaterializationCache(cwd)
+    const changed = buildContextPromptDelivery([filesA, filesB], cwd, {
+      previousSnapshot: first.snapshot,
+    })
+
+    expect(changed.prompt).toContain('## Tab context changes')
+    expect(changed.prompt).toContain('"id":"files-delta"')
+    expect(changed.prompt).not.toContain('"id":"files-other"')
+  })
+
+  it('reports removed contexts and supports forced full refreshes', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const a = 1', 'utf8')
+    writeFileSync(join(cwd, 'src', 'two.ts'), 'export const b = 1', 'utf8')
+    const firstContext = {
+      id: 'first',
+      name: 'Primero',
+      fileName: 'first.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts'],
+    }
+    const removedContext = {
+      id: 'removed',
+      name: 'Eliminado',
+      fileName: 'removed.md',
+      kind: 'files' as const,
+      paths: ['src/two.ts'],
+    }
+    const initial = buildContextPromptDelivery([firstContext, removedContext], cwd)
+
+    const delta = buildContextPromptDelivery([firstContext], cwd, {
+      previousSnapshot: initial.snapshot,
+    })
+    expect(delta.prompt).toContain('Removed: removed')
+    expect(delta.prompt).not.toContain('"id":"removed"')
+
+    const refresh = buildContextPromptDelivery([firstContext], cwd, {
+      previousSnapshot: initial.snapshot,
+      forceFullRefresh: true,
+    })
+    expect(refresh.fullRefresh).toBe(true)
+    expect(refresh.prompt).toContain('## Tab context snapshot')
+    expect(refresh.prompt).toContain('"id":"first"')
+  })
 })
+
+// temporary - will be cleaned: quick repro

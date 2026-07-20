@@ -8,7 +8,9 @@ interface SettingsSectionProps {
 export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, children }) => (
   <section className="settings-section">
     <h3 className="settings-section-title">{title}</h3>
-    {children}
+    <div className="settings-section__body">
+      {children}
+    </div>
   </section>
 )
 
@@ -31,7 +33,7 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
     className={['settings-label', compact ? 'settings-label--compact' : ''].filter(Boolean).join(' ')}
     htmlFor={htmlFor}
   >
-    {label}
+    <span className="settings-label__text">{label}</span>
     {children}
     {hint && <span className="settings-hint">{hint}</span>}
   </label>

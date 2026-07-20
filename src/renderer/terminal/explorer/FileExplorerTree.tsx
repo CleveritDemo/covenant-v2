@@ -13,6 +13,7 @@ import { FILE_EXPLORER_ERROR_CODES } from '@shared/fileExplorerErrorCodes'
 import { useT } from '@i18n/useT'
 import { shortcutLabel } from '@i18n/modKeyLabel'
 import { Icon } from '../../components/ui/Icon'
+import { ExplorerToolButton } from './ExplorerToolButton'
 import {
   FileExplorerContextMenu,
   type FileExplorerContextMenuTarget,
@@ -1178,25 +1179,22 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
               <span className="file-explorer-tree__hidden-dot" aria-hidden />
             )}
           </span>
-          <button
-            type="button"
-            className="file-explorer-tree__tool-btn"
+          <ExplorerToolButton
             title={t('fileExplorer.toolbar.newMenu')}
             aria-label={t('fileExplorer.toolbar.newMenu')}
             onClick={e => setNewMenu({ x: e.clientX, y: e.clientY })}
           >
             <Icon name="plus" size={11} aria-hidden />
-          </button>
+          </ExplorerToolButton>
           {onCloseExplorer && (
-            <button
-              type="button"
-              className="file-explorer-tree__tool-btn file-explorer-tree__tool-btn--close"
+            <ExplorerToolButton
+              variant="close"
               title={t('fileExplorer.toolbar.closeTitle')}
               aria-label={t('fileExplorer.toolbar.close')}
               onClick={onCloseExplorer}
             >
               <Icon name="close" size={9} aria-hidden />
-            </button>
+            </ExplorerToolButton>
           )}
         </div>
 

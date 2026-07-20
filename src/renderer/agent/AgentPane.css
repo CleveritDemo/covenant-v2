@@ -570,10 +570,11 @@
 }
 
 .agent-pane__bubble--user {
-  color: var(--accent-fg, #fff);
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c5cff));
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
   border-radius: var(--agent-radius) var(--agent-radius) 4px var(--agent-radius);
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: none;
 }
 
 /* Miniaturas de imágenes enviadas: mismo tamaño que en el composer. */
@@ -593,7 +594,7 @@
   height: 40px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 /* Centrada y extendida: ocupa el ancho del panel con radios simétricos

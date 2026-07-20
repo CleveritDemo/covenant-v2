@@ -137,12 +137,55 @@ describe('agent CLI event normalization', () => {
     })).toEqual([])
   })
 
-  it('uses terminal result events as the canonical final answer', () => {
-    expect(normalizeClaudeEvent({ type: 'result', result: 'final' })).toEqual([
-      { type: 'assistant_final', text: 'final' },
+  it('normalizes Cursor tool_call with friendly name and path detail', () => {
+    expect(normalizeCursorEvent({
+      type: 'tool_call',
+      subtype: 'started',
+      tool_call: {
+        readToolCall: { args: { path: '/Users/me/project/src/renderer/App.tsx' } },
+      },
+      session_id: 'cursor-session',
+    })).toEqual([
+      { type: 'session', cliSessionId: 'cursor-session' },
+      {
+        type: 'tool',
+        name: 'Read',
+        status: 'started',
+        detail: 'renderer/App.tsx',
+      },
     ])
-    expect(normalizeCursorEvent({ type: 'result', result: 'final' })).toEqual([
-      { type: 'assistant_final', text: 'final' },
+
+    expect(normalizeCursorEvent({
+      type: 'tool_call',
+      subtype: 'started',
+      tool_call: {
+        writeToolCall: { args: { path: 'summary.txt', fileText: 'hi' } },
+      },
+    })).toEqual([
+      {
+        type: 'tool',
+        name: 'Write',
+        status: 'started',
+        detail: 'summary.txt',
+      },
+    ])
+
+    expect(normalizeCursorEvent({
+      type: 'tool_call',
+      subtype: 'started',
+      tool_call: {
+        function: {
+          name: 'Shell',
+          arguments: JSON.stringify({ command: 'npm test -- --run agentCli' }),
+        },
+      },
+    })).toEqual([
+      {
+        type: 'tool',
+        name: 'Shell',
+        status: 'started',
+        detail: 'npm test -- --run agentCli',
+      },
     ])
   })
 })

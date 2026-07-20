@@ -30,7 +30,7 @@ import {
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
 } from '@shared/paneWindows'
-import type { AgentPlaneStatus } from './agent/AgentPane'
+import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
   normalizeTabSession,
@@ -129,6 +129,8 @@ export const App: React.FC = () => {
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentPlaneStatus, setAgentPlaneStatus] = useState<Record<string, AgentPlaneStatus>>({})
+  const planeLoopToggleByPaneRef = useRef(new Map<string, () => void>())
+  const planeQueueControlsByPaneRef = useRef(new Map<string, AgentPlaneQueueControls>())
   const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
   const [openConfigForPaneId, setOpenConfigForPaneId] = useState<string | null>(null)
   /** Evita que el click al cerrar el modal de config expanda el mini del plano. */
@@ -599,6 +601,8 @@ export const App: React.FC = () => {
       delete next[paneId]
       return next
     })
+    planeLoopToggleByPaneRef.current.delete(paneId)
+    planeQueueControlsByPaneRef.current.delete(paneId)
     setTimeout(() => {
       window.api.deleteScrollback(paneId)
       window.api.deleteAiChat(paneId)
@@ -967,6 +971,14 @@ export const App: React.FC = () => {
         && previous.activity === status.activity
         && previous.lastSnippet === status.lastSnippet
         && previous.activeAssistantId === status.activeAssistantId
+        && previous.loopMode === status.loopMode
+        && previous.loopActive === status.loopActive
+        && (previous.queuedTurns?.length ?? 0) === status.queuedTurns.length
+        && (previous.queuedTurns ?? []).every((item, i) =>
+          item.id === status.queuedTurns[i]?.id
+          && item.text === status.queuedTurns[i]?.text
+          && item.images.length === status.queuedTurns[i]?.images.length,
+        )
         && previous.messages.length === status.messages.length
         && previous.messages.every((msg, i) =>
           msg.id === status.messages[i]?.id
@@ -984,6 +996,31 @@ export const App: React.FC = () => {
       }
       return { ...prev, [paneId]: status }
     })
+  }, [])
+
+  const handlePlaneLoopToggleReady = useCallback((paneId: string, toggle: (() => void) | null) => {
+    if (toggle) planeLoopToggleByPaneRef.current.set(paneId, toggle)
+    else planeLoopToggleByPaneRef.current.delete(paneId)
+  }, [])
+
+  const handlePlaneToggleLoop = useCallback((paneId: string) => {
+    planeLoopToggleByPaneRef.current.get(paneId)?.()
+  }, [])
+
+  const handlePlaneQueueControlsReady = useCallback((
+    paneId: string,
+    controls: AgentPlaneQueueControls | null,
+  ) => {
+    if (controls) planeQueueControlsByPaneRef.current.set(paneId, controls)
+    else planeQueueControlsByPaneRef.current.delete(paneId)
+  }, [])
+
+  const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
+    planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
+  }, [])
+
+  const handlePlaneUpdateQueuedTurn = useCallback((paneId: string, id: string, text: string) => {
+    planeQueueControlsByPaneRef.current.get(paneId)?.update(id, text)
   }, [])
 
   const handleAgentMetaChange = useCallback((
@@ -1255,6 +1292,8 @@ export const App: React.FC = () => {
           onClosePane={() => handleClosePane(tab.id, paneId)}
           onBusyChange={busy => handleBusyChange(paneId, busy)}
           onPlaneStatusChange={status => handleAgentPlaneStatusChange(paneId, status)}
+          onPlaneLoopToggleReady={toggle => handlePlaneLoopToggleReady(paneId, toggle)}
+          onPlaneQueueControlsReady={controls => handlePlaneQueueControlsReady(paneId, controls)}
           preferOpenConfig={openConfigForPaneId === paneId}
           onPreferOpenConfigConsumed={() => {
             setOpenConfigForPaneId(current => (current === paneId ? null : current))
@@ -1444,6 +1483,9 @@ export const App: React.FC = () => {
                   onAutoImproveChange={(paneId, enabled) => {
                     handleAgentAutoImproveChange(tab.id, paneId, enabled)
                   }}
+                  onToggleLoop={handlePlaneToggleLoop}
+                  onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
+                  onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   canAdd={tab.paneIds.length < MAX_PANES_PER_TAB}
                   canAddAgent={Boolean(tab.projectFolder?.trim())}
                   canAddTerminal={Boolean(tab.projectFolder?.trim())}

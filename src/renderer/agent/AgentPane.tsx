@@ -33,6 +33,7 @@ import { AgentConfigModal } from './AgentConfigModal'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
 import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
+import { QueuedTurnEditModal } from './QueuedTurnEditModal'
 import {
   attachmentsToPendingImages,
   blobToBase64,
@@ -90,6 +91,10 @@ interface Props {
   onBusyChange?: (busy: boolean) => void
   /** Estado para el mapa 2D del plano (preview / satélites). */
   onPlaneStatusChange?: (status: AgentPlaneStatus) => void
+  /** Registra el toggle de loop para el chat del plano (null al desmontar). */
+  onPlaneLoopToggleReady?: (toggle: (() => void) | null) => void
+  /** Controles de cola (quitar / editar) para el composer del plano. */
+  onPlaneQueueControlsReady?: (controls: AgentPlaneQueueControls | null) => void
   /** Pedido externo: abrir modal de configuración (p. ej. desde el plano). */
   preferOpenConfig?: boolean
   onPreferOpenConfigConsumed?: () => void
@@ -123,6 +128,18 @@ export interface AgentPlaneStatus {
   enteringIds: string[]
   materializingIds: string[]
   settlingId: string | null
+  loopMode: boolean
+  loopActive: boolean
+  queuedTurns: Array<{
+    id: string
+    text: string
+    images: Array<{ id: string; previewUrl: string; name: string }>
+  }>
+}
+
+export interface AgentPlaneQueueControls {
+  remove: (id: string) => void
+  update: (id: string, text: string) => void
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -142,6 +159,8 @@ export const AgentPane: React.FC<Props> = ({
   onClosePane,
   onBusyChange,
   onPlaneStatusChange,
+  onPlaneLoopToggleReady,
+  onPlaneQueueControlsReady,
   preferOpenConfig = false,
   onPreferOpenConfigConsumed,
   onConfigOpen,
@@ -158,6 +177,10 @@ export const AgentPane: React.FC<Props> = ({
   const [input, setInput] = useState('')
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [queuedTurns, setQueuedTurns] = useState<QueuedTurn[]>([])
+  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  const editingQueuedText = editingQueuedId
+    ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
+    : ''
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [activity, setActivity] = useState('')
@@ -515,16 +538,30 @@ export const AgentPane: React.FC<Props> = ({
       enteringIds: [...enteringIds],
       materializingIds: [...materializingIds],
       settlingId,
+      loopMode: loopOpen || loopActive,
+      loopActive,
+      queuedTurns: queuedTurns.map(item => ({
+        id: item.id,
+        text: item.text,
+        images: item.images.map(image => ({
+          id: image.id,
+          previewUrl: image.previewUrl,
+          name: image.name,
+        })),
+      })),
     })
   }, [
     activity,
     busy,
     diskContexts,
     enteringIds,
+    loopActive,
+    loopOpen,
     materializingIds,
     messages,
     meta.contextIds,
     onPlaneStatusChange,
+    queuedTurns,
     settlingId,
   ])
 
@@ -742,7 +779,14 @@ export const AgentPane: React.FC<Props> = ({
     // pisar el mensaje nuevo al drenar la cola.
     if (turnClosedRef.current) return
     if (event.type === 'tool') {
-      setActivity(event.status === 'started' ? t('agentPane.activity', { tool: event.name }) : '')
+      // Solo actualizar al empezar; al completar se mantiene el último label
+      // hasta el siguiente tool o el fin del turno (evita huecos de “Thinking…”).
+      if (event.status === 'started') {
+        const toolLabel = event.detail
+          ? `${event.name} · ${event.detail}`
+          : event.name
+        setActivity(t('agentPane.activity', { tool: toolLabel }))
+      }
       return
     }
     if (event.type === 'context') {
@@ -983,6 +1027,18 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [])
 
+  const updateQueuedTurn = useCallback((id: string, text: string): void => {
+    setQueuedTurns(previous => previous.map(item => (
+      item.id === id ? { ...item, text } : item
+    )))
+  }, [])
+
+  useEffect(() => {
+    if (!onPlaneQueueControlsReady) return
+    onPlaneQueueControlsReady({ remove: removeQueuedTurn, update: updateQueuedTurn })
+    return () => onPlaneQueueControlsReady(null)
+  }, [onPlaneQueueControlsReady, removeQueuedTurn, updateQueuedTurn])
+
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
   useEffect(() => {
@@ -1098,6 +1154,12 @@ export const AgentPane: React.FC<Props> = ({
     }
     setLoopIntervalModalOpen(true)
   }, [loopActive, loopOpen])
+
+  useEffect(() => {
+    if (!onPlaneLoopToggleReady) return
+    onPlaneLoopToggleReady(toggleLoopMode)
+    return () => onPlaneLoopToggleReady(null)
+  }, [onPlaneLoopToggleReady, toggleLoopMode])
 
   const confirmLoopInterval = useCallback((delayMs: number): void => {
     loopContinueDelayMsRef.current = delayMs
@@ -1229,11 +1291,15 @@ export const AgentPane: React.FC<Props> = ({
     }
   }, [loopActive, send, showPlay, startLoop, stop])
 
+  const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
+  const buttonIsStop = showStop && !hasComposerPayload && !showPlay
+
   const handleSendClick = useCallback((): void => {
-    if (showStop) stop()
-    else if (showPlay) startLoop()
+    if (showPlay) startLoop()
+    else if (hasComposerPayload) send()
+    else if (showStop) stop()
     else send()
-  }, [send, showPlay, showStop, startLoop, stop])
+  }, [hasComposerPayload, send, showPlay, showStop, startLoop, stop])
 
   return (
     <div
@@ -1262,6 +1328,7 @@ export const AgentPane: React.FC<Props> = ({
         onEnteringAnimationEnd={handleEnteringAnimationEnd}
         onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
         onRemoveQueuedTurn={removeQueuedTurn}
+        onEditQueuedTurn={id => setEditingQueuedId(id)}
         onScrollToBottom={scrollChatToBottom}
       />
 
@@ -1272,7 +1339,7 @@ export const AgentPane: React.FC<Props> = ({
         busy={busy}
         loopActive={loopActive}
         input={input}
-        showStop={showStop}
+        showStop={buttonIsStop}
         showPlay={showPlay}
         composerInputRef={composerInputRef}
         onInputChange={setInput}
@@ -1317,6 +1384,15 @@ export const AgentPane: React.FC<Props> = ({
           ...previous,
           emitResults: checked,
         }))}
+      />
+
+      <QueuedTurnEditModal
+        open={Boolean(editingQueuedId)}
+        initialText={editingQueuedText}
+        onClose={() => setEditingQueuedId(null)}
+        onSave={text => {
+          if (editingQueuedId) updateQueuedTurn(editingQueuedId, text)
+        }}
       />
 
       <ConfirmTerminalModal

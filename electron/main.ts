@@ -328,8 +328,16 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.on(IPC.OPEN_FOLDER, (_e, folderPath: string) => {
-    void shell.openPath(folderPath)
+  ipcMain.on(IPC.OPEN_FOLDER, (_e, folderPath: unknown) => {
+    if (typeof folderPath !== 'string' || !folderPath.trim()) return
+    if (folderPath.includes('\0')) return
+    const resolved = resolve(folderPath.trim())
+    try {
+      if (!statSync(resolved).isDirectory()) return
+    } catch {
+      return
+    }
+    void shell.openPath(resolved)
   })
 
   ipcMain.handle(
@@ -468,9 +476,12 @@ function registerIpc(): void {
     },
   )
 
-  ipcMain.handle(IPC.AGENT_SHELL_RUN, (_e, sessionId: string, command: string) => {
-    return runAgentShellCommand(projectRootForSession(sessionId), command)
-  })
+  ipcMain.handle(
+    IPC.AGENT_SHELL_RUN,
+    (_e, sessionId: string, command: string, options?: { destructiveConfirmed?: boolean }) => {
+      return runAgentShellCommand(projectRootForSession(sessionId), command, options)
+    },
+  )
 
   ipcMain.handle(IPC.GIT_STATUS, (_e, sessionId: string) => {
     return gitGetRepoStatus(projectRootForSession(sessionId))

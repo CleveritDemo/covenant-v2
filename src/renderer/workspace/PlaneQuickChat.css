@@ -23,8 +23,8 @@
   color: var(--text);
   background: transparent;
   isolation: isolate;
-  /* visible: la escala de entrada no debe quedar recortada al instante. */
-  overflow: visible;
+  /* visible: la escala de entrada no debe quedar recortada (.agent-pane trae hidden). */
+  overflow: visible !important;
 }
 
 /* Velo superior: cubre también bajo la toolbar; sin banda opaca que marque un corte. */
@@ -58,6 +58,7 @@
 /* Evita el radial superior del .agent-pane heredado. */
 .plane-quick-chat.agent-pane {
   background: transparent;
+  overflow: visible;
 }
 
 /* Sin fade inferior (el superior sigue en ::before). */
@@ -76,26 +77,28 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  width: min(640px, calc(100% - 48px));
+  width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
   height: 100%;
-  transform-origin: center center;
+  transform-origin: center 28%;
   pointer-events: auto;
+  animation: plane-quick-chat-enter 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .plane-quick-chat__bloom {
   position: absolute;
-  inset: -12% -22% 4%;
+  inset: -18% -28% 0;
   z-index: 0;
   pointer-events: none;
   opacity: 0;
   background:
     radial-gradient(
-      ellipse 58% 48% at 50% 42%,
-      color-mix(in srgb, var(--agent-beam) 28%, transparent) 0%,
+      ellipse 58% 48% at 50% 36%,
+      color-mix(in srgb, var(--agent-beam) 36%, transparent) 0%,
       transparent 74%
     );
   mix-blend-mode: soft-light;
   transform-origin: center center;
+  animation: plane-quick-chat-bloom 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .plane-quick-chat__frame {
@@ -162,34 +165,89 @@
   box-shadow: 0 0 8px color-mix(in srgb, var(--agent-beam) 65%, transparent);
 }
 
-/* Burbujas: compactas y opacas, acento del agente. */
+/* Burbujas: sólido, casi del color del fondo (sin vidrio). */
 .plane-quick-chat .agent-pane__bubble {
   padding: 7px 11px;
   font-size: calc(var(--agent-chat-font-size) * 0.95);
   line-height: 1.45;
+  opacity: 1;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .plane-quick-chat .agent-pane__bubble--user {
-  background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
-  border-color: color-mix(in srgb, var(--border) 70%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--bg) 72%, var(--bg-secondary));
+  border: none;
+  border-color: transparent;
   box-shadow: none;
 }
 
 .plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--thinking) {
-  background: color-mix(in srgb, var(--bg-secondary) 98%, var(--text) 2%);
-  border-color: color-mix(in srgb, var(--border) 72%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--bg) 78%, var(--surface));
+  border: none;
+  border-color: transparent;
   box-shadow: none;
+}
+
+.plane-quick-chat .agent-pane__bubble--live:not(.agent-pane__bubble--thinking) {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .plane-quick-chat .agent-pane__bubble--thinking {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@keyframes plane-quick-chat-enter {
+  0% {
+    opacity: 0;
+    transform: scale(1.55) translateY(18px);
+    filter: blur(6px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(0.985) translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: none;
+  }
+}
+
+@keyframes plane-quick-chat-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  28% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .plane-quick-chat__enter,
+  .plane-quick-chat__bloom {
+    animation: none;
+  }
+
   .plane-quick-chat__bloom {
     display: none;
   }

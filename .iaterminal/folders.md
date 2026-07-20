@@ -2,7 +2,7 @@
 <!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree","icon":"folder","color":"#5ec8ff"} -->
 
 <!-- iaterminal:auto -->
-ia_terminal/  (project root; paths are relative to this folder)
+intelligent_terminal/  (project root; paths are relative to this folder)
 
 docs/
     docs/AI_PROJECT_CONTEXT_GUIDE.md
@@ -12,6 +12,7 @@ electron/
   electron/__tests__/
       electron/__tests__/agentCliRuntime.test.ts
       electron/__tests__/agentFileOps.test.ts
+      electron/__tests__/agentShellOps.test.ts
       electron/__tests__/aiAgentResults.test.ts
       electron/__tests__/aiChangelog.test.ts
       electron/__tests__/fileExplorerClipboardOps.cut.test.ts
@@ -94,6 +95,8 @@ src/
         src/renderer/agent/AgentPaneMessages.tsx
         src/renderer/agent/AgentProviderPickerModal.tsx
         src/renderer/agent/composerImages.ts
+        src/renderer/agent/QueuedTurnEditModal.css
+        src/renderer/agent/QueuedTurnEditModal.tsx
         src/renderer/agent/tabContextKindIcons.ts
         src/renderer/agent/TabContextsEditor.tsx
         src/renderer/agent/TabContextsList.tsx
@@ -255,10 +258,15 @@ src/
         src/renderer/workspace/planeAgentColor.ts
         src/renderer/workspace/PlaneAgentContextNodes.css
         src/renderer/workspace/PlaneAgentContextNodes.tsx
+        src/renderer/workspace/PlaneChatCloseButton.css
+        src/renderer/workspace/PlaneChatCloseButton.tsx
         src/renderer/workspace/PlaneChatComposer.css
         src/renderer/workspace/PlaneChatComposer.tsx
+        src/renderer/workspace/PlaneChatContextsBar.tsx
         src/renderer/workspace/PlaneChatDock.css
         src/renderer/workspace/PlaneChatDock.tsx
+        src/renderer/workspace/PlaneComposerAurora.css
+        src/renderer/workspace/PlaneComposerAurora.tsx
         src/renderer/workspace/PlaneContextCard.css
         src/renderer/workspace/PlaneContextCard.tsx
         src/renderer/workspace/PlaneContextPool.css

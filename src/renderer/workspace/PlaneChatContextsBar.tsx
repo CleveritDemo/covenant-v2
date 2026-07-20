@@ -15,24 +15,28 @@ export interface PlaneChatContextOption {
 }
 
 export interface PlaneChatContextsBarProps {
-  accent: string
   contexts: PlaneChatContextOption[]
   selectedContextIds: string[]
   contextsEmptyHint: string
   autoImprove: boolean
+  loopMode: boolean
+  loopActive: boolean
   onToggleContext: (contextId: string) => void
   onAutoImproveChange: (enabled: boolean) => void
+  onToggleLoop: () => void
 }
 
 /** Barra de contextos en una línea (arriba del chat, sobre el fade). */
 export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
-  accent,
   contexts,
   selectedContextIds,
   contextsEmptyHint,
   autoImprove,
+  loopMode,
+  loopActive,
   onToggleContext,
   onAutoImproveChange,
+  onToggleLoop,
 }) => {
   const { t } = useT()
   const [contextsOpen, setContextsOpen] = useState(false)
@@ -88,7 +92,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   return (
     <div
       className="plane-chat-composer__contexts"
-      style={{ '--plane-composer-accent': accent } as React.CSSProperties}
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-composer__contexts-stack">
@@ -165,6 +168,25 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           />
           <span aria-hidden="true" />
         </label>
+
+        <button
+          type="button"
+          className={[
+            'plane-chat-composer__loop',
+            loopMode ? 'plane-chat-composer__loop--on' : '',
+            loopActive ? 'plane-chat-composer__loop--active' : '',
+          ].filter(Boolean).join(' ')}
+          title={t('agentPane.loopHint')}
+          aria-label={t('agentPane.loopTitle')}
+          aria-pressed={loopMode}
+          disabled={loopActive}
+          onClick={onToggleLoop}
+        >
+          <Icon name="repeat" size={13} />
+          <span className="plane-chat-composer__loop-label">
+            {t('agentPane.loopBar')}
+          </span>
+        </button>
       </div>
     </div>
   )

@@ -180,7 +180,108 @@
 }
 
 .pane-window--agent-card.pane-window--busy.pane-window--mini {
-  border-color: color-mix(in srgb, var(--border) 65%, var(--accent) 18%);
+  border-color: transparent;
+  /* Evita pelear con la animación de respiración. */
+  transition:
+    left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.16s,
+    filter 0.16s;
+  /* Sombra local + bloom cromático (box-shadow no lo recorta overflow:hidden). */
+  animation: plane-agent-glow-breathe 4.2s ease-in-out infinite;
+}
+
+/* Borde cromático animado (misma cinta que el borde inferior del plano). */
+.pane-window--agent-card.pane-window--busy.pane-window--mini::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    var(--accent-dim) 0%,
+    var(--theme-blue) 14%,
+    var(--accent) 28%,
+    var(--theme-magenta) 42%,
+    var(--theme-cyan) 56%,
+    var(--plane-terminal-accent) 70%,
+    var(--accent) 84%,
+    var(--accent-dim) 100%
+  );
+  background-size: 280% 100%;
+  animation: plane-agent-border-flow 8s linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+@keyframes plane-agent-border-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 280% 50%; }
+}
+
+/* Luz que aparece y se retira con los colores de la cinta. */
+@keyframes plane-agent-glow-breathe {
+  0%, 100% {
+    box-shadow:
+      5px 6px 18px color-mix(in srgb, #000 14%, transparent),
+      1px 2px 5px color-mix(in srgb, #000 7%, transparent),
+      inset 0 0 0 1px var(--plane-highlight),
+      0 0 0 0 transparent,
+      0 0 0 0 transparent;
+  }
+  32% {
+    box-shadow:
+      5px 6px 18px color-mix(in srgb, #000 12%, transparent),
+      1px 2px 5px color-mix(in srgb, #000 6%, transparent),
+      inset 0 0 0 1px var(--plane-highlight),
+      0 0 18px color-mix(in srgb, var(--accent) 42%, transparent),
+      0 0 40px color-mix(in srgb, var(--theme-magenta) 26%, transparent),
+      0 0 64px color-mix(in srgb, var(--theme-blue) 14%, transparent);
+  }
+  58% {
+    box-shadow:
+      5px 6px 18px color-mix(in srgb, #000 12%, transparent),
+      1px 2px 5px color-mix(in srgb, #000 6%, transparent),
+      inset 0 0 0 1px var(--plane-highlight),
+      0 0 14px color-mix(in srgb, var(--theme-cyan) 36%, transparent),
+      0 0 34px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 0 52px color-mix(in srgb, var(--plane-terminal-accent) 12%, transparent);
+  }
+  78% {
+    box-shadow:
+      5px 6px 18px color-mix(in srgb, #000 13%, transparent),
+      1px 2px 5px color-mix(in srgb, #000 6%, transparent),
+      inset 0 0 0 1px var(--plane-highlight),
+      0 0 20px color-mix(in srgb, var(--theme-magenta) 38%, transparent),
+      0 0 44px color-mix(in srgb, var(--theme-cyan) 22%, transparent),
+      0 0 68px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-window--agent-card.pane-window--busy.pane-window--mini {
+    animation: none;
+    box-shadow:
+      5px 6px 18px color-mix(in srgb, #000 14%, transparent),
+      0 0 16px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 0 32px color-mix(in srgb, var(--theme-cyan) 14%, transparent),
+      inset 0 0 0 1px var(--plane-highlight);
+  }
+
+  .pane-window--agent-card.pane-window--busy.pane-window--mini::before {
+    animation-duration: 22s;
+  }
 }
 
 /* Terminal mini sin chrome (legacy bare). Con titlebar macOS usa el marco normal. */
@@ -204,7 +305,7 @@
   overflow: hidden;
 }
 
-/* Terminal mini con titlebar: mismo lenguaje de ventana elevada. */
+/* Terminal mini con titlebar: mismo footprint que la card de agente. */
 .pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare) {
   border-color: color-mix(in srgb, var(--border) 55%, transparent);
   background: var(--plane-glass-strong);
@@ -212,7 +313,7 @@
     var(--plane-shadow-soft),
     inset 0 0 0 1px var(--plane-highlight);
   border-radius: 10px;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare):hover {
@@ -300,7 +401,9 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  height: 36px;
+  /* Misma altura mini/full: evita refit del PTY al expandir (salto de texto). */
+  height: 26px;
+  min-height: 26px;
   padding: 0 10px 0 12px;
   background: linear-gradient(
     180deg,
@@ -415,6 +518,20 @@
 /* Mini: el terminal sigue montado; no captura clics (expand en el body). */
 .pane-window--mini-preview .pane-window__live-host {
   pointer-events: none;
+}
+
+/* Terminal mini: escala cover dentro de la misma caja que el agente (sin transform en el root). */
+.pane-window--mini-preview .pane-window__body {
+  position: relative;
+}
+
+.pane-window__live-host--mini-cover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  flex: none;
+  transform-origin: top left;
+  will-change: transform;
 }
 
 .pane-window--mini-bare {

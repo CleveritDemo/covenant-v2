@@ -1,8 +1,12 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import {
-  computePlaneMiniLetterboxSize,
+  computePlaneMiniSlotCell,
+  computePlaneMiniSlotPadX,
   computeStandardPaneWindowGeometry,
+  PLANE_MINI_SLOT_GAP,
+  PLANE_MINI_SLOT_PAD_X,
+  PLANE_MINI_SLOT_PAD_Y,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
@@ -13,13 +17,8 @@ import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
 
-const SLOT_PAD_X = 28
-const SLOT_PAD_Y = 72
-/** Separación vertical entre minis (terminales y agentes). */
-const SLOT_GAP = 10
-
 /** Columna 3D: borde hacia el centro más lejos/pequeño. */
-const COLUMN_TILT_DEG = 15
+const COLUMN_TILT_DEG = 10
 const COLUMN_PERSPECTIVE_PX = 1200
 
 export interface PlaneMapEntity {
@@ -58,45 +57,39 @@ export interface PlaneMapProps {
   onMinimizeAllWindows?: () => void
   onConfigureContexts: () => void
   onOpenConfig: (paneId: string) => void
+  /** Mini agente: clic en la card (o sus contextos) abre/cambia el chat. */
+  onOpenChat: (paneId: string) => void
   onDeletePane: (paneId: string) => void
-}
-
-/** Ranura de terminal (celda). El footprint visual letterbox puede ser más bajo. */
-function terminalSlotCell(): { width: number; height: number } {
-  return { width: PLANE_MINI_WINDOW_WIDTH, height: PLANE_MINI_WINDOW_HEIGHT }
 }
 
 /** Ranuras fijas por orden estable de paneIds (abrir no reordena a las demás). */
 function buildSlotOrigins(
   entities: PlaneMapEntity[],
   viewport: { width: number; height: number },
-  openGeometry: PaneWindowGeometry,
 ): Record<string, PaneWindowGeometry> {
   const vw = Math.max(viewport.width, 320)
   const origins: Record<string, PaneWindowGeometry> = {}
   const terminals = entities.filter(entity => entity.kind !== 'agent')
   const agents = entities.filter(entity => entity.kind === 'agent')
-  const cell = terminalSlotCell()
-  const stride = cell.height + SLOT_GAP
-  // Contenedor agente = footprint visual de la terminal (letterbox), no la celda entera.
-  const agentBox = computePlaneMiniLetterboxSize(openGeometry, cell.width, cell.height)
+  const columnCount = Math.max(terminals.length, agents.length, 1)
+  const cell = computePlaneMiniSlotCell(viewport, columnCount)
+  const padX = computePlaneMiniSlotPadX(viewport, columnCount)
+  const stride = cell.height + PLANE_MINI_SLOT_GAP
 
   terminals.forEach((entity, index) => {
     origins[entity.paneId] = {
-      x: SLOT_PAD_X,
-      y: SLOT_PAD_Y + index * stride,
+      x: padX,
+      y: PLANE_MINI_SLOT_PAD_Y + index * stride,
       width: cell.width,
       height: cell.height,
     }
   })
   agents.forEach((entity, index) => {
-    const cellX = Math.max(SLOT_PAD_X, vw - SLOT_PAD_X - cell.width)
-    const cellY = SLOT_PAD_Y + index * stride
     origins[entity.paneId] = {
-      x: cellX + (cell.width - agentBox.width) / 2,
-      y: cellY + (cell.height - agentBox.height) / 2,
-      width: agentBox.width,
-      height: agentBox.height,
+      x: Math.max(padX, vw - padX - cell.width),
+      y: PLANE_MINI_SLOT_PAD_Y + index * stride,
+      width: cell.width,
+      height: cell.height,
     }
   })
   return origins
@@ -124,6 +117,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onMinimizeAllWindows,
   onConfigureContexts,
   onOpenConfig,
+  onOpenChat,
   onDeletePane,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -160,9 +154,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     () => buildSlotOrigins(
       entities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
-      openGeometry,
     ),
-    [entities, viewport, openGeometry],
+    [entities, viewport],
   )
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
@@ -195,14 +188,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 
   const renderEntity = (entity: PlaneMapEntity): React.ReactNode => {
     const slot = slotOrigins[entity.paneId] ?? {
-      x: SLOT_PAD_X,
-      y: SLOT_PAD_Y,
-      width: entity.kind === 'agent'
-        ? computePlaneMiniLetterboxSize(openGeometry).width
-        : PLANE_MINI_WINDOW_WIDTH,
-      height: entity.kind === 'agent'
-        ? computePlaneMiniLetterboxSize(openGeometry).height
-        : PLANE_MINI_WINDOW_HEIGHT,
+      x: PLANE_MINI_SLOT_PAD_X,
+      y: PLANE_MINI_SLOT_PAD_Y,
+      width: PLANE_MINI_WINDOW_WIDTH,
+      height: PLANE_MINI_WINDOW_HEIGHT,
     }
     const reserved = entity.window.open
     return (
@@ -242,6 +231,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onFocus={() => onFocusWindow(entity.paneId)}
           onToggleFullscreen={() => onToggleFullscreen(entity.paneId)}
           onOpenConfig={() => onOpenConfig(entity.paneId)}
+          onOpenChat={() => onOpenChat(entity.paneId)}
           onDelete={() => onDeletePane(entity.paneId)}
         >
           {renderPane(entity.paneId)}

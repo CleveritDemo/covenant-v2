@@ -251,11 +251,12 @@ const api = {
   agentRunShell(
     sessionId: string,
     command: string,
+    options?: { destructiveConfirmed?: boolean },
   ): Promise<
     | { ok: true; exitCode: number | null; stdout: string; stderr: string }
     | { ok: false; error: string }
   > {
-    return ipcRenderer.invoke(IPC.AGENT_SHELL_RUN, sessionId, command)
+    return ipcRenderer.invoke(IPC.AGENT_SHELL_RUN, sessionId, command, options)
   },
 
   gitStatus(sessionId: string): Promise<GitRepoStatus> {

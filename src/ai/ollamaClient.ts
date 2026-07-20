@@ -273,7 +273,7 @@ const MAX_USER_CHARS_FOR_LOG_SUMMARY = 2_500
 const MAX_ASSISTANT_CHARS_FOR_LOG_SUMMARY = 8_000
 
 function stripThinkingTagsForSummary(s: string): string {
-  return s.replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, '').trim()
+  return s.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
 }
 
 function clampWords(line: string, maxWords: number): string {

@@ -44,7 +44,7 @@ export function pathLikelyRequested(userMessage: string, relPath: string): boole
 }
 
 const SENSITIVE_PATH_PATTERNS = [
-  /^\.env(\.|$)/i,
+  /(^|\/)\.env(\.|$|\/)/i,
   /\.pem$/i,
   /^credentials/i,
   /^\.git(\/|$)/i,
@@ -85,7 +85,7 @@ export function isSuspiciousAgentWriteContent(content: string): boolean {
 
 /** Quita bloques de thinking antes de extraer WRITE/RUN/READ. */
 export function stripThinkingFromAgentReply(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, '').trim()
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
 }
 
 /**

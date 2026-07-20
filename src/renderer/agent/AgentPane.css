@@ -467,16 +467,24 @@
   white-space: pre-wrap;
 }
 
-/* Markdown/código heredan el tamaño del chat (no el rem fijo de AiPanel). */
+/* Markdown/código: tamaño del chat; sin márgenes fantasma que desalinean el padding. */
 .agent-pane__bubble .ai-md,
 .agent-pane__bubble .ai-code-block {
   font-size: 1em;
 }
 
+.agent-pane__bubble .ai-md > :first-child {
+  margin-top: 0;
+}
+
+.agent-pane__bubble .ai-md > :last-child {
+  margin-bottom: 0;
+}
+
 .agent-pane__bubble--user {
   color: var(--text);
-  background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--border) 70%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--bg) 74%, var(--bg-secondary));
+  border: none;
   border-radius: var(--agent-radius) var(--agent-radius) 4px var(--agent-radius);
   box-shadow: none;
 }
@@ -507,29 +515,31 @@
   width: 100%;
   max-width: 94%;
   color: var(--text);
-  /* Porcentajes deben sumar 100%: si no, color-mix rellena con transparente. */
-  background: color-mix(in srgb, var(--bg-secondary) 98%, var(--text) 2%);
-  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--bg) 80%, var(--surface));
+  border: none;
   border-radius: var(--agent-radius);
 }
 
-/* ── Burbuja viva: la respuesta que está llegando ────────────────────── */
+/* ── Respuesta en vivo: texto en el aire, sin caja ───────────────────── */
 
-/* Mientras la respuesta fluye, la burbuja levita con fondo sólido.
-   Al terminar (--landing) se asienta la levitación. */
 .agent-pane__row--live {
   justify-content: center;
 }
 
-.agent-pane__bubble--live {
+.agent-pane__bubble--live:not(.agent-pane__bubble--thinking) {
   position: relative;
   z-index: 2;
-  /* Misma caja sólida que --assistant; solo se anima la levitación. */
-  background: color-mix(in srgb, var(--bg-secondary) 98%, var(--text) 2%);
-  border-color: color-mix(in srgb, var(--border) 72%, var(--bg-secondary));
+  background: transparent;
+  border-color: transparent;
+  border: none;
   box-shadow: none;
   will-change: transform;
   animation: agent-pane-levitate 3s ease-in-out infinite;
+}
+
+.agent-pane__bubble--live.agent-pane__bubble--thinking {
+  position: relative;
+  z-index: 2;
 }
 
 /* Materialización: solo cuando llega el primer token (clase JS), no al
@@ -571,7 +581,7 @@
   }
 }
 
-/* Aterrizaje: se asienta la levitación. El fondo ya es sólido en --live. */
+/* Aterrizaje: aparece la burbuja sólida y se asienta la levitación. */
 .agent-pane__bubble--landing {
   position: relative;
   z-index: 1;
@@ -673,26 +683,40 @@
 }
 
 .agent-pane__thinking-text {
-  background: linear-gradient(
+  display: inline-block;
+  /* Cinta ×2: loop continuo sin costura al reiniciar. */
+  background-image: linear-gradient(
     100deg,
-    var(--text-muted) 20%,
-    color-mix(in srgb, var(--accent) 80%, #fff) 42%,
-    color-mix(in srgb, var(--accent) 85%, #fff) 50%,
-    var(--text-muted) 72%);
-  background-size: 220% 100%;
+    var(--accent-dim) 0%,
+    var(--theme-blue) 7%,
+    var(--accent) 14%,
+    var(--theme-magenta) 21%,
+    var(--theme-cyan) 28%,
+    var(--plane-terminal-accent) 35%,
+    var(--accent) 42%,
+    var(--accent-dim) 50%,
+    var(--theme-blue) 57%,
+    var(--accent) 64%,
+    var(--theme-magenta) 71%,
+    var(--theme-cyan) 78%,
+    var(--plane-terminal-accent) 85%,
+    var(--accent) 92%,
+    var(--accent-dim) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
   animation:
-    agent-pane-shimmer 2.4s cubic-bezier(.4, 0, .3, 1) infinite,
+    agent-pane-thinking-shimmer 2.8s linear infinite,
     agent-pane-thinking-text-in .55s cubic-bezier(.22, 1, .36, 1) .4s both;
 }
 
 
 
-/* Shimmer del stream: el gradiente siempre cubre el texto (evitar
-   background-size fijo en rem + no-repeat, que deja letras transparentes). */
+/* Shimmer del stream: cinta ×2 + loop linear (sin costura al reiniciar). */
 .agent-pane__stream .ai-md :is(
   .ai-md__p,
   .ai-md__h,
@@ -705,16 +729,23 @@
 .agent-pane__stream:not(:has(.ai-md, .ai-code-block)) {
   background-image: linear-gradient(
     100deg,
-    var(--text-muted) 20%,
-    color-mix(in srgb, var(--accent) 80%, #fff) 42%,
-    color-mix(in srgb, var(--accent) 85%, #fff) 50%,
-    var(--text-muted) 72%);
-  background-size: 220% 100%;
+    var(--text-muted) 0%,
+    var(--text-muted) 18%,
+    color-mix(in srgb, var(--accent) 82%, #fff) 32%,
+    color-mix(in srgb, var(--accent) 88%, #fff) 38%,
+    var(--text-muted) 52%,
+    var(--text-muted) 68%,
+    color-mix(in srgb, var(--accent) 82%, #fff) 82%,
+    color-mix(in srgb, var(--accent) 88%, #fff) 88%,
+    var(--text-muted) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: agent-pane-shimmer 2.4s cubic-bezier(.4, 0, .3, 1) infinite;
+  animation: agent-pane-shimmer 2.8s linear infinite;
 }
 
 /* El fill transparente del shimmer se hereda a <code>; sin esto el badge
@@ -741,9 +772,15 @@
   }
 }
 
+/* Un periodo exacto (gradiente duplicado + size 200%) → sin salto. */
+@keyframes agent-pane-thinking-shimmer {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
 @keyframes agent-pane-shimmer {
-  0% { background-position: 120% 0; }
-  100% { background-position: -120% 0; }
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
 }
 
 .agent-pane__stream {
@@ -864,9 +901,9 @@
 .agent-pane__queue-bubble {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   max-width: min(70%, 340px);
-  padding: 4px 6px 4px 9px;
+  padding: 2px 4px 2px 2px;
   border: 1px dashed color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 45%, transparent);
   border-radius: 14px 14px 4px 14px;
   background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 10%, transparent);
@@ -875,6 +912,22 @@
   line-height: 1.4;
   opacity: 0.85;
   animation: agent-pane-queue-chip-in 180ms ease-out;
+}
+
+.agent-pane__queue-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 4px 2px 7px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .agent-pane__queue-pos {

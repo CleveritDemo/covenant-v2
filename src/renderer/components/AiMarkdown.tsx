@@ -16,6 +16,19 @@ interface AiMarkdownProps {
 
 let inlineKey = 0
 
+/** Solo http(s); bloquea javascript:, data:, file:, etc. */
+function safeMarkdownHref(raw: string): string | null {
+  const href = raw.trim()
+  if (!href) return null
+  try {
+    const u = new URL(href)
+    if (u.protocol === 'http:' || u.protocol === 'https:') return href
+  } catch {
+    /* no es URL absoluta */
+  }
+  return null
+}
+
 function parseInline(text: string): React.ReactNode[] {
   /* Marcadores <<<AI_TERMINAL_*>>> usan _ internos; el markdown los convertiría en cursiva. */
   if (text.includes('<<<')) return [text]
@@ -37,17 +50,22 @@ function parseInline(text: string): React.ReactNode[] {
         </code>,
       )
     } else if (m[2] !== undefined) {
-      nodes.push(
-        <a
-          key={key}
-          className="ai-md__link"
-          href={m[3]}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {m[2]}
-        </a>,
-      )
+      const safeHref = safeMarkdownHref(m[3] ?? '')
+      if (safeHref) {
+        nodes.push(
+          <a
+            key={key}
+            className="ai-md__link"
+            href={safeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {m[2]}
+          </a>,
+        )
+      } else {
+        nodes.push(<span key={key}>{m[2]}</span>)
+      }
     } else {
       const bold = m[4] ?? m[5]
       const italic = m[6] ?? m[7]

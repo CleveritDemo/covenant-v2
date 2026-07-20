@@ -3,6 +3,7 @@ import {
   filterWritesByUserIntent,
   isSensitiveWritePath,
   pathLikelyRequested,
+  stripThinkingFromAgentReply,
   userWantsFileChanges,
 } from '../agentWriteGuard'
 
@@ -25,7 +26,11 @@ describe('agentWriteGuard', () => {
 
   it('blocks sensitive paths', () => {
     expect(isSensitiveWritePath('.env')).toBe(true)
+    expect(isSensitiveWritePath('.env.local')).toBe(true)
+    expect(isSensitiveWritePath('src/.env')).toBe(true)
+    expect(isSensitiveWritePath('config/.env.production')).toBe(true)
     expect(isSensitiveWritePath('src/app.ts')).toBe(false)
+    expect(isSensitiveWritePath('.environment')).toBe(false)
   })
 
   it('detects path in user message', () => {
@@ -35,5 +40,10 @@ describe('agentWriteGuard', () => {
   it('userWantsFileChanges for edit verbs', () => {
     expect(userWantsFileChanges('create README.md')).toBe(true)
     expect(userWantsFileChanges('how does this work?')).toBe(false)
+  })
+
+  it('strips matching think open/close tags', () => {
+    const raw = 'before <think>secret reasoning</think> after'
+    expect(stripThinkingFromAgentReply(raw)).toBe('before  after')
   })
 })

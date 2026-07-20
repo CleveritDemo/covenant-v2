@@ -30,7 +30,6 @@
   color: var(--text);
   border-color: color-mix(in srgb, var(--agent-color) 55%, transparent);
   background: color-mix(in srgb, var(--agent-color) 18%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--agent-color) 45%, transparent);
 }
 
 .plane-agent-badge--busy .plane-agent-badge__dot {
@@ -38,7 +37,6 @@
   height: 6px;
   border-radius: 50%;
   background: var(--agent-color);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--agent-color) 70%, transparent);
   flex-shrink: 0;
 }
 

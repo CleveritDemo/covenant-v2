@@ -280,6 +280,103 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
   return out
 }
 
+function truncateToolDetail(value: string, max = 72): string {
+  const compact = value.replace(/\s+/g, ' ').trim()
+  if (compact.length <= max) return compact
+  return `${compact.slice(0, Math.max(1, max - 1))}…`
+}
+
+function basenamePath(path: string): string {
+  const normalized = path.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length <= 2) return normalized
+  return parts.slice(-2).join('/')
+}
+
+function pickToolDetail(args: Record<string, unknown>): string | undefined {
+  for (const key of [
+    'path',
+    'filePath',
+    'file_path',
+    'target_file',
+    'targetFile',
+    'relative_workspace_path',
+    'relativeWorkspacePath',
+  ]) {
+    const value = args[key]
+    if (typeof value === 'string' && value.trim()) {
+      return truncateToolDetail(basenamePath(value.trim()), 64)
+    }
+  }
+  for (const key of ['pattern', 'glob', 'glob_pattern', 'globPattern', 'query', 'search_term', 'searchTerm']) {
+    const value = args[key]
+    if (typeof value === 'string' && value.trim()) {
+      return truncateToolDetail(value, 56)
+    }
+  }
+  for (const key of ['command', 'cmd']) {
+    const value = args[key]
+    if (typeof value === 'string' && value.trim()) {
+      return truncateToolDetail(value, 64)
+    }
+  }
+  return undefined
+}
+
+function friendlyCursorToolName(rawKey: string): string {
+  const stripped = rawKey
+    .replace(/ToolCall$/i, '')
+    .replace(/Tool$/i, '')
+    .trim()
+  if (!stripped) return 'tool'
+  const spaced = stripped.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/** Extrae nombre legible + detalle (ruta/patrón/comando) de un tool_call de Cursor. */
+export function describeCursorToolCall(toolCall: unknown): { name: string; detail?: string } {
+  if (!toolCall || typeof toolCall !== 'object') return { name: 'tool' }
+  const record = toolCall as Record<string, unknown>
+  const key = Object.keys(record)[0]
+  if (!key) return { name: 'tool' }
+  const payload = record[key]
+  if (!payload || typeof payload !== 'object') {
+    return { name: friendlyCursorToolName(key) }
+  }
+  const body = payload as Record<string, unknown>
+
+  // Forma function: { function: { name, arguments } }
+  if (key === 'function' || typeof body.name === 'string') {
+    const fnName = typeof body.name === 'string' ? body.name : key
+    let detail: string | undefined
+    if (typeof body.arguments === 'string' && body.arguments.trim()) {
+      try {
+        const parsed = JSON.parse(body.arguments) as unknown
+        if (parsed && typeof parsed === 'object') {
+          detail = pickToolDetail(parsed as Record<string, unknown>)
+        }
+      } catch {
+        detail = truncateToolDetail(body.arguments, 56)
+      }
+    } else if (body.arguments && typeof body.arguments === 'object') {
+      detail = pickToolDetail(body.arguments as Record<string, unknown>)
+    }
+    return {
+      name: friendlyCursorToolName(fnName),
+      ...(detail ? { detail } : {}),
+    }
+  }
+
+  const args = body.args && typeof body.args === 'object'
+    ? body.args as Record<string, unknown>
+    : body
+  const detail = pickToolDetail(args)
+  return {
+    name: friendlyCursorToolName(key),
+    ...(detail ? { detail } : {}),
+  }
+}
+
 export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
   if (!value || typeof value !== 'object') return []
   const obj = value as Record<string, unknown>
@@ -301,13 +398,12 @@ export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
     if (result) out.push({ type: 'assistant_final', text: result })
   } else if (obj.type === 'tool_call') {
     const status = obj.subtype === 'completed' ? 'completed' : 'started'
-    const tool = obj.tool_call && typeof obj.tool_call === 'object'
-      ? Object.keys(obj.tool_call as Record<string, unknown>)[0]
-      : undefined
+    const described = describeCursorToolCall(obj.tool_call)
     out.push({
       type: 'tool',
-      name: tool ?? 'tool',
+      name: described.name,
       status,
+      ...(described.detail ? { detail: described.detail } : {}),
     })
   }
   return out

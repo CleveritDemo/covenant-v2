@@ -42,7 +42,7 @@
   --plane-radius-sm: 10px;
   --plane-blur: 16px;
   --plane-grid-size: 44px;
-  --plane-grid-opacity: 0.26;
+  --plane-grid-opacity: 0.1;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
   --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 84%, var(--surface));
   --plane-node-bg: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
@@ -54,11 +54,15 @@
   --plane-highlight: color-mix(in srgb, #fff 7%, transparent);
   --plane-shadow: 0 14px 42px color-mix(in srgb, #000 38%, transparent);
   --plane-shadow-soft: 0 8px 26px color-mix(in srgb, #000 30%, transparent);
-  --plane-grid-line: color-mix(in srgb, var(--border) 35%, var(--accent) 18%);
+  --plane-grid-line: color-mix(in srgb, var(--border) 22%, var(--accent) 8%);
   --plane-atmosphere-a: var(--accent-veil-strong);
   --plane-atmosphere-b: color-mix(in srgb, var(--accent) 8%, transparent);
   --plane-terminal-accent: color-mix(in srgb, var(--accent) 32%, #2dd4bf);
   --plane-terminal-fg: #f2fbf8;
+  /* Paleta cromática del tema (xterm); applyTheme la recalcula. */
+  --theme-blue: #7aa2f7;
+  --theme-magenta: #bb9af7;
+  --theme-cyan: #7dcfff;
 }
 
 *, *::before, *::after {

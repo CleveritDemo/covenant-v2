@@ -8,6 +8,10 @@ export interface PlaneMiniFaceProps {
   busy?: boolean
   provider?: AgentCliProvider
   statusLabel: string
+  configLabel?: string
+  deleteLabel?: string
+  onConfigure?: () => void
+  onDelete?: () => void
   /** Contextos anidados (íconos) debajo del cuerpo. */
   children?: React.ReactNode
 }
@@ -18,6 +22,10 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   busy = false,
   provider = 'claude',
   statusLabel,
+  configLabel,
+  deleteLabel,
+  onConfigure,
+  onDelete,
   children,
 }) => (
   <div
@@ -33,13 +41,48 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         <Icon name={provider === 'cursor' ? 'sparkles' : 'bot'} size={9} aria-hidden />
         {provider === 'cursor' ? 'Cursor' : 'Claude'}
       </span>
-      <span
-        className={[
-          'plane-mini-face__pulse',
-          busy ? 'plane-mini-face__pulse--on' : '',
-        ].filter(Boolean).join(' ')}
-        aria-hidden="true"
-      />
+      <div className="plane-mini-face__header-end">
+        {onDelete && deleteLabel ? (
+          <button
+            type="button"
+            className="plane-mini-face__action plane-mini-face__action--danger"
+            title={deleteLabel}
+            aria-label={deleteLabel}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              onDelete()
+            }}
+            onPointerDown={event => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onPointerUp={event => event.stopPropagation()}
+          >
+            <Icon name="trash" size={11} />
+          </button>
+        ) : null}
+        {onConfigure && configLabel ? (
+          <button
+            type="button"
+            className="plane-mini-face__action"
+            title={configLabel}
+            aria-label={configLabel}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              onConfigure()
+            }}
+            onPointerDown={event => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onPointerUp={event => event.stopPropagation()}
+          >
+            <Icon name="settings" size={11} />
+          </button>
+        ) : null}
+      </div>
     </div>
     <div className="plane-mini-face__body">
       <span className="plane-mini-face__name" title={name}>{name}</span>

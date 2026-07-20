@@ -1,0 +1,240 @@
+/*
+ * Borde inferior del plano: cinta cromática fina + bloom.
+ * Gradiente duplicado (loop sin costura) + máscara suave en el glow.
+ */
+.plane-composer-aurora {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+  opacity: 0.92;
+  transition: height 0.45s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.45s ease;
+}
+
+.plane-chat-composer--working .plane-composer-aurora {
+  height: 2.5px;
+  opacity: 1;
+}
+
+/* Periodo cromático ×2 → background-position 0→100% con size 200% es seamless. */
+.plane-composer-aurora__glow,
+.plane-composer-aurora__line {
+  --plane-aurora-ribbon: linear-gradient(
+    90deg,
+    var(--accent-dim) 0%,
+    var(--theme-blue) 7%,
+    var(--accent) 14%,
+    var(--theme-magenta) 21%,
+    var(--theme-cyan) 28%,
+    var(--plane-terminal-accent) 35%,
+    var(--accent) 42%,
+    var(--accent-dim) 50%,
+    var(--theme-blue) 57%,
+    var(--accent) 64%,
+    var(--theme-magenta) 71%,
+    var(--theme-cyan) 78%,
+    var(--plane-terminal-accent) 85%,
+    var(--accent) 92%,
+    var(--accent-dim) 100%
+  );
+}
+
+/* Halo: se desvanece en bordes (sin óvalo recortado). */
+.plane-composer-aurora__glow {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: -6px;
+  height: 36px;
+  border-radius: 0;
+  background: var(--plane-aurora-ribbon);
+  background-size: 200% 100%;
+  filter: blur(16px);
+  opacity: 0.22;
+  -webkit-mask-image: radial-gradient(
+    ellipse 95% 120% at 50% 100%,
+    #000 0%,
+    #000 28%,
+    rgba(0, 0, 0, 0.55) 55%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 95% 120% at 50% 100%,
+    #000 0%,
+    #000 28%,
+    rgba(0, 0, 0, 0.55) 55%,
+    transparent 78%
+  );
+  animation:
+    plane-composer-ribbon-flow 14s linear infinite,
+    plane-composer-glow-breathe 5.6s ease-in-out infinite;
+  pointer-events: none;
+  will-change: opacity, filter, background-position;
+}
+
+.plane-chat-composer--working .plane-composer-aurora__glow {
+  left: -44%;
+  right: -44%;
+  height: 440px;
+  bottom: -72px;
+  filter: blur(64px);
+  -webkit-mask-image: radial-gradient(
+    ellipse 100% 130% at 50% 100%,
+    #000 0%,
+    #000 18%,
+    rgba(0, 0, 0, 0.4) 42%,
+    rgba(0, 0, 0, 0.14) 62%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 100% 130% at 50% 100%,
+    #000 0%,
+    #000 18%,
+    rgba(0, 0, 0, 0.4) 42%,
+    rgba(0, 0, 0, 0.14) 62%,
+    transparent 78%
+  );
+  animation:
+    plane-composer-ribbon-flow 7s linear infinite,
+    plane-composer-glow-breathe-working 3.8s ease-in-out infinite;
+}
+
+/* Cinta principal. */
+.plane-composer-aurora__line {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--plane-aurora-ribbon);
+  background-size: 200% 100%;
+  animation:
+    plane-composer-ribbon-flow 14s linear infinite,
+    plane-composer-line-glow 5.6s ease-in-out infinite;
+}
+
+.plane-chat-composer--working .plane-composer-aurora__line {
+  animation:
+    plane-composer-ribbon-flow 7s linear infinite,
+    plane-composer-line-glow-working 3.8s ease-in-out infinite;
+}
+
+/* Brillo que recorre la línea. */
+.plane-composer-aurora__sheen {
+  position: absolute;
+  inset: -1px 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 38%,
+    color-mix(in srgb, #fff 55%, transparent) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: soft-light;
+  opacity: 0.55;
+  animation: plane-composer-line-sheen 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.plane-chat-composer--working .plane-composer-aurora__sheen {
+  opacity: 0.75;
+  animation-duration: 3.2s;
+}
+
+/* Un periodo exacto: sin salto al reiniciar. */
+@keyframes plane-composer-ribbon-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@keyframes plane-composer-line-sheen {
+  0%, 100% { background-position: 120% 50%; opacity: 0.25; }
+  45% { background-position: -20% 50%; opacity: 0.65; }
+}
+
+@keyframes plane-composer-glow-breathe {
+  0%, 100% {
+    opacity: 0.18;
+    filter: blur(14px);
+  }
+  50% {
+    opacity: 0.28;
+    filter: blur(18px);
+  }
+}
+
+@keyframes plane-composer-glow-breathe-working {
+  0%, 100% {
+    opacity: 0.2;
+    filter: blur(56px);
+  }
+  50% {
+    opacity: 0.32;
+    filter: blur(72px);
+  }
+}
+
+@keyframes plane-composer-line-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 8px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 0 18px color-mix(in srgb, var(--theme-cyan) 14%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 12px color-mix(in srgb, var(--accent) 42%, transparent),
+      0 0 24px color-mix(in srgb, var(--theme-magenta) 20%, transparent),
+      0 0 34px color-mix(in srgb, var(--theme-blue) 14%, transparent);
+  }
+}
+
+@keyframes plane-composer-line-glow-working {
+  0%, 100% {
+    box-shadow:
+      0 0 12px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 0 28px color-mix(in srgb, var(--theme-cyan) 16%, transparent),
+      0 -60px 140px color-mix(in srgb, var(--accent) 10%, transparent),
+      0 -140px 240px color-mix(in srgb, var(--theme-magenta) 6%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 16px color-mix(in srgb, var(--accent) 36%, transparent),
+      0 0 36px color-mix(in srgb, var(--theme-magenta) 18%, transparent),
+      0 -80px 180px color-mix(in srgb, var(--theme-blue) 12%, transparent),
+      0 -180px 300px color-mix(in srgb, var(--theme-cyan) 8%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-composer-aurora__line {
+    animation: plane-composer-ribbon-flow 28s linear infinite;
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 0 22px color-mix(in srgb, var(--theme-cyan) 12%, transparent);
+  }
+
+  .plane-composer-aurora__glow {
+    animation: plane-composer-ribbon-flow 28s linear infinite;
+    opacity: 0.22;
+    filter: blur(16px);
+  }
+
+  .plane-chat-composer--working .plane-composer-aurora__glow {
+    left: -40%;
+    right: -40%;
+    height: 400px;
+    opacity: 0.26;
+    filter: blur(60px);
+  }
+
+  .plane-composer-aurora__sheen {
+    animation: none;
+    opacity: 0.35;
+    background-position: 50% 50%;
+  }
+}

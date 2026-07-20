@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import {
   collapseAllPaneWindows,
+  computePlaneChatColumnWidth,
+  computePlaneMiniSlotCell,
+  computePlaneMiniSlotPadX,
   computeStandardPaneWindowGeometry,
   createPaneWindowState,
   ensurePaneWindows,
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
   PANE_WINDOW_VIEWPORT_RATIO,
+  PLANE_CHAT_BASE_WIDTH,
+  PLANE_CHAT_MAX_WIDTH,
+  PLANE_MINI_MAX_WIDTH,
+  PLANE_MINI_SLOT_PAD_X,
+  PLANE_MINI_SLOT_PAD_X_MAX,
+  PLANE_MINI_WINDOW_HEIGHT,
+  PLANE_MINI_WINDOW_WIDTH,
   sanitizePaneWindowState,
 } from '../paneWindows'
 
@@ -31,6 +41,40 @@ describe('paneWindows', () => {
     expect(box.y).toBeLessThan(centeredY)
     const again = computeStandardPaneWindowGeometry({ width: 1000, height: 800 })
     expect(again).toEqual(box)
+  })
+
+  it('scales mini slot cell with large viewports and keeps base on reference', () => {
+    const base = computePlaneMiniSlotCell({ width: 1280, height: 800 }, 1)
+    expect(base).toEqual({
+      width: PLANE_MINI_WINDOW_WIDTH,
+      height: PLANE_MINI_WINDOW_HEIGHT,
+    })
+    const wide = computePlaneMiniSlotCell({ width: 2560, height: 1440 }, 1)
+    expect(wide.width).toBe(PLANE_MINI_MAX_WIDTH)
+    expect(wide.height).toBeGreaterThan(PLANE_MINI_WINDOW_HEIGHT)
+    expect(wide.width).toBeGreaterThan(base.width)
+  })
+
+  it('keeps mini slot at least base height when column is crowded', () => {
+    const crowded = computePlaneMiniSlotCell({ width: 1920, height: 900 }, 12)
+    expect(crowded.height).toBe(PLANE_MINI_WINDOW_HEIGHT)
+    expect(crowded.width).toBeGreaterThanOrEqual(PLANE_MINI_WINDOW_WIDTH)
+  })
+
+  it('scales chat column width with viewport without invading side minis', () => {
+    const base = computePlaneChatColumnWidth({ width: 1280, height: 800 }, 1)
+    expect(base).toBe(PLANE_CHAT_BASE_WIDTH)
+    const wide = computePlaneChatColumnWidth({ width: 2560, height: 1440 }, 1)
+    expect(wide).toBe(PLANE_CHAT_MAX_WIDTH)
+    expect(wide).toBeGreaterThan(base)
+  })
+
+  it('grows outer mini pad with leftover width on large screens', () => {
+    const base = computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)
+    expect(base).toBe(PLANE_MINI_SLOT_PAD_X)
+    const wide = computePlaneMiniSlotPadX({ width: 2560, height: 1440 }, 1)
+    expect(wide).toBeGreaterThan(base)
+    expect(wide).toBeLessThanOrEqual(PLANE_MINI_SLOT_PAD_X_MAX)
   })
 
   it('sanitize keeps open/fullscreen/zIndex and drops legacy geometry', () => {

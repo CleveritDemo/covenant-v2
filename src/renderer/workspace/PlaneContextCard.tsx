@@ -8,7 +8,7 @@ export interface PlaneContextCardProps {
   icon: IconName
   color: string
   shared?: boolean
-  /** Clic: p. ej. abrir config del agente (sin tooltip). */
+  /** Clic: p. ej. abrir chat del agente (sin tooltip). */
   onOpen?: () => void
 }
 

@@ -363,7 +363,7 @@ export const AiPanel: React.FC<Props> = ({
         const agentOpts = {
           ...baseOpts,
           shellPolicy: config.agentShellPolicy ?? 'off' as const,
-          confirmShell: config.agentShellPolicy === 'ask' ? confirmShell : undefined,
+          confirmShell: config.agentShellPolicy !== 'off' ? confirmShell : undefined,
         }
         full = NATIVE_TOOL_PROVIDERS.has(config.aiProvider)
           ? await runNativeAgentLoop(initialMsgs, sessionId, agentOpts, visible => updateEntry(assistantId, visible, true))
@@ -444,7 +444,7 @@ export const AiPanel: React.FC<Props> = ({
         const agentOpts = {
           ...baseOpts,
           shellPolicy: config.agentShellPolicy ?? 'off' as const,
-          confirmShell: config.agentShellPolicy === 'ask' ? confirmShell : undefined,
+          confirmShell: config.agentShellPolicy !== 'off' ? confirmShell : undefined,
         }
         full = NATIVE_TOOL_PROVIDERS.has(config.aiProvider)
           ? await runNativeAgentLoop(history, sessionId, agentOpts, visible => updateEntry(assistantId, visible, true))

@@ -1,4 +1,4 @@
-/* Tres neuronas en órbita — diseño original del chat (commit 77b7b00). */
+/* Tres neuronas en órbita — colores del tema, sin glow. */
 
 .thinking-orbits {
   --thinking-orbits-size: 18px;
@@ -7,9 +7,6 @@
   --thinking-orbits-dot-1: 5px;
   --thinking-orbits-dot-2: 4px;
   --thinking-orbits-dot-3: 3px;
-  --thinking-orbits-glow: 6px;
-  /* Color efectivo: override explícito → beam del chat → acento del tema. */
-  --thinking-orbits-ink: var(--thinking-orbits-color, var(--agent-beam, var(--accent)));
 
   position: relative;
   width: var(--thinking-orbits-size);
@@ -24,7 +21,6 @@
   --thinking-orbits-dot-1: 17px;
   --thinking-orbits-dot-2: 13px;
   --thinking-orbits-dot-3: 10px;
-  --thinking-orbits-glow: 22px;
 }
 
 .thinking-orbits--hero {
@@ -34,12 +30,9 @@
   --thinking-orbits-dot-1: 28px;
   --thinking-orbits-dot-2: 22px;
   --thinking-orbits-dot-3: 16px;
-  --thinking-orbits-glow: 36px;
   animation: thinking-orbits-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Tres neuronas: distinta velocidad y radio; brillo propio.
-   Entran en cascada mientras el conjunto gira. */
 .thinking-orbits span {
   position: absolute;
   inset: 0;
@@ -57,15 +50,18 @@
   height: var(--thinking-orbits-dot-1);
   margin-left: calc(var(--thinking-orbits-dot-1) / -2);
   border-radius: 50%;
-  background: var(--thinking-orbits-ink);
-  box-shadow: 0 0 var(--thinking-orbits-glow)
-    color-mix(in srgb, var(--thinking-orbits-ink) 80%, transparent);
+  background: var(--accent);
+  box-shadow: none;
   animation: thinking-orbits-neuron 1.8s ease-in-out infinite;
 }
 
 .thinking-orbits span:nth-child(1) {
   animation-duration: 1.9s, 0.45s;
   animation-delay: 0s, 0.12s;
+}
+
+.thinking-orbits span:nth-child(1)::after {
+  background: var(--accent);
 }
 
 .thinking-orbits span:nth-child(2) {
@@ -80,7 +76,7 @@
   height: var(--thinking-orbits-dot-2);
   margin-left: calc(var(--thinking-orbits-dot-2) / -2);
   animation-delay: -0.6s;
-  background: color-mix(in srgb, var(--thinking-orbits-ink) 72%, #fff);
+  background: var(--theme-magenta);
 }
 
 .thinking-orbits span:nth-child(3) {
@@ -94,13 +90,7 @@
   height: var(--thinking-orbits-dot-3);
   margin-left: calc(var(--thinking-orbits-dot-3) / -2);
   animation-delay: -1.1s;
-  background: color-mix(in srgb, var(--thinking-orbits-ink) 48%, #fff);
-}
-
-/* En el chat grande, el glow era un poco más intenso (todas las neuronas). */
-.thinking-orbits--solo span::after {
-  box-shadow: 0 0 var(--thinking-orbits-glow)
-    color-mix(in srgb, var(--thinking-orbits-ink) 85%, transparent);
+  background: var(--theme-cyan);
 }
 
 @keyframes thinking-orbits-spin {

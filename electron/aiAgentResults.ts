@@ -80,10 +80,21 @@ function parseLog(raw: string): AiAgentResultLogEntry[] {
     .slice(0, MAX_LOG_ENTRIES)
 }
 
+const NOTES_START = '<!-- iaterminal:notes -->'
+const NOTES_END = '<!-- /iaterminal:notes -->'
+
+function extractNotesBody(raw: string): string {
+  const start = raw.indexOf(NOTES_START)
+  const end = raw.indexOf(NOTES_END)
+  if (start < 0 || end < 0 || end <= start) return ''
+  return raw.slice(start + NOTES_START.length, end).replace(/^\n|\n$/g, '').trim()
+}
+
 export function formatAiAgentResultsDocument(options: {
   agentName: string
   summary: string
   entries: AiAgentResultLogEntry[]
+  notes?: string
 }): string {
   const slug = agentResultSlug(options.agentName)
   const name = options.agentName.trim() || slug
@@ -100,6 +111,7 @@ export function formatAiAgentResultsDocument(options: {
   const logLines = options.entries.length
     ? options.entries.map(entry => `- \`${entry.timestamp}\` — ${entry.text}`)
     : ['- (no entries yet)']
+  const notesBody = (options.notes ?? '').trim() || '(no annotations yet)'
   return [
     `# ${name} — Results`,
     `<!-- iaterminal:context ${JSON.stringify(metadata)} -->`,
@@ -112,9 +124,9 @@ export function formatAiAgentResultsDocument(options: {
     ...logLines,
     '<!-- /iaterminal:auto -->',
     '',
-    '<!-- iaterminal:notes -->',
-    '(no annotations yet)',
-    '<!-- /iaterminal:notes -->',
+    NOTES_START,
+    notesBody,
+    NOTES_END,
     '',
   ].join('\n')
 }
@@ -131,7 +143,9 @@ export function upsertAiAgentResults(
   const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
   mkdirSync(directory, { recursive: true })
 
-  const previousLog = existsSync(filePath) ? parseLog(readFileSync(filePath, 'utf8')) : []
+  const previousRaw = existsSync(filePath) ? readFileSync(filePath, 'utf8') : ''
+  const previousLog = previousRaw ? parseLog(previousRaw) : []
+  const previousNotes = previousRaw ? extractNotesBody(previousRaw) : ''
   const freshEntries = (payload.entries.length ? payload.entries : [payload.summary])
     .map(text => ({ timestamp, text }))
   const entries = [...freshEntries, ...previousLog].slice(0, MAX_LOG_ENTRIES)
@@ -139,6 +153,7 @@ export function upsertAiAgentResults(
     agentName: name,
     summary: payload.summary,
     entries,
+    notes: previousNotes && previousNotes !== '(no annotations yet)' ? previousNotes : undefined,
   })
   const temporaryPath = join(directory, `.${agentResultSlug(name)}.tmp`)
   writeFileSync(temporaryPath, content, 'utf8')

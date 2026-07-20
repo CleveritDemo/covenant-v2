@@ -3,9 +3,8 @@
   --plane-composer-clearance: 132px;
   position: absolute;
   inset: 0;
-  /* Bajo ventanas/minis del mapa (z 12); el mapa no pinta bg opaco ni
-     captura el vacío, así el chat se ve y scrollea. Composer en otra capa. */
-  z-index: 6;
+  /* Sobre la aurora (13); bajo el body del composer (15) y elevated (40). */
+  z-index: 14;
   display: flex;
   flex-direction: column;
   pointer-events: none;
@@ -41,12 +40,6 @@
 }
 
 .plane-chat-dock__composer-shell {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Por encima del chat para recibir clics; bajo ventanas elevadas (40). */
-  z-index: 10;
-  pointer-events: none;
-  min-width: 0;
+  /* Hijos participan del stacking del plano: aurora bajo chat, body arriba. */
+  display: contents;
 }

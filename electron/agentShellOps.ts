@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { normalize, resolve } from 'path'
 import { statSync } from 'fs'
+import { isDestructiveShellCommand } from '../src/shared/agentShellGuard'
 
 const MAX_CMD_CHARS = 8000
 const TIMEOUT_MS = 120_000
@@ -37,15 +38,32 @@ export type AgentShellRunResult =
   | { ok: true; exitCode: number | null; stdout: string; stderr: string }
   | { ok: false; error: string }
 
+export interface AgentShellRunOptions {
+  /** True solo tras confirmación explícita del usuario en el renderer. */
+  destructiveConfirmed?: boolean
+}
+
 /**
  * Ejecuta una línea de shell en `projectRoot` (cwd de la sesión), sin PTY interactivo.
+ * Comandos destructivos requieren `destructiveConfirmed: true` (defense-in-depth).
  */
-export function runAgentShellCommand(projectRoot: string, command: string): Promise<AgentShellRunResult> {
+export function runAgentShellCommand(
+  projectRoot: string,
+  command: string,
+  options?: AgentShellRunOptions,
+): Promise<AgentShellRunResult> {
   const root = resolveProjectDir(projectRoot)
   if (!root) return Promise.resolve({ ok: false, error: 'invalid session cwd' })
 
   const err = validateCommand(command)
   if (err) return Promise.resolve({ ok: false, error: err })
+
+  if (isDestructiveShellCommand(command) && !options?.destructiveConfirmed) {
+    return Promise.resolve({
+      ok: false,
+      error: 'destructive command blocked (confirmation required)',
+    })
+  }
 
   const { file, args } = shellExecutable()
   const argv = args(command)

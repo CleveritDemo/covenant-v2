@@ -16,7 +16,7 @@ export interface PlaneAgentContextChip {
 
 export interface PlaneAgentContextNodesProps {
   contexts: PlaneAgentContextChip[]
-  /** Clic en un contexto = misma acción que clic en el agente (config). */
+  /** Clic en un contexto = misma acción que clic en el agente (abrir chat). */
   onOpenAgent: () => void
 }
 

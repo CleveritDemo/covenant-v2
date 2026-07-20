@@ -109,7 +109,7 @@
   transform-style: preserve-3d;
 }
 
-/* Terminales: sombra sutil a la izquierda (se ve correcta tras el parkScale). */
+/* Terminales: sombra sutil a la izquierda (misma caja mini que agentes). */
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming),
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming):hover {
   border-radius: 10px !important;
@@ -119,7 +119,7 @@
     inset 0 0 0 1px var(--plane-highlight) !important;
 }
 
-/* Agentes: radio; sombra inline reducida por parkScale en PaneWindow. */
+/* Agentes: mismo radio; sombra inline a escala mini en PaneWindow. */
 .plane-map__column--agents .pane-window--mini:not(.pane-window--zooming) {
   border-radius: 10px !important;
 }

@@ -5,13 +5,112 @@ export const PANE_WINDOW_MIN_HEIGHT = 200
 /** Fracción del viewport del plano para ventanas abiertas (todas iguales). */
 export const PANE_WINDOW_VIEWPORT_RATIO = 0.7
 
-/** Mini terminal / preview en el plano (~4 caben en altura típica). */
-export const PLANE_MINI_WINDOW_WIDTH = 174
-export const PLANE_MINI_WINDOW_HEIGHT = 128
+/** Mini terminal / preview en el plano (tamaño base ~1280×800). */
+export const PLANE_MINI_WINDOW_WIDTH = 200
+export const PLANE_MINI_WINDOW_HEIGHT = 130
+
+/** Tope al crecer en pantallas muy anchas/altas (ancho contenido a propósito). */
+export const PLANE_MINI_MAX_WIDTH = 230
+export const PLANE_MINI_MAX_HEIGHT = 300
+
+/** Padding superior / gap / hueco inferior (composer) para empaquetar la columna. */
+export const PLANE_MINI_SLOT_PAD_Y = 72
+export const PLANE_MINI_SLOT_GAP = 20
+export const PLANE_MINI_BOTTOM_CLEARANCE = 148
+/** Padding horizontal mínimo (referencia ~1280px). */
+export const PLANE_MINI_SLOT_PAD_X = 28
+/** Tope de padding exterior en pantallas muy anchas. */
+export const PLANE_MINI_SLOT_PAD_X_MAX = 112
+
+/** Columna central de chat (composer + stream): base ~1280px de viewport. */
+export const PLANE_CHAT_BASE_WIDTH = 640
+export const PLANE_CHAT_MAX_WIDTH = 960
+/** Holgura entre minis laterales y la columna de chat. */
+export const PLANE_CHAT_SIDE_GAP = 24
 
 /**
- * Footprint visual de una terminal mini (letterbox del openGeometry en la ranura).
- * Los contenedores de agente deben usar este tamaño, no el de la ranura completa.
+ * Ranura mini según viewport: crece en pantallas grandes y se encoge
+ * si la columna tiene muchos ítems (sin bajar del tamaño base).
+ */
+export function computePlaneMiniSlotCell(
+  viewport: { width: number; height: number },
+  columnCount = 1,
+): { width: number; height: number } {
+  const vw = Math.max(viewport.width, 320)
+  const vh = Math.max(viewport.height, 240)
+  const n = Math.max(1, Math.floor(columnCount))
+
+  // Ancho: crece más lento que el viewport (0.4× el exceso) para no verse demasiado ancho.
+  const widthScale = 1 + Math.max(0, vw / 1280 - 1) * 0.4
+  const width = Math.round(Math.min(
+    PLANE_MINI_MAX_WIDTH,
+    Math.max(PLANE_MINI_WINDOW_WIDTH, PLANE_MINI_WINDOW_WIDTH * widthScale),
+  ))
+
+  const heightFromScale = Math.round(Math.min(
+    PLANE_MINI_MAX_HEIGHT,
+    Math.max(PLANE_MINI_WINDOW_HEIGHT, PLANE_MINI_WINDOW_HEIGHT * (vh / 800)),
+  ))
+  const availableH = vh - PLANE_MINI_SLOT_PAD_Y - PLANE_MINI_BOTTOM_CLEARANCE
+  const heightFromFit = Math.floor((availableH - (n - 1) * PLANE_MINI_SLOT_GAP) / n)
+  const height = Math.max(
+    PLANE_MINI_WINDOW_HEIGHT,
+    Math.min(heightFromScale, Math.max(PLANE_MINI_WINDOW_HEIGHT, heightFromFit)),
+  )
+
+  return { width, height }
+}
+
+/**
+ * Ancho de la columna de chat: crece con el viewport sin invadir las minis laterales.
+ */
+export function computePlaneChatColumnWidth(
+  viewport: { width: number; height: number },
+  columnCount = 1,
+): number {
+  const vw = Math.max(viewport.width, 320)
+  const side = computePlaneMiniSlotCell(viewport, columnCount)
+  const sidesReserve = 2 * (PLANE_MINI_SLOT_PAD_X + side.width + PLANE_CHAT_SIDE_GAP)
+  const available = Math.max(PLANE_CHAT_BASE_WIDTH, vw - sidesReserve)
+  const scaled = Math.round(PLANE_CHAT_BASE_WIDTH * (vw / 1280))
+  return Math.round(Math.min(
+    PLANE_CHAT_MAX_WIDTH,
+    Math.max(PLANE_CHAT_BASE_WIDTH, Math.min(scaled, available)),
+  ))
+}
+
+/**
+ * Padding exterior de columnas: terminales a la izquierda, agentes a la derecha.
+ * Solo crece con el sobrante respecto al layout de referencia (~1280px), hasta un tope.
+ */
+export function computePlaneMiniSlotPadX(
+  viewport: { width: number; height: number },
+  columnCount = 1,
+): number {
+  const vw = Math.max(viewport.width, 320)
+  const cell = computePlaneMiniSlotCell(viewport, columnCount)
+  const chat = computePlaneChatColumnWidth(viewport, columnCount)
+  const freePerSide = Math.max(
+    0,
+    Math.floor((vw - chat - 2 * (cell.width + PLANE_CHAT_SIDE_GAP)) / 2),
+  )
+
+  const refCell = computePlaneMiniSlotCell({ width: 1280, height: 800 }, 1)
+  const refFreePerSide = Math.max(
+    0,
+    Math.floor(
+      (1280 - PLANE_CHAT_BASE_WIDTH - 2 * (refCell.width + PLANE_CHAT_SIDE_GAP)) / 2,
+    ),
+  )
+  const extra = Math.max(0, freePerSide - refFreePerSide)
+  return Math.min(
+    PLANE_MINI_SLOT_PAD_X_MAX,
+    Math.max(PLANE_MINI_SLOT_PAD_X, PLANE_MINI_SLOT_PAD_X + extra),
+  )
+}
+
+/**
+ * Letterbox del openGeometry en una ranura (legacy; minis usan la ranura completa).
  */
 export function computePlaneMiniLetterboxSize(
   open: { width: number; height: number },
@@ -28,7 +127,7 @@ export function computePlaneMiniLetterboxSize(
   }
 }
 
-/** Fallback; en runtime el agente usa computePlaneMiniLetterboxSize. */
+/** Fallback de ranura mini (runtime: computePlaneMiniSlotCell). */
 export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
 export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT
 export const PLANE_MINI_TITLEBAR_HEIGHT = 26

@@ -31,6 +31,7 @@ export interface AgentPaneMessagesProps {
   onEnteringAnimationEnd: (id: string) => void
   onMaterializingAnimationEnd: (id: string) => void
   onRemoveQueuedTurn: (id: string) => void
+  onEditQueuedTurn: (id: string) => void
   onScrollToBottom: () => void
 }
 
@@ -50,6 +51,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onEnteringAnimationEnd,
   onMaterializingAnimationEnd,
   onRemoveQueuedTurn,
+  onEditQueuedTurn,
   onScrollToBottom,
 }) => {
   const { t } = useT()
@@ -103,25 +105,33 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
             aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
           >
             {queuedTurns.map((item, index) => (
-              <div key={item.id} className="agent-pane__queue-bubble" title={item.text}>
-                <span className="agent-pane__queue-pos" aria-hidden="true">{index + 1}</span>
-                {item.images.length > 0 && (
-                  <span className="agent-pane__queue-images">
-                    {item.images.map(image => (
-                      <img
-                        key={image.id}
-                        className="agent-pane__queue-image"
-                        src={image.previewUrl}
-                        alt={image.name}
-                      />
-                    ))}
-                  </span>
-                )}
-                {(item.text || item.images.length === 0) && (
-                  <span className="agent-pane__queue-text">
-                    {item.text || t('agentPane.imageOnlyMessage')}
-                  </span>
-                )}
+              <div key={item.id} className="agent-pane__queue-bubble">
+                <button
+                  type="button"
+                  className="agent-pane__queue-open"
+                  title={t('agentPane.queueEditHint')}
+                  aria-label={t('agentPane.queueEditHint')}
+                  onClick={() => onEditQueuedTurn(item.id)}
+                >
+                  <span className="agent-pane__queue-pos" aria-hidden="true">{index + 1}</span>
+                  {item.images.length > 0 && (
+                    <span className="agent-pane__queue-images">
+                      {item.images.map(image => (
+                        <img
+                          key={image.id}
+                          className="agent-pane__queue-image"
+                          src={image.previewUrl}
+                          alt={image.name}
+                        />
+                      ))}
+                    </span>
+                  )}
+                  {(item.text || item.images.length === 0) && (
+                    <span className="agent-pane__queue-text">
+                      {item.text || t('agentPane.imageOnlyMessage')}
+                    </span>
+                  )}
+                </button>
                 <button
                   type="button"
                   className="agent-pane__queue-remove"

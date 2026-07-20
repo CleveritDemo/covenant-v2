@@ -592,7 +592,7 @@
 }
 
 .ai-md__h:first-child {
-  margin-top: 0.15em;
+  margin-top: 0;
 }
 
 .ai-md__h--1 {
@@ -615,6 +615,18 @@
 
 .ai-md__p:first-child {
   margin-top: 0;
+}
+
+.ai-md__p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-md > :first-child {
+  margin-top: 0;
+}
+
+.ai-md > :last-child {
+  margin-bottom: 0;
 }
 
 .ai-md__ul,

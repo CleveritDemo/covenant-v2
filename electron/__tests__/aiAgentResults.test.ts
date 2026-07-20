@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -56,12 +56,24 @@ describe('AI agent results', () => {
     expect(raw).toContain('"kind":"agentResult"')
   })
 
-  it('rejects empty summary payloads', () => {
-    const result = extractAiAgentResults([
-      '```ia-terminal-results',
-      '{"summary":"   ","entries":["x"]}',
-      '```',
-    ].join('\n'))
-    expect(result.payload).toBeNull()
+  it('preserves notes when upserting Latest/Log', () => {
+    const cwd = tempCwd()
+    const filePath = resolveAiAgentResultsPath(cwd, 'Research')
+    upsertAiAgentResults(cwd, 'Research', {
+      summary: 'Primera',
+      entries: ['log uno'],
+    }, '2026-01-01T00:00:00.000Z')
+    const withNotes = readFileSync(filePath, 'utf8').replace(
+      '(no annotations yet)',
+      'Brújula: agente anclado a terminal.',
+    )
+    writeFileSync(filePath, withNotes, 'utf8')
+    upsertAiAgentResults(cwd, 'Research', {
+      summary: 'Segunda',
+      entries: ['log dos'],
+    }, '2026-01-02T00:00:00.000Z')
+    const raw = readFileSync(filePath, 'utf8')
+    expect(raw).toContain('Segunda')
+    expect(raw).toContain('Brújula: agente anclado a terminal.')
   })
 })

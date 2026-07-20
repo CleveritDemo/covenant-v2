@@ -38,6 +38,8 @@ export interface PlanePaneWindowProps {
   onFocus: () => void
   onToggleFullscreen: () => void
   onOpenConfig: () => void
+  /** Mini agente: clic en la card abre el chat del plano. */
+  onOpenChat: () => void
   onDelete: () => void
 }
 
@@ -65,6 +67,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onFocus,
   onToggleFullscreen,
   onOpenConfig,
+  onOpenChat,
   onDelete,
 }) => {
   const { t } = useT()
@@ -109,16 +112,23 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             busy={busy}
             provider={provider}
             statusLabel={statusLabel}
+            configLabel={configLabel}
+            deleteLabel={deleteLabel}
+            onConfigure={onOpenConfig}
+            onDelete={() => {
+              armMiniExpandSuppress()
+              setConfirmDeleteOpen(true)
+            }}
           >
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
                 contexts={contexts}
-                onOpenAgent={onOpenConfig}
+                onOpenAgent={onOpenChat}
               />
             ) : null}
           </PlaneMiniFace>
         ) : undefined}
-        miniActions={(
+        miniActions={isAgent ? undefined : (
           <PlaneMiniActions
             showConfig={false}
             configLabel={configLabel}
@@ -129,7 +139,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             }}
           />
         )}
-        onExpand={isAgent ? onOpenConfig : onExpand}
+        onExpand={isAgent ? onOpenChat : onExpand}
         onToggleFullscreen={onToggleFullscreen}
         onClose={onClose}
         onFocus={onFocus}

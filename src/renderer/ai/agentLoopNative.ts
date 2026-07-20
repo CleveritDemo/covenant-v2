@@ -9,10 +9,12 @@ import type { AgentShellPolicy } from '@shared/configSchema'
 import type { ToolResult } from '@ai/agentTypes'
 import { AI_TOOLS } from '@ai/toolDefinitions'
 import {
-  isSensitiveWritePath,
-  isSuspiciousAgentWriteContent,
+  filterWritesByUserIntent,
 } from '@shared/agentWriteGuard'
-import { requiresShellConfirmation } from '@shared/agentShellGuard'
+import {
+  isDestructiveShellCommand,
+  requiresShellConfirmation,
+} from '@shared/agentShellGuard'
 import {
   chatAnthropicAgentTurn,
   chatMessagesToAnthropicNative,
@@ -32,6 +34,13 @@ export interface NativeAgentOptions extends AiOptions {
   confirmShell?: (command: string) => Promise<boolean>
 }
 
+function lastUserMessageText(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messages[i].content
+  }
+  return ''
+}
+
 // ── Ejecutores de herramientas ────────────────────────────────────────────
 
 async function executeReadFile(sessionId: string, input: Record<string, unknown>): Promise<string> {
@@ -46,12 +55,19 @@ async function executeReadFile(sessionId: string, input: Record<string, unknown>
   }
 }
 
-async function executeWriteFile(sessionId: string, input: Record<string, unknown>): Promise<string> {
+async function executeWriteFile(
+  sessionId: string,
+  input: Record<string, unknown>,
+  userMessage: string,
+): Promise<string> {
   const path = String(input.path ?? '')
   const content = String(input.content ?? '')
   if (!path) return '[ERROR: path is required]'
-  if (isSensitiveWritePath(path)) return `[BLOCKED: sensitive path: ${path}]`
-  if (isSuspiciousAgentWriteContent(content)) return `[BLOCKED: invalid write content for ${path}]`
+  const { allowed, rejected } = filterWritesByUserIntent(userMessage, [{ path, content }])
+  if (allowed.length === 0) {
+    const reason = rejected[0]?.reason ?? 'write blocked'
+    return `[BLOCKED: ${reason}]`
+  }
   try {
     const r = await window.api.agentWriteFile(sessionId, path, content)
     return r.ok ? `File written: ${path}` : `[ERROR: ${r.error ?? 'write failed'}]`
@@ -74,7 +90,9 @@ async function executeRunCommand(
     if (!ok) return `[REJECTED: user did not confirm command: ${command}]`
   }
   try {
-    const r = await window.api.agentRunShell(sessionId, command)
+    const r = await window.api.agentRunShell(sessionId, command, {
+      destructiveConfirmed: isDestructiveShellCommand(command),
+    })
     if (!r.ok) return `[ERROR: ${r.error}]`
     const parts: string[] = [`exit code: ${r.exitCode ?? '(null)'}`]
     if (r.stdout.trim()) parts.push(`stdout:\n${r.stdout.trimEnd()}`)
@@ -85,15 +103,29 @@ async function executeRunCommand(
   }
 }
 
-async function executeSearchFiles(sessionId: string, input: Record<string, unknown>): Promise<string> {
+async function executeSearchFiles(
+  sessionId: string,
+  input: Record<string, unknown>,
+  policy: AgentShellPolicy,
+  confirm?: (cmd: string) => Promise<boolean>,
+): Promise<string> {
   const pattern = String(input.pattern ?? '')
   const searchType = String(input.search_type ?? 'glob')
   if (!pattern) return '[ERROR: pattern is required]'
+  if (policy === 'off') {
+    return `[SKIPPED: shell execution is disabled. search_files requires shell policy ask/always.]`
+  }
   const command = searchType === 'grep'
     ? `rg --no-heading -l ${JSON.stringify(pattern)} --glob '!node_modules/**' --glob '!.git/**'`
     : `rg --files -g ${JSON.stringify(pattern)} --glob '!node_modules/**' --glob '!.git/**' 2>/dev/null | head -n 60`
+  if (requiresShellConfirmation(command, policy)) {
+    const ok = (await confirm?.(command)) === true
+    if (!ok) return `[REJECTED: user did not confirm search command: ${command}]`
+  }
   try {
-    const r = await window.api.agentRunShell(sessionId, command)
+    const r = await window.api.agentRunShell(sessionId, command, {
+      destructiveConfirmed: isDestructiveShellCommand(command),
+    })
     if (!r.ok) return `[ERROR: ${r.error}]`
     return r.stdout.trim() || '(no matches found)'
   } catch (e) {
@@ -106,14 +138,15 @@ async function executeTool(
   input: Record<string, unknown>,
   sessionId: string,
   policy: AgentShellPolicy,
-  confirm?: (cmd: string) => Promise<boolean>,
+  confirm: ((cmd: string) => Promise<boolean>) | undefined,
+  userMessage: string,
 ): Promise<string> {
   let result: string
   switch (name) {
     case 'read_file': result = await executeReadFile(sessionId, input); break
-    case 'write_file': result = await executeWriteFile(sessionId, input); break
+    case 'write_file': result = await executeWriteFile(sessionId, input, userMessage); break
     case 'run_command': result = await executeRunCommand(sessionId, input, policy, confirm); break
-    case 'search_files': result = await executeSearchFiles(sessionId, input); break
+    case 'search_files': result = await executeSearchFiles(sessionId, input, policy, confirm); break
     default: result = `[ERROR: unknown tool "${name}"]`
   }
   return result.length > MAX_TOOL_RESULT_CHARS
@@ -131,6 +164,7 @@ async function runAnthropicAgentLoop(
 ): Promise<string> {
   const systemMsg = initialMessages.find(m => m.role === 'system')
   const systemPrompt = systemMsg?.content ?? ''
+  const userMessage = lastUserMessageText(initialMessages)
 
   let nativeMessages = chatMessagesToAnthropicNative(initialMessages)
   const uiParts: string[] = []
@@ -157,7 +191,9 @@ async function runAnthropicAgentLoop(
 
     const toolResults: ToolResult[] = []
     for (const tc of result.toolCalls) {
-      const content = await executeTool(tc.name, tc.input, sessionId, opts.shellPolicy, opts.confirmShell)
+      const content = await executeTool(
+        tc.name, tc.input, sessionId, opts.shellPolicy, opts.confirmShell, userMessage,
+      )
       toolResults.push({ toolCallId: tc.id, content })
     }
 
@@ -175,6 +211,7 @@ async function runOpenAIAgentLoop(
   opts: NativeAgentOptions,
   onStreamText: (visible: string) => void,
 ): Promise<string> {
+  const userMessage = lastUserMessageText(initialMessages)
   let nativeMessages = chatMessagesToOpenAINative(initialMessages)
   const uiParts: string[] = []
 
@@ -199,7 +236,9 @@ async function runOpenAIAgentLoop(
 
     const toolResults: ToolResult[] = []
     for (const tc of result.toolCalls) {
-      const content = await executeTool(tc.name, tc.input, sessionId, opts.shellPolicy, opts.confirmShell)
+      const content = await executeTool(
+        tc.name, tc.input, sessionId, opts.shellPolicy, opts.confirmShell, userMessage,
+      )
       toolResults.push({ toolCallId: tc.id, content })
     }
 

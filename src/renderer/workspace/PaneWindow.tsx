@@ -6,6 +6,7 @@ import {
   PANE_WINDOW_MIN_WIDTH,
   PLANE_MINI_AGENT_HEIGHT,
   PLANE_MINI_AGENT_WIDTH,
+  PLANE_MINI_TITLEBAR_HEIGHT,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
@@ -23,8 +24,7 @@ export type PaneWindowLayoutGeometry = PaneWindowGeometry & {
 const PANE_ZOOM_MS = 300
 
 /**
- * Misma sombra local que las terminales en CSS; en agentes se multiplica por
- * parkScale de la terminal (ellas la encogen con scale; los agentes no).
+ * Misma sombra local que las terminales en CSS (tamaño mini real).
  */
 const MINI_SHADOW = {
   x: 5,
@@ -37,25 +37,11 @@ const MINI_SHADOW = {
   alpha2: 0.08,
 } as const
 
-/** Park mini↔full: translate + scale uniforme (letterbox en la ranura). */
-function parkTransform(options: {
-  parked: boolean
-  dx: number
-  dy: number
-  scale: number
-}): string {
-  const s = options.parked ? options.scale : 1
-  const dx = options.parked ? options.dx : 0
-  const dy = options.parked ? options.dy : 0
-  return `translate(${dx}px, ${dy}px) scale(${s})`
-}
-
-function agentMiniBoxShadow(screenMul: number): string {
-  const m = Math.max(screenMul, 0.001)
+function agentMiniBoxShadow(): string {
   const a = MINI_SHADOW
   return [
-    `${a.x * m}px ${a.y * m}px ${a.blur * m}px color-mix(in srgb, #000 ${a.alpha * 100}%, transparent)`,
-    `${a.x2 * m}px ${a.y2 * m}px ${a.blur2 * m}px color-mix(in srgb, #000 ${a.alpha2 * 100}%, transparent)`,
+    `${a.x}px ${a.y}px ${a.blur}px color-mix(in srgb, #000 ${a.alpha * 100}%, transparent)`,
+    `${a.x2}px ${a.y2}px ${a.blur2}px color-mix(in srgb, #000 ${a.alpha2 * 100}%, transparent)`,
     'inset 0 0 0 1px var(--plane-highlight)',
   ].join(', ')
 }
@@ -243,35 +229,47 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
   const sizeW = geometry.width
   const sizeH = geometry.height
-  // Agentes: tamaño del contenedor = footprint letterbox de terminal (vía miniOrigin).
-  const miniW = miniAgentCard
-    ? (miniOrigin.width ?? PLANE_MINI_AGENT_WIDTH)
-    : PLANE_MINI_WINDOW_WIDTH
-  const miniH = miniAgentCard
-    ? (miniOrigin.height ?? PLANE_MINI_AGENT_HEIGHT)
-    : PLANE_MINI_WINDOW_HEIGHT
-
-  /** Terminales: caja SIEMPRE geometry (~70%). Mini = scale uniforme (letterbox). */
-  const stableGeometry = miniLivePreview
-  const parkScale = Math.min(
-    miniW / Math.max(sizeW, 1),
-    miniH / Math.max(sizeH, 1),
-  )
-  const scaledW = sizeW * parkScale
-  const scaledH = sizeH * parkScale
-  const targetX = miniOrigin.x + (miniW - scaledW) / 2
-  const targetY = miniOrigin.y + (miniH - scaledH) / 2
-  const parkDx = targetX - (geometry.x + (sizeW - scaledW) / 2)
-  const parkDy = targetY - (geometry.y + (sizeH - scaledH) / 2)
+  // Mini: misma ranura para terminales y agentes (dinámica por viewport).
+  const miniW = miniOrigin.width > 0
+    ? miniOrigin.width
+    : (miniAgentCard ? PLANE_MINI_AGENT_WIDTH : PLANE_MINI_WINDOW_WIDTH)
+  const miniH = miniOrigin.height > 0
+    ? miniOrigin.height
+    : (miniAgentCard ? PLANE_MINI_AGENT_HEIGHT : PLANE_MINI_WINDOW_HEIGHT)
 
   const zooming = zoomMode !== 'idle'
   const showAsMini = isMini && !zooming
+  // Titlebar visible en zoom aunque el mini no lleve chrome (evita cortes).
+  const titlebarVisible = showTitlebar || zooming
+  // Misma altura mini/full: el host live debe medir igual que el body expandido
+  // (si mini usa sizeW×sizeH, al abrir el body es más bajo → fit + scrollToBottom).
+  const chromeH = showTitlebar ? PLANE_MINI_TITLEBAR_HEIGHT : 0
+  const parkBodyW = sizeW
+  const parkBodyH = Math.max(1, sizeH - chromeH)
+  const miniTitlebarH = showAsMini && titlebarVisible ? PLANE_MINI_TITLEBAR_HEIGHT : 0
+  const previewBodyW = miniW
+  const previewBodyH = Math.max(1, miniH - miniTitlebarH)
+  /** Terminal mini: escala cover del body full dentro de la ranura (sin cambiar cols/rows). */
+  const liveCoverScale = Math.max(
+    previewBodyW / Math.max(parkBodyW, 1),
+    previewBodyH / Math.max(parkBodyH, 1),
+  )
+  const liveOffsetX = (previewBodyW - parkBodyW * liveCoverScale) / 2
+  const liveOffsetY = (previewBodyH - parkBodyH * liveCoverScale) / 2
 
   const fullLayout: LayoutBox = {
     left: geometry.x,
     top: geometry.y,
     width: sizeW,
     height: sizeH,
+    zIndex: geometry.zIndex,
+  }
+
+  const miniLayout: LayoutBox = {
+    left: miniOrigin.x,
+    top: miniOrigin.y,
+    width: miniW,
+    height: miniH,
     zIndex: geometry.zIndex,
   }
 
@@ -283,15 +281,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         height: '100%',
         zIndex: geometry.zIndex,
       }
-    : stableGeometry || !showAsMini
-      ? fullLayout
-      : {
-          left: miniOrigin.x,
-          top: miniOrigin.y,
-          width: miniW,
-          height: miniH,
-          zIndex: geometry.zIndex,
-        }
+    : showAsMini
+      ? miniLayout
+      : fullLayout
 
   const layout = layoutOverride ?? targetLayout
 
@@ -301,26 +293,11 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     return () => window.cancelAnimationFrame(id)
   }, [])
 
-  const rootTransform = (() => {
-    if (zooming || isFullscreen) return undefined
-    if (stableGeometry) {
-      return parkTransform({
-        parked: isMini,
-        dx: parkDx,
-        dy: parkDy,
-        scale: parkScale,
-      })
-    }
-    return undefined
-  })()
-
   const stageEase = `${PANE_ZOOM_MS}ms cubic-bezier(0.05, 0.9, 0.08, 1)`
-  const stageTransition = motionReady && !zooming
-    ? (
-      stableGeometry
-        ? `transform ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
-        : `left ${stageEase}, top ${stageEase}, width ${stageEase}, height ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
-    )
+  // Terminales live: nunca animar width/height (el fit intermedio hace saltar el texto).
+  // Agentes: transición CSS de caja.
+  const stageTransition = motionReady && !zooming && !miniLivePreview
+    ? `left ${stageEase}, top ${stageEase}, width ${stageEase}, height ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
     : undefined
 
   useLayoutEffect(() => {
@@ -348,8 +325,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
       prevDisplayRef.current = display
     }
 
-    // Mini↔centro: transición CSS del transform inline (terminals + agents).
-    if (!geo.fullscreen && (stableGeometry || miniAgentCard)) {
+    // Agentes mini↔centro: transición CSS de left/top/width/height.
+    // Terminales live: morph FLIP (el PTY debe quedarse a tamaño full; si no, fit mini→full salta el texto).
+    if (!geo.fullscreen && miniAgentCard) {
       commitDisplay()
       resetZoom()
       return
@@ -408,7 +386,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
     commitDisplay()
     resetZoom()
-  }, [display, miniH, miniW, stableGeometry, miniAgentCard])
+  }, [display, miniH, miniW, miniAgentCard])
 
   const prevFullscreenRef = useRef(geometry.fullscreen)
 
@@ -512,21 +490,15 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
   const parkWidth = Math.max(PANE_WINDOW_MIN_WIDTH, geometry.width)
   const parkHeight = Math.max(PANE_WINDOW_MIN_HEIGHT, geometry.height)
-  // Titlebar visible en zoom aunque el mini no lleve chrome (evita cortes).
-  const titlebarVisible = showTitlebar || zooming
 
   // Terminales: host siempre activo (mismo tamaño). Agentes mini: aparcados + face.
   const liveHostMode = (!isMini || zooming || miniLivePreview)
     ? 'active'
     : 'parked'
 
-  // Agentes: sombra = la de terminales ya “encogida” por parkScale (terminales no se tocan).
-  const terminalParkScale = Math.min(
-    PLANE_MINI_WINDOW_WIDTH / Math.max(sizeW, 1),
-    PLANE_MINI_WINDOW_HEIGHT / Math.max(sizeH, 1),
-  )
-  const agentParkedShadow = showAsMini && miniAgentCard && !isFullscreen
-    ? agentMiniBoxShadow(terminalParkScale)
+  // Misma caja mini que agentes; sombra a escala 1 (busy: glow CSS anima la sombra).
+  const agentParkedShadow = showAsMini && miniAgentCard && !isFullscreen && !busy
+    ? agentMiniBoxShadow()
     : undefined
 
   return (
@@ -544,7 +516,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         zoomMode === 'expand' ? 'pane-window--zooming-expand' : '',
         zoomMode === 'collapse' ? 'pane-window--zooming-collapse' : '',
         zoomMode === 'expand' && geometry.fullscreen ? 'pane-window--zooming-to-fullscreen' : '',
-        stableGeometry ? 'pane-window--stable-geometry' : '',
         focused ? 'pane-window--focused' : '',
         busy ? 'pane-window--busy' : '',
       ].filter(Boolean).join(' ')}
@@ -556,10 +527,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         zIndex: zooming || (!isMini && !isFullscreen)
           ? Math.max(Number(layout.zIndex) || 0, 120)
           : layout.zIndex,
-        ...(rootTransform != null ? {
-          transform: rootTransform,
-          transformOrigin: 'center center',
-        } : null),
         ...(stageTransition ? { transition: stageTransition } : null),
         ...(agentParkedShadow ? { boxShadow: agentParkedShadow } : null),
       }}
@@ -646,11 +613,27 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             className={[
               'pane-window__live-host',
               `pane-window__live-host--${liveHostMode}`,
-            ].join(' ')}
-            style={showAsMini && !miniLivePreview ? {
-              width: parkWidth,
-              height: parkHeight,
-            } : undefined}
+              showAsMini && miniLivePreview ? 'pane-window__live-host--mini-cover' : '',
+            ].filter(Boolean).join(' ')}
+            style={showAsMini && miniLivePreview
+              ? {
+                  width: parkBodyW,
+                  height: parkBodyH,
+                  transformOrigin: 'top left',
+                  transform: `translate(${liveOffsetX}px, ${liveOffsetY}px) scale(${liveCoverScale})`,
+                }
+              : zooming && miniLivePreview
+                ? {
+                    // Mismo tamaño de body durante el morph (evita un fit al quitar el cover).
+                    width: parkBodyW,
+                    height: parkBodyH,
+                  }
+              : showAsMini && !miniLivePreview
+                ? {
+                    width: parkWidth,
+                    height: parkHeight,
+                  }
+                : undefined}
             aria-hidden={showAsMini && !miniLivePreview}
           >
             {children}

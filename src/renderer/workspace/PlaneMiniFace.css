@@ -1,5 +1,4 @@
 .plane-mini-face {
-  --mini-card-accent: var(--accent);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -17,7 +16,7 @@
   background:
     radial-gradient(
       ellipse 90% 70% at 12% -10%,
-      color-mix(in srgb, var(--mini-card-accent) 8%, transparent) 0%,
+      color-mix(in srgb, var(--accent) 8%, transparent) 0%,
       transparent 58%
     ),
     linear-gradient(
@@ -25,11 +24,9 @@
       color-mix(in srgb, var(--surface) 22%, var(--plane-node-bg)) 0%,
       var(--plane-node-solid) 100%
     );
-}
-
-.plane-mini-face--cursor,
-.plane-mini-face--claude {
-  --mini-card-accent: var(--accent);
+  transition:
+    background 0.28s ease,
+    box-shadow 0.28s ease;
 }
 
 .plane-mini-face__glow {
@@ -45,6 +42,7 @@
       color-mix(in srgb, #fff 4%, transparent) 42%,
       transparent 70%
     );
+  transition: opacity 0.28s ease, background 0.28s ease;
 }
 
 .plane-mini-face__header,
@@ -76,21 +74,41 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--mini-card-accent) 22%, transparent);
 }
 
-.plane-mini-face__pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 30%, transparent);
+.plane-mini-face__header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.plane-mini-face__pulse--on {
-  background: color-mix(in srgb, var(--mini-card-accent) 70%, var(--text));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--mini-card-accent) 35%, transparent);
-  animation: plane-mini-face-pulse 1.5s ease-in-out infinite;
+.plane-mini-face__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: calc(var(--plane-radius-sm) - 2px);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.12s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.plane-mini-face__action:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+}
+
+.plane-mini-face__action--danger:hover {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
 }
 
 .plane-mini-face__body {
@@ -136,40 +154,24 @@
   border-top: 1px solid var(--plane-border);
 }
 
+/* Busy: sin glow; el borde cromático lo pinta el pane-window. */
 .plane-mini-face--busy {
-  animation: plane-mini-face-breathe 2.4s ease-in-out infinite;
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent) 8%, var(--plane-node-bg)) 0%,
+      var(--plane-node-solid) 100%
+    );
 }
 
 .plane-mini-face--busy .plane-mini-face__glow {
-  opacity: 0.9;
-  animation: plane-mini-face-shimmer 2.8s ease-in-out infinite;
+  opacity: 0.35;
 }
 
-@keyframes plane-mini-face-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.08); }
-}
-
-@keyframes plane-mini-face-breathe {
-  0%, 100% {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mini-card-accent) 18%, transparent);
-  }
-  50% {
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--mini-card-accent) 42%, transparent),
-      0 0 20px color-mix(in srgb, var(--mini-card-accent) 18%, transparent);
-  }
-}
-
-@keyframes plane-mini-face-shimmer {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
+.plane-mini-face--busy .plane-mini-face__provider {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .plane-mini-face__pulse--on,
-  .plane-mini-face--busy,
-  .plane-mini-face--busy .plane-mini-face__glow {
-    animation: none;
-  }
+  /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
 }

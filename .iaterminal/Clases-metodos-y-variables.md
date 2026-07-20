@@ -442,19 +442,22 @@
 - `src/renderer/agent/AgentPane.tsx#class:AgentPreferSend` — interface `AgentPreferSend`
 - `src/renderer/agent/AgentPane.tsx#class:Props` — interface `Props`
 - `src/renderer/agent/AgentPane.tsx#class:AgentPlaneStatus` — interface `AgentPlaneStatus`
+- `src/renderer/agent/AgentPane.tsx#class:AgentPlaneQueueControls` — interface `AgentPlaneQueueControls`
 - `src/renderer/agent/AgentPane.tsx#function:systemMessage`
   - signature: `systemMessage(content: string): AgentChatEntry`
   - inputs: `content: string`
   - returns: `AgentChatEntry`
 - `src/renderer/agent/AgentPane.tsx#function:AgentPane`
-  - signature: `AgentPane({ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }): inferred/unspecified`
-  - inputs: `{ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }`
+  - signature: `AgentPane({ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, onPlaneLoopToggleReady, onPlaneQueueControlsReady, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }): inferred/unspecified`
+  - inputs: `{ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, onPlaneLoopToggleReady, onPlaneQueueControlsReady, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }`
   - returns: `inferred/unspecified`
 - `src/renderer/agent/AgentPane.tsx#variable:{ t }` — variable `{ t }: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[messages, setMessages]` — variable `[messages, setMessages]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[input, setInput]` — variable `[input, setInput]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[pendingImages, setPendingImages]` — variable `[pendingImages, setPendingImages]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[queuedTurns, setQueuedTurns]` — variable `[queuedTurns, setQueuedTurns]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:[editingQueuedId, setEditingQueuedId]` — variable `[editingQueuedId, setEditingQueuedId]: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:editingQueuedText` — variable `editingQueuedText: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[busy, setBusy]` — variable `[busy, setBusy]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loaded, setLoaded]` — variable `[loaded, setLoaded]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[activity, setActivity]` — variable `[activity, setActivity]: inferred`
@@ -530,11 +533,6 @@
 - `src/renderer/agent/AgentPane.tsx#variable:message` — variable `message: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:previousLen` — variable `previousLen: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:nextLen` — variable `nextLen: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
 
 ### src/renderer/agent/AgentPaneFooter.tsx
 - `src/renderer/agent/AgentPaneFooter.tsx#class:AgentPanePendingImage` — interface `AgentPanePendingImage`
@@ -549,8 +547,8 @@
 - `src/renderer/agent/AgentPaneMessages.tsx#class:AgentPaneQueuedTurn` — interface `AgentPaneQueuedTurn`
 - `src/renderer/agent/AgentPaneMessages.tsx#class:AgentPaneMessagesProps` — interface `AgentPaneMessagesProps`
 - `src/renderer/agent/AgentPaneMessages.tsx#function:AgentPaneMessages`
-  - signature: `AgentPaneMessages({ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onScrollToBottom, }): inferred/unspecified`
-  - inputs: `{ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onScrollToBottom, }`
+  - signature: `AgentPaneMessages({ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onEditQueuedTurn, onScrollToBottom, }): inferred/unspecified`
+  - inputs: `{ scrollRef, messages, busy, activity, loopActive, loopIteration, queuedTurns, nearBottom, activeAssistantId, enteringIds, materializingIds, settlingId, onEnteringAnimationEnd, onMaterializingAnimationEnd, onRemoveQueuedTurn, onEditQueuedTurn, onScrollToBottom, }`
   - returns: `inferred/unspecified`
 - `src/renderer/agent/AgentPaneMessages.tsx#variable:{ t }` — variable `{ t }: inferred`
 - `src/renderer/agent/AgentPaneMessages.tsx#variable:activityText` — variable `activityText: inferred`
@@ -565,7 +563,6 @@
 - `src/renderer/agent/AgentProviderPickerModal.tsx#variable:{ t }` — variable `{ t }: inferred`
 
 ### src/renderer/agent/composerImages.ts
-- `src/renderer/agent/composerImages.ts#variable:MAX_PENDING_IMAGES` — variable `MAX_PENDING_IMAGES: inferred`
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

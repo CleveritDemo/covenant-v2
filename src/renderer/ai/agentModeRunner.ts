@@ -14,7 +14,7 @@ import {
   type GitBlockRequest,
   type ReadRequest,
 } from '@shared/agentFileProtocol'
-import { requiresShellConfirmation } from '@shared/agentShellGuard'
+import { requiresShellConfirmation, isDestructiveShellCommand } from '@shared/agentShellGuard'
 import {
   filterPatchesByUserIntent,
   filterWritesByUserIntent,
@@ -211,7 +211,9 @@ async function buildShellFollowUp(
       }
     }
     try {
-      const r = await window.api.agentRunShell(sessionId, cmd)
+      const r = await window.api.agentRunShell(sessionId, cmd, {
+        destructiveConfirmed: isDestructiveShellCommand(cmd),
+      })
       if (r.ok) {
         lines.push(`### Command\n\`${cmd}\`\n**exit code:** ${r.exitCode ?? '(null)'}\n`)
         if (r.stdout.trim()) lines.push('**stdout:**\n```\n' + r.stdout.trimEnd() + '\n```')

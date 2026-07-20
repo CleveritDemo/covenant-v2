@@ -1,0 +1,9 @@
+.plane-idle-thinking {
+  position: absolute;
+  inset: 0 0 140px 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}

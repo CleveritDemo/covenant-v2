@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import { normalizeContextFileName } from '@shared/tabContext'
+import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
@@ -10,9 +11,11 @@ interface Props {
   open: boolean
   /** Catálogo vivo leído desde `.iaterminal/*.md`. */
   contexts: TabContext[]
+  /** Carpeta del proyecto (cwd de contextos y materialización). */
   cwd: string
-  paneId: string
-  cwdSources: Array<{ paneId: string; label: string }>
+  /** Al abrir, selecciona este contexto para editar. */
+  focusContextId?: string | null
+  onFocusContextConsumed?: () => void
   onRefresh: () => void
   onAssign: (contextId: string) => void
   onClose: () => void
@@ -25,9 +28,18 @@ function emptyContext(kind: TabContextKind = 'folderTree'): TabContext {
       name: 'AI Changelog',
       fileName: 'changelog.md',
       kind,
+      icon: defaultIconForKind(kind),
+      color: defaultColorForKind(kind),
     }
   }
-  return { id: crypto.randomUUID(), name: '', fileName: 'context.md', kind }
+  return {
+    id: crypto.randomUUID(),
+    name: '',
+    fileName: 'context.md',
+    kind,
+    icon: defaultIconForKind(kind),
+    color: defaultColorForKind(kind),
+  }
 }
 
 function comparable(value: string): string {
@@ -39,7 +51,7 @@ function normalizedRoot(value?: string): string {
 }
 
 function contextDefinition(context: TabContext): string | null {
-  if (context.kind === 'notes' || context.kind === 'changelog') return null
+  if (context.kind === 'notes' || context.kind === 'changelog' || context.kind === 'agentResult') return null
   const paths = [...(context.paths ?? [])]
     .map(path => path.trim().replace(/^\.\/+/, ''))
     .filter(Boolean)
@@ -69,8 +81,8 @@ export const TabContextsModal: React.FC<Props> = ({
   open,
   contexts,
   cwd,
-  paneId,
-  cwdSources,
+  focusContextId = null,
+  onFocusContextConsumed,
   onRefresh,
   onAssign,
   onClose,
@@ -91,19 +103,7 @@ export const TabContextsModal: React.FC<Props> = ({
   }, [open])
 
   const resolveCwd = async (): Promise<string> => {
-    let resolved = (cwd ?? '').trim()
-    if (!resolved) {
-      try {
-        const fromPane = await window.api.getSessionCwd(paneId)
-        resolved = (fromPane ?? '').trim()
-      } catch { /* ignore */ }
-    }
-    if (!resolved && cwdSources[0]) {
-      try {
-        const fromSource = await window.api.getSessionCwd(cwdSources[0].paneId)
-        resolved = (fromSource ?? '').trim()
-      } catch { /* ignore */ }
-    }
+    const resolved = (cwd ?? '').trim()
     setResolvedCwdLabel(resolved)
     return resolved
   }
@@ -115,6 +115,7 @@ export const TabContextsModal: React.FC<Props> = ({
 
   const readOnlyChangelog = draft?.kind === 'changelog' &&
     contexts.some(context => context.id === draft.id)
+  const readOnlyAgentResult = draft?.kind === 'agentResult'
 
   const duplicateMessage = (() => {
     if (!draft) return ''
@@ -262,9 +263,13 @@ export const TabContextsModal: React.FC<Props> = ({
 
   const editContext = async (context: TabContext): Promise<void> => {
     setDraft({ ...context })
-    setPreview(context.kind === 'changelog' ? { status: 'loading' } : { status: 'idle' })
+    setPreview(
+      context.kind === 'changelog' || context.kind === 'agentResult'
+        ? { status: 'loading' }
+        : { status: 'idle' },
+    )
     setNotesContent('')
-    if (context.kind === 'notes' || context.kind === 'changelog') {
+    if (context.kind === 'notes' || context.kind === 'changelog' || context.kind === 'agentResult') {
       const workingCwd = await resolveCwd()
       if (!workingCwd) return
       try {
@@ -273,13 +278,20 @@ export const TabContextsModal: React.FC<Props> = ({
           setNotesContent(result.notesContent ?? result.content)
         } else if (result.ok) {
           setPreview(result.content.trim()
-            ? { status: 'success', content: result.content, filePath: result.filePath ?? '.iaterminal/changelog.md' }
+            ? {
+                status: 'success',
+                content: result.content,
+                filePath: result.filePath
+                  ?? (context.kind === 'agentResult'
+                    ? `.iaterminal/${context.fileName}`
+                    : '.iaterminal/changelog.md'),
+              }
             : { status: 'empty', filePath: result.filePath })
         } else {
           setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
         }
       } catch (error) {
-        if (context.kind === 'changelog') {
+        if (context.kind === 'changelog' || context.kind === 'agentResult') {
           setPreview({
             status: 'error',
             message: error instanceof Error ? error.message : t('tabContexts.previewError'),
@@ -288,6 +300,19 @@ export const TabContextsModal: React.FC<Props> = ({
       }
     }
   }
+
+  useEffect(() => {
+    if (!open || !focusContextId) return
+    const target = contexts.find(context => context.id === focusContextId)
+    if (!target) {
+      if (contexts.length > 0) onFocusContextConsumed?.()
+      return
+    }
+    void editContext(target)
+    onFocusContextConsumed?.()
+    // editContext is stable enough for open/focus; avoid re-edit on every contexts refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, focusContextId, contexts, onFocusContextConsumed])
 
   const loadPreview = async (): Promise<void> => {
     if (!draft) return
@@ -339,6 +364,8 @@ export const TabContextsModal: React.FC<Props> = ({
         fileName: draft.kind === 'changelog'
           ? 'context.md'
           : draft.fileName,
+        icon: defaultIconForKind(kind),
+        color: defaultColorForKind(kind),
       })
     }
     setNotesContent('')
@@ -353,7 +380,7 @@ export const TabContextsModal: React.FC<Props> = ({
       titleId="tab-contexts-title"
       size="xl"
       bodyLayout="flush"
-      zIndex={780}
+      zIndex={900}
     >
       <div className="tab-contexts">
         <TabContextsList
@@ -371,6 +398,7 @@ export const TabContextsModal: React.FC<Props> = ({
           resolvedCwdLabel={resolvedCwdLabel}
           duplicateMessage={duplicateMessage}
           readOnlyChangelog={Boolean(readOnlyChangelog)}
+          readOnlyAgentResult={Boolean(readOnlyAgentResult)}
           onCreateNew={() => setDraft(emptyContext())}
           onUpdate={update}
           onSelectKind={selectKind}

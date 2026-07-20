@@ -33,6 +33,8 @@ export type IconName =
   | 'book'
   | 'history'
   | 'note'
+  | 'maximize'
+  | 'restore'
 
 interface IconProps {
   name: IconName
@@ -265,6 +267,17 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  ),
+  maximize: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="1.5" />
+    </svg>
+  ),
+  restore: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="7" y="7" width="13" height="13" rx="1.5" />
+      <path d="M4 15V5a1 1 0 0 1 1-1h10" />
     </svg>
   ),
 }

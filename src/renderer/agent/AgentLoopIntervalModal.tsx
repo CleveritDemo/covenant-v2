@@ -41,7 +41,7 @@ export const AgentLoopIntervalModal: React.FC<Props> = ({
       onClose={onClose}
       title={t('agentPane.loopIntervalTitle')}
       size="sm"
-      zIndex={760}
+      zIndex={860}
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>

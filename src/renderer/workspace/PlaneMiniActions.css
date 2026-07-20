@@ -1,0 +1,47 @@
+.plane-mini-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.pane-window--mini:hover .plane-mini-actions,
+.pane-window--mini:focus-within .plane-mini-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plane-mini-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--plane-border);
+  border-radius: calc(var(--plane-radius-sm) - 2px);
+  background: var(--plane-glass-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--plane-shadow-soft);
+  transition: color 0.12s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  /* Evita que el gesto llegue al body del mini (expand). */
+  touch-action: manipulation;
+}
+
+.plane-mini-actions__btn:hover {
+  color: var(--text);
+  border-color: var(--plane-border-strong);
+  box-shadow: 0 0 12px var(--plane-glow);
+}
+
+.plane-mini-actions__btn--danger:hover {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}

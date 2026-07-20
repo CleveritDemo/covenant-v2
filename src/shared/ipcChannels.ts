@@ -39,6 +39,8 @@ export const IPC = {
   LIST_CWD_DIRS: 'cdRecent:listCwdDirs',
   /** Renderer → main: abre una carpeta en Finder */
   OPEN_FOLDER: 'shell:openFolder',
+  /** Renderer → main (invoke): diálogo nativo para elegir carpeta de proyecto */
+  SELECT_DIRECTORY: 'shell:selectDirectory',
   /** Renderer → main (invoke): abrir URL externa (http(s) / spotify:); playlists web → app si hay cliente */
   OPEN_EXTERNAL_URL: 'shell:openExternalUrl',
   /** Renderer → main (invoke): ¿cliente Spotify de escritorio instalado? */

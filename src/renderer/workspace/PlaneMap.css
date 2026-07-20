@@ -1,0 +1,151 @@
+.plane-map {
+  position: absolute;
+  inset: 0;
+  /* visible: la perspectiva 3D de las columnas no debe recortarse */
+  overflow: visible;
+  z-index: 12;
+  pointer-events: none;
+}
+
+/* Ventana abierta: por encima del composer (shell z18 dentro del dock). */
+.plane-map--elevated {
+  z-index: 40;
+}
+
+/* Capa para capturar clic fuera de la ventana abierta (el mapa es pointer-events: none). */
+.plane-map__dismiss {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.plane-map__atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+}
+
+.plane-map__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--plane-grid-opacity);
+  background-image:
+    linear-gradient(var(--plane-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--plane-grid-line) 1px, transparent 1px);
+  background-size: var(--plane-grid-size) var(--plane-grid-size);
+}
+
+.plane-map__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.plane-map__empty strong {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  text-shadow: 0 0 28px var(--plane-glow);
+}
+
+.plane-map__empty p {
+  margin: 0;
+  max-width: 38ch;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.plane-map__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+  perspective: 1200px;
+  perspective-origin: 50% 45%;
+}
+
+.plane-map__column {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transition: transform 300ms cubic-bezier(0.05, 0.9, 0.08, 1);
+  will-change: transform;
+  z-index: 1;
+}
+
+.plane-map__column--terminals {
+  transform-origin: left center;
+}
+
+.plane-map__column--agents {
+  transform-origin: right center;
+}
+
+/* Columna con ventana abierta por encima de la otra (transform crea stacking context). */
+.plane-map__column--front {
+  z-index: 8;
+}
+
+.plane-map__column .pane-window {
+  pointer-events: auto;
+  transform-style: preserve-3d;
+}
+
+/* Terminales: sombra sutil a la izquierda (se ve correcta tras el parkScale). */
+.plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming),
+.plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming):hover {
+  border-radius: 10px !important;
+  box-shadow:
+    -5px 6px 18px color-mix(in srgb, #000 16%, transparent),
+    -1px 2px 5px color-mix(in srgb, #000 8%, transparent),
+    inset 0 0 0 1px var(--plane-highlight) !important;
+}
+
+/* Agentes: radio; sombra inline reducida por parkScale en PaneWindow. */
+.plane-map__column--agents .pane-window--mini:not(.pane-window--zooming) {
+  border-radius: 10px !important;
+}
+
+.plane-map__column .pane-window--mini:not(.pane-window--zooming):hover {
+  filter: brightness(1.04);
+}
+
+.plane-map__slot-reserve {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 45%, transparent);
+  background: color-mix(in srgb, var(--surface) 22%, transparent);
+  opacity: 0.45;
+  z-index: 1;
+}
+
+.pane-window__shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}

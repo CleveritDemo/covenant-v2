@@ -12,6 +12,7 @@ import { join, normalize, resolve } from 'path'
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   shell,
 } from 'electron'
@@ -330,6 +331,45 @@ function registerIpc(): void {
   ipcMain.on(IPC.OPEN_FOLDER, (_e, folderPath: string) => {
     void shell.openPath(folderPath)
   })
+
+  ipcMain.handle(
+    IPC.SELECT_DIRECTORY,
+    async (
+      event,
+      options?: { title?: string; defaultPath?: string },
+    ): Promise<{ ok: true; path: string } | { ok: false; cancelled?: boolean; error?: string }> => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+        ?? BrowserWindow.getFocusedWindow()
+        ?? BrowserWindow.getAllWindows()[0]
+        ?? null
+      const title = typeof options?.title === 'string' && options.title.trim()
+        ? options.title.trim()
+        : undefined
+      const defaultPath = typeof options?.defaultPath === 'string' && options.defaultPath.trim()
+        ? options.defaultPath.trim()
+        : undefined
+      const dialogOpts: Electron.OpenDialogOptions = {
+        title,
+        defaultPath,
+        properties: ['openDirectory', 'createDirectory'],
+      }
+      const result = win
+        ? await dialog.showOpenDialog(win, dialogOpts)
+        : await dialog.showOpenDialog(dialogOpts)
+      if (result.canceled || !result.filePaths[0]) {
+        return { ok: false, cancelled: true }
+      }
+      const selected = resolve(result.filePaths[0])
+      try {
+        if (!statSync(selected).isDirectory()) {
+          return { ok: false, error: 'not a directory' }
+        }
+      } catch {
+        return { ok: false, error: 'path unavailable' }
+      }
+      return { ok: true, path: selected }
+    },
+  )
 
   ipcMain.handle(IPC.OPEN_EXTERNAL_URL, async (_e, urlStr: unknown) => {
     if (typeof urlStr !== 'string' || !urlStr.trim()) {

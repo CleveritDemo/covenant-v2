@@ -19,6 +19,12 @@ export interface AgentCliStartRequest {
   prompt: string
   cwd: string
   permissionMode: AgentPermissionMode
+  /** Nombre del agente; se inyecta en el prompt del turno. */
+  name?: string
+  /** Rol del agente; se inyecta en el prompt del turno. */
+  role?: string
+  /** Objetivo persistente; se inyecta en el prompt del turno. */
+  objective?: string
   /** Si viene, se pasa como `--model` al CLI. */
   model?: string
   /** Definiciones asignadas; main las materializa contra cwd justo al enviar. */

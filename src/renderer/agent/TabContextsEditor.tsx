@@ -1,10 +1,16 @@
 import React from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
-import { normalizeContextFileName, ALL_CONTEXT_KINDS } from '@shared/tabContext'
+import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS } from '@shared/tabContext'
+import {
+  TAB_CONTEXT_COLORS,
+  TAB_CONTEXT_ICON_NAMES,
+  resolveContextColor,
+  resolveContextIcon,
+} from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
-import { KIND_ICONS } from './tabContextKindIcons'
+import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
 
 export type PreviewState =
   | { status: 'idle' }
@@ -13,7 +19,7 @@ export type PreviewState =
   | { status: 'empty'; filePath?: string }
   | { status: 'error'; message: string }
 
-const KINDS: TabContextKind[] = [...ALL_CONTEXT_KINDS]
+const KINDS: TabContextKind[] = [...CREATABLE_CONTEXT_KINDS]
 
 interface Props {
   draft: TabContext | null
@@ -23,6 +29,7 @@ interface Props {
   resolvedCwdLabel: string
   duplicateMessage: string
   readOnlyChangelog: boolean
+  readOnlyAgentResult?: boolean
   onCreateNew: () => void
   onUpdate: (patch: Partial<TabContext>) => void
   onSelectKind: (kind: TabContextKind) => void
@@ -43,6 +50,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   resolvedCwdLabel,
   duplicateMessage,
   readOnlyChangelog,
+  readOnlyAgentResult = false,
   onCreateNew,
   onUpdate,
   onSelectKind,
@@ -74,15 +82,19 @@ export const TabContextsEditor: React.FC<Props> = ({
     )
   }
 
+  const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
+
   return (
     <section className="tab-contexts__editor">
-      {readOnlyChangelog ? (
+      {hostOwnedReadOnly ? (
         <div className="tab-contexts__kind-banner">
           <span className="tab-contexts__item-icon">
-            <Icon name="history" size={18} />
+            <Icon name={readOnlyAgentResult ? 'bot' : 'history'} size={18} />
           </span>
           <div>
-            <strong>{t('tabContexts.kind_changelog')}</strong>
+            <strong>
+              {t(readOnlyAgentResult ? 'tabContexts.kind_agentResult' : 'tabContexts.kind_changelog')}
+            </strong>
             <small>{draft.fileName}</small>
           </div>
         </div>
@@ -150,6 +162,53 @@ export const TabContextsEditor: React.FC<Props> = ({
         )}`}</small>
       </label>
 
+      {!hostOwnedReadOnly && (
+        <>
+          <fieldset className="tab-contexts__appearance">
+            <legend>{t('tabContexts.icon')}</legend>
+            <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
+              {TAB_CONTEXT_ICON_NAMES.map(icon => {
+                const active = resolveContextIcon(draft) === icon
+                return (
+                  <button
+                    key={icon}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={icon}
+                    className={`tab-contexts__icon-swatch${active ? ' tab-contexts__icon-swatch--active' : ''}`}
+                    style={{ color: resolveContextColor(draft) }}
+                    onClick={() => onUpdate({ icon })}
+                  >
+                    <Icon name={appearanceIconName(icon)} size={15} />
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+          <fieldset className="tab-contexts__appearance">
+            <legend>{t('tabContexts.color')}</legend>
+            <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
+              {TAB_CONTEXT_COLORS.map(color => {
+                const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={color}
+                    className={`tab-contexts__color-swatch${active ? ' tab-contexts__color-swatch--active' : ''}`}
+                    style={{ background: color }}
+                    onClick={() => onUpdate({ color })}
+                  />
+                )
+              })}
+            </div>
+          </fieldset>
+        </>
+      )}
+
       {draft.kind !== 'notes' && draft.kind !== 'changelog' && (
         <label>
           <span>{t('tabContexts.rootPath')}</span>
@@ -210,8 +269,12 @@ export const TabContextsEditor: React.FC<Props> = ({
         </label>
       )}
 
-      {draft.kind === 'changelog' && (
-        <p className="tab-contexts__cwd">{t('tabContexts.changelogReadOnly')}</p>
+      {(draft.kind === 'changelog' || draft.kind === 'agentResult') && (
+        <p className="tab-contexts__cwd">
+          {t(draft.kind === 'agentResult'
+            ? 'tabContexts.agentResultReadOnly'
+            : 'tabContexts.changelogReadOnly')}
+        </p>
       )}
 
       {resolvedCwdLabel && (
@@ -259,7 +322,7 @@ export const TabContextsEditor: React.FC<Props> = ({
         <Button variant="secondary" disabled={preview.status === 'loading'} onClick={() => { void onLoadPreview() }}>
           {preview.status === 'loading' ? t('tabContexts.loading') : t('tabContexts.preview')}
         </Button>
-        {draft.kind !== 'changelog' && <Button
+        {draft.kind !== 'changelog' && draft.kind !== 'agentResult' && <Button
           variant="secondary"
           disabled={
             preview.status === 'loading' ||
@@ -273,17 +336,19 @@ export const TabContextsEditor: React.FC<Props> = ({
           <Icon name="refresh" size={13} />
           {t('tabContexts.regenerate')}
         </Button>}
-        <Button
-          disabled={
-            Boolean(duplicateMessage) ||
-            (draft.kind === 'changelog'
-              ? false
-              : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
-          }
-          onClick={() => { void onSave() }}
-        >
-          {t('tabContexts.saveAndAssign')}
-        </Button>
+        {draft.kind !== 'agentResult' && (
+          <Button
+            disabled={
+              Boolean(duplicateMessage) ||
+              (draft.kind === 'changelog'
+                ? false
+                : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
+            }
+            onClick={() => { void onSave() }}
+          >
+            {t('tabContexts.saveAndAssign')}
+          </Button>
+        )}
       </div>
     </section>
   )

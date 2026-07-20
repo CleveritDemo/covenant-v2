@@ -1,0 +1,24 @@
+.context-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: default;
+  user-select: none;
+  transition: transform 0.12s, filter 0.12s;
+}
+
+.context-badge:hover {
+  transform: translateY(-1px) scale(1.08);
+  filter: brightness(1.15);
+}
+
+.context-badge--shared {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 55%, transparent));
+}

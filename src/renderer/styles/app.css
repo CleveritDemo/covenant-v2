@@ -5,10 +5,7 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 70% 45% at 88% -8%, var(--accent-veil-strong) 0%, transparent 55%),
-    radial-gradient(ellipse 55% 40% at 8% 0%, var(--accent-veil) 0%, transparent 50%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 70%, var(--bg)) 0%, var(--bg) 28%, var(--bg) 100%);
+  background: var(--bg);
 }
 
 /* ── Title bar ────────────────────────────────────────────────── */
@@ -141,9 +138,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 82% 0%, var(--accent-veil) 0%, transparent 18%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, var(--bg-secondary)) 0%, var(--bg) 100%);
+  background: var(--bg);
 }
 
 .tab-terminal-group {
@@ -156,18 +151,8 @@
 
 .tab-terminal-group--active {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: stretch;
-}
-
-.tab-terminal-group--active.tab-terminal-group--panes-1 {
-  flex-direction: column;
-}
-
-.tab-terminal-group--active.tab-terminal-group--panes-2,
-.tab-terminal-group--active.tab-terminal-group--panes-3,
-.tab-terminal-group--active.tab-terminal-group--panes-4 {
-  flex-direction: column;
 }
 
 /* ── Split layout (divisores redimensionables) ─────────────────────────── */

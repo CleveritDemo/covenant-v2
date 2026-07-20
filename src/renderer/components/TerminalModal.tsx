@@ -115,9 +115,18 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
       className="terminal-modal-root"
       style={{ '--modal-z': zIndex } as React.CSSProperties}
       role="presentation"
-      onClick={closeOnBackdrop ? onClose : undefined}
     >
-      <div className="terminal-modal-scrim" aria-hidden="true" />
+      <div
+        className="terminal-modal-scrim"
+        aria-hidden="true"
+        onPointerDown={closeOnBackdrop ? (event) => {
+          // pointerdown (no click): evita que el mouseup/click caiga en el plano.
+          if (event.button !== 0) return
+          event.preventDefault()
+          event.stopPropagation()
+          onClose()
+        } : undefined}
+      />
       <div
         ref={panelRef}
         className={[
@@ -130,6 +139,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         aria-labelledby={hasHeader ? titleId : undefined}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
       >
         {hasHeader && (
           <header className="terminal-modal-header">
@@ -138,7 +148,19 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
               <button
                 type="button"
                 className="terminal-modal-header-close"
-                onClick={onClose}
+                onPointerDown={event => {
+                  // Cerrar en pointerdown evita click-through al desmontar el portal.
+                  if (event.button !== 0) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onClose()
+                }}
+                onClick={event => {
+                  // Teclado (Enter/Espacio): pointerdown no aplica.
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onClose()
+                }}
                 title={t('ui.closeTitle')}
                 aria-label={t('ui.closeAriaLabel')}
               >

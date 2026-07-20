@@ -1,0 +1,19 @@
+.plane-agent-context-nodes {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 18px;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.plane-agent-context-nodes__item {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+}

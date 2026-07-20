@@ -1,0 +1,298 @@
+.plane-quick-chat {
+  /* Mismos tokens tipográficos/radios que el chat del AgentPane. */
+  --agent-font: var(--font-ui);
+  --agent-radius: 12px;
+  --agent-chat-font-size: 13px;
+  --agent-beam: var(--accent);
+  position: relative;
+  flex: 1 1 auto;
+  /* Ancho completo: los fades (::before/::after) cruzan todo el plano. */
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: stretch;
+  padding: 12px 0 calc(var(--plane-composer-clearance, 148px) + 10px);
+  pointer-events: none;
+  font-family: var(--agent-font);
+  color: var(--text);
+  background: transparent;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Velo oscuro encima del chat (anclado arriba); no cubre agentes/pool. */
+.plane-quick-chat.agent-pane::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: min(112px, 22%);
+  z-index: 3;
+  pointer-events: none;
+  opacity: 1;
+  transform: none;
+  animation: none;
+  will-change: auto;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 98%, #000) 0%,
+    color-mix(in srgb, var(--bg) 85%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 35%, transparent) 72%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% 100%;
+  mask-image: none;
+  -webkit-mask-image: none;
+  transition: none;
+}
+
+.plane-quick-chat--appearing.agent-pane::before {
+  animation: plane-quick-chat-veil-in 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Evita el radial superior del .agent-pane heredado. */
+.plane-quick-chat.agent-pane {
+  background: transparent;
+}
+
+/* Sin fade inferior (el superior sigue en ::before). */
+.plane-quick-chat.agent-pane::after {
+  content: none;
+  display: none;
+  border: none;
+}
+
+.plane-quick-chat.agent-pane--working::before {
+  opacity: 1;
+  height: min(112px, 22%);
+  background-size: 100% 100%;
+  animation: none;
+  transition: none;
+}
+
+.plane-quick-chat--appearing.agent-pane--working::before {
+  animation: plane-quick-chat-veil-in 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.plane-quick-chat__dismiss {
+  position: absolute;
+  top: 12px;
+  /* Alineado al borde derecho de la columna de chat (~640px), no al borde de la app. */
+  right: max(16px, calc((100% - min(640px, 100%)) / 2 + 16px));
+  z-index: 4;
+  pointer-events: auto;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.plane-quick-chat--appearing .plane-quick-chat__dismiss {
+  animation: plane-quick-chat-dismiss-in 0.55s 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.plane-quick-chat__enter {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: min(640px, calc(100% - 48px));
+  height: 100%;
+  transform-origin: center 72%;
+  pointer-events: auto;
+}
+
+.plane-quick-chat__enter--active {
+  animation: plane-quick-chat-reveal 0.88s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.plane-quick-chat__bloom {
+  position: absolute;
+  inset: -8% -18% 8%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(
+      ellipse 55% 42% at 50% 38%,
+      color-mix(in srgb, var(--agent-beam) 22%, transparent) 0%,
+      transparent 72%
+    );
+  mix-blend-mode: soft-light;
+}
+
+.plane-quick-chat__enter--active .plane-quick-chat__bloom {
+  animation: plane-quick-chat-bloom 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.plane-quick-chat__frame {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.plane-quick-chat__stream {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.plane-quick-chat__scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 8px;
+  padding-bottom: 28px;
+  box-sizing: border-box;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.plane-quick-chat__stream.agent-pane__messages-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.plane-quick-chat .agent-pane__messages {
+  padding-left: 14px;
+  padding-right: 14px;
+  gap: 8px;
+}
+
+.plane-quick-chat .agent-pane__scroll-bottom {
+  pointer-events: auto;
+  z-index: 3;
+  bottom: 8px;
+}
+
+.plane-quick-chat .agent-pane__row--assistant {
+  margin-top: 8px;
+}
+
+.plane-quick-chat .agent-pane__activity-dot {
+  background: var(--agent-beam);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--agent-beam) 65%, transparent);
+}
+
+/* Burbujas: compactas y opacas, acento del agente. */
+.plane-quick-chat .agent-pane__bubble {
+  padding: 7px 11px;
+  font-size: calc(var(--agent-chat-font-size) * 0.95);
+  line-height: 1.45;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.plane-quick-chat .agent-pane__bubble--user {
+  background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--border) 28%, transparent);
+  box-shadow: none;
+}
+
+.plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--live):not(.agent-pane__bubble--thinking) {
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--text) 2%);
+  border-color: color-mix(in srgb, var(--border) 24%, transparent);
+  box-shadow: none;
+}
+
+.plane-quick-chat .agent-pane__bubble--live,
+.plane-quick-chat .agent-pane__bubble--thinking {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Ascenso suave + desenfoque + apertura de máscara. */
+@keyframes plane-quick-chat-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(36px) scale(0.92);
+    filter: blur(12px);
+    clip-path: inset(10% 14% 16% 14% round 22px);
+  }
+  48% {
+    opacity: 1;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: none;
+    clip-path: inset(0 round 0);
+  }
+}
+
+@keyframes plane-quick-chat-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes plane-quick-chat-veil-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes plane-quick-chat-dismiss-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-quick-chat--appearing.agent-pane::before,
+  .plane-quick-chat--appearing.agent-pane--working::before,
+  .plane-quick-chat--appearing .plane-quick-chat__dismiss,
+  .plane-quick-chat__enter--active,
+  .plane-quick-chat__enter--active .plane-quick-chat__bloom {
+    animation: none;
+  }
+
+  .plane-quick-chat__bloom {
+    display: none;
+  }
+}

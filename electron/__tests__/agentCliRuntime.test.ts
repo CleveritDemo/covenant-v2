@@ -7,10 +7,12 @@ import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import {
   buildContextContinuationPrompt,
   commandAndArgs,
+  composePrompt,
   CONTEXT_FULL_REFRESH_INTERVAL_TURNS,
   materializeClipboardImages,
   normalizeClaudeEvent,
   normalizeCursorEvent,
+  shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
 } from '../agentCliRuntime'
 
@@ -29,6 +31,51 @@ function request(
     ...partial,
   }
 }
+
+describe('shouldFinishOnProcessClose', () => {
+  it('only finishes while the process is still the active run', () => {
+    expect(shouldFinishOnProcessClose(true)).toBe(true)
+    expect(shouldFinishOnProcessClose(false)).toBe(false)
+  })
+})
+
+describe('composePrompt identity', () => {
+  it('prepends agent identity when name, role or objective are set', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        name: 'Architect',
+        role: 'System design',
+        objective: 'Keep boundaries clean',
+        prompt: 'review this module',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).toContain('## Agent identity')
+    expect(prompt).toContain('- Name: Architect')
+    expect(prompt).toContain('- Role: System design')
+    expect(prompt).toContain('- Objective: Keep boundaries clean')
+    expect(prompt).toContain('## User request')
+    expect(prompt).toContain('review this module')
+  })
+
+  it('omits identity section when fields are empty', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        prompt: 'hola',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).not.toContain('## Agent identity')
+  })
+})
 
 describe('agent CLI event normalization', () => {
   it('normalizes Claude streaming deltas and session ids', () => {

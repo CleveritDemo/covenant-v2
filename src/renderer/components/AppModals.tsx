@@ -9,7 +9,7 @@ interface Props {
   config: AppConfig
   settingsOpen: boolean
   themePickerOpen: boolean
-  agentPicker: { tabId: string; fromPaneId: string } | null
+  agentPicker: { tabId: string; fromPaneId?: string } | null
   onCloseSettings: () => void
   onCloseThemePicker: () => void
   onCloseAgentPicker: () => void

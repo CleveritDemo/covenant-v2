@@ -18,7 +18,8 @@
   background: color-mix(in srgb, #000 45%, transparent);
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
   backdrop-filter: blur(10px) saturate(1.1);
-  pointer-events: none;
+  /* Bloquea el plano debajo; el panel (z-index 1) sigue recibiendo la interacción. */
+  pointer-events: auto;
   animation: terminal-modal-scrim-in 0.28s ease-out both;
 }
 

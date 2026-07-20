@@ -1,5 +1,5 @@
 # dependences
-<!-- iaterminal:context {"version":1,"id":"2601e189-7cab-41cf-8d4a-2cf7276d7a23","name":"dependences","fileName":"dependences.md","kind":"deps"} -->
+<!-- iaterminal:context {"version":1,"id":"2601e189-7cab-41cf-8d4a-2cf7276d7a23","name":"dependences","fileName":"dependences.md","kind":"deps","icon":"package","color":"#2dd4bf"} -->
 
 <!-- iaterminal:auto -->
 {

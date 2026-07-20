@@ -100,9 +100,10 @@
   .agent-pane__stream,
   .agent-pane__caret,
   .agent-pane__thinking,
-  .agent-pane__thinking-orbits span,
-  .agent-pane__thinking-orbits span::after,
   .agent-pane__thinking-text,
+  .thinking-orbits span,
+  .thinking-orbits span::after,
+  .thinking-orbits--hero,
   .agent-pane__stream .ai-md :is(
     .ai-md__p,
     .ai-md__h,
@@ -170,96 +171,12 @@
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 
-.agent-pane__header {
-  display: flex;
-  align-items: center;
+.agent-pane__footer--chat-only {
   gap: 8px;
-  min-height: 40px;
-  padding: 6px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
-  backdrop-filter: blur(8px);
 }
 
-.agent-pane__header-left {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  flex: 1;
-}
-
-.agent-pane__avatar {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  color: var(--accent-fg, #fff);
-  background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #5b8def));
-  border-radius: 8px;
-  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 28%, transparent);
-}
-
-@keyframes agent-pane-orbit {
-  to { transform: rotate(360deg); }
-}
-
-.agent-pane__identity {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.agent-pane__provider {
-  font-size: 12.5px;
-  font-weight: 650;
-  letter-spacing: .01em;
-  white-space: nowrap;
-}
-
-.agent-pane__cwd {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  align-self: flex-start;
-  min-width: 0;
-  color: var(--text-muted);
-}
-
-.agent-pane__cwd-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-}
-
-.agent-pane__cwd-select {
-  appearance: none;
-  -webkit-appearance: none;
-  /* Ancho según la opción visible, no la más larga de la lista. */
-  field-sizing: content;
-  width: auto;
-  max-width: 210px;
-  padding: 0;
-  color: var(--text-muted);
-  background: transparent;
-  border: 0;
-  outline: none;
-  font-family: var(--agent-font);
-  font-size: 10.5px;
-  cursor: pointer;
-  text-overflow: ellipsis;
-}
-
-.agent-pane__cwd-select:hover:not(:disabled) {
-  color: var(--text);
-}
-
-.agent-pane__cwd-select:disabled {
-  cursor: default;
-  opacity: .6;
+.agent-pane__footer--chat-only .agent-pane__composer {
+  margin-top: 0;
 }
 
 /* ── Selector de modelo ──────────────────────────────────────────────── */
@@ -402,7 +319,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 50%;
   box-shadow:
-    0 6px 18px color-mix(in srgb, #000 28%, transparent);
+    0 6px 18px color-mix(in srgb, #000 14%, transparent);
   cursor: pointer;
   transform: translateX(-50%);
   animation: agent-pane-scroll-bottom-in .22s ease both;
@@ -413,7 +330,7 @@
   color: var(--accent-fg, #fff);
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .agent-pane__scroll-bottom:focus-visible {
@@ -523,27 +440,17 @@
   animation: agent-pane-row-in .4s cubic-bezier(.2, .9, .3, 1) both;
 }
 
-/* Zoom puro con rebote sutil; el punto de anclaje lo decide el
-   transform-origin de cada fila: derecha para el usuario, centro para
-   las respuestas de la IA. */
-.agent-pane__row--enter.agent-pane__row--user,
-.agent-pane__row--enter.agent-pane__row--assistant {
-  animation: agent-pane-zoom-in .85s cubic-bezier(.22, 1.2, .36, 1) both;
+/* Solo el usuario: zoom desde la derecha, sin rebote. */
+.agent-pane__row--enter.agent-pane__row--user {
+  animation: agent-pane-zoom-in-user .45s cubic-bezier(.22, 1, .36, 1) both;
 }
 
-@keyframes agent-pane-zoom-in {
-  0% {
+@keyframes agent-pane-zoom-in-user {
+  from {
     opacity: 0;
     transform: scale(.15);
   }
-  55% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  75% {
-    transform: scale(.97);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: scale(1);
   }
@@ -572,7 +479,7 @@
 .agent-pane__bubble--user {
   color: var(--text);
   background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: var(--agent-radius) var(--agent-radius) 4px var(--agent-radius);
   box-shadow: none;
 }
@@ -604,7 +511,7 @@
   max-width: 94%;
   color: var(--text);
   background: color-mix(in srgb, var(--bg-secondary) 88%, var(--text) 2%);
-  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
   border-radius: var(--agent-radius);
 }
 
@@ -777,121 +684,31 @@
   gap: 20px;
 }
 
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits {
-  width: 76px;
-  height: 76px;
-  flex: 0 0 76px;
-}
-
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits span:nth-child(2) {
-  inset: 13px;
-}
-
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits span:nth-child(3) {
-  inset: 26px;
-}
-
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits span::after {
-  width: 17px;
-  height: 17px;
-  margin-left: -8.5px;
-  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 85%, transparent);
-}
-
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits span:nth-child(2)::after {
-  width: 13px;
-  height: 13px;
-  margin-left: -6.5px;
-}
-
-.agent-pane__bubble--thinking .agent-pane__thinking-orbits span:nth-child(3)::after {
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-}
-
 .agent-pane__bubble--thinking .agent-pane__thinking-text {
   font-size: calc(var(--agent-chat-font-size) * 1.1);
 }
 
-.agent-pane__thinking-orbits {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-}
-
-/* Tres "neuronas" girando a distinta velocidad y radio, cada una con su
-   propio brillo: la sensación de actividad interna, no un spinner plano.
-   Entran en cascada (fade escalonado) mientras el conjunto gira. */
-.agent-pane__thinking-orbits span {
-  position: absolute;
-  inset: 0;
+.agent-pane__thinking-text {
+  background: linear-gradient(
+    100deg,
+    var(--text-muted) 20%,
+    color-mix(in srgb, var(--accent) 80%, #fff) 42%,
+    color-mix(in srgb, var(--accent) 85%, #fff) 50%,
+    var(--text-muted) 72%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
   animation:
-    agent-pane-orbit linear infinite,
-    agent-pane-neuron-in .45s ease-out both;
+    agent-pane-shimmer 2.4s cubic-bezier(.4, 0, .3, 1) infinite,
+    agent-pane-thinking-text-in .55s cubic-bezier(.22, 1, .36, 1) .4s both;
 }
 
-@keyframes agent-pane-neuron-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
-.agent-pane__thinking-orbits span::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  margin-left: -2.5px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 80%, transparent);
-  animation: agent-pane-neuron 1.8s ease-in-out infinite;
-}
 
-/* Duración/retraso por animación: la primera es la órbita infinita, la
-   segunda el fade de entrada en cascada. */
-.agent-pane__thinking-orbits span:nth-child(1) {
-  animation-duration: 1.9s, .45s;
-  animation-delay: 0s, .12s;
-}
-.agent-pane__thinking-orbits span:nth-child(2) {
-  inset: 3px;
-  animation-duration: 1.4s, .45s;
-  animation-direction: reverse, normal;
-  animation-delay: 0s, .26s;
-}
-.agent-pane__thinking-orbits span:nth-child(2)::after {
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  animation-delay: -.6s;
-  background: color-mix(in srgb, var(--accent) 70%, #7c5cff);
-}
-.agent-pane__thinking-orbits span:nth-child(3) {
-  inset: 6px;
-  animation-duration: 1.1s, .45s;
-  animation-delay: 0s, .4s;
-}
-.agent-pane__thinking-orbits span:nth-child(3)::after {
-  width: 3px;
-  height: 3px;
-  margin-left: -1.5px;
-  animation-delay: -1.1s;
-  background: color-mix(in srgb, var(--accent) 55%, #fff);
-}
-
-@keyframes agent-pane-neuron {
-  0%, 100% { transform: scale(.7); opacity: .55; }
-  50% { transform: scale(1.25); opacity: 1; }
-}
-
-/* Texto "pensando…" y tokens en stream: destello izquierda→derecha.
-   El thinking añade además la entrada con blur; el stream solo shimmer.
-   No aplica a bloques de código (mantienen su chrome). */
-.agent-pane__thinking-text,
+/* Shimmer del stream: el gradiente siempre cubre el texto (evitar
+   background-size fijo en rem + no-repeat, que deja letras transparentes). */
 .agent-pane__stream .ai-md :is(
   .ai-md__p,
   .ai-md__h,
@@ -902,7 +719,7 @@
   em
 ),
 .agent-pane__stream:not(:has(.ai-md, .ai-code-block)) {
-  background: linear-gradient(
+  background-image: linear-gradient(
     100deg,
     var(--text-muted) 20%,
     color-mix(in srgb, var(--accent) 80%, #fff) 42%,
@@ -916,12 +733,15 @@
   animation: agent-pane-shimmer 2.4s cubic-bezier(.4, 0, .3, 1) infinite;
 }
 
-.agent-pane__thinking-text {
-  /* El texto se revela al final, subiendo y enfocándose, cuando las
-     órbitas ya están en su sitio. */
-  animation:
-    agent-pane-shimmer 2.4s cubic-bezier(.4, 0, .3, 1) infinite,
-    agent-pane-thinking-text-in .55s cubic-bezier(.22, 1, .36, 1) .4s both;
+/* El fill transparente del shimmer se hereda a <code>; sin esto el badge
+   se ve vacío (borde/fondo sí, texto no). */
+.agent-pane__stream .ai-md__code {
+  -webkit-text-fill-color: color-mix(in srgb, var(--accent) 30%, var(--text));
+  color: color-mix(in srgb, var(--accent) 30%, var(--text));
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  background-image: none;
+  animation: none;
 }
 
 @keyframes agent-pane-thinking-text-in {
@@ -943,8 +763,9 @@
 }
 
 .agent-pane__stream {
-  /* inline-block: filter/blur no aplica de forma fiable a cajas inline. */
-  display: inline-block;
+  /* block: en el plano, inline-block + overflow del padre recortaba el texto. */
+  display: block;
+  width: 100%;
   max-width: 100%;
   animation: agent-pane-stream-in .5s ease-out both;
 }
@@ -972,16 +793,6 @@
 
 .agent-pane--looping .agent-pane__activity-dot {
   background: var(--accent);
-}
-
-.agent-pane__header .btn--icon.btn--pressed {
-  color: var(--accent-fg, #fff);
-  background: var(--accent);
-}
-
-.agent-pane__header .btn--icon.btn--pressed:hover:not(:disabled) {
-  color: var(--accent-fg, #fff);
-  background: color-mix(in srgb, var(--accent) 88%, #000);
 }
 
 .agent-pane__loop-mode .btn:disabled {
@@ -1237,8 +1048,10 @@
   height: 0;
 }
 
-.agent-pane__composer textarea:focus {
-  border-color: color-mix(in srgb, var(--border) 70%, var(--text-muted));
+.agent-pane__composer textarea:focus,
+.agent-pane__composer textarea:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--border) 85%, transparent);
   box-shadow: none;
 }
 
@@ -1642,6 +1455,21 @@
   line-height: 1.5;
 }
 
+.tab-contexts__group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tab-contexts__group-title {
+  margin: 8px 2px 0;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .tab-contexts__item {
   display: flex;
   align-items: stretch;
@@ -1874,6 +1702,72 @@
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 10px;
+}
+
+.tab-contexts__appearance {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.tab-contexts__appearance legend {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.tab-contexts__icon-grid,
+.tab-contexts__color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab-contexts__icon-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.tab-contexts__icon-swatch:hover {
+  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
+  transform: translateY(-1px);
+}
+
+.tab-contexts__icon-swatch--active {
+  border-color: color-mix(in srgb, currentColor 55%, var(--border));
+  background: color-mix(in srgb, currentColor 12%, var(--bg-secondary));
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.tab-contexts__color-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--bg) 40%, transparent);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 25%, transparent);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.tab-contexts__color-swatch:hover {
+  transform: scale(1.08);
+}
+
+.tab-contexts__color-swatch--active {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--text) 70%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, #000 20%, transparent);
 }
 
 .tab-contexts__editor > label {

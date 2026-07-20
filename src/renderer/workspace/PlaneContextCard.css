@@ -1,0 +1,25 @@
+.plane-context-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: none;
+  filter: none;
+  transition: transform 0.14s;
+}
+
+.plane-context-card:hover {
+  transform: translateY(-1px) scale(1.08);
+}
+
+.plane-context-card--shared {
+  filter: none;
+}

@@ -1,0 +1,352 @@
+.agent-config-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.agent-config-modal__block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
+}
+
+.agent-config-modal__block-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-config-modal__block-head--row {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-config-modal__block-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.agent-config-modal__block-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .agent-config-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.agent-config-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-config-modal__field--stack {
+  width: 100%;
+}
+
+.agent-config-modal__field-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__field input,
+.agent-config-modal__field textarea,
+.agent-config-modal__field select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+}
+
+.agent-config-modal__field textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.45;
+}
+
+.agent-config-modal__field input:focus,
+.agent-config-modal__field textarea:focus,
+.agent-config-modal__field select:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.agent-config-modal__field input:disabled,
+.agent-config-modal__field textarea:disabled,
+.agent-config-modal__field select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.agent-config-modal__field input::placeholder,
+.agent-config-modal__field textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.agent-config-modal__cwd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-config-modal__cwd-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-config-modal__cwd-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.agent-config-modal__segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+}
+
+.agent-config-modal__segment-btn {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.agent-config-modal__segment-btn--active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-secondary));
+  color: var(--text);
+}
+
+.agent-config-modal__segment-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-config-modal__inline-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.agent-config-modal__toggle--on {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.agent-config-modal__toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.agent-config-modal__toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agent-config-modal__toggle-copy strong {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.agent-config-modal__toggle-copy span {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, var(--bg));
+  transition: background 0.14s;
+}
+
+.agent-config-modal__toggle--on .agent-config-modal__switch {
+  background: color-mix(in srgb, var(--accent) 70%, var(--border));
+}
+
+.agent-config-modal__switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.14s;
+}
+
+.agent-config-modal__toggle--on .agent-config-modal__switch-knob {
+  transform: translateX(18px);
+}
+
+.agent-config-modal__context-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-config-modal__context-group-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__context-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.agent-config-modal__context-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.agent-config-modal__context-item:hover {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.agent-config-modal__context-item--on {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.agent-config-modal__context-item input {
+  margin: 0;
+}
+
+.agent-config-modal__context-name {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-config-modal__context-kind {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.agent-config-modal__empty {
+  margin: 0;
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.agent-config-modal__notice {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}

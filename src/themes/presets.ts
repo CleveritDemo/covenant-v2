@@ -1238,5 +1238,17 @@ export function applyTheme(theme: AppTheme): void {
     root.style.setProperty('--accent-glow-strong', rgba(accentRgb, scaledAlpha(0.3, glow, 0.58)))
     root.style.setProperty('--accent-border-soft', rgba(accentRgb, scaledAlpha(0.24, glow, 0.42)))
     root.style.setProperty('--accent-border-strong', rgba(accentRgb, scaledAlpha(0.52, glow, 0.68)))
+
+    // Plano HUD: intensidad de rejilla/glow alineada al chrome del tema
+    root.style.setProperty('--plane-grid-opacity', String(Math.min(0.38, Number((0.18 * glow).toFixed(3)))))
+    root.style.setProperty('--plane-atmosphere-a', rgba(accentRgb, scaledAlpha(0.16, glow, 0.36)))
+    root.style.setProperty('--plane-atmosphere-b', rgba(accentRgb, scaledAlpha(0.07, glow, 0.22)))
+    root.style.setProperty('--plane-glow', rgba(accentRgb, scaledAlpha(0.2, glow, 0.48)))
+    root.style.setProperty('--plane-glow-strong', rgba(accentRgb, scaledAlpha(0.34, glow, 0.62)))
   }
+
+  root.style.setProperty(
+    '--plane-radius',
+    chrome.panelRadius ?? theme.vars['--radius'] ?? '14px',
+  )
 }

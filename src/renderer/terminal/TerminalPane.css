@@ -182,23 +182,10 @@
   border-color: color-mix(in srgb, var(--danger) 22%, var(--border));
 }
 
-/* + nueva terminal a la derecha: esquina inferior del área xterm */
-.terminal-split-corner-btn {
-  position: absolute;
-  bottom: 5px;
-  right: 6px;
-  z-index: 55;
-}
-
-.terminal-split-corner-btn:hover {
-  color: var(--accent);
-}
-
 /* Flecha: bajar al final del scrollback (oculta solo cuando el viewport ya está abajo) */
 .terminal-scroll-down-btn {
   position: absolute;
-  /* apilado sobre el botón + (22px + 4px de separación) */
-  bottom: 31px;
+  bottom: 5px;
   right: 6px;
   z-index: 56;
 }

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
 import { applyTheme, getTheme, normalizeThemeId } from '@themes/presets'
 import type { AppConfig } from '@shared/configSchema'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
@@ -10,29 +9,37 @@ import {
   normalizeFileExplorerState,
   type FileExplorerPersistedState,
 } from '@shared/fileExplorerPersistedState'
+import type { TabContext } from '@shared/tabContext'
+import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
+import { resolveContextColor } from '@shared/tabContextAppearance'
+import { contextIconName } from './agent/tabContextKindIcons'
 import { TabBar, type TabBarHandle } from './components/TabBar'
-import { TabTerminalSplitLayout } from './components/TabTerminalSplitLayout'
 import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
+import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
+import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import {
-  buildPaneDragThumbnail,
-  PANE_DRAG_THUMB_HEADER_H,
-  PANE_DRAG_THUMB_W,
-} from './dragThumbnailUtils'
+  armMiniExpandSuppress,
+  isMiniExpandSuppressed,
+  setMiniExpandLocked,
+} from './workspace/miniExpandSuppress'
 import {
-  DEFAULT_ROW_RATIO,
-  normalizeSplitSizes,
+  createPaneWindowState,
+  ensureTabPaneLayout,
+  maxPaneWindowZ,
+  minimizeOtherPaneWindows,
+} from '@shared/paneWindows'
+import type { AgentPlaneStatus } from './agent/AgentPane'
+import type { TerminalRef } from './terminal/TerminalPane'
+import {
   normalizeTabSession,
-  splitSizesAfterAddingPanePreferAgent,
   type TabSplitSizes,
 } from './tabSplitSizes'
 import { Titlebar } from './components/Titlebar'
 import {
   computeTabInsertIndex,
-  isDragLeaveForContainer,
   moveItemToIndex,
-  swapItemsAtIndices,
 } from './arrayReorder'
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import './styles/app.css'
@@ -46,25 +53,10 @@ import type {
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
-/** Máximo de splits por pestaña (layout 2×2). */
-export const MAX_PANES_PER_TAB = 4
+/** Máximo de paneles (ventanas) por pestaña. */
+export const MAX_PANES_PER_TAB = 10
 
-/**
- * Tras cerrar un panel en una rejilla 2×2 de 4, reordenar supervivientes a
- * [sup-izq, sup-der, inferior-a-ancho-completo] para el layout de 3 paneles.
- * Orden en paneIds con 4: 0=sup-izq, 1=sup-der, 2=inf-izq, 3=inf-der.
- */
-function reorderPaneIdsAfterCloseInFourGrid(paneIds: string[], closedPaneId: string): string[] {
-  if (paneIds.length !== 4) {
-    return paneIds.filter(id => id !== closedPaneId)
-  }
-  const ci = paneIds.indexOf(closedPaneId)
-  if (ci < 0) return paneIds.filter(id => id !== closedPaneId)
-  const [tl, tr, bl, br] = paneIds
-  if (ci === 3) return [tl, tr, bl]
-  if (ci === 2) return [tl, tr, br]
-  if (ci === 1) return [tl, br, bl]
-  if (ci === 0) return [tr, bl, br]
+function reorderPaneIdsAfterClose(paneIds: string[], closedPaneId: string): string[] {
   return paneIds.filter(id => id !== closedPaneId)
 }
 
@@ -76,19 +68,27 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
     const paneIds = tab.paneIds.slice(0, maxPanes)
     const activePaneId = paneIds.includes(tab.activePaneId)
       ? tab.activePaneId
-      : paneIds[paneIds.length - 1]!
+      : (paneIds[paneIds.length - 1] ?? '')
     const paneKinds = Object.fromEntries(
       Object.entries(tab.paneKinds ?? {}).filter(([id]) => paneIds.includes(id)),
     )
     const agentByPane = Object.fromEntries(
       Object.entries(tab.agentByPane ?? {}).filter(([id]) => paneIds.includes(id)),
     )
+    const paneWindows = Object.fromEntries(
+      Object.entries(tab.paneWindows ?? {}).filter(([id]) => paneIds.includes(id)),
+    )
+    const {
+      panePlaneNodes: _legacyPlaneNodes,
+      ...tabBase
+    } = tab as TabSession & { panePlaneNodes?: unknown }
     return normalizeTabSession({
-      ...tab,
+      ...tabBase,
       paneIds,
       activePaneId,
       ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
       ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
+      ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
     })
   })
   return { tabs: out, orphanPaneIds }
@@ -98,18 +98,13 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
 type SessionReady = { loaded: boolean }
 
 let tabCounter = 0
-/** Nueva pestaña: panel de agente (producto centrado en agentes). */
+/** Nueva pestaña: plano vacío (sin agente ni terminal abiertos). */
 function newTab(title: string): TabSession {
-  const paneId = crypto.randomUUID()
   return {
     id: crypto.randomUUID(),
     title,
-    paneIds: [paneId],
-    activePaneId: paneId,
-    paneKinds: { [paneId]: 'agent' },
-    agentByPane: {
-      [paneId]: { provider: 'claude', permissionMode: 'auto', autoImproveContexts: true },
-    },
+    paneIds: [],
+    activePaneId: '',
   }
 }
 
@@ -124,26 +119,42 @@ export const App: React.FC = () => {
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
-  const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId: string } | null>(null)
-  /** Reordenar paneles: contexto durante HTML5 DnD (evita cierres obsoletos en dragOver). */
-  const paneReorderDragRef = useRef<{ tabId: string; dragPaneId: string } | null>(null)
-  const [paneDragOverPaneId, setPaneDragOverPaneId] = useState<string | null>(null)
-  const [paneDragSourcePaneId, setPaneDragSourcePaneId] = useState<string | null>(null)
-  const termRefs = useRef<Map<string, {
-    getSelection: () => string
-    writeToTty: (s: string) => void
-    toggleExplorer: () => void
-    serialize: () => string
-    scrollToBottom: () => void
-    refit: () => void
-  }>>(new Map())
+  const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
+  const [agentPlaneStatus, setAgentPlaneStatus] = useState<Record<string, AgentPlaneStatus>>({})
+  const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
+  const [openConfigForPaneId, setOpenConfigForPaneId] = useState<string | null>(null)
+  /** Evita que el click al cerrar el modal de config expanda el mini del plano. */
+  const suppressPaneExpandUntilRef = useRef(0)
+  const armSuppressPaneExpand = useCallback(() => {
+    // Corto: solo el gesto que cierra el modal (pointerup/click fantasma).
+    const until = Date.now() + 320
+    suppressPaneExpandUntilRef.current = until
+    armMiniExpandSuppress(320)
+  }, [])
+  const lockMiniExpandForConfig = useCallback(() => {
+    setMiniExpandLocked(true)
+  }, [])
+  const unlockMiniExpandForConfig = useCallback(() => {
+    setMiniExpandLocked(false)
+    suppressPaneExpandUntilRef.current = Date.now() + 320
+  }, [])
+  const [openContextForPane, setOpenContextForPane] = useState<{ paneId: string; contextId: string } | null>(null)
+  const [planeSendPrompt, setPlaneSendPrompt] = useState<{
+    paneId: string
+    text: string
+    images: AgentCliImageAttachment[]
+  } | null>(null)
+  const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
+  const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
   const explorerByPaneRef = useRef<Record<string, FileExplorerPersistedState>>({})
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
+  const tabContextsByTabRef = useRef(tabContextsByTab)
   tabsRef.current = tabs
   activeTabIdRef.current = activeTabId
+  tabContextsByTabRef.current = tabContextsByTab
 
   // Guardar sesión con debounce al cambiar tabs / activeTabId
   const saveSessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -217,6 +228,34 @@ export const App: React.FC = () => {
     }, 400)
   }, [flushCwdsAndSave])
 
+  /** Guarda al instante sesión + scrollbacks visibles (ocultar/cerrar ventana). */
+  const flushSessionSnapshotNow = useCallback(() => {
+    if (saveSessionTimerRef.current) {
+      clearTimeout(saveSessionTimerRef.current)
+      saveSessionTimerRef.current = null
+    }
+    const snapshot = buildSessionSnapshot()
+    if (snapshot) void window.api.saveSession(snapshot)
+    for (const [paneId, ref] of termRefs.current.entries()) {
+      try {
+        const data = ref.serialize()
+        if (data) window.api.saveScrollback(paneId, data)
+      } catch { /* ignore */ }
+    }
+  }, [buildSessionSnapshot])
+
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') flushSessionSnapshotNow()
+    }
+    window.addEventListener('pagehide', flushSessionSnapshotNow)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', flushSessionSnapshotNow)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [flushSessionSnapshotNow])
+
   // Load config on mount; theme + fuente se aplican en el efecto siguiente cuando `configReady`
   useEffect(() => {
     window.api.getConfig().then(cfg => {
@@ -281,8 +320,18 @@ export const App: React.FC = () => {
         const activeTabId = cappedTabs.some(t => t.id === sanitized.activeTabId)
           ? sanitized.activeTabId
           : cappedTabs[0]!.id
-        setTabs(cappedTabs.map(normalizeTabSession))
+        const layoutTabs = cappedTabs.map(tab => normalizeTabSession(ensureTabPaneLayout(tab)))
+        setTabs(layoutTabs)
+        tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
+        // Persistir layout migrado (paneWindows / plane nodes) de inmediato.
+        void window.api.saveSession({
+          version: 1,
+          activeTabId,
+          tabs: layoutTabs,
+          cwds: { ...cwdsRef.current },
+          explorerByPane: { ...explorerByPaneRef.current },
+        })
       } else {
         const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
         setTabs([tab])
@@ -303,8 +352,22 @@ export const App: React.FC = () => {
     scheduleSaveSession()
   }, [tabs, activeTabId, sessionReady.loaded, scheduleSaveSession])
 
-  useEffect(() => {
+  /** Solo refit cuando cambia open/fullscreen (el tamaño es fijo ~70% del viewport). */
+  const terminalRefitKey = useMemo(() => {
     const tab = tabs.find(t => t.id === activeTabId)
+    if (!tab) return ''
+    return tab.paneIds.map(paneId => {
+      const win = tab.paneWindows?.[paneId]
+      return [
+        paneId,
+        win?.open ? '1' : '0',
+        win?.fullscreen ? '1' : '0',
+      ].join(':')
+    }).join('|')
+  }, [tabs, activeTabId])
+
+  useEffect(() => {
+    const tab = tabsRef.current.find(t => t.id === activeTabId)
     if (!tab) return
 
     const raf = requestAnimationFrame(() => {
@@ -315,7 +378,34 @@ export const App: React.FC = () => {
     return () => {
       cancelAnimationFrame(raf)
     }
-  }, [activeTabId, tabs])
+  }, [activeTabId, terminalRefitKey])
+
+  /** Rediscover contextos solo si cambia el tab o sus panes. */
+  const tabContextDiscoverKey = useMemo(() => {
+    const tab = tabs.find(t => t.id === activeTabId)
+    if (!tab) return ''
+    return `${tab.id}:${tab.paneIds.join(',')}`
+  }, [tabs, activeTabId])
+
+  // Catálogo de contextos del tab activo (plano 2D)
+  useEffect(() => {
+    const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
+    if (!tab) return
+    let cancelled = false
+    void (async () => {
+      const cwd = tab.projectFolder?.trim()
+        || (tab.paneIds.find(id => tab.paneKinds?.[id] !== 'agent')
+          ? await resolvePaneCwdForPersist(
+            tab.paneIds.find(id => tab.paneKinds?.[id] !== 'agent')!,
+          )
+          : '')
+      if (!cwd || cancelled) return
+      const result = await window.api.discoverTabContexts({ cwd })
+      if (cancelled || !result.ok) return
+      setTabContextsByTab(prev => ({ ...prev, [tab.id]: result.contexts }))
+    })()
+    return () => { cancelled = true }
+  }, [activeTabId, tabContextDiscoverKey, resolvePaneCwdForPersist])
 
   // Manejar APP_SAVE_BEFORE_CLOSE: serializar scrollbacks, actualizar cwds y responder
   useEffect(() => {
@@ -445,7 +535,7 @@ export const App: React.FC = () => {
 
   const handleClosePane = useCallback((tabId: string, paneId: string) => {
     const t = tabsRef.current.find(x => x.id === tabId)
-    if (!t || t.paneIds.length <= 1) return
+    if (!t || !t.paneIds.includes(paneId)) return
     setExplorerByPane(prev => {
       const next = { ...prev }
       delete next[paneId]
@@ -467,26 +557,36 @@ export const App: React.FC = () => {
       if (tab.id !== tabId) return tab
       const idx = tab.paneIds.indexOf(paneId)
       if (idx < 0) return tab
-      const nextPanes = reorderPaneIdsAfterCloseInFourGrid(tab.paneIds, paneId)
+      const nextPanes = reorderPaneIdsAfterClose(tab.paneIds, paneId)
       let nextActive = tab.activePaneId
       if (nextActive === paneId) {
-        const prefer =
-          tab.paneIds[Math.max(0, idx - 1)] ??
-          tab.paneIds[Math.min(idx + 1, tab.paneIds.length - 1)]
-        nextActive = prefer && nextPanes.includes(prefer) ? prefer : nextPanes[0]!
+        nextActive = nextPanes[Math.max(0, idx - 1)] ?? nextPanes[0] ?? ''
       }
       const paneKinds = { ...(tab.paneKinds ?? {}) }
       const agentByPane = { ...(tab.agentByPane ?? {}) }
+      const paneWindows = { ...(tab.paneWindows ?? {}) }
       delete paneKinds[paneId]
       delete agentByPane[paneId]
+      delete paneWindows[paneId]
+      const {
+        panePlaneNodes: _legacyPlaneNodes,
+        ...tabBase
+      } = tab as TabSession & { panePlaneNodes?: unknown }
       return normalizeTabSession({
-        ...tab,
+        ...tabBase,
         paneIds: nextPanes,
         activePaneId: nextActive,
         ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
         ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
+        ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
       })
     }))
+    setAgentPlaneStatus(prev => {
+      if (!(paneId in prev)) return prev
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
     setTimeout(() => {
       window.api.deleteScrollback(paneId)
       window.api.deleteAiChat(paneId)
@@ -496,48 +596,69 @@ export const App: React.FC = () => {
     }, 0)
   }, [])
 
-  const handleSplitRight = useCallback(async (tabId: string, fromPaneId: string) => {
+  const handlePickProjectFolder = useCallback(async (tabId: string): Promise<string | null> => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const result = await window.api.selectDirectory({
+      title: t('tabs.projectFolderDialogTitle'),
+      defaultPath: tab?.projectFolder?.trim() || undefined,
+    })
+    if (!result.ok) return null
+    const path = result.path.trim()
+    if (!path) return null
+    const next = tabsRef.current.map(t => (t.id === tabId ? { ...t, projectFolder: path } : t))
+    tabsRef.current = next
+    setTabs(next)
+    // Guardado inmediato con tabsRef ya actualizado (no esperar al render).
+    await saveSessionNow()
+    return path
+  }, [saveSessionNow, t])
+
+  const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
-    const cwd = await resolvePaneCwdForPersist(fromPaneId)
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
     const newPaneId = crypto.randomUUID()
-    if (cwd) rememberPaneCwd(newPaneId, cwd)
+    rememberPaneCwd(newPaneId, cwd)
     setTabs(prev => prev.map(t => {
-      if (t.id !== tabId) return t
-      if (t.paneIds.length >= MAX_PANES_PER_TAB) return t
-      const idx = t.paneIds.indexOf(fromPaneId)
-      if (idx < 0) return t
-      const next = [...t.paneIds]
-      next.splice(idx + 1, 0, newPaneId)
-      const splitSizes = splitSizesAfterAddingPanePreferAgent(t, next, t.paneKinds)
-      return normalizeTabSession({ ...t, paneIds: next, activePaneId: newPaneId, splitSizes })
+      if (t.id !== tabId || t.paneIds.length >= MAX_PANES_PER_TAB) return t
+      const paneWindows = { ...(t.paneWindows ?? {}) }
+      minimizeOtherPaneWindows(t.paneIds, paneWindows, newPaneId)
+      paneWindows[newPaneId] = createPaneWindowState(paneWindows, true)
+      return normalizeTabSession({
+        ...t,
+        projectFolder: cwd,
+        paneIds: [...t.paneIds, newPaneId],
+        activePaneId: newPaneId,
+        paneWindows,
+      })
     }))
     scheduleSaveSession()
-  }, [rememberPaneCwd, resolvePaneCwdForPersist, scheduleSaveSession])
+  }, [rememberPaneCwd, scheduleSaveSession])
 
   const handleAddAgentPane = useCallback(async (
     tabId: string,
-    fromPaneId: string,
+    fromPaneId: string | undefined,
     provider: AgentCliProvider,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
-    const cwd = await resolvePaneCwdForPersist(fromPaneId)
+    const cwd = current.projectFolder?.trim() || ''
+    if (!cwd) return
     const paneId = crypto.randomUUID()
-    if (cwd) rememberPaneCwd(paneId, cwd)
+    rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
-      const fromIndex = tab.paneIds.indexOf(fromPaneId)
-      if (fromIndex < 0) return tab
-      const paneIds = [...tab.paneIds]
-      paneIds.splice(fromIndex + 1, 0, paneId)
+      const paneWindows = { ...(tab.paneWindows ?? {}) }
+      /* Mini en el plano: el chat centrado es el home; ventana al expandir. */
+      paneWindows[paneId] = createPaneWindowState(paneWindows, false)
       const paneKinds: Record<string, PaneKind> = { ...(tab.paneKinds ?? {}), [paneId]: 'agent' }
       return normalizeTabSession({
         ...tab,
-        paneIds,
+        paneIds: [...tab.paneIds, paneId],
         activePaneId: paneId,
-        splitSizes: splitSizesAfterAddingPanePreferAgent(tab, paneIds, paneKinds),
         paneKinds,
+        paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
           [paneId]: { provider, permissionMode: 'auto', autoImproveContexts: true },
@@ -545,75 +666,337 @@ export const App: React.FC = () => {
       })
     }))
     scheduleSaveSession()
-  }, [rememberPaneCwd, resolvePaneCwdForPersist, scheduleSaveSession])
+  }, [rememberPaneCwd, scheduleSaveSession])
+
+  /** Abre el picker de proveedor solo si la pestaña ya tiene carpeta de proyecto. */
+  const requestAddAgent = useCallback((
+    tabId: string,
+    fromPaneId?: string,
+  ): void => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!tab.projectFolder?.trim()) return
+    setAgentPicker({ tabId, fromPaneId })
+  }, [])
+
+  const handleOpenPaneWindow = useCallback((tabId: string, paneId: string) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId || !tab.paneIds.includes(paneId)) return tab
+        const ensured = ensureTabPaneLayout(tab)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        const prevWin = paneWindows[paneId] ?? createPaneWindowState(paneWindows, false)
+        // Solo una ventana abierta: el resto vuelve a mini.
+        minimizeOtherPaneWindows(tab.paneIds, paneWindows, paneId)
+        paneWindows[paneId] = {
+          ...prevWin,
+          open: true,
+          fullscreen: false,
+          zIndex: maxPaneWindowZ(paneWindows) + 1,
+        }
+        return { ...ensured, activePaneId: paneId, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    scheduleSaveSession()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const tab = tabsRef.current.find(item => item.id === tabId)
+        for (const id of tab?.paneIds ?? []) {
+          termRefs.current.get(id)?.refit?.()
+        }
+        // Foco en la terminal recién expandida (tras layout/morph).
+        termRefs.current.get(paneId)?.focus?.()
+      })
+    })
+  }, [scheduleSaveSession])
+
+  const openPaneWindowUnlessSuppressed = useCallback((tabId: string, paneId: string) => {
+    if (isMiniExpandSuppressed()) return
+    if (Date.now() < suppressPaneExpandUntilRef.current) return
+    handleOpenPaneWindow(tabId, paneId)
+  }, [handleOpenPaneWindow])
+
+  const handleClosePaneWindow = useCallback((tabId: string, paneId: string) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId || !tab.paneIds.includes(paneId)) return tab
+        const ensured = ensureTabPaneLayout(tab)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        const win = paneWindows[paneId] ?? createPaneWindowState(paneWindows, false)
+        paneWindows[paneId] = { ...win, open: false, fullscreen: false }
+        return { ...ensured, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+    requestAnimationFrame(() => {
+      termRefs.current.get(paneId)?.refit?.()
+    })
+  }, [saveSessionNow])
+
+  const handleMinimizeAllPaneWindows = useCallback((tabId: string) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(item => {
+        if (item.id !== tabId || item.paneIds.length === 0) return item
+        const ensured = ensureTabPaneLayout(item)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        for (const id of item.paneIds) {
+          const win = paneWindows[id] ?? createPaneWindowState(paneWindows, false)
+          paneWindows[id] = { ...win, open: false, fullscreen: false }
+        }
+        return { ...ensured, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+    requestAnimationFrame(() => {
+      const tab = tabsRef.current.find(item => item.id === tabId)
+      for (const paneId of tab?.paneIds ?? []) {
+        termRefs.current.get(paneId)?.refit?.()
+      }
+    })
+  }, [saveSessionNow])
+
+  const handleTogglePaneFullscreen = useCallback((tabId: string, paneId: string) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId || !tab.paneIds.includes(paneId)) return tab
+        const ensured = ensureTabPaneLayout(tab)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        const win = paneWindows[paneId] ?? createPaneWindowState(paneWindows, false)
+        const nextFullscreen = !win.fullscreen
+        if (nextFullscreen) {
+          minimizeOtherPaneWindows(tab.paneIds, paneWindows, paneId)
+        }
+        paneWindows[paneId] = {
+          ...win,
+          open: true,
+          fullscreen: nextFullscreen,
+          zIndex: maxPaneWindowZ(paneWindows) + 1,
+        }
+        return { ...ensured, activePaneId: paneId, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const tab = tabsRef.current.find(item => item.id === tabId)
+        for (const id of tab?.paneIds ?? []) {
+          termRefs.current.get(id)?.refit?.()
+        }
+      })
+    })
+  }, [saveSessionNow])
+
+  const handleFocusPaneWindow = useCallback((tabId: string, paneId: string) => {
+    setActiveTabId(tabId)
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId || !tab.paneIds.includes(paneId)) return tab
+        const ensured = ensureTabPaneLayout(tab)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        const win = paneWindows[paneId]
+        if (win?.open) {
+          paneWindows[paneId] = { ...win, zIndex: maxPaneWindowZ(paneWindows) + 1 }
+        }
+        return { ...ensured, activePaneId: paneId, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+  }, [])
+
+  const handleAssignContextToAgent = useCallback((
+    tabId: string,
+    toPaneId: string,
+    contextId: string,
+  ) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        if (tab.paneKinds?.[toPaneId] !== 'agent') return tab
+        const previous = tab.agentByPane?.[toPaneId] ?? {
+          provider: 'claude' as const,
+          permissionMode: 'ask' as const,
+          autoImproveContexts: true,
+        }
+        const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
+        return {
+          ...tab,
+          agentByPane: {
+            ...(tab.agentByPane ?? {}),
+            [toPaneId]: { ...previous, contextIds: nextIds },
+          },
+        }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+  }, [saveSessionNow])
+
+  const handleToggleAgentContext = useCallback((
+    tabId: string,
+    paneId: string,
+    contextId: string,
+  ) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        if (tab.paneKinds?.[paneId] !== 'agent') return tab
+        const previous = tab.agentByPane?.[paneId] ?? {
+          provider: 'claude' as const,
+          permissionMode: 'ask' as const,
+          autoImproveContexts: true,
+        }
+        const selected = new Set(previous.contextIds ?? [])
+        if (selected.has(contextId)) selected.delete(contextId)
+        else selected.add(contextId)
+        return {
+          ...tab,
+          agentByPane: {
+            ...(tab.agentByPane ?? {}),
+            [paneId]: { ...previous, contextIds: [...selected] },
+          },
+        }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+  }, [saveSessionNow])
+
+  const handleAgentAutoImproveChange = useCallback((
+    tabId: string,
+    paneId: string,
+    enabled: boolean,
+  ) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        if (tab.paneKinds?.[paneId] !== 'agent') return tab
+        const previous = tab.agentByPane?.[paneId] ?? {
+          provider: 'claude' as const,
+          permissionMode: 'ask' as const,
+          autoImproveContexts: true,
+        }
+        const next = { ...previous }
+        if (enabled) next.autoImproveContexts = true
+        else delete next.autoImproveContexts
+        return {
+          ...tab,
+          agentByPane: {
+            ...(tab.agentByPane ?? {}),
+            [paneId]: next,
+          },
+        }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+  }, [saveSessionNow])
+
+  const handleOpenConfigFromPlane = useCallback((tabId: string, paneId: string) => {
+    // Solo modal de config (portal); no expandir la ventana del agente.
+    armSuppressPaneExpand()
+    lockMiniExpandForConfig()
+    setActiveTabId(tabId)
+    setTabs(prev => prev.map(tab => (
+      tab.id === tabId && tab.paneIds.includes(paneId)
+        ? { ...tab, activePaneId: paneId }
+        : tab
+    )))
+    setOpenConfigForPaneId(paneId)
+  }, [armSuppressPaneExpand, lockMiniExpandForConfig])
+
+  const refreshTabContexts = useCallback(async (tabId: string): Promise<void> => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
+    const result = await window.api.discoverTabContexts({ cwd })
+    if (!result.ok) return
+    setTabContextsByTab(prev => ({ ...prev, [tabId]: result.contexts }))
+  }, [])
+
+  const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
+    setPlaneContextsModalTabId(tabId)
+  }, [])
+
+  const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
+    setAgentPlaneStatus(prev => {
+      const previous = prev[paneId]
+      if (
+        previous
+        && previous.busy === status.busy
+        && previous.activity === status.activity
+        && previous.lastSnippet === status.lastSnippet
+        && previous.activeAssistantId === status.activeAssistantId
+        && previous.messages.length === status.messages.length
+        && previous.messages.every((msg, i) =>
+          msg.id === status.messages[i]?.id
+          && msg.role === status.messages[i]?.role
+          && msg.content === status.messages[i]?.content,
+        )
+        && previous.contexts.length === status.contexts.length
+        && previous.contexts.every((ctx, i) =>
+          ctx.id === status.contexts[i]?.id
+          && ctx.name === status.contexts[i]?.name
+          && ctx.kind === status.contexts[i]?.kind,
+        )
+      ) {
+        return prev
+      }
+      return { ...prev, [paneId]: status }
+    })
+  }, [])
 
   const handleAgentMetaChange = useCallback((
     tabId: string,
     paneId: string,
     meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
   ) => {
-    setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId) return tab
-      const previous = tab.agentByPane?.[paneId] ?? {
-        provider: 'claude',
-        permissionMode: 'ask',
-        autoImproveContexts: true,
-      }
-      const next = typeof meta === 'function' ? meta(previous) : meta
-      return { ...tab, agentByPane: { ...(tab.agentByPane ?? {}), [paneId]: next } }
-    }))
-  }, [])
-
-  const handleAgentCwdChange = useCallback((paneId: string, cwd: string) => {
-    rememberPaneCwd(paneId, cwd)
-    // Forzar re-render para que AgentPane reciba el cwd actualizado (viene de refs).
-    setTabs(prev => [...prev])
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        const previous = tab.agentByPane?.[paneId] ?? {
+          provider: 'claude',
+          permissionMode: 'ask',
+          autoImproveContexts: true,
+        }
+        const next = typeof meta === 'function' ? meta(previous) : meta
+        return { ...tab, agentByPane: { ...(tab.agentByPane ?? {}), [paneId]: next } }
+      })
+      // Sync before paint so quit/hide flush and immediate save see name/model/contexts.
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
     void saveSessionNow()
-  }, [rememberPaneCwd, saveSessionNow])
-
-  const handleFocusPane = useCallback((tabId: string, paneId: string) => {
-    setActiveTabId(tabId)
-    setTabs(prev => prev.map(t => (t.id === tabId ? { ...t, activePaneId: paneId } : t)))
-  }, [])
-
-  const handleTabSplitSizesChange = useCallback(
-    (tabId: string, patch: Partial<TabSplitSizes>) => {
-      setTabs(prev =>
-        prev.map(t => {
-          if (t.id !== tabId) return t
-          const base = normalizeSplitSizes(t)
-          if (!base) return t
-          return {
-            ...t,
-            splitSizes: {
-              columnRatio: patch.columnRatio ?? base.columnRatio,
-              rowRatio: patch.rowRatio ?? base.rowRatio,
-            },
-          }
-        }),
-      )
-    },
-    [],
-  )
-
-  const handleSplitResizeCommit = useCallback(() => {
-    scheduleSaveSession()
-  }, [scheduleSaveSession])
+  }, [saveSessionNow])
 
   const tabBarRef = useRef<TabBarHandle>(null)
   const handleClosePaneRef = useRef(handleClosePane)
   handleClosePaneRef.current = handleClosePane
-  const handleSplitRightRef = useRef(handleSplitRight)
-  handleSplitRightRef.current = handleSplitRight
+  const handleCreateTerminalRef = useRef(handleCreateTerminal)
+  handleCreateTerminalRef.current = handleCreateTerminal
+  const requestAddAgentRef = useRef(requestAddAgent)
+  requestAddAgentRef.current = requestAddAgent
 
-  // ⌘W: varios paneles en la pestaña → mismo modal que la cruz; varias pestañas → mismo modal que la cruz de pestaña; una pestaña un panel → ventana
+  // ⌘W: hay paneles → destruir el activo (confirm); plano vacío + varias pestañas → cerrar pestaña; si no → cerrar ventana
   useEffect(() => {
     return window.api.onShortcutCloseTab(() => {
       const tabList = tabsRef.current
       const aid = activeTabIdRef.current
       const tab = tabList.find(t => t.id === aid)
       if (!tab) return
-      if (tab.paneIds.length > 1) {
+      if (tab.paneIds.length >= 1 && tab.activePaneId) {
         const openConfirm = paneShortcutCloseInterceptors.current.get(tab.activePaneId)
         if (openConfirm) {
           openConfirm()
@@ -654,64 +1037,6 @@ export const App: React.FC = () => {
       const insertAt = computeTabInsertIndex(prev.length, fromIdx, dropIdx, place)
       return moveItemToIndex(prev, fromIdx, insertAt)
     })
-  }, [])
-
-  const handleReorderPanes = useCallback((tabId: string, dragPaneId: string, dropPaneId: string) => {
-    if (dragPaneId === dropPaneId) return
-    setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId) return tab
-      const fromIdx = tab.paneIds.indexOf(dragPaneId)
-      const toIdx = tab.paneIds.indexOf(dropPaneId)
-      if (fromIdx < 0 || toIdx < 0) return tab
-      return { ...tab, paneIds: swapItemsAtIndices(tab.paneIds, fromIdx, toIdx) }
-    }))
-  }, [])
-
-  const clearPaneReorderDnD = useCallback((): void => {
-    paneReorderDragRef.current = null
-    setPaneDragOverPaneId(null)
-    setPaneDragSourcePaneId(null)
-  }, [])
-
-  const onPaneReorderHandleDragStart = useCallback((tabId: string, paneId: string, e: DragEvent): void => {
-    paneReorderDragRef.current = { tabId, dragPaneId: paneId }
-    setPaneDragSourcePaneId(paneId)
-    setPaneDragOverPaneId(null)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', paneId)
-    e.dataTransfer.setData('application/x-terminal-pane-id', paneId)
-    const thumb = buildPaneDragThumbnail(paneId)
-    document.body.appendChild(thumb)
-    e.dataTransfer.setDragImage(thumb, PANE_DRAG_THUMB_W / 2, PANE_DRAG_THUMB_HEADER_H / 2)
-    requestAnimationFrame(() => { document.body.removeChild(thumb) })
-  }, [])
-
-  const onPaneReorderHandleDragEnd = useCallback((): void => {
-    clearPaneReorderDnD()
-  }, [clearPaneReorderDnD])
-
-  /** Aceptar soltar sobre toda la celda (incl. xterm): dragover en fase captura + dragenter. */
-  const onPaneCellDragHover = useCallback((tabId: string, paneId: string, e: DragEvent): void => {
-    const d = paneReorderDragRef.current
-    if (!d || d.tabId !== tabId) return
-    if (d.dragPaneId === paneId) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setPaneDragOverPaneId(prev => (prev !== paneId ? paneId : prev))
-  }, [])
-
-  const onPaneCellDrop = useCallback((tabId: string, dropPaneId: string, e: DragEvent): void => {
-    e.preventDefault()
-    const d = paneReorderDragRef.current
-    clearPaneReorderDnD()
-    if (!d || d.tabId !== tabId) return
-    if (d.dragPaneId === dropPaneId) return
-    handleReorderPanes(tabId, d.dragPaneId, dropPaneId)
-  }, [clearPaneReorderDnD, handleReorderPanes])
-
-  const onPaneCellDragLeave = useCallback((paneId: string, e: DragEvent): void => {
-    if (!isDragLeaveForContainer(e.currentTarget as HTMLElement, e.relatedTarget)) return
-    setPaneDragOverPaneId(prev => (prev === paneId ? null : prev))
   }, [])
 
   const handleThemeChange = useCallback((themeId: string) => {
@@ -831,7 +1156,7 @@ export const App: React.FC = () => {
         return
       }
 
-      // ⌘Y / Ctrl+Y: otra terminal a la derecha (misma pestaña)
+      // ⌘Y / Ctrl+Y: nueva terminal en ventana (misma pestaña)
       if (e.key === 'y' || e.key === 'Y' || e.code === 'KeyY') {
         const target = e.target as HTMLElement | null
         if (target && !target.closest('.xterm')) {
@@ -845,7 +1170,7 @@ export const App: React.FC = () => {
         const aid = activeTabIdRef.current
         const tab = tabList.find(t => t.id === aid)
         if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
-        void handleSplitRightRef.current(tab.id, tab.activePaneId)
+        handleCreateTerminalRef.current(tab.id)
         return
       }
 
@@ -861,7 +1186,7 @@ export const App: React.FC = () => {
         e.stopPropagation()
         const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
         if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
-        setAgentPicker({ tabId: tab.id, fromPaneId: tab.activePaneId })
+        requestAddAgentRef.current(tab.id, tab.activePaneId || undefined)
         return
       }
 
@@ -879,51 +1204,56 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [handleAddTab])
 
-  const renderPaneCell = (
-    tab: TabSession,
-    paneId: string,
-    layoutSlotClass?: string,
-  ): React.ReactElement => {
+  const renderPaneContent = (tab: TabSession, paneId: string): React.ReactElement => {
     const isAgent = tab.paneKinds?.[paneId] === 'agent'
-    const paneReorder =
-      tab.id === activeTabId && tab.paneIds.length > 1
-        ? {
-            enabled: true,
-            isGrabbed: paneDragSourcePaneId === paneId,
-            onDragHandleStart: (event: DragEvent) => {
-              onPaneReorderHandleDragStart(tab.id, paneId, event)
-            },
-            onDragHandleEnd: onPaneReorderHandleDragEnd,
-          }
-        : undefined
-    const registerClose = tab.paneIds.length > 1
-      ? (openConfirm: () => void) => registerPaneShortcutCloseIntercept(paneId, openConfirm)
-      : undefined
+    const registerClose = (openConfirm: () => void) =>
+      registerPaneShortcutCloseIntercept(paneId, openConfirm)
 
-    const content = isAgent ? (
-      <AgentPane
-        paneId={paneId}
-        meta={tab.agentByPane?.[paneId] ?? {
-          provider: 'claude',
-          permissionMode: 'ask',
-          autoImproveContexts: true,
-        }}
-        cwd={splitSpawnCwdRef.current.get(paneId) || cwdsRef.current[paneId] || ''}
-        tabActive={tab.id === activeTabId}
-        isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
-        cwdSources={tab.paneIds
-          .filter(id => tab.paneKinds?.[id] !== 'agent')
-          .map((id, index) => ({ paneId: id, label: `Terminal ${index + 1}` }))}
-        onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
-        onCwdChange={cwd => handleAgentCwdChange(paneId, cwd)}
-        onRequestPaneFocus={() => handleFocusPane(tab.id, paneId)}
-        onClosePane={tab.paneIds.length > 1 ? () => handleClosePane(tab.id, paneId) : undefined}
-        onBusyChange={busy => handleBusyChange(paneId, busy)}
-        paneReorder={paneReorder}
-        registerShortcutCloseInterceptor={registerClose}
-        fontSize={config.fontSize ?? 13}
-      />
-    ) : (
+    if (isAgent) {
+      return (
+        <AgentPane
+          paneId={paneId}
+          meta={tab.agentByPane?.[paneId] ?? {
+            provider: 'claude',
+            permissionMode: 'ask',
+            autoImproveContexts: true,
+          }}
+          cwd={tab.projectFolder?.trim() ?? ''}
+          tabActive={tab.id === activeTabId}
+          isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
+          windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
+          onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
+          onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
+          onClosePane={() => handleClosePane(tab.id, paneId)}
+          onBusyChange={busy => handleBusyChange(paneId, busy)}
+          onPlaneStatusChange={status => handleAgentPlaneStatusChange(paneId, status)}
+          preferOpenConfig={openConfigForPaneId === paneId}
+          onPreferOpenConfigConsumed={() => {
+            setOpenConfigForPaneId(current => (current === paneId ? null : current))
+          }}
+          onConfigClose={unlockMiniExpandForConfig}
+          onConfigOpen={lockMiniExpandForConfig}
+          preferOpenContextId={
+            openContextForPane?.paneId === paneId ? openContextForPane.contextId : null
+          }
+          onPreferOpenContextConsumed={() => {
+            setOpenContextForPane(current => (current?.paneId === paneId ? null : current))
+          }}
+          preferSend={
+            planeSendPrompt?.paneId === paneId
+              ? planeSendPrompt
+              : null
+          }
+          onPreferSendConsumed={() => {
+            setPlaneSendPrompt(current => (current?.paneId === paneId ? null : current))
+          }}
+          registerShortcutCloseInterceptor={registerClose}
+          fontSize={config.fontSize ?? 13}
+        />
+      )
+    }
+
+    return (
       <TerminalPane
         sessionId={paneId}
         fileExplorer={explorerByPane[paneId] ?? DEFAULT_FILE_EXPLORER_STATE}
@@ -933,17 +1263,13 @@ export const App: React.FC = () => {
         initialPtyCwd={splitSpawnCwdRef.current.get(paneId) || cwdsRef.current[paneId] || undefined}
         onPtyCwdInitialized={rememberPaneCwd}
         onPaneCwdChanged={persistPaneCwdOnCd}
+        showPaneToolbar={false}
         paneToolbar={{
-          onClosePane: tab.paneIds.length > 1 ? () => handleClosePane(tab.id, paneId) : undefined,
-          paneReorder,
+          onClosePane: () => handleClosePane(tab.id, paneId),
+          showClosePane: false,
         }}
         registerShortcutCloseInterceptor={registerClose}
-        onRequestSplitPane={
-          tab.id === activeTabId && tab.activePaneId === paneId && tab.paneIds.length < MAX_PANES_PER_TAB
-            ? () => { void handleSplitRight(tab.id, paneId) }
-            : undefined
-        }
-        onRequestPaneFocus={() => handleFocusPane(tab.id, paneId)}
+        onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
         config={config}
         onTitleChange={title => handleTabTitleChange(tab.id, title)}
         onBusyChange={busy => handleBusyChange(paneId, busy)}
@@ -952,31 +1278,6 @@ export const App: React.FC = () => {
           else termRefs.current.delete(paneId)
         }}
       />
-    )
-
-    return (
-      <div
-        key={paneId}
-        data-pane-id={paneId}
-        className={[
-          'tab-terminal-pane-cell',
-          isAgent ? 'tab-terminal-pane-cell--agent' : 'tab-terminal-pane-cell--terminal',
-          layoutSlotClass,
-          tab.paneIds.length > 1 && paneDragOverPaneId === paneId
-            ? 'tab-terminal-pane-cell--drag-over'
-            : '',
-        ].filter(Boolean).join(' ')}
-        {...(tab.paneIds.length > 1
-          ? {
-              onDragEnter: (event: DragEvent) => { onPaneCellDragHover(tab.id, paneId, event) },
-              onDragOverCapture: (event: DragEvent) => { onPaneCellDragHover(tab.id, paneId, event) },
-              onDrop: (event: DragEvent) => { onPaneCellDrop(tab.id, paneId, event) },
-              onDragLeave: (event: DragEvent) => { onPaneCellDragLeave(paneId, event) },
-            }
-          : {})}
-      >
-        {content}
-      </div>
     )
   }
 
@@ -1013,49 +1314,70 @@ export const App: React.FC = () => {
       <div className="main-area">
         <div className="terminals-container">
           {configReady && sessionReady.loaded && tabs.map(tab => {
-            const p = tab.paneIds
-            const n = p.length
-            const layoutClass =
-              n <= 1 ? 'tab-terminal-group--panes-1'
-              : n === 2 ? 'tab-terminal-group--panes-2'
-              : n === 3 ? 'tab-terminal-group--panes-3'
-              : 'tab-terminal-group--panes-4'
+            const discoveredContexts = tabContextsByTab[tab.id] ?? []
+            const tabContextBadges = discoveredContexts.map(ctx => ({
+              id: ctx.id,
+              name: ctx.name,
+              kindLabel: t(`tabContexts.kind_${ctx.kind}`),
+              icon: contextIconName(ctx),
+              color: resolveContextColor(ctx),
+            }))
 
-            const split = normalizeSplitSizes(tab)
-            const resizeEnabled = tab.id === activeTabId
-
-            let inner: React.ReactNode
-            if (n === 0) {
-              inner = null
-            } else if (n === 1) {
-              inner = renderPaneCell(tab, p[0]!)
-            } else if (split) {
-              const cells =
-                n === 3
-                  ? p.map((paneId, idx) =>
-                      renderPaneCell(tab, paneId, `tab-terminal-pane-cell--slot-3-${idx}`),
-                    )
-                  : p.map(pid => renderPaneCell(tab, pid))
-              inner = (
-                <TabTerminalSplitLayout
-                  paneCount={n as 2 | 3 | 4}
-                  columnRatio={split.columnRatio}
-                  rowRatio={split.rowRatio ?? DEFAULT_ROW_RATIO}
-                  resizeEnabled={resizeEnabled}
-                  onColumnRatioChange={ratio => {
-                    handleTabSplitSizesChange(tab.id, { columnRatio: ratio })
-                  }}
-                  onRowRatioChange={ratio => {
-                    handleTabSplitSizesChange(tab.id, { rowRatio: ratio })
-                  }}
-                  onResizeCommit={handleSplitResizeCommit}
-                >
-                  {cells}
-                </TabTerminalSplitLayout>
-              )
-            } else {
-              inner = null
+            const contextUsage = new Map<string, number>()
+            for (const paneId of tab.paneIds) {
+              if (tab.paneKinds?.[paneId] !== 'agent') continue
+              for (const contextId of tab.agentByPane?.[paneId]?.contextIds ?? []) {
+                contextUsage.set(contextId, (contextUsage.get(contextId) ?? 0) + 1)
+              }
             }
+
+            const entities = tab.paneIds.map((paneId, index) => {
+              const kind = tab.paneKinds?.[paneId] === 'agent' ? 'agent' as const : 'terminal' as const
+              const ensured = ensureTabPaneLayout(tab)
+              const win = ensured.paneWindows?.[paneId] ?? createPaneWindowState(ensured.paneWindows, false)
+              const meta = kind === 'agent' ? tab.agentByPane?.[paneId] : undefined
+              const title = kind === 'agent'
+                ? (
+                  meta?.name?.trim()
+                  || (meta?.provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude'))
+                )
+                : `${t('tabs.nodeTerminal')} ${index + 1}`
+
+              if (kind === 'agent') {
+                const status = agentPlaneStatus[paneId]
+                const assignedContexts = (meta?.contextIds ?? [])
+                  .map(id => discoveredContexts.find(ctx => ctx.id === id))
+                  .filter((ctx): ctx is TabContext => Boolean(ctx))
+                  .map(ctx => ({
+                    id: ctx.id,
+                    name: ctx.name,
+                    kind: ctx.kind,
+                    kindLabel: t(`tabContexts.kind_${ctx.kind}`),
+                    icon: contextIconName(ctx),
+                    color: resolveContextColor(ctx),
+                    shared: (contextUsage.get(ctx.id) ?? 0) > 1,
+                  }))
+                return {
+                  paneId,
+                  kind,
+                  title,
+                  busy: busyPanes.has(paneId),
+                  provider: meta?.provider ?? 'claude',
+                  snippet: status?.lastSnippet ?? status?.activity ?? '',
+                  contexts: assignedContexts,
+                  autoImproveContexts: meta?.autoImproveContexts === true,
+                  window: win,
+                }
+              }
+
+              return {
+                paneId,
+                kind,
+                title,
+                busy: busyPanes.has(paneId),
+                window: win,
+              }
+            })
 
             return (
               <div
@@ -1063,16 +1385,120 @@ export const App: React.FC = () => {
                 className={[
                   'tab-terminal-group',
                   tab.id === activeTabId ? 'tab-terminal-group--active' : '',
-                  layoutClass,
                 ].filter(Boolean).join(' ')}
               >
-                {inner}
+                <TabAgenticPlane
+                  emptyTitle={t('tabs.planeEmptyTitle')}
+                  emptyHint={t('tabs.planeEmptyHint')}
+                  agentFabTitle={
+                    tab.projectFolder?.trim()
+                      ? t('tabs.fabAgent')
+                      : t('agentPane.projectFolderRequired')
+                  }
+                  terminalFabTitle={
+                    tab.projectFolder?.trim()
+                      ? t('tabs.fabTerminal')
+                      : t('agentPane.projectFolderRequired')
+                  }
+                  idleAgentLabel={t('tabs.planeIdleAgent')}
+                  contextPoolTitle={t('tabs.planeContextPoolTitle')}
+                  contextPoolConfigureLabel={t('tabContexts.manage')}
+                  chatPlaceholder={t('tabs.planeChatPlaceholder')}
+                  chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
+                  chatSendLabel={t('tabs.planeChatSend')}
+                  chatContextsEmpty={t('tabs.planeChatContextsEmpty')}
+                  tabContexts={tabContextBadges}
+                  onToggleAgentContext={(paneId, contextId) => {
+                    handleToggleAgentContext(tab.id, paneId, contextId)
+                  }}
+                  onAutoImproveChange={(paneId, enabled) => {
+                    handleAgentAutoImproveChange(tab.id, paneId, enabled)
+                  }}
+                  canAdd={tab.paneIds.length < MAX_PANES_PER_TAB}
+                  canAddAgent={Boolean(tab.projectFolder?.trim())}
+                  canAddTerminal={Boolean(tab.projectFolder?.trim())}
+                  activePaneId={tab.activePaneId}
+                  entities={entities}
+                  onAddAgent={() => {
+                    requestAddAgent(tab.id, tab.activePaneId || undefined)
+                  }}
+                  onAddTerminal={() => { handleCreateTerminal(tab.id) }}
+                  onExpandEntity={paneId => openPaneWindowUnlessSuppressed(tab.id, paneId)}
+                  onCloseWindow={paneId => handleClosePaneWindow(tab.id, paneId)}
+                  onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
+                  onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
+                  onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  onSendChat={(paneId, text, images) => {
+                    setPlaneSendPrompt({ paneId, text, images })
+                    setTabs(prev => {
+                      const nextTabs = prev.map(tabItem => {
+                        if (tabItem.id !== tab.id) return tabItem
+                        const ensured = ensureTabPaneLayout(tabItem)
+                        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+                        const win = paneWindows[paneId] ?? createPaneWindowState(paneWindows, false)
+                        paneWindows[paneId] = { ...win, open: false, fullscreen: false }
+                        return { ...ensured, activePaneId: paneId, paneWindows }
+                      })
+                      tabsRef.current = nextTabs
+                      return nextTabs
+                    })
+                    void saveSessionNow()
+                  }}
+                  agentStatuses={agentPlaneStatus}
+                  chatFontSize={config.fontSize ?? 13}
+                  configLabel={t('agentPane.openConfig')}
+                  deleteLabel={t('tabs.planeDeletePane')}
+                  maximizeLabel={t('tabs.planeMaximize')}
+                  restoreLabel={t('tabs.planeRestore')}
+                  closeWindowLabel={t('tabs.planeHideWindow')}
+                  projectFolder={tab.projectFolder ?? ''}
+                  projectFolderSelectLabel={t('tabs.projectFolderSelect')}
+                  projectFolderChangeLabel={t('tabs.projectFolderChange')}
+                  projectFolderEmptyHint={t('tabs.projectFolderEmptyHint')}
+                  onSelectProjectFolder={() => { void handlePickProjectFolder(tab.id) }}
+                  onRevealProjectFolder={tab.projectFolder?.trim()
+                    ? () => { window.api.openFolder(tab.projectFolder!.trim()) }
+                    : undefined}
+                  onOpenConfig={paneId => handleOpenConfigFromPlane(tab.id, paneId)}
+                  onDeletePane={paneId => handleClosePane(tab.id, paneId)}
+                  onToggleFullscreen={paneId => handleTogglePaneFullscreen(tab.id, paneId)}
+                  renderPane={paneId => renderPaneContent(tab, paneId)}
+                />
               </div>
             )
           })}
         </div>
 
       </div>
+
+      {(() => {
+        const modalTab = planeContextsModalTabId
+          ? tabs.find(item => item.id === planeContextsModalTabId)
+          : undefined
+        if (!modalTab || !planeContextsModalTabId) return null
+        const agentPaneId = (
+          modalTab.paneKinds?.[modalTab.activePaneId] === 'agent'
+            ? modalTab.activePaneId
+            : modalTab.paneIds.find(id => modalTab.paneKinds?.[id] === 'agent')
+        ) ?? ''
+        const cwd = modalTab.projectFolder?.trim() || ''
+        return (
+          <TabContextsModal
+            open
+            contexts={tabContextsByTab[modalTab.id] ?? []}
+            cwd={cwd}
+            onRefresh={() => { void refreshTabContexts(modalTab.id) }}
+            onAssign={contextId => {
+              if (!agentPaneId) return
+              handleAssignContextToAgent(modalTab.id, agentPaneId, contextId)
+            }}
+            onClose={() => {
+              setPlaneContextsModalTabId(null)
+              void refreshTabContexts(modalTab.id)
+            }}
+          />
+        )
+      })()}
 
       <AppModals
         config={config}

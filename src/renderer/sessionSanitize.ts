@@ -6,6 +6,12 @@ import type {
   PaneKind,
   TabSession,
 } from '@shared/tabSession'
+import {
+  AGENT_NAME_MAX_LENGTH,
+  AGENT_OBJECTIVE_MAX_LENGTH,
+  AGENT_ROLE_MAX_LENGTH,
+} from '@shared/agentIdentity'
+import { collapseAllPaneWindows, ensurePaneWindows } from '@shared/paneWindows'
 import { normalizeTabSession } from './tabSplitSizes'
 
 export interface PersistedSessionInput {
@@ -25,12 +31,14 @@ export interface SanitizedSession {
 }
 
 function sanitizeTab(tab: TabSession): TabSession | null {
-  if (!tab?.id || !Array.isArray(tab.paneIds) || tab.paneIds.length === 0) return null
+  if (!tab?.id || !Array.isArray(tab.paneIds)) return null
   const paneIds = tab.paneIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-  if (paneIds.length === 0) return null
-  const activePaneId = paneIds.includes(tab.activePaneId)
-    ? tab.activePaneId
-    : paneIds[paneIds.length - 1]!
+  // Plano vacío permitido (sin paneles).
+  const activePaneId = paneIds.length === 0
+    ? ''
+    : paneIds.includes(tab.activePaneId)
+      ? tab.activePaneId
+      : paneIds[paneIds.length - 1]!
   const paneKinds: Record<string, PaneKind> = {}
   const agentByPane: Record<string, AgentPaneMeta> = {}
   for (const paneId of paneIds) {
@@ -41,17 +49,24 @@ function sanitizeTab(tab: TabSession): TabSession | null {
     const rawMode = raw?.permissionMode as string | undefined
     const permissionMode: AgentPermissionMode =
       rawMode === 'auto' ? 'auto'
-      // 'readonly' es el nombre anterior del modo plan (sesiones ya guardadas).
       : rawMode === 'plan' || rawMode === 'readonly' ? 'plan'
       : 'ask'
     paneKinds[paneId] = 'agent'
     agentByPane[paneId] = {
       provider,
       permissionMode,
+      ...(typeof raw?.name === 'string' && raw.name.trim()
+        ? { name: raw.name.trim().slice(0, AGENT_NAME_MAX_LENGTH) }
+        : {}),
+      ...(typeof raw?.role === 'string' && raw.role.trim()
+        ? { role: raw.role.trim().slice(0, AGENT_ROLE_MAX_LENGTH) }
+        : {}),
+      ...(typeof raw?.objective === 'string' && raw.objective.trim()
+        ? { objective: raw.objective.trim().slice(0, AGENT_OBJECTIVE_MAX_LENGTH) }
+        : {}),
       ...(typeof raw?.model === 'string' && raw.model.trim()
         ? { model: raw.model.trim() }
         : {}),
-      // Los ids se validan contra disco al descubrir; aquí solo se limpian tipos.
       ...(Array.isArray(raw?.contextIds)
         ? {
             contextIds: raw.contextIds.filter(
@@ -65,14 +80,25 @@ function sanitizeTab(tab: TabSession): TabSession | null {
         : {}),
     }
   }
+  const paneWindows = collapseAllPaneWindows(ensurePaneWindows(paneIds, tab.paneWindows))
+  const projectFolder = typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
+    ? tab.projectFolder.trim()
+    : undefined
+  const {
+    panePlaneNodes: _legacyPlaneNodes,
+    contexts: _legacyContexts,
+    projectFolder: _rawProjectFolder,
+    ...tabBase
+  } = tab as TabSession & { panePlaneNodes?: unknown }
   return normalizeTabSession({
-    ...tab,
-    title: typeof tab.title === 'string' && tab.title.trim() ? tab.title : 'Terminal',
+    ...tabBase,
+    title: typeof tab.title === 'string' && tab.title.trim() ? tab.title : 'Workspace',
     paneIds,
     activePaneId,
     ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
     ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
-    // Catálogo = `.iaterminal`; no se persiste en session.json.
+    ...(paneWindows ? { paneWindows } : { paneWindows: undefined }),
+    ...(projectFolder ? { projectFolder } : {}),
     contexts: undefined,
   })
 }
@@ -106,6 +132,21 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
       .filter(([, cwd]) => Boolean(cwd?.trim())),
   )
 
+  // Migración: pestañas antiguas sin projectFolder heredan el cwd de una terminal
+  // (nunca de un agente). Si solo hay agentes, usa el primer cwd disponible.
+  const tabsWithProject = tabs.map(tab => {
+    if (tab.projectFolder?.trim()) return tab
+    const terminalIds = tab.paneIds.filter(paneId => tab.paneKinds?.[paneId] !== 'agent')
+    const orderedIds = [
+      ...terminalIds,
+      ...tab.paneIds.filter(paneId => !terminalIds.includes(paneId)),
+    ]
+    const fromPane = orderedIds
+      .map(paneId => cwds[paneId]?.trim() || '')
+      .find(Boolean)
+    return fromPane ? { ...tab, projectFolder: fromPane } : tab
+  })
+
   const explorerByPane = Object.fromEntries(
     Object.entries(saved.explorerByPane ?? {}).filter(([id]) => keptPaneIds.has(id)),
   )
@@ -115,5 +156,5 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
   )
   const orphanPaneIds = [...allSavedPaneIds].filter(id => !keptPaneIds.has(id))
 
-  return { tabs, activeTabId, cwds, explorerByPane, orphanPaneIds }
+  return { tabs: tabsWithProject, activeTabId, cwds, explorerByPane, orphanPaneIds }
 }

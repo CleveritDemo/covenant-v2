@@ -1,0 +1,50 @@
+.plane-agent-badge {
+  --agent-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+  margin: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.12s, color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.plane-agent-badge:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-secondary) 52%, transparent);
+  border-color: color-mix(in srgb, var(--agent-color) 40%, var(--plane-border));
+}
+
+.plane-agent-badge--selected {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--agent-color) 55%, transparent);
+  background: color-mix(in srgb, var(--agent-color) 18%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--agent-color) 45%, transparent);
+}
+
+.plane-agent-badge--busy .plane-agent-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--agent-color) 70%, transparent);
+  flex-shrink: 0;
+}
+
+.plane-agent-badge__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

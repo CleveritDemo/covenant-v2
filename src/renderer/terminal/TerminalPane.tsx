@@ -22,7 +22,6 @@ import {
 } from './terminalCanvasRepaint'
 import { TerminalSuggestStack } from './TerminalSuggestStack'
 import { TerminalScrollDown } from './TerminalScrollDown'
-import { SplitPaneButton } from './SplitPaneButton'
 import { FileExplorerSidebar, type FileExplorerSidebarHandle } from './explorer/FileExplorerSidebar'
 import { normalizeSessionCwd, sessionCwdPaneLabel } from './explorer/explorerPathUtils'
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
@@ -469,10 +468,16 @@ export interface TerminalRef {
   serialize: () => string
   /** Reajusta dimensiones del terminal y notifica al PTY. */
   refit: () => void
+  /** Enfoca el xterm (p. ej. al expandir en el plano). */
+  focus: () => void
+  /** Últimas líneas visibles (preview del mapa). */
+  getPreviewLines: (maxLines?: number) => string[]
 }
 
 export interface PaneToolbar {
   onClosePane?: () => void
+  /** Si false, no muestra la X del toolbar (p. ej. ya hay traffic lights macOS). */
+  showClosePane?: boolean
   /** Reordenar columnas dentro de la pestaña (solo si hay varios paneIds). */
   paneReorder?: {
     enabled: boolean
@@ -497,8 +502,11 @@ interface Props {
   /** Tras un `cd` exitoso: persistir cwd de este panel en session.json. */
   onPaneCwdChanged?: (sessionId: string, cwd: string) => void
   paneToolbar?: PaneToolbar
-  /** Otra terminal a la derecha (solo en el panel activo de la pestaña activa) */
-  onRequestSplitPane?: () => void
+  /**
+   * Toolbar interno (git/explorer/folder). En mini del plano se oculta:
+   * el chrome visible es el titlebar macOS de PaneWindow.
+   */
+  showPaneToolbar?: boolean
   /** Al interactuar con este panel, selecciona pestaña y enfoca este split */
   onRequestPaneFocus?: () => void
   config: AppConfig
@@ -522,7 +530,7 @@ export const TerminalPane: React.FC<Props> = ({
   onPtyCwdInitialized,
   onPaneCwdChanged,
   paneToolbar,
-  onRequestSplitPane,
+  showPaneToolbar = true,
   onRequestPaneFocus,
   config,
   onTitleChange,
@@ -617,8 +625,6 @@ export const TerminalPane: React.FC<Props> = ({
   const [findModalBuffer, setFindModalBuffer] = useState<TerminalBufferFindMatch[]>([])
   const [findModalHistory, setFindModalHistory] = useState<string[]>([])
   const [quickOpenOpen, setQuickOpenOpen] = useState(false)
-  /** Foco en shell / barra del panel; usado p. ej. para el botón de split. */
-  const [shellOrToolbarFocused, setShellOrToolbarFocused] = useState(false)
 
   const isActivePaneRef = useRef(isActivePane)
   isActivePaneRef.current = isActivePane
@@ -630,47 +636,8 @@ export const TerminalPane: React.FC<Props> = ({
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
   onRequestPaneFocusRef.current = onRequestPaneFocus
 
-  const syncShellOrToolbarFocus = useCallback((): void => {
-    const root = paneRootRef.current
-    const ae = document.activeElement as HTMLElement | null
-    if (!tabActiveRef.current || !isActivePaneRef.current || !root || !ae || !root.contains(ae)) {
-      setShellOrToolbarFocused(false)
-      return
-    }
-    setShellOrToolbarFocused(
-      Boolean(
-        ae.closest('.terminal-pane-body') ||
-          ae.closest('.terminal-file-explorer') ||
-          ae.closest('.pane-toolbar') ||
-          ae.closest('.terminal-chrome-btn'),
-      ),
-    )
-  }, [])
-
-  useEffect(() => {
-    if (!tabActive || !isActivePane) {
-      setShellOrToolbarFocused(false)
-      return
-    }
-    queueMicrotask(() => { syncShellOrToolbarFocus() })
-  }, [tabActive, isActivePane, syncShellOrToolbarFocus])
-
-  useEffect(() => {
-    const root = paneRootRef.current
-    if (!root) return
-    const onFocus = (): void => {
-      queueMicrotask(() => { syncShellOrToolbarFocus() })
-    }
-    root.addEventListener('focusin', onFocus)
-    root.addEventListener('focusout', onFocus)
-    return () => {
-      root.removeEventListener('focusin', onFocus)
-      root.removeEventListener('focusout', onFocus)
-    }
-  }, [sessionId, syncShellOrToolbarFocus])
-
   /**
-   * Los botones chrome (cerrar, scroll, +) no deben robar el foco del PTY: preventDefault
+   * Los botones chrome (cerrar, scroll) no deben robar el foco del PTY: preventDefault
    * en mousedown evita que el botón reciba foco antes del click.
    */
   const onTerminalChromePointerDown = useCallback((e: React.MouseEvent): void => {
@@ -1128,6 +1095,24 @@ export const TerminalPane: React.FC<Props> = ({
       scrollToBottom: () => scrollTerminalToBottomRef.current(),
       serialize: () => serializeAddonRef.current?.serialize() ?? '',
       refit: () => fitScheduler.runNow(),
+      focus: () => { term.focus() },
+      getPreviewLines: (maxLines = 6) => {
+        try {
+          const buf = term.buffer.active
+          const end = buf.baseY + buf.cursorY
+          const start = Math.max(0, end - Math.max(1, maxLines) + 1)
+          const lines: string[] = []
+          for (let y = start; y <= end; y++) {
+            const line = buf.getLine(y)
+            if (!line) continue
+            lines.push(line.translateToString(true).replace(/\s+$/u, ''))
+          }
+          while (lines.length > 0 && lines[0] === '') lines.shift()
+          return lines.slice(-maxLines)
+        } catch {
+          return []
+        }
+      },
     })
 
     term.onData(data => {
@@ -1468,11 +1453,11 @@ export const TerminalPane: React.FC<Props> = ({
         tabActive && !isActivePane ? 'terminal-pane--inactive-pane' : '',
       ].filter(Boolean).join(' ')}
     >
-      {tabActive && (
+      {tabActive && showPaneToolbar && (
         <PaneToolbar
           showReorderHandle={!!paneToolbar?.paneReorder?.enabled}
           isGrabbed={paneToolbar?.paneReorder?.isGrabbed ?? false}
-          showClosePane={!!paneToolbar?.onClosePane}
+          showClosePane={paneToolbar?.showClosePane ?? false}
           onDragHandleStart={e => {
             onRequestPaneFocusRef.current?.()
             paneToolbar?.paneReorder?.onDragHandleStart(e)
@@ -1527,16 +1512,6 @@ export const TerminalPane: React.FC<Props> = ({
                 onClick={scrollTerminalToBottom}
               />
             )}
-
-            <SplitPaneButton
-              visible={!!onRequestSplitPane && shellOrToolbarFocused}
-              onPointerDown={onTerminalChromePointerDown}
-              onClick={() => {
-                onRequestPaneFocusRef.current?.()
-                onRequestSplitPane?.()
-                termRef.current?.focus()
-              }}
-            />
           </div>
 
           <TerminalSuggestStack

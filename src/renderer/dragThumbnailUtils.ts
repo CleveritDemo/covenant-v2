@@ -1,6 +1,6 @@
 export const PANE_DRAG_THUMB_W = 280
 export const PANE_DRAG_THUMB_HEADER_H = 24
-export const PANE_DRAG_THUMB_CONTENT_H = 168
+export const PANE_DRAG_THUMB_CONTENT_H = 128
 
 /**
  * Captura los canvas de xterm como bitmap plano.

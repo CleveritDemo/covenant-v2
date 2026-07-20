@@ -171,6 +171,13 @@ const api = {
     ipcRenderer.send(IPC.OPEN_FOLDER, folderPath)
   },
 
+  selectDirectory(options?: {
+    title?: string
+    defaultPath?: string
+  }): Promise<{ ok: true; path: string } | { ok: false; cancelled?: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.SELECT_DIRECTORY, options)
+  },
+
   openExternalUrl(url: string): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.OPEN_EXTERNAL_URL, url)
   },

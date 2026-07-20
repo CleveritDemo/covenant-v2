@@ -7,18 +7,24 @@ export type TabContextKind =
   | 'deps'
   | 'readme'
   | 'changelog'
+  | 'agentResult'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog',
 ] as const
 
-/** Markdown libre del usuario; se adjunta entero (sin catálogo / need-sections). */
-export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes'] as const
+/** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
+export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentResult'] as const
+
+/** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
+export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog',
+] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'agentResult',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -42,9 +48,21 @@ export interface TabContext {
   /** Nombre del archivo materializado dentro de `<cwd>/.iaterminal/`. */
   fileName: string
   kind: TabContextKind
+  /** Ícono visual (allowlist); si falta, se deriva del kind. */
+  icon?: string
+  /** Color hex `#rrggbb` (allowlist); si falta, se deriva del kind. */
+  color?: string
   rootPath?: string
   paths?: string[]
   symbolKinds?: TabContextSymbolKind[]
+}
+
+export function isAgentResultContext(context: Pick<TabContext, 'kind'>): boolean {
+  return context.kind === 'agentResult'
+}
+
+export function isProjectContext(context: Pick<TabContext, 'kind'>): boolean {
+  return context.kind !== 'agentResult'
 }
 
 export interface TabContextPreviewRequest {
@@ -180,6 +198,7 @@ function annotationHasChangedEvidence(
 ): boolean {
   if (!changedPaths.size) return false
   if (context.kind === 'changelog') return false
+  if (context.kind === 'agentResult') return false
   if (context.kind === 'git') return true
 
   const root = normalizedRelativePath(context.rootPath ?? '')

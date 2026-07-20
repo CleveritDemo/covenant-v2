@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent } from 'react'
 import type {
+  AgentCliProvider,
   AgentPaneMeta,
   AgentPermissionMode,
 } from '@shared/tabSession'
@@ -20,18 +21,31 @@ import {
   stripLoopDoneMarker,
 } from '@shared/agentLoop'
 import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
+import {
+  AGENT_NAME_MAX_LENGTH,
+  AGENT_OBJECTIVE_MAX_LENGTH,
+  AGENT_ROLE_MAX_LENGTH,
+} from '@shared/agentIdentity'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TabContextsModal } from './TabContextsModal'
+import { AgentConfigModal } from './AgentConfigModal'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
-import { AgentPaneHeader } from './AgentPaneHeader'
 import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
+import {
+  attachmentsToPendingImages,
+  blobToBase64,
+  blobToThumbnailDataUrl,
+  extensionForMime,
+  imagesFromClipboard,
+  materializeClipboardImage,
+  MAX_PENDING_IMAGES,
+  type ComposerPendingImage,
+} from './composerImages'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
 
-const MAX_PENDING_IMAGES = 6
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_QUEUED_TURNS = 10
 /** Alto máximo del composer en líneas visibles antes de scroll interno. */
 const MAX_COMPOSER_ROWS = 8
@@ -45,13 +59,7 @@ function resizeComposerTextarea(el: HTMLTextAreaElement): void {
   el.style.height = `${Math.min(el.scrollHeight, maxH)}px`
 }
 
-interface PendingImage {
-  id: string
-  previewUrl: string
-  blob: Blob
-  mimeType: string
-  name: string
-}
+type PendingImage = ComposerPendingImage
 
 /** Mensaje escrito mientras la IA trabajaba; se envía solo al liberarse el turno. */
 interface QueuedTurn {
@@ -60,115 +68,41 @@ interface QueuedTurn {
   images: PendingImage[]
 }
 
-function extensionForMime(mimeType: string): string {
-  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return '.jpg'
-  if (mimeType === 'image/webp') return '.webp'
-  if (mimeType === 'image/gif') return '.gif'
-  return '.png'
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : ''
-      const comma = result.indexOf(',')
-      resolve(comma >= 0 ? result.slice(comma + 1) : result)
-    }
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
-    reader.readAsDataURL(blob)
-  })
-}
-
-/**
- * Miniatura pequeña (máx. 96px) en data URL para persistir junto al mensaje.
- * Se guarda la miniatura y no la imagen original para no inflar el historial.
- */
-async function blobToThumbnailDataUrl(blob: Blob): Promise<string | null> {
-  const MAX_THUMB_DIM = 96
-  try {
-    const bitmap = await createImageBitmap(blob)
-    const scale = Math.min(1, MAX_THUMB_DIM / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) {
-      bitmap.close()
-      return null
-    }
-    context.drawImage(bitmap, 0, 0, width, height)
-    bitmap.close()
-    return canvas.toDataURL('image/webp', 0.75)
-  } catch {
-    return null
-  }
-}
-
-function imagesFromClipboard(data: DataTransfer | null): File[] {
-  if (!data) return []
-  const files: File[] = []
-  for (const item of Array.from(data.items ?? [])) {
-    if (!item.type.startsWith('image/')) continue
-    const file = item.getAsFile()
-    if (file && file.size > 0 && file.size <= MAX_IMAGE_BYTES) files.push(file)
-  }
-  if (files.length) return files
-  for (const file of Array.from(data.files ?? [])) {
-    if (file.type.startsWith('image/') && file.size > 0 && file.size <= MAX_IMAGE_BYTES) {
-      files.push(file)
-    }
-  }
-  return files
-}
-
-/**
- * Copia los bytes del archivo del portapapeles a un Blob estable.
- * En Chromium/Electron el File de clipboard se invalida al terminar el
- * evento paste; createObjectURL sobre ese File deja la preview rota.
- */
-async function materializeClipboardImage(
-  file: File,
-  fallbackName: string,
-): Promise<PendingImage | null> {
-  try {
-    const buffer = await file.arrayBuffer()
-    if (!buffer.byteLength || buffer.byteLength > MAX_IMAGE_BYTES) return null
-    const mimeType = file.type || 'image/png'
-    const blob = new Blob([buffer], { type: mimeType })
-    return {
-      id: crypto.randomUUID(),
-      previewUrl: URL.createObjectURL(blob),
-      blob,
-      mimeType,
-      name: file.name || fallbackName,
-    }
-  } catch {
-    return null
-  }
-}
-
-export interface AgentCwdSource {
-  paneId: string
-  label: string
+export interface AgentPreferSend {
+  text: string
+  images?: AgentCliImageAttachment[]
 }
 
 interface Props {
   paneId: string
   meta: AgentPaneMeta
+  /** Carpeta del proyecto de la pestaña (única fuente de cwd del agente). */
   cwd: string
   tabActive: boolean
   isActivePane: boolean
-  cwdSources: AgentCwdSource[]
+  /** Ventana del agente abierta en el plano (no mini). Dispara scroll al fondo. */
+  windowOpen?: boolean
   /** Mismo tamaño tipográfico que las terminales (`config.fontSize`). */
   fontSize: number
   onMetaChange: (meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta)) => void
-  onCwdChange: (cwd: string) => void
   onRequestPaneFocus: () => void
   onClosePane?: () => void
   onBusyChange?: (busy: boolean) => void
+  /** Estado para el mapa 2D del plano (preview / satélites). */
+  onPlaneStatusChange?: (status: AgentPlaneStatus) => void
+  /** Pedido externo: abrir modal de configuración (p. ej. desde el plano). */
+  preferOpenConfig?: boolean
+  onPreferOpenConfigConsumed?: () => void
+  /** Tras abrir el modal de config (bloquea expand del mini). */
+  onConfigOpen?: () => void
+  /** Tras cerrar el modal de config (evita click-through que expande el mini). */
+  onConfigClose?: () => void
+  /** Pedido externo: abrir editor de un contexto (p. ej. clic en satélite del plano). */
+  preferOpenContextId?: string | null
+  onPreferOpenContextConsumed?: () => void
+  /** Pedido externo: enviar un prompt (y opcionalmente imágenes) desde el plano. */
+  preferSend?: AgentPreferSend | null
+  onPreferSendConsumed?: () => void
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -176,6 +110,19 @@ interface Props {
     onDragHandleEnd: () => void
   }
   registerShortcutCloseInterceptor?: (openConfirm: () => void) => () => void
+}
+
+export interface AgentPlaneStatus {
+  busy: boolean
+  activity: string
+  lastSnippet: string
+  contexts: Array<{ id: string; name: string; kind: string }>
+  /** Conversación user/assistant para el chat del plano (sin system). */
+  messages: AgentChatEntry[]
+  activeAssistantId: string | null
+  enteringIds: string[]
+  materializingIds: string[]
+  settlingId: string | null
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -188,13 +135,21 @@ export const AgentPane: React.FC<Props> = ({
   cwd,
   tabActive,
   isActivePane,
-  cwdSources,
+  windowOpen = true,
   fontSize,
   onMetaChange,
-  onCwdChange,
   onRequestPaneFocus,
   onClosePane,
   onBusyChange,
+  onPlaneStatusChange,
+  preferOpenConfig = false,
+  onPreferOpenConfigConsumed,
+  onConfigOpen,
+  onConfigClose,
+  preferOpenContextId = null,
+  onPreferOpenContextConsumed,
+  preferSend = null,
+  onPreferSendConsumed,
   paneReorder,
   registerShortcutCloseInterceptor,
 }) => {
@@ -207,10 +162,9 @@ export const AgentPane: React.FC<Props> = ({
   const [loaded, setLoaded] = useState(false)
   const [activity, setActivity] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
   const [contextsOpen, setContextsOpen] = useState(false)
-  const [contextsPickerOpen, setContextsPickerOpen] = useState(false)
   const [contextNotice, setContextNotice] = useState('')
-  const [cwdChoices, setCwdChoices] = useState<Record<string, string>>({})
   const [loopOpen, setLoopOpen] = useState(false)
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
@@ -231,16 +185,17 @@ export const AgentPane: React.FC<Props> = ({
   const lastAssistantIdRef = useRef<string | null>(null)
   /** Evita procesar EXIT duplicado después de `done` (mismo turno). */
   const turnClosedRef = useRef(false)
+  /** Generación del turno; EXIT rezagado no debe cerrar un turno más nuevo. */
+  const turnGenRef = useRef(0)
   /** Chat hidratado; hasta entonces se encolan eventos CLI (remount durante stream). */
   const loadedRef = useRef(false)
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
-  const completeTurnRef = useRef<() => void>(() => undefined)
+  const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
-  const contextsPickerRef = useRef<HTMLDivElement>(null)
   const cwdRef = useRef(cwd)
   const busyRef = useRef(busy)
   const loopActiveRef = useRef(false)
@@ -286,17 +241,8 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const resolveWorkingCwd = useCallback(async (): Promise<string> => {
-    let resolved = cwdRef.current.trim()
-    if (!resolved) {
-      try { resolved = (await window.api.getSessionCwd(paneId)).trim() } catch { /* ignore */ }
-    }
-    if (!resolved && cwdSources[0]) {
-      try {
-        resolved = (await window.api.getSessionCwd(cwdSources[0].paneId)).trim()
-      } catch { /* ignore */ }
-    }
-    return resolved
-  }, [cwdSources, paneId])
+    return cwdRef.current.trim()
+  }, [])
 
   const applyDiscoveredContexts = useCallback((discovered: TabContext[]): void => {
     const previousIds = new Set(diskContextsRef.current.map(context => context.id))
@@ -470,9 +416,10 @@ export const AgentPane: React.FC<Props> = ({
 
   // Solo sigue el fondo si el usuario está cerca del final; si sube a leer
   // historial, no le robamos el scroll (antes forzaba scrollHeight siempre).
+  // `windowOpen`: al pasar de mini → grande hace snap al fondo (layout real).
   const { nearBottom, forceFollow } = useAiMessagesFollowScroll(
     messages,
-    true,
+    windowOpen,
     scrollRef,
     `${activity}\0${queuedTurns.length}`,
   )
@@ -480,6 +427,23 @@ export const AgentPane: React.FC<Props> = ({
   const scrollChatToBottom = (): void => {
     forceFollow()
   }
+
+  // Tras el zoom de apertura el alto del contenedor sigue cambiando unos frames.
+  const wasWindowOpenRef = useRef(false)
+  useEffect(() => {
+    const becameOpen = windowOpen && !wasWindowOpenRef.current
+    wasWindowOpenRef.current = windowOpen
+    if (!becameOpen) return
+    forceFollow()
+    const t1 = window.setTimeout(() => forceFollow(), 100)
+    const t2 = window.setTimeout(() => forceFollow(), 450)
+    const t3 = window.setTimeout(() => forceFollow(), 1150)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
+  }, [windowOpen, forceFollow])
 
   // Crece con cada salto de línea (Shift+Enter) hasta MAX_COMPOSER_ROWS.
   useLayoutEffect(() => {
@@ -512,6 +476,57 @@ export const AgentPane: React.FC<Props> = ({
     onBusyChange?.(busy)
     return () => onBusyChange?.(false)
   }, [busy, onBusyChange])
+
+  useEffect(() => {
+    if (!preferOpenConfig) return
+    onConfigOpen?.()
+    setConfigOpen(true)
+    onPreferOpenConfigConsumed?.()
+  }, [preferOpenConfig, onPreferOpenConfigConsumed, onConfigOpen])
+
+  useEffect(() => {
+    if (!preferOpenContextId) return
+    setContextsOpen(true)
+  }, [preferOpenContextId])
+
+  useEffect(() => {
+    if (!onPlaneStatusChange) return
+    const assignedIds = new Set(meta.contextIds ?? [])
+    const contexts = diskContexts
+      .filter(context => assignedIds.has(context.id))
+      .map(context => ({ id: context.id, name: context.name, kind: context.kind }))
+    let lastSnippet = ''
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const entry = messages[i]
+      if (!entry || entry.role === 'system') continue
+      const text = entry.content.trim()
+      if (!text) continue
+      lastSnippet = text.length > 120 ? `${text.slice(0, 117)}…` : text
+      break
+    }
+    onPlaneStatusChange({
+      busy,
+      activity,
+      lastSnippet,
+      contexts,
+      messages: messages
+        .filter(entry => entry.role === 'user' || entry.role === 'assistant'),
+      activeAssistantId: busy ? activeAssistantIdRef.current : null,
+      enteringIds: [...enteringIds],
+      materializingIds: [...materializingIds],
+      settlingId,
+    })
+  }, [
+    activity,
+    busy,
+    diskContexts,
+    enteringIds,
+    materializingIds,
+    messages,
+    meta.contextIds,
+    onPlaneStatusChange,
+    settlingId,
+  ])
 
   // Catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
   useEffect(() => {
@@ -546,6 +561,7 @@ export const AgentPane: React.FC<Props> = ({
     }
     activeAssistantIdRef.current = assistant.id
     lastAssistantIdRef.current = assistant.id
+    turnGenRef.current += 1
     turnClosedRef.current = false
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
     forceFollow()
@@ -590,7 +606,6 @@ export const AgentPane: React.FC<Props> = ({
       activeAssistantIdRef.current = null
       return false
     }
-    if (resolvedCwd && resolvedCwd !== cwdRef.current) onCwdChange(resolvedCwd)
     // messagesRef aún no incluye el user/assistant de este turno.
     const priorMessages = messagesRef.current
     let prompt = options.prompt
@@ -604,6 +619,9 @@ export const AgentPane: React.FC<Props> = ({
       prompt,
       cwd: resolvedCwd,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
+      ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
+      ...(currentMeta.role?.trim() ? { role: currentMeta.role.trim() } : {}),
+      ...(currentMeta.objective?.trim() ? { objective: currentMeta.objective.trim() } : {}),
       ...(currentMeta.model?.trim() ? { model: currentMeta.model.trim() } : {}),
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
@@ -612,7 +630,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(options.images?.length ? { images: options.images } : {}),
     })
     return true
-  }, [forceFollow, onCwdChange, paneId, resolveWorkingCwd, t])
+  }, [forceFollow, paneId, resolveWorkingCwd, t])
 
   const finishLoop = useCallback((reason: 'stopped' | 'done' | 'max'): void => {
     clearLoopTimer()
@@ -651,7 +669,8 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [finishLoop, startTurn, t])
 
-  const completeTurn = useCallback((): void => {
+  const completeTurn = useCallback((expectedGen?: number): void => {
+    if (expectedGen != null && expectedGen !== turnGenRef.current) return
     if (turnClosedRef.current) return
     turnClosedRef.current = true
     const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
@@ -718,6 +737,9 @@ export const AgentPane: React.FC<Props> = ({
       onMetaChange(previous => ({ ...previous, cliSessionId: event.cliSessionId }))
       return
     }
+    // done/EXIT tardíos de un proceso anterior no deben reabrir el turno ni
+    // pisar el mensaje nuevo al drenar la cola.
+    if (turnClosedRef.current) return
     if (event.type === 'tool') {
       setActivity(event.status === 'started' ? t('agentPane.activity', { tool: event.name }) : '')
       return
@@ -750,7 +772,6 @@ export const AgentPane: React.FC<Props> = ({
       activeAssistantIdRef.current = assistantId
       lastAssistantIdRef.current = assistantId
       setBusy(true)
-      turnClosedRef.current = false
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
         const existing = prev.findIndex(message => message.id === assistantId)
@@ -771,7 +792,6 @@ export const AgentPane: React.FC<Props> = ({
       activeAssistantIdRef.current = assistantId
       lastAssistantIdRef.current = assistantId
       setBusy(true)
-      turnClosedRef.current = false
     }
     if (event.type === 'assistant_final') {
       let { visibleText, updates } = extractTabContextUpdates(event.text)
@@ -809,8 +829,12 @@ export const AgentPane: React.FC<Props> = ({
         setContextNotice(t('tabContexts.updated', { n: writes.length }))
         window.setTimeout(() => setContextNotice(''), 3500)
       }
-      setMessages(prev => prev.map(message =>
-        message.id === assistantId ? { ...message, content: visibleText } : message))
+      // Un final vacío no debe borrar deltas ya mostrados (p. ej. result filtrado).
+      setMessages(prev => prev.map(message => {
+        if (message.id !== assistantId) return message
+        const next = visibleText.trim() ? visibleText : message.content
+        return { ...message, content: next }
+      }))
       return
     }
     setMessages(prev => prev.map(message => {
@@ -830,7 +854,11 @@ export const AgentPane: React.FC<Props> = ({
     })
     const offExit = window.api.onAgentCliExit(paneId, () => {
       // Fallback si el runtime antiguo no emite `done`, o si done se perdió.
-      completeTurnRef.current()
+      // Capturar generación: un EXIT tardío no debe cerrar el siguiente turno en cola.
+      const gen = turnGenRef.current
+      window.setTimeout(() => {
+        completeTurnRef.current(gen)
+      }, 0)
     })
     return () => {
       offEvent()
@@ -916,6 +944,34 @@ export const AgentPane: React.FC<Props> = ({
     onRequestPaneFocus,
     pendingImages,
     queuedTurns.length,
+  ])
+
+  useEffect(() => {
+    if (!preferSend) return
+    const prompt = preferSend.text.trim()
+    const inboundImages = preferSend.images ?? []
+    onPreferSendConsumed?.()
+    if ((!prompt && inboundImages.length === 0) || loopActive) return
+    onRequestPaneFocus()
+    const imagesSnapshot = attachmentsToPendingImages(inboundImages)
+    if (busy) {
+      setQueuedTurns(prev => {
+        if (prev.length >= MAX_QUEUED_TURNS) {
+          imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          return prev
+        }
+        return [...prev, { id: crypto.randomUUID(), text: prompt, images: imagesSnapshot }]
+      })
+      return
+    }
+    void dispatchMessage(prompt, imagesSnapshot)
+  }, [
+    busy,
+    dispatchMessage,
+    loopActive,
+    onPreferSendConsumed,
+    onRequestPaneFocus,
+    preferSend,
   ])
 
   const removeQueuedTurn = useCallback((id: string): void => {
@@ -1049,29 +1105,6 @@ export const AgentPane: React.FC<Props> = ({
     setLoopOpen(true)
   }, [])
 
-  const loadCwdChoices = useCallback(async (): Promise<void> => {
-    const entries = await Promise.all(cwdSources.map(async source => {
-      try {
-        return [source.paneId, (await window.api.getSessionCwd(source.paneId)).trim()] as const
-      } catch {
-        return [source.paneId, ''] as const
-      }
-    }))
-    setCwdChoices(Object.fromEntries(entries))
-  }, [cwdSources])
-
-  useEffect(() => {
-    void loadCwdChoices()
-  }, [loadCwdChoices])
-
-  const selectCwdSource = useCallback(async (sourcePaneId: string): Promise<void> => {
-    let next = cwdChoices[sourcePaneId]
-    if (!next) {
-      try { next = (await window.api.getSessionCwd(sourcePaneId)).trim() } catch { /* ignore */ }
-    }
-    if (next) onCwdChange(next)
-  }, [cwdChoices, onCwdChange])
-
   const changePermission = (permissionMode: AgentPermissionMode): void => {
     if (permissionMode === meta.permissionMode) return
     // Bug del CLI de Cursor: --resume conserva ask/plan en SQLite y no hay
@@ -1090,11 +1123,60 @@ export const AgentPane: React.FC<Props> = ({
     }
   }
 
+  const changeProvider = (provider: AgentCliProvider): void => {
+    if (provider === meta.provider) return
+    const hadSession = Boolean(meta.cliSessionId)
+    onMetaChange(previous => {
+      const { cliSessionId: _session, model: _model, ...rest } = previous
+      return { ...rest, provider }
+    })
+    if (hadSession) {
+      pendingModeHandoffRef.current = true
+      setMessages(prev => [...prev, systemMessage(t('agentPane.providerSessionReset'))])
+    }
+  }
+
   const changeModel = (model: string): void => {
     const next = model.trim()
     onMetaChange(previous => {
       const { model: _previous, ...rest } = previous
       return next ? { ...rest, model: next } : rest
+    })
+  }
+
+  const changeName = (name: string): void => {
+    const next = name.slice(0, AGENT_NAME_MAX_LENGTH)
+    onMetaChange(previous => {
+      const trimmed = next.trim()
+      if (!trimmed) {
+        const { name: _removed, ...rest } = previous
+        return rest
+      }
+      return { ...previous, name: next }
+    })
+  }
+
+  const changeRole = (role: string): void => {
+    const next = role.slice(0, AGENT_ROLE_MAX_LENGTH)
+    onMetaChange(previous => {
+      const trimmed = next.trim()
+      if (!trimmed) {
+        const { role: _removed, ...rest } = previous
+        return rest
+      }
+      return { ...previous, role: next }
+    })
+  }
+
+  const changeObjective = (objective: string): void => {
+    const next = objective.slice(0, AGENT_OBJECTIVE_MAX_LENGTH)
+    onMetaChange(previous => {
+      const trimmed = next.trim()
+      if (!trimmed) {
+        const { objective: _removed, ...rest } = previous
+        return rest
+      }
+      return { ...previous, objective: next }
     })
   }
 
@@ -1107,39 +1189,8 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  // Cierra el desplegable de contextos al hacer clic fuera o Escape.
-  useEffect(() => {
-    if (!contextsPickerOpen) return
-    const onPointerDown = (event: MouseEvent): void => {
-      const root = contextsPickerRef.current
-      if (root && !root.contains(event.target as Node)) {
-        setContextsPickerOpen(false)
-      }
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setContextsPickerOpen(false)
-    }
-    window.addEventListener('mousedown', onPointerDown)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('mousedown', onPointerDown)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [contextsPickerOpen])
-
-  // Si se abre el modal de administración o empieza un loop, cierra el picker.
-  useEffect(() => {
-    if (contextsOpen || loopActive) setContextsPickerOpen(false)
-  }, [contextsOpen, loopActive])
-
   const loopMode = loopOpen || loopActive
   const selectedContextIds = meta.contextIds ?? []
-  const selectedContexts = diskContexts.filter(context => selectedContextIds.includes(context.id))
-  const contextsPickerLabel = selectedContexts.length === 0
-    ? t('tabContexts.pickerNone')
-    : selectedContexts.length === 1
-      ? selectedContexts[0].name
-      : t('tabContexts.pickerSelected', { n: selectedContexts.length })
   // Con el agente ocupado el input sigue habilitado para encolar mensajes;
   // solo el modo loop bloquea la escritura.
   const showStop = loopActive || busy
@@ -1190,26 +1241,6 @@ export const AgentPane: React.FC<Props> = ({
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
       onMouseDown={onRequestPaneFocus}
     >
-      {tabActive && (
-        <AgentPaneHeader
-          meta={meta}
-          cwd={cwd}
-          cwdSources={cwdSources}
-          cwdChoices={cwdChoices}
-          busy={busy}
-          loopMode={loopMode}
-          loopActive={loopActive}
-          onClosePane={onClosePane}
-          onRequestClose={() => setConfirmClose(true)}
-          onLoadCwdChoices={() => { void loadCwdChoices() }}
-          onSelectCwdSource={sourcePaneId => { void selectCwdSource(sourcePaneId) }}
-          onChangeModel={changeModel}
-          onChangePermission={changePermission}
-          onToggleLoopMode={toggleLoopMode}
-          paneReorder={paneReorder}
-        />
-      )}
-
       <AgentPaneMessages
         scrollRef={scrollRef}
         messages={messages}
@@ -1238,27 +1269,43 @@ export const AgentPane: React.FC<Props> = ({
         input={input}
         showStop={showStop}
         showPlay={showPlay}
-        meta={meta}
-        diskContexts={diskContexts}
-        selectedContextIds={selectedContextIds}
-        selectedContexts={selectedContexts}
-        contextsPickerOpen={contextsPickerOpen}
-        contextsPickerRef={contextsPickerRef}
-        contextsPickerLabel={contextsPickerLabel}
-        contextNotice={contextNotice}
         composerInputRef={composerInputRef}
         onInputChange={setInput}
         onComposerPaste={handleComposerPaste}
         onComposerKeyDown={handleComposerKeyDown}
         onRemovePendingImage={removePendingImage}
-        onToggleContextsPicker={() => setContextsPickerOpen(open => !open)}
+        onSendClick={handleSendClick}
+      />
+
+      <AgentConfigModal
+        open={configOpen}
+        meta={meta}
+        cwd={cwd}
+        busy={busy}
+        loopMode={loopMode}
+        loopActive={loopActive}
+        diskContexts={diskContexts}
+        selectedContextIds={selectedContextIds}
+        contextNotice={contextNotice}
+        onClose={() => {
+          // Desbloquear + suppress post-cierre (click-through al mini del plano).
+          onConfigClose?.()
+          setConfigOpen(false)
+        }}
+        closeOnBackdrop
+        onChangeName={changeName}
+        onChangeRole={changeRole}
+        onChangeObjective={changeObjective}
+        onChangeProvider={changeProvider}
+        onChangeModel={changeModel}
+        onChangePermission={changePermission}
+        onToggleLoopMode={toggleLoopMode}
         onToggleContext={toggleContext}
         onOpenContextsModal={() => setContextsOpen(true)}
         onAutoImproveChange={checked => onMetaChange(previous => ({
           ...previous,
           autoImproveContexts: checked,
         }))}
-        onSendClick={handleSendClick}
       />
 
       <ConfirmTerminalModal
@@ -1276,8 +1323,8 @@ export const AgentPane: React.FC<Props> = ({
         open={contextsOpen}
         contexts={diskContexts}
         cwd={cwd}
-        paneId={paneId}
-        cwdSources={cwdSources}
+        focusContextId={preferOpenContextId}
+        onFocusContextConsumed={onPreferOpenContextConsumed}
         onRefresh={() => { void refreshDiskContexts() }}
         onAssign={contextId => {
           onMetaChange(previous => {

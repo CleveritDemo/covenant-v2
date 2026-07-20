@@ -16,6 +16,12 @@ import {
   normalizeContextFileName,
   ALL_CONTEXT_KINDS,
 } from '../src/shared/tabContext'
+import {
+  defaultColorForKind,
+  defaultIconForKind,
+  normalizeContextColor,
+  normalizeContextIcon,
+} from '../src/shared/tabContextAppearance'
 import { gatherShallowFolderTree } from './agentMd'
 import {
   writeAiChangelogDocument,
@@ -53,7 +59,7 @@ const MAX_REQUESTED_CONTEXT_CHARS = 60_000
 const MAX_DIRECT_CONTEXT_CHARS = 8_000
 const MAX_DIRECT_CONTEXT_TOTAL_CHARS = 8_000
 /** Personalizados: cuerpo entero siempre; sin catálogo ni need-sections. */
-const DIRECT_CONTEXT_KINDS = new Set<TabContextKind>(['notes'])
+const DIRECT_CONTEXT_KINDS = new Set<TabContextKind>(['notes', 'agentResult'])
 /** Máximo de secciones listadas por contexto en el catálogo compacto. */
 export const MAX_CATALOG_LISTED_SECTIONS = 24
 /** Tope de anotaciones aplicadas por llamada a mergeAnnotations. */
@@ -100,6 +106,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   deps: 'Project usage only; max 10 words.',
   readme: 'Gaps/outdated bits only; max 10 words.',
   changelog: 'Read-only; never annotate.',
+  agentResult: 'Host-owned agent results; do not rewrite via annotations.',
 }
 
 function safeRoot(cwd: string, requested?: string): string {
@@ -361,6 +368,13 @@ function firstExisting(root: string, names: string[]): string | null {
 
 function contextFilePath(context: TabContext, cwd: string): string {
   const dir = join(resolve(cwd), '.iaterminal')
+  if (context.kind === 'agentResult') {
+    const baseName = normalizeContextFileName(
+      (context.fileName || context.name).replace(/^results[/\\]/i, ''),
+      context.id,
+    )
+    return join(dir, 'results', baseName)
+  }
   return join(dir, normalizeContextFileName(context.fileName || context.name, context.id))
 }
 
@@ -411,12 +425,22 @@ function notesWithoutAnnotations(notes: string): string {
 }
 
 function serializeContextMetadata(context: TabContext): string {
+  const icon = normalizeContextIcon(context.icon) ?? defaultIconForKind(context.kind)
+  const color = normalizeContextColor(context.color) ?? defaultColorForKind(context.kind)
+  const fileName = context.kind === 'agentResult'
+    ? `results/${normalizeContextFileName(
+      (context.fileName || context.name).replace(/^results[/\\]/i, ''),
+      context.id,
+    )}`
+    : normalizeContextFileName(context.fileName || context.name, context.id)
   const metadata = JSON.stringify({
     version: 1,
     id: context.id,
     name: context.name,
-    fileName: normalizeContextFileName(context.fileName || context.name, context.id),
+    fileName,
     kind: context.kind,
+    icon,
+    color,
     ...(context.rootPath ? { rootPath: context.rootPath } : {}),
     ...(context.paths ? { paths: context.paths } : {}),
     ...(context.symbolKinds ? { symbolKinds: context.symbolKinds } : {}),
@@ -474,12 +498,16 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
       ? value.symbolKinds.filter((item): item is TabContextSymbolKind =>
           typeof item === 'string' && SYMBOL_KINDS.has(item as TabContextSymbolKind))
       : undefined
+    const icon = normalizeContextIcon(value.icon)
+    const color = normalizeContextColor(value.color)
     return {
       id: value.id.trim().slice(0, 200),
       name: value.name.trim().slice(0, 200),
       // El archivo encontrado manda: permite renombrarlo fuera de la app.
       fileName,
       kind: value.kind as TabContextKind,
+      ...(icon ? { icon } : {}),
+      ...(color ? { color } : {}),
       ...(typeof value.rootPath === 'string' && value.rootPath.trim()
         ? { rootPath: value.rootPath.trim() }
         : {}),
@@ -499,15 +527,14 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
     if (!existsSync(dir)) return { ok: true, contexts: [] }
     const contexts: TabContext[] = []
     const seenIds = new Set<string>()
-    for (const entry of readdirSync(dir, { withFileTypes: true })
-      .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
-      .sort((a, b) => a.name.localeCompare(b.name))) {
-      const fileName = normalizeContextFileName(entry.name)
-      const raw = readFileSync(join(dir, entry.name), 'utf8')
-      const fromMeta = contextFromMetadata(raw, fileName)
+
+    const ingestFile = (absolutePath: string, relativeFileName: string): void => {
+      const raw = readFileSync(absolutePath, 'utf8')
+      const fromMeta = contextFromMetadata(raw, relativeFileName)
+      const baseName = relativeFileName.split(/[/\\]/).pop() ?? relativeFileName
       const context: TabContext | null = fromMeta?.kind === 'changelog'
         ? fromMeta
-        : entry.name.toLowerCase() === DEFAULT_CHANGELOG_FILE && !fromMeta
+        : baseName.toLowerCase() === DEFAULT_CHANGELOG_FILE && !fromMeta
           ? {
               id: 'iaterminal:changelog',
               name: raw.match(/^\s*#\s+(.+?)\s*$/m)?.[1]?.trim() || 'AI Changelog',
@@ -515,10 +542,34 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
               kind: 'changelog',
             }
           : fromMeta
-      if (!context || seenIds.has(context.id)) continue
+      if (!context || seenIds.has(context.id)) return
       seenIds.add(context.id)
-      contexts.push(context)
+      contexts.push(
+        context.kind === 'agentResult'
+          ? {
+              ...context,
+              fileName: relativeFileName.replace(/\\/g, '/'),
+            }
+          : context,
+      )
     }
+
+    for (const entry of readdirSync(dir, { withFileTypes: true })
+      .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      ingestFile(join(dir, entry.name), normalizeContextFileName(entry.name))
+    }
+
+    const resultsDir = join(dir, 'results')
+    if (existsSync(resultsDir) && statSync(resultsDir).isDirectory()) {
+      for (const entry of readdirSync(resultsDir, { withFileTypes: true })
+        .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        const relativeFileName = `results/${normalizeContextFileName(entry.name)}`
+        ingestFile(join(resultsDir, entry.name), relativeFileName)
+      }
+    }
+
     return { ok: true, contexts }
   } catch (error) {
     return {
@@ -620,6 +671,12 @@ function buildAutoContent(
     }
     case 'changelog':
       return readTextFile(filePath) ?? '(empty changelog)'
+    case 'agentResult': {
+      const raw = readTextFile(filePath)
+      if (!raw) return '(empty agent results)'
+      const auto = extractSection(raw, AUTO_START, AUTO_END)
+      return auto || raw
+    }
     default:
       return '(empty)'
   }
@@ -856,6 +913,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
       return []
     case 'notes':
       return []
+    case 'agentResult':
+      return [contextFilePath(context, cwd)]
     // Git and folder trees are cheap enough to rebuild and difficult to
     // fingerprint exactly without repeating their traversal/commands.
     case 'git':
@@ -1238,16 +1297,16 @@ export function buildContextPromptDelivery(
     const data = available.get(context.id)
     if (!data) continue
     const body = directContextBody(data)
-    // notes: siempre directo, sin tope de tamaño. Otros kinds en DIRECT_*
-    // respetarían MAX_DIRECT_* (hoy solo notes).
+    // notes / agentResult: siempre directo, sin tope de tamaño.
     const fits = DIRECT_CONTEXT_KINDS.has(context.kind) && data.materialized.ok && (
-      context.kind === 'notes' ||
-      (body.length <= MAX_DIRECT_CONTEXT_CHARS &&
+      context.kind === 'notes'
+      || context.kind === 'agentResult'
+      || (body.length <= MAX_DIRECT_CONTEXT_CHARS &&
         directChars + body.length <= MAX_DIRECT_CONTEXT_TOTAL_CHARS)
     )
     if (fits) {
       allDirect.push(data)
-      if (context.kind !== 'notes') directChars += body.length
+      if (context.kind !== 'notes' && context.kind !== 'agentResult') directChars += body.length
     } else {
       allOnDemand.push(data)
     }

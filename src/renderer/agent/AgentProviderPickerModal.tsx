@@ -24,7 +24,7 @@ export const AgentProviderPickerModal: React.FC<Props> = ({ open, onSelect, onCl
       onClose={onClose}
       title={t('agentPane.pickerTitle')}
       size="sm"
-      zIndex={760}
+      zIndex={860}
     >
       <p className="agent-provider-picker__description">{t('agentPane.pickerDescription')}</p>
       <div className="agent-provider-picker__options" role="list">

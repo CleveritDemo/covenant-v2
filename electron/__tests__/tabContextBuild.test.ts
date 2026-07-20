@@ -18,6 +18,7 @@ import {
   reconcileNotesWithAuto,
 } from '../tabContextBuild'
 import { appendAiChangelog } from '../aiChangelog'
+import { upsertAiAgentResults } from '../aiAgentResults'
 import { normalizeAnnotation } from '../../src/shared/tabContext'
 
 describe('tab context builders', () => {
@@ -69,7 +70,11 @@ describe('tab context builders', () => {
     const result = discoverTabContexts(cwd)
 
     expect(result.ok).toBe(true)
-    expect(result.contexts).toEqual([context])
+    expect(result.contexts).toEqual([{
+      ...context,
+      icon: 'code',
+      color: '#c084fc',
+    }])
     expect(readFileSync(join(cwd, '.iaterminal', 'arquitectura.md'), 'utf8'))
       .toContain('<!-- iaterminal:context ')
   })
@@ -139,7 +144,11 @@ describe('tab context builders', () => {
     expect(existsSync(join(cwd, '.iaterminal', 'historial-ia.md'))).toBe(true)
     expect(created.content).toContain('# Historial del equipo')
     expect(created.content).toContain('iaterminal:context')
-    expect(discoverTabContexts(cwd).contexts).toEqual([context])
+    expect(discoverTabContexts(cwd).contexts).toEqual([{
+      ...context,
+      icon: 'history',
+      color: '#a3e635',
+    }])
   })
 
   it('renames a changelog without losing entries and runtime follows metadata', () => {
@@ -170,7 +179,29 @@ describe('tab context builders', () => {
     expect(raw).toContain('# Historial compartido')
     expect(raw).toContain('Primer cambio registrado')
     expect(raw).toContain('Segundo cambio registrado')
-    expect(discoverTabContexts(cwd).contexts).toEqual([renamed])
+    expect(discoverTabContexts(cwd).contexts).toEqual([{
+      ...renamed,
+      icon: 'history',
+      color: '#a3e635',
+    }])
+  })
+
+  it('discovers agentResult contexts from .iaterminal/results/', () => {
+    const cwd = tempCwd()
+    upsertAiAgentResults(cwd, 'Scout', {
+      summary: 'Exploración lista',
+      entries: ['Mapeé el repo'],
+    }, '2026-07-20T12:00:00.000Z')
+
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    const found = result.contexts.find(item => item.kind === 'agentResult')
+    expect(found).toMatchObject({
+      name: 'Scout',
+      kind: 'agentResult',
+      fileName: 'results/Scout.md',
+      id: 'iaterminal:result:Scout',
+    })
   })
 
   it('deletes a materialized context file from .iaterminal', () => {

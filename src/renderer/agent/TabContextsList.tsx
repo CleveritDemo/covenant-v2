@@ -3,7 +3,8 @@ import type { TabContext } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
-import { KIND_ICONS } from './tabContextKindIcons'
+import { contextIconName } from './tabContextKindIcons'
+import { resolveContextColor } from '@shared/tabContextAppearance'
 
 interface Props {
   contexts: TabContext[]
@@ -21,6 +22,36 @@ export const TabContextsList: React.FC<Props> = ({
   onDelete,
 }) => {
   const { t } = useT()
+  const projectContexts = contexts.filter(context => context.kind !== 'agentResult')
+  const agentResultContexts = contexts.filter(context => context.kind === 'agentResult')
+
+  const renderItem = (context: TabContext) => (
+    <div
+      key={context.id}
+      className={`tab-contexts__item${activeDraftId === context.id ? ' tab-contexts__item--active' : ''}`}
+    >
+      <button onClick={() => { void onEdit(context) }}>
+        <span
+          className="tab-contexts__item-icon"
+          style={{ color: resolveContextColor(context) }}
+        >
+          <Icon name={contextIconName(context)} size={17} />
+        </span>
+        <span className="tab-contexts__item-text">
+          <strong>{context.name}</strong>
+          <span>{t(`tabContexts.kind_${context.kind}`)}</span>
+          <span className="tab-contexts__item-file">{context.fileName}</span>
+        </span>
+      </button>
+      <button
+        className="tab-contexts__delete"
+        title={t('tabContexts.delete')}
+        onClick={() => { void onDelete(context) }}
+      >
+        <Icon name="trash" size={13} />
+      </button>
+    </div>
+  )
 
   return (
     <aside className="tab-contexts__list">
@@ -31,30 +62,18 @@ export const TabContextsList: React.FC<Props> = ({
       {contexts.length === 0 && (
         <p className="tab-contexts__empty">{t('tabContexts.empty')}</p>
       )}
-      {contexts.map(context => (
-        <div
-          key={context.id}
-          className={`tab-contexts__item${activeDraftId === context.id ? ' tab-contexts__item--active' : ''}`}
-        >
-          <button onClick={() => { void onEdit(context) }}>
-            <span className="tab-contexts__item-icon">
-              <Icon name={KIND_ICONS[context.kind]} size={17} />
-            </span>
-            <span className="tab-contexts__item-text">
-              <strong>{context.name}</strong>
-              <span>{t(`tabContexts.kind_${context.kind}`)}</span>
-              <span className="tab-contexts__item-file">{context.fileName}</span>
-            </span>
-          </button>
-          <button
-            className="tab-contexts__delete"
-            title={t('tabContexts.delete')}
-            onClick={() => { void onDelete(context) }}
-          >
-            <Icon name="trash" size={13} />
-          </button>
+      {projectContexts.length > 0 && (
+        <div className="tab-contexts__group">
+          <h4 className="tab-contexts__group-title">{t('tabContexts.groupProject')}</h4>
+          {projectContexts.map(renderItem)}
         </div>
-      ))}
+      )}
+      {agentResultContexts.length > 0 && (
+        <div className="tab-contexts__group">
+          <h4 className="tab-contexts__group-title">{t('tabContexts.groupAgentResults')}</h4>
+          {agentResultContexts.map(renderItem)}
+        </div>
+      )}
     </aside>
   )
 }

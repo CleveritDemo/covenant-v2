@@ -10,6 +10,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
+import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { initSessionCwd } from './cdRecentCapture'
 import {
   buildContextCatalogPrompt,
@@ -24,6 +25,11 @@ import {
   buildAiChangelogInstruction,
   extractAiChangelog,
 } from './aiChangelog'
+import {
+  buildAiAgentResultsInstruction,
+  extractAiAgentResults,
+  upsertAiAgentResults,
+} from './aiAgentResults'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 
 interface AgentRun {
@@ -221,6 +227,16 @@ function finishAgentTurn(win: BrowserWindow, paneId: string, code: number): void
   win.webContents.send(IPC.AGENT_CLI_EXIT, paneId, code)
 }
 
+/**
+ * Solo el proceso aún registrado como activo debe cerrar el turno.
+ * Un close tardío (SIGTERM de un turno anterior) con el mapa ya vacío
+ * no debe emitir otro done/EXIT: eso reabría el renderer y drenaba la cola
+ * con asistentes vacíos en cascada.
+ */
+export function shouldFinishOnProcessClose(phaseStillActive: boolean): boolean {
+  return phaseStillActive
+}
+
 function stringAt(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
   const found = (value as Record<string, unknown>)[key]
@@ -316,18 +332,26 @@ export function composePrompt(
     { allowAnnotationUpdates: request.autoImproveContexts === true },
   ),
 ): string {
+  const identityPrompt = buildAgentIdentityPrompt({
+    name: request.name,
+    role: request.role,
+    objective: request.objective,
+  })
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
+  const resultsInstruction = buildAiAgentResultsInstruction(request.name)
   return [
+    ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(imageSection ? [imageSection] : []),
     '## User request',
     userPrompt,
     '',
     buildAiChangelogInstruction(),
+    ...(resultsInstruction ? ['', resultsInstruction] : []),
   ].join('\n')
 }
 
@@ -520,10 +544,17 @@ export function startAgentTurn(
               (sum, update) => sum + (update.annotations?.length ?? 0),
               0,
             )
-            const { visibleText, changes } = extractAiChangelog(contextFilteredText, changedPaths)
+            const { visibleText: afterChangelog, changes } = extractAiChangelog(
+              contextFilteredText,
+              changedPaths,
+            )
             if (changes.length && !changelogPersisted) {
               appendAiChangelog(cwd, changes)
               changelogPersisted = true
+            }
+            const { visibleText, payload: resultsPayload } = extractAiAgentResults(afterChangelog)
+            if (resultsPayload && request.name?.trim()) {
+              upsertAiAgentResults(cwd, request.name.trim(), resultsPayload)
             }
             if (visibleText.trim()) sawAssistantText = true
             send(win, request.paneId, { ...event, text: visibleText })
@@ -558,13 +589,12 @@ export function startAgentTurn(
       const phaseStillActive = current?.proc === proc
       if (phaseStillActive) agentRuns.delete(request.paneId)
 
-      // Un turno nuevo ya reemplazó este proceso: no cerrar el turno activo.
-      if (!phaseStillActive && current) return
+      // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
+      if (!shouldFinishOnProcessClose(phaseStillActive)) return
 
       if (
         code === 0 &&
         contextRound === 0 &&
-        phaseStillActive &&
         latestSessionId &&
         !contextDeliveryCommitted
       ) {
@@ -572,7 +602,7 @@ export function startAgentTurn(
         contextDeliveryCommitted = true
       }
 
-      if (continuationPrompt && code === 0 && phaseStillActive) {
+      if (continuationPrompt && code === 0) {
         send(win, request.paneId, {
           type: 'context',
           status: 'loaded',

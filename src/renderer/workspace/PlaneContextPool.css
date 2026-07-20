@@ -1,0 +1,71 @@
+.plane-context-pool {
+  position: absolute;
+  top: 14px;
+  right: 28px;
+  left: auto;
+  bottom: auto;
+  z-index: 12;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: min(280px, calc(100% - 56px));
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--plane-border);
+  background: var(--plane-glass);
+  backdrop-filter: blur(var(--plane-blur));
+  transform: none;
+  /* El mapa padre usa pointer-events: none; el pool debe recibir clics. */
+  pointer-events: auto;
+}
+
+.plane-context-pool--empty {
+  justify-content: center;
+  padding: 6px;
+  gap: 0;
+}
+
+.plane-context-pool__configure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.plane-context-pool__configure:hover {
+  color: var(--text);
+  border-color: var(--plane-border);
+  background: var(--plane-glass-strong);
+  box-shadow: 0 0 12px var(--plane-glow);
+}
+
+.plane-context-pool__icons {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.plane-context-pool__icons::-webkit-scrollbar {
+  display: none;
+}
+
+.plane-context-pool__icons > [role='listitem'] {
+  flex-shrink: 0;
+}

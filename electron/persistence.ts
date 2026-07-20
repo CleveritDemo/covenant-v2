@@ -32,7 +32,7 @@ export function loadSession(): PersistedSession | null {
     const parsed = JSON.parse(raw) as Partial<PersistedSession>
     if (parsed.version !== 1 || !Array.isArray(parsed.tabs) || !parsed.activeTabId) return null
     const tabs = parsed.tabs.filter(
-      t => t && typeof t.id === 'string' && Array.isArray(t.paneIds) && t.paneIds.length > 0,
+      t => t && typeof t.id === 'string' && Array.isArray(t.paneIds),
     )
     if (tabs.length === 0) return null
     const activeTabId = tabs.some(t => t.id === parsed.activeTabId)
@@ -55,7 +55,14 @@ export function saveSession(data: PersistedSession): void {
     const path = SESSION_FILE()
     ensureDir(USER_DATA())
     const tmp = `${path}.tmp`
-    writeFileSync(tmp, JSON.stringify(data), 'utf-8')
+    // Evita persistir `projectFolder: null` (IPC structured-clone convierte undefined→null).
+    const tabs = data.tabs.map(tab => {
+      const folder = typeof tab.projectFolder === 'string' ? tab.projectFolder.trim() : ''
+      if (folder) return { ...tab, projectFolder: folder }
+      const { projectFolder: _dropped, ...rest } = tab
+      return rest
+    })
+    writeFileSync(tmp, JSON.stringify({ ...data, tabs }), 'utf-8')
     renameSync(tmp, path)
   } catch { /* ignore */ }
 }

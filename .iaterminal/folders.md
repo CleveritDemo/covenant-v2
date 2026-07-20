@@ -1,5 +1,5 @@
 # folders
-<!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree"} -->
+<!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree","icon":"folder","color":"#5ec8ff"} -->
 
 <!-- iaterminal:auto -->
 ia_terminal/  (project root; paths are relative to this folder)
@@ -81,13 +81,17 @@ src/
         src/renderer/__tests__/sessionSanitize.test.ts
         src/renderer/__tests__/tabSplitSizes.test.ts
     src/renderer/agent/
+        src/renderer/agent/AgentChatBubbles.css
+        src/renderer/agent/AgentChatBubbles.tsx
+        src/renderer/agent/AgentConfigModal.css
+        src/renderer/agent/AgentConfigModal.tsx
         src/renderer/agent/AgentLoopIntervalModal.tsx
         src/renderer/agent/AgentPane.css
         src/renderer/agent/AgentPane.tsx
         src/renderer/agent/AgentPaneFooter.tsx
-        src/renderer/agent/AgentPaneHeader.tsx
         src/renderer/agent/AgentPaneMessages.tsx
         src/renderer/agent/AgentProviderPickerModal.tsx
+        src/renderer/agent/composerImages.ts
         src/renderer/agent/tabContextKindIcons.ts
         src/renderer/agent/TabContextsEditor.tsx
         src/renderer/agent/TabContextsList.tsx
@@ -229,7 +233,6 @@ src/
         src/renderer/terminal/PaneToolbarQuickOpen.css
         src/renderer/terminal/PaneToolbarQuickOpen.tsx
         src/renderer/terminal/quickOpenScore.ts
-        src/renderer/terminal/SplitPaneButton.tsx
         src/renderer/terminal/stripShellPromptPrefix.ts
         src/renderer/terminal/terminalCanvasRepaint.ts
         src/renderer/terminal/terminalFindInBuffer.ts
@@ -237,6 +240,43 @@ src/
         src/renderer/terminal/TerminalPane.tsx
         src/renderer/terminal/TerminalScrollDown.tsx
         src/renderer/terminal/TerminalSuggestStack.tsx
+    src/renderer/workspace/
+        src/renderer/workspace/ContextBadge.css
+        src/renderer/workspace/ContextBadge.tsx
+        src/renderer/workspace/miniExpandSuppress.ts
+        src/renderer/workspace/PaneWindow.css
+        src/renderer/workspace/PaneWindow.tsx
+        src/renderer/workspace/PlaneAgentBadge.css
+        src/renderer/workspace/PlaneAgentBadge.tsx
+        src/renderer/workspace/planeAgentColor.ts
+        src/renderer/workspace/PlaneAgentContextNodes.css
+        src/renderer/workspace/PlaneAgentContextNodes.tsx
+        src/renderer/workspace/PlaneChatComposer.css
+        src/renderer/workspace/PlaneChatComposer.tsx
+        src/renderer/workspace/PlaneChatDock.css
+        src/renderer/workspace/PlaneChatDock.tsx
+        src/renderer/workspace/PlaneContextCard.css
+        src/renderer/workspace/PlaneContextCard.tsx
+        src/renderer/workspace/PlaneContextPool.css
+        src/renderer/workspace/PlaneContextPool.tsx
+        src/renderer/workspace/PlaneFabStack.tsx
+        src/renderer/workspace/PlaneIdleThinking.css
+        src/renderer/workspace/PlaneIdleThinking.tsx
+        src/renderer/workspace/PlaneMap.css
+        src/renderer/workspace/PlaneMap.tsx
+        src/renderer/workspace/PlaneMiniActions.css
+        src/renderer/workspace/PlaneMiniActions.tsx
+        src/renderer/workspace/PlaneMiniFace.css
+        src/renderer/workspace/PlaneMiniFace.tsx
+        src/renderer/workspace/PlanePaneWindow.tsx
+        src/renderer/workspace/PlaneProjectFolder.css
+        src/renderer/workspace/PlaneProjectFolder.tsx
+        src/renderer/workspace/PlaneQuickChat.css
+        src/renderer/workspace/PlaneQuickChat.tsx
+        src/renderer/workspace/PlaneQuickChatAvatar.css
+        src/renderer/workspace/PlaneQuickChatAvatar.tsx
+        src/renderer/workspace/TabAgenticPlane.css
+        src/renderer/workspace/TabAgenticPlane.tsx
       src/renderer/App.tsx
       src/renderer/arrayReorder.ts
       src/renderer/dragThumbnailUtils.ts
@@ -247,15 +287,18 @@ src/
   src/shared/
     src/shared/__tests__/
         src/shared/__tests__/agentFileProtocol.test.ts
+        src/shared/__tests__/agentIdentity.test.ts
         src/shared/__tests__/agentLoop.test.ts
         src/shared/__tests__/agentModeHandoff.test.ts
         src/shared/__tests__/agentShellGuard.test.ts
         src/shared/__tests__/agentWriteGuard.test.ts
         src/shared/__tests__/githubApi.test.ts
+        src/shared/__tests__/paneWindows.test.ts
         src/shared/__tests__/tabContext.test.ts
       src/shared/agentCliModels.ts
       src/shared/agentCliTypes.ts
       src/shared/agentFileProtocol.ts
+      src/shared/agentIdentity.ts
       src/shared/agentLoop.ts
       src/shared/agentModeHandoff.ts
       src/shared/agentShellGuard.ts
@@ -270,9 +313,11 @@ src/
       src/shared/gitSessionTypes.ts
       src/shared/ipcChannels.ts
       src/shared/musicMoods.ts
+      src/shared/paneWindows.ts
       src/shared/projectAiContext.ts
       src/shared/ptyInputSanitize.ts
       src/shared/tabContext.ts
+      src/shared/tabContextAppearance.ts
       src/shared/tabSession.ts
   src/themes/
       src/themes/codeMirrorTheme.ts
@@ -301,4 +346,5 @@ src/
 - `scripts` — Build/icon helpers
 - `electron/tabContextBuild.ts` — Materialize and deliver tab contexts
 - `src/renderer/agent` — Agent UI including context modal
+- `src/renderer/workspace` — Plano 2D, chat dock y composer
 <!-- /iaterminal:notes -->

@@ -31,6 +31,8 @@ export interface PlaneMapEntity {
   snippet?: string
   contexts?: PlaneAgentContextChip[]
   autoImproveContexts?: boolean
+  /** Color de acento del agente en el plano. */
+  color?: string
   window: PaneWindowState
 }
 

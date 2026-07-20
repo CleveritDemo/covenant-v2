@@ -390,25 +390,27 @@
 - `src/renderer/agent/AgentConfigModal.tsx#variable:normalized` — variable `normalized: inferred`
 - `src/renderer/agent/AgentConfigModal.tsx#class:AgentConfigModalProps` — interface `AgentConfigModalProps`
 - `src/renderer/agent/AgentConfigModal.tsx#function:AgentConfigModal`
-  - signature: `AgentConfigModal({ open, meta, cwd, cwdSources, cwdChoices, busy, loopMode, loopActive, diskContexts, selectedContextIds, contextNotice, onClose, onLoadCwdChoices, onSelectCwdSource, onChangeName, onChangeModel, onChangePermission, onToggleLoopMode, onToggleContext, onOpenContextsModal, onAutoImproveChange, closeOnBackdrop = true, }): inferred/unspecified`
-  - inputs: `{ open, meta, cwd, cwdSources, cwdChoices, busy, loopMode, loopActive, diskContexts, selectedContextIds, contextNotice, onClose, onLoadCwdChoices, onSelectCwdSource, onChangeName, onChangeModel, onChangePermission, onToggleLoopMode, onToggleContext, onOpenContextsModal, onAutoImproveChange, closeOnBackdrop = true, }`
+  - signature: `AgentConfigModal({ open, meta, paneId, cwd, busy, loopMode, loopActive, diskContexts, selectedContextIds, contextNotice, onClose, onChangeName, onChangeRole, onChangeObjective, onChangeColor, onChangeProvider, onChangeModel, onChangePermission, onToggleLoopMode, onToggleContext, onOpenContextsModal, onAutoImproveChange, onEmitResultsChange, closeOnBackdrop = true, }): inferred/unspecified`
+  - inputs: `{ open, meta, paneId, cwd, busy, loopMode, loopActive, diskContexts, selectedContextIds, contextNotice, onClose, onChangeName, onChangeRole, onChangeObjective, onChangeColor, onChangeProvider, onChangeModel, onChangePermission, onToggleLoopMode, onToggleContext, onOpenContextsModal, onAutoImproveChange, onEmitResultsChange, closeOnBackdrop = true, }`
   - returns: `inferred/unspecified`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:{ t }` — variable `{ t }: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:[contextsPickerOpen, setContextsPickerOpen]` — variable `[contextsPickerOpen, setContextsPickerOpen]: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:contextsPickerRef` — variable `contextsPickerRef: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:locked` — variable `locked: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:activeColor` — variable `activeColor: inferred`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:PERMISSION_MODES` — variable `PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }>`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:PROVIDERS` — variable `PROVIDERS: Array<{ value: AgentCliProvider; label: string }>`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:modelOptions` — variable `modelOptions: inferred`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:selectedModel` — variable `selectedModel: inferred`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:modelIsCustom` — variable `modelIsCustom: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:selectedContexts` — variable `selectedContexts: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:contextsPickerLabel` — variable `contextsPickerLabel: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#function:onMouseDown`
-  - signature: `onMouseDown(event: MouseEvent): void`
-  - inputs: `event: MouseEvent`
-  - returns: `void`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:root` — variable `root: inferred`
-- `src/renderer/agent/AgentConfigModal.tsx#variable:selected` — variable `selected: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:activePermission` — variable `activePermission: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:selectedCount` — variable `selectedCount: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:projectContexts` — variable `projectContexts: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:agentResultContexts` — variable `agentResultContexts: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#function:renderContextItem`
+  - signature: `renderContextItem(context: (typeof diskContexts)[number]): inferred/unspecified`
+  - inputs: `context: (typeof diskContexts)[number]`
+  - returns: `inferred/unspecified`
 - `src/renderer/agent/AgentConfigModal.tsx#variable:checked` — variable `checked: inferred`
+- `src/renderer/agent/AgentConfigModal.tsx#variable:active` — variable `active: inferred`
 
 ### src/renderer/agent/AgentLoopIntervalModal.tsx
 - `src/renderer/agent/AgentLoopIntervalModal.tsx#class:Props` — interface `Props`
@@ -438,7 +440,6 @@
 - `src/renderer/agent/AgentPane.tsx#class:PendingImage` — type `PendingImage`
 - `src/renderer/agent/AgentPane.tsx#class:QueuedTurn` — interface `QueuedTurn`
 - `src/renderer/agent/AgentPane.tsx#class:AgentPreferSend` — interface `AgentPreferSend`
-- `src/renderer/agent/AgentPane.tsx#class:AgentCwdSource` — interface `AgentCwdSource`
 - `src/renderer/agent/AgentPane.tsx#class:Props` — interface `Props`
 - `src/renderer/agent/AgentPane.tsx#class:AgentPlaneStatus` — interface `AgentPlaneStatus`
 - `src/renderer/agent/AgentPane.tsx#function:systemMessage`
@@ -446,8 +447,8 @@
   - inputs: `content: string`
   - returns: `AgentChatEntry`
 - `src/renderer/agent/AgentPane.tsx#function:AgentPane`
-  - signature: `AgentPane({ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, cwdSources, fontSize, onMetaChange, onCwdChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }): inferred/unspecified`
-  - inputs: `{ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, cwdSources, fontSize, onMetaChange, onCwdChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }`
+  - signature: `AgentPane({ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }): inferred/unspecified`
+  - inputs: `{ paneId, meta, cwd, tabActive, isActivePane, windowOpen = true, fontSize, onMetaChange, onRequestPaneFocus, onClosePane, onBusyChange, onPlaneStatusChange, preferOpenConfig = false, onPreferOpenConfigConsumed, onConfigOpen, onConfigClose, preferOpenContextId = null, onPreferOpenContextConsumed, preferSend = null, onPreferSendConsumed, paneReorder, registerShortcutCloseInterceptor, }`
   - returns: `inferred/unspecified`
 - `src/renderer/agent/AgentPane.tsx#variable:{ t }` — variable `{ t }: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[messages, setMessages]` — variable `[messages, setMessages]: inferred`
@@ -461,7 +462,6 @@
 - `src/renderer/agent/AgentPane.tsx#variable:[configOpen, setConfigOpen]` — variable `[configOpen, setConfigOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[contextsOpen, setContextsOpen]` — variable `[contextsOpen, setContextsOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[contextNotice, setContextNotice]` — variable `[contextNotice, setContextNotice]: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:[cwdChoices, setCwdChoices]` — variable `[cwdChoices, setCwdChoices]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopOpen, setLoopOpen]` — variable `[loopOpen, setLoopOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopIntervalModalOpen, setLoopIntervalModalOpen]` — variable `[loopIntervalModalOpen, setLoopIntervalModalOpen]: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:[loopActive, setLoopActive]` — variable `[loopActive, setLoopActive]: inferred`
@@ -503,7 +503,6 @@
 - `src/renderer/agent/AgentPane.tsx#variable:clearLoopTimer` — variable `clearLoopTimer: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:beginLiveSettle` — variable `beginLiveSettle: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:resolveWorkingCwd` — variable `resolveWorkingCwd: inferred`
-- `src/renderer/agent/AgentPane.tsx#variable:resolved` — variable `resolved: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:applyDiscoveredContexts` — variable `applyDiscoveredContexts: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:previousIds` — variable `previousIds: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:discoveredIds` — variable `discoveredIds: inferred`
@@ -531,6 +530,10 @@
 - `src/renderer/agent/AgentPane.tsx#variable:message` — variable `message: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:previousLen` — variable `previousLen: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:nextLen` — variable `nextLen: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
+- `src/renderer/agent/AgentPane.tsx#variable:next` — variable `next: inferred`
 - `src/renderer/agent/AgentPane.tsx#variable:id` — variable `id: inferred`
 
 ### src/renderer/agent/AgentPaneFooter.tsx
@@ -563,9 +566,6 @@
 
 ### src/renderer/agent/composerImages.ts
 - `src/renderer/agent/composerImages.ts#variable:MAX_PENDING_IMAGES` — variable `MAX_PENDING_IMAGES: inferred`
-- `src/renderer/agent/composerImages.ts#variable:MAX_IMAGE_BYTES` — variable `MAX_IMAGE_BYTES: inferred`
-- `src/renderer/agent/composerImages.ts#class:ComposerPendingImage` — interface `ComposerPendingImage`
-- `src/renderer/agent/composerImages.ts#function:extensionForMime`
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

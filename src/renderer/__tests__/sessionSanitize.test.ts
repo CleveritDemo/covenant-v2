@@ -108,6 +108,48 @@ describe('sanitizePersistedSession', () => {
     expect(result?.tabs[0]?.activePaneId).toBe('p1')
   })
 
+  it('keeps planeOpenChatAgentId for agents and clears invalid / missing', () => {
+    const kept = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Plane',
+        paneIds: ['agent-1', 'term-1'],
+        activePaneId: 'agent-1',
+        paneKinds: { 'agent-1': 'agent', 'term-1': 'terminal' },
+        agentByPane: { 'agent-1': { provider: 'claude', permissionMode: 'ask' } },
+        planeOpenChatAgentId: 'agent-1',
+      }],
+      cwds: {},
+    })
+    expect(kept?.tabs[0]?.planeOpenChatAgentId).toBe('agent-1')
+
+    const clearedTerminal = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Plane',
+        paneIds: ['agent-1', 'term-1'],
+        activePaneId: 'agent-1',
+        paneKinds: { 'agent-1': 'agent', 'term-1': 'terminal' },
+        agentByPane: { 'agent-1': { provider: 'claude', permissionMode: 'ask' } },
+        planeOpenChatAgentId: 'term-1',
+      }],
+      cwds: {},
+    })
+    expect(clearedTerminal?.tabs[0]?.planeOpenChatAgentId).toBeNull()
+
+    const clearedMissing = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [tab('t1', 'p1')],
+      cwds: {},
+    })
+    expect(clearedMissing?.tabs[0]?.planeOpenChatAgentId).toBeNull()
+  })
+
   it('returns null when no valid tabs', () => {
     expect(sanitizePersistedSession({
       version: 1,
@@ -217,6 +259,7 @@ describe('sanitizePersistedSession', () => {
             cliSessionId: 'sess-1',
             contextIds: ['ctx-a'],
             autoImproveContexts: true,
+            emitResults: true,
           },
         },
       }],
@@ -239,6 +282,7 @@ describe('sanitizePersistedSession', () => {
       cliSessionId: 'sess-1',
       contextIds: ['ctx-a'],
       autoImproveContexts: true,
+      emitResults: true,
     })
   })
 

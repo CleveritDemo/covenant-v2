@@ -1,4 +1,5 @@
 import React from 'react'
+import type { TabContextKind } from '@shared/tabContext'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { ContextBadge } from './ContextBadge'
@@ -7,6 +8,7 @@ import './PlaneContextPool.css'
 export interface PlaneContextPoolItem {
   id: string
   name: string
+  kind: TabContextKind
   kindLabel: string
   icon: IconName
   color: string

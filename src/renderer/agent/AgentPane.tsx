@@ -626,6 +626,7 @@ export const AgentPane: React.FC<Props> = ({
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
+      emitResults: currentMeta.emitResults === true,
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
     })
@@ -1180,6 +1181,10 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
+  const changeColor = (color: string): void => {
+    onMetaChange(previous => ({ ...previous, color }))
+  }
+
   const toggleContext = (contextId: string): void => {
     onMetaChange(previous => {
       const selected = new Set(previous.contextIds ?? [])
@@ -1280,6 +1285,7 @@ export const AgentPane: React.FC<Props> = ({
       <AgentConfigModal
         open={configOpen}
         meta={meta}
+        paneId={paneId}
         cwd={cwd}
         busy={busy}
         loopMode={loopMode}
@@ -1296,6 +1302,7 @@ export const AgentPane: React.FC<Props> = ({
         onChangeName={changeName}
         onChangeRole={changeRole}
         onChangeObjective={changeObjective}
+        onChangeColor={changeColor}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
@@ -1305,6 +1312,10 @@ export const AgentPane: React.FC<Props> = ({
         onAutoImproveChange={checked => onMetaChange(previous => ({
           ...previous,
           autoImproveContexts: checked,
+        }))}
+        onEmitResultsChange={checked => onMetaChange(previous => ({
+          ...previous,
+          emitResults: checked,
         }))}
       />
 

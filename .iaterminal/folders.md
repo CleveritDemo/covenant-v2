@@ -12,6 +12,7 @@ electron/
   electron/__tests__/
       electron/__tests__/agentCliRuntime.test.ts
       electron/__tests__/agentFileOps.test.ts
+      electron/__tests__/aiAgentResults.test.ts
       electron/__tests__/aiChangelog.test.ts
       electron/__tests__/fileExplorerClipboardOps.cut.test.ts
       electron/__tests__/fileExplorerClipboardOps.test.ts
@@ -24,6 +25,7 @@ electron/
     electron/agentFileOps.ts
     electron/agentMd.ts
     electron/agentShellOps.ts
+    electron/aiAgentResults.ts
     electron/aiChangelog.ts
     electron/cdRecentCapture.ts
     electron/cdRecentMd.ts
@@ -96,6 +98,8 @@ src/
         src/renderer/agent/TabContextsEditor.tsx
         src/renderer/agent/TabContextsList.tsx
         src/renderer/agent/TabContextsModal.tsx
+        src/renderer/agent/ThinkingOrbits.css
+        src/renderer/agent/ThinkingOrbits.tsx
     src/renderer/ai/
         src/renderer/ai/agentLoopNative.ts
         src/renderer/ai/agentModeRunner.ts

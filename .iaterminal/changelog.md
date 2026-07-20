@@ -1,3 +1,8 @@
+# AI Changelog
+<!-- iaterminal:context {"version":1,"id":"iaterminal:changelog","name":"AI Changelog","fileName":"changelog.md","kind":"changelog","icon":"history","color":"#a3e635"} -->
+
+> Últimos 10 cambios realizados por la IA. Generado automáticamente.
+
 - `2026-07-20T14:45:30.852Z` — Composer del plano: sin tuerca de administrar contextos
 - `2026-07-20T14:37:52.114Z` — Íconos de contexto en minis de agente más pequeños y juntos
 - `2026-07-20T14:35:47.133Z` — Modal de config del agente rediseñado: rol, objetivo, proveedor + layout por secciones
@@ -8,59 +13,3 @@
 - `2026-07-20T14:27:28.168Z` — Sombra del botón scroll-to-bottom del chat al 50%
 - `2026-07-20T14:26:43.123Z` — Idle thinking del plano: órbitas animadas y color var(--accent) del tema
 - `2026-07-20T14:25:01.751Z` — Contextos en agentes sin tooltip; clic abre config del agente
-- `2026-07-20T14:21:26.262Z` — Fade superior del chat ~30% más bajo (112px / 22%)
-- `2026-07-20T14:20:58.952Z` — Eliminado fade inferior del chat rápido del plano
-- `2026-07-20T14:20:23.523Z` — Chat del plano llega hasta el composer (sin hueco muerto)
-- `2026-07-20T14:18:24.000Z` — Fades del chat rápido a todo el ancho del plano
-- `2026-07-20T14:17:23.882Z` — Fade inferior del chat sin heredar el borde de agent-pane::after
-- `2026-07-20T14:16:03.621Z` — Fade inferior del chat rápido del plano (más bajo que el superior)
-- `2026-07-20T14:15:17.112Z` — Bordes de burbujas de chat más suaves (menos contraste)
-- `2026-07-20T14:14:43.809Z` — FABs del plano sin sombra; íconos en blanco
-- `2026-07-20T14:14:01.981Z` — Suppress post-modal de agentes: 2s → 320ms (reabrir al instante)
-- `2026-07-20T14:13:25.355Z` — Sin sombra en burbujas del chat rápido del plano
-- `2026-07-20T14:12:30.752Z` — Sin sombra en el panel de contextos del plano
-- `2026-07-20T14:10:55.719Z` — Sin sombra en el panel de carpeta del proyecto
-- `2026-07-20T14:10:08.804Z` — Panel carpeta de proyecto (dialog nativo macOS); terminales nuevas usan esa cwd; eliminado botón + dentro de terminales
-- `2026-07-20T14:05:12.962Z` — Revertidos cambios de tilt/portal: columna se endereza al abrir (estado previo)
-- `2026-07-20T14:01:17.608Z` — Restaura morph apertura/cierre (WAAPI) con ventana en capa plana
-- `2026-07-20T13:58:51.479Z` — Tilt de nuevo en columna; ventana abierta en capa plana (minis + expand correctos)
-- `2026-07-20T13:54:51.401Z` — Tilt por mini (no columna): ventana abierta centrada al ~70% sin deformar hermanas
-- `2026-07-20T13:51:59.445Z` — Columna sigue ladeada al expandir; solo la ventana abierta cancela el tilt
-- `2026-07-20T13:46:46.573Z` — Expand: foco xterm; clic fuera (dismiss) minimiza ventana
-- `2026-07-20T13:40:50.589Z` — Expand terminal: pointerdown inmediato; morph 200ms; save diferido
-- `2026-07-20T13:39:43.054Z` — Ventana abierta: un poco más arriba; sombra ~30% menos intensa
-- `2026-07-20T13:35:59.100Z` — Ventana abierta: columna al frente (z-index); morph mini↔full ~320ms
-- `2026-07-20T13:30:21.338Z` — Agentes: contenedor = letterbox visual de terminales + sombra espejo fuerte
-- `2026-07-20T13:27:57.629Z` — Agentes: revert park/scale del contenido; solo contenedor 174×128 espejo
-- `2026-07-20T13:26:39.773Z` — Agentes: mismo park letterbox que terminales; terminales sin cambio de scale
-- `2026-07-20T13:25:39.440Z` — Minis espejo: terminales llenan ranura 174×128 (scale sx/sy); sombras L/R iguales
-- `2026-07-20T13:22:30.623Z` — Agentes mini: mismo tamaño (174×128) y gap que terminales
-- `2026-07-20T13:21:23.639Z` — Minis terminal: 174×128 para caber ~4 en columna
-- `2026-07-20T13:16:00.158Z` — Columnas terminales/agentes: trapecio 3D (perspective+rotateY) en el wrapper
-- `2026-07-20T13:14:57.056Z` — Trapecio clip-path en wrappers de columna (terminales / agentes), no por ventana
-- `2026-07-20T13:13:04.122Z` — Minis: trapecio 2D (clip-path) en wrapper; sin deformación 3D Stage Manager
-- `2026-07-20T13:05:11.230Z` — Stage Manager: skewY para que el lado lejano baje (no pinzado al centro)
-- `2026-07-20T12:59:45.990Z` — Stage Manager terminales: rotateY(+25°), perspective 1000px (ref. macOS)
-- `2026-07-20T12:58:00.747Z` — Stage Manager: tilt como macOS (izq -16° / der +16°, perspective 3000px, 600ms)
-- `2026-07-20T12:55:30.779Z` — Stage Manager: ángulos invertidos (miran al centro) + tilt agentes
-- `2026-07-20T12:52:28.328Z` — Stage Manager: tilt suave 16°, escala uniforme, anim abrir/cerrar
-- `2026-07-20T08:26:26.880Z` — Stage Manager: tilt+park en un solo transform inline (visible en Electron)
-- `2026-07-20T08:21:19.274Z` — Stage Manager: tilt visible + expand por transición CSS
-- `2026-07-20T08:17:43.722Z` — `PlaneMap.css` — Stage Manager: terminales y agentes ladeados al centro
-- `2026-07-20T08:15:57.297Z` — `PaneWindow.tsx` — terminal estable: solo transform al expandir (sin fit/reflow)
-- `2026-07-20T08:12:51.065Z` — plano HTML/CSS — eliminado mapa 2D libre (panePlaneNodes, planeMiniLayout, PaneNode, orbes, zoom)
-# AI Changelog
-<!-- iaterminal:context {"version":1,"id":"iaterminal:changelog","name":"AI Changelog","fileName":"changelog.md","kind":"changelog","icon":"history","color":"#a3e635"} -->
-
-> Últimos 10 cambios realizados por la IA. Generado automáticamente.
-
-- `2026-07-20T07:15:34.534Z` — `src/renderer/workspace/PlanePaneWindow.tsx` — Titlebar macOS también en terminal mini
-- `2026-07-20T07:15:34.534Z` — `src/renderer/workspace/PaneWindow.css` — Marco macOS en mini-preview con titlebar
-- `2026-07-20T07:15:34.534Z` — `src/renderer/terminal/TerminalPane.tsx` — Prop showClosePane para ocultar X del toolbar
-- `2026-07-20T07:15:34.534Z` — `src/renderer/App.tsx` — Oculta botón cerrar del toolbar de terminal
-- `2026-07-20T07:10:34.227Z` — `src/renderer/workspace/PaneWindow.tsx` — Drag de minis por DOM sin re-render por frame
-- `2026-07-20T07:10:34.227Z` — `src/renderer/workspace/PaneWindow.css` — Pausa animaciones del face mientras se arrastra
-- `2026-07-20T07:08:27.278Z` — `src/shared/planeMiniLayout.ts` — nextSideColumnPlaneNode para hueco en columna L/R
-- `2026-07-20T07:08:27.278Z` — `src/renderer/workspace/PlaneMap.tsx` — Aplica layout columnas una vez al medir ancho
-- `2026-07-20T07:08:27.278Z` — `src/renderer/workspace/TabAgenticPlane.tsx` — Propaga onApplySideColumnLayout
-- `2026-07-20T07:08:27.278Z` — `src/renderer/App.tsx` — Crea en columnas L/R y migra posiciones al cargar

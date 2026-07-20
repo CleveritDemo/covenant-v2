@@ -1,6 +1,6 @@
 .plane-chat-dock {
-  /* Espacio para el composer (agentes + input); el chat llega hasta ahí. */
-  --plane-composer-clearance: 148px;
+  /* Espacio para el composer (agentes + input). */
+  --plane-composer-clearance: 132px;
   position: absolute;
   inset: 0;
   /* Bajo ventanas/minis del mapa (z 12); el mapa no pinta bg opaco ni
@@ -12,6 +12,23 @@
   min-height: 0;
 }
 
+.plane-chat-dock__toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Por encima del fade superior del quick-chat (::before z3). */
+  z-index: 8;
+  display: flex;
+  justify-content: center;
+  padding: 10px 16px 0;
+  pointer-events: none;
+}
+
+.plane-chat-dock__toolbar > * {
+  pointer-events: auto;
+}
+
 .plane-chat-dock__chat {
   flex: 1 1 auto;
   min-height: 0;
@@ -19,7 +36,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden;
+  /* visible: permite ver la escala de entrada del chat. */
+  overflow: visible;
 }
 
 .plane-chat-dock__composer-shell {

@@ -12,7 +12,8 @@
     "build": "electron-vite build",
     "build:mac-icon": "bash scripts/generate-mac-icon.sh",
     "preview": "electron-vite preview",
-    "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
+    "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
+    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -73,7 +74,7 @@
       "category": "public.app-category.developer-tools",
       "target": [
         {
-          "target": "dmg",
+          "target": "dir",
           "arch": [
             "arm64"
           ]

@@ -4,6 +4,8 @@
   --agent-radius: 12px;
   --agent-chat-font-size: 13px;
   --agent-beam: var(--accent);
+  /* Espacio bajo la toolbar (Context / self-improve); el fade sigue desde top:0. */
+  --plane-chat-toolbar-clearance: 44px;
   position: relative;
   flex: 1 1 auto;
   /* Ancho completo: los fades (::before/::after) cruzan todo el plano. */
@@ -15,34 +17,34 @@
   flex-direction: column;
   align-items: center;
   justify-content: stretch;
-  padding: 12px 0 calc(var(--plane-composer-clearance, 148px) + 10px);
+  padding: var(--plane-chat-toolbar-clearance) 0 calc(var(--plane-composer-clearance, 120px) + 10px);
   pointer-events: none;
   font-family: var(--agent-font);
   color: var(--text);
   background: transparent;
   isolation: isolate;
-  overflow: hidden;
+  /* visible: la escala de entrada no debe quedar recortada al instante. */
+  overflow: visible;
 }
 
-/* Velo oscuro encima del chat (anclado arriba); no cubre agentes/pool. */
+/* Velo superior: cubre también bajo la toolbar; sin banda opaca que marque un corte. */
 .plane-quick-chat.agent-pane::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  height: min(112px, 22%);
+  height: max(160px, calc(var(--plane-chat-toolbar-clearance) + 100px));
   z-index: 3;
   pointer-events: none;
   opacity: 1;
   transform: none;
-  animation: none;
   will-change: auto;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--bg) 98%, #000) 0%,
-    color-mix(in srgb, var(--bg) 85%, transparent) 40%,
-    color-mix(in srgb, var(--bg) 35%, transparent) 72%,
+    color-mix(in srgb, var(--bg) 88%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 55%, transparent) 42%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 72%,
     transparent 100%
   );
   background-repeat: no-repeat;
@@ -51,10 +53,6 @@
   mask-image: none;
   -webkit-mask-image: none;
   transition: none;
-}
-
-.plane-quick-chat--appearing.agent-pane::before {
-  animation: plane-quick-chat-veil-in 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Evita el radial superior del .agent-pane heredado. */
@@ -69,34 +67,6 @@
   border: none;
 }
 
-.plane-quick-chat.agent-pane--working::before {
-  opacity: 1;
-  height: min(112px, 22%);
-  background-size: 100% 100%;
-  animation: none;
-  transition: none;
-}
-
-.plane-quick-chat--appearing.agent-pane--working::before {
-  animation: plane-quick-chat-veil-in 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.plane-quick-chat__dismiss {
-  position: absolute;
-  top: 12px;
-  /* Alineado al borde derecho de la columna de chat (~640px), no al borde de la app. */
-  right: max(16px, calc((100% - min(640px, 100%)) / 2 + 16px));
-  z-index: 4;
-  pointer-events: auto;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
-}
-
-.plane-quick-chat--appearing .plane-quick-chat__dismiss {
-  animation: plane-quick-chat-dismiss-in 0.55s 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 .plane-quick-chat__enter {
   position: relative;
   z-index: 1;
@@ -108,31 +78,24 @@
   min-height: 0;
   width: min(640px, calc(100% - 48px));
   height: 100%;
-  transform-origin: center 72%;
+  transform-origin: center center;
   pointer-events: auto;
-}
-
-.plane-quick-chat__enter--active {
-  animation: plane-quick-chat-reveal 0.88s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .plane-quick-chat__bloom {
   position: absolute;
-  inset: -8% -18% 8%;
+  inset: -12% -22% 4%;
   z-index: 0;
   pointer-events: none;
   opacity: 0;
   background:
     radial-gradient(
-      ellipse 55% 42% at 50% 38%,
-      color-mix(in srgb, var(--agent-beam) 22%, transparent) 0%,
-      transparent 72%
+      ellipse 58% 48% at 50% 42%,
+      color-mix(in srgb, var(--agent-beam) 28%, transparent) 0%,
+      transparent 74%
     );
   mix-blend-mode: soft-light;
-}
-
-.plane-quick-chat__enter--active .plane-quick-chat__bloom {
-  animation: plane-quick-chat-bloom 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center center;
 }
 
 .plane-quick-chat__frame {
@@ -210,88 +173,23 @@
 
 .plane-quick-chat .agent-pane__bubble--user {
   background: color-mix(in srgb, var(--bg) 55%, var(--bg-secondary));
-  border-color: color-mix(in srgb, var(--border) 28%, transparent);
+  border-color: color-mix(in srgb, var(--border) 70%, var(--bg-secondary));
   box-shadow: none;
 }
 
-.plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--live):not(.agent-pane__bubble--thinking) {
-  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--text) 2%);
-  border-color: color-mix(in srgb, var(--border) 24%, transparent);
+.plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--thinking) {
+  background: color-mix(in srgb, var(--bg-secondary) 98%, var(--text) 2%);
+  border-color: color-mix(in srgb, var(--border) 72%, var(--bg-secondary));
   box-shadow: none;
 }
 
-.plane-quick-chat .agent-pane__bubble--live,
 .plane-quick-chat .agent-pane__bubble--thinking {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
 }
 
-/* Ascenso suave + desenfoque + apertura de máscara. */
-@keyframes plane-quick-chat-reveal {
-  0% {
-    opacity: 0;
-    transform: translateY(36px) scale(0.92);
-    filter: blur(12px);
-    clip-path: inset(10% 14% 16% 14% round 22px);
-  }
-  48% {
-    opacity: 1;
-    filter: blur(2px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: none;
-    clip-path: inset(0 round 0);
-  }
-}
-
-@keyframes plane-quick-chat-bloom {
-  0% {
-    opacity: 0;
-    transform: scale(0.72);
-  }
-  35% {
-    opacity: 0.9;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.18);
-  }
-}
-
-@keyframes plane-quick-chat-veil-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes plane-quick-chat-dismiss-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.82) translateY(-6px);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .plane-quick-chat--appearing.agent-pane::before,
-  .plane-quick-chat--appearing.agent-pane--working::before,
-  .plane-quick-chat--appearing .plane-quick-chat__dismiss,
-  .plane-quick-chat__enter--active,
-  .plane-quick-chat__enter--active .plane-quick-chat__bloom {
-    animation: none;
-  }
-
   .plane-quick-chat__bloom {
     display: none;
   }

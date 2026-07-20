@@ -75,6 +75,36 @@ describe('composePrompt identity', () => {
     )
     expect(prompt).not.toContain('## Agent identity')
   })
+
+  it('includes agent results registry only when emitResults is enabled', () => {
+    const without = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        name: 'Scout',
+        prompt: 'hola',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(without).not.toContain('## Agent results registry')
+
+    const withEmit = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        name: 'Scout',
+        emitResults: true,
+        prompt: 'hola',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(withEmit).toContain('## Agent results registry')
+    expect(withEmit).toContain('ia-terminal-results')
+  })
 })
 
 describe('agent CLI event normalization', () => {

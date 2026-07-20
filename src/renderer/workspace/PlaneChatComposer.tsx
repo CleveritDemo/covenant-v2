@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
-import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { useT } from '@i18n/useT'
 import {
@@ -13,7 +12,10 @@ import {
   type ComposerPendingImage,
 } from '../agent/composerImages'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
+import type { PlaneChatContextOption } from './PlaneChatContextsBar'
 import './PlaneChatComposer.css'
+
+export type { PlaneChatContextOption }
 
 const MAX_COMPOSER_ROWS = 8
 
@@ -33,27 +35,13 @@ export interface PlaneChatAgentOption {
   color: string
 }
 
-export interface PlaneChatContextOption {
-  id: string
-  name: string
-  kindLabel: string
-  icon: IconName
-  color: string
-}
-
 export interface PlaneChatComposerProps {
   agents: PlaneChatAgentOption[]
   selectedAgentId: string | null
   placeholder: string
   emptyAgentsHint: string
   sendLabel: string
-  contexts: PlaneChatContextOption[]
-  selectedContextIds: string[]
-  contextsEmptyHint: string
-  autoImprove: boolean
   onSelectAgent: (paneId: string) => void
-  onToggleContext: (contextId: string) => void
-  onAutoImproveChange: (enabled: boolean) => void
   onStop: (paneId: string) => void
   onSend: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
 }
@@ -64,21 +52,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   placeholder,
   emptyAgentsHint,
   sendLabel,
-  contexts,
-  selectedContextIds,
-  contextsEmptyHint,
-  autoImprove,
   onSelectAgent,
-  onToggleContext,
-  onAutoImproveChange,
   onStop,
   onSend,
 }) => {
   const { t } = useT()
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
-  const [contextsOpen, setContextsOpen] = useState(false)
-  const contextsPickerRef = useRef<HTMLDivElement>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
@@ -87,12 +67,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const busy = Boolean(selected?.busy)
   const showStop = busy
   const canSend = Boolean(selected && (draft.trim() || pendingImages.length > 0))
-  const selectedContexts = contexts.filter(context => selectedContextIds.includes(context.id))
-  const contextsPickerLabel = selectedContexts.length === 0
-    ? t('tabContexts.pickerNone')
-    : selectedContexts.length === 1
-      ? selectedContexts[0].name
-      : t('tabContexts.pickerSelected', { n: selectedContexts.length })
 
   useEffect(() => {
     return () => {
@@ -101,24 +75,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   }, [])
 
   useEffect(() => {
-    setContextsOpen(false)
-  }, [selectedAgentId])
-
-  useEffect(() => {
     const el = composerInputRef.current
     if (el) resizeComposerTextarea(el)
   }, [draft])
-
-  useEffect(() => {
-    if (!contextsOpen) return
-    const onPointerDown = (event: MouseEvent): void => {
-      const root = contextsPickerRef.current
-      if (!root || root.contains(event.target as Node)) return
-      setContextsOpen(false)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
-  }, [contextsOpen])
 
   const appendPendingImages = useCallback((images: ComposerPendingImage[]): void => {
     if (!images.length) return
@@ -163,7 +122,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     const imagesSnapshot = pendingImages
     setDraft('')
     setPendingImages([])
-    setContextsOpen(false)
     void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
       onSend(selected.paneId, text, attachments)
@@ -226,86 +184,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 </button>
               </div>
             ))}
-          </div>
-        )}
-
-        {selected && (
-          <div className="plane-chat-composer__contexts">
-            <div className="plane-chat-composer__contexts-head">
-              <span>{t('tabContexts.barTitle')}</span>
-              <div
-                ref={contextsPickerRef}
-                className={[
-                  'plane-chat-composer__contexts-picker',
-                  contextsOpen ? 'plane-chat-composer__contexts-picker--open' : '',
-                ].filter(Boolean).join(' ')}
-              >
-                <button
-                  type="button"
-                  className="plane-chat-composer__contexts-trigger"
-                  aria-haspopup="listbox"
-                  aria-expanded={contextsOpen}
-                  aria-label={t('tabContexts.pickerAria', { label: contextsPickerLabel })}
-                  disabled={contexts.length === 0}
-                  title={contexts.length === 0 ? contextsEmptyHint : contextsPickerLabel}
-                  onClick={() => setContextsOpen(open => !open)}
-                >
-                  <span className="plane-chat-composer__contexts-label">{contextsPickerLabel}</span>
-                  {selectedContexts.length > 0 && (
-                    <span className="plane-chat-composer__contexts-count" aria-hidden="true">
-                      {selectedContexts.length}
-                    </span>
-                  )}
-                  <Icon name="chevron-down" size={12} />
-                </button>
-                {contextsOpen && (
-                  <div
-                    className="plane-chat-composer__contexts-menu"
-                    role="listbox"
-                    aria-multiselectable="true"
-                  >
-                    {contexts.map(context => {
-                      const checked = selectedContextIds.includes(context.id)
-                      return (
-                        <label
-                          key={context.id}
-                          className={[
-                            'plane-chat-composer__contexts-option',
-                            checked ? 'plane-chat-composer__contexts-option--on' : '',
-                          ].filter(Boolean).join(' ')}
-                          title={`${context.name} — ${context.kindLabel}`}
-                        >
-                          <input
-                            type="checkbox"
-                            role="option"
-                            aria-selected={checked}
-                            checked={checked}
-                            onChange={() => onToggleContext(context.id)}
-                          />
-                          <span className="plane-chat-composer__contexts-check" aria-hidden="true" />
-                          <span className="plane-chat-composer__contexts-option-name">{context.name}</span>
-                          <span className="plane-chat-composer__contexts-option-kind">{context.kindLabel}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-              <label
-                className="plane-chat-composer__auto-improve"
-                title={t('tabContexts.autoImproveHint')}
-              >
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={autoImprove}
-                  disabled={selectedContextIds.length === 0}
-                  onChange={event => onAutoImproveChange(event.target.checked)}
-                />
-                <span aria-hidden="true" />
-                {t('tabContexts.autoImprove')}
-              </label>
-            </div>
           </div>
         )}
 

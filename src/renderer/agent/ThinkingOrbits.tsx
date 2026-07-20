@@ -4,12 +4,12 @@ import './ThinkingOrbits.css'
 export type ThinkingOrbitsSize = 'inline' | 'solo' | 'hero'
 
 export interface ThinkingOrbitsProps {
-  /** inline = chip junto al texto; solo = burbuja thinking; hero = centro del plano. */
+  /** inline = chip; solo = burbuja thinking del chat; hero = centro del plano. */
   size?: ThinkingOrbitsSize
   className?: string
 }
 
-/** Tres neuronas en órbita — misma animación en chat y plano idle. */
+/** Tres neuronas en órbita — diseño original del chat (77b7b00). */
 export const ThinkingOrbits: React.FC<ThinkingOrbitsProps> = ({
   size = 'inline',
   className,

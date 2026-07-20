@@ -13,6 +13,7 @@ import {
 } from '@shared/agentIdentity'
 import { collapseAllPaneWindows, ensurePaneWindows } from '@shared/paneWindows'
 import { normalizeTabSession } from './tabSplitSizes'
+import { normalizeAgentColor } from './workspace/planeAgentColor'
 
 export interface PersistedSessionInput {
   version: 1
@@ -52,6 +53,7 @@ function sanitizeTab(tab: TabSession): TabSession | null {
       : rawMode === 'plan' || rawMode === 'readonly' ? 'plan'
       : 'ask'
     paneKinds[paneId] = 'agent'
+    const color = normalizeAgentColor(raw?.color)
     agentByPane[paneId] = {
       provider,
       permissionMode,
@@ -67,6 +69,7 @@ function sanitizeTab(tab: TabSession): TabSession | null {
       ...(typeof raw?.model === 'string' && raw.model.trim()
         ? { model: raw.model.trim() }
         : {}),
+      ...(color ? { color } : {}),
       ...(Array.isArray(raw?.contextIds)
         ? {
             contextIds: raw.contextIds.filter(
@@ -75,6 +78,7 @@ function sanitizeTab(tab: TabSession): TabSession | null {
           }
         : {}),
       ...(raw?.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
+      ...(raw?.emitResults === true ? { emitResults: true } : {}),
       ...(typeof raw?.cliSessionId === 'string' && raw.cliSessionId.trim()
         ? { cliSessionId: raw.cliSessionId.trim() }
         : {}),
@@ -84,10 +88,18 @@ function sanitizeTab(tab: TabSession): TabSession | null {
   const projectFolder = typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
     ? tab.projectFolder.trim()
     : undefined
+  const rawOpenChat = tab.planeOpenChatAgentId
+  const planeOpenChatAgentId =
+    typeof rawOpenChat === 'string'
+    && paneIds.includes(rawOpenChat)
+    && paneKinds[rawOpenChat] === 'agent'
+      ? rawOpenChat
+      : null
   const {
     panePlaneNodes: _legacyPlaneNodes,
     contexts: _legacyContexts,
     projectFolder: _rawProjectFolder,
+    planeOpenChatAgentId: _rawOpenChat,
     ...tabBase
   } = tab as TabSession & { panePlaneNodes?: unknown }
   return normalizeTabSession({
@@ -98,6 +110,7 @@ function sanitizeTab(tab: TabSession): TabSession | null {
     ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
     ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
     ...(paneWindows ? { paneWindows } : { paneWindows: undefined }),
+    planeOpenChatAgentId,
     ...(projectFolder ? { projectFolder } : {}),
     contexts: undefined,
   })

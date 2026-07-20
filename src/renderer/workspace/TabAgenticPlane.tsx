@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
 import { PlaneChatComposer, type PlaneChatContextOption } from './PlaneChatComposer'
+import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
@@ -9,7 +10,7 @@ import { PlaneIdleThinking } from './PlaneIdleThinking'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import type { PlaneContextPoolItem } from './PlaneContextPool'
-import { planeAgentColor } from './planeAgentColor'
+import { planeAgentColor, resolveAgentColor } from './planeAgentColor'
 import './TabAgenticPlane.css'
 
 export type { PlaneMapEntity }
@@ -44,6 +45,10 @@ export interface TabAgenticPlaneProps {
   onFocusWindow: (paneId: string) => void
   onConfigureContexts: () => void
   onSendChat: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
+  /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
+  openChatAgentId: string | null
+  /** Abre/cambia el chat, o lo cierra con `null`. */
+  onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
   agentStatuses?: Record<string, AgentPlaneStatus>
   chatFontSize?: number
@@ -92,6 +97,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onFocusWindow,
   onConfigureContexts,
   onSendChat,
+  openChatAgentId,
+  onOpenChatAgentChange,
   agentStatuses = {},
   chatFontSize = 13,
   configLabel,
@@ -117,59 +124,44 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         paneId: entity.paneId,
         title: entity.title,
         busy: entity.busy,
-        color: planeAgentColor(entity.paneId),
+        color: resolveAgentColor(entity.paneId, entity.color),
       })),
     [entities],
   )
 
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  /** Tras ocultar el chat del plano, no auto-seleccionar de nuevo el primer agente. */
-  const allowEmptyAgentSelectionRef = useRef(false)
   /** Burbujas realmente montadas en el plano (no solo elegibles). */
   const [quickChatShowing, setQuickChatShowing] = useState(false)
 
+  // Si el agente abierto desaparece, cierra el chat persistido.
   useEffect(() => {
-    if (agents.length === 0) {
-      allowEmptyAgentSelectionRef.current = false
-      setSelectedAgentId(null)
-      return
-    }
-    setSelectedAgentId(current => {
-      if (current && agents.some(agent => agent.paneId === current)) return current
-      if (current === null && allowEmptyAgentSelectionRef.current) return null
-      allowEmptyAgentSelectionRef.current = false
-      const activeAgent = agents.find(agent => agent.paneId === activePaneId)
-      return activeAgent?.paneId ?? agents[0].paneId
-    })
-  }, [activePaneId, agents])
+    if (!openChatAgentId) return
+    if (agents.some(agent => agent.paneId === openChatAgentId)) return
+    onOpenChatAgentChange(null)
+  }, [agents, openChatAgentId, onOpenChatAgentChange])
 
   useEffect(() => {
-    if (!selectedAgentId) setQuickChatShowing(false)
-  }, [selectedAgentId])
+    if (!openChatAgentId) setQuickChatShowing(false)
+  }, [openChatAgentId])
 
-  const selectAgent = (paneId: string): void => {
-    allowEmptyAgentSelectionRef.current = false
-    setSelectedAgentId(paneId)
-  }
-
-  const dismissQuickChat = (): void => {
-    allowEmptyAgentSelectionRef.current = true
-    setSelectedAgentId(null)
+  /** Badge: abrir / cambiar; si ya está abierto, ocultar. */
+  const toggleChatAgent = (paneId: string): void => {
+    onOpenChatAgentChange(openChatAgentId === paneId ? null : paneId)
   }
 
   const selectedContextIds = useMemo(() => {
-    const agent = entities.find(entity => entity.paneId === selectedAgentId)
+    const agent = entities.find(entity => entity.paneId === openChatAgentId)
     return (agent?.contexts ?? []).map(context => context.id)
-  }, [entities, selectedAgentId])
+  }, [entities, openChatAgentId])
 
   const autoImprove = Boolean(
-    entities.find(entity => entity.paneId === selectedAgentId)?.autoImproveContexts,
+    entities.find(entity => entity.paneId === openChatAgentId)?.autoImproveContexts,
   )
 
   const composerContexts = useMemo<PlaneChatContextOption[]>(
     () => tabContexts.map(context => ({
       id: context.id,
       name: context.name,
+      kind: context.kind,
       kindLabel: context.kindLabel,
       icon: context.icon,
       color: context.color,
@@ -178,18 +170,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   )
 
   const quickChatAgent = useMemo(
-    () => entities.find(entity => entity.paneId === selectedAgentId) ?? null,
-    [entities, selectedAgentId],
+    () => entities.find(entity => entity.paneId === openChatAgentId) ?? null,
+    [entities, openChatAgentId],
   )
 
-  const quickChatStatus = selectedAgentId
-    ? agentStatuses[selectedAgentId] ?? null
+  const quickChatStatus = openChatAgentId
+    ? agentStatuses[openChatAgentId] ?? null
     : null
 
   const quickChatWindowOpen = Boolean(quickChatAgent?.window.open)
 
   const quickChatVisible = Boolean(
-    selectedAgentId
+    openChatAgentId
     && !quickChatWindowOpen
     && quickChatStatus
     && (quickChatStatus.busy || quickChatStatus.messages.length > 0),
@@ -207,6 +199,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
   const showIdleThinking = !anyFullscreen && !quickChatShowing && !agentWindowOpen
 
+  const idleThinkingColor = openChatAgentId
+    ? resolveAgentColor(
+      openChatAgentId,
+      entities.find(entity => entity.paneId === openChatAgentId)?.color,
+    )
+    : undefined
+
   return (
     <div
       className="tab-agentic-plane"
@@ -223,6 +222,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-project-folder',
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
+          '.plane-chat-dock__toolbar',
           '.plane-context-pool',
           '[role="dialog"]',
           'button',
@@ -272,47 +272,57 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       />
 
       {showIdleThinking && (
-        <PlaneIdleThinking />
+        <PlaneIdleThinking color={idleThinkingColor} />
       )}
 
       {!anyFullscreen && (
         <PlaneChatDock
-          chat={(
+          toolbar={openChatAgentId ? (
+            <PlaneChatContextsBar
+              accent={resolveAgentColor(
+                openChatAgentId,
+                entities.find(entity => entity.paneId === openChatAgentId)?.color,
+              )}
+              contexts={composerContexts}
+              selectedContextIds={selectedContextIds}
+              contextsEmptyHint={chatContextsEmpty}
+              autoImprove={autoImprove}
+              onToggleContext={contextId => {
+                onToggleAgentContext(openChatAgentId, contextId)
+              }}
+              onAutoImproveChange={enabled => {
+                onAutoImproveChange(openChatAgentId, enabled)
+              }}
+            />
+          ) : null}
+          chat={quickChatVisible && openChatAgentId ? (
             <PlaneQuickChat
-              visible={quickChatVisible}
+              key={openChatAgentId}
               messages={quickChatStatus?.messages ?? []}
               busy={Boolean(quickChatStatus?.busy)}
               activity={quickChatStatus?.activity ?? ''}
               activeAssistantId={quickChatStatus?.activeAssistantId ?? null}
-              agentColor={selectedAgentId ? planeAgentColor(selectedAgentId) : planeAgentColor('default')}
+              agentColor={openChatAgentId
+                ? resolveAgentColor(
+                  openChatAgentId,
+                  entities.find(entity => entity.paneId === openChatAgentId)?.color,
+                )
+                : planeAgentColor('default')}
               enteringIds={quickChatStatus?.enteringIds}
               materializingIds={quickChatStatus?.materializingIds}
               settlingId={quickChatStatus?.settlingId ?? null}
               fontSize={chatFontSize}
               onShowingChange={setQuickChatShowing}
-              onDismiss={dismissQuickChat}
             />
-          )}
+          ) : null}
           composer={(
             <PlaneChatComposer
               agents={agents}
-              selectedAgentId={selectedAgentId}
+              selectedAgentId={openChatAgentId}
               placeholder={chatPlaceholder}
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}
-              contexts={composerContexts}
-              selectedContextIds={selectedContextIds}
-              contextsEmptyHint={chatContextsEmpty}
-              autoImprove={autoImprove}
-              onSelectAgent={selectAgent}
-              onToggleContext={contextId => {
-                if (!selectedAgentId) return
-                onToggleAgentContext(selectedAgentId, contextId)
-              }}
-              onAutoImproveChange={enabled => {
-                if (!selectedAgentId) return
-                onAutoImproveChange(selectedAgentId, enabled)
-              }}
+              onSelectAgent={toggleChatAgent}
               onStop={paneId => {
                 window.api.stopAgentTurn(paneId)
               }}

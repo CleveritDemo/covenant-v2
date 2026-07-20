@@ -1219,6 +1219,7 @@ export function applyTheme(theme: AppTheme): void {
   root.dataset.theme = theme.id
   root.dataset.themeCategory = chrome.category
   root.dataset.tabShape = chrome.tabShape
+  root.dataset.themeAppearance = isLightTheme(theme) ? 'light' : 'dark'
   for (const [key, value] of Object.entries(theme.vars)) {
     root.style.setProperty(key, value)
   }
@@ -1226,6 +1227,15 @@ export function applyTheme(theme: AppTheme): void {
 
   const accent = theme.vars['--accent'] ?? theme.xterm.cursor
   root.style.setProperty('--accent-fg', accentForegroundFor(accent))
+
+  // FAB terminal: contraste sobre el acento teal del plano (mezcla con accent).
+  const terminalAccent = theme.vars['--plane-terminal-accent']
+    ?? theme.vars['--accent']
+    ?? '#2dd4bf'
+  const terminalAccentHex = parseHexAccent(terminalAccent)
+    ? terminalAccent
+    : '#2dd4bf'
+  root.style.setProperty('--plane-terminal-fg', accentForegroundFor(terminalAccentHex))
 
   const accentRgb = parseHexAccent(accent)
   if (accentRgb) {

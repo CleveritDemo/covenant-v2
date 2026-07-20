@@ -28,10 +28,14 @@ export interface AgentPaneMeta {
   objective?: string
   /** Modelo del CLI (`--model`); ausente = predeterminado del proveedor. */
   model?: string
+  /** Color de acento en el plano (badges, chat); ausente = hash del paneId. */
+  color?: string
   /** Contextos de esta tab asignados al agente. */
   contextIds?: string[]
   /** Permite que el agente haga upsert de anotaciones al terminar cada turno. */
   autoImproveContexts?: boolean
+  /** Si es true, el agente puede registrar resultados en `.iaterminal/results/`. Por defecto false. */
+  emitResults?: boolean
   /** ID devuelto por el CLI para reanudar el chat entre turnos/reinicios. */
   cliSessionId?: string
 }
@@ -63,6 +67,11 @@ export interface TabSession {
   agentByPane?: Record<string, AgentPaneMeta>
   /** Ventanas del plano agéntico por paneId. */
   paneWindows?: Record<string, PaneWindowState>
+  /**
+   * Chat del plano abierto en el composer (`null` = ninguno).
+   * Se elige con las badges; volver a pulsar la abierta lo oculta.
+   */
+  planeOpenChatAgentId?: string | null
   /**
    * Carpeta de proyecto de la pestaña. Las terminales nuevas arrancan aquí
    * (no heredan el cwd de otras terminales).

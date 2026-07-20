@@ -342,7 +342,9 @@ export function composePrompt(
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
-  const resultsInstruction = buildAiAgentResultsInstruction(request.name)
+  const resultsInstruction = request.emitResults === true
+    ? buildAiAgentResultsInstruction(request.name)
+    : ''
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
@@ -553,7 +555,11 @@ export function startAgentTurn(
               changelogPersisted = true
             }
             const { visibleText, payload: resultsPayload } = extractAiAgentResults(afterChangelog)
-            if (resultsPayload && request.name?.trim()) {
+            if (
+              resultsPayload
+              && request.emitResults === true
+              && request.name?.trim()
+            ) {
               upsertAiAgentResults(cwd, request.name.trim(), resultsPayload)
             }
             if (visibleText.trim()) sawAssistantText = true

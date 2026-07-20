@@ -33,6 +33,8 @@ export interface AgentCliStartRequest {
   discoveredContexts?: TabContext[]
   /** Inyecta el protocolo de actualización incremental de anotaciones. */
   autoImproveContexts?: boolean
+  /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
+  emitResults?: boolean
   cliSessionId?: string
   /** Fotos pegadas en el composer; se guardan bajo .iaterminal/clipboard-images. */
   images?: AgentCliImageAttachment[]

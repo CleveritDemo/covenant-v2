@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { useT } from '@i18n/useT'
-import { Button, Icon } from '../components/ui'
+import { Icon } from '../components/ui'
 import { AgentChatBubbles } from '../agent/AgentChatBubbles'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
@@ -12,7 +12,6 @@ export interface PlaneQuickChatProps {
   busy: boolean
   activity?: string
   activeAssistantId: string | null
-  visible: boolean
   /** Color del agente activo (acentos del chat). */
   agentColor: string
   fontSize?: number
@@ -21,8 +20,6 @@ export interface PlaneQuickChatProps {
   settlingId?: string | null
   /** true solo mientras hay burbujas visibles en el plano. */
   onShowingChange?: (showing: boolean) => void
-  /** Al ocultar el chat del plano (p. ej. deseleccionar el agente en el composer). */
-  onDismiss?: () => void
 }
 
 /** Conversación user/assistant del plano (sin system). */
@@ -30,49 +27,97 @@ function planeConversation(messages: AgentChatEntry[]): AgentChatEntry[] {
   return messages.filter(entry => entry.role === 'user' || entry.role === 'assistant')
 }
 
+const ENTER_MS = 720
+const ENTER_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+
 /**
  * Chat del plano: burbujas del AgentPane.
- * Sin avatar; el agente se elige en el composer.
+ * El padre solo lo monta cuando hay chat visible y con `key` del agente.
+ * Entrada: Web Animations API (fiable en Electron; CSS filter/overflow fallaban).
  */
 export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   messages,
   busy,
   activity = '',
   activeAssistantId,
-  visible,
   agentColor,
   fontSize = 13,
   enteringIds = [],
   materializingIds = [],
   settlingId = null,
   onShowingChange,
-  onDismiss,
 }) => {
   const { t } = useT()
+  const enterRef = useRef<HTMLDivElement>(null)
+  const bloomRef = useRef<HTMLSpanElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  /** Solo oculta en el plano; no borra el chat del AgentPane. */
-  const [dismissedTipId, setDismissedTipId] = useState<string | null>(null)
-  const [enterDone, setEnterDone] = useState(false)
-  const [appearSession, setAppearSession] = useState(0)
   const [nearBottom, setNearBottom] = useState(true)
-  const prevShowRef = useRef(false)
 
   const conversation = useMemo(() => planeConversation(messages), [messages])
-  const tipId = conversation[conversation.length - 1]?.id ?? null
-  const dismissed = Boolean(tipId && tipId === dismissedTipId)
-  const show = visible && !dismissed && (conversation.length > 0 || busy)
   const enteringSet = useMemo(() => new Set(enteringIds), [enteringIds])
   const materializingSet = useMemo(() => new Set(materializingIds), [materializingIds])
 
   useEffect(() => {
-    onShowingChange?.(show)
+    onShowingChange?.(true)
     return () => { onShowingChange?.(false) }
-  }, [onShowingChange, show])
+  }, [onShowingChange])
 
-  // Al dejar de ser elegible (deselección / ventana abierta), limpia el dismiss local.
-  useEffect(() => {
-    if (!visible) setDismissedTipId(null)
-  }, [visible])
+  // Implosión + fade al montar (misma idea que el morph de PaneWindow).
+  useLayoutEffect(() => {
+    const node = enterRef.current
+    if (!node) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    node.style.opacity = '0'
+    node.style.transform = 'scale(1.45)'
+    // Fuerza estilo inicial antes del primer paint animado.
+    void node.offsetWidth
+
+    const enter = node.animate(
+      [
+        { opacity: 0, transform: 'scale(1.45)' },
+        { opacity: 1, transform: 'scale(0.98)', offset: 0.72 },
+        { opacity: 1, transform: 'scale(1)' },
+      ],
+      { duration: ENTER_MS, easing: ENTER_EASE, fill: 'forwards' },
+    )
+
+    const bloom = bloomRef.current
+    const bloomAnim = bloom
+      ? bloom.animate(
+        [
+          { opacity: 0, transform: 'scale(1.4)' },
+          { opacity: 0.9, transform: 'scale(1.05)', offset: 0.3 },
+          { opacity: 0, transform: 'scale(0.9)' },
+        ],
+        { duration: ENTER_MS + 120, easing: ENTER_EASE, fill: 'forwards' },
+      )
+      : null
+
+    const settle = (): void => {
+      node.style.opacity = '1'
+      node.style.transform = 'none'
+      try { enter.cancel() } catch { /* ignore */ }
+      try { bloomAnim?.cancel() } catch { /* ignore */ }
+      if (bloom) {
+        bloom.style.opacity = ''
+        bloom.style.transform = ''
+      }
+    }
+
+    void enter.finished.then(settle).catch(() => { /* cancelled */ })
+
+    return () => {
+      try { enter.cancel() } catch { /* ignore */ }
+      try { bloomAnim?.cancel() } catch { /* ignore */ }
+      node.style.opacity = ''
+      node.style.transform = ''
+      if (bloom) {
+        bloom.style.opacity = ''
+        bloom.style.transform = ''
+      }
+    }
+  }, [])
 
   const scrollToBottom = (): void => {
     const node = scrollRef.current
@@ -81,65 +126,24 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
     setNearBottom(true)
   }
 
-  // Cada vez que el chat pasa a visible: nueva sesión de aparición.
   useEffect(() => {
-    if (show && !prevShowRef.current) {
-      setAppearSession(n => n + 1)
-      setEnterDone(false)
-    }
-    prevShowRef.current = show
-  }, [show])
-
-  useEffect(() => {
-    if (!show || !nearBottom) return
+    if (!nearBottom) return
     scrollToBottom()
-  }, [show, conversation, busy, activeAssistantId, nearBottom])
-
-  if (!show) return null
+  }, [conversation, busy, activeAssistantId, nearBottom])
 
   const activityText = activity.trim()
-  const appearing = !enterDone
 
   return (
     <div
-      className={[
-        'plane-quick-chat',
-        'agent-pane',
-        appearing ? 'plane-quick-chat--appearing' : '',
-      ].filter(Boolean).join(' ')}
+      className="plane-quick-chat agent-pane"
       aria-live="polite"
       style={{
         '--agent-chat-font-size': `${fontSize}px`,
         '--agent-beam': agentColor,
       } as React.CSSProperties}
     >
-      <div className="plane-quick-chat__dismiss">
-        <Button
-          variant="icon"
-          size="sm"
-          aria-label={t('tabs.planeQuickChatDismiss')}
-          title={t('tabs.planeQuickChatDismiss')}
-          onClick={() => {
-            if (tipId) setDismissedTipId(tipId)
-            onDismiss?.()
-          }}
-        >
-          <Icon name="close" size={14} aria-hidden />
-        </Button>
-      </div>
-      <div
-        key={appearSession}
-        className={[
-          'plane-quick-chat__enter',
-          appearing ? 'plane-quick-chat__enter--active' : '',
-        ].filter(Boolean).join(' ')}
-        onAnimationEnd={event => {
-          if (event.target !== event.currentTarget) return
-          if (!event.animationName.includes('plane-quick-chat-reveal')) return
-          setEnterDone(true)
-        }}
-      >
-        <span className="plane-quick-chat__bloom" aria-hidden="true" />
+      <div ref={enterRef} className="plane-quick-chat__enter">
+        <span ref={bloomRef} className="plane-quick-chat__bloom" aria-hidden="true" />
         <div className="plane-quick-chat__frame">
           <div className="plane-quick-chat__stream agent-pane__messages-wrap">
             <div

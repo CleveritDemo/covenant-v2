@@ -78,6 +78,12 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
     const paneWindows = Object.fromEntries(
       Object.entries(tab.paneWindows ?? {}).filter(([id]) => paneIds.includes(id)),
     )
+    const planeOpenChatAgentId =
+      typeof tab.planeOpenChatAgentId === 'string'
+      && paneIds.includes(tab.planeOpenChatAgentId)
+      && paneKinds[tab.planeOpenChatAgentId] === 'agent'
+        ? tab.planeOpenChatAgentId
+        : null
     const {
       panePlaneNodes: _legacyPlaneNodes,
       ...tabBase
@@ -89,6 +95,7 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
       ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
       ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
       ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
+      planeOpenChatAgentId,
     })
   })
   return { tabs: out, orphanPaneIds }
@@ -105,6 +112,7 @@ function newTab(title: string): TabSession {
     title,
     paneIds: [],
     activePaneId: '',
+    planeOpenChatAgentId: null,
   }
 }
 
@@ -568,6 +576,9 @@ export const App: React.FC = () => {
       delete paneKinds[paneId]
       delete agentByPane[paneId]
       delete paneWindows[paneId]
+      const planeOpenChatAgentId = tab.planeOpenChatAgentId === paneId
+        ? null
+        : (tab.planeOpenChatAgentId ?? null)
       const {
         panePlaneNodes: _legacyPlaneNodes,
         ...tabBase
@@ -579,6 +590,7 @@ export const App: React.FC = () => {
         ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
         ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
         ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
+        planeOpenChatAgentId,
       })
     }))
     setAgentPlaneStatus(prev => {
@@ -806,6 +818,22 @@ export const App: React.FC = () => {
           paneWindows[paneId] = { ...win, zIndex: maxPaneWindowZ(paneWindows) + 1 }
         }
         return { ...ensured, activePaneId: paneId, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+  }, [])
+
+  /** Abre/cambia el chat del plano, o lo cierra si `paneId` es null. */
+  const handlePlaneOpenChatAgent = useCallback((tabId: string, paneId: string | null) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        if (paneId === null) {
+          return { ...tab, planeOpenChatAgentId: null }
+        }
+        if (tab.paneKinds?.[paneId] !== 'agent') return tab
+        return { ...tab, planeOpenChatAgentId: paneId }
       })
       tabsRef.current = nextTabs
       return nextTabs
@@ -1318,6 +1346,7 @@ export const App: React.FC = () => {
             const tabContextBadges = discoveredContexts.map(ctx => ({
               id: ctx.id,
               name: ctx.name,
+              kind: ctx.kind,
               kindLabel: t(`tabContexts.kind_${ctx.kind}`),
               icon: contextIconName(ctx),
               color: resolveContextColor(ctx),
@@ -1366,6 +1395,7 @@ export const App: React.FC = () => {
                   snippet: status?.lastSnippet ?? status?.activity ?? '',
                   contexts: assignedContexts,
                   autoImproveContexts: meta?.autoImproveContexts === true,
+                  color: meta?.color,
                   window: win,
                 }
               }
@@ -1428,6 +1458,8 @@ export const App: React.FC = () => {
                   onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  openChatAgentId={tab.planeOpenChatAgentId ?? null}
+                  onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images) => {
                     setPlaneSendPrompt({ paneId, text, images })
                     setTabs(prev => {
@@ -1437,7 +1469,12 @@ export const App: React.FC = () => {
                         const paneWindows = { ...(ensured.paneWindows ?? {}) }
                         const win = paneWindows[paneId] ?? createPaneWindowState(paneWindows, false)
                         paneWindows[paneId] = { ...win, open: false, fullscreen: false }
-                        return { ...ensured, activePaneId: paneId, paneWindows }
+                        return {
+                          ...ensured,
+                          activePaneId: paneId,
+                          paneWindows,
+                          planeOpenChatAgentId: paneId,
+                        }
                       })
                       tabsRef.current = nextTabs
                       return nextTabs

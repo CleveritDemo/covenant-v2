@@ -11,6 +11,10 @@ import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
+import {
+  PLANE_AGENT_COLORS,
+  resolveAgentColor,
+} from '../workspace/planeAgentColor'
 import './AgentConfigModal.css'
 
 function folderLabel(cwd: string): string {
@@ -21,6 +25,8 @@ function folderLabel(cwd: string): string {
 export interface AgentConfigModalProps {
   open: boolean
   meta: AgentPaneMeta
+  /** paneId del agente (para el color por defecto derivado del id). */
+  paneId: string
   /** Carpeta del proyecto (solo lectura; no configurable por agente). */
   cwd: string
   busy: boolean
@@ -33,6 +39,7 @@ export interface AgentConfigModalProps {
   onChangeName: (name: string) => void
   onChangeRole: (role: string) => void
   onChangeObjective: (objective: string) => void
+  onChangeColor: (color: string) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
@@ -40,6 +47,7 @@ export interface AgentConfigModalProps {
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
   onAutoImproveChange: (checked: boolean) => void
+  onEmitResultsChange: (checked: boolean) => void
   /** Cerrar al pulsar el fondo (por defecto sí para este modal). */
   closeOnBackdrop?: boolean
 }
@@ -47,6 +55,7 @@ export interface AgentConfigModalProps {
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   open,
   meta,
+  paneId,
   cwd,
   busy,
   loopMode,
@@ -58,6 +67,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeName,
   onChangeRole,
   onChangeObjective,
+  onChangeColor,
   onChangeProvider,
   onChangeModel,
   onChangePermission,
@@ -65,10 +75,12 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onToggleContext,
   onOpenContextsModal,
   onAutoImproveChange,
+  onEmitResultsChange,
   closeOnBackdrop = true,
 }) => {
   const { t } = useT()
   const locked = busy || loopActive
+  const activeColor = resolveAgentColor(paneId, meta.color)
 
   const PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
     { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint') },
@@ -167,6 +179,35 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
               onChange={event => onChangeObjective(event.target.value)}
             />
           </label>
+          <div className="agent-config-modal__field agent-config-modal__field--stack">
+            <span className="agent-config-modal__field-label">{t('agentPane.colorLabel')}</span>
+            <div
+              className="agent-config-modal__color-grid"
+              role="radiogroup"
+              aria-label={t('agentPane.colorLabel')}
+            >
+              {PLANE_AGENT_COLORS.map(color => {
+                const active = activeColor.toLowerCase() === color.toLowerCase()
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={color}
+                    disabled={busy}
+                    className={[
+                      'agent-config-modal__color-swatch',
+                      active ? 'agent-config-modal__color-swatch--active' : '',
+                    ].filter(Boolean).join(' ')}
+                    style={{ background: color }}
+                    onClick={() => onChangeColor(color)}
+                  />
+                )
+              })}
+            </div>
+            <p className="agent-config-modal__inline-hint">{t('agentPane.colorHint')}</p>
+          </div>
         </section>
 
         <section className="agent-config-modal__block">
@@ -346,6 +387,26 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             <span className="agent-config-modal__toggle-copy">
               <strong>{t('tabContexts.autoImprove')}</strong>
               <span>{t('tabContexts.autoImproveHint')}</span>
+            </span>
+            <span className="agent-config-modal__switch" aria-hidden="true">
+              <span className="agent-config-modal__switch-knob" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={[
+              'agent-config-modal__toggle',
+              meta.emitResults === true ? 'agent-config-modal__toggle--on' : '',
+            ].filter(Boolean).join(' ')}
+            disabled={locked}
+            aria-pressed={meta.emitResults === true}
+            title={t('tabContexts.emitResultsHint')}
+            onClick={() => onEmitResultsChange(!(meta.emitResults === true))}
+          >
+            <span className="agent-config-modal__toggle-copy">
+              <strong>{t('tabContexts.emitResults')}</strong>
+              <span>{t('tabContexts.emitResultsHint')}</span>
             </span>
             <span className="agent-config-modal__switch" aria-hidden="true">
               <span className="agent-config-modal__switch-knob" />

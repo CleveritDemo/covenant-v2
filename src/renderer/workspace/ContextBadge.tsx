@@ -11,6 +11,8 @@ export interface ContextBadgeProps {
   color: string
   shared?: boolean
   sharedLabel?: string
+  /** Tamaño del ícono en px. */
+  iconSize?: number
 }
 
 /** Badge del pool: ícono coloreado + tooltip con nombre. */
@@ -21,6 +23,7 @@ export const ContextBadge: React.FC<ContextBadgeProps> = ({
   color,
   shared = false,
   sharedLabel,
+  iconSize = 14,
 }) => {
   const tooltip = shared && sharedLabel
     ? `${name} · ${kindLabel} · ${sharedLabel}`
@@ -36,7 +39,7 @@ export const ContextBadge: React.FC<ContextBadgeProps> = ({
         style={{ color }}
         aria-label={tooltip}
       >
-        <Icon name={icon} size={14} aria-hidden />
+        <Icon name={icon} size={iconSize} aria-hidden />
       </span>
     </Tooltip>
   )

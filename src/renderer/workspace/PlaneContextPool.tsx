@@ -4,6 +4,7 @@ import { isProjectContext } from '@shared/tabContext'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { ContextBadge } from './ContextBadge'
+import { setPlaneContextDragData } from './planeContextDrag'
 import './PlaneContextPool.css'
 
 export interface PlaneContextPoolItem {
@@ -50,18 +51,28 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         aria-label={configureLabel}
         onClick={onConfigure}
       >
-        <Icon name="settings" size={14} />
+        <Icon name="settings" size={12} />
       </button>
 
       {visibleContexts.length > 0 ? (
         <div className="plane-context-pool__icons" role="list">
           {visibleContexts.map(ctx => (
-            <div key={ctx.id} role="listitem">
+            <div
+              key={ctx.id}
+              role="listitem"
+              className="plane-context-pool__drag"
+              draggable
+              title={`${ctx.name} — ${ctx.kindLabel}`}
+              onDragStart={event => {
+                setPlaneContextDragData(event.dataTransfer, ctx.id)
+              }}
+            >
               <ContextBadge
                 name={ctx.name}
                 kindLabel={ctx.kindLabel}
                 icon={ctx.icon}
                 color={ctx.color}
+                iconSize={11}
               />
             </div>
           ))}

@@ -154,6 +154,7 @@ export const App: React.FC = () => {
     text: string
     images: AgentCliImageAttachment[]
   } | null>(null)
+  const [planeStopPaneId, setPlaneStopPaneId] = useState<string | null>(null)
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
@@ -1314,6 +1315,10 @@ export const App: React.FC = () => {
           onPreferSendConsumed={() => {
             setPlaneSendPrompt(current => (current?.paneId === paneId ? null : current))
           }}
+          preferStop={planeStopPaneId === paneId}
+          onPreferStopConsumed={() => {
+            setPlaneStopPaneId(current => (current === paneId ? null : current))
+          }}
           registerShortcutCloseInterceptor={registerClose}
           fontSize={config.fontSize ?? 13}
         />
@@ -1500,6 +1505,9 @@ export const App: React.FC = () => {
                   onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  onAssignContext={(paneId, contextId) => {
+                    handleAssignContextToAgent(tab.id, paneId, contextId)
+                  }}
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images) => {
@@ -1522,6 +1530,9 @@ export const App: React.FC = () => {
                       return nextTabs
                     })
                     void saveSessionNow()
+                  }}
+                  onStopChat={paneId => {
+                    setPlaneStopPaneId(paneId)
                   }}
                   agentStatuses={agentPlaneStatus}
                   chatFontSize={config.fontSize ?? 13}
@@ -1555,11 +1566,6 @@ export const App: React.FC = () => {
           ? tabs.find(item => item.id === planeContextsModalTabId)
           : undefined
         if (!modalTab || !planeContextsModalTabId) return null
-        const agentPaneId = (
-          modalTab.paneKinds?.[modalTab.activePaneId] === 'agent'
-            ? modalTab.activePaneId
-            : modalTab.paneIds.find(id => modalTab.paneKinds?.[id] === 'agent')
-        ) ?? ''
         const cwd = modalTab.projectFolder?.trim() || ''
         return (
           <TabContextsModal
@@ -1567,10 +1573,6 @@ export const App: React.FC = () => {
             contexts={tabContextsByTab[modalTab.id] ?? []}
             cwd={cwd}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
-            onAssign={contextId => {
-              if (!agentPaneId) return
-              handleAssignContextToAgent(modalTab.id, agentPaneId, contextId)
-            }}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               void refreshTabContexts(modalTab.id)

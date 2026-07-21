@@ -113,10 +113,7 @@
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming),
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming):hover {
   border-radius: 10px !important;
-  box-shadow:
-    -5px 6px 18px color-mix(in srgb, #000 16%, transparent),
-    -1px 2px 5px color-mix(in srgb, #000 8%, transparent),
-    inset 0 0 0 1px var(--plane-highlight) !important;
+  box-shadow: var(--plane-mini-card-shadow-left) !important;
 }
 
 /* Agentes: mismo radio; sombra inline a escala mini en PaneWindow. */

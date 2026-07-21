@@ -8,16 +8,18 @@ import { resolveContextColor } from '@shared/tabContextAppearance'
 
 interface Props {
   contexts: TabContext[]
-  activeDraftId?: string
+  selectedId: string | null
   onNew: () => void
+  onSelect: (contextId: string) => void
   onEdit: (context: TabContext) => void
   onDelete: (context: TabContext) => void
 }
 
 export const TabContextsList: React.FC<Props> = ({
   contexts,
-  activeDraftId,
+  selectedId,
   onNew,
+  onSelect,
   onEdit,
   onDelete,
 }) => {
@@ -28,9 +30,9 @@ export const TabContextsList: React.FC<Props> = ({
   const renderItem = (context: TabContext) => (
     <div
       key={context.id}
-      className={`tab-contexts__item${activeDraftId === context.id ? ' tab-contexts__item--active' : ''}`}
+      className={`tab-contexts__item${selectedId === context.id ? ' tab-contexts__item--active' : ''}`}
     >
-      <button onClick={() => { void onEdit(context) }}>
+      <button type="button" onClick={() => onSelect(context.id)}>
         <span
           className="tab-contexts__item-icon"
           style={{ color: resolveContextColor(context) }}
@@ -44,8 +46,19 @@ export const TabContextsList: React.FC<Props> = ({
         </span>
       </button>
       <button
+        type="button"
+        className="tab-contexts__edit"
+        title={t('tabContexts.edit')}
+        aria-label={t('tabContexts.edit')}
+        onClick={() => onEdit(context)}
+      >
+        <Icon name="pencil" size={13} />
+      </button>
+      <button
+        type="button"
         className="tab-contexts__delete"
         title={t('tabContexts.delete')}
+        aria-label={t('tabContexts.delete')}
         onClick={() => { void onDelete(context) }}
       >
         <Icon name="trash" size={13} />

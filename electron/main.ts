@@ -8,7 +8,7 @@ import {
   constants,
   statSync,
 } from 'fs'
-import { join, normalize, resolve } from 'path'
+import { join, normalize, resolve, relative, isAbsolute } from 'path'
 import {
   app,
   BrowserWindow,
@@ -47,6 +47,7 @@ import {
   isAgentRunActive,
   stopAgentRun,
   stopAgentRunsForWindow,
+  stopAllAgentRuns,
 } from './agentCliRuntime'
 import {
   deleteTabContext,
@@ -172,10 +173,21 @@ interface PtyEntry {
 
 const ptySessions = new Map<string, PtyEntry>()
 
-/** true tras ⌘Q / Salir / `app.quit()`. En macOS, si `close` hace `preventDefault()`, Electron cancela ese quit; al destruir la ventana a mano hay que volver a salir aquí. */
-let userRequestedAppQuit = false
+function killAllPtySessions(): void {
+  for (const id of [...ptySessions.keys()]) {
+    killPty(id)
+  }
+}
+
 app.on('before-quit', () => {
-  userRequestedAppQuit = true
+  // No matar PTY/agentes aquí: en macOS `close` hace preventDefault y el renderer
+  // aún debe guardar sesión/scrollbacks (APP_SAVE_BEFORE_CLOSE) con shells vivos.
+  stopAllFileExplorerWatches()
+})
+
+app.on('will-quit', () => {
+  stopAllAgentRuns()
+  killAllPtySessions()
   stopAllFileExplorerWatches()
 })
 
@@ -344,8 +356,11 @@ function registerIpc(): void {
     IPC.SELECT_DIRECTORY,
     async (
       event,
-      options?: { title?: string; defaultPath?: string },
-    ): Promise<{ ok: true; path: string } | { ok: false; cancelled?: boolean; error?: string }> => {
+      options?: { title?: string; defaultPath?: string; withinPath?: string },
+    ): Promise<
+      | { ok: true; path: string; relativePath?: string }
+      | { ok: false; cancelled?: boolean; error?: string }
+    > => {
       const win = BrowserWindow.fromWebContents(event.sender)
         ?? BrowserWindow.getFocusedWindow()
         ?? BrowserWindow.getAllWindows()[0]
@@ -353,9 +368,15 @@ function registerIpc(): void {
       const title = typeof options?.title === 'string' && options.title.trim()
         ? options.title.trim()
         : undefined
-      const defaultPath = typeof options?.defaultPath === 'string' && options.defaultPath.trim()
-        ? options.defaultPath.trim()
+      const withinPath = typeof options?.withinPath === 'string' && options.withinPath.trim()
+        ? resolve(options.withinPath.trim())
         : undefined
+      let defaultPath = typeof options?.defaultPath === 'string' && options.defaultPath.trim()
+        ? options.defaultPath.trim()
+        : withinPath
+      if (withinPath && defaultPath && !isAbsolute(defaultPath)) {
+        defaultPath = resolve(withinPath, defaultPath)
+      }
       const dialogOpts: Electron.OpenDialogOptions = {
         title,
         defaultPath,
@@ -374,6 +395,14 @@ function registerIpc(): void {
         }
       } catch {
         return { ok: false, error: 'path unavailable' }
+      }
+      if (withinPath) {
+        const rel = relative(withinPath, selected)
+        if (rel.startsWith('..') || isAbsolute(rel)) {
+          return { ok: false, error: 'outside project folder' }
+        }
+        const relativePath = rel === '' ? '.' : rel.split('\\').join('/')
+        return { ok: true, path: selected, relativePath }
       }
       return { ok: true, path: selected }
     },
@@ -803,8 +832,10 @@ function registerIpc(): void {
     }
     startAgentTurn(win, request, readConfig(), app.getPath('home'))
   })
-  ipcMain.on(IPC.AGENT_CLI_STOP, (_event, paneId: string) => {
-    if (typeof paneId === 'string') stopAgentRun(paneId)
+  ipcMain.on(IPC.AGENT_CLI_STOP, (event, paneId: string) => {
+    if (typeof paneId !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    stopAgentRun(paneId, win ? { win, notify: true } : {})
   })
   ipcMain.handle(IPC.AGENT_CLI_IS_ACTIVE, (_event, paneId: string) => {
     return typeof paneId === 'string' && isAgentRunActive(paneId)
@@ -966,6 +997,10 @@ function createWindow(): BrowserWindow {
         stopFileExplorerWatch(id)
       }
     }
+    // Cerrar la última ventana = salir (también en macOS; no quedarse en el Dock).
+    if (BrowserWindow.getAllWindows().length === 0) {
+      app.quit()
+    }
   })
 
   return win
@@ -984,9 +1019,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  } else if (userRequestedAppQuit) {
-    app.quit()
-  }
+  // Incluye macOS: no dejar la app viva en el Dock tras cerrar la ventana.
+  // Tras close+preventDefault+destroy hay que re-lanzar quit (⌘Q también).
+  app.quit()
 })

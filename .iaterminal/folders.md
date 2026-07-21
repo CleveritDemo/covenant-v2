@@ -2,7 +2,7 @@
 <!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree","icon":"folder","color":"#5ec8ff"} -->
 
 <!-- iaterminal:auto -->
-intelligent_terminal/  (project root; paths are relative to this folder)
+ia_terminal/  (project root; paths are relative to this folder)
 
 docs/
     docs/AI_PROJECT_CONTEXT_GUIDE.md
@@ -50,8 +50,6 @@ relative/
   relative/path/
       relative/path/file.ext
 renderer/
-  renderer/components/
-      renderer/components/AiPanel.tsx
     renderer/styles.css
 scripts/
     scripts/check-ui-contract.mjs
@@ -84,6 +82,8 @@ src/
         src/renderer/__tests__/sessionSanitize.test.ts
         src/renderer/__tests__/tabSplitSizes.test.ts
     src/renderer/agent/
+      src/renderer/agent/__tests__/
+          src/renderer/agent/__tests__/composerImages.test.ts
         src/renderer/agent/AgentChatBubbles.css
         src/renderer/agent/AgentChatBubbles.tsx
         src/renderer/agent/AgentConfigModal.css
@@ -95,45 +95,36 @@ src/
         src/renderer/agent/AgentPaneMessages.tsx
         src/renderer/agent/AgentProviderPickerModal.tsx
         src/renderer/agent/composerImages.ts
+        src/renderer/agent/IaNucleus.css
+        src/renderer/agent/IaNucleus.tsx
         src/renderer/agent/QueuedTurnEditModal.css
         src/renderer/agent/QueuedTurnEditModal.tsx
+        src/renderer/agent/TabContextFormModal.tsx
         src/renderer/agent/tabContextKindIcons.ts
+        src/renderer/agent/TabContextRootPathField.tsx
         src/renderer/agent/TabContextsEditor.tsx
         src/renderer/agent/TabContextsList.tsx
+        src/renderer/agent/TabContextsListPreview.tsx
         src/renderer/agent/TabContextsModal.tsx
-        src/renderer/agent/ThinkingOrbits.css
-        src/renderer/agent/ThinkingOrbits.tsx
-    src/renderer/ai/
-        src/renderer/ai/agentLoopNative.ts
-        src/renderer/ai/agentModeRunner.ts
     src/renderer/components/
       src/renderer/components/__tests__/
           src/renderer/components/__tests__/aiMessagesScroll.test.ts
-          src/renderer/components/__tests__/AiPanel.session.test.tsx
           src/renderer/components/__tests__/useAiMessagesFollowScroll.test.tsx
       src/renderer/components/ai/
           src/renderer/components/ai/aiMessagesScroll.ts
-          src/renderer/components/ai/parseAssistantContent.ts
           src/renderer/components/ai/useAiMessagesFollowScroll.ts
       src/renderer/components/git/
         src/renderer/components/git/__tests__/
             src/renderer/components/git/__tests__/gitDiffNumStat.test.ts
             src/renderer/components/git/__tests__/gitPathUtils.test.ts
           src/renderer/components/git/GitBranchBadge.tsx
-          src/renderer/components/git/GitDiffBlocks.tsx
           src/renderer/components/git/gitDiffNumStat.ts
-          src/renderer/components/git/GitDiffStatBody.tsx
           src/renderer/components/git/gitErrorI18n.ts
           src/renderer/components/git/GitFileList.tsx
           src/renderer/components/git/GitHubActionsPanel.css
           src/renderer/components/git/GitHubActionsPanel.tsx
           src/renderer/components/git/GitHubActionsRunRow.tsx
           src/renderer/components/git/gitPathUtils.ts
-      src/renderer/components/settings/
-          src/renderer/components/settings/ApiKeyModelSection.tsx
-          src/renderer/components/settings/OllamaSection.tsx
-          src/renderer/components/settings/providerMeta.ts
-          src/renderer/components/settings/useOllamaModels.ts
       src/renderer/components/ui/
           src/renderer/components/ui/Badge.css
           src/renderer/components/ui/Badge.tsx
@@ -155,20 +146,9 @@ src/
           src/renderer/components/ui/Toggle.tsx
           src/renderer/components/ui/Tooltip.css
           src/renderer/components/ui/Tooltip.tsx
-        src/renderer/components/AiAgentActions.tsx
-        src/renderer/components/AiAgentRunGroup.tsx
         src/renderer/components/AiCodeBlock.tsx
-        src/renderer/components/AiEmptyState.tsx
-        src/renderer/components/AiErrorBoundary.tsx
-        src/renderer/components/AiFileMentionPopup.tsx
-        src/renderer/components/AiInputArea.tsx
         src/renderer/components/AiMarkdown.css
         src/renderer/components/AiMarkdown.tsx
-        src/renderer/components/AiMessage.tsx
-        src/renderer/components/AiPanel.css
-        src/renderer/components/AiPanel.tsx
-        src/renderer/components/AiPanelHeader.tsx
-        src/renderer/components/AiThinkingBlock.tsx
         src/renderer/components/AppModals.tsx
         src/renderer/components/ConfirmTerminalModal.css
         src/renderer/components/ConfirmTerminalModal.tsx
@@ -179,12 +159,10 @@ src/
         src/renderer/components/SettingsModal.css
         src/renderer/components/SettingsModal.tsx
         src/renderer/components/SettingsSection.tsx
-        src/renderer/components/SplitGutter.tsx
         src/renderer/components/TabAddButton.tsx
         src/renderer/components/TabBar.css
         src/renderer/components/TabBar.tsx
         src/renderer/components/TabItem.tsx
-        src/renderer/components/TabTerminalSplitLayout.tsx
         src/renderer/components/TerminalFindModal.css
         src/renderer/components/TerminalFindModal.tsx
         src/renderer/components/TerminalModal.css
@@ -202,8 +180,6 @@ src/
       src/renderer/history/__tests__/
           src/renderer/history/__tests__/feedCompletedUserLines.test.ts
         src/renderer/history/feedCompletedUserLines.ts
-    src/renderer/hooks/
-        src/renderer/hooks/useSplitDrag.ts
     src/renderer/styles/
         src/renderer/styles/app.css
         src/renderer/styles/global.css
@@ -269,11 +245,12 @@ src/
         src/renderer/workspace/PlaneComposerAurora.tsx
         src/renderer/workspace/PlaneContextCard.css
         src/renderer/workspace/PlaneContextCard.tsx
+        src/renderer/workspace/planeContextDrag.ts
         src/renderer/workspace/PlaneContextPool.css
         src/renderer/workspace/PlaneContextPool.tsx
         src/renderer/workspace/PlaneFabStack.tsx
-        src/renderer/workspace/PlaneIdleThinking.css
-        src/renderer/workspace/PlaneIdleThinking.tsx
+        src/renderer/workspace/PlaneIdleNucleus.css
+        src/renderer/workspace/PlaneIdleNucleus.tsx
         src/renderer/workspace/PlaneMap.css
         src/renderer/workspace/PlaneMap.tsx
         src/renderer/workspace/PlaneMiniActions.css
@@ -285,8 +262,6 @@ src/
         src/renderer/workspace/PlaneProjectFolder.tsx
         src/renderer/workspace/PlaneQuickChat.css
         src/renderer/workspace/PlaneQuickChat.tsx
-        src/renderer/workspace/PlaneQuickChatAvatar.css
-        src/renderer/workspace/PlaneQuickChatAvatar.tsx
         src/renderer/workspace/TabAgenticPlane.css
         src/renderer/workspace/TabAgenticPlane.tsx
       src/renderer/App.tsx

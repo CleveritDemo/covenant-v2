@@ -174,7 +174,12 @@ const api = {
   selectDirectory(options?: {
     title?: string
     defaultPath?: string
-  }): Promise<{ ok: true; path: string } | { ok: false; cancelled?: boolean; error?: string }> {
+    /** Si se indica, la carpeta elegida debe estar dentro y se devuelve relativePath. */
+    withinPath?: string
+  }): Promise<
+    | { ok: true; path: string; relativePath?: string }
+    | { ok: false; cancelled?: boolean; error?: string }
+  > {
     return ipcRenderer.invoke(IPC.SELECT_DIRECTORY, options)
   },
 

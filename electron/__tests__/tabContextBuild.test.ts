@@ -256,7 +256,9 @@ export class App {
     const refreshed = materializeTabContext(context, cwd, { write: true })
     expect(refreshed.ok).toBe(true)
     expect(refreshed.content).toContain('<!-- iaterminal:auto -->')
-    expect(refreshed.content).toContain('signature:')
+    expect(refreshed.content).toContain('### src/App.tsx')
+    expect(refreshed.content).toMatch(/^- App:.*handleAddTab/m)
+    expect(refreshed.content).not.toContain('signature:')
     expect(refreshed.content).toContain('Orquesta tabs y paneles')
     expect(refreshed.content).toContain('Crea pestaña nueva')
   })
@@ -268,11 +270,15 @@ export class App {
     for (let fileIndex = 0; fileIndex < 12; fileIndex += 1) {
       const relativePath = `src/generated-${fileIndex}.ts`
       paths.push(relativePath)
-      const declarations = Array.from(
-        { length: 100 },
-        (_, variableIndex) => `export const value_${fileIndex}_${variableIndex} = ${variableIndex}`,
+      const methods = Array.from(
+        { length: 80 },
+        (_, methodIndex) => `  method_${fileIndex}_${methodIndex}(): number { return ${methodIndex} }`,
       ).join('\n')
-      writeFileSync(join(cwd, relativePath), declarations, 'utf8')
+      writeFileSync(
+        join(cwd, relativePath),
+        `export class Generated_${fileIndex} {\n${methods}\n}\n`,
+        'utf8',
+      )
     }
     const context = {
       id: 'large-symbols',
@@ -280,20 +286,54 @@ export class App {
       fileName: 'large-symbols.md',
       kind: 'symbols' as const,
       paths,
-      symbolKinds: ['variable'] as Array<'variable'>,
+      symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
 
     materializeTabContext(context, cwd, { write: true })
     mergeAnnotations(context, cwd, [
-      { key: 'src/generated-0.ts#variable:value_0_0', text: 'Valor inicial generado' },
+      { key: 'src/generated-0.ts#class:Generated_0', text: 'Clase generada inicial' },
     ])
     const refreshed = materializeTabContext(context, cwd, { write: true })
 
-    expect(refreshed.content.length).toBeLessThanOrEqual(45_000)
+    expect(refreshed.content.length).toBeLessThanOrEqual(250_000)
     expect(refreshed.content).toContain('<!-- /iaterminal:auto -->')
     expect(refreshed.content).toContain('<!-- iaterminal:notes -->')
-    expect(refreshed.content).toContain('Valor inicial generado')
+    expect(refreshed.content).toContain('Clase generada inicial')
     expect(refreshed.content).toContain('<!-- /iaterminal:notes -->')
+  })
+
+  it('keeps late alphabetical modules when symbols exceed the old 45k cap', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'back', 'src', 'alpha'), { recursive: true })
+    mkdirSync(join(cwd, 'back', 'src', 'zeta'), { recursive: true })
+    // Muchos símbolos tempranos (como Nest bajo "a*") que antes llenaban 45k.
+    for (let index = 0; index < 40; index += 1) {
+      const methods = Array.from(
+        { length: 25 },
+        (_, methodIndex) => `  alphaMethod_${methodIndex}(): number { return ${methodIndex} }`,
+      ).join('\n')
+      writeFileSync(
+        join(cwd, 'back', 'src', 'alpha', `mod-${String(index).padStart(2, '0')}.ts`),
+        `export class Alpha_${index} {\n${methods}\n}\n`,
+        'utf8',
+      )
+    }
+    writeFileSync(
+      join(cwd, 'back', 'src', 'zeta', 'LateService.ts'),
+      'export class LateService { run(): void {} }\n',
+      'utf8',
+    )
+    const result = materializeTabContext({
+      id: 'alpha-truncation',
+      name: 'Classes',
+      fileName: 'classes.md',
+      kind: 'symbols',
+      rootPath: 'back/src',
+    }, cwd, { write: true })
+
+    expect(result.content).toContain('### back/src/zeta/LateService.ts')
+    expect(result.content).toMatch(/^- LateService:.*\brun\b/m)
+    expect(result.content).not.toContain('constructor')
   })
 
   it('removes a legacy notes layer only when it exactly duplicates auto', () => {
@@ -319,6 +359,88 @@ export class App {
     expect(refreshed.content).toContain('(no annotations yet)')
   })
 
+  it('lists class methods and exported top-level functions without signatures', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'Service.ts'), `
+export class Service {
+  start(): void {}
+  stop(): Promise<void> { return Promise.resolve() }
+}
+export function orphanHelper(): number { return 1 }
+export const localValue = 2
+export const renderPanel = (): string => 'ok'
+const hiddenHelper = (): void => {}
+`, 'utf8')
+    const context = {
+      id: 'brief-symbols',
+      name: 'Símbolos',
+      fileName: 'brief-symbols.md',
+      kind: 'symbols' as const,
+      paths: ['src/Service.ts'],
+    }
+
+    const result = materializeTabContext(context, cwd, { write: true })
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('### src/Service.ts')
+    expect(result.content).toContain('- Service: start, stop')
+    expect(result.content).toContain('- orphanHelper')
+    expect(result.content).toContain('- renderPanel')
+    expect(result.content).not.toContain('signature:')
+    expect(result.content).not.toContain('localValue')
+    expect(result.content).not.toContain('hiddenHelper')
+    expect(result.content).not.toContain('#variable:')
+  })
+
+  it('indexes forwardRef and memo exports as methods', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'TabBar.tsx'), `
+import React, { forwardRef, memo } from 'react'
+export const TabBar = forwardRef(function TabBar() { return null })
+export const Chip = memo(() => null)
+`, 'utf8')
+    const result = materializeTabContext({
+      id: 'forward-ref',
+      name: 'Símbolos',
+      fileName: 'forward-ref.md',
+      kind: 'symbols',
+      paths: ['src/TabBar.tsx'],
+    }, cwd, { write: true })
+
+    expect(result.content).toContain('- TabBar')
+    expect(result.content).toContain('- Chip')
+  })
+
+  it('scans far enough to include files beyond the first alphabetical batch', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src', 'a'), { recursive: true })
+    mkdirSync(join(cwd, 'src', 'z', 'deep'), { recursive: true })
+    for (let index = 0; index < 90; index += 1) {
+      writeFileSync(
+        join(cwd, 'src', 'a', `file-${String(index).padStart(3, '0')}.ts`),
+        `export function early_${index}() { return ${index} }\n`,
+        'utf8',
+      )
+    }
+    writeFileSync(
+      join(cwd, 'src', 'z', 'deep', 'Late.ts'),
+      'export function lateSymbol() { return 1 }\n',
+      'utf8',
+    )
+    const result = materializeTabContext({
+      id: 'scan-deep',
+      name: 'Símbolos',
+      fileName: 'scan-deep.md',
+      kind: 'symbols',
+      rootPath: 'src',
+    }, cwd, { write: true })
+
+    expect(result.content).toContain('### src/z/deep/Late.ts')
+    expect(result.content).toContain('- lateSymbol')
+  })
+
   it('scans the root folder for symbols when no paths are listed', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'), { recursive: true })
@@ -338,8 +460,8 @@ export class Widget {
     const result = materializeTabContext(context, cwd, { write: true })
 
     expect(result.ok).toBe(true)
-    expect(result.content).toContain('src/Widget.tsx#class:Widget')
-    expect(result.content).toContain('src/Widget.tsx#method:Widget.render')
+    expect(result.content).toContain('### src/Widget.tsx')
+    expect(result.content).toMatch(/^- Widget:.*\brender\b/m)
   })
 
   it('merges annotations by key and truncates to 10 words', () => {
@@ -505,6 +627,68 @@ export class Widget {
     expect(payload.prompt).toContain('included')
     expect(payload.prompt).not.toContain('excluded')
     expect(payload.prompt).toContain('section-key: src/one.ts')
+  })
+
+  it('auto-attaches context notes when any section is requested', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'one.ts'), 'export const included = 1', 'utf8')
+    writeFileSync(join(cwd, 'src', 'two.ts'), 'export const excluded = 2', 'utf8')
+    const context = {
+      id: 'selected-files',
+      name: 'Selected files',
+      fileName: 'selected-files.md',
+      kind: 'files' as const,
+      paths: ['src/one.ts', 'src/two.ts'],
+    }
+    materializeTabContext(context, cwd, { write: true })
+    const merged = mergeAnnotations(context, cwd, [
+      { key: 'note:entrada', text: 'Entrada principal' },
+    ])
+    expect(merged.ok).toBe(true)
+    expect(merged.notesContent).toContain('Entrada principal')
+    clearTabContextMaterializationCache(cwd)
+
+    const payload = buildRequestedContextSections([context], cwd, [
+      { id: 'selected-files', sections: ['src/one.ts'] },
+    ])
+
+    expect(payload.sectionCount).toBe(1)
+    expect(payload.prompt).toContain('included')
+    expect(payload.prompt).not.toContain('excluded')
+    expect(payload.prompt).toContain('section-key: src/one.ts')
+    expect(payload.prompt).toContain('section-key: __notes')
+    expect(payload.prompt).toContain('Entrada principal')
+  })
+
+  it('notes auto-attach does not spend the named section quota', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    const paths = Array.from({ length: 8 }, (_, index) => `src/f${index}.ts`)
+    for (const rel of paths) {
+      writeFileSync(join(cwd, rel), `export const v = '${rel}'`, 'utf8')
+    }
+    const context = {
+      id: 'many-files',
+      name: 'Many files',
+      fileName: 'many-files.md',
+      kind: 'files' as const,
+      paths,
+    }
+    materializeTabContext(context, cwd, { write: true })
+    mergeAnnotations(context, cwd, [
+      { key: 'note:primera', text: 'Primera pieza' },
+    ])
+    clearTabContextMaterializationCache(cwd)
+
+    const payload = buildRequestedContextSections([context], cwd, [
+      { id: 'many-files', sections: paths },
+    ])
+
+    expect(payload.sectionCount).toBe(8)
+    expect(payload.prompt).toContain('section-key: __notes')
+    expect(payload.prompt).toContain('Primera pieza')
+    expect(payload.errors).not.toContain('Section limit reached (8).')
   })
 
   it('reports unknown context sections without exposing other sections', () => {

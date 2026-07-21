@@ -11,7 +11,6 @@ import {
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
-import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
 import './PlaneMap.css'
 
@@ -39,9 +38,6 @@ export interface PlaneMapProps {
   emptyTitle: string
   emptyHint: string
   idleAgentLabel: string
-  contextPoolTitle: string
-  contextPoolConfigureLabel: string
-  tabContexts: PlaneContextPoolItem[]
   entities: PlaneMapEntity[]
   activePaneId: string
   configLabel: string
@@ -55,11 +51,12 @@ export interface PlaneMapProps {
   onFocusWindow: (paneId: string) => void
   onToggleFullscreen: (paneId: string) => void
   onMinimizeAllWindows?: () => void
-  onConfigureContexts: () => void
   onOpenConfig: (paneId: string) => void
   /** Mini agente: clic en la card (o sus contextos) abre/cambia el chat. */
   onOpenChat: (paneId: string) => void
   onDeletePane: (paneId: string) => void
+  /** Drop de contexto del pool sobre un agente. */
+  onAssignContext?: (paneId: string, contextId: string) => void
 }
 
 /** Ranuras fijas por orden estable de paneIds (abrir no reordena a las demás). */
@@ -99,9 +96,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   emptyTitle,
   emptyHint,
   idleAgentLabel,
-  contextPoolTitle,
-  contextPoolConfigureLabel,
-  tabContexts,
   entities,
   activePaneId,
   configLabel,
@@ -115,10 +109,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onFocusWindow,
   onToggleFullscreen,
   onMinimizeAllWindows,
-  onConfigureContexts,
   onOpenConfig,
   onOpenChat,
   onDeletePane,
+  onAssignContext,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -172,9 +166,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [entities],
   )
 
-  const anyFullscreen = entities.some(
-    entity => entity.window.open && entity.window.fullscreen,
-  )
   const terminalOpen = terminals.some(entity => entity.window.open)
   const agentOpen = agents.some(entity => entity.window.open)
 
@@ -233,6 +224,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onOpenConfig={() => onOpenConfig(entity.paneId)}
           onOpenChat={() => onOpenChat(entity.paneId)}
           onDelete={() => onDeletePane(entity.paneId)}
+          onDropContext={entity.kind === 'agent' && onAssignContext
+            ? contextId => onAssignContext(entity.paneId, contextId)
+            : undefined}
         >
           {renderPane(entity.paneId)}
         </PlanePaneWindow>
@@ -295,14 +289,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         </div>
       )}
 
-      {!anyFullscreen && (
-        <PlaneContextPool
-          title={contextPoolTitle}
-          configureLabel={contextPoolConfigureLabel}
-          contexts={tabContexts}
-          onConfigure={onConfigureContexts}
-        />
-      )}
     </div>
   )
 }

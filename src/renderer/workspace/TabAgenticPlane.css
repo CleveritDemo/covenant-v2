@@ -1,4 +1,8 @@
 .tab-agentic-plane {
+  --plane-top-bar-inset: 14px;
+  --plane-top-bar-height: 26px;
+  --plane-top-bar-radius: 8px;
+  --plane-top-bar-pad-x: 8px;
   position: relative;
   flex: 1;
   min-width: 0;

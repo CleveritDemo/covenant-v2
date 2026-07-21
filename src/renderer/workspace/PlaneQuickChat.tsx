@@ -28,7 +28,8 @@ function planeConversation(messages: AgentChatEntry[]): AgentChatEntry[] {
 /**
  * Chat del plano: burbujas del AgentPane.
  * El padre solo lo monta cuando hay chat visible y con `key` del agente.
- * Entrada: CSS keyframes (WAAPI + Strict Mode cancelaba la animación al remount).
+ * Entrada: aparición suave (fade + subida). CSS keyframes (WAAPI + Strict Mode
+ * cancelaba la animación al remount).
  */
 export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   messages,
@@ -77,7 +78,6 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
       } as React.CSSProperties}
     >
       <div className="plane-quick-chat__enter">
-        <span className="plane-quick-chat__bloom" aria-hidden="true" />
         <div className="plane-quick-chat__frame">
           <div className="plane-quick-chat__stream agent-pane__messages-wrap">
             <div

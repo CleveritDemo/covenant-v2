@@ -14,6 +14,7 @@ import {
   normalizeCursorEvent,
   shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
+  stopAgentRun,
 } from '../agentCliRuntime'
 
 const baseConfig = {
@@ -36,6 +37,12 @@ describe('shouldFinishOnProcessClose', () => {
   it('only finishes while the process is still the active run', () => {
     expect(shouldFinishOnProcessClose(true)).toBe(true)
     expect(shouldFinishOnProcessClose(false)).toBe(false)
+  })
+})
+
+describe('stopAgentRun', () => {
+  it('accepts a silent stop without an active pane', () => {
+    expect(() => stopAgentRun('missing-pane')).not.toThrow()
   })
 })
 

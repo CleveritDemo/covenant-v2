@@ -12,6 +12,10 @@ import {
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
 import { isMiniExpandSuppressed } from './miniExpandSuppress'
+import {
+  hasPlaneContextDrag,
+  readPlaneContextDragData,
+} from './planeContextDrag'
 import './PaneWindow.css'
 
 export type PaneWindowDisplay = 'mini' | 'full'
@@ -25,25 +29,10 @@ const PANE_ZOOM_MS = 300
 
 /**
  * Misma sombra local que las terminales en CSS (tamaño mini real).
+ * Intensidad vía --plane-mini-card-shadow (más suave en temas claros).
  */
-const MINI_SHADOW = {
-  x: 5,
-  y: 6,
-  blur: 18,
-  alpha: 0.16,
-  x2: 1,
-  y2: 2,
-  blur2: 5,
-  alpha2: 0.08,
-} as const
-
 function agentMiniBoxShadow(): string {
-  const a = MINI_SHADOW
-  return [
-    `${a.x}px ${a.y}px ${a.blur}px color-mix(in srgb, #000 ${a.alpha * 100}%, transparent)`,
-    `${a.x2}px ${a.y2}px ${a.blur2}px color-mix(in srgb, #000 ${a.alpha2 * 100}%, transparent)`,
-    'inset 0 0 0 1px var(--plane-highlight)',
-  ].join(', ')
+  return 'var(--plane-mini-card-shadow)'
 }
 
 type LayoutBox = {
@@ -189,6 +178,8 @@ export interface PaneWindowProps {
   onToggleFullscreen?: () => void
   onClose: () => void
   onFocus: () => void
+  /** Drop de un contexto del pool sobre este pane (agentes). */
+  onDropContext?: (contextId: string) => void
 }
 
 export const PaneWindow: React.FC<PaneWindowProps> = ({
@@ -213,10 +204,12 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onToggleFullscreen,
   onClose,
   onFocus,
+  onDropContext,
 }) => {
   const isMini = display === 'mini'
   const isFullscreen = !isMini && geometry.fullscreen
   const prevDisplayRef = useRef(display)
+  const [contextDropActive, setContextDropActive] = useState(false)
   const geometryRef = useRef(geometry)
   const miniOriginRef = useRef(miniOrigin)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -488,6 +481,31 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     onExpand?.()
   }, [isMini, onExpand, onFocus])
 
+  const onContextDragOver = useCallback((event: React.DragEvent) => {
+    if (!onDropContext || !hasPlaneContextDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+    setContextDropActive(true)
+  }, [onDropContext])
+
+  const onContextDragLeave = useCallback((event: React.DragEvent) => {
+    if (!onDropContext) return
+    const next = event.relatedTarget as Node | null
+    if (next && rootRef.current?.contains(next)) return
+    setContextDropActive(false)
+  }, [onDropContext])
+
+  const onContextDrop = useCallback((event: React.DragEvent) => {
+    if (!onDropContext) return
+    if (!hasPlaneContextDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setContextDropActive(false)
+    const contextId = readPlaneContextDragData(event.dataTransfer)
+    if (contextId) onDropContext(contextId)
+  }, [onDropContext])
+
   const parkWidth = Math.max(PANE_WINDOW_MIN_WIDTH, geometry.width)
   const parkHeight = Math.max(PANE_WINDOW_MIN_HEIGHT, geometry.height)
 
@@ -496,8 +514,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     ? 'active'
     : 'parked'
 
-  // Misma caja mini que agentes; sombra a escala 1 (busy: glow CSS anima la sombra).
-  const agentParkedShadow = showAsMini && miniAgentCard && !isFullscreen && !busy
+  // Misma caja/sombra mini en reposo y busy (sin glow; el borde cromático es CSS).
+  const agentParkedShadow = showAsMini && miniAgentCard && !isFullscreen
     ? agentMiniBoxShadow()
     : undefined
 
@@ -518,6 +536,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         zoomMode === 'expand' && geometry.fullscreen ? 'pane-window--zooming-to-fullscreen' : '',
         focused ? 'pane-window--focused' : '',
         busy ? 'pane-window--busy' : '',
+        contextDropActive ? 'pane-window--context-drop' : '',
       ].filter(Boolean).join(' ')}
       style={{
         left: layout.left,
@@ -534,6 +553,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         onFocus()
         event.stopPropagation()
       }}
+      onDragOver={onDropContext ? onContextDragOver : undefined}
+      onDragLeave={onDropContext ? onContextDragLeave : undefined}
+      onDrop={onDropContext ? onContextDrop : undefined}
     >
       <div className="pane-window__shell">
         {showAsMini && miniActions}

@@ -41,6 +41,8 @@ export interface PlanePaneWindowProps {
   /** Mini agente: clic en la card abre el chat del plano. */
   onOpenChat: () => void
   onDelete: () => void
+  /** Asigna un contexto soltado sobre este agente. */
+  onDropContext?: (contextId: string) => void
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -69,6 +71,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onOpenConfig,
   onOpenChat,
   onDelete,
+  onDropContext,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -143,6 +146,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         onToggleFullscreen={onToggleFullscreen}
         onClose={onClose}
         onFocus={onFocus}
+        onDropContext={isAgent ? onDropContext : undefined}
       >
         {children}
       </PaneWindow>

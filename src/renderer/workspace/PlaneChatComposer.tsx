@@ -164,13 +164,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   }
 
   const handleSendClick = (): void => {
-    if (canSend) {
-      submit()
-      return
-    }
     if (buttonIsStop && selected) {
       onStop(selected.paneId)
+      return
     }
+    if (canSend) submit()
   }
 
   return (

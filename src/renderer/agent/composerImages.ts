@@ -1,7 +1,17 @@
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 
 export const MAX_PENDING_IMAGES = 6
+/** Tope de aceptación al pegar (antes de optimizar). */
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024
+/**
+ * Lado largo máximo enviado al modelo.
+ * Claude/GPT reescalan cerca de ~1568px; 1536 evita tokens de más sin perder UI legible.
+ */
+export const MAX_MODEL_IMAGE_EDGE = 1536
+/** Calidad WebP/JPEG; ~0.8 equilibra nitidez de texto y peso. */
+export const MODEL_IMAGE_QUALITY = 0.82
+/** Si ya es JPEG/WebP ≤ este peso y dentro del edge, no re-encodeamos. */
+export const SKIP_OPTIMIZE_UNDER_BYTES = 400 * 1024
 
 export interface ComposerPendingImage {
   id: string
@@ -18,6 +28,12 @@ export function extensionForMime(mimeType: string): string {
   return '.png'
 }
 
+function stemFromName(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return 'paste'
+  return trimmed.replace(/\.[^.]+$/, '') || 'paste'
+}
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -29,6 +45,73 @@ export function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('read failed'))
     reader.readAsDataURL(blob)
   })
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), mimeType, quality)
+  })
+}
+
+/**
+ * Reduce la imagen para el modelo: max edge 1536px → WebP (fallback JPEG).
+ * Ideal típico tras optimizar: ~150–400 KB; suficiente para leer UI/código en pantallas.
+ */
+export async function optimizeImageForModel(
+  blob: Blob,
+  name: string,
+): Promise<{ blob: Blob; mimeType: string; name: string }> {
+  const sourceMime = (blob.type || 'image/png').toLowerCase()
+  try {
+    const bitmap = await createImageBitmap(blob)
+    const maxDim = Math.max(bitmap.width, bitmap.height)
+    const needsResize = maxDim > MAX_MODEL_IMAGE_EDGE
+    const alreadyCompact = !needsResize
+      && blob.size > 0
+      && blob.size <= SKIP_OPTIMIZE_UNDER_BYTES
+      && (sourceMime === 'image/jpeg' || sourceMime === 'image/jpg' || sourceMime === 'image/webp')
+
+    if (alreadyCompact) {
+      bitmap.close()
+      return { blob, mimeType: sourceMime === 'image/jpg' ? 'image/jpeg' : sourceMime, name }
+    }
+
+    const scale = needsResize ? MAX_MODEL_IMAGE_EDGE / maxDim : 1
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) {
+      bitmap.close()
+      return { blob, mimeType: sourceMime, name }
+    }
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+
+    const stem = stemFromName(name)
+    const webp = await canvasToBlob(canvas, 'image/webp', MODEL_IMAGE_QUALITY)
+    if (webp && webp.size > 0 && webp.size < blob.size) {
+      return { blob: webp, mimeType: 'image/webp', name: `${stem}.webp` }
+    }
+    if (webp && webp.size > 0 && needsResize) {
+      return { blob: webp, mimeType: 'image/webp', name: `${stem}.webp` }
+    }
+
+    const jpeg = await canvasToBlob(canvas, 'image/jpeg', MODEL_IMAGE_QUALITY)
+    if (jpeg && jpeg.size > 0 && (jpeg.size < blob.size || needsResize)) {
+      return { blob: jpeg, mimeType: 'image/jpeg', name: `${stem}.jpg` }
+    }
+
+    return { blob, mimeType: sourceMime, name }
+  } catch {
+    return { blob, mimeType: sourceMime, name }
+  }
 }
 
 /** Miniatura pequeña (máx. 96px) en data URL para persistir junto al mensaje. */
@@ -73,7 +156,7 @@ export function imagesFromClipboard(data: DataTransfer | null): File[] {
 }
 
 /**
- * Copia los bytes del archivo del portapapeles a un Blob estable.
+ * Copia los bytes del archivo del portapapeles a un Blob estable y lo optimiza para el modelo.
  * En Chromium/Electron el File de clipboard se invalida al terminar el paste.
  */
 export async function materializeClipboardImage(
@@ -83,14 +166,16 @@ export async function materializeClipboardImage(
   try {
     const buffer = await file.arrayBuffer()
     if (!buffer.byteLength || buffer.byteLength > MAX_IMAGE_BYTES) return null
-    const mimeType = file.type || 'image/png'
-    const blob = new Blob([buffer], { type: mimeType })
+    const sourceMime = file.type || 'image/png'
+    const sourceName = file.name || fallbackName
+    const sourceBlob = new Blob([buffer], { type: sourceMime })
+    const optimized = await optimizeImageForModel(sourceBlob, sourceName)
     return {
       id: crypto.randomUUID(),
-      previewUrl: URL.createObjectURL(blob),
-      blob,
-      mimeType,
-      name: file.name || fallbackName,
+      previewUrl: URL.createObjectURL(optimized.blob),
+      blob: optimized.blob,
+      mimeType: optimized.mimeType,
+      name: optimized.name,
     }
   } catch {
     return null
@@ -103,11 +188,15 @@ export async function pendingImagesToAttachments(
   const attachments: AgentCliImageAttachment[] = []
   for (const [index, image] of images.entries()) {
     try {
-      const base64 = await blobToBase64(image.blob)
+      const optimized = await optimizeImageForModel(
+        image.blob,
+        image.name || `paste-${index + 1}${extensionForMime(image.mimeType)}`,
+      )
+      const base64 = await blobToBase64(optimized.blob)
       if (!base64) continue
       attachments.push({
-        name: image.name || `paste-${index + 1}${extensionForMime(image.mimeType)}`,
-        mimeType: image.mimeType,
+        name: optimized.name || `paste-${index + 1}${extensionForMime(optimized.mimeType)}`,
+        mimeType: optimized.mimeType,
         base64,
       })
     } catch {

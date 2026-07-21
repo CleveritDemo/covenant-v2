@@ -315,16 +315,6 @@ body.body--split-dragging * {
   padding-top: var(--pane-toolbar-reserve, 0px);
 }
 
-.tab-terminal-split--panes-3 .tab-terminal-split__row .ai-panel--dock-collapsed,
-.tab-terminal-split--panes-4 > .tab-terminal-split__row:first-of-type .ai-panel--dock-collapsed {
-  padding-bottom: 0;
-}
-
-.tab-terminal-split--panes-3 > .tab-terminal-split__cell .ai-panel--dock-collapsed,
-.tab-terminal-split--panes-4 > .tab-terminal-split__row:last-of-type .ai-panel--dock-collapsed {
-  padding-top: 0;
-}
-
 
 .tab-terminal-pane-cell--drag-over {
   box-shadow: inset 2px 0 0 var(--accent), inset 0 0 0 1px var(--accent-border-soft);

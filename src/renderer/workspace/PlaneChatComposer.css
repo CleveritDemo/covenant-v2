@@ -58,8 +58,10 @@
   color: var(--text-muted);
 }
 
-/* Controles de context: una línea arriba del chat. */
+/* Controles de context: una línea arriba del chat (toolbar del dock, no
+   dentro de .plane-chat-composer — hay que definir el token aquí). */
 .plane-chat-composer__contexts {
+  --plane-composer-accent: var(--accent);
   position: relative;
   display: flex;
   justify-content: center;
@@ -171,7 +173,8 @@
   max-height: min(220px, 38vh);
   padding: 5px;
   overflow-y: auto;
-  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--plane-composer-accent));
+  /* Opaco: mezcla solo tokens sólidos (el chat queda debajo del menú). */
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 28%, var(--border));
   border-radius: 10px;
   box-shadow:

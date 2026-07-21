@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import type { TabContext, TabContextKind } from '@shared/tabContext'
-import { normalizeContextFileName } from '@shared/tabContext'
-import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
+import type { TabContext } from '@shared/tabContext'
+import { collectAutoAnnotationKeys } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
+import { TabContextFormModal, type TabContextFormMode } from './TabContextFormModal'
 import { TabContextsList } from './TabContextsList'
+import { TabContextsListPreview } from './TabContextsListPreview'
+import type { PreviewState } from './TabContextsEditor'
 
 interface Props {
   open: boolean
@@ -17,59 +18,16 @@ interface Props {
   focusContextId?: string | null
   onFocusContextConsumed?: () => void
   onRefresh: () => void
-  onAssign: (contextId: string) => void
   onClose: () => void
 }
 
-function emptyContext(kind: TabContextKind = 'folderTree'): TabContext {
-  if (kind === 'changelog') {
-    return {
-      id: 'iaterminal:changelog',
-      name: 'AI Changelog',
-      fileName: 'changelog.md',
-      kind,
-      icon: defaultIconForKind(kind),
-      color: defaultColorForKind(kind),
-    }
-  }
-  return {
-    id: crypto.randomUUID(),
-    name: '',
-    fileName: 'context.md',
-    kind,
-    icon: defaultIconForKind(kind),
-    color: defaultColorForKind(kind),
-  }
-}
-
-function comparable(value: string): string {
-  return value.trim().normalize('NFKC').toLocaleLowerCase()
-}
-
-function normalizedRoot(value?: string): string {
-  return comparable(value || '.').replace(/^\.\/+/, '').replace(/\/+$/, '') || '.'
-}
-
-function contextDefinition(context: TabContext): string | null {
-  if (context.kind === 'notes' || context.kind === 'changelog' || context.kind === 'agentResult') return null
-  const paths = [...(context.paths ?? [])]
-    .map(path => path.trim().replace(/^\.\/+/, ''))
-    .filter(Boolean)
-    .sort()
-  const symbolKinds = context.kind === 'symbols'
-    ? [...(context.symbolKinds ?? ['class', 'method', 'variable'])].sort()
-    : []
-  return JSON.stringify({
-    kind: context.kind,
-    rootPath: normalizedRoot(context.rootPath),
-    paths,
-    symbolKinds,
-  })
-}
+type FormSession =
+  | { mode: 'create' }
+  | { mode: 'edit'; context: TabContext }
 
 function countAutoKeys(content: string): number {
   const auto = content.match(/<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/)?.[1] ?? ''
-  return [...auto.matchAll(/`([^`\n]+)`/g)].length
+  return collectAutoAnnotationKeys(auto).size
 }
 
 function countAnnotations(content: string): number {
@@ -84,222 +42,22 @@ export const TabContextsModal: React.FC<Props> = ({
   focusContextId = null,
   onFocusContextConsumed,
   onRefresh,
-  onAssign,
   onClose,
 }) => {
   const { t } = useT()
-  const [draft, setDraft] = useState<TabContext | null>(null)
+  const [formSession, setFormSession] = useState<FormSession | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
-  const [notesContent, setNotesContent] = useState('')
-  const [resolvedCwdLabel, setResolvedCwdLabel] = useState('')
+  const [listError, setListError] = useState('')
 
   useEffect(() => {
     if (!open) {
-      setDraft(null)
+      setFormSession(null)
+      setSelectedId(null)
       setPreview({ status: 'idle' })
-      setNotesContent('')
-      setResolvedCwdLabel('')
+      setListError('')
     }
   }, [open])
-
-  const resolveCwd = async (): Promise<string> => {
-    const resolved = (cwd ?? '').trim()
-    setResolvedCwdLabel(resolved)
-    return resolved
-  }
-
-  const update = (patch: Partial<TabContext>): void => {
-    setDraft(current => current ? { ...current, ...patch } : current)
-    setPreview({ status: 'idle' })
-  }
-
-  const readOnlyChangelog = draft?.kind === 'changelog' &&
-    contexts.some(context => context.id === draft.id)
-  const readOnlyAgentResult = draft?.kind === 'agentResult'
-
-  const duplicateMessage = (() => {
-    if (!draft) return ''
-    const others = contexts.filter(context => context.id !== draft.id)
-    const fileName = normalizeContextFileName(draft.fileName || draft.name, draft.id)
-    if (others.some(context => comparable(context.name ?? '') === comparable(draft.name ?? ''))) {
-      return t('tabContexts.nameDuplicate')
-    }
-    if (draft.kind === 'changelog' && others.some(context => context.kind === 'changelog')) {
-      return t('tabContexts.definitionDuplicate')
-    }
-    if (others.some(context =>
-      normalizeContextFileName(context.fileName, context.id).toLowerCase() === fileName.toLowerCase()
-    )) {
-      return t('tabContexts.fileNameDuplicate')
-    }
-    const definition = contextDefinition(draft)
-    if (definition && others.some(context => contextDefinition(context) === definition)) {
-      return t('tabContexts.definitionDuplicate')
-    }
-    return ''
-  })()
-
-  const normalizeDraft = (current: TabContext): TabContext => ({
-    ...current,
-    name: (current.name ?? '').trim() || (current.kind === 'changelog' ? 'AI Changelog' : ''),
-    fileName: normalizeContextFileName(
-      current.fileName || current.name || (current.kind === 'changelog' ? 'changelog' : 'context'),
-      current.kind === 'changelog' ? 'changelog' : current.id,
-    ),
-    ...(current.rootPath?.trim() ? { rootPath: current.rootPath.trim() } : { rootPath: undefined }),
-    ...(current.paths
-      ? { paths: current.paths.map(path => (path ?? '').trim()).filter(Boolean) }
-      : { paths: undefined }),
-  })
-
-  const save = async (): Promise<void> => {
-    if (!draft) return
-    if (draft.kind !== 'changelog' && !(draft.name ?? '').trim()) return
-    if (duplicateMessage) {
-      setPreview({ status: 'error', message: duplicateMessage })
-      return
-    }
-    const workingCwd = await resolveCwd()
-    if (!workingCwd) {
-      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
-    }
-    const normalized = normalizeDraft(draft)
-    try {
-      const result = await window.api.materializeTabContext({
-        context: normalized,
-        cwd: workingCwd,
-        ...(normalized.kind === 'notes' ? { content: notesContent ?? '' } : {}),
-      })
-      if (!result.ok) {
-        setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        return
-      }
-      onRefresh()
-      onAssign(normalized.id)
-      setDraft(null)
-      setPreview({ status: 'idle' })
-      setNotesContent('')
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-      })
-    }
-  }
-
-  const regenerate = async (): Promise<void> => {
-    if (!draft) return
-    if (!(draft.name ?? '').trim() || draft.kind === 'changelog') return
-    if (duplicateMessage) {
-      setPreview({ status: 'error', message: duplicateMessage })
-      return
-    }
-    setPreview({ status: 'loading' })
-    const workingCwd = await resolveCwd()
-    if (!workingCwd) {
-      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
-    }
-    const normalized = normalizeDraft(draft)
-    try {
-      const result = await window.api.materializeTabContext({
-        context: normalized,
-        cwd: workingCwd,
-        ...(normalized.kind === 'notes' ? { content: notesContent ?? '' } : {}),
-      })
-      if (!result.ok) {
-        setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        return
-      }
-      setDraft(normalized)
-      if (normalized.kind === 'notes') {
-        setNotesContent(result.notesContent ?? notesContent)
-      }
-      onRefresh()
-      onAssign(normalized.id)
-      const content = (result.content ?? '').trim()
-      setPreview(content
-        ? {
-            status: 'success',
-            content: result.content,
-            filePath: result.filePath
-              ?? `.iaterminal/${normalizeContextFileName(normalized.fileName, normalized.id)}`,
-          }
-        : { status: 'empty', filePath: result.filePath })
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-      })
-    }
-  }
-
-  const removeContext = async (context: TabContext): Promise<void> => {
-    const workingCwd = await resolveCwd()
-    if (!workingCwd) {
-      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
-    }
-    try {
-      const result = await window.api.deleteTabContext({ context, cwd: workingCwd })
-      if (!result.ok) {
-        setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        return
-      }
-      if (draft?.id === context.id) {
-        setDraft(null)
-        setNotesContent('')
-        setPreview({ status: 'idle' })
-      }
-      onRefresh()
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-      })
-    }
-  }
-
-  const editContext = async (context: TabContext): Promise<void> => {
-    setDraft({ ...context })
-    setPreview(
-      context.kind === 'changelog' || context.kind === 'agentResult'
-        ? { status: 'loading' }
-        : { status: 'idle' },
-    )
-    setNotesContent('')
-    if (context.kind === 'notes' || context.kind === 'changelog' || context.kind === 'agentResult') {
-      const workingCwd = await resolveCwd()
-      if (!workingCwd) return
-      try {
-        const result = await window.api.previewTabContext({ context, cwd: workingCwd })
-        if (context.kind === 'notes' && result.ok) {
-          setNotesContent(result.notesContent ?? result.content)
-        } else if (result.ok) {
-          setPreview(result.content.trim()
-            ? {
-                status: 'success',
-                content: result.content,
-                filePath: result.filePath
-                  ?? (context.kind === 'agentResult'
-                    ? `.iaterminal/${context.fileName}`
-                    : '.iaterminal/changelog.md'),
-              }
-            : { status: 'empty', filePath: result.filePath })
-        } else {
-          setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        }
-      } catch (error) {
-        if (context.kind === 'changelog' || context.kind === 'agentResult') {
-          setPreview({
-            status: 'error',
-            message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-          })
-        }
-      }
-    }
-  }
 
   useEffect(() => {
     if (!open || !focusContextId) return
@@ -308,109 +66,140 @@ export const TabContextsModal: React.FC<Props> = ({
       if (contexts.length > 0) onFocusContextConsumed?.()
       return
     }
-    void editContext(target)
+    setSelectedId(target.id)
+    setFormSession({ mode: 'edit', context: target })
     onFocusContextConsumed?.()
-    // editContext is stable enough for open/focus; avoid re-edit on every contexts refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, focusContextId, contexts, onFocusContextConsumed])
 
-  const loadPreview = async (): Promise<void> => {
-    if (!draft) return
+  useEffect(() => {
+    if (!open || !selectedId) {
+      setPreview({ status: 'idle' })
+      return
+    }
+    const target = contexts.find(context => context.id === selectedId)
+    if (!target) {
+      setSelectedId(null)
+      setPreview({ status: 'idle' })
+      return
+    }
+    const workingCwd = (cwd ?? '').trim()
+    if (!workingCwd) {
+      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
+      return
+    }
+    let cancelled = false
     setPreview({ status: 'loading' })
+    void (async () => {
+      try {
+        const result = await window.api.previewTabContext({
+          context: target,
+          cwd: workingCwd,
+        })
+        if (cancelled) return
+        if (!result.ok) {
+          setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
+          return
+        }
+        const content = (result.content ?? '').trim()
+        if (!content) {
+          setPreview({ status: 'empty', filePath: result.filePath })
+          return
+        }
+        setPreview({
+          status: 'success',
+          content: result.content,
+          filePath: result.filePath ?? `.iaterminal/${target.fileName}`,
+        })
+      } catch (error) {
+        if (cancelled) return
+        setPreview({
+          status: 'error',
+          message: error instanceof Error ? error.message : t('tabContexts.previewError'),
+        })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedId, contexts, cwd, t])
+
+  const resolveCwd = (): string => (cwd ?? '').trim()
+
+  const removeContext = async (context: TabContext): Promise<void> => {
+    const workingCwd = resolveCwd()
+    if (!workingCwd) {
+      setListError(t('tabContexts.missingCwd'))
+      return
+    }
     try {
-      const workingCwd = await resolveCwd()
-      if (!workingCwd) {
-        setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-        return
-      }
-      const result = await window.api.previewTabContext({
-        context: draft,
-        cwd: workingCwd,
-        ...(draft.kind === 'notes' ? { content: notesContent ?? '' } : {}),
-      })
+      const result = await window.api.deleteTabContext({ context, cwd: workingCwd })
       if (!result.ok) {
-        setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
+        setListError(result.error ?? t('tabContexts.previewError'))
         return
       }
-      const content = (result.content ?? '').trim()
-      if (!content) {
-        setPreview({ status: 'empty', filePath: result.filePath })
-        return
+      if (formSession?.mode === 'edit' && formSession.context.id === context.id) {
+        setFormSession(null)
       }
-      setPreview({
-        status: 'success',
-        content: result.content,
-        filePath: result.filePath ?? `.iaterminal/${normalizeContextFileName(draft.fileName || draft.name, draft.id)}`,
-      })
+      if (selectedId === context.id) {
+        setSelectedId(null)
+        setPreview({ status: 'idle' })
+      }
+      setListError('')
+      onRefresh()
     } catch (error) {
-      setPreview({
-        status: 'error',
-        message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-      })
+      setListError(error instanceof Error ? error.message : t('tabContexts.previewError'))
     }
   }
 
-  const selectKind = (kind: TabContextKind): void => {
-    if (!draft) return
-    if (kind === 'changelog' && contexts.some(context => context.kind === 'changelog')) return
-    if (draft.kind === kind) return
-    if (kind === 'changelog') {
-      setDraft(emptyContext('changelog'))
-    } else {
-      setDraft({
-        ...emptyContext(kind),
-        id: draft.kind === 'changelog' ? crypto.randomUUID() : draft.id,
-        name: draft.kind === 'changelog' ? '' : draft.name,
-        fileName: draft.kind === 'changelog'
-          ? 'context.md'
-          : draft.fileName,
-        icon: defaultIconForKind(kind),
-        color: defaultColorForKind(kind),
-      })
-    }
-    setNotesContent('')
-    setPreview({ status: 'idle' })
-  }
+  const formMode: TabContextFormMode = formSession?.mode ?? 'create'
+  const formContext = formSession?.mode === 'edit' ? formSession.context : null
+  const selectedContext = selectedId
+    ? contexts.find(context => context.id === selectedId) ?? null
+    : null
 
   return (
-    <TerminalModal
-      open={open}
-      onClose={onClose}
-      title={t('tabContexts.title')}
-      titleId="tab-contexts-title"
-      size="xl"
-      bodyLayout="flush"
-      zIndex={900}
-    >
-      <div className="tab-contexts">
-        <TabContextsList
-          contexts={contexts}
-          activeDraftId={draft?.id}
-          onNew={() => setDraft(emptyContext())}
-          onEdit={editContext}
-          onDelete={removeContext}
-        />
-        <TabContextsEditor
-          draft={draft}
-          contexts={contexts}
-          preview={preview}
-          notesContent={notesContent}
-          resolvedCwdLabel={resolvedCwdLabel}
-          duplicateMessage={duplicateMessage}
-          readOnlyChangelog={Boolean(readOnlyChangelog)}
-          readOnlyAgentResult={Boolean(readOnlyAgentResult)}
-          onCreateNew={() => setDraft(emptyContext())}
-          onUpdate={update}
-          onSelectKind={selectKind}
-          onNotesContentChange={setNotesContent}
-          onPreviewReset={() => setPreview({ status: 'idle' })}
-          onLoadPreview={loadPreview}
-          onRegenerate={regenerate}
-          onSave={save}
-          countAutoKeys={countAutoKeys}
-          countAnnotations={countAnnotations}
-        />
-      </div>
-    </TerminalModal>
+    <>
+      <TerminalModal
+        open={open}
+        onClose={onClose}
+        title={t('tabContexts.title')}
+        titleId="tab-contexts-title"
+        size="xl"
+        bodyLayout="flush"
+        zIndex={900}
+      >
+        <div className="tab-contexts tab-contexts--list">
+          <TabContextsList
+            contexts={contexts}
+            selectedId={selectedId}
+            onNew={() => setFormSession({ mode: 'create' })}
+            onSelect={setSelectedId}
+            onEdit={context => {
+              setSelectedId(context.id)
+              setFormSession({ mode: 'edit', context })
+            }}
+            onDelete={removeContext}
+          />
+          <TabContextsListPreview
+            context={selectedContext}
+            preview={preview}
+            countAutoKeys={countAutoKeys}
+            countAnnotations={countAnnotations}
+          />
+          {listError && (
+            <p className="tab-contexts__list-error" role="alert">{listError}</p>
+          )}
+        </div>
+      </TerminalModal>
+      <TabContextFormModal
+        open={open && formSession !== null}
+        mode={formMode}
+        context={formContext}
+        contexts={contexts}
+        cwd={cwd}
+        onRefresh={onRefresh}
+        onClose={() => setFormSession(null)}
+      />
+    </>
   )
 }

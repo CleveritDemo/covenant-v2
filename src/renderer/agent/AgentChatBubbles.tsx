@@ -1,9 +1,8 @@
 import React from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
-import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { AiCodeBlock } from '../components/AiCodeBlock'
-import { ThinkingOrbits } from './ThinkingOrbits'
+import { IaNucleus } from './IaNucleus'
 
 type AgentBodySegment =
   | { type: 'text'; content: string }
@@ -81,7 +80,7 @@ export interface AgentChatBubblesProps {
   surface?: 'pane' | 'plane'
 }
 
-/** Lista de burbujas user/assistant + thinking (compartida panel / plano). */
+/** Lista de burbujas user/assistant + Nucleus de espera (panel / plano). */
 export const AgentChatBubbles: React.FC<AgentChatBubblesProps> = ({
   messages,
   busy,
@@ -93,8 +92,6 @@ export const AgentChatBubbles: React.FC<AgentChatBubblesProps> = ({
   onMaterializingAnimationEnd,
   surface = 'pane',
 }) => {
-  const { t } = useT()
-
   return (
     <div
       className={[
@@ -110,7 +107,7 @@ export const AgentChatBubbles: React.FC<AgentChatBubblesProps> = ({
         const landing = !live && settlingId === message.id
         const entering = enteringIds.has(message.id)
         const materializing = materializingIds.has(message.id)
-        const thinkingOnly = live && !message.content
+        const nucleusOnly = live && !message.content
         if (message.role === 'assistant' && !message.content && !live) return null
         return (
           <div
@@ -134,7 +131,7 @@ export const AgentChatBubbles: React.FC<AgentChatBubblesProps> = ({
                 `agent-pane__bubble agent-pane__bubble--${message.role}`,
                 live ? 'agent-pane__bubble--live' : '',
                 landing ? 'agent-pane__bubble--landing' : '',
-                thinkingOnly ? 'agent-pane__bubble--thinking' : '',
+                nucleusOnly ? 'agent-pane__bubble--nucleus' : '',
                 materializing ? 'agent-pane__bubble--materialize' : '',
               ].filter(Boolean).join(' ')}
               onAnimationEnd={materializing
@@ -171,9 +168,8 @@ export const AgentChatBubbles: React.FC<AgentChatBubblesProps> = ({
                   )
                 : live
                   ? (
-                      <span className="agent-pane__thinking">
-                        <ThinkingOrbits size="solo" />
-                        <span className="agent-pane__thinking-text">{t('agentPane.thinking')}</span>
+                      <span className="agent-pane__nucleus">
+                        <IaNucleus size="solo" />
                       </span>
                     )
                   : ''}

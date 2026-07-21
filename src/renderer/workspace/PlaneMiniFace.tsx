@@ -42,26 +42,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         {provider === 'cursor' ? 'Cursor' : 'Claude'}
       </span>
       <div className="plane-mini-face__header-end">
-        {onDelete && deleteLabel ? (
-          <button
-            type="button"
-            className="plane-mini-face__action plane-mini-face__action--danger"
-            title={deleteLabel}
-            aria-label={deleteLabel}
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-              onDelete()
-            }}
-            onPointerDown={event => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onPointerUp={event => event.stopPropagation()}
-          >
-            <Icon name="trash" size={11} />
-          </button>
-        ) : null}
         {onConfigure && configLabel ? (
           <button
             type="button"
@@ -80,6 +60,26 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
             onPointerUp={event => event.stopPropagation()}
           >
             <Icon name="settings" size={11} />
+          </button>
+        ) : null}
+        {onDelete && deleteLabel ? (
+          <button
+            type="button"
+            className="plane-mini-face__action plane-mini-face__action--danger"
+            title={deleteLabel}
+            aria-label={deleteLabel}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              onDelete()
+            }}
+            onPointerDown={event => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onPointerUp={event => event.stopPropagation()}
+          >
+            <Icon name="trash" size={11} />
           </button>
         ) : null}
       </div>

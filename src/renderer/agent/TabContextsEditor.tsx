@@ -11,6 +11,7 @@ import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
+import { TabContextRootPathField } from './TabContextRootPathField'
 
 export type PreviewState =
   | { status: 'idle' }
@@ -22,15 +23,15 @@ export type PreviewState =
 const KINDS: TabContextKind[] = [...CREATABLE_CONTEXT_KINDS]
 
 interface Props {
-  draft: TabContext | null
+  draft: TabContext
   contexts: TabContext[]
   preview: PreviewState
   notesContent: string
   resolvedCwdLabel: string
+  projectCwd: string
   duplicateMessage: string
   readOnlyChangelog: boolean
   readOnlyAgentResult?: boolean
-  onCreateNew: () => void
   onUpdate: (patch: Partial<TabContext>) => void
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
@@ -38,6 +39,7 @@ interface Props {
   onLoadPreview: () => void
   onRegenerate: () => void
   onSave: () => void
+  onPickRootError?: (message: string) => void
   countAutoKeys: (content: string) => number
   countAnnotations: (content: string) => number
 }
@@ -48,10 +50,10 @@ export const TabContextsEditor: React.FC<Props> = ({
   preview,
   notesContent,
   resolvedCwdLabel,
+  projectCwd,
   duplicateMessage,
   readOnlyChangelog,
   readOnlyAgentResult = false,
-  onCreateNew,
   onUpdate,
   onSelectKind,
   onNotesContentChange,
@@ -59,29 +61,11 @@ export const TabContextsEditor: React.FC<Props> = ({
   onLoadPreview,
   onRegenerate,
   onSave,
+  onPickRootError,
   countAutoKeys,
   countAnnotations,
 }) => {
   const { t } = useT()
-
-  if (!draft) {
-    return (
-      <section className="tab-contexts__editor">
-        <div className="tab-contexts__welcome">
-          <span className="tab-contexts__welcome-icon">
-            <Icon name="sparkles" size={30} />
-          </span>
-          <strong>{t('tabContexts.selectOrCreate')}</strong>
-          <p>{t('tabContexts.welcomeHint')}</p>
-          <Button onClick={onCreateNew}>
-            <Icon name="plus" size={14} />
-            {t('tabContexts.new')}
-          </Button>
-        </div>
-      </section>
-    )
-  }
-
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
 
   return (
@@ -209,16 +193,14 @@ export const TabContextsEditor: React.FC<Props> = ({
         </>
       )}
 
-      {draft.kind !== 'notes' && draft.kind !== 'changelog' && (
-        <label>
-          <span>{t('tabContexts.rootPath')}</span>
-          <input
-            value={draft.rootPath ?? ''}
-            placeholder={t('tabContexts.rootPlaceholder')}
-            onChange={event => onUpdate({ rootPath: event.target.value })}
-          />
-        </label>
-      )}
+      {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
+        <TabContextRootPathField
+          value={draft.rootPath ?? ''}
+          projectCwd={projectCwd}
+          onChange={rootPath => onUpdate({ rootPath })}
+          onPickError={onPickRootError}
+        />
+      ) : null}
 
       {(draft.kind === 'files' || draft.kind === 'symbols') && (
         <label>
@@ -235,13 +217,13 @@ export const TabContextsEditor: React.FC<Props> = ({
       {draft.kind === 'symbols' && (
         <fieldset>
           <legend>{t('tabContexts.symbolKinds')}</legend>
-          {(['class', 'method', 'variable'] as TabContextSymbolKind[]).map(kind => (
+          {(['class', 'method'] as TabContextSymbolKind[]).map(kind => (
             <label key={kind} className="tab-contexts__check">
               <input
                 type="checkbox"
-                checked={(draft.symbolKinds ?? ['class', 'method', 'variable']).includes(kind)}
+                checked={(draft.symbolKinds ?? ['class', 'method']).includes(kind)}
                 onChange={event => {
-                  const current = draft.symbolKinds ?? ['class', 'method', 'variable']
+                  const current = draft.symbolKinds ?? ['class', 'method']
                   onUpdate({ symbolKinds: event.target.checked
                     ? [...new Set([...current, kind])]
                     : current.filter(item => item !== kind) })
@@ -346,7 +328,7 @@ export const TabContextsEditor: React.FC<Props> = ({
             }
             onClick={() => { void onSave() }}
           >
-            {t('tabContexts.saveAndAssign')}
+            {t('tabContexts.save')}
           </Button>
         )}
       </div>

@@ -3,13 +3,13 @@
 
 > Últimos 10 cambios realizados por la IA. Generado automáticamente.
 
-- `2026-07-20T22:18:00.000Z` — `src/themes/presets.ts` — Paletas ANSI variadas (nivel Stranger Things)
-- `2026-07-20T22:16:00.000Z` — `electron/agentCliRuntime.ts` — Tools Cursor con nombre + ruta/detalle
-- `2026-07-20T22:16:00.000Z` — `src/renderer/agent/AgentPane.tsx` — Activity muestra Read · path mientras trabaja
-- `2026-07-20T22:13:00.000Z` — `src/renderer/agent/AgentPane.css` — Shimmer del stream sin corte al reiniciar
-- `2026-07-20T22:12:00.000Z` — `src/renderer/agent/AgentPane.css` — Shimmer Thinking sin corte (loop continuo)
-- `2026-07-20T22:10:00.000Z` — `src/renderer/workspace/PlaneChatComposer.css` — Input del composer menos transparente
-- `2026-07-20T22:09:00.000Z` — `src/renderer/workspace/PlaneComposerAurora.css` — Glow working ×2 más amplio y más suave
-- `2026-07-20T22:08:00.000Z` — `src/renderer/workspace/PlaneComposerAurora.css` — Glow sin costura (loop + máscara suave)
-- `2026-07-20T22:07:00.000Z` — `src/renderer/workspace/PlaneComposerAurora.css` — Glow working mucho más amplio
-- `2026-07-20T22:06:00.000Z` — `src/renderer/workspace/PlaneComposerAurora.css` — Glow sin apagarse (piso de opacidad)
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/TabAgenticPlane.css` — Reduced shared top-bar height, padding, and radius
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/PlaneProjectFolder.css` — Compacted folder bar metrics and controls
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/PlaneProjectFolder.tsx` — Smaller folder icon for compact bar
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/PlaneContextPool.css` — Compacted context pool height, padding, badges
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/PlaneContextPool.tsx` — Smaller settings and badge icons in pool
+- `2026-07-21T12:19:51.789Z` — `src/renderer/workspace/ContextBadge.tsx` — Added iconSize prop for compact pool badges
+- `2026-07-21T12:17:51.607Z` — `src/renderer/workspace/PlaneProjectFolder.css` — Softer bar edge; reveal button inside shared folder shell
+- `2026-07-21T12:17:51.607Z` — `src/renderer/workspace/PlaneContextPool.css` — Matched subtler border on context pool bar
+- `2026-07-21T11:11:50.909Z` — `src/renderer/components/AiPanel.tsx` — Removed unused legacy AiPanel and related panel UI modules
+- `2026-07-21T11:11:50.909Z` — `src/renderer/ai/agentModeRunner.ts` — Removed panel-only agent chat runners

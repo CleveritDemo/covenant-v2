@@ -35,9 +35,22 @@ import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChang
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
   windowId: number
+  /** Identifica la reserva del turno; evita que un spawn tardío revive un stop. */
+  generation: number
 }
 
 const agentRuns = new Map<string, AgentRun>()
+let nextAgentRunGeneration = 1
+
+export interface StopAgentRunOptions {
+  /** Ventana a notificar; solo con `notify: true`. */
+  win?: BrowserWindow
+  /**
+   * Si true, emite done/EXIT al renderer (parada pedida por el usuario).
+   * En arranque de un turno nuevo debe ser false para no cerrar el turno entrante.
+   */
+  notify?: boolean
+}
 
 interface SessionContextDeliveryState {
   snapshot: ContextDeliverySnapshot
@@ -534,7 +547,8 @@ export function startAgentTurn(
   stopAgentRun(request.paneId)
   // Reserva el paneId ya: el close del proceso anterior no debe emitir EXIT
   // mientras arrancamos el turno nuevo (p. ej. durante await de cwd en el renderer).
-  agentRuns.set(request.paneId, { proc: null, windowId: win.id })
+  const generation = nextAgentRunGeneration++
+  agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
   const cwd = resolveWorkingDirectory(request.cwd, home)
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
   if (cwd) initSessionCwd(request.paneId, cwd)
@@ -547,7 +561,8 @@ export function startAgentTurn(
   let contextDeliveryCommitted = false
 
   const failBeforeSpawn = (message: string): void => {
-    agentRuns.delete(request.paneId)
+    const current = agentRuns.get(request.paneId)
+    if (current?.generation === generation) agentRuns.delete(request.paneId)
     send(win, request.paneId, { type: 'error', message })
     finishAgentTurn(win, request.paneId, 1)
   }
@@ -572,7 +587,13 @@ export function startAgentTurn(
       return
     }
 
-    agentRuns.set(request.paneId, { proc, windowId: win.id })
+    const reserved = agentRuns.get(request.paneId)
+    if (!reserved || reserved.generation !== generation) {
+      // El usuario paró (o se reemplazó el turno) mientras spawneábamos.
+      try { proc.kill('SIGTERM') } catch { /* already exited */ }
+      return
+    }
+    agentRuns.set(request.paneId, { proc, windowId: win.id, generation })
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let continuationPrompt: string | null = null
@@ -688,7 +709,7 @@ export function startAgentTurn(
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
       const current = agentRuns.get(request.paneId)
-      const phaseStillActive = current?.proc === proc
+      const phaseStillActive = current?.proc === proc && current.generation === generation
       if (phaseStillActive) agentRuns.delete(request.paneId)
 
       // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
@@ -709,7 +730,7 @@ export function startAgentTurn(
           type: 'context',
           status: 'loaded',
         })
-        agentRuns.set(request.paneId, { proc: null, windowId: win.id })
+        agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
         startPhase(continuationPrompt, contextRound + 1)
         return
       }
@@ -735,16 +756,31 @@ export function isAgentRunActive(paneId: string): boolean {
   return agentRuns.has(paneId)
 }
 
-export function stopAgentRun(paneId: string): void {
+/**
+ * Detiene el proceso del pane.
+ * Con `notify: true` emite done/EXIT de inmediato: si solo matamos y borramos del
+ * mapa, el `close` posterior no notifica y la UI se queda en “thinking”.
+ */
+export function stopAgentRun(paneId: string, options: StopAgentRunOptions = {}): void {
   const run = agentRuns.get(paneId)
   if (!run) return
   agentRuns.delete(paneId)
   try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
+  if (options.notify && options.win && !options.win.isDestroyed()) {
+    finishAgentTurn(options.win, paneId, 130)
+  }
 }
 
 export function stopAgentRunsForWindow(windowId: number): void {
   for (const [paneId, run] of agentRuns) {
     if (run.windowId === windowId) stopAgentRun(paneId)
+  }
+}
+
+/** Mata todos los procesos de agente (p. ej. al salir de la app). */
+export function stopAllAgentRuns(): void {
+  for (const paneId of [...agentRuns.keys()]) {
+    stopAgentRun(paneId)
   }
 }
 

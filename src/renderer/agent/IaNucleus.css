@@ -1,0 +1,257 @@
+.ia-nucleus {
+  --ia-nucleus-size: 140px;
+  --ia-nucleus-core: 28px;
+  --ia-nucleus-orbit: 58px;
+  --ia-nucleus-particle: 7px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ia-nucleus-size);
+  height: var(--ia-nucleus-size);
+  flex: 0 0 var(--ia-nucleus-size);
+  transform-origin: center center;
+  animation: ia-nucleus-enter 1.35s cubic-bezier(0.18, 0.9, 0.28, 1) both;
+}
+
+.ia-nucleus--solo {
+  --ia-nucleus-size: 156px;
+  --ia-nucleus-core: 30px;
+  --ia-nucleus-orbit: 64px;
+  --ia-nucleus-particle: 7.5px;
+}
+
+.ia-nucleus--compact {
+  --ia-nucleus-size: 56px;
+  --ia-nucleus-core: 12px;
+  --ia-nucleus-orbit: 22px;
+  --ia-nucleus-particle: 3.5px;
+}
+
+.ia-nucleus--hero {
+  --ia-nucleus-size: 280px;
+  --ia-nucleus-core: 52px;
+  --ia-nucleus-orbit: 114px;
+  --ia-nucleus-particle: 12px;
+}
+
+/* Volumen por sombreado del propio cuerpo — sin glow ni sombra exterior. */
+.ia-nucleus__core {
+  position: relative;
+  z-index: 2;
+  width: var(--ia-nucleus-core);
+  height: var(--ia-nucleus-core);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 32% 28%,
+      color-mix(in srgb, var(--theme-cyan) 28%, #ffffff) 0%,
+      var(--accent) 42%,
+      color-mix(in srgb, var(--accent) 55%, var(--theme-magenta)) 78%,
+      color-mix(in srgb, var(--theme-magenta) 70%, #1a1228) 100%
+    );
+  animation: ia-nucleus-breathe 2.8s ease-in-out infinite;
+}
+
+.ia-nucleus__particle {
+  --ia-nucleus-angle: 0deg;
+  --ia-nucleus-delay: 0s;
+  --ia-nucleus-duration: 1.25s;
+  --ia-nucleus-spin: 18deg;
+  --ia-nucleus-size-n: 1;
+  --ia-nucleus-tone: var(--theme-cyan);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n));
+  height: calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n) * 1.35);
+  margin:
+    calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n) * -0.675)
+    0
+    0
+    calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n) * -0.5);
+  border-radius: 50% 50% 45% 45%;
+  background:
+    radial-gradient(
+      ellipse at 50% 35%,
+      color-mix(in srgb, var(--ia-nucleus-tone) 88%, #ffffff) 0%,
+      var(--ia-nucleus-tone) 48%,
+      color-mix(in srgb, var(--ia-nucleus-tone) 0%, transparent) 100%
+    );
+  /* Un solo tramo de transform: velocidad constante hasta el núcleo. */
+  animation: ia-nucleus-drift var(--ia-nucleus-duration) linear infinite;
+  animation-delay: var(--ia-nucleus-delay);
+  will-change: transform, opacity;
+}
+
+.ia-nucleus__particle--1 {
+  --ia-nucleus-angle: 8deg;
+  --ia-nucleus-delay: 0s;
+  --ia-nucleus-duration: 1.3s;
+  --ia-nucleus-spin: 22deg;
+  --ia-nucleus-size-n: 0.95;
+  --ia-nucleus-tone: var(--accent);
+}
+
+.ia-nucleus__particle--2 {
+  --ia-nucleus-angle: 41deg;
+  --ia-nucleus-delay: 0.12s;
+  --ia-nucleus-duration: 1.15s;
+  --ia-nucleus-spin: -16deg;
+  --ia-nucleus-size-n: 0.65;
+  --ia-nucleus-tone: var(--theme-blue);
+}
+
+.ia-nucleus__particle--3 {
+  --ia-nucleus-angle: 79deg;
+  --ia-nucleus-delay: 0.26s;
+  --ia-nucleus-duration: 1.4s;
+  --ia-nucleus-spin: 26deg;
+  --ia-nucleus-size-n: 1.05;
+  --ia-nucleus-tone: var(--theme-cyan);
+}
+
+.ia-nucleus__particle--4 {
+  --ia-nucleus-angle: 118deg;
+  --ia-nucleus-delay: 0.05s;
+  --ia-nucleus-duration: 1.2s;
+  --ia-nucleus-spin: -20deg;
+  --ia-nucleus-size-n: 0.75;
+  --ia-nucleus-tone: var(--theme-magenta);
+}
+
+.ia-nucleus__particle--5 {
+  --ia-nucleus-angle: 156deg;
+  --ia-nucleus-delay: 0.34s;
+  --ia-nucleus-duration: 1.45s;
+  --ia-nucleus-spin: 14deg;
+  --ia-nucleus-size-n: 0.85;
+  --ia-nucleus-tone: var(--accent);
+}
+
+.ia-nucleus__particle--6 {
+  --ia-nucleus-angle: 198deg;
+  --ia-nucleus-delay: 0.18s;
+  --ia-nucleus-duration: 1.1s;
+  --ia-nucleus-spin: -24deg;
+  --ia-nucleus-size-n: 1;
+  --ia-nucleus-tone: var(--theme-blue);
+}
+
+.ia-nucleus__particle--7 {
+  --ia-nucleus-angle: 236deg;
+  --ia-nucleus-delay: 0.42s;
+  --ia-nucleus-duration: 1.35s;
+  --ia-nucleus-spin: 19deg;
+  --ia-nucleus-size-n: 0.6;
+  --ia-nucleus-tone: var(--theme-cyan);
+}
+
+.ia-nucleus__particle--8 {
+  --ia-nucleus-angle: 274deg;
+  --ia-nucleus-delay: 0.08s;
+  --ia-nucleus-duration: 1.25s;
+  --ia-nucleus-spin: -12deg;
+  --ia-nucleus-size-n: 0.9;
+  --ia-nucleus-tone: var(--theme-magenta);
+}
+
+.ia-nucleus__particle--9 {
+  --ia-nucleus-angle: 312deg;
+  --ia-nucleus-delay: 0.5s;
+  --ia-nucleus-duration: 1.18s;
+  --ia-nucleus-spin: 28deg;
+  --ia-nucleus-size-n: 0.7;
+  --ia-nucleus-tone: var(--accent);
+}
+
+.ia-nucleus__particle--10 {
+  --ia-nucleus-angle: 348deg;
+  --ia-nucleus-delay: 0.22s;
+  --ia-nucleus-duration: 1.38s;
+  --ia-nucleus-spin: -18deg;
+  --ia-nucleus-size-n: 0.98;
+  --ia-nucleus-tone: var(--theme-blue);
+}
+
+.ia-nucleus__particle--11 {
+  --ia-nucleus-angle: 62deg;
+  --ia-nucleus-delay: 0.6s;
+  --ia-nucleus-duration: 1.28s;
+  --ia-nucleus-spin: 15deg;
+  --ia-nucleus-size-n: 0.55;
+  --ia-nucleus-tone: var(--theme-cyan);
+}
+
+@keyframes ia-nucleus-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.92);
+  }
+}
+
+/*
+  Transform solo en 0% y 100%: un tramo continuo.
+  Keyframes intermedios solo tocan opacity (si no, el easing
+  se reinicia a mitad y parece que frenan cerca del núcleo).
+*/
+@keyframes ia-nucleus-drift {
+  0% {
+    opacity: 0;
+    transform:
+      rotate(var(--ia-nucleus-angle))
+      translateY(calc(var(--ia-nucleus-orbit) * -1))
+      scale(0.45, 0.55);
+  }
+  12% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform:
+      rotate(calc(var(--ia-nucleus-angle) + var(--ia-nucleus-spin)))
+      translateY(calc(var(--ia-nucleus-core) * -0.06))
+      scale(1.05, 1.4);
+  }
+}
+
+/* Entrada: implosión (grande → tamaño real) + fade in. */
+@keyframes ia-nucleus-enter {
+  0% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+  35% {
+    opacity: 0.35;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ia-nucleus,
+  .ia-nucleus__core,
+  .ia-nucleus__particle {
+    animation: none;
+  }
+
+  .ia-nucleus__particle {
+    opacity: 0.75;
+    transform:
+      rotate(var(--ia-nucleus-angle))
+      translateY(calc(var(--ia-nucleus-orbit) * -0.55))
+      scale(0.8, 1.1);
+  }
+}

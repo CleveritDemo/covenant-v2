@@ -155,17 +155,8 @@
 }
 
 /* Busy: sin glow; el borde cromático lo pinta el pane-window. */
-.plane-mini-face--busy {
-  background:
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--accent) 8%, var(--plane-node-bg)) 0%,
-      var(--plane-node-solid) 100%
-    );
-}
-
 .plane-mini-face--busy .plane-mini-face__glow {
-  opacity: 0.35;
+  opacity: 0;
 }
 
 .plane-mini-face--busy .plane-mini-face__provider {

@@ -136,6 +136,39 @@ export function normalizeAnnotation(value: unknown): TabContextAnnotation | null
   return { key, text: words.join(' ') }
 }
 
+/**
+ * Claves anotables del bloque auto.
+ * Soporta formato compacto de symbols (`### path` + `- Class: m1, m2`) y backticks legacy.
+ */
+export function collectAutoAnnotationKeys(auto: string): Set<string> {
+  const keys = new Set<string>()
+  for (const match of auto.matchAll(/`([^`\n]+)`/g)) keys.add(match[1])
+
+  let currentPath = ''
+  for (const line of auto.replace(/\r\n/g, '\n').split('\n')) {
+    const heading = /^(#{2,3})\s+(.+?)\s*$/.exec(line)
+    if (heading) {
+      currentPath = heading[2].trim()
+      continue
+    }
+    if (!currentPath) continue
+    const trimmed = line.trim()
+    const withMethods = /^- ([A-Za-z_$][\w$]*):\s*(.*)$/.exec(trimmed)
+    if (withMethods) {
+      const className = withMethods[1]
+      keys.add(`${currentPath}#class:${className}`)
+      for (const part of withMethods[2].split(',')) {
+        const method = part.trim()
+        if (method) keys.add(`${currentPath}#method:${className}.${method}`)
+      }
+      continue
+    }
+    const bare = /^- ([A-Za-z_$][\w$]*)$/.exec(trimmed)
+    if (bare) keys.add(`${currentPath}#method:${bare[1]}`)
+  }
+  return keys
+}
+
 /** Extrae actualizaciones estructuradas y devuelve texto limpio para el chat. */
 export function extractTabContextUpdates(text: string): {
   visibleText: string
@@ -259,7 +292,7 @@ export function filterTabContextUpdatesByChangedPaths(
 }
 
 /**
- * Selección inicial: mapa + símbolos (materializados por el host).
+ * Selección inicial: mapa + todos los índices de símbolos (materializados por el host).
  * Excluye deps/changelog/readme/git hasta que el usuario los active.
  */
 export function defaultAssignedContextIds(contexts: readonly TabContext[]): string[] {
@@ -271,7 +304,9 @@ export function defaultAssignedContextIds(contexts: readonly TabContext[]): stri
   }
 
   push(contexts.find(context => context.kind === 'folderTree')?.id)
-  push(contexts.find(context => context.kind === 'symbols')?.id)
+  for (const context of contexts) {
+    if (context.kind === 'symbols') push(context.id)
+  }
 
   if (selected.length) return selected
 
@@ -279,4 +314,21 @@ export function defaultAssignedContextIds(contexts: readonly TabContext[]): stri
   return contexts
     .filter(context => context.kind === 'folderTree' || context.kind === 'symbols')
     .map(context => context.id)
+}
+
+/** Sugiere nombre/archivo para un contexto symbols según la subcarpeta. */
+export function suggestSymbolsIdentity(rootPath: string | undefined): {
+  name: string
+  fileStem: string
+} {
+  const normalized = (rootPath ?? '').trim().replace(/\\/g, '/').replace(/^\.\/+/, '').replace(/\/+$/, '')
+  if (!normalized || normalized === '.') {
+    return { name: 'Classes and methods', fileStem: 'classes-methods' }
+  }
+  const label = normalized.split('/').filter(Boolean).join(' / ')
+  const stem = normalized.split('/').filter(Boolean).join('-') || 'classes'
+  return {
+    name: `Classes · ${label}`,
+    fileStem: `classes-${stem}`,
+  }
 }

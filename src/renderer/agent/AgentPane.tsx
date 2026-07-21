@@ -9,6 +9,7 @@ import type {
   AgentChatEntry,
   AgentChatImage,
   AgentCliImageAttachment,
+  AgentCliStartRequest,
   AgentCliUiEvent,
 } from '@shared/agentCliTypes'
 import type { TabContext } from '@shared/tabContext'
@@ -48,6 +49,8 @@ import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowS
 import './AgentPane.css'
 
 const MAX_QUEUED_TURNS = 10
+/** Reintentos silenciosos si el CLI cierra sin texto antes de mostrar el error. */
+const EMPTY_RESPONSE_MAX_RETRIES = 3
 /** Alto máximo del composer en líneas visibles antes de scroll interno. */
 const MAX_COMPOSER_ROWS = 8
 
@@ -108,6 +111,9 @@ interface Props {
   /** Pedido externo: enviar un prompt (y opcionalmente imágenes) desde el plano. */
   preferSend?: AgentPreferSend | null
   onPreferSendConsumed?: () => void
+  /** Pedido externo: detener el turno/bucle desde el composer del plano. */
+  preferStop?: boolean
+  onPreferStopConsumed?: () => void
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -169,6 +175,8 @@ export const AgentPane: React.FC<Props> = ({
   onPreferOpenContextConsumed,
   preferSend = null,
   onPreferSendConsumed,
+  preferStop = false,
+  onPreferStopConsumed,
   paneReorder,
   registerShortcutCloseInterceptor,
 }) => {
@@ -210,6 +218,12 @@ export const AgentPane: React.FC<Props> = ({
   const turnClosedRef = useRef(false)
   /** Generación del turno; EXIT rezagado no debe cerrar un turno más nuevo. */
   const turnGenRef = useRef(0)
+  /** Último request CLI; sirve para reintentar respuesta vacía sin duplicar el user. */
+  const lastTurnRequestRef = useRef<AgentCliStartRequest | null>(null)
+  /** Reintentos ya hechos por emptyResponse en el turno actual. */
+  const emptyResponseRetriesRef = useRef(0)
+  /** Stop del usuario: el cierre diferido no debe reintentar ni mostrar emptyResponse. */
+  const suppressEmptyHandlingRef = useRef(false)
   /** Chat hidratado; hasta entonces se encolan eventos CLI (remount durante stream). */
   const loadedRef = useRef(false)
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
@@ -268,7 +282,6 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const applyDiscoveredContexts = useCallback((discovered: TabContext[]): void => {
-    const previousIds = new Set(diskContextsRef.current.map(context => context.id))
     setDiskContexts(discovered)
     diskContextsRef.current = discovered
     const discoveredIds = new Set(discovered.map(context => context.id))
@@ -276,15 +289,14 @@ export const AgentPane: React.FC<Props> = ({
     let nextIds: string[]
     if (!discoveryHydratedRef.current) {
       discoveryHydratedRef.current = true
+      // Solo la primera carga: si el agente nunca eligió contextos, aplica defaults.
+      // Crear/editar un contexto no debe asignarlo solo.
       nextIds = currentMeta.contextIds == null
         ? defaultAssignedContextIds(discovered)
         : currentMeta.contextIds.filter(id => discoveredIds.has(id))
     } else {
-      const kept = (currentMeta.contextIds ?? []).filter(id => discoveredIds.has(id))
-      const added = discovered
-        .filter(context => !previousIds.has(context.id) && !kept.includes(context.id))
-        .map(context => context.id)
-      nextIds = [...kept, ...added]
+      // Conservar asignaciones existentes; no auto-asignar contextos recién creados.
+      nextIds = (currentMeta.contextIds ?? []).filter(id => discoveredIds.has(id))
     }
     const prev = currentMeta.contextIds ?? []
     if (nextIds.length !== prev.length || nextIds.some((id, index) => id !== prev[index])) {
@@ -650,7 +662,9 @@ export const AgentPane: React.FC<Props> = ({
       pendingModeHandoffRef.current = false
       prompt = buildModeHandoffPrompt(priorMessages, options.prompt)
     }
-    window.api.startAgentTurn({
+    emptyResponseRetriesRef.current = 0
+    suppressEmptyHandlingRef.current = false
+    const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
       prompt,
@@ -666,7 +680,9 @@ export const AgentPane: React.FC<Props> = ({
       emitResults: currentMeta.emitResults === true,
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
-    })
+    }
+    lastTurnRequestRef.current = request
+    window.api.startAgentTurn(request)
     return true
   }, [forceFollow, paneId, resolveWorkingCwd, t])
 
@@ -712,54 +728,94 @@ export const AgentPane: React.FC<Props> = ({
     if (turnClosedRef.current) return
     turnClosedRef.current = true
     const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
-    beginLiveSettle(activeAssistantIdRef.current)
-    setBusy(false)
+    const closedGen = turnGenRef.current
+    // Mantener busy hasta confirmar contenido o agotar reintentos (evita drenar la cola).
     setActivity('')
-    activeAssistantIdRef.current = null
-    if (id) {
-      // Diferir: EXIT puede llegar antes que assistant_final (canales IPC distintos).
-      window.setTimeout(() => {
-        setMessages(prev => {
-          const message = prev.find(entry => entry.id === id)
-          if (!message || message.content.trim()) return prev
-          return prev.map(entry =>
-            entry.id === id
-              ? {
-                  ...entry,
-                  content: `${t('agentPane.errorPrefix')}: ${t('agentPane.emptyResponse')}`,
-                }
-              : entry)
-        })
-      }, 0)
+
+    const finishSideEffects = (): void => {
+      const assigned = new Set(metaRef.current.contextIds ?? [])
+      const currentCwd = cwdRef.current
+      if (currentCwd) {
+        const refresh = diskContextsRef.current.filter(context => assigned.has(context.id))
+        contextWriteQueueRef.current = contextWriteQueueRef.current
+          .catch(() => undefined)
+          .then(() => Promise.all(refresh.map(context =>
+            window.api.materializeTabContext({ context, cwd: currentCwd }))))
+      }
+      if (!loopActiveRef.current) return
+      if (skipLoopContinueRef.current) {
+        skipLoopContinueRef.current = false
+        return
+      }
+      if (loopDoneRef.current) {
+        finishLoop('done')
+        return
+      }
+      const nextIteration = loopIterationRef.current + 1
+      if (nextIteration > MAX_AGENT_LOOP_ITERATIONS) {
+        finishLoop('max')
+        return
+      }
+      clearLoopTimer()
+      loopContinueTimerRef.current = window.setTimeout(() => {
+        loopContinueTimerRef.current = null
+        if (loopActiveRef.current) runLoopIteration(nextIteration)
+      }, loopContinueDelayMsRef.current)
     }
-    const assigned = new Set(metaRef.current.contextIds ?? [])
-    const currentCwd = cwdRef.current
-    if (currentCwd) {
-      const refresh = diskContextsRef.current.filter(context => assigned.has(context.id))
-      contextWriteQueueRef.current = contextWriteQueueRef.current
-        .catch(() => undefined)
-        .then(() => Promise.all(refresh.map(context =>
-          window.api.materializeTabContext({ context, cwd: currentCwd }))))
-    }
-    if (!loopActiveRef.current) return
-    if (skipLoopContinueRef.current) {
-      skipLoopContinueRef.current = false
-      return
-    }
-    if (loopDoneRef.current) {
-      finishLoop('done')
-      return
-    }
-    const nextIteration = loopIterationRef.current + 1
-    if (nextIteration > MAX_AGENT_LOOP_ITERATIONS) {
-      finishLoop('max')
-      return
-    }
-    clearLoopTimer()
-    loopContinueTimerRef.current = window.setTimeout(() => {
-      loopContinueTimerRef.current = null
-      if (loopActiveRef.current) runLoopIteration(nextIteration)
-    }, loopContinueDelayMsRef.current)
+
+    // Diferir: EXIT puede llegar antes que assistant_final (canales IPC distintos).
+    window.setTimeout(() => {
+      if (closedGen !== turnGenRef.current) return
+      if (suppressEmptyHandlingRef.current) {
+        suppressEmptyHandlingRef.current = false
+        return
+      }
+
+      const message = id ? messagesRef.current.find(entry => entry.id === id) : undefined
+      const isEmpty = Boolean(id && message && !message.content.trim())
+      const priorRequest = lastTurnRequestRef.current
+
+      if (
+        isEmpty
+        && id
+        && priorRequest
+        && emptyResponseRetriesRef.current < EMPTY_RESPONSE_MAX_RETRIES
+      ) {
+        emptyResponseRetriesRef.current += 1
+        const sessionId = metaRef.current.cliSessionId
+        const retryRequest: AgentCliStartRequest = {
+          ...priorRequest,
+          ...(sessionId ? { cliSessionId: sessionId } : {}),
+        }
+        lastTurnRequestRef.current = retryRequest
+        turnClosedRef.current = false
+        turnGenRef.current += 1
+        activeAssistantIdRef.current = id
+        lastAssistantIdRef.current = id
+        setBusy(true)
+        setActivity('')
+        setMessages(prev => prev.map(entry => (
+          entry.id === id ? { ...entry, content: '' } : entry
+        )))
+        window.api.startAgentTurn(retryRequest)
+        return
+      }
+
+      beginLiveSettle(id)
+      setBusy(false)
+      activeAssistantIdRef.current = null
+      if (isEmpty && id) {
+        setMessages(prev => prev.map(entry =>
+          entry.id === id
+            ? {
+                ...entry,
+                content: `${t('agentPane.errorPrefix')}: ${t('agentPane.emptyResponse')}`,
+              }
+            : entry))
+      }
+      emptyResponseRetriesRef.current = 0
+      finishSideEffects()
+    }, 0)
   }, [beginLiveSettle, clearLoopTimer, finishLoop, runLoopIteration, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
@@ -780,7 +836,7 @@ export const AgentPane: React.FC<Props> = ({
     if (turnClosedRef.current) return
     if (event.type === 'tool') {
       // Solo actualizar al empezar; al completar se mantiene el último label
-      // hasta el siguiente tool o el fin del turno (evita huecos de “Thinking…”).
+      // hasta el siguiente tool o el fin del turno (evita huecos de espera vacía).
       if (event.status === 'started') {
         const toolLabel = event.detail
           ? `${event.name} · ${event.detail}`
@@ -870,9 +926,9 @@ export const AgentPane: React.FC<Props> = ({
                 await window.api.mergeTabContextAnnotations(request)
               }
             })
+          setContextNotice(t('tabContexts.updated', { n: writes.length }))
+          window.setTimeout(() => setContextNotice(''), 3500)
         }
-        setContextNotice(t('tabContexts.updated', { n: writes.length }))
-        window.setTimeout(() => setContextNotice(''), 3500)
       }
       // Un final vacío no debe borrar deltas ya mostrados (p. ej. result filtrado).
       setMessages(prev => prev.map(message => {
@@ -1108,6 +1164,9 @@ export const AgentPane: React.FC<Props> = ({
     clearLoopTimer()
     const wasLoop = loopActiveRef.current
     turnClosedRef.current = true
+    emptyResponseRetriesRef.current = 0
+    lastTurnRequestRef.current = null
+    suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
     beginLiveSettle(activeAssistantIdRef.current)
     setBusy(false)
@@ -1115,6 +1174,12 @@ export const AgentPane: React.FC<Props> = ({
     activeAssistantIdRef.current = null
     if (wasLoop) finishLoop('stopped')
   }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId])
+
+  useEffect(() => {
+    if (!preferStop) return
+    onPreferStopConsumed?.()
+    stop()
+  }, [onPreferStopConsumed, preferStop, stop])
 
   const startLoop = useCallback((): void => {
     const objective = input.trim()
@@ -1124,6 +1189,9 @@ export const AgentPane: React.FC<Props> = ({
     if (busyRef.current) {
       skipLoopContinueRef.current = true
       turnClosedRef.current = true
+      emptyResponseRetriesRef.current = 0
+      lastTurnRequestRef.current = null
+      suppressEmptyHandlingRef.current = true
       window.api.stopAgentTurn(paneId)
       beginLiveSettle(activeAssistantIdRef.current)
       setBusy(false)
@@ -1413,12 +1481,6 @@ export const AgentPane: React.FC<Props> = ({
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}
         onRefresh={() => { void refreshDiskContexts() }}
-        onAssign={contextId => {
-          onMetaChange(previous => {
-            if ((previous.contextIds ?? []).includes(contextId)) return previous
-            return { ...previous, contextIds: [...(previous.contextIds ?? []), contextId] }
-          })
-        }}
         onClose={() => setContextsOpen(false)}
       />
       <AgentLoopIntervalModal

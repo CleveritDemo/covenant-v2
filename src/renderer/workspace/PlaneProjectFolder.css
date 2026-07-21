@@ -1,38 +1,46 @@
 .plane-project-folder {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: var(--plane-top-bar-inset, 16px);
+  left: var(--plane-top-bar-inset, 16px);
   z-index: 20;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  max-width: min(280px, calc(100% - 32px));
+  gap: 0;
+  height: var(--plane-top-bar-height, 26px);
+  max-width: min(240px, calc(100% - 28px));
+  padding: 0 1px 0 0;
+  border: 1px solid var(--plane-top-bar-edge);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
   pointer-events: auto;
 }
 
 .plane-project-folder__btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  box-sizing: border-box;
   min-width: 0;
-  max-width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--plane-border);
-  border-radius: 10px;
-  background: var(--plane-glass-strong);
+  flex: 1 1 auto;
+  height: 100%;
+  padding: 0 var(--plane-top-bar-pad-x, 8px);
+  border: none;
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: transparent;
   color: var(--text);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 550;
   letter-spacing: -0.01em;
   cursor: pointer;
-  backdrop-filter: blur(var(--plane-blur));
-  transition: border-color 0.14s, background 0.14s, transform 0.14s;
+  transition: color 0.14s, background 0.14s;
 }
 
 .plane-project-folder__btn:hover {
-  border-color: var(--plane-border-strong);
-  transform: translateY(-0.5px);
+  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
 }
 
 .plane-project-folder__btn--set {
@@ -47,21 +55,26 @@
 }
 
 .plane-project-folder__reveal {
+  box-sizing: border-box;
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: calc(100% - 2px);
+  margin: 1px 1px 1px 0;
   padding: 0;
-  border: 1px solid var(--plane-border);
-  border-radius: 8px;
-  background: var(--plane-glass-strong);
+  border: none;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 3px);
+  background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
-  backdrop-filter: blur(var(--plane-blur));
+  transition: color 0.12s, background 0.12s;
 }
 
 .plane-project-folder__reveal:hover {
   color: var(--accent);
-  border-color: var(--plane-border-strong);
+  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
 }

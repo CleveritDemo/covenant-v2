@@ -4,6 +4,7 @@ import {
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
   normalizeAnnotation,
+  suggestSymbolsIdentity,
 } from '../tabContext'
 
 describe('defaultAssignedContextIds', () => {
@@ -25,6 +26,25 @@ describe('defaultAssignedContextIds', () => {
       'discovered-file:folders.md',
       'discovered-file:classes-methods-variables.md',
     ])
+  })
+
+  it('assigns every symbols context for monorepos', () => {
+    const ids = defaultAssignedContextIds([
+      { id: 'folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
+      { id: 'sym-back', name: 'Classes · back', fileName: 'classes-back.md', kind: 'symbols', rootPath: 'back' },
+      { id: 'sym-front', name: 'Classes · front', fileName: 'classes-front.md', kind: 'symbols', rootPath: 'front' },
+    ])
+    expect(ids).toEqual(['folders', 'sym-back', 'sym-front'])
+  })
+})
+
+describe('suggestSymbolsIdentity', () => {
+  it('builds a distinct name and file stem from the subfolder', () => {
+    expect(suggestSymbolsIdentity('back/src')).toEqual({
+      name: 'Classes · back / src',
+      fileStem: 'classes-back-src',
+    })
+    expect(suggestSymbolsIdentity(undefined).fileStem).toBe('classes-methods')
   })
 })
 

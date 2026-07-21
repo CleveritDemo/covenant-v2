@@ -10,10 +10,10 @@ import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
-import { PlaneIdleThinking } from './PlaneIdleThinking'
+import { PlaneIdleNucleus } from './PlaneIdleNucleus'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneQuickChat } from './PlaneQuickChat'
-import type { PlaneContextPoolItem } from './PlaneContextPool'
+import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
 import { resolveAgentColor } from './planeAgentColor'
 import './TabAgenticPlane.css'
 
@@ -51,7 +51,11 @@ export interface TabAgenticPlaneProps {
   onMinimizeAllWindows: () => void
   onFocusWindow: (paneId: string) => void
   onConfigureContexts: () => void
+  /** Asigna un contexto arrastrado del pool a un agente. */
+  onAssignContext: (paneId: string, contextId: string) => void
   onSendChat: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
+  /** Detiene el turno activo del agente desde el composer del plano. */
+  onStopChat: (paneId: string) => void
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
   openChatAgentId: string | null
   /** Abre/cambia el chat, o lo cierra con `null`. */
@@ -106,7 +110,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onMinimizeAllWindows,
   onFocusWindow,
   onConfigureContexts,
+  onAssignContext,
   onSendChat,
+  onStopChat,
   openChatAgentId,
   onOpenChatAgentChange,
   agentStatuses = {},
@@ -247,7 +253,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
   const anyWindowOpen = entities.some(entity => entity.window.open)
 
-  const showIdleThinking = !anyFullscreen && !quickChatShowing && !agentWindowOpen
+  const showIdleNucleus = !anyFullscreen && !quickChatShowing && !agentWindowOpen
 
   return (
     <div
@@ -297,9 +303,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         emptyTitle={emptyTitle}
         emptyHint={emptyHint}
         idleAgentLabel={idleAgentLabel}
-        contextPoolTitle={contextPoolTitle}
-        contextPoolConfigureLabel={contextPoolConfigureLabel}
-        tabContexts={tabContexts}
         entities={entities}
         activePaneId={activePaneId}
         configLabel={configLabel}
@@ -313,14 +316,23 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onFocusWindow={onFocusWindow}
         onToggleFullscreen={onToggleFullscreen}
         onMinimizeAllWindows={onMinimizeAllWindows}
-        onConfigureContexts={onConfigureContexts}
         onOpenConfig={onOpenConfig}
         onOpenChat={openChatAgent}
         onDeletePane={onDeletePane}
+        onAssignContext={onAssignContext}
       />
 
-      {showIdleThinking && (
-        <PlaneIdleThinking />
+      {showIdleNucleus && (
+        <PlaneIdleNucleus />
+      )}
+
+      {!anyFullscreen && (
+        <PlaneContextPool
+          title={contextPoolTitle}
+          configureLabel={contextPoolConfigureLabel}
+          contexts={tabContexts}
+          onConfigure={onConfigureContexts}
+        />
       )}
 
       {!anyFullscreen && (
@@ -366,9 +378,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               queuedTurns={quickChatStatus?.queuedTurns ?? []}
               onSelectAgent={openChatAgent}
               onCloseChat={closeChatAgent}
-              onStop={paneId => {
-                window.api.stopAgentTurn(paneId)
-              }}
+              onStop={onStopChat}
               onSend={onSendChat}
               onRemoveQueuedTurn={onRemoveQueuedTurn}
               onUpdateQueuedTurn={onUpdateQueuedTurn}

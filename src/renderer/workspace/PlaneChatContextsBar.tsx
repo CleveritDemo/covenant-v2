@@ -21,9 +21,11 @@ export interface PlaneChatContextsBarProps {
   autoImprove: boolean
   loopMode: boolean
   loopActive: boolean
+  canClearConversation?: boolean
   onToggleContext: (contextId: string) => void
   onAutoImproveChange: (enabled: boolean) => void
   onToggleLoop: () => void
+  onClearConversation?: () => void
 }
 
 /** Barra de contextos en una línea (arriba del chat, sobre el fade). */
@@ -34,9 +36,11 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   autoImprove,
   loopMode,
   loopActive,
+  canClearConversation = false,
   onToggleContext,
   onAutoImproveChange,
   onToggleLoop,
+  onClearConversation,
 }) => {
   const { t } = useT()
   const [contextsOpen, setContextsOpen] = useState(false)
@@ -187,6 +191,19 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
             {t('agentPane.loopBar')}
           </span>
         </button>
+
+        {onClearConversation ? (
+          <button
+            type="button"
+            className="plane-chat-composer__clear"
+            title={t('agentPane.clearConversation')}
+            aria-label={t('agentPane.clearConversation')}
+            disabled={!canClearConversation}
+            onClick={onClearConversation}
+          >
+            <Icon name="trash" size={13} />
+          </button>
+        ) : null}
       </div>
     </div>
   )

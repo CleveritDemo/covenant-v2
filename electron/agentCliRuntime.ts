@@ -153,6 +153,16 @@ export function clearAgentContextDeliveryState(): void {
   sessionContextDeliveries.clear()
 }
 
+/** Borra el contador/snapshot de contextos de una sesión CLI concreta. */
+export function clearAgentContextDeliveryForSession(
+  provider: AgentCliStartRequest['provider'],
+  cliSessionId: string,
+): void {
+  const id = cliSessionId.trim()
+  if (!id) return
+  sessionContextDeliveries.delete(contextSessionKey(provider, id))
+}
+
 const ALLOWED_IMAGE_MIME = new Set([
   'image/png',
   'image/jpeg',
@@ -346,46 +356,83 @@ function friendlyCursorToolName(rawKey: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
-/** Extrae nombre legible + detalle (ruta/patrón/comando) de un tool_call de Cursor. */
-export function describeCursorToolCall(toolCall: unknown): { name: string; detail?: string } {
-  if (!toolCall || typeof toolCall !== 'object') return { name: 'tool' }
+function toolCallArgs(toolCall: unknown): { toolName: string; args: Record<string, unknown> } | null {
+  if (!toolCall || typeof toolCall !== 'object') return null
   const record = toolCall as Record<string, unknown>
   const key = Object.keys(record)[0]
-  if (!key) return { name: 'tool' }
+  if (!key) return null
   const payload = record[key]
   if (!payload || typeof payload !== 'object') {
-    return { name: friendlyCursorToolName(key) }
+    return { toolName: key, args: {} }
   }
   const body = payload as Record<string, unknown>
 
-  // Forma function: { function: { name, arguments } }
   if (key === 'function' || typeof body.name === 'string') {
     const fnName = typeof body.name === 'string' ? body.name : key
-    let detail: string | undefined
     if (typeof body.arguments === 'string' && body.arguments.trim()) {
       try {
         const parsed = JSON.parse(body.arguments) as unknown
         if (parsed && typeof parsed === 'object') {
-          detail = pickToolDetail(parsed as Record<string, unknown>)
+          return { toolName: fnName, args: parsed as Record<string, unknown> }
         }
       } catch {
-        detail = truncateToolDetail(body.arguments, 56)
+        return { toolName: fnName, args: {} }
       }
-    } else if (body.arguments && typeof body.arguments === 'object') {
-      detail = pickToolDetail(body.arguments as Record<string, unknown>)
     }
-    return {
-      name: friendlyCursorToolName(fnName),
-      ...(detail ? { detail } : {}),
+    if (body.arguments && typeof body.arguments === 'object') {
+      return { toolName: fnName, args: body.arguments as Record<string, unknown> }
     }
+    return { toolName: fnName, args: {} }
   }
 
   const args = body.args && typeof body.args === 'object'
     ? body.args as Record<string, unknown>
     : body
-  const detail = pickToolDetail(args)
+  return { toolName: key, args }
+}
+
+function isCreatePlanToolName(raw: string): boolean {
+  const compact = raw.replace(/[^a-zA-Z]/g, '').toLowerCase()
+  return compact === 'createplan' || compact === 'createplantoolcall'
+}
+
+/** Formatea el cuerpo de CreatePlan para mostrarlo en el chat del agente. */
+export function formatCreatePlanForChat(args: Record<string, unknown>): string | null {
+  const name = typeof args.name === 'string' ? args.name.trim() : ''
+  const overview = typeof args.overview === 'string' ? args.overview.trim() : ''
+  const plan = typeof args.plan === 'string' ? args.plan.trim() : ''
+  if (!plan && !overview && !name) return null
+
+  const parts: string[] = []
+  if (name) parts.push(`# ${name}`)
+  if (overview) parts.push(overview)
+  if (plan) parts.push(plan)
+  return parts.join('\n\n').trim() || null
+}
+
+/**
+ * CreatePlan vive en tool_call (tarjeta del IDE), no en texto del asistente.
+ * Sin esto el usuario solo ve “plan listo” / activity de tool.
+ */
+export function extractCursorCreatePlanText(toolCall: unknown): string | null {
+  const parsed = toolCallArgs(toolCall)
+  if (!parsed || !isCreatePlanToolName(parsed.toolName)) return null
+  return formatCreatePlanForChat(parsed.args)
+}
+
+/** Extrae nombre legible + detalle (ruta/patrón/comando) de un tool_call de Cursor. */
+export function describeCursorToolCall(toolCall: unknown): { name: string; detail?: string } {
+  const parsed = toolCallArgs(toolCall)
+  if (!parsed) return { name: 'tool' }
+  const detail = pickToolDetail(parsed.args)
+  if (!detail && isCreatePlanToolName(parsed.toolName)) {
+    const name = typeof parsed.args.name === 'string' ? parsed.args.name.trim() : ''
+    if (name) {
+      return { name: friendlyCursorToolName(parsed.toolName), detail: truncateToolDetail(name, 56) }
+    }
+  }
   return {
-    name: friendlyCursorToolName(key),
+    name: friendlyCursorToolName(parsed.toolName),
     ...(detail ? { detail } : {}),
   }
 }
@@ -418,6 +465,12 @@ export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
       status,
       ...(described.detail ? { detail: described.detail } : {}),
     })
+    // CreatePlan guarda el markdown en args, no en assistant text.
+    // Emitir en started y completed; el runtime deduplica por `source: create_plan`.
+    const planText = extractCursorCreatePlanText(obj.tool_call)
+    if (planText) {
+      out.push({ type: 'assistant_delta', text: `\n\n${planText}`, source: 'create_plan' })
+    }
   }
   return out
 }
@@ -454,6 +507,13 @@ export function composePrompt(
   const resultsInstruction = request.emitResults === true
     ? buildAiAgentResultsInstruction(request.name)
     : ''
+  const planDeliveryInstruction = request.permissionMode === 'plan'
+    ? [
+        '## Plan delivery',
+        'When you finish a plan, the user must see the full plan content in this chat.',
+        'If you use CreatePlan, still ensure the plan body is visible to the user (do not only say the plan is ready).',
+      ].join('\n')
+    : ''
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
@@ -463,6 +523,7 @@ export function composePrompt(
     '',
     buildAiChangelogInstruction(),
     ...(resultsInstruction ? ['', resultsInstruction] : []),
+    ...(planDeliveryInstruction ? ['', planDeliveryInstruction] : []),
   ].join('\n')
 }
 
@@ -598,6 +659,8 @@ export function startAgentTurn(
     let stderrBuffer = ''
     let continuationPrompt: string | null = null
     let sawAssistantText = false
+    /** Evita pegar el mismo CreatePlan dos veces (started + completed). */
+    let lastCreatePlanText = ''
 
     const processLine = (line: string): void => {
       const trimmed = line.trim()
@@ -613,8 +676,19 @@ export function startAgentTurn(
             send(win, request.paneId, event)
             continue
           }
+          if (
+            event.type === 'assistant_delta'
+            && event.source === 'create_plan'
+            && event.text === lastCreatePlanText
+          ) {
+            continue
+          }
+          if (event.type === 'assistant_delta' && event.source === 'create_plan') {
+            lastCreatePlanText = event.text
+          }
           if (continuationPrompt &&
-              (event.type === 'assistant_delta' || event.type === 'assistant_final')) {
+              (event.type === 'assistant_delta' || event.type === 'assistant_final') &&
+              !(event.type === 'assistant_delta' && event.source === 'create_plan')) {
             continue
           }
           if (event.type === 'assistant_final') {

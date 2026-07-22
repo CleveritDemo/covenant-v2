@@ -1,9 +1,9 @@
-/* Aurora bajo el chat (dock z14); sobre el mapa (12). */
+/* Aurora bajo el chat; sobre el mapa base si aplica. */
 .plane-chat-composer-aurora-host {
   --plane-composer-accent: var(--accent);
   position: absolute;
   inset: 0;
-  z-index: 13;
+  z-index: 17;
   pointer-events: none;
   overflow: visible;
 }
@@ -14,7 +14,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 15;
+  z-index: 18;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -419,6 +419,42 @@
 
 .plane-chat-composer__loop-label {
   flex: 0 0 auto;
+}
+
+.plane-chat-composer__clear {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 24px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 2px 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  line-height: 1;
+  box-sizing: border-box;
+  opacity: 0.72;
+  transition: opacity 0.16s ease, color 0.16s ease;
+}
+
+.plane-chat-composer__clear:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--danger, #c44);
+}
+
+.plane-chat-composer__clear:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.plane-chat-composer__clear > svg {
+  flex: 0 0 auto;
+  color: inherit;
 }
 
 .plane-chat-composer__queue-bubble {

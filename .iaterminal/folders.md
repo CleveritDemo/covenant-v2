@@ -5,325 +5,38 @@
 ia_terminal/  (project root; paths are relative to this folder)
 
 docs/
-    docs/AI_PROJECT_CONTEXT_GUIDE.md
-    docs/FRONTEND_AUDIT_PLAN.md
-    docs/QA.md
 electron/
   electron/__tests__/
-      electron/__tests__/agentCliRuntime.test.ts
-      electron/__tests__/agentFileOps.test.ts
-      electron/__tests__/agentShellOps.test.ts
-      electron/__tests__/aiAgentResults.test.ts
-      electron/__tests__/aiChangelog.test.ts
-      electron/__tests__/fileExplorerClipboardOps.cut.test.ts
-      electron/__tests__/fileExplorerClipboardOps.test.ts
-      electron/__tests__/fileExplorerOps.test.ts
-      electron/__tests__/fileExplorerSearch.test.ts
-      electron/__tests__/shellPathEnv.test.ts
-      electron/__tests__/tabContextBuild.test.ts
-      electron/__tests__/turnFileChanges.test.ts
-    electron/agentCliRuntime.ts
-    electron/agentFileOps.ts
-    electron/agentMd.ts
-    electron/agentShellOps.ts
-    electron/aiAgentResults.ts
-    electron/aiChangelog.ts
-    electron/cdRecentCapture.ts
-    electron/cdRecentMd.ts
-    electron/fileExplorerClipboardOps.ts
-    electron/fileExplorerOps.ts
-    electron/fileExplorerWatcher.ts
-    electron/githubActionsOps.ts
-    electron/githubApi.ts
-    electron/githubToken.ts
-    electron/gitSessionOps.ts
-    electron/main.ts
-    electron/persistence.ts
-    electron/preload.ts
-    electron/projectAiContext.ts
-    electron/shellCwdSync.ts
-    electron/shellPathEnv.ts
-    electron/spotifyNative.ts
-    electron/tabContextBuild.ts
-    electron/turnFileChanges.ts
 relative/
   relative/path/
-      relative/path/file.ext
 renderer/
-    renderer/styles.css
 scripts/
-    scripts/check-ui-contract.mjs
-    scripts/generate-mac-icon.sh
 src/
   src/ai/
-      src/ai/agentTypes.ts
-      src/ai/aiClient.ts
-      src/ai/anthropicClient.ts
-      src/ai/contextBuilder.ts
-      src/ai/ollamaClient.ts
-      src/ai/ollamaModels.ts
-      src/ai/openaiClient.ts
-      src/ai/sseStream.ts
-      src/ai/toolDefinitions.ts
-      src/ai/types.ts
   src/i18n/
     src/i18n/__tests__/
-        src/i18n/__tests__/modKeyLabel.test.ts
     src/i18n/locales/
-        src/i18n/locales/en.ts
-        src/i18n/locales/es.ts
-      src/i18n/index.ts
-      src/i18n/modKeyLabel.ts
-      src/i18n/react-i18next.d.ts
-      src/i18n/useT.ts
   src/renderer/
     src/renderer/__tests__/
-        src/renderer/__tests__/arrayReorder.test.ts
-        src/renderer/__tests__/sessionSanitize.test.ts
-        src/renderer/__tests__/tabSplitSizes.test.ts
     src/renderer/agent/
       src/renderer/agent/__tests__/
-          src/renderer/agent/__tests__/composerImages.test.ts
-        src/renderer/agent/AgentChatBubbles.css
-        src/renderer/agent/AgentChatBubbles.tsx
-        src/renderer/agent/AgentConfigModal.css
-        src/renderer/agent/AgentConfigModal.tsx
-        src/renderer/agent/AgentLoopIntervalModal.tsx
-        src/renderer/agent/AgentPane.css
-        src/renderer/agent/AgentPane.tsx
-        src/renderer/agent/AgentPaneFooter.tsx
-        src/renderer/agent/AgentPaneMessages.tsx
-        src/renderer/agent/AgentProviderPickerModal.tsx
-        src/renderer/agent/composerImages.ts
-        src/renderer/agent/IaNucleus.css
-        src/renderer/agent/IaNucleus.tsx
-        src/renderer/agent/QueuedTurnEditModal.css
-        src/renderer/agent/QueuedTurnEditModal.tsx
-        src/renderer/agent/TabContextFormModal.tsx
-        src/renderer/agent/tabContextKindIcons.ts
-        src/renderer/agent/TabContextRootPathField.tsx
-        src/renderer/agent/TabContextsEditor.tsx
-        src/renderer/agent/TabContextsList.tsx
-        src/renderer/agent/TabContextsListPreview.tsx
-        src/renderer/agent/TabContextsModal.tsx
     src/renderer/components/
       src/renderer/components/__tests__/
-          src/renderer/components/__tests__/aiMessagesScroll.test.ts
-          src/renderer/components/__tests__/useAiMessagesFollowScroll.test.tsx
       src/renderer/components/ai/
-          src/renderer/components/ai/aiMessagesScroll.ts
-          src/renderer/components/ai/useAiMessagesFollowScroll.ts
       src/renderer/components/git/
         src/renderer/components/git/__tests__/
-            src/renderer/components/git/__tests__/gitDiffNumStat.test.ts
-            src/renderer/components/git/__tests__/gitPathUtils.test.ts
-          src/renderer/components/git/GitBranchBadge.tsx
-          src/renderer/components/git/gitDiffNumStat.ts
-          src/renderer/components/git/gitErrorI18n.ts
-          src/renderer/components/git/GitFileList.tsx
-          src/renderer/components/git/GitHubActionsPanel.css
-          src/renderer/components/git/GitHubActionsPanel.tsx
-          src/renderer/components/git/GitHubActionsRunRow.tsx
-          src/renderer/components/git/gitPathUtils.ts
       src/renderer/components/ui/
-          src/renderer/components/ui/Badge.css
-          src/renderer/components/ui/Badge.tsx
-          src/renderer/components/ui/Button.css
-          src/renderer/components/ui/Button.tsx
-          src/renderer/components/ui/ChoiceCard.css
-          src/renderer/components/ui/ChoiceCard.tsx
-          src/renderer/components/ui/Icon.tsx
-          src/renderer/components/ui/index.ts
-          src/renderer/components/ui/Input.css
-          src/renderer/components/ui/Input.tsx
-          src/renderer/components/ui/Select.css
-          src/renderer/components/ui/Select.tsx
-          src/renderer/components/ui/Spinner.css
-          src/renderer/components/ui/Spinner.tsx
-          src/renderer/components/ui/TextArea.css
-          src/renderer/components/ui/TextArea.tsx
-          src/renderer/components/ui/Toggle.css
-          src/renderer/components/ui/Toggle.tsx
-          src/renderer/components/ui/Tooltip.css
-          src/renderer/components/ui/Tooltip.tsx
-        src/renderer/components/AiCodeBlock.tsx
-        src/renderer/components/AiMarkdown.css
-        src/renderer/components/AiMarkdown.tsx
-        src/renderer/components/AppModals.tsx
-        src/renderer/components/ConfirmTerminalModal.css
-        src/renderer/components/ConfirmTerminalModal.tsx
-        src/renderer/components/FontSizeControl.tsx
-        src/renderer/components/GitPanelModal.css
-        src/renderer/components/GitPanelModal.tsx
-        src/renderer/components/MusicSpectrum.tsx
-        src/renderer/components/SettingsModal.css
-        src/renderer/components/SettingsModal.tsx
-        src/renderer/components/SettingsSection.tsx
-        src/renderer/components/TabAddButton.tsx
-        src/renderer/components/TabBar.css
-        src/renderer/components/TabBar.tsx
-        src/renderer/components/TabItem.tsx
-        src/renderer/components/TerminalFindModal.css
-        src/renderer/components/TerminalFindModal.tsx
-        src/renderer/components/TerminalModal.css
-        src/renderer/components/TerminalModal.tsx
-        src/renderer/components/ThemeChip.tsx
-        src/renderer/components/ThemePickerModal.css
-        src/renderer/components/ThemePickerModal.tsx
-        src/renderer/components/ThemePickerTrigger.tsx
-        src/renderer/components/ThemePreview.tsx
-        src/renderer/components/Titlebar.css
-        src/renderer/components/Titlebar.tsx
-        src/renderer/components/TitlebarMusicControls.css
-        src/renderer/components/TitlebarMusicControls.tsx
     src/renderer/history/
       src/renderer/history/__tests__/
-          src/renderer/history/__tests__/feedCompletedUserLines.test.ts
-        src/renderer/history/feedCompletedUserLines.ts
     src/renderer/styles/
-        src/renderer/styles/app.css
-        src/renderer/styles/global.css
     src/renderer/terminal/
       src/renderer/terminal/__tests__/
-          src/renderer/terminal/__tests__/quickOpenScore.test.ts
-          src/renderer/terminal/__tests__/terminalCanvasRepaint.test.ts
       src/renderer/terminal/explorer/
         src/renderer/terminal/explorer/__tests__/
-            src/renderer/terminal/explorer/__tests__/explorerPathUtils.test.ts
-            src/renderer/terminal/explorer/__tests__/fileExplorerGitStatus.test.ts
-          src/renderer/terminal/explorer/ExplorerConfirmHost.tsx
-          src/renderer/terminal/explorer/explorerPathUtils.ts
-          src/renderer/terminal/explorer/ExplorerToast.tsx
-          src/renderer/terminal/explorer/ExplorerToolButton.tsx
-          src/renderer/terminal/explorer/FileCodeEditor.tsx
-          src/renderer/terminal/explorer/FileEditorPanel.tsx
-          src/renderer/terminal/explorer/fileEditorSearch.ts
-          src/renderer/terminal/explorer/FileExplorer.css
-          src/renderer/terminal/explorer/FileExplorerContextMenu.tsx
-          src/renderer/terminal/explorer/FileExplorerEntryIcon.tsx
-          src/renderer/terminal/explorer/fileExplorerErrorI18n.ts
-          src/renderer/terminal/explorer/fileExplorerGitStatus.ts
-          src/renderer/terminal/explorer/FileExplorerNewMenu.tsx
-          src/renderer/terminal/explorer/FileExplorerSidebar.tsx
-          src/renderer/terminal/explorer/FileExplorerTree.tsx
-          src/renderer/terminal/explorer/FileExplorerTreeNode.tsx
-          src/renderer/terminal/explorer/languageFromPath.ts
-          src/renderer/terminal/explorer/useExplorerResize.ts
-        src/renderer/terminal/CdSuggest.tsx
-        src/renderer/terminal/CmdSuggest.tsx
-        src/renderer/terminal/isClearCommand.ts
-        src/renderer/terminal/PaneToolbar.tsx
-        src/renderer/terminal/PaneToolbarQuickOpen.css
-        src/renderer/terminal/PaneToolbarQuickOpen.tsx
-        src/renderer/terminal/quickOpenScore.ts
-        src/renderer/terminal/stripShellPromptPrefix.ts
-        src/renderer/terminal/terminalCanvasRepaint.ts
-        src/renderer/terminal/terminalFindInBuffer.ts
-        src/renderer/terminal/TerminalPane.css
-        src/renderer/terminal/TerminalPane.tsx
-        src/renderer/terminal/TerminalScrollDown.tsx
-        src/renderer/terminal/TerminalSuggestStack.tsx
     src/renderer/workspace/
-        src/renderer/workspace/ContextBadge.css
-        src/renderer/workspace/ContextBadge.tsx
-        src/renderer/workspace/miniExpandSuppress.ts
-        src/renderer/workspace/PaneWindow.css
-        src/renderer/workspace/PaneWindow.tsx
-        src/renderer/workspace/PlaneAgentBadge.css
-        src/renderer/workspace/PlaneAgentBadge.tsx
-        src/renderer/workspace/planeAgentColor.ts
-        src/renderer/workspace/PlaneAgentContextNodes.css
-        src/renderer/workspace/PlaneAgentContextNodes.tsx
-        src/renderer/workspace/PlaneChatCloseButton.css
-        src/renderer/workspace/PlaneChatCloseButton.tsx
-        src/renderer/workspace/PlaneChatComposer.css
-        src/renderer/workspace/PlaneChatComposer.tsx
-        src/renderer/workspace/PlaneChatContextsBar.tsx
-        src/renderer/workspace/PlaneChatDock.css
-        src/renderer/workspace/PlaneChatDock.tsx
-        src/renderer/workspace/PlaneComposerAurora.css
-        src/renderer/workspace/PlaneComposerAurora.tsx
-        src/renderer/workspace/PlaneContextCard.css
-        src/renderer/workspace/PlaneContextCard.tsx
-        src/renderer/workspace/planeContextDrag.ts
-        src/renderer/workspace/PlaneContextPool.css
-        src/renderer/workspace/PlaneContextPool.tsx
-        src/renderer/workspace/PlaneFabStack.tsx
-        src/renderer/workspace/PlaneIdleNucleus.css
-        src/renderer/workspace/PlaneIdleNucleus.tsx
-        src/renderer/workspace/PlaneMap.css
-        src/renderer/workspace/PlaneMap.tsx
-        src/renderer/workspace/PlaneMiniActions.css
-        src/renderer/workspace/PlaneMiniActions.tsx
-        src/renderer/workspace/PlaneMiniFace.css
-        src/renderer/workspace/PlaneMiniFace.tsx
-        src/renderer/workspace/PlanePaneWindow.tsx
-        src/renderer/workspace/PlaneProjectFolder.css
-        src/renderer/workspace/PlaneProjectFolder.tsx
-        src/renderer/workspace/PlaneQuickChat.css
-        src/renderer/workspace/PlaneQuickChat.tsx
-        src/renderer/workspace/TabAgenticPlane.css
-        src/renderer/workspace/TabAgenticPlane.tsx
-      src/renderer/App.tsx
-      src/renderer/arrayReorder.ts
-      src/renderer/dragThumbnailUtils.ts
-      src/renderer/env.d.ts
-      src/renderer/main.tsx
-      src/renderer/sessionSanitize.ts
-      src/renderer/tabSplitSizes.ts
   src/shared/
     src/shared/__tests__/
-        src/shared/__tests__/agentFileProtocol.test.ts
-        src/shared/__tests__/agentIdentity.test.ts
-        src/shared/__tests__/agentLoop.test.ts
-        src/shared/__tests__/agentModeHandoff.test.ts
-        src/shared/__tests__/agentShellGuard.test.ts
-        src/shared/__tests__/agentWriteGuard.test.ts
-        src/shared/__tests__/githubApi.test.ts
-        src/shared/__tests__/paneWindows.test.ts
-        src/shared/__tests__/tabContext.test.ts
-      src/shared/agentCliModels.ts
-      src/shared/agentCliTypes.ts
-      src/shared/agentFileProtocol.ts
-      src/shared/agentIdentity.ts
-      src/shared/agentLoop.ts
-      src/shared/agentModeHandoff.ts
-      src/shared/agentShellGuard.ts
-      src/shared/agentWriteGuard.ts
-      src/shared/configSchema.ts
-      src/shared/fileExplorerErrorCodes.ts
-      src/shared/fileExplorerHiddenDirs.ts
-      src/shared/fileExplorerPersistedState.ts
-      src/shared/fileExplorerTypes.ts
-      src/shared/gitErrorCodes.ts
-      src/shared/githubActionsTypes.ts
-      src/shared/gitSessionTypes.ts
-      src/shared/ipcChannels.ts
-      src/shared/musicMoods.ts
-      src/shared/paneWindows.ts
-      src/shared/projectAiContext.ts
-      src/shared/ptyInputSanitize.ts
-      src/shared/tabContext.ts
-      src/shared/tabContextAppearance.ts
-      src/shared/tabSession.ts
   src/themes/
-      src/themes/codeMirrorTheme.ts
-      src/themes/presets.ts
-    src/index.html
-  electron.vite.config.ts
-  FEATURES.md
-  ISSUES.md
-  KNOWN_ISSUES.md
-  package-lock.json
-  package.json
-  README.md
-  tsconfig.json
-  tsconfig.node.json
-  tsconfig.node.tsbuildinfo
-  tsconfig.web.json
-  tsconfig.web.tsbuildinfo
-  vitest.config.ts
-  vitest.setup.ts
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

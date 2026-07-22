@@ -3,7 +3,7 @@
   --plane-composer-clearance: 132px;
   position: absolute;
   inset: 0;
-  /* Sobre la aurora (13); bajo el body del composer (15) y elevated (40). */
+  /* Fade/chat bajo el mapa (16); composer/aurora van por display:contents encima. */
   z-index: 14;
   display: flex;
   flex-direction: column;

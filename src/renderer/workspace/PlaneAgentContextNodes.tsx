@@ -20,7 +20,7 @@ export interface PlaneAgentContextNodesProps {
   onOpenAgent: () => void
 }
 
-/** Contextos anidados del agente como fila de íconos (sin tooltip). */
+/** Contextos del agente en lista vertical con nombre. */
 export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
   contexts,
   onOpenAgent,
@@ -36,6 +36,7 @@ export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
             icon={ctx.icon}
             color={ctx.color}
             shared={ctx.shared}
+            showName
             onOpen={onOpenAgent}
           />
         </li>

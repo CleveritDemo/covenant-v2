@@ -116,6 +116,12 @@ const api = {
   deleteAgentChat(paneId: string): void {
     ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
   },
+  clearAgentContextDelivery(payload: {
+    provider: 'claude' | 'cursor'
+    cliSessionId: string
+  }): void {
+    ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)
+  },
   previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_PREVIEW, request)
   },

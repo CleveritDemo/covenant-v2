@@ -11,7 +11,7 @@
   height: var(--ia-nucleus-size);
   flex: 0 0 var(--ia-nucleus-size);
   transform-origin: center center;
-  animation: ia-nucleus-enter 1.35s cubic-bezier(0.18, 0.9, 0.28, 1) both;
+  animation: ia-nucleus-enter 0.85s cubic-bezier(0.16, 1.15, 0.28, 1) both;
 }
 
 .ia-nucleus--solo {
@@ -35,7 +35,7 @@
   --ia-nucleus-particle: 12px;
 }
 
-/* Volumen por sombreado del propio cuerpo — sin glow ni sombra exterior. */
+/* Orbit: volumen por sombreado del propio cuerpo. */
 .ia-nucleus__core {
   position: relative;
   z-index: 2;
@@ -51,6 +51,11 @@
       color-mix(in srgb, var(--theme-magenta) 70%, #1a1228) 100%
     );
   animation: ia-nucleus-breathe 2.8s ease-in-out infinite;
+}
+
+/* Flat: mismo core, color sólido (sin highlight/sombra 3D). */
+.ia-nucleus--flat .ia-nucleus__core {
+  background: var(--accent);
 }
 
 .ia-nucleus__particle {
@@ -79,10 +84,21 @@
       var(--ia-nucleus-tone) 48%,
       color-mix(in srgb, var(--ia-nucleus-tone) 0%, transparent) 100%
     );
-  /* Un solo tramo de transform: velocidad constante hasta el núcleo. */
   animation: ia-nucleus-drift var(--ia-nucleus-duration) linear infinite;
   animation-delay: var(--ia-nucleus-delay);
   will-change: transform, opacity;
+}
+
+/* Flat: disco sólido, misma deriva. */
+.ia-nucleus--flat .ia-nucleus__particle {
+  height: calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n));
+  margin:
+    calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n) * -0.5)
+    0
+    0
+    calc(var(--ia-nucleus-particle) * var(--ia-nucleus-size-n) * -0.5);
+  border-radius: 50%;
+  background: var(--ia-nucleus-tone);
 }
 
 .ia-nucleus__particle--1 {
@@ -222,17 +238,46 @@
   }
 }
 
-/* Entrada: implosión (grande → tamaño real) + fade in. */
+/* Flat: deriva sin estirar el disco (scale uniforme). */
+.ia-nucleus--flat .ia-nucleus__particle {
+  animation-name: ia-nucleus-drift-flat;
+}
+
+@keyframes ia-nucleus-drift-flat {
+  0% {
+    opacity: 0;
+    transform:
+      rotate(var(--ia-nucleus-angle))
+      translateY(calc(var(--ia-nucleus-orbit) * -1))
+      scale(0.5);
+  }
+  12% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform:
+      rotate(calc(var(--ia-nucleus-angle) + var(--ia-nucleus-spin)))
+      translateY(calc(var(--ia-nucleus-core) * -0.06))
+      scale(1.1);
+  }
+}
+
+/* Entrada: zoom notorio (pequeño → overshoot → tamaño real). */
 @keyframes ia-nucleus-enter {
   0% {
     opacity: 0;
-    transform: scale(2.6);
+    transform: scale(0.12);
   }
-  35% {
-    opacity: 0.35;
-  }
-  70% {
+  55% {
     opacity: 1;
+    transform: scale(1.28);
+  }
+  78% {
+    transform: scale(0.94);
   }
   100% {
     opacity: 1;
@@ -253,5 +298,12 @@
       rotate(var(--ia-nucleus-angle))
       translateY(calc(var(--ia-nucleus-orbit) * -0.55))
       scale(0.8, 1.1);
+  }
+
+  .ia-nucleus--flat .ia-nucleus__particle {
+    transform:
+      rotate(var(--ia-nucleus-angle))
+      translateY(calc(var(--ia-nucleus-orbit) * -0.55))
+      scale(0.85);
   }
 }

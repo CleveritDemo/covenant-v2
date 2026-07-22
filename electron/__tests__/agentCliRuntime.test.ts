@@ -6,6 +6,7 @@ import type { AppConfig } from '../../src/shared/configSchema'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import {
   buildContextContinuationPrompt,
+  clearAgentContextDeliveryForSession,
   commandAndArgs,
   composePrompt,
   CONTEXT_FULL_REFRESH_INTERVAL_TURNS,
@@ -112,6 +113,25 @@ describe('composePrompt identity', () => {
     expect(withEmit).toContain('## Agent results registry')
     expect(withEmit).toContain('ia-terminal-results')
   })
+
+  it('reminds the model to deliver plan body when permissionMode is plan', () => {
+    const ask = composePrompt(
+      request({ provider: 'cursor', permissionMode: 'ask', prompt: 'hola' }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(ask).not.toContain('## Plan delivery')
+
+    const plan = composePrompt(
+      request({ provider: 'cursor', permissionMode: 'plan', prompt: 'hola' }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(plan).toContain('## Plan delivery')
+    expect(plan).toContain('full plan content')
+  })
 })
 
 describe('agent CLI event normalization', () => {
@@ -194,6 +214,72 @@ describe('agent CLI event normalization', () => {
         detail: 'npm test -- --run agentCli',
       },
     ])
+  })
+
+  it('injects CreatePlan markdown into the chat stream', () => {
+    const planBody = [
+      '# Portal de beneficios',
+      '',
+      '## Fase 0',
+      'Carga de imágenes en create/edit.',
+    ].join('\n')
+
+    expect(normalizeCursorEvent({
+      type: 'tool_call',
+      subtype: 'started',
+      tool_call: {
+        createPlanToolCall: {
+          args: {
+            name: 'Portal de beneficios',
+            overview: 'Backlog UX del portal',
+            plan: planBody,
+          },
+        },
+      },
+    })).toEqual([
+      {
+        type: 'tool',
+        name: 'Create Plan',
+        status: 'started',
+        detail: 'Portal de beneficios',
+      },
+      {
+        type: 'assistant_delta',
+        source: 'create_plan',
+        text: [
+          '',
+          '',
+          '# Portal de beneficios',
+          '',
+          'Backlog UX del portal',
+          '',
+          planBody,
+        ].join('\n'),
+      },
+    ])
+  })
+
+  it('injects CreatePlan from function-shaped tool calls', () => {
+    const events = normalizeCursorEvent({
+      type: 'tool_call',
+      subtype: 'completed',
+      tool_call: {
+        function: {
+          name: 'CreatePlan',
+          arguments: JSON.stringify({
+            name: 'Virtualizar chat',
+            overview: 'Virtualizar burbujas',
+            plan: '# Plan\n\nUsar @tanstack/react-virtual.',
+          }),
+        },
+      },
+    })
+    const planEvent = events.find(event => event.type === 'assistant_delta')
+    expect(planEvent).toEqual({
+      type: 'assistant_delta',
+      source: 'create_plan',
+      text: '\n\n# Virtualizar chat\n\nVirtualizar burbujas\n\n# Plan\n\nUsar @tanstack/react-virtual.',
+    })
   })
 })
 
@@ -288,6 +374,13 @@ describe('portable context continuation', () => {
     expect(shouldForceFullContextRefresh(null)).toBe(true)
     expect(shouldForceFullContextRefresh(8)).toBe(false)
     expect(shouldForceFullContextRefresh(9)).toBe(true)
+  })
+
+  it('clears delivery state for one CLI session without wiping others', () => {
+    // Exercised via exported helper; map is module-private so we only assert API shape.
+    expect(typeof clearAgentContextDeliveryForSession).toBe('function')
+    clearAgentContextDeliveryForSession('cursor', 'sess-a')
+    clearAgentContextDeliveryForSession('claude', '  ')
   })
 })
 

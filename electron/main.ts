@@ -48,6 +48,7 @@ import {
   stopAgentRun,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
+  clearAgentContextDeliveryForSession,
 } from './agentCliRuntime'
 import {
   deleteTabContext,
@@ -745,6 +746,13 @@ function registerIpc(): void {
   })
   ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, paneId: string) => {
     deleteAgentChat(paneId)
+  })
+  ipcMain.on(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, (_e, payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return
+    const provider = (payload as { provider?: unknown }).provider
+    const cliSessionId = (payload as { cliSessionId?: unknown }).cliSessionId
+    if ((provider !== 'claude' && provider !== 'cursor') || typeof cliSessionId !== 'string') return
+    clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {

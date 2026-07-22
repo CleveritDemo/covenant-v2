@@ -7,6 +7,7 @@ import { PaneWindow } from './PaneWindow'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { PlaneMiniActions } from './PlaneMiniActions'
 import { PlaneMiniFace } from './PlaneMiniFace'
+import { PlaneMiniFolderBadge } from './PlaneMiniFolderBadge'
 import { armMiniExpandSuppress } from './miniExpandSuppress'
 import './PlaneMiniActions.css'
 
@@ -32,6 +33,10 @@ export interface PlanePaneWindowProps {
   maximizeLabel: string
   restoreLabel: string
   closeWindowLabel: string
+  /** Basename de la carpeta actual (solo terminales). */
+  folderName?: string
+  /** Path completo para tooltip del badge. */
+  folderPath?: string
   children: React.ReactNode
   onExpand: () => void
   onClose: () => void
@@ -43,6 +48,8 @@ export interface PlanePaneWindowProps {
   onDelete: () => void
   /** Asigna un contexto soltado sobre este agente. */
   onDropContext?: (contextId: string) => void
+  /** Altura real del mini (agentes) para apilar sin huecos. */
+  onMiniContentHeightChange?: (height: number) => void
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -63,6 +70,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   maximizeLabel,
   restoreLabel,
   closeWindowLabel,
+  folderName,
+  folderPath,
   children,
   onExpand,
   onClose,
@@ -72,6 +81,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onOpenChat,
   onDelete,
   onDropContext,
+  onMiniContentHeightChange,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -109,19 +119,15 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         miniAgentCard={isAgent}
         // Terminales: siempre titlebar macOS (mini y expandida). Agentes: solo expandida.
         showTitlebar={!isAgent || isExpanded}
+        miniFolderBadge={!isAgent && folderName ? (
+          <PlaneMiniFolderBadge folder={folderName} title={folderPath} />
+        ) : undefined}
         miniFace={isAgent ? (
           <PlaneMiniFace
             name={title}
             busy={busy}
             provider={provider}
             statusLabel={statusLabel}
-            configLabel={configLabel}
-            deleteLabel={deleteLabel}
-            onConfigure={onOpenConfig}
-            onDelete={() => {
-              armMiniExpandSuppress()
-              setConfirmDeleteOpen(true)
-            }}
           >
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
@@ -131,11 +137,12 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             ) : null}
           </PlaneMiniFace>
         ) : undefined}
-        miniActions={isAgent ? undefined : (
+        miniActions={(
           <PlaneMiniActions
-            showConfig={false}
+            showConfig={isAgent}
             configLabel={configLabel}
             deleteLabel={deleteLabel}
+            onConfigure={isAgent ? onOpenConfig : undefined}
             onDelete={() => {
               armMiniExpandSuppress()
               setConfirmDeleteOpen(true)
@@ -147,6 +154,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         onClose={onClose}
         onFocus={onFocus}
         onDropContext={isAgent ? onDropContext : undefined}
+        onMiniContentHeightChange={isAgent ? onMiniContentHeightChange : undefined}
       >
         {children}
       </PaneWindow>

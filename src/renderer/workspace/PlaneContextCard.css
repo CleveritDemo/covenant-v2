@@ -8,16 +8,49 @@
   border: none;
   border-radius: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--context-color, var(--accent));
   cursor: pointer;
   user-select: none;
   box-shadow: none;
   filter: none;
-  transition: transform 0.14s;
+  transition: transform 0.14s, background 0.12s;
 }
 
 .plane-context-card:hover {
   transform: translateY(-1px) scale(1.08);
+}
+
+.plane-context-card--labeled {
+  justify-content: flex-start;
+  gap: 4px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  transform: none;
+  transition: none;
+  cursor: pointer;
+}
+
+.plane-context-card--labeled:hover {
+  transform: none;
+  background: transparent;
+}
+
+.plane-context-card__name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
+  text-align: left;
 }
 
 .plane-context-card--shared {

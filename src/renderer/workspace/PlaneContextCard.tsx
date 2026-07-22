@@ -8,25 +8,30 @@ export interface PlaneContextCardProps {
   icon: IconName
   color: string
   shared?: boolean
-  /** Clic: p. ej. abrir chat del agente (sin tooltip). */
+  /** Fila con ícono + nombre (lista de contextos del agente). */
+  showName?: boolean
+  /** Clic: p. ej. abrir chat del agente. */
   onOpen?: () => void
 }
 
-/** Ícono de contexto anidado en la mini del agente. */
+/** Contexto anidado en la mini del agente (ícono o fila con nombre). */
 export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
   name,
   icon,
   color,
   shared = false,
+  showName = false,
   onOpen,
 }) => (
   <button
     type="button"
     className={[
       'plane-context-card',
+      showName ? 'plane-context-card--labeled' : '',
       shared ? 'plane-context-card--shared' : '',
     ].filter(Boolean).join(' ')}
-    style={{ color }}
+    style={{ '--context-color': color } as React.CSSProperties}
+    title={name}
     aria-label={name}
     onClick={event => {
       event.preventDefault()
@@ -35,6 +40,9 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
     }}
     onPointerDown={event => event.stopPropagation()}
   >
-    <Icon name={icon} size={12} aria-hidden />
+    <Icon name={icon} size={showName ? 10 : 12} aria-hidden />
+    {showName ? (
+      <span className="plane-context-card__name">{name}</span>
+    ) : null}
   </button>
 )

@@ -34,6 +34,7 @@ import { AgentConfigModal } from './AgentConfigModal'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
 import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
+import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
 import {
   attachmentsToPendingImages,
@@ -114,6 +115,9 @@ interface Props {
   /** Pedido externo: detener el turno/bucle desde el composer del plano. */
   preferStop?: boolean
   onPreferStopConsumed?: () => void
+  /** Pedido externo: pedir confirmación para limpiar la conversación. */
+  preferClearConversation?: boolean
+  onPreferClearConversationConsumed?: () => void
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -141,6 +145,8 @@ export interface AgentPlaneStatus {
     text: string
     images: Array<{ id: string; previewUrl: string; name: string }>
   }>
+  /** Hay historial, cola o sesión CLI que se pueden limpiar. */
+  canClearConversation: boolean
 }
 
 export interface AgentPlaneQueueControls {
@@ -177,6 +183,8 @@ export const AgentPane: React.FC<Props> = ({
   onPreferSendConsumed,
   preferStop = false,
   onPreferStopConsumed,
+  preferClearConversation = false,
+  onPreferClearConversationConsumed,
   paneReorder,
   registerShortcutCloseInterceptor,
 }) => {
@@ -193,6 +201,7 @@ export const AgentPane: React.FC<Props> = ({
   const [loaded, setLoaded] = useState(false)
   const [activity, setActivity] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [contextsOpen, setContextsOpen] = useState(false)
   const [contextNotice, setContextNotice] = useState('')
@@ -250,7 +259,10 @@ export const AgentPane: React.FC<Props> = ({
   const discoveredCwdRef = useRef<string | null>(null)
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
+  /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
+  const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const bubblesRef = useRef<AgentChatBubblesHandle>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   messagesRef.current = messages
   metaRef.current = meta
@@ -452,12 +464,17 @@ export const AgentPane: React.FC<Props> = ({
   // Solo sigue el fondo si el usuario está cerca del final; si sube a leer
   // historial, no le robamos el scroll (antes forzaba scrollHeight siempre).
   // `windowOpen`: al pasar de mini → grande hace snap al fondo (layout real).
-  const { nearBottom, forceFollow } = useAiMessagesFollowScroll(
+  const { nearBottom, forceFollow: snapFollowScroll } = useAiMessagesFollowScroll(
     messages,
     windowOpen,
     scrollRef,
     `${activity}\0${queuedTurns.length}`,
   )
+
+  const forceFollow = useCallback((): void => {
+    snapFollowScroll()
+    bubblesRef.current?.scrollToEnd()
+  }, [snapFollowScroll])
 
   const scrollChatToBottom = (): void => {
     forceFollow()
@@ -561,6 +578,12 @@ export const AgentPane: React.FC<Props> = ({
           name: image.name,
         })),
       })),
+      canClearConversation: messages.length > 0
+        || queuedTurns.length > 0
+        || pendingImages.length > 0
+        || Boolean(meta.cliSessionId)
+        || busy
+        || loopActive,
     })
   }, [
     activity,
@@ -571,8 +594,10 @@ export const AgentPane: React.FC<Props> = ({
     loopOpen,
     materializingIds,
     messages,
+    meta.cliSessionId,
     meta.contextIds,
     onPlaneStatusChange,
+    pendingImages.length,
     queuedTurns,
     settlingId,
   ])
@@ -1048,7 +1073,14 @@ export const AgentPane: React.FC<Props> = ({
   ])
 
   useEffect(() => {
-    if (!preferSend) return
+    if (!preferSend) {
+      handledPreferSendRef.current = null
+      return
+    }
+    // Evitar doble envío: startTurn pone busy y re-ejecuta el effect con el
+    // mismo preferSend antes de que el padre lo limpie.
+    if (handledPreferSendRef.current === preferSend) return
+    handledPreferSendRef.current = preferSend
     const prompt = preferSend.text.trim()
     const inboundImages = preferSend.images ?? []
     onPreferSendConsumed?.()
@@ -1180,6 +1212,73 @@ export const AgentPane: React.FC<Props> = ({
     onPreferStopConsumed?.()
     stop()
   }, [onPreferStopConsumed, preferStop, stop])
+
+  const clearConversation = useCallback((): void => {
+    clearLoopTimer()
+    const wasRunning = busyRef.current || loopActiveRef.current
+    turnClosedRef.current = true
+    emptyResponseRetriesRef.current = 0
+    lastTurnRequestRef.current = null
+    suppressEmptyHandlingRef.current = true
+    if (wasRunning) {
+      window.api.stopAgentTurn(paneId)
+    }
+    beginLiveSettle(activeAssistantIdRef.current)
+    loopActiveRef.current = false
+    loopDoneRef.current = false
+    loopObjectiveRef.current = ''
+    loopIterationRef.current = 0
+    skipLoopContinueRef.current = false
+    pendingModeHandoffRef.current = false
+    pendingCliEventsRef.current = []
+    setLoopActive(false)
+    setLoopIteration(0)
+    setBusy(false)
+    setActivity('')
+    activeAssistantIdRef.current = null
+    lastAssistantIdRef.current = null
+    setSettlingId(null)
+    setEnteringIds(new Set())
+    setMaterializingIds(new Set())
+    knownMessageIdsRef.current = new Set()
+    messageContentLenRef.current = new Map()
+    setPendingImages(previous => {
+      previous.forEach(image => URL.revokeObjectURL(image.previewUrl))
+      return []
+    })
+    setQueuedTurns(previous => {
+      previous.forEach(item =>
+        item.images.forEach(image => URL.revokeObjectURL(image.previewUrl)))
+      return []
+    })
+    setEditingQueuedId(null)
+    setInput('')
+    setMessages([])
+    const currentMeta = metaRef.current
+    const sessionId = currentMeta.cliSessionId?.trim()
+    if (sessionId) {
+      window.api.clearAgentContextDelivery({
+        provider: currentMeta.provider,
+        cliSessionId: sessionId,
+      })
+    }
+    onMetaChange(previous => {
+      if (!previous.cliSessionId) return previous
+      const { cliSessionId: _dropped, ...rest } = previous
+      return rest
+    })
+    window.api.deleteAgentChat(paneId)
+  }, [beginLiveSettle, clearLoopTimer, onMetaChange, paneId])
+
+  const requestClearConversation = useCallback((): void => {
+    setConfirmClear(true)
+  }, [])
+
+  useEffect(() => {
+    if (!preferClearConversation) return
+    onPreferClearConversationConsumed?.()
+    setConfirmClear(true)
+  }, [onPreferClearConversationConsumed, preferClearConversation])
 
   const startLoop = useCallback((): void => {
     const objective = input.trim()
@@ -1380,42 +1479,48 @@ export const AgentPane: React.FC<Props> = ({
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
       onMouseDown={onRequestPaneFocus}
     >
-      <AgentPaneMessages
-        scrollRef={scrollRef}
-        messages={messages}
-        busy={busy}
-        activity={activity}
-        loopActive={loopActive}
-        loopIteration={loopIteration}
-        queuedTurns={queuedTurns}
-        nearBottom={nearBottom}
-        activeAssistantId={activeAssistantIdRef.current}
-        enteringIds={enteringIds}
-        materializingIds={materializingIds}
-        settlingId={settlingId}
-        onEnteringAnimationEnd={handleEnteringAnimationEnd}
-        onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
-        onRemoveQueuedTurn={removeQueuedTurn}
-        onEditQueuedTurn={id => setEditingQueuedId(id)}
-        onScrollToBottom={scrollChatToBottom}
-      />
+      {/* Chat UI solo con ventana abierta; en mini el plano usa PlaneQuickChat. */}
+      {windowOpen ? (
+        <>
+          <AgentPaneMessages
+            scrollRef={scrollRef}
+            bubblesRef={bubblesRef}
+            messages={messages}
+            busy={busy}
+            activity={activity}
+            loopActive={loopActive}
+            loopIteration={loopIteration}
+            queuedTurns={queuedTurns}
+            nearBottom={nearBottom}
+            activeAssistantId={activeAssistantIdRef.current}
+            enteringIds={enteringIds}
+            materializingIds={materializingIds}
+            settlingId={settlingId}
+            onEnteringAnimationEnd={handleEnteringAnimationEnd}
+            onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
+            onRemoveQueuedTurn={removeQueuedTurn}
+            onEditQueuedTurn={id => setEditingQueuedId(id)}
+            onScrollToBottom={scrollChatToBottom}
+          />
 
-      <AgentPaneFooter
-        pendingImages={pendingImages}
-        composerDisabled={composerDisabled}
-        loopMode={loopMode}
-        busy={busy}
-        loopActive={loopActive}
-        input={input}
-        showStop={buttonIsStop}
-        showPlay={showPlay}
-        composerInputRef={composerInputRef}
-        onInputChange={setInput}
-        onComposerPaste={handleComposerPaste}
-        onComposerKeyDown={handleComposerKeyDown}
-        onRemovePendingImage={removePendingImage}
-        onSendClick={handleSendClick}
-      />
+          <AgentPaneFooter
+            pendingImages={pendingImages}
+            composerDisabled={composerDisabled}
+            loopMode={loopMode}
+            busy={busy}
+            loopActive={loopActive}
+            input={input}
+            showStop={buttonIsStop}
+            showPlay={showPlay}
+            composerInputRef={composerInputRef}
+            onInputChange={setInput}
+            onComposerPaste={handleComposerPaste}
+            onComposerKeyDown={handleComposerKeyDown}
+            onRemovePendingImage={removePendingImage}
+            onSendClick={handleSendClick}
+          />
+        </>
+      ) : null}
 
       <AgentConfigModal
         open={configOpen}
@@ -1473,6 +1578,17 @@ export const AgentPane: React.FC<Props> = ({
           onClosePane?.()
         }}
         onCancel={() => setConfirmClose(false)}
+      />
+      <ConfirmTerminalModal
+        open={confirmClear}
+        message={t('agentPane.clearConversationMessage')}
+        detail={t('agentPane.clearConversationDetail')}
+        zIndex={900}
+        onConfirm={() => {
+          setConfirmClear(false)
+          clearConversation()
+        }}
+        onCancel={() => setConfirmClear(false)}
       />
       <TabContextsModal
         open={contextsOpen}

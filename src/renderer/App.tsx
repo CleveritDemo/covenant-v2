@@ -32,11 +32,12 @@ import {
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import type { TerminalRef } from './terminal/TerminalPane'
+import { Titlebar } from './components/Titlebar'
+import { sessionCwdFolderName } from './terminal/explorer/explorerPathUtils'
 import {
   normalizeTabSession,
   type TabSplitSizes,
 } from './tabSplitSizes'
-import { Titlebar } from './components/Titlebar'
 import {
   computeTabInsertIndex,
   moveItemToIndex,
@@ -44,11 +45,12 @@ import {
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import './styles/app.css'
 
-import type {
-  AgentCliProvider,
-  AgentPaneMeta,
-  PaneKind,
-  TabSession,
+import {
+  cloneAgentPaneMeta,
+  type AgentCliProvider,
+  type AgentPaneMeta,
+  type PaneKind,
+  type TabSession,
 } from '../shared/tabSession'
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
@@ -155,10 +157,13 @@ export const App: React.FC = () => {
     images: AgentCliImageAttachment[]
   } | null>(null)
   const [planeStopPaneId, setPlaneStopPaneId] = useState<string | null>(null)
+  const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
+  /** Mirror reactivo de cwdsRef para badges de minis en el plano. */
+  const [paneCwds, setPaneCwds] = useState<Record<string, string>>({})
   const explorerByPaneRef = useRef<Record<string, FileExplorerPersistedState>>({})
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
@@ -189,6 +194,7 @@ export const App: React.FC = () => {
     if (!dir) return
     cwdsRef.current = { ...cwdsRef.current, [paneId]: dir }
     splitSpawnCwdRef.current.set(paneId, dir)
+    setPaneCwds(prev => (prev[paneId] === dir ? prev : { ...prev, [paneId]: dir }))
   }, [])
 
   const buildSessionSnapshot = useCallback(() => {
@@ -229,6 +235,20 @@ export const App: React.FC = () => {
       allPaneIds.map(async paneId => [paneId, await resolvePaneCwdForPersist(paneId)] as const),
     )
     cwdsRef.current = Object.fromEntries(entries)
+    setPaneCwds(prev => {
+      const next = Object.fromEntries(
+        entries.filter(([, cwd]) => Boolean(cwd.trim())),
+      )
+      const prevKeys = Object.keys(prev)
+      const nextKeys = Object.keys(next)
+      if (
+        prevKeys.length === nextKeys.length
+        && nextKeys.every(key => prev[key] === next[key])
+      ) {
+        return prev
+      }
+      return next
+    })
     await saveSessionNow()
   }, [resolvePaneCwdForPersist, saveSessionNow])
 
@@ -305,6 +325,12 @@ export const App: React.FC = () => {
           splitSpawnCwdRef.current.delete(pid)
           delete cwdsRef.current[pid]
         }
+        setPaneCwds(prev => {
+          if (orphanPaneIds.length === 0) return prev
+          const next = { ...prev }
+          for (const pid of orphanPaneIds) delete next[pid]
+          return next
+        })
         setTimeout(() => {
           for (const pid of orphanPaneIds) {
             window.api.deleteScrollback(pid)
@@ -317,6 +343,7 @@ export const App: React.FC = () => {
         cwdsRef.current = Object.fromEntries(
           Object.entries(sanitized.cwds).filter(([id]) => keptPaneIds.has(id)),
         )
+        setPaneCwds({ ...cwdsRef.current })
         const explorerMap = Object.fromEntries(
           Object.entries(sanitized.explorerByPane)
             .filter(([id]) => keptPaneIds.has(id))
@@ -514,6 +541,17 @@ export const App: React.FC = () => {
         splitSpawnCwdRef.current.delete(pid)
         delete cwdsRef.current[pid]
       }
+      setPaneCwds(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const pid of paneIds) {
+          if (pid in next) {
+            delete next[pid]
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
       setBusyPanes(prev => {
         if (!paneIds.some(pid => prev.has(pid))) return prev
         const next = new Set(prev)
@@ -558,6 +596,12 @@ export const App: React.FC = () => {
     termRefs.current.delete(paneId)
     splitSpawnCwdRef.current.delete(paneId)
     delete cwdsRef.current[paneId]
+    setPaneCwds(prev => {
+      if (!(paneId in prev)) return prev
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
     setBusyPanes(prev => {
       if (!prev.has(paneId)) return prev
       const next = new Set(prev)
@@ -684,6 +728,52 @@ export const App: React.FC = () => {
     }))
     scheduleSaveSession()
   }, [rememberPaneCwd, scheduleSaveSession])
+
+  /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
+  const handleDuplicateAgentPane = useCallback((
+    tabId: string,
+    sourcePaneId: string,
+  ) => {
+    const current = tabsRef.current.find(tab => tab.id === tabId)
+    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (current.paneKinds?.[sourcePaneId] !== 'agent') return
+    const sourceMeta = current.agentByPane?.[sourcePaneId]
+    if (!sourceMeta) return
+    const cwd = current.projectFolder?.trim() || ''
+    if (!cwd) return
+    const paneId = crypto.randomUUID()
+    rememberPaneCwd(paneId, cwd)
+    const cloned = cloneAgentPaneMeta(
+      sourceMeta,
+      i18next.t('agentPane.duplicateNameSuffix'),
+    )
+    setTabs(prev => prev.map(tab => {
+      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      const paneWindows = { ...(tab.paneWindows ?? {}) }
+      paneWindows[paneId] = createPaneWindowState(paneWindows, false)
+      const paneKinds: Record<string, PaneKind> = { ...(tab.paneKinds ?? {}), [paneId]: 'agent' }
+      return normalizeTabSession({
+        ...tab,
+        paneIds: [...tab.paneIds, paneId],
+        activePaneId: paneId,
+        paneKinds,
+        paneWindows,
+        agentByPane: {
+          ...(tab.agentByPane ?? {}),
+          [paneId]: cloned,
+        },
+      })
+    }))
+    scheduleSaveSession()
+    armSuppressPaneExpand()
+    lockMiniExpandForConfig()
+    setOpenConfigForPaneId(paneId)
+  }, [
+    armSuppressPaneExpand,
+    lockMiniExpandForConfig,
+    rememberPaneCwd,
+    scheduleSaveSession,
+  ])
 
   /** Abre el picker de proveedor solo si la pestaña ya tiene carpeta de proyecto. */
   const requestAddAgent = useCallback((
@@ -1319,6 +1409,10 @@ export const App: React.FC = () => {
           onPreferStopConsumed={() => {
             setPlaneStopPaneId(current => (current === paneId ? null : current))
           }}
+          preferClearConversation={planeClearPaneId === paneId}
+          onPreferClearConversationConsumed={() => {
+            setPlaneClearPaneId(current => (current === paneId ? null : current))
+          }}
           registerShortcutCloseInterceptor={registerClose}
           fontSize={config.fontSize ?? 13}
         />
@@ -1352,6 +1446,23 @@ export const App: React.FC = () => {
       />
     )
   }
+
+  const agentCloneSources = useMemo(() => {
+    if (!agentPicker) return []
+    const tab = tabs.find(item => item.id === agentPicker.tabId)
+    if (!tab) return []
+    return tab.paneIds
+      .filter(paneId => tab.paneKinds?.[paneId] === 'agent')
+      .map(paneId => {
+        const meta = tab.agentByPane?.[paneId]
+        return {
+          paneId,
+          name: meta?.name?.trim() || '',
+          provider: meta?.provider ?? 'claude' as const,
+          color: meta?.color,
+        }
+      })
+  }, [agentPicker, tabs])
 
   return (
     <div className="app-root">
@@ -1449,6 +1560,13 @@ export const App: React.FC = () => {
                 kind,
                 title,
                 busy: busyPanes.has(paneId),
+                folderPath: paneCwds[paneId]?.trim() || tab.projectFolder?.trim() || undefined,
+                folderName: (() => {
+                  const name = sessionCwdFolderName(
+                    paneCwds[paneId] || tab.projectFolder,
+                  )
+                  return name === '—' ? undefined : name
+                })(),
                 window: win,
               }
             })
@@ -1534,6 +1652,9 @@ export const App: React.FC = () => {
                   onStopChat={paneId => {
                     setPlaneStopPaneId(paneId)
                   }}
+                  onClearConversation={paneId => {
+                    setPlaneClearPaneId(paneId)
+                  }}
                   agentStatuses={agentPlaneStatus}
                   chatFontSize={config.fontSize ?? 13}
                   configLabel={t('agentPane.openConfig')}
@@ -1586,6 +1707,7 @@ export const App: React.FC = () => {
         settingsOpen={settingsOpen}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
+        agentCloneSources={agentCloneSources}
         onCloseSettings={() => {
           setSettingsOpen(false)
           focusActiveTerminalTextarea()
@@ -1605,6 +1727,13 @@ export const App: React.FC = () => {
           setAgentPicker(null)
           if (pending) {
             void handleAddAgentPane(pending.tabId, pending.fromPaneId, provider)
+          }
+        }}
+        onAgentCloneSelect={sourcePaneId => {
+          const pending = agentPicker
+          setAgentPicker(null)
+          if (pending) {
+            handleDuplicateAgentPane(pending.tabId, sourcePaneId)
           }
         }}
       />

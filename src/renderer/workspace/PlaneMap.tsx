@@ -1,9 +1,10 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import {
   computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
   computeStandardPaneWindowGeometry,
+  estimatePlaneAgentMiniHeight,
   PLANE_MINI_SLOT_GAP,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_Y,
@@ -31,6 +32,10 @@ export interface PlaneMapEntity {
   autoImproveContexts?: boolean
   /** Color de acento del agente en el plano. */
   color?: string
+  /** Basename de la carpeta actual (terminales). */
+  folderName?: string
+  /** Path completo del cwd (tooltip del badge). */
+  folderPath?: string
   window: PaneWindowState
 }
 
@@ -50,7 +55,6 @@ export interface PlaneMapProps {
   onCloseWindow: (paneId: string) => void
   onFocusWindow: (paneId: string) => void
   onToggleFullscreen: (paneId: string) => void
-  onMinimizeAllWindows?: () => void
   onOpenConfig: (paneId: string) => void
   /** Mini agente: clic en la card (o sus contextos) abre/cambia el chat. */
   onOpenChat: (paneId: string) => void
@@ -59,10 +63,11 @@ export interface PlaneMapProps {
   onAssignContext?: (paneId: string, contextId: string) => void
 }
 
-/** Ranuras fijas por orden estable de paneIds (abrir no reordena a las demás). */
+/** Ranuras: terminales a altura de celda; agentes apilados a altura medida/estimada. */
 function buildSlotOrigins(
   entities: PlaneMapEntity[],
   viewport: { width: number; height: number },
+  agentHeights: Record<string, number>,
 ): Record<string, PaneWindowGeometry> {
   const vw = Math.max(viewport.width, 320)
   const origins: Record<string, PaneWindowGeometry> = {}
@@ -81,13 +86,21 @@ function buildSlotOrigins(
       height: cell.height,
     }
   })
-  agents.forEach((entity, index) => {
+
+  let agentY = PLANE_MINI_SLOT_PAD_Y
+  const agentX = Math.max(padX, vw - padX - cell.width)
+  agents.forEach(entity => {
+    const measured = agentHeights[entity.paneId]
+    const height = measured && measured > 0
+      ? measured
+      : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0)
     origins[entity.paneId] = {
-      x: Math.max(padX, vw - padX - cell.width),
-      y: PLANE_MINI_SLOT_PAD_Y + index * stride,
+      x: agentX,
+      y: agentY,
       width: cell.width,
-      height: cell.height,
+      height,
     }
+    agentY += height + PLANE_MINI_SLOT_GAP
   })
   return origins
 }
@@ -108,7 +121,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onCloseWindow,
   onFocusWindow,
   onToggleFullscreen,
-  onMinimizeAllWindows,
   onOpenConfig,
   onOpenChat,
   onDeletePane,
@@ -116,6 +128,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  const [agentHeights, setAgentHeights] = useState<Record<string, number>>({})
+
+  const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
+    setAgentHeights(prev => (prev[paneId] === height ? prev : { ...prev, [paneId]: height }))
+  }, [])
 
   useLayoutEffect(() => {
     const el = mapRef.current
@@ -135,6 +152,22 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     return () => observer.disconnect()
   }, [])
 
+  // Limpia alturas de agentes eliminados.
+  useLayoutEffect(() => {
+    const agentIds = new Set(
+      entities.filter(entity => entity.kind === 'agent').map(entity => entity.paneId),
+    )
+    setAgentHeights(prev => {
+      let changed = false
+      const next: Record<string, number> = {}
+      for (const [id, height] of Object.entries(prev)) {
+        if (agentIds.has(id)) next[id] = height
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [entities])
+
   const openGeometry = useMemo(
     () => computeStandardPaneWindowGeometry(
       viewport.width > 0 && viewport.height > 0
@@ -148,8 +181,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     () => buildSlotOrigins(
       entities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
+      agentHeights,
     ),
-    [entities, viewport],
+    [entities, viewport, agentHeights],
   )
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
@@ -168,14 +202,16 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 
   const terminalOpen = terminals.some(entity => entity.window.open)
   const agentOpen = agents.some(entity => entity.window.open)
+  const anyWindowOpen = terminalOpen || agentOpen
 
-  // 3D en el wrapper de columna (no clip-path 2D). Al abrir, vuelve a plano.
-  const terminalsColumnTransform = `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${
-    terminalOpen ? 0 : COLUMN_TILT_DEG
-  }deg)`
-  const agentsColumnTransform = `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${
-    agentOpen ? 0 : -COLUMN_TILT_DEG
-  }deg)`
+  // Ambas columnas planas al instante con ventana abierta (morph / z-index 2D).
+  // Sin transform/will-change en elevated: el full compite en el stage.
+  const terminalsColumnTransform = anyWindowOpen
+    ? undefined
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
+  const agentsColumnTransform = anyWindowOpen
+    ? undefined
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-COLUMN_TILT_DEG}deg)`
 
   const renderEntity = (entity: PlaneMapEntity): React.ReactNode => {
     const slot = slotOrigins[entity.paneId] ?? {
@@ -217,6 +253,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           maximizeLabel={maximizeLabel}
           restoreLabel={restoreLabel}
           closeWindowLabel={closeWindowLabel}
+          folderName={entity.folderName}
+          folderPath={entity.folderPath}
           onExpand={() => onExpandEntity(entity.paneId)}
           onClose={() => onCloseWindow(entity.paneId)}
           onFocus={() => onFocusWindow(entity.paneId)}
@@ -226,6 +264,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onDelete={() => onDeletePane(entity.paneId)}
           onDropContext={entity.kind === 'agent' && onAssignContext
             ? contextId => onAssignContext(entity.paneId, contextId)
+            : undefined}
+          onMiniContentHeightChange={entity.kind === 'agent'
+            ? height => handleAgentMiniHeight(entity.paneId, height)
             : undefined}
         >
           {renderPane(entity.paneId)}
@@ -237,22 +278,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   return (
     <div ref={mapRef} className={[
       'plane-map',
-      (terminalOpen || agentOpen) ? 'plane-map--elevated' : '',
+      anyWindowOpen ? 'plane-map--elevated' : '',
     ].filter(Boolean).join(' ')}>
       <div className="plane-map__atmosphere" aria-hidden="true" />
       <div className="plane-map__grid" aria-hidden="true" />
-      {(terminalOpen || agentOpen) ? (
-        <div
-          className="plane-map__dismiss"
-          aria-hidden="true"
-          onPointerDown={event => {
-            if (event.button !== 0) return
-            event.preventDefault()
-            onMinimizeAllWindows?.()
-          }}
-        />
-      ) : null}
-
       {entities.length === 0 ? (
         <div className="plane-map__empty">
           <strong>{emptyTitle}</strong>
@@ -265,10 +294,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--terminals',
-                !terminalOpen ? 'plane-map__column--tilt' : '',
+                !anyWindowOpen ? 'plane-map__column--tilt' : '',
                 terminalOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
-              style={{ transform: terminalsColumnTransform }}
+              style={terminalsColumnTransform
+                ? { transform: terminalsColumnTransform }
+                : undefined}
             >
               {terminals.map(renderEntity)}
             </div>
@@ -278,10 +309,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--agents',
-                !agentOpen ? 'plane-map__column--tilt' : '',
+                !anyWindowOpen ? 'plane-map__column--tilt' : '',
                 agentOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
-              style={{ transform: agentsColumnTransform }}
+              style={agentsColumnTransform
+                ? { transform: agentsColumnTransform }
+                : undefined}
             >
               {agents.map(renderEntity)}
             </div>

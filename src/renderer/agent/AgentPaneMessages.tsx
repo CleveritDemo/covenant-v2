@@ -2,7 +2,7 @@ import React from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
-import { AgentChatBubbles } from './AgentChatBubbles'
+import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
 import './AgentChatBubbles.css'
 
 export interface AgentPaneQueuedTurn {
@@ -16,7 +16,8 @@ export interface AgentPaneQueuedTurn {
 }
 
 export interface AgentPaneMessagesProps {
-  scrollRef: React.Ref<HTMLDivElement>
+  scrollRef: React.RefObject<HTMLDivElement>
+  bubblesRef?: React.Ref<AgentChatBubblesHandle>
   messages: AgentChatEntry[]
   busy: boolean
   activity: string
@@ -37,6 +38,7 @@ export interface AgentPaneMessagesProps {
 
 export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   scrollRef,
+  bubblesRef,
   messages,
   busy,
   activity,
@@ -69,6 +71,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           </div>
         )}
         <AgentChatBubbles
+          ref={bubblesRef}
           messages={messages}
           busy={busy}
           activeAssistantId={activeAssistantId}
@@ -78,6 +81,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           onEnteringAnimationEnd={onEnteringAnimationEnd}
           onMaterializingAnimationEnd={onMaterializingAnimationEnd}
           surface="pane"
+          scrollRef={scrollRef}
         />
         {(busy || activity !== '') && (() => {
           const activityText = activity

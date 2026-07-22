@@ -5,6 +5,7 @@
  * de tsconfig.web / tsconfig.node.
  */
 import type { TabContext } from './tabContext'
+import { AGENT_NAME_MAX_LENGTH } from './agentIdentity'
 
 export interface TabSplitSizes {
   /** Fracción 0–1 del ancho de la columna izquierda (paneles con 2 columnas). */
@@ -38,6 +39,29 @@ export interface AgentPaneMeta {
   emitResults?: boolean
   /** ID devuelto por el CLI para reanudar el chat entre turnos/reinicios. */
   cliSessionId?: string
+}
+
+/** Copia de configuración para un agente nuevo (sin sesión CLI ni historial). */
+export function cloneAgentPaneMeta(
+  source: AgentPaneMeta,
+  nameSuffix = '',
+): AgentPaneMeta {
+  const baseName = source.name?.trim() ?? ''
+  const name = baseName
+    ? `${baseName}${nameSuffix}`.slice(0, AGENT_NAME_MAX_LENGTH)
+    : undefined
+  return {
+    provider: source.provider,
+    permissionMode: source.permissionMode,
+    name,
+    role: source.role,
+    objective: source.objective,
+    model: source.model,
+    color: source.color,
+    contextIds: source.contextIds ? [...source.contextIds] : undefined,
+    autoImproveContexts: source.autoImproveContexts,
+    emitResults: source.emitResults,
+  }
 }
 
 /** Estado persistido de ventana flotante (geometría se calcula al render). */

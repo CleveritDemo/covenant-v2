@@ -132,6 +132,24 @@ export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
 export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT
 export const PLANE_MINI_TITLEBAR_HEIGHT = 26
 
+/** Altura base de la card mini de agente (sin contextos). */
+export const PLANE_MINI_AGENT_BASE_HEIGHT = 64
+/** Altura de cada fila de contexto (ícono + nombre). */
+export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = 14
+/** Chrome de la sección de contextos (borde + padding). */
+export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 7
+
+/** Altura de mini agente según cantidad de contextos asignados. */
+export function estimatePlaneAgentMiniHeight(contextCount: number): number {
+  const n = Math.max(0, Math.floor(contextCount))
+  if (n === 0) return PLANE_MINI_AGENT_BASE_HEIGHT
+  return (
+    PLANE_MINI_AGENT_BASE_HEIGHT
+    + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
+    + n * PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT
+  )
+}
+
 /** Geometría de layout en runtime (no se persiste). */
 export type PaneWindowGeometry = {
   x: number

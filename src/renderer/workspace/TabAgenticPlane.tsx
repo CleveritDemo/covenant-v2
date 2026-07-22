@@ -56,6 +56,8 @@ export interface TabAgenticPlaneProps {
   onSendChat: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
   /** Detiene el turno activo del agente desde el composer del plano. */
   onStopChat: (paneId: string) => void
+  /** Pide limpiar la conversación del agente (confirmación en AgentPane). */
+  onClearConversation: (paneId: string) => void
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
   openChatAgentId: string | null
   /** Abre/cambia el chat, o lo cierra con `null`. */
@@ -113,6 +115,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onAssignContext,
   onSendChat,
   onStopChat,
+  onClearConversation,
   openChatAgentId,
   onOpenChatAgentChange,
   agentStatuses = {},
@@ -315,7 +318,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onCloseWindow={onCloseWindow}
         onFocusWindow={onFocusWindow}
         onToggleFullscreen={onToggleFullscreen}
-        onMinimizeAllWindows={onMinimizeAllWindows}
         onOpenConfig={onOpenConfig}
         onOpenChat={openChatAgent}
         onDeletePane={onDeletePane}
@@ -345,6 +347,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               autoImprove={autoImprove}
               loopMode={Boolean(quickChatStatus?.loopMode)}
               loopActive={Boolean(quickChatStatus?.loopActive)}
+              canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
               onToggleContext={contextId => {
                 onToggleAgentContext(openChatAgentId, contextId)
               }}
@@ -352,6 +355,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                 onAutoImproveChange(openChatAgentId, enabled)
               }}
               onToggleLoop={() => onToggleLoop(openChatAgentId)}
+              onClearConversation={() => onClearConversation(openChatAgentId)}
             />
           ) : null}
           chat={quickChatVisible && openChatAgentId ? (

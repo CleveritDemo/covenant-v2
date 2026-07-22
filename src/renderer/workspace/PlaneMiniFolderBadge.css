@@ -1,0 +1,24 @@
+.plane-mini-folder-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 7.5rem;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 85%, transparent);
+  border-radius: calc(var(--plane-radius-sm) - 2px);
+  background: var(--plane-glass-strong);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    var(--plane-shadow-soft),
+    0 4px 12px color-mix(in srgb, #000 18%, transparent);
+  pointer-events: none;
+  user-select: none;
+}

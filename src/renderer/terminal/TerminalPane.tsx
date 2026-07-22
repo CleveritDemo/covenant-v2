@@ -303,6 +303,8 @@ function createBasicTerminalFitScheduler(
     const fit = getFit()
     if (!term || !fit) return
     const host = getContainer()
+    // Morph mini↔full: no refittear (el scale lo hace PaneWindow; un fit corta el texto).
+    if (host?.closest('.pane-window--zooming')) return
     if (host) {
       const w = host.clientWidth
       const h = host.clientHeight
@@ -620,6 +622,8 @@ export const TerminalPane: React.FC<Props> = ({
   }, [hasClosePaneAction])
 
   const [paneCwd, setPaneCwd] = useState(() => initialPtyCwd?.trim() ?? '')
+  const paneCwdRef = useRef(paneCwd)
+  paneCwdRef.current = paneCwd
   const [gitPanelOpen, setGitPanelOpen] = useState(false)
   const [findModalOpen, setFindModalOpen] = useState(false)
   const [findModalBuffer, setFindModalBuffer] = useState<TerminalBufferFindMatch[]>([])
@@ -657,7 +661,11 @@ export const TerminalPane: React.FC<Props> = ({
     const syncPaneCwd = async (): Promise<void> => {
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
       if (!cwd || cancelled) return
-      setPaneCwd(prev => (prev === cwd ? prev : cwd))
+      if (paneCwdRef.current === cwd) return
+      paneCwdRef.current = cwd
+      setPaneCwd(cwd)
+      // Mirror en App para el badge del mini (sin persistir; el cd ya persiste).
+      onPtyCwdInitializedRef.current?.(sessionId, cwd)
     }
     void syncPaneCwd()
     const id = window.setInterval(() => { void syncPaneCwd() }, 1500)

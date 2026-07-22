@@ -31,7 +31,6 @@ const SKIP_DIRS = new Set([
 /** Profundidad y tamaño del árbol enviado al modelo al generar `agent.md`. */
 const TREE_MAX_DEPTH = 18
 const TREE_MAX_LINES = 4500
-const TREE_MAX_FILES_PER_DIR = 120
 
 /**
  * Ruta absoluta a `./.ai-terminal/agent.md` respecto al cwd dado.
@@ -114,8 +113,9 @@ export function writeAgentMdForCwd(
 }
 
 /**
- * Árbol de carpetas y archivos del proyecto (indentado) para el bootstrap de `agent.md`.
+ * Árbol solo de carpetas/subcarpetas del proyecto (indentado).
  * Omite carpetas pesadas (`node_modules`, `.git`, artefactos de build, etc.).
+ * No incluye archivos.
  */
 export function gatherShallowFolderTree(cwdRaw: string): string {
   let root: string
@@ -153,12 +153,8 @@ export function gatherShallowFolderTree(cwdRaw: string): string {
         !e.name.startsWith('.') &&
         !SKIP_DIRS.has(e.name),
     )
-    const files = dirents.filter(e => e.isFile() && !e.name.startsWith('.'))
 
     dirs.sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-    )
-    files.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
     )
 
@@ -170,19 +166,6 @@ export function gatherShallowFolderTree(cwdRaw: string): string {
       const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name
       lines.push(`${indent}${rel}/`)
       walk(join(dir, e.name), depth + 1, rel, `${indent}  `)
-    }
-
-    const cap = Math.min(files.length, TREE_MAX_FILES_PER_DIR)
-    for (let i = 0; i < cap; i++) {
-      if (lines.length >= TREE_MAX_LINES) return
-      const e = files[i]
-      const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name
-      lines.push(`${indent}  ${rel}`)
-    }
-    if (files.length > cap) {
-      lines.push(
-        `${indent}  … (+${files.length - cap} more files in this folder; not listed)`,
-      )
     }
   }
 

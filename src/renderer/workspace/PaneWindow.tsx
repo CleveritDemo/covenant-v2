@@ -59,6 +59,37 @@ function readOffsetParentSize(el: HTMLElement | null): { w: number; h: number } 
   return { w, h }
 }
 
+/** Cover uniforme del shell full dentro de la ranura mini (mismo header + body).
+ * Anclado arriba-izquierda: centrar en X/Y corta traffic lights y titlebar. */
+function liveShellCover(
+  mini: RectBox,
+  fullW: number,
+  fullH: number,
+): { scale: number; offsetX: number; offsetY: number } {
+  const width = Math.max(fullW, 1)
+  const height = Math.max(fullH, 1)
+  const scale = Math.max(mini.w / width, mini.h / height)
+  return {
+    scale,
+    offsetX: 0,
+    offsetY: 0,
+  }
+}
+
+/**
+ * Transform del root a tamaño full que equivale visualmente al mini con shell cover.
+ * Usa la misma escala uniforme (no sx/sy distintos → sin estirar el PTY).
+ */
+function liveParkedTransform(
+  mini: RectBox,
+  geo: { x: number; y: number; width: number; height: number },
+): string {
+  const { scale, offsetX, offsetY } = liveShellCover(mini, geo.width, geo.height)
+  const dx = mini.x + offsetX - geo.x
+  const dy = mini.y + offsetY - geo.y
+  return `translate(${dx}px, ${dy}px) scale(${scale})`
+}
+
 /** Morph FLIP vía Web Animations API (fiable en Electron; no pelea con CSS tilt). */
 function runPaneTransformMorph(options: {
   root: HTMLElement | null
@@ -125,17 +156,21 @@ function runPaneTransformMorph(options: {
     if (finished) return
     finished = true
     try {
+      anim.commitStyles()
+    } catch { /* ignore */ }
+    try {
       anim.cancel()
     } catch { /* ignore */ }
-    node.style.transform = ''
-    node.style.transition = ''
-    node.style.transformOrigin = ''
     onFinished()
     flushSync(() => {
       setLayoutOverride(null)
       setZoomMode('idle')
       setZoomPrep(false)
     })
+    node.style.transform = ''
+    node.style.borderRadius = ''
+    node.style.transition = ''
+    node.style.transformOrigin = ''
   }
 
   anim.addEventListener('finish', finish)
@@ -144,9 +179,13 @@ function runPaneTransformMorph(options: {
     finished = true
     window.clearTimeout(timer)
     try {
+      anim.commitStyles()
+    } catch { /* ignore */ }
+    try {
       anim.cancel()
     } catch { /* ignore */ }
     node.style.transform = ''
+    node.style.borderRadius = ''
     node.style.transition = ''
     node.style.transformOrigin = ''
   }
@@ -167,6 +206,8 @@ export interface PaneWindowProps {
   onConfigure?: () => void
   miniFace?: React.ReactNode
   miniActions?: React.ReactNode
+  /** Badge de carpeta actual en el mini (solo basename). */
+  miniFolderBadge?: React.ReactNode
   /** En mini: muestra el pane real escalado (p. ej. terminal) en vez de aparcarlo. */
   miniLivePreview?: boolean
   /** Card de agente: proporciones y marco propios. */
@@ -180,6 +221,8 @@ export interface PaneWindowProps {
   onFocus: () => void
   /** Drop de un contexto del pool sobre este pane (agentes). */
   onDropContext?: (contextId: string) => void
+  /** Altura real del mini agente (contenido) para apilar en el plano. */
+  onMiniContentHeightChange?: (height: number) => void
 }
 
 export const PaneWindow: React.FC<PaneWindowProps> = ({
@@ -196,6 +239,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onConfigure,
   miniFace,
   miniActions,
+  miniFolderBadge,
   miniLivePreview = false,
   miniAgentCard = false,
   showTitlebar = true,
@@ -205,6 +249,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onClose,
   onFocus,
   onDropContext,
+  onMiniContentHeightChange,
 }) => {
   const isMini = display === 'mini'
   const isFullscreen = !isMini && geometry.fullscreen
@@ -232,23 +277,15 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
   const zooming = zoomMode !== 'idle'
   const showAsMini = isMini && !zooming
-  // Titlebar visible en zoom aunque el mini no lleve chrome (evita cortes).
-  const titlebarVisible = showTitlebar || zooming
-  // Misma altura mini/full: el host live debe medir igual que el body expandido
-  // (si mini usa sizeW×sizeH, al abrir el body es más bajo → fit + scrollToBottom).
-  const chromeH = showTitlebar ? PLANE_MINI_TITLEBAR_HEIGHT : 0
+  const titlebarVisible = showTitlebar || zooming || (miniLivePreview && showAsMini)
+  // Shell live siempre a tamaño full (header incluido); mini solo lo escala.
+  const chromeH = (titlebarVisible || miniLivePreview) ? PLANE_MINI_TITLEBAR_HEIGHT : 0
   const parkBodyW = sizeW
   const parkBodyH = Math.max(1, sizeH - chromeH)
-  const miniTitlebarH = showAsMini && titlebarVisible ? PLANE_MINI_TITLEBAR_HEIGHT : 0
-  const previewBodyW = miniW
-  const previewBodyH = Math.max(1, miniH - miniTitlebarH)
-  /** Terminal mini: escala cover del body full dentro de la ranura (sin cambiar cols/rows). */
-  const liveCoverScale = Math.max(
-    previewBodyW / Math.max(parkBodyW, 1),
-    previewBodyH / Math.max(parkBodyH, 1),
-  )
-  const liveOffsetX = (previewBodyW - parkBodyW * liveCoverScale) / 2
-  const liveOffsetY = (previewBodyH - parkBodyH * liveCoverScale) / 2
+  const miniBox: RectBox = { x: miniOrigin.x, y: miniOrigin.y, w: miniW, h: miniH }
+  const shellCover = liveShellCover(miniBox, sizeW, sizeH)
+  /** Mini live: cover del shell entero (mismo header que full, solo escalado). */
+  const shellCoverActive = Boolean(miniLivePreview && showAsMini)
 
   const fullLayout: LayoutBox = {
     left: geometry.x,
@@ -262,7 +299,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     left: miniOrigin.x,
     top: miniOrigin.y,
     width: miniW,
-    height: miniH,
+    // Agente mini: el CSS usa height:auto al contenido; el nº solo sirve al morph.
+    height: miniAgentCard ? 'auto' : miniH,
     zIndex: geometry.zIndex,
   }
 
@@ -286,27 +324,68 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     return () => window.cancelAnimationFrame(id)
   }, [])
 
+  // Mini agente: reportar altura real del contenido (height:auto) para el apilado.
+  useLayoutEffect(() => {
+    if (!showAsMini || !miniAgentCard || !onMiniContentHeightChange) return
+    const el = rootRef.current
+    if (!el) return
+    let last = 0
+    const report = (): void => {
+      const next = Math.ceil(el.getBoundingClientRect().height)
+      if (next <= 0 || next === last) return
+      last = next
+      onMiniContentHeightChange(next)
+    }
+    report()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(report)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showAsMini, miniAgentCard, onMiniContentHeightChange, miniFace])
+
   const stageEase = `${PANE_ZOOM_MS}ms cubic-bezier(0.05, 0.9, 0.08, 1)`
   // Terminales live: nunca animar width/height (el fit intermedio hace saltar el texto).
-  // Agentes: transición CSS de caja.
+  // Agentes mini: sin animar height (es auto al contenido).
   const stageTransition = motionReady && !zooming && !miniLivePreview
-    ? `left ${stageEase}, top ${stageEase}, width ${stageEase}, height ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
+    ? (
+      miniAgentCard
+        ? `left ${stageEase}, top ${stageEase}, width ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
+        : `left ${stageEase}, top ${stageEase}, width ${stageEase}, height ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
+    )
     : undefined
 
   useLayoutEffect(() => {
     const prev = prevDisplayRef.current
     if (prev === display) return
 
+    // Al volver a mini, el traffic light del full suele conservar el foco y
+    // dejaba las acciones del corner “pegadas” (focus-within / hover fantasma).
+    if (display === 'mini') {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && rootRef.current?.contains(active)) {
+        active.blur()
+      }
+    }
+
     const geo = geometryRef.current
     const origin = miniOriginRef.current
-    const zoomZ = Math.max(geo.zIndex, 120)
-    const miniBox: RectBox = { x: origin.x, y: origin.y, w: miniW, h: miniH }
-    const sx = miniBox.w / Math.max(geo.width, 1)
-    const sy = miniBox.h / Math.max(geo.height, 1)
-    const dx = miniBox.x - geo.x
-    const dy = miniBox.y - geo.y
-    const parked = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`
-    const identity = 'translate(0px, 0px) scale(1, 1)'
+    const slot: RectBox = {
+      x: origin.x,
+      y: origin.y,
+      w: miniW,
+      h: miniH,
+    }
+    // Live terminal: misma escala uniforme del shell cover. Resto: fit exacto de caja.
+    const parked = miniLivePreview
+      ? liveParkedTransform(slot, geo)
+      : (() => {
+          const sx = slot.w / Math.max(geo.width, 1)
+          const sy = slot.h / Math.max(geo.height, 1)
+          const dx = slot.x - geo.x
+          const dy = slot.y - geo.y
+          return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`
+        })()
+    const identity = 'translate(0px, 0px) scale(1)'
 
     const resetZoom = (): void => {
       setLayoutOverride(null)
@@ -337,7 +416,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         top: geo.y,
         width: geo.width,
         height: geo.height,
-        zIndex: zoomZ,
+        zIndex: Math.max(geo.zIndex, 140),
       }
       return runPaneTransformMorph({
         root: rootRef.current,
@@ -366,7 +445,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
           top: geo.y,
           width: geo.width,
           height: geo.height,
-          zIndex: zoomZ,
+          zIndex: Math.max(geo.zIndex, 100),
         },
         startTransform: identity,
         endTransform: parked,
@@ -379,7 +458,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
     commitDisplay()
     resetZoom()
-  }, [display, miniH, miniW, miniAgentCard])
+  }, [display, miniH, miniW, miniAgentCard, miniLivePreview])
 
   const prevFullscreenRef = useRef(geometry.fullscreen)
 
@@ -543,9 +622,15 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         top: layout.top,
         width: layout.width,
         height: layout.height,
-        zIndex: zooming || (!isMini && !isFullscreen)
-          ? Math.max(Number(layout.zIndex) || 0, 120)
-          : layout.zIndex,
+        zIndex: (() => {
+          const base = Number(layout.zIndex) || 0
+          // Al cambiar de terminal, expand y collapse corren a la vez: el que
+          // abre debe ir encima desde el primer frame (no al terminar).
+          if (zoomMode === 'expand') return Math.max(base, 140)
+          if (zoomMode === 'collapse') return Math.max(base, 100)
+          if (!isMini && !isFullscreen) return Math.max(base, 120)
+          return base
+        })(),
         ...(stageTransition ? { transition: stageTransition } : null),
         ...(agentParkedShadow ? { boxShadow: agentParkedShadow } : null),
       }}
@@ -557,8 +642,38 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
       onDragLeave={onDropContext ? onContextDragLeave : undefined}
       onDrop={onDropContext ? onContextDrop : undefined}
     >
-      <div className="pane-window__shell">
-        {showAsMini && miniActions}
+      {/* Montar durante zoom para fade; no cortar half-out al expand/collapse. */}
+      {(showAsMini || zooming) && miniActions ? (
+        <div className="pane-window__mini-corner">
+          {miniActions}
+        </div>
+      ) : null}
+      {(showAsMini || zooming) && miniFolderBadge ? (
+        <div className="pane-window__mini-folder">
+          {miniFolderBadge}
+        </div>
+      ) : null}
+      <div className="pane-window__frame">
+      <div
+        className={[
+          'pane-window__shell',
+          shellCoverActive ? 'pane-window__shell--live-cover' : '',
+        ].filter(Boolean).join(' ')}
+        style={shellCoverActive
+          ? {
+              width: sizeW,
+              height: sizeH,
+              transformOrigin: 'top left',
+              transform: `translate(${shellCover.offsetX}px, ${shellCover.offsetY}px) scale(${shellCover.scale})`,
+            }
+          : zooming && miniLivePreview
+            ? {
+                // Durante el morph el root lleva la escala; shell a tamaño full.
+                width: sizeW,
+                height: sizeH,
+              }
+            : undefined}
+      >
         {titlebarVisible && (
         <header
           className="pane-window__titlebar"
@@ -581,9 +696,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
               className="pane-window__traffic-btn pane-window__traffic-btn--min"
               title={closeLabel}
               aria-label={closeLabel}
-              disabled={isMini || zooming}
               onClick={event => {
                 event.stopPropagation()
+                if (isMini && !zooming) return
                 onClose()
               }}
               onPointerDown={event => event.stopPropagation()}
@@ -593,9 +708,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
               className="pane-window__traffic-btn pane-window__traffic-btn--zoom"
               title={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
               aria-label={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
-              disabled={zooming}
               onClick={event => {
                 event.stopPropagation()
+                if (zooming) return
                 if (isMini) {
                   onExpand?.()
                 } else {
@@ -635,21 +750,14 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             className={[
               'pane-window__live-host',
               `pane-window__live-host--${liveHostMode}`,
-              showAsMini && miniLivePreview ? 'pane-window__live-host--mini-cover' : '',
             ].filter(Boolean).join(' ')}
-            style={showAsMini && miniLivePreview
+            style={miniLivePreview && (showAsMini || zooming)
               ? {
+                  // PTY a tamaño full estable (el scale lo hace shell/root).
                   width: parkBodyW,
                   height: parkBodyH,
-                  transformOrigin: 'top left',
-                  transform: `translate(${liveOffsetX}px, ${liveOffsetY}px) scale(${liveCoverScale})`,
+                  flex: 'none',
                 }
-              : zooming && miniLivePreview
-                ? {
-                    // Mismo tamaño de body durante el morph (evita un fit al quitar el cover).
-                    width: parkBodyW,
-                    height: parkBodyH,
-                  }
               : showAsMini && !miniLivePreview
                 ? {
                     width: parkWidth,
@@ -661,6 +769,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             {children}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

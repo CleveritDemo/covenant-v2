@@ -23,6 +23,14 @@ export function sessionCwdPaneLabel(cwd: string | null | undefined, levels = 2):
   return parts.slice(-levels).join(' / ')
 }
 
+/** Solo el basename de la carpeta actual del cwd (sin padres). */
+export function sessionCwdFolderName(cwd: string | null | undefined): string {
+  const norm = normalizeSessionCwd(cwd)
+  if (!norm) return '—'
+  const parts = norm.split('/').filter(Boolean)
+  return parts[parts.length - 1] || '—'
+}
+
 export interface ExplorerSelectedEntry {
   relPath: string
   isDirectory: boolean

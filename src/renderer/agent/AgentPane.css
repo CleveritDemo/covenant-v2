@@ -404,18 +404,15 @@
 @keyframes agent-pane-row-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(.94);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
-/* Zoom pop-in direccional: solo con --enter (mensaje nuevo en sesión).
-   Sin esa clase no hay animación al reabrir o redimensionar el chat.
-   El recorrido horizontal se mantiene pequeño: overflow:auto del scroll
-   recorta cualquier translate grande y produce el "corte" al aparecer. */
+/* Entrada de mensaje nuevo: sin zoom (solo fade opcional vía clase; hoy off). */
 .agent-pane__row--user {
   justify-content: flex-end;
   transform-origin: right center;
@@ -431,24 +428,10 @@
   margin-top: 14px;
 }
 
-.agent-pane__row--enter {
-  animation: agent-pane-row-in .4s cubic-bezier(.2, .9, .3, 1) both;
-}
-
-/* Solo el usuario: zoom desde la derecha, sin rebote. */
-.agent-pane__row--enter.agent-pane__row--user {
-  animation: agent-pane-zoom-in-user .45s cubic-bezier(.22, 1, .36, 1) both;
-}
-
-@keyframes agent-pane-zoom-in-user {
-  from {
-    opacity: 0;
-    transform: scale(.15);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.agent-pane__row--enter,
+.agent-pane__row--enter.agent-pane__row--user,
+.agent-pane__row--enter.agent-pane__row--assistant {
+  animation: none;
 }
 
 @keyframes agent-pane-sonar {
@@ -540,31 +523,17 @@
   z-index: 2;
 }
 
-/* Materialización: solo cuando llega el primer token (clase JS), no al
-   crear el placeholder vacío. Sin fill forwards para ceder el transform
-   a la levitación al terminar. */
+/* Materialización: sin scale/zoom; la levitación live sigue en --live. */
 .agent-pane__bubble--materialize {
-  transform-origin: center center;
-  animation:
-    agent-pane-bubble-materialize .6s cubic-bezier(.22, 1.2, .36, 1),
-    agent-pane-levitate 3s ease-in-out .6s infinite;
+  animation: none;
 }
 
 @keyframes agent-pane-bubble-materialize {
   0% {
     opacity: 0;
-    transform: scale(.35);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  80% {
-    transform: scale(.98);
   }
   100% {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -1898,6 +1867,48 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+.agent-provider-picker__clone {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-provider-picker__clone-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.agent-provider-picker__clone-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.agent-provider-picker__clone-swatch {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 25%, transparent);
+}
+
+.agent-provider-picker__clone-meta {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .agent-loop-interval__description {

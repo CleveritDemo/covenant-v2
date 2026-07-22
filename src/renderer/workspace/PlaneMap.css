@@ -3,22 +3,14 @@
   inset: 0;
   /* visible: la perspectiva 3D de las columnas no debe recortarse */
   overflow: visible;
-  z-index: 12;
+  /* Sobre el fade del chat (dock 14); bajo composer/FABs/pool. */
+  z-index: 16;
   pointer-events: none;
 }
 
-/* Ventana abierta: por encima del composer (shell z18 dentro del dock). */
+/* Ventana abierta: por encima del composer, pool y FABs. */
 .plane-map--elevated {
-  z-index: 40;
-}
-
-/* Capa para capturar clic fuera de la ventana abierta (el mapa es pointer-events: none). */
-.plane-map__dismiss {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: auto;
-  cursor: default;
+  z-index: 60;
 }
 
 .plane-map__atmosphere {
@@ -81,6 +73,12 @@
   perspective-origin: 50% 45%;
 }
 
+/* Sin perspectiva 3D mientras hay ventana: el morph debe respetar z-index 2D. */
+.plane-map--elevated .plane-map__stage {
+  perspective: none;
+  isolation: isolate;
+}
+
 .plane-map__column {
   position: absolute;
   inset: 0;
@@ -99,9 +97,45 @@
   transform-origin: right center;
 }
 
-/* Columna con ventana abierta por encima de la otra (transform crea stacking context). */
+/* Elevated: aplanar al instante y romper stacking context de la columna.
+   will-change:transform crea SC aunque transform sea none. */
+.plane-map--elevated .plane-map__column {
+  transition: none;
+  transform: none !important;
+  transform-style: flat;
+  will-change: auto;
+  filter: none;
+  opacity: 1;
+  isolation: auto;
+  z-index: auto;
+}
+
+.plane-map--elevated .plane-map__column .pane-window {
+  transform-style: flat;
+}
+
+/* Minis inactivas detrás de la ventana abierta. */
+.plane-map--elevated .pane-window--mini:not(.pane-window--zooming) {
+  z-index: 1 !important;
+  filter: none !important;
+}
+
+.plane-map--elevated .pane-window--full:not(.pane-window--zooming-collapse),
+.plane-map--elevated .pane-window--zooming-expand {
+  z-index: 140 !important;
+}
+
+.plane-map--elevated .pane-window--zooming-collapse {
+  z-index: 100 !important;
+}
+
+/* Columna con ventana abierta: marca semántica (z-index lo llevan los panes). */
 .plane-map__column--front {
   z-index: 8;
+}
+
+.plane-map--elevated .plane-map__column--front {
+  z-index: auto;
 }
 
 .plane-map__column .pane-window {
@@ -112,13 +146,13 @@
 /* Terminales: sombra sutil a la izquierda (misma caja mini que agentes). */
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming),
 .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming):hover {
-  border-radius: 10px !important;
+  border-radius: 6px !important;
   box-shadow: var(--plane-mini-card-shadow-left) !important;
 }
 
 /* Agentes: mismo radio; sombra inline a escala mini en PaneWindow. */
 .plane-map__column--agents .pane-window--mini:not(.pane-window--zooming) {
-  border-radius: 10px !important;
+  border-radius: var(--plane-radius-sm) !important;
 }
 
 .plane-map__column .pane-window--mini:not(.pane-window--zooming):hover {
@@ -145,4 +179,10 @@
   min-width: 0;
   overflow: hidden;
   border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-map__column {
+    transition: none;
+  }
 }

@@ -41,7 +41,7 @@ export interface AgentCliStartRequest {
 }
 
 export type AgentCliUiEvent =
-  | { type: 'assistant_delta'; text: string }
+  | { type: 'assistant_delta'; text: string; source?: 'create_plan' }
   | { type: 'assistant_final'; text: string }
   | { type: 'tool'; name: string; status: 'started' | 'completed'; detail?: string }
   | { type: 'context'; status: 'loading' | 'loaded'; detail?: string }

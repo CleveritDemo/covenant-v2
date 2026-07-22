@@ -12,7 +12,7 @@ export interface PlaneMiniFaceProps {
   deleteLabel?: string
   onConfigure?: () => void
   onDelete?: () => void
-  /** Contextos anidados (íconos) debajo del cuerpo. */
+  /** Contextos anidados (lista con nombres) debajo del cuerpo. */
   children?: React.ReactNode
 }
 

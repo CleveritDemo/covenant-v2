@@ -16,25 +16,88 @@
   flex-shrink: 0;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  /* Badge half-out: no recortar el chrome del mini. */
+  overflow: visible;
+}
+
+/* Recorta el contenido al radio; el badge vive fuera de este frame. */
+.pane-window__frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* Acciones (eliminar/config) esquina superior derecha: mitad dentro, mitad fuera.
+ * pointer-events auto en el corner: la mitad exterior también captura hover/clic. */
+.pane-window__mini-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translate(22%, -42%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* Chrome half-out solo en mini estable (fade al entrar/salir del morph). */
+.pane-window--mini:not(.pane-window--zooming) .pane-window__mini-corner {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Puente de hit-test: con rotateY 3D la mitad exterior a veces no recibe eventos.
+ * Queda casi todo fuera de la card para no tapar el expand. */
+.pane-window--mini:not(.pane-window--zooming):not(.pane-window--mini-bare)::after {
+  content: '';
+  position: absolute;
+  top: -22px;
+  right: -22px;
+  width: 40px;
+  height: 40px;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+/* Badge anclado abajo-izquierda: mitad dentro, mitad fuera. */
+.pane-window__mini-folder {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 7;
+  max-width: min(7.5rem, 60%);
+  transform: translate(-22%, 42%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.pane-window--mini:not(.pane-window--zooming) .pane-window__mini-folder {
+  opacity: 1;
 }
 
 .pane-window--zooming,
 .pane-window--zooming.pane-window--mini,
 .pane-window--zooming.pane-window--agent-card {
   position: absolute;
-  z-index: 120 !important;
-  border-radius: 10px;
+  /* Mismo radio que full; no inflar por scale (se veía hiper-redondo al volver a mini). */
+  border-radius: var(--plane-radius-sm) !important;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: var(--plane-glass-strong);
-  overflow: hidden;
+  /* visible: el frame recorta el contenido; el root no debe cortar el fade del chrome. */
+  overflow: visible;
   /* backdrop-filter + transform en el mismo nodo (o hijos) rompe el morph en Electron. */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  /* Transform lo anima WAAPI; no pelear con transition CSS. */
-  transition:
-    box-shadow 0.45s ease,
-    border-radius 0.45s ease,
-    background 0.35s ease;
+  /* Transform/radius los anima WAAPI (radius compensado por scale). */
+  transition: box-shadow 0.45s ease, background 0.35s ease;
   box-shadow:
     0 32px 90px color-mix(in srgb, #000 55%, transparent),
     0 10px 28px color-mix(in srgb, #000 30%, transparent),
@@ -43,6 +106,25 @@
   filter: none;
   will-change: transform;
   pointer-events: none;
+}
+
+/* Durante el morph, recortar solo el contenido vivo (no el chrome half-out). */
+.pane-window--zooming .pane-window__frame {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* Expand por encima del collapse (mismo tick al cambiar de terminal). */
+.pane-window--zooming-expand {
+  z-index: 140 !important;
+}
+
+/* Collapse → mini: mismo radio/sombra que el preview final (evita salto de borde). */
+.pane-window--zooming-collapse {
+  z-index: 100 !important;
+  /* Mismo radio que mini-preview (10px en caja chica se ve hiper-redondo). */
+  border-radius: 6px !important;
+  box-shadow: var(--plane-mini-card-shadow-left) !important;
 }
 
 .pane-window--zooming *,
@@ -60,7 +142,7 @@
 
 .pane-window--zooming-expand,
 .pane-window--zooming-collapse {
-  border-radius: 10px;
+  border-radius: var(--plane-radius-sm) !important;
 }
 
 .pane-window--zooming-to-fullscreen {
@@ -82,7 +164,7 @@
   position: absolute;
   min-width: 320px;
   min-height: 200px;
-  border-radius: 10px;
+  border-radius: var(--plane-radius-sm);
   /* Sombra ~30% menos intensa que --plane-shadow (38% → ~27%). */
   box-shadow:
     0 14px 42px color-mix(in srgb, #000 27%, transparent),
@@ -134,13 +216,36 @@
   border-bottom: 1px solid var(--plane-border);
 }
 
+/* Terminal live: mismo header que full (el shell se escala entero). */
+.pane-window--mini-preview .pane-window__titlebar {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px 0 12px;
+  gap: 8px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 55%, var(--bg-secondary)) 0%,
+    color-mix(in srgb, var(--bg-secondary) 88%, var(--bg)) 100%
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
 .pane-window--mini .pane-window__traffic {
   gap: 6px;
+}
+
+.pane-window--mini-preview .pane-window__traffic {
+  gap: 8px;
 }
 
 .pane-window--mini .pane-window__traffic-btn {
   width: 10px;
   height: 10px;
+}
+
+.pane-window--mini-preview .pane-window__traffic-btn {
+  width: 12px;
+  height: 12px;
 }
 
 .pane-window--mini .pane-window__title {
@@ -150,21 +255,33 @@
   color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
 }
 
+.pane-window--mini-preview .pane-window__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
 .pane-window--mini-bare .pane-window__body {
   border-radius: inherit;
 }
 
-/* Card de agente mini: mismo contenedor/ranura que terminales; contenido propio sin scale. */
+/* Card de agente mini: altura al contenido (no ranura fija). */
+.pane-window--agent-card.pane-window--mini:not(.pane-window--zooming) {
+  height: auto !important;
+}
+
 .pane-window--agent-card.pane-window--mini {
-  border-radius: 10px;
+  border-radius: var(--plane-radius-sm);
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   background: var(--plane-glass-strong);
-  overflow: hidden;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
   transition:
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.16s,
     box-shadow 0.16s,
     filter 0.16s;
@@ -177,6 +294,25 @@
 .pane-window--agent-card.pane-window--mini .pane-window__body {
   background: transparent;
   border-radius: inherit;
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+
+.pane-window--agent-card.pane-window--mini .pane-window__frame {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+
+.pane-window--agent-card.pane-window--mini .pane-window__shell {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
 }
 
 .pane-window--agent-card.pane-window--busy.pane-window--mini {
@@ -186,7 +322,6 @@
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.16s,
     filter 0.16s;
 }
@@ -262,8 +397,9 @@
   box-shadow:
     var(--plane-shadow-soft),
     inset 0 0 0 1px var(--plane-highlight);
-  border-radius: 10px;
-  overflow: hidden;
+  border-radius: 6px;
+  overflow: visible;
+  position: absolute;
 }
 
 .pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare):hover {
@@ -440,6 +576,30 @@
   background: var(--bg);
 }
 
+.pane-window__shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Terminal mini: shell full (header+body) escalado dentro de la ranura. */
+.pane-window__shell--live-cover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  flex: none;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.pane-window--mini-preview .pane-window__body {
+  overflow: hidden;
+}
+
 .pane-window__live-host {
   flex: 1;
   min-height: 0;
@@ -478,7 +638,7 @@
   pointer-events: none;
 }
 
-/* Terminal mini: escala cover dentro de la misma caja que el agente (sin transform en el root). */
+/* Terminal mini: escala cover dentro de la misma caja que el agente (legacy body-cover). */
 .pane-window--mini-preview .pane-window__body {
   position: relative;
 }

@@ -80,6 +80,10 @@ const es = {
     emptyResponse: 'El CLI terminó sin devolver texto. Prueba de nuevo.',
     closeMessage: '¿Cerrar esta ventana de agente?',
     closeDetail: 'Se detendrá su proceso activo y se eliminará el historial del chat.',
+    clearConversation: 'Limpiar conversación',
+    clearConversationHint: 'Detiene el agente, borra este chat e inicia una sesión CLI nueva.',
+    clearConversationMessage: '¿Limpiar esta conversación?',
+    clearConversationDetail: 'Se detendrá el turno en curso, se eliminará el historial del chat y el próximo mensaje iniciará una sesión CLI nueva.',
     loopTitle: 'Trabajar en loop',
     loopBar: 'loop',
     loopStart: 'Iniciar loop',
@@ -117,6 +121,10 @@ const es = {
     objectivePlaceholder: 'Qué debe perseguir este agente en sus turnos…',
     colorLabel: 'Color',
     colorHint: 'Acento del agente en el plano, badges y chat.',
+    duplicateNameSuffix: ' (copia)',
+    pickerDuplicateSection: 'O duplicar uno existente',
+    pickerDuplicateHint: 'Copia la configuración de un agente de esta pestaña (sin historial).',
+    pickerDuplicateUnnamed: 'Agente sin nombre',
   },
 
   tabContexts: {

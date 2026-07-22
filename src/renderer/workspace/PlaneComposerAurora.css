@@ -43,45 +43,31 @@
   );
 }
 
-/* Halo: se desvanece en bordes (sin óvalo recortado). */
+/* Halo: se desvanece en bordes (sin óvalo recortado). Idle: sin glow (ahorro GPU). */
 .plane-composer-aurora__glow {
   position: absolute;
   left: -4%;
   right: -4%;
   bottom: -6px;
-  height: 36px;
+  height: 0;
   border-radius: 0;
   background: var(--plane-aurora-ribbon);
   background-size: 200% 100%;
-  filter: blur(16px);
-  opacity: 0.22;
-  -webkit-mask-image: radial-gradient(
-    ellipse 95% 120% at 50% 100%,
-    #000 0%,
-    #000 28%,
-    rgba(0, 0, 0, 0.55) 55%,
-    transparent 78%
-  );
-  mask-image: radial-gradient(
-    ellipse 95% 120% at 50% 100%,
-    #000 0%,
-    #000 28%,
-    rgba(0, 0, 0, 0.55) 55%,
-    transparent 78%
-  );
-  animation:
-    plane-composer-ribbon-flow 14s linear infinite,
-    plane-composer-glow-breathe 5.6s ease-in-out infinite;
+  filter: none;
+  opacity: 0;
+  animation: none;
   pointer-events: none;
-  will-change: opacity, filter, background-position;
+  will-change: auto;
 }
 
+/* Working: ~mitad del glow anterior (área + blur + spread). */
 .plane-chat-composer--working .plane-composer-aurora__glow {
-  left: -44%;
-  right: -44%;
-  height: 440px;
-  bottom: -72px;
-  filter: blur(64px);
+  left: -22%;
+  right: -22%;
+  height: 220px;
+  bottom: -36px;
+  filter: blur(32px);
+  opacity: 0.26;
   -webkit-mask-image: radial-gradient(
     ellipse 100% 130% at 50% 100%,
     #000 0%,
@@ -101,6 +87,7 @@
   animation:
     plane-composer-ribbon-flow 7s linear infinite,
     plane-composer-glow-breathe-working 3.8s ease-in-out infinite;
+  will-change: opacity, background-position;
 }
 
 /* Cinta principal. */
@@ -157,25 +144,12 @@
   45% { background-position: -20% 50%; opacity: 0.65; }
 }
 
-@keyframes plane-composer-glow-breathe {
-  0%, 100% {
-    opacity: 0.18;
-    filter: blur(14px);
-  }
-  50% {
-    opacity: 0.28;
-    filter: blur(18px);
-  }
-}
-
 @keyframes plane-composer-glow-breathe-working {
   0%, 100% {
     opacity: 0.2;
-    filter: blur(56px);
   }
   50% {
-    opacity: 0.32;
-    filter: blur(72px);
+    opacity: 0.3;
   }
 }
 
@@ -198,15 +172,15 @@
     box-shadow:
       0 0 12px color-mix(in srgb, var(--accent) 28%, transparent),
       0 0 28px color-mix(in srgb, var(--theme-cyan) 16%, transparent),
-      0 -60px 140px color-mix(in srgb, var(--accent) 10%, transparent),
-      0 -140px 240px color-mix(in srgb, var(--theme-magenta) 6%, transparent);
+      0 -30px 70px color-mix(in srgb, var(--accent) 10%, transparent),
+      0 -70px 120px color-mix(in srgb, var(--theme-magenta) 6%, transparent);
   }
   50% {
     box-shadow:
       0 0 16px color-mix(in srgb, var(--accent) 36%, transparent),
       0 0 36px color-mix(in srgb, var(--theme-magenta) 18%, transparent),
-      0 -80px 180px color-mix(in srgb, var(--theme-blue) 12%, transparent),
-      0 -180px 300px color-mix(in srgb, var(--theme-cyan) 8%, transparent);
+      0 -40px 90px color-mix(in srgb, var(--theme-blue) 12%, transparent),
+      0 -90px 150px color-mix(in srgb, var(--theme-cyan) 8%, transparent);
   }
 }
 
@@ -219,17 +193,19 @@
   }
 
   .plane-composer-aurora__glow {
-    animation: plane-composer-ribbon-flow 28s linear infinite;
-    opacity: 0.22;
-    filter: blur(16px);
+    animation: none;
+    opacity: 0;
+    filter: none;
+    height: 0;
   }
 
   .plane-chat-composer--working .plane-composer-aurora__glow {
-    left: -40%;
-    right: -40%;
-    height: 400px;
-    opacity: 0.26;
-    filter: blur(60px);
+    left: -20%;
+    right: -20%;
+    height: 200px;
+    opacity: 0.24;
+    filter: blur(30px);
+    animation: plane-composer-ribbon-flow 28s linear infinite;
   }
 
   .plane-composer-aurora__sheen {

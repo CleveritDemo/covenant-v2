@@ -11,6 +11,7 @@ import {
   relPathFromCwd,
   resolveExplorerActionPaths,
   seedMultiSelect,
+  sessionCwdFolderName,
 } from '../explorerPathUtils'
 
 describe('remapChildRelPath', () => {
@@ -144,5 +145,18 @@ describe('ancestorRelPaths', () => {
   it('returns parents', () => {
     expect(ancestorRelPaths('a/b/c.ts')).toEqual(['a', 'a/b'])
     expect(ancestorRelPaths('file.ts')).toEqual([])
+  })
+})
+
+describe('sessionCwdFolderName', () => {
+  it('returns only the basename', () => {
+    expect(sessionCwdFolderName('/Users/me/projects/ia_terminal')).toBe('ia_terminal')
+    expect(sessionCwdFolderName('/tmp/')).toBe('tmp')
+    expect(sessionCwdFolderName('C:\\Users\\me\\repo')).toBe('repo')
+  })
+
+  it('returns em dash when empty', () => {
+    expect(sessionCwdFolderName('')).toBe('—')
+    expect(sessionCwdFolderName(null)).toBe('—')
   })
 })

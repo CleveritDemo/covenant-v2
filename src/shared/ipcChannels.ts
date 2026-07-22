@@ -18,6 +18,8 @@ export const IPC = {
   AGENT_CHAT_LOAD: 'agentChat:load',
   AGENT_CHAT_SAVE: 'agentChat:save',
   AGENT_CHAT_DELETE: 'agentChat:delete',
+  /** Renderer → main: reinicia entrega de contextos (turnos/catálogo) de una sesión CLI. */
+  AGENT_CONTEXT_DELIVERY_CLEAR: 'agentContextDelivery:clear',
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',

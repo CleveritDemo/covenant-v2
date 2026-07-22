@@ -5,6 +5,6 @@ import './PlaneIdleNucleus.css'
 /** Nucleus hero en el centro del plano mientras no hay chat abierto. */
 export const PlaneIdleNucleus: React.FC = () => (
   <div className="plane-idle-nucleus" aria-hidden="true">
-    <IaNucleus size="hero" />
+    <IaNucleus size="hero" variant="flat" />
   </div>
 )

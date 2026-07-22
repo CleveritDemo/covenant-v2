@@ -3,11 +3,22 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { ChoiceCard, Icon } from '../components/ui'
+import { resolveAgentColor } from '../workspace/planeAgentColor'
 import './AgentPane.css'
+
+export interface AgentPickerCloneSource {
+  paneId: string
+  name: string
+  provider: AgentCliProvider
+  color?: string
+}
 
 interface Props {
   open: boolean
+  /** Agentes de la pestaña para clonar configuración. */
+  cloneSources?: AgentPickerCloneSource[]
   onSelect: (provider: AgentCliProvider) => void
+  onClone?: (sourcePaneId: string) => void
   onClose: () => void
 }
 
@@ -16,8 +27,16 @@ const PROVIDERS: { id: AgentCliProvider; icon: 'bot' | 'sparkles'; titleKey: 'cl
   { id: 'cursor', icon: 'sparkles', titleKey: 'cursor' },
 ]
 
-export const AgentProviderPickerModal: React.FC<Props> = ({ open, onSelect, onClose }) => {
+export const AgentProviderPickerModal: React.FC<Props> = ({
+  open,
+  cloneSources = [],
+  onSelect,
+  onClone,
+  onClose,
+}) => {
   const { t } = useT()
+  const showClone = Boolean(onClone && cloneSources.length > 0)
+
   return (
     <TerminalModal
       open={open}
@@ -39,6 +58,38 @@ export const AgentProviderPickerModal: React.FC<Props> = ({ open, onSelect, onCl
           </ChoiceCard>
         ))}
       </div>
+
+      {showClone ? (
+        <section className="agent-provider-picker__clone" aria-label={t('agentPane.pickerDuplicateSection')}>
+          <h3 className="agent-provider-picker__clone-title">{t('agentPane.pickerDuplicateSection')}</h3>
+          <p className="agent-provider-picker__clone-hint">{t('agentPane.pickerDuplicateHint')}</p>
+          <div className="agent-provider-picker__options" role="list">
+            {cloneSources.map(source => {
+              const color = resolveAgentColor(source.paneId, source.color)
+              const providerLabel = source.provider === 'cursor'
+                ? t('agentPane.cursor')
+                : t('agentPane.claude')
+              return (
+                <ChoiceCard
+                  key={source.paneId}
+                  role="listitem"
+                  icon={(
+                    <span
+                      className="agent-provider-picker__clone-swatch"
+                      style={{ background: color }}
+                      aria-hidden
+                    />
+                  )}
+                  onClick={() => onClone?.(source.paneId)}
+                >
+                  <strong>{source.name.trim() || t('agentPane.pickerDuplicateUnnamed')}</strong>
+                  <span className="agent-provider-picker__clone-meta">{providerLabel}</span>
+                </ChoiceCard>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
     </TerminalModal>
   )
 }

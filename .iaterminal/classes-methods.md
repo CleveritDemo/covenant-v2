@@ -7,13 +7,14 @@
 - clearContextDeliveryMetrics
 - shouldForceFullContextRefresh
 - clearAgentContextDeliveryState
+- clearAgentContextDeliveryForSession
 - materializeClipboardImages
 - shouldFinishOnProcessClose
 - normalizeClaudeEvent
+- formatCreatePlanForChat
+- extractCursorCreatePlanText
 - describeCursorToolCall
 - normalizeCursorEvent
-- composePrompt
-- buildContextContinuationPrompt
 
 ### electron/agentFileOps.ts
 - resolveSafeProjectPath
@@ -445,6 +446,7 @@
 - expandedPathsKey
 - normalizeSessionCwd
 - sessionCwdPaneLabel
+- sessionCwdFolderName
 - parentDirForCreate
 - buildNewRelPath
 - parentRelPath
@@ -604,6 +606,9 @@
 ### src/renderer/workspace/PlaneMiniFace.tsx
 - PlaneMiniFace
 
+### src/renderer/workspace/PlaneMiniFolderBadge.tsx
+- PlaneMiniFolderBadge
+
 ### src/renderer/workspace/PlanePaneWindow.tsx
 - PlanePaneWindow
 
@@ -670,6 +675,7 @@
 - computePlaneChatColumnWidth
 - computePlaneMiniSlotPadX
 - computePlaneMiniLetterboxSize
+- estimatePlaneAgentMiniHeight
 - maxPaneWindowZ
 - minimizeOtherPaneWindows
 - computeStandardPaneWindowGeometry
@@ -701,6 +707,9 @@
 - normalizeContextColor
 - resolveContextIcon
 - resolveContextColor
+
+### src/shared/tabSession.ts
+- cloneAgentPaneMeta
 
 ### src/themes/codeMirrorTheme.ts
 - createCodeMirrorTheme

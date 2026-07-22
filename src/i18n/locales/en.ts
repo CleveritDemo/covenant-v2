@@ -78,6 +78,10 @@ const en = {
     emptyResponse: 'The CLI finished without returning any text. Try again.',
     closeMessage: 'Close this agent window?',
     closeDetail: 'Its running process will stop and its chat history will be deleted.',
+    clearConversation: 'Clear conversation',
+    clearConversationHint: 'Stop the agent, wipe this chat, and start a fresh CLI session.',
+    clearConversationMessage: 'Clear this conversation?',
+    clearConversationDetail: 'The running turn will stop, the chat history will be deleted, and the next message starts a new CLI session.',
     loopTitle: 'Work in a loop',
     loopBar: 'loop',
     loopStart: 'Start loop',
@@ -115,6 +119,10 @@ const en = {
     objectivePlaceholder: 'What this agent should pursue across its turns…',
     colorLabel: 'Color',
     colorHint: 'Accent used for this agent on the plane, badges, and chat.',
+    duplicateNameSuffix: ' (copy)',
+    pickerDuplicateSection: 'Or duplicate an existing one',
+    pickerDuplicateHint: 'Copy settings from an agent on this tab (no chat history).',
+    pickerDuplicateUnnamed: 'Unnamed agent',
   },
 
   tabContexts: {

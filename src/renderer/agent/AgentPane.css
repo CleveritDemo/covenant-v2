@@ -1910,17 +1910,3 @@
   font-weight: 500;
   color: var(--text-muted);
 }
-
-.agent-loop-interval__description {
-  margin: 0 0 12px;
-  font-family: var(--font-ui);
-  color: var(--text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.agent-loop-interval__options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}

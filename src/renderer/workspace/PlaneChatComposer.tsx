@@ -35,6 +35,8 @@ export interface PlaneChatAgentOption {
   paneId: string
   title: string
   busy: boolean
+  /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
+  loopActive?: boolean
   color: string
 }
 
@@ -83,8 +85,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const busy = Boolean(selected?.busy)
+  const loopActive = Boolean(selected?.loopActive)
   const canSend = Boolean(selected && (draft.trim() || pendingImages.length > 0))
-  const buttonIsStop = Boolean(busy && selected && !canSend)
+  const buttonIsStop = Boolean(selected && !canSend && (busy || loopActive))
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
@@ -176,7 +179,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       <div
         className={[
           'plane-chat-composer-aurora-host',
-          busy ? 'plane-chat-composer--working' : '',
+          busy || loopActive ? 'plane-chat-composer--working' : '',
         ].filter(Boolean).join(' ')}
         aria-hidden="true"
       >
@@ -185,7 +188,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       <div
         className={[
           'plane-chat-composer',
-          busy ? 'plane-chat-composer--working' : '',
+          busy || loopActive ? 'plane-chat-composer--working' : '',
         ].filter(Boolean).join(' ')}
       >
       <div className="plane-chat-composer__body">
@@ -304,7 +307,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             onKeyDown={event => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
-                submit()
+                handleSendClick()
               }
             }}
           />

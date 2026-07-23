@@ -166,9 +166,10 @@ export function buildAiAgentResultsInstruction(agentName: string | undefined): s
   if (!name) return ''
   return [
     '## Agent results registry',
-    `When you produce a durable outcome for this agent ("${name}"), register it for other agents to read.`,
+    `You MUST append the results block on every turn for this agent ("${name}").`,
+    'Other agents read this registry. Do not omit the block while emit results is enabled.',
     'Keep it short: one current summary and optional brief log lines.',
-    'Use at most 40 words per string. If nothing durable changed, omit this block.',
+    'Use at most 40 words per string. If nothing durable changed, still emit a brief status summary.',
     'Append this exact machine-readable block after your normal answer:',
     '```ia-terminal-results',
     '{"summary":"Current status or outcome","entries":["Optional short log line"]}',

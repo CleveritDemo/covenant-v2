@@ -8,6 +8,8 @@ export interface PlaneMiniFaceProps {
   busy?: boolean
   provider?: AgentCliProvider
   statusLabel: string
+  /** Densidad visual; compact reduce padding/gaps para listas y modales. */
+  density?: 'default' | 'compact'
   configLabel?: string
   deleteLabel?: string
   onConfigure?: () => void
@@ -22,6 +24,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   busy = false,
   provider = 'claude',
   statusLabel,
+  density = 'default',
   configLabel,
   deleteLabel,
   onConfigure,
@@ -32,6 +35,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     className={[
       'plane-mini-face',
       busy ? 'plane-mini-face--busy' : '',
+      density === 'compact' ? 'plane-mini-face--compact' : '',
       provider === 'cursor' ? 'plane-mini-face--cursor' : 'plane-mini-face--claude',
     ].filter(Boolean).join(' ')}
   >

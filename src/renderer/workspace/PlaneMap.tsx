@@ -12,7 +12,9 @@ import {
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
+import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
+import { usePlaneColumnReorder } from './planeColumnReorder'
 import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
@@ -50,6 +52,7 @@ export interface PlaneMapProps {
   maximizeLabel: string
   restoreLabel: string
   closeWindowLabel: string
+  reorderAriaLabel?: string
   renderPane: (paneId: string) => React.ReactNode
   onExpandEntity: (paneId: string) => void
   onCloseWindow: (paneId: string) => void
@@ -61,6 +64,8 @@ export interface PlaneMapProps {
   onDeletePane: (paneId: string) => void
   /** Drop de contexto del pool sobre un agente. */
   onAssignContext?: (paneId: string, contextId: string) => void
+  /** Persiste el nuevo orden de una columna (kind). */
+  onReorderPanes?: (kind: PaneReorderKind, orderedPaneIds: string[]) => void
 }
 
 /** Ranuras: terminales a altura de celda; agentes apilados a altura medida/estimada. */
@@ -105,6 +110,32 @@ function buildSlotOrigins(
   return origins
 }
 
+function orderEntitiesByIds(
+  entities: PlaneMapEntity[],
+  orderedIds: readonly string[],
+): PlaneMapEntity[] {
+  const byId = new Map(entities.map(entity => [entity.paneId, entity]))
+  return orderedIds
+    .map(id => byId.get(id))
+    .filter((entity): entity is PlaneMapEntity => Boolean(entity))
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() => (
+    typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ))
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = (): void => setReduced(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduced
+}
+
 export const PlaneMap: React.FC<PlaneMapProps> = ({
   emptyTitle,
   emptyHint,
@@ -116,6 +147,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   maximizeLabel,
   restoreLabel,
   closeWindowLabel,
+  reorderAriaLabel,
   renderPane,
   onExpandEntity,
   onCloseWindow,
@@ -125,10 +157,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onOpenChat,
   onDeletePane,
   onAssignContext,
+  onReorderPanes,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [agentHeights, setAgentHeights] = useState<Record<string, number>>({})
+  const reducedMotion = usePrefersReducedMotion()
 
   const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
     setAgentHeights(prev => (prev[paneId] === height ? prev : { ...prev, [paneId]: height }))
@@ -177,7 +211,31 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [viewport],
   )
 
-  const slotOrigins = useMemo(
+  // Orden visual de columna = orden en entities (paneIds), no localeCompare.
+  const terminalsInOrder = useMemo(
+    () => entities.filter(entity => entity.kind !== 'agent'),
+    [entities],
+  )
+  const agentsInOrder = useMemo(
+    () => entities.filter(entity => entity.kind === 'agent'),
+    [entities],
+  )
+
+  const terminalIds = useMemo(
+    () => terminalsInOrder.map(entity => entity.paneId),
+    [terminalsInOrder],
+  )
+  const agentIds = useMemo(
+    () => agentsInOrder.map(entity => entity.paneId),
+    [agentsInOrder],
+  )
+
+  const terminalOpen = terminalsInOrder.some(entity => entity.window.open)
+  const agentOpen = agentsInOrder.some(entity => entity.window.open)
+  const anyWindowOpen = terminalOpen || agentOpen
+  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
+
+  const baselineSlots = useMemo(
     () => buildSlotOrigins(
       entities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
@@ -186,34 +244,133 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [entities, viewport, agentHeights],
   )
 
+  const terminalSlots = useMemo(() => {
+    const next: Record<string, PaneWindowGeometry> = {}
+    for (const id of terminalIds) {
+      const slot = baselineSlots[id]
+      if (slot) next[id] = slot
+    }
+    return next
+  }, [baselineSlots, terminalIds])
+
+  const agentSlots = useMemo(() => {
+    const next: Record<string, PaneWindowGeometry> = {}
+    for (const id of agentIds) {
+      const slot = baselineSlots[id]
+      if (slot) next[id] = slot
+    }
+    return next
+  }, [agentIds, baselineSlots])
+
+  const commitTerminals = useCallback((ordered: string[]) => {
+    onReorderPanes?.('terminal', ordered)
+  }, [onReorderPanes])
+
+  const commitAgents = useCallback((ordered: string[]) => {
+    onReorderPanes?.('agent', ordered)
+  }, [onReorderPanes])
+
+  const activateTerminal = useCallback((paneId: string) => {
+    onExpandEntity(paneId)
+  }, [onExpandEntity])
+
+  const activateAgent = useCallback((paneId: string) => {
+    onOpenChat(paneId)
+  }, [onOpenChat])
+
+  const terminalReorder = usePlaneColumnReorder({
+    enabled: reorderEnabled && terminalIds.length >= 2,
+    kind: 'terminal',
+    orderedIds: terminalIds,
+    slots: terminalSlots,
+    onCommit: commitTerminals,
+    onActivate: activateTerminal,
+    reducedMotion,
+  })
+
+  const agentReorder = usePlaneColumnReorder({
+    enabled: reorderEnabled && agentIds.length >= 2,
+    kind: 'agent',
+    orderedIds: agentIds,
+    slots: agentSlots,
+    onCommit: commitAgents,
+    onActivate: activateAgent,
+    reducedMotion,
+  })
+
+  const reorderActive = terminalReorder.editing
+    || agentReorder.editing
+    || Boolean(terminalReorder.draggingId)
+    || Boolean(agentReorder.draggingId)
+
+  // Click en el vacío cancela el modo edición.
+  const cancelTerminalReorder = terminalReorder.cancel
+  const cancelAgentReorder = agentReorder.cancel
+  useLayoutEffect(() => {
+    if (!reorderActive) return
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (mapRef.current?.contains(target)) {
+        const el = target instanceof Element ? target : target.parentElement
+        if (el?.closest?.('.pane-window')) return
+      }
+      cancelTerminalReorder()
+      cancelAgentReorder()
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [cancelAgentReorder, cancelTerminalReorder, reorderActive])
+
+  const layoutEntities = useMemo(() => {
+    const terminals = terminalReorder.previewIds
+      ? orderEntitiesByIds(terminalsInOrder, terminalReorder.previewIds)
+      : terminalsInOrder
+    const agents = agentReorder.previewIds
+      ? orderEntitiesByIds(agentsInOrder, agentReorder.previewIds)
+      : agentsInOrder
+    return [...terminals, ...agents]
+  }, [
+    agentReorder.previewIds,
+    agentsInOrder,
+    terminalReorder.previewIds,
+    terminalsInOrder,
+  ])
+
+  const slotOrigins = useMemo(
+    () => buildSlotOrigins(
+      layoutEntities,
+      viewport.width > 0 ? viewport : { width: 960, height: 640 },
+      agentHeights,
+    ),
+    [agentHeights, layoutEntities, viewport],
+  )
+
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
-  const terminals = useMemo(
-    () => entities
-      .filter(entity => entity.kind !== 'agent')
-      .sort((a, b) => a.paneId.localeCompare(b.paneId)),
-    [entities],
+  const terminalsDom = useMemo(
+    () => [...terminalsInOrder].sort((a, b) => a.paneId.localeCompare(b.paneId)),
+    [terminalsInOrder],
   )
-  const agents = useMemo(
-    () => entities
-      .filter(entity => entity.kind === 'agent')
-      .sort((a, b) => a.paneId.localeCompare(b.paneId)),
-    [entities],
+  const agentsDom = useMemo(
+    () => [...agentsInOrder].sort((a, b) => a.paneId.localeCompare(b.paneId)),
+    [agentsInOrder],
   )
 
-  const terminalOpen = terminals.some(entity => entity.window.open)
-  const agentOpen = agents.some(entity => entity.window.open)
-  const anyWindowOpen = terminalOpen || agentOpen
-
-  // Ambas columnas planas al instante con ventana abierta (morph / z-index 2D).
-  // Sin transform/will-change en elevated: el full compite en el stage.
-  const terminalsColumnTransform = anyWindowOpen
+  // Aplanar tilt mientras se reordena para alinear pointer ↔ left/top.
+  const flattenColumns = anyWindowOpen || reorderActive
+  const terminalsColumnTransform = flattenColumns
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
-  const agentsColumnTransform = anyWindowOpen
+  const agentsColumnTransform = flattenColumns
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-COLUMN_TILT_DEG}deg)`
 
-  const renderEntity = (entity: PlaneMapEntity): React.ReactNode => {
+  const renderEntity = (
+    entity: PlaneMapEntity,
+    column: 'terminal' | 'agent',
+    indexInColumn: number,
+  ): React.ReactNode => {
+    const reorder = column === 'terminal' ? terminalReorder : agentReorder
     const slot = slotOrigins[entity.paneId] ?? {
       x: PLANE_MINI_SLOT_PAD_X,
       y: PLANE_MINI_SLOT_PAD_Y,
@@ -221,6 +378,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       height: PLANE_MINI_WINDOW_HEIGHT,
     }
     const reserved = entity.window.open
+    const isDragging = reorder.draggingId === entity.paneId
+    const dragPos = isDragging ? reorder.dragPosition : null
+    const columnEnabled = reorderEnabled && (
+      column === 'terminal' ? terminalIds.length >= 2 : agentIds.length >= 2
+    )
+
     return (
       <React.Fragment key={entity.paneId}>
         {reserved ? (
@@ -268,6 +431,16 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onMiniContentHeightChange={entity.kind === 'agent'
             ? height => handleAgentMiniHeight(entity.paneId, height)
             : undefined}
+          reorderEnabled={columnEnabled}
+          reorderState={reorder.getVisualState(entity.paneId)}
+          reorderJiggleDelayMs={(indexInColumn % 5) * 40}
+          slotMotion={reorderActive}
+          dragPosition={dragPos}
+          onReorderPointerDown={event => {
+            if (column === 'terminal') agentReorder.cancel()
+            else terminalReorder.cancel()
+            reorder.onCardPointerDown(entity.paneId, event)
+          }}
         >
           {renderPane(entity.paneId)}
         </PlanePaneWindow>
@@ -276,10 +449,15 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   }
 
   return (
-    <div ref={mapRef} className={[
-      'plane-map',
-      anyWindowOpen ? 'plane-map--elevated' : '',
-    ].filter(Boolean).join(' ')}>
+    <div
+      ref={mapRef}
+      className={[
+        'plane-map',
+        anyWindowOpen ? 'plane-map--elevated' : '',
+        reorderActive ? 'plane-map--reordering' : '',
+      ].filter(Boolean).join(' ')}
+      aria-label={reorderActive ? reorderAriaLabel : undefined}
+    >
       <div className="plane-map__atmosphere" aria-hidden="true" />
       <div className="plane-map__grid" aria-hidden="true" />
       {entities.length === 0 ? (
@@ -289,34 +467,34 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         </div>
       ) : (
         <div className="plane-map__stage">
-          {terminals.length > 0 ? (
+          {terminalsDom.length > 0 ? (
             <div
               className={[
                 'plane-map__column',
                 'plane-map__column--terminals',
-                !anyWindowOpen ? 'plane-map__column--tilt' : '',
+                !flattenColumns ? 'plane-map__column--tilt' : '',
                 terminalOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
               style={terminalsColumnTransform
                 ? { transform: terminalsColumnTransform }
                 : undefined}
             >
-              {terminals.map(renderEntity)}
+              {terminalsDom.map((entity, index) => renderEntity(entity, 'terminal', index))}
             </div>
           ) : null}
-          {agents.length > 0 ? (
+          {agentsDom.length > 0 ? (
             <div
               className={[
                 'plane-map__column',
                 'plane-map__column--agents',
-                !anyWindowOpen ? 'plane-map__column--tilt' : '',
+                !flattenColumns ? 'plane-map__column--tilt' : '',
                 agentOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
               style={agentsColumnTransform
                 ? { transform: agentsColumnTransform }
                 : undefined}
             >
-              {agents.map(renderEntity)}
+              {agentsDom.map((entity, index) => renderEntity(entity, 'agent', index))}
             </div>
           ) : null}
         </div>

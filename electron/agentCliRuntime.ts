@@ -498,6 +498,7 @@ export function composePrompt(
     name: request.name,
     role: request.role,
     objective: request.objective,
+    rules: request.rules,
   })
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()

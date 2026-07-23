@@ -70,6 +70,24 @@ describe('composePrompt identity', () => {
     expect(prompt).toContain('review this module')
   })
 
+  it('includes rules in the identity block when provided', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        name: 'QA',
+        rules: ['Verify bugs in code', 'Prefer concise replies'],
+        prompt: 'check this',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).toContain('- Rules:')
+    expect(prompt).toContain('  1. Verify bugs in code')
+    expect(prompt).toContain('  2. Prefer concise replies')
+  })
+
   it('omits identity section when fields are empty', () => {
     const prompt = composePrompt(
       request({
@@ -111,6 +129,7 @@ describe('composePrompt identity', () => {
       '',
     )
     expect(withEmit).toContain('## Agent results registry')
+    expect(withEmit).toContain('You MUST append the results block on every turn')
     expect(withEmit).toContain('ia-terminal-results')
   })
 

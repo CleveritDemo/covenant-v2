@@ -50,6 +50,12 @@ export interface PlanePaneWindowProps {
   onDropContext?: (contextId: string) => void
   /** Altura real del mini (agentes) para apilar sin huecos. */
   onMiniContentHeightChange?: (height: number) => void
+  reorderEnabled?: boolean
+  reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
+  reorderJiggleDelayMs?: number
+  slotMotion?: boolean
+  dragPosition?: { x: number; y: number } | null
+  onReorderPointerDown?: (event: React.PointerEvent) => void
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -82,6 +88,12 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onDelete,
   onDropContext,
   onMiniContentHeightChange,
+  reorderEnabled = false,
+  reorderState = 'idle',
+  reorderJiggleDelayMs = 0,
+  slotMotion = false,
+  dragPosition = null,
+  onReorderPointerDown,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -91,6 +103,14 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   const statusLabel = busy
     ? (snippet?.trim() || idleLabel)
     : idleLabel
+  const origin = dragPosition && !isExpanded
+    ? {
+        x: dragPosition.x,
+        y: dragPosition.y,
+        width: miniOrigin.width,
+        height: miniOrigin.height,
+      }
+    : miniOrigin
 
   return (
     <>
@@ -103,10 +123,10 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
           fullscreen: window.fullscreen,
         }}
         miniOrigin={{
-          x: miniOrigin.x,
-          y: miniOrigin.y,
-          width: miniOrigin.width,
-          height: miniOrigin.height,
+          x: origin.x,
+          y: origin.y,
+          width: origin.width,
+          height: origin.height,
         }}
         focused={paneId === activePaneId && isExpanded}
         busy={busy}
@@ -155,6 +175,11 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         onFocus={onFocus}
         onDropContext={isAgent ? onDropContext : undefined}
         onMiniContentHeightChange={isAgent ? onMiniContentHeightChange : undefined}
+        reorderEnabled={reorderEnabled && !isExpanded}
+        reorderState={isExpanded ? 'idle' : reorderState}
+        reorderJiggleDelayMs={reorderJiggleDelayMs}
+        slotMotion={slotMotion && !isExpanded}
+        onReorderPointerDown={reorderEnabled && !isExpanded ? onReorderPointerDown : undefined}
       >
         {children}
       </PaneWindow>

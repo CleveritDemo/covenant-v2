@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
+import type { PlaneLoopChain } from '@shared/planeLoopChain'
 import {
   computePlaneChatColumnWidth,
   PLANE_CHAT_BASE_WIDTH,
@@ -12,6 +13,8 @@ import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleNucleus } from './PlaneIdleNucleus'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
+import { PlaneLoopsButton } from './PlaneLoopsButton'
+import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
 import { resolveAgentColor } from './planeAgentColor'
@@ -76,10 +79,53 @@ export interface TabAgenticPlaneProps {
   projectFolderEmptyHint: string
   onSelectProjectFolder: () => void
   onRevealProjectFolder?: () => void
+  loopsOpen: boolean
+  onLoopsOpenChange: (open: boolean) => void
+  loopsButtonLabel: string
+  loopsTitle: string
+  loopsSubtitle: string
+  loopsEmptyTitle: string
+  loopsEmptyHint: string
+  loopsChainsTitle: string
+  loopsChainsEmpty: string
+  loopsCreateChainLabel: string
+  loopsAppendStepLabel: string
+  loopsStartChainLabel: string
+  loopsStopChainLabel: string
+  loopsDeleteChainLabel: string
+  loopsChainModalTitle: string
+  loopsChainModalDescription: string
+  loopsAppendModalTitle: string
+  loopsAppendModalDescription: string
+  loopsAgentLabel: string
+  loopsObjectiveLabel: string
+  loopsObjectivePlaceholder: string
+  loopsNoAgentsHint: string
+  loopsNoAppendAgentsHint: string
+  loopsBlockNeedObjectiveHint: string
+  loopsChainConfirmLabel: string
+  loopsAppendConfirmLabel: string
+  loopsCancelLabel: string
+  loopsStatusIdle: string
+  loopsStatusBusy: string
+  loopsStatusLooping: string
+  loopsChainStatusIdle: string
+  loopsChainStatusRunning: string
+  loopsChainStatusWaiting: string
+  loopsChainStatusStopped: string
+  loopChains: PlaneLoopChain[]
+  onLoopChainsChange: (chains: PlaneLoopChain[]) => void
+  onStartLoopChain: (chainId: string) => void
+  onStopLoopChain: (chainId: string) => void
+  canStartLoopChains?: boolean
+  startLoopChainsBlockedHint?: string
   onOpenConfig: (paneId: string) => void
   onDeletePane: (paneId: string) => void
   onToggleFullscreen: (paneId: string) => void
   renderPane: (paneId: string) => React.ReactNode
+  /** Persiste el orden de minis en una columna del plano. */
+  onReorderPanes?: (kind: 'terminal' | 'agent', orderedPaneIds: string[]) => void
+  reorderAriaLabel?: string
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -131,10 +177,52 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   projectFolderEmptyHint,
   onSelectProjectFolder,
   onRevealProjectFolder,
+  loopsOpen,
+  onLoopsOpenChange,
+  loopsButtonLabel,
+  loopsTitle,
+  loopsSubtitle,
+  loopsEmptyTitle,
+  loopsEmptyHint,
+  loopsChainsTitle,
+  loopsChainsEmpty,
+  loopsCreateChainLabel,
+  loopsAppendStepLabel,
+  loopsStartChainLabel,
+  loopsStopChainLabel,
+  loopsDeleteChainLabel,
+  loopsChainModalTitle,
+  loopsChainModalDescription,
+  loopsAppendModalTitle,
+  loopsAppendModalDescription,
+  loopsAgentLabel,
+  loopsObjectiveLabel,
+  loopsObjectivePlaceholder,
+  loopsNoAgentsHint,
+  loopsNoAppendAgentsHint,
+  loopsBlockNeedObjectiveHint,
+  loopsChainConfirmLabel,
+  loopsAppendConfirmLabel,
+  loopsCancelLabel,
+  loopsStatusIdle,
+  loopsStatusBusy,
+  loopsStatusLooping,
+  loopsChainStatusIdle,
+  loopsChainStatusRunning,
+  loopsChainStatusWaiting,
+  loopsChainStatusStopped,
+  loopChains,
+  onLoopChainsChange,
+  onStartLoopChain,
+  onStopLoopChain,
+  canStartLoopChains = true,
+  startLoopChainsBlockedHint = '',
   onOpenConfig,
   onDeletePane,
   onToggleFullscreen,
   renderPane,
+  onReorderPanes,
+  reorderAriaLabel,
 }) => {
   const planeRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -160,13 +248,35 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const agents = useMemo(
     () => entities
       .filter(entity => entity.kind === 'agent')
-      .map(entity => ({
-        paneId: entity.paneId,
-        title: entity.title,
-        busy: entity.busy,
-        color: resolveAgentColor(entity.paneId, entity.color),
-      })),
-    [entities],
+      .map(entity => {
+        const status = agentStatuses[entity.paneId]
+        return {
+          paneId: entity.paneId,
+          title: entity.title,
+          busy: Boolean(status?.busy ?? entity.busy),
+          loopActive: Boolean(status?.loopActive),
+          color: resolveAgentColor(entity.paneId, entity.color),
+        }
+      }),
+    [agentStatuses, entities],
+  )
+
+  const loopAgents = useMemo<PlaneLoopsAgent[]>(
+    () => entities
+      .filter(entity => entity.kind === 'agent')
+      .map(entity => {
+        const status = agentStatuses[entity.paneId]
+        return {
+          paneId: entity.paneId,
+          title: entity.title,
+          color: resolveAgentColor(entity.paneId, entity.color),
+          busy: Boolean(status?.busy ?? entity.busy),
+          loopActive: Boolean(status?.loopActive),
+          loopMode: Boolean(status?.loopMode),
+          provider: entity.provider,
+        }
+      }),
+    [agentStatuses, entities],
   )
 
   const terminalCount = useMemo(
@@ -276,6 +386,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-fab-stack',
           '.plane-fab',
           '.plane-project-folder',
+          '.plane-top-left-bar',
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
           '.plane-chat-dock__toolbar',
@@ -293,15 +404,64 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       }}
     >
       {!anyFullscreen && (
-        <PlaneProjectFolder
-          folderPath={projectFolder}
-          selectLabel={projectFolderSelectLabel}
-          changeLabel={projectFolderChangeLabel}
-          emptyHint={projectFolderEmptyHint}
-          onSelect={onSelectProjectFolder}
-          onReveal={onRevealProjectFolder}
-        />
+        <div className="plane-top-left-bar">
+          <PlaneProjectFolder
+            folderPath={projectFolder}
+            selectLabel={projectFolderSelectLabel}
+            changeLabel={projectFolderChangeLabel}
+            emptyHint={projectFolderEmptyHint}
+            onSelect={onSelectProjectFolder}
+            onReveal={onRevealProjectFolder}
+          />
+          <PlaneLoopsButton
+            label={loopsButtonLabel}
+            pressed={loopsOpen}
+            onClick={() => onLoopsOpenChange(!loopsOpen)}
+          />
+        </div>
       )}
+      <PlaneLoopsSection
+        open={loopsOpen && !anyFullscreen}
+        title={loopsTitle}
+        subtitle={loopsSubtitle}
+        emptyTitle={loopsEmptyTitle}
+        emptyHint={loopsEmptyHint}
+        chainsTitle={loopsChainsTitle}
+        chainsEmpty={loopsChainsEmpty}
+        createChainLabel={loopsCreateChainLabel}
+        appendStepLabel={loopsAppendStepLabel}
+        startChainLabel={loopsStartChainLabel}
+        stopChainLabel={loopsStopChainLabel}
+        deleteChainLabel={loopsDeleteChainLabel}
+        chainModalTitle={loopsChainModalTitle}
+        chainModalDescription={loopsChainModalDescription}
+        appendModalTitle={loopsAppendModalTitle}
+        appendModalDescription={loopsAppendModalDescription}
+        agentLabel={loopsAgentLabel}
+        objectiveLabel={loopsObjectiveLabel}
+        objectivePlaceholder={loopsObjectivePlaceholder}
+        noAgentsHint={loopsNoAgentsHint}
+        noAppendAgentsHint={loopsNoAppendAgentsHint}
+        blockNeedObjectiveHint={loopsBlockNeedObjectiveHint}
+        chainConfirmLabel={loopsChainConfirmLabel}
+        appendConfirmLabel={loopsAppendConfirmLabel}
+        cancelLabel={loopsCancelLabel}
+        statusIdle={loopsStatusIdle}
+        statusBusy={loopsStatusBusy}
+        statusLooping={loopsStatusLooping}
+        chainStatusIdle={loopsChainStatusIdle}
+        chainStatusRunning={loopsChainStatusRunning}
+        chainStatusWaiting={loopsChainStatusWaiting}
+        chainStatusStopped={loopsChainStatusStopped}
+        agents={loopAgents}
+        chains={loopChains}
+        canStartChains={canStartLoopChains}
+        startBlockedHint={startLoopChainsBlockedHint}
+        onClose={() => onLoopsOpenChange(false)}
+        onChainsChange={onLoopChainsChange}
+        onStartChain={onStartLoopChain}
+        onStopChain={onStopLoopChain}
+      />
       <PlaneMap
         emptyTitle={emptyTitle}
         emptyHint={emptyHint}
@@ -322,6 +482,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onOpenChat={openChatAgent}
         onDeletePane={onDeletePane}
         onAssignContext={onAssignContext}
+        onReorderPanes={onReorderPanes}
+        reorderAriaLabel={reorderAriaLabel}
       />
 
       {showIdleNucleus && (

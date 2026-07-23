@@ -39,30 +39,9 @@ export function formatLoopIntervalMs(ms: number): string {
   return `${ms} ms`
 }
 
-export function buildLoopPrompt(objective: string, iteration: number): string {
-  const goal = objective.trim()
-  if (iteration <= 1) {
-    return [
-      'You are working autonomously in a loop toward this objective:',
-      '',
-      goal,
-      '',
-      'Rules:',
-      '- Make concrete progress each turn toward the objective.',
-      '- Prefer action over planning when the next step is clear.',
-      '- Do not wait for the user unless you are blocked.',
-      `- When the objective is fully complete, OR you are blocked and need the user, end your reply with exactly ${LOOP_DONE_MARKER} on its own line.`,
-      '- Otherwise continue working; another turn will follow automatically.',
-    ].join('\n')
-  }
-  return [
-    `Continue the autonomous loop (iteration ${iteration}).`,
-    'Objective (unchanged):',
-    goal,
-    '',
-    'Review what you already did in this session, take the next useful step, and avoid repeating finished work.',
-    `When fully done or blocked, end with ${LOOP_DONE_MARKER} on its own line.`,
-  ].join('\n')
+export function buildLoopPrompt(objective: string, _iteration = 1): string {
+  // Misma interacción que un turno normal: el objetivo es el prompt del usuario.
+  return objective.trim()
 }
 
 export function stripLoopDoneMarker(text: string): { text: string; done: boolean } {

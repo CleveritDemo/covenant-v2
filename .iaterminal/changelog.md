@@ -3,13 +3,13 @@
 
 > Últimos 10 cambios realizados por la IA. Generado automáticamente.
 
-- `2026-07-22T19:13:39.875Z` — `src/renderer/agent/AgentConfigModal.tsx` — Quitar botón y props de duplicar del modal de configuración
-- `2026-07-22T19:13:39.875Z` — `src/renderer/agent/AgentPane.tsx` — Eliminar cableado onDuplicatePane hacia el modal de config
-- `2026-07-22T19:13:39.875Z` — `src/renderer/App.tsx` — Dejar de pasar onDuplicatePane desde la config del agente
-- `2026-07-22T19:13:39.875Z` — `src/i18n/locales/es.ts` — Quitar strings del duplicar en configuración
-- `2026-07-22T19:13:39.875Z` — `src/i18n/locales/en.ts` — Remove config-modal duplicate i18n strings
-- `2026-07-22T19:12:20.798Z` — `src/renderer/agent/AgentProviderPickerModal.tsx` — Sección para clonar desde un agente existente
-- `2026-07-22T19:12:20.798Z` — `src/renderer/agent/AgentPane.css` — Estilos de la sección duplicar en el picker
-- `2026-07-22T19:12:20.798Z` — `src/renderer/components/AppModals.tsx` — Pasar cloneSources y onAgentCloneSelect al picker
-- `2026-07-22T19:12:20.798Z` — `src/renderer/App.tsx` — Listar agentes de la pestaña y clonar desde el picker
-- `2026-07-22T19:12:20.798Z` — `src/renderer/agent/AgentPane.tsx` — Deduplicar preferSend para no doblar burbujas de usuario
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneMiniFace.tsx` — Prop density compact para listas/modales
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneMiniFace.css` — Estilos compact: menos padding, tipografía y nodes
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneLoopAgentCard.tsx` — Objetivo/acción como children de la face; sin doble cuerpo
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneLoopAgentCard.css` — Shell fino 168px, clamp 2 líneas, selección compacta
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneLoopsSection.css` — Cadena stretch para alturas consistentes entre cards
+- `2026-07-23T04:32:15.341Z` — `src/renderer/workspace/PlaneLoopNestModal.css` — Grid más denso minmax 148px
+- `2026-07-23T04:29:43.466Z` — `src/renderer/workspace/PlaneLoopAgentCard.tsx` — Props objective/current; texto de interacción dentro de la card
+- `2026-07-23T04:29:43.466Z` — `src/renderer/workspace/PlaneLoopAgentCard.css` — Estilos de objective interno y highlight de paso actual
+- `2026-07-23T04:29:43.466Z` — `src/renderer/workspace/PlaneLoopsSection.tsx` — Pasa objective a la card; elimina wrapper y párrafo aparte
+- `2026-07-23T04:29:43.466Z` — `src/renderer/workspace/PlaneLoopsSection.css` — Quita CSS de step wrapper y nest-objective duplicados

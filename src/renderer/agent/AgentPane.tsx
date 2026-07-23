@@ -15,8 +15,6 @@ import type {
 import type { TabContext } from '@shared/tabContext'
 import { extractTabContextUpdates, defaultAssignedContextIds } from '@shared/tabContext'
 import {
-  buildLoopPrompt,
-  formatLoopIntervalMs,
   LOOP_INTERVAL_PRESETS,
   MAX_AGENT_LOOP_ITERATIONS,
   stripLoopDoneMarker,
@@ -26,9 +24,11 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
+  normalizeAgentRules,
 } from '@shared/agentIdentity'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
+import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
@@ -76,6 +76,8 @@ interface QueuedTurn {
 export interface AgentPreferSend {
   text: string
   images?: AgentCliImageAttachment[]
+  /** Si false, no enfoca la ventana del pane (p. ej. cadenas en background). */
+  focusPane?: boolean
 }
 
 interface Props {
@@ -115,9 +117,22 @@ interface Props {
   /** Pedido externo: detener el turno/bucle desde el composer del plano. */
   preferStop?: boolean
   onPreferStopConsumed?: () => void
+  /** Pedido externo: arrancar el loop (p. ej. encadenamiento desde otro agente). */
+  preferStartLoop?: { objective?: string } | null
+  onPreferStartLoopConsumed?: () => void
+  /** Pedido externo: abrir el modal de crear/iniciar loop. */
+  preferCreateLoop?: boolean
+  onPreferCreateLoopConsumed?: () => void
   /** Pedido externo: pedir confirmación para limpiar la conversación. */
   preferClearConversation?: boolean
   onPreferClearConversationConsumed?: () => void
+  /**
+   * El pane participa en una cadena Loops running/waiting:
+   * el botón de loop del chat debe verse encendido (mismo estado visual).
+   */
+  chainLoopActive?: boolean
+  /** Pedido externo: detener cadenas que incluyen este pane (p. ej. stop en waiting). */
+  onChainLoopStop?: () => void
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -140,6 +155,15 @@ export interface AgentPlaneStatus {
   settlingId: string | null
   loopMode: boolean
   loopActive: boolean
+  /** Solo el loop local del chat (no cadenas del modal Loops). */
+  localLoopActive: boolean
+  /**
+   * Motivo del último cierre de turno (busy true→false).
+   * La orquestación de cadenas solo avanza si es `completed`.
+   */
+  turnCloseReason: 'completed' | 'aborted' | null
+  /** Última causa de fin de loop (para encadenar nests solo en done/max). */
+  loopEndReason: 'done' | 'max' | 'stopped' | null
   queuedTurns: Array<{
     id: string
     text: string
@@ -183,8 +207,14 @@ export const AgentPane: React.FC<Props> = ({
   onPreferSendConsumed,
   preferStop = false,
   onPreferStopConsumed,
+  preferStartLoop = null,
+  onPreferStartLoopConsumed,
+  preferCreateLoop = false,
+  onPreferCreateLoopConsumed,
   preferClearConversation = false,
   onPreferClearConversationConsumed,
+  chainLoopActive = false,
+  onChainLoopStop,
   paneReorder,
   registerShortcutCloseInterceptor,
 }) => {
@@ -208,7 +238,9 @@ export const AgentPane: React.FC<Props> = ({
   const [loopOpen, setLoopOpen] = useState(false)
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
+  const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
+  const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
   /** Catálogo vivo desde `.iaterminal/*.md` (no se persiste en session). */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
@@ -221,6 +253,8 @@ export const AgentPane: React.FC<Props> = ({
   /** Contenido previo por id: detecta el paso de vacío → primer token. */
   const messageContentLenRef = useRef<Map<string, number>>(new Map())
   const activeAssistantIdRef = useRef<string | null>(null)
+  /** Estado espejo del ref: el chat del plano/panel necesita re-render al cambiar. */
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null)
   /** Id del asistente del turno que acaba de cerrarse; acepta texto tardío tras done/EXIT. */
   const lastAssistantIdRef = useRef<string | null>(null)
   /** Evita procesar EXIT duplicado después de `done` (mismo turno). */
@@ -238,7 +272,9 @@ export const AgentPane: React.FC<Props> = ({
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
+  const runLoopIterationRef = useRef<(iteration: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
+  const planeStatusThrottlerRef = useRef(createPlaneStatusThrottler<AgentPlaneStatus>())
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
@@ -358,11 +394,14 @@ export const AgentPane: React.FC<Props> = ({
     discoveredCwdRef.current = null
     setDiskContexts([])
     diskContextsRef.current = []
+    setLoopOpen(false)
     setLoopActive(false)
+    setLoopEndReason(null)
     setLoopIteration(0)
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
+    setActiveAssistantId(null)
     lastAssistantIdRef.current = null
     turnClosedRef.current = false
     void Promise.all([
@@ -377,10 +416,12 @@ export const AgentPane: React.FC<Props> = ({
         if (lastAssistant) {
           activeAssistantIdRef.current = lastAssistant.id
           lastAssistantIdRef.current = lastAssistant.id
+          setActiveAssistantId(lastAssistant.id)
         } else {
           const id = crypto.randomUUID()
           activeAssistantIdRef.current = id
           lastAssistantIdRef.current = id
+          setActiveAssistantId(id)
           nextMessages = [...entries, { id, role: 'assistant', content: '' }]
         }
         turnClosedRef.current = false
@@ -556,19 +597,22 @@ export const AgentPane: React.FC<Props> = ({
       lastSnippet = text.length > 120 ? `${text.slice(0, 117)}…` : text
       break
     }
-    onPlaneStatusChange({
+    const status: AgentPlaneStatus = {
       busy,
       activity,
       lastSnippet,
       contexts,
       messages: messages
         .filter(entry => entry.role === 'user' || entry.role === 'assistant'),
-      activeAssistantId: busy ? activeAssistantIdRef.current : null,
+      activeAssistantId: busy ? activeAssistantId : null,
       enteringIds: [...enteringIds],
       materializingIds: [...materializingIds],
       settlingId,
-      loopMode: loopOpen || loopActive,
-      loopActive,
+      loopMode: loopOpen || loopActive || chainLoopActive,
+      loopActive: loopActive || chainLoopActive,
+      localLoopActive: loopActive,
+      turnCloseReason,
+      loopEndReason,
       queuedTurns: queuedTurns.map(item => ({
         id: item.id,
         text: item.text,
@@ -583,14 +627,41 @@ export const AgentPane: React.FC<Props> = ({
         || pendingImages.length > 0
         || Boolean(meta.cliSessionId)
         || busy
-        || loopActive,
+        || loopActive
+        || chainLoopActive,
+    }
+    // busy/loops/activity: inmediato. Solo messages/snippet: throttle (~150ms).
+    const controlKey = [
+      busy ? '1' : '0',
+      activity,
+      busy ? (activeAssistantId ?? '') : '',
+      settlingId ?? '',
+      loopOpen ? '1' : '0',
+      loopActive ? '1' : '0',
+      chainLoopActive ? '1' : '0',
+      turnCloseReason ?? '',
+      loopEndReason ?? '',
+      String(queuedTurns.length),
+      String(enteringIds.size),
+      String(materializingIds.size),
+      String(pendingImages.length),
+      meta.cliSessionId ?? '',
+      (meta.contextIds ?? []).join(','),
+    ].join('\0')
+    planeStatusThrottlerRef.current.schedule({
+      controlKey,
+      value: status,
+      publish: onPlaneStatusChange,
     })
   }, [
+    activeAssistantId,
     activity,
     busy,
+    chainLoopActive,
     diskContexts,
     enteringIds,
     loopActive,
+    loopEndReason,
     loopOpen,
     materializingIds,
     messages,
@@ -600,7 +671,13 @@ export const AgentPane: React.FC<Props> = ({
     pendingImages.length,
     queuedTurns,
     settlingId,
+    turnCloseReason,
   ])
+
+  useEffect(() => {
+    const throttler = planeStatusThrottlerRef.current
+    return () => throttler.dispose()
+  }, [])
 
   // Catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
   useEffect(() => {
@@ -635,12 +712,14 @@ export const AgentPane: React.FC<Props> = ({
     }
     activeAssistantIdRef.current = assistant.id
     lastAssistantIdRef.current = assistant.id
+    setActiveAssistantId(assistant.id)
     turnGenRef.current += 1
     turnClosedRef.current = false
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
     forceFollow()
     setMessages(prev => [...prev, user, assistant])
     setActivity('')
+    setTurnCloseReason(null)
     setBusy(true)
 
     const currentMeta = metaRef.current
@@ -660,9 +739,11 @@ export const AgentPane: React.FC<Props> = ({
               }
             : message
         )))
+        setTurnCloseReason('aborted')
         setBusy(false)
         turnClosedRef.current = true
         activeAssistantIdRef.current = null
+        setActiveAssistantId(null)
         return false
       }
     }
@@ -675,9 +756,11 @@ export const AgentPane: React.FC<Props> = ({
             }
           : message
       )))
+      setTurnCloseReason('aborted')
       setBusy(false)
       turnClosedRef.current = true
       activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
       return false
     }
     // messagesRef aún no incluye el user/assistant de este turno.
@@ -689,6 +772,7 @@ export const AgentPane: React.FC<Props> = ({
     }
     emptyResponseRetriesRef.current = 0
     suppressEmptyHandlingRef.current = false
+    const rules = normalizeAgentRules(currentMeta.rules)
     const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
@@ -698,6 +782,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
       ...(currentMeta.role?.trim() ? { role: currentMeta.role.trim() } : {}),
       ...(currentMeta.objective?.trim() ? { objective: currentMeta.objective.trim() } : {}),
+      ...(rules.length ? { rules } : {}),
       ...(currentMeta.model?.trim() ? { model: currentMeta.model.trim() } : {}),
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
@@ -711,11 +796,12 @@ export const AgentPane: React.FC<Props> = ({
     return true
   }, [forceFollow, paneId, resolveWorkingCwd, t])
 
-  const finishLoop = useCallback((reason: 'stopped' | 'done' | 'max'): void => {
+  const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
     clearLoopTimer()
     loopActiveRef.current = false
     loopDoneRef.current = false
     setLoopActive(false)
+    setLoopEndReason(reason)
     setLoopIteration(0)
     loopIterationRef.current = 0
     const message = reason === 'done'
@@ -725,28 +811,6 @@ export const AgentPane: React.FC<Props> = ({
         : t('agentPane.loopStopped')
     setMessages(prev => [...prev, systemMessage(message)])
   }, [clearLoopTimer, t])
-
-  const runLoopIteration = useCallback((iteration: number): void => {
-    const objective = loopObjectiveRef.current.trim()
-    if (!objective || !loopActiveRef.current) return
-    loopIterationRef.current = iteration
-    setLoopIteration(iteration)
-    const assigned = diskContextsRef.current.filter(context =>
-      (metaRef.current.contextIds ?? []).includes(context.id))
-    setMessages(prev => [
-      ...prev,
-      systemMessage(t('agentPane.loopIteration', { n: iteration, objective })),
-    ])
-    void startTurn({
-      prompt: buildLoopPrompt(objective, iteration),
-      displayUser: iteration === 1
-        ? `${t('agentPane.loopObjectiveLabel')}: ${objective}`
-        : t('agentPane.loopContinueLabel', { n: iteration }),
-      contexts: assigned,
-    }).then(ok => {
-      if (!ok && loopActiveRef.current) finishLoop('stopped')
-    })
-  }, [finishLoop, startTurn, t])
 
   const completeTurn = useCallback((expectedGen?: number): void => {
     if (expectedGen != null && expectedGen !== turnGenRef.current) return
@@ -784,7 +848,7 @@ export const AgentPane: React.FC<Props> = ({
       clearLoopTimer()
       loopContinueTimerRef.current = window.setTimeout(() => {
         loopContinueTimerRef.current = null
-        if (loopActiveRef.current) runLoopIteration(nextIteration)
+        if (loopActiveRef.current) runLoopIterationRef.current(nextIteration)
       }, loopContinueDelayMsRef.current)
     }
 
@@ -817,8 +881,10 @@ export const AgentPane: React.FC<Props> = ({
         turnGenRef.current += 1
         activeAssistantIdRef.current = id
         lastAssistantIdRef.current = id
+        setActiveAssistantId(id)
         setBusy(true)
         setActivity('')
+        setTurnCloseReason(null)
         setMessages(prev => prev.map(entry => (
           entry.id === id ? { ...entry, content: '' } : entry
         )))
@@ -827,8 +893,11 @@ export const AgentPane: React.FC<Props> = ({
       }
 
       beginLiveSettle(id)
+      // Vacío tras reintentos: el turno cerró; no tumbar la cadena entera.
+      setTurnCloseReason('completed')
       setBusy(false)
       activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
       if (isEmpty && id) {
         setMessages(prev => prev.map(entry =>
           entry.id === id
@@ -841,7 +910,7 @@ export const AgentPane: React.FC<Props> = ({
       emptyResponseRetriesRef.current = 0
       finishSideEffects()
     }, 0)
-  }, [beginLiveSettle, clearLoopTimer, finishLoop, runLoopIteration, t])
+  }, [beginLiveSettle, clearLoopTimer, finishLoop, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
@@ -897,6 +966,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       activeAssistantIdRef.current = assistantId
       lastAssistantIdRef.current = assistantId
+      setActiveAssistantId(assistantId)
       setBusy(true)
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
@@ -917,6 +987,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       activeAssistantIdRef.current = assistantId
       lastAssistantIdRef.current = assistantId
+      setActiveAssistantId(assistantId)
       setBusy(true)
     }
     if (event.type === 'assistant_final') {
@@ -1009,7 +1080,7 @@ export const AgentPane: React.FC<Props> = ({
   const dispatchMessage = useCallback(async (
     prompt: string,
     imagesSnapshot: PendingImage[],
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const assigned = diskContextsRef.current.filter(context =>
       (metaRef.current.contextIds ?? []).includes(context.id))
     const images: AgentCliImageAttachment[] = []
@@ -1037,7 +1108,7 @@ export const AgentPane: React.FC<Props> = ({
       ? t('agentPane.imagesAttached', { n: images.length })
       : ''
     const displayUser = [prompt, fallbackText].filter(Boolean).join('\n')
-    await startTurn({
+    return startTurn({
       prompt,
       displayUser: displayUser || (displayImages.length ? '' : t('agentPane.imageOnlyMessage')),
       contexts: assigned,
@@ -1045,6 +1116,18 @@ export const AgentPane: React.FC<Props> = ({
       ...(displayImages.length ? { displayImages } : {}),
     })
   }, [startTurn, t])
+
+  /** Cada ciclo del loop = el mismo despacho que un mensaje del chat. */
+  const runLoopIteration = useCallback((iteration: number): void => {
+    const objective = loopObjectiveRef.current.trim()
+    if (!objective || !loopActiveRef.current) return
+    loopIterationRef.current = iteration
+    setLoopIteration(iteration)
+    void dispatchMessage(objective, []).then(ok => {
+      if (!ok && loopActiveRef.current) finishLoop('stopped')
+    })
+  }, [dispatchMessage, finishLoop])
+  runLoopIterationRef.current = runLoopIteration
 
   const send = useCallback((): void => {
     const prompt = input.trim()
@@ -1080,12 +1163,19 @@ export const AgentPane: React.FC<Props> = ({
     // Evitar doble envío: startTurn pone busy y re-ejecuta el effect con el
     // mismo preferSend antes de que el padre lo limpie.
     if (handledPreferSendRef.current === preferSend) return
+    // Loop local activo: no consumir; App reintentará cuando termine.
+    if (loopActive) return
     handledPreferSendRef.current = preferSend
     const prompt = preferSend.text.trim()
     const inboundImages = preferSend.images ?? []
+    // Cadena en background: si ya hay busy (carrera), no consumir; App reintenta.
+    if (busy && preferSend.focusPane === false) {
+      handledPreferSendRef.current = null
+      return
+    }
     onPreferSendConsumed?.()
-    if ((!prompt && inboundImages.length === 0) || loopActive) return
-    onRequestPaneFocus()
+    if (!prompt && inboundImages.length === 0) return
+    if (preferSend.focusPane !== false) onRequestPaneFocus()
     const imagesSnapshot = attachmentsToPendingImages(inboundImages)
     if (busy) {
       setQueuedTurns(prev => {
@@ -1201,11 +1291,14 @@ export const AgentPane: React.FC<Props> = ({
     suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
     beginLiveSettle(activeAssistantIdRef.current)
+    setTurnCloseReason('aborted')
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
+    setActiveAssistantId(null)
     if (wasLoop) finishLoop('stopped')
-  }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId])
+    if (chainLoopActive) onChainLoopStop?.()
+  }, [beginLiveSettle, chainLoopActive, clearLoopTimer, finishLoop, onChainLoopStop, paneId])
 
   useEffect(() => {
     if (!preferStop) return
@@ -1215,7 +1308,8 @@ export const AgentPane: React.FC<Props> = ({
 
   const clearConversation = useCallback((): void => {
     clearLoopTimer()
-    const wasRunning = busyRef.current || loopActiveRef.current
+    const wasLoop = loopActiveRef.current
+    const wasRunning = busyRef.current || wasLoop
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
     lastTurnRequestRef.current = null
@@ -1231,12 +1325,15 @@ export const AgentPane: React.FC<Props> = ({
     skipLoopContinueRef.current = false
     pendingModeHandoffRef.current = false
     pendingCliEventsRef.current = []
+    setLoopOpen(false)
     setLoopActive(false)
+    setLoopEndReason(wasLoop ? 'stopped' : null)
     setLoopIteration(0)
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
     lastAssistantIdRef.current = null
+    setActiveAssistantId(null)
     setSettlingId(null)
     setEnteringIds(new Set())
     setMaterializingIds(new Set())
@@ -1280,43 +1377,75 @@ export const AgentPane: React.FC<Props> = ({
     setConfirmClear(true)
   }, [onPreferClearConversationConsumed, preferClearConversation])
 
-  const startLoop = useCallback((): void => {
-    const objective = input.trim()
-    if (!objective || loopActive) return
+  const startLoop = useCallback((objectiveOverride?: string): boolean => {
+    const fromOverride = objectiveOverride?.trim() ?? ''
+    const fromStored = loopObjectiveRef.current.trim()
+    const fromInput = input.trim()
+    const fromMeta = metaRef.current.objective?.trim() ?? ''
+    const objective = fromOverride || fromStored || fromInput || fromMeta
+    if (!objective || loopActiveRef.current) return false
     onRequestPaneFocus()
-    // Si había un turno normal en curso, se corta y la instrucción se reinicia en loop.
+    // Si había un turno normal en curso, se corta sin notify: startAgentTurn
+    // mata el proceso anterior en silencio (evita que un done/EXIT cierre el loop).
     if (busyRef.current) {
       skipLoopContinueRef.current = true
       turnClosedRef.current = true
       emptyResponseRetriesRef.current = 0
       lastTurnRequestRef.current = null
       suppressEmptyHandlingRef.current = true
-      window.api.stopAgentTurn(paneId)
       beginLiveSettle(activeAssistantIdRef.current)
+      setTurnCloseReason('aborted')
       setBusy(false)
       setActivity('')
       activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
+      if (chainLoopActive) onChainLoopStop?.()
     }
     clearLoopTimer()
+    if (objective !== input.trim()) setInput(objective)
     loopObjectiveRef.current = objective
     loopDoneRef.current = false
     loopActiveRef.current = true
+    setLoopEndReason(null)
     setLoopActive(true)
     setLoopOpen(true)
-    setMessages(prev => [
-      ...prev,
-      systemMessage(t('agentPane.loopStarted', {
-        objective,
-        interval: formatLoopIntervalMs(loopContinueDelayMsRef.current),
-      })),
-    ])
     runLoopIteration(1)
-  }, [beginLiveSettle, clearLoopTimer, input, loopActive, onRequestPaneFocus, paneId, runLoopIteration, t])
+    return true
+  }, [
+    beginLiveSettle,
+    chainLoopActive,
+    clearLoopTimer,
+    input,
+    onChainLoopStop,
+    onRequestPaneFocus,
+    runLoopIteration,
+  ])
+
+  useEffect(() => {
+    if (!preferStartLoop) return
+    // Esperar a idle de loop; App solo debería ofertar nests listos, pero cubre carreras.
+    if (loopActive) return
+    const started = startLoop(preferStartLoop.objective)
+    if (started) {
+      onPreferStartLoopConsumed?.()
+      return
+    }
+    // Idle y no arrancó (sin objetivo usable): sacar para no bloquear la cola.
+    onPreferStartLoopConsumed?.()
+  }, [loopActive, onPreferStartLoopConsumed, preferStartLoop, startLoop])
+
+  useEffect(() => {
+    if (!preferCreateLoop) return
+    onPreferCreateLoopConsumed?.()
+    if (loopActiveRef.current) return
+    setLoopIntervalModalOpen(true)
+  }, [onPreferCreateLoopConsumed, preferCreateLoop])
 
   const toggleLoopMode = useCallback((): void => {
     if (loopActive) return
     if (loopOpen) {
       setLoopOpen(false)
+      loopObjectiveRef.current = ''
       return
     }
     setLoopIntervalModalOpen(true)
@@ -1328,12 +1457,14 @@ export const AgentPane: React.FC<Props> = ({
     return () => onPlaneLoopToggleReady(null)
   }, [onPlaneLoopToggleReady, toggleLoopMode])
 
-  const confirmLoopInterval = useCallback((delayMs: number): void => {
+  const confirmLoopSetup = useCallback((delayMs: number, objective: string): void => {
+    const trimmed = objective.trim()
+    if (!trimmed) return
     loopContinueDelayMsRef.current = delayMs
     setLoopContinueDelayMs(delayMs)
     setLoopIntervalModalOpen(false)
-    setLoopOpen(true)
-  }, [])
+    startLoop(trimmed)
+  }, [startLoop])
 
   const changePermission = (permissionMode: AgentPermissionMode): void => {
     if (permissionMode === meta.permissionMode) return
@@ -1410,6 +1541,16 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
+  const changeRules = (rules: string[]): void => {
+    onMetaChange(previous => {
+      if (rules.length === 0) {
+        const { rules: _removed, ...rest } = previous
+        return rest
+      }
+      return { ...previous, rules }
+    })
+  }
+
   const changeColor = (color: string): void => {
     onMetaChange(previous => ({ ...previous, color }))
   }
@@ -1423,13 +1564,14 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const loopMode = loopOpen || loopActive
+  const loopMode = loopOpen || loopActive || chainLoopActive
+  const effectiveLoopActive = loopActive || chainLoopActive
   const selectedContextIds = meta.contextIds ?? []
   // Con el agente ocupado el input sigue habilitado para encolar mensajes;
   // solo el modo loop bloquea la escritura.
-  const showStop = loopActive || busy
-  const showPlay = loopMode && !loopActive && !busy
-  const composerDisabled = loopActive
+  const showStop = effectiveLoopActive || busy
+  const showPlay = loopMode && !effectiveLoopActive && !busy
+  const composerDisabled = effectiveLoopActive
 
   const handleEnteringAnimationEnd = useCallback((messageId: string): void => {
     setEnteringIds(previous => {
@@ -1473,7 +1615,7 @@ export const AgentPane: React.FC<Props> = ({
       className={[
         'agent-pane',
         tabActive && isActivePane ? 'agent-pane--focused' : '',
-        loopActive ? 'agent-pane--looping' : '',
+        effectiveLoopActive ? 'agent-pane--looping' : '',
         busy ? 'agent-pane--working' : '',
       ].filter(Boolean).join(' ')}
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
@@ -1488,11 +1630,11 @@ export const AgentPane: React.FC<Props> = ({
             messages={messages}
             busy={busy}
             activity={activity}
-            loopActive={loopActive}
+            loopActive={effectiveLoopActive}
             loopIteration={loopIteration}
             queuedTurns={queuedTurns}
             nearBottom={nearBottom}
-            activeAssistantId={activeAssistantIdRef.current}
+            activeAssistantId={activeAssistantId}
             enteringIds={enteringIds}
             materializingIds={materializingIds}
             settlingId={settlingId}
@@ -1508,7 +1650,7 @@ export const AgentPane: React.FC<Props> = ({
             composerDisabled={composerDisabled}
             loopMode={loopMode}
             busy={busy}
-            loopActive={loopActive}
+            loopActive={effectiveLoopActive}
             input={input}
             showStop={buttonIsStop}
             showPlay={showPlay}
@@ -1529,7 +1671,7 @@ export const AgentPane: React.FC<Props> = ({
         cwd={cwd}
         busy={busy}
         loopMode={loopMode}
-        loopActive={loopActive}
+        loopActive={effectiveLoopActive}
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
         contextNotice={contextNotice}
@@ -1542,6 +1684,7 @@ export const AgentPane: React.FC<Props> = ({
         onChangeName={changeName}
         onChangeRole={changeRole}
         onChangeObjective={changeObjective}
+        onChangeRules={changeRules}
         onChangeColor={changeColor}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
@@ -1602,7 +1745,8 @@ export const AgentPane: React.FC<Props> = ({
       <AgentLoopIntervalModal
         open={loopIntervalModalOpen}
         initialMs={loopContinueDelayMs}
-        onConfirm={confirmLoopInterval}
+        initialObjective={loopObjectiveRef.current || input}
+        onConfirm={confirmLoopSetup}
         onClose={() => setLoopIntervalModalOpen(false)}
       />
     </div>

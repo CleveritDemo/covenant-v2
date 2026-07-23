@@ -15,6 +15,7 @@ import {
   PLANE_AGENT_COLORS,
   resolveAgentColor,
 } from '../workspace/planeAgentColor'
+import { AgentRulesEditor } from './AgentRulesEditor'
 import './AgentConfigModal.css'
 
 function folderLabel(cwd: string): string {
@@ -39,6 +40,7 @@ export interface AgentConfigModalProps {
   onChangeName: (name: string) => void
   onChangeRole: (role: string) => void
   onChangeObjective: (objective: string) => void
+  onChangeRules: (rules: string[]) => void
   onChangeColor: (color: string) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
@@ -67,6 +69,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeName,
   onChangeRole,
   onChangeObjective,
+  onChangeRules,
   onChangeColor,
   onChangeProvider,
   onChangeModel,
@@ -179,6 +182,11 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
               onChange={event => onChangeObjective(event.target.value)}
             />
           </label>
+          <AgentRulesEditor
+            rules={meta.rules ?? []}
+            disabled={busy}
+            onChange={onChangeRules}
+          />
           <div className="agent-config-modal__field agent-config-modal__field--stack">
             <span className="agent-config-modal__field-label">{t('agentPane.colorLabel')}</span>
             <div

@@ -163,6 +163,32 @@
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
+.plane-mini-face--compact {
+  padding: 7px 9px 8px;
+  gap: 0;
+}
+
+.plane-mini-face--compact .plane-mini-face__header {
+  margin-bottom: 3px;
+}
+
+.plane-mini-face--compact .plane-mini-face__body {
+  gap: 2px;
+}
+
+.plane-mini-face--compact .plane-mini-face__name {
+  font-size: 11.5px;
+}
+
+.plane-mini-face--compact .plane-mini-face__status {
+  font-size: 9.5px;
+}
+
+.plane-mini-face--compact .plane-mini-face__nodes {
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
 }

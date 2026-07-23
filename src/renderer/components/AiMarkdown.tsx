@@ -103,6 +103,19 @@ function isQuote(line: string): string | null {
   return m ? m[1] : null
 }
 
+/**
+ * Punto seguido / ! / ? → párrafos de chat separados.
+ * Solo corta si hay espacio después del signo (no parte 3.14 ni example.com).
+ */
+export function splitChatSentences(text: string): string[] {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+  return trimmed
+    .split(/(?<=[.!?…])\s+(?=\S)/u)
+    .map(part => part.trim())
+    .filter(Boolean)
+}
+
 function parseBlocks(raw: string): MdBlock[] {
   const lines = raw.replace(/\r\n/g, '\n').split('\n')
   const blocks: MdBlock[] = []
@@ -138,7 +151,11 @@ function parseBlocks(raw: string): MdBlock[] {
         items.push(nq)
         i++
       }
-      blocks.push({ type: 'quote', lines: items })
+      for (const item of items) {
+        for (const sentence of splitChatSentences(item)) {
+          blocks.push({ type: 'quote', lines: [sentence] })
+        }
+      }
       continue
     }
 
@@ -170,24 +187,11 @@ function parseBlocks(raw: string): MdBlock[] {
       continue
     }
 
-    const para: string[] = [line]
-    i++
-    while (i < lines.length) {
-      const next = lines[i]
-      if (
-        !next.trim() ||
-        headingLevel(next) ||
-        isHr(next) ||
-        isQuote(next) !== null ||
-        isUlItem(next) ||
-        isOlItem(next)
-      ) {
-        break
-      }
-      para.push(next)
-      i++
+    // `\n` y punto seguido = párrafo aparte.
+    for (const sentence of splitChatSentences(line)) {
+      blocks.push({ type: 'p', lines: [sentence] })
     }
-    blocks.push({ type: 'p', lines: para })
+    i++
   }
 
   return blocks
@@ -233,17 +237,17 @@ function renderBlock(block: MdBlock, index: number): React.ReactNode {
     case 'p':
       return (
         <p key={key} className="ai-md__p">
-          {block.lines.map((ln, j) => (
-            <React.Fragment key={j}>
-              {j > 0 && <br />}
-              {parseInline(ln)}
-            </React.Fragment>
-          ))}
+          {parseInline(block.lines[0] ?? '')}
         </p>
       )
     default:
       return null
   }
+}
+
+/** Parser de bloques markdown del chat (exportado para tests). */
+export function parseAiMarkdownBlocks(raw: string): MdBlock[] {
+  return parseBlocks(raw)
 }
 
 export const AiMarkdown: React.FC<AiMarkdownProps> = ({ content, showCursor }) => {

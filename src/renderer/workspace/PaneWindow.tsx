@@ -223,6 +223,14 @@ export interface PaneWindowProps {
   onDropContext?: (contextId: string) => void
   /** Altura real del mini agente (contenido) para apilar en el plano. */
   onMiniContentHeightChange?: (height: number) => void
+  /** Long-press / DnD de reorden en el plano (minis). */
+  reorderEnabled?: boolean
+  reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
+  /** Desfase del jiggle (ms) para desincronizar cards. */
+  reorderJiggleDelayMs?: number
+  /** Anima left/top al cambiar de ranura (p. ej. preview de reorder). */
+  slotMotion?: boolean
+  onReorderPointerDown?: (event: React.PointerEvent) => void
 }
 
 export const PaneWindow: React.FC<PaneWindowProps> = ({
@@ -250,6 +258,11 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onFocus,
   onDropContext,
   onMiniContentHeightChange,
+  reorderEnabled = false,
+  reorderState = 'idle',
+  reorderJiggleDelayMs = 0,
+  slotMotion = false,
+  onReorderPointerDown,
 }) => {
   const isMini = display === 'mini'
   const isFullscreen = !isMini && geometry.fullscreen
@@ -346,9 +359,12 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   const stageEase = `${PANE_ZOOM_MS}ms cubic-bezier(0.05, 0.9, 0.08, 1)`
   // Terminales live: nunca animar width/height (el fit intermedio hace saltar el texto).
   // Agentes mini: sin animar height (es auto al contenido).
-  const stageTransition = motionReady && !zooming && !miniLivePreview
+  // Reorder: animar left/top también en live preview para el preview fluido.
+  const stageTransition = motionReady && !zooming && (
+    !miniLivePreview || slotMotion
+  )
     ? (
-      miniAgentCard
+      miniAgentCard || slotMotion
         ? `left ${stageEase}, top ${stageEase}, width ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
         : `left ${stageEase}, top ${stageEase}, width ${stageEase}, height ${stageEase}, box-shadow ${PANE_ZOOM_MS}ms ease`
     )
@@ -544,10 +560,14 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
       return
     }
     if (isMiniExpandSuppressed()) return
+    if (reorderEnabled && onReorderPointerDown) {
+      onReorderPointerDown(event)
+      return
+    }
     // Expandir en pointerdown (no esperar al click/mouseup → se siente con delay).
     event.preventDefault()
     onExpand?.()
-  }, [isMini, onExpand, onFocus])
+  }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
   const onBodyPointerDown = useCallback((event: React.PointerEvent) => {
     if (!isMini || event.button !== 0) return
@@ -555,10 +575,15 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     if ((event.target as HTMLElement | null)?.closest?.('button, a, input, select, textarea, [role="button"]')) {
       return
     }
+    if (reorderEnabled && onReorderPointerDown) {
+      onFocus()
+      onReorderPointerDown(event)
+      return
+    }
     event.preventDefault()
     onFocus()
     onExpand?.()
-  }, [isMini, onExpand, onFocus])
+  }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
   const onContextDragOver = useCallback((event: React.DragEvent) => {
     if (!onDropContext || !hasPlaneContextDrag(event.dataTransfer)) return
@@ -616,6 +641,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         focused ? 'pane-window--focused' : '',
         busy ? 'pane-window--busy' : '',
         contextDropActive ? 'pane-window--context-drop' : '',
+        showAsMini && reorderState === 'jiggle' ? 'pane-window--reorder-jiggle' : '',
+        showAsMini && reorderState === 'dragging' ? 'pane-window--reorder-dragging' : '',
+        showAsMini && reorderState === 'previewMoving' ? 'pane-window--reorder-preview' : '',
       ].filter(Boolean).join(' ')}
       style={{
         left: layout.left,
@@ -624,6 +652,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         height: layout.height,
         zIndex: (() => {
           const base = Number(layout.zIndex) || 0
+          if (showAsMini && reorderState === 'dragging') return Math.max(base, 160)
           // Al cambiar de terminal, expand y collapse corren a la vez: el que
           // abre debe ir encima desde el primer frame (no al terminar).
           if (zoomMode === 'expand') return Math.max(base, 140)
@@ -631,7 +660,10 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
           if (!isMini && !isFullscreen) return Math.max(base, 120)
           return base
         })(),
-        ...(stageTransition ? { transition: stageTransition } : null),
+        ...(reorderState === 'jiggle'
+          ? { ['--pane-jiggle-delay' as string]: `${reorderJiggleDelayMs}ms` }
+          : null),
+        ...(stageTransition && reorderState !== 'dragging' ? { transition: stageTransition } : null),
         ...(agentParkedShadow ? { boxShadow: agentParkedShadow } : null),
       }}
       onMouseDown={event => {

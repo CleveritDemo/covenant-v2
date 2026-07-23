@@ -25,6 +25,8 @@ export interface AgentCliStartRequest {
   role?: string
   /** Objetivo persistente; se inyecta en el prompt del turno. */
   objective?: string
+  /** Reglas de comportamiento; se inyectan en el prompt de cada turno. */
+  rules?: string[]
   /** Si viene, se pasa como `--model` al CLI. */
   model?: string
   /** Definiciones asignadas; main las materializa contra cwd justo al enviar. */

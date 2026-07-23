@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { forwardRef } from 'react'
 import './TextArea.css'
 
 export type TextAreaSize = 'sm' | 'md'
@@ -9,6 +9,15 @@ export interface TextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTex
   variant?: TextAreaVariant
 }
 
-export const TextArea: React.FC<TextAreaProps> = ({ size = 'md', variant = 'default', ...rest }) => (
-  <textarea className={`textarea textarea--${size} textarea--${variant}`} {...rest} />
-)
+export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea(
+  { size = 'md', variant = 'default', ...rest },
+  ref,
+) {
+  return (
+    <textarea
+      ref={ref}
+      className={`textarea textarea--${size} textarea--${variant}`}
+      {...rest}
+    />
+  )
+})

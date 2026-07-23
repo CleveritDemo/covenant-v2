@@ -8,17 +8,9 @@ import {
 } from '../agentLoop'
 
 describe('agentLoop', () => {
-  it('builds a first-iteration prompt with the objective and done marker', () => {
-    const prompt = buildLoopPrompt('Ship the loop UI', 1)
-    expect(prompt).toContain('Ship the loop UI')
-    expect(prompt).toContain(LOOP_DONE_MARKER)
-    expect(prompt).toContain('autonomously')
-  })
-
-  it('builds a continuation prompt with the iteration number', () => {
-    const prompt = buildLoopPrompt('Ship the loop UI', 3)
-    expect(prompt).toContain('iteration 3')
-    expect(prompt).toContain('Ship the loop UI')
+  it('uses the objective as a normal interaction prompt', () => {
+    expect(buildLoopPrompt('Ship the loop UI', 1)).toBe('Ship the loop UI')
+    expect(buildLoopPrompt('  Ship the loop UI  ', 3)).toBe('Ship the loop UI')
   })
 
   it('strips the done marker and reports completion', () => {

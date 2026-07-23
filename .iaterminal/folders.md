@@ -34,6 +34,7 @@ src/
       src/renderer/terminal/explorer/
         src/renderer/terminal/explorer/__tests__/
     src/renderer/workspace/
+      src/renderer/workspace/__tests__/
   src/shared/
     src/shared/__tests__/
   src/themes/

@@ -405,6 +405,46 @@ describe('sanitizePersistedSession', () => {
       cliSessionId: 'cli-abc',
     })
   })
+
+  it('restores plane loop chains as idle config (not running)', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Loops',
+        paneIds: ['a1', 'a2'],
+        activePaneId: 'a1',
+        paneKinds: { a1: 'agent', a2: 'agent' },
+        agentByPane: {
+          a1: { provider: 'claude', permissionMode: 'ask' },
+          a2: { provider: 'cursor', permissionMode: 'ask' },
+        },
+        planeLoopChains: [{
+          id: 'chain-1',
+          steps: [
+            { paneId: 'a1', objective: 'scout' },
+            { paneId: 'a2', objective: 'fix' },
+          ],
+          intervalMs: 600_000,
+          status: 'waiting',
+          cursor: 1,
+        }],
+      }],
+      cwds: {},
+    })
+
+    expect(result?.tabs[0]?.planeLoopChains).toEqual([{
+      id: 'chain-1',
+      steps: [
+        { paneId: 'a1', objective: 'scout' },
+        { paneId: 'a2', objective: 'fix' },
+      ],
+      intervalMs: 600_000,
+      status: 'idle',
+      cursor: 0,
+    }])
+  })
 })
 
 describe('deriveTabCounter', () => {

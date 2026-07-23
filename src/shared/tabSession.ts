@@ -6,6 +6,10 @@
  */
 import type { TabContext } from './tabContext'
 import { AGENT_NAME_MAX_LENGTH } from './agentIdentity'
+import type { PlaneLoopLink, PlaneLoopNodePosition } from './planeLoopGraph'
+import type { PlaneLoopChain } from './planeLoopChain'
+
+export type { PlaneLoopLink, PlaneLoopNodePosition, PlaneLoopChain }
 
 export interface TabSplitSizes {
   /** Fracción 0–1 del ancho de la columna izquierda (paneles con 2 columnas). */
@@ -27,6 +31,8 @@ export interface AgentPaneMeta {
   role?: string
   /** Objetivo persistente del agente; se envía en cada turno. */
   objective?: string
+  /** Reglas de comportamiento; se envían en cada turno con la identidad. */
+  rules?: string[]
   /** Modelo del CLI (`--model`); ausente = predeterminado del proveedor. */
   model?: string
   /** Color de acento en el plano (badges, chat); ausente = hash del paneId. */
@@ -56,6 +62,7 @@ export function cloneAgentPaneMeta(
     name,
     role: source.role,
     objective: source.objective,
+    rules: source.rules ? [...source.rules] : undefined,
     model: source.model,
     color: source.color,
     contextIds: source.contextIds ? [...source.contextIds] : undefined,
@@ -101,6 +108,14 @@ export interface TabSession {
    * (no heredan el cwd de otras terminales).
    */
   projectFolder?: string
+  /**
+   * @deprecated Legacy nest links; ya no se orquestan. Se mantienen por sanitize.
+   */
+  planeLoopLinks?: PlaneLoopLink[]
+  /** Posiciones de nodos en el lienzo legacy de loops (por paneId). */
+  planeLoopNodePositions?: Record<string, PlaneLoopNodePosition>
+  /** Cadenas multi-agente A→B→C… con intervalo al final del ciclo. */
+  planeLoopChains?: PlaneLoopChain[]
   /**
    * @deprecated El catálogo vive en `.iaterminal/*.md`. Se ignora al cargar;
    * solo se persisten `agentByPane[].contextIds`.

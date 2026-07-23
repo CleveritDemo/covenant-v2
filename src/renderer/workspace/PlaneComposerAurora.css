@@ -1,6 +1,6 @@
 /*
- * Borde inferior del plano: cinta cromática fina + bloom.
- * Gradiente duplicado (loop sin costura) + máscara suave en el glow.
+ * Borde inferior del plano: cinta cromática fina.
+ * Idle: estática. Working: se desplaza el espectro (sin bloom/gradiente hacia afuera).
  */
 .plane-composer-aurora {
   position: absolute;
@@ -12,7 +12,7 @@
   pointer-events: none;
   overflow: visible;
   opacity: 0.92;
-  transition: height 0.45s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.45s ease;
+  transition: height 0.35s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.35s ease;
 }
 
 .plane-chat-composer--working .plane-composer-aurora {
@@ -21,7 +21,6 @@
 }
 
 /* Periodo cromático ×2 → background-position 0→100% con size 200% es seamless. */
-.plane-composer-aurora__glow,
 .plane-composer-aurora__line {
   --plane-aurora-ribbon: linear-gradient(
     90deg,
@@ -41,176 +40,35 @@
     var(--accent) 92%,
     var(--accent-dim) 100%
   );
-}
-
-/* Halo: se desvanece en bordes (sin óvalo recortado). Idle: sin glow (ahorro GPU). */
-.plane-composer-aurora__glow {
-  position: absolute;
-  left: -4%;
-  right: -4%;
-  bottom: -6px;
-  height: 0;
-  border-radius: 0;
-  background: var(--plane-aurora-ribbon);
-  background-size: 200% 100%;
-  filter: none;
-  opacity: 0;
-  animation: none;
-  pointer-events: none;
-  will-change: auto;
-}
-
-/* Working: ~mitad del glow anterior (área + blur + spread). */
-.plane-chat-composer--working .plane-composer-aurora__glow {
-  left: -22%;
-  right: -22%;
-  height: 220px;
-  bottom: -36px;
-  filter: blur(32px);
-  opacity: 0.26;
-  -webkit-mask-image: radial-gradient(
-    ellipse 100% 130% at 50% 100%,
-    #000 0%,
-    #000 18%,
-    rgba(0, 0, 0, 0.4) 42%,
-    rgba(0, 0, 0, 0.14) 62%,
-    transparent 78%
-  );
-  mask-image: radial-gradient(
-    ellipse 100% 130% at 50% 100%,
-    #000 0%,
-    #000 18%,
-    rgba(0, 0, 0, 0.4) 42%,
-    rgba(0, 0, 0, 0.14) 62%,
-    transparent 78%
-  );
-  animation:
-    plane-composer-ribbon-flow 7s linear infinite,
-    plane-composer-glow-breathe-working 3.8s ease-in-out infinite;
-  will-change: opacity, background-position;
-}
-
-/* Cinta principal. */
-.plane-composer-aurora__line {
   position: absolute;
   inset: 0;
   border-radius: 999px;
   background: var(--plane-aurora-ribbon);
   background-size: 200% 100%;
-  animation:
-    plane-composer-ribbon-flow 14s linear infinite,
-    plane-composer-line-glow 5.6s ease-in-out infinite;
+  background-position: 0% 50%;
+  animation: none;
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 18px color-mix(in srgb, var(--theme-cyan) 14%, transparent);
 }
 
 .plane-chat-composer--working .plane-composer-aurora__line {
-  animation:
-    plane-composer-ribbon-flow 7s linear infinite,
-    plane-composer-line-glow-working 3.8s ease-in-out infinite;
+  animation: plane-composer-ribbon-flow 7s linear infinite;
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 36%, transparent),
+    0 0 28px color-mix(in srgb, var(--theme-cyan) 18%, transparent);
+  will-change: background-position;
 }
 
-/* Brillo que recorre la línea. */
-.plane-composer-aurora__sheen {
-  position: absolute;
-  inset: -1px 0;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 38%,
-    color-mix(in srgb, #fff 55%, transparent) 50%,
-    transparent 62%,
-    transparent 100%
-  );
-  background-size: 220% 100%;
-  mix-blend-mode: soft-light;
-  opacity: 0.55;
-  animation: plane-composer-line-sheen 5.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.plane-chat-composer--working .plane-composer-aurora__sheen {
-  opacity: 0.75;
-  animation-duration: 3.2s;
-}
-
-/* Un periodo exacto: sin salto al reiniciar. */
 @keyframes plane-composer-ribbon-flow {
   from { background-position: 0% 50%; }
   to { background-position: 100% 50%; }
 }
 
-@keyframes plane-composer-line-sheen {
-  0%, 100% { background-position: 120% 50%; opacity: 0.25; }
-  45% { background-position: -20% 50%; opacity: 0.65; }
-}
-
-@keyframes plane-composer-glow-breathe-working {
-  0%, 100% {
-    opacity: 0.2;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-@keyframes plane-composer-line-glow {
-  0%, 100% {
-    box-shadow:
-      0 0 8px color-mix(in srgb, var(--accent) 28%, transparent),
-      0 0 18px color-mix(in srgb, var(--theme-cyan) 14%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 12px color-mix(in srgb, var(--accent) 42%, transparent),
-      0 0 24px color-mix(in srgb, var(--theme-magenta) 20%, transparent),
-      0 0 34px color-mix(in srgb, var(--theme-blue) 14%, transparent);
-  }
-}
-
-@keyframes plane-composer-line-glow-working {
-  0%, 100% {
-    box-shadow:
-      0 0 12px color-mix(in srgb, var(--accent) 28%, transparent),
-      0 0 28px color-mix(in srgb, var(--theme-cyan) 16%, transparent),
-      0 -30px 70px color-mix(in srgb, var(--accent) 10%, transparent),
-      0 -70px 120px color-mix(in srgb, var(--theme-magenta) 6%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 16px color-mix(in srgb, var(--accent) 36%, transparent),
-      0 0 36px color-mix(in srgb, var(--theme-magenta) 18%, transparent),
-      0 -40px 90px color-mix(in srgb, var(--theme-blue) 12%, transparent),
-      0 -90px 150px color-mix(in srgb, var(--theme-cyan) 8%, transparent);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .plane-composer-aurora__line {
-    animation: plane-composer-ribbon-flow 28s linear infinite;
-    box-shadow:
-      0 0 10px color-mix(in srgb, var(--accent) 28%, transparent),
-      0 0 22px color-mix(in srgb, var(--theme-cyan) 12%, transparent);
-  }
-
-  .plane-composer-aurora__glow {
+  .plane-chat-composer--working .plane-composer-aurora__line {
     animation: none;
-    opacity: 0;
-    filter: none;
-    height: 0;
-  }
-
-  .plane-chat-composer--working .plane-composer-aurora__glow {
-    left: -20%;
-    right: -20%;
-    height: 200px;
-    opacity: 0.24;
-    filter: blur(30px);
-    animation: plane-composer-ribbon-flow 28s linear infinite;
-  }
-
-  .plane-composer-aurora__sheen {
-    animation: none;
-    opacity: 0.35;
-    background-position: 50% 50%;
+    background-position: 35% 50%;
+    will-change: auto;
   }
 }

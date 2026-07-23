@@ -1,0 +1,30 @@
+.plane-loops-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: var(--plane-top-bar-height, 26px);
+  padding: 0 var(--plane-top-bar-pad-x, 8px);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  backdrop-filter: blur(var(--plane-blur));
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+
+.plane-loops-button:hover {
+  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
+  border-color: color-mix(in srgb, var(--plane-border-strong) 40%, transparent);
+}
+
+.plane-loops-button--pressed {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--plane-glass-strong));
+}

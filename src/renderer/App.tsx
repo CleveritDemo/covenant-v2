@@ -41,6 +41,8 @@ import {
 import {
   computeTabInsertIndex,
   moveItemToIndex,
+  reorderPaneIdsByKind,
+  type PaneReorderKind,
 } from './arrayReorder'
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import './styles/app.css'
@@ -50,8 +52,31 @@ import {
   type AgentCliProvider,
   type AgentPaneMeta,
   type PaneKind,
+  type PlaneLoopChain,
   type TabSession,
 } from '../shared/tabSession'
+import {
+  removePaneFromLoopChains,
+  activeLoopChainPaneIds,
+  chainHasPane,
+  planeLoopChainsForPersist,
+} from '../shared/planeLoopChain'
+import {
+  advanceLoopChainAfterStep,
+  resumeLoopChainAfterWait,
+  startLoopChain,
+  stopLoopChain,
+  type LoopOrchestratorAction,
+} from './workspace/loopOrchestrator'
+import {
+  createLoopChainFifoItem,
+  dequeueLoopChainFifoHead,
+  enqueueLoopChainFifo,
+  removeLoopChainFromFifo,
+  removePaneFromFifo,
+  type LoopChainFifoItem,
+  type LoopChainTurnWait,
+} from './workspace/loopChainFifo'
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
@@ -86,6 +111,27 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
       && paneKinds[tab.planeOpenChatAgentId] === 'agent'
         ? tab.planeOpenChatAgentId
         : null
+    const agentPaneIds = new Set(
+      paneIds.filter(id => paneKinds[id] === 'agent'),
+    )
+    const planeLoopLinks = (tab.planeLoopLinks ?? []).filter(
+      link => agentPaneIds.has(link.fromPaneId) && agentPaneIds.has(link.toPaneId),
+    )
+    const planeLoopNodePositions = Object.fromEntries(
+      Object.entries(tab.planeLoopNodePositions ?? {})
+        .filter(([id]) => agentPaneIds.has(id)),
+    )
+    const planeLoopChains = (tab.planeLoopChains ?? [])
+      .map(chain => ({
+        ...chain,
+        steps: chain.steps.filter(step => agentPaneIds.has(step.paneId)),
+      }))
+      .filter(chain => chain.steps.length > 0)
+      .map(chain => ({
+        ...chain,
+        cursor: chain.cursor >= 0 && chain.cursor < chain.steps.length ? chain.cursor : 0,
+        status: 'idle' as const,
+      }))
     const {
       panePlaneNodes: _legacyPlaneNodes,
       ...tabBase
@@ -98,9 +144,14 @@ function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSess
       ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
       ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
       planeOpenChatAgentId,
+      ...(planeLoopLinks.length ? { planeLoopLinks } : { planeLoopLinks: undefined }),
+      ...(Object.keys(planeLoopNodePositions).length
+        ? { planeLoopNodePositions }
+        : { planeLoopNodePositions: undefined }),
+      ...(planeLoopChains.length ? { planeLoopChains } : { planeLoopChains: undefined }),
     })
   })
-  return { tabs: out, orphanPaneIds }
+  return { tabs: out, orphanPaneIds: orphanPaneIds }
 }
 
 /** Marca que las pestañas ya fueron cargadas desde persistencia (o se creó la primera). */
@@ -151,13 +202,20 @@ export const App: React.FC = () => {
     suppressPaneExpandUntilRef.current = Date.now() + 320
   }, [])
   const [openContextForPane, setOpenContextForPane] = useState<{ paneId: string; contextId: string } | null>(null)
-  const [planeSendPrompt, setPlaneSendPrompt] = useState<{
-    paneId: string
+  const [planeSendByPane, setPlaneSendByPane] = useState<Record<string, {
     text: string
     images: AgentCliImageAttachment[]
-  } | null>(null)
+    focusPane?: boolean
+  }>>({})
   const [planeStopPaneId, setPlaneStopPaneId] = useState<string | null>(null)
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
+  const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
+  const [loopFifoTick, setLoopFifoTick] = useState(0)
+  const chainFifoByPaneRef = useRef(new Map<string, LoopChainFifoItem[]>())
+  const chainOfferByPaneRef = useRef(new Map<string, LoopChainFifoItem>())
+  const chainTurnWaitRef = useRef(new Map<string, LoopChainTurnWait>())
+  const chainWaitTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const prevBusyByPaneRef = useRef<Record<string, boolean>>({})
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
@@ -201,10 +259,19 @@ export const App: React.FC = () => {
     const currentTabs = tabsRef.current
     const currentActiveTabId = activeTabIdRef.current
     if (!currentTabs.length || !currentActiveTabId) return null
+    const tabs = currentTabs.map(tab => {
+      const planeLoopChains = planeLoopChainsForPersist(tab.planeLoopChains)
+      if (!planeLoopChains) {
+        if (!tab.planeLoopChains) return tab
+        const { planeLoopChains: _dropped, ...rest } = tab
+        return rest
+      }
+      return { ...tab, planeLoopChains }
+    })
     return {
       version: 1 as const,
       activeTabId: currentActiveTabId,
-      tabs: currentTabs,
+      tabs,
       cwds: { ...cwdsRef.current },
       explorerByPane: { ...explorerByPaneRef.current },
     }
@@ -366,7 +433,15 @@ export const App: React.FC = () => {
         void window.api.saveSession({
           version: 1,
           activeTabId,
-          tabs: layoutTabs,
+          tabs: layoutTabs.map(tab => {
+            const planeLoopChains = planeLoopChainsForPersist(tab.planeLoopChains)
+            if (!planeLoopChains) {
+              if (!tab.planeLoopChains) return tab
+              const { planeLoopChains: _dropped, ...rest } = tab
+              return rest
+            }
+            return { ...tab, planeLoopChains }
+          }),
           cwds: { ...cwdsRef.current },
           explorerByPane: { ...explorerByPaneRef.current },
         })
@@ -626,6 +701,12 @@ export const App: React.FC = () => {
       const planeOpenChatAgentId = tab.planeOpenChatAgentId === paneId
         ? null
         : (tab.planeOpenChatAgentId ?? null)
+      const planeLoopLinks = (tab.planeLoopLinks ?? []).filter(
+        link => link.fromPaneId !== paneId && link.toPaneId !== paneId,
+      )
+      const planeLoopNodePositions = { ...(tab.planeLoopNodePositions ?? {}) }
+      delete planeLoopNodePositions[paneId]
+      const planeLoopChains = removePaneFromLoopChains(tab.planeLoopChains ?? [], paneId)
       const {
         panePlaneNodes: _legacyPlaneNodes,
         ...tabBase
@@ -638,6 +719,11 @@ export const App: React.FC = () => {
         ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
         ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
         planeOpenChatAgentId,
+        ...(planeLoopLinks.length ? { planeLoopLinks } : { planeLoopLinks: undefined }),
+        ...(Object.keys(planeLoopNodePositions).length
+          ? { planeLoopNodePositions }
+          : { planeLoopNodePositions: undefined }),
+        ...(planeLoopChains.length ? { planeLoopChains } : { planeLoopChains: undefined }),
       })
     }))
     setAgentPlaneStatus(prev => {
@@ -646,6 +732,18 @@ export const App: React.FC = () => {
       delete next[paneId]
       return next
     })
+    removePaneFromFifo(chainFifoByPaneRef.current, paneId)
+    chainOfferByPaneRef.current.delete(paneId)
+    setPlaneSendByPane(prev => {
+      if (!(paneId in prev)) return prev
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
+    for (const [chainId, wait] of [...chainTurnWaitRef.current.entries()]) {
+      if (wait.paneId === paneId) chainTurnWaitRef.current.delete(chainId)
+    }
+    delete prevBusyByPaneRef.current[paneId]
     planeLoopToggleByPaneRef.current.delete(paneId)
     planeQueueControlsByPaneRef.current.delete(paneId)
     setTimeout(() => {
@@ -1064,6 +1162,9 @@ export const App: React.FC = () => {
         && previous.activeAssistantId === status.activeAssistantId
         && previous.loopMode === status.loopMode
         && previous.loopActive === status.loopActive
+        && previous.localLoopActive === status.localLoopActive
+        && previous.turnCloseReason === status.turnCloseReason
+        && previous.loopEndReason === status.loopEndReason
         && (previous.queuedTurns?.length ?? 0) === status.queuedTurns.length
         && (previous.queuedTurns ?? []).every((item, i) =>
           item.id === status.queuedTurns[i]?.id
@@ -1097,6 +1198,221 @@ export const App: React.FC = () => {
   const handlePlaneToggleLoop = useCallback((paneId: string) => {
     planeLoopToggleByPaneRef.current.get(paneId)?.()
   }, [])
+
+  const yieldChainOfferForUserSend = useCallback((paneId: string) => {
+    const offer = chainOfferByPaneRef.current.get(paneId)
+    if (!offer) return
+    chainOfferByPaneRef.current.delete(paneId)
+    chainTurnWaitRef.current.delete(offer.chainId)
+    const rest = chainFifoByPaneRef.current.get(paneId) ?? []
+    chainFifoByPaneRef.current.set(paneId, [offer, ...rest.filter(item => item.id !== offer.id)])
+    setLoopFifoTick(n => n + 1)
+  }, [])
+
+  const handleLoopChainsChange = useCallback((tabId: string, chains: PlaneLoopChain[]) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        return {
+          ...tab,
+          ...(chains.length ? { planeLoopChains: chains } : { planeLoopChains: undefined }),
+        }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+  }, [saveSessionNow])
+
+  const patchLoopChain = useCallback((
+    tabId: string,
+    chainId: string,
+    updater: (chain: PlaneLoopChain) => PlaneLoopChain,
+  ): PlaneLoopChain | null => {
+    let updated: PlaneLoopChain | null = null
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        const chains = tab.planeLoopChains ?? []
+        const nextChains = chains.map(chain => {
+          if (chain.id !== chainId) return chain
+          updated = updater(chain)
+          return updated
+        })
+        return {
+          ...tab,
+          ...(nextChains.length
+            ? { planeLoopChains: nextChains }
+            : { planeLoopChains: undefined }),
+        }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+    return updated
+  }, [saveSessionNow])
+
+  const clearChainWaitTimer = useCallback((chainId: string) => {
+    const timer = chainWaitTimersRef.current.get(chainId)
+    if (timer) {
+      clearTimeout(timer)
+      chainWaitTimersRef.current.delete(chainId)
+    }
+  }, [])
+
+  const enqueueChainAction = useCallback((
+    tabId: string,
+    chainId: string,
+    action: LoopOrchestratorAction,
+  ) => {
+    if (action.type === 'noop') return
+    if (action.type === 'send_step') {
+      const item = createLoopChainFifoItem({
+        tabId,
+        chainId,
+        stepIndex: action.stepIndex,
+        paneId: action.paneId,
+        text: action.objective,
+      })
+      const queue = chainFifoByPaneRef.current.get(action.paneId) ?? []
+      chainFifoByPaneRef.current.set(
+        action.paneId,
+        enqueueLoopChainFifo(queue, item),
+      )
+      setLoopFifoTick(n => n + 1)
+      return
+    }
+    if (action.type === 'start_wait') {
+      clearChainWaitTimer(chainId)
+      const timer = setTimeout(() => {
+        chainWaitTimersRef.current.delete(chainId)
+        const tab = tabsRef.current.find(item => item.id === tabId)
+        const chain = tab?.planeLoopChains?.find(item => item.id === chainId)
+        if (!chain || chain.status !== 'waiting') return
+        const resumed = resumeLoopChainAfterWait(chain)
+        patchLoopChain(tabId, chainId, () => resumed.chain)
+        enqueueChainAction(tabId, chainId, resumed.action)
+      }, action.intervalMs)
+      chainWaitTimersRef.current.set(chainId, timer)
+    }
+  }, [clearChainWaitTimer, patchLoopChain])
+
+  const handleStartLoopChain = useCallback((tabId: string, chainId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab?.projectFolder?.trim()) return
+    const chain = tab.planeLoopChains?.find(item => item.id === chainId)
+    if (!chain) return
+    const started = startLoopChain(chain)
+    if (started.action.type === 'noop') return
+    patchLoopChain(tabId, chainId, () => started.chain)
+    enqueueChainAction(tabId, chainId, started.action)
+  }, [enqueueChainAction, patchLoopChain])
+
+  const handleStopLoopChain = useCallback((tabId: string, chainId: string) => {
+    clearChainWaitTimer(chainId)
+    removeLoopChainFromFifo(chainFifoByPaneRef.current, chainId)
+    chainTurnWaitRef.current.delete(chainId)
+    for (const [paneId, offer] of [...chainOfferByPaneRef.current.entries()]) {
+      if (offer.chainId !== chainId) continue
+      chainOfferByPaneRef.current.delete(paneId)
+      setPlaneSendByPane(prev => {
+        if (!(paneId in prev)) return prev
+        const next = { ...prev }
+        delete next[paneId]
+        return next
+      })
+    }
+    patchLoopChain(tabId, chainId, chain => stopLoopChain(chain))
+    setLoopFifoTick(n => n + 1)
+  }, [clearChainWaitTimer, patchLoopChain])
+
+  const stopChainsForPane = useCallback((tabId: string, paneId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    for (const chain of tab?.planeLoopChains ?? []) {
+      if (
+        (chain.status === 'running' || chain.status === 'waiting')
+        && chainHasPane(chain, paneId)
+      ) {
+        handleStopLoopChain(tabId, chain.id)
+      }
+    }
+  }, [handleStopLoopChain])
+
+  // Drena FIFO por agente: ofrece preferSend solo si el pane está idle.
+  useEffect(() => {
+    const queues = chainFifoByPaneRef.current
+    for (const paneId of [...queues.keys()]) {
+      if (chainOfferByPaneRef.current.has(paneId)) continue
+      if (planeSendByPane[paneId]) continue
+      const status = agentPlaneStatus[paneId]
+      if (status?.busy || status?.localLoopActive) continue
+      const peek = queues.get(paneId)?.[0]
+      if (!peek) continue
+      const tab = tabsRef.current.find(item => item.id === peek.tabId)
+      const chain = tab?.planeLoopChains?.find(item => item.id === peek.chainId)
+      if (!chain) {
+        // Ítem huérfano: sí descartar.
+        dequeueLoopChainFifoHead(queues, paneId)
+        continue
+      }
+      // No descartar si aún no está running (p. ej. estado stale); stop limpia la cola.
+      if (chain.status !== 'running') continue
+      const head = dequeueLoopChainFifoHead(queues, paneId)
+      if (!head) continue
+      chainOfferByPaneRef.current.set(paneId, head)
+      chainTurnWaitRef.current.set(head.chainId, {
+        tabId: head.tabId,
+        chainId: head.chainId,
+        paneId: head.paneId,
+        stepIndex: head.stepIndex,
+        phase: 'awaiting_busy',
+      })
+      setPlaneSendByPane(prev => ({
+        ...prev,
+        [paneId]: {
+          text: head.text,
+          images: [],
+          focusPane: false,
+        },
+      }))
+    }
+  }, [agentPlaneStatus, loopFifoTick, planeSendByPane])
+
+  // Avanza la cadena solo si el turno cerró con éxito (no stop/fallo).
+  useEffect(() => {
+    const prev = prevBusyByPaneRef.current
+    const nextPrev = { ...prev }
+    for (const [paneId, status] of Object.entries(agentPlaneStatus)) {
+      const wasBusy = Boolean(prev[paneId])
+      const isBusy = Boolean(status.busy)
+      nextPrev[paneId] = isBusy
+
+      const wait = [...chainTurnWaitRef.current.values()].find(item => item.paneId === paneId)
+      if (!wait) continue
+
+      if (!wasBusy && isBusy && wait.phase === 'awaiting_busy') {
+        chainTurnWaitRef.current.set(wait.chainId, { ...wait, phase: 'in_flight' })
+        continue
+      }
+      if (wasBusy && !isBusy && wait.phase === 'in_flight') {
+        chainTurnWaitRef.current.delete(wait.chainId)
+        chainOfferByPaneRef.current.delete(wait.paneId)
+        setLoopFifoTick(n => n + 1)
+        if (status.turnCloseReason !== 'completed') {
+          handleStopLoopChain(wait.tabId, wait.chainId)
+          continue
+        }
+        const tab = tabsRef.current.find(item => item.id === wait.tabId)
+        const chain = tab?.planeLoopChains?.find(item => item.id === wait.chainId)
+        if (!chain || chain.status !== 'running') continue
+        const advanced = advanceLoopChainAfterStep(chain)
+        patchLoopChain(wait.tabId, wait.chainId, () => advanced.chain)
+        enqueueChainAction(wait.tabId, wait.chainId, advanced.action)
+      }
+    }
+    prevBusyByPaneRef.current = nextPrev
+  }, [agentPlaneStatus, enqueueChainAction, handleStopLoopChain, patchLoopChain])
 
   const handlePlaneQueueControlsReady = useCallback((
     paneId: string,
@@ -1194,6 +1510,24 @@ export const App: React.FC = () => {
       return moveItemToIndex(prev, fromIdx, insertAt)
     })
   }, [])
+
+  const handleReorderPanes = useCallback((
+    tabId: string,
+    kind: PaneReorderKind,
+    orderedPaneIds: string[],
+  ) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        const paneIds = reorderPaneIdsByKind(tab.paneIds, tab.paneKinds, kind, orderedPaneIds)
+        if (paneIds.every((id, index) => id === tab.paneIds[index])) return tab
+        return { ...tab, paneIds }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
+  }, [saveSessionNow])
 
   const handleThemeChange = useCallback((themeId: string) => {
     const updated = { ...config, themeId }
@@ -1364,6 +1698,7 @@ export const App: React.FC = () => {
     const isAgent = tab.paneKinds?.[paneId] === 'agent'
     const registerClose = (openConfirm: () => void) =>
       registerPaneShortcutCloseIntercept(paneId, openConfirm)
+    const chainLoopActive = activeLoopChainPaneIds(tab.planeLoopChains ?? []).has(paneId)
 
     if (isAgent) {
       return (
@@ -1378,6 +1713,8 @@ export const App: React.FC = () => {
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
+          chainLoopActive={chainLoopActive}
+          onChainLoopStop={() => stopChainsForPane(tab.id, paneId)}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
           onClosePane={() => handleClosePane(tab.id, paneId)}
@@ -1397,13 +1734,14 @@ export const App: React.FC = () => {
           onPreferOpenContextConsumed={() => {
             setOpenContextForPane(current => (current?.paneId === paneId ? null : current))
           }}
-          preferSend={
-            planeSendPrompt?.paneId === paneId
-              ? planeSendPrompt
-              : null
-          }
+          preferSend={planeSendByPane[paneId] ?? null}
           onPreferSendConsumed={() => {
-            setPlaneSendPrompt(current => (current?.paneId === paneId ? null : current))
+            setPlaneSendByPane(current => {
+              if (!(paneId in current)) return current
+              const next = { ...current }
+              delete next[paneId]
+              return next
+            })
           }}
           preferStop={planeStopPaneId === paneId}
           onPreferStopConsumed={() => {
@@ -1520,12 +1858,17 @@ export const App: React.FC = () => {
               const ensured = ensureTabPaneLayout(tab)
               const win = ensured.paneWindows?.[paneId] ?? createPaneWindowState(ensured.paneWindows, false)
               const meta = kind === 'agent' ? tab.agentByPane?.[paneId] : undefined
+              const terminalIndex = kind === 'terminal'
+                ? tab.paneIds
+                  .filter(id => tab.paneKinds?.[id] !== 'agent')
+                  .indexOf(paneId) + 1
+                : 0
               const title = kind === 'agent'
                 ? (
                   meta?.name?.trim()
                   || (meta?.provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude'))
                 )
-                : `${t('tabs.nodeTerminal')} ${index + 1}`
+                : `${t('tabs.nodeTerminal')} ${terminalIndex || index + 1}`
 
               if (kind === 'agent') {
                 const status = agentPlaneStatus[paneId]
@@ -1629,7 +1972,11 @@ export const App: React.FC = () => {
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images) => {
-                    setPlaneSendPrompt({ paneId, text, images })
+                    yieldChainOfferForUserSend(paneId)
+                    setPlaneSendByPane(prev => ({
+                      ...prev,
+                      [paneId]: { text, images, focusPane: true },
+                    }))
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {
                         if (tabItem.id !== tab.id) return tabItem
@@ -1651,6 +1998,7 @@ export const App: React.FC = () => {
                   }}
                   onStopChat={paneId => {
                     setPlaneStopPaneId(paneId)
+                    stopChainsForPane(tab.id, paneId)
                   }}
                   onClearConversation={paneId => {
                     setPlaneClearPaneId(paneId)
@@ -1670,9 +2018,55 @@ export const App: React.FC = () => {
                   onRevealProjectFolder={tab.projectFolder?.trim()
                     ? () => { window.api.openFolder(tab.projectFolder!.trim()) }
                     : undefined}
+                  loopsOpen={Boolean(planeLoopsOpenByTab[tab.id])}
+                  onLoopsOpenChange={open => {
+                    setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  }}
+                  loopsButtonLabel={t('tabs.loopsButton')}
+                  loopsTitle={t('tabs.loopsTitle')}
+                  loopsSubtitle={t('tabs.loopsSubtitle')}
+                  loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
+                  loopsEmptyHint={t('tabs.loopsEmptyHint')}
+                  loopsChainsTitle={t('tabs.loopsChainsTitle')}
+                  loopsChainsEmpty={t('tabs.loopsChainsEmpty')}
+                  loopsCreateChainLabel={t('tabs.loopsCreateChain')}
+                  loopsAppendStepLabel={t('tabs.loopsAppendStep')}
+                  loopsStartChainLabel={t('tabs.loopsStartChain')}
+                  loopsStopChainLabel={t('tabs.loopsStopChain')}
+                  loopsDeleteChainLabel={t('tabs.loopsDeleteChain')}
+                  loopsChainModalTitle={t('tabs.loopsChainModalTitle')}
+                  loopsChainModalDescription={t('tabs.loopsChainModalDescription')}
+                  loopsAppendModalTitle={t('tabs.loopsAppendModalTitle')}
+                  loopsAppendModalDescription={t('tabs.loopsAppendModalDescription')}
+                  loopsAgentLabel={t('tabs.loopsAgent')}
+                  loopsObjectiveLabel={t('tabs.loopsObjective')}
+                  loopsObjectivePlaceholder={t('tabs.loopsObjectivePlaceholder')}
+                  loopsNoAgentsHint={t('tabs.loopsNoAgents')}
+                  loopsNoAppendAgentsHint={t('tabs.loopsNoAppendAgents')}
+                  loopsBlockNeedObjectiveHint={t('tabs.loopsBlockNeedObjective')}
+                  loopsChainConfirmLabel={t('tabs.loopsChainConfirm')}
+                  loopsAppendConfirmLabel={t('tabs.loopsAppendConfirm')}
+                  loopsCancelLabel={t('common.cancel')}
+                  loopsStatusIdle={t('tabs.loopsStatusIdle')}
+                  loopsStatusBusy={t('tabs.loopsStatusBusy')}
+                  loopsStatusLooping={t('tabs.loopsStatusLooping')}
+                  loopsChainStatusIdle={t('tabs.loopsChainStatusIdle')}
+                  loopsChainStatusRunning={t('tabs.loopsChainStatusRunning')}
+                  loopsChainStatusWaiting={t('tabs.loopsChainStatusWaiting')}
+                  loopsChainStatusStopped={t('tabs.loopsChainStatusStopped')}
+                  loopChains={tab.planeLoopChains ?? []}
+                  onLoopChainsChange={chains => handleLoopChainsChange(tab.id, chains)}
+                  onStartLoopChain={chainId => handleStartLoopChain(tab.id, chainId)}
+                  onStopLoopChain={chainId => handleStopLoopChain(tab.id, chainId)}
+                  canStartLoopChains={Boolean(tab.projectFolder?.trim())}
+                  startLoopChainsBlockedHint={t('agentPane.projectFolderRequired')}
                   onOpenConfig={paneId => handleOpenConfigFromPlane(tab.id, paneId)}
                   onDeletePane={paneId => handleClosePane(tab.id, paneId)}
                   onToggleFullscreen={paneId => handleTogglePaneFullscreen(tab.id, paneId)}
+                  onReorderPanes={(kind, orderedPaneIds) => {
+                    handleReorderPanes(tab.id, kind, orderedPaneIds)
+                  }}
+                  reorderAriaLabel={t('tabs.planeReorderAriaLabel')}
                   renderPane={paneId => renderPaneContent(tab, paneId)}
                 />
               </div>

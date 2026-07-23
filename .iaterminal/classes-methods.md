@@ -230,6 +230,9 @@
 ### src/renderer/agent/AgentProviderPickerModal.tsx
 - AgentProviderPickerModal
 
+### src/renderer/agent/AgentRulesEditor.tsx
+- AgentRulesEditor
+
 ### src/renderer/agent/composerImages.ts
 - extensionForMime
 - blobToBase64
@@ -242,6 +245,9 @@
 
 ### src/renderer/agent/IaNucleus.tsx
 - IaNucleus
+
+### src/renderer/agent/planeStatusThrottle.ts
+- createPlaneStatusThrottler
 
 ### src/renderer/agent/QueuedTurnEditModal.tsx
 - QueuedTurnEditModal
@@ -278,6 +284,8 @@
 - computeTabInsertIndex
 - dropPlaceFromPointer
 - isDragLeaveForContainer
+- reorderPaneIdsByKind
+- insertIndexFromPointerY
 
 ### src/renderer/components/ai/aiMessagesScroll.ts
 - getAiMessagesMaxScrollTop
@@ -291,6 +299,8 @@
 - AiCodeBlock
 
 ### src/renderer/components/AiMarkdown.tsx
+- splitChatSentences
+- parseAiMarkdownBlocks
 - AiMarkdown
 
 ### src/renderer/components/AppModals.tsx
@@ -546,6 +556,19 @@
 ### src/renderer/workspace/ContextBadge.tsx
 - ContextBadge
 
+### src/renderer/workspace/loopChainFifo.ts
+- createLoopChainFifoItem
+- enqueueLoopChainFifo
+- dequeueLoopChainFifoHead
+- removeLoopChainFromFifo
+- removePaneFromFifo
+
+### src/renderer/workspace/loopOrchestrator.ts
+- startLoopChain
+- advanceLoopChainAfterStep
+- resumeLoopChainAfterWait
+- stopLoopChain
+
 ### src/renderer/workspace/miniExpandSuppress.ts
 - armMiniExpandSuppress
 - isMiniExpandSuppressed
@@ -577,6 +600,9 @@
 ### src/renderer/workspace/PlaneChatDock.tsx
 - PlaneChatDock
 
+### src/renderer/workspace/planeColumnReorder.ts
+- usePlaneColumnReorder
+
 ### src/renderer/workspace/PlaneComposerAurora.tsx
 - PlaneComposerAurora
 
@@ -596,6 +622,21 @@
 
 ### src/renderer/workspace/PlaneIdleNucleus.tsx
 - PlaneIdleNucleus
+
+### src/renderer/workspace/PlaneLoopAgentCard.tsx
+- PlaneLoopAgentCard
+
+### src/renderer/workspace/PlaneLoopChainModal.tsx
+- PlaneLoopChainModal
+
+### src/renderer/workspace/PlaneLoopModalSection.tsx
+- PlaneLoopModalSection
+
+### src/renderer/workspace/PlaneLoopsButton.tsx
+- PlaneLoopsButton
+
+### src/renderer/workspace/PlaneLoopsSection.tsx
+- PlaneLoopsSection
 
 ### src/renderer/workspace/PlaneMap.tsx
 - PlaneMap
@@ -637,6 +678,7 @@
 - fallbackExtractWrites
 
 ### src/shared/agentIdentity.ts
+- normalizeAgentRules
 - buildAgentIdentityPrompt
 
 ### src/shared/agentLoop.ts
@@ -684,6 +726,33 @@
 - collapseAllPaneWindows
 - ensurePaneWindows
 - ensureTabPaneLayout
+
+### src/shared/planeLoopChain.ts
+- clampLoopChainIntervalMs
+- defaultLoopChainIntervalMs
+- activeLoopChainPaneIds
+- loopChainPaneIds
+- paneIdsUsedInLoopChains
+- chainHasPane
+- canAppendLoopStep
+- createLoopChain
+- appendLoopStep
+- sanitizePlaneLoopChains
+- planeLoopChainsForPersist
+- removePaneFromLoopChains
+
+### src/shared/planeLoopGraph.ts
+- wouldCreateLoopCycle
+- hasLoopLink
+- createLoopLink
+- outgoingLoopTargets
+- outgoingLoopLinks
+- defaultLoopNodePosition
+- resolveLoopNodePosition
+- loopNodePort
+- loopEdgePath
+- sanitizePlaneLoopLinks
+- sanitizePlaneLoopNodePositions
 
 ### src/shared/ptyInputSanitize.ts
 - stripAnsiInputSequences

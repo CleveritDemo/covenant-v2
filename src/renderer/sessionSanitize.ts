@@ -11,6 +11,11 @@ import {
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
 } from '@shared/agentIdentity'
+import {
+  sanitizePlaneLoopLinks,
+  sanitizePlaneLoopNodePositions,
+} from '@shared/planeLoopGraph'
+import { sanitizePlaneLoopChains } from '@shared/planeLoopChain'
 import { collapseAllPaneWindows, ensurePaneWindows } from '@shared/paneWindows'
 import { normalizeTabSession } from './tabSplitSizes'
 import { normalizeAgentColor } from './workspace/planeAgentColor'
@@ -100,8 +105,22 @@ function sanitizeTab(tab: TabSession): TabSession | null {
     contexts: _legacyContexts,
     projectFolder: _rawProjectFolder,
     planeOpenChatAgentId: _rawOpenChat,
+    planeLoopLinks: _rawLoopLinks,
+    planeLoopNodePositions: _rawLoopPositions,
+    planeLoopChains: _rawLoopChains,
     ...tabBase
   } = tab as TabSession & { panePlaneNodes?: unknown }
+  const agentPaneIds = new Set(
+    Object.entries(paneKinds)
+      .filter(([, kind]) => kind === 'agent')
+      .map(([id]) => id),
+  )
+  const planeLoopLinks = sanitizePlaneLoopLinks(tab.planeLoopLinks, agentPaneIds)
+  const planeLoopNodePositions = sanitizePlaneLoopNodePositions(
+    tab.planeLoopNodePositions,
+    agentPaneIds,
+  )
+  const planeLoopChains = sanitizePlaneLoopChains(tab.planeLoopChains, agentPaneIds)
   return normalizeTabSession({
     ...tabBase,
     title: typeof tab.title === 'string' && tab.title.trim() ? tab.title : 'Workspace',
@@ -112,6 +131,9 @@ function sanitizeTab(tab: TabSession): TabSession | null {
     ...(paneWindows ? { paneWindows } : { paneWindows: undefined }),
     planeOpenChatAgentId,
     ...(projectFolder ? { projectFolder } : {}),
+    ...(planeLoopLinks.length ? { planeLoopLinks } : {}),
+    ...(planeLoopNodePositions ? { planeLoopNodePositions } : {}),
+    ...(planeLoopChains.length ? { planeLoopChains } : {}),
     contexts: undefined,
   })
 }

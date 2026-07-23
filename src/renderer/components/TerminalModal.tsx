@@ -30,6 +30,40 @@ export interface TerminalModalProps {
   bodyLayout?: TerminalModalBodyLayout
 }
 
+const FOCUSABLE_SELECTOR = [
+  'textarea:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'button:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
+
+function modalRootZ(el: HTMLElement): number {
+  const fromVar = el.style.getPropertyValue('--modal-z').trim()
+  const raw = fromVar || getComputedStyle(el).zIndex
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Solo el modal superior (mayor z-index; empate → el último en el DOM) atrapa foco/Esc. */
+function isTopmostModalRoot(root: HTMLElement): boolean {
+  const roots = Array.from(document.querySelectorAll<HTMLElement>('.terminal-modal-root'))
+  if (roots.length <= 1) return true
+  let topZ = -Infinity
+  for (const el of roots) topZ = Math.max(topZ, modalRootZ(el))
+  const topRoots = roots.filter(el => modalRootZ(el) === topZ)
+  return topRoots[topRoots.length - 1] === root
+}
+
+function firstFocusTarget(panel: HTMLElement): HTMLElement {
+  const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+  const editable = nodes.find(el => {
+    const tag = el.tagName
+    return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT'
+  })
+  return editable ?? nodes[0] ?? panel
+}
+
 /**
  * Contenedor común para modales de la app.
  * Sin props de className: el chrome solo se controla con size / panelVariant / bodyLayout.
@@ -51,6 +85,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   bodyLayout = 'default',
 }) => {
   const { t } = useT()
+  const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -58,10 +93,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     const raf = requestAnimationFrame(() => {
       const panel = panelRef.current
       if (!panel) return
-      const focusable = panel.querySelector<HTMLElement>(
-        'input, button, select, textarea, [tabindex]:not([tabindex="-1"])',
-      )
-      ;(focusable ?? panel).focus()
+      firstFocusTarget(panel).focus()
     })
     return () => cancelAnimationFrame(raf)
   }, [open])
@@ -69,11 +101,12 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   useEffect(() => {
     if (!open || !closeOnEscape) return
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        onClose()
-      }
+      if (e.key !== 'Escape') return
+      const root = rootRef.current
+      if (!root || !isTopmostModalRoot(root)) return
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
@@ -83,9 +116,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Tab' || !panelRef.current) return
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'input, button, select, textarea, [tabindex]:not([tabindex="-1"])',
-      )
+      const root = rootRef.current
+      if (!root || !isTopmostModalRoot(root)) return
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
       if (focusable.length === 0) return
       const first = focusable[0]!
       const last = focusable[focusable.length - 1]!
@@ -112,6 +145,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
 
   return createPortal(
     <div
+      ref={rootRef}
       className="terminal-modal-root"
       style={{ '--modal-z': zIndex } as React.CSSProperties}
       role="presentation"
@@ -122,6 +156,8 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         onPointerDown={closeOnBackdrop ? (event) => {
           // pointerdown (no click): evita que el mouseup/click caiga en el plano.
           if (event.button !== 0) return
+          const root = rootRef.current
+          if (root && !isTopmostModalRoot(root)) return
           event.preventDefault()
           event.stopPropagation()
           onClose()

@@ -21,9 +21,8 @@ import {
 } from '@shared/agentLoop'
 import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
 import {
-  AGENT_NAME_MAX_LENGTH,
-  AGENT_OBJECTIVE_MAX_LENGTH,
-  AGENT_ROLE_MAX_LENGTH,
+  applyAgentIdentityDraft,
+  type AgentIdentityDraft,
   normalizeAgentRules,
 } from '@shared/agentIdentity'
 import { useT } from '@i18n/useT'
@@ -1505,54 +1504,8 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const changeName = (name: string): void => {
-    const next = name.slice(0, AGENT_NAME_MAX_LENGTH)
-    onMetaChange(previous => {
-      const trimmed = next.trim()
-      if (!trimmed) {
-        const { name: _removed, ...rest } = previous
-        return rest
-      }
-      return { ...previous, name: next }
-    })
-  }
-
-  const changeRole = (role: string): void => {
-    const next = role.slice(0, AGENT_ROLE_MAX_LENGTH)
-    onMetaChange(previous => {
-      const trimmed = next.trim()
-      if (!trimmed) {
-        const { role: _removed, ...rest } = previous
-        return rest
-      }
-      return { ...previous, role: next }
-    })
-  }
-
-  const changeObjective = (objective: string): void => {
-    const next = objective.slice(0, AGENT_OBJECTIVE_MAX_LENGTH)
-    onMetaChange(previous => {
-      const trimmed = next.trim()
-      if (!trimmed) {
-        const { objective: _removed, ...rest } = previous
-        return rest
-      }
-      return { ...previous, objective: next }
-    })
-  }
-
-  const changeRules = (rules: string[]): void => {
-    onMetaChange(previous => {
-      if (rules.length === 0) {
-        const { rules: _removed, ...rest } = previous
-        return rest
-      }
-      return { ...previous, rules }
-    })
-  }
-
-  const changeColor = (color: string): void => {
-    onMetaChange(previous => ({ ...previous, color }))
+  const commitIdentity = (draft: AgentIdentityDraft): void => {
+    onMetaChange(previous => applyAgentIdentityDraft(previous, draft))
   }
 
   const toggleContext = (contextId: string): void => {
@@ -1667,7 +1620,6 @@ export const AgentPane: React.FC<Props> = ({
       <AgentConfigModal
         open={configOpen}
         meta={meta}
-        paneId={paneId}
         cwd={cwd}
         busy={busy}
         loopMode={loopMode}
@@ -1681,11 +1633,7 @@ export const AgentPane: React.FC<Props> = ({
           setConfigOpen(false)
         }}
         closeOnBackdrop
-        onChangeName={changeName}
-        onChangeRole={changeRole}
-        onChangeObjective={changeObjective}
-        onChangeRules={changeRules}
-        onChangeColor={changeColor}
+        onCommitIdentity={commitIdentity}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}

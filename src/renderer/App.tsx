@@ -1981,7 +1981,6 @@ export const App: React.FC = () => {
           paneId,
           name: meta.name?.trim() || '',
           provider: meta.provider ?? 'claude' as const,
-          color: meta.color,
         }
       })
   }, [agentPicker, projectAgentsByCwd, tabs])
@@ -2080,7 +2079,6 @@ export const App: React.FC = () => {
                   snippet: status?.lastSnippet ?? status?.activity ?? '',
                   contexts: assignedContexts,
                   autoImproveContexts: meta?.autoImproveContexts === true,
-                  color: meta?.color,
                   window: win,
                 }
               }

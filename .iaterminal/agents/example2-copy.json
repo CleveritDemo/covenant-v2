@@ -2,10 +2,9 @@
   "id": "example2-copy",
   "provider": "cursor",
   "permissionMode": "auto",
-  "name": "example2 (copy)",
+  "name": "fullstack2",
   "role": "Fullstack Developer Expert",
   "objective": "Develop, update and create software with the best practices and clean code",
-  "color": "#fb7185",
   "contextIds": [
     "discovered-file:folders.md",
     "aae8bcbc-38c4-4ab2-a5da-e3906f8909e8",

@@ -33,12 +33,6 @@ export function resolveTabAgentMeta(
   return resolveAgentPaneMeta(binding, definition)
 }
 
-export function indexProjectAgents(
-  agents: ProjectAgentDefinition[],
-): Map<string, ProjectAgentDefinition> {
-  return new Map(agents.map(agent => [agent.id, agent]))
-}
-
 export function upsertAgentInList(
   agents: ProjectAgentDefinition[],
   next: ProjectAgentDefinition,

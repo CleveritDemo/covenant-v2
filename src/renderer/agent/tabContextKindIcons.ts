@@ -1,7 +1,6 @@
 import type { TabContextKind } from '@shared/tabContext'
 import type { IconName } from '../components/ui/Icon'
 import {
-  defaultIconForKind,
   resolveContextIcon,
   type TabContextIconName,
 } from '@shared/tabContextAppearance'
@@ -23,10 +22,6 @@ export function contextIconName(
   context: Pick<TabContext, 'kind' | 'icon'>,
 ): IconName {
   return resolveContextIcon(context) as IconName
-}
-
-export function kindIconName(kind: TabContextKind): IconName {
-  return defaultIconForKind(kind) as IconName
 }
 
 export function appearanceIconName(icon: TabContextIconName): IconName {

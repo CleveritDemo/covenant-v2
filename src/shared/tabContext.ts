@@ -57,10 +57,6 @@ export interface TabContext {
   symbolKinds?: TabContextSymbolKind[]
 }
 
-export function isAgentResultContext(context: Pick<TabContext, 'kind'>): boolean {
-  return context.kind === 'agentResult'
-}
-
 export function isProjectContext(context: Pick<TabContext, 'kind'>): boolean {
   return context.kind !== 'agentResult'
 }
@@ -120,10 +116,6 @@ export interface TabContextUpdate {
   body?: string
   paths?: string[]
   annotations?: TabContextAnnotation[]
-}
-
-export function countWords(value: string): number {
-  return value.trim().split(/\s+/).filter(Boolean).length
 }
 
 export function normalizeAnnotation(value: unknown): TabContextAnnotation | null {

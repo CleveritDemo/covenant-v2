@@ -149,7 +149,7 @@
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  /* Sobre el color del agente: siempre blanco (accent-fg del tema puede ser oscuro en light). */
+  /* Sobre el acento del tema: siempre blanco (accent-fg puede ser oscuro en light). */
   color: #fff;
   background: var(--plane-composer-accent);
   border-radius: 999px;

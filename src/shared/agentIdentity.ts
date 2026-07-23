@@ -13,7 +13,66 @@ export const AGENT_OBJECTIVE_MAX_LENGTH = 500
 export const AGENT_RULE_MAX_LENGTH = 280
 export const AGENT_RULES_MAX_COUNT = 20
 
-/** Reglas no vacías, recortadas y acotadas al máximo permitido. */
+/**
+ * Borrador de texto en UI/catálogo: conserva espacios (p. ej. al escribir
+ * "hola mundo"); omite solo si queda vacío tras trim. El trim real va al prompt.
+ */
+export function sanitizeAgentTextDraft(
+  value: string | undefined,
+  maxLength: number,
+): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const next = value.slice(0, maxLength)
+  return next.trim() ? next : undefined
+}
+
+/**
+ * Slots de edición en UI/catálogo: mantiene vacíos (borrador),
+ * solo recorta longitud y cantidad.
+ */
+export function sanitizeAgentRulesDraft(rules: string[] | undefined): string[] {
+  if (!Array.isArray(rules)) return []
+  return rules
+    .slice(0, AGENT_RULES_MAX_COUNT)
+    .map(raw => String(raw ?? '').slice(0, AGENT_RULE_MAX_LENGTH))
+}
+
+/** Borrador de identidad en el modal de config (valores crudos de inputs). */
+export interface AgentIdentityDraft {
+  name: string
+  role: string
+  objective: string
+  rules: string[]
+}
+
+/** Aplica el borrador a la meta: trim/clamp una sola vez (blur o cierre). */
+export function applyAgentIdentityDraft<T extends AgentIdentity>(
+  previous: T,
+  draft: AgentIdentityDraft,
+): T {
+  const name = sanitizeAgentTextDraft(draft.name.trim(), AGENT_NAME_MAX_LENGTH)
+  const role = sanitizeAgentTextDraft(draft.role.trim(), AGENT_ROLE_MAX_LENGTH)
+  const objective = sanitizeAgentTextDraft(draft.objective.trim(), AGENT_OBJECTIVE_MAX_LENGTH)
+  const rules = sanitizeAgentRulesDraft(draft.rules.map(rule => rule.trim()))
+
+  const {
+    name: _name,
+    role: _role,
+    objective: _objective,
+    rules: _rules,
+    ...rest
+  } = previous
+
+  return {
+    ...rest,
+    ...(name ? { name } : {}),
+    ...(role ? { role } : {}),
+    ...(objective ? { objective } : {}),
+    ...(rules.length ? { rules } : {}),
+  } as T
+}
+
+/** Reglas no vacías, recortadas y acotadas (prompt / turno CLI). */
 export function normalizeAgentRules(rules: string[] | undefined): string[] {
   if (!Array.isArray(rules)) return []
   const out: string[] = []

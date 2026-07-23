@@ -1,5 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { buildAgentIdentityPrompt, normalizeAgentRules } from '../agentIdentity'
+import {
+  AGENT_NAME_MAX_LENGTH,
+  applyAgentIdentityDraft,
+  buildAgentIdentityPrompt,
+  normalizeAgentRules,
+  sanitizeAgentRulesDraft,
+  sanitizeAgentTextDraft,
+} from '../agentIdentity'
+
+describe('sanitizeAgentTextDraft', () => {
+  it('keeps draft spaces and only drops blank values', () => {
+    expect(sanitizeAgentTextDraft(undefined, AGENT_NAME_MAX_LENGTH)).toBeUndefined()
+    expect(sanitizeAgentTextDraft('   ', AGENT_NAME_MAX_LENGTH)).toBeUndefined()
+    expect(sanitizeAgentTextDraft('Hello ', AGENT_NAME_MAX_LENGTH)).toBe('Hello ')
+    expect(sanitizeAgentTextDraft('x'.repeat(80), AGENT_NAME_MAX_LENGTH)).toHaveLength(
+      AGENT_NAME_MAX_LENGTH,
+    )
+  })
+})
+
+describe('sanitizeAgentRulesDraft', () => {
+  it('keeps empty slots for UI drafts and caps length/count', () => {
+    expect(sanitizeAgentRulesDraft(undefined)).toEqual([])
+    expect(sanitizeAgentRulesDraft(['  a  ', '', '  '])).toEqual(['  a  ', '', '  '])
+    expect(sanitizeAgentRulesDraft(['x'.repeat(400)])[0]).toHaveLength(280)
+  })
+})
+
+describe('applyAgentIdentityDraft', () => {
+  it('trims once on commit and clears blank identity fields', () => {
+    expect(applyAgentIdentityDraft(
+      { name: 'Old', role: 'Old role', objective: 'Old obj', rules: ['keep'] },
+      {
+        name: '  Scout  ',
+        role: '   ',
+        objective: ' Ship it ',
+        rules: ['  Always verify  ', '', '  '],
+      },
+    )).toEqual({
+      name: 'Scout',
+      objective: 'Ship it',
+      rules: ['Always verify', '', ''],
+    })
+  })
+})
 
 describe('normalizeAgentRules', () => {
   it('trims, drops empties and caps length/count', () => {

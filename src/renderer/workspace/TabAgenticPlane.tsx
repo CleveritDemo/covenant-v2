@@ -17,7 +17,6 @@ import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
-import { resolveAgentColor } from './planeAgentColor'
 import './TabAgenticPlane.css'
 
 export type { PlaneMapEntity }
@@ -255,7 +254,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           title: entity.title,
           busy: Boolean(status?.busy ?? entity.busy),
           loopActive: Boolean(status?.loopActive),
-          color: resolveAgentColor(entity.paneId, entity.color),
         }
       }),
     [agentStatuses, entities],
@@ -269,7 +267,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         return {
           paneId: entity.paneId,
           title: entity.title,
-          color: resolveAgentColor(entity.paneId, entity.color),
           busy: Boolean(status?.busy ?? entity.busy),
           loopActive: Boolean(status?.loopActive),
           loopMode: Boolean(status?.loopMode),

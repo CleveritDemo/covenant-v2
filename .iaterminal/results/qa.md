@@ -3,9 +3,18 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Altos riesgos: resume desde cursor; edit intervalo pisa step0; sin cwd; agente en N cadenas.
+Auditoría: queda dead code — IPC AI legacy sin callers en renderer, grafo planeLoop y exports solo-test.
 
 ## Log
+- `2026-07-23T16:12:23.626Z` — Dead IPC: projectAiContext, agentMd R/W, agentFile, agentShell
+- `2026-07-23T16:12:23.626Z` — Legacy planeLoopGraph helpers; sanitize still live
+- `2026-07-23T16:12:23.626Z` — Helpers/test-only: buildLoopPrompt, requiresShellConfirmation, etc.
+- `2026-07-23T16:03:08.378Z` — Deleted orphans + protocol/writeGuard/contextBuilder/tools
+- `2026-07-23T16:03:08.378Z` — Trimmed ollama/anthropic/openai and unused exports
+- `2026-07-23T16:03:08.378Z` — Related unit tests green
+- `2026-07-23T15:58:39.138Z` — Orphans: ollamaModels, stripShellPromptPrefix, agentWriteGuard
+- `2026-07-23T15:58:39.138Z` — Dead: protocol extractors, ollama prompt builders, pane drag thumb, AI_TOOLS turns
+- `2026-07-23T15:58:39.138Z` — Dato huérfano: color en example2.json post-schema
 - `2026-07-23T04:12:40.809Z` — stop conserva cursor
 - `2026-07-23T04:12:40.809Z` — interval→objective[0]
 - `2026-07-23T04:12:40.809Z` — start sin projectFolder
@@ -27,15 +36,6 @@ Altos riesgos: resume desde cursor; edit intervalo pisa step0; sin cwd; agente e
 - `2026-07-23T03:46:46.618Z` — stop→advance
 - `2026-07-23T03:46:46.618Z` — fail startTurn→advance
 - `2026-07-23T03:46:46.618Z` — waiting sin stop composer
-- `2026-07-23T03:46:46.618Z` — cursor/FIFO/dead queue
-- `2026-07-23T02:13:12.751Z` — 3 críticos cadena
-- `2026-07-23T02:13:12.751Z` — 2 estado/UI nest
-- `2026-07-23T02:13:12.751Z` — 2 menores opcional
-- `2026-07-23T02:11:27.832Z` — AgentPane montado en background
-- `2026-07-23T02:11:27.832Z` — Misma startLoop/dispatch
-- `2026-07-23T02:11:27.832Z` — Stop/busy/cola siguen rotos
-- `2026-07-23T02:07:57.034Z` — Misma función AgentPane OK
-- `2026-07-23T02:07:57.034Z` — Create/nest sin openChat
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

@@ -9,7 +9,6 @@ import './PlaneLoopNestModal.css'
 export interface PlaneLoopChainAgentOption {
   paneId: string
   title: string
-  color: string
   busy: boolean
   loopActive: boolean
   provider?: AgentCliProvider

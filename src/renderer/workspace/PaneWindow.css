@@ -316,57 +316,13 @@
 }
 
 .pane-window--agent-card.pane-window--busy.pane-window--mini {
-  border-color: transparent;
-  /* Sin iluminación (glow); solo borde cromático del tema. */
+  /* Sin iluminación (glow); solo borde cromático del tema (PlaneChromaticBusyBorder). */
   transition:
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.16s,
     filter 0.16s;
-}
-
-/* Borde cromático animado (misma cinta que el borde inferior del plano). */
-.pane-window--agent-card.pane-window--busy.pane-window--mini::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  border-radius: inherit;
-  padding: 1.5px;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    var(--accent-dim) 0%,
-    var(--theme-blue) 14%,
-    var(--accent) 28%,
-    var(--theme-magenta) 42%,
-    var(--theme-cyan) 56%,
-    var(--plane-terminal-accent) 70%,
-    var(--accent) 84%,
-    var(--accent-dim) 100%
-  );
-  background-size: 280% 100%;
-  animation: plane-agent-border-flow 8s linear infinite;
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-
-@keyframes plane-agent-border-flow {
-  from { background-position: 0% 50%; }
-  to { background-position: 280% 50%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pane-window--agent-card.pane-window--busy.pane-window--mini::before {
-    animation-duration: 22s;
-  }
 }
 
 /* Terminal mini sin chrome (legacy bare). Con titlebar macOS usa el marco normal. */

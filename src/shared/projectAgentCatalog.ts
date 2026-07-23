@@ -2,7 +2,8 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
-  normalizeAgentRules,
+  sanitizeAgentRulesDraft,
+  sanitizeAgentTextDraft,
 } from './agentIdentity'
 
 export type AgentCliProvider = 'claude' | 'cursor'
@@ -18,7 +19,6 @@ export interface ProjectAgentDefinition {
   objective?: string
   rules?: string[]
   model?: string
-  color?: string
   contextIds?: string[]
   autoImproveContexts?: boolean
   emitResults?: boolean
@@ -98,24 +98,27 @@ export function parseProjectAgentDefinition(
     permissionMode: sanitizePermissionMode(data.permissionMode),
   }
 
-  if (typeof data.name === 'string' && data.name.trim()) {
-    def.name = data.name.trim().slice(0, AGENT_NAME_MAX_LENGTH)
-  }
-  if (typeof data.role === 'string' && data.role.trim()) {
-    def.role = data.role.trim().slice(0, AGENT_ROLE_MAX_LENGTH)
-  }
-  if (typeof data.objective === 'string' && data.objective.trim()) {
-    def.objective = data.objective.trim().slice(0, AGENT_OBJECTIVE_MAX_LENGTH)
-  }
-  const rules = normalizeAgentRules(
+  const name = sanitizeAgentTextDraft(
+    typeof data.name === 'string' ? data.name : undefined,
+    AGENT_NAME_MAX_LENGTH,
+  )
+  if (name) def.name = name
+  const role = sanitizeAgentTextDraft(
+    typeof data.role === 'string' ? data.role : undefined,
+    AGENT_ROLE_MAX_LENGTH,
+  )
+  if (role) def.role = role
+  const objective = sanitizeAgentTextDraft(
+    typeof data.objective === 'string' ? data.objective : undefined,
+    AGENT_OBJECTIVE_MAX_LENGTH,
+  )
+  if (objective) def.objective = objective
+  const rules = sanitizeAgentRulesDraft(
     Array.isArray(data.rules) ? data.rules.map(String) : undefined,
   )
   if (rules.length) def.rules = rules
   if (typeof data.model === 'string' && data.model.trim()) {
     def.model = data.model.trim()
-  }
-  if (typeof data.color === 'string' && data.color.trim()) {
-    def.color = data.color.trim()
   }
   if (Array.isArray(data.contextIds)) {
     const contextIds = data.contextIds.filter(
@@ -145,7 +148,6 @@ export function cloneProjectAgentDefinition(
     ...(source.objective ? { objective: source.objective } : {}),
     ...(source.rules?.length ? { rules: [...source.rules] } : {}),
     ...(source.model ? { model: source.model } : {}),
-    ...(source.color ? { color: source.color } : {}),
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
     ...(source.emitResults === true ? { emitResults: true } : {}),
@@ -219,7 +221,6 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     objective: meta.objective,
     rules: meta.rules,
     model: meta.model,
-    color: meta.color,
     contextIds: meta.contextIds,
     autoImproveContexts: meta.autoImproveContexts,
     emitResults: meta.emitResults,

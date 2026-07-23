@@ -109,24 +109,6 @@ export function computePlaneMiniSlotPadX(
   )
 }
 
-/**
- * Letterbox del openGeometry en una ranura (legacy; minis usan la ranura completa).
- */
-export function computePlaneMiniLetterboxSize(
-  open: { width: number; height: number },
-  slotW = PLANE_MINI_WINDOW_WIDTH,
-  slotH = PLANE_MINI_WINDOW_HEIGHT,
-): { width: number; height: number } {
-  const scale = Math.min(
-    slotW / Math.max(open.width, 1),
-    slotH / Math.max(open.height, 1),
-  )
-  return {
-    width: Math.max(1, Math.round(open.width * scale)),
-    height: Math.max(1, Math.round(open.height * scale)),
-  }
-}
-
 /** Fallback de ranura mini (runtime: computePlaneMiniSlotCell). */
 export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
 export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT

@@ -131,8 +131,6 @@ const es = {
     rulesEmpty: 'Sin reglas. Pulsa + para añadir una.',
     rulesPlaceholder: 'Ej. Responder siempre en español…',
     rulesItemLabel: 'Regla {{n}}',
-    colorLabel: 'Color',
-    colorHint: 'Acento del agente en el plano, badges y chat.',
     duplicateNameSuffix: ' (copia)',
     pickerDuplicateSection: 'O duplicar uno existente',
     pickerDuplicateHint: 'Copia la configuración de un agente de esta pestaña (sin historial).',

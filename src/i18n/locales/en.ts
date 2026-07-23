@@ -129,8 +129,6 @@ const en = {
     rulesEmpty: 'No rules yet. Press + to add one.',
     rulesPlaceholder: 'e.g. Always reply in Spanish…',
     rulesItemLabel: 'Rule {{n}}',
-    colorLabel: 'Color',
-    colorHint: 'Accent used for this agent on the plane, badges, and chat.',
     duplicateNameSuffix: ' (copy)',
     pickerDuplicateSection: 'Or duplicate an existing one',
     pickerDuplicateHint: 'Copy settings from an agent on this tab (no chat history).',

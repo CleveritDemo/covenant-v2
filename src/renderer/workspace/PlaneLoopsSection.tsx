@@ -23,7 +23,6 @@ import './PlaneLoopsSection.css'
 export interface PlaneLoopsAgent {
   paneId: string
   title: string
-  color: string
   busy: boolean
   loopActive: boolean
   loopMode?: boolean
@@ -160,7 +159,6 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
     () => agents.map(agent => ({
       paneId: agent.paneId,
       title: agent.title,
-      color: agent.color,
       busy: agent.busy,
       loopActive: agent.loopActive,
       provider: agent.provider,

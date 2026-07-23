@@ -41,10 +41,13 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
     <div className="plane-mini-face__header">
-      <span className="plane-mini-face__provider">
-        <Icon name={provider === 'cursor' ? 'sparkles' : 'bot'} size={9} aria-hidden />
-        {provider === 'cursor' ? 'Cursor' : 'Claude'}
-      </span>
+      <div className="plane-mini-face__identity">
+        <span className="plane-mini-face__name" title={name}>{name}</span>
+        <span className="plane-mini-face__provider">
+          <Icon name={provider === 'cursor' ? 'sparkles' : 'bot'} size={9} aria-hidden />
+          {provider === 'cursor' ? 'Cursor' : 'Claude'}
+        </span>
+      </div>
       <div className="plane-mini-face__header-end">
         {onConfigure && configLabel ? (
           <button
@@ -89,7 +92,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </div>
     </div>
     <div className="plane-mini-face__body">
-      <span className="plane-mini-face__name" title={name}>{name}</span>
       <span className="plane-mini-face__status" title={statusLabel}>{statusLabel}</span>
     </div>
     {children ? (

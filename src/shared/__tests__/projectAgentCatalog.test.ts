@@ -22,14 +22,16 @@ describe('projectAgentCatalog', () => {
     expect(allocateAgentSlug('scout', new Set(['scout']))).toBe('scout-2')
   })
 
-  it('parses definitions and clamps identity fields', () => {
+  it('parses definitions and clamps identity fields without stripping draft spaces', () => {
+    const roleDraft = ` ${'R'.repeat(100)} `
+    const objectiveDraft = ` ${'O'.repeat(600)} `
     const parsed = parseProjectAgentDefinition({
       id: 'Architect',
       provider: 'cursor',
       permissionMode: 'readonly',
       name: '  Arch  ',
-      role: ` ${'R'.repeat(100)} `,
-      objective: ` ${'O'.repeat(600)} `,
+      role: roleDraft,
+      objective: objectiveDraft,
       contextIds: ['a', '', 3, 'b'],
       autoImproveContexts: true,
       emitResults: true,
@@ -38,13 +40,41 @@ describe('projectAgentCatalog', () => {
       id: 'architect',
       provider: 'cursor',
       permissionMode: 'plan',
-      name: 'Arch',
-      role: 'R'.repeat(AGENT_ROLE_MAX_LENGTH),
-      objective: 'O'.repeat(AGENT_OBJECTIVE_MAX_LENGTH),
+      name: '  Arch  ',
+      role: roleDraft.slice(0, AGENT_ROLE_MAX_LENGTH),
+      objective: objectiveDraft.slice(0, AGENT_OBJECTIVE_MAX_LENGTH),
       contextIds: ['a', 'b'],
       autoImproveContexts: true,
       emitResults: true,
     })
+  })
+
+  it('keeps mid-word spaces so the config modal can type phrases', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'scout',
+      provider: 'claude',
+      permissionMode: 'ask',
+      name: 'Hello ',
+      role: 'Full stack ',
+      objective: 'Ship features ',
+      rules: ['Always reply in Spanish '],
+    })
+    expect(parsed).toMatchObject({
+      name: 'Hello ',
+      role: 'Full stack ',
+      objective: 'Ship features ',
+      rules: ['Always reply in Spanish '],
+    })
+  })
+
+  it('keeps empty rule drafts so the editor can add slots', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'draft',
+      provider: 'claude',
+      permissionMode: 'ask',
+      rules: [''],
+    })
+    expect(parsed?.rules).toEqual([''])
   })
 
   it('converts legacy session meta into catalog + binding', () => {

@@ -7,7 +7,10 @@ import './AgentRulesEditor.css'
 export interface AgentRulesEditorProps {
   rules: string[]
   disabled?: boolean
+  /** Solo actualiza el borrador local; no persiste. */
   onChange: (rules: string[]) => void
+  /** Persistir al salir de un input de regla. */
+  onCommit?: () => void
 }
 
 /** Lista editable de reglas del agente (+ para añadir, × para quitar). */
@@ -15,6 +18,7 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
   rules,
   disabled = false,
   onChange,
+  onCommit,
 }) => {
   const { t } = useT()
   const canAdd = rules.length < AGENT_RULES_MAX_COUNT
@@ -66,6 +70,7 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 placeholder={t('agentPane.rulesPlaceholder')}
                 aria-label={t('agentPane.rulesItemLabel', { n: index + 1 })}
                 onChange={event => updateAt(index, event.target.value)}
+                onBlur={() => onCommit?.()}
               />
               <button
                 type="button"

@@ -60,10 +60,19 @@
   margin-bottom: 4px;
 }
 
+.plane-mini-face__identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .plane-mini-face__provider {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
   padding: 2px 6px 2px 5px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
@@ -120,6 +129,7 @@
 }
 
 .plane-mini-face__name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

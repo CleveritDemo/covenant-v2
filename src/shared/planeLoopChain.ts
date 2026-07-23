@@ -45,10 +45,6 @@ export function clampLoopChainIntervalMs(value: number): number {
   return best.ms
 }
 
-export function defaultLoopChainIntervalMs(): number {
-  return DEFAULT_INTERVAL_MS
-}
-
 /** paneIds de cadenas running/waiting (loop “encendido” en chat). */
 export function activeLoopChainPaneIds(
   chains: readonly PlaneLoopChain[],
@@ -59,11 +55,6 @@ export function activeLoopChainPaneIds(
     for (const step of chain.steps) ids.add(step.paneId)
   }
   return ids
-}
-
-/** paneIds ya usados en la cadena (únicos). */
-export function loopChainPaneIds(chain: Pick<PlaneLoopChain, 'steps'>): string[] {
-  return chain.steps.map(step => step.paneId)
 }
 
 /** paneIds presentes en cualquier cadena (un agente = una sola cadena). */

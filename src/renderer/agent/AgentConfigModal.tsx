@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { TabContext } from '@shared/tabContext'
 import { modelsForProvider } from '@shared/agentCliModels'
@@ -6,15 +6,12 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
+  type AgentIdentityDraft,
 } from '@shared/agentIdentity'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
-import {
-  PLANE_AGENT_COLORS,
-  resolveAgentColor,
-} from '../workspace/planeAgentColor'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import './AgentConfigModal.css'
 
@@ -23,11 +20,18 @@ function folderLabel(cwd: string): string {
   return normalized.split(/[\\/]/).pop() || cwd || '—'
 }
 
+function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
+  return {
+    name: meta.name ?? '',
+    role: meta.role ?? '',
+    objective: meta.objective ?? '',
+    rules: meta.rules ?? [],
+  }
+}
+
 export interface AgentConfigModalProps {
   open: boolean
   meta: AgentPaneMeta
-  /** paneId del agente (para el color por defecto derivado del id). */
-  paneId: string
   /** Carpeta del proyecto (solo lectura; no configurable por agente). */
   cwd: string
   busy: boolean
@@ -37,11 +41,8 @@ export interface AgentConfigModalProps {
   selectedContextIds: string[]
   contextNotice: string
   onClose: () => void
-  onChangeName: (name: string) => void
-  onChangeRole: (role: string) => void
-  onChangeObjective: (objective: string) => void
-  onChangeRules: (rules: string[]) => void
-  onChangeColor: (color: string) => void
+  /** Persistencia de identidad: blur de inputs o cierre del modal. */
+  onCommitIdentity: (draft: AgentIdentityDraft) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
@@ -57,7 +58,6 @@ export interface AgentConfigModalProps {
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   open,
   meta,
-  paneId,
   cwd,
   busy,
   loopMode,
@@ -66,11 +66,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   selectedContextIds,
   contextNotice,
   onClose,
-  onChangeName,
-  onChangeRole,
-  onChangeObjective,
-  onChangeRules,
-  onChangeColor,
+  onCommitIdentity,
   onChangeProvider,
   onChangeModel,
   onChangePermission,
@@ -83,7 +79,35 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 }) => {
   const { t } = useT()
   const locked = busy || loopActive
-  const activeColor = resolveAgentColor(paneId, meta.color)
+  const [draft, setDraft] = useState<AgentIdentityDraft>(() => identityDraftFromMeta(meta))
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  useEffect(() => {
+    if (!open) return
+    const next = identityDraftFromMeta(meta)
+    draftRef.current = next
+    setDraft(next)
+    // Solo al abrir: durante la edición el borrador es la fuente de verdad.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed on open
+  }, [open])
+
+  const updateDraft = useCallback((patch: Partial<AgentIdentityDraft>) => {
+    setDraft(previous => {
+      const next = { ...previous, ...patch }
+      draftRef.current = next
+      return next
+    })
+  }, [])
+
+  const commitIdentity = useCallback(() => {
+    onCommitIdentity(draftRef.current)
+  }, [onCommitIdentity])
+
+  const handleClose = useCallback(() => {
+    onCommitIdentity(draftRef.current)
+    onClose()
+  }, [onClose, onCommitIdentity])
 
   const PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
     { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint') },
@@ -134,7 +158,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   return (
     <TerminalModal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={t('agentPane.configTitle')}
       size="lg"
       zIndex={820}
@@ -152,22 +176,24 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
               <span className="agent-config-modal__field-label">{t('agentPane.nameLabel')}</span>
               <input
                 type="text"
-                value={meta.name ?? ''}
+                value={draft.name}
                 maxLength={AGENT_NAME_MAX_LENGTH}
                 disabled={busy}
                 placeholder={t('agentPane.namePlaceholder')}
-                onChange={event => onChangeName(event.target.value)}
+                onChange={event => updateDraft({ name: event.target.value })}
+                onBlur={commitIdentity}
               />
             </label>
             <label className="agent-config-modal__field">
               <span className="agent-config-modal__field-label">{t('agentPane.roleLabel')}</span>
               <input
                 type="text"
-                value={meta.role ?? ''}
+                value={draft.role}
                 maxLength={AGENT_ROLE_MAX_LENGTH}
                 disabled={busy}
                 placeholder={t('agentPane.rolePlaceholder')}
-                onChange={event => onChangeRole(event.target.value)}
+                onChange={event => updateDraft({ role: event.target.value })}
+                onBlur={commitIdentity}
               />
             </label>
           </div>
@@ -175,47 +201,20 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             <span className="agent-config-modal__field-label">{t('agentPane.objectiveLabel')}</span>
             <textarea
               rows={3}
-              value={meta.objective ?? ''}
+              value={draft.objective}
               maxLength={AGENT_OBJECTIVE_MAX_LENGTH}
               disabled={busy}
               placeholder={t('agentPane.objectivePlaceholder')}
-              onChange={event => onChangeObjective(event.target.value)}
+              onChange={event => updateDraft({ objective: event.target.value })}
+              onBlur={commitIdentity}
             />
           </label>
           <AgentRulesEditor
-            rules={meta.rules ?? []}
+            rules={draft.rules}
             disabled={busy}
-            onChange={onChangeRules}
+            onChange={rules => updateDraft({ rules })}
+            onCommit={commitIdentity}
           />
-          <div className="agent-config-modal__field agent-config-modal__field--stack">
-            <span className="agent-config-modal__field-label">{t('agentPane.colorLabel')}</span>
-            <div
-              className="agent-config-modal__color-grid"
-              role="radiogroup"
-              aria-label={t('agentPane.colorLabel')}
-            >
-              {PLANE_AGENT_COLORS.map(color => {
-                const active = activeColor.toLowerCase() === color.toLowerCase()
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    title={color}
-                    disabled={busy}
-                    className={[
-                      'agent-config-modal__color-swatch',
-                      active ? 'agent-config-modal__color-swatch--active' : '',
-                    ].filter(Boolean).join(' ')}
-                    style={{ background: color }}
-                    onClick={() => onChangeColor(color)}
-                  />
-                )
-              })}
-            </div>
-            <p className="agent-config-modal__inline-hint">{t('agentPane.colorHint')}</p>
-          </div>
         </section>
 
         <section className="agent-config-modal__block">

@@ -17,6 +17,7 @@ import {
   readPlaneContextDragData,
 } from './planeContextDrag'
 import './PaneWindow.css'
+import './PlaneChromaticBusyBorder.css'
 
 export type PaneWindowDisplay = 'mini' | 'full'
 
@@ -640,6 +641,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         zoomMode === 'expand' && geometry.fullscreen ? 'pane-window--zooming-to-fullscreen' : '',
         focused ? 'pane-window--focused' : '',
         busy ? 'pane-window--busy' : '',
+        showAsMini && miniAgentCard && busy ? 'plane-chromatic-busy-border' : '',
         contextDropActive ? 'pane-window--context-drop' : '',
         showAsMini && reorderState === 'jiggle' ? 'pane-window--reorder-jiggle' : '',
         showAsMini && reorderState === 'dragging' ? 'pane-window--reorder-dragging' : '',

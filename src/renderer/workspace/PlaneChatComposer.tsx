@@ -37,7 +37,6 @@ export interface PlaneChatAgentOption {
   busy: boolean
   /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
   loopActive?: boolean
-  color: string
 }
 
 export interface PlaneChatQueuedTurn {
@@ -250,7 +249,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 <PlaneAgentBadge
                   key={agent.paneId}
                   name={agent.title}
-                  color={agent.color}
                   selected={agent.paneId === selectedAgentId}
                   busy={agent.busy}
                   onSelect={() => onSelectAgent(agent.paneId)}

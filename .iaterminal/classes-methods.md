@@ -174,36 +174,15 @@
 
 ### src/ai/anthropicClient.ts
 - chatAnthropic
-- chatMessagesToAnthropicNative
-- appendAnthropicToolResults
-- chatAnthropicAgentTurn
-
-### src/ai/contextBuilder.ts
-- buildRichContext
 
 ### src/ai/ollamaClient.ts
 - chatOllama
-- stripOuterMarkdownFence
-- summarizeInteractionForLog
-- fallbackInteractionLogLine
-- makeInteractionLogEntry
-- buildAgentMdRefreshMessages
-
-### src/ai/ollamaModels.ts
-- fetchOllamaModelNames
 
 ### src/ai/openaiClient.ts
 - chatOpenAI
-- chatMessagesToOpenAINative
-- appendOpenAIToolResults
-- chatOpenAIAgentTurn
 
 ### src/ai/sseStream.ts
 - readSSEStream
-
-### src/ai/toolDefinitions.ts
-- toAnthropicTools
-- toOpenAITools
 
 ### src/i18n/index.ts
 - initI18n
@@ -263,7 +242,6 @@
 
 ### src/renderer/agent/tabContextKindIcons.ts
 - contextIconName
-- kindIconName
 - appearanceIconName
 
 ### src/renderer/agent/TabContextRootPathField.tsx
@@ -425,9 +403,7 @@
 - Tooltip
 
 ### src/renderer/dragThumbnailUtils.ts
-- snapshotXtermCanvases
 - buildTabDragThumbnail
-- buildPaneDragThumbnail
 
 ### src/renderer/history/feedCompletedUserLines.ts
 - backwardKillWordDraft
@@ -435,7 +411,6 @@
 
 ### src/renderer/projectAgentsStore.ts
 - resolveTabAgentMeta
-- indexProjectAgents
 - upsertAgentInList
 - syncTabAgentsFromCatalog
 
@@ -445,15 +420,8 @@
 
 ### src/renderer/tabSplitSizes.ts
 - getDefaultSplitSizes
-- splitSizesAfterAddingPane
-- columnRatioForAgentPriority
-- splitSizesAfterAddingPanePreferAgent
 - normalizeSplitSizes
 - normalizeTabSession
-- clampColumnRatio
-- clampRowRatio
-- columnGridTemplate
-- rowGridTemplate
 
 ### src/renderer/terminal/CdSuggest.tsx
 - CdSuggest
@@ -548,9 +516,6 @@
 - rankQuickOpenPaths
 - splitPathHighlight
 
-### src/renderer/terminal/stripShellPromptPrefix.ts
-- stripLeadingShellPrompts
-
 ### src/renderer/terminal/terminalCanvasRepaint.ts
 - repaintTerminalCanvas
 - createTerminalRepaintScheduler
@@ -591,11 +556,6 @@
 
 ### src/renderer/workspace/PlaneAgentBadge.tsx
 - PlaneAgentBadge
-
-### src/renderer/workspace/planeAgentColor.ts
-- normalizeAgentColor
-- planeAgentColor
-- resolveAgentColor
 
 ### src/renderer/workspace/PlaneAgentContextNodes.tsx
 - PlaneAgentContextNodes
@@ -677,19 +637,10 @@
 ### src/shared/agentCliModels.ts
 - modelsForProvider
 
-### src/shared/agentFileProtocol.ts
-- extractRunBlocks
-- extractGrepBlock
-- parseReadLine
-- extractReadBlock
-- extractListBlock
-- extractGlobBlock
-- extractGitBlock
-- extractPatchBlocks
-- extractWriteBlocks
-- fallbackExtractWrites
-
 ### src/shared/agentIdentity.ts
+- sanitizeAgentTextDraft
+- sanitizeAgentRulesDraft
+- applyAgentIdentityDraft
 - normalizeAgentRules
 - buildAgentIdentityPrompt
 
@@ -706,15 +657,6 @@
 - isDestructiveShellCommand
 - requiresShellConfirmation
 
-### src/shared/agentWriteGuard.ts
-- userWantsFileChanges
-- pathLikelyRequested
-- isSensitiveWritePath
-- isSuspiciousAgentWriteContent
-- stripThinkingFromAgentReply
-- filterWritesByUserIntent
-- filterPatchesByUserIntent
-
 ### src/shared/configSchema.ts
 - parseSpotifyPlaylistId
 - canonicalizeMusicPlaylistIdsByMood
@@ -728,7 +670,6 @@
 - computePlaneMiniSlotCell
 - computePlaneChatColumnWidth
 - computePlaneMiniSlotPadX
-- computePlaneMiniLetterboxSize
 - estimatePlaneAgentMiniHeight
 - maxPaneWindowZ
 - minimizeOtherPaneWindows
@@ -741,9 +682,7 @@
 
 ### src/shared/planeLoopChain.ts
 - clampLoopChainIntervalMs
-- defaultLoopChainIntervalMs
 - activeLoopChainPaneIds
-- loopChainPaneIds
 - paneIdsUsedInLoopChains
 - chainHasPane
 - canAppendLoopStep
@@ -785,9 +724,7 @@
 
 ### src/shared/tabContext.ts
 - normalizeContextFileName
-- isAgentResultContext
 - isProjectContext
-- countWords
 - normalizeAnnotation
 - collectAutoAnnotationKeys
 - extractTabContextUpdates

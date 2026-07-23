@@ -47,6 +47,7 @@ import {
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import {
   resolveTabAgentMeta,
+  syncTabAgentsFromCatalog,
   upsertAgentInList,
 } from './projectAgentsStore'
 import './styles/app.css'
@@ -293,6 +294,124 @@ export const App: React.FC = () => {
     })
   }, [])
 
+  /** Limpia recursos locales de panes de agente eliminados al sincronizar con el catálogo. */
+  const cleanupRemovedAgentPanes = useCallback((paneIds: string[]) => {
+    for (const paneId of paneIds) {
+      window.api.stopAgentTurn(paneId)
+      termRefs.current.delete(paneId)
+      splitSpawnCwdRef.current.delete(paneId)
+      delete cwdsRef.current[paneId]
+      planeLoopToggleByPaneRef.current.delete(paneId)
+      planeQueueControlsByPaneRef.current.delete(paneId)
+      removePaneFromFifo(chainFifoByPaneRef.current, paneId)
+      chainOfferByPaneRef.current.delete(paneId)
+      for (const [chainId, wait] of [...chainTurnWaitRef.current.entries()]) {
+        if (wait.paneId === paneId) chainTurnWaitRef.current.delete(chainId)
+      }
+      delete prevBusyByPaneRef.current[paneId]
+    }
+    setPaneCwds(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const paneId of paneIds) {
+        if (paneId in next) {
+          delete next[paneId]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setBusyPanes(prev => {
+      let changed = false
+      const next = new Set(prev)
+      for (const paneId of paneIds) {
+        if (next.delete(paneId)) changed = true
+      }
+      return changed ? next : prev
+    })
+    setAgentPlaneStatus(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const paneId of paneIds) {
+        if (paneId in next) {
+          delete next[paneId]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setPlaneSendByPane(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const paneId of paneIds) {
+        if (paneId in next) {
+          delete next[paneId]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setExplorerByPane(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const paneId of paneIds) {
+        if (paneId in next) {
+          delete next[paneId]
+          changed = true
+        }
+      }
+      if (changed) explorerByPaneRef.current = next
+      return changed ? next : prev
+    })
+    setTimeout(() => {
+      for (const paneId of paneIds) {
+        window.api.deleteScrollback(paneId)
+        window.api.deleteAiChat(paneId)
+        window.api.deleteCmdHistory(paneId)
+        window.api.deleteInteractionsLog(paneId)
+        window.api.deleteAgentChat(paneId)
+      }
+    }, 0)
+  }, [])
+
+  /** Alinea panes de agente de una tab con `.iaterminal/agents` (fuente de verdad). */
+  const syncTabWithProjectAgents = useCallback((
+    tabId: string,
+    agents: ProjectAgentDefinition[],
+  ): void => {
+    const current = tabsRef.current.find(tab => tab.id === tabId)
+    if (!current) return
+    const synced = syncTabAgentsFromCatalog(current, agents, {
+      maxPanes: MAX_PANES_PER_TAB,
+      createPaneId: () => crypto.randomUUID(),
+      createWindow: (paneWindows, open) => createPaneWindowState(paneWindows, open),
+    })
+    if (!synced.changed) return
+    if (synced.removedPaneIds.length) cleanupRemovedAgentPanes(synced.removedPaneIds)
+    for (const paneId of synced.addedPaneIds) {
+      const cwd = synced.tab.projectFolder?.trim() || ''
+      if (cwd) rememberPaneCwd(paneId, cwd)
+    }
+    const nextTabs = tabsRef.current.map(tab => (
+      tab.id === tabId ? normalizeTabSession(ensureTabPaneLayout(synced.tab)) : tab
+    ))
+    tabsRef.current = nextTabs
+    setTabs(nextTabs)
+  }, [cleanupRemovedAgentPanes, rememberPaneCwd])
+
+  const refreshAndSyncProjectAgents = useCallback(async (cwd: string, tabId?: string) => {
+    const agents = await refreshProjectAgents(cwd)
+    const root = cwd.trim()
+    if (!root) return agents
+    const targets = tabsRef.current.filter(tab => {
+      if (tab.projectFolder?.trim() !== root) return false
+      if (tabId) return tab.id === tabId
+      return true
+    })
+    for (const tab of targets) syncTabWithProjectAgents(tab.id, agents)
+    return agents
+  }, [refreshProjectAgents, syncTabWithProjectAgents])
+
   const buildSessionSnapshot = useCallback(() => {
     const currentTabs = tabsRef.current
     const currentActiveTabId = activeTabIdRef.current
@@ -467,7 +586,7 @@ export const App: React.FC = () => {
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
-        // Migrar metas legacy a `.iaterminal/agents` y refrescar catálogos.
+        // Migrar metas legacy a `.iaterminal/agents` y sincronizar planos con el catálogo.
         void (async () => {
           for (const item of sanitized.pendingAgentMigrations) {
             await window.api.upsertProjectAgent(item.projectFolder, item.definition)
@@ -477,7 +596,9 @@ export const App: React.FC = () => {
               .map(tab => tab.projectFolder?.trim() || '')
               .filter(Boolean),
           )]
-          await Promise.all(folders.map(folder => refreshProjectAgents(folder)))
+          await Promise.all(folders.map(folder => refreshAndSyncProjectAgents(folder)))
+          const snapshot = buildSessionSnapshot()
+          if (snapshot) await window.api.saveSession(snapshot)
         })()
         // Persistir layout migrado (paneWindows / plane nodes) de inmediato.
         void window.api.saveSession({
@@ -507,7 +628,9 @@ export const App: React.FC = () => {
       setActiveTabId(tab.id)
       setSessionReady({ loaded: true })
     })
-  }, [refreshProjectAgents])
+    // Solo al montar: sync via closures actuales (no re-cargar session).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Guardar sesión cuando cambia tabs o activeTabId (solo después de que se cargó la sesión)
   useEffect(() => {
@@ -710,13 +833,27 @@ export const App: React.FC = () => {
   const handleClosePane = useCallback((tabId: string, paneId: string) => {
     const t = tabsRef.current.find(x => x.id === tabId)
     if (!t || !t.paneIds.includes(paneId)) return
+    const isAgent = t.paneKinds?.[paneId] === 'agent'
+    const agentId = t.agentByPane?.[paneId]?.agentId
+    const cwd = t.projectFolder?.trim() || ''
+    if (isAgent && cwd && agentId) {
+      void window.api.deleteProjectAgent(cwd, agentId).then(result => {
+        if (!result.ok) return
+        setProjectAgentsByCwd(prev => {
+          const list = (prev[cwd] ?? []).filter(agent => agent.id !== agentId)
+          const next = { ...prev, [cwd]: list }
+          projectAgentsByCwdRef.current = next
+          return next
+        })
+      })
+    }
     setExplorerByPane(prev => {
       const next = { ...prev }
       delete next[paneId]
       explorerByPaneRef.current = next
       return next
     })
-    if (t.paneKinds?.[paneId] === 'agent') window.api.stopAgentTurn(paneId)
+    if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)
     termRefs.current.delete(paneId)
     splitSpawnCwdRef.current.delete(paneId)
@@ -819,9 +956,9 @@ export const App: React.FC = () => {
     setTabs(next)
     // Guardado inmediato con tabsRef ya actualizado (no esperar al render).
     await saveSessionNow()
-    void refreshProjectAgents(path)
+    void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshProjectAgents, saveSessionNow, t])
+  }, [refreshAndSyncProjectAgents, saveSessionNow, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)

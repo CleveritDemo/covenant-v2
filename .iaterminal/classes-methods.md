@@ -437,6 +437,7 @@
 - resolveTabAgentMeta
 - indexProjectAgents
 - upsertAgentInList
+- syncTabAgentsFromCatalog
 
 ### src/renderer/sessionSanitize.ts
 - deriveTabCounter

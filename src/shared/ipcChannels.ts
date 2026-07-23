@@ -125,6 +125,12 @@ export const IPC = {
   SESSION_SAVE: 'session:save',
   /** Renderer → main (invoke): cargar layout guardado */
   SESSION_LOAD: 'session:load',
+  /** Renderer → main (invoke): listar agentes del catálogo del proyecto */
+  PROJECT_AGENTS_LIST: 'projectAgents:list',
+  /** Renderer → main (invoke): crear/actualizar agente en `.iaterminal/agents/` */
+  PROJECT_AGENTS_UPSERT: 'projectAgents:upsert',
+  /** Renderer → main (invoke): borrar agente del catálogo del proyecto */
+  PROJECT_AGENTS_DELETE: 'projectAgents:delete',
   /** Renderer → main: guardar historial de chat IA de un pane */
   AI_CHAT_SAVE: 'aiChat:save',
   /** Renderer → main (invoke): cargar historial de chat IA de un pane */

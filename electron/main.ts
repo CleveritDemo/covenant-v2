@@ -41,6 +41,12 @@ import {
   saveAgentChat,
   deleteAgentChat,
 } from './persistence'
+import {
+  deleteProjectAgent,
+  listProjectAgents,
+  upsertProjectAgent,
+} from './projectAgentCatalogOps'
+import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import {
   startAgentTurn,
@@ -706,6 +712,24 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.SESSION_SAVE, (_e, data: PersistedSession) => {
     saveSession(data)
+  })
+
+  ipcMain.handle(IPC.PROJECT_AGENTS_LIST, (_e, cwd: unknown) => {
+    return listProjectAgents(typeof cwd === 'string' ? cwd : '')
+  })
+
+  ipcMain.handle(IPC.PROJECT_AGENTS_UPSERT, (_e, cwd: unknown, definition: unknown) => {
+    return upsertProjectAgent(
+      typeof cwd === 'string' ? cwd : '',
+      definition as ProjectAgentDefinition,
+    )
+  })
+
+  ipcMain.handle(IPC.PROJECT_AGENTS_DELETE, (_e, cwd: unknown, agentId: unknown) => {
+    return deleteProjectAgent(
+      typeof cwd === 'string' ? cwd : '',
+      typeof agentId === 'string' ? agentId : '',
+    )
   })
 
   ipcMain.handle(IPC.AI_CHAT_LOAD, (_e, paneId: string) => loadAiChat(paneId))

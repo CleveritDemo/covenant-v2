@@ -133,6 +133,12 @@
 - saveAgentChat
 - deleteAgentChat
 
+### electron/projectAgentCatalogOps.ts
+- listProjectAgents
+- upsertProjectAgent
+- deleteProjectAgent
+- migratePersistedSessionAgents
+
 ### electron/projectAiContext.ts
 - gatherProjectAiContextForCwd
 
@@ -426,6 +432,11 @@
 ### src/renderer/history/feedCompletedUserLines.ts
 - backwardKillWordDraft
 - feedCompletedUserLines
+
+### src/renderer/projectAgentsStore.ts
+- resolveTabAgentMeta
+- indexProjectAgents
+- upsertAgentInList
 
 ### src/renderer/sessionSanitize.ts
 - deriveTabCounter
@@ -754,6 +765,20 @@
 - sanitizePlaneLoopLinks
 - sanitizePlaneLoopNodePositions
 
+### src/shared/projectAgentCatalog.ts
+- normalizeAgentSlug
+- projectAgentFileName
+- allocateAgentSlug
+- parseProjectAgentDefinition
+- cloneProjectAgentDefinition
+- isLegacyRichAgentMeta
+- legacyAgentMetaToDefinition
+- parseAgentPaneBinding
+- resolveAgentPaneMeta
+- agentDefinitionFromMeta
+- agentBindingFromMeta
+- planAgentCatalogMigration
+
 ### src/shared/ptyInputSanitize.ts
 - stripAnsiInputSequences
 
@@ -776,9 +801,6 @@
 - normalizeContextColor
 - resolveContextIcon
 - resolveContextColor
-
-### src/shared/tabSession.ts
-- cloneAgentPaneMeta
 
 ### src/themes/codeMirrorTheme.ts
 - createCodeMirrorTheme

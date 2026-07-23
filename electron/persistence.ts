@@ -4,6 +4,7 @@ import { app } from 'electron'
 import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
 import type { AgentChatEntry } from '../src/shared/agentCliTypes'
+import { migratePersistedSessionAgents } from './projectAgentCatalogOps'
 
 const USER_DATA = (): string => app.getPath('userData')
 
@@ -38,13 +39,19 @@ export function loadSession(): PersistedSession | null {
     const activeTabId = tabs.some(t => t.id === parsed.activeTabId)
       ? parsed.activeTabId!
       : tabs[0]!.id
-    return {
+    const session: PersistedSession = {
       version: 1,
       activeTabId,
       tabs: tabs as TabSession[],
       cwds: parsed.cwds ?? {},
       explorerByPane: parsed.explorerByPane,
     }
+    const migrated = migratePersistedSessionAgents(session)
+    if (migrated.changed) {
+      saveSession(migrated.session)
+      return migrated.session
+    }
+    return session
   } catch {
     return null
   }

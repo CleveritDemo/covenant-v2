@@ -118,7 +118,7 @@ describe('sanitizePersistedSession', () => {
         paneIds: ['agent-1', 'term-1'],
         activePaneId: 'agent-1',
         paneKinds: { 'agent-1': 'agent', 'term-1': 'terminal' },
-        agentByPane: { 'agent-1': { provider: 'claude', permissionMode: 'ask' } },
+        agentByPane: { 'agent-1': { agentId: 'claude' } },
         planeOpenChatAgentId: 'agent-1',
       }],
       cwds: {},
@@ -134,7 +134,7 @@ describe('sanitizePersistedSession', () => {
         paneIds: ['agent-1', 'term-1'],
         activePaneId: 'agent-1',
         paneKinds: { 'agent-1': 'agent', 'term-1': 'terminal' },
-        agentByPane: { 'agent-1': { provider: 'claude', permissionMode: 'ask' } },
+        agentByPane: { 'agent-1': { agentId: 'claude' } },
         planeOpenChatAgentId: 'term-1',
       }],
       cwds: {},
@@ -159,8 +159,8 @@ describe('sanitizePersistedSession', () => {
     })).toBeNull()
   })
 
-  it('sanitizes agent pane metadata and keeps legacy panes as terminals', () => {
-    const result = sanitizePersistedSession({
+  it('keeps slim agent bindings and migrates legacy rich meta to catalog', () => {
+    const slim = sanitizePersistedSession({
       version: 1,
       activeTabId: 't1',
       tabs: [{
@@ -171,8 +171,7 @@ describe('sanitizePersistedSession', () => {
         paneKinds: { agent: 'agent' },
         agentByPane: {
           agent: {
-            provider: 'cursor',
-            permissionMode: 'auto',
+            agentId: 'cursor-bot',
             cliSessionId: ' chat-123 ',
           },
         },
@@ -180,16 +179,61 @@ describe('sanitizePersistedSession', () => {
       cwds: { terminal: '/tmp', agent: '/project' },
     })
 
-    expect(result?.tabs[0]?.paneKinds).toEqual({ agent: 'agent' })
-    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
-      provider: 'cursor',
-      permissionMode: 'auto',
+    expect(slim?.tabs[0]?.paneKinds).toEqual({ agent: 'agent' })
+    expect(slim?.tabs[0]?.agentByPane?.agent).toEqual({
+      agentId: 'cursor-bot',
       cliSessionId: 'chat-123',
     })
-    expect(result?.tabs[0]?.paneKinds?.terminal).toBeUndefined()
+    expect(slim?.pendingAgentMigrations).toEqual([])
+
+    const legacy = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Agents',
+        paneIds: ['a1'],
+        activePaneId: 'a1',
+        paneKinds: { a1: 'agent' },
+        projectFolder: '/Users/me/app',
+        agentByPane: {
+          a1: {
+            provider: 'cursor',
+            permissionMode: 'auto',
+            name: 'Scout',
+            role: 'explorer',
+            objective: 'Map the repo',
+            model: 'gpt-5',
+            contextIds: ['ctx-1', 'ctx-2'],
+            autoImproveContexts: true,
+            cliSessionId: 'cli-abc',
+          },
+        } as never,
+      }],
+      cwds: { a1: '/Users/me/app' },
+    })
+
+    expect(legacy?.tabs[0]?.agentByPane?.a1).toEqual({
+      agentId: 'scout',
+      cliSessionId: 'cli-abc',
+    })
+    expect(legacy?.pendingAgentMigrations).toEqual([{
+      projectFolder: '/Users/me/app',
+      definition: {
+        id: 'scout',
+        provider: 'cursor',
+        permissionMode: 'auto',
+        name: 'Scout',
+        role: 'explorer',
+        objective: 'Map the repo',
+        model: 'gpt-5',
+        contextIds: ['ctx-1', 'ctx-2'],
+        autoImproveContexts: true,
+      },
+    }])
   })
 
-  it('migrates legacy readonly permission mode to plan', () => {
+  it('migrates legacy readonly permission mode to plan in catalog definition', () => {
     const result = sanitizePersistedSession({
       version: 1,
       activeTabId: 't1',
@@ -199,46 +243,23 @@ describe('sanitizePersistedSession', () => {
         paneIds: ['agent'],
         activePaneId: 'agent',
         paneKinds: { agent: 'agent' },
+        projectFolder: '/tmp/proj',
         agentByPane: {
           agent: {
             provider: 'claude',
             permissionMode: 'readonly' as never,
+            name: 'Reader',
           },
-        },
+        } as never,
       }],
       cwds: {},
     })
 
-    expect(result?.tabs[0]?.agentByPane?.agent?.permissionMode).toBe('plan')
+    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({ agentId: 'reader' })
+    expect(result?.pendingAgentMigrations[0]?.definition.permissionMode).toBe('plan')
   })
 
-  it('preserves agent model selection', () => {
-    const result = sanitizePersistedSession({
-      version: 1,
-      activeTabId: 't1',
-      tabs: [{
-        id: 't1',
-        title: 'Agent',
-        paneIds: ['agent'],
-        activePaneId: 'agent',
-        paneKinds: { agent: 'agent' },
-        agentByPane: {
-          agent: {
-            provider: 'claude',
-            permissionMode: 'ask',
-            model: ' opus ',
-            name: '  Architect  ',
-          },
-        },
-      }],
-      cwds: {},
-    })
-
-    expect(result?.tabs[0]?.agentByPane?.agent?.model).toBe('opus')
-    expect(result?.tabs[0]?.agentByPane?.agent?.name).toBe('Architect')
-  })
-
-  it('round-trips agent name and config across sanitize reload', () => {
+  it('round-trips slim agent bindings across sanitize reload', () => {
     const once = sanitizePersistedSession({
       version: 1,
       activeTabId: 't1',
@@ -250,16 +271,8 @@ describe('sanitizePersistedSession', () => {
         paneKinds: { agent: 'agent' },
         agentByPane: {
           agent: {
-            provider: 'cursor',
-            permissionMode: 'auto',
-            name: 'Deploy Bot',
-            role: 'Release engineer',
-            objective: 'Keep deploys green',
-            model: 'gpt-5',
+            agentId: 'deploy-bot',
             cliSessionId: 'sess-1',
-            contextIds: ['ctx-a'],
-            autoImproveContexts: true,
-            emitResults: true,
           },
         },
       }],
@@ -273,45 +286,10 @@ describe('sanitizePersistedSession', () => {
       cwds: once!.cwds,
     })
     expect(again?.tabs[0]?.agentByPane?.agent).toEqual({
-      provider: 'cursor',
-      permissionMode: 'auto',
-      name: 'Deploy Bot',
-      role: 'Release engineer',
-      objective: 'Keep deploys green',
-      model: 'gpt-5',
+      agentId: 'deploy-bot',
       cliSessionId: 'sess-1',
-      contextIds: ['ctx-a'],
-      autoImproveContexts: true,
-      emitResults: true,
     })
-  })
-
-  it('trims and clamps agent role and objective', () => {
-    const longRole = `  ${'R'.repeat(100)}  `
-    const longObjective = `  ${'O'.repeat(600)}  `
-    const result = sanitizePersistedSession({
-      version: 1,
-      activeTabId: 't1',
-      tabs: [{
-        id: 't1',
-        title: 'Agent',
-        paneIds: ['agent'],
-        activePaneId: 'agent',
-        paneKinds: { agent: 'agent' },
-        agentByPane: {
-          agent: {
-            provider: 'claude',
-            permissionMode: 'ask',
-            role: longRole,
-            objective: longObjective,
-          },
-        },
-      }],
-      cwds: {},
-    })
-
-    expect(result?.tabs[0]?.agentByPane?.agent?.role).toBe('R'.repeat(80))
-    expect(result?.tabs[0]?.agentByPane?.agent?.objective).toBe('O'.repeat(500))
+    expect(again?.pendingAgentMigrations).toEqual([])
   })
 
   it('persists projectFolder and migrates it from terminal pane cwds when missing', () => {
@@ -364,48 +342,6 @@ describe('sanitizePersistedSession', () => {
     expect(result?.tabs[0]).not.toHaveProperty('projectFolder')
   })
 
-  it('keeps full agent pane identity across sanitize', () => {
-    const result = sanitizePersistedSession({
-      version: 1,
-      activeTabId: 't1',
-      tabs: [{
-        id: 't1',
-        title: 'Agents',
-        paneIds: ['a1'],
-        activePaneId: 'a1',
-        paneKinds: { a1: 'agent' },
-        projectFolder: '/Users/me/app',
-        agentByPane: {
-          a1: {
-            provider: 'cursor',
-            permissionMode: 'auto',
-            name: 'Scout',
-            role: 'explorer',
-            objective: 'Map the repo',
-            model: 'gpt-5',
-            contextIds: ['ctx-1', 'ctx-2'],
-            autoImproveContexts: true,
-            cliSessionId: 'cli-abc',
-          },
-        },
-      }],
-      cwds: { a1: '/Users/me/app' },
-    })
-
-    expect(result?.tabs[0]?.projectFolder).toBe('/Users/me/app')
-    expect(result?.tabs[0]?.agentByPane?.a1).toEqual({
-      provider: 'cursor',
-      permissionMode: 'auto',
-      name: 'Scout',
-      role: 'explorer',
-      objective: 'Map the repo',
-      model: 'gpt-5',
-      contextIds: ['ctx-1', 'ctx-2'],
-      autoImproveContexts: true,
-      cliSessionId: 'cli-abc',
-    })
-  })
-
   it('restores plane loop chains as idle config (not running)', () => {
     const result = sanitizePersistedSession({
       version: 1,
@@ -417,8 +353,8 @@ describe('sanitizePersistedSession', () => {
         activePaneId: 'a1',
         paneKinds: { a1: 'agent', a2: 'agent' },
         agentByPane: {
-          a1: { provider: 'claude', permissionMode: 'ask' },
-          a2: { provider: 'cursor', permissionMode: 'ask' },
+          a1: { agentId: 'claude' },
+          a2: { agentId: 'cursor' },
         },
         planeLoopChains: [{
           id: 'chain-1',

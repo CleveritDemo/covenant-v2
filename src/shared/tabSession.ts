@@ -5,11 +5,24 @@
  * de tsconfig.web / tsconfig.node.
  */
 import type { TabContext } from './tabContext'
-import { AGENT_NAME_MAX_LENGTH } from './agentIdentity'
 import type { PlaneLoopLink, PlaneLoopNodePosition } from './planeLoopGraph'
 import type { PlaneLoopChain } from './planeLoopChain'
+import type {
+  AgentCliProvider,
+  AgentPaneBinding,
+  AgentPaneMeta,
+  AgentPermissionMode,
+  ProjectAgentDefinition,
+} from './projectAgentCatalog'
 
 export type { PlaneLoopLink, PlaneLoopNodePosition, PlaneLoopChain }
+export type {
+  AgentCliProvider,
+  AgentPaneBinding,
+  AgentPaneMeta,
+  AgentPermissionMode,
+  ProjectAgentDefinition,
+}
 
 export interface TabSplitSizes {
   /** Fracción 0–1 del ancho de la columna izquierda (paneles con 2 columnas). */
@@ -19,57 +32,6 @@ export interface TabSplitSizes {
 }
 
 export type PaneKind = 'terminal' | 'agent'
-export type AgentCliProvider = 'claude' | 'cursor'
-export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
-
-export interface AgentPaneMeta {
-  provider: AgentCliProvider
-  permissionMode: AgentPermissionMode
-  /** Nombre visible del agente en el plano y la ventana; también va al CLI. */
-  name?: string
-  /** Rol del agente (p. ej. arquitecto, reviewer); se envía en cada turno. */
-  role?: string
-  /** Objetivo persistente del agente; se envía en cada turno. */
-  objective?: string
-  /** Reglas de comportamiento; se envían en cada turno con la identidad. */
-  rules?: string[]
-  /** Modelo del CLI (`--model`); ausente = predeterminado del proveedor. */
-  model?: string
-  /** Color de acento en el plano (badges, chat); ausente = hash del paneId. */
-  color?: string
-  /** Contextos de esta tab asignados al agente. */
-  contextIds?: string[]
-  /** Permite que el agente haga upsert de anotaciones al terminar cada turno. */
-  autoImproveContexts?: boolean
-  /** Si es true, el agente puede registrar resultados en `.iaterminal/results/`. Por defecto false. */
-  emitResults?: boolean
-  /** ID devuelto por el CLI para reanudar el chat entre turnos/reinicios. */
-  cliSessionId?: string
-}
-
-/** Copia de configuración para un agente nuevo (sin sesión CLI ni historial). */
-export function cloneAgentPaneMeta(
-  source: AgentPaneMeta,
-  nameSuffix = '',
-): AgentPaneMeta {
-  const baseName = source.name?.trim() ?? ''
-  const name = baseName
-    ? `${baseName}${nameSuffix}`.slice(0, AGENT_NAME_MAX_LENGTH)
-    : undefined
-  return {
-    provider: source.provider,
-    permissionMode: source.permissionMode,
-    name,
-    role: source.role,
-    objective: source.objective,
-    rules: source.rules ? [...source.rules] : undefined,
-    model: source.model,
-    color: source.color,
-    contextIds: source.contextIds ? [...source.contextIds] : undefined,
-    autoImproveContexts: source.autoImproveContexts,
-    emitResults: source.emitResults,
-  }
-}
 
 /** Estado persistido de ventana flotante (geometría se calcula al render). */
 export interface PaneWindowState {
@@ -94,8 +56,11 @@ export interface TabSession {
   splitSizes?: TabSplitSizes
   /** Ausente equivale a terminal para compatibilidad con sesiones anteriores. */
   paneKinds?: Record<string, PaneKind>
-  /** Metadatos de los paneles de agente, indexados por paneId. */
-  agentByPane?: Record<string, AgentPaneMeta>
+  /**
+   * Enlace local pane → agente del catálogo del proyecto.
+   * La config compartible vive en `.iaterminal/agents/<agentId>.json`.
+   */
+  agentByPane?: Record<string, AgentPaneBinding>
   /** Ventanas del plano agéntico por paneId. */
   paneWindows?: Record<string, PaneWindowState>
   /**
@@ -118,7 +83,7 @@ export interface TabSession {
   planeLoopChains?: PlaneLoopChain[]
   /**
    * @deprecated El catálogo vive en `.iaterminal/*.md`. Se ignora al cargar;
-   * solo se persisten `agentByPane[].contextIds`.
+   * las asignaciones van en el JSON del agente en `.iaterminal/agents/`.
    */
   contexts?: TabContext[]
 }

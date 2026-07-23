@@ -408,6 +408,24 @@ const api = {
   saveSession(data: PersistedSession): Promise<void> {
     return ipcRenderer.invoke(IPC.SESSION_SAVE, data)
   },
+  listProjectAgents(cwd: string): Promise<import('../src/shared/projectAgentCatalog').ProjectAgentDefinition[]> {
+    return ipcRenderer.invoke(IPC.PROJECT_AGENTS_LIST, cwd)
+  },
+  upsertProjectAgent(
+    cwd: string,
+    definition: import('../src/shared/projectAgentCatalog').ProjectAgentDefinition,
+  ): Promise<
+    | { ok: true; agent: import('../src/shared/projectAgentCatalog').ProjectAgentDefinition }
+    | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.PROJECT_AGENTS_UPSERT, cwd, definition)
+  },
+  deleteProjectAgent(
+    cwd: string,
+    agentId: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.PROJECT_AGENTS_DELETE, cwd, agentId)
+  },
   loadAiChat(paneId: string): Promise<ChatEntry[]> {
     return ipcRenderer.invoke(IPC.AI_CHAT_LOAD, paneId)
   },

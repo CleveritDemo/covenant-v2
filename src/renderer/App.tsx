@@ -45,16 +45,26 @@ import {
   type PaneReorderKind,
 } from './arrayReorder'
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
+import {
+  resolveTabAgentMeta,
+  upsertAgentInList,
+} from './projectAgentsStore'
 import './styles/app.css'
 
 import {
-  cloneAgentPaneMeta,
   type AgentCliProvider,
   type AgentPaneMeta,
   type PaneKind,
   type PlaneLoopChain,
   type TabSession,
 } from '../shared/tabSession'
+import {
+  allocateAgentSlug,
+  agentBindingFromMeta,
+  agentDefinitionFromMeta,
+  cloneProjectAgentDefinition,
+  type ProjectAgentDefinition,
+} from '../shared/projectAgentCatalog'
 import {
   removePaneFromLoopChains,
   activeLoopChainPaneIds,
@@ -185,6 +195,10 @@ export const App: React.FC = () => {
   const planeLoopToggleByPaneRef = useRef(new Map<string, () => void>())
   const planeQueueControlsByPaneRef = useRef(new Map<string, AgentPlaneQueueControls>())
   const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
+  /** Catálogo `.iaterminal/agents` indexado por projectFolder. */
+  const [projectAgentsByCwd, setProjectAgentsByCwd] = useState<Record<string, ProjectAgentDefinition[]>>({})
+  const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
+  projectAgentsByCwdRef.current = projectAgentsByCwd
   const [openConfigForPaneId, setOpenConfigForPaneId] = useState<string | null>(null)
   /** Evita que el click al cerrar el modal de config expanda el mini del plano. */
   const suppressPaneExpandUntilRef = useRef(0)
@@ -253,6 +267,30 @@ export const App: React.FC = () => {
     cwdsRef.current = { ...cwdsRef.current, [paneId]: dir }
     splitSpawnCwdRef.current.set(paneId, dir)
     setPaneCwds(prev => (prev[paneId] === dir ? prev : { ...prev, [paneId]: dir }))
+  }, [])
+
+  const refreshProjectAgents = useCallback(async (cwd: string): Promise<ProjectAgentDefinition[]> => {
+    const root = cwd.trim()
+    if (!root) return []
+    const agents = await window.api.listProjectAgents(root)
+    setProjectAgentsByCwd(prev => (
+      prev[root] === agents ? prev : { ...prev, [root]: agents }
+    ))
+    projectAgentsByCwdRef.current = {
+      ...projectAgentsByCwdRef.current,
+      [root]: agents,
+    }
+    return agents
+  }, [])
+
+  const rememberProjectAgent = useCallback((cwd: string, agent: ProjectAgentDefinition) => {
+    const root = cwd.trim()
+    if (!root) return
+    setProjectAgentsByCwd(prev => {
+      const next = { ...prev, [root]: upsertAgentInList(prev[root] ?? [], agent) }
+      projectAgentsByCwdRef.current = next
+      return next
+    })
   }, [])
 
   const buildSessionSnapshot = useCallback(() => {
@@ -429,6 +467,18 @@ export const App: React.FC = () => {
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
+        // Migrar metas legacy a `.iaterminal/agents` y refrescar catálogos.
+        void (async () => {
+          for (const item of sanitized.pendingAgentMigrations) {
+            await window.api.upsertProjectAgent(item.projectFolder, item.definition)
+          }
+          const folders = [...new Set(
+            layoutTabs
+              .map(tab => tab.projectFolder?.trim() || '')
+              .filter(Boolean),
+          )]
+          await Promise.all(folders.map(folder => refreshProjectAgents(folder)))
+        })()
         // Persistir layout migrado (paneWindows / plane nodes) de inmediato.
         void window.api.saveSession({
           version: 1,
@@ -457,7 +507,7 @@ export const App: React.FC = () => {
       setActiveTabId(tab.id)
       setSessionReady({ loaded: true })
     })
-  }, [])
+  }, [refreshProjectAgents])
 
   // Guardar sesión cuando cambia tabs o activeTabId (solo después de que se cargó la sesión)
   useEffect(() => {
@@ -769,8 +819,9 @@ export const App: React.FC = () => {
     setTabs(next)
     // Guardado inmediato con tabsRef ya actualizado (no esperar al render).
     await saveSessionNow()
+    void refreshProjectAgents(path)
     return path
-  }, [saveSessionNow, t])
+  }, [refreshProjectAgents, saveSessionNow, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -804,6 +855,19 @@ export const App: React.FC = () => {
     if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
     const cwd = current.projectFolder?.trim() || ''
     if (!cwd) return
+    const existing = new Set(
+      (projectAgentsByCwdRef.current[cwd] ?? []).map(agent => agent.id),
+    )
+    const agentId = allocateAgentSlug(provider === 'cursor' ? 'cursor' : 'claude', existing)
+    const definition: ProjectAgentDefinition = {
+      id: agentId,
+      provider,
+      permissionMode: 'auto',
+      autoImproveContexts: true,
+    }
+    const written = await window.api.upsertProjectAgent(cwd, definition)
+    if (!written.ok) return
+    rememberProjectAgent(cwd, written.agent)
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
@@ -820,31 +884,37 @@ export const App: React.FC = () => {
         paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: { provider, permissionMode: 'auto', autoImproveContexts: true },
+          [paneId]: { agentId: written.agent.id },
         },
       })
     }))
     scheduleSaveSession()
-  }, [rememberPaneCwd, scheduleSaveSession])
+  }, [rememberPaneCwd, rememberProjectAgent, scheduleSaveSession])
 
   /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
-  const handleDuplicateAgentPane = useCallback((
+  const handleDuplicateAgentPane = useCallback(async (
     tabId: string,
     sourcePaneId: string,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
     if (current.paneKinds?.[sourcePaneId] !== 'agent') return
-    const sourceMeta = current.agentByPane?.[sourcePaneId]
-    if (!sourceMeta) return
     const cwd = current.projectFolder?.trim() || ''
     if (!cwd) return
-    const paneId = crypto.randomUUID()
-    rememberPaneCwd(paneId, cwd)
-    const cloned = cloneAgentPaneMeta(
+    const sourceMeta = resolveTabAgentMeta(current, sourcePaneId, projectAgentsByCwdRef.current)
+    const existing = new Set(
+      (projectAgentsByCwdRef.current[cwd] ?? []).map(agent => agent.id),
+    )
+    const clonedFields = cloneProjectAgentDefinition(
       sourceMeta,
       i18next.t('agentPane.duplicateNameSuffix'),
     )
+    const agentId = allocateAgentSlug(clonedFields.name ?? sourceMeta.id, existing)
+    const written = await window.api.upsertProjectAgent(cwd, { ...clonedFields, id: agentId })
+    if (!written.ok) return
+    rememberProjectAgent(cwd, written.agent)
+    const paneId = crypto.randomUUID()
+    rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
       const paneWindows = { ...(tab.paneWindows ?? {}) }
@@ -858,7 +928,7 @@ export const App: React.FC = () => {
         paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: cloned,
+          [paneId]: { agentId: written.agent.id },
         },
       })
     }))
@@ -870,6 +940,7 @@ export const App: React.FC = () => {
     armSuppressPaneExpand,
     lockMiniExpandForConfig,
     rememberPaneCwd,
+    rememberProjectAgent,
     scheduleSaveSession,
   ])
 
@@ -1038,91 +1109,60 @@ export const App: React.FC = () => {
     toPaneId: string,
     contextId: string,
   ) => {
-    setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        if (tab.paneKinds?.[toPaneId] !== 'agent') return tab
-        const previous = tab.agentByPane?.[toPaneId] ?? {
-          provider: 'claude' as const,
-          permissionMode: 'ask' as const,
-          autoImproveContexts: true,
-        }
-        const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
-        return {
-          ...tab,
-          agentByPane: {
-            ...(tab.agentByPane ?? {}),
-            [toPaneId]: { ...previous, contextIds: nextIds },
-          },
-        }
-      })
-      tabsRef.current = nextTabs
-      return nextTabs
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || tab.paneKinds?.[toPaneId] !== 'agent') return
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
+    const previous = resolveTabAgentMeta(tab, toPaneId, projectAgentsByCwdRef.current)
+    const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
+    const nextMeta: AgentPaneMeta = { ...previous, contextIds: nextIds }
+    const definition = agentDefinitionFromMeta(nextMeta)
+    void window.api.upsertProjectAgent(cwd, definition).then(result => {
+      if (!result.ok) return
+      rememberProjectAgent(cwd, result.agent)
     })
-    void saveSessionNow()
-  }, [saveSessionNow])
+  }, [rememberProjectAgent])
 
   const handleToggleAgentContext = useCallback((
     tabId: string,
     paneId: string,
     contextId: string,
   ) => {
-    setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        if (tab.paneKinds?.[paneId] !== 'agent') return tab
-        const previous = tab.agentByPane?.[paneId] ?? {
-          provider: 'claude' as const,
-          permissionMode: 'ask' as const,
-          autoImproveContexts: true,
-        }
-        const selected = new Set(previous.contextIds ?? [])
-        if (selected.has(contextId)) selected.delete(contextId)
-        else selected.add(contextId)
-        return {
-          ...tab,
-          agentByPane: {
-            ...(tab.agentByPane ?? {}),
-            [paneId]: { ...previous, contextIds: [...selected] },
-          },
-        }
-      })
-      tabsRef.current = nextTabs
-      return nextTabs
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
+    const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
+    const selected = new Set(previous.contextIds ?? [])
+    if (selected.has(contextId)) selected.delete(contextId)
+    else selected.add(contextId)
+    const nextMeta: AgentPaneMeta = { ...previous, contextIds: [...selected] }
+    const definition = agentDefinitionFromMeta(nextMeta)
+    void window.api.upsertProjectAgent(cwd, definition).then(result => {
+      if (!result.ok) return
+      rememberProjectAgent(cwd, result.agent)
     })
-    void saveSessionNow()
-  }, [saveSessionNow])
+  }, [rememberProjectAgent])
 
   const handleAgentAutoImproveChange = useCallback((
     tabId: string,
     paneId: string,
     enabled: boolean,
   ) => {
-    setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        if (tab.paneKinds?.[paneId] !== 'agent') return tab
-        const previous = tab.agentByPane?.[paneId] ?? {
-          provider: 'claude' as const,
-          permissionMode: 'ask' as const,
-          autoImproveContexts: true,
-        }
-        const next = { ...previous }
-        if (enabled) next.autoImproveContexts = true
-        else delete next.autoImproveContexts
-        return {
-          ...tab,
-          agentByPane: {
-            ...(tab.agentByPane ?? {}),
-            [paneId]: next,
-          },
-        }
-      })
-      tabsRef.current = nextTabs
-      return nextTabs
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
+    const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
+    const nextMeta: AgentPaneMeta = { ...previous }
+    if (enabled) nextMeta.autoImproveContexts = true
+    else delete nextMeta.autoImproveContexts
+    const definition = agentDefinitionFromMeta(nextMeta)
+    void window.api.upsertProjectAgent(cwd, definition).then(result => {
+      if (!result.ok) return
+      rememberProjectAgent(cwd, result.agent)
     })
-    void saveSessionNow()
-  }, [saveSessionNow])
+  }, [rememberProjectAgent])
 
   const handleOpenConfigFromPlane = useCallback((tabId: string, paneId: string) => {
     // Solo modal de config (portal); no expandir la ventana del agente.
@@ -1435,23 +1475,34 @@ export const App: React.FC = () => {
     paneId: string,
     meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
   ) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
+    const cwd = tab.projectFolder?.trim() || ''
+    const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
+    const next = typeof meta === 'function' ? meta(previous) : meta
+    const binding = agentBindingFromMeta({ ...next, id: previous.id })
     setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        const previous = tab.agentByPane?.[paneId] ?? {
-          provider: 'claude',
-          permissionMode: 'ask',
-          autoImproveContexts: true,
+      const nextTabs = prev.map(item => {
+        if (item.id !== tabId) return item
+        return {
+          ...item,
+          agentByPane: {
+            ...(item.agentByPane ?? {}),
+            [paneId]: binding,
+          },
         }
-        const next = typeof meta === 'function' ? meta(previous) : meta
-        return { ...tab, agentByPane: { ...(tab.agentByPane ?? {}), [paneId]: next } }
       })
-      // Sync before paint so quit/hide flush and immediate save see name/model/contexts.
       tabsRef.current = nextTabs
       return nextTabs
     })
     void saveSessionNow()
-  }, [saveSessionNow])
+    if (!cwd) return
+    const definition = agentDefinitionFromMeta({ ...next, id: previous.id })
+    void window.api.upsertProjectAgent(cwd, definition).then(result => {
+      if (!result.ok) return
+      rememberProjectAgent(cwd, result.agent)
+    })
+  }, [rememberProjectAgent, saveSessionNow])
 
   const tabBarRef = useRef<TabBarHandle>(null)
   const handleClosePaneRef = useRef(handleClosePane)
@@ -1704,11 +1755,7 @@ export const App: React.FC = () => {
       return (
         <AgentPane
           paneId={paneId}
-          meta={tab.agentByPane?.[paneId] ?? {
-            provider: 'claude',
-            permissionMode: 'ask',
-            autoImproveContexts: true,
-          }}
+          meta={resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)}
           cwd={tab.projectFolder?.trim() ?? ''}
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
@@ -1792,15 +1839,15 @@ export const App: React.FC = () => {
     return tab.paneIds
       .filter(paneId => tab.paneKinds?.[paneId] === 'agent')
       .map(paneId => {
-        const meta = tab.agentByPane?.[paneId]
+        const meta = resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)
         return {
           paneId,
-          name: meta?.name?.trim() || '',
-          provider: meta?.provider ?? 'claude' as const,
-          color: meta?.color,
+          name: meta.name?.trim() || '',
+          provider: meta.provider ?? 'claude' as const,
+          color: meta.color,
         }
       })
-  }, [agentPicker, tabs])
+  }, [agentPicker, projectAgentsByCwd, tabs])
 
   return (
     <div className="app-root">
@@ -1848,7 +1895,8 @@ export const App: React.FC = () => {
             const contextUsage = new Map<string, number>()
             for (const paneId of tab.paneIds) {
               if (tab.paneKinds?.[paneId] !== 'agent') continue
-              for (const contextId of tab.agentByPane?.[paneId]?.contextIds ?? []) {
+              const resolved = resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)
+              for (const contextId of resolved.contextIds ?? []) {
                 contextUsage.set(contextId, (contextUsage.get(contextId) ?? 0) + 1)
               }
             }
@@ -1857,7 +1905,9 @@ export const App: React.FC = () => {
               const kind = tab.paneKinds?.[paneId] === 'agent' ? 'agent' as const : 'terminal' as const
               const ensured = ensureTabPaneLayout(tab)
               const win = ensured.paneWindows?.[paneId] ?? createPaneWindowState(ensured.paneWindows, false)
-              const meta = kind === 'agent' ? tab.agentByPane?.[paneId] : undefined
+              const meta = kind === 'agent'
+                ? resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)
+                : undefined
               const terminalIndex = kind === 'terminal'
                 ? tab.paneIds
                   .filter(id => tab.paneKinds?.[id] !== 'agent')

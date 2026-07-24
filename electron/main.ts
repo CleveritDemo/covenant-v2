@@ -44,6 +44,7 @@ import {
 import {
   deleteProjectAgent,
   listProjectAgents,
+  renameProjectAgent,
   upsertProjectAgent,
 } from './projectAgentCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
@@ -55,6 +56,7 @@ import {
   stopAgentRunsForWindow,
   stopAllAgentRuns,
   clearAgentContextDeliveryForSession,
+  clearAgentContextDeliveryState,
 } from './agentCliRuntime'
 import {
   deleteTabContext,
@@ -726,6 +728,17 @@ function registerIpc(): void {
     )
   })
 
+  ipcMain.handle(
+    IPC.PROJECT_AGENTS_RENAME,
+    (_e, cwd: unknown, fromId: unknown, definition: unknown) => {
+      return renameProjectAgent(
+        typeof cwd === 'string' ? cwd : '',
+        typeof fromId === 'string' ? fromId : '',
+        definition as ProjectAgentDefinition,
+      )
+    },
+  )
+
   ipcMain.handle(IPC.PROJECT_AGENTS_DELETE, (_e, cwd: unknown, agentId: unknown) => {
     return deleteProjectAgent(
       typeof cwd === 'string' ? cwd : '',
@@ -794,6 +807,7 @@ function registerIpc(): void {
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
       write: true,
+      previousFileName: request.previousFileName,
     })
   })
   ipcMain.handle(IPC.TAB_CONTEXT_MERGE_ANNOTATIONS, (_event, request: TabContextAnnotationRequest) => {
@@ -806,20 +820,29 @@ function registerIpc(): void {
     if (!request || typeof request.cwd !== 'string' || !request.cwd.trim()) {
       return { ok: false, contexts: [], error: 'Solicitud inválida.' }
     }
-    return discoverTabContexts(request.cwd)
+    const result = discoverTabContexts(request.cwd)
+    if (result.contextsMigrated) {
+      clearAgentContextDeliveryState()
+    }
+    return result
   })
   ipcMain.handle(IPC.AGENT_RESULTS_ENSURE, (_event, request: unknown) => {
     if (!request || typeof request !== 'object') {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     const cwd = (request as { cwd?: unknown }).cwd
+    const agentId = (request as { agentId?: unknown }).agentId
     const agentName = (request as { agentName?: unknown }).agentName
-    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentName !== 'string') {
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentId !== 'string' || !agentId.trim()) {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     try {
-      const filePath = ensureAiAgentResults(cwd, agentName)
-      if (!filePath) return { ok: false, error: 'Nombre de agente vacío.' }
+      const filePath = ensureAiAgentResults(
+        cwd,
+        agentId,
+        typeof agentName === 'string' ? agentName : undefined,
+      )
+      if (!filePath) return { ok: false, error: 'Id de agente vacío.' }
       return { ok: true, filePath }
     } catch (error) {
       return {

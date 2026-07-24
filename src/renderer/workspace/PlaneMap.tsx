@@ -31,6 +31,10 @@ export interface PlaneMapEntity {
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator'
   snippet?: string
+  /** Slug del agente en catálogo (drag de results). */
+  agentId?: string
+  /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
+  contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
   autoImproveContexts?: boolean
   /** Basename de la carpeta actual (terminales). */
@@ -449,6 +453,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
             else terminalReorder.cancel()
             reorder.onCardPointerDown(entity.paneId, event)
           }}
+          onReorderHandlePointerDown={entity.kind === 'agent'
+            ? event => {
+              if (column === 'terminal') agentReorder.cancel()
+              else terminalReorder.cancel()
+              reorder.onHandlePointerDown(entity.paneId, event)
+            }
+            : undefined}
+          agentId={entity.agentId}
         >
           {renderPane(entity.paneId)}
         </PlanePaneWindow>

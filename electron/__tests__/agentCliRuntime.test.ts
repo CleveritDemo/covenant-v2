@@ -102,8 +102,8 @@ describe('composePrompt identity', () => {
     expect(prompt).not.toContain('## Agent identity')
   })
 
-  it('includes agent results registry only when emitResults is enabled', () => {
-    const without = composePrompt(
+  it('includes agent results registry on every turn', () => {
+    const prompt = composePrompt(
       request({
         provider: 'claude',
         permissionMode: 'ask',
@@ -114,23 +114,9 @@ describe('composePrompt identity', () => {
       [],
       '',
     )
-    expect(without).not.toContain('## Agent results registry')
-
-    const withEmit = composePrompt(
-      request({
-        provider: 'claude',
-        permissionMode: 'ask',
-        name: 'Scout',
-        emitResults: true,
-        prompt: 'hola',
-      }),
-      '/tmp',
-      [],
-      '',
-    )
-    expect(withEmit).toContain('## Agent results registry')
-    expect(withEmit).toContain('You MUST append the results block on every turn')
-    expect(withEmit).toContain('ia-terminal-results')
+    expect(prompt).toContain('## Agent results registry')
+    expect(prompt).toContain('You MUST append the results block on every turn')
+    expect(prompt).toContain('ia-terminal-results')
   })
 
   it('includes orchestration protocol and agents only for orchestrators', () => {

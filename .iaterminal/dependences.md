@@ -1,5 +1,5 @@
-# dependences
-<!-- iaterminal:context {"version":1,"id":"2601e189-7cab-41cf-8d4a-2cf7276d7a23","name":"dependences","fileName":"dependences.md","kind":"deps","icon":"package","color":"#2dd4bf"} -->
+# Dependences
+<!-- iaterminal:context {"version":1,"id":"iaterminal:deps:Dependences","name":"Dependences","fileName":"Dependences.md","kind":"deps","icon":"package","color":"#2dd4bf"} -->
 
 <!-- iaterminal:auto -->
 {
@@ -99,11 +99,5 @@
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->
-- `node-pty` — Native PTY in main
-- `@xterm/xterm` — Terminal UI
-- `electron` — Desktop shell
-- `react` — Renderer UI
-- `vitest` — Unit tests
-- `scripts:dev` — electron-vite dev
-- `scripts:dist` — macOS arm64 DMG
+(no annotations yet)
 <!-- /iaterminal:notes -->

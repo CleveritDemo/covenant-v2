@@ -1,5 +1,5 @@
-# Design Language
-<!-- iaterminal:context {"version":1,"id":"a2813272-f448-48a7-91f0-12d5d492ee49","name":"Design Language","fileName":"Design-Language.md","kind":"notes","icon":"sparkles","color":"#fb7185"} -->
+# Deisgn Language
+<!-- iaterminal:context {"version":1,"id":"iaterminal:notes:Deisgn-Language","name":"Deisgn Language","fileName":"Deisgn-Language.md","kind":"notes","icon":"sparkles","color":"#fb7185"} -->
 
 <!-- iaterminal:auto -->
 (manual notes context)

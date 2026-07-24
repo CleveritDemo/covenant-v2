@@ -316,7 +316,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
   const selectedContextIds = useMemo(() => {
     const agent = entities.find(entity => entity.paneId === openChatAgentId)
-    return (agent?.contexts ?? []).map(context => context.id)
+    if (!agent || agent.kind !== 'agent') return []
+    if (agent.contextIds?.length) return agent.contextIds
+    return (agent.contexts ?? []).map(context => context.id)
   }, [entities, openChatAgentId])
 
   const autoImprove = Boolean(

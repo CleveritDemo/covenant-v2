@@ -1,5 +1,6 @@
 import React from 'react'
 import type { TabContext } from '@shared/tabContext'
+import { isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Button, ContextCheckOption, SettingToggle } from '../components/ui'
 import './AgentConfigContextSummary.css'
@@ -10,12 +11,12 @@ export interface AgentConfigContextSummaryProps {
   locked: boolean
   loopActive: boolean
   autoImprove: boolean
-  emitResults: boolean
+  /** Slug del agente: oculta su propio results en el picker. */
+  agentId?: string
   contextNotice: string
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
   onAutoImproveChange: (checked: boolean) => void
-  onEmitResultsChange: (checked: boolean) => void
 }
 
 /** Picker checkbox de contextos; Gestionar = CRUD. */
@@ -24,18 +25,20 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
   selectedContextIds,
   locked,
   autoImprove,
-  emitResults,
+  agentId,
   contextNotice,
   onToggleContext,
   onOpenContextsModal,
   onAutoImproveChange,
-  onEmitResultsChange,
 }) => {
   const { t } = useT()
   const selectedCount = selectedContextIds.length
   const hasDiskContexts = diskContexts.length > 0
   const projectContexts = diskContexts.filter(context => context.kind !== 'agentResult')
-  const agentResultContexts = diskContexts.filter(context => context.kind === 'agentResult')
+  const agentResultContexts = diskContexts.filter(context =>
+    context.kind === 'agentResult'
+    && !isAgentOwnResultContext(agentId, context.id),
+  )
 
   const renderItem = (context: TabContext) => (
     <li key={context.id}>
@@ -105,14 +108,6 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
         description={t('tabContexts.autoImproveHint')}
         hint={t('tabContexts.autoImproveHint')}
         onChange={onAutoImproveChange}
-      />
-      <SettingToggle
-        checked={emitResults}
-        disabled={locked}
-        title={t('tabContexts.emitResults')}
-        description={t('tabContexts.emitResultsHint')}
-        hint={t('tabContexts.emitResultsHint')}
-        onChange={onEmitResultsChange}
       />
       {contextNotice ? <p className="agent-config-contexts__notice">{contextNotice}</p> : null}
     </div>

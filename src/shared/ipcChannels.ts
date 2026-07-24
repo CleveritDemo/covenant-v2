@@ -131,6 +131,8 @@ export const IPC = {
   PROJECT_AGENTS_LIST: 'projectAgents:list',
   /** Renderer → main (invoke): crear/actualizar agente en `.iaterminal/agents/` */
   PROJECT_AGENTS_UPSERT: 'projectAgents:upsert',
+  /** Renderer → main (invoke): renombrar slug del JSON en `.iaterminal/agents/` */
+  PROJECT_AGENTS_RENAME: 'projectAgents:rename',
   /** Renderer → main (invoke): borrar agente del catálogo del proyecto */
   PROJECT_AGENTS_DELETE: 'projectAgents:delete',
   /** Renderer → main: guardar historial de chat IA de un pane */

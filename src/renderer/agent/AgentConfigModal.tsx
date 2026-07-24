@@ -3,6 +3,7 @@ import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shar
 import type { TabContext } from '@shared/tabContext'
 import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
+import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentCoordination } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -15,6 +16,7 @@ import './AgentConfigModal.css'
 
 function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
   return {
+    id: meta.id ?? '',
     name: meta.name ?? '',
     role: meta.role ?? '',
     objective: meta.objective ?? '',
@@ -46,7 +48,7 @@ export interface AgentConfigModalProps {
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
   onAutoImproveChange: (checked: boolean) => void
-  onEmitResultsChange: (checked: boolean) => void
+  onContextsTabFocus?: () => void
   /** Cerrar al pulsar el fondo (por defecto sí para este modal). */
   closeOnBackdrop?: boolean
 }
@@ -73,7 +75,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onToggleContext,
   onOpenContextsModal,
   onAutoImproveChange,
-  onEmitResultsChange,
+  onContextsTabFocus,
   closeOnBackdrop = true,
 }) => {
   const { t } = useT()
@@ -88,7 +90,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     const next = identityDraftFromMeta(meta)
     draftRef.current = next
     setDraft(next)
-  }, [open, meta.name, meta.role, meta.objective, rulesKey])
+  }, [open, meta.id, meta.name, meta.role, meta.objective, rulesKey])
 
   const updateDraft = useCallback((patch: Partial<AgentIdentityDraft>) => {
     setDraft(previous => {
@@ -99,13 +101,20 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   }, [])
 
   const commitIdentity = useCallback(() => {
-    onCommitIdentity(draftRef.current)
-  }, [onCommitIdentity])
+    const current = draftRef.current
+    const normalizedId = normalizeAgentSlug(current.id, meta.id) || meta.id
+    const next = normalizedId === current.id ? current : { ...current, id: normalizedId }
+    if (next !== current) {
+      draftRef.current = next
+      setDraft(next)
+    }
+    onCommitIdentity(next)
+  }, [meta.id, onCommitIdentity])
 
   const handleClose = useCallback(() => {
-    onCommitIdentity(draftRef.current)
+    commitIdentity()
     onClose()
-  }, [onClose, onCommitIdentity])
+  }, [commitIdentity, onClose])
 
   const modelOptions = modelsForProvider(meta.provider)
   const selectedModel = meta.model?.trim() ?? ''
@@ -168,7 +177,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           onToggleContext={onToggleContext}
           onOpenContextsModal={onOpenContextsModal}
           onAutoImproveChange={onAutoImproveChange}
-          onEmitResultsChange={onEmitResultsChange}
+          onContextsTabFocus={onContextsTabFocus}
         />
       </div>
     </TerminalModal>

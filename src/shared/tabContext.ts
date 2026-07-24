@@ -41,6 +41,212 @@ export function normalizeContextFileName(value: string | null | undefined, fallb
   return `${stem}.md`
 }
 
+/** Root relativo normalizado para ids canónicos (`.` = proyecto). */
+export function normalizeContextRootPath(value: string | null | undefined): string {
+  const normalized = (value ?? '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/\/+$/, '')
+  return !normalized || normalized === '.' ? '.' : normalized
+}
+
+function rootFileStem(rootPath: string | null | undefined): string {
+  const root = normalizeContextRootPath(rootPath)
+  if (root === '.') return ''
+  return root.split('/').filter(Boolean).join('-')
+}
+
+export interface CanonicalContextOptions {
+  rootPath?: string
+  /** Stem del archivo (sin .md). */
+  fileStem?: string
+  /** agentId estable del catálogo (no display name). */
+  agentId?: string
+  name?: string
+}
+
+function isCreatableContextKind(kind: TabContextKind): boolean {
+  return (CREATABLE_CONTEXT_KINDS as readonly string[]).includes(kind)
+}
+
+/** Stem por defecto histórico cuando no hay name/fileStem. */
+function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOptions = {}): string {
+  switch (kind) {
+    case 'folderTree': {
+      const stem = rootFileStem(options.rootPath)
+      return stem ? `folders-${stem}` : 'folders'
+    }
+    case 'files': {
+      const stem = rootFileStem(options.rootPath)
+      return stem ? `files-${stem}` : 'files'
+    }
+    case 'symbols':
+      return suggestSymbolsIdentity(options.rootPath).fileStem
+    case 'deps':
+      return 'dependences'
+    case 'git':
+      return 'git'
+    case 'readme':
+      return 'readme'
+    case 'changelog':
+      return 'changelog'
+    case 'notes':
+      return 'notes'
+    default:
+      return kind
+  }
+}
+
+/** Stem de identidad: name → fileStem → default del kind. */
+export function creatableContextStem(
+  kind: TabContextKind,
+  options: CanonicalContextOptions = {},
+): string {
+  const fallback = defaultCreatableStem(kind, options)
+  return normalizeContextFileName(
+    (options.name ?? '').trim() || (options.fileStem ?? '').trim() || fallback,
+    fallback,
+  ).replace(/\.md$/i, '')
+}
+
+/** Id estable en disco / contextIds: `iaterminal:<kind>:<stem>` (creatable). */
+export function canonicalContextId(
+  kind: TabContextKind,
+  options: CanonicalContextOptions = {},
+): string {
+  if (kind === 'agentResult') {
+    const agentId = (options.agentId ?? '').trim() || 'agent'
+    return `iaterminal:result:${agentId}`
+  }
+  if (isCreatableContextKind(kind)) {
+    return `iaterminal:${kind}:${creatableContextStem(kind, options)}`
+  }
+  return `iaterminal:${kind}`
+}
+
+/** Ruta relativa bajo `.iaterminal/` para el kind. */
+export function canonicalContextFileName(
+  kind: TabContextKind,
+  options: CanonicalContextOptions = {},
+): string {
+  if (kind === 'agentResult') {
+    const agentId = (options.agentId ?? '').trim() || 'agent'
+    return `results/${agentId}.md`
+  }
+  if (isCreatableContextKind(kind)) {
+    return normalizeContextFileName(
+      creatableContextStem(kind, options),
+      defaultCreatableStem(kind, options),
+    )
+  }
+  return normalizeContextFileName(kind)
+}
+
+/** Nombre visible por defecto del kind. */
+export function canonicalContextName(
+  kind: TabContextKind,
+  options: CanonicalContextOptions = {},
+): string {
+  const root = normalizeContextRootPath(options.rootPath)
+  const label = root === '.' ? '' : root.split('/').filter(Boolean).join(' / ')
+  switch (kind) {
+    case 'folderTree':
+      return label ? `Folders · ${label}` : 'folders'
+    case 'files':
+      return label ? `Files · ${label}` : 'Files'
+    case 'symbols':
+      return suggestSymbolsIdentity(options.rootPath).name
+    case 'deps':
+      return 'Dependencies'
+    case 'git':
+      return 'Git'
+    case 'readme':
+      return 'README'
+    case 'changelog':
+      return 'AI Changelog'
+    case 'notes':
+      return (options.name ?? '').trim() || 'Notes'
+    case 'agentResult':
+      return (options.name ?? '').trim() || (options.agentId ?? 'agent')
+    default:
+      return kind
+  }
+}
+
+/** Firma de definición para deduplicar creatables por kind+stem (mismo archivo). */
+export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id'>): string | null {
+  if (context.kind === 'agentResult') {
+    const agentId = context.id.replace(/^iaterminal:result:/, '')
+      || context.fileName.replace(/^results\//, '').replace(/\.md$/i, '')
+    return JSON.stringify({ kind: 'agentResult', agentId })
+  }
+  if (!isCreatableContextKind(context.kind)) return null
+  const stem = creatableContextStem(context.kind, {
+    rootPath: context.rootPath,
+    fileStem: context.fileName?.replace(/\.md$/i, ''),
+    name: context.name,
+  })
+  return JSON.stringify({ kind: context.kind, stem })
+}
+
+/** Rellena id/fileName/name canónicos; fileName creatable siempre deriva del name. */
+export function applyCanonicalContextIdentity(context: TabContext): TabContext {
+  const rootPath = context.rootPath
+  const fileStem = context.fileName?.replace(/\.md$/i, '')
+  const agentId = context.kind === 'agentResult'
+    ? (context.id.startsWith('iaterminal:result:')
+        ? context.id.slice('iaterminal:result:'.length)
+        : (context.fileName?.replace(/^results\//, '').replace(/\.md$/i, '') || undefined))
+    : undefined
+  // Name vacío → stem desde fileStem/default (no desde el display name canónico).
+  const identityName = context.name.trim() || undefined
+  const id = canonicalContextId(context.kind, {
+    rootPath,
+    fileStem,
+    agentId,
+    name: identityName,
+  })
+  const fileName = canonicalContextFileName(context.kind, {
+    rootPath,
+    fileStem,
+    agentId,
+    name: identityName,
+  })
+  const resolvedName = context.name.trim()
+    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId })
+  return {
+    ...context,
+    id,
+    fileName,
+    name: resolvedName,
+    ...(rootPath !== undefined
+      ? { rootPath: normalizeContextRootPath(rootPath) === '.' ? undefined : normalizeContextRootPath(rootPath) }
+      : {}),
+  }
+}
+
+/** ¿El id ya es canónico para su kind? (ids cortos legacy → false, se migran). */
+export function isCanonicalContextId(context: Pick<TabContext, 'id' | 'kind' | 'rootPath' | 'fileName' | 'name'>): boolean {
+  if (context.kind === 'agentResult') {
+    // agentId = stem de results/<agentId>.md (no el display name ni un id suelto).
+    const stem = (context.fileName ?? '')
+      .replace(/\\/g, '/')
+      .replace(/^results\//i, '')
+      .replace(/\.md$/i, '')
+      .trim()
+    const agentId = stem || undefined
+    if (!agentId) return false
+    return context.id === canonicalContextId('agentResult', { agentId })
+  }
+  const expected = canonicalContextId(context.kind, {
+    rootPath: context.rootPath,
+    fileStem: context.fileName?.replace(/\.md$/i, ''),
+    name: context.name,
+  })
+  return context.id === expected
+}
+
 /** Definición persistida; el contenido vivo se materializa desde el disco. */
 export interface TabContext {
   id: string
@@ -66,6 +272,8 @@ export interface TabContextPreviewRequest {
   cwd: string
   /** Solo para notes al guardar; nunca se persiste en session.json. */
   content?: string
+  /** Archivo previo al renombrar en edit; se elimina tras escribir el nuevo. */
+  previousFileName?: string
 }
 
 export interface TabContextPreviewResult {
@@ -84,6 +292,10 @@ export interface TabContextDiscoveryRequest {
 export interface TabContextDiscoveryResult {
   ok: boolean
   contexts: TabContext[]
+  /** oldId → canonicalId cuando se migró metadata en disco. */
+  idRemap?: Record<string, string>
+  /** true si algún id/archivo se normalizó a canónico. */
+  contextsMigrated?: boolean
   error?: string
 }
 

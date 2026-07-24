@@ -12,6 +12,7 @@ import {
   MAX_ORCHESTRATION_ROUNDS,
   type AgentCoordination,
 } from './agentOrchestration'
+import { normalizeContextFileName, type TabContext } from './tabContext'
 
 export type AgentCliProvider = 'claude' | 'cursor'
 export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
@@ -82,6 +83,148 @@ export function allocateAgentSlug(
   return `${base}-${Date.now().toString(36)}`.slice(0, 64)
 }
 
+/** Definición inicial al crear un agente (emitResults on; id desde el nombre). */
+export function buildNewProjectAgentDefinition(
+  provider: AgentCliProvider,
+  name: string,
+  existingIds: ReadonlySet<string>,
+): ProjectAgentDefinition {
+  const trimmed = name.trim()
+  const displayName = sanitizeAgentTextDraft(trimmed, AGENT_NAME_MAX_LENGTH)
+  const id = allocateAgentSlug(trimmed || displayName || provider, existingIds)
+  return {
+    id,
+    provider: provider === 'cursor' ? 'cursor' : 'claude',
+    permissionMode: 'auto',
+    autoImproveContexts: true,
+    emitResults: true,
+    ...(displayName ? { name: displayName } : {}),
+  }
+}
+
+/** Id de contexto de results ligado al slug del agente. */
+export function agentResultContextIdForSlug(agentId: string): string {
+  return `iaterminal:result:${normalizeAgentSlug(agentId, 'agent')}`
+}
+
+/** ¿Es el contexto results del propio agente? (no debe autoasignarse). */
+export function isAgentOwnResultContext(
+  agentId: string | undefined | null,
+  contextId: string,
+): boolean {
+  const id = (agentId ?? '').trim()
+  if (!id || !contextId.startsWith('iaterminal:result:')) return false
+  return contextId === agentResultContextIdForSlug(id)
+}
+
+/**
+ * Reescribe bindings pane→agente cuando cambia el slug del JSON en el repo.
+ * Solo toca tabs con el mismo projectFolder.
+ */
+export function remapAgentBindingsInTabs<
+  T extends {
+    projectFolder?: string
+    agentByPane?: Record<string, AgentPaneBinding>
+  },
+>(
+  tabs: readonly T[],
+  projectFolder: string,
+  fromId: string,
+  toId: string,
+): T[] {
+  const root = projectFolder.trim()
+  const from = normalizeAgentSlug(fromId)
+  const to = normalizeAgentSlug(toId)
+  if (!root || !from || !to || from === to) return [...tabs]
+
+  return tabs.map(tab => {
+    if ((tab.projectFolder ?? '').trim() !== root) return tab
+    const prev = tab.agentByPane
+    if (!prev) return tab
+    let changed = false
+    const agentByPane: Record<string, AgentPaneBinding> = {}
+    for (const [paneId, binding] of Object.entries(prev)) {
+      if (binding.agentId === from) {
+        agentByPane[paneId] = { ...binding, agentId: to }
+        changed = true
+      } else {
+        agentByPane[paneId] = binding
+      }
+    }
+    return changed ? { ...tab, agentByPane } : tab
+  })
+}
+
+/** Sustituye contextIds de results al renombrar el slug del agente. */
+export function remapAgentResultContextIds(
+  contextIds: readonly string[] | undefined,
+  fromId: string,
+  toId: string,
+): string[] | undefined {
+  if (!contextIds?.length) return contextIds ? [...contextIds] : undefined
+  const fromCtx = agentResultContextIdForSlug(fromId)
+  const toCtx = agentResultContextIdForSlug(toId)
+  if (fromCtx === toCtx) return [...contextIds]
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const id of contextIds) {
+    const mapped = id === fromCtx ? toCtx : id
+    if (seen.has(mapped)) continue
+    seen.add(mapped)
+    next.push(mapped)
+  }
+  return next
+}
+
+/** Remapea assignments de results en todo el catálogo al cambiar un slug. */
+export function remapAgentResultIdsInCatalog(
+  agents: readonly ProjectAgentDefinition[],
+  fromId: string,
+  toId: string,
+): ProjectAgentDefinition[] {
+  const from = normalizeAgentSlug(fromId)
+  const to = normalizeAgentSlug(toId)
+  if (!from || !to || from === to) return [...agents]
+  return agents.map(agent => {
+    const remapped = remapAgentResultContextIds(agent.contextIds, from, to)
+    if (!remapped) return agent
+    const prev = agent.contextIds ?? []
+    if (remapped.length === prev.length && remapped.every((id, i) => id === prev[i])) {
+      return agent
+    }
+    const { contextIds: _prev, ...rest } = agent
+    return {
+      ...rest,
+      ...(remapped.length ? { contextIds: remapped } : {}),
+    }
+  })
+}
+
+/** Actualiza entradas agentResult del catálogo UI al renombrar el slug. */
+export function remapAgentResultTabContexts(
+  contexts: readonly TabContext[],
+  fromId: string,
+  toId: string,
+): TabContext[] {
+  const from = normalizeAgentSlug(fromId)
+  const to = normalizeAgentSlug(toId)
+  if (!from || !to || from === to) return [...contexts]
+  const fromCtx = agentResultContextIdForSlug(from)
+  const toCtx = agentResultContextIdForSlug(to)
+  const fromFile = `results/${from}.md`
+  const toFile = `results/${to}.md`
+  return contexts.map(context => {
+    if (context.kind !== 'agentResult') return context
+    const match = context.id === fromCtx || context.fileName === fromFile
+    if (!match) return context
+    return {
+      ...context,
+      id: toCtx,
+      fileName: toFile,
+    }
+  })
+}
+
 function sanitizePermissionMode(raw: unknown): AgentPermissionMode {
   if (raw === 'auto') return 'auto'
   if (raw === 'plan' || raw === 'readonly') return 'plan'
@@ -137,11 +280,11 @@ export function parseProjectAgentDefinition(
   if (Array.isArray(data.contextIds)) {
     const contextIds = data.contextIds.filter(
       (item): item is string => typeof item === 'string' && item.trim().length > 0,
-    )
+    ).filter(id => !isAgentOwnResultContext(def.id, id))
     if (contextIds.length) def.contextIds = contextIds
   }
   if (data.autoImproveContexts === true) def.autoImproveContexts = true
-  if (data.emitResults === true) def.emitResults = true
+  def.emitResults = true
   const coordination = sanitizeAgentCoordination(data.coordination)
   if (coordination === 'orchestrator') {
     def.coordination = 'orchestrator'
@@ -171,7 +314,7 @@ export function cloneProjectAgentDefinition(
     ...(source.model ? { model: source.model } : {}),
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
-    ...(source.emitResults === true ? { emitResults: true } : {}),
+    emitResults: true,
     ...(source.coordination === 'orchestrator' ? { coordination: 'orchestrator' as const } : {}),
     ...(source.acceptDelegations === false ? { acceptDelegations: false } : {}),
     ...(source.coordination === 'orchestrator'
@@ -220,20 +363,46 @@ export function parseAgentPaneBinding(raw: unknown): AgentPaneBinding | null {
 }
 
 /** Une catálogo + binding local para la UI del pane. */
+export function resolveCatalogAgentId(
+  agents: readonly ProjectAgentDefinition[],
+  rawId: string | null | undefined,
+): string {
+  const normalized = normalizeAgentSlug(rawId, 'agent')
+  if (!normalized) return 'agent'
+  if (agents.some(agent => normalizeAgentSlug(agent.id) === normalized)) {
+    return normalized
+  }
+  const byName = agents.filter(agent => {
+    const name = (agent.name ?? '').trim()
+    if (!name) return false
+    const nameSlug = normalizeContextFileName(name, 'agent').replace(/\.md$/i, '')
+    return normalizeAgentSlug(nameSlug) === normalized
+  })
+  if (byName.length === 1) return normalizeAgentSlug(byName[0].id, 'agent')
+  return normalized
+}
+
+/** Une catálogo + binding local para la UI del pane. */
 export function resolveAgentPaneMeta(
   binding: AgentPaneBinding,
   definition: ProjectAgentDefinition | undefined,
+  catalog: readonly ProjectAgentDefinition[] = [],
 ): AgentPaneMeta {
-  const base: ProjectAgentDefinition = definition && definition.id === binding.agentId
-    ? definition
+  const resolvedId = definition?.id
+    ?? (catalog.length ? resolveCatalogAgentId(catalog, binding.agentId) : binding.agentId)
+  const resolvedDefinition = definition
+    ?? catalog.find(agent => agent.id === resolvedId)
+  const base: ProjectAgentDefinition = resolvedDefinition && resolvedDefinition.id === resolvedId
+    ? resolvedDefinition
     : {
-        id: binding.agentId,
+        id: resolvedId,
         provider: 'claude',
         permissionMode: 'ask',
       }
   return {
     ...base,
-    id: binding.agentId,
+    id: resolvedId,
+    emitResults: true,
     ...(binding.cliSessionId ? { cliSessionId: binding.cliSessionId } : {}),
   }
 }
@@ -250,7 +419,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     model: meta.model,
     contextIds: meta.contextIds,
     autoImproveContexts: meta.autoImproveContexts,
-    emitResults: meta.emitResults,
+    emitResults: true,
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
@@ -262,6 +431,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
       : meta.permissionMode === 'plan'
         ? 'plan'
         : 'ask',
+    emitResults: true,
   }
 }
 

@@ -28,6 +28,7 @@ import {
 import {
   buildAiAgentResultsInstruction,
   extractAiAgentResults,
+  resolveResultsAgentId,
   upsertAiAgentResults,
 } from './aiAgentResults'
 import {
@@ -118,12 +119,13 @@ function planContextDelivery(
     ? contextSessionKey(request.provider, request.cliSessionId)
     : null
   const previous = sessionKey ? sessionContextDeliveries.get(sessionKey) : undefined
-  const forceFullRefresh = shouldForceFullContextRefresh(
-    previous?.turnsSinceFullRefresh ?? null,
-  )
+  const forceFullRefresh = request.forceContextFullRefresh === true
+    || shouldForceFullContextRefresh(
+      previous?.turnsSinceFullRefresh ?? null,
+    )
   const delivery = buildContextPromptDelivery(request.contexts ?? [], cwd, {
     allowAnnotationUpdates: request.autoImproveContexts === true,
-    previousSnapshot: previous?.snapshot,
+    previousSnapshot: request.forceContextFullRefresh === true ? undefined : previous?.snapshot,
     forceFullRefresh,
     userPrompt: request.prompt,
     discoveredContexts: request.discoveredContexts,
@@ -513,9 +515,7 @@ export function composePrompt(
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
-  const resultsInstruction = request.emitResults === true
-    ? buildAiAgentResultsInstruction(request.name)
-    : ''
+  const resultsInstruction = buildAiAgentResultsInstruction(request.name)
   const isOrchestrator = request.coordination === 'orchestrator'
   const allowDelegations = request.allowDelegations !== false
   const orchestrationBlock = isOrchestrator
@@ -781,10 +781,12 @@ export function startAgentTurn(
             )
             if (
               resultsPayload
-              && request.emitResults === true
-              && request.name?.trim()
+              && request.agentId?.trim()
             ) {
-              upsertAiAgentResults(cwd, request.name.trim(), resultsPayload)
+              const resolvedAgentId = resolveResultsAgentId(cwd, request.agentId.trim())
+              upsertAiAgentResults(cwd, resolvedAgentId, resultsPayload, {
+                agentName: request.name?.trim(),
+              })
             }
             const { visibleText, delegations } = request.coordination === 'orchestrator'
               ? extractAiAgentDelegates(afterResults)

@@ -1,40 +1,148 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyCanonicalContextIdentity,
+  canonicalContextFileName,
+  canonicalContextId,
+  contextDefinitionKey,
   defaultAssignedContextIds,
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
+  isCanonicalContextId,
   normalizeAnnotation,
   suggestSymbolsIdentity,
 } from '../tabContext'
 
+describe('canonical context identity', () => {
+  it('maps creatable kinds to stemmed iaterminal ids and name-derived filenames', () => {
+    expect(canonicalContextId('folderTree')).toBe('iaterminal:folderTree:folders')
+    expect(canonicalContextId('folderTree', { rootPath: 'src' })).toBe(
+      'iaterminal:folderTree:folders-src',
+    )
+    expect(canonicalContextId('deps')).toBe('iaterminal:deps:dependences')
+    expect(canonicalContextId('deps', { name: 'Runtime deps' })).toBe(
+      'iaterminal:deps:Runtime-deps',
+    )
+    expect(canonicalContextId('notes', { fileStem: 'design-language' })).toBe(
+      'iaterminal:notes:design-language',
+    )
+    expect(canonicalContextId('agentResult', { agentId: 'fullstack' })).toBe(
+      'iaterminal:result:fullstack',
+    )
+    expect(canonicalContextFileName('agentResult', { agentId: 'fullstack' })).toBe(
+      'results/fullstack.md',
+    )
+    expect(canonicalContextFileName('folderTree')).toBe('folders.md')
+    expect(canonicalContextFileName('deps', { name: 'Runtime deps' })).toBe('Runtime-deps.md')
+  })
+
+  it('dedupes the same stem, not the same kind alone', () => {
+    const a = applyCanonicalContextIdentity({
+      id: 'x',
+      name: 'folders',
+      fileName: 'folders.md',
+      kind: 'folderTree',
+    })
+    const b = applyCanonicalContextIdentity({
+      id: 'y',
+      name: 'Tree',
+      fileName: 'other.md',
+      kind: 'folderTree',
+    })
+    expect(a.id).toBe('iaterminal:folderTree:folders')
+    expect(b.id).toBe('iaterminal:folderTree:Tree')
+    expect(contextDefinitionKey(a)).not.toBe(contextDefinitionKey(b))
+    expect(contextDefinitionKey(a)).toBe(contextDefinitionKey({
+      ...a,
+      id: 'z',
+      name: 'folders',
+      fileName: 'folders.md',
+    }))
+  })
+
+  it('forces creatable fileName from name and rejects legacy short ids', () => {
+    const applied = applyCanonicalContextIdentity({
+      id: 'iaterminal:deps',
+      name: 'Runtime deps',
+      fileName: 'dependences.md',
+      kind: 'deps',
+    })
+    expect(applied.id).toBe('iaterminal:deps:Runtime-deps')
+    expect(applied.fileName).toBe('Runtime-deps.md')
+    expect(isCanonicalContextId({
+      id: 'iaterminal:deps',
+      kind: 'deps',
+      fileName: 'dependences.md',
+      name: 'Dependencies',
+    })).toBe(false)
+    expect(isCanonicalContextId(applied)).toBe(true)
+  })
+
+  it('requires exact agentResult id matching results/<agentId>.md stem', () => {
+    expect(isCanonicalContextId({
+      id: 'iaterminal:result:fullstack',
+      kind: 'agentResult',
+      fileName: 'results/fullstack.md',
+      name: 'fullstack',
+    })).toBe(true)
+    expect(isCanonicalContextId({
+      id: 'iaterminal:result:fullstack',
+      kind: 'agentResult',
+      fileName: 'results/example2.md',
+      name: 'fullstack',
+    })).toBe(false)
+    expect(isCanonicalContextId({
+      id: 'iaterminal:result:example2',
+      kind: 'agentResult',
+      fileName: 'results/example2.md',
+      name: 'fullstack',
+    })).toBe(true)
+  })
+})
+
 describe('defaultAssignedContextIds', () => {
   it('prefers folders and symbols over deps or changelog', () => {
     const ids = defaultAssignedContextIds([
-      { id: '2601e189', name: 'dependences', fileName: 'dependences.md', kind: 'deps' },
-      { id: 'iaterminal:changelog', name: 'AI Changelog', fileName: 'changelog.md', kind: 'changelog' },
-      { id: 'discovered-file:folders.md', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
+      { id: 'iaterminal:deps:dependences', name: 'dependences', fileName: 'dependences.md', kind: 'deps' },
+      { id: 'iaterminal:changelog:changelog', name: 'AI Changelog', fileName: 'changelog.md', kind: 'changelog' },
+      { id: 'iaterminal:folderTree:folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
       {
-        id: 'discovered-file:classes-methods-variables.md',
+        id: 'iaterminal:symbols:classes-methods',
         name: 'symbols',
-        fileName: 'classes-methods-variables.md',
+        fileName: 'classes-methods.md',
         kind: 'symbols',
       },
-      { id: 'readme-1', name: 'README', fileName: 'readme.md', kind: 'readme' },
+      { id: 'iaterminal:readme:readme', name: 'README', fileName: 'readme.md', kind: 'readme' },
     ])
 
     expect(ids).toEqual([
-      'discovered-file:folders.md',
-      'discovered-file:classes-methods-variables.md',
+      'iaterminal:folderTree:folders',
+      'iaterminal:symbols:classes-methods',
     ])
   })
 
   it('assigns every symbols context for monorepos', () => {
     const ids = defaultAssignedContextIds([
-      { id: 'folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
-      { id: 'sym-back', name: 'Classes · back', fileName: 'classes-back.md', kind: 'symbols', rootPath: 'back' },
-      { id: 'sym-front', name: 'Classes · front', fileName: 'classes-front.md', kind: 'symbols', rootPath: 'front' },
+      { id: 'iaterminal:folderTree:folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' },
+      {
+        id: 'iaterminal:symbols:classes-back',
+        name: 'Classes · back',
+        fileName: 'classes-back.md',
+        kind: 'symbols',
+        rootPath: 'back',
+      },
+      {
+        id: 'iaterminal:symbols:classes-front',
+        name: 'Classes · front',
+        fileName: 'classes-front.md',
+        kind: 'symbols',
+        rootPath: 'front',
+      },
     ])
-    expect(ids).toEqual(['folders', 'sym-back', 'sym-front'])
+    expect(ids).toEqual([
+      'iaterminal:folderTree:folders',
+      'iaterminal:symbols:classes-back',
+      'iaterminal:symbols:classes-front',
+    ])
   })
 })
 

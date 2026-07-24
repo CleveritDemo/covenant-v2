@@ -1,8 +1,10 @@
 import React from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
+import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { PlaneBusyDot } from './PlaneBusyDot'
+import { setPlaneContextDragData } from './planeContextDrag'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -18,6 +20,12 @@ export interface PlaneMiniFaceProps {
   deleteLabel?: string
   onConfigure?: () => void
   onDelete?: () => void
+  /** Slug del agente: habilita drag del archivo de results. */
+  agentId?: string
+  reorderEnabled?: boolean
+  reorderLabel?: string
+  resultsDragLabel?: string
+  onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Contextos anidados (lista con nombres) debajo del cuerpo. */
   children?: React.ReactNode
 }
@@ -34,9 +42,22 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   deleteLabel,
   onConfigure,
   onDelete,
+  agentId,
+  reorderEnabled = false,
+  reorderLabel,
+  resultsDragLabel,
+  onReorderPointerDown,
   children,
 }) => {
   const { t } = useT()
+  const showReorder = Boolean(reorderEnabled && onReorderPointerDown && reorderLabel)
+  const resultsId = agentId?.trim()
+    ? agentResultContextIdForSlug(agentId)
+    : ''
+  // Visible si hay agentId; el label i18n no oculta el control.
+  const showResultsDrag = Boolean(resultsId)
+  const resultsTitle = resultsDragLabel || resultsId
+
   return (
   <div
     className={[
@@ -49,6 +70,24 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     <div className="plane-mini-face__glow" aria-hidden="true" />
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">
+        {showReorder ? (
+          <button
+            type="button"
+            className="plane-mini-face__action plane-mini-face__drag-handle"
+            title={reorderLabel}
+            aria-label={reorderLabel}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onPointerDown={event => {
+              event.stopPropagation()
+              onReorderPointerDown?.(event)
+            }}
+          >
+            <Icon name="drag-handle" size={11} />
+          </button>
+        ) : null}
         <span className="plane-mini-face__name" title={name}>{name}</span>
         <span
           className={[
@@ -123,6 +162,29 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       <div className="plane-mini-face__nodes">
         {children}
       </div>
+    ) : null}
+    {showResultsDrag ? (
+      <button
+        type="button"
+        className="plane-mini-face__action plane-mini-face__results-drag"
+        title={resultsTitle}
+        aria-label={resultsTitle}
+        draggable
+        onClick={event => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onPointerDown={event => {
+          event.stopPropagation()
+        }}
+        onPointerUp={event => event.stopPropagation()}
+        onDragStart={event => {
+          event.stopPropagation()
+          setPlaneContextDragData(event.dataTransfer, resultsId)
+        }}
+      >
+        <Icon name="files" size={12} />
+      </button>
     ) : null}
   </div>
   )

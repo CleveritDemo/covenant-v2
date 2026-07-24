@@ -59,6 +59,10 @@ export interface PlanePaneWindowProps {
   slotMotion?: boolean
   dragPosition?: { x: number; y: number } | null
   onReorderPointerDown?: (event: React.PointerEvent) => void
+  /** Handle de agentes: reorder inmediato (sin long-press). */
+  onReorderHandlePointerDown?: (event: React.PointerEvent) => void
+  /** Slug del agente para drag del contexto results. */
+  agentId?: string
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -99,6 +103,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   slotMotion = false,
   dragPosition = null,
   onReorderPointerDown,
+  onReorderHandlePointerDown,
+  agentId,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -155,6 +161,15 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             provider={provider}
             coordination={coordination}
             statusLabel={statusLabel}
+            agentId={agentId}
+            reorderEnabled={reorderEnabled && !isExpanded}
+            reorderLabel={t('tabs.planeDragHandle')}
+            resultsDragLabel={t('tabs.planeAgentResultsDrag')}
+            onReorderPointerDown={
+              reorderEnabled && !isExpanded && onReorderHandlePointerDown
+                ? onReorderHandlePointerDown
+                : undefined
+            }
           >
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
@@ -186,7 +201,9 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         reorderState={isExpanded ? 'idle' : reorderState}
         reorderJiggleDelayMs={reorderJiggleDelayMs}
         slotMotion={slotMotion && !isExpanded}
-        onReorderPointerDown={reorderEnabled && !isExpanded ? onReorderPointerDown : undefined}
+        onReorderPointerDown={
+          !isAgent && reorderEnabled && !isExpanded ? onReorderPointerDown : undefined
+        }
       >
         {children}
       </PaneWindow>

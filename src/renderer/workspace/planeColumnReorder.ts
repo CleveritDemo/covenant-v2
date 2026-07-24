@@ -9,6 +9,22 @@ export type PlaneReorderVisualState = 'idle' | 'jiggle' | 'dragging' | 'previewM
 
 const LONG_PRESS_MS = 400
 const MOVE_CANCEL_PX = 8
+/** Umbral para iniciar drag desde el handle (click corto = no-op). */
+export const HANDLE_DRAG_THRESHOLD_PX = 6
+const HANDLE_REENTRY_MS = 300
+
+/** ¿Hay que persistir un nuevo orden al soltar? */
+export function shouldCommitReorder(
+  baseline: readonly string[] | null | undefined,
+  preview: readonly string[] | null | undefined,
+): preview is string[] {
+  return Boolean(
+    preview
+    && baseline
+    && preview.length === baseline.length
+    && preview.some((id, i) => id !== baseline[i]),
+  )
+}
 
 export interface PlaneColumnSlot {
   x: number
@@ -34,6 +50,8 @@ export interface UsePlaneColumnReorderResult {
   editing: boolean
   getVisualState: (paneId: string) => PlaneReorderVisualState
   onCardPointerDown: (paneId: string, event: React.PointerEvent) => void
+  /** Handle de agentes: sin long-press; drag al superar umbral de movimiento. */
+  onHandlePointerDown: (paneId: string, event: React.PointerEvent) => void
   cancel: () => void
 }
 
@@ -47,6 +65,11 @@ interface PressSession {
   longPressTimer: number
   longPressed: boolean
   dragging: boolean
+  /** Terminal long-press: modo edición sticky. Handle dragOnMove: false. */
+  persistEditing: boolean
+  /** true = handle: drag al mover; false = terminal: long-press. */
+  dragOnMove: boolean
+  captureTarget: HTMLElement | null
 }
 
 export function usePlaneColumnReorder({
@@ -71,6 +94,7 @@ export function usePlaneColumnReorder({
   const previewIdsRef = useRef<string[] | null>(null)
   const onCommitRef = useRef(onCommit)
   const onActivateRef = useRef(onActivate)
+  const handleCooldownUntilRef = useRef(0)
 
   orderedIdsRef.current = orderedIds
   slotsRef.current = slots
@@ -130,7 +154,13 @@ export function usePlaneColumnReorder({
       return next
     })
   }, [])
-  const beginDrag = useCallback((press: PressSession, clientX: number, clientY: number) => {
+
+  const beginDrag = useCallback((
+    press: PressSession,
+    clientX: number,
+    clientY: number,
+    persistEditing = true,
+  ) => {
     press.dragging = true
     press.longPressed = true
     // Congela orden/slots del gesto: un ResizeObserver no debe mover los midpoints.
@@ -138,7 +168,7 @@ export function usePlaneColumnReorder({
       dragBaselineIdsRef.current = [...orderedIdsRef.current]
       dragBaselineSlotsRef.current = { ...slotsRef.current }
     }
-    setEditing(true)
+    if (persistEditing) setEditing(true)
     setDraggingId(press.paneId)
     setDragPosition({
       x: press.grabOffsetX + (clientX - press.startX),
@@ -151,6 +181,151 @@ export function usePlaneColumnReorder({
     )
   }, [updatePreviewFromPointer])
 
+  const attachPointerSession = useCallback((
+    paneId: string,
+    event: React.PointerEvent,
+    dragOnMove: boolean,
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const target = event.currentTarget as HTMLElement
+    target.setPointerCapture?.(event.pointerId)
+
+    const slot = slotsRef.current[paneId]
+    const startSlotX = slot?.x ?? 0
+    const startSlotY = slot?.y ?? 0
+    const persistEditing = !dragOnMove
+
+    clearPressTimer()
+    const session: PressSession = {
+      paneId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      grabOffsetX: startSlotX,
+      grabOffsetY: startSlotY,
+      // Handle: no drag hasta superar umbral. Terminal ya en editing: listo para arrastrar.
+      longPressed: !dragOnMove && editing,
+      dragging: false,
+      persistEditing,
+      dragOnMove,
+      captureTarget: target,
+      longPressTimer: dragOnMove
+        ? 0
+        : window.setTimeout(() => {
+          const press = pressRef.current
+          if (!press || press.paneId !== paneId) return
+          press.longPressed = true
+          beginDrag(press, press.startX, press.startY, press.persistEditing)
+        }, LONG_PRESS_MS),
+    }
+    pressRef.current = session
+
+    // Solo terminales en modo edición sticky: drag inmediato al pointerdown.
+    // Handle (dragOnMove): esperar movimiento > umbral.
+    if (!dragOnMove && editing) {
+      if (session.longPressTimer) window.clearTimeout(session.longPressTimer)
+      beginDrag(session, event.clientX, event.clientY, session.persistEditing)
+    }
+
+    const detachListeners = (): void => {
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('pointerup', onUp, true)
+      window.removeEventListener('pointercancel', onUp, true)
+      target.removeEventListener('lostpointercapture', onLostCapture)
+    }
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      const press = pressRef.current
+      if (!press || press.paneId !== paneId || moveEvent.pointerId !== press.pointerId) return
+      const dx = moveEvent.clientX - press.startX
+      const dy = moveEvent.clientY - press.startY
+      const distance = Math.hypot(dx, dy)
+
+      if (press.dragOnMove) {
+        if (!press.dragging) {
+          if (distance <= HANDLE_DRAG_THRESHOLD_PX) return
+          beginDrag(press, moveEvent.clientX, moveEvent.clientY, press.persistEditing)
+        }
+      } else if (!press.longPressed && !press.dragging) {
+        // Terminal: mover antes del long-press cancela el gesto.
+        if (distance > MOVE_CANCEL_PX) {
+          window.clearTimeout(press.longPressTimer)
+          pressRef.current = null
+          detachListeners()
+          try {
+            press.captureTarget?.releasePointerCapture?.(press.pointerId)
+          } catch { /* already released */ }
+        }
+        return
+      } else if (!press.dragging) {
+        beginDrag(press, moveEvent.clientX, moveEvent.clientY, press.persistEditing)
+      }
+
+      if (!press.dragging) return
+      const localX = press.grabOffsetX + (moveEvent.clientX - press.startX)
+      const localY = press.grabOffsetY + (moveEvent.clientY - press.startY)
+      setDragPosition({ x: localX, y: localY })
+      const cardH = (dragBaselineSlotsRef.current ?? slotsRef.current)[press.paneId]?.height ?? 0
+      updatePreviewFromPointer(press.paneId, localY + cardH / 2)
+    }
+
+    const finishGesture = (pointerId: number): void => {
+      const press = pressRef.current
+      // Idempotente: si ya se limpió (otro up/lostcapture), no re-commit.
+      if (!press || press.paneId !== paneId || press.pointerId !== pointerId) return
+      pressRef.current = null
+      detachListeners()
+      window.clearTimeout(press.longPressTimer)
+      try {
+        press.captureTarget?.releasePointerCapture?.(press.pointerId)
+      } catch { /* already released */ }
+
+      if (press.dragging) {
+        const next = previewIdsRef.current
+        const baseline = dragBaselineIdsRef.current ?? [...orderedIdsRef.current]
+        const changed = shouldCommitReorder(baseline, next)
+        // Commit síncrono ANTES de limpiar preview → evita un frame con orden viejo.
+        if (changed) onCommitRef.current(next)
+        resetDragVisuals()
+        setEditing(false)
+        if (dragOnMove) {
+          handleCooldownUntilRef.current = Date.now() + HANDLE_REENTRY_MS
+        }
+        return
+      }
+
+      // Handle click sin mover: solo cleanup (sin activate/commit).
+      if (dragOnMove) return
+
+      setEditing(false)
+      if (!press.longPressed) {
+        onActivateRef.current(paneId)
+      }
+    }
+
+    const onUp = (upEvent: PointerEvent): void => {
+      if (upEvent.pointerId !== event.pointerId) return
+      finishGesture(upEvent.pointerId)
+    }
+
+    const onLostCapture = (lostEvent: PointerEvent): void => {
+      if (lostEvent.pointerId !== event.pointerId) return
+      finishGesture(lostEvent.pointerId)
+    }
+
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('pointerup', onUp, true)
+    window.addEventListener('pointercancel', onUp, true)
+    target.addEventListener('lostpointercapture', onLostCapture)
+  }, [
+    beginDrag,
+    clearPressTimer,
+    editing,
+    resetDragVisuals,
+    updatePreviewFromPointer,
+  ])
+
   const onCardPointerDown = useCallback((paneId: string, event: React.PointerEvent) => {
     if (!enabled || event.button !== 0) return
     if (orderedIdsRef.current.length < 2) {
@@ -162,108 +337,18 @@ export function usePlaneColumnReorder({
     )) {
       return
     }
+    attachPointerSession(paneId, event, false)
+  }, [attachPointerSession, enabled])
 
-    event.preventDefault()
-    event.stopPropagation()
-    const target = event.currentTarget as HTMLElement
-    target.setPointerCapture?.(event.pointerId)
-
-    const slot = slotsRef.current[paneId]
-    const startSlotX = slot?.x ?? 0
-    const startSlotY = slot?.y ?? 0
-
-    clearPressTimer()
-    const session: PressSession = {
-      paneId,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      grabOffsetX: startSlotX,
-      grabOffsetY: startSlotY,
-      longPressed: editing,
-      dragging: false,
-      longPressTimer: window.setTimeout(() => {
-        const press = pressRef.current
-        if (!press || press.paneId !== paneId) return
-        press.longPressed = true
-        setEditing(true)
-        beginDrag(press, press.startX, press.startY)
-      }, LONG_PRESS_MS),
+  const onHandlePointerDown = useCallback((paneId: string, event: React.PointerEvent) => {
+    if (!enabled || event.button !== 0) return
+    if (Date.now() < handleCooldownUntilRef.current) return
+    if (orderedIdsRef.current.length < 2) {
+      onActivateRef.current(paneId)
+      return
     }
-    pressRef.current = session
-
-    // Ya en modo edición: el pointerdown arrastra de inmediato.
-    if (editing) {
-      window.clearTimeout(session.longPressTimer)
-      beginDrag(session, event.clientX, event.clientY)
-    }
-
-    const onMove = (moveEvent: PointerEvent): void => {
-      const press = pressRef.current
-      if (!press || press.paneId !== paneId || moveEvent.pointerId !== press.pointerId) return
-      const dx = moveEvent.clientX - press.startX
-      const dy = moveEvent.clientY - press.startY
-      if (!press.longPressed && !press.dragging) {
-        if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) {
-          window.clearTimeout(press.longPressTimer)
-          pressRef.current = null
-          window.removeEventListener('pointermove', onMove)
-          window.removeEventListener('pointerup', onUp)
-          window.removeEventListener('pointercancel', onUp)
-        }
-        return
-      }
-      if (!press.dragging) {
-        beginDrag(press, moveEvent.clientX, moveEvent.clientY)
-      }
-      const localX = press.grabOffsetX + (moveEvent.clientX - press.startX)
-      const localY = press.grabOffsetY + (moveEvent.clientY - press.startY)
-      setDragPosition({ x: localX, y: localY })
-      const cardH = (dragBaselineSlotsRef.current ?? slotsRef.current)[press.paneId]?.height ?? 0
-      updatePreviewFromPointer(press.paneId, localY + cardH / 2)
-    }
-
-    const onUp = (upEvent: PointerEvent): void => {
-      if (upEvent.pointerId !== event.pointerId) return
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-
-      const press = pressRef.current
-      pressRef.current = null
-      if (!press || press.paneId !== paneId) return
-      window.clearTimeout(press.longPressTimer)
-
-      if (press.dragging) {
-        const next = previewIdsRef.current
-        const baseline = dragBaselineIdsRef.current ?? [...orderedIdsRef.current]
-        const changed = Boolean(
-          next
-          && next.length === baseline.length
-          && next.some((id, i) => id !== baseline[i]),
-        )
-        resetDragVisuals()
-        setEditing(false)
-        if (changed && next) onCommitRef.current(next)
-        return
-      }
-
-      if (!press.longPressed) {
-        onActivateRef.current(paneId)
-      }
-    }
-
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
-  }, [
-    beginDrag,
-    clearPressTimer,
-    editing,
-    enabled,
-    resetDragVisuals,
-    updatePreviewFromPointer,
-  ])
+    attachPointerSession(paneId, event, true)
+  }, [attachPointerSession, enabled])
 
   const getVisualState = useCallback((paneId: string): PlaneReorderVisualState => {
     if (draggingId === paneId) return 'dragging'
@@ -280,6 +365,7 @@ export function usePlaneColumnReorder({
     editing,
     getVisualState,
     onCardPointerDown,
+    onHandlePointerDown,
     cancel,
   }
 }

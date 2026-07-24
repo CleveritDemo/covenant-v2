@@ -1,0 +1,18 @@
+{
+  "id": "fullstack",
+  "provider": "cursor",
+  "permissionMode": "auto",
+  "name": "fullstack",
+  "role": "Fullstack developer expert",
+  "objective": "Develop, update and create software with the best practices and clean code",
+  "contextIds": [
+    "iaterminal:folderTree:Folders",
+    "iaterminal:symbols:Clases-and-methods",
+    "iaterminal:notes:Front-Rules",
+    "iaterminal:notes:Deisgn-Language",
+    "iaterminal:result:product-designer",
+    "iaterminal:result:qa"
+  ],
+  "autoImproveContexts": true,
+  "emitResults": true
+}

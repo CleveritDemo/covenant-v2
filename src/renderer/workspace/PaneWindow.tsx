@@ -579,6 +579,13 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     if ((event.target as HTMLElement | null)?.closest?.('button, a, input, select, textarea, [role="button"]')) {
       return
     }
+    // Agentes mini: clic abre chat; reorder solo vía handle.
+    if (miniAgentCard) {
+      event.preventDefault()
+      onFocus()
+      onExpand?.()
+      return
+    }
     if (reorderEnabled && onReorderPointerDown) {
       onFocus()
       onReorderPointerDown(event)
@@ -587,7 +594,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     event.preventDefault()
     onFocus()
     onExpand?.()
-  }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
+  }, [isMini, miniAgentCard, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
   const onContextDragOver = useCallback((event: React.DragEvent) => {
     if (!onDropContext || !hasPlaneContextDrag(event.dataTransfer)) return

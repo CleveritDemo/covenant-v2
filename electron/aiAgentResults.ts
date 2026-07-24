@@ -1,10 +1,20 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, readdirSync, unlinkSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
-import { normalizeContextFileName } from '../src/shared/tabContext'
+import {
+  canonicalContextFileName,
+  canonicalContextId,
+  normalizeContextFileName,
+} from '../src/shared/tabContext'
+import {
+  normalizeAgentSlug,
+  type ProjectAgentDefinition,
+} from '../src/shared/projectAgentCatalog'
+import { listProjectAgents, upsertProjectAgent } from './projectAgentCatalogOps'
 
 export const AGENT_RESULTS_DIR = 'results'
 const RESULTS_FENCE_RE = /```ia-terminal-results\s*\n([\s\S]*?)\n```/g
 const LOG_ENTRY_RE = /^-\s+`([^`]+)`\s+—\s+(.+)$/gm
+const CONTEXT_META_RE = /<!--\s*iaterminal:context\s+(\{[^\n]*\})\s*-->/
 const MAX_LOG_ENTRIES = 30
 const MAX_WORDS = 40
 
@@ -29,20 +39,47 @@ function normalizeText(value: unknown, maxWords = MAX_WORDS): string | null {
   return words.length ? words.join(' ') : null
 }
 
+function normalizeAgentId(agentId: string): string {
+  return normalizeAgentSlug(agentId, 'agent') || 'agent'
+}
+
+/** Slug legacy desde display name (migración). */
 export function agentResultSlug(agentName: string): string {
   return normalizeContextFileName(agentName, 'agent').replace(/\.md$/i, '')
 }
 
-export function agentResultFileName(agentName: string): string {
-  return `${AGENT_RESULTS_DIR}/${agentResultSlug(agentName)}.md`
+/**
+ * Resuelve el agentId de catálogo para results/.
+ * Si el caller pasa el display name (p.ej. "fullstack") y hay un único agente
+ * con ese nameSlug, usa su id estable (p.ej. "example2").
+ */
+export function resolveResultsAgentId(cwd: string, agentId: string): string {
+  const normalized = normalizeAgentId(agentId)
+  if (!normalized) return 'agent'
+  const agents = listProjectAgents(cwd)
+  if (agents.some(agent => normalizeAgentId(agent.id) === normalized)) {
+    return normalized
+  }
+  const byName = agents.filter(agent => {
+    const name = (agent.name ?? '').trim()
+    if (!name) return false
+    return normalizeAgentId(agentResultSlug(name)) === normalized
+  })
+  if (byName.length === 1) return normalizeAgentId(byName[0].id)
+  return normalized
 }
 
-export function agentResultContextId(agentName: string): string {
-  return `iaterminal:result:${agentResultSlug(agentName)}`
+export function agentResultFileName(agentId: string): string {
+  return canonicalContextFileName('agentResult', { agentId: normalizeAgentId(agentId) })
 }
 
-export function resolveAiAgentResultsPath(cwd: string, agentName: string): string {
-  return join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR, `${agentResultSlug(agentName)}.md`)
+export function agentResultContextId(agentId: string): string {
+  return canonicalContextId('agentResult', { agentId: normalizeAgentId(agentId) })
+}
+
+export function resolveAiAgentResultsPath(cwd: string, agentId: string): string {
+  const id = normalizeAgentId(agentId)
+  return join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR, `${id}.md`)
 }
 
 export function extractAiAgentResults(text: string): {
@@ -91,18 +128,19 @@ function extractNotesBody(raw: string): string {
 }
 
 export function formatAiAgentResultsDocument(options: {
+  agentId: string
   agentName: string
   summary: string
   entries: AiAgentResultLogEntry[]
   notes?: string
 }): string {
-  const slug = agentResultSlug(options.agentName)
-  const name = options.agentName.trim() || slug
+  const agentId = normalizeAgentId(options.agentId)
+  const name = options.agentName.trim() || agentId
   const metadata = {
     version: 1,
-    id: agentResultContextId(name),
+    id: agentResultContextId(agentId),
     name,
-    fileName: agentResultFileName(name),
+    fileName: agentResultFileName(agentId),
     kind: 'agentResult',
     icon: 'bot',
     color: '#94a3b8',
@@ -131,19 +169,235 @@ export function formatAiAgentResultsDocument(options: {
   ].join('\n')
 }
 
+function rewriteResultsMetadata(
+  raw: string,
+  agentId: string,
+  displayName: string,
+): string {
+  const agentIdNorm = normalizeAgentId(agentId)
+  const name = displayName.trim() || agentIdNorm
+  const metadata = {
+    version: 1,
+    id: agentResultContextId(agentIdNorm),
+    name,
+    fileName: agentResultFileName(agentIdNorm),
+    kind: 'agentResult',
+    icon: 'bot',
+    color: '#94a3b8',
+  }
+  const metaLine = `<!-- iaterminal:context ${JSON.stringify(metadata)} -->`
+  let next = raw.includes('iaterminal:context')
+    ? raw.replace(CONTEXT_META_RE, metaLine)
+    : `${metaLine}\n${raw}`
+  // Título: conservar cuerpo; actualizar H1 si existe.
+  next = next.replace(/^#\s+.+$/m, `# ${name} — Results`)
+  return next
+}
+
+/** Reescribe contextIds de agentes según remap old→canonical. */
+export function rewriteProjectAgentContextIds(
+  cwd: string,
+  idRemap: Record<string, string>,
+): number {
+  const entries = Object.entries(idRemap).filter(([from, to]) => from && to && from !== to)
+  if (!entries.length) return 0
+  const map = Object.fromEntries(entries)
+  let changed = 0
+  for (const agent of listProjectAgents(cwd)) {
+    const prev = agent.contextIds ?? []
+    if (!prev.length) continue
+    const seen = new Set<string>()
+    const next: string[] = []
+    for (const id of prev) {
+      const mapped = map[id] ?? id
+      if (seen.has(mapped)) continue
+      seen.add(mapped)
+      next.push(mapped)
+    }
+    if (next.length === prev.length && next.every((id, i) => id === prev[i])) continue
+    const result = upsertProjectAgent(cwd, {
+      ...agent,
+      ...(next.length ? { contextIds: next } : { contextIds: undefined }),
+    })
+    if (result.ok) changed += 1
+  }
+  return changed
+}
+
+/** Borra results/<stem>.md cuyo stem no es id de ningún agente del catálogo. */
+export function pruneOrphanAgentResults(cwd: string): boolean {
+  const root = resolve(cwd)
+  const resultsDir = join(root, '.iaterminal', AGENT_RESULTS_DIR)
+  if (!existsSync(resultsDir)) return false
+  const agentIds = new Set(listProjectAgents(cwd).map(agent => normalizeAgentId(agent.id)))
+  let deleted = false
+  try {
+    for (const entry of readdirSync(resultsDir)) {
+      if (!entry.endsWith('.md')) continue
+      const stem = normalizeAgentId(entry.replace(/\.md$/i, ''))
+      if (agentIds.has(stem)) continue
+      try {
+        unlinkSync(join(resultsDir, entry))
+        deleted = true
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+  return deleted
+}
+
+/** Deja solo contextIds que existen en el catálogo descubierto. */
+export function pruneProjectAgentContextIds(cwd: string, validIds: ReadonlySet<string>): number {
+  let changed = 0
+  for (const agent of listProjectAgents(cwd)) {
+    const prev = agent.contextIds ?? []
+    if (!prev.length) continue
+    const next = prev.filter(id => validIds.has(id))
+    if (next.length === prev.length && next.every((id, i) => id === prev[i])) continue
+    const payload = { ...agent } as ProjectAgentDefinition & { contextIds?: string[] }
+    if (next.length) payload.contextIds = next
+    else delete payload.contextIds
+    const result = upsertProjectAgent(cwd, payload)
+    if (result.ok) changed += 1
+  }
+  return changed
+}
+
+/**
+ * Migra results/<nameSlug>.md + iaterminal:result:<nameSlug> → agentId estable.
+ * No mueve archivo si el rename solo cambia el display name.
+ */
+export function migrateLegacyAgentResults(cwd: string): {
+  idRemap: Record<string, string>
+  migrated: boolean
+} {
+  const idRemap: Record<string, string> = {}
+  let migrated = false
+  const root = resolve(cwd)
+  const resultsDir = join(root, '.iaterminal', AGENT_RESULTS_DIR)
+  if (!existsSync(resultsDir)) return { idRemap, migrated: false }
+
+  const agents = listProjectAgents(cwd)
+  mkdirSync(resultsDir, { recursive: true })
+
+  for (const agent of agents) {
+    const agentId = normalizeAgentId(agent.id)
+    const canonicalPath = resolveAiAgentResultsPath(cwd, agentId)
+    const canonicalId = agentResultContextId(agentId)
+    const nameSlug = agentResultSlug(agent.name || agentId)
+    const legacyId = `iaterminal:result:${nameSlug}`
+    const legacyPath = join(resultsDir, `${nameSlug}.md`)
+
+    if (nameSlug !== agentId && existsSync(legacyPath)) {
+      if (!existsSync(canonicalPath)) {
+        renameSync(legacyPath, canonicalPath)
+        migrated = true
+      } else if (nameSlug.toLowerCase() !== agentId.toLowerCase()) {
+        // Ambos existen (p.ej. fullstack.md + example2.md): borrar legacy name-slug.
+        // No borrar si solo difiere capitalización (FS case-insensitive).
+        try {
+          unlinkSync(legacyPath)
+          migrated = true
+        } catch { /* ignore */ }
+      }
+      if (legacyId !== canonicalId) idRemap[legacyId] = canonicalId
+    }
+
+    if (existsSync(canonicalPath)) {
+      try {
+        const raw = readFileSync(canonicalPath, 'utf8')
+        const match = CONTEXT_META_RE.exec(raw)
+        if (match) {
+          try {
+            const meta = JSON.parse(match[1]) as { id?: string }
+            if (typeof meta.id === 'string' && meta.id !== canonicalId) {
+              idRemap[meta.id] = canonicalId
+            }
+          } catch { /* ignore */ }
+        }
+        const updated = rewriteResultsMetadata(raw, agentId, agent.name || agentId)
+        if (updated !== raw) {
+          writeFileSync(canonicalPath, updated, 'utf8')
+          migrated = true
+        }
+      } catch { /* ignore corrupt */ }
+    }
+
+    if (legacyId !== canonicalId && (idRemap[legacyId] || existsSync(canonicalPath))) {
+      idRemap[legacyId] = canonicalId
+    }
+  }
+
+  try {
+    const agentIds = new Set(agents.map(agent => normalizeAgentId(agent.id)))
+    for (const entry of readdirSync(resultsDir)) {
+      if (!entry.endsWith('.md')) continue
+      const stem = normalizeAgentId(entry.replace(/\.md$/i, ''))
+      // Solo reescribir metadata de files que pertenecen a un agentId vivo.
+      if (!agentIds.has(stem)) continue
+      const absolute = join(resultsDir, entry)
+      let raw = ''
+      try {
+        raw = readFileSync(absolute, 'utf8')
+      } catch {
+        continue
+      }
+      const match = CONTEXT_META_RE.exec(raw)
+      if (!match) continue
+      try {
+        const meta = JSON.parse(match[1]) as { id?: string; name?: string; kind?: string }
+        if (meta.kind !== 'agentResult' || typeof meta.id !== 'string') continue
+        const canonicalId = agentResultContextId(stem)
+        if (meta.id !== canonicalId) {
+          idRemap[meta.id] = canonicalId
+          const display = typeof meta.name === 'string' ? meta.name : stem
+          const updated = rewriteResultsMetadata(raw, stem, display)
+          if (updated !== raw) {
+            writeFileSync(absolute, updated, 'utf8')
+            migrated = true
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+
+  let agentsRewritten = 0
+  if (Object.keys(idRemap).length) {
+    agentsRewritten = rewriteProjectAgentContextIds(cwd, idRemap)
+  }
+  if (pruneOrphanAgentResults(cwd)) migrated = true
+  return { idRemap, migrated: migrated || agentsRewritten > 0 }
+}
+
 /** Crea el .md de resultados si no existe; no sobrescribe contenido previo. */
-export function ensureAiAgentResults(cwd: string, agentName: string): string {
-  const name = agentName.trim()
-  if (!name) return ''
-  const filePath = resolveAiAgentResultsPath(cwd, name)
+export function ensureAiAgentResults(
+  cwd: string,
+  agentId: string,
+  agentName?: string,
+): string {
+  const id = resolveResultsAgentId(cwd, agentId)
+  if (!id) return ''
+  migrateLegacyAgentResults(cwd)
+  const matched = listProjectAgents(cwd).find(agent => normalizeAgentId(agent.id) === id)
+  const display = (agentName ?? '').trim() || matched?.name?.trim() || id
+  const filePath = resolveAiAgentResultsPath(cwd, id)
   const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
   mkdirSync(directory, { recursive: true })
-  if (existsSync(filePath)) return filePath
+  if (existsSync(filePath)) {
+    // Actualizar solo name en metadata si cambió el display (rename no mueve archivo).
+    try {
+      const raw = readFileSync(filePath, 'utf8')
+      const updated = rewriteResultsMetadata(raw, id, display)
+      if (updated !== raw) writeFileSync(filePath, updated, 'utf8')
+    } catch { /* ignore */ }
+    pruneOrphanAgentResults(cwd)
+    return filePath
+  }
   try {
     writeFileSync(
       filePath,
       formatAiAgentResultsDocument({
-        agentName: name,
+        agentId: id,
+        agentName: display,
         summary: '(no results yet)',
         entries: [],
       }),
@@ -152,18 +406,23 @@ export function ensureAiAgentResults(cwd: string, agentName: string): string {
   } catch {
     // Otro panel pudo crearlo entre existsSync y writeFileSync.
   }
+  pruneOrphanAgentResults(cwd)
   return filePath
 }
 
 export function upsertAiAgentResults(
   cwd: string,
-  agentName: string,
+  agentId: string,
   payload: AiAgentResultPayload,
-  timestamp = new Date().toISOString(),
+  options: { agentName?: string; timestamp?: string } = {},
 ): string {
-  const name = agentName.trim()
-  if (!name) return ''
-  const filePath = resolveAiAgentResultsPath(cwd, name)
+  const id = resolveResultsAgentId(cwd, agentId)
+  if (!id) return ''
+  migrateLegacyAgentResults(cwd)
+  const matched = listProjectAgents(cwd).find(agent => normalizeAgentId(agent.id) === id)
+  const display = (options.agentName ?? '').trim() || matched?.name?.trim() || id
+  const timestamp = options.timestamp ?? new Date().toISOString()
+  const filePath = resolveAiAgentResultsPath(cwd, id)
   const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
   mkdirSync(directory, { recursive: true })
 
@@ -174,14 +433,16 @@ export function upsertAiAgentResults(
     .map(text => ({ timestamp, text }))
   const entries = [...freshEntries, ...previousLog].slice(0, MAX_LOG_ENTRIES)
   const content = formatAiAgentResultsDocument({
-    agentName: name,
+    agentId: id,
+    agentName: display,
     summary: payload.summary,
     entries,
     notes: previousNotes && previousNotes !== '(no annotations yet)' ? previousNotes : undefined,
   })
-  const temporaryPath = join(directory, `.${agentResultSlug(name)}.tmp`)
+  const temporaryPath = join(directory, `.${id}.tmp`)
   writeFileSync(temporaryPath, content, 'utf8')
   renameSync(temporaryPath, filePath)
+  pruneOrphanAgentResults(cwd)
   return filePath
 }
 

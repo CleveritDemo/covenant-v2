@@ -49,7 +49,7 @@ interface Props {
 
 export const TabContextsEditor: React.FC<Props> = ({
   draft,
-  contexts,
+  contexts: _contexts,
   preview,
   notesContent,
   resolvedCwdLabel,
@@ -82,7 +82,7 @@ export const TabContextsEditor: React.FC<Props> = ({
             <strong>
               {t(readOnlyAgentResult ? 'tabContexts.kind_agentResult' : 'tabContexts.kind_changelog')}
             </strong>
-            <small>{draft.fileName}</small>
+            <small>{`.iaterminal/${draft.fileName}`}</small>
           </div>
         </div>
       ) : (
@@ -93,7 +93,6 @@ export const TabContextsEditor: React.FC<Props> = ({
               label={t(`tabContexts.kind_${kind}`)}
               icon={KIND_ICONS[kind]}
               selected={draft.kind === kind}
-              disabled={kind === 'changelog' && contexts.some(context => context.kind === 'changelog')}
               onSelect={() => onSelectKind(kind)}
             />
           ))}
@@ -107,21 +106,10 @@ export const TabContextsEditor: React.FC<Props> = ({
           placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
           onChange={event => {
             const name = event.target.value
-            const currentDerived = normalizeContextFileName(draft.name || 'context')
-            const changelogDerived = normalizeContextFileName(draft.name || 'changelog')
+            const fallback = draft.kind === 'changelog' ? 'changelog' : 'context'
             onUpdate({
               name,
-              ...(!draft.fileName
-                || draft.fileName === 'context.md'
-                || draft.fileName === 'changelog.md'
-                || draft.fileName === currentDerived
-                || draft.fileName === changelogDerived
-                ? {
-                    fileName: normalizeContextFileName(
-                      name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-                    ),
-                  }
-                : {}),
+              fileName: normalizeContextFileName(name || fallback, fallback),
             })
           }}
         />
@@ -131,16 +119,9 @@ export const TabContextsEditor: React.FC<Props> = ({
       </label>
       <label>
         <span>{t('tabContexts.fileName')}</span>
-        <Input
-          value={draft.fileName ?? normalizeContextFileName(
-            draft.name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-          )}
-          placeholder={draft.kind === 'changelog' ? 'ai-changelog.md' : 'project-structure.md'}
-          onChange={event => onUpdate({ fileName: event.target.value })}
-        />
         <small>{`.iaterminal/${normalizeContextFileName(
-          draft.fileName || draft.name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-          draft.kind === 'changelog' ? 'changelog' : draft.id,
+          draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+          draft.kind === 'changelog' ? 'changelog' : 'context',
         )}`}</small>
       </label>
 

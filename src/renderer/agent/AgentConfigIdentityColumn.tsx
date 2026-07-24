@@ -8,6 +8,7 @@ import {
 import { useT } from '@i18n/useT'
 import { Input, TextArea } from '../components/ui'
 import { AgentRulesEditor } from './AgentRulesEditor'
+import { AgentConfigSlugField } from './AgentConfigSlugField'
 import './AgentConfigIdentityColumn.css'
 
 export interface AgentConfigIdentityColumnProps {
@@ -59,6 +60,13 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
           />
         </label>
       </div>
+
+      <AgentConfigSlugField
+        value={draft.id}
+        locked={locked}
+        onChange={id => onChange({ id })}
+        onCommit={onCommit}
+      />
 
       <label className="agent-config-identity__field">
         <span className="agent-config-identity__label">{t('agentPane.objectiveLabel')}</span>

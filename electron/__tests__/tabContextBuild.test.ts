@@ -19,7 +19,8 @@ import {
 } from '../tabContextBuild'
 import { appendAiChangelog } from '../aiChangelog'
 import { upsertAiAgentResults } from '../aiAgentResults'
-import { normalizeAnnotation } from '../../src/shared/tabContext'
+import { upsertProjectAgent } from '../projectAgentCatalogOps'
+import { applyCanonicalContextIdentity, normalizeAnnotation } from '../../src/shared/tabContext'
 
 describe('tab context builders', () => {
   const dirs: string[] = []
@@ -33,12 +34,12 @@ describe('tab context builders', () => {
   it('materializes annotation layer and preserves them on refresh', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'), { recursive: true })
-    const context = {
+    const context = applyCanonicalContextIdentity({
       id: 'tree',
       name: 'Árbol',
       fileName: 'arbol.md',
       kind: 'folderTree' as const,
-    }
+    })
     materializeTabContext(context, cwd, { write: true })
     const first = mergeAnnotations(context, cwd, [
       { key: 'src', text: 'Usar IPC tipado' },
@@ -50,7 +51,7 @@ describe('tab context builders', () => {
     const refreshed = materializeTabContext(context, cwd, { write: true })
     expect(refreshed.ok).toBe(true)
     expect(refreshed.notesContent).toContain('Usar IPC tipado')
-    expect(readFileSync(join(cwd, '.iaterminal', 'arbol.md'), 'utf8'))
+    expect(readFileSync(join(cwd, '.iaterminal', context.fileName), 'utf8'))
       .toContain('Usar IPC tipado')
   })
 
@@ -65,18 +66,19 @@ describe('tab context builders', () => {
       paths: ['App.tsx'],
       symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
+    const expected = applyCanonicalContextIdentity(context)
     materializeTabContext(context, cwd, { write: true })
 
     const result = discoverTabContexts(cwd)
 
     expect(result.ok).toBe(true)
     expect(result.contexts).toEqual([{
-      ...context,
+      ...expected,
       icon: 'code',
       color: '#c084fc',
     }])
-    expect(readFileSync(join(cwd, '.iaterminal', 'arquitectura.md'), 'utf8'))
-      .toContain('<!-- iaterminal:context ')
+    expect(readFileSync(join(cwd, '.iaterminal', expected.fileName), 'utf8'))
+      .toContain(`"id":"${expected.id}"`)
   })
 
   it('discovers notes markdown and skips files without context metadata', () => {
@@ -102,7 +104,7 @@ describe('tab context builders', () => {
 
     expect(result.ok).toBe(true)
     expect(result.contexts).toEqual([{
-      id: 'legacy-notes',
+      id: 'iaterminal:notes:Legacy',
       name: 'Legacy',
       fileName: 'legacy-notes.md',
       kind: 'notes',
@@ -116,7 +118,7 @@ describe('tab context builders', () => {
 
     const context = discoverTabContexts(cwd).contexts.find(item => item.kind === 'changelog')!
     expect(context).toEqual({
-      id: 'iaterminal:changelog',
+      id: 'iaterminal:changelog:AI-Changelog',
       name: 'AI Changelog',
       fileName: 'changelog.md',
       kind: 'changelog',
@@ -125,6 +127,7 @@ describe('tab context builders', () => {
       .toContain('# AI Changelog')
     expect(deleteTabContext(context, cwd).ok).toBe(true)
     expect(existsSync(join(cwd, '.iaterminal', 'changelog.md'))).toBe(false)
+    expect(existsSync(join(cwd, '.iaterminal', 'AI-Changelog.md'))).toBe(false)
   })
 
   it('creates the changelog only when its context is explicitly saved', () => {
@@ -135,17 +138,18 @@ describe('tab context builders', () => {
       fileName: 'historial-ia.md',
       kind: 'changelog' as const,
     }
+    const expected = applyCanonicalContextIdentity(context)
 
     materializeTabContext(context, cwd)
-    expect(existsSync(join(cwd, '.iaterminal', 'historial-ia.md'))).toBe(false)
+    expect(existsSync(join(cwd, '.iaterminal', expected.fileName))).toBe(false)
 
     const created = materializeTabContext(context, cwd, { write: true })
     expect(created.ok).toBe(true)
-    expect(existsSync(join(cwd, '.iaterminal', 'historial-ia.md'))).toBe(true)
+    expect(existsSync(join(cwd, '.iaterminal', expected.fileName))).toBe(true)
     expect(created.content).toContain('# Historial del equipo')
     expect(created.content).toContain('iaterminal:context')
     expect(discoverTabContexts(cwd).contexts).toEqual([{
-      ...context,
+      ...expected,
       icon: 'history',
       color: '#a3e635',
     }])
@@ -153,29 +157,32 @@ describe('tab context builders', () => {
 
   it('renames a changelog without losing entries and runtime follows metadata', () => {
     const cwd = tempCwd()
-    const original = {
+    const original = applyCanonicalContextIdentity({
       id: 'iaterminal:changelog',
       name: 'Historial inicial',
       fileName: 'historial-inicial.md',
       kind: 'changelog' as const,
-    }
+    })
     materializeTabContext(original, cwd, { write: true })
     appendAiChangelog(cwd, [
       { path: 'src/first.ts', description: 'Primer cambio registrado' },
     ], '2026-01-01T00:00:00.000Z')
 
-    const renamed = {
+    const renamed = applyCanonicalContextIdentity({
       ...original,
       name: 'Historial compartido',
       fileName: 'historial-compartido.md',
-    }
-    materializeTabContext(renamed, cwd, { write: true })
+    })
+    materializeTabContext(renamed, cwd, {
+      write: true,
+      previousFileName: original.fileName,
+    })
     appendAiChangelog(cwd, [
       { path: 'src/second.ts', description: 'Segundo cambio registrado' },
     ], '2026-01-02T00:00:00.000Z')
 
-    expect(existsSync(join(cwd, '.iaterminal', 'historial-inicial.md'))).toBe(false)
-    const raw = readFileSync(join(cwd, '.iaterminal', 'historial-compartido.md'), 'utf8')
+    expect(existsSync(join(cwd, '.iaterminal', original.fileName))).toBe(false)
+    const raw = readFileSync(join(cwd, '.iaterminal', renamed.fileName), 'utf8')
     expect(raw).toContain('# Historial compartido')
     expect(raw).toContain('Primer cambio registrado')
     expect(raw).toContain('Segundo cambio registrado')
@@ -186,12 +193,39 @@ describe('tab context builders', () => {
     }])
   })
 
-  it('discovers agentResult contexts from .iaterminal/results/', () => {
+  it('keeps other changelog files when writing a distinct changelog', () => {
     const cwd = tempCwd()
-    upsertAiAgentResults(cwd, 'Scout', {
+    const first = applyCanonicalContextIdentity({
+      id: '',
+      name: 'Changelog A',
+      fileName: '',
+      kind: 'changelog' as const,
+    })
+    const second = applyCanonicalContextIdentity({
+      id: '',
+      name: 'Changelog B',
+      fileName: '',
+      kind: 'changelog' as const,
+    })
+    materializeTabContext(first, cwd, { write: true })
+    materializeTabContext(second, cwd, { write: true })
+    expect(existsSync(join(cwd, '.iaterminal', first.fileName))).toBe(true)
+    expect(existsSync(join(cwd, '.iaterminal', second.fileName))).toBe(true)
+    expect(discoverTabContexts(cwd).contexts.filter(item => item.kind === 'changelog')).toHaveLength(2)
+  })
+
+  it('discovers agentResult contexts from .iaterminal/results/<agentId>.md', () => {
+    const cwd = tempCwd()
+    upsertProjectAgent(cwd, {
+      id: 'scout',
+      name: 'Scout',
+      provider: 'cursor',
+      permissionMode: 'default',
+    })
+    upsertAiAgentResults(cwd, 'scout', {
       summary: 'Exploración lista',
       entries: ['Mapeé el repo'],
-    }, '2026-07-20T12:00:00.000Z')
+    }, { agentName: 'Scout', timestamp: '2026-07-20T12:00:00.000Z' })
 
     const result = discoverTabContexts(cwd)
     expect(result.ok).toBe(true)
@@ -199,26 +233,184 @@ describe('tab context builders', () => {
     expect(found).toMatchObject({
       name: 'Scout',
       kind: 'agentResult',
-      fileName: 'results/Scout.md',
-      id: 'iaterminal:result:Scout',
+      fileName: 'results/scout.md',
+      id: 'iaterminal:result:scout',
     })
+  })
+
+  it('migrates discovered-file metadata to canonical ids and remaps agent contextIds', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.iaterminal'), { recursive: true })
+    writeFileSync(
+      join(cwd, '.iaterminal', 'folders.md'),
+      [
+        '# folders',
+        '<!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        'tree',
+        '<!-- /iaterminal:auto -->',
+        '',
+        '<!-- iaterminal:notes -->',
+        '(no annotations yet)',
+        '<!-- /iaterminal:notes -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    writeFileSync(
+      join(cwd, '.iaterminal', 'dependences.md'),
+      [
+        '# deps',
+        '<!-- iaterminal:context {"version":1,"id":"2601e189-7cab-41cf-8d4a-2cf7276d7a23","name":"Dependencies","fileName":"dependences.md","kind":"deps"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        'deps',
+        '<!-- /iaterminal:auto -->',
+        '',
+        '<!-- iaterminal:notes -->',
+        '(no annotations yet)',
+        '<!-- /iaterminal:notes -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    upsertProjectAgent(cwd, {
+      id: 'qa',
+      name: 'QA',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: [
+        'discovered-file:folders.md',
+        '2601e189-7cab-41cf-8d4a-2cf7276d7a23',
+      ],
+    })
+
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    expect(result.contextsMigrated).toBe(true)
+    expect(result.idRemap?.['discovered-file:folders.md']).toBe('iaterminal:folderTree:folders')
+    expect(result.idRemap?.['2601e189-7cab-41cf-8d4a-2cf7276d7a23']).toBe('iaterminal:deps:Dependencies')
+    expect(result.contexts.map(item => item.id).sort()).toEqual([
+      'iaterminal:deps:Dependencies',
+      'iaterminal:folderTree:folders',
+    ])
+    const agent = JSON.parse(
+      readFileSync(join(cwd, '.iaterminal', 'agents', 'qa.json'), 'utf8'),
+    ) as { contextIds: string[] }
+    expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders', 'iaterminal:deps:Dependencies'])
+    expect(readFileSync(join(cwd, '.iaterminal', 'folders.md'), 'utf8')).not.toContain('legacyIds')
+  })
+
+  it('prunes orphan results and agent contextIds not in discover catalog', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    writeFileSync(
+      join(cwd, '.iaterminal', 'folders.md'),
+      [
+        '# folders',
+        '<!-- iaterminal:context {"version":1,"id":"iaterminal:folderTree","name":"folders","fileName":"folders.md","kind":"folderTree","legacyIds":["discovered-file:folders.md"]} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        'tree',
+        '<!-- /iaterminal:auto -->',
+        '',
+        '<!-- iaterminal:notes -->',
+        '(no annotations yet)',
+        '<!-- /iaterminal:notes -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'designer.md'),
+      '# orphan\n<!-- iaterminal:context {"version":1,"id":"iaterminal:result:designer","name":"d","fileName":"results/designer.md","kind":"agentResult"} -->\n',
+      'utf8',
+    )
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'qa.md'),
+      '# qa\n<!-- iaterminal:context {"version":1,"id":"iaterminal:result:qa","name":"qa","fileName":"results/qa.md","kind":"agentResult"} -->\n',
+      'utf8',
+    )
+    upsertProjectAgent(cwd, {
+      id: 'qa',
+      name: 'qa',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: ['iaterminal:folderTree', 'iaterminal:result:designer', 'iaterminal:result:qa'],
+    })
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    expect(existsSync(join(cwd, '.iaterminal', 'results', 'designer.md'))).toBe(false)
+    expect(existsSync(join(cwd, '.iaterminal', 'results', 'qa.md'))).toBe(true)
+    expect(readFileSync(join(cwd, '.iaterminal', 'folders.md'), 'utf8')).not.toContain('legacyIds')
+    const agent = JSON.parse(
+      readFileSync(join(cwd, '.iaterminal', 'agents', 'qa.json'), 'utf8'),
+    ) as { contextIds?: string[] }
+    expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders', 'iaterminal:result:qa'])
+  })
+
+  it('dual materialize of distinct folderTree names writes two files', () => {
+    const cwd = tempCwd()
+    const firstDef = applyCanonicalContextIdentity({
+      id: '',
+      name: '',
+      fileName: '',
+      kind: 'folderTree',
+    })
+    const secondDef = applyCanonicalContextIdentity({
+      id: 'other',
+      name: 'Other label',
+      fileName: '',
+      kind: 'folderTree',
+    })
+    expect(firstDef.id).toBe('iaterminal:folderTree:folders')
+    expect(secondDef.id).toBe('iaterminal:folderTree:Other-label')
+    expect(firstDef.fileName).not.toBe(secondDef.fileName)
+    const first = materializeTabContext(firstDef, cwd, { write: true })
+    const second = materializeTabContext(secondDef, cwd, { write: true })
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(true)
+    expect(first.filePath).not.toBe(second.filePath)
+    expect(existsSync(join(cwd, '.iaterminal', 'folders.md'))).toBe(true)
+    expect(existsSync(join(cwd, '.iaterminal', 'Other-label.md'))).toBe(true)
+    expect(discoverTabContexts(cwd).contexts.filter(item => item.kind === 'folderTree')).toHaveLength(2)
+  })
+
+  it('rejects writing over another context file with the same name', () => {
+    const cwd = tempCwd()
+    const first = applyCanonicalContextIdentity({
+      id: '',
+      name: 'Shared',
+      fileName: '',
+      kind: 'notes',
+    })
+    materializeTabContext(first, cwd, { write: true, content: 'one' })
+    const conflict = materializeTabContext({
+      id: 'other-id',
+      name: 'Shared',
+      fileName: 'Shared.md',
+      kind: 'folderTree',
+    }, cwd, { write: true })
+    expect(conflict.ok).toBe(false)
+    expect(conflict.error).toMatch(/already exists/i)
   })
 
   it('deletes a materialized context file from .iaterminal', () => {
     const cwd = tempCwd()
-    const context = {
+    const context = applyCanonicalContextIdentity({
       id: 'to-delete',
       name: 'Temporal',
       fileName: 'temporal.md',
       kind: 'folderTree' as const,
-    }
+    })
     materializeTabContext(context, cwd, { write: true })
-    expect(existsSync(join(cwd, '.iaterminal', 'temporal.md'))).toBe(true)
+    expect(existsSync(join(cwd, '.iaterminal', context.fileName))).toBe(true)
 
     const deleted = deleteTabContext(context, cwd)
 
     expect(deleted.ok).toBe(true)
-    expect(existsSync(join(cwd, '.iaterminal', 'temporal.md'))).toBe(false)
+    expect(existsSync(join(cwd, '.iaterminal', context.fileName))).toBe(false)
     expect(discoverTabContexts(cwd).contexts).toEqual([])
   })
 
@@ -338,7 +530,7 @@ export class App {
 
   it('removes a legacy notes layer only when it exactly duplicates auto', () => {
     const cwd = tempCwd()
-    writeFileSync(join(cwd, 'unique.txt'), 'content', 'utf8')
+    mkdirSync(join(cwd, 'unique-dir'), { recursive: true })
     const context = {
       id: 'tree',
       name: 'Árbol',
@@ -355,7 +547,7 @@ export class App {
     const refreshed = materializeTabContext(context, cwd, { write: true })
 
     expect(refreshed.notesContent).toBe('')
-    expect(refreshed.content.match(/unique\.txt/g)).toHaveLength(1)
+    expect(refreshed.content.match(/unique-dir/g)).toHaveLength(1)
     expect(refreshed.content).toContain('(no annotations yet)')
   })
 
@@ -496,17 +688,17 @@ export class Widget {
 
   it('preserves freeform annotation text and the generated auto layer while merging', () => {
     const cwd = tempCwd()
-    const context = {
+    const context = applyCanonicalContextIdentity({
       id: 'tree',
       name: 'Árbol',
       fileName: 'arbol.md',
       kind: 'folderTree' as const,
-    }
+    })
     materializeTabContext(context, cwd, { write: true })
     mergeAnnotations(context, cwd, [
       { key: 'note:old', text: 'Nota anterior' },
     ])
-    const filePath = join(cwd, '.iaterminal', 'arbol.md')
+    const filePath = join(cwd, '.iaterminal', context.fileName)
     const raw = readFileSync(filePath, 'utf8')
     writeFileSync(
       filePath,
@@ -559,8 +751,13 @@ export class Widget {
   it('adds write-back instructions only when auto improvement is enabled', () => {
     const cwd = tempCwd()
     const contexts = [
-      { id: 'tree', name: 'Árbol', fileName: 'arbol.md', kind: 'folderTree' },
-    ] as const
+      applyCanonicalContextIdentity({
+        id: 'tree',
+        name: 'Árbol',
+        fileName: 'arbol.md',
+        kind: 'folderTree',
+      }),
+    ]
     const readOnlyPrompt = buildAssignedContexts([...contexts], cwd)
     const prompt = buildAssignedContexts([...contexts], cwd, {
       allowAnnotationUpdates: true,
@@ -573,7 +770,41 @@ export class Widget {
     expect(prompt).toContain('annotations')
     expect(prompt).toContain('Never edit iaterminal:auto')
     expect(prompt).toContain('file-change evidence')
-    expect(readFileSync(join(cwd, '.iaterminal', 'arbol.md'), 'utf8')).toContain('iaterminal:auto')
+    expect(readFileSync(join(cwd, '.iaterminal', contexts[0].fileName), 'utf8')).toContain('iaterminal:auto')
+  })
+
+  it('excludes agentResult from Context maintenance Allowed list', () => {
+    const cwd = tempCwd()
+    upsertAiAgentResults(cwd, 'example2', {
+      summary: 'ok',
+      entries: ['done'],
+    }, { agentName: 'fullstack', timestamp: '2026-01-01T00:00:00.000Z' })
+    const contexts = [
+      {
+        id: 'iaterminal:folderTree',
+        name: 'folders',
+        fileName: 'folders.md',
+        kind: 'folderTree' as const,
+      },
+      {
+        id: 'iaterminal:result:example2',
+        name: 'fullstack',
+        fileName: 'results/example2.md',
+        kind: 'agentResult' as const,
+      },
+    ]
+    const prompt = buildAssignedContexts(contexts, cwd, { allowAnnotationUpdates: true })
+    const delivery = buildContextPromptDelivery(contexts, cwd, {
+      allowAnnotationUpdates: true,
+      forceFullRefresh: true,
+    })
+    for (const text of [prompt, delivery.prompt]) {
+      expect(text).toContain('## Context maintenance')
+      const allowed = text.split('## Context maintenance')[1] ?? ''
+      expect(allowed).toContain('iaterminal:folderTree')
+      expect(allowed).not.toMatch(/iaterminal:result:/)
+      expect(allowed).not.toMatch(/\(agentResult\)/)
+    }
   })
 
   it('builds a lightweight section catalog without embedding file contents', () => {

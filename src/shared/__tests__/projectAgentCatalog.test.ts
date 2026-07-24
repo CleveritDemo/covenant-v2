@@ -7,19 +7,72 @@ import {
   allocateAgentSlug,
   agentBindingFromMeta,
   agentDefinitionFromMeta,
+  buildNewProjectAgentDefinition,
   cloneProjectAgentDefinition,
   legacyAgentMetaToDefinition,
   normalizeAgentSlug,
   parseAgentPaneBinding,
   parseProjectAgentDefinition,
   planAgentCatalogMigration,
+  remapAgentBindingsInTabs,
+  remapAgentResultContextIds,
+  remapAgentResultIdsInCatalog,
+  remapAgentResultTabContexts,
   resolveAgentPaneMeta,
+  resolveCatalogAgentId,
+  isAgentOwnResultContext,
+  agentResultContextIdForSlug,
 } from '@shared/projectAgentCatalog'
 
 describe('projectAgentCatalog', () => {
   it('normalizes slugs and allocates unique ids', () => {
     expect(normalizeAgentSlug('  Scout Bot!  ')).toBe('scout-bot')
     expect(allocateAgentSlug('scout', new Set(['scout']))).toBe('scout-2')
+  })
+
+  it('detects an agent own results context id', () => {
+    expect(isAgentOwnResultContext('fullstack', 'iaterminal:result:fullstack')).toBe(true)
+    expect(isAgentOwnResultContext('  Full Stack  ', agentResultContextIdForSlug('Full Stack'))).toBe(true)
+    expect(isAgentOwnResultContext('fullstack', 'iaterminal:result:qa')).toBe(false)
+    expect(isAgentOwnResultContext('fullstack', 'iaterminal:notes:x')).toBe(false)
+    expect(isAgentOwnResultContext('', 'iaterminal:result:fullstack')).toBe(false)
+    expect(isAgentOwnResultContext(null, 'iaterminal:result:fullstack')).toBe(false)
+  })
+
+  it('strips own results from parsed contextIds', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'cursor',
+      permissionMode: 'ask',
+      contextIds: [
+        'iaterminal:folderTree:folders',
+        'iaterminal:result:qa',
+        'iaterminal:result:fullstack',
+      ],
+    })
+    expect(parsed?.contextIds).toEqual([
+      'iaterminal:folderTree:folders',
+      'iaterminal:result:fullstack',
+    ])
+  })
+
+  it('builds new agent definition from name with emitResults on', () => {
+    const definition = buildNewProjectAgentDefinition(
+      'cursor',
+      '  Product Designer  ',
+      new Set(['product-designer']),
+    )
+    expect(definition).toMatchObject({
+      id: 'product-designer-2',
+      provider: 'cursor',
+      permissionMode: 'auto',
+      autoImproveContexts: true,
+      emitResults: true,
+      name: 'Product Designer',
+    })
+    expect(definition.id).toBe(
+      allocateAgentSlug('Product Designer', new Set(['product-designer'])),
+    )
   })
 
   it('parses definitions and clamps identity fields without stripping draft spaces', () => {
@@ -64,6 +117,7 @@ describe('projectAgentCatalog', () => {
       role: 'Full stack ',
       objective: 'Ship features ',
       rules: ['Always reply in Spanish '],
+      emitResults: true,
     })
   })
 
@@ -156,6 +210,29 @@ describe('projectAgentCatalog', () => {
       cliSessionId: 'cli-1',
     })
     expect(cloneProjectAgentDefinition(definition, ' (copy)').name).toBe('qa (copy)')
+    expect(cloneProjectAgentDefinition({
+      id: 'legacy',
+      provider: 'claude',
+      permissionMode: 'ask',
+    }, ' (copy)')).toMatchObject({ emitResults: true })
+  })
+
+  it('resolves meta.id from unique display-name slug when binding used name', () => {
+    const definition = parseProjectAgentDefinition({
+      id: 'example2',
+      provider: 'cursor',
+      permissionMode: 'auto',
+      name: 'fullstack',
+    })!
+    const meta = resolveAgentPaneMeta(
+      { agentId: 'fullstack' },
+      undefined,
+      [definition],
+    )
+    expect(meta.id).toBe('example2')
+    expect(meta.name).toBe('fullstack')
+    expect(resolveCatalogAgentId([definition], 'fullstack')).toBe('example2')
+    expect(resolveCatalogAgentId([definition], 'example2')).toBe('example2')
   })
 
   it('plans session migration writes and slim bindings', () => {
@@ -186,5 +263,98 @@ describe('projectAgentCatalog', () => {
       agentId: 'qa',
       cliSessionId: 's1',
     })
+  })
+
+  it('remaps pane bindings and result context ids when slug changes', () => {
+    const tabs = remapAgentBindingsInTabs(
+      [
+        {
+          projectFolder: '/repo',
+          agentByPane: {
+            a: { agentId: 'claude', cliSessionId: 's' },
+            b: { agentId: 'other' },
+          },
+        },
+        {
+          projectFolder: '/other',
+          agentByPane: { a: { agentId: 'claude' } },
+        },
+      ],
+      '/repo',
+      'claude',
+      'fullstack',
+    )
+    expect(tabs[0]?.agentByPane).toEqual({
+      a: { agentId: 'fullstack', cliSessionId: 's' },
+      b: { agentId: 'other' },
+    })
+    expect(tabs[1]?.agentByPane).toEqual({ a: { agentId: 'claude' } })
+    expect(remapAgentResultContextIds(
+      ['iaterminal:result:claude', 'rules'],
+      'claude',
+      'fullstack',
+    )).toEqual(['iaterminal:result:fullstack', 'rules'])
+    expect(remapAgentResultIdsInCatalog(
+      [
+        {
+          id: 'claude',
+          provider: 'claude',
+          permissionMode: 'auto',
+          contextIds: ['iaterminal:result:claude'],
+        },
+        {
+          id: 'qa',
+          provider: 'cursor',
+          permissionMode: 'ask',
+          contextIds: ['iaterminal:result:claude', 'rules'],
+        },
+      ],
+      'claude',
+      'fullstack',
+    )).toEqual([
+      {
+        id: 'claude',
+        provider: 'claude',
+        permissionMode: 'auto',
+        contextIds: ['iaterminal:result:fullstack'],
+      },
+      {
+        id: 'qa',
+        provider: 'cursor',
+        permissionMode: 'ask',
+        contextIds: ['iaterminal:result:fullstack', 'rules'],
+      },
+    ])
+    expect(remapAgentResultTabContexts(
+      [
+        {
+          id: 'iaterminal:result:claude',
+          name: 'Fullstack',
+          fileName: 'results/claude.md',
+          kind: 'agentResult',
+        },
+        {
+          id: 'iaterminal:notes:x',
+          name: 'Notes',
+          fileName: 'x.md',
+          kind: 'notes',
+        },
+      ],
+      'claude',
+      'fullstack',
+    )).toEqual([
+      {
+        id: 'iaterminal:result:fullstack',
+        name: 'Fullstack',
+        fileName: 'results/fullstack.md',
+        kind: 'agentResult',
+      },
+      {
+        id: 'iaterminal:notes:x',
+        name: 'Notes',
+        fileName: 'x.md',
+        kind: 'notes',
+      },
+    ])
   })
 })

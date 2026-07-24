@@ -5,6 +5,7 @@ import {
   AgentProviderPickerModal,
   type AgentPickerCloneSource,
 } from '../agent/AgentProviderPickerModal'
+import { AgentCreateNameModal } from '../agent/AgentCreateNameModal'
 import { SettingsModal } from './SettingsModal'
 import { ThemePickerModal } from './ThemePickerModal'
 
@@ -13,14 +14,17 @@ interface Props {
   settingsOpen: boolean
   themePickerOpen: boolean
   agentPicker: { tabId: string; fromPaneId?: string } | null
+  agentCreate: { tabId: string; fromPaneId?: string; provider: AgentCliProvider } | null
   agentCloneSources: AgentPickerCloneSource[]
   onCloseSettings: () => void
   onCloseThemePicker: () => void
   onCloseAgentPicker: () => void
+  onCloseAgentCreate: () => void
   onConfigSaved: (cfg: AppConfig) => void
   onThemeChange: (themeId: string) => void
   onAgentProviderSelect: (provider: AgentCliProvider) => void
   onAgentCloneSelect: (sourcePaneId: string) => void
+  onAgentCreateConfirm: (name: string) => void
 }
 
 export const AppModals: React.FC<Props> = ({
@@ -28,14 +32,17 @@ export const AppModals: React.FC<Props> = ({
   settingsOpen,
   themePickerOpen,
   agentPicker,
+  agentCreate,
   agentCloneSources,
   onCloseSettings,
   onCloseThemePicker,
   onCloseAgentPicker,
+  onCloseAgentCreate,
   onConfigSaved,
   onThemeChange,
   onAgentProviderSelect,
   onAgentCloneSelect,
+  onAgentCreateConfirm,
 }) => (
   <>
     <AgentProviderPickerModal
@@ -44,6 +51,12 @@ export const AppModals: React.FC<Props> = ({
       onClose={onCloseAgentPicker}
       onSelect={onAgentProviderSelect}
       onClone={onAgentCloneSelect}
+    />
+
+    <AgentCreateNameModal
+      open={agentCreate !== null}
+      onClose={onCloseAgentCreate}
+      onConfirm={onAgentCreateConfirm}
     />
 
     {settingsOpen && (

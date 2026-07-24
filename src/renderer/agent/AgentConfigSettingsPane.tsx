@@ -35,7 +35,8 @@ export interface AgentConfigSettingsPaneProps {
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
   onAutoImproveChange: (checked: boolean) => void
-  onEmitResultsChange: (checked: boolean) => void
+  /** Al abrir la pestaña Contextos: refrescar catálogo de disco. */
+  onContextsTabFocus?: () => void
 }
 
 function folderLabel(cwd: string): string {
@@ -68,10 +69,15 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onToggleContext,
   onOpenContextsModal,
   onAutoImproveChange,
-  onEmitResultsChange,
+  onContextsTabFocus,
 }) => {
   const { t } = useT()
   const [tab, setTab] = useState<AgentConfigSettingsTab>('runtime')
+
+  const selectTab = (next: AgentConfigSettingsTab): void => {
+    setTab(next)
+    if (next === 'contexts') onContextsTabFocus?.()
+  }
 
   const PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
     { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint') },
@@ -109,7 +115,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               indicator: selectedCount > 0,
             },
           ]}
-          onChange={setTab}
+          onChange={selectTab}
         />
       </header>
 
@@ -227,12 +233,11 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             locked={locked}
             loopActive={loopActive}
             autoImprove={meta.autoImproveContexts === true}
-            emitResults={meta.emitResults === true}
+            agentId={meta.id}
             contextNotice={contextNotice}
             onToggleContext={onToggleContext}
             onOpenContextsModal={onOpenContextsModal}
             onAutoImproveChange={onAutoImproveChange}
-            onEmitResultsChange={onEmitResultsChange}
           />
         )}
       </div>

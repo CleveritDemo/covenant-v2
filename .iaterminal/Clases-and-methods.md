@@ -1,5 +1,5 @@
-# Classes and methods
-<!-- iaterminal:context {"version":1,"id":"aae8bcbc-38c4-4ab2-a5da-e3906f8909e8","name":"Classes and methods","fileName":"classes-methods.md","kind":"symbols","icon":"code","color":"#c084fc","symbolKinds":["class","method"]} -->
+# Clases and methods
+<!-- iaterminal:context {"version":1,"id":"iaterminal:symbols:Clases-and-methods","name":"Clases and methods","fileName":"Clases-and-methods.md","kind":"symbols","icon":"code","color":"#2dd4bf","symbolKinds":["class","method"]} -->
 
 <!-- iaterminal:auto -->
 ### electron/agentCliRuntime.ts
@@ -38,11 +38,16 @@
 
 ### electron/aiAgentResults.ts
 - agentResultSlug
+- resolveResultsAgentId
 - agentResultFileName
 - agentResultContextId
 - resolveAiAgentResultsPath
 - extractAiAgentResults
 - formatAiAgentResultsDocument
+- rewriteProjectAgentContextIds
+- pruneOrphanAgentResults
+- pruneProjectAgentContextIds
+- migrateLegacyAgentResults
 - ensureAiAgentResults
 - upsertAiAgentResults
 - buildAiAgentResultsInstruction
@@ -142,6 +147,7 @@
 - listProjectAgents
 - upsertProjectAgent
 - deleteProjectAgent
+- renameProjectAgent
 - migratePersistedSessionAgents
 
 ### electron/projectAiContext.ts
@@ -222,6 +228,12 @@
 
 ### src/renderer/agent/AgentConfigSettingsPane.tsx
 - AgentConfigSettingsPane
+
+### src/renderer/agent/AgentConfigSlugField.tsx
+- AgentConfigSlugField
+
+### src/renderer/agent/AgentCreateNameModal.tsx
+- AgentCreateNameModal
 
 ### src/renderer/agent/AgentLoopIntervalModal.tsx
 - AgentLoopIntervalModal
@@ -659,6 +671,7 @@
 - PlaneChatSendButton
 
 ### src/renderer/workspace/planeColumnReorder.ts
+- shouldCommitReorder
 - usePlaneColumnReorder
 
 ### src/renderer/workspace/PlaneComposerAurora.tsx
@@ -719,6 +732,10 @@
 
 ### src/renderer/workspace/PlaneQuickChat.tsx
 - PlaneQuickChat
+
+### src/renderer/workspace/resolveAssignedContextChips.ts
+- resolveAssignedContextChips
+- contextIdsEqual
 
 ### src/renderer/workspace/TabAgenticPlane.tsx
 - TabAgenticPlane
@@ -808,11 +825,19 @@
 - normalizeAgentSlug
 - projectAgentFileName
 - allocateAgentSlug
+- buildNewProjectAgentDefinition
+- agentResultContextIdForSlug
+- isAgentOwnResultContext
+- remapAgentBindingsInTabs
+- remapAgentResultContextIds
+- remapAgentResultIdsInCatalog
+- remapAgentResultTabContexts
 - parseProjectAgentDefinition
 - cloneProjectAgentDefinition
 - isLegacyRichAgentMeta
 - legacyAgentMetaToDefinition
 - parseAgentPaneBinding
+- resolveCatalogAgentId
 - resolveAgentPaneMeta
 - agentDefinitionFromMeta
 - agentBindingFromMeta
@@ -823,13 +848,19 @@
 
 ### src/shared/tabContext.ts
 - normalizeContextFileName
+- normalizeContextRootPath
+- creatableContextStem
+- canonicalContextId
+- canonicalContextFileName
+- canonicalContextName
+- contextDefinitionKey
+- applyCanonicalContextIdentity
+- isCanonicalContextId
 - isProjectContext
 - normalizeAnnotation
 - collectAutoAnnotationKeys
 - extractTabContextUpdates
 - filterTabContextUpdatesByChangedPaths
-- defaultAssignedContextIds
-- suggestSymbolsIdentity
 
 ### src/shared/tabContextAppearance.ts
 - defaultIconForKind

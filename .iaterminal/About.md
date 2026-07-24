@@ -1,5 +1,5 @@
 # About
-<!-- iaterminal:context {"version":1,"id":"759e04ea-079b-45c9-91c9-0d2373d651a0","name":"About","fileName":"About.md","kind":"notes","icon":"settings","color":"#fb7185"} -->
+<!-- iaterminal:context {"version":1,"id":"iaterminal:notes:About","name":"About","fileName":"About.md","kind":"notes","icon":"settings","color":"#34d399"} -->
 
 <!-- iaterminal:auto -->
 (manual notes context)

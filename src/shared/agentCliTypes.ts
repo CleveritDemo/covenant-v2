@@ -25,6 +25,8 @@ export interface AgentCliStartRequest {
   permissionMode: AgentPermissionMode
   /** Nombre del agente; se inyecta en el prompt del turno. */
   name?: string
+  /** Id estable del catálogo; resultados y contextIds usan este id. */
+  agentId?: string
   /** Rol del agente; se inyecta en el prompt del turno. */
   role?: string
   /** Objetivo persistente; se inyecta en el prompt del turno. */
@@ -41,6 +43,8 @@ export interface AgentCliStartRequest {
   autoImproveContexts?: boolean
   /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
   emitResults?: boolean
+  /** Tras migración de ids de contexto, forzar refresh completo del snapshot. */
+  forceContextFullRefresh?: boolean
   /** Orquestador: prompt de delegación + parse del fence. */
   coordination?: 'none' | 'orchestrator'
   /** Si false, el host prohíbe nuevas delegaciones en este turno. */

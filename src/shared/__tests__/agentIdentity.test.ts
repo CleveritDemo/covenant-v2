@@ -32,6 +32,7 @@ describe('applyAgentIdentityDraft', () => {
     expect(applyAgentIdentityDraft(
       { name: 'Old', role: 'Old role', objective: 'Old obj', rules: ['keep'] },
       {
+        id: 'scout',
         name: '  Scout  ',
         role: '   ',
         objective: ' Ship it ',

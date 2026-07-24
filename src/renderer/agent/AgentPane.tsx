@@ -25,6 +25,7 @@ import {
   type AgentIdentityDraft,
   normalizeAgentRules,
 } from '@shared/agentIdentity'
+import { normalizeAgentSlug, isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -110,6 +111,10 @@ interface Props {
   meta: AgentPaneMeta
   /** Carpeta del proyecto de la pestaña (única fuente de cwd del agente). */
   cwd: string
+  /** Sube al remapear results por rename de slug (fuerza rediscovery). */
+  contextsRevision?: number
+  /** El catálogo de contextos del proyecto cambió en disco (p. ej. results creado). */
+  onProjectContextsChanged?: () => void
   tabActive: boolean
   isActivePane: boolean
   /** Ventana del agente abierta en el plano (no mini). Dispara scroll al fondo. */
@@ -227,6 +232,8 @@ export const AgentPane: React.FC<Props> = ({
   paneId,
   meta,
   cwd,
+  contextsRevision = 0,
+  onProjectContextsChanged,
   tabActive,
   isActivePane,
   windowOpen = true,
@@ -326,6 +333,8 @@ export const AgentPane: React.FC<Props> = ({
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
   const cwdRef = useRef(cwd)
+  const onMetaChangeRef = useRef(onMetaChange)
+  const onProjectContextsChangedRef = useRef(onProjectContextsChanged)
   const busyRef = useRef(busy)
   const loopActiveRef = useRef(false)
   const loopObjectiveRef = useRef('')
@@ -340,6 +349,8 @@ export const AgentPane: React.FC<Props> = ({
   const discoveryHydratedRef = useRef(false)
   /** CWD al que pertenece diskContexts; impide reutilizar catálogo entre proyectos. */
   const discoveredCwdRef = useRef<string | null>(null)
+  /** Tras migración de ids en disco, el próximo turno fuerza refresh del snapshot. */
+  const forceContextFullRefreshRef = useRef(false)
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
@@ -369,9 +380,15 @@ export const AgentPane: React.FC<Props> = ({
   metaRef.current = meta
   diskContextsRef.current = diskContexts
   cwdRef.current = cwd
+  onMetaChangeRef.current = onMetaChange
+  onProjectContextsChangedRef.current = onProjectContextsChanged
   busyRef.current = busy
   loopActiveRef.current = loopActive
   loopIterationRef.current = loopIteration
+
+  const stableOnMetaChange = useCallback((
+    next: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
+  ): void | Promise<boolean> => onMetaChangeRef.current(next), [])
 
   const clearLoopTimer = useCallback((): void => {
     if (loopContinueTimerRef.current != null) {
@@ -394,22 +411,42 @@ export const AgentPane: React.FC<Props> = ({
     return cwdRef.current.trim()
   }, [])
 
-  const applyDiscoveredContexts = useCallback((discovered: TabContext[]): void => {
+  const applyDiscoveredContexts = useCallback((
+    discovered: TabContext[],
+    idRemap?: Record<string, string>,
+  ): void => {
     setDiskContexts(discovered)
     diskContextsRef.current = discovered
     const discoveredIds = new Set(discovered.map(context => context.id))
+    const remap = idRemap ?? {}
+    // Discover ya reescribió `.iaterminal/agents` vía idRemap: no upsertar desde
+    // meta en memoria (puede estar stale y pisar el SSOT del disco).
+    if (Object.keys(remap).length > 0) {
+      discoveryHydratedRef.current = true
+      return
+    }
+    const mapId = (id: string): string => remap[id] ?? id
     // Derivar nextIds desde `previous` del updater (no metaRef): evita que un
     // discover en vuelo pise un toggle de contexto concurrente.
-    onMetaChange(previous => {
+    void stableOnMetaChange(previous => {
       let nextIds: string[]
       if (!discoveryHydratedRef.current) {
         discoveryHydratedRef.current = true
         nextIds = previous.contextIds == null
           ? defaultAssignedContextIds(discovered)
-          : previous.contextIds.filter(id => discoveredIds.has(id))
+          : previous.contextIds.map(mapId).filter(id => discoveredIds.has(id))
       } else {
-        nextIds = (previous.contextIds ?? []).filter(id => discoveredIds.has(id))
+        // Conserva results asignados aunque este discover aún no los liste.
+        nextIds = (previous.contextIds ?? []).map(mapId).filter(id => (
+          discoveredIds.has(id) || id.startsWith('iaterminal:result:')
+        ))
       }
+      const seen = new Set<string>()
+      nextIds = nextIds.filter(id => {
+        if (seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
       const prev = previous.contextIds ?? []
       if (
         nextIds.length === prev.length
@@ -419,7 +456,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       return { ...previous, contextIds: nextIds }
     })
-  }, [onMetaChange])
+  }, [stableOnMetaChange])
 
   const prepareContextDiscovery = useCallback((resolvedCwd: string): void => {
     const next = resolvedCwd.trim()
@@ -431,13 +468,15 @@ export const AgentPane: React.FC<Props> = ({
 
   const refreshDiskContexts = useCallback(async (): Promise<void> => {
     const resolvedCwd = await resolveWorkingCwd()
+    // Siempre descubrir (migración canónica en disco), aunque el cwd no cambie.
     prepareContextDiscovery(resolvedCwd)
     if (!resolvedCwd) {
       return
     }
     const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
     if (!result.ok) return
-    applyDiscoveredContexts(result.contexts)
+    if (result.contextsMigrated) forceContextFullRefreshRef.current = true
+    applyDiscoveredContexts(result.contexts, result.idRemap)
   }, [applyDiscoveredContexts, prepareContextDiscovery, resolveWorkingCwd])
 
   useEffect(() => {
@@ -644,6 +683,29 @@ export const AgentPane: React.FC<Props> = ({
     onPreferOpenConfigConsumed?.()
   }, [preferOpenConfig, onPreferOpenConfigConsumed, onConfigOpen])
 
+  // Al abrir config, refrescar contextos y asegurar results del agente.
+  useEffect(() => {
+    if (!configOpen) return
+    void (async () => {
+      await refreshDiskContexts()
+      const resolvedCwd = await resolveWorkingCwd()
+      const agentId = metaRef.current.id?.trim() ?? ''
+      if (!resolvedCwd || !agentId) return
+      const slug = normalizeAgentSlug(agentId, 'agent')
+      const resultId = `iaterminal:result:${slug}`
+      if (diskContextsRef.current.some(context => context.id === resultId)) return
+      const agentName = metaRef.current.name?.trim() ?? ''
+      const result = await window.api.ensureAiAgentResults({
+        cwd: resolvedCwd,
+        agentId,
+        ...(agentName ? { agentName } : {}),
+      })
+      if (!result.ok) return
+      await refreshDiskContexts()
+      onProjectContextsChangedRef.current?.()
+    })()
+  }, [configOpen, refreshDiskContexts, resolveWorkingCwd])
+
   useEffect(() => {
     if (!preferOpenContextId) return
     setContextsOpen(true)
@@ -757,10 +819,11 @@ export const AgentPane: React.FC<Props> = ({
       }
       const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
       if (cancelled || !result.ok) return
-      applyDiscoveredContexts(result.contexts)
+      if (result.contextsMigrated) forceContextFullRefreshRef.current = true
+      applyDiscoveredContexts(result.contexts, result.idRemap)
     }).catch(() => undefined)
     return () => { cancelled = true }
-  }, [applyDiscoveredContexts, contextsOpen, cwd, prepareContextDiscovery, resolveWorkingCwd])
+  }, [applyDiscoveredContexts, contextsOpen, contextsRevision, cwd, prepareContextDiscovery, resolveWorkingCwd])
 
   const startTurn = useCallback(async (options: {
     prompt: string
@@ -883,6 +946,7 @@ export const AgentPane: React.FC<Props> = ({
       prompt,
       cwd: resolvedCwd,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
+      ...(currentMeta.id?.trim() ? { agentId: currentMeta.id.trim() } : {}),
       ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
       ...(currentMeta.role?.trim() ? { role: currentMeta.role.trim() } : {}),
       ...(currentMeta.objective?.trim() ? { objective: currentMeta.objective.trim() } : {}),
@@ -891,7 +955,10 @@ export const AgentPane: React.FC<Props> = ({
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
-      emitResults: currentMeta.emitResults === true,
+      emitResults: true,
+      ...(forceContextFullRefreshRef.current
+        ? { forceContextFullRefresh: true }
+        : {}),
       ...(isOrchestrator
         ? {
             coordination: 'orchestrator' as const,
@@ -910,6 +977,7 @@ export const AgentPane: React.FC<Props> = ({
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
     }
+    if (forceContextFullRefreshRef.current) forceContextFullRefreshRef.current = false
     lastTurnRequestRef.current = request
     window.api.startAgentTurn(request)
     return true
@@ -1151,6 +1219,8 @@ export const AgentPane: React.FC<Props> = ({
       const valid = currentMeta.autoImproveContexts === true
         ? updates.filter(update =>
             assigned.has(update.id) &&
+            update.kind !== 'agentResult' &&
+            update.kind !== 'notes' &&
             Array.isArray(update.annotations) &&
             update.annotations.length > 0)
         : []
@@ -1726,14 +1796,23 @@ export const AgentPane: React.FC<Props> = ({
   }
 
   const commitIdentity = (draft: AgentIdentityDraft): void => {
-    onMetaChange(previous => applyAgentIdentityDraft(previous, draft))
+    onMetaChange(previous => {
+      const withIdentity = applyAgentIdentityDraft(previous, draft)
+      const nextId = normalizeAgentSlug(draft.id, previous.id)
+      return { ...withIdentity, id: nextId || previous.id }
+    })
   }
 
   const toggleContext = (contextId: string): void => {
     onMetaChange(previous => {
       const selected = new Set(previous.contextIds ?? [])
-      if (selected.has(contextId)) selected.delete(contextId)
-      else selected.add(contextId)
+      if (selected.has(contextId)) {
+        selected.delete(contextId)
+      } else if (isAgentOwnResultContext(previous.id, contextId)) {
+        return previous
+      } else {
+        selected.add(contextId)
+      }
       return { ...previous, contextIds: [...selected] }
     })
   }
@@ -1899,36 +1978,7 @@ export const AgentPane: React.FC<Props> = ({
           ...previous,
           autoImproveContexts: checked,
         }))}
-        onEmitResultsChange={checked => {
-          void onMetaChange(previous => ({
-            ...previous,
-            emitResults: checked,
-          }))
-          if (!checked) return
-          void (async () => {
-            const flashNotice = (message: string): void => {
-              setContextNotice(message)
-              window.setTimeout(() => setContextNotice(''), 3500)
-            }
-            const resolvedCwd = await resolveWorkingCwd()
-            const agentName = metaRef.current.name?.trim() ?? ''
-            if (!resolvedCwd) {
-              flashNotice(t('tabContexts.emitResultsNeedsProject'))
-              return
-            }
-            if (!agentName) {
-              flashNotice(t('tabContexts.emitResultsNeedsName'))
-              return
-            }
-            const result = await window.api.ensureAiAgentResults({ cwd: resolvedCwd, agentName })
-            if (!result.ok) {
-              flashNotice(t('tabContexts.emitResultsFailed'))
-              return
-            }
-            await refreshDiskContexts()
-            flashNotice(t('tabContexts.emitResultsReady'))
-          })()
-        }}
+        onContextsTabFocus={() => { void refreshDiskContexts() }}
       />
 
       <QueuedTurnEditModal

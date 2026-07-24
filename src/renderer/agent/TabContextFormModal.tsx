@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
+  applyCanonicalContextIdentity,
   collectAutoAnnotationKeys,
+  contextDefinitionKey,
   normalizeContextFileName,
   suggestSymbolsIdentity,
 } from '@shared/tabContext'
@@ -24,50 +26,23 @@ interface Props {
 }
 
 function emptyContext(kind: TabContextKind = 'folderTree'): TabContext {
-  if (kind === 'changelog') {
-    return {
-      id: 'iaterminal:changelog',
-      name: 'AI Changelog',
-      fileName: 'changelog.md',
-      kind,
-      icon: defaultIconForKind(kind),
-      color: defaultColorForKind(kind),
-    }
-  }
-  return {
-    id: crypto.randomUUID(),
+  return applyCanonicalContextIdentity({
+    id: '',
     name: '',
-    fileName: 'context.md',
+    fileName: '',
     kind,
     icon: defaultIconForKind(kind),
     color: defaultColorForKind(kind),
     ...(kind === 'symbols' ? { symbolKinds: ['class', 'method'] as const } : {}),
-  }
+  })
 }
 
 function comparable(value: string): string {
   return value.trim().normalize('NFKC').toLocaleLowerCase()
 }
 
-function normalizedRoot(value?: string): string {
-  return comparable(value || '.').replace(/^\.\/+/, '').replace(/\/+$/, '') || '.'
-}
-
 function contextDefinition(context: TabContext): string | null {
-  if (context.kind === 'notes' || context.kind === 'changelog' || context.kind === 'agentResult') return null
-  const paths = [...(context.paths ?? [])]
-    .map(path => path.trim().replace(/^\.\/+/, ''))
-    .filter(Boolean)
-    .sort()
-  const symbolKinds = context.kind === 'symbols'
-    ? [...(context.symbolKinds ?? ['class', 'method'])].sort()
-    : []
-  return JSON.stringify({
-    kind: context.kind,
-    rootPath: normalizedRoot(context.rootPath),
-    paths,
-    symbolKinds,
-  })
+  return contextDefinitionKey(context)
 }
 
 function countAutoKeys(content: string): number {
@@ -177,7 +152,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           next = {
             ...next,
             name: suggested.name,
-            fileName: normalizeContextFileName(suggested.fileStem),
+            fileName: normalizeContextFileName(suggested.name || suggested.fileStem),
           }
         }
       }
@@ -193,34 +168,30 @@ export const TabContextFormModal: React.FC<Props> = ({
   const duplicateMessage = (() => {
     if (!draft) return ''
     const others = contexts.filter(item => item.id !== draft.id)
-    const fileName = normalizeContextFileName(draft.fileName || draft.name, draft.id)
+    const fileName = normalizeContextFileName(
+      draft.name || draft.fileName,
+      draft.kind === 'changelog' ? 'changelog' : 'context',
+    )
     if (others.some(item => comparable(item.name ?? '') === comparable(draft.name ?? ''))) {
       return t('tabContexts.nameDuplicate')
     }
-    if (draft.kind === 'changelog' && others.some(item => item.kind === 'changelog')) {
-      return t('tabContexts.changelogDuplicate')
-    }
     if (others.some(item =>
-      normalizeContextFileName(item.fileName, item.id).toLowerCase() === fileName.toLowerCase()
+      normalizeContextFileName(item.fileName || item.name, item.id).toLowerCase() === fileName.toLowerCase()
     )) {
       return t('tabContexts.fileNameDuplicate')
     }
     const definition = contextDefinition(draft)
     if (definition && others.some(item => contextDefinition(item) === definition)) {
-      return t('tabContexts.definitionDuplicate')
+      return t('tabContexts.fileNameDuplicate')
     }
     return ''
   })()
 
-  const normalizeDraft = (current: TabContext): TabContext => ({
+  const normalizeDraft = (current: TabContext): TabContext => applyCanonicalContextIdentity({
     ...current,
-    name: (current.name ?? '').trim() || (current.kind === 'changelog' ? 'AI Changelog' : ''),
-    fileName: normalizeContextFileName(
-      current.fileName || current.name || (current.kind === 'changelog' ? 'changelog' : 'context'),
-      current.kind === 'changelog' ? 'changelog' : current.id,
-    ),
+    name: (current.name ?? '').trim() || (current.kind === 'changelog' ? 'AI Changelog' : current.name),
     ...(current.rootPath?.trim()
-      ? { rootPath: current.rootPath.trim() === '.' ? '.' : current.rootPath.trim() }
+      ? { rootPath: current.rootPath.trim() === '.' ? undefined : current.rootPath.trim() }
       : { rootPath: undefined }),
     ...(current.paths
       ? { paths: current.paths.map(path => (path ?? '').trim()).filter(Boolean) }
@@ -240,11 +211,16 @@ export const TabContextFormModal: React.FC<Props> = ({
       return
     }
     const normalized = normalizeDraft(draft)
+    const previousFileName = mode === 'edit' && context?.fileName
+      && normalizeContextFileName(context.fileName) !== normalized.fileName
+      ? context.fileName
+      : undefined
     try {
       const result = await window.api.materializeTabContext({
         context: normalized,
         cwd: workingCwd,
         ...(normalized.kind === 'notes' ? { content: notesContent ?? '' } : {}),
+        ...(previousFileName ? { previousFileName } : {}),
       })
       if (!result.ok) {
         setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
@@ -344,35 +320,33 @@ export const TabContextFormModal: React.FC<Props> = ({
 
   const selectKind = (kind: TabContextKind): void => {
     if (!draft) return
-    if (kind === 'changelog' && contexts.some(item => item.kind === 'changelog')) return
     if (draft.kind === kind) return
     if (kind === 'changelog') {
       setDraft(emptyContext('changelog'))
     } else {
-      const base = emptyContext(kind)
       const keepName = draft.kind === 'changelog' ? '' : draft.name
-      const keepFile = draft.kind === 'changelog' ? 'context.md' : draft.fileName
+      const keepRoot = draft.rootPath
+      const base = emptyContext(kind)
       if (kind === 'symbols') {
-        const suggested = suggestSymbolsIdentity(undefined)
-        setDraft({
+        const suggested = suggestSymbolsIdentity(keepRoot)
+        setDraft(applyCanonicalContextIdentity({
           ...base,
-          id: draft.kind === 'changelog' ? crypto.randomUUID() : draft.id,
           name: keepName.trim() || suggested.name,
-          fileName: keepName.trim()
-            ? keepFile
-            : normalizeContextFileName(suggested.fileStem),
-          icon: defaultIconForKind(kind),
-          color: defaultColorForKind(kind),
-        })
-      } else {
-        setDraft({
+          rootPath: keepRoot,
+          symbolKinds: ['class', 'method'],
+        }))
+      } else if (kind === 'notes') {
+        setDraft(applyCanonicalContextIdentity({
           ...base,
-          id: draft.kind === 'changelog' ? crypto.randomUUID() : draft.id,
+          name: keepName || 'Notes',
+          fileName: normalizeContextFileName(keepName || 'notes', 'notes'),
+        }))
+      } else {
+        setDraft(applyCanonicalContextIdentity({
+          ...base,
           name: keepName,
-          fileName: keepFile,
-          icon: defaultIconForKind(kind),
-          color: defaultColorForKind(kind),
-        })
+          rootPath: keepRoot,
+        }))
       }
     }
     setNotesContent('')

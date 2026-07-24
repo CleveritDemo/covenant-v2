@@ -136,7 +136,8 @@ const api = {
   },
   ensureAiAgentResults(request: {
     cwd: string
-    agentName: string
+    agentId: string
+    agentName?: string
   }): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.AGENT_RESULTS_ENSURE, request)
   },
@@ -425,6 +426,22 @@ const api = {
     | { ok: false; error: string }
   > {
     return ipcRenderer.invoke(IPC.PROJECT_AGENTS_UPSERT, cwd, definition)
+  },
+  renameProjectAgent(
+    cwd: string,
+    fromId: string,
+    definition: import('../src/shared/projectAgentCatalog').ProjectAgentDefinition,
+  ): Promise<
+    | {
+      ok: true
+      agent: import('../src/shared/projectAgentCatalog').ProjectAgentDefinition
+      fromId: string
+      toId: string
+      idRemap: Record<string, string>
+    }
+    | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.PROJECT_AGENTS_RENAME, cwd, fromId, definition)
   },
   deleteProjectAgent(
     cwd: string,

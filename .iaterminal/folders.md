@@ -1,5 +1,5 @@
-# folders
-<!-- iaterminal:context {"version":1,"id":"discovered-file:folders.md","name":"folders","fileName":"folders.md","kind":"folderTree","icon":"folder","color":"#5ec8ff"} -->
+# Folders
+<!-- iaterminal:context {"version":1,"id":"iaterminal:folderTree:Folders","name":"Folders","fileName":"Folders.md","kind":"folderTree","icon":"folder","color":"#5ec8ff"} -->
 
 <!-- iaterminal:auto -->
 ia_terminal/  (project root; paths are relative to this folder)
@@ -41,11 +41,5 @@ src/
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->
-- `docs` — QA + agent context guides
-- `electron` — Main/preload/PTY/CLI/contexts
-- `src` — Renderer, shared, themes, i18n
-- `scripts` — Build/icon helpers
-- `electron/tabContextBuild.ts` — Materialize and deliver tab contexts
-- `src/renderer/agent` — Agent UI including context modal
-- `src/renderer/workspace` — Plano 2D, chat dock y composer
+(no annotations yet)
 <!-- /iaterminal:notes -->

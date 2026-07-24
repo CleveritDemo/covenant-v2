@@ -30,7 +30,7 @@ export function resolveTabAgentMeta(
     }
   }
   const definition = agents.find(agent => agent.id === binding.agentId)
-  return resolveAgentPaneMeta(binding, definition)
+  return resolveAgentPaneMeta(binding, definition, agents)
 }
 
 export function upsertAgentInList(

@@ -136,6 +136,28 @@
   background: color-mix(in srgb, var(--danger) 12%, var(--surface));
 }
 
+.plane-mini-face__drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.plane-mini-face__drag-handle:active {
+  cursor: grabbing;
+}
+
+.plane-mini-face__results-drag {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 3;
+  opacity: 1;
+  cursor: grab;
+}
+
+.plane-mini-face__results-drag:active {
+  cursor: grabbing;
+}
+
 .plane-mini-face__body {
   display: flex;
   flex-direction: column;

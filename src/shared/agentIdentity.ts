@@ -39,13 +39,15 @@ export function sanitizeAgentRulesDraft(rules: string[] | undefined): string[] {
 
 /** Borrador de identidad en el modal de config (valores crudos de inputs). */
 export interface AgentIdentityDraft {
+  /** Slug del JSON en `.iaterminal/agents/<id>.json`. */
+  id: string
   name: string
   role: string
   objective: string
   rules: string[]
 }
 
-/** Aplica el borrador a la meta: trim/clamp una sola vez (blur o cierre). */
+/** Aplica el borrador a la meta: trim/clamp una sola vez (blur o cierre). No toca `id`. */
 export function applyAgentIdentityDraft<T extends AgentIdentity>(
   previous: T,
   draft: AgentIdentityDraft,

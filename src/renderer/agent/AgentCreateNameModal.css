@@ -1,0 +1,28 @@
+.agent-create-name {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-create-name__description {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.agent-create-name__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-create-name__label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}

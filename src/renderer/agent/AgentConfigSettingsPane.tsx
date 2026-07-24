@@ -18,7 +18,6 @@ export type AgentConfigSettingsTab = 'runtime' | 'permissions' | 'contexts'
 export interface AgentConfigSettingsPaneProps {
   meta: AgentPaneMeta
   cwd: string
-  busy: boolean
   loopMode: boolean
   loopActive: boolean
   locked: boolean
@@ -52,7 +51,6 @@ const MAX_ROUNDS_OPTIONS = Array.from(
 export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = ({
   meta,
   cwd,
-  busy,
   loopMode,
   loopActive,
   locked,
@@ -127,7 +125,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <SegmentedControl
                 label={t('agentPane.providerLabel')}
                 value={meta.provider}
-                disabled={busy || loopActive}
+                disabled={locked}
                 options={[
                   { value: 'claude', label: t('agentPane.claude') },
                   { value: 'cursor', label: t('agentPane.cursor') },
@@ -139,7 +137,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <span className="agent-config-settings__label">{t('agentPane.modelLabel')}</span>
               <Select
                 value={selectedModel}
-                disabled={busy || loopActive}
+                disabled={locked}
                 title={t('agentPane.modelHint')}
                 onChange={event => onChangeModel(event.target.value)}
               >
@@ -165,7 +163,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <SegmentedControl
                 label={t('agentPane.permissionLabel')}
                 value={meta.permissionMode}
-                disabled={busy || loopActive}
+                disabled={locked}
                 options={PERMISSION_MODES.map(mode => ({
                   value: mode.value,
                   label: mode.label,
@@ -182,7 +180,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <SegmentedControl
                 label={t('agentPane.coordinationLabel')}
                 value={meta.coordination ?? 'none'}
-                disabled={busy || loopActive}
+                disabled={locked}
                 options={[
                   { value: 'none', label: t('agentPane.coordinationNone') },
                   { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator') },
@@ -196,7 +194,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 <span className="agent-config-settings__label">{t('agentPane.orchestrationMaxRoundsLabel')}</span>
                 <Select
                   value={String(maxRounds)}
-                  disabled={busy || loopActive || locked}
+                  disabled={locked}
                   title={t('agentPane.orchestrationMaxRoundsHint')}
                   onChange={event => onOrchestrationMaxRoundsChange(Number(event.target.value))}
                 >
@@ -218,7 +216,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             )}
             <SettingToggle
               checked={loopMode}
-              disabled={busy || loopActive}
+              disabled={locked}
               title={t('agentPane.loopTitle')}
               description={t('agentPane.loopHint')}
               onChange={() => onToggleLoopMode()}

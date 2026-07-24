@@ -264,7 +264,7 @@ export function pruneProjectAgentContextIds(cwd: string, validIds: ReadonlySet<s
 
 /**
  * Migra results/<nameSlug>.md + iaterminal:result:<nameSlug> → agentId estable.
- * No mueve archivo si el rename solo cambia el display name.
+ * Si solo cambia capitalización (APFS), renombra vía temp.
  */
 export function migrateLegacyAgentResults(cwd: string): {
   idRemap: Record<string, string>
@@ -279,6 +279,32 @@ export function migrateLegacyAgentResults(cwd: string): {
   const agents = listProjectAgents(cwd)
   mkdirSync(resultsDir, { recursive: true })
 
+  const renameViaTemp = (fromName: string, toName: string): boolean => {
+    if (fromName === toName) return false
+    const from = join(resultsDir, fromName)
+    const to = join(resultsDir, toName)
+    const tmp = join(resultsDir, `._case_${Date.now()}_${process.pid}.md`)
+    try {
+      renameSync(from, tmp)
+      renameSync(tmp, to)
+      return true
+    } catch {
+      try {
+        if (existsSync(tmp) && !existsSync(from)) renameSync(tmp, from)
+      } catch { /* ignore */ }
+      return false
+    }
+  }
+
+  const findResultsDirent = (stem: string): string | null => {
+    const target = `${stem}.md`.toLowerCase()
+    try {
+      return readdirSync(resultsDir).find(entry => entry.toLowerCase() === target) ?? null
+    } catch {
+      return null
+    }
+  }
+
   for (const agent of agents) {
     const agentId = normalizeAgentId(agent.id)
     const canonicalPath = resolveAiAgentResultsPath(cwd, agentId)
@@ -286,8 +312,16 @@ export function migrateLegacyAgentResults(cwd: string): {
     const nameSlug = agentResultSlug(agent.name || agentId)
     const legacyId = `iaterminal:result:${nameSlug}`
     const legacyPath = join(resultsDir, `${nameSlug}.md`)
+    const canonicalFileName = `${agentId}.md`
 
-    if (nameSlug !== agentId && existsSync(legacyPath)) {
+    // Case-only: Product-Designer.md → product-designer.md vía temp (APFS).
+    if (nameSlug.toLowerCase() === agentId.toLowerCase()) {
+      const dirent = findResultsDirent(agentId)
+      if (dirent && dirent !== canonicalFileName) {
+        if (renameViaTemp(dirent, canonicalFileName)) migrated = true
+      }
+      if (legacyId !== canonicalId) idRemap[legacyId] = canonicalId
+    } else if (nameSlug !== agentId && existsSync(legacyPath)) {
       if (!existsSync(canonicalPath)) {
         renameSync(legacyPath, canonicalPath)
         migrated = true
@@ -300,6 +334,14 @@ export function migrateLegacyAgentResults(cwd: string): {
         } catch { /* ignore */ }
       }
       if (legacyId !== canonicalId) idRemap[legacyId] = canonicalId
+    }
+
+    // Por si el dirent real difiere del nameSlug (casing) aunque nameSlug===agentId.
+    {
+      const dirent = findResultsDirent(agentId)
+      if (dirent && dirent !== canonicalFileName) {
+        if (renameViaTemp(dirent, canonicalFileName)) migrated = true
+      }
     }
 
     if (existsSync(canonicalPath)) {

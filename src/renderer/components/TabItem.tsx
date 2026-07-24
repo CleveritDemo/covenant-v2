@@ -2,7 +2,7 @@ import React, { useCallback, useRef } from 'react'
 import type { TabSession } from '../App'
 import { useT } from '@i18n/useT'
 import { Icon } from './ui/Icon'
-import { Spinner } from './ui/Spinner'
+import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
 
 interface TabItemProps {
   tab: TabSession
@@ -120,7 +120,9 @@ export const TabItem: React.FC<TabItemProps> = ({
       title={isEditing ? undefined : tab.title}
     >
       {isBusy ? (
-        <Spinner variant="tab" aria-label={t('tabs.spinnerAriaLabel')} />
+        <span className="tab-busy" aria-label={t('tabs.spinnerAriaLabel')}>
+          <PlaneBusyDot />
+        </span>
       ) : (
         <span className="tab-icon" aria-hidden="true">
           <Icon

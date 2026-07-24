@@ -11,6 +11,7 @@ export interface AgentConfigHeroProps {
   modelLabel: string
   busy: boolean
   loopActive: boolean
+  awaitingDelegations?: boolean
 }
 
 function agentInitial(name: string): string {
@@ -26,6 +27,7 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   modelLabel,
   busy,
   loopActive,
+  awaitingDelegations = false,
 }) => {
   const { t } = useT()
   const nameEmpty = !name.trim()
@@ -39,7 +41,7 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
 
   const statusLabel = loopActive
     ? t('agentPane.configStatusLoop')
-    : busy
+    : busy || awaitingDelegations
       ? t('agentPane.configStatusBusy')
       : t('agentPane.configStatusIdle')
 

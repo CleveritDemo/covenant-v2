@@ -39,7 +39,10 @@ import {
   pruneProjectAgentContextIds,
 } from './aiAgentResults'
 import { listProjectAgents } from './projectAgentCatalogOps'
-import { normalizeAgentSlug } from '../src/shared/projectAgentCatalog'
+import {
+  agentResultContextIdForSlug,
+  normalizeAgentSlug,
+} from '../src/shared/projectAgentCatalog'
 
 const MAX_CONTEXT_CHARS = 45_000
 /** Símbolos de monorepos Nest/React superan fácil 45k; el catálogo on-demand aguanta más. */
@@ -718,11 +721,24 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
           : fromMeta
       if (!context) return
 
+      const resultStem = context.kind === 'agentResult'
+        ? normalizeAgentSlug(baseName.replace(/\.md$/i, ''), 'agent')
+        : ''
+      const resultId = context.kind === 'agentResult'
+        ? agentResultContextIdForSlug(resultStem)
+        : ''
+      const rawResultStem = context.kind === 'agentResult'
+        ? baseName.replace(/\.md$/i, '')
+        : ''
+      const rawResultId = context.kind === 'agentResult'
+        ? `iaterminal:result:${rawResultStem}`
+        : ''
+
       const withFile: TabContext = context.kind === 'agentResult'
         ? {
             ...context,
             fileName: relativeFileName.replace(/\\/g, '/'),
-            id: `iaterminal:result:${baseName.replace(/\.md$/i, '')}`,
+            id: resultId,
           }
         : { ...context, fileName: relativeFileName.replace(/\\/g, '/') }
 
@@ -730,12 +746,23 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
         withFile.kind === 'agentResult'
           ? {
               ...withFile,
-              id: `iaterminal:result:${baseName.replace(/\.md$/i, '')}`,
+              id: resultId,
               fileName: relativeFileName.replace(/\\/g, '/'),
             }
           : withFile,
       )
 
+      if (rawResultId && rawResultId !== canonical.id) {
+        idRemap[rawResultId] = canonical.id
+      }
+      if (
+        context.kind === 'agentResult'
+        && typeof context.id === 'string'
+        && context.id.startsWith('iaterminal:result:')
+        && context.id !== canonical.id
+      ) {
+        idRemap[context.id] = canonical.id
+      }
       if (withFile.id !== canonical.id) {
         idRemap[withFile.id] = canonical.id
       }
@@ -779,6 +806,16 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
       }
     }
 
+    // Remap result ids con stem no normalizado en contextIds de agentes.
+    for (const agent of listProjectAgents(cwd)) {
+      for (const id of agent.contextIds ?? []) {
+        if (!id.startsWith('iaterminal:result:')) continue
+        const stem = id.slice('iaterminal:result:'.length)
+        const canonicalId = agentResultContextIdForSlug(stem)
+        if (id !== canonicalId) idRemap[id] = canonicalId
+      }
+    }
+
     if (Object.keys(idRemap).length) {
       const rewritten = rewriteProjectAgentContextIds(cwd, idRemap)
       if (rewritten > 0) contextsMigrated = true
@@ -792,7 +829,7 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
     const finalContexts = contexts.filter(context => {
       if (context.kind !== 'agentResult') return true
       const stem = context.id.replace(/^iaterminal:result:/, '')
-      return liveAgentIds.has(stem)
+      return liveAgentIds.has(normalizeAgentSlug(stem, 'agent'))
     })
     const validIds = new Set(finalContexts.map(context => context.id))
     if (pruneProjectAgentContextIds(cwd, validIds) > 0) contextsMigrated = true

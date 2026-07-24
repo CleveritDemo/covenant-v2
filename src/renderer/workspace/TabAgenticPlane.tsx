@@ -254,6 +254,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           title: entity.title,
           busy: Boolean(status?.busy ?? entity.busy),
           loopActive: Boolean(status?.loopActive),
+          awaitingDelegations: Boolean(status?.awaitingDelegations),
+          delegationWorkActive: Boolean(status?.delegationWorkActive),
+          orchestratorBusy: Boolean(status?.orchestratorBusy),
         }
       }),
     [agentStatuses, entities],

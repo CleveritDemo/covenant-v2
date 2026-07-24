@@ -32,6 +32,7 @@ export interface AgentConfigModalProps {
   busy: boolean
   loopMode: boolean
   loopActive: boolean
+  awaitingDelegations?: boolean
   diskContexts: TabContext[]
   selectedContextIds: string[]
   contextNotice: string
@@ -60,6 +61,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   busy,
   loopMode,
   loopActive,
+  awaitingDelegations = false,
   diskContexts,
   selectedContextIds,
   contextNotice,
@@ -79,7 +81,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   closeOnBackdrop = true,
 }) => {
   const { t } = useT()
-  const locked = busy || loopActive
+  const locked = busy || loopActive || awaitingDelegations
   const [draft, setDraft] = useState<AgentIdentityDraft>(() => identityDraftFromMeta(meta))
   const draftRef = useRef(draft)
   draftRef.current = draft
@@ -138,6 +140,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           modelLabel={modelLabel}
           busy={busy}
           loopActive={loopActive}
+          awaitingDelegations={awaitingDelegations}
         />
       )}
       footer={(
@@ -150,7 +153,11 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       )}
     >
       <div className="agent-config-modal">
-        <AgentConfigLockBanner busy={busy} loopActive={loopActive} />
+        <AgentConfigLockBanner
+          busy={busy}
+          loopActive={loopActive}
+          awaitingDelegations={awaitingDelegations}
+        />
         <AgentConfigIdentityColumn
           draft={draft}
           locked={locked}
@@ -160,7 +167,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
         <AgentConfigSettingsPane
           meta={meta}
           cwd={cwd}
-          busy={busy}
           loopMode={loopMode}
           loopActive={loopActive}
           locked={locked}

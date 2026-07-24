@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -234,7 +234,46 @@ describe('AI agent results', () => {
     const agent = JSON.parse(
       readFileSync(join(cwd, '.iaterminal', 'agents', 'scout.json'), 'utf8'),
     ) as { contextIds: string[] }
-    expect(agent.contextIds).toEqual(['iaterminal:result:scout', 'iaterminal:folderTree'])
+    // Own result se quita en upsert/parse; folderTree remapeado permanece.
+    expect(agent.contextIds).toEqual(['iaterminal:folderTree'])
+  })
+
+  it('renames case-only Product-Designer.md to product-designer.md via temp', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'Product-Designer.md'),
+      [
+        '# Product Designer — Results',
+        '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:Product-Designer","name":"Product Designer","fileName":"results/Product-Designer.md","kind":"agentResult"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        '## Latest',
+        'Case fix',
+        '',
+        '## Log',
+        '- (no entries yet)',
+        '<!-- /iaterminal:auto -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    upsertProjectAgent(cwd, {
+      id: 'product-designer',
+      name: 'Product Designer',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: ['iaterminal:result:Product-Designer'],
+    })
+
+    const { idRemap, migrated } = migrateLegacyAgentResults(cwd)
+    expect(migrated).toBe(true)
+    expect(idRemap['iaterminal:result:Product-Designer']).toBe('iaterminal:result:product-designer')
+    const names = readdirSync(join(cwd, '.iaterminal', 'results'))
+    expect(names).toContain('product-designer.md')
+    expect(names.some(name => name === 'Product-Designer.md')).toBe(false)
+    const raw = readFileSync(join(cwd, '.iaterminal', 'results', 'product-designer.md'), 'utf8')
+    expect(raw).toContain('"id":"iaterminal:result:product-designer"')
   })
 
   it('preserves notes when upserting Latest/Log', () => {

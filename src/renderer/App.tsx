@@ -39,6 +39,10 @@ import {
 import { formatDelegationResultFollowUp, formatDelegationRoundCapFollowUp, resolveOrchestrationMaxRounds } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
+  clearPlaneSendsForOrchestrationAbort,
+  shouldDiscardAbortedDelegationFifoHead,
+} from './orchestrationAbort'
+import {
   contextIdsEqual,
   resolveAssignedContextChips,
 } from './workspace/resolveAssignedContextChips'
@@ -283,6 +287,20 @@ export const App: React.FC = () => {
   }>>())
   /** Delegaciones en vuelo: id → destino (para cancelar al stop del orquestador). */
   const pendingDelegationsByOrchestratorRef = useRef(new Map<string, Map<string, string>>())
+  const [awaitingDelegationPaneIds, setAwaitingDelegationPaneIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  const [delegationTargetPaneIds, setDelegationTargetPaneIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  const syncAwaitingFromPending = useCallback(() => {
+    const pendingEntries = [...pendingDelegationsByOrchestratorRef.current.entries()]
+      .filter(([, pending]) => pending.size > 0)
+    setAwaitingDelegationPaneIds(new Set(pendingEntries.map(([paneId]) => paneId)))
+    setDelegationTargetPaneIds(new Set(
+      pendingEntries.flatMap(([, pending]) => [...pending.values()]),
+    ))
+  }, [])
   /** Oleadas de delegación por orquestador (se resetea en cada pedido humano). */
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
@@ -1397,6 +1415,9 @@ export const App: React.FC = () => {
         && previous.activity === status.activity
         && previous.lastSnippet === status.lastSnippet
         && previous.activeAssistantId === status.activeAssistantId
+        && previous.awaitingDelegations === status.awaitingDelegations
+        && previous.delegationWorkActive === status.delegationWorkActive
+        && previous.orchestratorBusy === status.orchestratorBusy
         && previous.loopMode === status.loopMode
         && previous.loopActive === status.loopActive
         && previous.localLoopActive === status.localLoopActive
@@ -1698,10 +1719,6 @@ export const App: React.FC = () => {
     setOrchestrationFifoTick(n => n + 1)
   }, [])
 
-  const resetOrchestrationRun = useCallback((paneId: string) => {
-    orchestrationRoundsByPaneRef.current.delete(paneId)
-  }, [])
-
   const orchestrationMaxRoundsForPane = useCallback((paneId: string, tabId?: string): number => {
     const tab = tabId
       ? tabsRef.current.find(item => item.id === tabId)
@@ -1779,7 +1796,8 @@ export const App: React.FC = () => {
       })
     }
     pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
-  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane])
+    syncAwaitingFromPending()
+  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane, syncAwaitingFromPending])
 
   const handleDelegationTurnComplete = useCallback((result: DelegateResult) => {
     const fromPaneId = [...pendingDelegationsByOrchestratorRef.current.entries()]
@@ -1791,6 +1809,7 @@ export const App: React.FC = () => {
     if (pending && remaining === 0) {
       pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
     }
+    syncAwaitingFromPending()
     const round = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 1
     const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
     const atCap = round >= maxRounds
@@ -1804,7 +1823,7 @@ export const App: React.FC = () => {
       orchestrationFollowUp: true,
       allowDelegations: !atCap,
     })
-  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane])
+  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane, syncAwaitingFromPending])
 
   const requestPlaneStop = useCallback((paneId: string) => {
     setPlaneStopPaneIds(previous => {
@@ -1815,7 +1834,7 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const handleOrchestratorStop = useCallback((fromPaneId: string) => {
+  const abortOrchestrationRun = useCallback((fromPaneId: string) => {
     const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
     const runningTargets = pending ? [...new Set(pending.values())] : []
     pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
@@ -1827,6 +1846,8 @@ export const App: React.FC = () => {
       if (next.length) orchestrationFifoByPaneRef.current.set(paneId, next)
       else orchestrationFifoByPaneRef.current.delete(paneId)
     }
+    // preferSend ya ofrecido: no debe consumirse tras el abort.
+    setPlaneSendByPane(prev => clearPlaneSendsForOrchestrationAbort(prev, fromPaneId))
     for (const controls of planeQueueControlsByPaneRef.current.values()) {
       controls.cancelDelegationsFrom(fromPaneId)
     }
@@ -1834,11 +1855,17 @@ export const App: React.FC = () => {
       requestPlaneStop(paneId)
     }
     setOrchestrationFifoTick(n => n + 1)
-  }, [requestPlaneStop])
+    syncAwaitingFromPending()
+  }, [requestPlaneStop, syncAwaitingFromPending])
+
+  const handleOrchestratorStop = useCallback((fromPaneId: string) => {
+    abortOrchestrationRun(fromPaneId)
+  }, [abortOrchestrationRun])
 
   // Drena FIFO de orquestación: ofrece preferSend si el pane está idle.
   useEffect(() => {
     const queues = orchestrationFifoByPaneRef.current
+    const pending = pendingDelegationsByOrchestratorRef.current
     for (const paneId of [...queues.keys()]) {
       if (planeSendByPane[paneId]) continue
       if (chainOfferByPaneRef.current.has(paneId)) continue
@@ -1846,6 +1873,14 @@ export const App: React.FC = () => {
       if (status?.busy || status?.localLoopActive) continue
       const queue = queues.get(paneId)
       if (!queue?.length) {
+        queues.delete(paneId)
+        continue
+      }
+      // Descartar subtareas de orquestadores ya abortados (sin pending).
+      while (queue.length && shouldDiscardAbortedDelegationFifoHead(queue[0], pending)) {
+        queue.shift()
+      }
+      if (!queue.length) {
         queues.delete(paneId)
         continue
       }
@@ -2257,6 +2292,8 @@ export const App: React.FC = () => {
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
           chainLoopActive={chainLoopActive}
+          awaitingDelegations={awaitingDelegationPaneIds.has(paneId)}
+          delegationWorkActive={delegationTargetPaneIds.has(paneId)}
           onChainLoopStop={() => stopChainsForPane(tab.id, paneId)}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
@@ -2279,7 +2316,7 @@ export const App: React.FC = () => {
           }}
           onOrchestratorStop={() => handleOrchestratorStop(paneId)}
           onDelegationTurnComplete={handleDelegationTurnComplete}
-          onOrchestrationUserTurn={() => resetOrchestrationRun(paneId)}
+          onOrchestrationUserTurn={() => abortOrchestrationRun(paneId)}
           getOrchestrationRound={() => ({
             round: orchestrationRoundsByPaneRef.current.get(paneId) ?? 0,
             maxRounds: orchestrationMaxRoundsForPane(paneId, tab.id),

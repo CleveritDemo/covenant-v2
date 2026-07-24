@@ -39,6 +39,12 @@ export interface PlaneChatAgentOption {
   busy: boolean
   /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
   loopActive?: boolean
+  /** El orquestador espera resultados y solo permite detener el batch. */
+  awaitingDelegations?: boolean
+  /** Este agente es destino de una delegación pendiente. */
+  delegationWorkActive?: boolean
+  /** El orquestador está ocupado y no acepta cola humana. */
+  orchestratorBusy?: boolean
 }
 
 export interface PlaneChatQueuedTurn {
@@ -87,8 +93,22 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const busy = Boolean(selected?.busy)
   const loopActive = Boolean(selected?.loopActive)
-  const canSend = Boolean(selected && (draft.trim() || pendingImages.length > 0))
-  const buttonIsStop = Boolean(selected && !canSend && (busy || loopActive))
+  const awaitingDelegations = Boolean(selected?.awaitingDelegations)
+  const delegationWorkActive = Boolean(selected?.delegationWorkActive)
+  const orchestratorBusy = Boolean(selected?.orchestratorBusy)
+  const composerLocked = loopActive
+    || awaitingDelegations
+    || delegationWorkActive
+    || orchestratorBusy
+  const canSend = Boolean(
+    selected && !composerLocked && (draft.trim() || pendingImages.length > 0),
+  )
+  const buttonIsStop = Boolean(selected && (
+    loopActive
+    || awaitingDelegations
+    || orchestratorBusy
+    || (!canSend && busy)
+  ))
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
@@ -157,7 +177,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const submit = (): void => {
     const text = draft.trim()
-    if (!selected || (!text && pendingImages.length === 0)) return
+    if (!selected || composerLocked || (!text && pendingImages.length === 0)) return
     const imagesSnapshot = pendingImages
     setDraft('')
     setPendingImages([])
@@ -180,7 +200,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       <div
         className={[
           'plane-chat-composer-aurora-host',
-          busy || loopActive ? 'plane-chat-composer--working' : '',
+          busy || loopActive || awaitingDelegations || delegationWorkActive
+            ? 'plane-chat-composer--working'
+            : '',
         ].filter(Boolean).join(' ')}
         aria-hidden="true"
       >
@@ -189,7 +211,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       <div
         className={[
           'plane-chat-composer',
-          busy || loopActive ? 'plane-chat-composer--working' : '',
+          busy || loopActive || awaitingDelegations || delegationWorkActive
+            ? 'plane-chat-composer--working'
+            : '',
         ].filter(Boolean).join(' ')}
       >
       <div className="plane-chat-composer__body">
@@ -263,11 +287,15 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             ref={composerInputRef}
             className="plane-chat-composer__input"
             value={draft}
-            disabled={agents.length === 0}
+            disabled={agents.length === 0 || composerLocked}
             placeholder={
               agents.length === 0
                 ? emptyAgentsHint
-                : busy
+                : awaitingDelegations || delegationWorkActive || orchestratorBusy
+                  ? t('agentPane.awaitingDelegationsPlaceholder')
+                  : loopActive
+                    ? t('agentPane.loopPlaceholder')
+                    : busy
                   ? t('agentPane.queuePlaceholder')
                   : placeholder
             }

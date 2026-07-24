@@ -16,6 +16,9 @@ export interface AgentPaneFooterProps {
   loopMode: boolean
   busy: boolean
   loopActive: boolean
+  awaitingDelegations: boolean
+  delegationWorkActive: boolean
+  orchestratorBusy: boolean
   input: string
   showStop: boolean
   showPlay: boolean
@@ -33,6 +36,9 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   loopMode,
   busy,
   loopActive,
+  awaitingDelegations,
+  delegationWorkActive,
+  orchestratorBusy,
   input,
   showStop,
   showPlay,
@@ -74,7 +80,9 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           value={input}
           disabled={composerDisabled}
           placeholder={
-            loopActive ? t('agentPane.loopPlaceholder')
+            awaitingDelegations || delegationWorkActive || orchestratorBusy
+              ? t('agentPane.awaitingDelegationsPlaceholder')
+              : loopActive ? t('agentPane.loopPlaceholder')
               : loopMode ? t('agentPane.loopPlaceholder')
               : busy ? t('agentPane.queuePlaceholder')
               : t('agentPane.placeholder')

@@ -12,6 +12,7 @@ import {
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
 import { isMiniExpandSuppressed } from './miniExpandSuppress'
+import { PlaneBusyDot } from './PlaneBusyDot'
 import {
   hasPlaneContextDrag,
   readPlaneContextDragData,
@@ -765,7 +766,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             />
           </div>
           <h2 className="pane-window__title">{title}</h2>
-          {busy && <span className="pane-window__busy-dot" aria-hidden="true" />}
+          {busy && <PlaneBusyDot />}
           {!isMini && onConfigure && configureLabel ? (
             <div className="pane-window__actions">
               <button

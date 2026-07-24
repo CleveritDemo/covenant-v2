@@ -167,6 +167,7 @@ const es = {
     orchestrationMaxRoundsHint: 'Máximo de oleadas de delegación por pedido del usuario para este orquestador.',
     delegationViaOrchestrator: 'vía orquestador',
     delegationDispatched: 'Delegado a: {{agents}}',
+    awaitingDelegationsPlaceholder: 'Esperando resultados de las delegaciones…',
     delegationEmptySummary: '(sin respuesta)',
     delegationAbortedSummary: 'Delegación cancelada',
     orchestratorBadge: 'Orquestador',

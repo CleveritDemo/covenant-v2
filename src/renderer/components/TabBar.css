@@ -209,6 +209,13 @@
   transition: color 0.22s ease, opacity 0.22s ease, filter 0.22s ease;
 }
 
+.tab-busy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 3px;
+}
+
 .tab--active .tab-icon {
   opacity: 1;
   color: var(--accent);

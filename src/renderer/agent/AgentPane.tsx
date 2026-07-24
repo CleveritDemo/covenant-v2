@@ -45,6 +45,8 @@ import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
 import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
+import { canDrainAgentQueue, isAgentHumanInputBlocked } from './agentInputGuards'
+import { filterQueuedTurnsAfterOrchestrationAbort } from '../orchestrationAbort'
 import {
   attachmentsToPendingImages,
   blobToBase64,
@@ -175,6 +177,10 @@ interface Props {
    * el botón de loop del chat debe verse encendido (mismo estado visual).
    */
   chainLoopActive?: boolean
+  /** El orquestador espera subtareas: bloquea nuevos turnos humanos hasta Stop. */
+  awaitingDelegations?: boolean
+  /** Este pane ejecuta una subtarea pendiente para un orquestador. */
+  delegationWorkActive?: boolean
   /** Pedido externo: detener cadenas que incluyen este pane (p. ej. stop en waiting). */
   onChainLoopStop?: () => void
   paneReorder?: {
@@ -197,6 +203,9 @@ export interface AgentPlaneStatus {
   enteringIds: string[]
   materializingIds: string[]
   settlingId: string | null
+  awaitingDelegations: boolean
+  delegationWorkActive: boolean
+  orchestratorBusy: boolean
   loopMode: boolean
   loopActive: boolean
   /** Solo el loop local del chat (no cadenas del modal Loops). */
@@ -220,7 +229,7 @@ export interface AgentPlaneStatus {
 export interface AgentPlaneQueueControls {
   remove: (id: string) => void
   update: (id: string, text: string) => void
-  /** Quita de la cola local subtareas originadas por un orquestador. */
+  /** Quita subtareas del orquestador y follow-ups locales de ese pane. */
   cancelDelegationsFrom: (fromPaneId: string) => void
 }
 
@@ -268,6 +277,8 @@ export const AgentPane: React.FC<Props> = ({
   preferClearConversation = false,
   onPreferClearConversationConsumed,
   chainLoopActive = false,
+  awaitingDelegations = false,
+  delegationWorkActive = false,
   onChainLoopStop,
   paneReorder,
   registerShortcutCloseInterceptor,
@@ -292,6 +303,13 @@ export const AgentPane: React.FC<Props> = ({
   const [loopOpen, setLoopOpen] = useState(false)
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
+  const orchestratorBusy = meta.coordination === 'orchestrator' && busy
+  const humanInputBlocked = isAgentHumanInputBlocked({
+    loopActive,
+    awaitingDelegations,
+    delegationWorkActive,
+    orchestratorBusy,
+  })
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
@@ -737,6 +755,9 @@ export const AgentPane: React.FC<Props> = ({
       enteringIds: [...enteringIds],
       materializingIds: [...materializingIds],
       settlingId,
+      awaitingDelegations,
+      delegationWorkActive,
+      orchestratorBusy,
       loopMode: loopOpen || loopActive || chainLoopActive,
       loopActive: loopActive || chainLoopActive,
       localLoopActive: loopActive,
@@ -765,6 +786,9 @@ export const AgentPane: React.FC<Props> = ({
       activity,
       busy ? (activeAssistantId ?? '') : '',
       settlingId ?? '',
+      awaitingDelegations ? '1' : '0',
+      delegationWorkActive ? '1' : '0',
+      orchestratorBusy ? '1' : '0',
       loopOpen ? '1' : '0',
       loopActive ? '1' : '0',
       chainLoopActive ? '1' : '0',
@@ -785,8 +809,10 @@ export const AgentPane: React.FC<Props> = ({
   }, [
     activeAssistantId,
     activity,
+    awaitingDelegations,
     busy,
     chainLoopActive,
+    delegationWorkActive,
     diskContexts,
     enteringIds,
     loopActive,
@@ -797,6 +823,7 @@ export const AgentPane: React.FC<Props> = ({
     meta.cliSessionId,
     meta.contextIds,
     onPlaneStatusChange,
+    orchestratorBusy,
     pendingImages.length,
     queuedTurns,
     settlingId,
@@ -1355,7 +1382,7 @@ export const AgentPane: React.FC<Props> = ({
 
   const send = useCallback((): void => {
     const prompt = input.trim()
-    if ((!prompt && pendingImages.length === 0) || loopActive) return
+    if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
     if (busy && queuedTurns.length >= MAX_QUEUED_TURNS) return
     onRequestPaneFocus()
     const imagesSnapshot = pendingImages
@@ -1375,8 +1402,8 @@ export const AgentPane: React.FC<Props> = ({
   }, [
     busy,
     dispatchMessage,
+    humanInputBlocked,
     input,
-    loopActive,
     onRequestPaneFocus,
     pendingImages,
     queuedTurns.length,
@@ -1463,17 +1490,17 @@ export const AgentPane: React.FC<Props> = ({
 
   const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
     setQueuedTurns(previous => {
-      const kept: QueuedTurn[] = []
-      for (const item of previous) {
-        if (item.delegation?.fromPaneId === fromPaneId) {
-          item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
-          continue
-        }
-        kept.push(item)
+      const { kept, removed } = filterQueuedTurnsAfterOrchestrationAbort(
+        previous,
+        paneId,
+        fromPaneId,
+      )
+      for (const item of removed) {
+        item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
       }
       return kept
     })
-  }, [])
+  }, [paneId])
 
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
@@ -1493,7 +1520,13 @@ export const AgentPane: React.FC<Props> = ({
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
   useEffect(() => {
-    if (!loaded || busy || loopActive || drainingRef.current) return
+    if (!canDrainAgentQueue({
+      loaded,
+      busy,
+      loopActive,
+      awaitingDelegations,
+      delegationWorkActive,
+    }) || drainingRef.current) return
     const next = queuedTurns[0]
     if (!next) return
     drainingRef.current = true
@@ -1504,7 +1537,15 @@ export const AgentPane: React.FC<Props> = ({
     }).finally(() => {
       drainingRef.current = false
     })
-  }, [busy, dispatchMessage, loaded, loopActive, queuedTurns])
+  }, [
+    awaitingDelegations,
+    busy,
+    delegationWorkActive,
+    dispatchMessage,
+    loaded,
+    loopActive,
+    queuedTurns,
+  ])
 
   const appendPendingImages = useCallback((images: PendingImage[]): void => {
     if (!images.length) return
@@ -1820,11 +1861,11 @@ export const AgentPane: React.FC<Props> = ({
   const loopMode = loopOpen || loopActive || chainLoopActive
   const effectiveLoopActive = loopActive || chainLoopActive
   const selectedContextIds = meta.contextIds ?? []
-  // Con el agente ocupado el input sigue habilitado para encolar mensajes;
-  // solo el modo loop bloquea la escritura.
-  const showStop = effectiveLoopActive || busy
+  const workBlocksHumanInput = awaitingDelegations || delegationWorkActive || orchestratorBusy
+  // Solo agentes no orquestadores pueden encolar mientras están busy.
+  const showStop = effectiveLoopActive || busy || awaitingDelegations
   const showPlay = loopMode && !effectiveLoopActive && !busy
-  const composerDisabled = effectiveLoopActive
+  const composerDisabled = effectiveLoopActive || workBlocksHumanInput
 
   const handleEnteringAnimationEnd = useCallback((messageId: string): void => {
     setEnteringIds(previous => {
@@ -1854,14 +1895,16 @@ export const AgentPane: React.FC<Props> = ({
   }, [loopActive, send, showPlay, startLoop, stop])
 
   const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
-  const buttonIsStop = showStop && !hasComposerPayload && !showPlay
+  const buttonIsStop = showStop && (
+    effectiveLoopActive || workBlocksHumanInput || (!hasComposerPayload && !showPlay)
+  )
 
   const handleSendClick = useCallback((): void => {
-    if (showPlay) startLoop()
+    if (buttonIsStop) stop()
+    else if (showPlay) startLoop()
     else if (hasComposerPayload) send()
-    else if (showStop) stop()
     else send()
-  }, [hasComposerPayload, send, showPlay, showStop, startLoop, stop])
+  }, [buttonIsStop, hasComposerPayload, send, showPlay, startLoop, stop])
 
   return (
     <div
@@ -1869,7 +1912,7 @@ export const AgentPane: React.FC<Props> = ({
         'agent-pane',
         tabActive && isActivePane ? 'agent-pane--focused' : '',
         effectiveLoopActive ? 'agent-pane--looping' : '',
-        busy ? 'agent-pane--working' : '',
+        busy || awaitingDelegations || delegationWorkActive ? 'agent-pane--working' : '',
       ].filter(Boolean).join(' ')}
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
       onMouseDown={onRequestPaneFocus}
@@ -1904,6 +1947,9 @@ export const AgentPane: React.FC<Props> = ({
             loopMode={loopMode}
             busy={busy}
             loopActive={effectiveLoopActive}
+            awaitingDelegations={awaitingDelegations}
+            delegationWorkActive={delegationWorkActive}
+            orchestratorBusy={orchestratorBusy}
             input={input}
             showStop={buttonIsStop}
             showPlay={showPlay}
@@ -1924,6 +1970,7 @@ export const AgentPane: React.FC<Props> = ({
         busy={busy}
         loopMode={loopMode}
         loopActive={effectiveLoopActive}
+        awaitingDelegations={awaitingDelegations}
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
         contextNotice={contextNotice}

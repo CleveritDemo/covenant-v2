@@ -24,10 +24,12 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
   const canAdd = rules.length < AGENT_RULES_MAX_COUNT
 
   const updateAt = (index: number, value: string): void => {
+    if (disabled) return
     onChange(rules.map((rule, i) => (i === index ? value : rule)))
   }
 
   const removeAt = (index: number): void => {
+    if (disabled) return
     onChange(rules.filter((_, i) => i !== index))
   }
 

@@ -339,6 +339,7 @@ describe('tab context builders', () => {
       '# qa\n<!-- iaterminal:context {"version":1,"id":"iaterminal:result:qa","name":"qa","fileName":"results/qa.md","kind":"agentResult"} -->\n',
       'utf8',
     )
+    // Own result:qa se quita en parse/upsert, no por ausencia en catálogo discover.
     upsertProjectAgent(cwd, {
       id: 'qa',
       name: 'qa',
@@ -355,6 +356,138 @@ describe('tab context builders', () => {
       readFileSync(join(cwd, '.iaterminal', 'agents', 'qa.json'), 'utf8'),
     ) as { contextIds?: string[] }
     expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders'])
+    expect(result.contexts.some(item => item.id === 'iaterminal:result:qa')).toBe(true)
+  })
+
+  it('normalizes Product-Designer.md result id and keeps foreign agent refs', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'Product-Designer.md'),
+      [
+        '# Product Designer — Results',
+        '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:Product-Designer","name":"Product Designer","fileName":"results/Product-Designer.md","kind":"agentResult"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        '## Latest',
+        'ok',
+        '',
+        '## Log',
+        '- (no entries yet)',
+        '<!-- /iaterminal:auto -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    upsertProjectAgent(cwd, {
+      id: 'product-designer',
+      name: 'Product Designer',
+      provider: 'cursor',
+      permissionMode: 'default',
+    })
+    upsertProjectAgent(cwd, {
+      id: 'orchestrator',
+      name: 'Orchestrator',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: ['iaterminal:result:Product-Designer'],
+    })
+
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    const found = result.contexts.find(item => item.kind === 'agentResult')
+    expect(found?.id).toBe('iaterminal:result:product-designer')
+    expect(existsSync(join(cwd, '.iaterminal', 'results', 'product-designer.md'))).toBe(true)
+    const orch = JSON.parse(
+      readFileSync(join(cwd, '.iaterminal', 'agents', 'orchestrator.json'), 'utf8'),
+    ) as { contextIds?: string[] }
+    expect(orch.contextIds).toEqual(['iaterminal:result:product-designer'])
+  })
+
+  it('keeps cross-assigned result:qa on fullstack through discover+prune', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'qa.md'),
+      [
+        '# qa — Results',
+        '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:qa","name":"qa","fileName":"results/qa.md","kind":"agentResult"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        '## Latest',
+        'GO',
+        '',
+        '## Log',
+        '- (no entries yet)',
+        '<!-- /iaterminal:auto -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    writeFileSync(
+      join(cwd, '.iaterminal', 'results', 'fullstack.md'),
+      [
+        '# fullstack — Results',
+        '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:fullstack","name":"fullstack","fileName":"results/fullstack.md","kind":"agentResult"} -->',
+        '',
+        '<!-- iaterminal:auto -->',
+        '## Latest',
+        'working',
+        '',
+        '## Log',
+        '- (no entries yet)',
+        '<!-- /iaterminal:auto -->',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    upsertProjectAgent(cwd, {
+      id: 'qa',
+      name: 'qa',
+      provider: 'cursor',
+      permissionMode: 'default',
+    })
+    upsertProjectAgent(cwd, {
+      id: 'fullstack',
+      name: 'fullstack',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: ['iaterminal:result:qa'],
+    })
+
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    expect(result.contexts.map(item => item.id).sort()).toEqual([
+      'iaterminal:result:fullstack',
+      'iaterminal:result:qa',
+    ])
+    const fullstack = JSON.parse(
+      readFileSync(join(cwd, '.iaterminal', 'agents', 'fullstack.json'), 'utf8'),
+    ) as { contextIds?: string[] }
+    expect(fullstack.contextIds).toEqual(['iaterminal:result:qa'])
+  })
+
+  it('does not auto-assign own result contextIds on discover', () => {
+    const cwd = tempCwd()
+    upsertProjectAgent(cwd, {
+      id: 'scout',
+      name: 'Scout',
+      provider: 'cursor',
+      permissionMode: 'default',
+      contextIds: ['iaterminal:result:scout'],
+    })
+    upsertAiAgentResults(cwd, 'scout', {
+      summary: 'Listo',
+      entries: ['ok'],
+    }, { agentName: 'Scout', timestamp: '2026-07-20T12:00:00.000Z' })
+
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    expect(result.contexts.some(item => item.id === 'iaterminal:result:scout')).toBe(true)
+    const agent = JSON.parse(
+      readFileSync(join(cwd, '.iaterminal', 'agents', 'scout.json'), 'utf8'),
+    ) as { contextIds?: string[] }
+    expect(agent.contextIds ?? []).not.toContain('iaterminal:result:scout')
   })
 
   it('dual materialize of distinct folderTree names writes two files', () => {

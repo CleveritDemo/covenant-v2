@@ -50,7 +50,6 @@
 - migrateLegacyAgentResults
 - ensureAiAgentResults
 - upsertAiAgentResults
-- buildAiAgentResultsInstruction
 
 ### electron/aiChangelog.ts
 - extractAiChangelog
@@ -234,6 +233,10 @@
 
 ### src/renderer/agent/AgentCreateNameModal.tsx
 - AgentCreateNameModal
+
+### src/renderer/agent/agentInputGuards.ts
+- isAgentHumanInputBlocked
+- canDrainAgentQueue
 
 ### src/renderer/agent/AgentLoopIntervalModal.tsx
 - AgentLoopIntervalModal
@@ -469,6 +472,11 @@
 ### src/renderer/history/feedCompletedUserLines.ts
 - backwardKillWordDraft
 - feedCompletedUserLines
+
+### src/renderer/orchestrationAbort.ts
+- clearPlaneSendsForOrchestrationAbort
+- shouldDiscardAbortedDelegationFifoHead
+- filterQueuedTurnsAfterOrchestrationAbort
 
 ### src/renderer/projectAgentsStore.ts
 - resolveTabAgentMeta

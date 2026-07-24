@@ -12,5 +12,6 @@
     "iaterminal:result:qa",
     "a2813272-f448-48a7-91f0-12d5d492ee49"
   ],
-  "autoImproveContexts": true
+  "autoImproveContexts": true,
+  "emitResults": true
 }

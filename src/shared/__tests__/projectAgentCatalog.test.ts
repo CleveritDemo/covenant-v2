@@ -74,14 +74,26 @@ describe('projectAgentCatalog', () => {
       permissionMode: 'auto',
       coordination: 'orchestrator',
       acceptDelegations: false,
+      orchestrationMaxRounds: 7,
     })
     expect(orch).toMatchObject({
       coordination: 'orchestrator',
       acceptDelegations: false,
+      orchestrationMaxRounds: 7,
     })
     const clone = cloneProjectAgentDefinition(orch!)
     expect(clone.coordination).toBe('orchestrator')
     expect(clone.acceptDelegations).toBe(false)
+    expect(clone.orchestrationMaxRounds).toBe(7)
+
+    const defaultRounds = parseProjectAgentDefinition({
+      id: 'boss-default',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      orchestrationMaxRounds: 3,
+    })
+    expect(defaultRounds?.orchestrationMaxRounds).toBeUndefined()
   })
 
   it('keeps empty rule drafts so the editor can add slots', () => {

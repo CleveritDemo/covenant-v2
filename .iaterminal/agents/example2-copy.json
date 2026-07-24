@@ -2,7 +2,7 @@
   "id": "example2-copy",
   "provider": "cursor",
   "permissionMode": "auto",
-  "name": "fullstack2",
+  "name": "fullstack 2",
   "role": "Fullstack Developer Expert",
   "objective": "Develop, update and create software with the best practices and clean code",
   "contextIds": [
@@ -13,5 +13,6 @@
     "iaterminal:result:qa",
     "a2813272-f448-48a7-91f0-12d5d492ee49"
   ],
-  "autoImproveContexts": true
+  "autoImproveContexts": true,
+  "emitResults": true
 }

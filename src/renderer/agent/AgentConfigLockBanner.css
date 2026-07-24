@@ -1,0 +1,19 @@
+.agent-config-lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.agent-config-lock-banner svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}

@@ -134,6 +134,12 @@ const api = {
   discoverTabContexts(request: TabContextDiscoveryRequest): Promise<TabContextDiscoveryResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DISCOVER, request)
   },
+  ensureAiAgentResults(request: {
+    cwd: string
+    agentName: string
+  }): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.AGENT_RESULTS_ENSURE, request)
+  },
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
   },

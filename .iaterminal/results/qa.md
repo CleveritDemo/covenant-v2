@@ -3,9 +3,21 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Más bugs en modal: rollback incompleto tras upsert fallido; loop desde config aborta busy; multi-orquestador; draft desync.
+Re-verify AgentConfig P1s: all 4 PASS; changeProvider handoff still P2.
 
 ## Log
+- `2026-07-24T13:21:35.035Z` — Lock+loop busy gates OK
+- `2026-07-24T13:21:35.035Z` — Draft resync+permission handoff OK
+- `2026-07-24T13:21:35.035Z` — emitResults notices+i18n OK
+- `2026-07-24T13:13:17.434Z` — Identity editable under loopActive
+- `2026-07-24T13:13:17.434Z` — busy+loop toggle aborts turn
+- `2026-07-24T13:13:17.434Z` — upsert fail skips draft/handoff
+- `2026-07-24T13:13:17.434Z` — emitResults ON without ensure feedback
+- `2026-07-24T03:04:22.032Z` — runtime/permissions DOM+wiring OK
+- `2026-07-24T03:04:22.032Z` — CollaborationBlock gone
+- `2026-07-24T03:04:22.032Z` — i18n label unused es/en
+- `2026-07-24T02:25:09.034Z` — sanitize/catalog/UI/App bridge PASS
+- `2026-07-24T02:25:09.034Z` — MAX_DELEGATIONS=5 OK; ensureAiAgentResults + AgentPane emitResults tocados
 - `2026-07-24T01:35:13.977Z` — Upsert fail: handoff/mensaje no se revierten
 - `2026-07-24T01:35:13.977Z` — Loop toggle busy→startLoop aborta turno
 - `2026-07-24T01:35:13.977Z` — Sin límite a 1 orchestrator; a11y listbox/checkbox
@@ -24,18 +36,6 @@ Más bugs en modal: rollback incompleto tras upsert fallido; loop desde config a
 - `2026-07-23T16:03:08.378Z` — Deleted orphans + protocol/writeGuard/contextBuilder/tools
 - `2026-07-23T16:03:08.378Z` — Trimmed ollama/anthropic/openai and unused exports
 - `2026-07-23T16:03:08.378Z` — Related unit tests green
-- `2026-07-23T15:58:39.138Z` — Orphans: ollamaModels, stripShellPromptPrefix, agentWriteGuard
-- `2026-07-23T15:58:39.138Z` — Dead: protocol extractors, ollama prompt builders, pane drag thumb, AI_TOOLS turns
-- `2026-07-23T15:58:39.138Z` — Dato huérfano: color en example2.json post-schema
-- `2026-07-23T04:12:40.809Z` — stop conserva cursor
-- `2026-07-23T04:12:40.809Z` — interval→objective[0]
-- `2026-07-23T04:12:40.809Z` — start sin projectFolder
-- `2026-07-23T04:12:40.809Z` — multi-chain mismo pane
-- `2026-07-23T04:08:39.285Z` — interval modal→objective[0]
-- `2026-07-23T04:08:39.285Z` — no edit steps 1..n
-- `2026-07-23T04:08:39.285Z` — stop conserva cursor
-- `2026-07-23T04:08:39.285Z` — agente en N cadenas
-- `2026-07-23T04:08:39.285Z` — sin validar projectFolder
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

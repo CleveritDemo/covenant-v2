@@ -3,10 +3,25 @@ import {
   buildOrchestratorAgentsBlock,
   formatDelegationResultFollowUp,
   formatDelegationRoundCapFollowUp,
+  MAX_ORCHESTRATION_ROUNDS,
+  ORCHESTRATION_MAX_ROUNDS_CAP,
   parseDelegatePayload,
+  resolveOrchestrationMaxRounds,
   sanitizeAgentCoordination,
   sanitizeDelegateRequest,
+  sanitizeOrchestrationMaxRounds,
 } from '../agentOrchestration'
+
+describe('sanitizeOrchestrationMaxRounds', () => {
+  it('defaults, clamps, and truncates', () => {
+    expect(sanitizeOrchestrationMaxRounds(undefined)).toBe(MAX_ORCHESTRATION_ROUNDS)
+    expect(sanitizeOrchestrationMaxRounds('')).toBe(MAX_ORCHESTRATION_ROUNDS)
+    expect(sanitizeOrchestrationMaxRounds(0)).toBe(1)
+    expect(sanitizeOrchestrationMaxRounds(99)).toBe(ORCHESTRATION_MAX_ROUNDS_CAP)
+    expect(sanitizeOrchestrationMaxRounds(4.9)).toBe(4)
+    expect(resolveOrchestrationMaxRounds(7)).toBe(7)
+  })
+})
 
 describe('sanitizeAgentCoordination', () => {
   it('accepts orchestrator and defaults to none', () => {

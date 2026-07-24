@@ -36,7 +36,7 @@ import {
   listOrchestrationTargets,
   resolveDelegationTargetPaneId,
 } from './workspace/orchestrationBridge'
-import { formatDelegationResultFollowUp, formatDelegationRoundCapFollowUp, MAX_ORCHESTRATION_ROUNDS } from '@shared/agentOrchestration'
+import { formatDelegationResultFollowUp, formatDelegationRoundCapFollowUp, resolveOrchestrationMaxRounds } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import { Titlebar } from './components/Titlebar'
 import { sessionCwdFolderName } from './terminal/explorer/explorerPathUtils'
@@ -210,7 +210,7 @@ export const App: React.FC = () => {
     tabId: string,
     paneId: string,
     meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
-  ) => void>(() => {})
+  ) => Promise<boolean>>(async () => true)
   const [openConfigForPaneId, setOpenConfigForPaneId] = useState<string | null>(null)
   /** Evita que el click al cerrar el modal de config expanda el mini del plano. */
   const suppressPaneExpandUntilRef = useRef(0)
@@ -1669,18 +1669,30 @@ export const App: React.FC = () => {
     orchestrationRoundsByPaneRef.current.delete(paneId)
   }, [])
 
+  const orchestrationMaxRoundsForPane = useCallback((paneId: string, tabId?: string): number => {
+    const tab = tabId
+      ? tabsRef.current.find(item => item.id === tabId)
+      : tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') {
+      return resolveOrchestrationMaxRounds(undefined)
+    }
+    const meta = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
+    return resolveOrchestrationMaxRounds(meta.orchestrationMaxRounds)
+  }, [])
+
   const handleOrchestratorDelegations = useCallback((
     fromPaneId: string,
     tabId: string,
     delegations: DelegateRequest[],
   ) => {
     if (!delegations.length) return
+    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId, tabId)
     const previousRounds = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 0
     const nextRound = previousRounds + 1
     orchestrationRoundsByPaneRef.current.set(fromPaneId, nextRound)
-    if (nextRound > MAX_ORCHESTRATION_ROUNDS) {
+    if (nextRound > maxRounds) {
       enqueueOrchestrationSend(fromPaneId, {
-        text: formatDelegationRoundCapFollowUp(MAX_ORCHESTRATION_ROUNDS),
+        text: formatDelegationRoundCapFollowUp(maxRounds),
         focusPane: false,
         orchestrationFollowUp: true,
         allowDelegations: false,
@@ -1710,12 +1722,12 @@ export const App: React.FC = () => {
             toAgentId: delegation.toAgentId,
           }, {
             round: nextRound,
-            maxRounds: MAX_ORCHESTRATION_ROUNDS,
+            maxRounds,
             batchRemaining: 0,
           }),
           focusPane: false,
           orchestrationFollowUp: true,
-          allowDelegations: nextRound < MAX_ORCHESTRATION_ROUNDS,
+          allowDelegations: nextRound < maxRounds,
         })
         continue
       }
@@ -1734,7 +1746,7 @@ export const App: React.FC = () => {
       })
     }
     pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
-  }, [enqueueOrchestrationSend])
+  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane])
 
   const handleDelegationTurnComplete = useCallback((result: DelegateResult) => {
     const fromPaneId = [...pendingDelegationsByOrchestratorRef.current.entries()]
@@ -1747,18 +1759,19 @@ export const App: React.FC = () => {
       pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
     }
     const round = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 1
-    const atCap = round >= MAX_ORCHESTRATION_ROUNDS
+    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
+    const atCap = round >= maxRounds
     enqueueOrchestrationSend(fromPaneId, {
       text: formatDelegationResultFollowUp(result, {
         round,
-        maxRounds: MAX_ORCHESTRATION_ROUNDS,
+        maxRounds,
         batchRemaining: remaining,
       }),
       focusPane: false,
       orchestrationFollowUp: true,
       allowDelegations: !atCap,
     })
-  }, [enqueueOrchestrationSend])
+  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane])
 
   const requestPlaneStop = useCallback((paneId: string) => {
     setPlaneStopPaneIds(previous => {
@@ -1824,13 +1837,13 @@ export const App: React.FC = () => {
     planeQueueControlsByPaneRef.current.get(paneId)?.update(id, text)
   }, [])
 
-  const handleAgentMetaChange = useCallback((
+  const handleAgentMetaChange = useCallback(async (
     tabId: string,
     paneId: string,
     meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
-  ) => {
+  ): Promise<boolean> => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return false
     const cwd = tab.projectFolder?.trim() || ''
     const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
     const next = typeof meta === 'function' ? meta(previous) : meta
@@ -1857,31 +1870,32 @@ export const App: React.FC = () => {
     rememberProjectAgent(cwd, definition)
     void saveSessionNow()
 
-    if (!cwd) return
+    // Sin carpeta de proyecto: solo sesión local (optimistic); no hay upsert a disco.
+    if (!cwd) return true
 
-    void window.api.upsertProjectAgent(cwd, definition).then(result => {
-      if (!result.ok) {
-        rememberProjectAgent(cwd, previousDefinition)
-        setTabs(prev => {
-          const previousBinding = agentBindingFromMeta({ ...previous, id: agentId })
-          const nextTabs = prev.map(item => {
-            if (item.id !== tabId) return item
-            return {
-              ...item,
-              agentByPane: {
-                ...(item.agentByPane ?? {}),
-                [paneId]: previousBinding,
-              },
-            }
-          })
-          tabsRef.current = nextTabs
-          return nextTabs
+    const result = await window.api.upsertProjectAgent(cwd, definition)
+    if (!result.ok) {
+      rememberProjectAgent(cwd, previousDefinition)
+      setTabs(prev => {
+        const previousBinding = agentBindingFromMeta({ ...previous, id: agentId })
+        const nextTabs = prev.map(item => {
+          if (item.id !== tabId) return item
+          return {
+            ...item,
+            agentByPane: {
+              ...(item.agentByPane ?? {}),
+              [paneId]: previousBinding,
+            },
+          }
         })
-        void saveSessionNow()
-        return
-      }
-      rememberProjectAgent(cwd, result.agent)
-    })
+        tabsRef.current = nextTabs
+        return nextTabs
+      })
+      void saveSessionNow()
+      return false
+    }
+    rememberProjectAgent(cwd, result.agent)
+    return true
   }, [rememberProjectAgent, saveSessionNow])
   handleAgentMetaChangeRef.current = handleAgentMetaChange
 
@@ -2167,7 +2181,7 @@ export const App: React.FC = () => {
           onOrchestrationUserTurn={() => resetOrchestrationRun(paneId)}
           getOrchestrationRound={() => ({
             round: orchestrationRoundsByPaneRef.current.get(paneId) ?? 0,
-            maxRounds: MAX_ORCHESTRATION_ROUNDS,
+            maxRounds: orchestrationMaxRoundsForPane(paneId, tab.id),
           })}
           preferOpenConfig={openConfigForPaneId === paneId}
           onPreferOpenConfigConsumed={() => {

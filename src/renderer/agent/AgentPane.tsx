@@ -30,6 +30,10 @@ import type {
   DelegateResult,
   OrchestrationAgentRef,
 } from '@shared/agentOrchestration'
+import {
+  MAX_ORCHESTRATION_ROUNDS,
+  resolveOrchestrationMaxRounds,
+} from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
@@ -112,7 +116,9 @@ interface Props {
   windowOpen?: boolean
   /** Mismo tamaño tipográfico que las terminales (`config.fontSize`). */
   fontSize: number
-  onMetaChange: (meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta)) => void
+  onMetaChange: (
+    meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
+  ) => void | Promise<boolean>
   onRequestPaneFocus: () => void
   onClosePane?: () => void
   onBusyChange?: (busy: boolean) => void
@@ -1651,19 +1657,19 @@ export const AgentPane: React.FC<Props> = ({
   useEffect(() => {
     if (!preferCreateLoop) return
     onPreferCreateLoopConsumed?.()
-    if (loopActiveRef.current) return
+    if (loopActiveRef.current || busyRef.current) return
     setLoopIntervalModalOpen(true)
   }, [onPreferCreateLoopConsumed, preferCreateLoop])
 
   const toggleLoopMode = useCallback((): void => {
-    if (loopActive) return
+    if (loopActive || busy) return
     if (loopOpen) {
       setLoopOpen(false)
       loopObjectiveRef.current = ''
       return
     }
     setLoopIntervalModalOpen(true)
-  }, [loopActive, loopOpen])
+  }, [busy, loopActive, loopOpen])
 
   useEffect(() => {
     if (!onPlaneLoopToggleReady) return
@@ -1673,7 +1679,7 @@ export const AgentPane: React.FC<Props> = ({
 
   const confirmLoopSetup = useCallback((delayMs: number, objective: string): void => {
     const trimmed = objective.trim()
-    if (!trimmed) return
+    if (!trimmed || busyRef.current || loopActiveRef.current) return
     loopContinueDelayMsRef.current = delayMs
     setLoopContinueDelayMs(delayMs)
     setLoopIntervalModalOpen(false)
@@ -1687,28 +1693,28 @@ export const AgentPane: React.FC<Props> = ({
     // el hilo CLI y el próximo turno reinyecta el historial local del chat.
     const mustResetCliSession =
       meta.provider === 'cursor' && Boolean(meta.cliSessionId)
-    onMetaChange(previous => {
+    void Promise.resolve(onMetaChange(previous => {
       if (!mustResetCliSession) return { ...previous, permissionMode }
       const { cliSessionId: _dropped, ...rest } = previous
       return { ...rest, permissionMode }
-    })
-    if (mustResetCliSession) {
+    })).then(ok => {
+      if (!ok || !mustResetCliSession) return
       pendingModeHandoffRef.current = true
       setMessages(prev => [...prev, systemMessage(t('agentPane.modeSessionReset'))])
-    }
+    })
   }
 
   const changeProvider = (provider: AgentCliProvider): void => {
     if (provider === meta.provider) return
     const hadSession = Boolean(meta.cliSessionId)
-    onMetaChange(previous => {
+    void Promise.resolve(onMetaChange(previous => {
       const { cliSessionId: _session, model: _model, ...rest } = previous
       return { ...rest, provider }
-    })
-    if (hadSession) {
+    })).then(ok => {
+      if (!ok || !hadSession) return
       pendingModeHandoffRef.current = true
       setMessages(prev => [...prev, systemMessage(t('agentPane.providerSessionReset'))])
-    }
+    })
   }
 
   const changeModel = (model: string): void => {
@@ -1855,7 +1861,11 @@ export const AgentPane: React.FC<Props> = ({
               const { acceptDelegations: _drop, ...rest } = previous
               return { ...rest, coordination: 'orchestrator' }
             }
-            const { coordination: _drop, ...rest } = previous
+            const {
+              coordination: _drop,
+              orchestrationMaxRounds: _rounds,
+              ...rest
+            } = previous
             return rest
           })
         }}
@@ -1869,6 +1879,16 @@ export const AgentPane: React.FC<Props> = ({
               : { ...previous, acceptDelegations: false }
           ))
         }}
+        onOrchestrationMaxRoundsChange={n => {
+          onMetaChange(previous => {
+            const maxRounds = resolveOrchestrationMaxRounds(n)
+            if (maxRounds === MAX_ORCHESTRATION_ROUNDS) {
+              const { orchestrationMaxRounds: _drop, ...rest } = previous
+              return rest
+            }
+            return { ...previous, orchestrationMaxRounds: maxRounds }
+          })
+        }}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
@@ -1879,10 +1899,36 @@ export const AgentPane: React.FC<Props> = ({
           ...previous,
           autoImproveContexts: checked,
         }))}
-        onEmitResultsChange={checked => onMetaChange(previous => ({
-          ...previous,
-          emitResults: checked,
-        }))}
+        onEmitResultsChange={checked => {
+          void onMetaChange(previous => ({
+            ...previous,
+            emitResults: checked,
+          }))
+          if (!checked) return
+          void (async () => {
+            const flashNotice = (message: string): void => {
+              setContextNotice(message)
+              window.setTimeout(() => setContextNotice(''), 3500)
+            }
+            const resolvedCwd = await resolveWorkingCwd()
+            const agentName = metaRef.current.name?.trim() ?? ''
+            if (!resolvedCwd) {
+              flashNotice(t('tabContexts.emitResultsNeedsProject'))
+              return
+            }
+            if (!agentName) {
+              flashNotice(t('tabContexts.emitResultsNeedsName'))
+              return
+            }
+            const result = await window.api.ensureAiAgentResults({ cwd: resolvedCwd, agentName })
+            if (!result.ok) {
+              flashNotice(t('tabContexts.emitResultsFailed'))
+              return
+            }
+            await refreshDiskContexts()
+            flashNotice(t('tabContexts.emitResultsReady'))
+          })()
+        }}
       />
 
       <QueuedTurnEditModal

@@ -131,6 +131,30 @@ export function formatAiAgentResultsDocument(options: {
   ].join('\n')
 }
 
+/** Crea el .md de resultados si no existe; no sobrescribe contenido previo. */
+export function ensureAiAgentResults(cwd: string, agentName: string): string {
+  const name = agentName.trim()
+  if (!name) return ''
+  const filePath = resolveAiAgentResultsPath(cwd, name)
+  const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
+  mkdirSync(directory, { recursive: true })
+  if (existsSync(filePath)) return filePath
+  try {
+    writeFileSync(
+      filePath,
+      formatAiAgentResultsDocument({
+        agentName: name,
+        summary: '(no results yet)',
+        entries: [],
+      }),
+      { encoding: 'utf8', flag: 'wx' },
+    )
+  } catch {
+    // Otro panel pudo crearlo entre existsSync y writeFileSync.
+  }
+  return filePath
+}
+
 export function upsertAiAgentResults(
   cwd: string,
   agentName: string,

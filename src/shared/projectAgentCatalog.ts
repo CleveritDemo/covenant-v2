@@ -8,6 +8,8 @@ import {
 } from './agentIdentity'
 import {
   sanitizeAgentCoordination,
+  sanitizeOrchestrationMaxRounds,
+  MAX_ORCHESTRATION_ROUNDS,
   type AgentCoordination,
 } from './agentOrchestration'
 
@@ -32,6 +34,8 @@ export interface ProjectAgentDefinition {
   coordination?: AgentCoordination
   /** Si false, no acepta subtareas del orquestador (default true). */
   acceptDelegations?: boolean
+  /** Tope de oleadas de delegación (solo orquestador; default 3, omitido si default). */
+  orchestrationMaxRounds?: number
 }
 
 /** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
@@ -139,7 +143,11 @@ export function parseProjectAgentDefinition(
   if (data.autoImproveContexts === true) def.autoImproveContexts = true
   if (data.emitResults === true) def.emitResults = true
   const coordination = sanitizeAgentCoordination(data.coordination)
-  if (coordination === 'orchestrator') def.coordination = 'orchestrator'
+  if (coordination === 'orchestrator') {
+    def.coordination = 'orchestrator'
+    const maxRounds = sanitizeOrchestrationMaxRounds(data.orchestrationMaxRounds)
+    if (maxRounds !== MAX_ORCHESTRATION_ROUNDS) def.orchestrationMaxRounds = maxRounds
+  }
   if (data.acceptDelegations === false) def.acceptDelegations = false
   return def
 }
@@ -166,6 +174,11 @@ export function cloneProjectAgentDefinition(
     ...(source.emitResults === true ? { emitResults: true } : {}),
     ...(source.coordination === 'orchestrator' ? { coordination: 'orchestrator' as const } : {}),
     ...(source.acceptDelegations === false ? { acceptDelegations: false } : {}),
+    ...(source.coordination === 'orchestrator'
+      && typeof source.orchestrationMaxRounds === 'number'
+      && source.orchestrationMaxRounds !== MAX_ORCHESTRATION_ROUNDS
+      ? { orchestrationMaxRounds: sanitizeOrchestrationMaxRounds(source.orchestrationMaxRounds) }
+      : {}),
   }
 }
 
@@ -240,6 +253,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     emitResults: meta.emitResults,
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,
+    orchestrationMaxRounds: meta.orchestrationMaxRounds,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: meta.provider === 'cursor' ? 'cursor' : 'claude',

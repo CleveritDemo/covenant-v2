@@ -25,6 +25,8 @@ export const IPC = {
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
+  /** Renderer → main: crea .iaterminal/results/<slug>.md si no existe. */
+  AGENT_RESULTS_ENSURE: 'agentResults:ensure',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config

@@ -17,6 +17,7 @@
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "test": "vitest run",
     "test:watch": "vitest",
+    "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
     "check:ui": "node scripts/check-ui-contract.mjs",
     "rebuild:native": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty"

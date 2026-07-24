@@ -4,6 +4,7 @@ import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   agentResultFileName,
+  ensureAiAgentResults,
   extractAiAgentResults,
   resolveAiAgentResultsPath,
   upsertAiAgentResults,
@@ -54,6 +55,30 @@ describe('AI agent results', () => {
     expect(raw).toContain('`2026-01-01T00:00:00.000Z` — Creé el scaffold')
     expect(raw).toContain(`"fileName":"${agentResultFileName('Ops Bot')}"`)
     expect(raw).toContain('"kind":"agentResult"')
+  })
+
+  it('ensure creates agentResult file and second call keeps Latest/Log', () => {
+    const cwd = tempCwd()
+    const created = ensureAiAgentResults(cwd, 'QA')
+    expect(created).toBe(resolveAiAgentResultsPath(cwd, 'QA'))
+    expect(existsSync(created)).toBe(true)
+    const initial = readFileSync(created, 'utf8')
+    expect(initial).toContain('"kind":"agentResult"')
+    expect(initial).toContain('(no results yet)')
+
+    upsertAiAgentResults(cwd, 'QA', {
+      summary: 'Suite verde',
+      entries: ['Corrí vitest'],
+    }, '2026-01-03T00:00:00.000Z')
+    const afterUpsert = readFileSync(created, 'utf8')
+    expect(afterUpsert).toContain('Suite verde')
+    expect(afterUpsert).toContain('Corrí vitest')
+
+    ensureAiAgentResults(cwd, 'QA')
+    const afterEnsure = readFileSync(created, 'utf8')
+    expect(afterEnsure).toContain('Suite verde')
+    expect(afterEnsure).toContain('`2026-01-03T00:00:00.000Z` — Corrí vitest')
+    expect(afterEnsure).not.toContain('(no results yet)')
   })
 
   it('preserves notes when upserting Latest/Log', () => {

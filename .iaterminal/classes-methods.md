@@ -43,6 +43,7 @@
 - resolveAiAgentResultsPath
 - extractAiAgentResults
 - formatAiAgentResultsDocument
+- ensureAiAgentResults
 - upsertAiAgentResults
 - buildAiAgentResultsInstruction
 
@@ -201,8 +202,26 @@
 ### src/renderer/agent/AgentChatBubbles.tsx
 - AgentChatBubbles
 
+### src/renderer/agent/AgentConfigContextSummary.tsx
+- AgentConfigContextSummary
+
+### src/renderer/agent/AgentConfigFolderChip.tsx
+- AgentConfigFolderChip
+
+### src/renderer/agent/AgentConfigHero.tsx
+- AgentConfigHero
+
+### src/renderer/agent/AgentConfigIdentityColumn.tsx
+- AgentConfigIdentityColumn
+
+### src/renderer/agent/AgentConfigLockBanner.tsx
+- AgentConfigLockBanner
+
 ### src/renderer/agent/AgentConfigModal.tsx
 - AgentConfigModal
+
+### src/renderer/agent/AgentConfigSettingsPane.tsx
+- AgentConfigSettingsPane
 
 ### src/renderer/agent/AgentLoopIntervalModal.tsx
 - AgentLoopIntervalModal
@@ -724,6 +743,8 @@
 - buildModeHandoffPrompt
 
 ### src/shared/agentOrchestration.ts
+- sanitizeOrchestrationMaxRounds
+- resolveOrchestrationMaxRounds
 - sanitizeAgentCoordination
 - sanitizeDelegateRequest
 - parseDelegatePayload

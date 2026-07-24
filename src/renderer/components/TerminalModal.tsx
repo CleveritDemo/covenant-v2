@@ -13,8 +13,12 @@ export type TerminalModalBodyLayout = 'default' | 'spacious' | 'flush'
 export interface TerminalModalProps {
   open: boolean
   onClose: () => void
-  /** Encabezado; si se omite, no se muestra barra superior */
+  /** Encabezado simple (h2); si se omite y no hay `headerContent`, no hay barra superior */
   title?: React.ReactNode
+  /**
+   * Encabezado rico (hero, avatar, etc.). Sustituye el h2; el ✕ se mantiene si `showHeaderClose`.
+   */
+  headerContent?: React.ReactNode
   titleId?: string
   children: React.ReactNode
   footer?: React.ReactNode
@@ -24,7 +28,7 @@ export interface TerminalModalProps {
   closeOnEscape?: boolean
   /** Clic en el fondo oscuro; por defecto no cierra (usar ✕, Esc si aplica, o botones del pie). */
   closeOnBackdrop?: boolean
-  /** Botón ✕ en la esquina del encabezado (solo si hay `title`) */
+  /** Botón ✕ en la esquina del encabezado (solo si hay `title` o `headerContent`) */
   showHeaderClose?: boolean
   panelVariant?: TerminalModalPanelVariant
   bodyLayout?: TerminalModalBodyLayout
@@ -73,6 +77,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   open,
   onClose,
   title,
+  headerContent,
   titleId = 'terminal-modal-title',
   children,
   footer,
@@ -136,7 +141,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
 
   if (!open) return null
 
-  const hasHeader = title != null && title !== ''
+  const hasRichHeader = headerContent != null && headerContent !== false
+  const hasTitle = title != null && title !== ''
+  const hasHeader = hasRichHeader || hasTitle
 
   const bodyClass = [
     'terminal-modal-body',
@@ -179,7 +186,13 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
       >
         {hasHeader && (
           <header className="terminal-modal-header">
-            <h2 className="terminal-modal-title" id={titleId}>{title}</h2>
+            {hasRichHeader ? (
+              <div className="terminal-modal-header-content" id={titleId}>
+                {headerContent}
+              </div>
+            ) : (
+              <h2 className="terminal-modal-title" id={titleId}>{title}</h2>
+            )}
             {showHeaderClose && (
               <button
                 type="button"

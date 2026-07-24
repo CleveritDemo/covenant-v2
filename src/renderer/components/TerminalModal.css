@@ -95,6 +95,11 @@
   line-height: 1.25;
 }
 
+.terminal-modal-header-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .terminal-modal-header-close {
   display: flex;
   align-items: center;

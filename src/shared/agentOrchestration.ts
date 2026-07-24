@@ -3,9 +3,26 @@
 export type AgentCoordination = 'none' | 'orchestrator'
 
 export const MAX_DELEGATIONS_PER_TURN = 5
-/** Oleadas de delegación por pedido del usuario (host corta el ciclo). */
+/** Oleadas de delegación por pedido del usuario (default / omitido en catálogo). */
 export const MAX_ORCHESTRATION_ROUNDS = 3
+/** Tope configurable en UI/catálogo. */
+export const ORCHESTRATION_MAX_ROUNDS_CAP = 10
 export const DELEGATE_OBJECTIVE_MAX_LENGTH = 2000
+
+export function sanitizeOrchestrationMaxRounds(raw: unknown): number {
+  const n = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+      ? Number(raw)
+      : NaN
+  if (!Number.isFinite(n)) return MAX_ORCHESTRATION_ROUNDS
+  const int = Math.trunc(n)
+  return Math.min(ORCHESTRATION_MAX_ROUNDS_CAP, Math.max(1, int))
+}
+
+export function resolveOrchestrationMaxRounds(value?: number): number {
+  return sanitizeOrchestrationMaxRounds(value)
+}
 
 export interface OrchestrationAgentRef {
   agentId: string

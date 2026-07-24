@@ -10,9 +10,7 @@
     "iaterminal:symbols:Clases-and-methods",
     "iaterminal:notes:Front-Rules",
     "iaterminal:notes:Deisgn-Language",
-    "iaterminal:result:product-designer",
-    "iaterminal:result:qa",
-    "iaterminal:result:fullstack"
+    "iaterminal:result:qa"
   ],
   "autoImproveContexts": true,
   "emitResults": true

@@ -1,4 +1,4 @@
-# fullstack
+# fullstack — Results
 <!-- iaterminal:context {"version":1,"id":"iaterminal:result:fullstack","name":"fullstack","fileName":"results/fullstack.md","kind":"agentResult","icon":"bot","color":"#94a3b8"} -->
 
 <!-- iaterminal:auto -->

@@ -3,9 +3,10 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Contexts disk-only; legacy session agents dropped, never written to .iaterminal/agents.
+Orchestrator CLI permissionMode follows agent JSON; no forced ask.
 
 ## Log
+- `2026-07-24T19:20:55.328Z` — agentCliRuntime tests 25/25 green
 - `2026-07-24T18:33:19.069Z` — sanitize/plan strip rich meta
 - `2026-07-24T18:33:19.069Z` — App empty pool on discover fail
 - `2026-07-24T18:33:19.069Z` — tests updated and green

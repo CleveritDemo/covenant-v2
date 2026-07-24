@@ -3,9 +3,17 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Contexts disk-only; legacy session agents no longer written to catalog.
+Fix OK: orchestrator respeta permissionMode del JSON; auto ya no se fuerza a ask.
 
 ## Log
+- `2026-07-24T19:21:14.192Z` — commandAndArgs usa request.permissionMode
+- `2026-07-24T19:21:14.192Z` — Tests 25/25 verdes según fullstack
+- `2026-07-24T19:20:11.633Z` — Override en commandAndArgs L589
+- `2026-07-24T19:20:11.633Z` — Test forces read-only confirma el bug
+- `2026-07-24T19:18:25.128Z` — Agent JSONs referencian ids stemmed correctamente
+- `2026-07-24T19:18:25.128Z` — Contextos globales nunca commiteados; otra máquina no los ve
+- `2026-07-24T19:14:31.399Z` — Rebase sobre fixes remoto
+- `2026-07-24T19:14:31.399Z` — Push main exitoso
 - `2026-07-24T18:33:39.441Z` — pendingAgentMigrations always []; rich meta stripped
 - `2026-07-24T18:29:41.247Z` — Other machine differs if .iaterminal/session differ
 - `2026-07-24T18:29:41.247Z` — Legacy path: pendingAgentMigrations upserts session→catalog

@@ -584,9 +584,7 @@ export function commandAndArgs(
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
 ): { command: string; args: string[] } {
-  const isOrchestrator = request.coordination === 'orchestrator'
-  // Orquestador: siempre sin escritura (asimetría vs especialistas).
-  const permissionMode = isOrchestrator ? 'ask' : request.permissionMode
+  const permissionMode = request.permissionMode
 
   if (request.provider === 'claude') {
     const args = [

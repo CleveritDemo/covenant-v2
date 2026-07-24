@@ -396,8 +396,8 @@ describe('permission mode CLI flags', () => {
     expect(claudePlan.args[claudePlan.args.indexOf('--permission-mode') + 1]).toBe('plan')
   })
 
-  it('forces read-only CLI flags for orchestrators even in auto', () => {
-    const cursor = commandAndArgs(
+  it('honors permissionMode for orchestrators (auto same as normal agent)', () => {
+    const cursorAuto = commandAndArgs(
       request({
         provider: 'cursor',
         permissionMode: 'auto',
@@ -407,11 +407,10 @@ describe('permission mode CLI flags', () => {
       '/tmp',
       'prompt',
     )
-    expect(cursor.args).toContain('--mode')
-    expect(cursor.args[cursor.args.indexOf('--mode') + 1]).toBe('ask')
-    expect(cursor.args).not.toContain('--force')
+    expect(cursorAuto.args).toContain('--force')
+    expect(cursorAuto.args).not.toContain('--mode')
 
-    const claude = commandAndArgs(
+    const claudeAuto = commandAndArgs(
       request({
         provider: 'claude',
         permissionMode: 'auto',
@@ -421,8 +420,37 @@ describe('permission mode CLI flags', () => {
       '/tmp',
       'prompt',
     )
-    expect(claude.args).toContain('--disallowedTools')
-    expect(claude.args).not.toContain('bypassPermissions')
+    expect(claudeAuto.args).toContain('--permission-mode')
+    expect(claudeAuto.args[claudeAuto.args.indexOf('--permission-mode') + 1])
+      .toBe('bypassPermissions')
+    expect(claudeAuto.args).not.toContain('--disallowedTools')
+
+    const cursorAsk = commandAndArgs(
+      request({
+        provider: 'cursor',
+        permissionMode: 'ask',
+        coordination: 'orchestrator',
+      }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(cursorAsk.args).toContain('--mode')
+    expect(cursorAsk.args[cursorAsk.args.indexOf('--mode') + 1]).toBe('ask')
+    expect(cursorAsk.args).not.toContain('--force')
+
+    const claudeAsk = commandAndArgs(
+      request({
+        provider: 'claude',
+        permissionMode: 'ask',
+        coordination: 'orchestrator',
+      }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(claudeAsk.args).toContain('--disallowedTools')
+    expect(claudeAsk.args).not.toContain('bypassPermissions')
   })
 
   it('resumes both current CLI providers when a session exists', () => {

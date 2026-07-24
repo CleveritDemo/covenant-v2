@@ -53,7 +53,7 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
   const name = sanitizeAgentTextDraft(draft.name.trim(), AGENT_NAME_MAX_LENGTH)
   const role = sanitizeAgentTextDraft(draft.role.trim(), AGENT_ROLE_MAX_LENGTH)
   const objective = sanitizeAgentTextDraft(draft.objective.trim(), AGENT_OBJECTIVE_MAX_LENGTH)
-  const rules = sanitizeAgentRulesDraft(draft.rules.map(rule => rule.trim()))
+  const rules = normalizeAgentRules(draft.rules)
 
   const {
     name: _name,

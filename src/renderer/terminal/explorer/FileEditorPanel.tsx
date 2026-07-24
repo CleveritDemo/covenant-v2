@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { Icon } from '../../components/ui/Icon'
 import { ExplorerToolButton } from './ExplorerToolButton'
+import { FileEditorActionButton } from './FileEditorActionButton'
+import { FileEditorSearchNav } from './FileEditorSearchNav'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { FileCodeEditor, type FileCodeEditorHandle } from './FileCodeEditor'
@@ -202,20 +204,14 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
       {diskConflict && (
         <div className="file-editor-panel__disk-banner" role="status">
           <span>{t('fileExplorer.editor.diskChanged')}</span>
-          <button
-            type="button"
-            className="file-editor-panel__special-btn"
+          <FileEditorActionButton
+            label={t('fileExplorer.editor.reloadFromDisk')}
             onClick={() => { void loadFile() }}
-          >
-            {t('fileExplorer.editor.reloadFromDisk')}
-          </button>
-          <button
-            type="button"
-            className="file-editor-panel__special-btn"
+          />
+          <FileEditorActionButton
+            label={t('fileExplorer.editor.keepEditing')}
             onClick={() => setDiskConflict(false)}
-          >
-            {t('fileExplorer.editor.keepEditing')}
-          </button>
+          />
         </div>
       )}
 
@@ -234,26 +230,20 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
                 max: formatBytes(largeFileInfo.maxBytes),
               })}
             </p>
-            <button
-              type="button"
-              className="file-editor-panel__special-btn"
+            <FileEditorActionButton
+              label={t('fileExplorer.editor.openLargeAnyway')}
               onClick={() => { void loadFile(true) }}
-            >
-              {t('fileExplorer.editor.openLargeAnyway')}
-            </button>
+            />
           </div>
         )}
         {!loading && isBinary && (
           <div className="file-editor-panel__special">
             <p className="file-editor-panel__special-title">{t('fileExplorer.editor.binaryTitle')}</p>
             <p className="file-editor-panel__special-hint">{t('fileExplorer.editor.binaryHint')}</p>
-            <button
-              type="button"
-              className="file-editor-panel__special-btn"
+            <FileEditorActionButton
+              label={t('fileExplorer.editor.revealBinary')}
               onClick={() => { void window.api.fileExplorerReveal(sessionId, selectedPath) }}
-            >
-              {t('fileExplorer.editor.revealBinary')}
-            </button>
+            />
           </div>
         )}
         {!loading && error && (
@@ -312,26 +302,20 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
                 : t('fileExplorer.editor.matchCount', { count: matchCount })}
             </span>
           )}
-          <button
-            type="button"
-            className="file-editor-panel__search-nav file-editor-panel__search-nav--up"
-            title="Shift+Enter"
-            aria-label={t('fileExplorer.editor.findAria')}
+          <FileEditorSearchNav
+            direction="prev"
+            shortcutHint="Shift+Enter"
+            label={t('fileExplorer.editor.findAria')}
             disabled={!findQuery.trim() || matchCount === 0}
             onClick={() => editorRef.current?.findPrevious()}
-          >
-            <Icon name="chevron-down" size={10} aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="file-editor-panel__search-nav"
-            title="Enter"
-            aria-label={t('fileExplorer.editor.findAria')}
+          />
+          <FileEditorSearchNav
+            direction="next"
+            shortcutHint="Enter"
+            label={t('fileExplorer.editor.findAria')}
             disabled={!findQuery.trim() || matchCount === 0}
             onClick={() => editorRef.current?.findNext()}
-          >
-            <Icon name="chevron-down" size={10} aria-hidden />
-          </button>
+          />
         </div>
       )}
     </div>

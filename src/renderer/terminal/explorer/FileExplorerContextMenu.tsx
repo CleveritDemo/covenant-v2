@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
+import { FileExplorerMenuItem } from './FileExplorerMenuItem'
 
 export interface FileExplorerContextMenuTarget {
   relPath: string
@@ -93,77 +94,67 @@ export const FileExplorerContextMenu: React.FC<FileExplorerContextMenuProps> = (
     >
       {canCreateHere && (
         <>
-          <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onNewFile}>
-            {t('fileExplorer.contextMenu.newFileHere')}
-          </button>
-          <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onNewDir}>
-            {t('fileExplorer.contextMenu.newDirHere')}
-          </button>
+          <FileExplorerMenuItem label={t('fileExplorer.contextMenu.newFileHere')} onClick={onNewFile} />
+          <FileExplorerMenuItem label={t('fileExplorer.contextMenu.newDirHere')} onClick={onNewDir} />
           <div className="file-explorer-context-menu__sep" role="separator" />
         </>
       )}
       {target ? (
         <>
-          <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onCopy}>
-            {multi ? t('fileExplorer.contextMenu.copyMany', { count: selectionCount }) : t('fileExplorer.contextMenu.copy')}
-          </button>
-          <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onCut}>
-            {multi ? t('fileExplorer.contextMenu.cutMany', { count: selectionCount }) : t('fileExplorer.contextMenu.cut')}
-          </button>
+          <FileExplorerMenuItem
+            label={multi
+              ? t('fileExplorer.contextMenu.copyMany', { count: selectionCount })
+              : t('fileExplorer.contextMenu.copy')}
+            onClick={onCopy}
+          />
+          <FileExplorerMenuItem
+            label={multi
+              ? t('fileExplorer.contextMenu.cutMany', { count: selectionCount })
+              : t('fileExplorer.contextMenu.cut')}
+            onClick={onCut}
+          />
           {!multi && (
             <>
-              <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onCopyName}>
-                {t('fileExplorer.contextMenu.copyName')}
-              </button>
-              <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onCopyRelPath}>
-                {t('fileExplorer.contextMenu.copyPath')}
-              </button>
+              <FileExplorerMenuItem label={t('fileExplorer.contextMenu.copyName')} onClick={onCopyName} />
+              <FileExplorerMenuItem label={t('fileExplorer.contextMenu.copyPath')} onClick={onCopyRelPath} />
             </>
           )}
           {!multi && (
-            <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onRename}>
-              {t('fileExplorer.contextMenu.rename')}
-            </button>
+            <FileExplorerMenuItem label={t('fileExplorer.contextMenu.rename')} onClick={onRename} />
           )}
-          <button
-            type="button"
-            className="file-explorer-context-menu__item file-explorer-context-menu__item--danger"
-            role="menuitem"
-            onClick={onDelete}
-          >
-            {multi
+          <FileExplorerMenuItem
+            danger
+            label={multi
               ? t('fileExplorer.contextMenu.deleteMany', { count: selectionCount })
               : t('fileExplorer.contextMenu.delete')}
-          </button>
+            onClick={onDelete}
+          />
           {!multi && (
-            <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onRevealInFinder}>
-              {t('fileExplorer.contextMenu.revealInFinder')}
-            </button>
+            <FileExplorerMenuItem
+              label={t('fileExplorer.contextMenu.revealInFinder')}
+              onClick={onRevealInFinder}
+            />
           )}
           <div className="file-explorer-context-menu__sep" role="separator" />
-          <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onPaste}>
-            {t('fileExplorer.contextMenu.paste')}
-          </button>
+          <FileExplorerMenuItem label={t('fileExplorer.contextMenu.paste')} onClick={onPaste} />
         </>
       ) : (
-        <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onPaste}>
-          {t('fileExplorer.contextMenu.paste')}
-        </button>
+        <FileExplorerMenuItem label={t('fileExplorer.contextMenu.paste')} onClick={onPaste} />
       )}
       <div className="file-explorer-context-menu__sep" role="separator" />
-      <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onRefresh}>
-        {t('fileExplorer.contextMenu.refresh')}
-      </button>
-      <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onToggleHiddenDirs}>
-        {showHiddenDirs
+      <FileExplorerMenuItem label={t('fileExplorer.contextMenu.refresh')} onClick={onRefresh} />
+      <FileExplorerMenuItem
+        label={showHiddenDirs
           ? t('fileExplorer.contextMenu.toggleHiddenDirsOff')
           : t('fileExplorer.contextMenu.toggleHiddenDirsOn')}
-      </button>
-      <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onToggleOpenOnSingleClick}>
-        {openOnSingleClick
+        onClick={onToggleHiddenDirs}
+      />
+      <FileExplorerMenuItem
+        label={openOnSingleClick
           ? t('fileExplorer.contextMenu.openOnDoubleClick')
           : t('fileExplorer.contextMenu.openOnSingleClick')}
-      </button>
+        onClick={onToggleOpenOnSingleClick}
+      />
     </div>,
     document.body,
   )

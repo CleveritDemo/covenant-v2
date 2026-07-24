@@ -4,6 +4,8 @@ import {
   dropPlaceFromPointer,
   insertIndexFromPointerY,
   moveItemToIndex,
+  orderWithDragInsert,
+  previewInsertIndexFromPointerY,
   reorderPaneIdsByKind,
   swapItemsAtIndices,
 } from '../arrayReorder'
@@ -97,5 +99,49 @@ describe('insertIndexFromPointerY', () => {
 
   it('inserts at the end', () => {
     expect(insertIndexFromPointerY(['a', 'b', 'c'], slots, 400, 'a')).toBe(2)
+  })
+})
+
+describe('previewInsertIndexFromPointerY + orderWithDragInsert', () => {
+  const heights = { a: 100, b: 80, c: 100 }
+  // visual [a,b,c]: a@0–100, b@120–200, c@220–320 → mids others(b dragged): a=50, c=270
+
+  it('keeps dragged between neighbors when pointer is mid-stack', () => {
+    const insertAt = previewInsertIndexFromPointerY(
+      ['a', 'b', 'c'],
+      heights,
+      200,
+      'b',
+      0,
+      20,
+    )
+    expect(insertAt).toBe(1)
+    expect(orderWithDragInsert(['a', 'b', 'c'], 'b', insertAt)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('moves dragged item to the end', () => {
+    const insertAt = previewInsertIndexFromPointerY(
+      ['a', 'b', 'c'],
+      heights,
+      10_000,
+      'a',
+      0,
+      20,
+    )
+    expect(insertAt).toBe(2)
+    expect(orderWithDragInsert(['a', 'b', 'c'], 'a', insertAt)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('moves dragged item to the start', () => {
+    const insertAt = previewInsertIndexFromPointerY(
+      ['a', 'b', 'c'],
+      heights,
+      0,
+      'c',
+      0,
+      20,
+    )
+    expect(insertAt).toBe(0)
+    expect(orderWithDragInsert(['a', 'b', 'c'], 'c', insertAt)).toEqual(['c', 'a', 'b'])
   })
 })

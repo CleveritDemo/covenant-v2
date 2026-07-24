@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
-import { Icon } from '../components/ui/Icon'
 import { useT } from '@i18n/useT'
 import {
   extensionForMime,
@@ -15,6 +14,9 @@ import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
 import { PlaneChatCloseButton } from './PlaneChatCloseButton'
 import type { PlaneChatContextOption } from './PlaneChatContextsBar'
+import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
+import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
+import { PlaneChatSendButton } from './PlaneChatSendButton'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import './PlaneChatComposer.css'
 
@@ -198,46 +200,21 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           >
             {queuedTurns.map((item, index) => (
               <div key={item.id} className="plane-chat-composer__queue-bubble">
-                <button
-                  type="button"
-                  className="plane-chat-composer__queue-open"
+                <PlaneChatQueueEditButton
+                  position={index + 1}
+                  text={item.text}
+                  emptyText={t('agentPane.imageOnlyMessage')}
+                  images={item.images}
                   title={t('agentPane.queueEditHint')}
-                  aria-label={t('agentPane.queueEditHint')}
                   onClick={() => setEditingQueuedId(item.id)}
-                >
-                  <span className="plane-chat-composer__queue-pos" aria-hidden="true">
-                    {index + 1}
-                  </span>
-                  {item.images.length > 0 && (
-                    <span className="plane-chat-composer__queue-images">
-                      {item.images.map(image => (
-                        <img
-                          key={image.id}
-                          className="plane-chat-composer__queue-image"
-                          src={image.previewUrl}
-                          alt={image.name}
-                        />
-                      ))}
-                    </span>
-                  )}
-                  {(item.text || item.images.length === 0) && (
-                    <span className="plane-chat-composer__queue-text">
-                      {item.text || t('agentPane.imageOnlyMessage')}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="plane-chat-composer__queue-remove"
-                  title={t('agentPane.queueRemove')}
-                  aria-label={t('agentPane.queueRemove')}
+                />
+                <PlaneChatRemoveChipButton
+                  appearance="queue"
+                  label={t('agentPane.queueRemove')}
                   onClick={() => onRemoveQueuedTurn?.(selectedAgentId, item.id)}
-                >
-                  ×
-                </button>
+                />
               </div>
-            ))}
-          </div>
+            ))}          </div>
         )}
 
         <div className="plane-chat-composer__agents" role="listbox" aria-label={sendLabel}>
@@ -272,18 +249,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             {pendingImages.map(image => (
               <div key={image.id} className="plane-chat-composer__attachment">
                 <img src={image.previewUrl} alt={image.name} />
-                <button
-                  type="button"
-                  className="plane-chat-composer__attachment-remove"
+                <PlaneChatRemoveChipButton
+                  appearance="attachment"
+                  label={t('agentPane.removeImage')}
                   onClick={() => removePendingImage(image.id)}
-                  title={t('agentPane.removeImage')}
-                  aria-label={t('agentPane.removeImage')}
-                >
-                  ×
-                </button>
+                />
               </div>
-            ))}
-          </div>
+            ))}          </div>
         )}
 
         <div className="plane-chat-composer__row">
@@ -309,20 +281,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
               }
             }}
           />
-          <button
-            type="button"
-            className={[
-              'plane-chat-composer__send',
-              buttonIsStop ? 'plane-chat-composer__send--stop' : '',
-            ].filter(Boolean).join(' ')}
+          <PlaneChatSendButton
+            mode={buttonIsStop ? 'stop' : 'send'}
+            label={buttonIsStop ? t('agentPane.stop') : sendLabel}
             disabled={!buttonIsStop && !canSend}
-            title={buttonIsStop ? t('agentPane.stop') : sendLabel}
-            aria-label={buttonIsStop ? t('agentPane.stop') : sendLabel}
             onClick={handleSendClick}
-          >
-            <Icon name={buttonIsStop ? 'stop' : 'send'} size={14} />
-          </button>
-        </div>
+          />        </div>
       </div>
 
       <QueuedTurnEditModal

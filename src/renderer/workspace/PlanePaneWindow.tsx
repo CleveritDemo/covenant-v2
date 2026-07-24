@@ -19,6 +19,7 @@ export interface PlanePaneWindowProps {
   title: string
   busy?: boolean
   provider?: AgentCliProvider
+  coordination?: 'none' | 'orchestrator'
   snippet?: string
   idleLabel: string
   window: PaneWindowState
@@ -27,6 +28,8 @@ export interface PlanePaneWindowProps {
   /** Ranura mini en el plano (misma div al expandir). */
   miniOrigin: PaneWindowGeometry
   activePaneId: string
+  /** Chat del plano abierto para este agente (señal estática de selección). */
+  chatActive?: boolean
   contexts?: PlaneAgentContextChip[]
   configLabel: string
   deleteLabel: string
@@ -64,12 +67,14 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   title,
   busy = false,
   provider,
+  coordination,
   snippet,
   idleLabel,
   window,
   openGeometry,
   miniOrigin,
   activePaneId,
+  chatActive = false,
   contexts = [],
   configLabel,
   deleteLabel,
@@ -130,6 +135,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         }}
         focused={paneId === activePaneId && isExpanded}
         busy={busy}
+        chatActive={isAgent && chatActive}
         maximizeLabel={maximizeLabel}
         restoreLabel={restoreLabel}
         closeLabel={closeWindowLabel}
@@ -147,6 +153,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             name={title}
             busy={busy}
             provider={provider}
+            coordination={coordination}
             statusLabel={statusLabel}
           >
             {contexts.length > 0 ? (

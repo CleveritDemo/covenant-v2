@@ -3,9 +3,21 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Auditoría: queda dead code — IPC AI legacy sin callers en renderer, grafo planeLoop y exports solo-test.
+Más bugs en modal: rollback incompleto tras upsert fallido; loop desde config aborta busy; multi-orquestador; draft desync.
 
 ## Log
+- `2026-07-24T01:35:13.977Z` — Upsert fail: handoff/mensaje no se revierten
+- `2026-07-24T01:35:13.977Z` — Loop toggle busy→startLoop aborta turno
+- `2026-07-24T01:35:13.977Z` — Sin límite a 1 orchestrator; a11y listbox/checkbox
+- `2026-07-24T00:57:31.325Z` — handleAgentMetaChange sin update optimista del catálogo
+- `2026-07-24T00:57:31.325Z` — cwd vacío: cambios no upsert
+- `2026-07-24T00:57:31.325Z` — permission/model habilitados con loopActive; provider no
+- `2026-07-23T19:58:13.432Z` — Previos config/menu parcialmente resueltos
+- `2026-07-23T19:58:13.432Z` — Toggle UI sin callers; ThemePickerTrigger importa Button sin usarlo
+- `2026-07-23T19:58:13.432Z` — Duplicidad composer pane vs plane; kind cards raw
+- `2026-07-23T19:46:50.118Z` — UI contract check:ui pasa
+- `2026-07-23T19:46:50.118Z` — ~91 buttons raw; Toggle/ChoiceCard/Input infrautilizados
+- `2026-07-23T19:46:50.118Z` — Duplicidad context pickers y segment toggles
 - `2026-07-23T16:12:23.626Z` — Dead IPC: projectAiContext, agentMd R/W, agentFile, agentShell
 - `2026-07-23T16:12:23.626Z` — Legacy planeLoopGraph helpers; sanitize still live
 - `2026-07-23T16:12:23.626Z` — Helpers/test-only: buildLoopPrompt, requiresShellConfirmation, etc.
@@ -24,18 +36,6 @@ Auditoría: queda dead code — IPC AI legacy sin callers en renderer, grafo pla
 - `2026-07-23T04:08:39.285Z` — stop conserva cursor
 - `2026-07-23T04:08:39.285Z` — agente en N cadenas
 - `2026-07-23T04:08:39.285Z` — sin validar projectFolder
-- `2026-07-23T04:03:18.376Z` — awaiting_busy stuck si busy
-- `2026-07-23T04:03:18.376Z` — empty→stopChain
-- `2026-07-23T04:03:18.376Z` — startLoop corta busy sin aborted
-- `2026-07-23T04:01:57.011Z` — results/qa.md auto
-- `2026-07-23T04:01:57.011Z` — docs/QA.md sin loops
-- `2026-07-23T04:00:09.089Z` — FIFO awaiting_busy stuck
-- `2026-07-23T04:00:09.089Z` — empty→stop chain
-- `2026-07-23T04:00:09.089Z` — composer waiting no stop
-- `2026-07-23T04:00:09.089Z` — startLoop sin aborted
-- `2026-07-23T03:46:46.618Z` — stop→advance
-- `2026-07-23T03:46:46.618Z` — fail startTurn→advance
-- `2026-07-23T03:46:46.618Z` — waiting sin stop composer
 <!-- /iaterminal:auto -->
 
 <!-- iaterminal:notes -->

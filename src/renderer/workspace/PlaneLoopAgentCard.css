@@ -10,7 +10,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   background: transparent;
   overflow: hidden;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s, outline-color 0.16s;
 }
 
 .plane-loop-agent-card > .plane-mini-face {
@@ -28,33 +28,23 @@
   transform: translateY(-1px);
 }
 
+/* Selected / chat activo: borde sólido accent (.plane-chat-active). */
 .plane-loop-agent-card--selected {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
-    0 8px 18px color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: none;
 }
 
-.plane-loop-agent-card--selected::after {
-  content: '';
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-  z-index: 2;
+/* Busy: PlaneBusyDot en la face; no altera el borde de selección. */
+.plane-loop-agent-card--busy:not(.plane-loop-agent-card--selected) {
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
 }
 
-.plane-loop-agent-card--busy,
-.plane-loop-agent-card--current {
+.plane-loop-agent-card--current:not(.plane-loop-agent-card--busy):not(.plane-loop-agent-card--selected) {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
-.plane-loop-agent-card--current {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+.plane-loop-agent-card--current.plane-loop-agent-card--busy:not(.plane-loop-agent-card--selected) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .plane-loop-agent-card__objective {

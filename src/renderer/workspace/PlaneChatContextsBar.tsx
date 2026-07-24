@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { IconName } from '../components/ui/Icon'
-import { Icon } from '../components/ui/Icon'
+import { Button, ContextCheckOption, Icon } from '../components/ui'
 import { useT } from '@i18n/useT'
 import type { TabContextKind } from '@shared/tabContext'
+import { PlaneChatAutoImproveToggle } from './PlaneChatAutoImproveToggle'
+import { PlaneChatContextsTrigger } from './PlaneChatContextsTrigger'
+import { PlaneChatLoopButton } from './PlaneChatLoopButton'
 import './PlaneChatComposer.css'
 
 export interface PlaneChatContextOption {
@@ -66,32 +69,18 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [contextsOpen])
 
-  const renderContextOption = (context: PlaneChatContextOption) => {
-    const checked = selectedContextIds.includes(context.id)
-    const isAgentResult = context.kind === 'agentResult'
-    return (
-      <label
-        key={context.id}
-        className={[
-          'plane-chat-composer__contexts-option',
-          checked ? 'plane-chat-composer__contexts-option--on' : '',
-          isAgentResult ? 'plane-chat-composer__contexts-option--agent-result' : '',
-        ].filter(Boolean).join(' ')}
-        title={`${context.name} — ${context.kindLabel}`}
-      >
-        <input
-          type="checkbox"
-          role="option"
-          aria-selected={checked}
-          checked={checked}
-          onChange={() => onToggleContext(context.id)}
-        />
-        <span className="plane-chat-composer__contexts-check" aria-hidden="true" />
-        <span className="plane-chat-composer__contexts-option-name">{context.name}</span>
-        <span className="plane-chat-composer__contexts-option-kind">{context.kindLabel}</span>
-      </label>
-    )
-  }
+  const renderContextOption = (context: PlaneChatContextOption) => (
+    <ContextCheckOption
+      key={context.id}
+      appearance="menu"
+      name={context.name}
+      kindLabel={context.kindLabel}
+      checked={selectedContextIds.includes(context.id)}
+      emphasize={context.kind === 'agentResult'}
+      title={`${context.name} — ${context.kindLabel}`}
+      onChange={() => onToggleContext(context.id)}
+    />
+  )
 
   return (
     <div
@@ -106,27 +95,15 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
             contextsOpen ? 'plane-chat-composer__contexts-picker--open' : '',
           ].filter(Boolean).join(' ')}
         >
-          <button
-            type="button"
-            className="plane-chat-composer__contexts-trigger"
-            aria-haspopup="listbox"
-            aria-expanded={contextsOpen}
-            aria-label={t('tabContexts.pickerAria', { label: contextsPickerLabel })}
-            disabled={contexts.length === 0}
+          <PlaneChatContextsTrigger
+            label={t('tabContexts.composerSection')}
+            ariaLabel={t('tabContexts.pickerAria', { label: contextsPickerLabel })}
             title={contexts.length === 0 ? contextsEmptyHint : contextsPickerLabel}
+            count={selectedContexts.length}
+            open={contextsOpen}
+            disabled={contexts.length === 0}
             onClick={() => setContextsOpen(open => !open)}
-          >
-            <Icon name="files" size={13} />
-            <span className="plane-chat-composer__contexts-label">
-              {t('tabContexts.composerSection')}
-            </span>
-            {selectedContexts.length > 0 && (
-              <span className="plane-chat-composer__contexts-count" aria-hidden="true">
-                {selectedContexts.length}
-              </span>
-            )}
-            <Icon name="chevron-down" size={11} />
-          </button>
+          />
           {contextsOpen && (
             <div
               className="plane-chat-composer__contexts-menu"
@@ -155,54 +132,35 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           )}
         </div>
 
-        <label
-          className="plane-chat-composer__auto-improve"
-          title={t('tabContexts.autoImproveHint')}
-        >
-          <Icon name="sparkles" size={13} />
-          <span className="plane-chat-composer__auto-improve-label">
-            {t('tabContexts.autoImprove')}
-          </span>
-          <input
-            type="checkbox"
-            role="switch"
-            checked={autoImprove}
-            disabled={selectedContextIds.length === 0}
-            onChange={event => onAutoImproveChange(event.target.checked)}
-          />
-          <span aria-hidden="true" />
-        </label>
+        <PlaneChatAutoImproveToggle
+          checked={autoImprove}
+          disabled={selectedContextIds.length === 0}
+          label={t('tabContexts.autoImprove')}
+          hint={t('tabContexts.autoImproveHint')}
+          onChange={onAutoImproveChange}
+        />
 
-        <button
-          type="button"
-          className={[
-            'plane-chat-composer__loop',
-            loopMode ? 'plane-chat-composer__loop--on' : '',
-            loopActive ? 'plane-chat-composer__loop--active' : '',
-          ].filter(Boolean).join(' ')}
-          title={t('agentPane.loopHint')}
-          aria-label={t('agentPane.loopTitle')}
-          aria-pressed={loopMode}
+        <PlaneChatLoopButton
+          pressed={loopMode}
+          active={loopActive}
           disabled={loopActive}
+          label={t('agentPane.loopBar')}
+          ariaLabel={t('agentPane.loopTitle')}
+          title={t('agentPane.loopHint')}
           onClick={onToggleLoop}
-        >
-          <Icon name="repeat" size={13} />
-          <span className="plane-chat-composer__loop-label">
-            {t('agentPane.loopBar')}
-          </span>
-        </button>
+        />
 
         {onClearConversation ? (
-          <button
-            type="button"
-            className="plane-chat-composer__clear"
+          <Button
+            variant="icon"
+            size="sm"
             title={t('agentPane.clearConversation')}
             aria-label={t('agentPane.clearConversation')}
             disabled={!canClearConversation}
             onClick={onClearConversation}
           >
             <Icon name="trash" size={13} />
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

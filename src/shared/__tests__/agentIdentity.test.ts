@@ -40,7 +40,7 @@ describe('applyAgentIdentityDraft', () => {
     )).toEqual({
       name: 'Scout',
       objective: 'Ship it',
-      rules: ['Always verify', '', ''],
+      rules: ['Always verify'],
     })
   })
 })

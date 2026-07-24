@@ -74,46 +74,6 @@
   color: var(--text-muted);
 }
 
-.agent-config-modal__field input,
-.agent-config-modal__field textarea,
-.agent-config-modal__field select {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 9px 11px;
-  border-radius: 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  outline: none;
-}
-
-.agent-config-modal__field textarea {
-  resize: vertical;
-  min-height: 72px;
-  line-height: 1.45;
-}
-
-.agent-config-modal__field input:focus,
-.agent-config-modal__field textarea:focus,
-.agent-config-modal__field select:focus {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-}
-
-.agent-config-modal__field input:disabled,
-.agent-config-modal__field textarea:disabled,
-.agent-config-modal__field select:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.agent-config-modal__field input::placeholder,
-.agent-config-modal__field textarea::placeholder {
-  color: var(--text-muted);
-}
-
 .agent-config-modal__cwd {
   display: flex;
   flex-direction: column;
@@ -146,122 +106,12 @@
   line-height: 1.35;
 }
 
-.agent-config-modal__segment {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-}
-
-.agent-config-modal__segment-btn {
-  padding: 8px 10px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.agent-config-modal__segment-btn--active {
-  background: color-mix(in srgb, var(--accent) 16%, var(--bg-secondary));
-  color: var(--text);
-}
-
-.agent-config-modal__segment-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .agent-config-modal__inline-hint {
   margin: 0;
   font-family: var(--font-ui);
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
-}
-
-.agent-config-modal__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  width: 100%;
-  padding: 11px 12px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  background: color-mix(in srgb, var(--bg) 75%, transparent);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.agent-config-modal__toggle--on {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
-}
-
-.agent-config-modal__toggle:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.agent-config-modal__toggle-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.agent-config-modal__toggle-copy strong {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--text);
-}
-
-.agent-config-modal__toggle-copy span {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.agent-config-modal__switch {
-  position: relative;
-  flex-shrink: 0;
-  width: 40px;
-  height: 22px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--border) 70%, var(--bg));
-  transition: background 0.14s;
-}
-
-.agent-config-modal__toggle--on .agent-config-modal__switch {
-  background: color-mix(in srgb, var(--accent) 70%, var(--border));
-}
-
-.agent-config-modal__switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--text);
-  transition: transform 0.14s;
-}
-
-.agent-config-modal__toggle--on .agent-config-modal__switch-knob {
-  transform: translateX(18px);
 }
 
 .agent-config-modal__context-groups {
@@ -289,46 +139,6 @@
   gap: 4px;
   max-height: 180px;
   overflow: auto;
-}
-
-.agent-config-modal__context-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border-radius: 9px;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.agent-config-modal__context-item:hover {
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-}
-
-.agent-config-modal__context-item--on {
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.agent-config-modal__context-item input {
-  margin: 0;
-}
-
-.agent-config-modal__context-name {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-config-modal__context-kind {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 .agent-config-modal__empty {

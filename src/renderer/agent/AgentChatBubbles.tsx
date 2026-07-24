@@ -13,7 +13,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { AiCodeBlock } from '../components/AiCodeBlock'
-import { IaNucleus } from './IaNucleus'
+import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
 const CHAT_BATCH_SIZE = 10
@@ -123,7 +123,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   const landing = !live && settlingId === message.id
   const entering = enteringIds.has(message.id)
   const materializing = materializingIds.has(message.id)
-  const nucleusOnly = live && !message.content
+  const gravityOnly = live && !message.content
 
   // Sin animación de zoom: liberar flags al montar (animationEnd ya no corre).
   useEffect(() => {
@@ -151,7 +151,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
           `agent-pane__bubble agent-pane__bubble--${message.role}`,
           live ? 'agent-pane__bubble--live' : '',
           landing ? 'agent-pane__bubble--landing' : '',
-          nucleusOnly ? 'agent-pane__bubble--nucleus' : '',
+          gravityOnly ? 'agent-pane__bubble--gravity' : '',
           materializing ? 'agent-pane__bubble--materialize' : '',
         ].filter(Boolean).join(' ')}
       >
@@ -181,8 +181,8 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
             )
           : live
             ? (
-                <span className="agent-pane__nucleus">
-                  <IaNucleus size="solo" />
+                <span className="agent-pane__gravity">
+                  <Gravity size="solo" />
                 </span>
               )
             : ''}
@@ -211,7 +211,7 @@ export interface AgentChatBubblesProps {
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
 }
 
-/** Lista de burbujas user/assistant + Nucleus de espera (panel / plano). */
+/** Lista de burbujas user/assistant + Gravity de espera (panel / plano). */
 export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubblesProps>(function AgentChatBubbles(
   {
     messages,

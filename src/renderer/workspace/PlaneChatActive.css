@@ -1,0 +1,19 @@
+/*
+ * Chat activo: borde sólido de un color del tema.
+ * Ortogonal al PlaneBusyDot multicolor.
+ */
+.plane-chat-active {
+  border-color: var(--accent);
+}
+
+/* Cards: ganan a .pane-window--agent-card.pane-window--mini (2 clases). */
+.pane-window--agent-card.pane-window--mini.plane-chat-active,
+.pane-window--agent-card.pane-window--mini.plane-chat-active:hover {
+  border-color: var(--accent);
+}
+
+/* Loop cards: ganan a hover selectable. */
+.plane-loop-agent-card.plane-chat-active,
+.plane-loop-agent-card.plane-chat-active:hover {
+  border-color: var(--accent);
+}

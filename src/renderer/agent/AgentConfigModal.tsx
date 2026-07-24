@@ -8,10 +8,19 @@ import {
   AGENT_ROLE_MAX_LENGTH,
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
+import type { AgentCoordination } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button } from '../components/ui/Button'
-import { Icon } from '../components/ui/Icon'
+import {
+  Button,
+  ContextCheckOption,
+  Icon,
+  Input,
+  SegmentedControl,
+  Select,
+  SettingToggle,
+  TextArea,
+} from '../components/ui'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import './AgentConfigModal.css'
 
@@ -43,6 +52,8 @@ export interface AgentConfigModalProps {
   onClose: () => void
   /** Persistencia de identidad: blur de inputs o cierre del modal. */
   onCommitIdentity: (draft: AgentIdentityDraft) => void
+  onChangeCoordination: (coordination: AgentCoordination) => void
+  onAcceptDelegationsChange: (accept: boolean) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
@@ -67,6 +78,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   contextNotice,
   onClose,
   onCommitIdentity,
+  onChangeCoordination,
+  onAcceptDelegationsChange,
   onChangeProvider,
   onChangeModel,
   onChangePermission,
@@ -115,11 +128,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     { value: 'plan', label: t('agentPane.permissionPlan'), hint: t('agentPane.permissionPlanHint') },
   ]
 
-  const PROVIDERS: Array<{ value: AgentCliProvider; label: string }> = [
-    { value: 'claude', label: t('agentPane.claude') },
-    { value: 'cursor', label: t('agentPane.cursor') },
-  ]
-
   const modelOptions = modelsForProvider(meta.provider)
   const selectedModel = meta.model?.trim() ?? ''
   const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
@@ -128,32 +136,18 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const projectContexts = diskContexts.filter(context => context.kind !== 'agentResult')
   const agentResultContexts = diskContexts.filter(context => context.kind === 'agentResult')
 
-  const renderContextItem = (context: (typeof diskContexts)[number]) => {
-    const checked = selectedContextIds.includes(context.id)
-    return (
-      <li key={context.id}>
-        <label
-          className={[
-            'agent-config-modal__context-item',
-            checked ? 'agent-config-modal__context-item--on' : '',
-          ].filter(Boolean).join(' ')}
-        >
-          <input
-            type="checkbox"
-            role="option"
-            aria-selected={checked}
-            checked={checked}
-            disabled={locked}
-            onChange={() => onToggleContext(context.id)}
-          />
-          <span className="agent-config-modal__context-name">{context.name}</span>
-          <span className="agent-config-modal__context-kind">
-            {t(`tabContexts.kind_${context.kind}`)}
-          </span>
-        </label>
-      </li>
-    )
-  }
+  const renderContextItem = (context: TabContext) => (
+    <li key={context.id}>
+      <ContextCheckOption
+        appearance="panel"
+        name={context.name}
+        kindLabel={t(`tabContexts.kind_${context.kind}`)}
+        checked={selectedContextIds.includes(context.id)}
+        disabled={locked}
+        onChange={() => onToggleContext(context.id)}
+      />
+    </li>
+  )
 
   return (
     <TerminalModal
@@ -174,7 +168,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           <div className="agent-config-modal__grid">
             <label className="agent-config-modal__field">
               <span className="agent-config-modal__field-label">{t('agentPane.nameLabel')}</span>
-              <input
+              <Input
                 type="text"
                 value={draft.name}
                 maxLength={AGENT_NAME_MAX_LENGTH}
@@ -186,7 +180,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             </label>
             <label className="agent-config-modal__field">
               <span className="agent-config-modal__field-label">{t('agentPane.roleLabel')}</span>
-              <input
+              <Input
                 type="text"
                 value={draft.role}
                 maxLength={AGENT_ROLE_MAX_LENGTH}
@@ -199,7 +193,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           </div>
           <label className="agent-config-modal__field agent-config-modal__field--stack">
             <span className="agent-config-modal__field-label">{t('agentPane.objectiveLabel')}</span>
-            <textarea
+            <TextArea
               rows={3}
               value={draft.objective}
               maxLength={AGENT_OBJECTIVE_MAX_LENGTH}
@@ -215,6 +209,32 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             onChange={rules => updateDraft({ rules })}
             onCommit={commitIdentity}
           />
+
+          <div className="agent-config-modal__field agent-config-modal__field--stack">
+            <span className="agent-config-modal__field-label">{t('agentPane.coordinationLabel')}</span>
+            <SegmentedControl
+              label={t('agentPane.coordinationLabel')}
+              value={meta.coordination ?? 'none'}
+              disabled={busy || loopActive}
+              options={[
+                { value: 'none', label: t('agentPane.coordinationNone') },
+                { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator') },
+              ]}
+              onChange={onChangeCoordination}
+            />
+            <p className="agent-config-modal__inline-hint">{t('agentPane.coordinationHint')}</p>
+          </div>
+
+          {meta.coordination !== 'orchestrator' ? (
+            <SettingToggle
+              checked={meta.acceptDelegations !== false}
+              disabled={locked}
+              title={t('agentPane.acceptDelegationsLabel')}
+              description={t('agentPane.acceptDelegationsHint')}
+              hint={t('agentPane.acceptDelegationsHint')}
+              onChange={onAcceptDelegationsChange}
+            />
+          ) : null}
         </section>
 
         <section className="agent-config-modal__block">
@@ -225,30 +245,22 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
           <div className="agent-config-modal__field agent-config-modal__field--stack">
             <span className="agent-config-modal__field-label">{t('agentPane.providerLabel')}</span>
-            <div className="agent-config-modal__segment" role="radiogroup" aria-label={t('agentPane.providerLabel')}>
-              {PROVIDERS.map(provider => (
-                <button
-                  key={provider.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={meta.provider === provider.value}
-                  className={[
-                    'agent-config-modal__segment-btn',
-                    meta.provider === provider.value ? 'agent-config-modal__segment-btn--active' : '',
-                  ].filter(Boolean).join(' ')}
-                  disabled={busy || loopActive}
-                  onClick={() => onChangeProvider(provider.value)}
-                >
-                  {provider.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              label={t('agentPane.providerLabel')}
+              value={meta.provider}
+              disabled={busy || loopActive}
+              options={[
+                { value: 'claude', label: t('agentPane.claude') },
+                { value: 'cursor', label: t('agentPane.cursor') },
+              ]}
+              onChange={onChangeProvider}
+            />
           </div>
 
           <div className="agent-config-modal__grid">
             <label className="agent-config-modal__field agent-config-modal__field--stack">
               <span className="agent-config-modal__field-label">{t('agentPane.modelLabel')}</span>
-              <select
+              <Select
                 value={selectedModel}
                 disabled={busy}
                 title={t('agentPane.modelHint')}
@@ -261,7 +273,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 {modelIsCustom && (
                   <option value={selectedModel}>{selectedModel}</option>
                 )}
-              </select>
+              </Select>
             </label>
 
             <div className="agent-config-modal__field agent-config-modal__field--stack">
@@ -289,48 +301,29 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
           <div className="agent-config-modal__field agent-config-modal__field--stack">
             <span className="agent-config-modal__field-label">{t('agentPane.permissionLabel')}</span>
-            <div className="agent-config-modal__segment" role="radiogroup" aria-label={t('agentPane.permissionLabel')}>
-              {PERMISSION_MODES.map(mode => (
-                <button
-                  key={mode.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={meta.permissionMode === mode.value}
-                  className={[
-                    'agent-config-modal__segment-btn',
-                    meta.permissionMode === mode.value ? 'agent-config-modal__segment-btn--active' : '',
-                  ].filter(Boolean).join(' ')}
-                  title={mode.hint}
-                  disabled={busy}
-                  onClick={() => onChangePermission(mode.value)}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              label={t('agentPane.permissionLabel')}
+              value={meta.permissionMode}
+              disabled={busy}
+              options={PERMISSION_MODES.map(mode => ({
+                value: mode.value,
+                label: mode.label,
+                title: mode.hint,
+              }))}
+              onChange={onChangePermission}
+            />
             {activePermission && (
               <p className="agent-config-modal__inline-hint">{activePermission.hint}</p>
             )}
           </div>
 
-          <button
-            type="button"
-            className={[
-              'agent-config-modal__toggle',
-              loopMode ? 'agent-config-modal__toggle--on' : '',
-            ].filter(Boolean).join(' ')}
+          <SettingToggle
+            checked={loopMode}
             disabled={loopActive}
-            aria-pressed={loopMode}
-            onClick={onToggleLoopMode}
-          >
-            <span className="agent-config-modal__toggle-copy">
-              <strong>{t('agentPane.loopTitle')}</strong>
-              <span>{t('agentPane.loopHint')}</span>
-            </span>
-            <span className="agent-config-modal__switch" aria-hidden="true">
-              <span className="agent-config-modal__switch-knob" />
-            </span>
-          </button>
+            title={t('agentPane.loopTitle')}
+            description={t('agentPane.loopHint')}
+            onChange={() => onToggleLoopMode()}
+          />
         </section>
 
         <section className="agent-config-modal__block">
@@ -380,45 +373,23 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             </div>
           )}
 
-          <button
-            type="button"
-            className={[
-              'agent-config-modal__toggle',
-              meta.autoImproveContexts === true ? 'agent-config-modal__toggle--on' : '',
-            ].filter(Boolean).join(' ')}
+          <SettingToggle
+            checked={meta.autoImproveContexts === true}
             disabled={locked}
-            aria-pressed={meta.autoImproveContexts === true}
-            title={t('tabContexts.autoImproveHint')}
-            onClick={() => onAutoImproveChange(!(meta.autoImproveContexts === true))}
-          >
-            <span className="agent-config-modal__toggle-copy">
-              <strong>{t('tabContexts.autoImprove')}</strong>
-              <span>{t('tabContexts.autoImproveHint')}</span>
-            </span>
-            <span className="agent-config-modal__switch" aria-hidden="true">
-              <span className="agent-config-modal__switch-knob" />
-            </span>
-          </button>
+            title={t('tabContexts.autoImprove')}
+            description={t('tabContexts.autoImproveHint')}
+            hint={t('tabContexts.autoImproveHint')}
+            onChange={onAutoImproveChange}
+          />
 
-          <button
-            type="button"
-            className={[
-              'agent-config-modal__toggle',
-              meta.emitResults === true ? 'agent-config-modal__toggle--on' : '',
-            ].filter(Boolean).join(' ')}
+          <SettingToggle
+            checked={meta.emitResults === true}
             disabled={locked}
-            aria-pressed={meta.emitResults === true}
-            title={t('tabContexts.emitResultsHint')}
-            onClick={() => onEmitResultsChange(!(meta.emitResults === true))}
-          >
-            <span className="agent-config-modal__toggle-copy">
-              <strong>{t('tabContexts.emitResults')}</strong>
-              <span>{t('tabContexts.emitResultsHint')}</span>
-            </span>
-            <span className="agent-config-modal__switch" aria-hidden="true">
-              <span className="agent-config-modal__switch-knob" />
-            </span>
-          </button>
+            title={t('tabContexts.emitResults')}
+            description={t('tabContexts.emitResultsHint')}
+            hint={t('tabContexts.emitResultsHint')}
+            onChange={onEmitResultsChange}
+          />
 
           {contextNotice && <p className="agent-config-modal__notice">{contextNotice}</p>}
         </section>

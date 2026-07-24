@@ -32,6 +32,10 @@
 ### electron/agentShellOps.ts
 - runAgentShellCommand
 
+### electron/aiAgentDelegate.ts
+- extractAiAgentDelegates
+- buildAiAgentDelegateInstruction
+
 ### electron/aiAgentResults.ts
 - agentResultSlug
 - agentResultFileName
@@ -206,11 +210,17 @@
 ### src/renderer/agent/AgentPane.tsx
 - AgentPane
 
+### src/renderer/agent/AgentPaneAttachmentRemove.tsx
+- AgentPaneAttachmentRemove
+
 ### src/renderer/agent/AgentPaneFooter.tsx
 - AgentPaneFooter
 
 ### src/renderer/agent/AgentPaneMessages.tsx
 - AgentPaneMessages
+
+### src/renderer/agent/AgentPaneSendButton.tsx
+- AgentPaneSendButton
 
 ### src/renderer/agent/AgentProviderPickerModal.tsx
 - AgentProviderPickerModal
@@ -228,8 +238,8 @@
 - pendingImagesToAttachments
 - attachmentsToPendingImages
 
-### src/renderer/agent/IaNucleus.tsx
-- IaNucleus
+### src/renderer/agent/Gravity.tsx
+- Gravity
 
 ### src/renderer/agent/planeStatusThrottle.ts
 - createPlaneStatusThrottler
@@ -237,8 +247,17 @@
 ### src/renderer/agent/QueuedTurnEditModal.tsx
 - QueuedTurnEditModal
 
+### src/renderer/agent/TabContextColorSwatch.tsx
+- TabContextColorSwatch
+
 ### src/renderer/agent/TabContextFormModal.tsx
 - TabContextFormModal
+
+### src/renderer/agent/TabContextIconSwatch.tsx
+- TabContextIconSwatch
+
+### src/renderer/agent/TabContextKindCard.tsx
+- TabContextKindCard
 
 ### src/renderer/agent/tabContextKindIcons.ts
 - contextIconName
@@ -270,6 +289,8 @@
 - isDragLeaveForContainer
 - reorderPaneIdsByKind
 - insertIndexFromPointerY
+- previewInsertIndexFromPointerY
+- orderWithDragInsert
 
 ### src/renderer/components/ai/aiMessagesScroll.ts
 - getAiMessagesMaxScrollTop
@@ -381,14 +402,23 @@
 ### src/renderer/components/ui/ChoiceCard.tsx
 - ChoiceCard
 
+### src/renderer/components/ui/ContextCheckOption.tsx
+- ContextCheckOption
+
 ### src/renderer/components/ui/Icon.tsx
 - Icon
 
 ### src/renderer/components/ui/Input.tsx
 - Input
 
+### src/renderer/components/ui/SegmentedControl.tsx
+- SegmentedControl
+
 ### src/renderer/components/ui/Select.tsx
 - Select
+
+### src/renderer/components/ui/SettingToggle.tsx
+- SettingToggle
 
 ### src/renderer/components/ui/Spinner.tsx
 - Spinner
@@ -459,6 +489,9 @@
 ### src/renderer/terminal/explorer/FileCodeEditor.tsx
 - FileCodeEditor
 
+### src/renderer/terminal/explorer/FileEditorActionButton.tsx
+- FileEditorActionButton
+
 ### src/renderer/terminal/explorer/FileEditorPanel.tsx
 - FileEditorPanel
 
@@ -470,8 +503,14 @@
 - fileFindPrevious
 - fileEditorSearchExtension
 
+### src/renderer/terminal/explorer/FileEditorSearchNav.tsx
+- FileEditorSearchNav
+
 ### src/renderer/terminal/explorer/FileExplorerContextMenu.tsx
 - FileExplorerContextMenu
+
+### src/renderer/terminal/explorer/FileExplorerCreateAction.tsx
+- FileExplorerCreateAction
 
 ### src/renderer/terminal/explorer/FileExplorerEntryIcon.tsx
 - FileExplorerEntryIcon
@@ -483,6 +522,9 @@
 - repoPrefixFromStatus
 - buildGitStatusMap
 - gitStatusFromMap
+
+### src/renderer/terminal/explorer/FileExplorerMenuItem.tsx
+- FileExplorerMenuItem
 
 ### src/renderer/terminal/explorer/FileExplorerNewMenu.tsx
 - FileExplorerNewMenu
@@ -551,6 +593,10 @@
 - isMiniExpandSuppressed
 - setMiniExpandLocked
 
+### src/renderer/workspace/orchestrationBridge.ts
+- listOrchestrationTargets
+- resolveDelegationTargetPaneId
+
 ### src/renderer/workspace/PaneWindow.tsx
 - PaneWindow
 
@@ -559,6 +605,12 @@
 
 ### src/renderer/workspace/PlaneAgentContextNodes.tsx
 - PlaneAgentContextNodes
+
+### src/renderer/workspace/PlaneBusyDot.tsx
+- PlaneBusyDot
+
+### src/renderer/workspace/PlaneChatAutoImproveToggle.tsx
+- PlaneChatAutoImproveToggle
 
 ### src/renderer/workspace/PlaneChatCloseButton.tsx
 - PlaneChatCloseButton
@@ -569,8 +621,23 @@
 ### src/renderer/workspace/PlaneChatContextsBar.tsx
 - PlaneChatContextsBar
 
+### src/renderer/workspace/PlaneChatContextsTrigger.tsx
+- PlaneChatContextsTrigger
+
 ### src/renderer/workspace/PlaneChatDock.tsx
 - PlaneChatDock
+
+### src/renderer/workspace/PlaneChatLoopButton.tsx
+- PlaneChatLoopButton
+
+### src/renderer/workspace/PlaneChatQueueEditButton.tsx
+- PlaneChatQueueEditButton
+
+### src/renderer/workspace/PlaneChatRemoveChipButton.tsx
+- PlaneChatRemoveChipButton
+
+### src/renderer/workspace/PlaneChatSendButton.tsx
+- PlaneChatSendButton
 
 ### src/renderer/workspace/planeColumnReorder.ts
 - usePlaneColumnReorder
@@ -589,11 +656,14 @@
 ### src/renderer/workspace/PlaneContextPool.tsx
 - PlaneContextPool
 
+### src/renderer/workspace/PlaneFab.tsx
+- PlaneFab
+
 ### src/renderer/workspace/PlaneFabStack.tsx
 - PlaneFabStack
 
-### src/renderer/workspace/PlaneIdleNucleus.tsx
-- PlaneIdleNucleus
+### src/renderer/workspace/PlaneIdleGravity.tsx
+- PlaneIdleGravity
 
 ### src/renderer/workspace/PlaneLoopAgentCard.tsx
 - PlaneLoopAgentCard
@@ -652,6 +722,14 @@
 
 ### src/shared/agentModeHandoff.ts
 - buildModeHandoffPrompt
+
+### src/shared/agentOrchestration.ts
+- sanitizeAgentCoordination
+- sanitizeDelegateRequest
+- parseDelegatePayload
+- buildOrchestratorAgentsBlock
+- formatDelegationResultFollowUp
+- formatDelegationRoundCapFollowUp
 
 ### src/shared/agentShellGuard.ts
 - isDestructiveShellCommand

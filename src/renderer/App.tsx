@@ -32,6 +32,12 @@ import {
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import type { TerminalRef } from './terminal/TerminalPane'
+import {
+  listOrchestrationTargets,
+  resolveDelegationTargetPaneId,
+} from './workspace/orchestrationBridge'
+import { formatDelegationResultFollowUp, formatDelegationRoundCapFollowUp, MAX_ORCHESTRATION_ROUNDS } from '@shared/agentOrchestration'
+import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import { Titlebar } from './components/Titlebar'
 import { sessionCwdFolderName } from './terminal/explorer/explorerPathUtils'
 import {
@@ -200,6 +206,11 @@ export const App: React.FC = () => {
   const [projectAgentsByCwd, setProjectAgentsByCwd] = useState<Record<string, ProjectAgentDefinition[]>>({})
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
+  const handleAgentMetaChangeRef = useRef<(
+    tabId: string,
+    paneId: string,
+    meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
+  ) => void>(() => {})
   const [openConfigForPaneId, setOpenConfigForPaneId] = useState<string | null>(null)
   /** Evita que el click al cerrar el modal de config expanda el mini del plano. */
   const suppressPaneExpandUntilRef = useRef(0)
@@ -221,16 +232,41 @@ export const App: React.FC = () => {
     text: string
     images: AgentCliImageAttachment[]
     focusPane?: boolean
+    orchestrationFollowUp?: boolean
+    allowDelegations?: boolean
+    delegation?: {
+      id: string
+      fromPaneId: string
+      toAgentId: string
+    }
   }>>({})
-  const [planeStopPaneId, setPlaneStopPaneId] = useState<string | null>(null)
+  const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
+  const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   const chainFifoByPaneRef = useRef(new Map<string, LoopChainFifoItem[]>())
   const chainOfferByPaneRef = useRef(new Map<string, LoopChainFifoItem>())
   const chainTurnWaitRef = useRef(new Map<string, LoopChainTurnWait>())
   const chainWaitTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const prevBusyByPaneRef = useRef<Record<string, boolean>>({})
+  /** Cola de envíos de orquestación (delegaciones + follow-ups) por pane. */
+  const orchestrationFifoByPaneRef = useRef(new Map<string, Array<{
+    text: string
+    images: AgentCliImageAttachment[]
+    focusPane?: boolean
+    orchestrationFollowUp?: boolean
+    allowDelegations?: boolean
+    delegation?: {
+      id: string
+      fromPaneId: string
+      toAgentId: string
+    }
+  }>>())
+  /** Delegaciones en vuelo: id → destino (para cancelar al stop del orquestador). */
+  const pendingDelegationsByOrchestratorRef = useRef(new Map<string, Map<string, string>>())
+  /** Oleadas de delegación por orquestador (se resetea en cada pedido humano). */
+  const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
@@ -285,8 +321,8 @@ export const App: React.FC = () => {
   }, [])
 
   const rememberProjectAgent = useCallback((cwd: string, agent: ProjectAgentDefinition) => {
+    // '' = catálogo efímero cuando la pestaña aún no tiene projectFolder.
     const root = cwd.trim()
-    if (!root) return
     setProjectAgentsByCwd(prev => {
       const next = { ...prev, [root]: upsertAgentInList(prev[root] ?? [], agent) }
       projectAgentsByCwdRef.current = next
@@ -951,14 +987,29 @@ export const App: React.FC = () => {
     if (!result.ok) return null
     const path = result.path.trim()
     if (!path) return null
+    const previousCwd = tab?.projectFolder?.trim() || ''
     const next = tabsRef.current.map(t => (t.id === tabId ? { ...t, projectFolder: path } : t))
     tabsRef.current = next
     setTabs(next)
+
+    // Si había ediciones en catálogo efímero (sin carpeta), volcarlas al nuevo cwd.
+    if (!previousCwd) {
+      const agentIds = new Set(
+        Object.values(tab?.agentByPane ?? {}).map(binding => binding.agentId),
+      )
+      const ephemeral = projectAgentsByCwdRef.current[''] ?? []
+      for (const definition of ephemeral) {
+        if (!agentIds.has(definition.id)) continue
+        const written = await window.api.upsertProjectAgent(path, definition)
+        if (written.ok) rememberProjectAgent(path, written.agent)
+      }
+    }
+
     // Guardado inmediato con tabsRef ya actualizado (no esperar al render).
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, saveSessionNow, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -1246,60 +1297,36 @@ export const App: React.FC = () => {
     toPaneId: string,
     contextId: string,
   ) => {
-    const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneKinds?.[toPaneId] !== 'agent') return
-    const cwd = tab.projectFolder?.trim() || ''
-    if (!cwd) return
-    const previous = resolveTabAgentMeta(tab, toPaneId, projectAgentsByCwdRef.current)
-    const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
-    const nextMeta: AgentPaneMeta = { ...previous, contextIds: nextIds }
-    const definition = agentDefinitionFromMeta(nextMeta)
-    void window.api.upsertProjectAgent(cwd, definition).then(result => {
-      if (!result.ok) return
-      rememberProjectAgent(cwd, result.agent)
+    handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
+      const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
+      return { ...previous, contextIds: nextIds }
     })
-  }, [rememberProjectAgent])
+  }, [])
 
   const handleToggleAgentContext = useCallback((
     tabId: string,
     paneId: string,
     contextId: string,
   ) => {
-    const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
-    const cwd = tab.projectFolder?.trim() || ''
-    if (!cwd) return
-    const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
-    const selected = new Set(previous.contextIds ?? [])
-    if (selected.has(contextId)) selected.delete(contextId)
-    else selected.add(contextId)
-    const nextMeta: AgentPaneMeta = { ...previous, contextIds: [...selected] }
-    const definition = agentDefinitionFromMeta(nextMeta)
-    void window.api.upsertProjectAgent(cwd, definition).then(result => {
-      if (!result.ok) return
-      rememberProjectAgent(cwd, result.agent)
+    handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+      const selected = new Set(previous.contextIds ?? [])
+      if (selected.has(contextId)) selected.delete(contextId)
+      else selected.add(contextId)
+      return { ...previous, contextIds: [...selected] }
     })
-  }, [rememberProjectAgent])
+  }, [])
 
   const handleAgentAutoImproveChange = useCallback((
     tabId: string,
     paneId: string,
     enabled: boolean,
   ) => {
-    const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
-    const cwd = tab.projectFolder?.trim() || ''
-    if (!cwd) return
-    const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
-    const nextMeta: AgentPaneMeta = { ...previous }
-    if (enabled) nextMeta.autoImproveContexts = true
-    else delete nextMeta.autoImproveContexts
-    const definition = agentDefinitionFromMeta(nextMeta)
-    void window.api.upsertProjectAgent(cwd, definition).then(result => {
-      if (!result.ok) return
-      rememberProjectAgent(cwd, result.agent)
+    handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+      if (enabled) return { ...previous, autoImproveContexts: true }
+      const { autoImproveContexts: _dropped, ...rest } = previous
+      return rest
     })
-  }, [rememberProjectAgent])
+  }, [])
 
   const handleOpenConfigFromPlane = useCallback((tabId: string, paneId: string) => {
     // Solo modal de config (portal); no expandir la ventana del agente.
@@ -1545,14 +1572,25 @@ export const App: React.FC = () => {
         stepIndex: head.stepIndex,
         phase: 'awaiting_busy',
       })
-      setPlaneSendByPane(prev => ({
-        ...prev,
-        [paneId]: {
-          text: head.text,
-          images: [],
-          focusPane: false,
-        },
-      }))
+      setPlaneSendByPane(prev => {
+        if (prev[paneId]) {
+          // Otro offer ganó la carrera: devolver el head a la FIFO.
+          const q = queues.get(paneId) ?? []
+          q.unshift(head)
+          queues.set(paneId, q)
+          chainOfferByPaneRef.current.delete(paneId)
+          chainTurnWaitRef.current.delete(head.chainId)
+          return prev
+        }
+        return {
+          ...prev,
+          [paneId]: {
+            text: head.text,
+            images: [],
+            focusPane: false,
+          },
+        }
+      })
     }
   }, [agentPlaneStatus, loopFifoTick, planeSendByPane])
 
@@ -1599,6 +1637,185 @@ export const App: React.FC = () => {
     else planeQueueControlsByPaneRef.current.delete(paneId)
   }, [])
 
+  const enqueueOrchestrationSend = useCallback((
+    paneId: string,
+    payload: {
+      text: string
+      images?: AgentCliImageAttachment[]
+      focusPane?: boolean
+      orchestrationFollowUp?: boolean
+      allowDelegations?: boolean
+      delegation?: {
+        id: string
+        fromPaneId: string
+        toAgentId: string
+      }
+    },
+  ) => {
+    const queue = orchestrationFifoByPaneRef.current.get(paneId) ?? []
+    queue.push({
+      text: payload.text,
+      images: payload.images ?? [],
+      focusPane: payload.focusPane,
+      ...(payload.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
+      ...(payload.allowDelegations === false ? { allowDelegations: false } : {}),
+      ...(payload.delegation ? { delegation: payload.delegation } : {}),
+    })
+    orchestrationFifoByPaneRef.current.set(paneId, queue)
+    setOrchestrationFifoTick(n => n + 1)
+  }, [])
+
+  const resetOrchestrationRun = useCallback((paneId: string) => {
+    orchestrationRoundsByPaneRef.current.delete(paneId)
+  }, [])
+
+  const handleOrchestratorDelegations = useCallback((
+    fromPaneId: string,
+    tabId: string,
+    delegations: DelegateRequest[],
+  ) => {
+    if (!delegations.length) return
+    const previousRounds = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 0
+    const nextRound = previousRounds + 1
+    orchestrationRoundsByPaneRef.current.set(fromPaneId, nextRound)
+    if (nextRound > MAX_ORCHESTRATION_ROUNDS) {
+      enqueueOrchestrationSend(fromPaneId, {
+        text: formatDelegationRoundCapFollowUp(MAX_ORCHESTRATION_ROUNDS),
+        focusPane: false,
+        orchestrationFollowUp: true,
+        allowDelegations: false,
+      })
+      return
+    }
+
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const panes = (tab.paneIds ?? [])
+      .filter(id => tab.paneKinds?.[id] === 'agent')
+      .map(paneId => ({
+        paneId,
+        meta: resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current),
+      }))
+    const targets = listOrchestrationTargets(panes, fromPaneId)
+    const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
+      ?? new Map<string, string>()
+    for (const delegation of delegations) {
+      const toPaneId = resolveDelegationTargetPaneId(targets, delegation)
+      if (!toPaneId) {
+        enqueueOrchestrationSend(fromPaneId, {
+          text: formatDelegationResultFollowUp({
+            id: delegation.id,
+            status: 'fail',
+            summary: `No agent found for agentId "${delegation.toAgentId}".`,
+            toAgentId: delegation.toAgentId,
+          }, {
+            round: nextRound,
+            maxRounds: MAX_ORCHESTRATION_ROUNDS,
+            batchRemaining: 0,
+          }),
+          focusPane: false,
+          orchestrationFollowUp: true,
+          allowDelegations: nextRound < MAX_ORCHESTRATION_ROUNDS,
+        })
+        continue
+      }
+      pending.set(delegation.id, toPaneId)
+      const contextHint = delegation.contextIds?.length
+        ? `\n\nPreferred context ids: ${delegation.contextIds.join(', ')}`
+        : ''
+      enqueueOrchestrationSend(toPaneId, {
+        text: `${delegation.objective}${contextHint}`,
+        focusPane: false,
+        delegation: {
+          id: delegation.id,
+          fromPaneId,
+          toAgentId: delegation.toAgentId,
+        },
+      })
+    }
+    pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
+  }, [enqueueOrchestrationSend])
+
+  const handleDelegationTurnComplete = useCallback((result: DelegateResult) => {
+    const fromPaneId = [...pendingDelegationsByOrchestratorRef.current.entries()]
+      .find(([, map]) => map.has(result.id))?.[0]
+    if (!fromPaneId) return
+    const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
+    pending?.delete(result.id)
+    const remaining = pending?.size ?? 0
+    if (pending && remaining === 0) {
+      pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
+    }
+    const round = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 1
+    const atCap = round >= MAX_ORCHESTRATION_ROUNDS
+    enqueueOrchestrationSend(fromPaneId, {
+      text: formatDelegationResultFollowUp(result, {
+        round,
+        maxRounds: MAX_ORCHESTRATION_ROUNDS,
+        batchRemaining: remaining,
+      }),
+      focusPane: false,
+      orchestrationFollowUp: true,
+      allowDelegations: !atCap,
+    })
+  }, [enqueueOrchestrationSend])
+
+  const requestPlaneStop = useCallback((paneId: string) => {
+    setPlaneStopPaneIds(previous => {
+      if (previous.has(paneId)) return previous
+      const next = new Set(previous)
+      next.add(paneId)
+      return next
+    })
+  }, [])
+
+  const handleOrchestratorStop = useCallback((fromPaneId: string) => {
+    const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
+    const runningTargets = pending ? [...new Set(pending.values())] : []
+    pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
+    orchestrationRoundsByPaneRef.current.delete(fromPaneId)
+    // No reinyectar follow-ups ni subtareas pendientes de este orquestador.
+    orchestrationFifoByPaneRef.current.delete(fromPaneId)
+    for (const [paneId, queue] of [...orchestrationFifoByPaneRef.current.entries()]) {
+      const next = queue.filter(item => item.delegation?.fromPaneId !== fromPaneId)
+      if (next.length) orchestrationFifoByPaneRef.current.set(paneId, next)
+      else orchestrationFifoByPaneRef.current.delete(paneId)
+    }
+    for (const controls of planeQueueControlsByPaneRef.current.values()) {
+      controls.cancelDelegationsFrom(fromPaneId)
+    }
+    for (const paneId of runningTargets) {
+      requestPlaneStop(paneId)
+    }
+    setOrchestrationFifoTick(n => n + 1)
+  }, [requestPlaneStop])
+
+  // Drena FIFO de orquestación: ofrece preferSend si el pane está idle.
+  useEffect(() => {
+    const queues = orchestrationFifoByPaneRef.current
+    for (const paneId of [...queues.keys()]) {
+      if (planeSendByPane[paneId]) continue
+      if (chainOfferByPaneRef.current.has(paneId)) continue
+      const status = agentPlaneStatus[paneId]
+      if (status?.busy || status?.localLoopActive) continue
+      const queue = queues.get(paneId)
+      if (!queue?.length) {
+        queues.delete(paneId)
+        continue
+      }
+      setPlaneSendByPane(prev => {
+        if (prev[paneId]) return prev
+        const head = queue.shift()
+        if (!head) {
+          if (!queue.length) queues.delete(paneId)
+          return prev
+        }
+        if (!queue.length) queues.delete(paneId)
+        return { ...prev, [paneId]: head }
+      })
+    }
+  }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
+
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
   }, [])
@@ -1617,7 +1834,11 @@ export const App: React.FC = () => {
     const cwd = tab.projectFolder?.trim() || ''
     const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
     const next = typeof meta === 'function' ? meta(previous) : meta
-    const binding = agentBindingFromMeta({ ...next, id: previous.id })
+    const agentId = previous.id
+    const binding = agentBindingFromMeta({ ...next, id: agentId })
+    const previousDefinition = agentDefinitionFromMeta({ ...previous, id: agentId })
+    const definition = agentDefinitionFromMeta({ ...next, id: agentId })
+
     setTabs(prev => {
       const nextTabs = prev.map(item => {
         if (item.id !== tabId) return item
@@ -1632,14 +1853,37 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
+    // Optimista: la UI lee definición desde el catálogo; sin esto los controles vuelven atrás.
+    rememberProjectAgent(cwd, definition)
     void saveSessionNow()
+
     if (!cwd) return
-    const definition = agentDefinitionFromMeta({ ...next, id: previous.id })
+
     void window.api.upsertProjectAgent(cwd, definition).then(result => {
-      if (!result.ok) return
+      if (!result.ok) {
+        rememberProjectAgent(cwd, previousDefinition)
+        setTabs(prev => {
+          const previousBinding = agentBindingFromMeta({ ...previous, id: agentId })
+          const nextTabs = prev.map(item => {
+            if (item.id !== tabId) return item
+            return {
+              ...item,
+              agentByPane: {
+                ...(item.agentByPane ?? {}),
+                [paneId]: previousBinding,
+              },
+            }
+          })
+          tabsRef.current = nextTabs
+          return nextTabs
+        })
+        void saveSessionNow()
+        return
+      }
       rememberProjectAgent(cwd, result.agent)
     })
   }, [rememberProjectAgent, saveSessionNow])
+  handleAgentMetaChangeRef.current = handleAgentMetaChange
 
   const tabBarRef = useRef<TabBarHandle>(null)
   const handleClosePaneRef = useRef(handleClosePane)
@@ -1906,6 +2150,25 @@ export const App: React.FC = () => {
           onPlaneStatusChange={status => handleAgentPlaneStatusChange(paneId, status)}
           onPlaneLoopToggleReady={toggle => handlePlaneLoopToggleReady(paneId, toggle)}
           onPlaneQueueControlsReady={controls => handlePlaneQueueControlsReady(paneId, controls)}
+          getOrchestrationAgents={() => {
+            const panes = (tab.paneIds ?? [])
+              .filter(id => tab.paneKinds?.[id] === 'agent')
+              .map(id => ({
+                paneId: id,
+                meta: resolveTabAgentMeta(tab, id, projectAgentsByCwdRef.current),
+              }))
+            return listOrchestrationTargets(panes, paneId)
+          }}
+          onOrchestratorDelegations={delegations => {
+            handleOrchestratorDelegations(paneId, tab.id, delegations)
+          }}
+          onOrchestratorStop={() => handleOrchestratorStop(paneId)}
+          onDelegationTurnComplete={handleDelegationTurnComplete}
+          onOrchestrationUserTurn={() => resetOrchestrationRun(paneId)}
+          getOrchestrationRound={() => ({
+            round: orchestrationRoundsByPaneRef.current.get(paneId) ?? 0,
+            maxRounds: MAX_ORCHESTRATION_ROUNDS,
+          })}
           preferOpenConfig={openConfigForPaneId === paneId}
           onPreferOpenConfigConsumed={() => {
             setOpenConfigForPaneId(current => (current === paneId ? null : current))
@@ -1927,9 +2190,14 @@ export const App: React.FC = () => {
               return next
             })
           }}
-          preferStop={planeStopPaneId === paneId}
+          preferStop={planeStopPaneIds.has(paneId)}
           onPreferStopConsumed={() => {
-            setPlaneStopPaneId(current => (current === paneId ? null : current))
+            setPlaneStopPaneIds(current => {
+              if (!current.has(paneId)) return current
+              const next = new Set(current)
+              next.delete(paneId)
+              return next
+            })
           }}
           preferClearConversation={planeClearPaneId === paneId}
           onPreferClearConversationConsumed={() => {
@@ -2076,6 +2344,9 @@ export const App: React.FC = () => {
                   title,
                   busy: busyPanes.has(paneId),
                   provider: meta?.provider ?? 'claude',
+                  coordination: (meta?.coordination === 'orchestrator'
+                    ? 'orchestrator'
+                    : 'none') as 'none' | 'orchestrator',
                   snippet: status?.lastSnippet ?? status?.activity ?? '',
                   contexts: assignedContexts,
                   autoImproveContexts: meta?.autoImproveContexts === true,
@@ -2182,7 +2453,7 @@ export const App: React.FC = () => {
                     void saveSessionNow()
                   }}
                   onStopChat={paneId => {
-                    setPlaneStopPaneId(paneId)
+                    requestPlaneStop(paneId)
                     stopChainsForPane(tab.id, paneId)
                   }}
                   onClearConversation={paneId => {

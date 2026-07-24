@@ -3,7 +3,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
-import { IaNucleus } from './IaNucleus'
+import { Gravity } from './Gravity'
 import './AgentChatBubbles.css'
 
 export interface AgentPaneQueuedTurn {
@@ -64,7 +64,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
       <div ref={scrollRef} className="agent-pane__messages">
         {messages.length === 0 && (
           <div className="agent-pane__empty">
-            <IaNucleus size="solo" />
+            <Gravity size="solo" />
             <strong>{t('agentPane.emptyTitle')}</strong>
             <p>{t('agentPane.empty')}</p>
           </div>

@@ -133,6 +133,71 @@ describe('composePrompt identity', () => {
     expect(withEmit).toContain('ia-terminal-results')
   })
 
+  it('includes orchestration protocol and agents only for orchestrators', () => {
+    const normal = composePrompt(
+      request({ provider: 'claude', permissionMode: 'auto', prompt: 'hola' }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(normal).not.toContain('## Agent orchestration')
+
+    const orch = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+        orchestrationAgents: [
+          { agentId: 'qa', paneId: 'p1', name: 'QA', role: 'Tester' },
+        ],
+        prompt: 'ship it',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(orch).toContain('## Agent orchestration')
+    expect(orch).toContain('ia-terminal-delegate')
+    expect(orch).toContain('agentId: qa')
+  })
+
+  it('disables delegation protocol when allowDelegations is false', () => {
+    const orch = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+        allowDelegations: false,
+        orchestrationAgents: [
+          { agentId: 'qa', paneId: 'p1', name: 'QA' },
+        ],
+        prompt: 'summarize',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(orch).toContain('DISABLED')
+    expect(orch).not.toContain('"delegations"')
+  })
+
+  it('includes current wave in the orchestrator prompt', () => {
+    const orch = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+        orchestrationRound: 2,
+        orchestrationMaxRounds: 3,
+        prompt: 'continue',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(orch).toContain('2/3')
+  })
+
   it('reminds the model to deliver plan body when permissionMode is plan', () => {
     const ask = composePrompt(
       request({ provider: 'cursor', permissionMode: 'ask', prompt: 'hola' }),
@@ -343,6 +408,35 @@ describe('permission mode CLI flags', () => {
     )
     expect(claudePlan.args).toContain('--permission-mode')
     expect(claudePlan.args[claudePlan.args.indexOf('--permission-mode') + 1]).toBe('plan')
+  })
+
+  it('forces read-only CLI flags for orchestrators even in auto', () => {
+    const cursor = commandAndArgs(
+      request({
+        provider: 'cursor',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+      }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(cursor.args).toContain('--mode')
+    expect(cursor.args[cursor.args.indexOf('--mode') + 1]).toBe('ask')
+    expect(cursor.args).not.toContain('--force')
+
+    const claude = commandAndArgs(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+      }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(claude.args).toContain('--disallowedTools')
+    expect(claude.args).not.toContain('bypassPermissions')
   })
 
   it('resumes both current CLI providers when a session exists', () => {

@@ -3,6 +3,7 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { Icon } from '../components/ui/Icon'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import './PlaneLoopAgentCard.css'
+import './PlaneChatActive.css'
 
 export interface PlaneLoopAgentCardProps {
   title: string
@@ -66,12 +67,13 @@ export const PlaneLoopAgentCard: React.FC<PlaneLoopAgentCardProps> = ({
       className={[
         'plane-loop-agent-card',
         busy || loopActive ? 'plane-loop-agent-card--busy' : '',
-        selected ? 'plane-loop-agent-card--selected' : '',
+        selected ? 'plane-loop-agent-card--selected plane-chat-active' : '',
         current ? 'plane-loop-agent-card--current' : '',
         interactive ? 'plane-loop-agent-card--selectable' : '',
       ].filter(Boolean).join(' ')}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? selected : undefined}
       onClick={onSelect}
       onKeyDown={event => {
         if (!onSelect) return

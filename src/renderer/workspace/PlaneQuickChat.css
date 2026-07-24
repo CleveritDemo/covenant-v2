@@ -164,14 +164,14 @@
   box-shadow: none;
 }
 
-.plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--nucleus) {
+.plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--gravity) {
   background: color-mix(in srgb, var(--bg) 78%, var(--surface));
   border: none;
   border-color: transparent;
   box-shadow: none;
 }
 
-.plane-quick-chat .agent-pane__bubble--live:not(.agent-pane__bubble--nucleus) {
+.plane-quick-chat .agent-pane__bubble--live:not(.agent-pane__bubble--gravity) {
   background: transparent;
   background-color: transparent;
   background-image: none;
@@ -182,7 +182,7 @@
   -webkit-backdrop-filter: none;
 }
 
-.plane-quick-chat .agent-pane__bubble--nucleus {
+.plane-quick-chat .agent-pane__bubble--gravity {
   background: transparent;
   border-color: transparent;
   box-shadow: none;

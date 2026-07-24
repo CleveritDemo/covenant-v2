@@ -2,12 +2,18 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
+  normalizeAgentRules,
   sanitizeAgentRulesDraft,
   sanitizeAgentTextDraft,
 } from './agentIdentity'
+import {
+  sanitizeAgentCoordination,
+  type AgentCoordination,
+} from './agentOrchestration'
 
 export type AgentCliProvider = 'claude' | 'cursor'
 export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
+export type { AgentCoordination }
 
 /** Definición compartible en `.iaterminal/agents/<id>.json`. */
 export interface ProjectAgentDefinition {
@@ -22,6 +28,10 @@ export interface ProjectAgentDefinition {
   contextIds?: string[]
   autoImproveContexts?: boolean
   emitResults?: boolean
+  /** none (default) | orchestrator: puede delegar a otros agentes. */
+  coordination?: AgentCoordination
+  /** Si false, no acepta subtareas del orquestador (default true). */
+  acceptDelegations?: boolean
 }
 
 /** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
@@ -128,6 +138,9 @@ export function parseProjectAgentDefinition(
   }
   if (data.autoImproveContexts === true) def.autoImproveContexts = true
   if (data.emitResults === true) def.emitResults = true
+  const coordination = sanitizeAgentCoordination(data.coordination)
+  if (coordination === 'orchestrator') def.coordination = 'orchestrator'
+  if (data.acceptDelegations === false) def.acceptDelegations = false
   return def
 }
 
@@ -151,6 +164,8 @@ export function cloneProjectAgentDefinition(
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
     ...(source.emitResults === true ? { emitResults: true } : {}),
+    ...(source.coordination === 'orchestrator' ? { coordination: 'orchestrator' as const } : {}),
+    ...(source.acceptDelegations === false ? { acceptDelegations: false } : {}),
   }
 }
 
@@ -202,7 +217,6 @@ export function resolveAgentPaneMeta(
         id: binding.agentId,
         provider: 'claude',
         permissionMode: 'ask',
-        autoImproveContexts: true,
       }
   return {
     ...base,
@@ -219,11 +233,13 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     name: meta.name,
     role: meta.role,
     objective: meta.objective,
-    rules: meta.rules,
+    rules: normalizeAgentRules(meta.rules),
     model: meta.model,
     contextIds: meta.contextIds,
     autoImproveContexts: meta.autoImproveContexts,
     emitResults: meta.emitResults,
+    coordination: meta.coordination,
+    acceptDelegations: meta.acceptDelegations,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: meta.provider === 'cursor' ? 'cursor' : 'claude',

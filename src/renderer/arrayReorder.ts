@@ -93,3 +93,41 @@ export function insertIndexFromPointerY(
   }
   return others.length
 }
+
+/**
+ * Índice de inserción alineado al layout temporal de preview:
+ * apila `visualOrder` (con hueco del dragged) y compara Y vs centros de los demás.
+ */
+export function previewInsertIndexFromPointerY(
+  visualOrder: readonly string[],
+  heights: Record<string, number>,
+  pointerY: number,
+  draggingId: string,
+  padY: number,
+  gap: number,
+): number {
+  const others = visualOrder.filter(id => id !== draggingId)
+  if (others.length === 0) return 0
+  let y = padY
+  const mids: number[] = []
+  for (const id of visualOrder) {
+    const height = Math.max(heights[id] ?? 0, 1)
+    if (id !== draggingId) mids.push(y + height / 2)
+    y += height + gap
+  }
+  for (let i = 0; i < mids.length; i += 1) {
+    if (pointerY < mids[i]!) return i
+  }
+  return others.length
+}
+
+/** Reinserta `draggingId` en `visualOrder` (sin él) en `insertAt`. */
+export function orderWithDragInsert(
+  visualOrder: readonly string[],
+  draggingId: string,
+  insertAt: number,
+): string[] {
+  const others = visualOrder.filter(id => id !== draggingId)
+  const clamped = Math.max(0, Math.min(insertAt, others.length))
+  return [...others.slice(0, clamped), draggingId, ...others.slice(clamped)]
+}

@@ -65,6 +65,8 @@ export function usePlaneColumnReorder({
 
   const orderedIdsRef = useRef(orderedIds)
   const slotsRef = useRef(slots)
+  const dragBaselineIdsRef = useRef<string[] | null>(null)
+  const dragBaselineSlotsRef = useRef<Record<string, PlaneColumnSlot> | null>(null)
   const pressRef = useRef<PressSession | null>(null)
   const previewIdsRef = useRef<string[] | null>(null)
   const onCommitRef = useRef(onCommit)
@@ -86,6 +88,9 @@ export function usePlaneColumnReorder({
     setDraggingId(null)
     setPreviewIds(null)
     setDragPosition(null)
+    previewIdsRef.current = null
+    dragBaselineIdsRef.current = null
+    dragBaselineSlotsRef.current = null
   }, [])
 
   const cancel = useCallback(() => {
@@ -108,12 +113,16 @@ export function usePlaneColumnReorder({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [editing, draggingId, cancel])
 
-  const updatePreviewFromPointer = useCallback((paneId: string, clientY: number) => {
-    const ids = [...orderedIdsRef.current]
-    const fromIndex = ids.indexOf(paneId)
+  const updatePreviewFromPointer = useCallback((paneId: string, pointerY: number) => {
+    // Hit-test SIEMPRE contra baseline congelado (no contra el layout temporal).
+    // Si se usan midpoints del preview, el orden al soltar puede volver al original.
+    const baselineIds = dragBaselineIdsRef.current ?? [...orderedIdsRef.current]
+    const baselineSlots = dragBaselineSlotsRef.current ?? slotsRef.current
+    const fromIndex = baselineIds.indexOf(paneId)
     if (fromIndex < 0) return
-    const insertAt = insertIndexFromPointerY(ids, slotsRef.current, clientY, paneId)
-    const next = moveItemToIndex(ids, fromIndex, insertAt)
+    const insertAt = insertIndexFromPointerY(baselineIds, baselineSlots, pointerY, paneId)
+    const next = moveItemToIndex(baselineIds, fromIndex, insertAt)
+    previewIdsRef.current = next
     setPreviewIds(prev => {
       if (prev && prev.length === next.length && prev.every((id, i) => id === next[i])) {
         return prev
@@ -121,19 +130,24 @@ export function usePlaneColumnReorder({
       return next
     })
   }, [])
-
   const beginDrag = useCallback((press: PressSession, clientX: number, clientY: number) => {
     press.dragging = true
     press.longPressed = true
+    // Congela orden/slots del gesto: un ResizeObserver no debe mover los midpoints.
+    if (!dragBaselineIdsRef.current) {
+      dragBaselineIdsRef.current = [...orderedIdsRef.current]
+      dragBaselineSlotsRef.current = { ...slotsRef.current }
+    }
     setEditing(true)
     setDraggingId(press.paneId)
     setDragPosition({
       x: press.grabOffsetX + (clientX - press.startX),
       y: press.grabOffsetY + (clientY - press.startY),
     })
+    const cardH = (dragBaselineSlotsRef.current ?? slotsRef.current)[press.paneId]?.height ?? 0
     updatePreviewFromPointer(
       press.paneId,
-      press.grabOffsetY + (clientY - press.startY) + (slotsRef.current[press.paneId]?.height ?? 0) / 2,
+      press.grabOffsetY + (clientY - press.startY) + cardH / 2,
     )
   }, [updatePreviewFromPointer])
 
@@ -205,7 +219,7 @@ export function usePlaneColumnReorder({
       const localX = press.grabOffsetX + (moveEvent.clientX - press.startX)
       const localY = press.grabOffsetY + (moveEvent.clientY - press.startY)
       setDragPosition({ x: localX, y: localY })
-      const cardH = slotsRef.current[press.paneId]?.height ?? 0
+      const cardH = (dragBaselineSlotsRef.current ?? slotsRef.current)[press.paneId]?.height ?? 0
       updatePreviewFromPointer(press.paneId, localY + cardH / 2)
     }
 
@@ -222,7 +236,7 @@ export function usePlaneColumnReorder({
 
       if (press.dragging) {
         const next = previewIdsRef.current
-        const baseline = [...orderedIdsRef.current]
+        const baseline = dragBaselineIdsRef.current ?? [...orderedIdsRef.current]
         const changed = Boolean(
           next
           && next.length === baseline.length

@@ -1,0 +1,50 @@
+.plane-busy-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: conic-gradient(
+    from 0deg,
+    var(--accent) 0deg,
+    var(--theme-cyan) 90deg,
+    var(--theme-magenta) 180deg,
+    var(--theme-blue) 270deg,
+    var(--accent) 360deg
+  );
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--accent) 85%, transparent),
+    0 0 9px color-mix(in srgb, var(--theme-cyan) 55%, transparent),
+    0 0 14px color-mix(in srgb, var(--theme-magenta) 40%, transparent);
+  animation:
+    plane-busy-dot-spin 2.8s linear infinite,
+    plane-busy-dot-glow 1.7s ease-in-out infinite;
+}
+
+@keyframes plane-busy-dot-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes plane-busy-dot-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      0 0 4px color-mix(in srgb, var(--accent) 70%, transparent),
+      0 0 8px color-mix(in srgb, var(--theme-cyan) 40%, transparent),
+      0 0 12px color-mix(in srgb, var(--theme-magenta) 28%, transparent);
+  }
+  50% {
+    filter: brightness(1.4);
+    box-shadow:
+      0 0 6px color-mix(in srgb, var(--accent) 95%, transparent),
+      0 0 12px color-mix(in srgb, var(--theme-cyan) 65%, transparent),
+      0 0 18px color-mix(in srgb, var(--theme-magenta) 50%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-busy-dot {
+    animation: none;
+    filter: brightness(1.15);
+  }
+}

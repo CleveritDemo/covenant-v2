@@ -1,6 +1,7 @@
 import React from 'react'
+import { PlaneBusyDot } from './PlaneBusyDot'
 import './PlaneAgentBadge.css'
-import './PlaneChromaticBusyBorder.css'
+import './PlaneChatActive.css'
 
 export interface PlaneAgentBadgeProps {
   name: string
@@ -9,7 +10,7 @@ export interface PlaneAgentBadgeProps {
   onSelect: () => void
 }
 
-/** Badge seleccionable de agente para el chat del plano (colores del tema). */
+/** Badge: selected = borde accent; busy = dot multicolor del tema. */
 export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
   name,
   selected = false,
@@ -20,15 +21,15 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
     type="button"
     className={[
       'plane-agent-badge',
-      selected ? 'plane-agent-badge--selected' : '',
-      busy ? 'plane-agent-badge--busy plane-chromatic-busy-border' : '',
+      selected ? 'plane-agent-badge--selected plane-chat-active' : '',
+      busy ? 'plane-agent-badge--busy' : '',
     ].filter(Boolean).join(' ')}
     title={name}
     aria-label={name}
     aria-pressed={selected}
     onClick={onSelect}
   >
-    {busy ? <span className="plane-agent-badge__dot" aria-hidden="true" /> : null}
+    {busy ? <PlaneBusyDot /> : null}
     <span className="plane-agent-badge__name">{name}</span>
   </button>
 )

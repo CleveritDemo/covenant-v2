@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
+import { FileExplorerMenuItem } from './FileExplorerMenuItem'
 
 interface FileExplorerNewMenuProps {
   x: number
@@ -51,12 +52,8 @@ export const FileExplorerNewMenu: React.FC<FileExplorerNewMenuProps> = ({
       onContextMenu={e => e.preventDefault()}
       onMouseDown={e => e.stopPropagation()}
     >
-      <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onNewFile}>
-        {t('fileExplorer.toolbar.newFile')}
-      </button>
-      <button type="button" className="file-explorer-context-menu__item" role="menuitem" onClick={onNewDir}>
-        {t('fileExplorer.toolbar.newFolder')}
-      </button>
+      <FileExplorerMenuItem label={t('fileExplorer.toolbar.newFile')} onClick={onNewFile} />
+      <FileExplorerMenuItem label={t('fileExplorer.toolbar.newFolder')} onClick={onNewDir} />
     </div>,
     document.body,
   )

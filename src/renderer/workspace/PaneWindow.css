@@ -316,7 +316,6 @@
 }
 
 .pane-window--agent-card.pane-window--busy.pane-window--mini {
-  /* Sin iluminación (glow); solo borde cromático del tema (PlaneChromaticBusyBorder). */
   transition:
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
@@ -324,6 +323,8 @@
     border-color 0.16s,
     filter 0.16s;
 }
+
+/* Chat activo: borde sólido accent (.plane-chat-active, ver PlaneChatActive.css). */
 
 /* Terminal mini sin chrome (legacy bare). Con titlebar macOS usa el marco normal. */
 .pane-window--mini-bare:not(.pane-window--agent-card) {

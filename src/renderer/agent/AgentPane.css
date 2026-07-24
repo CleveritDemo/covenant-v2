@@ -99,7 +99,7 @@
 @media (prefers-reduced-motion: reduce) {
   .agent-pane__stream,
   .agent-pane__caret,
-  .agent-pane__nucleus,
+  .agent-pane__gravity,
   .agent-pane__stream .ai-md :is(
     .ai-md__p,
     .ai-md__h,
@@ -494,7 +494,7 @@
   justify-content: center;
 }
 
-.agent-pane__bubble--live:not(.agent-pane__bubble--nucleus) {
+.agent-pane__bubble--live:not(.agent-pane__bubble--gravity) {
   position: relative;
   z-index: 2;
   background: transparent;
@@ -505,7 +505,7 @@
   animation: agent-pane-levitate 3s ease-in-out infinite;
 }
 
-.agent-pane__bubble--live.agent-pane__bubble--nucleus {
+.agent-pane__bubble--live.agent-pane__bubble--gravity {
   position: relative;
   z-index: 2;
 }
@@ -594,16 +594,16 @@
   100% { opacity: 1; }
 }
 
-/* ── Indicador de espera: Nucleus ──────────────────────────────────── */
+/* ── Indicador de espera: Gravity ──────────────────────────────────── */
 
-.agent-pane__nucleus {
+.agent-pane__gravity {
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
 }
 
-.agent-pane__bubble--nucleus {
+.agent-pane__bubble--gravity {
   width: auto;
   min-width: 0;
   padding: 16px 10px 24px;
@@ -612,7 +612,7 @@
   box-shadow: none;
 }
 
-.agent-pane__bubble--nucleus .agent-pane__nucleus {
+.agent-pane__bubble--gravity .agent-pane__gravity {
   flex-direction: row;
   gap: 0;
 }
@@ -1690,6 +1690,7 @@
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  color: var(--swatch-fg, var(--text));
   cursor: pointer;
   transition: border-color 0.12s, background 0.12s, transform 0.12s;
 }
@@ -1711,6 +1712,7 @@
   padding: 0;
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--bg) 40%, transparent);
+  background: var(--swatch-bg, var(--border));
   cursor: pointer;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 25%, transparent);
   transition: transform 0.12s, box-shadow 0.12s;

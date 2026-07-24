@@ -36,3 +36,15 @@ export type { TextAreaProps, TextAreaSize, TextAreaVariant } from './TextArea'
 
 export { ChoiceCard } from './ChoiceCard'
 export type { ChoiceCardProps } from './ChoiceCard'
+
+export { SegmentedControl } from './SegmentedControl'
+export type {
+  SegmentedControlProps,
+  SegmentedControlOption,
+} from './SegmentedControl'
+
+export { SettingToggle } from './SettingToggle'
+export type { SettingToggleProps } from './SettingToggle'
+
+export { ContextCheckOption } from './ContextCheckOption'
+export type { ContextCheckOptionProps } from './ContextCheckOption'

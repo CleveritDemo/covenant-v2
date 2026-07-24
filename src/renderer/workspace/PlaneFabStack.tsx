@@ -1,5 +1,5 @@
 import React from 'react'
-import { Icon } from '../components/ui/Icon'
+import { PlaneFab } from './PlaneFab'
 
 export interface PlaneFabStackProps {
   canAdd: boolean
@@ -21,25 +21,17 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   onAddTerminal,
 }) => (
   <div className="plane-fab-stack">
-    <button
-      type="button"
-      className="plane-fab plane-fab--agent"
+    <PlaneFab
+      kind="agent"
+      label={agentTitle}
       disabled={!canAdd || !canAddAgent}
-      title={agentTitle}
-      aria-label={agentTitle}
       onClick={onAddAgent}
-    >
-      <Icon name="sparkles" size={18} />
-    </button>
-    <button
-      type="button"
-      className="plane-fab plane-fab--terminal"
+    />
+    <PlaneFab
+      kind="terminal"
+      label={terminalTitle}
       disabled={!canAdd || !canAddTerminal}
-      title={terminalTitle}
-      aria-label={terminalTitle}
       onClick={onAddTerminal}
-    >
-      <Icon name="terminal" size={18} />
-    </button>
+    />
   </div>
 )

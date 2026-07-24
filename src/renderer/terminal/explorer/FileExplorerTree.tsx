@@ -14,6 +14,7 @@ import { useT } from '@i18n/useT'
 import { shortcutLabel } from '@i18n/modKeyLabel'
 import { Icon } from '../../components/ui/Icon'
 import { ExplorerToolButton } from './ExplorerToolButton'
+import { FileExplorerCreateAction } from './FileExplorerCreateAction'
 import {
   FileExplorerContextMenu,
   type FileExplorerContextMenuTarget,
@@ -1266,17 +1267,18 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
               }}
             />
             <div className="file-explorer-tree__create-actions">
-              <button type="submit" className="file-explorer-tree__create-submit" disabled={creating}>
-                {t('fileExplorer.create.submit')}
-              </button>
-              <button
-                type="button"
-                className="file-explorer-tree__create-cancel"
+              <FileExplorerCreateAction
+                submit
+                appearance="submit"
+                label={t('fileExplorer.create.submit')}
+                disabled={creating}
+              />
+              <FileExplorerCreateAction
+                appearance="cancel"
+                label={t('fileExplorer.create.cancel')}
                 disabled={creating}
                 onClick={cancelCreate}
-              >
-                {t('fileExplorer.create.cancel')}
-              </button>
+              />
             </div>
             {createError && (
               <p className="file-explorer-tree__create-error" role="alert">{createError}</p>

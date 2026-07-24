@@ -1,12 +1,16 @@
 import React from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
+import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
+import { PlaneBusyDot } from './PlaneBusyDot'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
   name: string
   busy?: boolean
   provider?: AgentCliProvider
+  /** Muestra chip de orquestador junto al proveedor. */
+  coordination?: 'none' | 'orchestrator'
   statusLabel: string
   /** Densidad visual; compact reduce padding/gaps para listas y modales. */
   density?: 'default' | 'compact'
@@ -23,6 +27,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   name,
   busy = false,
   provider = 'claude',
+  coordination = 'none',
   statusLabel,
   density = 'default',
   configLabel,
@@ -30,7 +35,9 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   onConfigure,
   onDelete,
   children,
-}) => (
+}) => {
+  const { t } = useT()
+  return (
   <div
     className={[
       'plane-mini-face',
@@ -43,12 +50,30 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">
         <span className="plane-mini-face__name" title={name}>{name}</span>
-        <span className="plane-mini-face__provider">
+        <span
+          className={[
+            'plane-mini-face__provider',
+            provider === 'cursor'
+              ? 'plane-mini-face__provider--cursor'
+              : 'plane-mini-face__provider--claude',
+          ].join(' ')}
+          title={provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude')}
+          aria-label={provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude')}
+        >
           <Icon name={provider === 'cursor' ? 'sparkles' : 'bot'} size={9} aria-hidden />
-          {provider === 'cursor' ? 'Cursor' : 'Claude'}
         </span>
+        {coordination === 'orchestrator' ? (
+          <span
+            className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
+            title={t('agentPane.orchestratorBadge')}
+            aria-label={t('agentPane.orchestratorBadge')}
+          >
+            <Icon name="git-branch" size={9} aria-hidden />
+          </span>
+        ) : null}
       </div>
       <div className="plane-mini-face__header-end">
+        {busy ? <PlaneBusyDot /> : null}
         {onConfigure && configLabel ? (
           <button
             type="button"
@@ -100,4 +125,5 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </div>
     ) : null}
   </div>
-)
+  )
+}

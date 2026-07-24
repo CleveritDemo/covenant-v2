@@ -77,4 +77,68 @@ describe('syncTabAgentsFromCatalog', () => {
       cliSessionId: 'sess-1',
     })
   })
+
+  it('preserves session agent order instead of catalog file order', () => {
+    const result = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['term-1', 'pane-b', 'pane-a'],
+        activePaneId: 'pane-b',
+        paneKinds: {
+          'term-1': 'terminal',
+          'pane-a': 'agent',
+          'pane-b': 'agent',
+        },
+        agentByPane: {
+          'pane-a': { agentId: 'alpha' },
+          'pane-b': { agentId: 'beta' },
+        },
+      }),
+      [
+        { id: 'alpha', provider: 'cursor', permissionMode: 'ask', name: 'alpha' },
+        { id: 'beta', provider: 'cursor', permissionMode: 'ask', name: 'beta' },
+      ],
+      {
+        maxPanes: 10,
+        createPaneId: () => 'should-not-run',
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+
+    expect(result.changed).toBe(false)
+    expect(result.tab.paneIds).toEqual(['term-1', 'pane-b', 'pane-a'])
+    expect(result.tab.agentByPane).toEqual({
+      'pane-b': { agentId: 'beta' },
+      'pane-a': { agentId: 'alpha' },
+    })
+  })
+
+  it('appends newly catalogued agents after the preserved order', () => {
+    let n = 0
+    const result = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['pane-b', 'pane-a'],
+        activePaneId: 'pane-b',
+        paneKinds: { 'pane-a': 'agent', 'pane-b': 'agent' },
+        agentByPane: {
+          'pane-a': { agentId: 'alpha' },
+          'pane-b': { agentId: 'beta' },
+        },
+      }),
+      [
+        { id: 'alpha', provider: 'cursor', permissionMode: 'ask', name: 'alpha' },
+        { id: 'beta', provider: 'cursor', permissionMode: 'ask', name: 'beta' },
+        { id: 'gamma', provider: 'cursor', permissionMode: 'ask', name: 'gamma' },
+      ],
+      {
+        maxPanes: 10,
+        createPaneId: () => `new-${++n}`,
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+
+    expect(result.changed).toBe(true)
+    expect(result.addedPaneIds).toEqual(['new-1'])
+    expect(result.tab.paneIds).toEqual(['pane-b', 'pane-a', 'new-1'])
+    expect(result.tab.agentByPane?.['new-1']).toEqual({ agentId: 'gamma' })
+  })
 })

@@ -3,6 +3,10 @@ import type {
   AgentPermissionMode,
 } from './tabSession'
 import type { TabContext } from './tabContext'
+import type {
+  DelegateResult,
+  OrchestrationAgentRef,
+} from './agentOrchestration'
 
 /** Imagen pegada desde el portapapeles; main la escribe a disco antes del turno. */
 export interface AgentCliImageAttachment {
@@ -37,6 +41,18 @@ export interface AgentCliStartRequest {
   autoImproveContexts?: boolean
   /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
   emitResults?: boolean
+  /** Orquestador: prompt de delegación + parse del fence. */
+  coordination?: 'none' | 'orchestrator'
+  /** Si false, el host prohíbe nuevas delegaciones en este turno. */
+  allowDelegations?: boolean
+  /** Oleada actual (1..max) para el prompt del orquestador. */
+  orchestrationRound?: number
+  /** Tope de oleadas por pedido del usuario. */
+  orchestrationMaxRounds?: number
+  /** Especialistas del plano visibles para el orquestador. */
+  orchestrationAgents?: OrchestrationAgentRef[]
+  /** Resultados de delegaciones previas a inyectar en el prompt. */
+  pendingDelegationResults?: DelegateResult[]
   cliSessionId?: string
   /** Fotos pegadas en el composer; se guardan bajo .iaterminal/clipboard-images. */
   images?: AgentCliImageAttachment[]
@@ -49,6 +65,15 @@ export type AgentCliUiEvent =
   | { type: 'context'; status: 'loading' | 'loaded'; detail?: string }
   | { type: 'session'; cliSessionId: string }
   | { type: 'error'; message: string }
+  | {
+    type: 'delegate'
+    delegations: Array<{
+      id: string
+      toAgentId: string
+      objective: string
+      contextIds?: string[]
+    }>
+  }
   /** Cierre ordenado del turno en el mismo canal que el stream (evita carreras con EXIT). */
   | { type: 'done'; code: number }
 

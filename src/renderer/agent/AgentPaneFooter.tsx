@@ -1,7 +1,8 @@
 import React from 'react'
 import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
-import { Icon } from '../components/ui/Icon'
+import { AgentPaneAttachmentRemove } from './AgentPaneAttachmentRemove'
+import { AgentPaneSendButton } from './AgentPaneSendButton'
 
 export interface AgentPanePendingImage {
   id: string
@@ -43,6 +44,12 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   onSendClick,
 }) => {
   const { t } = useT()
+  const sendMode = showStop ? 'stop' : showPlay ? 'play' : 'send'
+  const sendLabel = showStop
+    ? t('agentPane.stop')
+    : showPlay
+      ? t('agentPane.loopStart')
+      : t('agentPane.send')
 
   return (
     <div className="agent-pane__footer agent-pane__footer--chat-only">
@@ -51,16 +58,11 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           {pendingImages.map(image => (
             <div key={image.id} className="agent-pane__attachment">
               <img src={image.previewUrl} alt={image.name} />
-              <button
-                type="button"
-                className="agent-pane__attachment-remove"
-                onClick={() => onRemovePendingImage(image.id)}
+              <AgentPaneAttachmentRemove
+                label={t('agentPane.removeImage')}
                 disabled={composerDisabled}
-                title={t('agentPane.removeImage')}
-                aria-label={t('agentPane.removeImage')}
-              >
-                ×
-              </button>
+                onClick={() => onRemovePendingImage(image.id)}
+              />
             </div>
           ))}
         </div>
@@ -83,21 +85,12 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           onKeyDown={onComposerKeyDown}
           onMouseDown={event => event.stopPropagation()}
         />
-        <button
-          type="button"
-          className={[
-            'agent-pane__send',
-            showStop ? 'agent-pane__send--stop' : '',
-            showPlay ? 'agent-pane__send--play' : '',
-          ].filter(Boolean).join(' ')}
+        <AgentPaneSendButton
+          mode={sendMode}
+          label={sendLabel}
           disabled={composerDisabled && !showStop && !showPlay}
-          title={showStop ? t('agentPane.stop') : showPlay ? t('agentPane.loopStart') : t('agentPane.send')}
-          aria-label={showStop ? t('agentPane.stop') : showPlay ? t('agentPane.loopStart') : t('agentPane.send')}
           onClick={onSendClick}
-          onMouseDown={event => event.stopPropagation()}
-        >
-          <Icon name={showStop ? 'stop' : showPlay ? 'play' : 'send'} size={14} />
-        </button>
+        />
       </div>
     </div>
   )

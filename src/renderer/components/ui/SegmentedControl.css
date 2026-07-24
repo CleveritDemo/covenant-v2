@@ -1,0 +1,87 @@
+.segmented-control {
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+}
+
+.segmented-control--equal {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.segmented-control--scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.segmented-control__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.segmented-control--scroll .segmented-control__btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.segmented-control--sm .segmented-control__btn {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.segmented-control__btn--active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-secondary));
+  color: var(--text);
+}
+
+.segmented-control__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.segmented-control__label {
+  min-width: 0;
+}
+
+.segmented-control__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+}
+
+@media (max-width: 720px) {
+  .segmented-control--equal {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .segmented-control--equal .segmented-control__btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}

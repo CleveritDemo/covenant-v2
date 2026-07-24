@@ -20,13 +20,13 @@ export function resolveTabAgentMeta(
 ): AgentPaneMeta {
   const binding = tab.agentByPane?.[paneId]
   const cwd = tab.projectFolder?.trim() ?? ''
-  const agents = cwd ? (catalogByCwd[cwd] ?? []) : []
+  // Sin carpeta de proyecto se usa la clave '' (catálogo efímero en memoria).
+  const agents = catalogByCwd[cwd] ?? []
   if (!binding) {
     return {
       id: `missing-${paneId.slice(0, 8)}`,
       provider: 'claude',
       permissionMode: 'ask',
-      autoImproveContexts: true,
     }
   }
   const definition = agents.find(agent => agent.id === binding.agentId)
@@ -58,8 +58,8 @@ export interface SyncTabAgentsFromCatalogResult {
 }
 
 /**
- * El catálogo del repo es la única fuente de verdad de agentes.
- * Terminales se conservan; panes de agente se alinean 1:1 con el catálogo.
+ * El catálogo del repo define qué agentes existen.
+ * El orden visual se toma de `paneIds` (sesión); los nuevos del catálogo van al final.
  */
 export function syncTabAgentsFromCatalog(
   tab: TabSession,
@@ -68,16 +68,21 @@ export function syncTabAgentsFromCatalog(
 ): SyncTabAgentsFromCatalogResult {
   const terminalIds = tab.paneIds.filter(id => tab.paneKinds?.[id] !== 'agent')
   const agentSlots = Math.max(0, options.maxPanes - terminalIds.length)
-  const desired = catalog.slice(0, agentSlots)
+  const catalogById = new Map(catalog.map(definition => [definition.id, definition]))
 
   const existingByAgentId = new Map<string, { paneId: string; binding: AgentPaneBinding }>()
+  const orderedKeptIds: string[] = []
   for (const paneId of tab.paneIds) {
     if (tab.paneKinds?.[paneId] !== 'agent') continue
     const binding = tab.agentByPane?.[paneId]
     if (!binding?.agentId) continue
     if (existingByAgentId.has(binding.agentId)) continue
     existingByAgentId.set(binding.agentId, { paneId, binding })
+    if (catalogById.has(binding.agentId)) orderedKeptIds.push(binding.agentId)
   }
+
+  const keptIdSet = new Set(orderedKeptIds)
+  const missingDefinitions = catalog.filter(definition => !keptIdSet.has(definition.id))
 
   const paneKinds: Record<string, PaneKind> = {}
   for (const id of terminalIds) paneKinds[id] = 'terminal'
@@ -87,8 +92,11 @@ export function syncTabAgentsFromCatalog(
   const agentPaneIds: string[] = []
   const addedPaneIds: string[] = []
 
-  for (const definition of desired) {
-    const existing = existingByAgentId.get(definition.id)
+  const pushAgent = (
+    definition: ProjectAgentDefinition,
+    existing: { paneId: string; binding: AgentPaneBinding } | undefined,
+  ): void => {
+    if (agentPaneIds.length >= agentSlots) return
     const paneId = existing?.paneId ?? options.createPaneId()
     if (!existing) {
       addedPaneIds.push(paneId)
@@ -104,6 +112,15 @@ export function syncTabAgentsFromCatalog(
         : {}),
     }
     agentPaneIds.push(paneId)
+  }
+
+  for (const agentId of orderedKeptIds) {
+    const definition = catalogById.get(agentId)
+    if (!definition) continue
+    pushAgent(definition, existingByAgentId.get(agentId))
+  }
+  for (const definition of missingDefinitions) {
+    pushAgent(definition, existingByAgentId.get(definition.id))
   }
 
   const nextPaneIds = [...terminalIds, ...agentPaneIds]
@@ -138,10 +155,7 @@ export function syncTabAgentsFromCatalog(
     || addedPaneIds.length > 0
     || nextPaneIds.length !== tab.paneIds.length
     || nextPaneIds.some((id, index) => tab.paneIds[index] !== id)
-    || desired.some(definition => {
-      const match = [...existingByAgentId.entries()].find(([id]) => id === definition.id)
-      return !match
-    })
+    || catalog.some(definition => !existingByAgentId.has(definition.id))
 
   const nextTab: TabSession = {
     ...tab,

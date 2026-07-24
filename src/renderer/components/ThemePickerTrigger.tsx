@@ -1,7 +1,5 @@
 import React from 'react'
 import { useT } from '@i18n/useT'
-import { Icon } from './ui/Icon'
-import { Button } from './ui/Button'
 import { getTheme } from '@themes/presets'
 
 interface ThemePickerTriggerProps {
@@ -11,6 +9,7 @@ interface ThemePickerTriggerProps {
   onClick: () => void
 }
 
+/** Trigger de tema en titlebar (swatches vía CSS vars). */
 export const ThemePickerTrigger: React.FC<ThemePickerTriggerProps> = ({
   themeId,
   themeName,

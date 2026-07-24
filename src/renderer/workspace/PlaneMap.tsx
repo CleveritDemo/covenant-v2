@@ -29,6 +29,7 @@ export interface PlaneMapEntity {
   title: string
   busy: boolean
   provider?: AgentCliProvider
+  coordination?: 'none' | 'orchestrator'
   snippet?: string
   contexts?: PlaneAgentContextChip[]
   autoImproveContexts?: boolean
@@ -45,6 +46,8 @@ export interface PlaneMapProps {
   idleAgentLabel: string
   entities: PlaneMapEntity[]
   activePaneId: string
+  /** Agente con chat abierto en el plano (selección estática, no busy). */
+  chatActiveAgentId?: string | null
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -140,6 +143,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   idleAgentLabel,
   entities,
   activePaneId,
+  chatActiveAgentId = null,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -320,6 +324,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     return () => window.removeEventListener('pointerdown', onPointerDown, true)
   }, [cancelAgentReorder, cancelTerminalReorder, reorderActive])
 
+  /**
+   * Durante drag: layout temporal según previewIds (hueco del dragged + resto).
+   * El hit-test del hook usa slots/ids congelados del gesto (no este layout).
+   */
   const layoutEntities = useMemo(() => {
     const terminals = terminalReorder.previewIds
       ? orderEntitiesByIds(terminalsInOrder, terminalReorder.previewIds)
@@ -402,12 +410,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           title={entity.title}
           busy={entity.busy}
           provider={entity.provider}
+          coordination={entity.coordination}
           snippet={entity.snippet}
           idleLabel={idleAgentLabel}
           window={entity.window}
           openGeometry={openGeometry}
           miniOrigin={slot}
           activePaneId={activePaneId}
+          chatActive={entity.kind === 'agent' && entity.paneId === chatActiveAgentId}
           contexts={entity.contexts}
           configLabel={configLabel}
           deleteLabel={deleteLabel}

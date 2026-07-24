@@ -8,9 +8,12 @@ import {
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
-import { Button } from '../components/ui/Button'
+import { Button, Input, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
+import { TabContextColorSwatch } from './TabContextColorSwatch'
+import { TabContextIconSwatch } from './TabContextIconSwatch'
+import { TabContextKindCard } from './TabContextKindCard'
 import { TabContextRootPathField } from './TabContextRootPathField'
 
 export type PreviewState =
@@ -85,26 +88,21 @@ export const TabContextsEditor: React.FC<Props> = ({
       ) : (
         <div className="tab-contexts__kinds" role="radiogroup" aria-label={t('tabContexts.kind')}>
           {KINDS.map(kind => (
-            <button
+            <TabContextKindCard
               key={kind}
-              type="button"
+              label={t(`tabContexts.kind_${kind}`)}
+              icon={KIND_ICONS[kind]}
+              selected={draft.kind === kind}
               disabled={kind === 'changelog' && contexts.some(context => context.kind === 'changelog')}
-              role="radio"
-              aria-checked={draft.kind === kind}
-              title={t(`tabContexts.kind_${kind}`)}
-              className={`tab-contexts__kind-card${draft.kind === kind ? ' tab-contexts__kind-card--active' : ''}`}
-              onClick={() => onSelectKind(kind)}
-            >
-              <Icon name={KIND_ICONS[kind]} size={16} />
-              <span>{t(`tabContexts.kind_${kind}`)}</span>
-            </button>
+              onSelect={() => onSelectKind(kind)}
+            />
           ))}
         </div>
       )}
 
       <label>
         <span>{t('tabContexts.name')}</span>
-        <input
+        <Input
           value={draft.name}
           placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
           onChange={event => {
@@ -133,7 +131,7 @@ export const TabContextsEditor: React.FC<Props> = ({
       </label>
       <label>
         <span>{t('tabContexts.fileName')}</span>
-        <input
+        <Input
           value={draft.fileName ?? normalizeContextFileName(
             draft.name || (draft.kind === 'changelog' ? 'changelog' : 'context'),
           )}
@@ -154,18 +152,14 @@ export const TabContextsEditor: React.FC<Props> = ({
               {TAB_CONTEXT_ICON_NAMES.map(icon => {
                 const active = resolveContextIcon(draft) === icon
                 return (
-                  <button
+                  <TabContextIconSwatch
                     key={icon}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
+                    icon={appearanceIconName(icon)}
+                    color={resolveContextColor(draft)}
                     title={icon}
-                    className={`tab-contexts__icon-swatch${active ? ' tab-contexts__icon-swatch--active' : ''}`}
-                    style={{ color: resolveContextColor(draft) }}
-                    onClick={() => onUpdate({ icon })}
-                  >
-                    <Icon name={appearanceIconName(icon)} size={15} />
-                  </button>
+                    selected={active}
+                    onSelect={() => onUpdate({ icon })}
+                  />
                 )
               })}
             </div>
@@ -176,15 +170,11 @@ export const TabContextsEditor: React.FC<Props> = ({
               {TAB_CONTEXT_COLORS.map(color => {
                 const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
                 return (
-                  <button
+                  <TabContextColorSwatch
                     key={color}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    title={color}
-                    className={`tab-contexts__color-swatch${active ? ' tab-contexts__color-swatch--active' : ''}`}
-                    style={{ background: color }}
-                    onClick={() => onUpdate({ color })}
+                    color={color}
+                    selected={active}
+                    onSelect={() => onUpdate({ color })}
                   />
                 )
               })}
@@ -205,7 +195,7 @@ export const TabContextsEditor: React.FC<Props> = ({
       {(draft.kind === 'files' || draft.kind === 'symbols') && (
         <label>
           <span>{t('tabContexts.paths')}</span>
-          <textarea
+          <TextArea
             rows={5}
             value={(draft.paths ?? []).join('\n')}
             placeholder={t('tabContexts.pathsPlaceholder')}
@@ -217,21 +207,24 @@ export const TabContextsEditor: React.FC<Props> = ({
       {draft.kind === 'symbols' && (
         <fieldset>
           <legend>{t('tabContexts.symbolKinds')}</legend>
-          {(['class', 'method'] as TabContextSymbolKind[]).map(kind => (
-            <label key={kind} className="tab-contexts__check">
-              <input
-                type="checkbox"
-                checked={(draft.symbolKinds ?? ['class', 'method']).includes(kind)}
-                onChange={event => {
+          {(['class', 'method'] as TabContextSymbolKind[]).map(kind => {
+            const checked = (draft.symbolKinds ?? ['class', 'method']).includes(kind)
+            return (
+              <Toggle
+                key={kind}
+                checked={checked}
+                label={t(`tabContexts.symbol_${kind}`)}
+                onChange={next => {
                   const current = draft.symbolKinds ?? ['class', 'method']
-                  onUpdate({ symbolKinds: event.target.checked
-                    ? [...new Set([...current, kind])]
-                    : current.filter(item => item !== kind) })
+                  onUpdate({
+                    symbolKinds: next
+                      ? [...new Set([...current, kind])]
+                      : current.filter(item => item !== kind),
+                  })
                 }}
               />
-              {t(`tabContexts.symbol_${kind}`)}
-            </label>
-          ))}
+            )
+          })}
         </fieldset>
       )}
 
@@ -239,7 +232,7 @@ export const TabContextsEditor: React.FC<Props> = ({
         <label>
           <span>{t('tabContexts.notes')}</span>
           <small>{t('tabContexts.customHint')}</small>
-          <textarea
+          <TextArea
             rows={8}
             value={notesContent}
             placeholder={t('tabContexts.notesPlaceholder')}

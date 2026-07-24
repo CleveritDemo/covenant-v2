@@ -67,6 +67,23 @@ describe('projectAgentCatalog', () => {
     })
   })
 
+  it('parses coordination and acceptDelegations flags', () => {
+    const orch = parseProjectAgentDefinition({
+      id: 'boss',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      acceptDelegations: false,
+    })
+    expect(orch).toMatchObject({
+      coordination: 'orchestrator',
+      acceptDelegations: false,
+    })
+    const clone = cloneProjectAgentDefinition(orch!)
+    expect(clone.coordination).toBe('orchestrator')
+    expect(clone.acceptDelegations).toBe(false)
+  })
+
   it('keeps empty rule drafts so the editor can add slots', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'draft',

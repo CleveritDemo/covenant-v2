@@ -8,6 +8,7 @@
 <!-- iaterminal:notes -->
 - Componetización alta y single responsability de componentes
 - Extracción en componentes reutilizables para evitar duplicidad de código
+- Todos los componentes de ui deben estar extraídos, componetizados
 - No utilización de className ni estilos inline para modificar el diseño de componentes. Todos los componentes deben utilizar únicamente las props del mismo para modificar la forma en que se muestran. Ejemplo: width, size, padding, etc. Si se requiere que un componente se vea distinto y no se logrará a través de las props, se debe crear un nuevo componente.
 - Buenas prácticas de programación
 <!-- /iaterminal:notes -->

@@ -25,6 +25,11 @@ import {
   type AgentIdentityDraft,
   normalizeAgentRules,
 } from '@shared/agentIdentity'
+import type {
+  DelegateRequest,
+  DelegateResult,
+  OrchestrationAgentRef,
+} from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
@@ -70,6 +75,13 @@ interface QueuedTurn {
   id: string
   text: string
   images: PendingImage[]
+  orchestrationFollowUp?: boolean
+  allowDelegations?: boolean
+  delegation?: {
+    id: string
+    fromPaneId: string
+    toAgentId: string
+  }
 }
 
 export interface AgentPreferSend {
@@ -77,6 +89,16 @@ export interface AgentPreferSend {
   images?: AgentCliImageAttachment[]
   /** Si false, no enfoca la ventana del pane (p. ej. cadenas en background). */
   focusPane?: boolean
+  /** Follow-up de orquestación (no resetea oleadas). */
+  orchestrationFollowUp?: boolean
+  /** Si false, el host prohíbe nuevas delegaciones en este turno. */
+  allowDelegations?: boolean
+  /** Subtarea originada por un orquestador. */
+  delegation?: {
+    id: string
+    fromPaneId: string
+    toAgentId: string
+  }
 }
 
 interface Props {
@@ -100,6 +122,18 @@ interface Props {
   onPlaneLoopToggleReady?: (toggle: (() => void) | null) => void
   /** Controles de cola (quitar / editar) para el composer del plano. */
   onPlaneQueueControlsReady?: (controls: AgentPlaneQueueControls | null) => void
+  /** Especialistas visibles para un orquestador (cada turno). */
+  getOrchestrationAgents?: () => OrchestrationAgentRef[]
+  /** El CLI del orquestador emitió delegaciones. */
+  onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
+  /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
+  onOrchestratorStop?: () => void
+  /** Un turno delegado en este pane terminó. */
+  onDelegationTurnComplete?: (result: DelegateResult) => void
+  /** Pedido humano nuevo: reinicia el contador de oleadas de orquestación. */
+  onOrchestrationUserTurn?: () => void
+  /** Oleada actual / tope para el prompt del orquestador. */
+  getOrchestrationRound?: () => { round: number; maxRounds: number }
   /** Pedido externo: abrir modal de configuración (p. ej. desde el plano). */
   preferOpenConfig?: boolean
   onPreferOpenConfigConsumed?: () => void
@@ -175,6 +209,8 @@ export interface AgentPlaneStatus {
 export interface AgentPlaneQueueControls {
   remove: (id: string) => void
   update: (id: string, text: string) => void
+  /** Quita de la cola local subtareas originadas por un orquestador. */
+  cancelDelegationsFrom: (fromPaneId: string) => void
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -196,6 +232,12 @@ export const AgentPane: React.FC<Props> = ({
   onPlaneStatusChange,
   onPlaneLoopToggleReady,
   onPlaneQueueControlsReady,
+  getOrchestrationAgents,
+  onOrchestratorDelegations,
+  onOrchestratorStop,
+  onDelegationTurnComplete,
+  onOrchestrationUserTurn,
+  getOrchestrationRound,
   preferOpenConfig = false,
   onPreferOpenConfigConsumed,
   onConfigOpen,
@@ -296,6 +338,24 @@ export const AgentPane: React.FC<Props> = ({
   const pendingModeHandoffRef = useRef(false)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
+  /** Delegación en vuelo (especialista ejecutando subtarea del orquestador). */
+  const activeDelegationRef = useRef<{
+    id: string
+    fromPaneId: string
+    toAgentId: string
+  } | null>(null)
+  const onOrchestratorDelegationsRef = useRef(onOrchestratorDelegations)
+  onOrchestratorDelegationsRef.current = onOrchestratorDelegations
+  const onOrchestratorStopRef = useRef(onOrchestratorStop)
+  onOrchestratorStopRef.current = onOrchestratorStop
+  const onDelegationTurnCompleteRef = useRef(onDelegationTurnComplete)
+  onDelegationTurnCompleteRef.current = onDelegationTurnComplete
+  const onOrchestrationUserTurnRef = useRef(onOrchestrationUserTurn)
+  onOrchestrationUserTurnRef.current = onOrchestrationUserTurn
+  const getOrchestrationAgentsRef = useRef(getOrchestrationAgents)
+  getOrchestrationAgentsRef.current = getOrchestrationAgents
+  const getOrchestrationRoundRef = useRef(getOrchestrationRound)
+  getOrchestrationRoundRef.current = getOrchestrationRound
   const scrollRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<AgentChatBubblesHandle>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
@@ -332,25 +392,27 @@ export const AgentPane: React.FC<Props> = ({
     setDiskContexts(discovered)
     diskContextsRef.current = discovered
     const discoveredIds = new Set(discovered.map(context => context.id))
-    const currentMeta = metaRef.current
-    let nextIds: string[]
-    if (!discoveryHydratedRef.current) {
-      discoveryHydratedRef.current = true
-      // Solo la primera carga: si el agente nunca eligió contextos, aplica defaults.
-      // Crear/editar un contexto no debe asignarlo solo.
-      nextIds = currentMeta.contextIds == null
-        ? defaultAssignedContextIds(discovered)
-        : currentMeta.contextIds.filter(id => discoveredIds.has(id))
-    } else {
-      // Conservar asignaciones existentes; no auto-asignar contextos recién creados.
-      nextIds = (currentMeta.contextIds ?? []).filter(id => discoveredIds.has(id))
-    }
-    const prev = currentMeta.contextIds ?? []
-    if (nextIds.length !== prev.length || nextIds.some((id, index) => id !== prev[index])) {
-      // Updater funcional: evita pisar autoImprove u otros campos si hay otra
-      // actualización de meta en vuelo (p. ej. el switch de Auto improve).
-      onMetaChange(previous => ({ ...previous, contextIds: nextIds }))
-    }
+    // Derivar nextIds desde `previous` del updater (no metaRef): evita que un
+    // discover en vuelo pise un toggle de contexto concurrente.
+    onMetaChange(previous => {
+      let nextIds: string[]
+      if (!discoveryHydratedRef.current) {
+        discoveryHydratedRef.current = true
+        nextIds = previous.contextIds == null
+          ? defaultAssignedContextIds(discovered)
+          : previous.contextIds.filter(id => discoveredIds.has(id))
+      } else {
+        nextIds = (previous.contextIds ?? []).filter(id => discoveredIds.has(id))
+      }
+      const prev = previous.contextIds ?? []
+      if (
+        nextIds.length === prev.length
+        && nextIds.every((id, index) => id === prev[index])
+      ) {
+        return previous
+      }
+      return { ...previous, contextIds: nextIds }
+    })
   }, [onMetaChange])
 
   const prepareContextDiscovery = useCallback((resolvedCwd: string): void => {
@@ -701,12 +763,21 @@ export const AgentPane: React.FC<Props> = ({
     permissionMode?: AgentPermissionMode
     images?: AgentCliImageAttachment[]
     displayImages?: AgentChatImage[]
+    allowDelegations?: boolean
+    delegation?: {
+      id: string
+      fromPaneId: string
+      toAgentId: string
+    }
   }): Promise<boolean> => {
     const assistant: AgentChatEntry = { id: crypto.randomUUID(), role: 'assistant', content: '' }
+    const userContent = options.delegation
+      ? `${options.displayUser}\n\n_(${t('agentPane.delegationViaOrchestrator')})_`
+      : options.displayUser
     const user: AgentChatEntry = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: options.displayUser,
+      content: userContent,
       ...(options.displayImages?.length ? { images: options.displayImages } : {}),
     }
     activeAssistantIdRef.current = assistant.id
@@ -714,6 +785,7 @@ export const AgentPane: React.FC<Props> = ({
     setActiveAssistantId(assistant.id)
     turnGenRef.current += 1
     turnClosedRef.current = false
+    activeDelegationRef.current = options.delegation ?? null
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
     forceFollow()
     setMessages(prev => [...prev, user, assistant])
@@ -743,6 +815,17 @@ export const AgentPane: React.FC<Props> = ({
         turnClosedRef.current = true
         activeAssistantIdRef.current = null
         setActiveAssistantId(null)
+        const failedDelegation = activeDelegationRef.current
+        activeDelegationRef.current = null
+        if (failedDelegation) {
+          onDelegationTurnCompleteRef.current?.({
+            id: failedDelegation.id,
+            status: 'fail',
+            summary: t('tabContexts.materializeFailed'),
+            toAgentId: failedDelegation.toAgentId,
+            toPaneId: paneId,
+          })
+        }
         return false
       }
     }
@@ -760,6 +843,17 @@ export const AgentPane: React.FC<Props> = ({
       turnClosedRef.current = true
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
+      const failedDelegation = activeDelegationRef.current
+      activeDelegationRef.current = null
+      if (failedDelegation) {
+        onDelegationTurnCompleteRef.current?.({
+          id: failedDelegation.id,
+          status: 'fail',
+          summary: t('tabContexts.missingCwd'),
+          toAgentId: failedDelegation.toAgentId,
+          toPaneId: paneId,
+        })
+      }
       return false
     }
     // messagesRef aún no incluye el user/assistant de este turno.
@@ -772,6 +866,11 @@ export const AgentPane: React.FC<Props> = ({
     emptyResponseRetriesRef.current = 0
     suppressEmptyHandlingRef.current = false
     const rules = normalizeAgentRules(currentMeta.rules)
+    const isOrchestrator = currentMeta.coordination === 'orchestrator'
+    const orchestrationAgents = isOrchestrator
+      ? (getOrchestrationAgentsRef.current?.() ?? [])
+      : []
+    const roundInfo = isOrchestrator ? getOrchestrationRoundRef.current?.() : undefined
     const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
@@ -787,6 +886,21 @@ export const AgentPane: React.FC<Props> = ({
       discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
       emitResults: currentMeta.emitResults === true,
+      ...(isOrchestrator
+        ? {
+            coordination: 'orchestrator' as const,
+            orchestrationAgents,
+            ...(options.allowDelegations === false ? { allowDelegations: false } : {}),
+            ...(roundInfo && roundInfo.round > 0
+              ? {
+                  orchestrationRound: roundInfo.round,
+                  orchestrationMaxRounds: roundInfo.maxRounds,
+                }
+              : roundInfo
+                ? { orchestrationMaxRounds: roundInfo.maxRounds }
+                : {}),
+          }
+        : {}),
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
     }
@@ -906,10 +1020,26 @@ export const AgentPane: React.FC<Props> = ({
               }
             : entry))
       }
+
+      const delegation = activeDelegationRef.current
+      activeDelegationRef.current = null
+      if (delegation) {
+        const summary = isEmpty
+          ? t('agentPane.delegationEmptySummary')
+          : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
+        onDelegationTurnCompleteRef.current?.({
+          id: delegation.id,
+          status: isEmpty ? 'fail' : 'ok',
+          summary,
+          toAgentId: delegation.toAgentId,
+          toPaneId: paneId,
+        })
+      }
+
       emptyResponseRetriesRef.current = 0
       finishSideEffects()
     }, 0)
-  }, [beginLiveSettle, clearLoopTimer, finishLoop, t])
+  }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
@@ -918,6 +1048,19 @@ export const AgentPane: React.FC<Props> = ({
     }
     if (event.type === 'done') {
       completeTurn()
+      return
+    }
+    if (event.type === 'delegate') {
+      onOrchestratorDelegationsRef.current?.(event.delegations)
+      if (event.delegations.length) {
+        const names = event.delegations
+          .map(item => item.toAgentId)
+          .join(', ')
+        setMessages(prev => [
+          ...prev,
+          systemMessage(t('agentPane.delegationDispatched', { agents: names })),
+        ])
+      }
       return
     }
     if (event.type === 'session') {
@@ -1079,6 +1222,10 @@ export const AgentPane: React.FC<Props> = ({
   const dispatchMessage = useCallback(async (
     prompt: string,
     imagesSnapshot: PendingImage[],
+    options?: {
+      delegation?: QueuedTurn['delegation']
+      allowDelegations?: boolean
+    },
   ): Promise<boolean> => {
     const assigned = diskContextsRef.current.filter(context =>
       (metaRef.current.contextIds ?? []).includes(context.id))
@@ -1113,6 +1260,8 @@ export const AgentPane: React.FC<Props> = ({
       contexts: assigned,
       ...(images.length ? { images } : {}),
       ...(displayImages.length ? { displayImages } : {}),
+      ...(options?.delegation ? { delegation: options.delegation } : {}),
+      ...(options?.allowDelegations === false ? { allowDelegations: false } : {}),
     })
   }, [startTurn, t])
 
@@ -1136,6 +1285,9 @@ export const AgentPane: React.FC<Props> = ({
     const imagesSnapshot = pendingImages
     setInput('')
     setPendingImages([])
+    if (metaRef.current.coordination === 'orchestrator') {
+      onOrchestrationUserTurnRef.current?.()
+    }
     if (busy) {
       setQueuedTurns(prev => [
         ...prev,
@@ -1167,26 +1319,49 @@ export const AgentPane: React.FC<Props> = ({
     handledPreferSendRef.current = preferSend
     const prompt = preferSend.text.trim()
     const inboundImages = preferSend.images ?? []
+    const delegation = preferSend.delegation
+    const orchestrationFollowUp = preferSend.orchestrationFollowUp === true
+    const allowDelegations = preferSend.allowDelegations
     // Cadena en background: si ya hay busy (carrera), no consumir; App reintenta.
-    if (busy && preferSend.focusPane === false) {
+    if (busy && preferSend.focusPane === false && !delegation) {
       handledPreferSendRef.current = null
       return
     }
     onPreferSendConsumed?.()
     if (!prompt && inboundImages.length === 0) return
     if (preferSend.focusPane !== false) onRequestPaneFocus()
+    if (
+      metaRef.current.coordination === 'orchestrator'
+      && !orchestrationFollowUp
+      && !delegation
+    ) {
+      onOrchestrationUserTurnRef.current?.()
+    }
     const imagesSnapshot = attachmentsToPendingImages(inboundImages)
+    const turnOptions = {
+      ...(delegation ? { delegation } : {}),
+      ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
+      ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
+    }
     if (busy) {
       setQueuedTurns(prev => {
         if (prev.length >= MAX_QUEUED_TURNS) {
           imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
           return prev
         }
-        return [...prev, { id: crypto.randomUUID(), text: prompt, images: imagesSnapshot }]
+        return [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            text: prompt,
+            images: imagesSnapshot,
+            ...turnOptions,
+          },
+        ]
       })
       return
     }
-    void dispatchMessage(prompt, imagesSnapshot)
+    void dispatchMessage(prompt, imagesSnapshot, turnOptions)
   }, [
     busy,
     dispatchMessage,
@@ -1210,11 +1385,34 @@ export const AgentPane: React.FC<Props> = ({
     )))
   }, [])
 
+  const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
+    setQueuedTurns(previous => {
+      const kept: QueuedTurn[] = []
+      for (const item of previous) {
+        if (item.delegation?.fromPaneId === fromPaneId) {
+          item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          continue
+        }
+        kept.push(item)
+      }
+      return kept
+    })
+  }, [])
+
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
-    onPlaneQueueControlsReady({ remove: removeQueuedTurn, update: updateQueuedTurn })
+    onPlaneQueueControlsReady({
+      remove: removeQueuedTurn,
+      update: updateQueuedTurn,
+      cancelDelegationsFrom,
+    })
     return () => onPlaneQueueControlsReady(null)
-  }, [onPlaneQueueControlsReady, removeQueuedTurn, updateQueuedTurn])
+  }, [
+    cancelDelegationsFrom,
+    onPlaneQueueControlsReady,
+    removeQueuedTurn,
+    updateQueuedTurn,
+  ])
 
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
@@ -1224,7 +1422,10 @@ export const AgentPane: React.FC<Props> = ({
     if (!next) return
     drainingRef.current = true
     setQueuedTurns(prev => prev.filter(item => item.id !== next.id))
-    void dispatchMessage(next.text, next.images).finally(() => {
+    void dispatchMessage(next.text, next.images, {
+      ...(next.delegation ? { delegation: next.delegation } : {}),
+      ...(next.allowDelegations === false ? { allowDelegations: false } : {}),
+    }).finally(() => {
       drainingRef.current = false
     })
   }, [busy, dispatchMessage, loaded, loopActive, queuedTurns])
@@ -1295,9 +1496,23 @@ export const AgentPane: React.FC<Props> = ({
     setActivity('')
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
+    const delegation = activeDelegationRef.current
+    activeDelegationRef.current = null
+    if (delegation) {
+      onDelegationTurnCompleteRef.current?.({
+        id: delegation.id,
+        status: 'aborted',
+        summary: t('agentPane.delegationAbortedSummary'),
+        toAgentId: delegation.toAgentId,
+        toPaneId: paneId,
+      })
+    }
     if (wasLoop) finishLoop('stopped')
     if (chainLoopActive) onChainLoopStop?.()
-  }, [beginLiveSettle, chainLoopActive, clearLoopTimer, finishLoop, onChainLoopStop, paneId])
+    if (metaRef.current.coordination === 'orchestrator') {
+      onOrchestratorStopRef.current?.()
+    }
+  }, [beginLiveSettle, chainLoopActive, clearLoopTimer, finishLoop, onChainLoopStop, paneId, t])
 
   useEffect(() => {
     if (!preferStop) return
@@ -1634,6 +1849,26 @@ export const AgentPane: React.FC<Props> = ({
         }}
         closeOnBackdrop
         onCommitIdentity={commitIdentity}
+        onChangeCoordination={coordination => {
+          onMetaChange(previous => {
+            if (coordination === 'orchestrator') {
+              const { acceptDelegations: _drop, ...rest } = previous
+              return { ...rest, coordination: 'orchestrator' }
+            }
+            const { coordination: _drop, ...rest } = previous
+            return rest
+          })
+        }}
+        onAcceptDelegationsChange={accept => {
+          onMetaChange(previous => (
+            accept
+              ? (() => {
+                const { acceptDelegations: _drop, ...rest } = previous
+                return rest
+              })()
+              : { ...previous, acceptDelegations: false }
+          ))
+        }}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}

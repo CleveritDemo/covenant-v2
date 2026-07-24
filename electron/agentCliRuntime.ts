@@ -30,6 +30,14 @@ import {
   extractAiAgentResults,
   upsertAiAgentResults,
 } from './aiAgentResults'
+import {
+  buildAiAgentDelegateInstruction,
+  extractAiAgentDelegates,
+} from './aiAgentDelegate'
+import {
+  buildOrchestratorAgentsBlock,
+  formatDelegationResultFollowUp,
+} from '../src/shared/agentOrchestration'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 
 interface AgentRun {
@@ -508,6 +516,22 @@ export function composePrompt(
   const resultsInstruction = request.emitResults === true
     ? buildAiAgentResultsInstruction(request.name)
     : ''
+  const isOrchestrator = request.coordination === 'orchestrator'
+  const allowDelegations = request.allowDelegations !== false
+  const orchestrationBlock = isOrchestrator
+    ? [
+        buildOrchestratorAgentsBlock(request.orchestrationAgents ?? []),
+        '',
+        buildAiAgentDelegateInstruction({
+          allowDelegations,
+          round: request.orchestrationRound,
+          maxRounds: request.orchestrationMaxRounds,
+        }),
+      ].join('\n')
+    : ''
+  const delegationFollowUps = (request.pendingDelegationResults ?? [])
+    .map(result => formatDelegationResultFollowUp(result))
+    .filter(Boolean)
   const planDeliveryInstruction = request.permissionMode === 'plan'
     ? [
         '## Plan delivery',
@@ -518,6 +542,8 @@ export function composePrompt(
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
+    ...(orchestrationBlock ? [orchestrationBlock, ''] : []),
+    ...(delegationFollowUps.length ? [...delegationFollowUps, ''] : []),
     ...(imageSection ? [imageSection] : []),
     '## User request',
     userPrompt,
@@ -558,6 +584,10 @@ export function commandAndArgs(
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
 ): { command: string; args: string[] } {
+  const isOrchestrator = request.coordination === 'orchestrator'
+  // Orquestador: siempre sin escritura (asimetría vs especialistas).
+  const permissionMode = isOrchestrator ? 'ask' : request.permissionMode
+
   if (request.provider === 'claude') {
     const args = [
       '-p',
@@ -570,14 +600,14 @@ export function commandAndArgs(
     if (cliSessionId) args.push('--resume', cliSessionId)
     // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
     // confirmación, así que bloqueamos herramientas que mutan el workspace.
-    if (request.permissionMode === 'ask') {
+    if (permissionMode === 'ask') {
       args.push(
         '--disallowedTools',
         'Edit,Write,NotebookEdit,Bash,MultiEdit',
       )
     }
-    if (request.permissionMode === 'auto') args.push('--permission-mode', 'bypassPermissions')
-    if (request.permissionMode === 'plan') args.push('--permission-mode', 'plan')
+    if (permissionMode === 'auto') args.push('--permission-mode', 'bypassPermissions')
+    if (permissionMode === 'plan') args.push('--permission-mode', 'plan')
     if (request.model?.trim()) args.push('--model', request.model.trim())
     return { command: config.agentCliClaudeCommand.trim(), args }
   }
@@ -592,9 +622,9 @@ export function commandAndArgs(
   ]
   if (cliSessionId) args.push('--resume', cliSessionId)
   // Ask/Plan son solo lectura en el CLI de Cursor; sin flag, el default escribe.
-  if (request.permissionMode === 'ask') args.push('--mode', 'ask')
-  if (request.permissionMode === 'auto') args.push('--force')
-  if (request.permissionMode === 'plan') args.push('--mode', 'plan')
+  if (permissionMode === 'ask') args.push('--mode', 'ask')
+  if (permissionMode === 'auto') args.push('--force')
+  if (permissionMode === 'plan') args.push('--mode', 'plan')
   if (request.model?.trim()) args.push('--model', request.model.trim())
   args.push(prompt)
   return { command: config.agentCliCursorCommand.trim(), args }
@@ -746,13 +776,21 @@ export function startAgentTurn(
               appendAiChangelog(cwd, changes)
               changelogPersisted = true
             }
-            const { visibleText, payload: resultsPayload } = extractAiAgentResults(afterChangelog)
+            const { visibleText: afterResults, payload: resultsPayload } = extractAiAgentResults(
+              afterChangelog,
+            )
             if (
               resultsPayload
               && request.emitResults === true
               && request.name?.trim()
             ) {
               upsertAiAgentResults(cwd, request.name.trim(), resultsPayload)
+            }
+            const { visibleText, delegations } = request.coordination === 'orchestrator'
+              ? extractAiAgentDelegates(afterResults)
+              : { visibleText: afterResults, delegations: [] }
+            if (delegations.length && request.allowDelegations !== false) {
+              send(win, request.paneId, { type: 'delegate', delegations })
             }
             if (visibleText.trim()) sawAssistantText = true
             send(win, request.paneId, { ...event, text: visibleText })

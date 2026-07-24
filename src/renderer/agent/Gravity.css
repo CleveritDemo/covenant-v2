@@ -1,0 +1,282 @@
+.gravity {
+  --gravity-size: 140px;
+  --gravity-core: 28px;
+  /* Radio de nacimiento de la materia (borde del pozo). */
+  --gravity-orbit: 58px;
+  --gravity-particle: 7px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--gravity-size);
+  height: var(--gravity-size);
+  flex: 0 0 var(--gravity-size);
+  transform-origin: center center;
+  animation: gravity-enter 2.4s cubic-bezier(0.22, 0.82, 0.18, 1) both;
+}
+
+.gravity--solo {
+  --gravity-size: 156px;
+  --gravity-core: 30px;
+  --gravity-orbit: 64px;
+  --gravity-particle: 7.5px;
+}
+
+.gravity--compact {
+  --gravity-size: 56px;
+  --gravity-core: 12px;
+  --gravity-orbit: 22px;
+  --gravity-particle: 3.5px;
+}
+
+.gravity--hero {
+  --gravity-size: 280px;
+  --gravity-core: 52px;
+  --gravity-orbit: 114px;
+  --gravity-particle: 12px;
+}
+
+/* Masa central: atmósfera fija + pulso indefinido. */
+.gravity__core {
+  position: relative;
+  z-index: 2;
+  width: var(--gravity-core);
+  height: var(--gravity-core);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 32% 28%,
+      color-mix(in srgb, var(--theme-cyan) 28%, #ffffff) 0%,
+      var(--accent) 42%,
+      color-mix(in srgb, var(--accent) 55%, var(--theme-magenta)) 78%,
+      color-mix(in srgb, var(--theme-magenta) 70%, #1a1228) 100%
+    );
+  /* Halo permanente (no se apaga en el ciclo). */
+  box-shadow:
+    0 0 calc(var(--gravity-core) * 0.65) color-mix(in srgb, var(--accent) 34%, transparent),
+    0 0 calc(var(--gravity-core) * 1.35) color-mix(in srgb, var(--accent) 16%, transparent);
+  animation: gravity-breathe 2.2s ease-in-out infinite;
+}
+
+.gravity__core::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--gravity-core) * -1.25);
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 26%, transparent) 0%,
+    color-mix(in srgb, var(--theme-cyan) 12%, transparent) 38%,
+    color-mix(in srgb, var(--accent) 0%, transparent) 72%
+  );
+}
+
+.gravity__particle {
+  --gravity-angle: 0deg;
+  --gravity-delay: 0s;
+  --gravity-duration: 1.45s;
+  /* Caída casi radial: poco giro (no órbita atómica). */
+  --gravity-spin: 5deg;
+  --gravity-size-n: 1;
+  --gravity-tone: var(--theme-cyan);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: calc(var(--gravity-particle) * var(--gravity-size-n));
+  height: calc(var(--gravity-particle) * var(--gravity-size-n) * 1.15);
+  margin:
+    calc(var(--gravity-particle) * var(--gravity-size-n) * -0.575)
+    0
+    0
+    calc(var(--gravity-particle) * var(--gravity-size-n) * -0.5);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse at 50% 35%,
+      color-mix(in srgb, var(--gravity-tone) 88%, #ffffff) 0%,
+      var(--gravity-tone) 48%,
+      color-mix(in srgb, var(--gravity-tone) 0%, transparent) 100%
+    );
+  /* ease-in fuerte: lento lejos, acelera al centro (caída libre). */
+  animation: gravity-fall var(--gravity-duration) cubic-bezier(0.62, 0.02, 0.92, 0.28) infinite;
+  animation-delay: var(--gravity-delay);
+  will-change: transform, opacity;
+}
+
+.gravity__particle--1 {
+  --gravity-angle: 8deg;
+  --gravity-delay: 0s;
+  --gravity-duration: 1.55s;
+  --gravity-spin: 4deg;
+  --gravity-size-n: 0.95;
+  --gravity-tone: var(--accent);
+}
+
+.gravity__particle--2 {
+  --gravity-angle: 41deg;
+  --gravity-delay: 0.18s;
+  --gravity-duration: 1.32s;
+  --gravity-spin: -3deg;
+  --gravity-size-n: 0.65;
+  --gravity-tone: var(--theme-blue);
+}
+
+.gravity__particle--3 {
+  --gravity-angle: 79deg;
+  --gravity-delay: 0.36s;
+  --gravity-duration: 1.68s;
+  --gravity-spin: 6deg;
+  --gravity-size-n: 1.05;
+  --gravity-tone: var(--theme-cyan);
+}
+
+.gravity__particle--4 {
+  --gravity-angle: 118deg;
+  --gravity-delay: 0.08s;
+  --gravity-duration: 1.4s;
+  --gravity-spin: -5deg;
+  --gravity-size-n: 0.75;
+  --gravity-tone: var(--theme-magenta);
+}
+
+.gravity__particle--5 {
+  --gravity-angle: 156deg;
+  --gravity-delay: 0.48s;
+  --gravity-duration: 1.72s;
+  --gravity-spin: 3deg;
+  --gravity-size-n: 0.85;
+  --gravity-tone: var(--accent);
+}
+
+.gravity__particle--6 {
+  --gravity-angle: 198deg;
+  --gravity-delay: 0.24s;
+  --gravity-duration: 1.28s;
+  --gravity-spin: -4deg;
+  --gravity-size-n: 1;
+  --gravity-tone: var(--theme-blue);
+}
+
+.gravity__particle--7 {
+  --gravity-angle: 236deg;
+  --gravity-delay: 0.56s;
+  --gravity-duration: 1.6s;
+  --gravity-spin: 5deg;
+  --gravity-size-n: 0.6;
+  --gravity-tone: var(--theme-cyan);
+}
+
+.gravity__particle--8 {
+  --gravity-angle: 274deg;
+  --gravity-delay: 0.12s;
+  --gravity-duration: 1.48s;
+  --gravity-spin: -2deg;
+  --gravity-size-n: 0.9;
+  --gravity-tone: var(--theme-magenta);
+}
+
+.gravity__particle--9 {
+  --gravity-angle: 312deg;
+  --gravity-delay: 0.64s;
+  --gravity-duration: 1.38s;
+  --gravity-spin: 7deg;
+  --gravity-size-n: 0.7;
+  --gravity-tone: var(--accent);
+}
+
+.gravity__particle--10 {
+  --gravity-angle: 348deg;
+  --gravity-delay: 0.3s;
+  --gravity-duration: 1.64s;
+  --gravity-spin: -6deg;
+  --gravity-size-n: 0.98;
+  --gravity-tone: var(--theme-blue);
+}
+
+.gravity__particle--11 {
+  --gravity-angle: 62deg;
+  --gravity-delay: 0.72s;
+  --gravity-duration: 1.5s;
+  --gravity-spin: 4deg;
+  --gravity-size-n: 0.55;
+  --gravity-tone: var(--theme-cyan);
+}
+
+/* Pulso del núcleo: solo escala/brillo; la atmósfera permanece. */
+@keyframes gravity-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.12);
+    filter: brightness(1.18);
+  }
+}
+
+/*
+  Caída al pozo: lejos = compacto; cerca = estela radial + fade en el centro.
+  El timing ease-in de la animación aporta la aceleración gravitatoria.
+*/
+@keyframes gravity-fall {
+  0% {
+    opacity: 0;
+    transform:
+      rotate(var(--gravity-angle))
+      translateY(calc(var(--gravity-orbit) * -1))
+      scale(0.4, 0.4);
+  }
+  10% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform:
+      rotate(calc(var(--gravity-angle) + var(--gravity-spin)))
+      translateY(calc(var(--gravity-core) * -0.05))
+      scale(0.2, 1.85);
+  }
+}
+
+/* Entrada: un solo gesto — grande+fade → tamaño normal. */
+@keyframes gravity-enter {
+  0% {
+    opacity: 0;
+    transform: scale(2);
+    filter: blur(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gravity,
+  .gravity__core,
+  .gravity__particle {
+    animation: none;
+  }
+
+  .gravity__core {
+    box-shadow:
+      0 0 calc(var(--gravity-core) * 0.65) color-mix(in srgb, var(--accent) 34%, transparent),
+      0 0 calc(var(--gravity-core) * 1.35) color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
+  .gravity__particle {
+    opacity: 0.7;
+    transform:
+      rotate(var(--gravity-angle))
+      translateY(calc(var(--gravity-orbit) * -0.45))
+      scale(0.55, 0.9);
+  }
+}

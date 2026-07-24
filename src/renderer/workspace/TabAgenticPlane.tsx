@@ -11,7 +11,7 @@ import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
-import { PlaneIdleNucleus } from './PlaneIdleNucleus'
+import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
@@ -363,7 +363,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
   const anyWindowOpen = entities.some(entity => entity.window.open)
 
-  const showIdleNucleus = !anyFullscreen && !quickChatShowing && !agentWindowOpen
+  const showIdleGravity = !anyFullscreen && !quickChatShowing && !agentWindowOpen
 
   return (
     <div
@@ -465,6 +465,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         idleAgentLabel={idleAgentLabel}
         entities={entities}
         activePaneId={activePaneId}
+        chatActiveAgentId={openChatAgentId}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}
@@ -483,8 +484,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         reorderAriaLabel={reorderAriaLabel}
       />
 
-      {showIdleNucleus && (
-        <PlaneIdleNucleus />
+      {showIdleGravity && (
+        <PlaneIdleGravity />
       )}
 
       {!anyFullscreen && (

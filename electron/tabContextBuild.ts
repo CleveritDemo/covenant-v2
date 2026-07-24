@@ -692,6 +692,7 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
   try {
     const base = resolve(cwd)
     const dir = join(base, '.iaterminal')
+    // Sin `.iaterminal` en cwd → 0 contexts (solo disco del proyecto; no session/userData).
     if (!existsSync(dir)) return { ok: true, contexts: [] }
 
     const legacyResults = migrateLegacyAgentResults(cwd)

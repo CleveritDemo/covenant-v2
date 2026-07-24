@@ -31,6 +31,13 @@ describe('tab context builders', () => {
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
+  it('returns zero contexts when cwd has no .iaterminal folder', () => {
+    const cwd = tempCwd()
+    const result = discoverTabContexts(cwd)
+    expect(result.ok).toBe(true)
+    expect(result.contexts).toEqual([])
+  })
+
   it('materializes annotation layer and preserves them on refresh', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'), { recursive: true })
@@ -347,7 +354,7 @@ describe('tab context builders', () => {
     const agent = JSON.parse(
       readFileSync(join(cwd, '.iaterminal', 'agents', 'qa.json'), 'utf8'),
     ) as { contextIds?: string[] }
-    expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders', 'iaterminal:result:qa'])
+    expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders'])
   })
 
   it('dual materialize of distinct folderTree names writes two files', () => {

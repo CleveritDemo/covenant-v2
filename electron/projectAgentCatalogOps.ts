@@ -235,21 +235,16 @@ export function renameProjectAgent(
 }
 
 /**
- * Escribe definiciones legacy de session.json en `.iaterminal/agents` y
- * devuelve la sesión con bindings slim. Idempotente si ya está migrada.
+ * Descarta rich meta legacy de session (sin escribir agentes en disco).
+ * Agentes solo desde `.iaterminal/agents`. `wrote` siempre 0.
  */
 export function migratePersistedSessionAgents(
   session: PersistedSession,
 ): { session: PersistedSession; wrote: number; changed: boolean } {
   const planned = planAgentCatalogMigration(session.tabs, session.cwds)
-  let wrote = 0
-  for (const item of planned.writes) {
-    const result = upsertProjectAgent(item.projectFolder, item.definition)
-    if (result.ok) wrote += 1
-  }
   if (!planned.changed) return { session, wrote: 0, changed: false }
   return {
-    wrote,
+    wrote: 0,
     changed: true,
     session: {
       ...session,

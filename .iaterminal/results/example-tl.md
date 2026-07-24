@@ -3,9 +3,12 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-Flicker fixed; planeColumnReorder + planeContextDrag tests PASS.
+Contexts disk-only; legacy session agents no longer written to catalog.
 
 ## Log
+- `2026-07-24T18:33:39.441Z` — pendingAgentMigrations always []; rich meta stripped
+- `2026-07-24T18:29:41.247Z` — Other machine differs if .iaterminal/session differ
+- `2026-07-24T18:29:41.247Z` — Legacy path: pendingAgentMigrations upserts session→catalog
 - `2026-07-24T17:46:02.809Z` — Sync onCommit before resetDragVisuals; 5/5 tests
 - `2026-07-24T17:43:51.112Z` — Commit sync before resetDragVisuals; add hook tests
 - `2026-07-24T17:42:46.502Z` — Catalog/chips/tabContext tests passed; no reorder unit tests

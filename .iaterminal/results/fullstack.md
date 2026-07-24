@@ -3,9 +3,12 @@
 
 <!-- iaterminal:auto -->
 ## Latest
-PASS: sin flicker al soltar; 5 tests de reorder/drag OK.
+Contexts disk-only; legacy session agents dropped, never written to .iaterminal/agents.
 
 ## Log
+- `2026-07-24T18:33:19.069Z` — sanitize/plan strip rich meta
+- `2026-07-24T18:33:19.069Z` — App empty pool on discover fail
+- `2026-07-24T18:33:19.069Z` — tests updated and green
 - `2026-07-24T17:45:47.928Z` — Commit sync antes de clear preview
 - `2026-07-24T17:45:47.928Z` — planeColumnReorder + planeContextDrag tests
 - `2026-07-24T17:30:17.605Z` — Helper + parse hygiene

@@ -1,4 +1,4 @@
-# Product Designer — Results
+# Product Designer
 <!-- iaterminal:context {"version":1,"id":"iaterminal:result:product-designer","name":"Product Designer","fileName":"results/product-designer.md","kind":"agentResult","icon":"bot","color":"#94a3b8"} -->
 
 <!-- iaterminal:auto -->

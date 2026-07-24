@@ -7,8 +7,6 @@ import type {
   TabSession,
 } from '@shared/tabSession'
 import {
-  isLegacyRichAgentMeta,
-  legacyAgentMetaToDefinition,
   parseAgentPaneBinding,
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
@@ -34,7 +32,10 @@ export interface SanitizedSession {
   cwds: Record<string, string>
   explorerByPane: Record<string, FileExplorerPersistedState>
   orphanPaneIds: string[]
-  /** Definiciones a escribir en `.iaterminal/agents/` tras migrar session legacy. */
+  /**
+   * Siempre vacío: ya no se resucitan agentes desde rich meta de session.
+   * Se mantiene el campo por compat de tipado / callers.
+   */
   pendingAgentMigrations: Array<{
     projectFolder: string
     definition: ProjectAgentDefinition
@@ -46,54 +47,33 @@ function sanitizeTab(tab: TabSession): {
   migrations: SanitizedSession['pendingAgentMigrations']
 } | null {
   if (!tab?.id || !Array.isArray(tab.paneIds)) return null
-  const paneIds = tab.paneIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+  const rawPaneIds = tab.paneIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+  const paneKinds: Record<string, PaneKind> = {}
+  const agentByPane: Record<string, AgentPaneBinding> = {}
+  const droppedAgentPanes = new Set<string>()
+  const projectFolder = typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
+    ? tab.projectFolder.trim()
+    : undefined
+
+  for (const paneId of rawPaneIds) {
+    if (tab.paneKinds?.[paneId] !== 'agent') continue
+    const raw = tab.agentByPane?.[paneId] as unknown
+    const binding = parseAgentPaneBinding(raw)
+    if (binding) {
+      paneKinds[paneId] = 'agent'
+      agentByPane[paneId] = binding
+      continue
+    }
+    // Rich meta legacy o binding inválido: pane huérfano (no migrar, no inventar agentId).
+    droppedAgentPanes.add(paneId)
+  }
+
+  const paneIds = rawPaneIds.filter(id => !droppedAgentPanes.has(id))
   const activePaneId = paneIds.length === 0
     ? ''
     : paneIds.includes(tab.activePaneId)
       ? tab.activePaneId
       : paneIds[paneIds.length - 1]!
-  const paneKinds: Record<string, PaneKind> = {}
-  const agentByPane: Record<string, AgentPaneBinding> = {}
-  const migrations: SanitizedSession['pendingAgentMigrations'] = []
-  const projectFolder = typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
-    ? tab.projectFolder.trim()
-    : undefined
-  const usedSlugs = new Set<string>()
-
-  for (const paneId of paneIds) {
-    if (tab.paneKinds?.[paneId] !== 'agent') continue
-    paneKinds[paneId] = 'agent'
-    const raw = tab.agentByPane?.[paneId] as unknown
-    const binding = parseAgentPaneBinding(raw)
-    if (binding) {
-      usedSlugs.add(binding.agentId)
-      agentByPane[paneId] = binding
-      continue
-    }
-    if (isLegacyRichAgentMeta(raw) && projectFolder) {
-      const definition = legacyAgentMetaToDefinition(paneId, raw, usedSlugs)
-      if (definition) {
-        usedSlugs.add(definition.id)
-        const cliSessionId =
-          raw && typeof raw === 'object'
-          && typeof (raw as { cliSessionId?: unknown }).cliSessionId === 'string'
-          && (raw as { cliSessionId: string }).cliSessionId.trim()
-            ? (raw as { cliSessionId: string }).cliSessionId.trim()
-            : undefined
-        agentByPane[paneId] = {
-          agentId: definition.id,
-          ...(cliSessionId ? { cliSessionId } : {}),
-        }
-        migrations.push({ projectFolder, definition })
-        continue
-      }
-    }
-    // Binding inválido sin legacy: placeholder local (catálogo se crea al guardar config).
-    const fallbackId = `agent-${paneId.slice(0, 8)}`
-    const agentId = usedSlugs.has(fallbackId) ? `${fallbackId}-${usedSlugs.size}` : fallbackId
-    usedSlugs.add(agentId)
-    agentByPane[paneId] = { agentId }
-  }
 
   const paneWindows = collapseAllPaneWindows(ensurePaneWindows(paneIds, tab.paneWindows))
   const rawOpenChat = tab.planeOpenChatAgentId
@@ -138,9 +118,10 @@ function sanitizeTab(tab: TabSession): {
       ...(planeLoopLinks.length ? { planeLoopLinks } : {}),
       ...(planeLoopNodePositions ? { planeLoopNodePositions } : {}),
       ...(planeLoopChains.length ? { planeLoopChains } : {}),
+      // Contextos viven en disco (`.iaterminal`); nunca en session.
       contexts: undefined,
     }),
-    migrations,
+    migrations: [],
   }
 }
 
@@ -158,7 +139,7 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
   const rawTabs = Array.isArray(saved.tabs) ? saved.tabs : []
   const cwds = saved.cwds ?? {}
 
-  // projectFolder antes de sanitizar agentes: la migración legacy necesita cwd.
+  // projectFolder desde cwd de terminales (hint de carpeta; no crea agentes).
   const tabsWithFolderHint = rawTabs.map(raw => {
     const tab = raw as TabSession
     if (typeof tab.projectFolder === 'string' && tab.projectFolder.trim()) return tab
@@ -175,12 +156,10 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
   })
 
   const sanitizedTabs: TabSession[] = []
-  const pendingAgentMigrations: SanitizedSession['pendingAgentMigrations'] = []
   for (const raw of tabsWithFolderHint) {
     const result = sanitizeTab(raw as TabSession)
     if (!result) continue
     sanitizedTabs.push(result.tab)
-    pendingAgentMigrations.push(...result.migrations)
   }
 
   if (sanitizedTabs.length === 0) return null
@@ -211,7 +190,7 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
     cwds: keptCwds,
     explorerByPane,
     orphanPaneIds,
-    pendingAgentMigrations,
+    pendingAgentMigrations: [],
   }
 }
 

@@ -99,7 +99,8 @@ describe('projectAgentCatalogOps', () => {
     expect(renamed.fromId).toBe('claude')
     expect(renamed.toId).toBe('fullstack')
     expect(renamed.agent.id).toBe('fullstack')
-    expect(renamed.agent.contextIds).toEqual(['iaterminal:result:fullstack'])
+    // El propio agentResult no se auto-asigna en contextIds.
+    expect(renamed.agent.contextIds).toBeUndefined()
     expect(renamed.idRemap).toEqual({
       'iaterminal:result:claude': 'iaterminal:result:fullstack',
     })

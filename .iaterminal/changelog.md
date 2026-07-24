@@ -3,13 +3,13 @@
 
 > Últimos 10 cambios realizados por la IA. Generado automáticamente.
 
+- `2026-07-24T18:33:19.066Z` — `src/renderer/sessionSanitize.ts` — Drop legacy rich agent panes; migrations always empty; no invented bindings
+- `2026-07-24T18:33:19.066Z` — `src/renderer/App.tsx` — Remove migration upsert loop; empty context pool when cwd/discover fails
+- `2026-07-24T18:33:19.066Z` — `src/shared/projectAgentCatalog.ts` — planAgentCatalogMigration strips legacy panes; writes always []
+- `2026-07-24T18:33:19.066Z` — `electron/projectAgentCatalogOps.ts` — migratePersistedSessionAgents never writes agent JSON from session
+- `2026-07-24T18:33:19.066Z` — `electron/tabContextBuild.ts` — Comment: no .iaterminal in cwd yields zero contexts
+- `2026-07-24T18:33:19.066Z` — `electron/__tests__/tabContextBuild.test.ts` — Smoke: cwd without .iaterminal returns empty contexts
+- `2026-07-24T18:33:19.066Z` — `src/renderer/__tests__/sessionSanitize.test.ts` — Expect legacy panes dropped, not migrated
+- `2026-07-24T18:33:19.066Z` — `src/shared/__tests__/projectAgentCatalog.test.ts` — Expect strip/no writes for rich meta migration plan
+- `2026-07-24T18:33:19.066Z` — `electron/__tests__/projectAgentCatalogOps.test.ts` — Align rename expectations with no self-assigned results
 - `2026-07-24T17:45:47.926Z` — `src/renderer/workspace/planeColumnReorder.ts` — Commit síncrono antes de reset; export shouldCommitReorder
-- `2026-07-24T17:45:47.926Z` — `src/renderer/workspace/__tests__/planeColumnReorder.test.ts` — Tests handle click/move threshold y commit
-- `2026-07-24T17:45:47.926Z` — `src/renderer/workspace/__tests__/planeContextDrag.test.ts` — Test set/has/read MIME de context drag
-- `2026-07-24T17:30:17.603Z` — `src/shared/projectAgentCatalog.ts` — Añadí isAgentOwnResultContext; parse filtra own result
-- `2026-07-24T17:30:17.603Z` — `src/shared/__tests__/projectAgentCatalog.test.ts` — Tests helper y strip de own result en parse
-- `2026-07-24T17:30:17.603Z` — `src/renderer/App.tsx` — Guard DnD/toggle: no asignar own agentResult
-- `2026-07-24T17:30:17.603Z` — `src/renderer/agent/AgentPane.tsx` — toggleContext bloquea añadir own result
-- `2026-07-24T17:30:17.603Z` — `src/renderer/agent/AgentConfigContextSummary.tsx` — Oculta checkbox del propio results
-- `2026-07-24T17:30:17.603Z` — `src/renderer/agent/AgentConfigSettingsPane.tsx` — Pasa meta.id como agentId al summary
-- `2026-07-24T17:26:38.756Z` — `src/renderer/workspace/PlaneMiniFace.tsx` — Eliminé onPointerUp stopPropagation del drag-handle

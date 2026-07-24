@@ -640,11 +640,8 @@ export const App: React.FC = () => {
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
-        // Migrar metas legacy a `.iaterminal/agents` y sincronizar planos con el catálogo.
+        // Agentes solo desde `.iaterminal/agents` (no resucitar rich meta de session).
         void (async () => {
-          for (const item of sanitized.pendingAgentMigrations) {
-            await window.api.upsertProjectAgent(item.projectFolder, item.definition)
-          }
           const folders = [...new Set(
             layoutTabs
               .map(tab => tab.projectFolder?.trim() || '')
@@ -727,7 +724,7 @@ export const App: React.FC = () => {
     return `${tab.id}:${tab.paneIds.join(',')}`
   }, [tabs, activeTabId])
 
-  // Catálogo de contextos del tab activo (plano 2D). Discover migra ids canónicos en disco.
+  // Contextos solo desde disco (discoverTabContexts / `.iaterminal`); nunca desde session.
   useEffect(() => {
     const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
     if (!tab) return
@@ -739,11 +736,19 @@ export const App: React.FC = () => {
             tab.paneIds.find(id => tab.paneKinds?.[id] !== 'agent')!,
           )
           : '')
-      if (!cwd || cancelled) return
+      if (cancelled) return
+      if (!cwd) {
+        setTabContextsByTab(prev => ({ ...prev, [tab.id]: [] }))
+        return
+      }
       const result = await window.api.discoverTabContexts({ cwd })
-      if (cancelled || !result.ok) return
+      if (cancelled) return
+      if (!result.ok) {
+        setTabContextsByTab(prev => ({ ...prev, [tab.id]: [] }))
+        return
+      }
       setTabContextsByTab(prev => ({ ...prev, [tab.id]: result.contexts }))
-      // Tras migración, recargar agentes desde disco (SSOT); no confiar en meta en memoria.
+      // idRemap ya reescribió contextIds en agentes del disco; refrescar catálogo en memoria.
       if (result.contextsMigrated || (result.idRemap && Object.keys(result.idRemap).length > 0)) {
         await refreshProjectAgents(cwd)
       }

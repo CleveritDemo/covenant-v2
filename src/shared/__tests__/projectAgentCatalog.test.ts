@@ -235,11 +235,11 @@ describe('projectAgentCatalog', () => {
     expect(resolveCatalogAgentId([definition], 'example2')).toBe('example2')
   })
 
-  it('plans session migration writes and slim bindings', () => {
+  it('strips legacy rich meta without catalog writes', () => {
     const planned = planAgentCatalogMigration(
       [{
         projectFolder: '/tmp/proj',
-        paneIds: ['p1'],
+        paneIds: ['term', 'p1'],
         paneKinds: { p1: 'agent' },
         agentByPane: {
           p1: {
@@ -253,12 +253,25 @@ describe('projectAgentCatalog', () => {
       }],
     )
     expect(planned.changed).toBe(true)
-    expect(planned.writes).toHaveLength(1)
-    expect(planned.writes[0]?.definition).toMatchObject({
-      id: 'qa',
-      provider: 'cursor',
-      contextIds: ['c1'],
-    })
+    expect(planned.writes).toEqual([])
+    expect(planned.tabs[0]?.paneIds).toEqual(['term'])
+    expect(planned.tabs[0]?.agentByPane).toBeUndefined()
+    expect(planned.tabs[0]?.paneKinds).toBeUndefined()
+  })
+
+  it('keeps slim bindings without writes', () => {
+    const planned = planAgentCatalogMigration(
+      [{
+        projectFolder: '/tmp/proj',
+        paneIds: ['p1'],
+        paneKinds: { p1: 'agent' },
+        agentByPane: {
+          p1: { agentId: 'qa', cliSessionId: 's1' },
+        },
+      }],
+    )
+    expect(planned.changed).toBe(false)
+    expect(planned.writes).toEqual([])
     expect(planned.tabs[0]?.agentByPane?.p1).toEqual({
       agentId: 'qa',
       cliSessionId: 's1',

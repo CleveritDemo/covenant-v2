@@ -192,7 +192,7 @@ describe('sanitizePersistedSession', () => {
       tabs: [{
         id: 't1',
         title: 'Agents',
-        paneIds: ['a1'],
+        paneIds: ['term', 'a1'],
         activePaneId: 'a1',
         paneKinds: { a1: 'agent' },
         projectFolder: '/Users/me/app',
@@ -210,30 +210,18 @@ describe('sanitizePersistedSession', () => {
           },
         } as never,
       }],
-      cwds: { a1: '/Users/me/app' },
+      cwds: { term: '/Users/me/app', a1: '/Users/me/app' },
     })
 
-    expect(legacy?.tabs[0]?.agentByPane?.a1).toEqual({
-      agentId: 'scout',
-      cliSessionId: 'cli-abc',
-    })
-    expect(legacy?.pendingAgentMigrations).toEqual([{
-      projectFolder: '/Users/me/app',
-      definition: {
-        id: 'scout',
-        provider: 'cursor',
-        permissionMode: 'auto',
-        name: 'Scout',
-        role: 'explorer',
-        objective: 'Map the repo',
-        model: 'gpt-5',
-        contextIds: ['ctx-1', 'ctx-2'],
-        autoImproveContexts: true,
-      },
-    }])
+    // Rich meta legacy: se descarta el pane (no migrar a disco, no inventar binding).
+    expect(legacy?.tabs[0]?.paneIds).toEqual(['term'])
+    expect(legacy?.tabs[0]?.agentByPane).toBeUndefined()
+    expect(legacy?.tabs[0]?.paneKinds).toBeUndefined()
+    expect(legacy?.orphanPaneIds).toContain('a1')
+    expect(legacy?.pendingAgentMigrations).toEqual([])
   })
 
-  it('migrates legacy readonly permission mode to plan in catalog definition', () => {
+  it('drops legacy rich agent panes without inventing placeholders', () => {
     const result = sanitizePersistedSession({
       version: 1,
       activeTabId: 't1',
@@ -255,8 +243,10 @@ describe('sanitizePersistedSession', () => {
       cwds: {},
     })
 
-    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({ agentId: 'reader' })
-    expect(result?.pendingAgentMigrations[0]?.definition.permissionMode).toBe('plan')
+    expect(result?.tabs[0]?.paneIds).toEqual([])
+    expect(result?.tabs[0]?.agentByPane).toBeUndefined()
+    expect(result?.pendingAgentMigrations).toEqual([])
+    expect(result?.orphanPaneIds).toContain('agent')
   })
 
   it('round-trips slim agent bindings across sanitize reload', () => {

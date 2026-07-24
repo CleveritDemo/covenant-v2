@@ -457,8 +457,8 @@ export interface AgentCatalogMigrationTabInput {
 }
 
 /**
- * Planifica migración session rica → bindings + definiciones a escribir en disco.
- * No toca el filesystem.
+ * Normaliza session: conserva bindings slim; descarta rich meta legacy sin escribir JSON.
+ * `writes` siempre [] — agentes solo viven en `.iaterminal/agents`.
  */
 export function planAgentCatalogMigration(
   tabs: AgentCatalogMigrationTabInput[],
@@ -471,32 +471,26 @@ export function planAgentCatalogMigration(
   const writes: AgentCatalogMigrationWrite[] = []
   let changed = false
   const nextTabs = tabs.map(tab => {
-    const paneIds = Array.isArray(tab.paneIds) ? tab.paneIds : []
+    const rawPaneIds = Array.isArray(tab.paneIds) ? tab.paneIds : []
     let projectFolder =
       typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
         ? tab.projectFolder.trim()
         : ''
     if (!projectFolder) {
-      const terminalIds = paneIds.filter(id => tab.paneKinds?.[id] !== 'agent')
+      const terminalIds = rawPaneIds.filter(id => tab.paneKinds?.[id] !== 'agent')
       const ordered = [
         ...terminalIds,
-        ...paneIds.filter(id => !terminalIds.includes(id)),
+        ...rawPaneIds.filter(id => !terminalIds.includes(id)),
       ]
       projectFolder = ordered.map(id => cwds[id]?.trim() || '').find(Boolean) || ''
     }
 
-    const usedSlugs = new Set<string>()
-    // Reservar ids ya en bindings slim.
-    for (const paneId of paneIds) {
-      if (tab.paneKinds?.[paneId] !== 'agent') continue
-      const binding = parseAgentPaneBinding(tab.agentByPane?.[paneId])
-      if (binding) usedSlugs.add(binding.agentId)
-    }
-
     const agentByPane: Record<string, AgentPaneBinding> = {}
+    const paneKinds: Record<string, string> = { ...(tab.paneKinds ?? {}) }
+    const droppedAgentPanes = new Set<string>()
     let tabChanged = false
 
-    for (const paneId of paneIds) {
+    for (const paneId of rawPaneIds) {
       if (tab.paneKinds?.[paneId] !== 'agent') continue
       const raw = tab.agentByPane?.[paneId]
       const binding = parseAgentPaneBinding(raw)
@@ -504,41 +498,18 @@ export function planAgentCatalogMigration(
         agentByPane[paneId] = binding
         continue
       }
-      if (isLegacyRichAgentMeta(raw) && projectFolder) {
-        const definition = legacyAgentMetaToDefinition(paneId, raw, usedSlugs)
-        if (definition) {
-          usedSlugs.add(definition.id)
-          const cliSessionId =
-            raw && typeof raw === 'object'
-            && typeof (raw as { cliSessionId?: unknown }).cliSessionId === 'string'
-            && (raw as { cliSessionId: string }).cliSessionId.trim()
-              ? (raw as { cliSessionId: string }).cliSessionId.trim()
-              : undefined
-          agentByPane[paneId] = {
-            agentId: definition.id,
-            ...(cliSessionId ? { cliSessionId } : {}),
-          }
-          writes.push({ projectFolder, definition })
-          tabChanged = true
-          changed = true
-          continue
-        }
-      }
-      const fallbackId = allocateAgentSlug(
-        `agent-${paneId.slice(0, 8)}`,
-        usedSlugs,
-      )
-      usedSlugs.add(fallbackId)
-      agentByPane[paneId] = { agentId: fallbackId }
-      if (raw !== undefined) {
-        tabChanged = true
-        changed = true
-      }
+      // Rich meta o inválido: strip pane (no inventar agentId, no escribir definición).
+      droppedAgentPanes.add(paneId)
+      delete paneKinds[paneId]
+      tabChanged = true
+      changed = true
     }
+
+    const paneIds = rawPaneIds.filter(id => !droppedAgentPanes.has(id))
+    if (droppedAgentPanes.size > 0) tabChanged = true
 
     if (!tabChanged && Object.keys(agentByPane).length === 0) return tab
     if (!tabChanged) {
-      // Comparar si ya era slim idéntico
       const prev = tab.agentByPane ?? {}
       const same = Object.keys(agentByPane).every(id => {
         const a = agentByPane[id]!
@@ -550,7 +521,9 @@ export function planAgentCatalogMigration(
 
     return {
       ...tab,
+      paneIds,
       ...(projectFolder ? { projectFolder } : {}),
+      ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
       ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
     }
   })

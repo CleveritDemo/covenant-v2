@@ -6,3 +6,6 @@ dist/
 .DS_Store
 .env
 .env.local
+
+# Agent emit-results (local only)
+.iaterminal/results/

@@ -335,9 +335,9 @@ const es = {
 
   git: {
     title: 'git',
-    footerHint: 'cwd de la sesión · pull con --ff-only · commit solo con staging · Actions vía gh · ⌘G o esc cerrar',
+    footerHint: 'repo del proyecto · pull con --ff-only · commit solo con staging · Actions vía gh · ⌘G o esc cerrar',
     loadingAriaLabel: 'Cargando estado git',
-    cwdTooltip: 'Carpeta de la sesión (cwd): {{cwd}}',
+    cwdTooltip: 'Carpeta del repositorio: {{cwd}}',
     refreshButton: 'actualizar',
     pullButton: 'pull',
     repoRootLabel: 'raíz repo',
@@ -366,6 +366,10 @@ const es = {
     unstageFileButton: 'unstage',
     unstageAllButton: 'unstage all',
     stagedBadge: 'staged',
+    reposMenuTitle: 'Repositorios',
+    reposPickerTitle: 'Repositorio Git',
+    reposPickerDescription: 'Elige el repositorio para estado, commit y push.',
+    noReposTooltip: 'No hay repositorios git en esta carpeta (ni en subcarpetas inmediatas)',
     errors: {
       CWD_INVALID: 'Directorio de trabajo inválido',
       NOT_A_REPO: 'No es un repositorio git',
@@ -477,8 +481,8 @@ const es = {
   },
 
   paneToolbar: {
-    gitTitle: 'Git: estado, pull, commit y push en la carpeta de esta terminal (⌘G)',
-    gitAriaLabel: 'Abrir panel Git de esta terminal (⌘G)',
+    gitTitle: 'Git: estado, pull, commit y push del proyecto (⌘G)',
+    gitAriaLabel: 'Abrir panel Git del proyecto (⌘G)',
     explorerTitle: 'Explorador de archivos (⌘E)',
     explorerAriaLabel: 'Explorador de archivos',
     finderTitle: 'Abrir carpeta de esta terminal en el Finder',

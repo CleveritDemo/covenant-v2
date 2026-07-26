@@ -28,3 +28,10 @@
   border-color: color-mix(in srgb, var(--accent) 42%, transparent);
   background: color-mix(in srgb, var(--accent) 14%, var(--plane-glass-strong));
 }
+
+.plane-loops-button--icon-only {
+  width: var(--plane-top-bar-height, 26px);
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}

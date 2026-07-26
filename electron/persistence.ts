@@ -19,7 +19,9 @@ export interface PersistedSession {
   activeTabId: string
   tabs: TabSession[]
   cwds: Record<string, string>
-  /** Por panel: explorador de archivos (abierto, selección, carpetas expandidas). */
+  /** Por tab: explorador de archivos (abierto, selección, carpetas expandidas). */
+  explorerByTab?: Record<string, FileExplorerPersistedState>
+  /** @deprecated migrado a explorerByTab al cargar. */
   explorerByPane?: Record<string, FileExplorerPersistedState>
 }
 
@@ -44,6 +46,7 @@ export function loadSession(): PersistedSession | null {
       activeTabId,
       tabs: tabs as TabSession[],
       cwds: parsed.cwds ?? {},
+      explorerByTab: parsed.explorerByTab,
       explorerByPane: parsed.explorerByPane,
     }
     const migrated = migratePersistedSessionAgents(session)

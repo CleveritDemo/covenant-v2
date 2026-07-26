@@ -236,9 +236,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentsInOrder],
   )
 
+  // Solo terminales abren PaneWindow; agentes usan chat (onOpenChat).
   const terminalOpen = terminalsInOrder.some(entity => entity.window.open)
-  const agentOpen = agentsInOrder.some(entity => entity.window.open)
-  const anyWindowOpen = terminalOpen || agentOpen
+  const anyWindowOpen = terminalOpen
   const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
 
   const baselineSlots = useMemo(
@@ -387,7 +387,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       width: PLANE_MINI_WINDOW_WIDTH,
       height: PLANE_MINI_WINDOW_HEIGHT,
     }
-    const reserved = entity.window.open
+    const reserved = entity.kind !== 'agent' && entity.window.open
     const isDragging = reorder.draggingId === entity.paneId
     const dragPos = isDragging ? reorder.dragPosition : null
     const columnEnabled = reorderEnabled && (
@@ -508,7 +508,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
                 'plane-map__column',
                 'plane-map__column--agents',
                 !flattenColumns ? 'plane-map__column--tilt' : '',
-                agentOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
               style={agentsColumnTransform
                 ? { transform: agentsColumnTransform }

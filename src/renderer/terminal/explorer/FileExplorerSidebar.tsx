@@ -116,7 +116,9 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
         if (e.altKey) return
         const aside = asideRef.current
         if (!aside?.contains(document.activeElement) && document.activeElement !== aside) {
-          const inExplorer = (document.activeElement as HTMLElement | null)?.closest('.terminal-file-explorer')
+          const inExplorer = (document.activeElement as HTMLElement | null)?.closest(
+            '.tab-file-explorer, .terminal-file-explorer',
+          )
           if (!inExplorer) return
         }
         if ((e.key === 'e' || e.key === 'E') && !e.shiftKey) {
@@ -317,8 +319,9 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
             <aside
               ref={asideRef}
               className={[
+                'tab-file-explorer',
                 'terminal-file-explorer',
-                openFilePath ? 'terminal-file-explorer--with-file' : '',
+                openFilePath ? 'tab-file-explorer--with-file terminal-file-explorer--with-file' : '',
               ].filter(Boolean).join(' ')}
               style={treeStyle}
               aria-label={t('fileExplorer.ariaLabel')}

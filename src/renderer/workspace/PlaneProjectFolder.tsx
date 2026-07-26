@@ -13,16 +13,15 @@ export interface PlaneProjectFolderProps {
   changeLabel: string
   emptyHint: string
   onSelect: () => void
-  onReveal?: () => void
 }
 
+/** Chip para asociar/cambiar la carpeta del proyecto. */
 export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
   folderPath,
   selectLabel,
   changeLabel,
   emptyHint,
   onSelect,
-  onReveal,
 }) => {
   const hasFolder = Boolean(folderPath.trim())
   return (
@@ -37,22 +36,11 @@ export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
         aria-label={hasFolder ? changeLabel : selectLabel}
         onClick={onSelect}
       >
-        <Icon name={hasFolder ? 'folder-filled' : 'folder'} size={12} />
+        <Icon name={hasFolder ? 'folder-open' : 'folder'} size={13} />
         <span className="plane-project-folder__label">
           {hasFolder ? folderLabel(folderPath) : selectLabel}
         </span>
       </button>
-      {hasFolder && onReveal ? (
-        <button
-          type="button"
-          className="plane-project-folder__reveal"
-          title={folderPath}
-          aria-label={folderPath}
-          onClick={onReveal}
-        >
-          ↗
-        </button>
-      ) : null}
     </div>
   )
 }

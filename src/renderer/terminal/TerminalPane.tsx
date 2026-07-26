@@ -8,7 +8,6 @@ import type { AppConfig } from '@shared/configSchema'
 import { feedCompletedUserLines } from '@renderer/history/feedCompletedUserLines'
 import { isClearCommandLine } from '@renderer/terminal/isClearCommand'
 import { ConfirmTerminalModal } from '@renderer/components/ConfirmTerminalModal'
-import { GitPanelModal } from '@renderer/components/GitPanelModal'
 import { TerminalFindModal } from '@renderer/components/TerminalFindModal'
 import {
   findMatchesInCommandHistory,
@@ -22,12 +21,9 @@ import {
 } from './terminalCanvasRepaint'
 import { TerminalSuggestStack } from './TerminalSuggestStack'
 import { TerminalScrollDown } from './TerminalScrollDown'
-import { FileExplorerSidebar, type FileExplorerSidebarHandle } from './explorer/FileExplorerSidebar'
 import { normalizeSessionCwd, sessionCwdPaneLabel } from './explorer/explorerPathUtils'
-import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import '@xterm/xterm/css/xterm.css'
 import './TerminalPane.css'
-import './explorer/FileExplorer.css'
 
 function shellSingleQuotePosix(path: string): string {
   return `'${path.replace(/'/g, `'\\''`)}'`
@@ -462,8 +458,6 @@ function createPlainPtyWriteBatcher(
 export interface TerminalRef {
   getSelection: () => string
   writeToTty: (data: string) => void
-  /** Abre/cierra explorador de archivos a la derecha (⌘E). */
-  toggleExplorer: () => void
   /** Viewport al final del scrollback (⌘Fin). */
   scrollToBottom: () => void
   /** Serializa el buffer completo (VT sequences) para persistencia */
@@ -472,6 +466,8 @@ export interface TerminalRef {
   refit: () => void
   /** Enfoca el xterm (p. ej. al expandir en el plano). */
   focus: () => void
+  /** Solicita abrir el panel Git del plano (⌘G / toolbar). */
+  openGitPanel: () => void
   /** Últimas líneas visibles (preview del mapa). */
   getPreviewLines: (maxLines?: number) => string[]
 }
@@ -491,8 +487,6 @@ export interface PaneToolbar {
 
 interface Props {
   sessionId: string
-  fileExplorer: FileExplorerPersistedState
-  onFileExplorerChange: (state: FileExplorerPersistedState) => void
   /** La pestaña está seleccionada en la barra */
   tabActive: boolean
   /** Este panel tiene el foco dentro de la pestaña (clic o último split) */
@@ -503,6 +497,12 @@ interface Props {
   onPtyCwdInitialized?: (sessionId: string, cwd: string) => void
   /** Tras un `cd` exitoso: persistir cwd de este panel en session.json. */
   onPaneCwdChanged?: (sessionId: string, cwd: string) => void
+  /** Estado visual del explorador de la tab (toolbar). */
+  explorerOpen?: boolean
+  /** Abre/cierra el explorador a nivel tab. */
+  onToggleExplorer?: () => void
+  /** Revela un archivo relativo en el explorador de la tab (Quick Open). */
+  onExplorerRevealFile?: (relPath: string) => void
   paneToolbar?: PaneToolbar
   /**
    * Toolbar interno (git/explorer/folder). En mini del plano se oculta:
@@ -520,17 +520,20 @@ interface Props {
    * Registra la misma confirmación que la cruz del panel para cierres por atajo (⌘W desde `App`).
    */
   registerShortcutCloseInterceptor?: (openConfirm: () => void) => () => void
+  /** ⌘G / toolbar: pide al plano abrir el panel Git (no monta modal aquí). */
+  onRequestGitPanel?: () => void
 }
 
 export const TerminalPane: React.FC<Props> = ({
   sessionId,
-  fileExplorer,
-  onFileExplorerChange,
   tabActive,
   isActivePane,
   initialPtyCwd,
   onPtyCwdInitialized,
   onPaneCwdChanged,
+  explorerOpen = false,
+  onToggleExplorer,
+  onExplorerRevealFile,
   paneToolbar,
   showPaneToolbar = true,
   onRequestPaneFocus,
@@ -539,6 +542,7 @@ export const TerminalPane: React.FC<Props> = ({
   onRegisterRef,
   onBusyChange,
   registerShortcutCloseInterceptor,
+  onRequestGitPanel,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -564,28 +568,14 @@ export const TerminalPane: React.FC<Props> = ({
   onPtyCwdInitializedRef.current = onPtyCwdInitialized
   const onPaneCwdChangedRef = useRef(onPaneCwdChanged)
   onPaneCwdChangedRef.current = onPaneCwdChanged
-  const toggleExplorerRef = useRef<() => void>(() => {})
+  const onToggleExplorerRef = useRef(onToggleExplorer)
+  onToggleExplorerRef.current = onToggleExplorer
+  const onExplorerRevealFileRef = useRef(onExplorerRevealFile)
+  onExplorerRevealFileRef.current = onExplorerRevealFile
   const scrollTerminalToBottomRef = useRef<() => void>(() => {})
   const refitTerminalRef = useRef<() => void>(() => {})
   /** Fit coalescido (sugerencias): evita runNow en ráfaga. */
   const scheduleRefitTerminalRef = useRef<() => void>(() => {})
-  const explorerRef = useRef<FileExplorerSidebarHandle>(null)
-  const explorerOpen = fileExplorer.open
-  const explorerOpenRef = useRef(explorerOpen)
-  explorerOpenRef.current = explorerOpen
-  const onFileExplorerChangeRef = useRef(onFileExplorerChange)
-  onFileExplorerChangeRef.current = onFileExplorerChange
-  const fileExplorerRef = useRef(fileExplorer)
-  useEffect(() => {
-    fileExplorerRef.current = fileExplorer
-  }, [fileExplorer])
-  const patchFileExplorer = useCallback((patch: Partial<FileExplorerPersistedState>) => {
-    // Actualizar el ref en el acto para que patches seguidos (p. ej. toggles rápidos
-    // del explorador) no se pisen entre sí con un snapshot obsoleto.
-    const next = { ...fileExplorerRef.current, ...patch }
-    fileExplorerRef.current = next
-    onFileExplorerChangeRef.current(next)
-  }, [])
   const configRef = useRef(config)
   configRef.current = config
 
@@ -624,7 +614,6 @@ export const TerminalPane: React.FC<Props> = ({
   const [paneCwd, setPaneCwd] = useState(() => initialPtyCwd?.trim() ?? '')
   const paneCwdRef = useRef(paneCwd)
   paneCwdRef.current = paneCwd
-  const [gitPanelOpen, setGitPanelOpen] = useState(false)
   const [findModalOpen, setFindModalOpen] = useState(false)
   const [findModalBuffer, setFindModalBuffer] = useState<TerminalBufferFindMatch[]>([])
   const [findModalHistory, setFindModalHistory] = useState<string[]>([])
@@ -639,6 +628,8 @@ export const TerminalPane: React.FC<Props> = ({
   const paneRootRef = useRef<HTMLDivElement>(null)
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
   onRequestPaneFocusRef.current = onRequestPaneFocus
+  const onRequestGitPanelRef = useRef(onRequestGitPanel)
+  onRequestGitPanelRef.current = onRequestGitPanel
 
   /**
    * Los botones chrome (cerrar, scroll) no deben robar el foco del PTY: preventDefault
@@ -737,12 +728,6 @@ export const TerminalPane: React.FC<Props> = ({
     }
   }, [recentCommands, cmdHistoryLoaded, sessionId])
 
-  const toggleExplorer = useCallback(() => {
-    onRequestPaneFocusRef.current?.()
-    const nextOpen = !fileExplorerRef.current.open
-    onFileExplorerChangeRef.current({ ...fileExplorerRef.current, open: nextOpen })
-  }, [])
-
   const scrollTerminalToBottom = useCallback((): void => {
     onRequestPaneFocusRef.current?.()
     const term = termRef.current
@@ -761,7 +746,6 @@ export const TerminalPane: React.FC<Props> = ({
   }, [])
 
   // Keep ref in sync so the effect below can expose it without re-running
-  toggleExplorerRef.current = toggleExplorer
   scrollTerminalToBottomRef.current = scrollTerminalToBottom
 
   useEffect(() => {
@@ -967,9 +951,6 @@ export const TerminalPane: React.FC<Props> = ({
         }
         if (/^\s*(?:builtin\s+|command\s+)?cd(\s|$)/i.test(line.trim())) {
           void loadCdPaths()
-          if (explorerOpenRef.current) {
-            queueMicrotask(() => { void explorerRef.current?.resetTreeForNewCwd() })
-          }
         }
       }
       const t = draft.trimStart()
@@ -1075,12 +1056,12 @@ export const TerminalPane: React.FC<Props> = ({
           setFindModalOpen(true)
           setFindModalBuffer([])
           setFindModalHistory([])
-        } else if (isQuickOpen) {
+        } else if (isGit) {
           onRequestPaneFocusRef.current?.()
-          setQuickOpenOpen(prev => !prev)
+          onRequestGitPanelRef.current?.()
         } else {
           onRequestPaneFocusRef.current?.()
-          setGitPanelOpen(prev => !prev)
+          setQuickOpenOpen(prev => !prev)
         }
       })
       return false
@@ -1099,11 +1080,14 @@ export const TerminalPane: React.FC<Props> = ({
         writeToPty(data)
         term.focus()
       },
-      toggleExplorer: () => toggleExplorerRef.current(),
       scrollToBottom: () => scrollTerminalToBottomRef.current(),
       serialize: () => serializeAddonRef.current?.serialize() ?? '',
       refit: () => fitScheduler.runNow(),
       focus: () => { term.focus() },
+      openGitPanel: () => {
+        onRequestPaneFocusRef.current?.()
+        onRequestGitPanelRef.current?.()
+      },
       getPreviewLines: (maxLines = 6) => {
         try {
           const buf = term.buffer.active
@@ -1407,17 +1391,7 @@ export const TerminalPane: React.FC<Props> = ({
   const handleQuickOpenPick = useCallback((relPath: string) => {
     setQuickOpenOpen(false)
     onRequestPaneFocusRef.current?.()
-    onFileExplorerChangeRef.current({
-      ...fileExplorerRef.current,
-      open: true,
-      selectedRelPath: relPath,
-      selectedIsDirectory: false,
-    })
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        explorerRef.current?.expandParents(relPath)
-      })
-    })
+    onExplorerRevealFileRef.current?.(relPath)
   }, [])
 
   const onGoToFindBufferMatch = useCallback((m: TerminalBufferFindMatch) => {
@@ -1481,7 +1455,7 @@ export const TerminalPane: React.FC<Props> = ({
           }}
           onOpenGitPanel={() => {
             onRequestPaneFocusRef.current?.()
-            setGitPanelOpen(true)
+            onRequestGitPanelRef.current?.()
             queueMicrotask(() => { termRef.current?.focus() })
           }}
           explorerOpen={explorerOpen}
@@ -1491,7 +1465,7 @@ export const TerminalPane: React.FC<Props> = ({
           sessionId={sessionId}
           onQuickOpenClose={closeQuickOpen}
           onQuickOpenPick={handleQuickOpenPick}
-          onToggleExplorer={toggleExplorer}
+          onToggleExplorer={() => onToggleExplorerRef.current?.()}
           onOpenFolderInFinder={() => {
             onRequestPaneFocusRef.current?.()
             void openThisPaneFolderInFinder()
@@ -1537,17 +1511,6 @@ export const TerminalPane: React.FC<Props> = ({
             onPickCmdSnippet={handleCmdSnippetPick}
           />
         </div>
-
-        {explorerOpen && (
-          <FileExplorerSidebar
-            ref={explorerRef}
-            sessionId={sessionId}
-            themeId={config.themeId}
-            explorerState={fileExplorer}
-            onExplorerStateChange={patchFileExplorer}
-            onToggleExplorer={toggleExplorer}
-          />
-        )}
         </div>
       </div>
 
@@ -1570,16 +1533,6 @@ export const TerminalPane: React.FC<Props> = ({
           paneToolbar?.onClosePane?.()
         }}
         onCancel={() => setConfirmClosePaneOpen(false)}
-      />
-
-      <GitPanelModal
-        open={gitPanelOpen}
-        sessionId={sessionId}
-        config={config}
-        onClose={() => {
-          setGitPanelOpen(false)
-          queueMicrotask(() => { termRef.current?.focus() })
-        }}
       />
     </div>
   )

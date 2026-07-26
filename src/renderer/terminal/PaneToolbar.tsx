@@ -163,22 +163,24 @@ const PaneReorderHandle: React.FC<PaneReorderHandleProps> = ({
   </span>
 )
 
-interface PaneToolbarButtonProps {
+export interface PaneToolbarButtonProps {
   icon: IconName
   title: string
   'aria-label'?: string
   variant: 'folder' | 'close' | 'git' | 'files'
   active?: boolean
-  onPointerDown: (e: React.MouseEvent) => void
+  className?: string
+  onPointerDown?: (e: React.MouseEvent) => void
   onClick: () => void
 }
 
-const PaneToolbarButton: React.FC<PaneToolbarButtonProps> = ({
+export const PaneToolbarButton: React.FC<PaneToolbarButtonProps> = ({
   icon,
   title,
   'aria-label': ariaLabel,
   variant,
   active = false,
+  className,
   onPointerDown,
   onClick,
 }) => (
@@ -188,6 +190,7 @@ const PaneToolbarButton: React.FC<PaneToolbarButtonProps> = ({
     className={[
       `pane-toolbar-btn pane-toolbar-btn--${variant} terminal-chrome-btn`,
       active ? 'pane-toolbar-btn--active' : '',
+      className ?? '',
     ].filter(Boolean).join(' ')}
     title={title}
     aria-label={ariaLabel ?? title}

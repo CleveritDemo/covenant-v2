@@ -13,12 +13,16 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { resolveContextColor } from '@shared/tabContextAppearance'
 import { contextIconName } from './agent/tabContextKindIcons'
+import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { TabBar, type TabBarHandle } from './components/TabBar'
 import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
+import { GitPanelModal } from './components/GitPanelModal'
+import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
+import { TabFileExplorerWindow, type TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
 import {
   armMiniExpandSuppress,
   isMiniExpandSuppressed,
@@ -59,6 +63,7 @@ import {
   type PaneReorderKind,
 } from './arrayReorder'
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
+import { resolveTabTerminalPaneId } from './tabFileExplorer'
 import {
   resolveTabAgentMeta,
   syncTabAgentsFromCatalog,
@@ -208,7 +213,17 @@ export const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(CONFIG_DEFAULTS)
   const [configReady, setConfigReady] = useState(false)
   const [sessionReady, setSessionReady] = useState<SessionReady>({ loaded: false })
-  const [explorerByPane, setExplorerByPane] = useState<Record<string, FileExplorerPersistedState>>({})
+  const [explorerByTab, setExplorerByTab] = useState<Record<string, FileExplorerPersistedState>>({})
+  /** UI Git del plano por tab: menú de repos + modal. */
+  const [gitUiByTab, setGitUiByTab] = useState<Record<string, {
+    pickerOpen: boolean
+    modalOpen: boolean
+    repoPath: string | null
+    repos: GitListedRepo[]
+  }>>({})
+  const gitUiByTabRef = useRef(gitUiByTab)
+  gitUiByTabRef.current = gitUiByTab
+  const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
@@ -305,11 +320,13 @@ export const App: React.FC = () => {
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
+  const tabExplorerHostByTabRef = useRef<Map<string, TabFileExplorerWindowHandle>>(new Map())
+  const [explorerZByTab, setExplorerZByTab] = useState<Record<string, number>>({})
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
   /** Mirror reactivo de cwdsRef para badges de minis en el plano. */
   const [paneCwds, setPaneCwds] = useState<Record<string, string>>({})
-  const explorerByPaneRef = useRef<Record<string, FileExplorerPersistedState>>({})
+  const explorerByTabRef = useRef<Record<string, FileExplorerPersistedState>>({})
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
   const tabContextsByTabRef = useRef(tabContextsByTab)
@@ -423,18 +440,6 @@ export const App: React.FC = () => {
       }
       return changed ? next : prev
     })
-    setExplorerByPane(prev => {
-      let changed = false
-      const next = { ...prev }
-      for (const paneId of paneIds) {
-        if (paneId in next) {
-          delete next[paneId]
-          changed = true
-        }
-      }
-      if (changed) explorerByPaneRef.current = next
-      return changed ? next : prev
-    })
     setTimeout(() => {
       for (const paneId of paneIds) {
         window.api.deleteScrollback(paneId)
@@ -502,7 +507,7 @@ export const App: React.FC = () => {
       activeTabId: currentActiveTabId,
       tabs,
       cwds: { ...cwdsRef.current },
-      explorerByPane: { ...explorerByPaneRef.current },
+      explorerByTab: { ...explorerByTabRef.current },
     }
   }, [])
 
@@ -641,12 +646,11 @@ export const App: React.FC = () => {
         )
         setPaneCwds({ ...cwdsRef.current })
         const explorerMap = Object.fromEntries(
-          Object.entries(sanitized.explorerByPane)
-            .filter(([id]) => keptPaneIds.has(id))
+          Object.entries(sanitized.explorerByTab)
             .map(([id, st]) => [id, normalizeFileExplorerState(st)]),
         )
-        explorerByPaneRef.current = explorerMap
-        setExplorerByPane(explorerMap)
+        explorerByTabRef.current = explorerMap
+        setExplorerByTab(explorerMap)
         for (const [paneId, cwd] of Object.entries(cwdsRef.current)) {
           if (cwd.trim()) splitSpawnCwdRef.current.set(paneId, cwd)
         }
@@ -683,7 +687,7 @@ export const App: React.FC = () => {
             return { ...tab, planeLoopChains }
           }),
           cwds: { ...cwdsRef.current },
-          explorerByPane: { ...explorerByPaneRef.current },
+          explorerByTab: { ...explorerByTabRef.current },
         })
       } else {
         const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
@@ -799,7 +803,7 @@ export const App: React.FC = () => {
             activeTabId: currentActiveTabId,
             tabs: currentTabs,
             cwds: cwdsRef.current,
-            explorerByPane: { ...explorerByPaneRef.current },
+            explorerByTab: { ...explorerByTabRef.current },
           })
         }
         window.api.sendCloseReady(scrollbacks)
@@ -827,10 +831,10 @@ export const App: React.FC = () => {
   }, [tabs, busyPanes])
 
   const handleFileExplorerChange = useCallback(
-    (paneId: string, state: FileExplorerPersistedState) => {
-      setExplorerByPane(prev => {
-        const next = { ...prev, [paneId]: state }
-        explorerByPaneRef.current = next
+    (tabId: string, state: FileExplorerPersistedState) => {
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tabId]: state }
+        explorerByTabRef.current = next
         return next
       })
       scheduleSaveSession()
@@ -838,8 +842,231 @@ export const App: React.FC = () => {
     [scheduleSaveSession],
   )
 
+  const patchTabExplorer = useCallback(
+    (tabId: string, patch: Partial<FileExplorerPersistedState>) => {
+      setExplorerByTab(prev => {
+        const current = prev[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
+        const next = { ...prev, [tabId]: { ...current, ...patch } }
+        explorerByTabRef.current = next
+        return next
+      })
+      scheduleSaveSession()
+    },
+    [scheduleSaveSession],
+  )
+
+  const closeTabExplorer = useCallback((tabId: string) => {
+    patchTabExplorer(tabId, { open: false, fullscreen: false })
+  }, [patchTabExplorer])
+
+  const toggleTabExplorer = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || !resolveTabTerminalPaneId(tab)) return
+    const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
+    if (current.open) {
+      patchTabExplorer(tabId, { open: false, fullscreen: false })
+      return
+    }
+    let nextZ = 40
+    setTabs(prev => {
+      const nextTabs = prev.map(item => {
+        if (item.id !== tabId || item.paneIds.length === 0) return item
+        const ensured = ensureTabPaneLayout(item)
+        const paneWindows = { ...(ensured.paneWindows ?? {}) }
+        minimizeOtherPaneWindows(item.paneIds, paneWindows, '')
+        nextZ = maxPaneWindowZ(paneWindows) + 1
+        return { ...ensured, paneWindows }
+      })
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    setExplorerZByTab(prev => ({ ...prev, [tabId]: nextZ }))
+    patchTabExplorer(tabId, { open: true, fullscreen: false })
+  }, [patchTabExplorer])
+
+  const refreshTabGitRepos = useCallback(async (tabId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    const paths: string[] = []
+    const folder = tab?.projectFolder?.trim() ?? ''
+    if (folder) paths.push(folder)
+    for (const paneId of tab?.paneIds ?? []) {
+      if (tab?.paneKinds?.[paneId] === 'agent') continue
+      const cwd = (
+        cwdsRef.current[paneId]?.trim()
+        || paneCwds[paneId]?.trim()
+        || ''
+      )
+      if (cwd) paths.push(cwd)
+    }
+    if (paths.length === 0) {
+      setGitUiByTab(prev => ({
+        ...prev,
+        [tabId]: {
+          pickerOpen: false,
+          modalOpen: prev[tabId]?.modalOpen ?? false,
+          repoPath: prev[tabId]?.repoPath ?? null,
+          repos: [],
+        },
+      }))
+      return [] as GitListedRepo[]
+    }
+    const repos = await window.api.gitCollectUniqueRepos(paths)
+    setGitUiByTab(prev => {
+      const prevState = prev[tabId]
+      const repoPath = prevState?.repoPath && repos.some(repo => repo.path === prevState.repoPath)
+        ? prevState.repoPath
+        : (prevState?.repoPath ?? null)
+      return {
+        ...prev,
+        [tabId]: {
+          pickerOpen: prevState?.pickerOpen ?? false,
+          modalOpen: prevState?.modalOpen ?? false,
+          repoPath,
+          repos,
+        },
+      }
+    })
+    return repos
+  }, [paneCwds])
+
+  const openTabGitModal = useCallback((tabId: string, repoPath: string) => {
+    setGitUiByTab(prev => ({
+      ...prev,
+      [tabId]: {
+        pickerOpen: false,
+        modalOpen: true,
+        repoPath,
+        repos: prev[tabId]?.repos ?? [],
+      },
+    }))
+  }, [])
+
+  const closeTabGitModal = useCallback((tabId: string) => {
+    setGitUiByTab(prev => ({
+      ...prev,
+      [tabId]: {
+        pickerOpen: false,
+        modalOpen: false,
+        repoPath: prev[tabId]?.repoPath ?? null,
+        repos: prev[tabId]?.repos ?? [],
+      },
+    }))
+  }, [])
+
+  const closeTabGitPicker = useCallback((tabId: string) => {
+    setGitUiByTab(prev => ({
+      ...prev,
+      [tabId]: {
+        pickerOpen: false,
+        modalOpen: prev[tabId]?.modalOpen ?? false,
+        repoPath: prev[tabId]?.repoPath ?? null,
+        repos: prev[tabId]?.repos ?? [],
+      },
+    }))
+  }, [])
+
+  /** Misma lógica para botón plano, ⌘G global y ⌘G en xterm. */
+  const openTabGitPanel = useCallback(async (tabId: string) => {
+    const current = gitUiByTabRef.current[tabId]
+    if (current?.modalOpen) {
+      closeTabGitModal(tabId)
+      return
+    }
+    if (current?.pickerOpen) {
+      closeTabGitPicker(tabId)
+      return
+    }
+    const repos = await refreshTabGitRepos(tabId)
+    if (repos.length === 0) return
+    if (repos.length === 1) {
+      openTabGitModal(tabId, repos[0]!.path)
+      return
+    }
+    setGitUiByTab(prev => ({
+      ...prev,
+      [tabId]: {
+        pickerOpen: true,
+        modalOpen: false,
+        repoPath: prev[tabId]?.repoPath ?? null,
+        repos,
+      },
+    }))
+  }, [closeTabGitModal, closeTabGitPicker, openTabGitModal, refreshTabGitRepos])
+
+  const handleTabGitButtonClick = useCallback((tabId: string) => {
+    void openTabGitPanel(tabId)
+  }, [openTabGitPanel])
+
+  const handleSelectGitRepo = useCallback((tabId: string, path: string) => {
+    closeTabGitPicker(tabId)
+    openTabGitModal(tabId, path)
+  }, [closeTabGitPicker, openTabGitModal])
+
+  // Refresca lista de repos cuando cambia la carpeta de proyecto.
+  useEffect(() => {
+    for (const tab of tabs) {
+      const folder = tab.projectFolder?.trim() ?? ''
+      if (!folder) {
+        setGitUiByTab(prev => {
+          if (!prev[tab.id]?.repos.length && !prev[tab.id]?.pickerOpen && !prev[tab.id]?.modalOpen) {
+            return prev
+          }
+          return {
+            ...prev,
+            [tab.id]: {
+              pickerOpen: false,
+              modalOpen: false,
+              repoPath: null,
+              repos: [],
+            },
+          }
+        })
+        continue
+      }
+      void refreshTabGitRepos(tab.id)
+    }
+  }, [projectFolderKey, refreshTabGitRepos])
+
+  const revealTabExplorerFile = useCallback((tabId: string, relPath: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab || !resolveTabTerminalPaneId(tab)) return
+    const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
+    if (!current.open) {
+      let nextZ = 40
+      setTabs(prev => {
+        const nextTabs = prev.map(item => {
+          if (item.id !== tabId || item.paneIds.length === 0) return item
+          const ensured = ensureTabPaneLayout(item)
+          const paneWindows = { ...(ensured.paneWindows ?? {}) }
+          minimizeOtherPaneWindows(item.paneIds, paneWindows, '')
+          nextZ = maxPaneWindowZ(paneWindows) + 1
+          return { ...ensured, paneWindows }
+        })
+        tabsRef.current = nextTabs
+        return nextTabs
+      })
+      setExplorerZByTab(prev => ({ ...prev, [tabId]: nextZ }))
+    }
+    patchTabExplorer(tabId, {
+      open: true,
+      selectedRelPath: relPath,
+      selectedIsDirectory: false,
+      openedRelPath: relPath,
+    })
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        tabExplorerHostByTabRef.current.get(tabId)?.expandParents(relPath)
+      })
+    })
+  }, [patchTabExplorer])
+
   const handleAddTab = useCallback(() => {
     const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
+    setExplorerByTab(prev => {
+      const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+      explorerByTabRef.current = next
+      return next
+    })
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
   }, [t])
@@ -856,12 +1083,14 @@ export const App: React.FC = () => {
   const handleCloseTab = useCallback((tabId: string) => {
     const victim = tabsRef.current.find(t => t.id === tabId)
     if (victim) {
-      setExplorerByPane(ex => {
+      setExplorerByTab(ex => {
+        if (!(tabId in ex)) return ex
         const next = { ...ex }
-        for (const p of victim.paneIds) delete next[p]
-        explorerByPaneRef.current = next
+        delete next[tabId]
+        explorerByTabRef.current = next
         return next
       })
+      tabExplorerHostByTabRef.current.delete(tabId)
       const paneIds = [...victim.paneIds]
       for (const pid of paneIds) {
         if (victim.paneKinds?.[pid] === 'agent') window.api.stopAgentTurn(pid)
@@ -928,12 +1157,6 @@ export const App: React.FC = () => {
         })
       })
     }
-    setExplorerByPane(prev => {
-      const next = { ...prev }
-      delete next[paneId]
-      explorerByPaneRef.current = next
-      return next
-    })
     if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)
     termRefs.current.delete(paneId)
@@ -1208,6 +1431,7 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
+    closeTabExplorer(tabId)
     scheduleSaveSession()
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1219,7 +1443,7 @@ export const App: React.FC = () => {
         termRefs.current.get(paneId)?.focus?.()
       })
     })
-  }, [scheduleSaveSession])
+  }, [closeTabExplorer, scheduleSaveSession])
 
   const openPaneWindowUnlessSuppressed = useCallback((tabId: string, paneId: string) => {
     if (isMiniExpandSuppressed()) return
@@ -1261,6 +1485,7 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
+    closeTabExplorer(tabId)
     void saveSessionNow()
     requestAnimationFrame(() => {
       const tab = tabsRef.current.find(item => item.id === tabId)
@@ -1268,7 +1493,7 @@ export const App: React.FC = () => {
         termRefs.current.get(paneId)?.refit?.()
       }
     })
-  }, [saveSessionNow])
+  }, [closeTabExplorer, saveSessionNow])
 
   const handleTogglePaneFullscreen = useCallback((tabId: string, paneId: string) => {
     setTabs(prev => {
@@ -1292,6 +1517,9 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
+    if (explorerByTabRef.current[tabId]?.open) {
+      closeTabExplorer(tabId)
+    }
     void saveSessionNow()
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1301,7 +1529,7 @@ export const App: React.FC = () => {
         }
       })
     })
-  }, [saveSessionNow])
+  }, [closeTabExplorer, saveSessionNow])
 
   const handleFocusPaneWindow = useCallback((tabId: string, paneId: string) => {
     setActiveTabId(tabId)
@@ -2154,7 +2382,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     const isFocusInFileExplorer = (): boolean => {
       const focus = document.activeElement
-      return focus instanceof HTMLElement && focus.closest('.terminal-file-explorer') !== null
+      if (!(focus instanceof HTMLElement)) return false
+      return focus.closest('.tab-file-explorer, .terminal-file-explorer') !== null
     }
 
     /** Bloquea ⌘E fuera de xterm y del explorador (p. ej. ajustes, otros modales). */
@@ -2198,17 +2427,33 @@ export const App: React.FC = () => {
 
       if (e.altKey || e.shiftKey) return
 
-      // ⌘E / Ctrl+E: explorador de archivos (panel activo)
+      // ⌘E / Ctrl+E: explorador de archivos (abrir/cerrar en la tab activa).
+      // Si el foco está en el explorador, FileExplorerSidebar ya togglea; no duplicar.
       if (e.key === 'e' || e.key === 'E' || e.code === 'KeyE') {
         if (isFocusInFileExplorer()) return
         if (shouldBlockExplorerToggleShortcut(e.target as HTMLElement | null)) return
         e.preventDefault()
         e.stopPropagation()
-        const tabList = tabsRef.current
         const aid = activeTabIdRef.current
-        const tab = tabList.find(t => t.id === aid)
-        if (!tab) return
-        termRefs.current.get(tab.activePaneId)?.toggleExplorer()
+        if (!aid) return
+        toggleTabExplorer(aid)
+        return
+      }
+
+      // ⌘G / Ctrl+G: panel Git (abrir/cerrar). Con foco en xterm lo maneja TerminalPane.
+      if (e.key === 'g' || e.key === 'G' || e.code === 'KeyG') {
+        const target = e.target as HTMLElement | null
+        if (target?.closest('.xterm')) return
+        if (target) {
+          const tag = target.tagName
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+          if (target.isContentEditable) return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        const aid = activeTabIdRef.current
+        if (!aid) return
+        void openTabGitPanel(aid)
         return
       }
 
@@ -2272,7 +2517,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [handleAddTab])
+  }, [handleAddTab, openTabGitPanel, toggleTabExplorer])
 
   const renderPaneContent = (tab: TabSession, paneId: string): React.ReactElement => {
     const isAgent = tab.paneKinds?.[paneId] === 'agent'
@@ -2364,13 +2609,14 @@ export const App: React.FC = () => {
     return (
       <TerminalPane
         sessionId={paneId}
-        fileExplorer={explorerByPane[paneId] ?? DEFAULT_FILE_EXPLORER_STATE}
-        onFileExplorerChange={state => handleFileExplorerChange(paneId, state)}
         tabActive={tab.id === activeTabId}
         isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
         initialPtyCwd={splitSpawnCwdRef.current.get(paneId) || cwdsRef.current[paneId] || undefined}
         onPtyCwdInitialized={rememberPaneCwd}
         onPaneCwdChanged={persistPaneCwdOnCd}
+        explorerOpen={(explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE).open}
+        onToggleExplorer={() => toggleTabExplorer(tab.id)}
+        onExplorerRevealFile={(relPath) => revealTabExplorerFile(tab.id, relPath)}
         showPaneToolbar={false}
         paneToolbar={{
           onClosePane: () => handleClosePane(tab.id, paneId),
@@ -2385,6 +2631,7 @@ export const App: React.FC = () => {
           if (ref) termRefs.current.set(paneId, ref)
           else termRefs.current.delete(paneId)
         }}
+        onRequestGitPanel={() => { void openTabGitPanel(tab.id) }}
       />
     )
   }
@@ -2527,6 +2774,11 @@ export const App: React.FC = () => {
                   tab.id === activeTabId ? 'tab-terminal-group--active' : '',
                 ].filter(Boolean).join(' ')}
               >
+                {(() => {
+                  const explorerState = explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE
+                  const explorerSessionId = resolveTabTerminalPaneId(tab)
+                  return (
+                      <div className="tab-terminal-group__main">
                 <TabAgenticPlane
                   emptyTitle={t('tabs.planeEmptyTitle')}
                   emptyHint={t('tabs.planeEmptyHint')}
@@ -2619,6 +2871,7 @@ export const App: React.FC = () => {
                   projectFolderSelectLabel={t('tabs.projectFolderSelect')}
                   projectFolderChangeLabel={t('tabs.projectFolderChange')}
                   projectFolderEmptyHint={t('tabs.projectFolderEmptyHint')}
+                  projectFolderRevealLabel={t('fileExplorer.contextMenu.revealInFinder')}
                   onSelectProjectFolder={() => { void handlePickProjectFolder(tab.id) }}
                   onRevealProjectFolder={tab.projectFolder?.trim()
                     ? () => { window.api.openFolder(tab.projectFolder!.trim()) }
@@ -2673,7 +2926,39 @@ export const App: React.FC = () => {
                   }}
                   reorderAriaLabel={t('tabs.planeReorderAriaLabel')}
                   renderPane={paneId => renderPaneContent(tab, paneId)}
+                  explorerSessionId={explorerSessionId}
+                  explorerState={explorerState}
+                  explorerTitle={t('fileExplorer.ariaLabel')}
+                  explorerButtonLabel={t('paneToolbar.explorerTitle')}
+                  explorerZIndex={explorerZByTab[tab.id] ?? 40}
+                  explorerThemeId={config.themeId}
+                  explorerCwd={
+                    explorerSessionId
+                      ? (paneCwds[explorerSessionId]?.trim()
+                        || cwdsRef.current[explorerSessionId]?.trim()
+                        || '')
+                      : ''
+                  }
+                  onExplorerStateChange={patch => {
+                    const current = explorerByTabRef.current[tab.id]
+                      ?? DEFAULT_FILE_EXPLORER_STATE
+                    handleFileExplorerChange(tab.id, { ...current, ...patch })
+                  }}
+                  onToggleExplorer={() => toggleTabExplorer(tab.id)}
+                  canOpenGitPanel={Boolean(tab.projectFolder?.trim())}
+                  gitButtonDisabled={(gitUiByTab[tab.id]?.repos.length ?? 0) === 0}
+                  gitButtonLabel={t('paneToolbar.gitTitle')}
+                  gitButtonDisabledTitle={t('git.noReposTooltip')}
+                  gitPickerOpen={Boolean(gitUiByTab[tab.id]?.pickerOpen)}
+                  onGitButtonClick={() => { void handleTabGitButtonClick(tab.id) }}
+                  explorerHostRef={handle => {
+                    if (handle) tabExplorerHostByTabRef.current.set(tab.id, handle)
+                    else tabExplorerHostByTabRef.current.delete(tab.id)
+                  }}
                 />
+                      </div>
+                  )
+                })()}
               </div>
             )
           })}
@@ -2700,6 +2985,30 @@ export const App: React.FC = () => {
           />
         )
       })()}
+
+      {tabs.map(tab => {
+        const gitUi = gitUiByTab[tab.id]
+        if (!gitUi) return null
+        const isActive = tab.id === activeTabId
+        return (
+          <React.Fragment key={`git-ui-${tab.id}`}>
+            <GitRepoPickerModal
+              open={isActive && Boolean(gitUi.pickerOpen) && gitUi.repos.length > 1}
+              repos={gitUi.repos}
+              onSelect={path => handleSelectGitRepo(tab.id, path)}
+              onClose={() => closeTabGitPicker(tab.id)}
+            />
+            {gitUi.modalOpen && gitUi.repoPath ? (
+              <GitPanelModal
+                open={isActive}
+                target={{ path: gitUi.repoPath }}
+                config={config}
+                onClose={() => closeTabGitModal(tab.id)}
+              />
+            ) : null}
+          </React.Fragment>
+        )
+      })}
 
       <AppModals
         config={config}

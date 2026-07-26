@@ -24,7 +24,7 @@ export const PlaneLoopsButton: React.FC<PlaneLoopsButtonProps> = ({
     aria-pressed={pressed}
     onClick={onClick}
   >
-    <Icon name="repeat" size={12} />
+    <Icon name="repeat" size={13} />
     <span className="plane-loops-button__label">{label}</span>
   </button>
 )

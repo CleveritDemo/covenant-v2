@@ -72,8 +72,12 @@ export const IPC = {
   /** Renderer → main (invoke): ejecutar una línea de shell en el cwd de la sesión (modo agente) */
   AGENT_SHELL_RUN: 'agentShell:run',
 
-  /** Renderer → main (invoke): estado git del cwd de la sesión */
+  /** Renderer → main (invoke): estado git del cwd de la sesión o path */
   GIT_STATUS: 'git:status',
+  /** Renderer → main (invoke): repos git a 1 nivel bajo una carpeta */
+  GIT_LIST_REPOS: 'git:listRepos',
+  /** Renderer → main (invoke): unión dedupeada de repos bajo varias raíces */
+  GIT_COLLECT_UNIQUE_REPOS: 'git:collectUniqueRepos',
   /** Renderer → main (invoke): texto truncado para sugerir mensaje de commit (IA) */
   GIT_DIFF_FOR_AI: 'git:diffForAi',
   GIT_PULL: 'git:pull',

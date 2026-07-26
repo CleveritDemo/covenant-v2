@@ -333,9 +333,9 @@ const en = {
 
   git: {
     title: 'git',
-    footerHint: 'session cwd · pull with --ff-only · commit only with staging · Actions via gh · ⌘G or esc close',
+    footerHint: 'project repo · pull with --ff-only · commit only with staging · Actions via gh · ⌘G or esc close',
     loadingAriaLabel: 'Loading git status',
-    cwdTooltip: 'Session folder (cwd): {{cwd}}',
+    cwdTooltip: 'Repository folder: {{cwd}}',
     refreshButton: 'refresh',
     pullButton: 'pull',
     repoRootLabel: 'repo root',
@@ -364,6 +364,10 @@ const en = {
     unstageFileButton: 'unstage',
     unstageAllButton: 'unstage all',
     stagedBadge: 'staged',
+    reposMenuTitle: 'Repositories',
+    reposPickerTitle: 'Git repository',
+    reposPickerDescription: 'Choose the repository for status, commit, and push.',
+    noReposTooltip: 'No git repositories in this folder (or immediate subfolders)',
     errors: {
       CWD_INVALID: 'Invalid working directory',
       NOT_A_REPO: 'Not a git repository',
@@ -475,8 +479,8 @@ const en = {
   },
 
   paneToolbar: {
-    gitTitle: 'Git: status, pull, commit and push in this terminal\'s folder (⌘G)',
-    gitAriaLabel: 'Open Git panel for this terminal (⌘G)',
+    gitTitle: 'Git: status, pull, commit and push for the project (⌘G)',
+    gitAriaLabel: 'Open project Git panel (⌘G)',
     explorerTitle: 'File explorer (⌘E)',
     explorerAriaLabel: 'File explorer',
     finderTitle: 'Open this terminal\'s folder in Finder',

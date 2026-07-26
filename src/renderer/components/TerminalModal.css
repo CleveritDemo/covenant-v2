@@ -1,46 +1,61 @@
-/* Scrim (blur) and panel are siblings: backdrop-filter on the scrim must not
-   live on the same element as the zoom transform. Animations are pure CSS so
-   React StrictMode cannot cancel an enter-class toggle. */
+/* Scrim y panel son hermanos. El scrim ya no aplica blur ni oscurecido:
+   los modales flotan con la misma sombra que las ventanas del plano.
+   Las animaciones son CSS puro para que StrictMode no cancele la entrada.
+   El 100% del modal es el main bajo titlebar + tabs (no toda la ventana). */
 .terminal-modal-root {
   position: fixed;
-  inset: 0;
+  top: calc(var(--titlebar-height) + var(--tabbar-height));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: var(--modal-z, 640);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
+  /* El root no bloquea el plano; solo el panel (y el scrim si closeOnBackdrop). */
+  pointer-events: none;
 }
 
 .terminal-modal-scrim {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: color-mix(in srgb, #000 45%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
-  backdrop-filter: blur(10px) saturate(1.1);
-  /* Bloquea el plano debajo; el panel (z-index 1) sigue recibiendo la interacción. */
+  background: transparent;
+  /* Por defecto (closeOnBackdrop=false) no captura clicks; el panel sí. */
+  pointer-events: none;
+}
+
+/* Con closeOnBackdrop, el scrim recibe el pointerdown para cerrar. */
+.terminal-modal-scrim[data-close-on-backdrop='true'] {
   pointer-events: auto;
-  animation: terminal-modal-scrim-in 0.28s ease-out both;
 }
 
 .terminal-modal-panel {
   position: relative;
   z-index: 1;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  max-height: min(88vh, 900px);
+  max-height: min(88%, 900px);
   background: var(--bg-secondary);
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   border-radius: 12px;
   font-family: var(--font-ui);
   color: var(--text);
+  /* Misma sombra que .pane-window--full. */
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 4%, transparent),
-    0 24px 64px color-mix(in srgb, #000 40%, transparent);
+    0 14px 42px color-mix(in srgb, #000 27%, transparent),
+    inset 0 0 0 1px var(--plane-highlight);
   outline: none;
   overflow: hidden;
   transform-origin: center center;
-  animation: terminal-modal-zoom-in 0.48s cubic-bezier(0.16, 1.12, 0.3, 1) both;
+  animation: terminal-modal-zoom-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.terminal-modal-panel:focus,
+.terminal-modal-panel:focus-visible {
+  outline: none;
 }
 
 .terminal-modal-panel--sm {
@@ -61,11 +76,14 @@
 
 .terminal-modal-panel--xxl {
   width: min(1100px, 98vw);
+  /* Misma caja para Git y File Explorer. */
+  height: min(88%, 900px);
+  max-height: min(88%, 900px);
 }
 
 .terminal-modal-panel--theme-picker.terminal-modal-panel--xl {
   width: min(1080px, 98vw);
-  max-height: min(92vh, 920px);
+  max-height: min(92%, 920px);
 }
 
 @media (max-height: 520px) {
@@ -76,49 +94,97 @@
 
 .terminal-modal-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px 12px;
-  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--bg));
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: transparent;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   flex-shrink: 0;
 }
 
+.terminal-modal-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px 0 12px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 55%, var(--bg-secondary)) 0%,
+    color-mix(in srgb, var(--bg-secondary) 88%, var(--bg)) 100%
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.terminal-modal-traffic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.terminal-modal-traffic-btn {
+  display: block;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, #000 28%, transparent);
+  cursor: pointer;
+  appearance: none;
+  flex-shrink: 0;
+}
+
+.terminal-modal-traffic-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.terminal-modal-traffic-btn--close {
+  background: #ff5f57;
+}
+
+.terminal-modal-traffic-btn--min {
+  background: #febc2e;
+}
+
+.terminal-modal-traffic-btn--zoom {
+  background: #28c840;
+}
+
+.terminal-modal-traffic-btn--close:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
 .terminal-modal-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 650;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   text-transform: none;
-  color: var(--text);
-  line-height: 1.25;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .terminal-modal-header-content {
   flex: 1;
   min-width: 0;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-.terminal-modal-header-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.12s, background 0.12s, border-color 0.12s;
-}
-
-.terminal-modal-header-close:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+.terminal-modal-header:has(.terminal-modal-header-content) .terminal-modal-titlebar {
+  border-bottom-color: color-mix(in srgb, var(--border) 28%, transparent);
 }
 
 .terminal-modal-body {
@@ -158,19 +224,10 @@
   flex-wrap: wrap;
 }
 
-@keyframes terminal-modal-scrim-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 @keyframes terminal-modal-zoom-in {
   from {
     opacity: 0;
-    transform: scale(0.78);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.03);
+    transform: scale(0.45);
   }
   to {
     opacity: 1;
@@ -178,6 +235,5 @@
   }
 }
 
-/* No se respeta prefers-reduced-motion aquí a propósito: el zoom/blur del
-   chrome del modal es parte del producto. El SO del host tenía reduce-motion
-   y dejaba el modal sin scrim ni entrada. */
+/* No se respeta prefers-reduced-motion aquí a propósito: el zoom de entrada
+   del chrome del modal es parte del producto. */

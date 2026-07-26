@@ -34,7 +34,6 @@ export const ConfirmTerminalModal: React.FC<Props> = ({
       onClose={onCancel}
       size="sm"
       zIndex={zIndex}
-      showHeaderClose={false}
       closeOnEscape
       footer={
         <>

@@ -12,6 +12,7 @@ import {
   resolveExplorerActionPaths,
   seedMultiSelect,
   sessionCwdFolderName,
+  sessionCwdPaneLabel,
 } from '../explorerPathUtils'
 
 describe('remapChildRelPath', () => {
@@ -158,5 +159,26 @@ describe('sessionCwdFolderName', () => {
   it('returns em dash when empty', () => {
     expect(sessionCwdFolderName('')).toBe('—')
     expect(sessionCwdFolderName(null)).toBe('—')
+  })
+})
+
+describe('sessionCwdPaneLabel', () => {
+  it('joins the last two segments with a slash', () => {
+    expect(sessionCwdPaneLabel('/Users/me/projects/ia_terminal')).toBe('projects / ia_terminal')
+    expect(sessionCwdPaneLabel('C:\\a\\b\\c')).toBe('b / c')
+  })
+
+  it('returns the single segment when there is only one', () => {
+    expect(sessionCwdPaneLabel('/tmp')).toBe('tmp')
+    expect(sessionCwdPaneLabel('repo')).toBe('repo')
+  })
+
+  it('normalizes trailing slash', () => {
+    expect(sessionCwdPaneLabel('/Users/me/projects/ia_terminal/')).toBe('projects / ia_terminal')
+  })
+
+  it('returns em dash when empty', () => {
+    expect(sessionCwdPaneLabel('')).toBe('—')
+    expect(sessionCwdPaneLabel(null)).toBe('—')
   })
 })

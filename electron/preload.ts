@@ -4,7 +4,13 @@ import type { AppConfig } from '../src/shared/configSchema'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
-import type { GitCommandResult, GitDiffForAiPayload, GitRepoStatus } from '../src/shared/gitSessionTypes'
+import type {
+  GitCommandResult,
+  GitDiffForAiPayload,
+  GitListedRepo,
+  GitRepoStatus,
+  GitTarget,
+} from '../src/shared/gitSessionTypes'
 import type { GitHubActionsSnapshot } from '../src/shared/githubActionsTypes'
 import type {
   FileExplorerClipboardResult,
@@ -277,44 +283,52 @@ const api = {
     return ipcRenderer.invoke(IPC.AGENT_SHELL_RUN, sessionId, command, options)
   },
 
-  gitStatus(sessionId: string): Promise<GitRepoStatus> {
-    return ipcRenderer.invoke(IPC.GIT_STATUS, sessionId)
+  gitListRepos(dirPath: string): Promise<GitListedRepo[]> {
+    return ipcRenderer.invoke(IPC.GIT_LIST_REPOS, dirPath)
   },
 
-  gitDiffForAi(sessionId: string): Promise<GitDiffForAiPayload> {
-    return ipcRenderer.invoke(IPC.GIT_DIFF_FOR_AI, sessionId)
+  gitCollectUniqueRepos(paths: string[]): Promise<GitListedRepo[]> {
+    return ipcRenderer.invoke(IPC.GIT_COLLECT_UNIQUE_REPOS, paths)
   },
 
-  gitPull(sessionId: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_PULL, sessionId)
+  gitStatus(target: GitTarget): Promise<GitRepoStatus> {
+    return ipcRenderer.invoke(IPC.GIT_STATUS, target)
   },
 
-  gitPush(sessionId: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_PUSH, sessionId)
+  gitDiffForAi(target: GitTarget): Promise<GitDiffForAiPayload> {
+    return ipcRenderer.invoke(IPC.GIT_DIFF_FOR_AI, target)
   },
 
-  gitCommit(sessionId: string, message: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_COMMIT, sessionId, message)
+  gitPull(target: GitTarget): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_PULL, target)
   },
 
-  gitStageAll(sessionId: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_STAGE_ALL, sessionId)
+  gitPush(target: GitTarget): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_PUSH, target)
   },
 
-  gitStageFile(sessionId: string, relPath: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_STAGE_FILE, sessionId, relPath)
+  gitCommit(target: GitTarget, message: string): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_COMMIT, target, message)
   },
 
-  gitUnstageAll(sessionId: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_UNSTAGE_ALL, sessionId)
+  gitStageAll(target: GitTarget): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_STAGE_ALL, target)
   },
 
-  gitUnstageFile(sessionId: string, relPath: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_UNSTAGE_FILE, sessionId, relPath)
+  gitStageFile(target: GitTarget, relPath: string): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_STAGE_FILE, target, relPath)
   },
 
-  githubActionsList(sessionId: string): Promise<GitHubActionsSnapshot> {
-    return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, sessionId)
+  gitUnstageAll(target: GitTarget): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_UNSTAGE_ALL, target)
+  },
+
+  gitUnstageFile(target: GitTarget, relPath: string): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_UNSTAGE_FILE, target, relPath)
+  },
+
+  githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {
+    return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
   },
 
   fileExplorerListDir(

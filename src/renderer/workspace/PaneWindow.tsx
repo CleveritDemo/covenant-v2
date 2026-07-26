@@ -27,7 +27,7 @@ export type PaneWindowLayoutGeometry = PaneWindowGeometry & {
   fullscreen: boolean
 }
 
-const PANE_ZOOM_MS = 300
+export const PANE_ZOOM_MS = 300
 
 /**
  * Misma sombra local que las terminales en CSS (tamaño mini real).
@@ -235,6 +235,10 @@ export interface PaneWindowProps {
   /** Anima left/top al cambiar de ranura (p. ej. preview de reorder). */
   slotMotion?: boolean
   onReorderPointerDown?: (event: React.PointerEvent) => void
+  /** Clases extra en el root (p. ej. entrada del explorer). */
+  className?: string
+  /** Estilos extra en el root (p. ej. --ox/--oy del zoom de entrada). */
+  style?: React.CSSProperties
 }
 
 export const PaneWindow: React.FC<PaneWindowProps> = ({
@@ -268,6 +272,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   reorderJiggleDelayMs = 0,
   slotMotion = false,
   onReorderPointerDown,
+  className,
+  style: styleProp,
 }) => {
   const isMini = display === 'mini'
   const isFullscreen = !isMini && geometry.fullscreen
@@ -657,6 +663,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         showAsMini && reorderState === 'jiggle' ? 'pane-window--reorder-jiggle' : '',
         showAsMini && reorderState === 'dragging' ? 'pane-window--reorder-dragging' : '',
         showAsMini && reorderState === 'previewMoving' ? 'pane-window--reorder-preview' : '',
+        className ?? '',
       ].filter(Boolean).join(' ')}
       style={{
         left: layout.left,
@@ -678,6 +685,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
           : null),
         ...(stageTransition && reorderState !== 'dragging' ? { transition: stageTransition } : null),
         ...(agentParkedShadow ? { boxShadow: agentParkedShadow } : null),
+        ...styleProp,
       }}
       onMouseDown={event => {
         onFocus()

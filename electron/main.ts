@@ -80,6 +80,8 @@ import {
   gitCommit,
   gitDiffForAi,
   gitGetRepoStatus,
+  gitListRepos,
+  gitCollectUniqueRepos,
   gitPull,
   gitPush,
   gitStageAll,
@@ -174,6 +176,22 @@ function projectRootForSession(sessionId: string): string {
   ensureSessionCdState(sessionId, home)
   const cwd = getSessionCwd(sessionId)?.trim()
   return cwd || home
+}
+
+/** path directo o cwd de la sesión PTY. */
+function resolveGitTargetCwd(target: { sessionId?: string; path?: string } | undefined): string {
+  const path = typeof target?.path === 'string' ? target.path.trim() : ''
+  if (path) return path
+  const sessionId = typeof target?.sessionId === 'string' ? target.sessionId : ''
+  return projectRootForSession(sessionId)
+}
+
+function emitGitStatusChanged(target: { sessionId?: string; path?: string } | undefined): void {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const key = (typeof target?.sessionId === 'string' && target.sessionId.trim())
+    || (typeof target?.path === 'string' && target.path.trim())
+    || ''
+  win?.webContents.send(IPC.GIT_STATUS_CHANGED, key)
 }
 
 interface PtyEntry {
@@ -522,58 +540,57 @@ function registerIpc(): void {
     },
   )
 
-  ipcMain.handle(IPC.GIT_STATUS, (_e, sessionId: string) => {
-    return gitGetRepoStatus(projectRootForSession(sessionId))
+  ipcMain.handle(IPC.GIT_LIST_REPOS, (_e, dirPath: string) => {
+    return gitListRepos(dirPath)
   })
-  ipcMain.handle(IPC.GIT_DIFF_FOR_AI, (_e, sessionId: string) => {
-    return gitDiffForAi(projectRootForSession(sessionId))
+  ipcMain.handle(IPC.GIT_COLLECT_UNIQUE_REPOS, (_e, paths: string[]) => {
+    return gitCollectUniqueRepos(Array.isArray(paths) ? paths : [])
   })
-  ipcMain.handle(IPC.GIT_PULL, (_e, sessionId: string) => {
-    const result = gitPull(projectRootForSession(sessionId))
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_STATUS, (_e, target: { sessionId?: string; path?: string }) => {
+    return gitGetRepoStatus(resolveGitTargetCwd(target))
+  })
+  ipcMain.handle(IPC.GIT_DIFF_FOR_AI, (_e, target: { sessionId?: string; path?: string }) => {
+    return gitDiffForAi(resolveGitTargetCwd(target))
+  })
+  ipcMain.handle(IPC.GIT_PULL, (_e, target: { sessionId?: string; path?: string }) => {
+    const result = gitPull(resolveGitTargetCwd(target))
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_PUSH, (_e, sessionId: string) => {
-    const result = gitPush(projectRootForSession(sessionId))
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_PUSH, (_e, target: { sessionId?: string; path?: string }) => {
+    const result = gitPush(resolveGitTargetCwd(target))
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_COMMIT, (_e, sessionId: string, message: unknown) => {
-    const result = gitCommit(projectRootForSession(sessionId), message)
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_COMMIT, (_e, target: { sessionId?: string; path?: string }, message: unknown) => {
+    const result = gitCommit(resolveGitTargetCwd(target), message)
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_STAGE_ALL, (_e, sessionId: string) => {
-    const result = gitStageAll(projectRootForSession(sessionId))
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_STAGE_ALL, (_e, target: { sessionId?: string; path?: string }) => {
+    const result = gitStageAll(resolveGitTargetCwd(target))
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_STAGE_FILE, (_e, sessionId: string, relPath: unknown) => {
-    const result = gitStageFile(projectRootForSession(sessionId), relPath)
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_STAGE_FILE, (_e, target: { sessionId?: string; path?: string }, relPath: unknown) => {
+    const result = gitStageFile(resolveGitTargetCwd(target), relPath)
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_UNSTAGE_ALL, (_e, sessionId: string) => {
-    const result = gitUnstageAll(projectRootForSession(sessionId))
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_UNSTAGE_ALL, (_e, target: { sessionId?: string; path?: string }) => {
+    const result = gitUnstageAll(resolveGitTargetCwd(target))
+    emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_UNSTAGE_FILE, (_e, sessionId: string, relPath: unknown) => {
-    const result = gitUnstageFile(projectRootForSession(sessionId), relPath)
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    win?.webContents.send(IPC.GIT_STATUS_CHANGED, sessionId)
+  ipcMain.handle(IPC.GIT_UNSTAGE_FILE, (_e, target: { sessionId?: string; path?: string }, relPath: unknown) => {
+    const result = gitUnstageFile(resolveGitTargetCwd(target), relPath)
+    emitGitStatusChanged(target)
     return result
   })
 
-  ipcMain.handle(IPC.GITHUB_ACTIONS_LIST, async (_e, sessionId: string) => {
+  ipcMain.handle(IPC.GITHUB_ACTIONS_LIST, async (_e, target: { sessionId?: string; path?: string }) => {
     const token = await resolveGithubToken(readConfig())
-    return githubActionsListForSession(projectRootForSession(sessionId), token)
+    return githubActionsListForSession(resolveGitTargetCwd(target), token)
   })
 
   ipcMain.handle(

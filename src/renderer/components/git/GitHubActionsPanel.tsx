@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import type { GitHubActionsSnapshot } from '@shared/githubActionsTypes'
-import type { GitRepoStatus } from '@shared/gitSessionTypes'
+import type { GitRepoStatus, GitTarget } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
 import { Button } from '../ui/Button'
 import { Spinner } from '../ui/Spinner'
@@ -8,13 +8,13 @@ import { GitHubActionsRunRow } from './GitHubActionsRunRow'
 import './GitHubActionsPanel.css'
 
 interface GitHubActionsPanelProps {
-  sessionId: string
+  target: GitTarget
   repoStatus: GitRepoStatus | null
   refreshToken: number
 }
 
 export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
-  sessionId,
+  target,
   repoStatus,
   refreshToken,
 }) => {
@@ -29,7 +29,7 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
     }
     setLoading(true)
     try {
-      const s = await window.api.githubActionsList(sessionId)
+      const s = await window.api.githubActionsList(target)
       setSnapshot(s)
     } catch (e) {
       setSnapshot({
@@ -42,7 +42,7 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
     } finally {
       setLoading(false)
     }
-  }, [sessionId, repoStatus?.isRepo])
+  }, [target, repoStatus?.isRepo])
 
   useEffect(() => {
     void refresh()

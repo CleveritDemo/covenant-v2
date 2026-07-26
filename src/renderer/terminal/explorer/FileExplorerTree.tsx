@@ -207,7 +207,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
 
     const refreshGitStatus = useCallback(async (): Promise<void> => {
       try {
-        const status = await window.api.gitStatus(sessionId)
+        const status = await window.api.gitStatus({ sessionId })
         setGitStatusByPath(buildGitStatusMap(status))
       } catch {
         setGitStatusByPath(new Map())

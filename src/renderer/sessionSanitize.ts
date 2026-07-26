@@ -16,6 +16,7 @@ import {
 } from '@shared/planeLoopGraph'
 import { sanitizePlaneLoopChains } from '@shared/planeLoopChain'
 import { collapseAllPaneWindows, ensurePaneWindows } from '@shared/paneWindows'
+import { migrateExplorerStateByTab } from './tabFileExplorer'
 import { normalizeTabSession } from './tabSplitSizes'
 
 export interface PersistedSessionInput {
@@ -23,6 +24,8 @@ export interface PersistedSessionInput {
   activeTabId: string
   tabs: TabSession[]
   cwds: Record<string, string>
+  explorerByTab?: Record<string, FileExplorerPersistedState>
+  /** @deprecated migrado a explorerByTab. */
   explorerByPane?: Record<string, FileExplorerPersistedState>
 }
 
@@ -30,7 +33,7 @@ export interface SanitizedSession {
   tabs: TabSession[]
   activeTabId: string
   cwds: Record<string, string>
-  explorerByPane: Record<string, FileExplorerPersistedState>
+  explorerByTab: Record<string, FileExplorerPersistedState>
   orphanPaneIds: string[]
   /**
    * Siempre vacío: ya no se resucitan agentes desde rich meta de session.
@@ -175,8 +178,17 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
       .filter(([, cwd]) => Boolean(cwd?.trim())),
   )
 
-  const explorerByPane = Object.fromEntries(
+  const keptTabIds = new Set(sanitizedTabs.map(tab => tab.id))
+  const explorerByTabRaw = Object.fromEntries(
+    Object.entries(saved.explorerByTab ?? {}).filter(([id]) => keptTabIds.has(id)),
+  )
+  const explorerByPaneRaw = Object.fromEntries(
     Object.entries(saved.explorerByPane ?? {}).filter(([id]) => keptPaneIds.has(id)),
+  )
+  const explorerByTab = migrateExplorerStateByTab(
+    sanitizedTabs,
+    explorerByTabRaw,
+    explorerByPaneRaw,
   )
 
   const allSavedPaneIds = new Set(
@@ -188,7 +200,7 @@ export function sanitizePersistedSession(saved: PersistedSessionInput): Sanitize
     tabs: sanitizedTabs,
     activeTabId,
     cwds: keptCwds,
-    explorerByPane,
+    explorerByTab,
     orphanPaneIds,
     pendingAgentMigrations: [],
   }

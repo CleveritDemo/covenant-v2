@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
 import {
@@ -13,10 +13,18 @@ import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
+import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
+import { PlaneExplorerButton } from './PlaneExplorerButton'
+import { PlaneGitButton } from './PlaneGitButton'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
+import {
+  TabFileExplorerWindow,
+  type TabFileExplorerWindowHandle,
+} from './TabFileExplorerWindow'
+import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import './TabAgenticPlane.css'
 
 export type { PlaneMapEntity }
@@ -76,6 +84,7 @@ export interface TabAgenticPlaneProps {
   projectFolderSelectLabel: string
   projectFolderChangeLabel: string
   projectFolderEmptyHint: string
+  projectFolderRevealLabel: string
   onSelectProjectFolder: () => void
   onRevealProjectFolder?: () => void
   loopsOpen: boolean
@@ -125,6 +134,24 @@ export interface TabAgenticPlaneProps {
   /** Persiste el orden de minis en una columna del plano. */
   onReorderPanes?: (kind: 'terminal' | 'agent', orderedPaneIds: string[]) => void
   reorderAriaLabel?: string
+  /** Explorador como ventana del plano (solo si hay terminal en la tab). */
+  explorerSessionId?: string | null
+  explorerState?: FileExplorerPersistedState
+  explorerTitle?: string
+  explorerButtonLabel?: string
+  explorerZIndex?: number
+  explorerThemeId?: string
+  explorerCwd?: string
+  onExplorerStateChange?: (patch: Partial<FileExplorerPersistedState>) => void
+  onToggleExplorer?: () => void
+  explorerHostRef?: React.Ref<TabFileExplorerWindowHandle>
+  /** Botón Git en la barra del plano (visible si hay projectFolder). */
+  canOpenGitPanel?: boolean
+  gitButtonDisabled?: boolean
+  gitButtonLabel?: string
+  gitButtonDisabledTitle?: string
+  gitPickerOpen?: boolean
+  onGitButtonClick?: () => void
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -174,6 +201,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   projectFolderSelectLabel,
   projectFolderChangeLabel,
   projectFolderEmptyHint,
+  projectFolderRevealLabel,
   onSelectProjectFolder,
   onRevealProjectFolder,
   loopsOpen,
@@ -222,6 +250,22 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   renderPane,
   onReorderPanes,
   reorderAriaLabel,
+  explorerSessionId = null,
+  explorerState,
+  explorerTitle = '',
+  explorerButtonLabel,
+  explorerZIndex = 640,
+  explorerThemeId = '',
+  explorerCwd = '',
+  onExplorerStateChange,
+  onToggleExplorer,
+  explorerHostRef,
+  canOpenGitPanel = false,
+  gitButtonDisabled = false,
+  gitButtonLabel = '',
+  gitButtonDisabledTitle = '',
+  gitPickerOpen = false,
+  onGitButtonClick,
 }) => {
   const planeRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -340,20 +384,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     [tabContexts],
   )
 
-  const quickChatAgent = useMemo(
-    () => entities.find(entity => entity.paneId === openChatAgentId) ?? null,
-    [entities, openChatAgentId],
-  )
-
   const quickChatStatus = openChatAgentId
     ? agentStatuses[openChatAgentId] ?? null
     : null
 
-  const quickChatWindowOpen = Boolean(quickChatAgent?.window.open)
-
+  // Agentes no expanden ventana; el chat del plano no compite con window.open.
   const quickChatVisible = Boolean(
     openChatAgentId
-    && !quickChatWindowOpen
     && quickChatStatus
     && (quickChatStatus.busy || quickChatStatus.messages.length > 0),
   )
@@ -362,13 +399,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     entity => entity.window.open && entity.window.fullscreen,
   )
 
-  const agentWindowOpen = entities.some(
-    entity => entity.kind === 'agent' && entity.window.open,
-  )
-
   const anyWindowOpen = entities.some(entity => entity.window.open)
+    || Boolean(explorerState?.open)
 
-  const showIdleGravity = !anyFullscreen && !quickChatShowing && !agentWindowOpen
+  const showIdleGravity = !anyFullscreen && !quickChatShowing
+  const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
 
   return (
     <div
@@ -413,13 +448,35 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             changeLabel={projectFolderChangeLabel}
             emptyHint={projectFolderEmptyHint}
             onSelect={onSelectProjectFolder}
-            onReveal={onRevealProjectFolder}
           />
           <PlaneLoopsButton
             label={loopsButtonLabel}
             pressed={loopsOpen}
             onClick={() => onLoopsOpenChange(!loopsOpen)}
           />
+          {canToggleExplorer ? (
+            <PlaneExplorerButton
+              label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
+              pressed={Boolean(explorerState?.open)}
+              onClick={() => onToggleExplorer?.()}
+            />
+          ) : null}
+          {canOpenGitPanel && onGitButtonClick ? (
+            <PlaneGitButton
+              label={gitButtonLabel}
+              disabled={gitButtonDisabled}
+              disabledTitle={gitButtonDisabledTitle}
+              pressed={gitPickerOpen}
+              onClick={() => onGitButtonClick()}
+            />
+          ) : null}
+          {projectFolder.trim() && onRevealProjectFolder ? (
+            <PlaneRevealFolderButton
+              folderPath={projectFolder}
+              label={projectFolderRevealLabel}
+              onReveal={onRevealProjectFolder}
+            />
+          ) : null}
         </div>
       )}
       <PlaneLoopsSection
@@ -488,6 +545,22 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onReorderPanes={onReorderPanes}
         reorderAriaLabel={reorderAriaLabel}
       />
+
+      {explorerSessionId && explorerState?.open && onExplorerStateChange ? (
+        <TabFileExplorerWindow
+          ref={explorerHostRef}
+          sessionId={explorerSessionId}
+          themeId={explorerThemeId}
+          cwd={explorerCwd}
+          explorerState={explorerState}
+          onExplorerStateChange={onExplorerStateChange}
+          onClose={() => {
+            onExplorerStateChange({ open: false, fullscreen: false })
+          }}
+          title={explorerTitle}
+          zIndex={explorerZIndex}
+        />
+      ) : null}
 
       {showIdleGravity && (
         <PlaneIdleGravity />

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
-import { Icon } from './ui/Icon'
 import './TerminalModal.css'
 
 export type TerminalModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
@@ -13,10 +12,10 @@ export type TerminalModalBodyLayout = 'default' | 'spacious' | 'flush'
 export interface TerminalModalProps {
   open: boolean
   onClose: () => void
-  /** Encabezado simple (h2); si se omite y no hay `headerContent`, no hay barra superior */
+  /** Encabezado simple (h2) en la titlebar junto a los traffic lights. */
   title?: React.ReactNode
   /**
-   * Encabezado rico (hero, avatar, etc.). Sustituye el h2; el ✕ se mantiene si `showHeaderClose`.
+   * Encabezado rico (hero, avatar, etc.). Se renderiza debajo de la titlebar macOS.
    */
   headerContent?: React.ReactNode
   titleId?: string
@@ -26,10 +25,8 @@ export interface TerminalModalProps {
   /** Por defecto 640; confirmaciones históricas usan 600 */
   zIndex?: number
   closeOnEscape?: boolean
-  /** Clic en el fondo oscuro; por defecto no cierra (usar ✕, Esc si aplica, o botones del pie). */
+  /** Clic en el fondo oscuro; por defecto no cierra (usar traffic rojo, Esc si aplica, o botones del pie). */
   closeOnBackdrop?: boolean
-  /** Botón ✕ en la esquina del encabezado (solo si hay `title` o `headerContent`) */
-  showHeaderClose?: boolean
   panelVariant?: TerminalModalPanelVariant
   bodyLayout?: TerminalModalBodyLayout
 }
@@ -60,12 +57,14 @@ function isTopmostModalRoot(root: HTMLElement): boolean {
 }
 
 function firstFocusTarget(panel: HTMLElement): HTMLElement {
+  // Preferir campos editables (Find/Settings/Commit); si no, el panel (no el 1.er botón).
   const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    .filter(el => !el.classList.contains('terminal-modal-traffic-btn'))
   const editable = nodes.find(el => {
     const tag = el.tagName
     return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT'
   })
-  return editable ?? nodes[0] ?? panel
+  return editable ?? panel
 }
 
 /**
@@ -85,7 +84,6 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   zIndex = 640,
   closeOnEscape = true,
   closeOnBackdrop = false,
-  showHeaderClose = true,
   panelVariant = 'default',
   bodyLayout = 'default',
 }) => {
@@ -143,12 +141,19 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
 
   const hasRichHeader = headerContent != null && headerContent !== false
   const hasTitle = title != null && title !== ''
-  const hasHeader = hasRichHeader || hasTitle
+  const labelledBy = hasRichHeader || hasTitle ? titleId : undefined
 
   const bodyClass = [
     'terminal-modal-body',
     bodyLayout !== 'default' ? `terminal-modal-body--${bodyLayout}` : '',
   ].filter(Boolean).join(' ')
+
+  const closeFromTraffic = (event: React.MouseEvent | React.PointerEvent): void => {
+    if ('button' in event && event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    onClose()
+  }
 
   return createPortal(
     <div
@@ -160,6 +165,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
       <div
         className="terminal-modal-scrim"
         aria-hidden="true"
+        data-close-on-backdrop={closeOnBackdrop ? 'true' : undefined}
         onPointerDown={closeOnBackdrop ? (event) => {
           // pointerdown (no click): evita que el mouseup/click caiga en el plano.
           if (event.button !== 0) return
@@ -179,45 +185,51 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         ].filter(Boolean).join(' ')}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={hasHeader ? titleId : undefined}
+        aria-labelledby={labelledBy}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
         onPointerDown={e => e.stopPropagation()}
       >
-        {hasHeader && (
-          <header className="terminal-modal-header">
-            {hasRichHeader ? (
-              <div className="terminal-modal-header-content" id={titleId}>
-                {headerContent}
-              </div>
-            ) : (
-              <h2 className="terminal-modal-title" id={titleId}>{title}</h2>
-            )}
-            {showHeaderClose && (
+        <header className="terminal-modal-header">
+          <div className="terminal-modal-titlebar">
+            <div
+              className="terminal-modal-traffic"
+              role="group"
+              aria-label={t('ui.closeAriaLabel')}
+            >
               <button
                 type="button"
-                className="terminal-modal-header-close"
-                onPointerDown={event => {
-                  // Cerrar en pointerdown evita click-through al desmontar el portal.
-                  if (event.button !== 0) return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onClose()
-                }}
-                onClick={event => {
-                  // Teclado (Enter/Espacio): pointerdown no aplica.
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onClose()
-                }}
+                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--close"
+                onPointerDown={closeFromTraffic}
+                onClick={closeFromTraffic}
                 title={t('ui.closeTitle')}
                 aria-label={t('ui.closeAriaLabel')}
-              >
-                <Icon name="close" size={14} />
-              </button>
-            )}
-          </header>
-        )}
+              />
+              <button
+                type="button"
+                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--min"
+                disabled
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+              <button
+                type="button"
+                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--zoom"
+                disabled
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+            </div>
+            {!hasRichHeader && hasTitle ? (
+              <h2 className="terminal-modal-title" id={titleId}>{title}</h2>
+            ) : null}
+          </div>
+          {hasRichHeader ? (
+            <div className="terminal-modal-header-content" id={titleId}>
+              {headerContent}
+            </div>
+          ) : null}
+        </header>
         <div className={bodyClass}>
           {children}
         </div>

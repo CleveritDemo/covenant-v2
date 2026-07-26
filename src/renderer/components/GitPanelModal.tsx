@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppConfig } from '@shared/configSchema'
-import type { GitCommandResult, GitRepoStatus } from '@shared/gitSessionTypes'
+import type { GitCommandResult, GitRepoStatus, GitTarget } from '@shared/gitSessionTypes'
 import { suggestGitCommitMessage, aiOptionsFromConfig } from '@ai/aiClient'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
@@ -16,14 +16,14 @@ import './GitPanelModal.css'
 
 interface GitPanelModalProps {
   open: boolean
-  sessionId: string
+  target: GitTarget
   config: AppConfig
   onClose: () => void
 }
 
 export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   open,
-  sessionId,
+  target,
   config,
   onClose,
 }) => {
@@ -35,6 +35,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [commitMsg, setCommitMsg] = useState('')
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
   const aiAbortRef = useRef<AbortController | null>(null)
+  const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
 
   useEffect(() => {
     return () => {
@@ -45,7 +46,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true)
     try {
-      const s = await window.api.gitStatus(sessionId)
+      const s = await window.api.gitStatus(target)
       setStatus(s)
     } catch (e) {
       setStatus({
@@ -59,7 +60,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     } finally {
       setLoading(false)
     }
-  }, [sessionId])
+  }, [target])
 
   const refreshAll = useCallback((): void => {
     void refresh()
@@ -72,7 +73,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setCommitMsg('')
     setLastLog('')
     refreshAll()
-  }, [open, refreshAll])
+  }, [open, targetKey, refreshAll])
 
   useEffect(() => {
     if (!open) return
@@ -107,32 +108,32 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
 
   const onStageFile = useCallback(
     (relPath: string): void => {
-      void runAndLog(`git add ${relPath}`, () => window.api.gitStageFile(sessionId, relPath))
+      void runAndLog(`git add ${relPath}`, () => window.api.gitStageFile(target, relPath))
     },
-    [runAndLog, sessionId],
+    [runAndLog, target],
   )
 
   const onUnstageFile = useCallback(
     (relPath: string): void => {
-      void runAndLog(`git restore --staged ${relPath}`, () => window.api.gitUnstageFile(sessionId, relPath))
+      void runAndLog(`git restore --staged ${relPath}`, () => window.api.gitUnstageFile(target, relPath))
     },
-    [runAndLog, sessionId],
+    [runAndLog, target],
   )
 
   const onStageAll = useCallback((): void => {
-    void runAndLog('git add -A', () => window.api.gitStageAll(sessionId))
-  }, [runAndLog, sessionId])
+    void runAndLog('git add -A', () => window.api.gitStageAll(target))
+  }, [runAndLog, target])
 
   const onUnstageAll = useCallback((): void => {
-    void runAndLog('git restore --staged .', () => window.api.gitUnstageAll(sessionId))
-  }, [runAndLog, sessionId])
+    void runAndLog('git restore --staged .', () => window.api.gitUnstageAll(target))
+  }, [runAndLog, target])
 
   const onPull = (): void => {
-    void runAndLog('git pull', () => window.api.gitPull(sessionId))
+    void runAndLog('git pull', () => window.api.gitPull(target))
   }
 
   const onPush = (): void => {
-    void runAndLog('git push', () => window.api.gitPush(sessionId))
+    void runAndLog('git push', () => window.api.gitPush(target))
   }
 
   const onCommit = (): void => {
@@ -142,7 +143,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
       return
     }
     void (async (): Promise<void> => {
-      await runAndLog('git commit', () => window.api.gitCommit(sessionId, msg))
+      await runAndLog('git commit', () => window.api.gitCommit(target, msg))
       setCommitMsg('')
     })()
   }
@@ -155,7 +156,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setLastLog('')
     void (async (): Promise<void> => {
       try {
-        const diff = await window.api.gitDiffForAi(sessionId)
+        const diff = await window.api.gitDiffForAi(target)
         if (!diff.ok) {
           setLastLog(diff.error ?? t('git.diffError'))
           return
@@ -190,6 +191,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
         size="xxl"
         bodyLayout="flush"
         zIndex={670}
+        closeOnBackdrop
         footer={
           <span className="git-panel-footer-hint">
             {t('git.footerHint')}
@@ -313,7 +315,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
             </div>
           </div>
           <GitHubActionsPanel
-            sessionId={sessionId}
+            target={target}
             repoStatus={status}
             refreshToken={actionsRefreshToken}
           />

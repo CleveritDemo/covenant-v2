@@ -1,9 +1,10 @@
 import { spawn } from 'child_process'
-import { normalize, resolve } from 'path'
-import { statSync } from 'fs'
+import { basename, join, normalize, resolve } from 'path'
+import { readdirSync, realpathSync, statSync } from 'fs'
 import type {
   GitCommandResult,
   GitDiffForAiPayload,
+  GitListedRepo,
   GitPathEntry,
   GitRepoStatus,
 } from '../src/shared/gitSessionTypes'
@@ -24,6 +25,76 @@ function resolveWorkingDir(cwdRaw: string): string | null {
   } catch {
     return null
   }
+}
+
+/** `.git` como directorio o archivo (worktree / submodule). */
+function hasGitMarker(dir: string): boolean {
+  try {
+    const st = statSync(join(dir, '.git'))
+    return st.isDirectory() || st.isFile()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Descubre repos git a 1 nivel: el root (si tiene `.git`) + subdirs inmediatos.
+ * Sin recursión ni symlinks.
+ */
+export function gitListRepos(dirPathRaw: string): GitListedRepo[] {
+  const dir = resolveWorkingDir(dirPathRaw)
+  if (!dir) return []
+  const out: GitListedRepo[] = []
+  if (hasGitMarker(dir)) {
+    out.push({ name: basename(dir), path: dir })
+  }
+  let entries: ReturnType<typeof readdirSync>
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (entry.isSymbolicLink() || !entry.isDirectory()) continue
+    const child = join(dir, entry.name)
+    if (!hasGitMarker(child)) continue
+    out.push({ name: basename(child), path: child })
+  }
+  return out
+}
+
+function normalizeRepoPath(pathRaw: string): string {
+  const resolved = resolve(normalize(pathRaw))
+  try {
+    return realpathSync(resolved)
+  } catch {
+    return resolved
+  }
+}
+
+/**
+ * Une repos de varias raíces (projectFolder + CWDs de terminal).
+ * Por path: `gitListRepos` (1 nivel) + raíz real vía `rev-parse` si aplica.
+ * Dedupe por path normalizado; orden = primera aparición (project primero).
+ */
+export async function gitCollectUniqueRepos(paths: string[]): Promise<GitListedRepo[]> {
+  const byPath = new Map<string, GitListedRepo>()
+  const add = (repo: GitListedRepo): void => {
+    const key = normalizeRepoPath(repo.path)
+    if (byPath.has(key)) return
+    byPath.set(key, { name: basename(key), path: key })
+  }
+
+  for (const raw of paths) {
+    const trimmed = String(raw ?? '').trim()
+    if (!trimmed) continue
+    const dir = resolveWorkingDir(trimmed)
+    if (!dir) continue
+    for (const repo of gitListRepos(dir)) add(repo)
+    const root = await getRepoRoot(dir)
+    if (root) add({ name: basename(root), path: root })
+  }
+  return [...byPath.values()]
 }
 
 function capOutput(s: string, max = GIT_MAX_OUTPUT_BYTES): string {

@@ -7,12 +7,14 @@
   "objective": "your objective is to find security, flow, code and logic issues in the proyect. you find bugs buts it's not your job to fix them. dont ask to fix them.",
   "rules": [
     "you are qa, you dont change code, deny to fix or change code",
-    "all your reported bugs must be complete verified in code flow."
+    "all your reported bugs must be complete verified in code flow.",
+    "try to think by the perspective of an user. is it easy to use? is it friendly? is it intuitive?"
   ],
   "contextIds": [
     "iaterminal:folderTree:Folders",
     "iaterminal:symbols:Clases-and-methods",
-    "iaterminal:notes:Front-Rules"
+    "iaterminal:notes:Front-Rules",
+    "iaterminal:notes:About"
   ],
   "autoImproveContexts": true,
   "emitResults": true

@@ -54,3 +54,15 @@ export interface GitDiffForAiPayload {
   text: string
   error?: string
 }
+
+/** Repo descubierto bajo la carpeta de proyecto (1 nivel). */
+export interface GitListedRepo {
+  name: string
+  path: string
+}
+
+/** Objetivo de operaciones git vía IPC: path directo o cwd de sesión. */
+export interface GitTarget {
+  sessionId?: string
+  path?: string
+}

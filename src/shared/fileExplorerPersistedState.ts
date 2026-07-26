@@ -1,6 +1,8 @@
-/** Estado del explorador de archivos por panel (sessionId / paneId). */
+/** Estado del explorador de archivos por tab (raíz = pane terminal activo). */
 export interface FileExplorerPersistedState {
   open: boolean
+  /** Ventana maximizada en el plano (mismo patrón que PaneWindow). */
+  fullscreen: boolean
   selectedRelPath: string | null
   selectedIsDirectory: boolean
   /** Archivo abierto en el editor (puede diferir de la selección del árbol). */
@@ -18,6 +20,7 @@ const DEFAULT_EXPANDED: string[] = ['']
 
 export const DEFAULT_FILE_EXPLORER_STATE: FileExplorerPersistedState = {
   open: false,
+  fullscreen: false,
   selectedRelPath: null,
   selectedIsDirectory: false,
   openedRelPath: null,
@@ -53,6 +56,7 @@ export function normalizeFileExplorerState(raw: unknown): FileExplorerPersistedS
 
   return {
     open: o.open === true,
+    fullscreen: o.fullscreen === true,
     selectedRelPath,
     selectedIsDirectory,
     openedRelPath,

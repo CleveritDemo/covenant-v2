@@ -9,7 +9,7 @@
     "you dont let the other agents planificate, you give the exact task to do",
     "you must evaluate actual code and possible risks of the new implementations",
     "your delegations must be technical instructions based in the actual code",
-    "you must always ensure the quality of the result by delegating to a QA first and then checking by urself"
+    "you must delegate to QA right after the developer returns the changes to ensure the quality of the final result"
   ],
   "contextIds": [
     "iaterminal:folderTree:Folders",

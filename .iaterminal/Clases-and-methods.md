@@ -112,6 +112,8 @@
 - resolveGithubToken
 
 ### electron/gitSessionOps.ts
+- gitListRepos
+- gitCollectUniqueRepos
 - gitGetRepoStatus
 - gitDiffForAi
 - validateCommitMessage
@@ -384,6 +386,9 @@
 ### src/renderer/components/GitPanelModal.tsx
 - GitPanelModal
 
+### src/renderer/components/GitRepoPickerModal.tsx
+- GitRepoPickerModal
+
 ### src/renderer/components/MusicSpectrum.tsx
 - MusicSpectrum
 
@@ -487,6 +492,10 @@
 - deriveTabCounter
 - sanitizePersistedSession
 
+### src/renderer/tabFileExplorer.ts
+- resolveTabTerminalPaneId
+- migrateExplorerStateByTab
+
 ### src/renderer/tabSplitSizes.ts
 - getDefaultSplitSizes
 - normalizeSplitSizes
@@ -588,6 +597,7 @@
 
 ### src/renderer/terminal/PaneToolbar.tsx
 - PaneToolbar
+- PaneToolbarButton
 
 ### src/renderer/terminal/PaneToolbarQuickOpen.tsx
 - PaneToolbarQuickOpen
@@ -696,11 +706,17 @@
 ### src/renderer/workspace/PlaneContextPool.tsx
 - PlaneContextPool
 
+### src/renderer/workspace/PlaneExplorerButton.tsx
+- PlaneExplorerButton
+
 ### src/renderer/workspace/PlaneFab.tsx
 - PlaneFab
 
 ### src/renderer/workspace/PlaneFabStack.tsx
 - PlaneFabStack
+
+### src/renderer/workspace/PlaneGitButton.tsx
+- PlaneGitButton
 
 ### src/renderer/workspace/PlaneIdleGravity.tsx
 - PlaneIdleGravity
@@ -741,12 +757,18 @@
 ### src/renderer/workspace/PlaneQuickChat.tsx
 - PlaneQuickChat
 
+### src/renderer/workspace/PlaneRevealFolderButton.tsx
+- PlaneRevealFolderButton
+
 ### src/renderer/workspace/resolveAssignedContextChips.ts
 - resolveAssignedContextChips
 - contextIdsEqual
 
 ### src/renderer/workspace/TabAgenticPlane.tsx
 - TabAgenticPlane
+
+### src/renderer/workspace/TabFileExplorerWindow.tsx
+- TabFileExplorerWindow
 
 ### src/shared/agentCliModels.ts
 - modelsForProvider

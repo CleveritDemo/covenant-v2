@@ -109,7 +109,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const isAgent = kind === 'agent'
-  const isExpanded = window.open
+  // Agente nunca expande PaneWindow (clic → onOpenChat); solo terminales usan open.
+  const isExpanded = !isAgent && window.open
   const display = isExpanded ? 'full' : 'mini'
   const statusLabel = busy
     ? (snippet?.trim() || idleLabel)
@@ -149,8 +150,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         onConfigure={isAgent ? onOpenConfig : undefined}
         miniLivePreview={!isAgent}
         miniAgentCard={isAgent}
-        // Terminales: siempre titlebar macOS (mini y expandida). Agentes: solo expandida.
-        showTitlebar={!isAgent || isExpanded}
+        // Terminales: titlebar macOS. Agentes: mini card sin chrome.
+        showTitlebar={!isAgent}
         miniFolderBadge={!isAgent && folderName ? (
           <PlaneMiniFolderBadge folder={folderName} title={folderPath} />
         ) : undefined}
@@ -162,11 +163,11 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             coordination={coordination}
             statusLabel={statusLabel}
             agentId={agentId}
-            reorderEnabled={reorderEnabled && !isExpanded}
+            reorderEnabled={reorderEnabled}
             reorderLabel={t('tabs.planeDragHandle')}
             resultsDragLabel={t('tabs.planeAgentResultsDrag')}
             onReorderPointerDown={
-              reorderEnabled && !isExpanded && onReorderHandlePointerDown
+              reorderEnabled && onReorderHandlePointerDown
                 ? onReorderHandlePointerDown
                 : undefined
             }

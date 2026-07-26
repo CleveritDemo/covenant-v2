@@ -6,6 +6,9 @@ export type IconName =
   | 'settings'
   | 'folder'
   | 'folder-filled'
+  | 'folder-open'
+  | 'folder-reveal'
+  | 'sidebar'
   | 'terminal'
   | 'drag-handle'
   | 'chevron-down'
@@ -66,13 +69,39 @@ const ICONS: Record<IconName, IconRenderer> = {
     </svg>
   ),
   folder: size => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
   ),
   'folder-filled': size => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V10h16v8z" />
+      <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+    </svg>
+  ),
+  /** Carpeta abierta: elegir / cambiar proyecto. */
+  'folder-open': size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 8a2 2 0 0 1 2-2h3.5l1.4 1.6H19a2 2 0 0 1 2 2v.4" />
+      <path d="M3 10.5 5.2 18a2 2 0 0 0 1.9 1.4h9.8a2 2 0 0 0 1.9-1.4L21 10.5z" />
+    </svg>
+  ),
+  /** Carpeta + flecha: revelar en Finder. */
+  'folder-reveal': size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h3.5l1.5 2H13" />
+      <path d="M3 7v10a2 2 0 0 0 2 2h7" />
+      <path d="M15 9h6v6" />
+      <path d="M21 9l-7 7" />
+    </svg>
+  ),
+  /** Panel lateral con filas: explorador de archivos. */
+  sidebar: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18" />
+      <path d="M13 8h5" />
+      <path d="M13 12h5" />
+      <path d="M13 16h4" />
     </svg>
   ),
   terminal: size => (

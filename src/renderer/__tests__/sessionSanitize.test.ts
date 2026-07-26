@@ -371,6 +371,49 @@ describe('sanitizePersistedSession', () => {
       cursor: 0,
     }])
   })
+
+  it('migrates explorerByPane into explorerByTab', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Term',
+        paneIds: ['term-1', 'term-2'],
+        activePaneId: 'term-2',
+        paneKinds: { 'term-1': 'terminal', 'term-2': 'terminal' },
+      }],
+      cwds: {},
+      explorerByPane: {
+        'term-1': {
+          open: true,
+          fullscreen: false,
+          selectedRelPath: 'a.ts',
+          selectedIsDirectory: false,
+          openedRelPath: null,
+          expandedRelPaths: [],
+          showHiddenDirs: false,
+          treeWidthPercent: 30,
+          openOnSingleClick: false,
+        },
+        'term-2': {
+          open: false,
+          fullscreen: false,
+          selectedRelPath: 'b.ts',
+          selectedIsDirectory: false,
+          openedRelPath: null,
+          expandedRelPaths: [],
+          showHiddenDirs: false,
+          treeWidthPercent: 30,
+          openOnSingleClick: false,
+        },
+      },
+    })
+
+    expect(result?.explorerByTab.t1?.open).toBe(true)
+    expect(result?.explorerByTab.t1?.selectedRelPath).toBe('b.ts')
+    expect(result?.explorerByTab.t1?.fullscreen).toBe(false)
+  })
 })
 
 describe('deriveTabCounter', () => {

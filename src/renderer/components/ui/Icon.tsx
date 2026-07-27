@@ -7,8 +7,6 @@ export type IconName =
   | 'folder'
   | 'folder-filled'
   | 'folder-open'
-  | 'folder-reveal'
-  | 'sidebar'
   | 'terminal'
   | 'drag-handle'
   | 'chevron-down'
@@ -26,6 +24,7 @@ export type IconName =
   | 'chevron-right'
   | 'refresh'
   | 'bot'
+  | 'users'
   | 'repeat'
   | 'brain'
   | 'shield-off'
@@ -83,25 +82,6 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 8a2 2 0 0 1 2-2h3.5l1.4 1.6H19a2 2 0 0 1 2 2v.4" />
       <path d="M3 10.5 5.2 18a2 2 0 0 0 1.9 1.4h9.8a2 2 0 0 0 1.9-1.4L21 10.5z" />
-    </svg>
-  ),
-  /** Carpeta + flecha: revelar en Finder. */
-  'folder-reveal': size => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7a2 2 0 0 1 2-2h3.5l1.5 2H13" />
-      <path d="M3 7v10a2 2 0 0 0 2 2h7" />
-      <path d="M15 9h6v6" />
-      <path d="M21 9l-7 7" />
-    </svg>
-  ),
-  /** Panel lateral con filas: explorador de archivos. */
-  sidebar: size => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M9 3v18" />
-      <path d="M13 8h5" />
-      <path d="M13 12h5" />
-      <path d="M13 16h4" />
     </svg>
   ),
   terminal: size => (
@@ -227,6 +207,14 @@ const ICONS: Record<IconName, IconRenderer> = {
       <path d="M15 18v2" />
       <path d="M5 12H3" />
       <path d="M21 12h-2" />
+    </svg>
+  ),
+  users: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
   repeat: size => (

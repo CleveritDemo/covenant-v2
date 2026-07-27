@@ -19,7 +19,7 @@ export interface PlanePaneWindowProps {
   title: string
   busy?: boolean
   provider?: AgentCliProvider
-  coordination?: 'none' | 'orchestrator'
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   snippet?: string
   idleLabel: string
   window: PaneWindowState
@@ -30,6 +30,8 @@ export interface PlanePaneWindowProps {
   activePaneId: string
   /** Chat del plano abierto para este agente (señal estática de selección). */
   chatActive?: boolean
+  /** Tab activa: oculta confirms portaled sin perder estado. */
+  tabActive?: boolean
   contexts?: PlaneAgentContextChip[]
   configLabel: string
   deleteLabel: string
@@ -63,6 +65,8 @@ export interface PlanePaneWindowProps {
   onReorderHandlePointerDown?: (event: React.PointerEvent) => void
   /** Slug del agente para drag del contexto results. */
   agentId?: string
+  /** Clic en icono results (sin drag) → vista previa del contexto. */
+  onOpenResultsPreview?: (contextId: string) => void
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -79,6 +83,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   miniOrigin,
   activePaneId,
   chatActive = false,
+  tabActive = true,
   contexts = [],
   configLabel,
   deleteLabel,
@@ -105,6 +110,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onReorderPointerDown,
   onReorderHandlePointerDown,
   agentId,
+  onOpenResultsPreview,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -171,6 +177,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
                 ? onReorderHandlePointerDown
                 : undefined
             }
+            onOpenResultsPreview={onOpenResultsPreview}
           >
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
@@ -210,6 +217,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
       </PaneWindow>
       <ConfirmTerminalModal
         open={confirmDeleteOpen}
+        active={tabActive}
         message={isAgent
           ? t('tabs.planeConfirmDeleteAgentMessage', { title })
           : t('tabs.planeConfirmDeleteTerminalMessage', { title })}

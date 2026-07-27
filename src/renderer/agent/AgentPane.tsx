@@ -33,6 +33,7 @@ import type {
 } from '@shared/agentOrchestration'
 import {
   MAX_ORCHESTRATION_ROUNDS,
+  coordinationCanDelegate,
   resolveOrchestrationMaxRounds,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
@@ -40,6 +41,7 @@ import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
+import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
 import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
@@ -57,6 +59,7 @@ import {
   MAX_PENDING_IMAGES,
   type ComposerPendingImage,
 } from './composerImages'
+import { decideParentDelegationNotify } from './parentDelegationNotify'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
 
@@ -137,6 +140,8 @@ interface Props {
   onPlaneQueueControlsReady?: (controls: AgentPlaneQueueControls | null) => void
   /** Especialistas visibles para un orquestador (cada turno). */
   getOrchestrationAgents?: () => OrchestrationAgentRef[]
+  /** Otros agentes del tab (config delegateTo / exclusiones). */
+  peerAgents?: DelegateToPeerAgent[]
   /** El CLI del orquestador emitió delegaciones. */
   onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
@@ -255,6 +260,7 @@ export const AgentPane: React.FC<Props> = ({
   onPlaneLoopToggleReady,
   onPlaneQueueControlsReady,
   getOrchestrationAgents,
+  peerAgents = [],
   onOrchestratorDelegations,
   onOrchestratorStop,
   onDelegationTurnComplete,
@@ -303,7 +309,7 @@ export const AgentPane: React.FC<Props> = ({
   const [loopOpen, setLoopOpen] = useState(false)
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
-  const orchestratorBusy = meta.coordination === 'orchestrator' && busy
+  const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
   const humanInputBlocked = isAgentHumanInputBlocked({
     loopActive,
     awaitingDelegations,
@@ -373,12 +379,14 @@ export const AgentPane: React.FC<Props> = ({
   const pendingModeHandoffRef = useRef(false)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
-  /** Delegación en vuelo (especialista ejecutando subtarea del orquestador). */
+  /** Delegación en vuelo (especialista / orch ejecutando subtarea del padre). */
   const activeDelegationRef = useRef<{
     id: string
     fromPaneId: string
     toAgentId: string
   } | null>(null)
+  /** Este turno emitió fences anidados; no despertar al padre aún. */
+  const nestedDelegationsDispatchedThisTurnRef = useRef(false)
   const onOrchestratorDelegationsRef = useRef(onOrchestratorDelegations)
   onOrchestratorDelegationsRef.current = onOrchestratorDelegations
   const onOrchestratorStopRef = useRef(onOrchestratorStop)
@@ -881,7 +889,11 @@ export const AgentPane: React.FC<Props> = ({
     setActiveAssistantId(assistant.id)
     turnGenRef.current += 1
     turnClosedRef.current = false
-    activeDelegationRef.current = options.delegation ?? null
+    nestedDelegationsDispatchedThisTurnRef.current = false
+    // Conservar hold del padre en follow-ups; solo fijar si llega una nueva subtarea.
+    if (options.delegation) {
+      activeDelegationRef.current = options.delegation
+    }
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
     forceFollow()
     setMessages(prev => [...prev, user, assistant])
@@ -911,6 +923,7 @@ export const AgentPane: React.FC<Props> = ({
         turnClosedRef.current = true
         activeAssistantIdRef.current = null
         setActiveAssistantId(null)
+        nestedDelegationsDispatchedThisTurnRef.current = false
         const failedDelegation = activeDelegationRef.current
         activeDelegationRef.current = null
         if (failedDelegation) {
@@ -939,6 +952,7 @@ export const AgentPane: React.FC<Props> = ({
       turnClosedRef.current = true
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
+      nestedDelegationsDispatchedThisTurnRef.current = false
       const failedDelegation = activeDelegationRef.current
       activeDelegationRef.current = null
       if (failedDelegation) {
@@ -962,11 +976,11 @@ export const AgentPane: React.FC<Props> = ({
     emptyResponseRetriesRef.current = 0
     suppressEmptyHandlingRef.current = false
     const rules = normalizeAgentRules(currentMeta.rules)
-    const isOrchestrator = currentMeta.coordination === 'orchestrator'
-    const orchestrationAgents = isOrchestrator
+    const canDelegate = coordinationCanDelegate(currentMeta.coordination)
+    const orchestrationAgents = canDelegate
       ? (getOrchestrationAgentsRef.current?.() ?? [])
       : []
-    const roundInfo = isOrchestrator ? getOrchestrationRoundRef.current?.() : undefined
+    const roundInfo = canDelegate ? getOrchestrationRoundRef.current?.() : undefined
     const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
@@ -986,9 +1000,11 @@ export const AgentPane: React.FC<Props> = ({
       ...(forceContextFullRefreshRef.current
         ? { forceContextFullRefresh: true }
         : {}),
-      ...(isOrchestrator
+      ...(canDelegate
         ? {
-            coordination: 'orchestrator' as const,
+            coordination: currentMeta.coordination === 'productOwner'
+              ? 'productOwner' as const
+              : 'orchestrator' as const,
             orchestrationAgents,
             ...(options.allowDelegations === false ? { allowDelegations: false } : {}),
             ...(roundInfo && roundInfo.round > 0
@@ -1123,8 +1139,13 @@ export const AgentPane: React.FC<Props> = ({
       }
 
       const delegation = activeDelegationRef.current
-      activeDelegationRef.current = null
-      if (delegation) {
+      const decision = decideParentDelegationNotify({
+        held: Boolean(delegation),
+        dispatchedNested: nestedDelegationsDispatchedThisTurnRef.current,
+      })
+      nestedDelegationsDispatchedThisTurnRef.current = false
+      if (decision === 'notify' && delegation) {
+        activeDelegationRef.current = null
         const summary = isEmpty
           ? t('agentPane.delegationEmptySummary')
           : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
@@ -1152,6 +1173,9 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'delegate') {
+      if (event.delegations.length > 0) {
+        nestedDelegationsDispatchedThisTurnRef.current = true
+      }
       onOrchestratorDelegationsRef.current?.(event.delegations)
       if (event.delegations.length) {
         const names = event.delegations
@@ -1388,7 +1412,7 @@ export const AgentPane: React.FC<Props> = ({
     const imagesSnapshot = pendingImages
     setInput('')
     setPendingImages([])
-    if (metaRef.current.coordination === 'orchestrator') {
+    if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
     if (busy) {
@@ -1434,7 +1458,7 @@ export const AgentPane: React.FC<Props> = ({
     if (!prompt && inboundImages.length === 0) return
     if (preferSend.focusPane !== false) onRequestPaneFocus()
     if (
-      metaRef.current.coordination === 'orchestrator'
+      coordinationCanDelegate(metaRef.current.coordination)
       && !orchestrationFollowUp
       && !delegation
     ) {
@@ -1613,9 +1637,15 @@ export const AgentPane: React.FC<Props> = ({
     setActivity('')
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
+    nestedDelegationsDispatchedThisTurnRef.current = false
     const delegation = activeDelegationRef.current
+    const decision = decideParentDelegationNotify({
+      held: Boolean(delegation),
+      dispatchedNested: false,
+      aborted: true,
+    })
     activeDelegationRef.current = null
-    if (delegation) {
+    if (decision === 'notify' && delegation) {
       onDelegationTurnCompleteRef.current?.({
         id: delegation.id,
         status: 'aborted',
@@ -1626,7 +1656,7 @@ export const AgentPane: React.FC<Props> = ({
     }
     if (wasLoop) finishLoop('stopped')
     if (chainLoopActive) onChainLoopStop?.()
-    if (metaRef.current.coordination === 'orchestrator') {
+    if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestratorStopRef.current?.()
     }
   }, [beginLiveSettle, chainLoopActive, clearLoopTimer, finishLoop, onChainLoopStop, paneId, t])
@@ -1965,6 +1995,7 @@ export const AgentPane: React.FC<Props> = ({
 
       <AgentConfigModal
         open={configOpen}
+        active={tabActive}
         meta={meta}
         cwd={cwd}
         busy={busy}
@@ -1983,13 +2014,14 @@ export const AgentPane: React.FC<Props> = ({
         onCommitIdentity={commitIdentity}
         onChangeCoordination={coordination => {
           onMetaChange(previous => {
-            if (coordination === 'orchestrator') {
-              const { acceptDelegations: _drop, ...rest } = previous
-              return { ...rest, coordination: 'orchestrator' }
+            if (coordination === 'orchestrator' || coordination === 'productOwner') {
+              const { acceptDelegations: _drop, delegateTo: _dt, ...rest } = previous
+              return { ...rest, coordination }
             }
             const {
               coordination: _drop,
               orchestrationMaxRounds: _rounds,
+              delegateTo: _dt,
               ...rest
             } = previous
             return rest
@@ -2015,6 +2047,16 @@ export const AgentPane: React.FC<Props> = ({
             return { ...previous, orchestrationMaxRounds: maxRounds }
           })
         }}
+        onChangeDelegateTo={policy => {
+          onMetaChange(previous => {
+            if (!policy) {
+              const { delegateTo: _drop, ...rest } = previous
+              return rest
+            }
+            return { ...previous, delegateTo: policy }
+          })
+        }}
+        peerAgents={peerAgents}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
@@ -2029,7 +2071,7 @@ export const AgentPane: React.FC<Props> = ({
       />
 
       <QueuedTurnEditModal
-        open={Boolean(editingQueuedId)}
+        open={Boolean(editingQueuedId) && tabActive}
         initialText={editingQueuedText}
         onClose={() => setEditingQueuedId(null)}
         onSave={text => {
@@ -2039,6 +2081,7 @@ export const AgentPane: React.FC<Props> = ({
 
       <ConfirmTerminalModal
         open={confirmClose}
+        active={tabActive}
         message={t('agentPane.closeMessage')}
         detail={t('agentPane.closeDetail')}
         onConfirm={() => {
@@ -2050,6 +2093,7 @@ export const AgentPane: React.FC<Props> = ({
       />
       <ConfirmTerminalModal
         open={confirmClear}
+        active={tabActive}
         message={t('agentPane.clearConversationMessage')}
         detail={t('agentPane.clearConversationDetail')}
         zIndex={900}
@@ -2060,7 +2104,7 @@ export const AgentPane: React.FC<Props> = ({
         onCancel={() => setConfirmClear(false)}
       />
       <TabContextsModal
-        open={contextsOpen}
+        open={contextsOpen && tabActive}
         contexts={diskContexts}
         cwd={cwd}
         focusContextId={preferOpenContextId}
@@ -2069,7 +2113,7 @@ export const AgentPane: React.FC<Props> = ({
         onClose={() => setContextsOpen(false)}
       />
       <AgentLoopIntervalModal
-        open={loopIntervalModalOpen}
+        open={loopIntervalModalOpen && tabActive}
         initialMs={loopContinueDelayMs}
         initialObjective={loopObjectiveRef.current || input}
         onConfirm={confirmLoopSetup}

@@ -67,6 +67,13 @@
   color: var(--text-muted);
 }
 
+.plane-map__empty-cta {
+  pointer-events: auto;
+  margin-top: 6px;
+  max-width: min(220px, 100%);
+  padding: 0 4px;
+}
+
 .plane-map__stage {
   position: absolute;
   inset: 0;

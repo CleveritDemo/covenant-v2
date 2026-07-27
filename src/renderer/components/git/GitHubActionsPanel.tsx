@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { GitHubActionsSnapshot } from '@shared/githubActionsTypes'
 import type { GitRepoStatus, GitTarget } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
@@ -21,15 +21,19 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
   const { t } = useT()
   const [snapshot, setSnapshot] = useState<GitHubActionsSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
+  const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
+  const targetRef = useRef(target)
+  targetRef.current = target
+  const isRepo = Boolean(repoStatus?.isRepo)
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (!repoStatus?.isRepo) {
+    if (!isRepo) {
       setSnapshot(null)
       return
     }
     setLoading(true)
     try {
-      const s = await window.api.githubActionsList(target)
+      const s = await window.api.githubActionsList(targetRef.current)
       setSnapshot(s)
     } catch (e) {
       setSnapshot({
@@ -42,7 +46,7 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
     } finally {
       setLoading(false)
     }
-  }, [target, repoStatus?.isRepo])
+  }, [targetKey, isRepo])
 
   useEffect(() => {
     void refresh()

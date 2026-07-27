@@ -45,8 +45,8 @@ export interface AgentCliStartRequest {
   emitResults?: boolean
   /** Tras migración de ids de contexto, forzar refresh completo del snapshot. */
   forceContextFullRefresh?: boolean
-  /** Orquestador: prompt de delegación + parse del fence. */
-  coordination?: 'none' | 'orchestrator'
+  /** Orquestador / product owner: prompt de delegación + parse del fence. */
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   /** Si false, el host prohíbe nuevas delegaciones en este turno. */
   allowDelegations?: boolean
   /** Oleada actual (1..max) para el prompt del orquestador. */

@@ -1,13 +1,30 @@
-/** Coordinación multi-agente (orquestador → especialistas). */
+/** Coordinación multi-agente (orquestador / product owner → especialistas). */
 
-export type AgentCoordination = 'none' | 'orchestrator'
+export type AgentCoordination = 'none' | 'orchestrator' | 'productOwner'
 
 export const MAX_DELEGATIONS_PER_TURN = 5
 /** Oleadas de delegación por pedido del usuario (default / omitido en catálogo). */
 export const MAX_ORCHESTRATION_ROUNDS = 3
 /** Tope configurable en UI/catálogo. */
 export const ORCHESTRATION_MAX_ROUNDS_CAP = 10
+/** Sentinel: sin tope de oleadas (persistir como orchestrationMaxRounds: 0). */
+export const ORCHESTRATION_UNLIMITED_ROUNDS = 0
 export const DELEGATE_OBJECTIVE_MAX_LENGTH = 2000
+
+export function isOrchestrationRoundsUnlimited(n: number): boolean {
+  return n === ORCHESTRATION_UNLIMITED_ROUNDS
+}
+
+/** Tras completar `round`: ¿ya no se permiten más delegaciones? */
+export function orchestrationRoundsAtCap(round: number, maxRounds: number): boolean {
+  if (isOrchestrationRoundsUnlimited(maxRounds)) return false
+  return round >= maxRounds
+}
+
+export function formatOrchestrationRoundLabel(round: number, maxRounds: number): string {
+  if (isOrchestrationRoundsUnlimited(maxRounds)) return `${round}/∞`
+  return `${round}/${maxRounds}`
+}
 
 export function sanitizeOrchestrationMaxRounds(raw: unknown): number {
   const n = typeof raw === 'number'
@@ -17,7 +34,9 @@ export function sanitizeOrchestrationMaxRounds(raw: unknown): number {
       : NaN
   if (!Number.isFinite(n)) return MAX_ORCHESTRATION_ROUNDS
   const int = Math.trunc(n)
-  return Math.min(ORCHESTRATION_MAX_ROUNDS_CAP, Math.max(1, int))
+  if (int === ORCHESTRATION_UNLIMITED_ROUNDS) return ORCHESTRATION_UNLIMITED_ROUNDS
+  if (int < 1) return MAX_ORCHESTRATION_ROUNDS
+  return Math.min(ORCHESTRATION_MAX_ROUNDS_CAP, int)
 }
 
 export function resolveOrchestrationMaxRounds(value?: number): number {
@@ -49,8 +68,244 @@ export interface DelegateResult {
   toPaneId?: string
 }
 
+/** A quién puede delegar un coordinador (portable vía catálogo / meta). */
+export interface DelegateToPolicy {
+  /** agentIds exactos (case-insensitive). '*' = cualquier especialista (!canDelegate) */
+  agentIds?: string[]
+  /** panes cuyo coordination esté en esta lista */
+  coordinations?: AgentCoordination[]
+  /** Ids excluidos tras el match de grupos (case-insensitive). */
+  excludeAgentIds?: string[]
+}
+
 export function sanitizeAgentCoordination(raw: unknown): AgentCoordination {
-  return raw === 'orchestrator' ? 'orchestrator' : 'none'
+  if (raw === 'orchestrator') return 'orchestrator'
+  if (raw === 'productOwner') return 'productOwner'
+  return 'none'
+}
+
+export function isOrchestrator(coordination?: AgentCoordination | null): boolean {
+  return coordination === 'orchestrator'
+}
+
+export function isProductOwner(coordination?: AgentCoordination | null): boolean {
+  return coordination === 'productOwner'
+}
+
+/** Orquestador o product owner: pueden emitir fences de delegación. */
+export function coordinationCanDelegate(coordination?: AgentCoordination | null): boolean {
+  return isOrchestrator(coordination) || isProductOwner(coordination)
+}
+
+export function defaultDelegateToPolicy(
+  coordination?: AgentCoordination | null,
+): DelegateToPolicy {
+  if (coordination === 'orchestrator') return { agentIds: ['*'] }
+  if (coordination === 'productOwner') {
+    return { coordinations: ['orchestrator'] }
+  }
+  return {}
+}
+
+function parseCoordinationList(raw: unknown): AgentCoordination[] {
+  if (!Array.isArray(raw)) return []
+  const out: AgentCoordination[] = []
+  for (const item of raw) {
+    if (item === 'none' || item === 'orchestrator' || item === 'productOwner') {
+      if (!out.includes(item)) out.push(item)
+    }
+  }
+  return out
+}
+
+function parseAgentIdList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string' || !item.trim()) continue
+    const trimmed = item.trim()
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(trimmed)
+    if (out.length >= 64) break
+  }
+  return out
+}
+
+/** Normaliza policy cruda; undefined solo si el valor está ausente. */
+export function sanitizeDelegateToPolicy(raw: unknown): DelegateToPolicy | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw !== 'object') return undefined
+  const data = raw as Record<string, unknown>
+  const agentIds = parseAgentIdList(data.agentIds)
+  const excludeAgentIds = parseAgentIdList(data.excludeAgentIds).filter(id => id !== '*')
+  const coordinations = parseCoordinationList(data.coordinations)
+  return {
+    ...(agentIds.length ? { agentIds } : {}),
+    ...(coordinations.length ? { coordinations } : {}),
+    ...(excludeAgentIds.length ? { excludeAgentIds } : {}),
+  }
+}
+
+function normalizePolicyForCompare(policy: DelegateToPolicy): string {
+  const agentIds = [...(policy.agentIds ?? [])]
+    .map(id => id.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+  const coordinations = [...(policy.coordinations ?? [])].slice().sort()
+  const excludeAgentIds = [...(policy.excludeAgentIds ?? [])]
+    .map(id => id.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+  return JSON.stringify({ agentIds, coordinations, excludeAgentIds })
+}
+
+export function delegateToPoliciesEqual(
+  a?: DelegateToPolicy | null,
+  b?: DelegateToPolicy | null,
+): boolean {
+  const left = a === undefined || a === null ? {} : (sanitizeDelegateToPolicy(a) ?? {})
+  const right = b === undefined || b === null ? {} : (sanitizeDelegateToPolicy(b) ?? {})
+  return normalizePolicyForCompare(left) === normalizePolicyForCompare(right)
+}
+
+/** Policy efectiva: override explícito (puede ser vacío) o default del rol.
+ * Product owner: siempre solo orquestadores (ignora override).
+ */
+export function resolveDelegateToPolicy(
+  coordination?: AgentCoordination | null,
+  override?: DelegateToPolicy | null,
+): DelegateToPolicy {
+  if (coordination === 'productOwner') {
+    return defaultDelegateToPolicy('productOwner')
+  }
+  if (override !== undefined && override !== null) {
+    return sanitizeDelegateToPolicy(override) ?? {}
+  }
+  return defaultDelegateToPolicy(coordination)
+}
+
+/** Para persistir: omite si equals default del coordination.
+ * Product owner: nunca persiste override (regla fija).
+ */
+export function persistableDelegateTo(
+  coordination?: AgentCoordination | null,
+  policy?: DelegateToPolicy | null,
+): DelegateToPolicy | undefined {
+  if (coordination === 'productOwner') return undefined
+  if (policy === undefined || policy === null) return undefined
+  const sanitized = sanitizeDelegateToPolicy(policy) ?? {}
+  if (delegateToPoliciesEqual(sanitized, defaultDelegateToPolicy(coordination))) {
+    return undefined
+  }
+  if (
+    !sanitized.agentIds?.length
+    && !sanitized.coordinations?.length
+    && !sanitized.excludeAgentIds?.length
+  ) {
+    return { agentIds: [] }
+  }
+  return sanitized
+}
+
+/** Pane mínimo para resolver destinos de delegación. */
+export interface DelegationTargetPane {
+  paneId: string
+  meta: {
+    id: string
+    name?: string
+    role?: string
+    coordination?: AgentCoordination
+    acceptDelegations?: boolean
+    delegateTo?: DelegateToPolicy
+  }
+}
+
+export type ProductOwnerTargetPane = DelegationTargetPane
+
+export interface DelegationSourceMeta {
+  id?: string
+  coordination?: AgentCoordination
+  delegateTo?: DelegateToPolicy
+}
+
+/**
+ * Match de grupos (sin exclusiones):
+ * ('*' y !canDelegate) OR id en agentIds OR coordination en list.
+ */
+export function agentMatchesDelegateGroups(
+  agent: { id: string; coordination?: AgentCoordination | null },
+  policy: DelegateToPolicy,
+): boolean {
+  const agentIds = policy.agentIds ?? []
+  const coordinations = policy.coordinations ?? []
+  const hasStar = agentIds.some(id => id === '*')
+  const wantedIds = new Set(
+    agentIds.filter(id => id !== '*').map(id => id.trim().toLowerCase()).filter(Boolean),
+  )
+  const idLower = agent.id.trim().toLowerCase()
+  const paneCoord = agent.coordination ?? 'none'
+  return (
+    (hasStar && !coordinationCanDelegate(agent.coordination))
+    || wantedIds.has(idLower)
+    || coordinations.includes(paneCoord)
+  )
+}
+
+function paneMatchesPolicy(
+  pane: DelegationTargetPane,
+  policy: DelegateToPolicy,
+): boolean {
+  if (!agentMatchesDelegateGroups(pane.meta, policy)) return false
+  const excluded = new Set(
+    (policy.excludeAgentIds ?? []).map(id => id.trim().toLowerCase()).filter(Boolean),
+  )
+  return !excluded.has(pane.meta.id.trim().toLowerCase())
+}
+
+/**
+ * Destinos legales según policy del emisor.
+ * Base: skip self; skip acceptDelegations===false.
+ */
+export function listDelegationTargets(
+  panes: readonly DelegationTargetPane[],
+  fromMeta: DelegationSourceMeta,
+  exceptPaneId?: string,
+): OrchestrationAgentRef[] {
+  const policy = resolveDelegateToPolicy(fromMeta.coordination, fromMeta.delegateTo)
+  const out: OrchestrationAgentRef[] = []
+  for (const pane of panes) {
+    if (exceptPaneId && pane.paneId === exceptPaneId) continue
+    if (pane.meta.acceptDelegations === false) continue
+    if (!paneMatchesPolicy(pane, policy)) continue
+    out.push({
+      agentId: pane.meta.id,
+      paneId: pane.paneId,
+      name: pane.meta.name?.trim() || pane.meta.id,
+      ...(pane.meta.role?.trim() ? { role: pane.meta.role.trim() } : {}),
+    })
+  }
+  return out
+}
+
+/** Compat: especialistas vía default de orchestrator (`agentIds: ['*']`). */
+export function listOrchestrationTargets(
+  panes: readonly DelegationTargetPane[],
+  exceptPaneId?: string,
+): OrchestrationAgentRef[] {
+  return listDelegationTargets(panes, { coordination: 'orchestrator' }, exceptPaneId)
+}
+
+/**
+ * Compat: destinos default del PO (solo orquestadores).
+ */
+export function listProductOwnerTargets(
+  panes: readonly DelegationTargetPane[],
+  exceptPaneId?: string,
+): OrchestrationAgentRef[] {
+  return listDelegationTargets(panes, { coordination: 'productOwner' }, exceptPaneId)
 }
 
 function newDelegateId(): string {
@@ -150,7 +405,13 @@ export function buildOrchestratorAgentsBlock(agents: readonly OrchestrationAgent
 /** Mensaje de seguimiento al orquestador cuando termina una delegación. */
 export function formatDelegationResultFollowUp(
   result: DelegateResult,
-  options?: { round?: number; maxRounds?: number; batchRemaining?: number },
+  options?: {
+    round?: number
+    maxRounds?: number
+    batchRemaining?: number
+    /** PO autónomo: tras PASS, seguir con el siguiente slice sin preguntar. */
+    continuousProductOwner?: boolean
+  },
 ): string {
   const lines = [
     '## Delegation result',
@@ -162,13 +423,35 @@ export function formatDelegationResultFollowUp(
   if (result.resultContextId) lines.push(`resultContextId: ${result.resultContextId}`)
   const round = options?.round
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
+  const unlimited = isOrchestrationRoundsUnlimited(maxRounds)
   if (typeof round === 'number') {
-    lines.push(`orchestrationRound: ${round}/${maxRounds}`)
+    lines.push(`orchestrationRound: ${formatOrchestrationRoundLabel(round, maxRounds)}`)
   }
   const remaining = options?.batchRemaining
   if (typeof remaining === 'number' && remaining > 0) {
     lines.push(`pendingInBatch: ${remaining}`)
     lines.push('', 'Wait for the remaining specialist results before deciding next steps.')
+  } else if (options?.continuousProductOwner) {
+    if (unlimited) {
+      lines.push(
+        '',
+        'If the slice PASSED, choose the next slice toward the user request and emit ia-terminal-delegate; do not ask the user.',
+        'There is no host wave cap for this coordinator (unlimited).',
+      )
+    } else {
+      lines.push(
+        '',
+        'If the slice PASSED, choose the next slice toward the user request and emit ia-terminal-delegate; do not ask the user; stop only if round>=maxRounds.',
+        `At most ${maxRounds} delegation waves are allowed per user request (host-enforced).`,
+      )
+    }
+  } else if (unlimited) {
+    lines.push(
+      '',
+      'Stop condition: if the user goal is satisfied, reply to the user now with a clear outcome.',
+      'Do NOT emit ```ia-terminal-delegate``` unless a specialist is still strictly required.',
+      'There is no host wave cap for this coordinator (unlimited); prefer finishing over re-delegating.',
+    )
   } else {
     lines.push(
       '',
@@ -178,6 +461,37 @@ export function formatDelegationResultFollowUp(
     )
   }
   return lines.join('\n')
+}
+
+/**
+ * Un solo follow-up al orquestador cuando el batch de especialistas ya terminó.
+ * Concatena un formatDelegationResultFollowUp por resultado (batchRemaining: 0);
+ * continuousProductOwner solo en el último bloque.
+ */
+export function buildBatchedDelegationFollowUp(
+  results: readonly DelegateResult[],
+  options?: {
+    round?: number
+    maxRounds?: number
+    continuousProductOwner?: boolean
+  },
+): string {
+  if (results.length === 0) return ''
+  const last = results.length - 1
+  return results
+    .map((result, index) => formatDelegationResultFollowUp(result, {
+      round: options?.round,
+      maxRounds: options?.maxRounds,
+      batchRemaining: 0,
+      continuousProductOwner:
+        options?.continuousProductOwner === true && index === last,
+    }))
+    .join('\n\n')
+}
+
+/** Host: despertar al orquestador solo cuando no quedan especialistas en la oleada. */
+export function shouldWakeOrchestratorOnDelegationComplete(pendingRemaining: number): boolean {
+  return pendingRemaining <= 0
 }
 
 /** Host cortó el ciclo: el modelo debe responder al usuario sin más fences. */

@@ -5,7 +5,7 @@ import {
 } from '../workspace/orchestrationBridge'
 
 describe('listOrchestrationTargets', () => {
-  it('skips orchestrators and agents that decline delegations', () => {
+  it('skips orchestrators, product owners, and agents that decline delegations', () => {
     const targets = listOrchestrationTargets([
       {
         paneId: 'p-orch',
@@ -15,6 +15,16 @@ describe('listOrchestrationTargets', () => {
           permissionMode: 'ask',
           coordination: 'orchestrator',
           name: 'Boss',
+        },
+      },
+      {
+        paneId: 'p-po',
+        meta: {
+          id: 'po',
+          provider: 'claude',
+          permissionMode: 'ask',
+          coordination: 'productOwner',
+          name: 'PO',
         },
       },
       {

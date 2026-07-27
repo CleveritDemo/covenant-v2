@@ -1515,7 +1515,7 @@ export const TerminalPane: React.FC<Props> = ({
       </div>
 
       <TerminalFindModal
-        open={findModalOpen}
+        open={findModalOpen && tabActive}
         onClose={closeFindModal}
         bufferMatches={findModalBuffer}
         historyMatches={findModalHistory}
@@ -1526,6 +1526,7 @@ export const TerminalPane: React.FC<Props> = ({
 
       <ConfirmTerminalModal
         open={confirmClosePaneOpen}
+        active={tabActive}
         message="¿Cerrar este panel?"
         detail="Se cerrará la sesión de esta terminal (PTY de esta celda)."
         onConfirm={() => {

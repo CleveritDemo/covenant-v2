@@ -14,6 +14,7 @@ import {
 } from '@shared/paneWindows'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
+import { PlaneBootstrapAgentsButton } from './PlaneBootstrapAgentsButton'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import './PlaneMap.css'
 
@@ -29,7 +30,7 @@ export interface PlaneMapEntity {
   title: string
   busy: boolean
   provider?: AgentCliProvider
-  coordination?: 'none' | 'orchestrator'
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   snippet?: string
   /** Slug del agente en catálogo (drag de results). */
   agentId?: string
@@ -47,11 +48,19 @@ export interface PlaneMapEntity {
 export interface PlaneMapProps {
   emptyTitle: string
   emptyHint: string
+  bootstrapAgentsLabel?: string
+  bootstrapAgentsTitle?: string
+  bootstrapAgentsDisabledTitle?: string
+  showBootstrapAgents?: boolean
+  canBootstrapAgents?: boolean
+  onBootstrapAgents?: () => void
   idleAgentLabel: string
   entities: PlaneMapEntity[]
   activePaneId: string
   /** Agente con chat abierto en el plano (selección estática, no busy). */
   chatActiveAgentId?: string | null
+  /** Tab activa: oculta modales portaled del plano. */
+  tabActive?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -69,6 +78,8 @@ export interface PlaneMapProps {
   onDeletePane: (paneId: string) => void
   /** Drop de contexto del pool sobre un agente. */
   onAssignContext?: (paneId: string, contextId: string) => void
+  /** Clic en icono results del mini → vista previa del contexto. */
+  onOpenResultsPreview?: (contextId: string) => void
   /** Persiste el nuevo orden de una columna (kind). */
   onReorderPanes?: (kind: PaneReorderKind, orderedPaneIds: string[]) => void
 }
@@ -144,10 +155,17 @@ function usePrefersReducedMotion(): boolean {
 export const PlaneMap: React.FC<PlaneMapProps> = ({
   emptyTitle,
   emptyHint,
+  bootstrapAgentsLabel,
+  bootstrapAgentsTitle,
+  bootstrapAgentsDisabledTitle,
+  showBootstrapAgents = false,
+  canBootstrapAgents = false,
+  onBootstrapAgents,
   idleAgentLabel,
   entities,
   activePaneId,
   chatActiveAgentId = null,
+  tabActive = true,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -163,6 +181,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onOpenChat,
   onDeletePane,
   onAssignContext,
+  onOpenResultsPreview,
   onReorderPanes,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -422,6 +441,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           miniOrigin={slot}
           activePaneId={activePaneId}
           chatActive={entity.kind === 'agent' && entity.paneId === chatActiveAgentId}
+          tabActive={tabActive}
           contexts={entity.contexts}
           configLabel={configLabel}
           deleteLabel={deleteLabel}
@@ -440,6 +460,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onDropContext={entity.kind === 'agent' && onAssignContext
             ? contextId => onAssignContext(entity.paneId, contextId)
             : undefined}
+          onOpenResultsPreview={entity.kind === 'agent' ? onOpenResultsPreview : undefined}
           onMiniContentHeightChange={entity.kind === 'agent'
             ? height => handleAgentMiniHeight(entity.paneId, height)
             : undefined}
@@ -484,6 +505,17 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         <div className="plane-map__empty">
           <strong>{emptyTitle}</strong>
           <p>{emptyHint}</p>
+          {showBootstrapAgents && bootstrapAgentsLabel && onBootstrapAgents ? (
+            <div className="plane-map__empty-cta">
+              <PlaneBootstrapAgentsButton
+                label={bootstrapAgentsLabel}
+                title={bootstrapAgentsTitle}
+                disabled={!canBootstrapAgents}
+                disabledTitle={bootstrapAgentsDisabledTitle}
+                onClick={onBootstrapAgents}
+              />
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="plane-map__stage">

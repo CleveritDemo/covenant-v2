@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildAiAgentDelegateInstruction,
+  buildAiAgentProductOwnerInstruction,
   extractAiAgentDelegates,
 } from '../aiAgentDelegate'
 
@@ -47,10 +48,51 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(text).toContain('Stop delegating when')
   })
 
+  it('uses unlimited wording when maxRounds is 0', () => {
+    const text = buildAiAgentDelegateInstruction({ round: 2, maxRounds: 0 })
+    expect(text).toContain('2/∞')
+    expect(text).toContain('no host wave cap')
+    expect(text).not.toContain('At most 0')
+  })
+
   it('disables fences when allowDelegations is false', () => {
     const text = buildAiAgentDelegateInstruction({ allowDelegations: false })
     expect(text).toContain('DISABLED')
     expect(text).toContain('Do NOT emit')
     expect(text).not.toContain('"delegations"')
+  })
+})
+
+describe('buildAiAgentProductOwnerInstruction', () => {
+  it('documents continuous delivery of the user request and allowed agent ids', () => {
+    const text = buildAiAgentProductOwnerInstruction({
+      allowedAgentIds: ['example-tl'],
+    })
+    expect(text).toContain('ia-terminal-delegate')
+    expect(text).toContain('product owner')
+    expect(text).toContain('example-tl')
+    expect(text).toContain('do NOT write code')
+    expect(text).toContain("user's initial request")
+    expect(text).toContain('Do not invent unrelated product features')
+    expect(text).toContain('toward the user request')
+    expect(text).toContain('contexts')
+    expect(text).toContain('FORBIDDEN')
+    expect(text).toContain('¿seguimos?')
+    expect(text).not.toContain('Invent and prioritize valuable improvements')
+    expect(text).not.toContain('When the goal is met, reply to the user and do NOT emit')
+  })
+
+  it('disables fences when allowDelegations is false', () => {
+    const text = buildAiAgentProductOwnerInstruction({ allowDelegations: false })
+    expect(text).toContain('DISABLED')
+    expect(text).toContain('Do NOT emit')
+  })
+
+  it('omits host wave cap when maxRounds is unlimited', () => {
+    const text = buildAiAgentProductOwnerInstruction({ round: 5, maxRounds: 0 })
+    expect(text).toContain('5/∞')
+    expect(text).toContain('no host wave cap')
+    expect(text).not.toContain('wave cap is reached')
+    expect(text).not.toContain('waves remain')
   })
 })

@@ -9,6 +9,12 @@ export interface PlaneFabStackProps {
   terminalTitle: string
   onAddAgent: () => void
   onAddTerminal: () => void
+  /** Title/aria largo del FAB bootstrap (roles). */
+  bootstrapAgentsTitle?: string
+  bootstrapAgentsDisabledTitle?: string
+  showBootstrapAgents?: boolean
+  canBootstrapAgents?: boolean
+  onBootstrapAgents?: () => void
 }
 
 export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
@@ -19,8 +25,22 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   terminalTitle,
   onAddAgent,
   onAddTerminal,
+  bootstrapAgentsTitle,
+  bootstrapAgentsDisabledTitle,
+  showBootstrapAgents = false,
+  canBootstrapAgents = false,
+  onBootstrapAgents,
 }) => (
   <div className="plane-fab-stack">
+    {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
+      <PlaneFab
+        kind="bootstrap"
+        label={bootstrapAgentsTitle}
+        disabled={!canBootstrapAgents}
+        disabledTitle={bootstrapAgentsDisabledTitle}
+        onClick={onBootstrapAgents}
+      />
+    ) : null}
     <PlaneFab
       kind="agent"
       label={agentTitle}

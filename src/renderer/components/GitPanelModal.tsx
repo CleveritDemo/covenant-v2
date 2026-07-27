@@ -12,6 +12,7 @@ import { GitBranchBadge } from './git/GitBranchBadge'
 import { GitFileList } from './git/GitFileList'
 import { GitHubActionsPanel } from './git/GitHubActionsPanel'
 import { formatGitCommandResult } from './git/gitErrorI18n'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './GitPanelModal.css'
 
 interface GitPanelModalProps {
@@ -36,6 +37,8 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
   const aiAbortRef = useRef<AbortController | null>(null)
   const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
+  const targetRef = useRef(target)
+  targetRef.current = target
 
   useEffect(() => {
     return () => {
@@ -46,7 +49,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true)
     try {
-      const s = await window.api.gitStatus(target)
+      const s = await window.api.gitStatus(targetRef.current)
       setStatus(s)
     } catch (e) {
       setStatus({
@@ -60,7 +63,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     } finally {
       setLoading(false)
     }
-  }, [target])
+  }, [targetKey])
 
   const refreshAll = useCallback((): void => {
     void refresh()
@@ -72,8 +75,11 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setStatus(null)
     setCommitMsg('')
     setLastLog('')
-    refreshAll()
-  }, [open, targetKey, refreshAll])
+    setActionsRefreshToken(n => n + 1)
+    void refresh()
+    // Solo al abrir o cambiar de repo: no re-ejecutar por identidad de callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh/refreshAll recreados por renders padre
+  }, [open, targetKey])
 
   useEffect(() => {
     if (!open) return
@@ -108,32 +114,32 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
 
   const onStageFile = useCallback(
     (relPath: string): void => {
-      void runAndLog(`git add ${relPath}`, () => window.api.gitStageFile(target, relPath))
+      void runAndLog(`git add ${relPath}`, () => window.api.gitStageFile(targetRef.current, relPath))
     },
-    [runAndLog, target],
+    [runAndLog],
   )
 
   const onUnstageFile = useCallback(
     (relPath: string): void => {
-      void runAndLog(`git restore --staged ${relPath}`, () => window.api.gitUnstageFile(target, relPath))
+      void runAndLog(`git restore --staged ${relPath}`, () => window.api.gitUnstageFile(targetRef.current, relPath))
     },
-    [runAndLog, target],
+    [runAndLog],
   )
 
   const onStageAll = useCallback((): void => {
-    void runAndLog('git add -A', () => window.api.gitStageAll(target))
-  }, [runAndLog, target])
+    void runAndLog('git add -A', () => window.api.gitStageAll(targetRef.current))
+  }, [runAndLog])
 
   const onUnstageAll = useCallback((): void => {
-    void runAndLog('git restore --staged .', () => window.api.gitUnstageAll(target))
-  }, [runAndLog, target])
+    void runAndLog('git restore --staged .', () => window.api.gitUnstageAll(targetRef.current))
+  }, [runAndLog])
 
   const onPull = (): void => {
-    void runAndLog('git pull', () => window.api.gitPull(target))
+    void runAndLog('git pull', () => window.api.gitPull(targetRef.current))
   }
 
   const onPush = (): void => {
-    void runAndLog('git push', () => window.api.gitPush(target))
+    void runAndLog('git push', () => window.api.gitPush(targetRef.current))
   }
 
   const onCommit = (): void => {
@@ -143,7 +149,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
       return
     }
     void (async (): Promise<void> => {
-      await runAndLog('git commit', () => window.api.gitCommit(target, msg))
+      await runAndLog('git commit', () => window.api.gitCommit(targetRef.current, msg))
       setCommitMsg('')
     })()
   }
@@ -156,7 +162,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setLastLog('')
     void (async (): Promise<void> => {
       try {
-        const diff = await window.api.gitDiffForAi(target)
+        const diff = await window.api.gitDiffForAi(targetRef.current)
         if (!diff.ok) {
           setLastLog(diff.error ?? t('git.diffError'))
           return
@@ -190,7 +196,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
         titleId="git-panel-title"
         size="xxl"
         bodyLayout="flush"
-        zIndex={670}
+        zIndex={APP_OVERLAY_MODAL_Z}
         closeOnBackdrop
         footer={
           <span className="git-panel-footer-hint">

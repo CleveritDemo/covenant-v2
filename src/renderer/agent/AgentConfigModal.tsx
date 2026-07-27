@@ -4,7 +4,7 @@ import type { TabContext } from '@shared/tabContext'
 import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
-import type { AgentCoordination } from '@shared/agentOrchestration'
+import type { AgentCoordination, DelegateToPolicy } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
@@ -12,6 +12,7 @@ import { AgentConfigHero } from './AgentConfigHero'
 import { AgentConfigIdentityColumn } from './AgentConfigIdentityColumn'
 import { AgentConfigLockBanner } from './AgentConfigLockBanner'
 import { AgentConfigSettingsPane } from './AgentConfigSettingsPane'
+import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
 import './AgentConfigModal.css'
 
 function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
@@ -42,6 +43,7 @@ export interface AgentConfigModalProps {
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
+  onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
@@ -50,8 +52,12 @@ export interface AgentConfigModalProps {
   onOpenContextsModal: () => void
   onAutoImproveChange: (checked: boolean) => void
   onContextsTabFocus?: () => void
+  /** Otros agentes del tab (exclusiones delegateTo). */
+  peerAgents?: DelegateToPeerAgent[]
   /** Cerrar al pulsar el fondo (por defecto sí para este modal). */
   closeOnBackdrop?: boolean
+  /** Tab activa: oculta el portal sin cerrar configOpen del padre. */
+  active?: boolean
 }
 
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
@@ -70,6 +76,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeCoordination,
   onAcceptDelegationsChange,
   onOrchestrationMaxRoundsChange,
+  onChangeDelegateTo,
   onChangeProvider,
   onChangeModel,
   onChangePermission,
@@ -78,7 +85,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onOpenContextsModal,
   onAutoImproveChange,
   onContextsTabFocus,
+  peerAgents = [],
   closeOnBackdrop = true,
+  active = true,
 }) => {
   const { t } = useT()
   const locked = busy || loopActive || awaitingDelegations
@@ -127,6 +136,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   return (
     <TerminalModal
       open={open}
+      active={active}
       onClose={handleClose}
       size="lg"
       zIndex={820}
@@ -176,6 +186,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           onChangeCoordination={onChangeCoordination}
           onAcceptDelegationsChange={onAcceptDelegationsChange}
           onOrchestrationMaxRoundsChange={onOrchestrationMaxRoundsChange}
+          onChangeDelegateTo={onChangeDelegateTo}
           onChangeProvider={onChangeProvider}
           onChangeModel={onChangeModel}
           onChangePermission={onChangePermission}
@@ -184,6 +195,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           onOpenContextsModal={onOpenContextsModal}
           onAutoImproveChange={onAutoImproveChange}
           onContextsTabFocus={onContextsTabFocus}
+          peerAgents={peerAgents}
         />
       </div>
     </TerminalModal>

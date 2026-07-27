@@ -9,28 +9,32 @@ interface Props {
   message: string
   detail?: string
   zIndex?: number
+  /** Tab/pane activo: oculta el portal sin cerrar el confirm del padre. */
+  active?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
 
 export const ConfirmTerminalModal: React.FC<Props> = ({
-  open, message, detail, zIndex = 600, onConfirm, onCancel,
+  open, message, detail, zIndex = 600, active = true, onConfirm, onCancel,
 }) => {
   const { t } = useT()
   const confirm = useCallback(() => { onConfirm() }, [onConfirm])
+  const visible = open && active
 
   useEffect(() => {
-    if (!open) return
+    if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); confirm() }
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, confirm])
+  }, [visible, confirm])
 
   return (
     <TerminalModal
       open={open}
+      active={active}
       onClose={onCancel}
       size="sm"
       zIndex={zIndex}

@@ -27,6 +27,8 @@ export interface TabFileExplorerWindowProps {
   onClose: () => void
   title: string
   zIndex?: number
+  /** Tab activa: oculta el portal sin cerrar explorerState.open. */
+  tabActive?: boolean
 }
 
 /** Explorador de archivos como TerminalModal xxl (chrome macOS del modal). */
@@ -43,6 +45,7 @@ export const TabFileExplorerWindow = forwardRef<
     onClose,
     title,
     zIndex,
+    tabActive = true,
   },
   ref,
 ) {
@@ -71,6 +74,7 @@ export const TabFileExplorerWindow = forwardRef<
   return (
     <TerminalModal
       open={explorerState.open}
+      active={tabActive}
       onClose={onClose}
       title={title}
       titleId="tab-file-explorer-title"

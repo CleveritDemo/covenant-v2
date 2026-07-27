@@ -82,6 +82,17 @@
   box-shadow: none;
 }
 
+.plane-fab--bootstrap {
+  color: #0c0c0e;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--ok, #3ecf8e) 88%, #7ee0b0),
+    color-mix(in srgb, var(--ok, #3ecf8e) 52%, var(--accent-dim))
+  );
+  border-color: color-mix(in srgb, var(--ok, #3ecf8e) 45%, transparent);
+  box-shadow: none;
+}
+
 .plane-fab--terminal {
   color: #0c0c0e;
   background: linear-gradient(
@@ -94,6 +105,7 @@
 }
 
 :root[data-theme-appearance='light'] .plane-fab--agent,
+:root[data-theme-appearance='light'] .plane-fab--bootstrap,
 :root[data-theme-appearance='light'] .plane-fab--terminal {
   color: #f7f7fc;
 }

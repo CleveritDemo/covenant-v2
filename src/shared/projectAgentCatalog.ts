@@ -9,14 +9,16 @@ import {
 import {
   sanitizeAgentCoordination,
   sanitizeOrchestrationMaxRounds,
+  persistableDelegateTo,
   MAX_ORCHESTRATION_ROUNDS,
   type AgentCoordination,
+  type DelegateToPolicy,
 } from './agentOrchestration'
 import { normalizeContextFileName, type TabContext } from './tabContext'
 
 export type AgentCliProvider = 'claude' | 'cursor'
 export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
-export type { AgentCoordination }
+export type { AgentCoordination, DelegateToPolicy }
 
 /** Definición compartible en `.iaterminal/agents/<id>.json`. */
 export interface ProjectAgentDefinition {
@@ -31,12 +33,14 @@ export interface ProjectAgentDefinition {
   contextIds?: string[]
   autoImproveContexts?: boolean
   emitResults?: boolean
-  /** none (default) | orchestrator: puede delegar a otros agentes. */
+  /** none (default) | orchestrator | productOwner: puede delegar a otros agentes. */
   coordination?: AgentCoordination
   /** Si false, no acepta subtareas del orquestador (default true). */
   acceptDelegations?: boolean
   /** Tope de oleadas de delegación (solo orquestador; default 3, omitido si default). */
   orchestrationMaxRounds?: number
+  /** A quién puede delegar; omitido si equals default del coordination. */
+  delegateTo?: DelegateToPolicy
 }
 
 /** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
@@ -286,10 +290,14 @@ export function parseProjectAgentDefinition(
   if (data.autoImproveContexts === true) def.autoImproveContexts = true
   def.emitResults = true
   const coordination = sanitizeAgentCoordination(data.coordination)
-  if (coordination === 'orchestrator') {
-    def.coordination = 'orchestrator'
+  if (coordination === 'orchestrator' || coordination === 'productOwner') {
+    def.coordination = coordination
     const maxRounds = sanitizeOrchestrationMaxRounds(data.orchestrationMaxRounds)
     if (maxRounds !== MAX_ORCHESTRATION_ROUNDS) def.orchestrationMaxRounds = maxRounds
+    if (data.delegateTo !== undefined) {
+      const delegateTo = persistableDelegateTo(coordination, data.delegateTo)
+      if (delegateTo) def.delegateTo = delegateTo
+    }
   }
   if (data.acceptDelegations === false) def.acceptDelegations = false
   return def
@@ -315,13 +323,19 @@ export function cloneProjectAgentDefinition(
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
     emitResults: true,
-    ...(source.coordination === 'orchestrator' ? { coordination: 'orchestrator' as const } : {}),
+    ...(source.coordination === 'orchestrator' || source.coordination === 'productOwner'
+      ? { coordination: source.coordination }
+      : {}),
     ...(source.acceptDelegations === false ? { acceptDelegations: false } : {}),
-    ...(source.coordination === 'orchestrator'
+    ...((source.coordination === 'orchestrator' || source.coordination === 'productOwner')
       && typeof source.orchestrationMaxRounds === 'number'
       && source.orchestrationMaxRounds !== MAX_ORCHESTRATION_ROUNDS
       ? { orchestrationMaxRounds: sanitizeOrchestrationMaxRounds(source.orchestrationMaxRounds) }
       : {}),
+    ...(() => {
+      const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
+      return delegateTo ? { delegateTo } : {}
+    })(),
   }
 }
 
@@ -423,6 +437,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
+    delegateTo: meta.delegateTo,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: meta.provider === 'cursor' ? 'cursor' : 'claude',

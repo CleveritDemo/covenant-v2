@@ -26,7 +26,7 @@ export const PlaneExplorerButton = forwardRef<HTMLButtonElement, PlaneExplorerBu
         aria-pressed={pressed}
         onClick={onClick}
       >
-        <Icon name="sidebar" size={13} />
+        <Icon name="files" size={13} />
       </button>
     )
   },

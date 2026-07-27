@@ -34,13 +34,22 @@ import {
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
 } from '@shared/paneWindows'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
-  listOrchestrationTargets,
+  listDelegationTargetsForMeta,
   resolveDelegationTargetPaneId,
 } from './workspace/orchestrationBridge'
-import { formatDelegationResultFollowUp, formatDelegationRoundCapFollowUp, resolveOrchestrationMaxRounds } from '@shared/agentOrchestration'
+import {
+  formatDelegationResultFollowUp,
+  formatDelegationRoundCapFollowUp,
+  buildBatchedDelegationFollowUp,
+  shouldWakeOrchestratorOnDelegationComplete,
+  resolveOrchestrationMaxRounds,
+  isOrchestrationRoundsUnlimited,
+  orchestrationRoundsAtCap,
+} from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
   clearPlaneSendsForOrchestrationAbort,
@@ -49,7 +58,9 @@ import {
 import {
   contextIdsEqual,
   resolveAssignedContextChips,
+  resolveTabContextById,
 } from './workspace/resolveAssignedContextChips'
+import { ContextContentPreviewModal } from './workspace/ContextContentPreviewModal'
 import { Titlebar } from './components/Titlebar'
 import { sessionCwdFolderName } from './terminal/explorer/explorerPathUtils'
 import {
@@ -92,6 +103,7 @@ import {
   remapAgentResultTabContexts,
   type ProjectAgentDefinition,
 } from '../shared/projectAgentCatalog'
+import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
 import {
   removePaneFromLoopChains,
   activeLoopChainPaneIds,
@@ -302,6 +314,10 @@ export const App: React.FC = () => {
   }>>())
   /** Delegaciones en vuelo: id → destino (para cancelar al stop del orquestador). */
   const pendingDelegationsByOrchestratorRef = useRef(new Map<string, Map<string, string>>())
+  /** Resultados de especialistas ya terminados, esperando el cierre del batch. */
+  const completedDelegationResultsByOrchestratorRef = useRef(
+    new Map<string, DelegateResult[]>(),
+  )
   const [awaitingDelegationPaneIds, setAwaitingDelegationPaneIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -319,9 +335,12 @@ export const App: React.FC = () => {
   /** Oleadas de delegación por orquestador (se resetea en cada pedido humano). */
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
+  const [resultsPreview, setResultsPreview] = useState<{
+    tabId: string
+    context: TabContext
+  } | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
   const tabExplorerHostByTabRef = useRef<Map<string, TabFileExplorerWindowHandle>>(new Map())
-  const [explorerZByTab, setExplorerZByTab] = useState<Record<string, number>>({})
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
   /** Mirror reactivo de cwdsRef para badges de minis en el plano. */
@@ -867,20 +886,17 @@ export const App: React.FC = () => {
       patchTabExplorer(tabId, { open: false, fullscreen: false })
       return
     }
-    let nextZ = 40
     setTabs(prev => {
       const nextTabs = prev.map(item => {
         if (item.id !== tabId || item.paneIds.length === 0) return item
         const ensured = ensureTabPaneLayout(item)
         const paneWindows = { ...(ensured.paneWindows ?? {}) }
         minimizeOtherPaneWindows(item.paneIds, paneWindows, '')
-        nextZ = maxPaneWindowZ(paneWindows) + 1
         return { ...ensured, paneWindows }
       })
       tabsRef.current = nextTabs
       return nextTabs
     })
-    setExplorerZByTab(prev => ({ ...prev, [tabId]: nextZ }))
     patchTabExplorer(tabId, { open: true, fullscreen: false })
   }, [patchTabExplorer])
 
@@ -1032,20 +1048,17 @@ export const App: React.FC = () => {
     if (!tab || !resolveTabTerminalPaneId(tab)) return
     const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
     if (!current.open) {
-      let nextZ = 40
       setTabs(prev => {
         const nextTabs = prev.map(item => {
           if (item.id !== tabId || item.paneIds.length === 0) return item
           const ensured = ensureTabPaneLayout(item)
           const paneWindows = { ...(ensured.paneWindows ?? {}) }
           minimizeOtherPaneWindows(item.paneIds, paneWindows, '')
-          nextZ = maxPaneWindowZ(paneWindows) + 1
           return { ...ensured, paneWindows }
         })
         tabsRef.current = nextTabs
         return nextTabs
       })
-      setExplorerZByTab(prev => ({ ...prev, [tabId]: nextZ }))
     }
     patchTabExplorer(tabId, {
       open: true,
@@ -1346,6 +1359,70 @@ export const App: React.FC = () => {
     }))
     scheduleSaveSession()
   }, [rememberPaneCwd, rememberProjectAgent, scheduleSaveSession])
+
+  const bootstrapProjectAgents = useCallback(async (tabId: string) => {
+    const current = tabsRef.current.find(tab => tab.id === tabId)
+    if (!current) return
+    const cwd = current.projectFolder?.trim() || ''
+    if (!cwd) return
+    const catalog = projectAgentsByCwdRef.current[cwd] ?? []
+    if (catalog.length > 0) return
+    const hasAgentPane = (current.paneIds ?? []).some(
+      paneId => current.paneKinds?.[paneId] === 'agent',
+    )
+    if (hasAgentPane) return
+
+    const room = MAX_PANES_PER_TAB - current.paneIds.length
+    if (room <= 0) return
+
+    const existing = new Set(catalog.map(agent => agent.id))
+    const definitions = buildBootstrapProjectAgentDefinitions('cursor', existing)
+      .slice(0, room)
+
+    for (const definition of definitions) {
+      const tabNow = tabsRef.current.find(tab => tab.id === tabId)
+      if (!tabNow || tabNow.paneIds.length >= MAX_PANES_PER_TAB) break
+
+      const written = await window.api.upsertProjectAgent(cwd, definition)
+      if (!written.ok) continue
+      rememberProjectAgent(cwd, written.agent)
+      await window.api.ensureAiAgentResults({
+        cwd,
+        agentId: written.agent.id,
+        agentName: written.agent.name ?? definition.name ?? written.agent.id,
+      })
+
+      const paneId = crypto.randomUUID()
+      rememberPaneCwd(paneId, cwd)
+      setTabs(prev => prev.map(tab => {
+        if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+        const paneWindows = { ...(tab.paneWindows ?? {}) }
+        paneWindows[paneId] = createPaneWindowState(paneWindows, false)
+        const paneKinds: Record<string, PaneKind> = {
+          ...(tab.paneKinds ?? {}),
+          [paneId]: 'agent',
+        }
+        return normalizeTabSession({
+          ...tab,
+          paneIds: [...tab.paneIds, paneId],
+          activePaneId: paneId,
+          paneKinds,
+          paneWindows,
+          agentByPane: {
+            ...(tab.agentByPane ?? {}),
+            [paneId]: { agentId: written.agent.id },
+          },
+        })
+      }))
+    }
+    scheduleSaveSession()
+    void refreshAndSyncProjectAgents(cwd, tabId)
+  }, [
+    rememberPaneCwd,
+    rememberProjectAgent,
+    refreshAndSyncProjectAgents,
+    scheduleSaveSession,
+  ])
 
   /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
   const handleDuplicateAgentPane = useCallback(async (
@@ -1968,7 +2045,7 @@ export const App: React.FC = () => {
     const previousRounds = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 0
     const nextRound = previousRounds + 1
     orchestrationRoundsByPaneRef.current.set(fromPaneId, nextRound)
-    if (nextRound > maxRounds) {
+    if (!isOrchestrationRoundsUnlimited(maxRounds) && nextRound > maxRounds) {
       enqueueOrchestrationSend(fromPaneId, {
         text: formatDelegationRoundCapFollowUp(maxRounds),
         focusPane: false,
@@ -1986,7 +2063,8 @@ export const App: React.FC = () => {
         paneId,
         meta: resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current),
       }))
-    const targets = listOrchestrationTargets(panes, fromPaneId)
+    const fromMeta = resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+    const targets = listDelegationTargetsForMeta(panes, fromMeta, fromPaneId)
     const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
       ?? new Map<string, string>()
     for (const delegation of delegations) {
@@ -2002,10 +2080,11 @@ export const App: React.FC = () => {
             round: nextRound,
             maxRounds,
             batchRemaining: 0,
+            continuousProductOwner: fromMeta.coordination === 'productOwner',
           }),
           focusPane: false,
           orchestrationFollowUp: true,
-          allowDelegations: nextRound < maxRounds,
+          allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
         })
         continue
       }
@@ -2037,15 +2116,26 @@ export const App: React.FC = () => {
     if (pending && remaining === 0) {
       pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
     }
+    const buffered = completedDelegationResultsByOrchestratorRef.current.get(fromPaneId) ?? []
+    buffered.push(result)
+    completedDelegationResultsByOrchestratorRef.current.set(fromPaneId, buffered)
     syncAwaitingFromPending()
+    if (!shouldWakeOrchestratorOnDelegationComplete(remaining)) return
+
+    const batchResults = completedDelegationResultsByOrchestratorRef.current.get(fromPaneId) ?? []
+    completedDelegationResultsByOrchestratorRef.current.delete(fromPaneId)
     const round = orchestrationRoundsByPaneRef.current.get(fromPaneId) ?? 1
     const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
-    const atCap = round >= maxRounds
+    const atCap = orchestrationRoundsAtCap(round, maxRounds)
+    const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+    const fromMeta = tab
+      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+      : undefined
     enqueueOrchestrationSend(fromPaneId, {
-      text: formatDelegationResultFollowUp(result, {
+      text: buildBatchedDelegationFollowUp(batchResults, {
         round,
         maxRounds,
-        batchRemaining: remaining,
+        continuousProductOwner: fromMeta?.coordination === 'productOwner',
       }),
       focusPane: false,
       orchestrationFollowUp: true,
@@ -2066,6 +2156,7 @@ export const App: React.FC = () => {
     const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
     const runningTargets = pending ? [...new Set(pending.values())] : []
     pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
+    completedDelegationResultsByOrchestratorRef.current.delete(fromPaneId)
     orchestrationRoundsByPaneRef.current.delete(fromPaneId)
     // No reinyectar follow-ups ni subtareas pendientes de este orquestador.
     orchestrationFifoByPaneRef.current.delete(fromPaneId)
@@ -2554,8 +2645,19 @@ export const App: React.FC = () => {
                 paneId: id,
                 meta: resolveTabAgentMeta(tab, id, projectAgentsByCwdRef.current),
               }))
-            return listOrchestrationTargets(panes, paneId)
+            const selfMeta = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
+            return listDelegationTargetsForMeta(panes, selfMeta, paneId)
           }}
+          peerAgents={(tab.paneIds ?? [])
+            .filter(id => id !== paneId && tab.paneKinds?.[id] === 'agent')
+            .map(id => {
+              const peerMeta = resolveTabAgentMeta(tab, id, projectAgentsByCwd)
+              return {
+                id: peerMeta.id,
+                name: peerMeta.name?.trim() || peerMeta.id,
+                coordination: peerMeta.coordination ?? 'none',
+              }
+            })}
           onOrchestratorDelegations={delegations => {
             handleOrchestratorDelegations(paneId, tab.id, delegations)
           }}
@@ -2739,8 +2841,9 @@ export const App: React.FC = () => {
                   busy: busyPanes.has(paneId),
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'
-                    ? 'orchestrator'
-                    : 'none') as 'none' | 'orchestrator',
+                    || meta?.coordination === 'productOwner'
+                    ? meta.coordination
+                    : 'none') as 'none' | 'orchestrator' | 'productOwner',
                   snippet: status?.lastSnippet ?? status?.activity ?? '',
                   agentId: meta?.id,
                   contextIds: assignedIds,
@@ -2777,18 +2880,26 @@ export const App: React.FC = () => {
                 {(() => {
                   const explorerState = explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE
                   const explorerSessionId = resolveTabTerminalPaneId(tab)
+                  const projectCwd = tab.projectFolder?.trim() || ''
+                  const catalogEmpty = (projectAgentsByCwd[projectCwd] ?? []).length === 0
+                  const noAgentPanes = !(tab.paneIds ?? []).some(
+                    paneId => tab.paneKinds?.[paneId] === 'agent',
+                  )
+                  const showBootstrapAgents = catalogEmpty && noAgentPanes
+                  const canBootstrapAgents = showBootstrapAgents && Boolean(projectCwd)
                   return (
                       <div className="tab-terminal-group__main">
                 <TabAgenticPlane
                   emptyTitle={t('tabs.planeEmptyTitle')}
                   emptyHint={t('tabs.planeEmptyHint')}
+                  tabActive={tab.id === activeTabId}
                   agentFabTitle={
-                    tab.projectFolder?.trim()
+                    projectCwd
                       ? t('tabs.fabAgent')
                       : t('agentPane.projectFolderRequired')
                   }
                   terminalFabTitle={
-                    tab.projectFolder?.trim()
+                    projectCwd
                       ? t('tabs.fabTerminal')
                       : t('agentPane.projectFolderRequired')
                   }
@@ -2810,8 +2921,14 @@ export const App: React.FC = () => {
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   canAdd={tab.paneIds.length < MAX_PANES_PER_TAB}
-                  canAddAgent={Boolean(tab.projectFolder?.trim())}
-                  canAddTerminal={Boolean(tab.projectFolder?.trim())}
+                  canAddAgent={Boolean(projectCwd)}
+                  canAddTerminal={Boolean(projectCwd)}
+                  bootstrapAgentsLabel={t('tabs.bootstrapAgents')}
+                  bootstrapAgentsTitle={t('tabs.bootstrapAgentsTitle')}
+                  bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
+                  showBootstrapAgents={showBootstrapAgents}
+                  canBootstrapAgents={canBootstrapAgents}
+                  onBootstrapAgents={() => { void bootstrapProjectAgents(tab.id) }}
                   activePaneId={tab.activePaneId}
                   entities={entities}
                   onAddAgent={() => {
@@ -2825,6 +2942,12 @@ export const App: React.FC = () => {
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
                   onAssignContext={(paneId, contextId) => {
                     handleAssignContextToAgent(tab.id, paneId, contextId)
+                  }}
+                  onOpenResultsPreview={contextId => {
+                    const discovered = tabContextsByTabRef.current[tab.id] ?? []
+                    const context = resolveTabContextById(contextId, discovered)
+                    if (!context) return
+                    setResultsPreview({ tabId: tab.id, context })
                   }}
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
@@ -2930,7 +3053,7 @@ export const App: React.FC = () => {
                   explorerState={explorerState}
                   explorerTitle={t('fileExplorer.ariaLabel')}
                   explorerButtonLabel={t('paneToolbar.explorerTitle')}
-                  explorerZIndex={explorerZByTab[tab.id] ?? 40}
+                  explorerZIndex={APP_OVERLAY_MODAL_Z}
                   explorerThemeId={config.themeId}
                   explorerCwd={
                     explorerSessionId
@@ -2974,7 +3097,7 @@ export const App: React.FC = () => {
         const cwd = modalTab.projectFolder?.trim() || ''
         return (
           <TabContextsModal
-            open
+            open={planeContextsModalTabId === activeTabId}
             contexts={tabContextsByTab[modalTab.id] ?? []}
             cwd={cwd}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
@@ -2982,6 +3105,20 @@ export const App: React.FC = () => {
               setPlaneContextsModalTabId(null)
               void refreshTabContexts(modalTab.id)
             }}
+          />
+        )
+      })()}
+
+      {(() => {
+        if (!resultsPreview) return null
+        const previewTab = tabs.find(item => item.id === resultsPreview.tabId)
+        if (!previewTab) return null
+        return (
+          <ContextContentPreviewModal
+            open={resultsPreview.tabId === activeTabId}
+            context={resultsPreview.context}
+            cwd={previewTab.projectFolder?.trim() || ''}
+            onClose={() => setResultsPreview(null)}
           />
         )
       })()}

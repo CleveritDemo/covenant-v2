@@ -1,29 +1,31 @@
 import type { AgentPaneMeta } from '@shared/projectAgentCatalog'
-import type { DelegateRequest, OrchestrationAgentRef } from '@shared/agentOrchestration'
+import {
+  listDelegationTargets,
+  listOrchestrationTargets as listOrchestrationTargetsShared,
+  type DelegateRequest,
+  type OrchestrationAgentRef,
+} from '@shared/agentOrchestration'
 
 export interface OrchestrationPaneSnapshot {
   paneId: string
   meta: AgentPaneMeta
 }
 
-/** Especialistas del tab que pueden recibir delegaciones (no orquestadores). */
+/** Compat thin wrapper → listDelegationTargets con default orchestrator. */
 export function listOrchestrationTargets(
   panes: readonly OrchestrationPaneSnapshot[],
   exceptPaneId?: string,
 ): OrchestrationAgentRef[] {
-  const out: OrchestrationAgentRef[] = []
-  for (const pane of panes) {
-    if (exceptPaneId && pane.paneId === exceptPaneId) continue
-    if (pane.meta.coordination === 'orchestrator') continue
-    if (pane.meta.acceptDelegations === false) continue
-    out.push({
-      agentId: pane.meta.id,
-      paneId: pane.paneId,
-      name: pane.meta.name?.trim() || pane.meta.id,
-      ...(pane.meta.role?.trim() ? { role: pane.meta.role.trim() } : {}),
-    })
-  }
-  return out
+  return listOrchestrationTargetsShared(panes, exceptPaneId)
+}
+
+/** Destinos según policy del emisor (un solo camino). */
+export function listDelegationTargetsForMeta(
+  panes: readonly OrchestrationPaneSnapshot[],
+  fromMeta: AgentPaneMeta,
+  exceptPaneId?: string,
+): OrchestrationAgentRef[] {
+  return listDelegationTargets(panes, fromMeta, exceptPaneId)
 }
 
 /** Resuelve paneId destino por agentId (primer match). */

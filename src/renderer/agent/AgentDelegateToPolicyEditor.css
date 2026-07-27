@@ -1,0 +1,47 @@
+.agent-delegate-to-policy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-delegate-to-policy__label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.agent-delegate-to-policy__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.agent-delegate-to-policy__specialists {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.agent-delegate-to-policy__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-delegate-to-policy__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.agent-delegate-to-policy__check input {
+  margin: 0;
+}

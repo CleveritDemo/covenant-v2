@@ -4,13 +4,19 @@ import type { TabContext } from '@shared/tabContext'
 import { modelsForProvider } from '@shared/agentCliModels'
 import {
   ORCHESTRATION_MAX_ROUNDS_CAP,
+  coordinationCanDelegate,
   resolveOrchestrationMaxRounds,
   type AgentCoordination,
+  type DelegateToPolicy,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { SegmentedControl, Select, SettingToggle } from '../components/ui'
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
 import { AgentConfigFolderChip } from './AgentConfigFolderChip'
+import {
+  AgentDelegateToPolicyEditor,
+  type DelegateToPeerAgent,
+} from './AgentDelegateToPolicyEditor'
 import './AgentConfigSettingsPane.css'
 
 export type AgentConfigSettingsTab = 'runtime' | 'permissions' | 'contexts'
@@ -24,9 +30,12 @@ export interface AgentConfigSettingsPaneProps {
   diskContexts: TabContext[]
   selectedContextIds: string[]
   contextNotice: string
+  /** Otros agentes del tab (exclusiones delegateTo). */
+  peerAgents?: DelegateToPeerAgent[]
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
+  onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
@@ -43,10 +52,13 @@ function folderLabel(cwd: string): string {
   return normalized.split(/[\\/]/).pop() || cwd || '—'
 }
 
-const MAX_ROUNDS_OPTIONS = Array.from(
-  { length: ORCHESTRATION_MAX_ROUNDS_CAP },
-  (_, index) => index + 1,
-)
+const MAX_ROUNDS_OPTIONS = [
+  0,
+  ...Array.from(
+    { length: ORCHESTRATION_MAX_ROUNDS_CAP },
+    (_, index) => index + 1,
+  ),
+]
 
 export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = ({
   meta,
@@ -57,9 +69,11 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   diskContexts,
   selectedContextIds,
   contextNotice,
+  peerAgents = [],
   onChangeCoordination,
   onAcceptDelegationsChange,
   onOrchestrationMaxRoundsChange,
+  onChangeDelegateTo,
   onChangeProvider,
   onChangeModel,
   onChangePermission,
@@ -184,26 +198,46 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 options={[
                   { value: 'none', label: t('agentPane.coordinationNone') },
                   { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator') },
+                  { value: 'productOwner', label: t('agentPane.coordinationProductOwner') },
                 ]}
                 onChange={onChangeCoordination}
               />
               <p className="agent-config-settings__hint">{t('agentPane.coordinationHint')}</p>
             </div>
-            {meta.coordination === 'orchestrator' ? (
-              <label className="agent-config-settings__field">
-                <span className="agent-config-settings__label">{t('agentPane.orchestrationMaxRoundsLabel')}</span>
-                <Select
-                  value={String(maxRounds)}
-                  disabled={locked}
-                  title={t('agentPane.orchestrationMaxRoundsHint')}
-                  onChange={event => onOrchestrationMaxRoundsChange(Number(event.target.value))}
-                >
-                  {MAX_ROUNDS_OPTIONS.map(value => (
-                    <option key={value} value={value}>{value}</option>
-                  ))}
-                </Select>
-                <p className="agent-config-settings__hint">{t('agentPane.orchestrationMaxRoundsHint')}</p>
-              </label>
+            {coordinationCanDelegate(meta.coordination) ? (
+              <>
+                <label className="agent-config-settings__field">
+                  <span className="agent-config-settings__label">{t('agentPane.orchestrationMaxRoundsLabel')}</span>
+                  <Select
+                    value={String(maxRounds)}
+                    disabled={locked}
+                    title={t('agentPane.orchestrationMaxRoundsHint')}
+                    onChange={event => onOrchestrationMaxRoundsChange(Number(event.target.value))}
+                  >
+                    {MAX_ROUNDS_OPTIONS.map(value => (
+                      <option key={value} value={value}>
+                        {value === 0
+                          ? t('agentPane.orchestrationMaxRoundsUnlimited')
+                          : value}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="agent-config-settings__hint">{t('agentPane.orchestrationMaxRoundsHint')}</p>
+                </label>
+                {meta.coordination === 'productOwner' ? (
+                  <div className="agent-config-settings__field">
+                    <span className="agent-config-settings__label">{t('agentPane.delegateToLabel')}</span>
+                    <p className="agent-config-settings__hint">{t('agentPane.delegateToProductOwnerFixed')}</p>
+                  </div>
+                ) : (
+                  <AgentDelegateToPolicyEditor
+                    value={meta.delegateTo}
+                    agents={peerAgents}
+                    disabled={locked}
+                    onChange={onChangeDelegateTo}
+                  />
+                )}
+              </>
             ) : (
               <SettingToggle
                 checked={meta.acceptDelegations !== false}

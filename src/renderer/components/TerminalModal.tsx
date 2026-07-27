@@ -29,6 +29,11 @@ export interface TerminalModalProps {
   closeOnBackdrop?: boolean
   panelVariant?: TerminalModalPanelVariant
   bodyLayout?: TerminalModalBodyLayout
+  /**
+   * Si false, no se monta el portal (p. ej. tab inactiva).
+   * El padre puede conservar `open` sin auto-cerrar al cambiar de tab.
+   */
+  active?: boolean
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -86,23 +91,25 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   closeOnBackdrop = false,
   panelVariant = 'default',
   bodyLayout = 'default',
+  active = true,
 }) => {
   const { t } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const visible = open && active
 
   useEffect(() => {
-    if (!open) return
+    if (!visible) return
     const raf = requestAnimationFrame(() => {
       const panel = panelRef.current
       if (!panel) return
       firstFocusTarget(panel).focus()
     })
     return () => cancelAnimationFrame(raf)
-  }, [open])
+  }, [visible])
 
   useEffect(() => {
-    if (!open || !closeOnEscape) return
+    if (!visible || !closeOnEscape) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       const root = rootRef.current
@@ -113,10 +120,10 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, closeOnEscape, onClose])
+  }, [visible, closeOnEscape, onClose])
 
   useEffect(() => {
-    if (!open) return
+    if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Tab' || !panelRef.current) return
       const root = rootRef.current
@@ -135,9 +142,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open])
+  }, [visible])
 
-  if (!open) return null
+  if (!visible) return null
 
   const hasRichHeader = headerContent != null && headerContent !== false
   const hasTitle = title != null && title !== ''

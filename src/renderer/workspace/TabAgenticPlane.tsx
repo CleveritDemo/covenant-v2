@@ -25,6 +25,7 @@ import {
   type TabFileExplorerWindowHandle,
 } from './TabFileExplorerWindow'
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './TabAgenticPlane.css'
 
 export type { PlaneMapEntity }
@@ -32,6 +33,8 @@ export type { PlaneMapEntity }
 export interface TabAgenticPlaneProps {
   emptyTitle: string
   emptyHint: string
+  /** Tab activa (modales portaled solo visibles aquí). */
+  tabActive?: boolean
   agentFabTitle: string
   terminalFabTitle: string
   idleAgentLabel: string
@@ -52,6 +55,12 @@ export interface TabAgenticPlaneProps {
   canAddAgent?: boolean
   /** Si false, el FAB de terminal queda deshabilitado (p. ej. sin carpeta de proyecto). */
   canAddTerminal?: boolean
+  bootstrapAgentsLabel?: string
+  bootstrapAgentsTitle?: string
+  bootstrapAgentsDisabledTitle?: string
+  showBootstrapAgents?: boolean
+  canBootstrapAgents?: boolean
+  onBootstrapAgents?: () => void
   activePaneId: string
   entities: PlaneMapEntity[]
   onAddAgent: () => void
@@ -63,6 +72,8 @@ export interface TabAgenticPlaneProps {
   onConfigureContexts: () => void
   /** Asigna un contexto arrastrado del pool a un agente. */
   onAssignContext: (paneId: string, contextId: string) => void
+  /** Clic en icono results → vista previa del Markdown del contexto. */
+  onOpenResultsPreview?: (contextId: string) => void
   onSendChat: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
   /** Detiene el turno activo del agente desde el composer del plano. */
   onStopChat: (paneId: string) => void
@@ -157,6 +168,7 @@ export interface TabAgenticPlaneProps {
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   emptyTitle,
   emptyHint,
+  tabActive = true,
   agentFabTitle,
   terminalFabTitle,
   idleAgentLabel,
@@ -175,6 +187,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   canAdd,
   canAddAgent = true,
   canAddTerminal = true,
+  bootstrapAgentsLabel,
+  bootstrapAgentsTitle,
+  bootstrapAgentsDisabledTitle,
+  showBootstrapAgents = false,
+  canBootstrapAgents = false,
+  onBootstrapAgents,
   activePaneId,
   entities,
   onAddAgent,
@@ -185,6 +203,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onFocusWindow,
   onConfigureContexts,
   onAssignContext,
+  onOpenResultsPreview,
   onSendChat,
   onStopChat,
   onClearConversation,
@@ -254,7 +273,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   explorerState,
   explorerTitle = '',
   explorerButtonLabel,
-  explorerZIndex = 640,
+  explorerZIndex = APP_OVERLAY_MODAL_Z,
   explorerThemeId = '',
   explorerCwd = '',
   onExplorerStateChange,
@@ -480,7 +499,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         </div>
       )}
       <PlaneLoopsSection
-        open={loopsOpen && !anyFullscreen}
+        open={loopsOpen && !anyFullscreen && tabActive}
         title={loopsTitle}
         subtitle={loopsSubtitle}
         emptyTitle={loopsEmptyTitle}
@@ -524,10 +543,17 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       <PlaneMap
         emptyTitle={emptyTitle}
         emptyHint={emptyHint}
+        bootstrapAgentsLabel={bootstrapAgentsLabel}
+        bootstrapAgentsTitle={bootstrapAgentsTitle}
+        bootstrapAgentsDisabledTitle={bootstrapAgentsDisabledTitle}
+        showBootstrapAgents={showBootstrapAgents}
+        canBootstrapAgents={canBootstrapAgents}
+        onBootstrapAgents={onBootstrapAgents}
         idleAgentLabel={idleAgentLabel}
         entities={entities}
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
+        tabActive={tabActive}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}
@@ -542,6 +568,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onOpenChat={openChatAgent}
         onDeletePane={onDeletePane}
         onAssignContext={onAssignContext}
+        onOpenResultsPreview={onOpenResultsPreview}
         onReorderPanes={onReorderPanes}
         reorderAriaLabel={reorderAriaLabel}
       />
@@ -559,6 +586,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           }}
           title={explorerTitle}
           zIndex={explorerZIndex}
+          tabActive={tabActive}
         />
       ) : null}
 
@@ -638,6 +666,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           terminalTitle={terminalFabTitle}
           onAddAgent={onAddAgent}
           onAddTerminal={onAddTerminal}
+          bootstrapAgentsTitle={bootstrapAgentsTitle || bootstrapAgentsLabel}
+          bootstrapAgentsDisabledTitle={bootstrapAgentsDisabledTitle}
+          showBootstrapAgents={showBootstrapAgents && entities.length > 0}
+          canBootstrapAgents={canBootstrapAgents}
+          onBootstrapAgents={onBootstrapAgents}
         />
       )}
     </div>

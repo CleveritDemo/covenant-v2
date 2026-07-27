@@ -1,35 +1,42 @@
 import React from 'react'
 import { Icon, type IconName } from '../components/ui/Icon'
 
-export type PlaneFabKind = 'agent' | 'terminal'
+export type PlaneFabKind = 'agent' | 'terminal' | 'bootstrap'
 
 export interface PlaneFabProps {
   kind: PlaneFabKind
   label: string
   disabled?: boolean
+  /** Tooltip/aria cuando disabled (p. ej. falta carpeta). */
+  disabledTitle?: string
   onClick: () => void
 }
 
 const FAB_ICONS: Record<PlaneFabKind, IconName> = {
   agent: 'sparkles',
   terminal: 'terminal',
+  bootstrap: 'users',
 }
 
-/** FAB circular del plano (agente / terminal). */
+/** FAB circular del plano (agente / terminal / bootstrap equipo). */
 export const PlaneFab: React.FC<PlaneFabProps> = ({
   kind,
   label,
   disabled = false,
+  disabledTitle,
   onClick,
-}) => (
-  <button
-    type="button"
-    className={['plane-fab', `plane-fab--${kind}`].join(' ')}
-    disabled={disabled}
-    title={label}
-    aria-label={label}
-    onClick={onClick}
-  >
-    <Icon name={FAB_ICONS[kind]} size={18} />
-  </button>
-)
+}) => {
+  const title = disabled ? (disabledTitle || label) : label
+  return (
+    <button
+      type="button"
+      className={['plane-fab', `plane-fab--${kind}`].join(' ')}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+    >
+      <Icon name={FAB_ICONS[kind]} size={18} />
+    </button>
+  )
+}

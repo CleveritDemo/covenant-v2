@@ -33,11 +33,14 @@ import {
 } from './aiAgentResults'
 import {
   buildAiAgentDelegateInstruction,
+  buildAiAgentProductOwnerInstruction,
   extractAiAgentDelegates,
 } from './aiAgentDelegate'
 import {
   buildOrchestratorAgentsBlock,
+  coordinationCanDelegate,
   formatDelegationResultFollowUp,
+  isProductOwner,
 } from '../src/shared/agentOrchestration'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 
@@ -516,17 +519,26 @@ export function composePrompt(
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
   const resultsInstruction = buildAiAgentResultsInstruction(request.name)
-  const isOrchestrator = request.coordination === 'orchestrator'
+  const canDelegate = coordinationCanDelegate(request.coordination)
   const allowDelegations = request.allowDelegations !== false
-  const orchestrationBlock = isOrchestrator
+  const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
+  const orchestrationBlock = canDelegate
     ? [
         buildOrchestratorAgentsBlock(request.orchestrationAgents ?? []),
         '',
-        buildAiAgentDelegateInstruction({
-          allowDelegations,
-          round: request.orchestrationRound,
-          maxRounds: request.orchestrationMaxRounds,
-        }),
+        isProductOwner(request.coordination)
+          ? buildAiAgentProductOwnerInstruction({
+            allowDelegations,
+            round: request.orchestrationRound,
+            maxRounds: request.orchestrationMaxRounds,
+            allowedAgentIds,
+          })
+          : buildAiAgentDelegateInstruction({
+            allowDelegations,
+            round: request.orchestrationRound,
+            maxRounds: request.orchestrationMaxRounds,
+            allowedAgentIds,
+          }),
       ].join('\n')
     : ''
   const delegationFollowUps = (request.pendingDelegationResults ?? [])
@@ -786,7 +798,7 @@ export function startAgentTurn(
                 agentName: request.name?.trim(),
               })
             }
-            const { visibleText, delegations } = request.coordination === 'orchestrator'
+            const { visibleText, delegations } = coordinationCanDelegate(request.coordination)
               ? extractAiAgentDelegates(afterResults)
               : { visibleText: afterResults, delegations: [] }
             if (delegations.length && request.allowDelegations !== false) {

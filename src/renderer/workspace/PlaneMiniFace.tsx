@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
@@ -11,8 +11,8 @@ export interface PlaneMiniFaceProps {
   name: string
   busy?: boolean
   provider?: AgentCliProvider
-  /** Muestra chip de orquestador junto al proveedor. */
-  coordination?: 'none' | 'orchestrator'
+  /** Muestra chip de orquestador / product owner junto al proveedor. */
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   statusLabel: string
   /** Densidad visual; compact reduce padding/gaps para listas y modales. */
   density?: 'default' | 'compact'
@@ -26,6 +26,8 @@ export interface PlaneMiniFaceProps {
   reorderLabel?: string
   resultsDragLabel?: string
   onReorderPointerDown?: (event: React.PointerEvent) => void
+  /** Clic puro (sin drag) sobre el icono de results → vista previa. */
+  onOpenResultsPreview?: (contextId: string) => void
   /** Contextos anidados (lista con nombres) debajo del cuerpo. */
   children?: React.ReactNode
 }
@@ -47,9 +49,11 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   reorderLabel,
   resultsDragLabel,
   onReorderPointerDown,
+  onOpenResultsPreview,
   children,
 }) => {
   const { t } = useT()
+  const resultsDragOccurredRef = useRef(false)
   const showReorder = Boolean(reorderEnabled && onReorderPointerDown && reorderLabel)
   const resultsId = agentId?.trim()
     ? agentResultContextIdForSlug(agentId)
@@ -108,6 +112,15 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
             aria-label={t('agentPane.orchestratorBadge')}
           >
             <Icon name="git-branch" size={9} aria-hidden />
+          </span>
+        ) : null}
+        {coordination === 'productOwner' ? (
+          <span
+            className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
+            title={t('agentPane.productOwnerBadge')}
+            aria-label={t('agentPane.productOwnerBadge')}
+          >
+            <Icon name="folder" size={9} aria-hidden />
           </span>
         ) : null}
       </div>
@@ -173,6 +186,11 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         onClick={event => {
           event.preventDefault()
           event.stopPropagation()
+          if (resultsDragOccurredRef.current) {
+            resultsDragOccurredRef.current = false
+            return
+          }
+          onOpenResultsPreview?.(resultsId)
         }}
         onPointerDown={event => {
           event.stopPropagation()
@@ -180,7 +198,15 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         onPointerUp={event => event.stopPropagation()}
         onDragStart={event => {
           event.stopPropagation()
+          resultsDragOccurredRef.current = true
           setPlaneContextDragData(event.dataTransfer, resultsId)
+        }}
+        onDragEnd={event => {
+          event.stopPropagation()
+          // Mantener el flag hasta después del click sintético post-drag.
+          window.setTimeout(() => {
+            resultsDragOccurredRef.current = false
+          }, 50)
         }}
       >
         <Icon name="files" size={12} />

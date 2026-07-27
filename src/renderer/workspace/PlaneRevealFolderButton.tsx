@@ -23,7 +23,7 @@ export const PlaneRevealFolderButton: React.FC<PlaneRevealFolderButtonProps> = (
       aria-label={title}
       onClick={onReveal}
     >
-      <Icon name="folder-reveal" size={13} />
+      <Icon name="folder" size={13} />
     </button>
   )
 }

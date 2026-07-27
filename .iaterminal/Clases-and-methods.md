@@ -35,6 +35,7 @@
 ### electron/aiAgentDelegate.ts
 - extractAiAgentDelegates
 - buildAiAgentDelegateInstruction
+- buildAiAgentProductOwnerInstruction
 
 ### electron/aiAgentResults.ts
 - agentResultSlug
@@ -236,6 +237,9 @@
 ### src/renderer/agent/AgentCreateNameModal.tsx
 - AgentCreateNameModal
 
+### src/renderer/agent/AgentDelegateToPolicyEditor.tsx
+- AgentDelegateToPolicyEditor
+
 ### src/renderer/agent/agentInputGuards.ts
 - isAgentHumanInputBlocked
 - canDrainAgentQueue
@@ -276,6 +280,9 @@
 
 ### src/renderer/agent/Gravity.tsx
 - Gravity
+
+### src/renderer/agent/parentDelegationNotify.ts
+- decideParentDelegationNotify
 
 ### src/renderer/agent/planeStatusThrottle.ts
 - createPlaneStatusThrottler
@@ -624,6 +631,9 @@
 ### src/renderer/workspace/ContextBadge.tsx
 - ContextBadge
 
+### src/renderer/workspace/ContextContentPreviewModal.tsx
+- ContextContentPreviewModal
+
 ### src/renderer/workspace/loopChainFifo.ts
 - createLoopChainFifoItem
 - enqueueLoopChainFifo
@@ -644,6 +654,7 @@
 
 ### src/renderer/workspace/orchestrationBridge.ts
 - listOrchestrationTargets
+- listDelegationTargetsForMeta
 - resolveDelegationTargetPaneId
 
 ### src/renderer/workspace/PaneWindow.tsx
@@ -654,6 +665,9 @@
 
 ### src/renderer/workspace/PlaneAgentContextNodes.tsx
 - PlaneAgentContextNodes
+
+### src/renderer/workspace/PlaneBootstrapAgentsButton.tsx
+- PlaneBootstrapAgentsButton
 
 ### src/renderer/workspace/PlaneBusyDot.tsx
 - PlaneBusyDot
@@ -761,6 +775,7 @@
 - PlaneRevealFolderButton
 
 ### src/renderer/workspace/resolveAssignedContextChips.ts
+- resolveTabContextById
 - resolveAssignedContextChips
 - contextIdsEqual
 
@@ -790,14 +805,28 @@
 - buildModeHandoffPrompt
 
 ### src/shared/agentOrchestration.ts
+- isOrchestrationRoundsUnlimited
+- orchestrationRoundsAtCap
+- formatOrchestrationRoundLabel
 - sanitizeOrchestrationMaxRounds
 - resolveOrchestrationMaxRounds
 - sanitizeAgentCoordination
+- isOrchestrator
+- isProductOwner
+- coordinationCanDelegate
+- defaultDelegateToPolicy
+- sanitizeDelegateToPolicy
+- delegateToPoliciesEqual
+- resolveDelegateToPolicy
+- persistableDelegateTo
+- agentMatchesDelegateGroups
+- listDelegationTargets
+- listOrchestrationTargets
+- listProductOwnerTargets
 - sanitizeDelegateRequest
 - parseDelegatePayload
 - buildOrchestratorAgentsBlock
 - formatDelegationResultFollowUp
-- formatDelegationRoundCapFollowUp
 
 ### src/shared/agentShellGuard.ts
 - isDestructiveShellCommand
@@ -851,6 +880,9 @@
 - sanitizePlaneLoopLinks
 - sanitizePlaneLoopNodePositions
 
+### src/shared/projectAgentBootstrap.ts
+- buildBootstrapProjectAgentDefinitions
+
 ### src/shared/projectAgentCatalog.ts
 - normalizeAgentSlug
 - projectAgentFileName
@@ -871,7 +903,6 @@
 - resolveAgentPaneMeta
 - agentDefinitionFromMeta
 - agentBindingFromMeta
-- planAgentCatalogMigration
 
 ### src/shared/ptyInputSanitize.ts
 - stripAnsiInputSequences

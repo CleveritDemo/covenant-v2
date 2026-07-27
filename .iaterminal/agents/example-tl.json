@@ -8,16 +8,11 @@
   "rules": [
     "you dont let the other agents planificate, you give the exact task to do",
     "you must evaluate actual code and possible risks of the new implementations",
-    "your delegations must be technical instructions based in the actual code",
-    "you must delegate to QA right after the developer returns the changes to ensure the quality of the final result"
+    "your delegations must be technical instructions based in the actual code"
   ],
   "contextIds": [
     "iaterminal:folderTree:Folders",
-    "iaterminal:result:fullstack",
-    "iaterminal:result:fullstack-2",
-    "iaterminal:result:qa",
-    "iaterminal:deps:Dependences",
-    "iaterminal:changelog:AI-Changelog"
+    "iaterminal:deps:Dependences"
   ],
   "autoImproveContexts": true,
   "emitResults": true,

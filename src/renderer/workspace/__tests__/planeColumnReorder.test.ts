@@ -42,10 +42,24 @@ function dispatchWindowPointer(
   Object.defineProperties(event, {
     pointerId: { value: pointerId },
     button: { value: 0 },
+    buttons: { value: type === 'pointerup' || type === 'pointercancel' ? 0 : 1 },
     clientX: { value: clientX },
     clientY: { value: clientY },
   })
   window.dispatchEvent(event)
+}
+
+function dispatchLostPointerCapture(
+  target: HTMLElement,
+  pointerId: number,
+  buttons: number,
+): void {
+  const event = new Event('lostpointercapture', { bubbles: true, cancelable: true }) as PointerEvent
+  Object.defineProperties(event, {
+    pointerId: { value: pointerId },
+    buttons: { value: buttons },
+  })
+  target.dispatchEvent(event)
 }
 
 const ORDERED = ['a', 'b', 'c'] as const
@@ -88,15 +102,46 @@ describe('usePlaneColumnReorder handle dragOnMove', () => {
     act(() => {
       result.current.onHandlePointerDown('a', fakeReactPointer(handle, 10, 40))
     })
+    expect(result.current.gestureActive).toBe(true)
+
     act(() => {
       dispatchWindowPointer('pointermove', 10, 40 + HANDLE_DRAG_THRESHOLD_PX)
       dispatchWindowPointer('pointerup', 10, 40 + HANDLE_DRAG_THRESHOLD_PX)
     })
 
+    expect(result.current.gestureActive).toBe(false)
     expect(onCommit).not.toHaveBeenCalled()
     expect(result.current.draggingId).toBeNull()
     expect(result.current.editing).toBe(false)
     expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('A2) pointerup without threshold clears gestureActive without commit', () => {
+    const onCommit = vi.fn()
+    const handle = document.createElement('button')
+    document.body.appendChild(handle)
+
+    const { result } = renderHook(() => usePlaneColumnReorder({
+      enabled: true,
+      kind: 'agent',
+      orderedIds: [...ORDERED],
+      slots: SLOTS,
+      onCommit,
+      onActivate: vi.fn(),
+    }))
+
+    act(() => {
+      result.current.onHandlePointerDown('a', fakeReactPointer(handle, 10, 40))
+    })
+    expect(result.current.gestureActive).toBe(true)
+
+    act(() => {
+      dispatchWindowPointer('pointerup', 10, 40)
+    })
+
+    expect(result.current.gestureActive).toBe(false)
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(result.current.draggingId).toBeNull()
   })
 
   it('B) move past threshold then pointerup commits reordered ids once', () => {
@@ -131,6 +176,52 @@ describe('usePlaneColumnReorder handle dragOnMove', () => {
     expect(result.current.draggingId).toBeNull()
     expect(result.current.editing).toBe(false)
     expect(result.current.previewIds).toBeNull()
+    expect(result.current.gestureActive).toBe(false)
+  })
+
+  it('B2) lostpointercapture with buttons pressed does not abort; pointerup commits once', () => {
+    const onCommit = vi.fn()
+    const handle = document.createElement('button')
+    handle.setPointerCapture = vi.fn()
+    handle.releasePointerCapture = vi.fn()
+    document.body.setPointerCapture = vi.fn()
+    document.body.releasePointerCapture = vi.fn()
+    document.body.appendChild(handle)
+
+    const { result } = renderHook(() => usePlaneColumnReorder({
+      enabled: true,
+      kind: 'agent',
+      orderedIds: [...ORDERED],
+      slots: SLOTS,
+      onCommit,
+      onActivate: vi.fn(),
+    }))
+
+    act(() => {
+      result.current.onHandlePointerDown('a', fakeReactPointer(handle, 10, 50))
+    })
+    act(() => {
+      dispatchWindowPointer('pointermove', 10, 50 + 160)
+    })
+    expect(result.current.draggingId).toBe('a')
+    expect(result.current.gestureActive).toBe(true)
+
+    act(() => {
+      dispatchLostPointerCapture(handle, 1, 1)
+    })
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(result.current.draggingId).toBe('a')
+    expect(result.current.gestureActive).toBe(true)
+    expect(document.body.setPointerCapture).toHaveBeenCalledWith(1)
+
+    act(() => {
+      dispatchWindowPointer('pointerup', 10, 50 + 160)
+    })
+
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit).toHaveBeenCalledWith(['b', 'a', 'c'])
+    expect(result.current.draggingId).toBeNull()
+    expect(result.current.gestureActive).toBe(false)
   })
 
   it('C) exports card long-press entry point without throwing', () => {
@@ -145,5 +236,6 @@ describe('usePlaneColumnReorder handle dragOnMove', () => {
     expect(typeof result.current.onCardPointerDown).toBe('function')
     expect(typeof result.current.onHandlePointerDown).toBe('function')
     expect(typeof result.current.cancel).toBe('function')
+    expect(result.current.gestureActive).toBe(false)
   })
 })

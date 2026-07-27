@@ -327,6 +327,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     || agentReorder.editing
     || Boolean(terminalReorder.draggingId)
     || Boolean(agentReorder.draggingId)
+    || terminalReorder.gestureActive
+    || agentReorder.gestureActive
 
   // Click en el vacío cancela el modo edición.
   const cancelTerminalReorder = terminalReorder.cancel

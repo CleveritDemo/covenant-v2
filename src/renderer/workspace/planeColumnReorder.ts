@@ -48,6 +48,8 @@ export interface UsePlaneColumnReorderResult {
   draggingId: string | null
   dragPosition: { x: number; y: number } | null
   editing: boolean
+  /** true desde pointerdown del gesto hasta finish/cancel (antes del umbral de drag). */
+  gestureActive: boolean
   getVisualState: (paneId: string) => PlaneReorderVisualState
   onCardPointerDown: (paneId: string, event: React.PointerEvent) => void
   /** Handle de agentes: sin long-press; drag al superar umbral de movimiento. */
@@ -85,6 +87,7 @@ export function usePlaneColumnReorder({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [previewIds, setPreviewIds] = useState<string[] | null>(null)
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
+  const [gestureActive, setGestureActive] = useState(false)
 
   const orderedIdsRef = useRef(orderedIds)
   const slotsRef = useRef(slots)
@@ -120,6 +123,7 @@ export function usePlaneColumnReorder({
   const cancel = useCallback(() => {
     clearPressTimer()
     pressRef.current = null
+    setGestureActive(false)
     setEditing(false)
     resetDragVisuals()
   }, [clearPressTimer, resetDragVisuals])
@@ -129,13 +133,13 @@ export function usePlaneColumnReorder({
   }, [enabled, cancel])
 
   useEffect(() => {
-    if (!editing && !draggingId) return
+    if (!editing && !draggingId && !gestureActive) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') cancel()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editing, draggingId, cancel])
+  }, [editing, draggingId, gestureActive, cancel])
 
   const updatePreviewFromPointer = useCallback((paneId: string, pointerY: number) => {
     // Hit-test SIEMPRE contra baseline congelado (no contra el layout temporal).
@@ -197,6 +201,13 @@ export function usePlaneColumnReorder({
     const persistEditing = !dragOnMove
 
     clearPressTimer()
+    setGestureActive(true)
+    // Handle: congela baseline ya en pointerdown (antes del umbral / flatten mid-gesto).
+    if (dragOnMove) {
+      dragBaselineIdsRef.current = [...orderedIdsRef.current]
+      dragBaselineSlotsRef.current = { ...slotsRef.current }
+    }
+
     const session: PressSession = {
       paneId,
       pointerId: event.pointerId,
@@ -228,11 +239,15 @@ export function usePlaneColumnReorder({
       beginDrag(session, event.clientX, event.clientY, session.persistEditing)
     }
 
-    const detachListeners = (): void => {
+    const detachListeners = (captureEl: HTMLElement | null): void => {
       window.removeEventListener('pointermove', onMove, true)
       window.removeEventListener('pointerup', onUp, true)
       window.removeEventListener('pointercancel', onUp, true)
       target.removeEventListener('lostpointercapture', onLostCapture)
+      document.body.removeEventListener('lostpointercapture', onLostCapture)
+      if (captureEl && captureEl !== target && captureEl !== document.body) {
+        captureEl.removeEventListener('lostpointercapture', onLostCapture)
+      }
     }
 
     const onMove = (moveEvent: PointerEvent): void => {
@@ -251,10 +266,12 @@ export function usePlaneColumnReorder({
         // Terminal: mover antes del long-press cancela el gesto.
         if (distance > MOVE_CANCEL_PX) {
           window.clearTimeout(press.longPressTimer)
+          const captureEl = press.captureTarget
           pressRef.current = null
-          detachListeners()
+          setGestureActive(false)
+          detachListeners(captureEl)
           try {
-            press.captureTarget?.releasePointerCapture?.(press.pointerId)
+            captureEl?.releasePointerCapture?.(press.pointerId)
           } catch { /* already released */ }
         }
         return
@@ -275,7 +292,8 @@ export function usePlaneColumnReorder({
       // Idempotente: si ya se limpió (otro up/lostcapture), no re-commit.
       if (!press || press.paneId !== paneId || press.pointerId !== pointerId) return
       pressRef.current = null
-      detachListeners()
+      setGestureActive(false)
+      detachListeners(press.captureTarget)
       window.clearTimeout(press.longPressTimer)
       try {
         press.captureTarget?.releasePointerCapture?.(press.pointerId)
@@ -296,7 +314,10 @@ export function usePlaneColumnReorder({
       }
 
       // Handle click sin mover: solo cleanup (sin activate/commit).
-      if (dragOnMove) return
+      if (dragOnMove) {
+        resetDragVisuals()
+        return
+      }
 
       setEditing(false)
       if (!press.longPressed) {
@@ -311,6 +332,18 @@ export function usePlaneColumnReorder({
 
     const onLostCapture = (lostEvent: PointerEvent): void => {
       if (lostEvent.pointerId !== event.pointerId) return
+      const press = pressRef.current
+      if (!press || press.paneId !== paneId || press.pointerId !== lostEvent.pointerId) return
+      // Flatten/remount puede soltar capture a mitad del gesto: re-capturar si sigue pulsado.
+      if (lostEvent.buttons !== 0) {
+        try {
+          press.captureTarget?.removeEventListener('lostpointercapture', onLostCapture)
+          document.body.setPointerCapture?.(lostEvent.pointerId)
+          press.captureTarget = document.body
+          document.body.addEventListener('lostpointercapture', onLostCapture)
+        } catch { /* ignore */ }
+        return
+      }
       finishGesture(lostEvent.pointerId)
     }
 
@@ -363,6 +396,7 @@ export function usePlaneColumnReorder({
     draggingId,
     dragPosition,
     editing,
+    gestureActive,
     getVisualState,
     onCardPointerDown,
     onHandlePointerDown,

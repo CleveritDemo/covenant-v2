@@ -233,6 +233,6 @@
   padding-top: 6px;
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
 }

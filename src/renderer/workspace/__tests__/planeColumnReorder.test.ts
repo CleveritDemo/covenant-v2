@@ -5,6 +5,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   HANDLE_DRAG_THRESHOLD_PX,
+  MOVE_CANCEL_PX,
   shouldCommitReorder,
   usePlaneColumnReorder,
   type PlaneColumnSlot,
@@ -237,5 +238,84 @@ describe('usePlaneColumnReorder handle dragOnMove', () => {
     expect(typeof result.current.onHandlePointerDown).toBe('function')
     expect(typeof result.current.cancel).toBe('function')
     expect(result.current.gestureActive).toBe(false)
+  })
+})
+
+describe('usePlaneColumnReorder terminal card (long-press)', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+    vi.useRealTimers()
+  })
+
+  it('activates on pointerup after move past MOVE_CANCEL_PX (jitter)', () => {
+    vi.useFakeTimers()
+    const onActivate = vi.fn()
+    const card = document.createElement('div')
+    document.body.appendChild(card)
+
+    const { result } = renderHook(() => usePlaneColumnReorder({
+      enabled: true,
+      kind: 'terminal',
+      orderedIds: [...ORDERED],
+      slots: SLOTS,
+      onCommit: vi.fn(),
+      onActivate,
+    }))
+
+    act(() => {
+      result.current.onCardPointerDown('a', fakeReactPointer(card, 10, 40))
+    })
+    expect(result.current.gestureActive).toBe(true)
+
+    act(() => {
+      dispatchWindowPointer('pointermove', 10, 40 + MOVE_CANCEL_PX + 4)
+    })
+    expect(result.current.draggingId).toBeNull()
+    expect(result.current.gestureActive).toBe(true)
+
+    act(() => {
+      dispatchWindowPointer('pointerup', 10, 40 + MOVE_CANCEL_PX + 4)
+    })
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(onActivate).toHaveBeenCalledWith('a')
+    expect(result.current.gestureActive).toBe(false)
+    expect(result.current.draggingId).toBeNull()
+  })
+
+  it('long-press begins drag; pointerup does not activate', () => {
+    vi.useFakeTimers()
+    const onActivate = vi.fn()
+    const onCommit = vi.fn()
+    const card = document.createElement('div')
+    document.body.appendChild(card)
+
+    const { result } = renderHook(() => usePlaneColumnReorder({
+      enabled: true,
+      kind: 'terminal',
+      orderedIds: [...ORDERED],
+      slots: SLOTS,
+      onCommit,
+      onActivate,
+    }))
+
+    act(() => {
+      result.current.onCardPointerDown('a', fakeReactPointer(card, 10, 50))
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(result.current.draggingId).toBe('a')
+    expect(result.current.editing).toBe(true)
+
+    act(() => {
+      dispatchWindowPointer('pointermove', 10, 50 + 160)
+      dispatchWindowPointer('pointerup', 10, 50 + 160)
+    })
+
+    expect(onActivate).not.toHaveBeenCalled()
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(result.current.draggingId).toBeNull()
   })
 })

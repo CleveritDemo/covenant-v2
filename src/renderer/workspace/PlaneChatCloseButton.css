@@ -17,6 +17,14 @@
   transition: border-color 0.12s, color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 
+html[data-reduce-motion="true"] {
+  .plane-chat-close {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+  }
+}
+
 .plane-chat-close:hover {
   color: var(--text);
   background: color-mix(in srgb, var(--bg-secondary) 52%, transparent);

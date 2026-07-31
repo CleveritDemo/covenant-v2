@@ -80,6 +80,14 @@
   opacity: 0.72;
 }
 
+html[data-reduce-motion="true"] {
+  .pane-toolbar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+  }
+}
+
 .pane-toolbar__group {
   display: flex;
   flex-direction: row;

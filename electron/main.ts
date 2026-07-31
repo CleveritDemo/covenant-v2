@@ -5,6 +5,7 @@ import {
   writeFileSync,
   readdirSync,
   accessSync,
+  appendFileSync,
   constants,
   statSync,
 } from 'fs'
@@ -176,6 +177,13 @@ function projectRootForSession(sessionId: string): string {
   ensureSessionCdState(sessionId, home)
   const cwd = getSessionCwd(sessionId)?.trim()
   return cwd || home
+}
+
+/** Raíz fija del explorador por sesión (projectFolder del tab); vacío = seguir el cwd del PTY. */
+const explorerRootBySession = new Map<string, string>()
+
+function explorerRootForSession(sessionId: string): string {
+  return explorerRootBySession.get(sessionId) || projectRootForSession(sessionId)
 }
 
 /** path directo o cwd de la sesión PTY. */
@@ -593,12 +601,21 @@ function registerIpc(): void {
     return githubActionsListForSession(resolveGitTargetCwd(target), token)
   })
 
+  ipcMain.handle(IPC.FILE_EXPLORER_SET_ROOT, (_e, sessionId: string, rootPath: unknown) => {
+    const root = typeof rootPath === 'string' ? rootPath.trim() : ''
+    if (root) {
+      explorerRootBySession.set(sessionId, resolve(root))
+    } else {
+      explorerRootBySession.delete(sessionId)
+    }
+  })
+
   ipcMain.handle(
     IPC.FILE_EXPLORER_LIST_DIR,
     (_e, sessionId: string, relPath: unknown, showHiddenDirs: unknown) => {
       const rp = typeof relPath === 'string' ? relPath : ''
       const showHidden = showHiddenDirs !== false
-      return listDirChildren(projectRootForSession(sessionId), rp, showHidden)
+      return listDirChildren(explorerRootForSession(sessionId), rp, showHidden)
     },
   )
 
@@ -611,7 +628,7 @@ function registerIpc(): void {
       const opts = options && typeof options === 'object'
         ? { allowLarge: (options as { allowLarge?: boolean }).allowLarge === true }
         : undefined
-      return loadFileForExplorer(projectRootForSession(sessionId), relPath, opts)
+      return loadFileForExplorer(explorerRootForSession(sessionId), relPath, opts)
     },
   )
 
@@ -624,7 +641,7 @@ function registerIpc(): void {
       if (typeof content !== 'string') {
         return { ok: false, error: 'contenido inválido' }
       }
-      return saveFileForExplorer(projectRootForSession(sessionId), relPath, content)
+      return saveFileForExplorer(explorerRootForSession(sessionId), relPath, content)
     },
   )
 
@@ -632,14 +649,14 @@ function registerIpc(): void {
     if (typeof relPath !== 'string' || !relPath.trim()) {
       return { ok: false, error: 'ruta vacía' }
     }
-    return createDirForExplorer(projectRootForSession(sessionId), relPath)
+    return createDirForExplorer(explorerRootForSession(sessionId), relPath)
   })
 
   ipcMain.handle(IPC.FILE_EXPLORER_CREATE_FILE, (_e, sessionId: string, relPath: unknown) => {
     if (typeof relPath !== 'string' || !relPath.trim()) {
       return { ok: false, error: 'ruta vacía' }
     }
-    return createFileForExplorer(projectRootForSession(sessionId), relPath)
+    return createFileForExplorer(explorerRootForSession(sessionId), relPath)
   })
 
   ipcMain.handle(IPC.FILE_EXPLORER_COPY, (_e, sessionId: string, relPaths: unknown) => {
@@ -647,19 +664,19 @@ function registerIpc(): void {
       return { ok: false, error: 'rutas inválidas' }
     }
     const paths = relPaths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
-    return copyPathsForExplorer(sessionId, projectRootForSession(sessionId), paths)
+    return copyPathsForExplorer(sessionId, explorerRootForSession(sessionId), paths)
   })
 
   ipcMain.handle(IPC.FILE_EXPLORER_PASTE, (_e, sessionId: string, destRelPath: unknown) => {
     const dest = typeof destRelPath === 'string' ? destRelPath : ''
-    return pasteIntoExplorer(sessionId, projectRootForSession(sessionId), dest)
+    return pasteIntoExplorer(sessionId, explorerRootForSession(sessionId), dest)
   })
 
   ipcMain.handle(IPC.FILE_EXPLORER_DELETE, (_e, sessionId: string, relPath: unknown) => {
     if (typeof relPath !== 'string' || !relPath.trim()) {
       return { ok: false, error: 'ruta vacía' }
     }
-    return deletePathForExplorer(projectRootForSession(sessionId), relPath)
+    return deletePathForExplorer(explorerRootForSession(sessionId), relPath)
   })
 
   ipcMain.handle(
@@ -672,7 +689,7 @@ function registerIpc(): void {
         return { ok: false, error: 'nombre inválido' }
       }
       return renamePathForExplorer(
-        projectRootForSession(sessionId),
+        explorerRootForSession(sessionId),
         oldRelPath,
         newRelPath,
       )
@@ -684,7 +701,7 @@ function registerIpc(): void {
       return { ok: false, error: 'rutas inválidas' }
     }
     const paths = relPaths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
-    return cutPathsForExplorer(sessionId, projectRootForSession(sessionId), paths)
+    return cutPathsForExplorer(sessionId, explorerRootForSession(sessionId), paths)
   })
 
   ipcMain.handle(
@@ -697,7 +714,7 @@ function registerIpc(): void {
         return { ok: false, error: 'nombre inválido' }
       }
       return movePathForExplorer(
-        projectRootForSession(sessionId),
+        explorerRootForSession(sessionId),
         oldRelPath,
         newRelPath,
       )
@@ -705,14 +722,14 @@ function registerIpc(): void {
   )
 
   ipcMain.handle(IPC.FILE_EXPLORER_SEARCH, (_e, sessionId: string, query: unknown) => {
-    return searchProjectFiles(projectRootForSession(sessionId), query)
+    return searchProjectFiles(explorerRootForSession(sessionId), query)
   })
 
   ipcMain.handle(IPC.FILE_EXPLORER_REVEAL, (_e, sessionId: string, relPath: unknown) => {
     if (typeof relPath !== 'string' || !relPath.trim()) {
       return { ok: false, error: 'ruta vacía' }
     }
-    const result = revealPathForExplorer(projectRootForSession(sessionId), relPath)
+    const result = revealPathForExplorer(explorerRootForSession(sessionId), relPath)
     if (result.ok) {
       shell.showItemInFolder(result.absPath)
     }
@@ -721,7 +738,7 @@ function registerIpc(): void {
 
   ipcMain.on(IPC.FILE_EXPLORER_WATCH_START, (_e, sessionId: string) => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
-    startFileExplorerWatch(sessionId, projectRootForSession(sessionId), win)
+    startFileExplorerWatch(sessionId, explorerRootForSession(sessionId), win)
   })
 
   ipcMain.on(IPC.FILE_EXPLORER_WATCH_STOP, (_e, sessionId: string) => {
@@ -1008,7 +1025,17 @@ function registerIpc(): void {
     killPty(sessionId)
     clearPersistedSessionCwd(sessionId)
     stopFileExplorerWatch(sessionId)
+    explorerRootBySession.delete(sessionId)
   })
+}
+
+/** Log de diagnóstico de crashes GPU/renderer en userData (timestamp + JSON). */
+function appendCrashDiagnostics(label: string, details: unknown): void {
+  console.error(`[crash-diagnostics] ${label}`, details)
+  try {
+    const line = `${new Date().toISOString()} ${label} ${JSON.stringify(details)}\n`
+    appendFileSync(join(app.getPath('userData'), 'crash-diagnostics.log'), line, 'utf-8')
+  } catch { /* ignore */ }
 }
 
 function createWindow(): BrowserWindow {
@@ -1035,6 +1062,14 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       backgroundThrottling: false,
     },
+  })
+
+  win.webContents.on('render-process-gone', (_e, details) => {
+    appendCrashDiagnostics('render-process-gone', {
+      windowId: win.id,
+      reason: details.reason,
+      exitCode: details.exitCode,
+    })
   })
 
   win.webContents.on('before-input-event', (event, input) => {
@@ -1098,6 +1133,18 @@ function createWindow(): BrowserWindow {
 
   return win
 }
+
+app.on('child-process-gone', (_e, details) => {
+  appendCrashDiagnostics('child-process-gone', details)
+  if (details.type !== 'GPU') return
+  // El proceso GPU se relanza solo; invalidate fuerza recomposición para
+  // recuperar ventanas que quedaron en negro tras el crash.
+  setTimeout(() => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.invalidate()
+    }
+  }, 1000)
+})
 
 app.whenReady().then(() => {
   // Dock/Finder no heredan el PATH del shell; sin esto `spawn('agent')` falla con ENOENT.

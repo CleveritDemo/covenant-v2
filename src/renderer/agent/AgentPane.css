@@ -96,7 +96,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   .agent-pane__stream,
   .agent-pane__caret,
   .agent-pane__gravity,
@@ -128,6 +128,10 @@
   .agent-pane__stream .ai-cursor::after {
     animation: none;
     transition: none;
+  }
+  /* La levitación ya está desactivada arriba; liberar la capa de composición. */
+  .agent-pane__bubble--live:not(.agent-pane__bubble--gravity) {
+    will-change: auto;
   }
   /* Aurora: breathing más lento, sin deriva (sigue siendo visible). */
   .agent-pane::before {
@@ -879,7 +883,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   .agent-pane__queue-bubble {
     animation: none;
   }

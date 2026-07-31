@@ -20,6 +20,12 @@
   }
 }
 
+html[data-reduce-motion="true"] {
+  .pane-toolbar-quick-open {
+    animation: none;
+  }
+}
+
 .pane-toolbar-quick-open__bar {
   box-sizing: border-box;
   display: flex;

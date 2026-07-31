@@ -182,10 +182,12 @@ interface Props {
    * el botón de loop del chat debe verse encendido (mismo estado visual).
    */
   chainLoopActive?: boolean
-  /** El orquestador espera subtareas: bloquea nuevos turnos humanos hasta Stop. */
+  /** El orquestador espera subtareas (Stop / drain; ya no bloquea teclear). */
   awaitingDelegations?: boolean
   /** Este pane ejecuta una subtarea pendiente para un orquestador. */
   delegationWorkActive?: boolean
+  /** App aún tiene FIFO/preferSend de orquestación para este pane. */
+  systemFollowUpsPending?: boolean
   /** Pedido externo: detener cadenas que incluyen este pane (p. ej. stop en waiting). */
   onChainLoopStop?: () => void
   paneReorder?: {
@@ -285,6 +287,7 @@ export const AgentPane: React.FC<Props> = ({
   chainLoopActive = false,
   awaitingDelegations = false,
   delegationWorkActive = false,
+  systemFollowUpsPending = false,
   onChainLoopStop,
   paneReorder,
   registerShortcutCloseInterceptor,
@@ -310,12 +313,12 @@ export const AgentPane: React.FC<Props> = ({
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
   const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
-  const humanInputBlocked = isAgentHumanInputBlocked({
-    loopActive,
-    awaitingDelegations,
-    delegationWorkActive,
-    orchestratorBusy,
-  })
+  const humanInputBlocked = isAgentHumanInputBlocked({ loopActive })
+  const canStartHumanTurnNow = !busy
+    && !awaitingDelegations
+    && !delegationWorkActive
+    && !systemFollowUpsPending
+    && !loopActive
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
@@ -1352,6 +1355,7 @@ export const AgentPane: React.FC<Props> = ({
     options?: {
       delegation?: QueuedTurn['delegation']
       allowDelegations?: boolean
+      orchestrationFollowUp?: boolean
     },
   ): Promise<boolean> => {
     const assigned = diskContextsRef.current.filter(context =>
@@ -1407,24 +1411,25 @@ export const AgentPane: React.FC<Props> = ({
   const send = useCallback((): void => {
     const prompt = input.trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
-    if (busy && queuedTurns.length >= MAX_QUEUED_TURNS) return
+    if (!canStartHumanTurnNow && queuedTurns.length >= MAX_QUEUED_TURNS) return
     onRequestPaneFocus()
     const imagesSnapshot = pendingImages
     setInput('')
     setPendingImages([])
-    if (coordinationCanDelegate(metaRef.current.coordination)) {
-      onOrchestrationUserTurnRef.current?.()
-    }
-    if (busy) {
+    // Encolar mientras hay trabajo/delegaciones; abort solo al iniciar turno humano.
+    if (!canStartHumanTurnNow) {
       setQueuedTurns(prev => [
         ...prev,
         { id: crypto.randomUUID(), text: prompt, images: imagesSnapshot },
       ])
       return
     }
+    if (coordinationCanDelegate(metaRef.current.coordination)) {
+      onOrchestrationUserTurnRef.current?.()
+    }
     void dispatchMessage(prompt, imagesSnapshot)
   }, [
-    busy,
+    canStartHumanTurnNow,
     dispatchMessage,
     humanInputBlocked,
     input,
@@ -1449,28 +1454,24 @@ export const AgentPane: React.FC<Props> = ({
     const delegation = preferSend.delegation
     const orchestrationFollowUp = preferSend.orchestrationFollowUp === true
     const allowDelegations = preferSend.allowDelegations
-    // Cadena en background: si ya hay busy (carrera), no consumir; App reintenta.
-    if (busy && preferSend.focusPane === false && !delegation) {
+    const isHumanTurn = !orchestrationFollowUp && !delegation
+    // Busy: no consumir follow-ups ni delegaciones; App FIFO reintenta al idle.
+    if (busy && (preferSend.focusPane === false || Boolean(delegation))) {
       handledPreferSendRef.current = null
       return
     }
     onPreferSendConsumed?.()
     if (!prompt && inboundImages.length === 0) return
     if (preferSend.focusPane !== false) onRequestPaneFocus()
-    if (
-      coordinationCanDelegate(metaRef.current.coordination)
-      && !orchestrationFollowUp
-      && !delegation
-    ) {
-      onOrchestrationUserTurnRef.current?.()
-    }
     const imagesSnapshot = attachmentsToPendingImages(inboundImages)
     const turnOptions = {
       ...(delegation ? { delegation } : {}),
       ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
       ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
     }
-    if (busy) {
+    // Solo humanos / no-delegación encolan en local; delegaciones nunca mientras busy.
+    const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
+    if (shouldEnqueue) {
       setQueuedTurns(prev => {
         if (prev.length >= MAX_QUEUED_TURNS) {
           imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
@@ -1488,9 +1489,16 @@ export const AgentPane: React.FC<Props> = ({
       })
       return
     }
+    if (
+      isHumanTurn
+      && coordinationCanDelegate(metaRef.current.coordination)
+    ) {
+      onOrchestrationUserTurnRef.current?.()
+    }
     void dispatchMessage(prompt, imagesSnapshot, turnOptions)
   }, [
     busy,
+    canStartHumanTurnNow,
     dispatchMessage,
     loopActive,
     onPreferSendConsumed,
@@ -1544,20 +1552,32 @@ export const AgentPane: React.FC<Props> = ({
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
   useEffect(() => {
+    const head = queuedTurns[0]
+    const headIsDelegation = Boolean(head?.delegation)
     if (!canDrainAgentQueue({
       loaded,
       busy,
       loopActive,
       awaitingDelegations,
       delegationWorkActive,
+      systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
+      headIsDelegation,
     }) || drainingRef.current) return
-    const next = queuedTurns[0]
+    const next = head
     if (!next) return
     drainingRef.current = true
     setQueuedTurns(prev => prev.filter(item => item.id !== next.id))
+    const isHumanTurn = !next.orchestrationFollowUp && !next.delegation
+    if (
+      isHumanTurn
+      && coordinationCanDelegate(metaRef.current.coordination)
+    ) {
+      onOrchestrationUserTurnRef.current?.()
+    }
     void dispatchMessage(next.text, next.images, {
       ...(next.delegation ? { delegation: next.delegation } : {}),
       ...(next.allowDelegations === false ? { allowDelegations: false } : {}),
+      ...(next.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
     }).finally(() => {
       drainingRef.current = false
     })
@@ -1568,7 +1588,9 @@ export const AgentPane: React.FC<Props> = ({
     dispatchMessage,
     loaded,
     loopActive,
+    preferSend,
     queuedTurns,
+    systemFollowUpsPending,
   ])
 
   const appendPendingImages = useCallback((images: PendingImage[]): void => {
@@ -1891,11 +1913,10 @@ export const AgentPane: React.FC<Props> = ({
   const loopMode = loopOpen || loopActive || chainLoopActive
   const effectiveLoopActive = loopActive || chainLoopActive
   const selectedContextIds = meta.contextIds ?? []
-  const workBlocksHumanInput = awaitingDelegations || delegationWorkActive || orchestratorBusy
-  // Solo agentes no orquestadores pueden encolar mientras están busy.
+  // Solo el loop bloquea teclear; busy/delegaciones encolan.
   const showStop = effectiveLoopActive || busy || awaitingDelegations
   const showPlay = loopMode && !effectiveLoopActive && !busy
-  const composerDisabled = effectiveLoopActive || workBlocksHumanInput
+  const composerDisabled = effectiveLoopActive
 
   const handleEnteringAnimationEnd = useCallback((messageId: string): void => {
     setEnteringIds(previous => {
@@ -1926,7 +1947,7 @@ export const AgentPane: React.FC<Props> = ({
 
   const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
   const buttonIsStop = showStop && (
-    effectiveLoopActive || workBlocksHumanInput || (!hasComposerPayload && !showPlay)
+    effectiveLoopActive || (!hasComposerPayload && !showPlay)
   )
 
   const handleSendClick = useCallback((): void => {

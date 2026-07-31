@@ -8,6 +8,7 @@ import { SettingsSection, SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
+import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
 import './SettingsModal.css'
 
@@ -27,6 +28,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [form, setForm] = useState({
     githubToken: config.githubToken,
     language: config.language,
+    reduceMotion: config.reduceMotion,
     agentCliClaudeCommand: config.agentCliClaudeCommand,
     agentCliCursorCommand: config.agentCliCursorCommand,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
@@ -38,6 +40,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     setForm({
       githubToken: config.githubToken,
       language: config.language,
+      reduceMotion: config.reduceMotion,
       agentCliClaudeCommand: config.agentCliClaudeCommand,
       agentCliCursorCommand: config.agentCliCursorCommand,
       musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
@@ -74,6 +77,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       ...config,
       githubToken: form.githubToken.trim(),
       language: form.language,
+      reduceMotion: form.reduceMotion,
       agentCliClaudeCommand: form.agentCliClaudeCommand.trim(),
       agentCliCursorCommand: form.agentCliCursorCommand.trim(),
       musicPlaylistIdsByMood,
@@ -97,6 +101,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       size="lg"
       zIndex={720}
       bodyLayout="spacious"
+      closeOnBackdrop
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
@@ -166,6 +171,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
             ))}
           </Select>
         </SettingsField>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.motionSection')}>
+        <SettingToggle
+          checked={form.reduceMotion}
+          onChange={checked => update('reduceMotion', checked)}
+          title={t('settings.reduceMotionTitle')}
+          description={t('settings.reduceMotionDescription')}
+        />
       </SettingsSection>
 
       <SettingsSection title={t('settings.spotifySection')}>

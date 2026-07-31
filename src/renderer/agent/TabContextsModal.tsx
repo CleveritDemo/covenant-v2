@@ -167,6 +167,7 @@ export const TabContextsModal: React.FC<Props> = ({
         size="xl"
         bodyLayout="flush"
         zIndex={900}
+        closeOnBackdrop
       >
         <div className="tab-contexts tab-contexts--list">
           <TabContextsList

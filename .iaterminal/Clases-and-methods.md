@@ -495,6 +495,10 @@
 - upsertAgentInList
 - syncTabAgentsFromCatalog
 
+### src/renderer/reduceMotion.ts
+- isReduceMotionActive
+- syncReduceMotionDomFlag
+
 ### src/renderer/sessionSanitize.ts
 - deriveTabCounter
 - sanitizePersistedSession
@@ -658,6 +662,8 @@
 - resolveDelegationTargetPaneId
 
 ### src/renderer/workspace/PaneWindow.tsx
+- clearPaneMorphNodeStyles
+- resetPaneZoomSurfaceState
 - PaneWindow
 
 ### src/renderer/workspace/PlaneAgentBadge.tsx

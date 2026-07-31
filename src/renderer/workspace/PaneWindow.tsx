@@ -17,6 +17,7 @@ import {
   hasPlaneContextDrag,
   readPlaneContextDragData,
 } from './planeContextDrag'
+import { isReduceMotionActive } from '../reduceMotion'
 import './PaneWindow.css'
 import './PlaneChatActive.css'
 
@@ -48,8 +49,7 @@ type LayoutBox = {
 type RectBox = { x: number; y: number; w: number; h: number }
 
 function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return isReduceMotionActive()
 }
 
 function readOffsetParentSize(el: HTMLElement | null): { w: number; h: number } | null {
@@ -92,6 +92,32 @@ function liveParkedTransform(
   return `translate(${dx}px, ${dy}px) scale(${scale})`
 }
 
+type PaneZoomSetters = {
+  setZoomMode: (mode: 'idle' | 'expand' | 'collapse') => void
+  setZoomPrep: (prep: boolean) => void
+  setLayoutOverride: (layout: LayoutBox | null) => void
+}
+
+/** Limpia estilos inline del morph en el nodo animado. */
+export function clearPaneMorphNodeStyles(node: HTMLElement): void {
+  node.style.transform = ''
+  node.style.borderRadius = ''
+  node.style.transition = ''
+  node.style.transformOrigin = ''
+}
+
+/**
+ * Resetea estado React del morph (finish e interrupt cleanup).
+ * Sin esto, un cleanup a mitad deja layoutOverride/zoomMode pegados → pantalla negra.
+ */
+export function resetPaneZoomSurfaceState(setters: PaneZoomSetters): void {
+  flushSync(() => {
+    setters.setLayoutOverride(null)
+    setters.setZoomMode('idle')
+    setters.setZoomPrep(false)
+  })
+}
+
 /** Morph FLIP vía Web Animations API (fiable en Electron; no pelea con CSS tilt). */
 function runPaneTransformMorph(options: {
   root: HTMLElement | null
@@ -115,6 +141,7 @@ function runPaneTransformMorph(options: {
     setLayoutOverride,
     onFinished,
   } = options
+  const zoomSetters: PaneZoomSetters = { setZoomMode, setZoomPrep, setLayoutOverride }
 
   let finished = false
   flushSync(() => {
@@ -126,11 +153,7 @@ function runPaneTransformMorph(options: {
   const node = root
   if (!node) {
     onFinished()
-    flushSync(() => {
-      setLayoutOverride(null)
-      setZoomMode('idle')
-      setZoomPrep(false)
-    })
+    resetPaneZoomSurfaceState(zoomSetters)
     return () => {}
   }
 
@@ -164,32 +187,33 @@ function runPaneTransformMorph(options: {
       anim.cancel()
     } catch { /* ignore */ }
     onFinished()
-    flushSync(() => {
-      setLayoutOverride(null)
-      setZoomMode('idle')
-      setZoomPrep(false)
-    })
-    node.style.transform = ''
-    node.style.borderRadius = ''
-    node.style.transition = ''
-    node.style.transformOrigin = ''
+    resetPaneZoomSurfaceState(zoomSetters)
+    clearPaneMorphNodeStyles(node)
   }
 
   anim.addEventListener('finish', finish)
   const timer = window.setTimeout(finish, PANE_ZOOM_MS + 64)
   return () => {
-    finished = true
     window.clearTimeout(timer)
+    // Éxito ya pasó por finish(): no re-commit ni re-reset.
+    if (finished) {
+      try {
+        anim.cancel()
+      } catch { /* ignore */ }
+      clearPaneMorphNodeStyles(node)
+      return
+    }
+    finished = true
     try {
       anim.commitStyles()
     } catch { /* ignore */ }
     try {
       anim.cancel()
     } catch { /* ignore */ }
-    node.style.transform = ''
-    node.style.borderRadius = ''
-    node.style.transition = ''
-    node.style.transformOrigin = ''
+    // Interrupt: misma salida que finish → prevDisplayRef y zoom idle coherentes.
+    onFinished()
+    resetPaneZoomSurfaceState(zoomSetters)
+    clearPaneMorphNodeStyles(node)
   }
 }
 
@@ -396,11 +420,18 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
     const geo = geometryRef.current
     const origin = miniOriginRef.current
+    // Mini size desde refs: cambios de ranura mid-morph no reinician el efecto.
+    const slotW = origin.width > 0
+      ? origin.width
+      : (miniAgentCard ? PLANE_MINI_AGENT_WIDTH : PLANE_MINI_WINDOW_WIDTH)
+    const slotH = origin.height > 0
+      ? origin.height
+      : (miniAgentCard ? PLANE_MINI_AGENT_HEIGHT : PLANE_MINI_WINDOW_HEIGHT)
     const slot: RectBox = {
       x: origin.x,
       y: origin.y,
-      w: miniW,
-      h: miniH,
+      w: slotW,
+      h: slotH,
     }
     // Live terminal: misma escala uniforme del shell cover. Resto: fit exacto de caja.
     const parked = miniLivePreview
@@ -415,9 +446,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     const identity = 'translate(0px, 0px) scale(1)'
 
     const resetZoom = (): void => {
-      setLayoutOverride(null)
-      setZoomMode('idle')
-      setZoomPrep(false)
+      resetPaneZoomSurfaceState({ setLayoutOverride, setZoomMode, setZoomPrep })
     }
 
     const commitDisplay = (): void => {
@@ -485,7 +514,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
     commitDisplay()
     resetZoom()
-  }, [display, miniH, miniW, miniAgentCard, miniLivePreview])
+    // Solo `display` dispara morph; miniH/W se leen de refs (evita cleanup mid-gesture).
+  }, [display, miniAgentCard, miniLivePreview])
 
   const prevFullscreenRef = useRef(geometry.fullscreen)
 

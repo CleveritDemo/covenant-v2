@@ -91,6 +91,8 @@ export const IPC = {
   /** Renderer → main (invoke): workflow runs de GitHub Actions vía gh CLI */
   GITHUB_ACTIONS_LIST: 'githubActions:list',
 
+  /** Renderer → main (invoke): fijar raíz del explorador para la sesión (projectFolder del tab) */
+  FILE_EXPLORER_SET_ROOT: 'fileExplorer:setRoot',
   /** Renderer → main (invoke): listar hijos de un directorio relativo al cwd de la sesión */
   FILE_EXPLORER_LIST_DIR: 'fileExplorer:listDir',
   /** Renderer → main (invoke): leer archivo para el explorador */

@@ -95,6 +95,7 @@ export const ThemePickerModal: React.FC<Props> = ({
       panelVariant="theme-picker"
       zIndex={660}
       bodyLayout="flush"
+      closeOnBackdrop
       footer={
         <span className="theme-picker-footer-hint">
           {t('themePicker.footerHint')}

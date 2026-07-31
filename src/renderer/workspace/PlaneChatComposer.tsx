@@ -96,19 +96,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const awaitingDelegations = Boolean(selected?.awaitingDelegations)
   const delegationWorkActive = Boolean(selected?.delegationWorkActive)
   const orchestratorBusy = Boolean(selected?.orchestratorBusy)
+  // Solo el loop bloquea teclear; busy/delegaciones permiten encolar.
   const composerLocked = loopActive
-    || awaitingDelegations
-    || delegationWorkActive
-    || orchestratorBusy
   const canSend = Boolean(
     selected && !composerLocked && (draft.trim() || pendingImages.length > 0),
   )
-  const buttonIsStop = Boolean(selected && (
-    loopActive
-    || awaitingDelegations
-    || orchestratorBusy
-    || (!canSend && busy)
-  ))
+  const showStop = Boolean(selected && (loopActive || busy || awaitingDelegations))
+  const buttonIsStop = Boolean(showStop && (loopActive || !canSend))
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
@@ -291,13 +285,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             placeholder={
               agents.length === 0
                 ? emptyAgentsHint
-                : awaitingDelegations || delegationWorkActive || orchestratorBusy
-                  ? t('agentPane.awaitingDelegationsPlaceholder')
-                  : loopActive
-                    ? t('agentPane.loopPlaceholder')
-                    : busy
-                  ? t('agentPane.queuePlaceholder')
-                  : placeholder
+                : loopActive
+                  ? t('agentPane.loopPlaceholder')
+                  : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                    ? t('agentPane.queuePlaceholder')
+                    : placeholder
             }
             rows={1}
             onChange={event => setDraft(event.target.value)}

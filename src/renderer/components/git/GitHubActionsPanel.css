@@ -159,6 +159,13 @@
   50% { opacity: 1; }
 }
 
+html[data-reduce-motion="true"] {
+  .gh-actions-run-row__dot--running {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .gh-actions-run-row__body {
   flex: 1;
   min-width: 0;

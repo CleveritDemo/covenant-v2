@@ -788,3 +788,24 @@
   cursor: pointer;
   box-shadow: 0 4px 12px color-mix(in srgb, black 18%, transparent);
 }
+
+/* Reduce motion: sin blur de cristal; fondo algo más opaco para legibilidad. */
+html[data-reduce-motion="true"] {
+  .terminal-file-explorer__tree {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg) 97%, transparent);
+  }
+
+  .terminal-file-explorer__editor {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg) 98%, transparent);
+  }
+
+  .file-explorer-context-menu {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg) 99%, transparent);
+  }
+}

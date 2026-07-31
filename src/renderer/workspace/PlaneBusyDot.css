@@ -42,7 +42,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   .plane-busy-dot {
     animation: none;
     filter: brightness(1.3);

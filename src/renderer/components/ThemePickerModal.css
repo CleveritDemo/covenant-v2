@@ -228,6 +228,13 @@
   50% { opacity: 0; }
 }
 
+html[data-reduce-motion="true"] {
+  .theme-picker-tp-cursor {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 
 .theme-picker-preview-meta {
   display: flex;

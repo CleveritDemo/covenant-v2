@@ -55,6 +55,7 @@ import {
   clearPlaneSendsForOrchestrationAbort,
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
+import { syncReduceMotionDomFlag } from './reduceMotion'
 import {
   contextIdsEqual,
   resolveAssignedContextChips,
@@ -335,6 +336,7 @@ export const App: React.FC = () => {
   /** Oleadas de delegación por orquestador (se resetea en cada pedido humano). */
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
+  const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
   const [resultsPreview, setResultsPreview] = useState<{
     tabId: string
     context: TabContext
@@ -629,6 +631,18 @@ export const App: React.FC = () => {
     void i18next.changeLanguage(config.language ?? 'en')
   }, [configReady, config.language])
 
+  // App + OS reduce-motion → un solo flag DOM para CSS y JS.
+  useEffect(() => {
+    if (!configReady) return
+    const sync = (): void => {
+      syncReduceMotionDomFlag(Boolean(config.reduceMotion))
+    }
+    sync()
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [configReady, config.reduceMotion])
+
   // Load persisted session on mount
   useEffect(() => {
     window.api.loadSession().then(saved => {
@@ -880,12 +894,15 @@ export const App: React.FC = () => {
 
   const toggleTabExplorer = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || !resolveTabTerminalPaneId(tab)) return
+    const sessionId = tab ? resolveTabTerminalPaneId(tab) : null
+    if (!tab || !sessionId) return
     const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
     if (current.open) {
       patchTabExplorer(tabId, { open: false, fullscreen: false })
       return
     }
+    // Sin carpeta de proyecto no hay raíz estable: no abrir el explorador.
+    if (!tab.projectFolder?.trim()) return
     setTabs(prev => {
       const nextTabs = prev.map(item => {
         if (item.id !== tabId || item.paneIds.length === 0) return item
@@ -897,6 +914,7 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
+    void window.api.fileExplorerSetRoot(sessionId, tab.projectFolder?.trim() || '')
     patchTabExplorer(tabId, { open: true, fullscreen: false })
   }, [patchTabExplorer])
 
@@ -1272,6 +1290,13 @@ export const App: React.FC = () => {
     const next = tabsRef.current.map(t => (t.id === tabId ? { ...t, projectFolder: path } : t))
     tabsRef.current = next
     setTabs(next)
+
+    // Si el explorador está abierto, reanclar su raíz al nuevo projectFolder.
+    const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
+    const explorerSessionId = tab ? resolveTabTerminalPaneId(tab) : null
+    if (explorerOpen && explorerSessionId) {
+      void window.api.fileExplorerSetRoot(explorerSessionId, path)
+    }
 
     // Si había ediciones en catálogo efímero (sin carpeta), volcarlas al nuevo cwd.
     if (!previousCwd) {
@@ -1708,7 +1733,13 @@ export const App: React.FC = () => {
   }, [])
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
+    setPlaneContextsFocusId(null)
     setPlaneContextsModalTabId(tabId)
+  }, [])
+
+  const handleOpenContextFromPlane = useCallback((tabId: string, contextId: string) => {
+    setPlaneContextsModalTabId(tabId)
+    setPlaneContextsFocusId(contextId)
   }, [])
 
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
@@ -2630,6 +2661,10 @@ export const App: React.FC = () => {
           chainLoopActive={chainLoopActive}
           awaitingDelegations={awaitingDelegationPaneIds.has(paneId)}
           delegationWorkActive={delegationTargetPaneIds.has(paneId)}
+          systemFollowUpsPending={
+            orchestrationFifoTick >= 0
+            && (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
+          }
           onChainLoopStop={() => stopChainsForPane(tab.id, paneId)}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
@@ -2717,6 +2752,7 @@ export const App: React.FC = () => {
         onPtyCwdInitialized={rememberPaneCwd}
         onPaneCwdChanged={persistPaneCwdOnCd}
         explorerOpen={(explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE).open}
+        explorerEnabled={Boolean(tab.projectFolder?.trim())}
         onToggleExplorer={() => toggleTabExplorer(tab.id)}
         onExplorerRevealFile={(relPath) => revealTabExplorerFile(tab.id, relPath)}
         showPaneToolbar={false}
@@ -2906,6 +2942,7 @@ export const App: React.FC = () => {
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
+                  contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -2940,6 +2977,9 @@ export const App: React.FC = () => {
                   onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  onOpenContext={contextId => {
+                    handleOpenContextFromPlane(tab.id, contextId)
+                  }}
                   onAssignContext={(paneId, contextId) => {
                     handleAssignContextToAgent(tab.id, paneId, contextId)
                   }}
@@ -3049,19 +3089,13 @@ export const App: React.FC = () => {
                   }}
                   reorderAriaLabel={t('tabs.planeReorderAriaLabel')}
                   renderPane={paneId => renderPaneContent(tab, paneId)}
-                  explorerSessionId={explorerSessionId}
+                  explorerSessionId={projectCwd ? explorerSessionId : null}
                   explorerState={explorerState}
                   explorerTitle={t('fileExplorer.ariaLabel')}
                   explorerButtonLabel={t('paneToolbar.explorerTitle')}
                   explorerZIndex={APP_OVERLAY_MODAL_Z}
                   explorerThemeId={config.themeId}
-                  explorerCwd={
-                    explorerSessionId
-                      ? (paneCwds[explorerSessionId]?.trim()
-                        || cwdsRef.current[explorerSessionId]?.trim()
-                        || '')
-                      : ''
-                  }
+                  explorerCwd={projectCwd}
                   onExplorerStateChange={patch => {
                     const current = explorerByTabRef.current[tab.id]
                       ?? DEFAULT_FILE_EXPLORER_STATE
@@ -3100,9 +3134,12 @@ export const App: React.FC = () => {
             open={planeContextsModalTabId === activeTabId}
             contexts={tabContextsByTab[modalTab.id] ?? []}
             cwd={cwd}
+            focusContextId={planeContextsFocusId}
+            onFocusContextConsumed={() => setPlaneContextsFocusId(null)}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
             onClose={() => {
               setPlaneContextsModalTabId(null)
+              setPlaneContextsFocusId(null)
               void refreshTabContexts(modalTab.id)
             }}
           />

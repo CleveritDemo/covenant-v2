@@ -1,16 +1,13 @@
 export interface AgentHumanInputGuard {
   loopActive: boolean
-  awaitingDelegations: boolean
-  delegationWorkActive: boolean
-  orchestratorBusy: boolean
 }
 
-/** Bloquea únicamente entradas humanas; preferSend del sistema no usa este guard. */
+/**
+ * Bloquea solo el composer humano cuando el loop local está activo.
+ * Busy / delegaciones permiten encolar; no usan este guard.
+ */
 export function isAgentHumanInputBlocked(state: AgentHumanInputGuard): boolean {
   return state.loopActive
-    || state.awaitingDelegations
-    || state.delegationWorkActive
-    || state.orchestratorBusy
 }
 
 export interface AgentQueueDrainGuard {
@@ -19,13 +16,26 @@ export interface AgentQueueDrainGuard {
   loopActive: boolean
   awaitingDelegations: boolean
   delegationWorkActive: boolean
+  /** FIFO/preferSend de orquestación pendiente en App para este pane. */
+  systemFollowUpsPending: boolean
+  /**
+   * Si la cabeza de cola es una subtarea, no exigir !delegationWorkActive
+   * (el hold del target no debe bloquear drenar esa misma delegación encolada).
+   */
+  headIsDelegation?: boolean
 }
 
-/** La cola humana solo drena cuando el pane está realmente libre. */
+/**
+ * La cola humana solo drena cuando el pane está libre y no hay trabajo de sistema primero.
+ * Orden: loop → orchestrationFifo/preferSend → queuedTurns humanas.
+ * Cabeza delegación: permite drenar aunque delegationWorkActive (defensa post-deadlock).
+ */
 export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
+  const delegationHoldOk = state.headIsDelegation === true || !state.delegationWorkActive
   return state.loaded
     && !state.busy
     && !state.loopActive
     && !state.awaitingDelegations
-    && !state.delegationWorkActive
+    && delegationHoldOk
+    && !state.systemFollowUpsPending
 }

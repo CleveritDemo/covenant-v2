@@ -192,8 +192,15 @@
   border-radius: inherit;
 }
 
-@media (prefers-reduced-motion: reduce) {
+/* Reduce motion: aplanar el tilt 3D (mismo tratamiento que --elevated). */
+html[data-reduce-motion="true"] {
+  .plane-map__stage {
+    perspective: none;
+  }
+
   .plane-map__column {
+    transform: none !important;
     transition: none;
+    will-change: auto;
   }
 }

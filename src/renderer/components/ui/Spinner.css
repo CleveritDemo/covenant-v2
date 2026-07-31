@@ -74,7 +74,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   .spinner,
   .spinner--tab,
   .spinner--tab::after {

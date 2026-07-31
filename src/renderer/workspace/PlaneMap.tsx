@@ -16,6 +16,7 @@ import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
 import { PlaneBootstrapAgentsButton } from './PlaneBootstrapAgentsButton'
 import { usePlaneColumnReorder } from './planeColumnReorder'
+import { isReduceMotionActive } from '../reduceMotion'
 import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
@@ -137,17 +138,22 @@ function orderEntitiesByIds(
 }
 
 function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(() => (
-    typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ))
+  const [reduced, setReduced] = useState(() => isReduceMotionActive())
   useLayoutEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    const sync = (): void => setReduced(isReduceMotionActive())
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = (): void => setReduced(mq.matches)
-    onChange()
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    mq.addEventListener('change', sync)
+    const observer = new MutationObserver(sync)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-reduce-motion'],
+    })
+    sync()
+    return () => {
+      mq.removeEventListener('change', sync)
+      observer.disconnect()
+    }
   }, [])
   return reduced
 }

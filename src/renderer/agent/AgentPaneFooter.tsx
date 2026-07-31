@@ -80,11 +80,10 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           value={input}
           disabled={composerDisabled}
           placeholder={
-            awaitingDelegations || delegationWorkActive || orchestratorBusy
-              ? t('agentPane.awaitingDelegationsPlaceholder')
-              : loopActive ? t('agentPane.loopPlaceholder')
+            loopActive ? t('agentPane.loopPlaceholder')
               : loopMode ? t('agentPane.loopPlaceholder')
-              : busy ? t('agentPane.queuePlaceholder')
+              : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                ? t('agentPane.queuePlaceholder')
               : t('agentPane.placeholder')
           }
           rows={1}

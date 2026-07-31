@@ -499,6 +499,8 @@ interface Props {
   onPaneCwdChanged?: (sessionId: string, cwd: string) => void
   /** Estado visual del explorador de la tab (toolbar). */
   explorerOpen?: boolean
+  /** false = tab sin projectFolder; se oculta el botón del explorador. */
+  explorerEnabled?: boolean
   /** Abre/cierra el explorador a nivel tab. */
   onToggleExplorer?: () => void
   /** Revela un archivo relativo en el explorador de la tab (Quick Open). */
@@ -532,6 +534,7 @@ export const TerminalPane: React.FC<Props> = ({
   onPtyCwdInitialized,
   onPaneCwdChanged,
   explorerOpen = false,
+  explorerEnabled = true,
   onToggleExplorer,
   onExplorerRevealFile,
   paneToolbar,
@@ -1459,6 +1462,7 @@ export const TerminalPane: React.FC<Props> = ({
             queueMicrotask(() => { termRef.current?.focus() })
           }}
           explorerOpen={explorerOpen}
+          explorerEnabled={explorerEnabled}
           folderLabel={sessionCwdPaneLabel(paneCwd)}
           folderTitle={paneCwd ? `Carpeta actual: ${paneCwd}` : 'Carpeta actual'}
           quickOpenOpen={quickOpenOpen}

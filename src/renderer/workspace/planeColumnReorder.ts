@@ -8,7 +8,8 @@ import {
 export type PlaneReorderVisualState = 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
 
 const LONG_PRESS_MS = 400
-const MOVE_CANCEL_PX = 8
+/** Terminal: jitter beyond this cancels long-press arming (not the whole press). */
+export const MOVE_CANCEL_PX = 8
 /** Umbral para iniciar drag desde el handle (click corto = no-op). */
 export const HANDLE_DRAG_THRESHOLD_PX = 6
 const HANDLE_REENTRY_MS = 300
@@ -263,16 +264,11 @@ export function usePlaneColumnReorder({
           beginDrag(press, moveEvent.clientX, moveEvent.clientY, press.persistEditing)
         }
       } else if (!press.longPressed && !press.dragging) {
-        // Terminal: mover antes del long-press cancela el gesto.
-        if (distance > MOVE_CANCEL_PX) {
+        // Terminal: jitter cancela solo el armado del long-press; el press sigue
+        // vivo para que pointerup llame onActivate (expandir mini).
+        if (distance > MOVE_CANCEL_PX && press.longPressTimer) {
           window.clearTimeout(press.longPressTimer)
-          const captureEl = press.captureTarget
-          pressRef.current = null
-          setGestureActive(false)
-          detachListeners(captureEl)
-          try {
-            captureEl?.releasePointerCapture?.(press.pointerId)
-          } catch { /* already released */ }
+          press.longPressTimer = 0
         }
         return
       } else if (!press.dragging) {

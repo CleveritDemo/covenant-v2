@@ -172,3 +172,12 @@ textarea:focus-visible {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Reduce motion: sin entradas animadas y sin blur de cristal (coste GPU continuo). */
+html[data-reduce-motion="true"] {
+  --plane-blur: 0px;
+
+  .fade-in {
+    animation: none;
+  }
+}

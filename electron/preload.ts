@@ -331,6 +331,10 @@ const api = {
     return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
   },
 
+  fileExplorerSetRoot(sessionId: string, rootPath: string): Promise<void> {
+    return ipcRenderer.invoke(IPC.FILE_EXPLORER_SET_ROOT, sessionId, rootPath)
+  },
+
   fileExplorerListDir(
     sessionId: string,
     relPath: string,

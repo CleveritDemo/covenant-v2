@@ -10,6 +10,8 @@ export interface PaneToolbarProps {
   isGrabbed: boolean
   showClosePane: boolean
   explorerOpen: boolean
+  /** false = tab sin projectFolder; no se muestra el botón del explorador. */
+  explorerEnabled: boolean
   /** Nombre de la carpeta actual (basename del cwd). */
   folderLabel: string
   /** Ruta completa para tooltip. */
@@ -37,6 +39,7 @@ export const PaneToolbar: React.FC<PaneToolbarProps> = ({
   onOpenGitPanel,
   onToggleExplorer,
   explorerOpen,
+  explorerEnabled,
   folderLabel,
   folderTitle,
   quickOpenOpen,
@@ -79,15 +82,17 @@ export const PaneToolbar: React.FC<PaneToolbarProps> = ({
             onPointerDown={onPointerDown}
             onClick={onOpenGitPanel}
           />
-          <PaneToolbarButton
-            icon="files"
-            title={t('paneToolbar.explorerTitle')}
-            aria-label={t('paneToolbar.explorerAriaLabel')}
-            variant="files"
-            active={explorerOpen}
-            onPointerDown={onPointerDown}
-            onClick={onToggleExplorer}
-          />
+          {explorerEnabled && (
+            <PaneToolbarButton
+              icon="files"
+              title={t('paneToolbar.explorerTitle')}
+              aria-label={t('paneToolbar.explorerAriaLabel')}
+              variant="files"
+              active={explorerOpen}
+              onPointerDown={onPointerDown}
+              onClick={onToggleExplorer}
+            />
+          )}
           <PaneToolbarButton
             icon="folder"
             title={t('paneToolbar.finderTitle')}

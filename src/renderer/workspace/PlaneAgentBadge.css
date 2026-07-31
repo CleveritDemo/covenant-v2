@@ -24,6 +24,14 @@
     background 0.14s ease;
 }
 
+html[data-reduce-motion="true"] {
+  .plane-agent-badge {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+  }
+}
+
 .plane-agent-badge:hover {
   color: var(--text);
   background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);

@@ -256,3 +256,10 @@
 @keyframes ai-md-blink {
   50% { opacity: 0; }
 }
+
+html[data-reduce-motion="true"] {
+  .ai-cursor {
+    animation: none;
+    opacity: 1;
+  }
+}

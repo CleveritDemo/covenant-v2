@@ -38,6 +38,14 @@
   touch-action: manipulation;
 }
 
+/* Fondo ya opaco (--plane-glass-strong): quitar blur no afecta legibilidad. */
+html[data-reduce-motion="true"] {
+  .plane-mini-actions__btn {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 .plane-mini-actions__btn:hover {
   color: var(--text);
   border-color: var(--plane-border-strong);

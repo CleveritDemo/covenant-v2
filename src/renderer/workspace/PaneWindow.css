@@ -642,7 +642,7 @@
   cursor: grab;
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-reduce-motion="true"] {
   .pane-window--zooming,
   .pane-window--zooming.pane-window--mini,
   .pane-window--zooming.pane-window--agent-card {

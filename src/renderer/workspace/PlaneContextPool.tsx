@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef } from 'react'
 import type { TabContextKind } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
 import type { IconName } from '../components/ui/Icon'
@@ -19,16 +19,23 @@ export interface PlaneContextPoolItem {
 export interface PlaneContextPoolProps {
   title: string
   configureLabel: string
+  /** Hint in chip title/aria: click edits, drag assigns. */
+  chipActionHint?: string
   contexts: PlaneContextPoolItem[]
   onConfigure: () => void
+  /** Click on chip (not after a drag) opens that context for edit. */
+  onOpenContext?: (contextId: string) => void
 }
 
 export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   title,
   configureLabel,
+  chipActionHint,
   contexts,
   onConfigure,
+  onOpenContext,
 }) => {
+  const dragOccurredRef = useRef(false)
   const visibleContexts = useMemo(
     () => contexts.filter(isProjectContext),
     [contexts],
@@ -56,26 +63,53 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
 
       {visibleContexts.length > 0 ? (
         <div className="plane-context-pool__icons" role="list">
-          {visibleContexts.map(ctx => (
-            <div
-              key={ctx.id}
-              role="listitem"
-              className="plane-context-pool__drag"
-              draggable
-              title={`${ctx.name} — ${ctx.kindLabel}`}
-              onDragStart={event => {
-                setPlaneContextDragData(event.dataTransfer, ctx.id)
-              }}
-            >
-              <ContextBadge
-                name={ctx.name}
-                kindLabel={ctx.kindLabel}
-                icon={ctx.icon}
-                color={ctx.color}
-                iconSize={11}
-              />
-            </div>
-          ))}
+          {visibleContexts.map(ctx => {
+            const label = chipActionHint
+              ? `${ctx.name} — ${ctx.kindLabel}. ${chipActionHint}`
+              : `${ctx.name} — ${ctx.kindLabel}`
+            return (
+              <div key={ctx.id} role="listitem">
+                <button
+                  type="button"
+                  className="plane-context-pool__drag"
+                  draggable
+                  title={label}
+                  aria-label={label}
+                  onClick={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (dragOccurredRef.current) {
+                      dragOccurredRef.current = false
+                      return
+                    }
+                    onOpenContext?.(ctx.id)
+                  }}
+                  onPointerDown={event => {
+                    event.stopPropagation()
+                  }}
+                  onDragStart={event => {
+                    event.stopPropagation()
+                    dragOccurredRef.current = true
+                    setPlaneContextDragData(event.dataTransfer, ctx.id)
+                  }}
+                  onDragEnd={event => {
+                    event.stopPropagation()
+                    window.setTimeout(() => {
+                      dragOccurredRef.current = false
+                    }, 50)
+                  }}
+                >
+                  <ContextBadge
+                    name={ctx.name}
+                    kindLabel={ctx.kindLabel}
+                    icon={ctx.icon}
+                    color={ctx.color}
+                    iconSize={11}
+                  />
+                </button>
+              </div>
+            )
+          })}
         </div>
       ) : null}
     </div>

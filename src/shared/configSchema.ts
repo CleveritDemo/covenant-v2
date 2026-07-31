@@ -76,6 +76,10 @@ export interface AppConfig {
   musicPlaylistIdsByMood?: Record<string, string>
   /** Idioma de la interfaz. */
   language: Language
+  /**
+   * Baja animaciones del plano y chat de agentes (también respeta OS reduce-motion vía DOM).
+   */
+  reduceMotion: boolean
   /** Reiniciar shell automáticamente tras exit en un panel de terminal. */
   autoRestartShell: boolean
   /** Ejecutables usados por las ventanas de agente CLI. */
@@ -107,6 +111,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   thinkingMode: false,
   musicPlaylistIdsByMood: {},
   language: 'en',
+  reduceMotion: false,
   autoRestartShell: true,
   agentCliClaudeCommand: 'claude',
   agentCliCursorCommand: 'agent',
@@ -119,7 +124,10 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ...(partial.musicPlaylistIdsByMood ?? {}),
   }
   const moods = canonicalizeMusicPlaylistIdsByMood(rawMoods)
-  return { ...CONFIG_DEFAULTS, ...partial, musicPlaylistIdsByMood: moods }
+  const reduceMotion = typeof partial.reduceMotion === 'boolean'
+    ? partial.reduceMotion
+    : CONFIG_DEFAULTS.reduceMotion
+  return { ...CONFIG_DEFAULTS, ...partial, musicPlaylistIdsByMood: moods, reduceMotion }
 }
 
 export function validateConfig(config: AppConfig): string[] {

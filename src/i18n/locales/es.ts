@@ -74,6 +74,7 @@ const es = {
     queuePlaceholder: 'Escribe y presiona Enter para encolar…',
     queueLabel: '{{n}} mensaje(s) en cola',
     queueRemove: 'Quitar de la cola',
+    queueMerge: 'Unir mensajes',
     queueEditTitle: 'Editar mensaje en cola',
     queueEditLabel: 'Mensaje',
     queueEditSave: 'Guardar',

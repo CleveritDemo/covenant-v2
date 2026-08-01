@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import {
+  clampPlaneColumnScroll,
   computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
   computeStandardPaneWindowGeometry,
@@ -85,12 +86,29 @@ export interface PlaneMapProps {
   onReorderPanes?: (kind: PaneReorderKind, orderedPaneIds: string[]) => void
 }
 
-/** Ranuras: terminales a altura de celda; agentes apilados a altura medida/estimada. */
-function buildSlotOrigins(
+export interface PlaneColumnScrollOffsets {
+  terminal: number
+  agent: number
+}
+
+const ZERO_SCROLL_OFFSETS: PlaneColumnScrollOffsets = { terminal: 0, agent: 0 }
+
+interface PlaneSlotLayout {
+  origins: Record<string, PaneWindowGeometry>
+  /** Altura total de contenido por columna (sin clearance inferior). */
+  contentHeights: PlaneColumnScrollOffsets
+}
+
+/**
+ * Ranuras: terminales a altura de celda; agentes apilados a altura medida/estimada.
+ * `scrollOffsets` desplaza cada columna hacia arriba (scroll virtual).
+ */
+export function buildSlotOrigins(
   entities: PlaneMapEntity[],
   viewport: { width: number; height: number },
   agentHeights: Record<string, number>,
-): Record<string, PaneWindowGeometry> {
+  scrollOffsets: PlaneColumnScrollOffsets = ZERO_SCROLL_OFFSETS,
+): PlaneSlotLayout {
   const vw = Math.max(viewport.width, 320)
   const origins: Record<string, PaneWindowGeometry> = {}
   const terminals = entities.filter(entity => entity.kind !== 'agent')
@@ -103,11 +121,16 @@ function buildSlotOrigins(
   terminals.forEach((entity, index) => {
     origins[entity.paneId] = {
       x: padX,
-      y: PLANE_MINI_SLOT_PAD_Y + index * stride,
+      y: PLANE_MINI_SLOT_PAD_Y + index * stride - scrollOffsets.terminal,
       width: cell.width,
       height: cell.height,
     }
   })
+  const terminalContentHeight = terminals.length > 0
+    ? PLANE_MINI_SLOT_PAD_Y
+      + terminals.length * cell.height
+      + (terminals.length - 1) * PLANE_MINI_SLOT_GAP
+    : 0
 
   let agentY = PLANE_MINI_SLOT_PAD_Y
   const agentX = Math.max(padX, vw - padX - cell.width)
@@ -118,13 +141,19 @@ function buildSlotOrigins(
       : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0)
     origins[entity.paneId] = {
       x: agentX,
-      y: agentY,
+      y: agentY - scrollOffsets.agent,
       width: cell.width,
       height,
     }
     agentY += height + PLANE_MINI_SLOT_GAP
   })
-  return origins
+  return {
+    origins,
+    contentHeights: {
+      terminal: terminalContentHeight,
+      agent: agents.length > 0 ? agentY : 0,
+    },
+  }
 }
 
 function orderEntitiesByIds(
@@ -193,6 +222,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [agentHeights, setAgentHeights] = useState<Record<string, number>>({})
+  const [scrollOffsets, setScrollOffsets] = useState<PlaneColumnScrollOffsets>(ZERO_SCROLL_OFFSETS)
+  const [wheelScrolling, setWheelScrolling] = useState(false)
+  const wheelScrollingTimeoutRef = useRef<number | null>(null)
   const reducedMotion = usePrefersReducedMotion()
 
   const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
@@ -266,14 +298,35 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const anyWindowOpen = terminalOpen
   const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
 
-  const baselineSlots = useMemo(
+  const baselineLayout = useMemo(
     () => buildSlotOrigins(
       entities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
       agentHeights,
+      scrollOffsets,
     ),
-    [entities, viewport, agentHeights],
+    [entities, viewport, agentHeights, scrollOffsets],
   )
+  const baselineSlots = baselineLayout.origins
+
+  const maxScrollOffsets = useMemo<PlaneColumnScrollOffsets>(() => {
+    const vh = viewport.height > 0 ? viewport.height : 640
+    return {
+      terminal: clampPlaneColumnScroll(baselineLayout.contentHeights.terminal, vh),
+      agent: clampPlaneColumnScroll(baselineLayout.contentHeights.agent, vh),
+    }
+  }, [baselineLayout.contentHeights, viewport.height])
+
+  // Re-clampa offsets si el contenido o el viewport encogen.
+  useLayoutEffect(() => {
+    setScrollOffsets(prev => {
+      const terminal = Math.min(prev.terminal, maxScrollOffsets.terminal)
+      const agent = Math.min(prev.agent, maxScrollOffsets.agent)
+      return terminal === prev.terminal && agent === prev.agent
+        ? prev
+        : { terminal, agent }
+    })
+  }, [maxScrollOffsets])
 
   const terminalSlots = useMemo(() => {
     const next: Record<string, PaneWindowGeometry> = {}
@@ -356,6 +409,77 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   }, [cancelAgentReorder, cancelTerminalReorder, reorderActive])
 
   /**
+   * Scroll virtual por columna: mapa y columnas tienen pointer-events none,
+   * así que el wheel se captura en window (capture) y se filtra por geometría.
+   */
+  const terminalCount = terminalsInOrder.length
+  const agentCount = agentsInOrder.length
+  useLayoutEffect(() => {
+    const el = mapRef.current
+    if (!el) return
+    if (anyWindowOpen || reorderActive) return
+    if (maxScrollOffsets.terminal <= 0 && maxScrollOffsets.agent <= 0) return
+    const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
+    const columnCount = Math.max(terminalCount, agentCount, 1)
+    const cell = computePlaneMiniSlotCell(vp, columnCount)
+    const padX = computePlaneMiniSlotPadX(vp, columnCount)
+    const agentX = Math.max(padX, vp.width - padX - cell.width)
+    const tolerance = 24
+
+    const onWheel = (event: WheelEvent): void => {
+      if (event.ctrlKey) return
+      const rect = el.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return
+      if (
+        event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom
+      ) return
+      // Modal o ventana expandida por encima del plano: scroll nativo.
+      if (
+        event.target instanceof Element
+        && event.target.closest('.terminal-modal-root, .pane-window--full')
+      ) return
+      const x = event.clientX - rect.left
+      let column: 'terminal' | 'agent' | null = null
+      if (x >= padX - tolerance && x <= padX + cell.width + tolerance) {
+        column = 'terminal'
+      } else if (x >= agentX - tolerance && x <= agentX + cell.width + tolerance) {
+        column = 'agent'
+      }
+      if (!column) return
+      const maxOffset = column === 'terminal'
+        ? maxScrollOffsets.terminal
+        : maxScrollOffsets.agent
+      if (maxOffset <= 0) return
+      event.preventDefault()
+      // Sin transición mientras rueda: el offset debe seguir 1:1 al wheel.
+      setWheelScrolling(true)
+      if (wheelScrollingTimeoutRef.current !== null) {
+        window.clearTimeout(wheelScrollingTimeoutRef.current)
+      }
+      wheelScrollingTimeoutRef.current = window.setTimeout(() => {
+        wheelScrollingTimeoutRef.current = null
+        setWheelScrolling(false)
+      }, 150)
+      const key = column
+      setScrollOffsets(prev => {
+        const next = Math.min(maxOffset, Math.max(0, prev[key] + event.deltaY))
+        return next === prev[key] ? prev : { ...prev, [key]: next }
+      })
+    }
+    window.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    return () => {
+      window.removeEventListener('wheel', onWheel, true)
+      if (wheelScrollingTimeoutRef.current !== null) {
+        window.clearTimeout(wheelScrollingTimeoutRef.current)
+        wheelScrollingTimeoutRef.current = null
+      }
+    }
+  }, [agentCount, anyWindowOpen, maxScrollOffsets, reorderActive, terminalCount, viewport])
+
+  /**
    * Durante drag: layout temporal según previewIds (hueco del dragged + resto).
    * El hit-test del hook usa slots/ids congelados del gesto (no este layout).
    */
@@ -379,8 +503,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       layoutEntities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
       agentHeights,
-    ),
-    [agentHeights, layoutEntities, viewport],
+      scrollOffsets,
+    ).origins,
+    [agentHeights, layoutEntities, scrollOffsets, viewport],
   )
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
@@ -504,6 +629,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         'plane-map',
         anyWindowOpen ? 'plane-map--elevated' : '',
         reorderActive ? 'plane-map--reordering' : '',
+        wheelScrolling ? 'plane-map--wheel-scrolling' : '',
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >

@@ -72,6 +72,7 @@ const en = {
     queuePlaceholder: 'Type and press Enter to queue…',
     queueLabel: '{{n}} queued message(s)',
     queueRemove: 'Remove from queue',
+    queueMerge: 'Merge messages',
     queueEditTitle: 'Edit queued message',
     queueEditLabel: 'Message',
     queueEditSave: 'Save',

@@ -8,7 +8,7 @@ import {
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
-import { Button, Input, TextArea, Toggle } from '../components/ui'
+import { Input, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
 import { TabContextColorSwatch } from './TabContextColorSwatch'
@@ -39,9 +39,6 @@ interface Props {
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
   onPreviewReset: () => void
-  onLoadPreview: () => void
-  onRegenerate: () => void
-  onSave: () => void
   onPickRootError?: (message: string) => void
   countAutoKeys: (content: string) => number
   countAnnotations: (content: string) => number
@@ -61,9 +58,6 @@ export const TabContextsEditor: React.FC<Props> = ({
   onSelectKind,
   onNotesContentChange,
   onPreviewReset,
-  onLoadPreview,
-  onRegenerate,
-  onSave,
   onPickRootError,
   countAutoKeys,
   countAnnotations,
@@ -273,39 +267,6 @@ export const TabContextsEditor: React.FC<Props> = ({
           )}
         </div>
       )}
-
-      <div className="tab-contexts__actions">
-        <Button variant="secondary" disabled={preview.status === 'loading'} onClick={() => { void onLoadPreview() }}>
-          {preview.status === 'loading' ? t('tabContexts.loading') : t('tabContexts.preview')}
-        </Button>
-        {draft.kind !== 'changelog' && draft.kind !== 'agentResult' && <Button
-          variant="secondary"
-          disabled={
-            preview.status === 'loading' ||
-            !(draft.name ?? '').trim() ||
-            !(draft.fileName ?? '').trim() ||
-            Boolean(duplicateMessage)
-          }
-          title={t('tabContexts.regenerateHint')}
-          onClick={() => { void onRegenerate() }}
-        >
-          <Icon name="refresh" size={13} />
-          {t('tabContexts.regenerate')}
-        </Button>}
-        {draft.kind !== 'agentResult' && (
-          <Button
-            disabled={
-              Boolean(duplicateMessage) ||
-              (draft.kind === 'changelog'
-                ? false
-                : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
-            }
-            onClick={() => { void onSave() }}
-          >
-            {t('tabContexts.save')}
-          </Button>
-        )}
-      </div>
     </section>
   )
 }

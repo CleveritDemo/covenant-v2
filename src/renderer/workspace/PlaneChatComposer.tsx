@@ -51,6 +51,10 @@ export interface PlaneChatQueuedTurn {
   id: string
   text: string
   images: Array<{ id: string; previewUrl: string; name: string }>
+  /** Follow-up de orquestación: no participa en el merge. */
+  orchestrationFollowUp?: boolean
+  /** Subtarea delegada: no participa en el merge. */
+  delegation?: { id: string; fromPaneId: string; toAgentId: string }
 }
 
 export interface PlaneChatComposerProps {
@@ -66,6 +70,7 @@ export interface PlaneChatComposerProps {
   onSend: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
   onRemoveQueuedTurn?: (paneId: string, id: string) => void
   onUpdateQueuedTurn?: (paneId: string, id: string, text: string) => void
+  onMergeQueuedTurns?: (paneId: string) => void
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -81,6 +86,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   onSend,
   onRemoveQueuedTurn,
   onUpdateQueuedTurn,
+  onMergeQueuedTurns,
 }) => {
   const { t } = useT()
   const [draft, setDraft] = useState('')
@@ -131,6 +137,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     const el = composerInputRef.current
     if (el) resizeComposerTextarea(el)
   }, [draft])
+
+  // Si el turno editado ya no está en la cola (p. ej. tras merge), cerrar el modal.
+  useEffect(() => {
+    if (editingQueuedId !== null && !queuedTurns.some(item => item.id === editingQueuedId)) {
+      setEditingQueuedId(null)
+    }
+  }, [queuedTurns, editingQueuedId])
 
   const appendPendingImages = useCallback((images: ComposerPendingImage[]): void => {
     if (!images.length) return
@@ -216,6 +229,20 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             className="plane-chat-composer__queue"
             aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
           >
+            {onMergeQueuedTurns
+              && queuedTurns.filter(item => (
+                !item.delegation && !item.orchestrationFollowUp
+              )).length >= 2 && (
+              <button
+                type="button"
+                className="plane-chat-composer__queue-merge"
+                title={t('agentPane.queueMerge')}
+                aria-label={t('agentPane.queueMerge')}
+                onClick={() => onMergeQueuedTurns(selectedAgentId)}
+              >
+                {t('agentPane.queueMerge')}
+              </button>
+            )}
             {queuedTurns.map((item, index) => (
               <div key={item.id} className="plane-chat-composer__queue-bubble">
                 <PlaneChatQueueEditButton

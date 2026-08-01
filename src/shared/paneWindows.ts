@@ -109,6 +109,17 @@ export function computePlaneMiniSlotPadX(
   )
 }
 
+/**
+ * Desplazamiento máximo de scroll de una columna del plano.
+ * 0 si el contenido (más el hueco inferior del composer) cabe en el viewport.
+ */
+export function clampPlaneColumnScroll(
+  contentHeight: number,
+  viewportHeight: number,
+): number {
+  return Math.max(0, contentHeight + PLANE_MINI_BOTTOM_CLEARANCE - viewportHeight)
+}
+
 /** Fallback de ranura mini (runtime: computePlaneMiniSlotCell). */
 export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
 export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT

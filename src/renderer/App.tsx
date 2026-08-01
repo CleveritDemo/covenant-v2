@@ -2255,6 +2255,10 @@ export const App: React.FC = () => {
     planeQueueControlsByPaneRef.current.get(paneId)?.update(id, text)
   }, [])
 
+  const handlePlaneMergeQueuedTurns = useCallback((paneId: string) => {
+    planeQueueControlsByPaneRef.current.get(paneId)?.merge()
+  }, [])
+
   const handleAgentMetaChange = useCallback(async (
     tabId: string,
     paneId: string,
@@ -2957,6 +2961,7 @@ export const App: React.FC = () => {
                   onToggleLoop={handlePlaneToggleLoop}
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
+                  onMergeQueuedTurns={handlePlaneMergeQueuedTurns}
                   canAdd={tab.paneIds.length < MAX_PANES_PER_TAB}
                   canAddAgent={Boolean(projectCwd)}
                   canAddTerminal={Boolean(projectCwd)}

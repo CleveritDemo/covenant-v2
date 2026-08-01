@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import { collectAutoAnnotationKeys } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
@@ -49,6 +49,8 @@ export const TabContextsModal: React.FC<Props> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const [listError, setListError] = useState('')
+  /** true si el form se abrió por focusContextId (plano); false si desde el listado. */
+  const formOpenedFromFocusRef = useRef(false)
 
   useEffect(() => {
     if (!open) {
@@ -56,6 +58,7 @@ export const TabContextsModal: React.FC<Props> = ({
       setSelectedId(null)
       setPreview({ status: 'idle' })
       setListError('')
+      formOpenedFromFocusRef.current = false
     }
   }, [open])
 
@@ -66,6 +69,7 @@ export const TabContextsModal: React.FC<Props> = ({
       if (contexts.length > 0) onFocusContextConsumed?.()
       return
     }
+    formOpenedFromFocusRef.current = true
     setSelectedId(target.id)
     setFormSession({ mode: 'edit', context: target })
     onFocusContextConsumed?.()
@@ -160,7 +164,7 @@ export const TabContextsModal: React.FC<Props> = ({
   return (
     <>
       <TerminalModal
-        open={open}
+        open={open && formSession === null}
         onClose={onClose}
         title={t('tabContexts.title')}
         titleId="tab-contexts-title"
@@ -173,9 +177,13 @@ export const TabContextsModal: React.FC<Props> = ({
           <TabContextsList
             contexts={contexts}
             selectedId={selectedId}
-            onNew={() => setFormSession({ mode: 'create' })}
+            onNew={() => {
+              formOpenedFromFocusRef.current = false
+              setFormSession({ mode: 'create' })
+            }}
             onSelect={setSelectedId}
             onEdit={context => {
+              formOpenedFromFocusRef.current = false
               setSelectedId(context.id)
               setFormSession({ mode: 'edit', context })
             }}
@@ -199,7 +207,15 @@ export const TabContextsModal: React.FC<Props> = ({
         contexts={contexts}
         cwd={cwd}
         onRefresh={onRefresh}
-        onClose={() => setFormSession(null)}
+        onClose={() => {
+          if (formOpenedFromFocusRef.current) {
+            formOpenedFromFocusRef.current = false
+            setFormSession(null)
+            onClose()
+            return
+          }
+          setFormSession(null)
+        }}
       />
     </>
   )

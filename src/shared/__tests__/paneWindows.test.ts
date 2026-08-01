@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clampPlaneColumnScroll,
   collapseAllPaneWindows,
   computePlaneChatColumnWidth,
   computePlaneMiniSlotCell,
@@ -12,6 +13,7 @@ import {
   PANE_WINDOW_VIEWPORT_RATIO,
   PLANE_CHAT_BASE_WIDTH,
   PLANE_CHAT_MAX_WIDTH,
+  PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_MAX_WIDTH,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_X_MAX,
@@ -125,6 +127,23 @@ describe('paneWindows', () => {
       a: { open: false, fullscreen: false, zIndex: 3 },
       b: { open: false, fullscreen: false, zIndex: 1 },
     })
+  })
+
+  it('clampPlaneColumnScroll is 0 when content plus clearance fits', () => {
+    const viewportHeight = 800
+    const fitting = viewportHeight - PLANE_MINI_BOTTOM_CLEARANCE
+    expect(clampPlaneColumnScroll(fitting, viewportHeight)).toBe(0)
+    expect(clampPlaneColumnScroll(fitting - 100, viewportHeight)).toBe(0)
+    expect(clampPlaneColumnScroll(0, viewportHeight)).toBe(0)
+  })
+
+  it('clampPlaneColumnScroll returns exact overflow, never negative', () => {
+    const viewportHeight = 800
+    const contentHeight = 900
+    expect(clampPlaneColumnScroll(contentHeight, viewportHeight)).toBe(
+      contentHeight + PLANE_MINI_BOTTOM_CLEARANCE - viewportHeight,
+    )
+    expect(clampPlaneColumnScroll(37, 10_000)).toBe(0)
   })
 
   it('minimizes every other open window', () => {

@@ -25,6 +25,8 @@ export interface AgentPaneMessagesProps {
   loopActive: boolean
   loopIteration: number
   queuedTurns: AgentPaneQueuedTurn[]
+  /** Turnos sin delegation/follow-up: con 2+ se ofrece fusionar. */
+  mergeableCount: number
   nearBottom: boolean
   activeAssistantId: string | null
   enteringIds: ReadonlySet<string>
@@ -34,6 +36,7 @@ export interface AgentPaneMessagesProps {
   onMaterializingAnimationEnd: (id: string) => void
   onRemoveQueuedTurn: (id: string) => void
   onEditQueuedTurn: (id: string) => void
+  onMergeQueuedTurns: () => void
   onScrollToBottom: () => void
 }
 
@@ -46,6 +49,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   loopActive,
   loopIteration,
   queuedTurns,
+  mergeableCount,
   nearBottom,
   activeAssistantId,
   enteringIds,
@@ -55,6 +59,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onMaterializingAnimationEnd,
   onRemoveQueuedTurn,
   onEditQueuedTurn,
+  onMergeQueuedTurns,
   onScrollToBottom,
 }) => {
   const { t } = useT()
@@ -107,6 +112,19 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
             className="agent-pane__queue"
             aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
           >
+            {mergeableCount >= 2 && (
+              <div className="agent-pane__queue-header">
+                <button
+                  type="button"
+                  className="agent-pane__queue-merge"
+                  title={t('agentPane.queueMerge')}
+                  aria-label={t('agentPane.queueMerge')}
+                  onClick={onMergeQueuedTurns}
+                >
+                  {t('agentPane.queueMerge')}
+                </button>
+              </div>
+            )}
             {queuedTurns.map((item, index) => (
               <div key={item.id} className="agent-pane__queue-bubble">
                 <button

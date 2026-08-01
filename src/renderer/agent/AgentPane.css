@@ -872,6 +872,31 @@ html[data-reduce-motion="true"] {
   background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 25%, transparent);
 }
 
+/* Encabezado de la cola: acción de fusión alineada con las burbujas. */
+.agent-pane__queue-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agent-pane__queue-merge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px dashed color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 45%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--terminal-modal-text, #e6e6e6);
+  font-size: calc(var(--agent-chat-font-size) * 0.75);
+  line-height: 1.4;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.agent-pane__queue-merge:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 25%, transparent);
+}
+
 @keyframes agent-pane-queue-chip-in {
   from {
     opacity: 0;
@@ -1836,14 +1861,6 @@ html[data-reduce-motion="true"] {
   border: none;
   font: 10.5px/1.5 var(--font-mono);
   white-space: pre-wrap;
-}
-
-.tab-contexts__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: auto;
 }
 
 /* ── Picker de proveedor ─────────────────────────────────────────────── */

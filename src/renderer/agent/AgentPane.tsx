@@ -60,6 +60,7 @@ import {
   type ComposerPendingImage,
 } from './composerImages'
 import { decideParentDelegationNotify } from './parentDelegationNotify'
+import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
 
@@ -228,6 +229,8 @@ export interface AgentPlaneStatus {
     id: string
     text: string
     images: Array<{ id: string; previewUrl: string; name: string }>
+    orchestrationFollowUp?: boolean
+    delegation?: { id: string; fromPaneId: string; toAgentId: string }
   }>
   /** Hay historial, cola o sesión CLI que se pueden limpiar. */
   canClearConversation: boolean
@@ -236,6 +239,8 @@ export interface AgentPlaneStatus {
 export interface AgentPlaneQueueControls {
   remove: (id: string) => void
   update: (id: string, text: string) => void
+  /** Fusiona los turnos humanos encolados (sin delegation/follow-up) en uno. */
+  merge: () => void
   /** Quita subtareas del orquestador y follow-ups locales de ese pane. */
   cancelDelegationsFrom: (fromPaneId: string) => void
 }
@@ -782,6 +787,8 @@ export const AgentPane: React.FC<Props> = ({
           previewUrl: image.previewUrl,
           name: image.name,
         })),
+        ...(item.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
+        ...(item.delegation ? { delegation: { ...item.delegation } } : {}),
       })),
       canClearConversation: messages.length > 0
         || queuedTurns.length > 0
@@ -1520,6 +1527,15 @@ export const AgentPane: React.FC<Props> = ({
     )))
   }, [])
 
+  const handleMergeQueuedTurns = useCallback((): void => {
+    const next = mergeQueuedTurns(queuedTurns)
+    if (next === queuedTurns) return
+    setQueuedTurns(next)
+    setEditingQueuedId(current => (
+      current && !next.some(item => item.id === current) ? null : current
+    ))
+  }, [queuedTurns])
+
   const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
     setQueuedTurns(previous => {
       const { kept, removed } = filterQueuedTurnsAfterOrchestrationAbort(
@@ -1539,11 +1555,13 @@ export const AgentPane: React.FC<Props> = ({
     onPlaneQueueControlsReady({
       remove: removeQueuedTurn,
       update: updateQueuedTurn,
+      merge: handleMergeQueuedTurns,
       cancelDelegationsFrom,
     })
     return () => onPlaneQueueControlsReady(null)
   }, [
     cancelDelegationsFrom,
+    handleMergeQueuedTurns,
     onPlaneQueueControlsReady,
     removeQueuedTurn,
     updateQueuedTurn,
@@ -1987,8 +2005,12 @@ export const AgentPane: React.FC<Props> = ({
             settlingId={settlingId}
             onEnteringAnimationEnd={handleEnteringAnimationEnd}
             onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
+            mergeableCount={queuedTurns.filter(item => (
+              !item.delegation && !item.orchestrationFollowUp
+            )).length}
             onRemoveQueuedTurn={removeQueuedTurn}
             onEditQueuedTurn={id => setEditingQueuedId(id)}
+            onMergeQueuedTurns={handleMergeQueuedTurns}
             onScrollToBottom={scrollChatToBottom}
           />
 

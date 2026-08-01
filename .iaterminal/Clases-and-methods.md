@@ -281,6 +281,9 @@
 ### src/renderer/agent/Gravity.tsx
 - Gravity
 
+### src/renderer/agent/mergeQueuedTurns.ts
+- mergeQueuedTurns
+
 ### src/renderer/agent/parentDelegationNotify.ts
 - decideParentDelegationNotify
 
@@ -757,6 +760,7 @@
 - PlaneLoopsSection
 
 ### src/renderer/workspace/PlaneMap.tsx
+- buildSlotOrigins
 - PlaneMap
 
 ### src/renderer/workspace/PlaneMiniActions.tsx
@@ -851,6 +855,7 @@
 - computePlaneMiniSlotCell
 - computePlaneChatColumnWidth
 - computePlaneMiniSlotPadX
+- clampPlaneColumnScroll
 - estimatePlaneAgentMiniHeight
 - maxPaneWindowZ
 - minimizeOtherPaneWindows

@@ -170,6 +170,11 @@
   filter: brightness(1.04);
 }
 
+/* Scroll virtual con wheel: sin transición left/top para seguir 1:1 al puntero. */
+.plane-map--wheel-scrolling .pane-window--mini:not(.pane-window--zooming) {
+  transition: none !important;
+}
+
 .plane-map__slot-reserve {
   position: absolute;
   box-sizing: border-box;

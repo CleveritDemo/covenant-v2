@@ -3,13 +3,13 @@
 
 > Últimos 10 cambios realizados por la IA. Generado automáticamente.
 
-- `2026-08-01T00:14:07.183Z` — `src/renderer/components/SettingsModal.tsx` — handleRequestClose guarda al cerrar por backdrop/Escape con guard de saving; Cancelar sigue descartando
-- `2026-07-31T22:44:51.815Z` — `src/renderer/components/SettingsModal.tsx` — Prop closeOnBackdrop añadida al TerminalModal de ajustes
-- `2026-07-31T22:41:42.232Z` — `src/renderer/App.tsx` — Guard de projectFolder en toggleTabExplorer; explorerSessionId null sin carpeta; explorerCwd = projectCwd; prop explorerEnabled a TerminalPane
-- `2026-07-31T22:41:42.232Z` — `src/renderer/terminal/TerminalPane.tsx` — Nueva prop explorerEnabled (default true) propagada a PaneToolbar
-- `2026-07-31T22:41:42.232Z` — `src/renderer/terminal/PaneToolbar.tsx` — Prop explorerEnabled; botón de explorador no se renderiza cuando es false
-- `2026-07-31T22:35:41.560Z` — `src/shared/ipcChannels.ts` — Canal FILE_EXPLORER_SET_ROOT para fijar raíz del explorador
-- `2026-07-31T22:35:41.560Z` — `electron/main.ts` — Mapa explorerRootBySession, explorerRootForSession en handlers FILE_EXPLORER_*, cleanup en PTY_KILL
-- `2026-07-31T22:35:41.560Z` — `electron/preload.ts` — Expone fileExplorerSetRoot en la API del preload
-- `2026-07-31T22:35:41.560Z` — `src/renderer/App.tsx` — SetRoot al abrir explorador y al cambiar projectFolder; explorerCwd prioriza projectFolder
-- `2026-07-31T22:10:22.184Z` — `src/renderer/components/AiMarkdown.css` — Gate reduce-motion: cursor ai-md-blink sin animación, opacity 1
+- `2026-08-01T22:41:48.041Z` — `src/renderer/agent/TabContextFormModal.tsx` — Move Preview/Regenerate/Save buttons into TerminalModal footer prop
+- `2026-08-01T22:41:48.041Z` — `src/renderer/agent/TabContextsEditor.tsx` — Remove in-body actions block and onSave/onLoadPreview/onRegenerate props
+- `2026-08-01T22:41:48.041Z` — `src/renderer/agent/AgentPane.css` — Delete orphaned .tab-contexts__actions rule
+- `2026-08-01T22:36:13.080Z` — `src/renderer/agent/TabContextsModal.tsx` — Hide list while form open; focus-from-plane ref closes full session on form dismiss
+- `2026-08-01T22:36:13.080Z` — `src/renderer/agent/TabContextFormModal.tsx` — Backdrop/Esc dismiss saves via ref-backed save; closeOnBackdrop; fail keeps modal open
+- `2026-08-01T05:43:28.723Z` — `src/renderer/workspace/PlaneChatComposer.tsx` — Effect clears editingQueuedId when edited turn leaves the queue (e.g. after merge)
+- `2026-08-01T05:41:02.839Z` — `src/renderer/agent/__tests__/mergeQueuedTurns.test.ts` — Unit tests mergeQueuedTurns: fusión, flags, vacíos, referencia original
+- `2026-08-01T05:37:27.603Z` — `src/renderer/agent/mergeQueuedTurns.ts` — New pure mergeQueuedTurns: merges flag-free turns into first position, joins texts, concats images
+- `2026-08-01T05:37:27.603Z` — `src/renderer/agent/AgentPane.tsx` — handleMergeQueuedTurns callback, merge in AgentPlaneQueueControls, flags in plane status, props to AgentPaneMessages
+- `2026-08-01T05:37:27.603Z` — `src/renderer/agent/AgentPaneMessages.tsx` — Queue header row with merge button when mergeableCount>=2

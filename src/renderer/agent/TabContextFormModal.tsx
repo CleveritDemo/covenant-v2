@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
   applyCanonicalContextIdentity,
@@ -9,6 +9,8 @@ import {
 } from '@shared/tabContext'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
+import { Button } from '../components/ui'
+import { Icon } from '../components/ui/Icon'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
 
@@ -69,6 +71,17 @@ export const TabContextFormModal: React.FC<Props> = ({
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const [notesContent, setNotesContent] = useState('')
   const [resolvedCwdLabel, setResolvedCwdLabel] = useState('')
+  // Refs para dismiss/backdrop: evita estado stale en el handler async.
+  const draftRef = useRef(draft)
+  const notesContentRef = useRef(notesContent)
+  const modeRef = useRef(mode)
+  const contextRef = useRef(context)
+  const contextsRef = useRef(contexts)
+  draftRef.current = draft
+  notesContentRef.current = notesContent
+  modeRef.current = mode
+  contextRef.current = context
+  contextsRef.current = contexts
 
   const resolveCwd = async (): Promise<string> => {
     const resolved = (cwd ?? '').trim()
@@ -198,42 +211,86 @@ export const TabContextFormModal: React.FC<Props> = ({
       : { paths: undefined }),
   })
 
-  const save = async (): Promise<void> => {
-    if (!draft) return
-    if (draft.kind !== 'changelog' && !(draft.name ?? '').trim()) return
-    if (duplicateMessage) {
-      setPreview({ status: 'error', message: duplicateMessage })
-      return
+  const computeDuplicateMessage = (current: TabContext): string => {
+    const others = contextsRef.current.filter(item => item.id !== current.id)
+    const fileName = normalizeContextFileName(
+      current.name || current.fileName,
+      current.kind === 'changelog' ? 'changelog' : 'context',
+    )
+    if (others.some(item => comparable(item.name ?? '') === comparable(current.name ?? ''))) {
+      return t('tabContexts.nameDuplicate')
+    }
+    if (others.some(item =>
+      normalizeContextFileName(item.fileName || item.name, item.id).toLowerCase() === fileName.toLowerCase()
+    )) {
+      return t('tabContexts.fileNameDuplicate')
+    }
+    const definition = contextDefinition(current)
+    if (definition && others.some(item => contextDefinition(item) === definition)) {
+      return t('tabContexts.fileNameDuplicate')
+    }
+    return ''
+  }
+
+  /** Persiste el draft actual. En éxito llama onClose; en fallo deja el modal abierto con error. */
+  const save = async (): Promise<boolean> => {
+    const current = draftRef.current
+    if (!current) return false
+    if (current.kind !== 'changelog' && !(current.name ?? '').trim()) return false
+    const dup = computeDuplicateMessage(current)
+    if (dup) {
+      setPreview({ status: 'error', message: dup })
+      return false
     }
     const workingCwd = await resolveCwd()
     if (!workingCwd) {
       setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
+      return false
     }
-    const normalized = normalizeDraft(draft)
-    const previousFileName = mode === 'edit' && context?.fileName
-      && normalizeContextFileName(context.fileName) !== normalized.fileName
-      ? context.fileName
+    const normalized = normalizeDraft(current)
+    const editContext = contextRef.current
+    const previousFileName = modeRef.current === 'edit' && editContext?.fileName
+      && normalizeContextFileName(editContext.fileName) !== normalized.fileName
+      ? editContext.fileName
       : undefined
     try {
       const result = await window.api.materializeTabContext({
         context: normalized,
         cwd: workingCwd,
-        ...(normalized.kind === 'notes' ? { content: notesContent ?? '' } : {}),
+        ...(normalized.kind === 'notes' ? { content: notesContentRef.current ?? '' } : {}),
         ...(previousFileName ? { previousFileName } : {}),
       })
       if (!result.ok) {
         setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        return
+        return false
       }
       onRefresh()
       onClose()
+      return true
     } catch (error) {
       setPreview({
         status: 'error',
         message: error instanceof Error ? error.message : t('tabContexts.previewError'),
       })
+      return false
     }
+  }
+
+  /** Backdrop/Esc: guardar y cerrar; si save falla (validación/cwd), el modal permanece. */
+  const handleDismiss = (): void => {
+    const current = draftRef.current
+    if (!current) {
+      onClose()
+      return
+    }
+    const isReadOnlyChangelog = current.kind === 'changelog'
+      && contextsRef.current.some(item => item.id === current.id)
+    const isReadOnlyAgentResult = current.kind === 'agentResult'
+    if (isReadOnlyChangelog || isReadOnlyAgentResult) {
+      onClose()
+      return
+    }
+    void save()
   }
 
   const regenerate = async (): Promise<void> => {
@@ -358,12 +415,53 @@ export const TabContextFormModal: React.FC<Props> = ({
   return (
     <TerminalModal
       open={open}
-      onClose={onClose}
+      onClose={handleDismiss}
+      closeOnBackdrop
       title={mode === 'edit' ? t('tabContexts.editTitle') : t('tabContexts.createTitle')}
       titleId="tab-context-form-title"
       size="lg"
       bodyLayout="flush"
       zIndex={920}
+      footer={(
+        <>
+          <Button
+            variant="secondary"
+            disabled={preview.status === 'loading'}
+            onClick={() => { void loadPreview() }}
+          >
+            {preview.status === 'loading' ? t('tabContexts.loading') : t('tabContexts.preview')}
+          </Button>
+          {draft.kind !== 'changelog' && draft.kind !== 'agentResult' && (
+            <Button
+              variant="secondary"
+              disabled={
+                preview.status === 'loading'
+                || !(draft.name ?? '').trim()
+                || !(draft.fileName ?? '').trim()
+                || Boolean(duplicateMessage)
+              }
+              title={t('tabContexts.regenerateHint')}
+              onClick={() => { void regenerate() }}
+            >
+              <Icon name="refresh" size={13} />
+              {t('tabContexts.regenerate')}
+            </Button>
+          )}
+          {draft.kind !== 'agentResult' && (
+            <Button
+              disabled={
+                Boolean(duplicateMessage)
+                || (draft.kind === 'changelog'
+                  ? false
+                  : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
+              }
+              onClick={() => { void save() }}
+            >
+              {t('tabContexts.save')}
+            </Button>
+          )}
+        </>
+      )}
     >
       <div className="tab-contexts tab-contexts--form">
         <TabContextsEditor
@@ -380,9 +478,6 @@ export const TabContextFormModal: React.FC<Props> = ({
           onSelectKind={selectKind}
           onNotesContentChange={setNotesContent}
           onPreviewReset={() => setPreview({ status: 'idle' })}
-          onLoadPreview={loadPreview}
-          onRegenerate={regenerate}
-          onSave={save}
           onPickRootError={message => setPreview({ status: 'error', message })}
           countAutoKeys={countAutoKeys}
           countAnnotations={countAnnotations}

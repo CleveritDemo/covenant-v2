@@ -414,6 +414,26 @@
   opacity: 1;
 }
 
+/* Acción de fusión: arriba de las burbujas, mismo lenguaje que la cola. */
+.plane-chat-composer__queue-merge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px dashed color-mix(in srgb, var(--plane-composer-accent) 45%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.4;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.plane-chat-composer__queue-merge:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--plane-composer-accent) 22%, transparent);
+}
+
 .plane-chat-composer__attachments {
   display: flex;
   flex-wrap: wrap;

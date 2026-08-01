@@ -51,6 +51,7 @@ export interface TabAgenticPlaneProps {
   onToggleLoop: (paneId: string) => void
   onRemoveQueuedTurn: (paneId: string, id: string) => void
   onUpdateQueuedTurn: (paneId: string, id: string, text: string) => void
+  onMergeQueuedTurns: (paneId: string) => void
   canAdd: boolean
   /** Si false, el FAB de agente queda deshabilitado (p. ej. sin carpeta de proyecto). */
   canAddAgent?: boolean
@@ -188,6 +189,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onToggleLoop,
   onRemoveQueuedTurn,
   onUpdateQueuedTurn,
+  onMergeQueuedTurns,
   canAdd,
   canAddAgent = true,
   canAddTerminal = true,
@@ -659,6 +661,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onSend={onSendChat}
               onRemoveQueuedTurn={onRemoveQueuedTurn}
               onUpdateQueuedTurn={onUpdateQueuedTurn}
+              onMergeQueuedTurns={onMergeQueuedTurns}
             />
           )}
         />

@@ -93,10 +93,16 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     else setErrors(result.errors ?? [t('settings.errorSave')])
   }
 
+  /** Cierre por backdrop/Escape: guardar en vez de descartar (Cancelar sigue descartando). */
+  const handleRequestClose = (): void => {
+    if (saving) return
+    void handleSave()
+  }
+
   return (
     <TerminalModal
       open
-      onClose={onClose}
+      onClose={handleRequestClose}
       title={t('settings.title')}
       size="lg"
       zIndex={720}

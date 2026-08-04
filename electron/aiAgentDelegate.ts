@@ -1,4 +1,5 @@
 import {
+  DELEGATE_OBJECTIVE_MAX_LENGTH,
   MAX_DELEGATIONS_PER_TURN,
   MAX_ORCHESTRATION_ROUNDS,
   formatOrchestrationRoundLabel,
@@ -87,11 +88,13 @@ export function buildAiAgentDelegateInstruction(options?: {
     '```ia-terminal-delegate',
     '{',
     '  "delegations": [',
-    `    { "toAgentId": "${exampleId}", "objective": "Verify the login flow and report failures" }`,
+    `    { "toAgentId": "${exampleId}", "objective": "Verify login fails on bad password and report the failing assert." }`,
     '  ]',
     '}',
     '```',
-    `Rules: use toAgentId only from Available agents; objective must be concrete; max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
+    'Front-load the objective: first line is a one-sentence imperative the specialist can act on without reading the rest.',
+    'Objective style: FIRST LINE = imperative TL;DR (verb + goal + expected result), self-contained; below that you may add long detail (files, numbered tasks, acceptance criteria) within the objective length cap.',
+    `Rules: use toAgentId only from Available agents; objective must be concrete (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
   ].join('\n')
 }
 
@@ -134,10 +137,12 @@ export function buildAiAgentProductOwnerInstruction(options?: {
     '```ia-terminal-delegate',
     '{',
     '  "delegations": [',
-    `    { "toAgentId": "${exampleId}", "objective": "Next concrete slice toward the user request: …" }`,
+    `    { "toAgentId": "${exampleId}", "objective": "Ship the next slice of the user request: …" }`,
     '  ]',
     '}',
     '```',
-    `Rules: use toAgentId only from Available agents; objective must be a concrete slice toward the user request; max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
+    'Front-load the objective: first line is a one-sentence imperative the specialist can act on without reading the rest.',
+    'Objective style: FIRST LINE = imperative TL;DR (verb + goal + expected result), self-contained; below that you may add long detail (files, numbered tasks, acceptance criteria) within the objective length cap.',
+    `Rules: use toAgentId only from Available agents; objective must be a concrete slice toward the user request (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
   ].join('\n')
 }

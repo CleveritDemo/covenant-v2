@@ -24,6 +24,8 @@ import type {
   AgentCliStartRequest,
   AgentCliUiEvent,
 } from '../src/shared/agentCliTypes'
+import type { BrainstormEvent } from '../src/shared/brainstormRoom'
+import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -71,6 +73,7 @@ const subscribePtyExit = createPtyChannelMux<[code: number]>(IPC.PTY_EXIT)
 const subscribePtyError = createPtyChannelMux<[message: string]>(IPC.PTY_ERROR)
 const subscribeAgentCliEvent = createPtyChannelMux<[event: AgentCliUiEvent]>(IPC.AGENT_CLI_EVENT)
 const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_EXIT)
+const subscribeBrainstormEvent = createPtyChannelMux<[event: BrainstormEvent]>(IPC.BRAINSTORM_EVENT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
 
@@ -107,11 +110,36 @@ const api = {
   isAgentTurnActive(paneId: string): Promise<boolean> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, paneId)
   },
+  listAgentCliModels(provider: 'claude' | 'cursor' | 'copilot'): Promise<AgentCliModelsResult> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
+  },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)
   },
   onAgentCliExit(paneId: string, cb: (code: number) => void): () => void {
     return subscribeAgentCliExit(paneId, cb)
+  },
+  startBrainstorm(config: {
+    roomId: string
+    topic: string
+    participantAgentIds: string[]
+    maxRounds: number
+    cwd: string
+    resume?: boolean
+    round?: number
+    cursor?: number
+    messages?: import('../src/shared/brainstormRoom').BrainstormMessage[]
+  }): void {
+    ipcRenderer.send(IPC.BRAINSTORM_START, config)
+  },
+  stopBrainstorm(roomId: string): void {
+    ipcRenderer.send(IPC.BRAINSTORM_STOP, roomId)
+  },
+  pauseBrainstorm(roomId: string): void {
+    ipcRenderer.send(IPC.BRAINSTORM_PAUSE, roomId)
+  },
+  onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
+    return subscribeBrainstormEvent(roomId, cb)
   },
   loadAgentChat(paneId: string): Promise<AgentChatEntry[]> {
     return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId)
@@ -123,7 +151,7 @@ const api = {
     ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
   },
   clearAgentContextDelivery(payload: {
-    provider: 'claude' | 'cursor'
+    provider: 'claude' | 'cursor' | 'copilot'
     cliSessionId: string
   }): void {
     ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)
@@ -466,6 +494,36 @@ const api = {
     agentId: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.PROJECT_AGENTS_DELETE, cwd, agentId)
+  },
+  listBrainstorms(cwd: string): Promise<import('../src/shared/brainstormRoom').BrainstormRoom[]> {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_LIST, cwd)
+  },
+  saveBrainstorm(
+    cwd: string,
+    room: import('../src/shared/brainstormRoom').BrainstormRoom,
+  ): Promise<
+    | { ok: true; room: import('../src/shared/brainstormRoom').BrainstormRoom }
+    | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_UPSERT, cwd, room)
+  },
+  deleteBrainstorm(
+    cwd: string,
+    id: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_DELETE, cwd, id)
+  },
+  pruneBrainstorms(
+    cwd: string,
+    maxAgeDays?: number,
+  ): Promise<{ ok: true; removed: number } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_PRUNE, cwd, maxAgeDays)
+  },
+  exportBrainstormMarkdown(
+    cwd: string,
+    id: string,
+  ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_EXPORT_MD, cwd, id)
   },
   loadAiChat(paneId: string): Promise<ChatEntry[]> {
     return ipcRenderer.invoke(IPC.AI_CHAT_LOAD, paneId)

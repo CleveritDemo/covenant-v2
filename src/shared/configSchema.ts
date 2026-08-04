@@ -85,6 +85,7 @@ export interface AppConfig {
   /** Ejecutables usados por las ventanas de agente CLI. */
   agentCliClaudeCommand: string
   agentCliCursorCommand: string
+  agentCliCopilotCommand: string
   /** Mood de música activo en la barra de título. */
   musicMood?: string
 }
@@ -115,6 +116,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   autoRestartShell: true,
   agentCliClaudeCommand: 'claude',
   agentCliCursorCommand: 'agent',
+  agentCliCopilotCommand: 'copilot',
   musicMood: 'focus',
 }
 
@@ -158,6 +160,9 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (!config.agentCliCursorCommand.trim()) {
     errors.push('agentCliCursorCommand no puede estar vacío')
+  }
+  if (!config.agentCliCopilotCommand.trim()) {
+    errors.push('agentCliCopilotCommand no puede estar vacío')
   }
   const pol = config.agentShellPolicy
   if (pol !== 'off' && pol !== 'ask' && pol !== 'always') {

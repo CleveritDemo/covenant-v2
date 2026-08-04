@@ -15,6 +15,7 @@ import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
+import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
@@ -105,6 +106,11 @@ export interface TabAgenticPlaneProps {
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
+  brainstormNeedFolderHint?: string
+  canOpenBrainstorm?: boolean
+  brainstormsListOpen?: boolean
+  onBrainstormsListOpenChange?: (open: boolean) => void
+  brainstormsListButtonLabel?: string
   loopsTitle: string
   loopsSubtitle: string
   loopsEmptyTitle: string
@@ -233,6 +239,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
+  brainstormNeedFolderHint,
+  canOpenBrainstorm = false,
+  brainstormsListOpen = false,
+  onBrainstormsListOpenChange,
+  brainstormsListButtonLabel = 'Brainstorms',
   loopsTitle,
   loopsSubtitle,
   loopsEmptyTitle,
@@ -480,6 +491,15 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             pressed={loopsOpen}
             onClick={() => onLoopsOpenChange(!loopsOpen)}
           />
+          {onBrainstormsListOpenChange ? (
+            <PlaneBrainstormsListButton
+              label={brainstormsListButtonLabel}
+              pressed={brainstormsListOpen}
+              disabled={!canOpenBrainstorm}
+              disabledTitle={brainstormNeedFolderHint}
+              onClick={() => onBrainstormsListOpenChange(!brainstormsListOpen)}
+            />
+          ) : null}
           {canToggleExplorer ? (
             <PlaneExplorerButton
               label={explorerButtonLabel || explorerTitle || loopsButtonLabel}

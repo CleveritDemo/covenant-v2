@@ -95,6 +95,12 @@
   color: color-mix(in srgb, var(--theme-cyan) 85%, #fff);
 }
 
+.plane-mini-face__provider--copilot {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--text));
+}
+
 .plane-mini-face__provider--orchestrator {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 16%, transparent);

@@ -15,6 +15,11 @@ export interface FileExplorerErrorPayload {
 export interface FileExplorerListResult {
   ok: boolean
   entries: FileExplorerEntry[]
+  /**
+   * Prefetch depth-1: hijos de subcarpetas listadas en `entries`.
+   * Clave = relPath de la subcarpeta.
+   */
+  prefetched?: Record<string, FileExplorerEntry[]>
   error?: string
   code?: FileExplorerErrorCode
 }

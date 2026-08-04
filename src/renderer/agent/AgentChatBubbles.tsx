@@ -13,6 +13,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { AiCodeBlock } from '../components/AiCodeBlock'
+import { splitAssistantBody } from '../components/ai/assistantBodySegments'
 import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
@@ -20,43 +21,8 @@ const CHAT_BATCH_SIZE = 10
 /** px desde el tope para pedir el lote anterior. */
 const LOAD_EARLIER_TOP_PX = 80
 
-type AgentBodySegment =
-  | { type: 'text'; content: string }
-  | { type: 'code'; lang: string; content: string }
-
-function splitAgentBody(raw: string): AgentBodySegment[] {
-  const segments: AgentBodySegment[] = []
-  const pushText = (chunk: string): void => {
-    if (chunk.trim()) segments.push({ type: 'text', content: chunk.replace(/\s+$/, '') })
-  }
-  let i = 0
-  while (i < raw.length) {
-    const fence = raw.indexOf('```', i)
-    if (fence === -1) {
-      pushText(raw.slice(i))
-      break
-    }
-    if (fence > i) pushText(raw.slice(i, fence))
-    const langEnd = raw.indexOf('\n', fence + 3)
-    if (langEnd === -1) {
-      segments.push({ type: 'code', lang: raw.slice(fence + 3).trim(), content: '' })
-      break
-    }
-    const lang = raw.slice(fence + 3, langEnd).trim()
-    const contentStart = langEnd + 1
-    const close = raw.indexOf('\n```', contentStart)
-    if (close === -1) {
-      segments.push({ type: 'code', lang, content: raw.slice(contentStart) })
-      break
-    }
-    segments.push({ type: 'code', lang, content: raw.slice(contentStart, close).replace(/\s+$/, '') })
-    i = close + 4
-  }
-  return segments
-}
-
 const AssistantBody: React.FC<{ content: string; live: boolean }> = ({ content, live }) => {
-  const segments = splitAgentBody(content)
+  const segments = splitAssistantBody(content)
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
       {segments.map((segment, index) =>

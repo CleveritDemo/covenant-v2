@@ -9,7 +9,7 @@ export const MAX_ORCHESTRATION_ROUNDS = 3
 export const ORCHESTRATION_MAX_ROUNDS_CAP = 10
 /** Sentinel: sin tope de oleadas (persistir como orchestrationMaxRounds: 0). */
 export const ORCHESTRATION_UNLIMITED_ROUNDS = 0
-export const DELEGATE_OBJECTIVE_MAX_LENGTH = 2000
+export const DELEGATE_OBJECTIVE_MAX_LENGTH = 4000
 
 export function isOrchestrationRoundsUnlimited(n: number): boolean {
   return n === ORCHESTRATION_UNLIMITED_ROUNDS

@@ -68,7 +68,11 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       'plane-mini-face',
       busy ? 'plane-mini-face--busy' : '',
       density === 'compact' ? 'plane-mini-face--compact' : '',
-      provider === 'cursor' ? 'plane-mini-face--cursor' : 'plane-mini-face--claude',
+      provider === 'cursor'
+        ? 'plane-mini-face--cursor'
+        : provider === 'copilot'
+          ? 'plane-mini-face--copilot'
+          : 'plane-mini-face--claude',
     ].filter(Boolean).join(' ')}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
@@ -98,12 +102,30 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
             'plane-mini-face__provider',
             provider === 'cursor'
               ? 'plane-mini-face__provider--cursor'
-              : 'plane-mini-face__provider--claude',
+              : provider === 'copilot'
+                ? 'plane-mini-face__provider--copilot'
+                : 'plane-mini-face__provider--claude',
           ].join(' ')}
-          title={provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude')}
-          aria-label={provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude')}
+          title={
+            provider === 'cursor'
+              ? t('agentPane.cursor')
+              : provider === 'copilot'
+                ? t('agentPane.copilot')
+                : t('agentPane.claude')
+          }
+          aria-label={
+            provider === 'cursor'
+              ? t('agentPane.cursor')
+              : provider === 'copilot'
+                ? t('agentPane.copilot')
+                : t('agentPane.claude')
+          }
         >
-          <Icon name={provider === 'cursor' ? 'sparkles' : 'bot'} size={9} aria-hidden />
+          <Icon
+            name={provider === 'cursor' ? 'sparkles' : provider === 'copilot' ? 'code' : 'bot'}
+            size={9}
+            aria-hidden
+          />
         </span>
         {coordination === 'orchestrator' ? (
           <span

@@ -43,6 +43,7 @@ import {
   isProductOwner,
 } from '../src/shared/agentOrchestration'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
+import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
@@ -273,6 +274,11 @@ export function shouldFinishOnProcessClose(phaseStillActive: boolean): boolean {
   return phaseStillActive
 }
 
+/** Cierra stdin tras spawn: CLIs en -p esperan EOF; nadie escribe aquí. */
+export function closeAgentCliStdin(stdin: { end: () => void } | null | undefined): void {
+  try { stdin?.end() } catch { /* ignore */ }
+}
+
 function stringAt(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
   const found = (value as Record<string, unknown>)[key]
@@ -488,6 +494,60 @@ export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
   return out
 }
 
+/** Mapea el stream JSONL de Copilot (`--output-format json`) a eventos de UI. */
+export function normalizeCopilotEvent(value: unknown): AgentCliUiEvent[] {
+  if (!value || typeof value !== 'object') return []
+  const obj = value as Record<string, unknown>
+  const out: AgentCliUiEvent[] = []
+  const data = obj.data && typeof obj.data === 'object'
+    ? obj.data as Record<string, unknown>
+    : null
+
+  if (obj.type === 'assistant.message_delta' && data) {
+    const delta = typeof data.deltaContent === 'string' ? data.deltaContent : ''
+    if (delta) out.push({ type: 'assistant_delta', text: delta })
+    return out
+  }
+
+  if (obj.type === 'assistant.message' && data) {
+    const text = typeof data.content === 'string' ? data.content : ''
+    if (text) out.push({ type: 'assistant_final', text })
+    return out
+  }
+
+  if (obj.type === 'tool.execution_start' && data) {
+    const name = typeof data.toolName === 'string' && data.toolName.trim()
+      ? data.toolName.trim()
+      : 'tool'
+    const detail = data.arguments && typeof data.arguments === 'object'
+      ? pickToolDetail(data.arguments as Record<string, unknown>)
+      : undefined
+    out.push({
+      type: 'tool',
+      name,
+      status: 'started',
+      ...(detail ? { detail } : {}),
+    })
+    return out
+  }
+
+  if (obj.type === 'tool.execution_complete' && data) {
+    const name = typeof data.toolName === 'string' && data.toolName.trim()
+      ? data.toolName.trim()
+      : 'tool'
+    out.push({ type: 'tool', name, status: 'completed' })
+    return out
+  }
+
+  if (obj.type === 'result') {
+    const sessionId = stringAt(obj, 'sessionId')
+    if (sessionId) out.push({ type: 'session', cliSessionId: sessionId })
+    return out
+  }
+
+  return out
+}
+
 function resolveWorkingDirectory(requested: string, fallback: string): string {
   try {
     const dir = resolve(requested || fallback)
@@ -622,6 +682,15 @@ export function commandAndArgs(
     return { command: config.agentCliClaudeCommand.trim(), args }
   }
 
+  if (request.provider === 'copilot') {
+    const args = ['-p', prompt, '--output-format', 'json']
+    if (permissionMode === 'auto') args.push('--yolo')
+    if (permissionMode === 'plan') args.push('--plan')
+    if (cliSessionId) args.push(`--resume=${cliSessionId}`)
+    if (request.model?.trim()) args.push('--model', request.model.trim())
+    return { command: config.agentCliCopilotCommand.trim() || 'copilot', args }
+  }
+
   const args = [
     '-p',
     '--output-format',
@@ -638,6 +707,138 @@ export function commandAndArgs(
   if (request.model?.trim()) args.push('--model', request.model.trim())
   args.push(prompt)
   return { command: config.agentCliCursorCommand.trim(), args }
+}
+
+export interface AgentCliSpawnHandlers {
+  onEvent: (event: AgentCliUiEvent) => void
+  onDone: (code: number) => void
+}
+
+/**
+ * Spawn single-shot de un CLI de agente (sin continuación de contextos ni
+ * post-proceso de changelog/delegates). Reutiliza `agentRuns` + generación
+ * para que un stop no revive turnos en vuelo.
+ */
+export function runAgentCliSpawn(
+  request: AgentCliStartRequest,
+  config: AppConfig,
+  home: string,
+  handlers: AgentCliSpawnHandlers,
+  promptOverride?: string,
+): void {
+  stopAgentRun(request.paneId)
+  const generation = nextAgentRunGeneration++
+  agentRuns.set(request.paneId, { proc: null, windowId: -1, generation })
+  const cwd = resolveWorkingDirectory(request.cwd, home)
+  const prompt = promptOverride ?? composePrompt(request, cwd)
+  let latestSessionId = request.cliSessionId
+
+  const failBeforeSpawn = (message: string): void => {
+    const current = agentRuns.get(request.paneId)
+    if (current?.generation === generation) agentRuns.delete(request.paneId)
+    handlers.onEvent({ type: 'error', message })
+    handlers.onDone(1)
+  }
+
+  const { command: rawCommand, args } = commandAndArgs(
+    request,
+    config,
+    cwd,
+    prompt,
+    latestSessionId,
+  )
+  if (!rawCommand) {
+    failBeforeSpawn('El comando del CLI no está configurado.')
+    return
+  }
+
+  const command = resolveCliExecutable(rawCommand)
+  let proc: ChildProcessWithoutNullStreams
+  try {
+    proc = spawn(command, args, {
+      cwd,
+      env: process.env,
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+  } catch (error) {
+    failBeforeSpawn(error instanceof Error ? error.message : String(error))
+    return
+  }
+
+  const reserved = agentRuns.get(request.paneId)
+  if (!reserved || reserved.generation !== generation) {
+    try { proc.kill('SIGTERM') } catch { /* already exited */ }
+    return
+  }
+  agentRuns.set(request.paneId, { proc, windowId: -1, generation })
+  closeAgentCliStdin(proc.stdin)
+
+  let stdoutBuffer = ''
+  let stderrBuffer = ''
+  let sawAssistantText = false
+  let spawnErrnoMessage: string | undefined
+
+  const processLine = (line: string): void => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+    try {
+      const value = JSON.parse(trimmed) as unknown
+      const events = request.provider === 'claude'
+        ? normalizeClaudeEvent(value)
+        : request.provider === 'copilot'
+          ? normalizeCopilotEvent(value)
+          : normalizeCursorEvent(value)
+      for (const event of events) {
+        if (event.type === 'session') {
+          latestSessionId = event.cliSessionId
+        }
+        if (
+          (event.type === 'assistant_delta' || event.type === 'assistant_final')
+          && event.text.trim()
+        ) {
+          sawAssistantText = true
+        }
+        handlers.onEvent(event)
+      }
+    } catch {
+      stderrBuffer += `${trimmed}\n`
+    }
+  }
+
+  proc.stdout.setEncoding('utf8')
+  proc.stdout.on('data', (chunk: string) => {
+    stdoutBuffer += chunk
+    const lines = stdoutBuffer.split(/\r?\n/)
+    stdoutBuffer = lines.pop() ?? ''
+    lines.forEach(processLine)
+  })
+  proc.stderr.setEncoding('utf8')
+  proc.stderr.on('data', (chunk: string) => {
+    stderrBuffer += chunk
+  })
+  proc.on('error', error => {
+    spawnErrnoMessage = error.message
+    handlers.onEvent({
+      type: 'error',
+      message: formatCliSpawnFailure(command, -4058, error.message),
+    })
+  })
+  proc.on('close', code => {
+    if (stdoutBuffer.trim()) processLine(stdoutBuffer)
+    const current = agentRuns.get(request.paneId)
+    const phaseStillActive = current?.proc === proc && current.generation === generation
+    if (phaseStillActive) agentRuns.delete(request.paneId)
+    if (!shouldFinishOnProcessClose(phaseStillActive)) return
+    if (code && !sawAssistantText) {
+      handlers.onEvent({
+        type: 'error',
+        message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
+      })
+    }
+    handlers.onDone(code ?? 0)
+  })
 }
 
 export function startAgentTurn(
@@ -670,12 +871,19 @@ export function startAgentTurn(
   }
 
   const startPhase = (prompt: string, contextRound: number): void => {
-    const { command, args } = commandAndArgs(request, config, cwd, prompt, latestSessionId)
-    if (!command) {
+    const { command: rawCommand, args } = commandAndArgs(
+      request,
+      config,
+      cwd,
+      prompt,
+      latestSessionId,
+    )
+    if (!rawCommand) {
       failBeforeSpawn('El comando del CLI no está configurado.')
       return
     }
 
+    const command = resolveCliExecutable(rawCommand)
     let proc: ChildProcessWithoutNullStreams
     try {
       proc = spawn(command, args, {
@@ -683,6 +891,7 @@ export function startAgentTurn(
         env: process.env,
         shell: false,
         stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
       })
     } catch (error) {
       failBeforeSpawn(error instanceof Error ? error.message : String(error))
@@ -696,10 +905,12 @@ export function startAgentTurn(
       return
     }
     agentRuns.set(request.paneId, { proc, windowId: win.id, generation })
+    closeAgentCliStdin(proc.stdin)
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let continuationPrompt: string | null = null
     let sawAssistantText = false
+    let spawnErrnoMessage: string | undefined
     /** Evita pegar el mismo CreatePlan dos veces (started + completed). */
     let lastCreatePlanText = ''
 
@@ -710,7 +921,9 @@ export function startAgentTurn(
         const value = JSON.parse(trimmed) as unknown
         const events = request.provider === 'claude'
           ? normalizeClaudeEvent(value)
-          : normalizeCursorEvent(value)
+          : request.provider === 'copilot'
+            ? normalizeCopilotEvent(value)
+            : normalizeCursorEvent(value)
         for (const event of events) {
           if (event.type === 'session') {
             latestSessionId = event.cliSessionId
@@ -829,7 +1042,11 @@ export function startAgentTurn(
       stderrBuffer += chunk
     })
     proc.on('error', error => {
-      send(win, request.paneId, { type: 'error', message: error.message })
+      spawnErrnoMessage = error.message
+      send(win, request.paneId, {
+        type: 'error',
+        message: formatCliSpawnFailure(command, -4058, error.message),
+      })
     })
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
@@ -859,15 +1076,10 @@ export function startAgentTurn(
         startPhase(continuationPrompt, contextRound + 1)
         return
       }
-      if (code && stderrBuffer.trim()) {
+      if (code && !sawAssistantText) {
         send(win, request.paneId, {
           type: 'error',
-          message: stderrBuffer.trim(),
-        })
-      } else if (code && !sawAssistantText) {
-        send(win, request.paneId, {
-          type: 'error',
-          message: stderrBuffer.trim() || `El CLI terminó con código ${code}.`,
+          message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
         })
       }
       finishAgentTurn(win, request.paneId, code ?? 0)

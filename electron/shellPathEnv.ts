@@ -1,5 +1,5 @@
+import { accessSync, constants, existsSync } from 'fs'
 import { execFileSync } from 'child_process'
-import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
@@ -19,29 +19,56 @@ export function mergePathEntries(...groups: string[][]): string {
   const out: string[] = []
   for (const group of groups) {
     for (const entry of group) {
-      if (seen.has(entry)) continue
-      seen.add(entry)
+      const key = process.platform === 'win32' ? entry.toLowerCase() : entry
+      if (seen.has(key)) continue
+      seen.add(key)
       out.push(entry)
     }
   }
   return out.join(PATH_SEP)
 }
 
-/** Binarios habituales fuera del PATH mínimo de apps GUI en macOS. */
-export function defaultExtraBinDirs(home = homedir()): string[] {
-  const candidates = [
-    join(home, '.local', 'bin'),
-    join(home, '.cursor', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-  ]
+function existingDirs(candidates: string[]): string[] {
   return candidates.filter(dir => {
     try {
-      return existsSync(dir)
+      return Boolean(dir) && existsSync(dir)
     } catch {
       return false
     }
   })
+}
+
+/** Binarios habituales fuera del PATH mínimo de apps GUI en macOS/Linux. */
+export function defaultExtraBinDirsUnix(home = homedir()): string[] {
+  return existingDirs([
+    join(home, '.local', 'bin'),
+    join(home, '.cursor', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+  ])
+}
+
+/** Directorios típicos de npm / Node / Cursor en Windows (apps GUI no los heredan). */
+export function defaultExtraBinDirsWin(home = homedir()): string[] {
+  const appData = process.env.APPDATA?.trim() || join(home, 'AppData', 'Roaming')
+  const localAppData = process.env.LOCALAPPDATA?.trim() || join(home, 'AppData', 'Local')
+  return existingDirs([
+    join(appData, 'npm'),
+    join(localAppData, 'npm'),
+    join(localAppData, 'Programs', 'nodejs'),
+    join(localAppData, 'Programs', 'cursor', 'resources', 'app', 'bin'),
+    join(home, '.cursor', 'bin'),
+    join(home, '.local', 'bin'),
+    'C:\\Program Files\\nodejs',
+    'C:\\Program Files (x86)\\nodejs',
+  ])
+}
+
+/** Binarios habituales fuera del PATH mínimo de apps GUI. */
+export function defaultExtraBinDirs(home = homedir()): string[] {
+  return process.platform === 'win32'
+    ? defaultExtraBinDirsWin(home)
+    : defaultExtraBinDirsUnix(home)
 }
 
 function readLoginShellPath(): string | undefined {
@@ -63,14 +90,104 @@ function readLoginShellPath(): string | undefined {
   }
 }
 
+/** PATH de usuario+máquina (registro), no el PATH mínimo de la app GUI. */
+export function readWindowsPersistentPath(): string | undefined {
+  if (process.platform !== 'win32') return undefined
+  try {
+    const script = [
+      "$u = [Environment]::GetEnvironmentVariable('Path','User')",
+      "$m = [Environment]::GetEnvironmentVariable('Path','Machine')",
+      "Write-Output (($u, $m) -join ';')",
+    ].join('; ')
+    const stdout = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      {
+        encoding: 'utf8',
+        timeout: 8000,
+        windowsHide: true,
+      },
+    )
+    const trimmed = String(stdout).replace(/\r?\n/g, '').trim()
+    return trimmed || undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Amplía `PATH` del proceso con el del shell de login y directorios comunes.
- * Necesario en macOS cuando Electron arranca desde Dock/Finder sin el PATH de la terminal.
+ * Amplía `PATH` del proceso con el del shell/usuario y directorios comunes.
+ * Necesario cuando Electron arranca desde el explorador/Dock sin el PATH de la terminal.
  */
 export function applyLoginShellPath(env: NodeJS.ProcessEnv = process.env): void {
-  if (process.platform === 'win32') return
-  const current = splitPath(env.PATH ?? '')
+  const current = splitPath(env.PATH ?? env.Path ?? '')
+  if (process.platform === 'win32') {
+    const fromUser = splitPath(readWindowsPersistentPath() ?? '')
+    const extras = defaultExtraBinDirs()
+    env.PATH = mergePathEntries(fromUser, extras, current)
+    return
+  }
   const fromShell = splitPath(readLoginShellPath() ?? '')
   const extras = defaultExtraBinDirs()
   env.PATH = mergePathEntries(fromShell, extras, current)
+}
+
+/**
+ * En Windows, npm suele instalar shims `.cmd` que `spawn(..., { shell: false })`
+ * no encuentra si solo se pide el nombre sin extensión.
+ */
+export function resolveCliExecutable(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const trimmed = command.trim()
+  if (!trimmed) return trimmed
+  if (trimmed.includes('/') || trimmed.includes('\\')) return trimmed
+  if (process.platform !== 'win32') return trimmed
+
+  const pathEnv = env.PATH ?? env.Path ?? ''
+  const dirs = splitPath(pathEnv)
+  const pathext = (env.PATHEXT || '.EXE;.CMD;.BAT;.COM')
+    .split(';')
+    .map(ext => ext.trim())
+    .filter(Boolean)
+  const hasExt = /\.[a-z0-9]+$/i.test(trimmed)
+  const names = hasExt
+    ? [trimmed]
+    : [
+        trimmed,
+        ...pathext.map(ext => `${trimmed}${ext.startsWith('.') ? ext : `.${ext}`}`),
+      ]
+
+  for (const dir of dirs) {
+    for (const name of names) {
+      const full = join(dir, name)
+      try {
+        accessSync(full, constants.F_OK)
+        return full
+      } catch {
+        /* siguiente candidato */
+      }
+    }
+  }
+  return trimmed
+}
+
+/** Mensaje legible para fallos típicos de spawn/cierre del CLI. */
+export function formatCliSpawnFailure(
+  command: string,
+  code: number | null | undefined,
+  stderr?: string,
+): string {
+  const detail = stderr?.trim()
+  if (detail) return detail
+  if (code === -4058 || code === 4058) {
+    return [
+      `No se encontró el CLI «${command}» (ENOENT / -4058).`,
+      'En Windows, configura la ruta completa en Ajustes',
+      '(p. ej. %APPDATA%\\npm\\claude.cmd) o asegúrate de que Node/npm esté en el PATH.',
+    ].join(' ')
+  }
+  if (code == null) return `El CLI «${command}» terminó sin código de salida.`
+  return `El CLI terminó con código ${code}.`
 }

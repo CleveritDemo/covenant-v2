@@ -3,12 +3,14 @@ import { spawnSync } from 'child_process'
 import {
   existsSync,
   mkdirSync,
+  promises as fsPromises,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
+  type Dirent,
 } from 'fs'
 import type {
   FileExplorerEntry,
@@ -25,6 +27,8 @@ import { isExistingDirectory } from './shellCwdSync'
 export const MAX_READ_BYTES = 600_000
 const MAX_WRITE_BYTES = 600_000
 const BINARY_PROBE_BYTES = 8192
+/** Tope de subcarpetas a prefetchear en un listDir (evita storms en monorepos). */
+export const LIST_DIR_PREFETCH_CAP = 48
 
 const BINARY_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'pdf', 'zip', 'gz', 'tar',
@@ -62,11 +66,82 @@ function isBinaryFile(abs: string, name: string): boolean {
   }
 }
 
-export function listDirChildren(
+function sortEntries(entries: FileExplorerEntry[]): FileExplorerEntry[] {
+  return [...entries].sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+}
+
+function entriesFromDirents(
+  dirents: Dirent[],
+  relPath: string,
+  showHiddenDirs: boolean,
+): FileExplorerEntry[] {
+  const entries: FileExplorerEntry[] = []
+  for (const d of dirents) {
+    if (d.name === '.' || d.name === '..') continue
+    if (!showHiddenDirs && d.isDirectory() && HIDDEN_DIR_NAMES.has(d.name)) continue
+    const childRel = relPath ? `${relPath}/${d.name}` : d.name
+    entries.push({
+      name: d.name,
+      relPath: childRel,
+      isDirectory: d.isDirectory(),
+    })
+  }
+  return sortEntries(entries)
+}
+
+async function readDirEntries(
+  abs: string,
+  relPath: string,
+  showHiddenDirs: boolean,
+): Promise<
+  | { ok: true; entries: FileExplorerEntry[] }
+  | { ok: false; error: string; code: FileExplorerListResult['code'] }
+> {
+  try {
+    const st = await fsPromises.stat(abs)
+    if (!st.isDirectory()) {
+      return {
+        ok: false,
+        error: 'no es un directorio',
+        code: FILE_EXPLORER_ERROR_CODES.NOT_A_DIRECTORY,
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: msg, code: FILE_EXPLORER_ERROR_CODES.NOT_FOUND }
+  }
+
+  let dirents: Dirent[]
+  try {
+    dirents = await fsPromises.readdir(abs, { withFileTypes: true })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: msg, code: FILE_EXPLORER_ERROR_CODES.LOAD_FAILED }
+  }
+
+  return { ok: true, entries: entriesFromDirents(dirents, relPath, showHiddenDirs) }
+}
+
+export interface ListDirChildrenOptions {
+  /** Prefetch de hijos de subcarpetas (default 1). 0 = solo el dir pedido. */
+  prefetchDepth?: 0 | 1
+  /** Máximo de subcarpetas a prefetchear. */
+  prefetchCap?: number
+}
+
+/**
+ * Lista hijos de un directorio (async, no bloquea el event loop del main).
+ * Con prefetchDepth=1 incluye `prefetched` para expansión instantánea.
+ */
+export async function listDirChildren(
   projectRootRaw: string,
   relPathRaw: string,
   showHiddenDirs = true,
-): FileExplorerListResult {
+  options: ListDirChildrenOptions = {},
+): Promise<FileExplorerListResult> {
   const projectRoot = resolveWorkingDir(projectRootRaw)
   if (!projectRoot) {
     return { ok: false, entries: [], error: 'cwd inválido', code: FILE_EXPLORER_ERROR_CODES.CWD_INVALID }
@@ -78,43 +153,40 @@ export function listDirChildren(
     return { ok: false, entries: [], error: 'ruta inválida', code: FILE_EXPLORER_ERROR_CODES.PATH_INVALID }
   }
 
-  try {
-    const st = statSync(abs)
-    if (!st.isDirectory()) {
-      return { ok: false, entries: [], error: 'no es un directorio', code: FILE_EXPLORER_ERROR_CODES.NOT_A_DIRECTORY }
+  const listed = await readDirEntries(abs, relPath, showHiddenDirs)
+  if (!listed.ok) {
+    return {
+      ok: false,
+      entries: [],
+      error: listed.error,
+      code: listed.code,
     }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, entries: [], error: msg, code: FILE_EXPLORER_ERROR_CODES.NOT_FOUND }
   }
 
-  let dirents: import('fs').Dirent[]
-  try {
-    dirents = readdirSync(abs, { withFileTypes: true })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, entries: [], error: msg, code: FILE_EXPLORER_ERROR_CODES.LOAD_FAILED }
+  const prefetchDepth = options.prefetchDepth === 0 ? 0 : 1
+  if (prefetchDepth < 1) {
+    return { ok: true, entries: listed.entries }
   }
 
-  const entries: FileExplorerEntry[] = []
-  for (const d of dirents) {
-    if (d.name === '.' || d.name === '..') continue
-    if (!showHiddenDirs && d.isDirectory() && HIDDEN_DIR_NAMES.has(d.name)) continue
-
-    const childRel = relPath ? `${relPath}/${d.name}` : d.name
-    entries.push({
-      name: d.name,
-      relPath: childRel,
-      isDirectory: d.isDirectory(),
-    })
+  const cap = Math.max(0, options.prefetchCap ?? LIST_DIR_PREFETCH_CAP)
+  const childDirs = listed.entries.filter(e => e.isDirectory).slice(0, cap)
+  if (!childDirs.length) {
+    return { ok: true, entries: listed.entries }
   }
 
-  entries.sort((a, b) => {
-    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-  })
+  const prefetched: Record<string, FileExplorerEntry[]> = {}
+  await Promise.all(childDirs.map(async child => {
+    const childAbs = resolveSafeProjectPath(projectRoot, child.relPath)
+    if (!childAbs) return
+    const nested = await readDirEntries(childAbs, child.relPath, showHiddenDirs)
+    if (nested.ok) prefetched[child.relPath] = nested.entries
+  }))
 
-  return { ok: true, entries }
+  return {
+    ok: true,
+    entries: listed.entries,
+    ...(Object.keys(prefetched).length ? { prefetched } : {}),
+  }
 }
 
 export function loadFileForExplorer(

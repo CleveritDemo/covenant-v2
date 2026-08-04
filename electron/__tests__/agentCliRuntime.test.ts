@@ -13,6 +13,8 @@ import {
   materializeClipboardImages,
   normalizeClaudeEvent,
   normalizeCursorEvent,
+  normalizeCopilotEvent,
+  closeAgentCliStdin,
   shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
   stopAgentRun,
@@ -21,6 +23,7 @@ import {
 const baseConfig = {
   agentCliClaudeCommand: 'claude',
   agentCliCursorCommand: 'agent',
+  agentCliCopilotCommand: 'copilot',
 } as AppConfig
 
 function request(
@@ -38,6 +41,22 @@ describe('shouldFinishOnProcessClose', () => {
   it('only finishes while the process is still the active run', () => {
     expect(shouldFinishOnProcessClose(true)).toBe(true)
     expect(shouldFinishOnProcessClose(false)).toBe(false)
+  })
+})
+
+describe('closeAgentCliStdin', () => {
+  it('calls stdin.end after successful spawn registration', () => {
+    let ended = false
+    closeAgentCliStdin({ end: () => { ended = true } })
+    expect(ended).toBe(true)
+  })
+
+  it('tolerates missing or throwing stdin', () => {
+    expect(() => closeAgentCliStdin(null)).not.toThrow()
+    expect(() => closeAgentCliStdin(undefined)).not.toThrow()
+    expect(() => closeAgentCliStdin({
+      end: () => { throw new Error('already closed') },
+    })).not.toThrow()
   })
 })
 
@@ -216,6 +235,34 @@ describe('agent CLI event normalization', () => {
     ])
   })
 
+  it('normalizes Copilot deltas, final message, tools and session', () => {
+    expect(normalizeCopilotEvent({
+      type: 'assistant.message_delta',
+      data: { messageId: 'm1', deltaContent: 'hola' },
+    })).toEqual([{ type: 'assistant_delta', text: 'hola' }])
+
+    expect(normalizeCopilotEvent({
+      type: 'assistant.message',
+      data: { messageId: 'm1', content: 'listo', toolRequests: [] },
+    })).toEqual([{ type: 'assistant_final', text: 'listo' }])
+
+    expect(normalizeCopilotEvent({
+      type: 'tool.execution_start',
+      data: { toolCallId: 't1', toolName: 'view', arguments: { path: 'src/a.ts' } },
+    })).toEqual([{ type: 'tool', name: 'view', status: 'started', detail: 'src/a.ts' }])
+
+    expect(normalizeCopilotEvent({
+      type: 'tool.execution_complete',
+      data: { toolCallId: 't1', toolName: 'view', success: true },
+    })).toEqual([{ type: 'tool', name: 'view', status: 'completed' }])
+
+    expect(normalizeCopilotEvent({
+      type: 'result',
+      sessionId: 'copilot-session',
+      exitCode: 0,
+    })).toEqual([{ type: 'session', cliSessionId: 'copilot-session' }])
+  })
+
   it('normalizes Cursor partial output without buffered duplicates', () => {
     expect(normalizeCursorEvent({
       type: 'assistant',
@@ -354,6 +401,40 @@ describe('agent CLI event normalization', () => {
 })
 
 describe('permission mode CLI flags', () => {
+  it('maps Copilot permission modes to --yolo / --plan', () => {
+    const ask = commandAndArgs(
+      request({ provider: 'copilot', permissionMode: 'ask', model: 'auto', cliSessionId: 'sess-1' }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(ask.command).toBe('copilot')
+    expect(ask.args.slice(0, 4)).toEqual(['-p', 'prompt', '--output-format', 'json'])
+    expect(ask.args).toContain('--resume=sess-1')
+    expect(ask.args).toContain('--model')
+    expect(ask.args[ask.args.indexOf('--model') + 1]).toBe('auto')
+    expect(ask.args).not.toContain('--yolo')
+    expect(ask.args).not.toContain('--plan')
+
+    const auto = commandAndArgs(
+      request({ provider: 'copilot', permissionMode: 'auto' }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(auto.args).toContain('--yolo')
+    expect(auto.args).not.toContain('--plan')
+
+    const plan = commandAndArgs(
+      request({ provider: 'copilot', permissionMode: 'plan' }),
+      baseConfig,
+      '/tmp',
+      'prompt',
+    )
+    expect(plan.args).toContain('--plan')
+    expect(plan.args).not.toContain('--yolo')
+  })
+
   it('maps ask to read-only flags for Cursor and Claude', () => {
     const cursor = commandAndArgs(
       request({ provider: 'cursor', permissionMode: 'ask' }),

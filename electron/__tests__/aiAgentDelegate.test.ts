@@ -42,6 +42,17 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(buildAiAgentDelegateInstruction()).toContain('ia-terminal-delegate')
   })
 
+  it('front-loads objective style with a one-line imperative example', () => {
+    const text = buildAiAgentDelegateInstruction({ allowedAgentIds: ['qa'] })
+    expect(text).toContain('Front-load the objective')
+    expect(text).toContain('FIRST LINE = imperative TL;DR')
+    expect(text).toContain('long detail')
+    expect(text).toContain('4000 chars')
+    expect(text).toContain(
+      '"objective": "Verify login fails on bad password and report the failing assert."',
+    )
+  })
+
   it('includes stop conditions and wave cap', () => {
     const text = buildAiAgentDelegateInstruction({ round: 1, maxRounds: 3 })
     expect(text).toContain('1/3')
@@ -78,6 +89,13 @@ describe('buildAiAgentProductOwnerInstruction', () => {
     expect(text).toContain('contexts')
     expect(text).toContain('FORBIDDEN')
     expect(text).toContain('¿seguimos?')
+    expect(text).toContain('Front-load the objective')
+    expect(text).toContain('FIRST LINE = imperative TL;DR')
+    expect(text).toContain('long detail')
+    expect(text).toContain('4000 chars')
+    expect(text).toContain(
+      '"objective": "Ship the next slice of the user request: …"',
+    )
     expect(text).not.toContain('Invent and prioritize valuable improvements')
     expect(text).not.toContain('When the goal is met, reply to the user and do NOT emit')
   })

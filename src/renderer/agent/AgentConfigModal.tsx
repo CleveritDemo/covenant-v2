@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { TabContext } from '@shared/tabContext'
+import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
@@ -95,6 +96,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const draftRef = useRef(draft)
   draftRef.current = draft
   const rulesKey = meta.rules?.join('\0') ?? ''
+  const [modelOptions, setModelOptions] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -102,6 +106,26 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     draftRef.current = next
     setDraft(next)
   }, [open, meta.id, meta.name, meta.role, meta.objective, rulesKey])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setModelsLoading(true)
+    setModelsError('')
+    setModelOptions(modelsForProvider(meta.provider))
+    void window.api.listAgentCliModels(meta.provider).then(result => {
+      if (cancelled) return
+      setModelOptions(result.models)
+      setModelsError(result.error ?? '')
+      setModelsLoading(false)
+    }).catch(error => {
+      if (cancelled) return
+      setModelOptions(modelsForProvider(meta.provider))
+      setModelsError(error instanceof Error ? error.message : String(error))
+      setModelsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [open, meta.provider])
 
   const updateDraft = useCallback((patch: Partial<AgentIdentityDraft>) => {
     setDraft(previous => {
@@ -127,7 +151,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     onClose()
   }, [commitIdentity, onClose])
 
-  const modelOptions = modelsForProvider(meta.provider)
   const selectedModel = meta.model?.trim() ?? ''
   const modelLabel = selectedModel
     ? (modelOptions.find(option => option.id === selectedModel)?.label ?? selectedModel)
@@ -183,6 +206,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           diskContexts={diskContexts}
           selectedContextIds={selectedContextIds}
           contextNotice={contextNotice}
+          modelOptions={modelOptions}
+          modelsLoading={modelsLoading}
+          modelsError={modelsError}
           onChangeCoordination={onChangeCoordination}
           onAcceptDelegationsChange={onAcceptDelegationsChange}
           onOrchestrationMaxRoundsChange={onOrchestrationMaxRoundsChange}

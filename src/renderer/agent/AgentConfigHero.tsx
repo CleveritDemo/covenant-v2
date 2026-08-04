@@ -32,7 +32,11 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   const { t } = useT()
   const nameEmpty = !name.trim()
   const displayName = name.trim() || t('agentPane.configUnnamed')
-  const providerLabel = provider === 'claude' ? t('agentPane.claude') : t('agentPane.cursor')
+  const providerLabel = provider === 'claude'
+    ? t('agentPane.claude')
+    : provider === 'copilot'
+      ? t('agentPane.copilot')
+      : t('agentPane.cursor')
   const metaParts = [
     role.trim() || null,
     providerLabel,

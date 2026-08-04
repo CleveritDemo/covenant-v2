@@ -13,6 +13,20 @@ export function resolveTabTerminalPaneId(tab: TabSession): string | null {
   return terminalIds[0] ?? null
 }
 
+/** SessionId sintético del explorador cuando la tab no tiene terminal. */
+export function tabExplorerSessionId(tabId: string): string {
+  return `tab-explorer:${tabId}`
+}
+
+/**
+ * SessionId del explorador: preferir un pane terminal existente;
+ * si no hay terminal pero sí projectFolder, usar id sintético tab-scoped.
+ */
+export function resolveTabExplorerSessionId(tab: TabSession): string | null {
+  if (!tab.projectFolder?.trim()) return null
+  return resolveTabTerminalPaneId(tab) ?? tabExplorerSessionId(tab.id)
+}
+
 /**
  * Prefiere `explorerByTab`; si falta, migra desde `explorerByPane`
  * (active terminal → primer terminal → default; open si alguno estaba abierto).

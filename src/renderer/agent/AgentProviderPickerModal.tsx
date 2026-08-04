@@ -20,9 +20,14 @@ interface Props {
   onClose: () => void
 }
 
-const PROVIDERS: { id: AgentCliProvider; icon: 'bot' | 'sparkles'; titleKey: 'claude' | 'cursor' }[] = [
+const PROVIDERS: {
+  id: AgentCliProvider
+  icon: 'bot' | 'sparkles' | 'code'
+  titleKey: 'claude' | 'cursor' | 'copilot'
+}[] = [
   { id: 'claude', icon: 'bot', titleKey: 'claude' },
   { id: 'cursor', icon: 'sparkles', titleKey: 'cursor' },
+  { id: 'copilot', icon: 'code', titleKey: 'copilot' },
 ]
 
 export const AgentProviderPickerModal: React.FC<Props> = ({
@@ -65,7 +70,9 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
             {cloneSources.map(source => {
               const providerLabel = source.provider === 'cursor'
                 ? t('agentPane.cursor')
-                : t('agentPane.claude')
+                : source.provider === 'copilot'
+                  ? t('agentPane.copilot')
+                  : t('agentPane.claude')
               return (
                 <ChoiceCard
                   key={source.paneId}

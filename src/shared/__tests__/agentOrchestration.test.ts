@@ -25,6 +25,7 @@ import {
   sanitizeDelegateRequest,
   sanitizeOrchestrationMaxRounds,
   shouldWakeOrchestratorOnDelegationComplete,
+  DELEGATE_OBJECTIVE_MAX_LENGTH,
 } from '../agentOrchestration'
 
 describe('sanitizeOrchestrationMaxRounds', () => {
@@ -197,6 +198,16 @@ describe('sanitizeDelegateRequest', () => {
   it('rejects incomplete payloads', () => {
     expect(sanitizeDelegateRequest({})).toBeNull()
     expect(sanitizeDelegateRequest({ toAgentId: 'qa' })).toBeNull()
+  })
+
+  it('trims and truncates objective to DELEGATE_OBJECTIVE_MAX_LENGTH (4000)', () => {
+    expect(DELEGATE_OBJECTIVE_MAX_LENGTH).toBe(4000)
+    const long = `  ${'x'.repeat(4500)}  `
+    const sanitized = sanitizeDelegateRequest({ toAgentId: 'qa', objective: long })
+    expect(sanitized?.objective).toHaveLength(4000)
+    expect(sanitized?.objective).toBe('x'.repeat(4000))
+    expect(sanitized?.objective.startsWith(' ')).toBe(false)
+    expect(sanitized?.objective.endsWith(' ')).toBe(false)
   })
 })
 

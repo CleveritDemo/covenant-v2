@@ -17,6 +17,7 @@ export const PlaneLoopsButton: React.FC<PlaneLoopsButtonProps> = ({
     type="button"
     className={[
       'plane-loops-button',
+      'plane-loops-button--icon-only',
       pressed ? 'plane-loops-button--pressed' : '',
     ].filter(Boolean).join(' ')}
     title={label}
@@ -25,6 +26,5 @@ export const PlaneLoopsButton: React.FC<PlaneLoopsButtonProps> = ({
     onClick={onClick}
   >
     <Icon name="repeat" size={13} />
-    <span className="plane-loops-button__label">{label}</span>
   </button>
 )

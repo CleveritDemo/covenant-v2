@@ -22,6 +22,10 @@ import { AppModals } from './components/AppModals'
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
+import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
+import { BrainstormRoomView } from './workspace/BrainstormRoomView'
+import { BrainstormListModal } from './workspace/BrainstormListModal'
+import type { BrainstormRoom } from '../shared/brainstormRoom'
 import { TabFileExplorerWindow, type TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
 import {
   armMiniExpandSuppress,
@@ -75,7 +79,7 @@ import {
   type PaneReorderKind,
 } from './arrayReorder'
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
-import { resolveTabTerminalPaneId } from './tabFileExplorer'
+import { resolveTabExplorerSessionId } from './tabFileExplorer'
 import {
   resolveTabAgentMeta,
   syncTabAgentsFromCatalog,
@@ -293,6 +297,9 @@ export const App: React.FC = () => {
   const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
+  const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
+  const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
+  const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   const chainFifoByPaneRef = useRef(new Map<string, LoopChainFifoItem[]>())
@@ -894,8 +901,7 @@ export const App: React.FC = () => {
 
   const toggleTabExplorer = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    const sessionId = tab ? resolveTabTerminalPaneId(tab) : null
-    if (!tab || !sessionId) return
+    if (!tab) return
     const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
     if (current.open) {
       patchTabExplorer(tabId, { open: false, fullscreen: false })
@@ -903,6 +909,8 @@ export const App: React.FC = () => {
     }
     // Sin carpeta de proyecto no hay raíz estable: no abrir el explorador.
     if (!tab.projectFolder?.trim()) return
+    const sessionId = resolveTabExplorerSessionId(tab)
+    if (!sessionId) return
     setTabs(prev => {
       const nextTabs = prev.map(item => {
         if (item.id !== tabId || item.paneIds.length === 0) return item
@@ -914,7 +922,7 @@ export const App: React.FC = () => {
       tabsRef.current = nextTabs
       return nextTabs
     })
-    void window.api.fileExplorerSetRoot(sessionId, tab.projectFolder?.trim() || '')
+    void window.api.fileExplorerSetRoot(sessionId, tab.projectFolder.trim())
     patchTabExplorer(tabId, { open: true, fullscreen: false })
   }, [patchTabExplorer])
 
@@ -1063,7 +1071,9 @@ export const App: React.FC = () => {
 
   const revealTabExplorerFile = useCallback((tabId: string, relPath: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || !resolveTabTerminalPaneId(tab)) return
+    const sessionId = tab ? resolveTabExplorerSessionId(tab) : null
+    if (!tab || !sessionId) return
+    const projectFolder = tab.projectFolder?.trim() || ''
     const current = explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE
     if (!current.open) {
       setTabs(prev => {
@@ -1077,6 +1087,9 @@ export const App: React.FC = () => {
         tabsRef.current = nextTabs
         return nextTabs
       })
+      if (projectFolder) {
+        void window.api.fileExplorerSetRoot(sessionId, projectFolder)
+      }
     }
     patchTabExplorer(tabId, {
       open: true,
@@ -1293,7 +1306,8 @@ export const App: React.FC = () => {
 
     // Si el explorador está abierto, reanclar su raíz al nuevo projectFolder.
     const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
-    const explorerSessionId = tab ? resolveTabTerminalPaneId(tab) : null
+    const updatedTab = next.find(item => item.id === tabId)
+    const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
     if (explorerOpen && explorerSessionId) {
       void window.api.fileExplorerSetRoot(explorerSessionId, path)
     }
@@ -2861,7 +2875,11 @@ export const App: React.FC = () => {
               const title = kind === 'agent'
                 ? (
                   meta?.name?.trim()
-                  || (meta?.provider === 'cursor' ? t('agentPane.cursor') : t('agentPane.claude'))
+                  || (meta?.provider === 'cursor'
+                    ? t('agentPane.cursor')
+                    : meta?.provider === 'copilot'
+                      ? t('agentPane.copilot')
+                      : t('agentPane.claude'))
                 )
                 : `${t('tabs.nodeTerminal')} ${terminalIndex || index + 1}`
 
@@ -2919,7 +2937,7 @@ export const App: React.FC = () => {
               >
                 {(() => {
                   const explorerState = explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE
-                  const explorerSessionId = resolveTabTerminalPaneId(tab)
+                  const explorerSessionId = resolveTabExplorerSessionId(tab)
                   const projectCwd = tab.projectFolder?.trim() || ''
                   const catalogEmpty = (projectAgentsByCwd[projectCwd] ?? []).length === 0
                   const noAgentPanes = !(tab.paneIds ?? []).some(
@@ -3049,6 +3067,13 @@ export const App: React.FC = () => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   loopsButtonLabel={t('tabs.loopsButton')}
+                  brainstormNeedFolderHint={t('tabs.brainstormNeedFolder')}
+                  canOpenBrainstorm={Boolean(tab.projectFolder?.trim())}
+                  brainstormsListOpen={Boolean(brainstormListOpenByTab[tab.id])}
+                  onBrainstormsListOpenChange={open => {
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  }}
+                  brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
                   loopsTitle={t('tabs.loopsTitle')}
                   loopsSubtitle={t('tabs.loopsSubtitle')}
                   loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
@@ -3094,7 +3119,7 @@ export const App: React.FC = () => {
                   }}
                   reorderAriaLabel={t('tabs.planeReorderAriaLabel')}
                   renderPane={paneId => renderPaneContent(tab, paneId)}
-                  explorerSessionId={projectCwd ? explorerSessionId : null}
+                  explorerSessionId={explorerSessionId}
                   explorerState={explorerState}
                   explorerTitle={t('fileExplorer.ariaLabel')}
                   explorerButtonLabel={t('paneToolbar.explorerTitle')}
@@ -3118,6 +3143,52 @@ export const App: React.FC = () => {
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
                 />
+                <BrainstormListModal
+                  open={Boolean(brainstormListOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
+                  active={activeTabId === tab.id}
+                  cwd={tab.projectFolder ?? ''}
+                  onClose={() => {
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                  }}
+                  onCreate={() => {
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                  }}
+                  onOpenRoom={room => {
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
+                  }}
+                />
+                <BrainstormRoomModal
+                  open={Boolean(brainstormSetupOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
+                  active={activeTabId === tab.id}
+                  cwd={tab.projectFolder ?? ''}
+                  agents={projectAgentsByCwd[projectCwd] ?? []}
+                  onClose={() => {
+                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                  }}
+                  onStarted={room => {
+                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
+                  }}
+                />
+                {brainstormRoomByTab[tab.id] ? (
+                  <BrainstormRoomView
+                    open
+                    active={activeTabId === tab.id}
+                    room={brainstormRoomByTab[tab.id]!}
+                    cwd={tab.projectFolder ?? ''}
+                    agentNamesById={Object.fromEntries(
+                      (projectAgentsByCwd[projectCwd] ?? []).map(agent => [
+                        agent.id,
+                        agent.name?.trim() || agent.id,
+                      ]),
+                    )}
+                    onClose={() => {
+                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
+                    }}
+                  />
+                ) : null}
                       </div>
                   )
                 })()}

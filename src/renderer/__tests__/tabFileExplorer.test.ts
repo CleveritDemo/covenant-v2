@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TabSession } from '@shared/tabSession'
 import { DEFAULT_FILE_EXPLORER_STATE } from '@shared/fileExplorerPersistedState'
-import { migrateExplorerStateByTab, resolveTabTerminalPaneId } from '../tabFileExplorer'
+import {
+  migrateExplorerStateByTab,
+  resolveTabExplorerSessionId,
+  resolveTabTerminalPaneId,
+} from '../tabFileExplorer'
 
 function tab(partial: Partial<TabSession> & Pick<TabSession, 'id' | 'paneIds' | 'activePaneId'>): TabSession {
   return {
@@ -35,6 +39,45 @@ describe('resolveTabTerminalPaneId', () => {
       paneIds: ['a1'],
       activePaneId: 'a1',
       paneKinds: { a1: 'agent' },
+    }))).toBeNull()
+  })
+})
+
+describe('resolveTabExplorerSessionId', () => {
+  it('uses tab-explorer:<tab.id> when projectFolder exists and only agent panes', () => {
+    expect(resolveTabExplorerSessionId(tab({
+      id: 't1',
+      paneIds: ['a1', 'a2'],
+      activePaneId: 'a1',
+      projectFolder: '/repo',
+      paneKinds: { a1: 'agent', a2: 'agent' },
+    }))).toBe('tab-explorer:t1')
+  })
+
+  it('prefers the terminal pane id when projectFolder and a terminal exist', () => {
+    expect(resolveTabExplorerSessionId(tab({
+      id: 't1',
+      paneIds: ['a1', 'term-2', 'term-1'],
+      activePaneId: 'term-2',
+      projectFolder: '/repo',
+      paneKinds: { a1: 'agent', 'term-1': 'terminal', 'term-2': 'terminal' },
+    }))).toBe('term-2')
+
+    expect(resolveTabExplorerSessionId(tab({
+      id: 't1',
+      paneIds: ['a1', 'term-1', 'term-2'],
+      activePaneId: 'a1',
+      projectFolder: '/repo',
+      paneKinds: { a1: 'agent', 'term-1': 'terminal', 'term-2': 'terminal' },
+    }))).toBe('term-1')
+  })
+
+  it('returns null without projectFolder even if a terminal exists', () => {
+    expect(resolveTabExplorerSessionId(tab({
+      id: 't1',
+      paneIds: ['term-1'],
+      activePaneId: 'term-1',
+      paneKinds: { 'term-1': 'terminal' },
     }))).toBeNull()
   })
 })

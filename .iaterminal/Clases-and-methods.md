@@ -2,6 +2,14 @@
 <!-- iaterminal:context {"version":1,"id":"iaterminal:symbols:Clases-and-methods","name":"Clases and methods","fileName":"Clases-and-methods.md","kind":"symbols","icon":"code","color":"#2dd4bf","symbolKinds":["class","method"]} -->
 
 <!-- iaterminal:auto -->
+### electron/agentCliModelsList.ts
+- parseCursorModelsStdout
+- parseClaudeModelsStdout
+- parseCopilotModelsStdout
+- parseModelsStdout
+- extractCopilotModelsFromPackage
+- listAgentCliModels
+
 ### electron/agentCliRuntime.ts
 - getContextDeliveryMetrics
 - clearContextDeliveryMetrics
@@ -10,6 +18,7 @@
 - clearAgentContextDeliveryForSession
 - materializeClipboardImages
 - shouldFinishOnProcessClose
+- closeAgentCliStdin
 - normalizeClaudeEvent
 - formatCreatePlanForChat
 - extractCursorCreatePlanText
@@ -61,6 +70,23 @@
 - writeAiChangelogDocument
 - appendAiChangelog
 - buildAiChangelogInstruction
+
+### electron/brainstormCatalogOps.ts
+- listBrainstormRooms
+- upsertBrainstormRoom
+- deleteBrainstormRoom
+- pruneBrainstormRooms
+- exportBrainstormRoomMarkdown
+
+### electron/brainstormRoom.ts
+- defaultRunBrainstormSpeakerTurn
+- runBrainstormSequence
+- startBrainstormRoom
+- pauseBrainstormRoom
+- stopBrainstormRoom
+- stopBrainstormRoomsForWindow
+- stopAllBrainstormRooms
+- isBrainstormRoomActive
 
 ### electron/cdRecentCapture.ts
 - ensureSessionCdState
@@ -164,8 +190,13 @@
 ### electron/shellPathEnv.ts
 - splitPath
 - mergePathEntries
+- defaultExtraBinDirsUnix
+- defaultExtraBinDirsWin
 - defaultExtraBinDirs
+- readWindowsPersistentPath
 - applyLoginShellPath
+- resolveCliExecutable
+- formatCliSpawnFailure
 
 ### electron/spotifyNative.ts
 - assertPlaylistId
@@ -343,6 +374,13 @@
 - isAiMessagesNearBottom
 - scrollAiMessagesToBottom
 
+### src/renderer/components/ai/assistantBodySegments.ts
+- stripAgentControlFences
+- splitAssistantBody
+
+### src/renderer/components/ai/AssistantFormattedBody.tsx
+- AssistantFormattedBody
+
 ### src/renderer/components/ai/useAiMessagesFollowScroll.ts
 - useAiMessagesFollowScroll
 
@@ -508,6 +546,8 @@
 
 ### src/renderer/tabFileExplorer.ts
 - resolveTabTerminalPaneId
+- tabExplorerSessionId
+- resolveTabExplorerSessionId
 - migrateExplorerStateByTab
 
 ### src/renderer/tabSplitSizes.ts
@@ -523,6 +563,10 @@
 
 ### src/renderer/terminal/explorer/ExplorerConfirmHost.tsx
 - ExplorerConfirmHost
+
+### src/renderer/terminal/explorer/explorerListCache.ts
+- sortExplorerEntries
+- mergeListDirIntoCache
 
 ### src/renderer/terminal/explorer/explorerPathUtils.ts
 - expandedPathsKey
@@ -635,6 +679,32 @@
 ### src/renderer/terminal/TerminalSuggestStack.tsx
 - TerminalSuggestStack
 
+### src/renderer/workspace/BrainstormEditRoomModal.tsx
+- BrainstormEditRoomModal
+
+### src/renderer/workspace/BrainstormListModal.tsx
+- BrainstormListModal
+
+### src/renderer/workspace/brainstormLiveState.ts
+- createInitialBrainstormLiveState
+- reduceBrainstormLiveEvent
+
+### src/renderer/workspace/BrainstormRoomModal.tsx
+- BrainstormRoomModal
+
+### src/renderer/workspace/BrainstormRoomView.tsx
+- BrainstormRoomView
+
+### src/renderer/workspace/brainstormUiGuards.ts
+- canAdvanceBrainstormInviteStep
+- tryCreateBrainstormSession
+
+### src/renderer/workspace/brainstormViewClose.ts
+- isBrainstormStoppable
+- canPauseBrainstorm
+- canResumeBrainstorm
+- stopBrainstormIfActive
+
 ### src/renderer/workspace/ContextBadge.tsx
 - ContextBadge
 
@@ -677,6 +747,12 @@
 
 ### src/renderer/workspace/PlaneBootstrapAgentsButton.tsx
 - PlaneBootstrapAgentsButton
+
+### src/renderer/workspace/PlaneBrainstormButton.tsx
+- PlaneBrainstormButton
+
+### src/renderer/workspace/PlaneBrainstormsListButton.tsx
+- PlaneBrainstormsListButton
 
 ### src/renderer/workspace/PlaneBusyDot.tsx
 - PlaneBusyDot
@@ -841,6 +917,21 @@
 ### src/shared/agentShellGuard.ts
 - isDestructiveShellCommand
 - requiresShellConfirmation
+
+### src/shared/brainstormCatalog.ts
+- normalizeBrainstormSlug
+- brainstormFileName
+- serializeBrainstormRoom
+- parseBrainstormRoomDefinition
+
+### src/shared/brainstormRoom.ts
+- sanitizeBrainstormMaxRounds
+- dedupeAgentIdsPreservingOrder
+- createBrainstormRoom
+- nextSpeakerAgentId
+- isBrainstormComplete
+- advanceBrainstormCursor
+- buildBrainstormTurnPrompt
 
 ### src/shared/configSchema.ts
 - parseSpotifyPlaylistId

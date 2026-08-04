@@ -16,7 +16,7 @@ import {
 } from './agentOrchestration'
 import { normalizeContextFileName, type TabContext } from './tabContext'
 
-export type AgentCliProvider = 'claude' | 'cursor'
+export type AgentCliProvider = 'claude' | 'cursor' | 'copilot'
 export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
 export type { AgentCoordination, DelegateToPolicy }
 
@@ -98,7 +98,7 @@ export function buildNewProjectAgentDefinition(
   const id = allocateAgentSlug(trimmed || displayName || provider, existingIds)
   return {
     id,
-    provider: provider === 'cursor' ? 'cursor' : 'claude',
+    provider: provider === 'cursor' || provider === 'copilot' ? provider : 'claude',
     permissionMode: 'auto',
     autoImproveContexts: true,
     emitResults: true,
@@ -236,7 +236,10 @@ function sanitizePermissionMode(raw: unknown): AgentPermissionMode {
 }
 
 function sanitizeProvider(raw: unknown): AgentCliProvider {
-  return raw === 'cursor' ? 'cursor' : 'claude'
+  if (raw === 'cursor') return 'cursor'
+  if (raw === 'copilot') return 'copilot'
+  // Legacy Pi → Claude (Pi/Node22 retirados).
+  return 'claude'
 }
 
 /** Parsea y normaliza un JSON de catálogo; null si inválido. */
@@ -344,7 +347,10 @@ export function isLegacyRichAgentMeta(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
   const data = raw as Record<string, unknown>
   if (typeof data.agentId === 'string' && data.agentId.trim()) return false
-  return data.provider === 'claude' || data.provider === 'cursor'
+  return data.provider === 'claude'
+    || data.provider === 'cursor'
+    || data.provider === 'copilot'
+    || data.provider === 'pi'
 }
 
 /** Convierte meta legacy de session a definición de catálogo. */
@@ -440,7 +446,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     delegateTo: meta.delegateTo,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
-    provider: meta.provider === 'cursor' ? 'cursor' : 'claude',
+    provider: meta.provider === 'cursor' || meta.provider === 'copilot' ? meta.provider : 'claude',
     permissionMode: meta.permissionMode === 'auto'
       ? 'auto'
       : meta.permissionMode === 'plan'

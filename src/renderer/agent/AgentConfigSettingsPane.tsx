@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { TabContext } from '@shared/tabContext'
+import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
 import {
   ORCHESTRATION_MAX_ROUNDS_CAP,
@@ -32,6 +33,10 @@ export interface AgentConfigSettingsPaneProps {
   contextNotice: string
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
+  /** Modelos del CLI (si el modal ya los cargó). */
+  modelOptions?: AgentModelOption[]
+  modelsLoading?: boolean
+  modelsError?: string
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
@@ -70,6 +75,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   selectedContextIds,
   contextNotice,
   peerAgents = [],
+  modelOptions: modelOptionsProp,
+  modelsLoading = false,
+  modelsError = '',
   onChangeCoordination,
   onAcceptDelegationsChange,
   onOrchestrationMaxRoundsChange,
@@ -85,11 +93,34 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
 }) => {
   const { t } = useT()
   const [tab, setTab] = useState<AgentConfigSettingsTab>('runtime')
+  const [localModels, setLocalModels] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
+  const [localLoading, setLocalLoading] = useState(false)
+  const [localError, setLocalError] = useState('')
 
   const selectTab = (next: AgentConfigSettingsTab): void => {
     setTab(next)
     if (next === 'contexts') onContextsTabFocus?.()
   }
+
+  useEffect(() => {
+    if (modelOptionsProp) return
+    let cancelled = false
+    setLocalLoading(true)
+    setLocalError('')
+    setLocalModels(modelsForProvider(meta.provider))
+    void window.api.listAgentCliModels(meta.provider).then(result => {
+      if (cancelled) return
+      setLocalModels(result.models)
+      setLocalError(result.error ?? '')
+      setLocalLoading(false)
+    }).catch(error => {
+      if (cancelled) return
+      setLocalModels(modelsForProvider(meta.provider))
+      setLocalError(error instanceof Error ? error.message : String(error))
+      setLocalLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [meta.provider, modelOptionsProp])
 
   const PERMISSION_MODES: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
     { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint') },
@@ -97,7 +128,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     { value: 'plan', label: t('agentPane.permissionPlan'), hint: t('agentPane.permissionPlanHint') },
   ]
 
-  const modelOptions = modelsForProvider(meta.provider)
+  const modelOptions = modelOptionsProp ?? localModels
+  const loadingModels = modelOptionsProp ? modelsLoading : localLoading
+  const modelsErrorText = modelOptionsProp ? modelsError : localError
   const selectedModel = meta.model?.trim() ?? ''
   const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
   const activePermission = PERMISSION_MODES.find(mode => mode.value === meta.permissionMode)
@@ -143,6 +176,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 options={[
                   { value: 'claude', label: t('agentPane.claude') },
                   { value: 'cursor', label: t('agentPane.cursor') },
+                  { value: 'copilot', label: t('agentPane.copilot') },
                 ]}
                 onChange={onChangeProvider}
               />
@@ -151,7 +185,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <span className="agent-config-settings__label">{t('agentPane.modelLabel')}</span>
               <Select
                 value={selectedModel}
-                disabled={locked}
+                disabled={locked || loadingModels}
                 title={t('agentPane.modelHint')}
                 onChange={event => onChangeModel(event.target.value)}
               >
@@ -161,6 +195,14 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 ))}
                 {modelIsCustom && <option value={selectedModel}>{selectedModel}</option>}
               </Select>
+              {loadingModels ? (
+                <p className="agent-config-settings__hint">{t('agentPane.modelLoading')}</p>
+              ) : null}
+              {!loadingModels && modelsErrorText ? (
+                <p className="agent-config-settings__hint">
+                  {t('agentPane.modelLoadErrorDetail', { detail: modelsErrorText.slice(0, 160) })}
+                </p>
+              ) : null}
             </label>
             <AgentConfigFolderChip
               label={cwd.trim() ? folderLabel(cwd) : t('agentPane.projectFolderUnset')}

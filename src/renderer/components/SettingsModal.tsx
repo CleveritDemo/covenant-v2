@@ -31,6 +31,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     reduceMotion: config.reduceMotion,
     agentCliClaudeCommand: config.agentCliClaudeCommand,
     agentCliCursorCommand: config.agentCliCursorCommand,
+    agentCliCopilotCommand: config.agentCliCopilotCommand,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [saving, setSaving] = useState(false)
@@ -43,6 +44,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: config.reduceMotion,
       agentCliClaudeCommand: config.agentCliClaudeCommand,
       agentCliCursorCommand: config.agentCliCursorCommand,
+      agentCliCopilotCommand: config.agentCliCopilotCommand,
       musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
     })
   }, [config])
@@ -80,6 +82,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: form.reduceMotion,
       agentCliClaudeCommand: form.agentCliClaudeCommand.trim(),
       agentCliCursorCommand: form.agentCliCursorCommand.trim(),
+      agentCliCopilotCommand: form.agentCliCopilotCommand.trim(),
       musicPlaylistIdsByMood,
     })
     const errs = validateConfig(updated)
@@ -134,6 +137,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
             value={form.agentCliCursorCommand}
             onChange={e => update('agentCliCursorCommand', e.target.value)}
             placeholder="agent"
+            spellCheck={false}
+          />
+        </SettingsField>
+        <SettingsField label={t('settings.agentCliCopilotLabel')}>
+          <Input
+            type="text"
+            value={form.agentCliCopilotCommand}
+            onChange={e => update('agentCliCopilotCommand', e.target.value)}
+            placeholder="copilot"
             spellCheck={false}
           />
         </SettingsField>

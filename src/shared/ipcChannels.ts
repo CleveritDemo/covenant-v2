@@ -15,6 +15,26 @@ export const IPC = {
   AGENT_CLI_EXIT: 'agentCli:exit',
   /** Renderer → main: ¿hay un turno de agente CLI en curso para este pane? */
   AGENT_CLI_IS_ACTIVE: 'agentCli:isActive',
+  /** Renderer → main: listar modelos del CLI por provider. */
+  AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
+  /** Renderer → main: iniciar sala de brainstorm round-robin. */
+  BRAINSTORM_START: 'brainstorm:start',
+  /** Renderer → main: detener sala de brainstorm. */
+  BRAINSTORM_STOP: 'brainstorm:stop',
+  /** Renderer → main: pausar sala de brainstorm (conserva run + archivo). */
+  BRAINSTORM_PAUSE: 'brainstorm:pause',
+  /** Main → renderer: eventos de sala de brainstorm. */
+  BRAINSTORM_EVENT: 'brainstorm:event',
+  /** Renderer → main (invoke): listar salas en `.iaterminal/brainstorms/`. */
+  BRAINSTORM_LIST: 'brainstorm:list',
+  /** Renderer → main (invoke): crear/actualizar sala en disco. */
+  BRAINSTORM_UPSERT: 'brainstorm:upsert',
+  /** Renderer → main (invoke): borrar sala del catálogo en disco. */
+  BRAINSTORM_DELETE: 'brainstorm:delete',
+  /** Renderer → main (invoke): limpiar salas done/stopped antiguas. */
+  BRAINSTORM_PRUNE: 'brainstorm:prune',
+  /** Renderer → main (invoke): exportar transcript de sala a Markdown. */
+  BRAINSTORM_EXPORT_MD: 'brainstorm:exportMd',
   AGENT_CHAT_LOAD: 'agentChat:load',
   AGENT_CHAT_SAVE: 'agentChat:save',
   AGENT_CHAT_DELETE: 'agentChat:delete',

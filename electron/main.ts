@@ -43,13 +43,23 @@ import {
   deleteAgentChat,
 } from './persistence'
 import {
-  deleteProjectAgent,
   listProjectAgents,
   renameProjectAgent,
   upsertProjectAgent,
+  deleteProjectAgent,
 } from './projectAgentCatalogOps'
+import {
+  listBrainstormRooms,
+  upsertBrainstormRoom,
+  deleteBrainstormRoom,
+  pruneBrainstormRooms,
+  exportBrainstormRoomMarkdown,
+} from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
+import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
+import { listAgentCliModels } from './agentCliModelsList'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -59,6 +69,14 @@ import {
   clearAgentContextDeliveryForSession,
   clearAgentContextDeliveryState,
 } from './agentCliRuntime'
+import {
+  startBrainstormRoom,
+  stopBrainstormRoom,
+  pauseBrainstormRoom,
+  stopAllBrainstormRooms,
+  stopBrainstormRoomsForWindow,
+} from './brainstormRoom'
+import type { BrainstormStartConfig } from './brainstormRoom'
 import {
   deleteTabContext,
   discoverTabContexts,
@@ -223,6 +241,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   stopAllAgentRuns()
+  stopAllBrainstormRooms()
   killAllPtySessions()
   stopAllFileExplorerWatches()
 })
@@ -604,7 +623,12 @@ function registerIpc(): void {
   ipcMain.handle(IPC.FILE_EXPLORER_SET_ROOT, (_e, sessionId: string, rootPath: unknown) => {
     const root = typeof rootPath === 'string' ? rootPath.trim() : ''
     if (root) {
-      explorerRootBySession.set(sessionId, resolve(root))
+      const resolvedRoot = resolve(root)
+      explorerRootBySession.set(sessionId, resolvedRoot)
+      // Sesiones sintéticas (sin PTY): anclar cwd para getSessionCwd/git.
+      if (!ptySessions.has(sessionId)) {
+        initSessionCwd(sessionId, resolvedRoot)
+      }
     } else {
       explorerRootBySession.delete(sessionId)
     }
@@ -612,10 +636,12 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.FILE_EXPLORER_LIST_DIR,
-    (_e, sessionId: string, relPath: unknown, showHiddenDirs: unknown) => {
+    async (_e, sessionId: string, relPath: unknown, showHiddenDirs: unknown) => {
       const rp = typeof relPath === 'string' ? relPath : ''
       const showHidden = showHiddenDirs !== false
-      return listDirChildren(explorerRootForSession(sessionId), rp, showHidden)
+      return listDirChildren(explorerRootForSession(sessionId), rp, showHidden, {
+        prefetchDepth: 1,
+      })
     },
   )
 
@@ -780,6 +806,38 @@ function registerIpc(): void {
     )
   })
 
+  ipcMain.handle(IPC.BRAINSTORM_LIST, (_e, cwd: unknown) => {
+    return listBrainstormRooms(typeof cwd === 'string' ? cwd : '')
+  })
+
+  ipcMain.handle(IPC.BRAINSTORM_UPSERT, (_e, cwd: unknown, room: unknown) => {
+    return upsertBrainstormRoom(
+      typeof cwd === 'string' ? cwd : '',
+      room as BrainstormRoom,
+    )
+  })
+
+  ipcMain.handle(IPC.BRAINSTORM_DELETE, (_e, cwd: unknown, roomId: unknown) => {
+    return deleteBrainstormRoom(
+      typeof cwd === 'string' ? cwd : '',
+      typeof roomId === 'string' ? roomId : '',
+    )
+  })
+
+  ipcMain.handle(IPC.BRAINSTORM_PRUNE, (_e, cwd: unknown, maxAgeDays: unknown) => {
+    return pruneBrainstormRooms(
+      typeof cwd === 'string' ? cwd : '',
+      typeof maxAgeDays === 'number' ? maxAgeDays : undefined,
+    )
+  })
+
+  ipcMain.handle(IPC.BRAINSTORM_EXPORT_MD, (_e, cwd: unknown, roomId: unknown) => {
+    return exportBrainstormRoomMarkdown(
+      typeof cwd === 'string' ? cwd : '',
+      typeof roomId === 'string' ? roomId : '',
+    )
+  })
+
   ipcMain.handle(IPC.AI_CHAT_LOAD, (_e, paneId: string) => loadAiChat(paneId))
   ipcMain.on(IPC.AI_CHAT_SAVE, (_e, paneId: string, entries: unknown) => {
     saveAiChat(paneId, entries as Parameters<typeof saveAiChat>[1])
@@ -823,7 +881,7 @@ function registerIpc(): void {
     if (!payload || typeof payload !== 'object') return
     const provider = (payload as { provider?: unknown }).provider
     const cliSessionId = (payload as { cliSessionId?: unknown }).cliSessionId
-    if ((provider !== 'claude' && provider !== 'cursor') || typeof cliSessionId !== 'string') return
+    if ((provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') || typeof cliSessionId !== 'string') return
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
@@ -908,7 +966,7 @@ function registerIpc(): void {
       }
       return
     }
-    if (request.provider !== 'claude' && request.provider !== 'cursor') {
+    if (request.provider !== 'claude' && request.provider !== 'cursor' && request.provider !== 'copilot') {
       reject(request.paneId, 'Proveedor de agente no válido.')
       return
     }
@@ -949,6 +1007,50 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.AGENT_CLI_IS_ACTIVE, (_event, paneId: string) => {
     return typeof paneId === 'string' && isAgentRunActive(paneId)
+  })
+  ipcMain.handle(IPC.AGENT_CLI_LIST_MODELS, async (_event, provider: unknown): Promise<AgentCliModelsResult> => {
+    if (provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') {
+      return {
+        models: [],
+        source: 'fallback',
+        error: 'Proveedor no válido.',
+      }
+    }
+    return listAgentCliModels(provider, readConfig())
+  })
+
+  ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || !config || typeof config !== 'object') return
+    const result = startBrainstormRoom(
+      win,
+      config,
+      readConfig(),
+      app.getPath('home'),
+    )
+    if (!result.ok) {
+      const roomId = typeof config.roomId === 'string' ? config.roomId.trim() : ''
+      if (roomId) {
+        win.webContents.send(IPC.BRAINSTORM_EVENT, roomId, {
+          type: 'error',
+          message: result.error,
+        })
+        win.webContents.send(IPC.BRAINSTORM_EVENT, roomId, {
+          type: 'status',
+          status: 'stopped',
+        })
+      }
+    }
+  })
+  ipcMain.on(IPC.BRAINSTORM_STOP, (event, roomId: string) => {
+    if (typeof roomId !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    stopBrainstormRoom(roomId, win ? { win, notify: true } : {})
+  })
+  ipcMain.on(IPC.BRAINSTORM_PAUSE, (event, roomId: string) => {
+    if (typeof roomId !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    pauseBrainstormRoom(roomId, win ? { win, notify: true } : {})
   })
 
   ipcMain.on(IPC.PTY_CREATE, (event, sessionId: string, cwd?: string) => {
@@ -1119,6 +1221,7 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     const closedWinId = win.id
     stopAgentRunsForWindow(closedWinId)
+    stopBrainstormRoomsForWindow(closedWinId)
     for (const [id, entry] of [...ptySessions.entries()]) {
       if (entry.windowId === closedWinId) {
         killPty(id)
@@ -1147,7 +1250,7 @@ app.on('child-process-gone', (_e, details) => {
 })
 
 app.whenReady().then(() => {
-  // Dock/Finder no heredan el PATH del shell; sin esto `spawn('agent')` falla con ENOENT.
+  // Dock/Finder/Explorer no heredan el PATH del shell; sin esto spawn(CLI) → ENOENT/-4058.
   applyLoginShellPath()
   applyAppBranding()
   registerIpc()

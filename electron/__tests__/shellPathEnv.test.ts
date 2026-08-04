@@ -24,4 +24,11 @@ describe('shellPathEnv', () => {
     expect(env.PATH!.includes('/usr/bin')).toBe(true)
     expect(env.PATH).toMatch(/\.local\/bin/)
   })
+
+  it('formats ENOENT/-4058 with actionable Windows guidance', async () => {
+    const { formatCliSpawnFailure } = await import('../shellPathEnv')
+    expect(formatCliSpawnFailure('claude', -4058)).toContain('ENOENT')
+    expect(formatCliSpawnFailure('claude', -4058)).toContain('Ajustes')
+    expect(formatCliSpawnFailure('agent', 1, 'boom')).toBe('boom')
+  })
 })

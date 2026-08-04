@@ -37,6 +37,7 @@ import {
   sessionCwdPaneLabel,
   type ExplorerSelectedEntry,
 } from './explorerPathUtils'
+import { mergeListDirIntoCache } from './explorerListCache'
 import {
   buildGitStatusMap,
   gitStatusFromMap,
@@ -85,13 +86,6 @@ type CreateMode = 'file' | 'dir' | null
 
 const VIRTUAL_THRESHOLD = 200
 const ROW_HEIGHT = 18
-
-function sortEntries(entries: FileExplorerEntry[]): FileExplorerEntry[] {
-  return [...entries].sort((a, b) => {
-    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-  })
-}
 
 export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerTreeProps>(
   function FileExplorerTree(
@@ -215,30 +209,42 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     }, [sessionId])
 
     const loadDirGenRef = useRef(new Map<string, number>())
+    const loadDirInflightRef = useRef(new Map<string, Promise<void>>())
 
     const loadDir = useCallback(
       async (relPath: string): Promise<void> => {
+        const existing = loadDirInflightRef.current.get(relPath)
+        if (existing) return existing
+
         const gen = (loadDirGenRef.current.get(relPath) ?? 0) + 1
         loadDirGenRef.current.set(relPath, gen)
         setLoadingDirs(prev => new Set(prev).add(relPath))
-        try {
-          const result = await window.api.fileExplorerListDir(sessionId, relPath, showHiddenDirs)
-          if (loadDirGenRef.current.get(relPath) !== gen) return
-          if (relPath === '') {
-            setRootError(result.ok ? null : fileExplorerErrorMessage(t, result.error, result.code))
+
+        const run = (async (): Promise<void> => {
+          try {
+            const result = await window.api.fileExplorerListDir(sessionId, relPath, showHiddenDirs)
+            if (loadDirGenRef.current.get(relPath) !== gen) return
+            if (relPath === '') {
+              setRootError(result.ok ? null : fileExplorerErrorMessage(t, result.error, result.code))
+            }
+            setChildrenByDir(prev => mergeListDirIntoCache(prev, relPath, result))
+          } finally {
+            if (loadDirGenRef.current.get(relPath) === gen) {
+              setLoadingDirs(prev => {
+                const next = new Set(prev)
+                next.delete(relPath)
+                return next
+              })
+            }
           }
-          setChildrenByDir(prev => {
-            const next = new Map(prev)
-            next.set(relPath, result.ok ? sortEntries(result.entries) : [])
-            return next
-          })
+        })()
+
+        loadDirInflightRef.current.set(relPath, run)
+        try {
+          await run
         } finally {
-          if (loadDirGenRef.current.get(relPath) === gen) {
-            setLoadingDirs(prev => {
-              const next = new Set(prev)
-              next.delete(relPath)
-              return next
-            })
+          if (loadDirInflightRef.current.get(relPath) === run) {
+            loadDirInflightRef.current.delete(relPath)
           }
         }
       },

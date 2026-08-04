@@ -1,0 +1,80 @@
+.brainstorm-room-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 280px;
+}
+
+.brainstorm-room-view__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.brainstorm-room-view__meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.brainstorm-room-view__topic {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.brainstorm-room-view__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  max-height: min(48vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.brainstorm-room-view__message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.brainstorm-room-view__message--streaming {
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+.brainstorm-room-view__speaker {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.brainstorm-room-view__body {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.brainstorm-room-view__error {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--danger, #c44);
+}
+
+.brainstorm-room-view__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}

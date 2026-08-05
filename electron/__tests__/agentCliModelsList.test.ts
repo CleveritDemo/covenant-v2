@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { modelsForProvider } from '../../src/shared/agentCliModels'
 import {
@@ -70,6 +73,11 @@ describe('parseCopilotModelsStdout', () => {
     expect(ids).toContain('auto')
     expect(ids).toContain('gpt-5.4')
   })
+
+  it('does not treat auto-only help output as a full Copilot model list', () => {
+    const ids = parseCopilotModelsStdout('use auto').map(m => m.id)
+    expect(ids).toEqual(['auto'])
+  })
 })
 
 describe('parseModelsStdout + fallback', () => {
@@ -86,15 +94,56 @@ describe('parseModelsStdout + fallback', () => {
   })
 })
 
+function writeCopilotFixture(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), 'copilot-models-'))
+  const pkgDir = join(root, 'lib', 'node_modules', '@github', 'copilot')
+  mkdirSync(pkgDir, { recursive: true })
+  const catalog = `${prefix}={"sweagent-capi":{"claude-sonnet-4.6":{},"gpt-5.4":{},"claude-haiku-4.5":{}}}`
+  writeFileSync(join(pkgDir, 'app.js'), `/* minified */${catalog}/* end */`, 'utf8')
+  writeFileSync(join(pkgDir, 'npm-loader.js'), 'module.exports = {}', 'utf8')
+  return join(pkgDir, 'npm-loader.js')
+}
+
 describe('extractCopilotModelsFromPackage', () => {
-  it('returns models from installed package when present', () => {
-    const models = extractCopilotModelsFromPackage('copilot')
-    // En CI sin paquete puede ser []; localmente debe incluir auto + ids reales.
-    if (models.length === 0) {
-      expect(models).toEqual([])
+  it('extracts models via sweagent-capi needle with Hut= prefix', () => {
+    const command = writeCopilotFixture('Hut')
+    const models = extractCopilotModelsFromPackage(command)
+    const ids = models.map(m => m.id)
+    expect(models.length).toBeGreaterThan(1)
+    expect(ids).toContain('auto')
+    expect(ids).toContain('claude-sonnet-4.6')
+    expect(ids).toContain('gpt-5.4')
+  })
+
+  it('extracts models via sweagent-capi needle with JEt= prefix (no hardcoded marker)', () => {
+    const command = writeCopilotFixture('JEt')
+    const models = extractCopilotModelsFromPackage(command)
+    const ids = models.map(m => m.id)
+    expect(models.length).toBeGreaterThan(1)
+    expect(ids).toContain('auto')
+    expect(ids).toContain('claude-sonnet-4.6')
+    expect(ids).toContain('gpt-5.4')
+  })
+
+  it('live smoke: bare copilot finds package when installed locally', () => {
+    const home = process.env.HOME || ''
+    const platformArch = `${process.platform}-${process.arch}`
+    const cacheApp = join(home, 'Library/Caches/copilot/pkg', platformArch)
+    const universal = join(home, 'Library/Caches/copilot/pkg/universal')
+    let hasLocalPackage = existsSync(cacheApp) || existsSync(universal)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require.resolve('@github/copilot/package.json')
+      hasLocalPackage = true
+    } catch {
+      /* optional */
+    }
+    if (!hasLocalPackage) {
+      // CI / máquina sin Copilot: no ocultar fallo con expect([]).
       return
     }
+    const models = extractCopilotModelsFromPackage('copilot')
+    expect(models.length).toBeGreaterThanOrEqual(8)
     expect(models.some(m => m.id === 'auto')).toBe(true)
-    expect(models.some(m => m.id.startsWith('claude-') || m.id.startsWith('gpt-'))).toBe(true)
   })
 })

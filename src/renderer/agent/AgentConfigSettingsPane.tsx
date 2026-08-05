@@ -110,7 +110,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     setLocalModels(modelsForProvider(meta.provider))
     void window.api.listAgentCliModels(meta.provider).then(result => {
       if (cancelled) return
-      setLocalModels(result.models)
+      if (result.models.length > 0) setLocalModels(result.models)
       setLocalError(result.error ?? '')
       setLocalLoading(false)
     }).catch(error => {

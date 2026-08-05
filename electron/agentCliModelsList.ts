@@ -3,8 +3,8 @@
  * No toca commandAndArgs de ejecución de agentes.
  */
 import crossSpawn from 'cross-spawn'
-import { existsSync, readFileSync, readdirSync } from 'fs'
-import { dirname, join } from 'path'
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'fs'
+import { basename, dirname, join } from 'path'
 import type { AppConfig } from '../src/shared/configSchema'
 import type {
   AgentCliModelsResult,
@@ -229,6 +229,54 @@ function runCliCapture(
 }
 
 /**
+ * Resuelve un comando bare (`copilot`) a ruta absoluta vía PATH (+ .cmd/.exe en win32).
+ * Usa realpath para seguir symlinks del binario npm.
+ */
+function resolveCommandAbsolutePath(command: string): string | null {
+  const trimmed = command.trim()
+  if (!trimmed) return null
+
+  const tryRealpath = (path: string): string | null => {
+    if (!existsSync(path)) return null
+    try {
+      return realpathSync(path)
+    } catch {
+      return path
+    }
+  }
+
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return tryRealpath(trimmed)
+  }
+
+  const pathEnv = process.env.PATH ?? process.env.Path ?? ''
+  const dirs = pathEnv.split(process.platform === 'win32' ? ';' : ':').filter(Boolean)
+  const names = process.platform === 'win32'
+    ? [trimmed, `${trimmed}.cmd`, `${trimmed}.exe`, `${trimmed}.bat`]
+    : [trimmed]
+
+  for (const dir of dirs) {
+    for (const name of names) {
+      const resolved = tryRealpath(join(dir, name))
+      if (resolved) return resolved
+    }
+  }
+  return null
+}
+
+function pushCopilotCacheCandidates(candidates: string[], cacheRoot: string): void {
+  if (!existsSync(cacheRoot)) return
+  try {
+    const versions = readdirSync(cacheRoot).sort().reverse()
+    for (const version of versions.slice(0, 3)) {
+      candidates.push(join(cacheRoot, version, 'app.js'))
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
  * Catálogo embebido en el paquete npm de Copilot (cuando `help` no lista IDs).
  * No inventa IDs: lee claves del binario/paquete instalado junto al comando.
  */
@@ -241,37 +289,38 @@ export function extractCopilotModelsFromPackage(command: string): AgentModelOpti
   } catch {
     /* optional */
   }
-  if (command.includes('/') || command.includes('\\')) {
+
+  const absolute = resolveCommandAbsolutePath(command)
+  if (absolute) {
+    const dir = dirname(absolute)
+    candidates.push(
+      join(dir, '../lib/node_modules/@github/copilot/app.js'),
+      join(dir, 'app.js'),
+    )
+    if (basename(absolute) === 'npm-loader.js') {
+      candidates.push(join(dir, 'app.js'))
+    }
+  } else if (command.includes('/') || command.includes('\\')) {
     const dir = dirname(command)
     candidates.push(
       join(dir, '../lib/node_modules/@github/copilot/app.js'),
       join(dir, 'app.js'),
     )
   }
-  const homeCache = join(
-    process.env.HOME || '',
-    'Library/Caches/copilot/pkg',
-    `${process.platform === 'win32' ? 'win32' : process.platform}-${process.arch}`,
-  )
-  if (existsSync(homeCache)) {
-    try {
-      const versions = readdirSync(homeCache).sort().reverse()
-      for (const version of versions.slice(0, 3)) {
-        candidates.push(join(homeCache, version, 'app.js'))
-      }
-    } catch {
-      /* ignore */
-    }
-  }
 
+  const home = process.env.HOME || ''
+  const pkgRoot = join(home, 'Library/Caches/copilot/pkg')
+  const platformArch = `${process.platform === 'win32' ? 'win32' : process.platform}-${process.arch}`
+  pushCopilotCacheCandidates(candidates, join(pkgRoot, platformArch))
+  pushCopilotCacheCandidates(candidates, join(pkgRoot, 'universal'))
+
+  const needle = '{"sweagent-capi":{'
   for (const appJs of candidates) {
     if (!existsSync(appJs)) continue
     try {
       const source = readFileSync(appJs, 'utf8')
-      const marker = 'Qht={"sweagent-capi":{'
-      const start = source.indexOf(marker)
-      if (start < 0) continue
-      const braceStart = source.indexOf('{', start + 'Qht='.length)
+      const braceStart = source.indexOf(needle)
+      if (braceStart < 0) continue
       let depth = 0
       let end = -1
       for (let i = braceStart; i < source.length && i < braceStart + 80_000; i += 1) {
@@ -303,6 +352,26 @@ export function extractCopilotModelsFromPackage(command: string): AgentModelOpti
   return []
 }
 
+function looksLikeCliHelpText(text: string): boolean {
+  return /\bUsage:\b/i.test(text) || /\bOptions:\b/i.test(text)
+}
+
+function copilotIncompleteCatalogError(
+  result: { stdout: string; stderr: string; code: number | null; timedOut: boolean },
+  command: string,
+): string {
+  if (result.timedOut) {
+    return `Tiempo agotado al listar modelos (${command}).`
+  }
+  const stderr = result.stderr.trim()
+  const realFailure = result.code !== 0 && result.code !== null
+    && stderr.length > 0
+    && stderr.length <= 280
+    && !looksLikeCliHelpText(stderr)
+  if (realFailure) return stderr.slice(0, 280)
+  return 'No se pudo obtener el catálogo completo de modelos de Copilot; se usa la lista estática.'
+}
+
 function fallbackResult(
   provider: AgentCliProvider,
   error: string,
@@ -332,9 +401,14 @@ export async function listAgentCliModels(
   const combined = [result.stdout, result.stderr].filter(Boolean).join('\n')
   let models = parseModelsStdout(provider, combined)
 
-  if (provider === 'copilot' && models.length < 2) {
+  // Copilot `help` suele devolver un parse parcial; umbral = 8 (fallback tiene 20).
+  if (provider === 'copilot' && models.length < 8) {
     const fromPackage = extractCopilotModelsFromPackage(command)
     if (fromPackage.length > models.length) models = fromPackage
+  }
+
+  if (provider === 'copilot' && models.length < 8) {
+    return fallbackResult(provider, copilotIncompleteCatalogError(result, command))
   }
 
   if (models.length > 0) {

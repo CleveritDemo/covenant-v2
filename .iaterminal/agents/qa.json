@@ -1,6 +1,6 @@
 {
   "id": "qa",
-  "provider": "cursor",
+  "provider": "copilot",
   "permissionMode": "auto",
   "name": "qa",
   "role": "QA Professional",
@@ -10,6 +10,7 @@
     "all your reported bugs must be complete verified in code flow.",
     "try to think by the perspective of an user. is it easy to use? is it friendly? is it intuitive?"
   ],
+  "model": "claude-sonnet-5",
   "contextIds": [
     "iaterminal:folderTree:Folders",
     "iaterminal:symbols:Clases-and-methods",

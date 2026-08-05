@@ -40,8 +40,9 @@ export const CURSOR_AGENT_MODELS: AgentModelOption[] = [
 ]
 
 /**
- * Fallback si Copilot no expone listado en `help`
- * (verificado vía `copilot -p '/models'` / docs CLI).
+ * Fallback si Copilot no expone un listado completo en `help` / `/models`.
+ * IDs verificados en el paquete CLI instalado (`app.js` catálogo sweagent-capi)
+ * y en la salida de `copilot -p '/models'` / docs `--model`.
  */
 export const COPILOT_AGENT_MODELS: AgentModelOption[] = [
   { id: 'auto', label: 'Auto' },
@@ -50,6 +51,20 @@ export const COPILOT_AGENT_MODELS: AgentModelOption[] = [
   { id: 'gpt-5.4', label: 'GPT-5.4' },
   { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5' },
   { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5' },
+  { id: 'claude-opus-4.5', label: 'Claude Opus 4.5' },
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+  { id: 'claude-opus-4.7', label: 'Claude Opus 4.7' },
+  { id: 'claude-opus-4.8', label: 'Claude Opus 4.8' },
+  { id: 'gpt-5.5', label: 'GPT-5.5' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+  { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
+  { id: 'gpt-5.2', label: 'GPT-5.2' },
+  { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex' },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+  { id: 'claude-opus-4.6-fast', label: 'Claude Opus 4.6 Fast' },
+  { id: 'gpt-5.1-codex', label: 'GPT-5.1 Codex' },
 ]
 
 /** Fallback estático por provider (solo si el CLI no responde). */

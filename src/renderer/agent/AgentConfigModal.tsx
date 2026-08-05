@@ -115,7 +115,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     setModelOptions(modelsForProvider(meta.provider))
     void window.api.listAgentCliModels(meta.provider).then(result => {
       if (cancelled) return
-      setModelOptions(result.models)
+      if (result.models.length > 0) setModelOptions(result.models)
       setModelsError(result.error ?? '')
       setModelsLoading(false)
     }).catch(error => {

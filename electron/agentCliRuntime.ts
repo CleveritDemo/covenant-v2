@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
+import crossSpawn from 'cross-spawn'
+import type { ChildProcessWithoutNullStreams } from 'child_process'
 import { mkdirSync, statSync, writeFileSync } from 'fs'
 import { basename, extname, join, resolve } from 'path'
 import type { BrowserWindow } from 'electron'
@@ -755,13 +756,12 @@ export function runAgentCliSpawn(
   const command = resolveCliExecutable(rawCommand)
   let proc: ChildProcessWithoutNullStreams
   try {
-    proc = spawn(command, args, {
+    proc = crossSpawn(command, args, {
       cwd,
       env: process.env,
-      shell: false,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-    })
+    }) as ChildProcessWithoutNullStreams
   } catch (error) {
     failBeforeSpawn(error instanceof Error ? error.message : String(error))
     return
@@ -886,13 +886,12 @@ export function startAgentTurn(
     const command = resolveCliExecutable(rawCommand)
     let proc: ChildProcessWithoutNullStreams
     try {
-      proc = spawn(command, args, {
+      proc = crossSpawn(command, args, {
         cwd,
         env: process.env,
-        shell: false,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
-      })
+      }) as ChildProcessWithoutNullStreams
     } catch (error) {
       failBeforeSpawn(error instanceof Error ? error.message : String(error))
       return

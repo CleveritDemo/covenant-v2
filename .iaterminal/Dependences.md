@@ -15,6 +15,7 @@
     "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
+    "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
@@ -40,6 +41,7 @@
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",
+    "cross-spawn": "^7.0.6",
     "dotenv": "^16.6.1",
     "i18next": "^26.2.0",
     "node-pty": "^1.0.0",
@@ -50,6 +52,7 @@
     "@electron/rebuild": "^3.7.0",
     "@tanstack/react-virtual": "^3.14.2",
     "@testing-library/react": "^16.3.2",
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.9.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -81,6 +84,21 @@
           ]
         }
       ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
     },
     "dmg": {
       "artifactName": "${productName}-${version}-${arch}.${ext}"

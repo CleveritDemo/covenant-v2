@@ -2,7 +2,7 @@
  * Lista modelos reales de Claude / Cursor / Copilot CLI.
  * No toca commandAndArgs de ejecución de agentes.
  */
-import { spawn } from 'child_process'
+import crossSpawn from 'cross-spawn'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { dirname, join } from 'path'
 import type { AppConfig } from '../src/shared/configSchema'
@@ -183,10 +183,9 @@ function runCliCapture(
     let stderr = ''
     let settled = false
     let timedOut = false
-    let proc: ReturnType<typeof spawn>
+    let proc: ReturnType<typeof crossSpawn>
     try {
-      proc = spawn(resolveCliExecutable(command), args, {
-        shell: false,
+      proc = crossSpawn(resolveCliExecutable(command), args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: process.env,
         windowsHide: true,

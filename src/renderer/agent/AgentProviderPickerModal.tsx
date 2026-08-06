@@ -1,8 +1,9 @@
 import React from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
+import { AGENT_CLI_PROVIDER_IDS, agentCliSpec } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { ChoiceCard, Icon } from '../components/ui'
+import { BrandIcon, ChoiceCard } from '../components/ui'
 import './AgentPane.css'
 
 export interface AgentPickerCloneSource {
@@ -20,15 +21,6 @@ interface Props {
   onClose: () => void
 }
 
-const PROVIDERS: {
-  id: AgentCliProvider
-  icon: 'bot' | 'sparkles' | 'code'
-  titleKey: 'claude' | 'cursor' | 'copilot'
-}[] = [
-  { id: 'claude', icon: 'bot', titleKey: 'claude' },
-  { id: 'cursor', icon: 'sparkles', titleKey: 'cursor' },
-  { id: 'copilot', icon: 'code', titleKey: 'copilot' },
-]
 
 export const AgentProviderPickerModal: React.FC<Props> = ({
   open,
@@ -50,14 +42,14 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
     >
       <p className="agent-provider-picker__description">{t('agentPane.pickerDescription')}</p>
       <div className="agent-provider-picker__options" role="list">
-        {PROVIDERS.map(provider => (
+        {AGENT_CLI_PROVIDER_IDS.map(id => (
           <ChoiceCard
-            key={provider.id}
+            key={id}
             role="listitem"
-            icon={<Icon name={provider.icon} size={18} />}
-            onClick={() => onSelect(provider.id)}
+            icon={<BrandIcon provider={id} size={18} />}
+            onClick={() => onSelect(id)}
           >
-            <strong>{t(`agentPane.${provider.titleKey}`)}</strong>
+            <strong>{agentCliSpec(id).label}</strong>
           </ChoiceCard>
         ))}
       </div>
@@ -68,16 +60,12 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
           <p className="agent-provider-picker__clone-hint">{t('agentPane.pickerDuplicateHint')}</p>
           <div className="agent-provider-picker__options" role="list">
             {cloneSources.map(source => {
-              const providerLabel = source.provider === 'cursor'
-                ? t('agentPane.cursor')
-                : source.provider === 'copilot'
-                  ? t('agentPane.copilot')
-                  : t('agentPane.claude')
+              const providerLabel = agentCliSpec(source.provider).label
               return (
                 <ChoiceCard
                   key={source.paneId}
                   role="listitem"
-                  icon={<Icon name="bot" size={18} />}
+                  icon={<BrandIcon provider={source.provider} size={18} />}
                   onClick={() => onClone?.(source.paneId)}
                 >
                   <strong>{source.name.trim() || t('agentPane.pickerDuplicateUnnamed')}</strong>

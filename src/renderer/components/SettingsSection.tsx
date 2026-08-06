@@ -15,7 +15,8 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, childre
 )
 
 interface SettingsFieldProps {
-  label: string
+  /** Texto o nodo (p. ej. marca + nombre del CLI). */
+  label: React.ReactNode
   hint?: React.ReactNode
   htmlFor?: string
   compact?: boolean

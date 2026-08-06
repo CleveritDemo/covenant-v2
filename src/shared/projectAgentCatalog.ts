@@ -15,9 +15,14 @@ import {
   type DelegateToPolicy,
 } from './agentOrchestration'
 import { normalizeContextFileName, type TabContext } from './tabContext'
+import {
+  isAgentCliProvider,
+  type AgentCliProvider,
+  type AgentPermissionMode,
+} from './agentCliProviders'
 
-export type AgentCliProvider = 'claude' | 'cursor' | 'copilot'
-export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
+export { isAgentCliProvider }
+export type { AgentCliProvider, AgentPermissionMode }
 export type { AgentCoordination, DelegateToPolicy }
 
 /** Definición compartible en `.iaterminal/agents/<id>.json`. */
@@ -98,7 +103,7 @@ export function buildNewProjectAgentDefinition(
   const id = allocateAgentSlug(trimmed || displayName || provider, existingIds)
   return {
     id,
-    provider: provider === 'cursor' || provider === 'copilot' ? provider : 'claude',
+    provider: sanitizeProvider(provider),
     permissionMode: 'auto',
     autoImproveContexts: true,
     emitResults: true,
@@ -236,10 +241,7 @@ function sanitizePermissionMode(raw: unknown): AgentPermissionMode {
 }
 
 function sanitizeProvider(raw: unknown): AgentCliProvider {
-  if (raw === 'cursor') return 'cursor'
-  if (raw === 'copilot') return 'copilot'
-  // Legacy Pi → Claude (Pi/Node22 retirados).
-  return 'claude'
+  return isAgentCliProvider(raw) ? raw : 'claude'
 }
 
 /** Parsea y normaliza un JSON de catálogo; null si inválido. */
@@ -347,10 +349,7 @@ export function isLegacyRichAgentMeta(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
   const data = raw as Record<string, unknown>
   if (typeof data.agentId === 'string' && data.agentId.trim()) return false
-  return data.provider === 'claude'
-    || data.provider === 'cursor'
-    || data.provider === 'copilot'
-    || data.provider === 'pi'
+  return isAgentCliProvider(data.provider)
 }
 
 /** Convierte meta legacy de session a definición de catálogo. */
@@ -446,7 +445,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     delegateTo: meta.delegateTo,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
-    provider: meta.provider === 'cursor' || meta.provider === 'copilot' ? meta.provider : 'claude',
+    provider: sanitizeProvider(meta.provider),
     permissionMode: meta.permissionMode === 'auto'
       ? 'auto'
       : meta.permissionMode === 'plan'

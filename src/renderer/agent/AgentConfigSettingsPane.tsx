@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
+import { AGENT_CLI_PROVIDER_IDS, agentCliSpec } from '@shared/agentCliProviders'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
@@ -171,13 +172,13 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               <span className="agent-config-settings__label">{t('agentPane.providerLabel')}</span>
               <SegmentedControl
                 label={t('agentPane.providerLabel')}
+                layout="scroll"
                 value={meta.provider}
                 disabled={locked}
-                options={[
-                  { value: 'claude', label: t('agentPane.claude') },
-                  { value: 'cursor', label: t('agentPane.cursor') },
-                  { value: 'copilot', label: t('agentPane.copilot') },
-                ]}
+                options={AGENT_CLI_PROVIDER_IDS.map(id => ({
+                  value: id,
+                  label: agentCliSpec(id).label,
+                }))}
                 onChange={onChangeProvider}
               />
             </div>

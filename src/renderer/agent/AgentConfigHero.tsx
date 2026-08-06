@@ -1,5 +1,6 @@
 import React from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
+import { agentCliSpec } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { Badge } from '../components/ui'
 import './AgentConfigHero.css'
@@ -32,11 +33,7 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   const { t } = useT()
   const nameEmpty = !name.trim()
   const displayName = name.trim() || t('agentPane.configUnnamed')
-  const providerLabel = provider === 'claude'
-    ? t('agentPane.claude')
-    : provider === 'copilot'
-      ? t('agentPane.copilot')
-      : t('agentPane.cursor')
+  const providerLabel = agentCliSpec(provider).label
   const metaParts = [
     role.trim() || null,
     providerLabel,

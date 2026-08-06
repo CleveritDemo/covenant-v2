@@ -43,6 +43,12 @@ import {
   formatDelegationResultFollowUp,
   isProductOwner,
 } from '../src/shared/agentOrchestration'
+import {
+  agentCliCommand,
+  agentCliSpec,
+  isAgentCliProvider,
+  type AgentCliProvider,
+} from '../src/shared/agentCliProviders'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 
@@ -549,6 +555,66 @@ export function normalizeCopilotEvent(value: unknown): AgentCliUiEvent[] {
   return out
 }
 
+/** Nombre legible de un item de Codex (`command_execution` → `Command execution`). */
+function friendlyCodexItemType(raw: string): string {
+  const spaced = raw.replace(/[_-]+/g, ' ').trim()
+  if (!spaced) return 'tool'
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/**
+ * Mapea el NDJSON de `codex exec --json` a eventos de UI.
+ * Sobre observado: `thread.started` (thread_id = sesión), `turn.started`,
+ * `item.started|updated|completed` con `item.type`, `error` y `turn.failed`.
+ */
+export function normalizeCodexEvent(value: unknown): AgentCliUiEvent[] {
+  if (!value || typeof value !== 'object') return []
+  const obj = value as Record<string, unknown>
+  const out: AgentCliUiEvent[] = []
+
+  if (obj.type === 'thread.started') {
+    const threadId = stringAt(obj, 'thread_id')
+    if (threadId) out.push({ type: 'session', cliSessionId: threadId })
+    return out
+  }
+
+  if (obj.type === 'error' || obj.type === 'turn.failed') {
+    const message = stringAt(obj, 'message')
+      ?? stringAt(obj.error, 'message')
+      ?? 'Codex falló'
+    out.push({ type: 'error', message })
+    return out
+  }
+
+  if (typeof obj.type !== 'string' || !obj.type.startsWith('item.')) return out
+  const item = obj.item && typeof obj.item === 'object'
+    ? obj.item as Record<string, unknown>
+    : null
+  if (!item) return out
+  const itemType = typeof item.type === 'string' ? item.type : ''
+
+  if (itemType === 'agent_message') {
+    const text = stringAt(item, 'text')
+    if (text && obj.type === 'item.completed') out.push({ type: 'assistant_final', text })
+    return out
+  }
+  if (itemType === 'error') {
+    const message = stringAt(item, 'message')
+    if (message) out.push({ type: 'error', message })
+    return out
+  }
+  if (itemType === 'reasoning' || !itemType) return out
+
+  const detail = pickToolDetail(item)
+  out.push({
+    type: 'tool',
+    name: friendlyCodexItemType(itemType),
+    status: obj.type === 'item.completed' ? 'completed' : 'started',
+    ...(detail ? { detail } : {}),
+  })
+  return out
+}
+
 function resolveWorkingDirectory(requested: string, fallback: string): string {
   try {
     const dir = resolve(requested || fallback)
@@ -657,57 +723,53 @@ export function commandAndArgs(
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
 ): { command: string; args: string[] } {
-  const permissionMode = request.permissionMode
-
-  if (request.provider === 'claude') {
-    const args = [
-      '-p',
+  const provider = isAgentCliProvider(request.provider) ? request.provider : 'claude'
+  const spec = agentCliSpec(provider)
+  return {
+    command: agentCliCommand(config.agentCliCommands, provider),
+    args: spec.args({
       prompt,
-      '--output-format',
-      'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-    ]
-    if (cliSessionId) args.push('--resume', cliSessionId)
-    // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
-    // confirmación, así que bloqueamos herramientas que mutan el workspace.
-    if (permissionMode === 'ask') {
-      args.push(
-        '--disallowedTools',
-        'Edit,Write,NotebookEdit,Bash,MultiEdit',
-      )
+      cwd,
+      mode: request.permissionMode,
+      ...(request.model?.trim() ? { model: request.model.trim() } : {}),
+      ...(cliSessionId ? { sessionId: cliSessionId } : {}),
+    }),
+  }
+}
+
+/**
+ * Lector de stdout del CLI: `line()` por cada línea y `end()` al cerrar.
+ * Los proveedores sin salida estructurada emiten cada línea como delta y el
+ * texto acumulado como final, para que el post-proceso (changelog, results,
+ * delegates) vea el turno completo igual que con NDJSON.
+ */
+export function createAgentCliParser(provider: AgentCliProvider): {
+  line: (raw: string) => AgentCliUiEvent[]
+  end: () => AgentCliUiEvent[]
+} {
+  const kind = agentCliSpec(provider).stream
+  if (kind === 'text') {
+    let buffer = ''
+    return {
+      line: raw => {
+        buffer += `${raw}\n`
+        return [{ type: 'assistant_delta', text: `${raw}\n` }]
+      },
+      end: () => (buffer.trim() ? [{ type: 'assistant_final', text: buffer.trimEnd() }] : []),
     }
-    if (permissionMode === 'auto') args.push('--permission-mode', 'bypassPermissions')
-    if (permissionMode === 'plan') args.push('--permission-mode', 'plan')
-    if (request.model?.trim()) args.push('--model', request.model.trim())
-    return { command: config.agentCliClaudeCommand.trim(), args }
   }
-
-  if (request.provider === 'copilot') {
-    const args = ['-p', prompt, '--output-format', 'json']
-    if (permissionMode === 'auto') args.push('--yolo')
-    if (permissionMode === 'plan') args.push('--plan')
-    if (cliSessionId) args.push(`--resume=${cliSessionId}`)
-    if (request.model?.trim()) args.push('--model', request.model.trim())
-    return { command: config.agentCliCopilotCommand.trim() || 'copilot', args }
+  const normalize = kind === 'cursor'
+    ? normalizeCursorEvent
+    : kind === 'copilot'
+      ? normalizeCopilotEvent
+      : kind === 'codex'
+        ? normalizeCodexEvent
+        : normalizeClaudeEvent
+  return {
+    // JSON.parse lanza en líneas no-NDJSON: el llamador las manda a stderr.
+    line: raw => normalize(JSON.parse(raw) as unknown),
+    end: () => [],
   }
-
-  const args = [
-    '-p',
-    '--output-format',
-    'stream-json',
-    '--stream-partial-output',
-    '--workspace',
-    cwd,
-  ]
-  if (cliSessionId) args.push('--resume', cliSessionId)
-  // Ask/Plan son solo lectura en el CLI de Cursor; sin flag, el default escribe.
-  if (permissionMode === 'ask') args.push('--mode', 'ask')
-  if (permissionMode === 'auto') args.push('--force')
-  if (permissionMode === 'plan') args.push('--mode', 'plan')
-  if (request.model?.trim()) args.push('--model', request.model.trim())
-  args.push(prompt)
-  return { command: config.agentCliCursorCommand.trim(), args }
 }
 
 export interface AgentCliSpawnHandlers {
@@ -780,28 +842,30 @@ export function runAgentCliSpawn(
   let sawAssistantText = false
   let spawnErrnoMessage: string | undefined
 
+  const parser = createAgentCliParser(
+    isAgentCliProvider(request.provider) ? request.provider : 'claude',
+  )
+
+  const emit = (events: AgentCliUiEvent[]): void => {
+    for (const event of events) {
+      if (event.type === 'session') {
+        latestSessionId = event.cliSessionId
+      }
+      if (
+        (event.type === 'assistant_delta' || event.type === 'assistant_final')
+        && event.text.trim()
+      ) {
+        sawAssistantText = true
+      }
+      handlers.onEvent(event)
+    }
+  }
+
   const processLine = (line: string): void => {
     const trimmed = line.trim()
     if (!trimmed) return
     try {
-      const value = JSON.parse(trimmed) as unknown
-      const events = request.provider === 'claude'
-        ? normalizeClaudeEvent(value)
-        : request.provider === 'copilot'
-          ? normalizeCopilotEvent(value)
-          : normalizeCursorEvent(value)
-      for (const event of events) {
-        if (event.type === 'session') {
-          latestSessionId = event.cliSessionId
-        }
-        if (
-          (event.type === 'assistant_delta' || event.type === 'assistant_final')
-          && event.text.trim()
-        ) {
-          sawAssistantText = true
-        }
-        handlers.onEvent(event)
-      }
+      emit(parser.line(trimmed))
     } catch {
       stderrBuffer += `${trimmed}\n`
     }
@@ -827,6 +891,7 @@ export function runAgentCliSpawn(
   })
   proc.on('close', code => {
     if (stdoutBuffer.trim()) processLine(stdoutBuffer)
+    emit(parser.end())
     const current = agentRuns.get(request.paneId)
     const phaseStillActive = current?.proc === proc && current.generation === generation
     if (phaseStillActive) agentRuns.delete(request.paneId)
@@ -912,17 +977,14 @@ export function startAgentTurn(
     let spawnErrnoMessage: string | undefined
     /** Evita pegar el mismo CreatePlan dos veces (started + completed). */
     let lastCreatePlanText = ''
+    /** stdout crudo del turno: red de seguridad si el NDJSON no dio texto. */
+    let rawStdout = ''
+    const parser = createAgentCliParser(
+      isAgentCliProvider(request.provider) ? request.provider : 'claude',
+    )
 
-    const processLine = (line: string): void => {
-      const trimmed = line.trim()
-      if (!trimmed) return
-      try {
-        const value = JSON.parse(trimmed) as unknown
-        const events = request.provider === 'claude'
-          ? normalizeClaudeEvent(value)
-          : request.provider === 'copilot'
-            ? normalizeCopilotEvent(value)
-            : normalizeCursorEvent(value)
+    const emit = (events: AgentCliUiEvent[]): void => {
+      {
         for (const event of events) {
           if (event.type === 'session') {
             latestSessionId = event.cliSessionId
@@ -1023,6 +1085,15 @@ export function startAgentTurn(
             send(win, request.paneId, event)
           }
         }
+      }
+    }
+
+    const processLine = (line: string): void => {
+      const trimmed = line.trim()
+      if (!trimmed) return
+      rawStdout += `${trimmed}\n`
+      try {
+        emit(parser.line(trimmed))
       } catch {
         // Algunos errores tempranos del CLI no usan NDJSON.
         stderrBuffer += `${trimmed}\n`
@@ -1049,6 +1120,12 @@ export function startAgentTurn(
     })
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
+      emit(parser.end())
+      // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
+      // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
+      if (!sawAssistantText && rawStdout.trim()) {
+        emit([{ type: 'assistant_final', text: rawStdout.trimEnd() }])
+      }
       const current = agentRuns.get(request.paneId)
       const phaseStillActive = current?.proc === proc && current.generation === generation
       if (phaseStillActive) agentRuns.delete(request.paneId)

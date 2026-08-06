@@ -47,6 +47,8 @@ export const IPC = {
   TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Renderer → main: crea .iaterminal/results/<slug>.md si no existe. */
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
+  /** Renderer → main: guarda solo la región notes de un results. */
+  AGENT_RESULTS_SET_NOTES: 'agentResults:setNotes',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config

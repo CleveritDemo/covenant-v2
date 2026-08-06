@@ -5,6 +5,7 @@ import {
   canonicalContextId,
   normalizeContextFileName,
 } from '../src/shared/tabContext'
+import { withAgentResultsNotes } from '../src/shared/agentResultsDoc'
 import {
   normalizeAgentSlug,
   type ProjectAgentDefinition,
@@ -450,6 +451,29 @@ export function ensureAiAgentResults(
   }
   pruneOrphanAgentResults(cwd)
   return filePath
+}
+
+/**
+ * Guarda las notas humanas de un results sin tocar el bloque `auto` del agente.
+ * `agentId` se normaliza a slug, así que la ruta nunca sale de `.iaterminal/results`.
+ */
+export function writeAiAgentResultsNotes(
+  cwd: string,
+  agentId: string,
+  notes: string,
+): { ok: boolean; filePath?: string; error?: string } {
+  const id = resolveResultsAgentId(cwd, agentId)
+  if (!id) return { ok: false, error: 'Agente inválido.' }
+  const filePath = resolveAiAgentResultsPath(cwd, id)
+  if (!existsSync(filePath)) return { ok: false, error: 'No existe el archivo de results.' }
+  try {
+    const raw = readFileSync(filePath, 'utf8')
+    const next = withAgentResultsNotes(raw, notes)
+    if (next !== raw) writeFileSync(filePath, next, 'utf8')
+    return { ok: true, filePath }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 export function upsertAiAgentResults(

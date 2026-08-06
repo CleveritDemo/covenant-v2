@@ -10,6 +10,7 @@ import {
   migrateLegacyAgentResults,
   resolveAiAgentResultsPath,
   upsertAiAgentResults,
+  writeAiAgentResultsNotes,
 } from '../aiAgentResults'
 import { upsertProjectAgent } from '../projectAgentCatalogOps'
 
@@ -45,6 +46,29 @@ describe('AI agent results', () => {
       permissionMode: 'default',
     })
   }
+
+  it('saves human notes without touching the agent auto block', () => {
+    const cwd = tempCwd()
+    seedAgent(cwd, 'po', 'PO')
+    ensureAiAgentResults(cwd, 'po', 'PO')
+    upsertAiAgentResults(cwd, 'po', { summary: 'Sprint cerrado', entries: ['Acepté GRV-118'] })
+    const filePath = resolveAiAgentResultsPath(cwd, 'po')
+    const before = readFileSync(filePath, 'utf8')
+    const auto = (raw: string) => raw.slice(raw.indexOf('<!-- iaterminal:auto -->'), raw.indexOf('<!-- /iaterminal:auto -->'))
+
+    expect(writeAiAgentResultsNotes(cwd, 'po', 'Revisar con fullstack.').ok).toBe(true)
+
+    const after = readFileSync(filePath, 'utf8')
+    expect(auto(after)).toBe(auto(before))
+    expect(after).toContain('Revisar con fullstack.')
+    // El siguiente turno del agente conserva la nota.
+    upsertAiAgentResults(cwd, 'po', { summary: 'Sprint revisado', entries: [] })
+    expect(readFileSync(filePath, 'utf8')).toContain('Revisar con fullstack.')
+  })
+
+  it('rejects an unknown results file', () => {
+    expect(writeAiAgentResultsNotes(tempCwd(), 'nadie', 'x').ok).toBe(false)
+  })
 
   it('writes Latest and prepends Log entries under results/<agentId>.md', () => {
     const cwd = tempCwd()

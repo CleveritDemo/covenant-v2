@@ -85,7 +85,7 @@ import {
   materializeTabContext,
   mergeAnnotations,
 } from './tabContextBuild'
-import { ensureAiAgentResults } from './aiAgentResults'
+import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -973,6 +973,16 @@ function registerIpc(): void {
         error: error instanceof Error ? error.message : String(error),
       }
     }
+  })
+  ipcMain.handle(IPC.AGENT_RESULTS_SET_NOTES, (_event, request: unknown) => {
+    const cwd = (request as { cwd?: unknown } | null)?.cwd
+    const agentId = (request as { agentId?: unknown } | null)?.agentId
+    const notes = (request as { notes?: unknown } | null)?.notes
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentId !== 'string' || !agentId.trim()
+      || typeof notes !== 'string') {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return writeAiAgentResultsNotes(cwd, agentId, notes)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_DELETE, (_event, request: TabContextDeleteRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {

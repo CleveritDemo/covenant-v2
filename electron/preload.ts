@@ -177,6 +177,13 @@ const api = {
   }): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.AGENT_RESULTS_ENSURE, request)
   },
+  setAiAgentResultsNotes(request: {
+    cwd: string
+    agentId: string
+    notes: string
+  }): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.AGENT_RESULTS_SET_NOTES, request)
+  },
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
   },

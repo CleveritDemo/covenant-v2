@@ -494,6 +494,28 @@ const en = {
     closeAriaLabel: 'Close',
   },
 
+  sketch: {
+    title: 'Sketch',
+    open: 'Sketch',
+    canvasLabel: 'Drawing canvas',
+    clear: 'Clear',
+    cancel: 'Cancel',
+    attach: 'Attach',
+    pasteHint: '⌘V pastes an image onto the canvas',
+    undo: 'Undo — ⌘Z',
+    redo: 'Redo — ⇧⌘Z',
+    color: 'Color {{color}}',
+    width: '{{n}}px stroke',
+    tool: {
+      pen: 'Pen',
+      line: 'Line',
+      arrow: 'Arrow',
+      rect: 'Rectangle',
+      ellipse: 'Ellipse',
+      eraser: 'Eraser',
+    },
+  },
+
   quickOpen: {
     ariaLabel: 'Quick open file',
     inputAria: 'Search files',

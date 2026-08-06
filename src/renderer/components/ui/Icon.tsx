@@ -38,6 +38,13 @@ export type IconName =
   | 'pencil'
   | 'maximize'
   | 'restore'
+  | 'line'
+  | 'arrow'
+  | 'square'
+  | 'circle'
+  | 'eraser'
+  | 'undo'
+  | 'redo'
 
 interface IconProps {
   name: IconName
@@ -302,6 +309,45 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="7" y="7" width="13" height="13" rx="1.5" />
       <path d="M4 15V5a1 1 0 0 1 1-1h10" />
+    </svg>
+  ),
+  line: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M5 19 19 5" />
+    </svg>
+  ),
+  arrow: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 19 19 5" />
+      <path d="M11 5h8v8" />
+    </svg>
+  ),
+  square: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+      <rect x="4" y="6" width="16" height="12" rx="1.5" />
+    </svg>
+  ),
+  circle: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="8" />
+    </svg>
+  ),
+  eraser: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m6 18 9-9a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3l-8 8H8Z" />
+      <path d="M4 20h16" />
+    </svg>
+  ),
+  undo: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-4" />
+    </svg>
+  ),
+  redo: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9H9a5 5 0 0 0 0 10h4" />
     </svg>
   ),
 }

@@ -1,0 +1,120 @@
+/* Barra de herramientas: lápiz/formas · colores · grosores · historial */
+.sketch-modal__toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.sketch-modal__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 5px;
+  background: var(--border);
+}
+
+/* Empuja undo/redo al extremo derecho de la barra. */
+.sketch-modal__history {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.sketch-modal__swatch {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  background: var(--sketch-swatch, var(--text));
+  cursor: pointer;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.sketch-modal__swatch[data-on] {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--accent);
+  transform: scale(1.06);
+}
+
+.sketch-modal__swatch:focus-visible,
+.sketch-modal__width:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sketch-modal__width {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.sketch-modal__width:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.sketch-modal__width[data-on] {
+  background: var(--accent-veil-strong);
+  border-color: var(--accent-border-soft);
+  color: var(--accent);
+}
+
+.sketch-modal__width i {
+  display: block;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* El marco tiñe el borde del lienzo; el lienzo en sí es blanco a propósito. */
+.sketch-modal__canvas-frame {
+  padding: 0;
+  background: var(--border);
+}
+
+.sketch-modal__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 720 / 400;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.sketch-modal__canvas[data-tool="eraser"] {
+  cursor: cell;
+}
+
+.sketch-modal__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sketch-modal__hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

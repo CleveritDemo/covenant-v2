@@ -496,6 +496,28 @@ const es = {
     closeAriaLabel: 'Cerrar',
   },
 
+  sketch: {
+    title: 'Sketch',
+    open: 'Sketch',
+    canvasLabel: 'Lienzo de dibujo',
+    clear: 'Limpiar',
+    cancel: 'Cancelar',
+    attach: 'Adjuntar',
+    pasteHint: '⌘V pega una imagen sobre el lienzo',
+    undo: 'Deshacer — ⌘Z',
+    redo: 'Rehacer — ⇧⌘Z',
+    color: 'Color {{color}}',
+    width: 'Trazo de {{n}}px',
+    tool: {
+      pen: 'Lápiz',
+      line: 'Línea',
+      arrow: 'Flecha',
+      rect: 'Rectángulo',
+      ellipse: 'Elipse',
+      eraser: 'Goma',
+    },
+  },
+
   quickOpen: {
     ariaLabel: 'Abrir archivo rápido',
     inputAria: 'Buscar archivos',

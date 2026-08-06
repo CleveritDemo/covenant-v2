@@ -106,7 +106,11 @@ jobs:
   # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
   # hook `win.sign` con los secrets de eSigner y este job no cambia.
   windows:
-    runs-on: windows-latest
+    # NO windows-latest: esa imagen ya es win25-vs2026, con Visual Studio 18, y
+    # el @electron/node-gyp que usa electron-rebuild lo encuentra pero no sabe
+    # parsear la versión ("unknown version undefined") y lo descarta. VS 2022
+    # sí lo reconoce. Revisar al subir electron/electron-rebuild.
+    runs-on: windows-2022
     permissions:
       contents: write
 
@@ -117,18 +121,6 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-
-      # windows-latest sí trae Visual Studio, pero el node-gyp que empaqueta npm
-      # detecta las instalaciones con un script de PowerShell cuya salida excede
-      # el maxBuffer por defecto: revienta con ERR_CHILD_PROCESS_STDIO_MAXBUFFER
-      # y concluye "Could not find any Visual Studio installation". Un node-gyp
-      # reciente sube ese buffer.
-      - name: Use a newer node-gyp
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install -g node-gyp@latest
-          echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
 
       # Aquí sí se recompila node-pty (a diferencia de `dist:win-portable`, que
       # lo salta para poder cross-buildear desde macOS y deja las terminales

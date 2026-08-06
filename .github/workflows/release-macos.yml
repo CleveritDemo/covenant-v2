@@ -68,3 +68,61 @@ jobs:
           if [ -z "$DMG" ]; then echo "missing .dmg (codesign likely failed)"; exit 1; fi
           gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
           gh release upload "$TAG" "$DMG" --clobber
+
+  # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
+  # que no hay que crearlo a mano: el primer tag lo genera.
+  cask:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT con Contents:write sobre karluiz/homebrew-covenant; GITHUB_TOKEN
+          # no alcanza, el tap está fuera de esta org.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set; skipping cask update"; exit 0
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          DMG="Covenant-Gravity-${VERSION}-arm64.dmg"
+
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p "$DMG" -D dmg
+          SHA=$(sha256sum "dmg/$DMG" | awk '{print $1}')
+
+          TAP_DIR="$RUNNER_TEMP/homebrew-covenant"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/karluiz/homebrew-covenant.git" "$TAP_DIR"
+          cat > "$TAP_DIR/Casks/covenant-gravity.rb" <<EOF
+          cask "covenant-gravity" do
+            version "${VERSION}"
+            sha256 "${SHA}"
+
+            url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v#{version}/Covenant-Gravity-#{version}-arm64.dmg"
+            name "Covenant Gravity"
+            desc "Terminal como orquestador de agentes de IA"
+            homepage "https://github.com/${GITHUB_REPOSITORY}"
+
+            # Solo se publica arm64; sin esto un Mac Intel instalaría un binario
+            # que no puede ejecutar.
+            depends_on arch: :arm64
+
+            app "Covenant Gravity.app"
+
+            zap trash: [
+              "~/Library/Application Support/Covenant Gravity",
+              "~/Library/Preferences/com.covenant.gravity.plist",
+              "~/Library/Caches/com.covenant.gravity",
+              "~/Library/Logs/Covenant Gravity",
+            ]
+          end
+          EOF
+          cd "$TAP_DIR"
+          git config user.name "covenant-release-bot"
+          git config user.email "noreply@covenant.uno"
+          git add Casks/covenant-gravity.rb
+          git commit -m "covenant-gravity ${VERSION}"
+          git push origin HEAD

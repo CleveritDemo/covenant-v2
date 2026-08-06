@@ -15,9 +15,7 @@
   "contextIds": [
     "iaterminal:folderTree:Folders",
     "iaterminal:deps:Dependences",
-    "iaterminal:result:qa",
-    "iaterminal:result:fullstack-2",
-    "iaterminal:result:fullstack"
+    "iaterminal:result:qa"
   ],
   "autoImproveContexts": true,
   "emitResults": true,

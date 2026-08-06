@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
 import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
+import {
+  AGENT_CLI_PROVIDER_IDS,
+  agentCliSpec,
+  type AgentCliProvider,
+} from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { SettingsSection, SettingsField } from './SettingsSection'
@@ -10,6 +15,7 @@ import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
+import { BrandIcon } from './ui/BrandIcon'
 import './SettingsModal.css'
 
 interface Props {
@@ -29,9 +35,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     githubToken: config.githubToken,
     language: config.language,
     reduceMotion: config.reduceMotion,
-    agentCliClaudeCommand: config.agentCliClaudeCommand,
-    agentCliCursorCommand: config.agentCliCursorCommand,
-    agentCliCopilotCommand: config.agentCliCopilotCommand,
+    agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [saving, setSaving] = useState(false)
@@ -42,15 +46,21 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       githubToken: config.githubToken,
       language: config.language,
       reduceMotion: config.reduceMotion,
-      agentCliClaudeCommand: config.agentCliClaudeCommand,
-      agentCliCursorCommand: config.agentCliCursorCommand,
-      agentCliCopilotCommand: config.agentCliCopilotCommand,
+      agentCliCommands: { ...(config.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
     })
   }, [config])
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]): void {
     setForm(prev => ({ ...prev, [key]: value }))
+    setErrors([])
+  }
+
+  function updateAgentCliCommand(provider: AgentCliProvider, value: string): void {
+    setForm(prev => ({
+      ...prev,
+      agentCliCommands: { ...prev.agentCliCommands, [provider]: value },
+    }))
     setErrors([])
   }
 
@@ -80,9 +90,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       githubToken: form.githubToken.trim(),
       language: form.language,
       reduceMotion: form.reduceMotion,
-      agentCliClaudeCommand: form.agentCliClaudeCommand.trim(),
-      agentCliCursorCommand: form.agentCliCursorCommand.trim(),
-      agentCliCopilotCommand: form.agentCliCopilotCommand.trim(),
+      // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
+      agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
     })
     const errs = validateConfig(updated)
@@ -122,33 +131,28 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     >
       <SettingsSection title={t('settings.agentCliSection')}>
         <p className="settings-hint settings-hint--block">{t('settings.agentCliHint')}</p>
-        <SettingsField label={t('settings.agentCliClaudeLabel')}>
-          <Input
-            type="text"
-            value={form.agentCliClaudeCommand}
-            onChange={e => update('agentCliClaudeCommand', e.target.value)}
-            placeholder="claude"
-            spellCheck={false}
-          />
-        </SettingsField>
-        <SettingsField label={t('settings.agentCliCursorLabel')}>
-          <Input
-            type="text"
-            value={form.agentCliCursorCommand}
-            onChange={e => update('agentCliCursorCommand', e.target.value)}
-            placeholder="agent"
-            spellCheck={false}
-          />
-        </SettingsField>
-        <SettingsField label={t('settings.agentCliCopilotLabel')}>
-          <Input
-            type="text"
-            value={form.agentCliCopilotCommand}
-            onChange={e => update('agentCliCopilotCommand', e.target.value)}
-            placeholder="copilot"
-            spellCheck={false}
-          />
-        </SettingsField>
+        {AGENT_CLI_PROVIDER_IDS.map(provider => {
+          const spec = agentCliSpec(provider)
+          return (
+            <SettingsField
+              key={provider}
+              label={
+                <span className="settings-brand-label">
+                  <BrandIcon provider={provider} size={14} />
+                  {spec.label}
+                </span>
+              }
+            >
+              <Input
+                type="text"
+                value={form.agentCliCommands[provider] ?? ''}
+                onChange={e => updateAgentCliCommand(provider, e.target.value)}
+                placeholder={spec.command}
+                spellCheck={false}
+              />
+            </SettingsField>
+          )
+        })}
       </SettingsSection>
 
       <SettingsSection title={t('settings.githubSection')}>

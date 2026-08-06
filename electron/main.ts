@@ -57,6 +57,7 @@ import {
   exportBrainstormRoomMarkdown,
 } from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import { isAgentCliProvider } from '../src/shared/agentCliProviders'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -910,7 +911,7 @@ function registerIpc(): void {
     if (!payload || typeof payload !== 'object') return
     const provider = (payload as { provider?: unknown }).provider
     const cliSessionId = (payload as { cliSessionId?: unknown }).cliSessionId
-    if ((provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') || typeof cliSessionId !== 'string') return
+    if (!isAgentCliProvider(provider) || typeof cliSessionId !== 'string') return
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
@@ -995,7 +996,7 @@ function registerIpc(): void {
       }
       return
     }
-    if (request.provider !== 'claude' && request.provider !== 'cursor' && request.provider !== 'copilot') {
+    if (!isAgentCliProvider(request.provider)) {
       reject(request.paneId, 'Proveedor de agente no válido.')
       return
     }
@@ -1038,7 +1039,7 @@ function registerIpc(): void {
     return typeof paneId === 'string' && isAgentRunActive(paneId)
   })
   ipcMain.handle(IPC.AGENT_CLI_LIST_MODELS, async (_event, provider: unknown): Promise<AgentCliModelsResult> => {
-    if (provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') {
+    if (!isAgentCliProvider(provider)) {
       return {
         models: [],
         source: 'fallback',

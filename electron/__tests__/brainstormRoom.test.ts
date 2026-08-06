@@ -16,11 +16,7 @@ import { upsertBrainstormRoom } from '../brainstormCatalogOps'
 import type { AppConfig } from '../../src/shared/configSchema'
 import { createBrainstormRoom } from '../../src/shared/brainstormRoom'
 
-const baseConfig = {
-  agentCliClaudeCommand: 'claude',
-  agentCliCursorCommand: 'agent',
-  agentCliCopilotCommand: 'copilot',
-} as AppConfig
+const baseConfig = { agentCliCommands: {} } as AppConfig
 
 function agent(id: string, name: string): ProjectAgentDefinition {
   return {

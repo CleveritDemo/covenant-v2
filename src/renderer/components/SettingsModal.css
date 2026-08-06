@@ -33,6 +33,12 @@
   color: var(--text);
 }
 
+.settings-brand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .settings-label__text {
   font-size: 12px;
   font-weight: 550;

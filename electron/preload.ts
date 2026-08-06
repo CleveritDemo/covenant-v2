@@ -26,6 +26,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
+import type { AgentCliProvider } from '../src/shared/agentCliProviders'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -110,7 +111,7 @@ const api = {
   isAgentTurnActive(paneId: string): Promise<boolean> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, paneId)
   },
-  listAgentCliModels(provider: 'claude' | 'cursor' | 'copilot'): Promise<AgentCliModelsResult> {
+  listAgentCliModels(provider: AgentCliProvider): Promise<AgentCliModelsResult> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
   },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
@@ -151,7 +152,7 @@ const api = {
     ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
   },
   clearAgentContextDelivery(payload: {
-    provider: 'claude' | 'cursor' | 'copilot'
+    provider: AgentCliProvider
     cliSessionId: string
   }): void {
     ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)

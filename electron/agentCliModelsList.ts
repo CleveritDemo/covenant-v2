@@ -11,7 +11,7 @@ import type {
   AgentModelOption,
 } from '../src/shared/agentCliModels'
 import { modelsForProvider } from '../src/shared/agentCliModels'
-import type { AgentCliProvider } from '../src/shared/projectAgentCatalog'
+import { agentCliCommand, type AgentCliProvider } from '../src/shared/agentCliProviders'
 import { resolveCliExecutable } from './shellPathEnv'
 
 const LIST_TIMEOUT_MS = 12_000
@@ -153,24 +153,12 @@ function commandAndListArgs(
   provider: AgentCliProvider,
   config: AppConfig,
 ): { command: string; args: string[] } {
-  if (provider === 'claude') {
-    return {
-      command: config.agentCliClaudeCommand.trim() || 'claude',
-      // Subcomando real: `claude models` (falla con auth → fallback).
-      args: ['models'],
-    }
-  }
-  if (provider === 'copilot') {
-    return {
-      command: config.agentCliCopilotCommand.trim() || 'copilot',
-      // Sin `--list-models`; la ayuda documenta `--model` (y a veces IDs).
-      args: ['help'],
-    }
-  }
-  return {
-    command: config.agentCliCursorCommand.trim() || 'agent',
-    args: ['--list-models'],
-  }
+  const command = agentCliCommand(config.agentCliCommands, provider)
+  // Subcomando real: `claude models` (falla con auth → fallback).
+  if (provider === 'claude') return { command, args: ['models'] }
+  // Copilot no tiene `--list-models`; la ayuda documenta `--model` (y a veces IDs).
+  if (provider === 'copilot') return { command, args: ['help'] }
+  return { command, args: ['--list-models'] }
 }
 
 function runCliCapture(

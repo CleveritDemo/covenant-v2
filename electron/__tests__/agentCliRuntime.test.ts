@@ -20,11 +20,7 @@ import {
   stopAgentRun,
 } from '../agentCliRuntime'
 
-const baseConfig = {
-  agentCliClaudeCommand: 'claude',
-  agentCliCursorCommand: 'agent',
-  agentCliCopilotCommand: 'copilot',
-} as AppConfig
+const baseConfig = { agentCliCommands: {} } as AppConfig
 
 function request(
   partial: Partial<AgentCliStartRequest> & Pick<AgentCliStartRequest, 'provider' | 'permissionMode'>,

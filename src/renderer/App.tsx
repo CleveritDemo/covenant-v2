@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { applyTheme, getTheme, normalizeThemeId } from '@themes/presets'
 import type { AppConfig } from '@shared/configSchema'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
+import { agentCliSpec } from '@shared/agentCliProviders'
 import { i18next } from '@i18n/index'
 import { useT } from '@i18n/useT'
 import {
@@ -2875,11 +2876,7 @@ export const App: React.FC = () => {
               const title = kind === 'agent'
                 ? (
                   meta?.name?.trim()
-                  || (meta?.provider === 'cursor'
-                    ? t('agentPane.cursor')
-                    : meta?.provider === 'copilot'
-                      ? t('agentPane.copilot')
-                      : t('agentPane.claude'))
+                  || agentCliSpec(meta?.provider ?? 'claude').label
                 )
                 : `${t('tabs.nodeTerminal')} ${terminalIndex || index + 1}`
 

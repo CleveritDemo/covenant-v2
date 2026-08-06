@@ -1193,8 +1193,9 @@ function createWindow(): BrowserWindow {
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
-          // ponytail: 12 = (titlebar 36px − botón 12px) / 2; si cambia --titlebar-height, recalcular
-          trafficLightPosition: { x: 14, y: 12 },
+          // ponytail: 9 medido, no calculado — macOS aplica un offset propio sobre esta `y`,
+          // así que no sale de (36 − 12) / 2. Si cambia --titlebar-height, medir de nuevo.
+          trafficLightPosition: { x: 14, y: 9 },
           // Sin vibrancy: con `under-window` + canvas (xterm) en Chromium/Electron a veces
           // el lienzo deja de repintar y no se ve lo que tecleas aunque el PTY sí recibe datos.
         }

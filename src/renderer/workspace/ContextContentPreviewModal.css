@@ -18,7 +18,11 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  padding: 0;
   overflow: hidden;
+  border: 0;
+  /* El modal ya es la superficie; el gris del panel genérico sobra aquí. */
+  background: transparent;
 }
 
 .context-content-preview .tab-contexts__preview-meta {
@@ -27,6 +31,11 @@
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
   font-size: 11px;
+}
+
+.context-content-preview .tab-contexts__preview-meta > small {
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .context-content-preview .tab-contexts__preview-meta > small:last-child {
@@ -40,9 +49,8 @@
 /* ── Vista Reporte de results/<agente>.md ────────────────────────────── */
 
 .results-report {
-  /* Provenance: acento = lo escribe el agente, cálido = lo escribes tú.
-     Derivado de los tokens del tema para funcionar en claros y oscuros. */
-  --results-human: color-mix(in srgb, var(--accent) 32%, var(--danger));
+  /* Provenance: acento = lo escribe el agente, neutro = lo escribes tú. */
+  --results-human: var(--text-muted);
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -55,10 +63,9 @@
 
 .results-report--empty {
   gap: 12px;
-  padding: 24px 8px;
-  max-width: 52ch;
-  align-self: center;
-  justify-content: center;
+  padding: 16px 0 8px;
+  max-width: 62ch;
+  justify-content: flex-start;
 }
 
 .results-report--empty h3 {
@@ -311,6 +318,9 @@
 }
 
 .context-content-preview .tab-contexts__preview {
+  /* Vista Fuente: es para leer código, no una nota al pie. */
+  color: var(--text);
+  font-size: 11.5px;
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;

@@ -54,6 +54,13 @@ function dayLabel(day: string, t: TFunction<'app'>): string {
 
 const RESULT_ID_PREFIX = 'iaterminal:result:'
 
+/** `/Users/…/proyecto/.iaterminal/results/qa.md` → `.iaterminal/results/qa.md`. */
+function shortPath(filePath: string | undefined): string {
+  const path = filePath ?? ''
+  const at = path.lastIndexOf('.iaterminal')
+  return at > 0 ? path.slice(at) : path
+}
+
 /** Bloque que el agente debe escribir; ver buildAiAgentResultsInstruction(). */
 const RESULTS_FENCE = [
   '```ia-terminal-results',
@@ -339,11 +346,13 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
             <div className="tab-contexts__preview-meta">
               {doc && view === 'report' ? (
                 <small>
-                  {t('tabContexts.resultsEntries', { count: doc.entries.length })}
-                  {doc.notes ? ` · ${t('tabContexts.resultsHasNotes')}` : ''}
+                  {doc.entries.length
+                    ? t('tabContexts.resultsEntries', { count: doc.entries.length })
+                    : ''}
+                  {doc.notes ? `${doc.entries.length ? ' · ' : ''}${t('tabContexts.resultsHasNotes')}` : ''}
                 </small>
               ) : (
-                <small>{preview.filePath}</small>
+                <small>{shortPath(preview.filePath)}</small>
               )}
               {doc ? (
                 <SegmentedControl
@@ -360,7 +369,7 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
               ) : null}
               <small>
                 {doc && view === 'report'
-                  ? preview.filePath
+                  ? shortPath(preview.filePath)
                   : t('tabContexts.previewStats', {
                     auto: countAutoKeys(preview.content),
                     notes: countAnnotations(preview.content),

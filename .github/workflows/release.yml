@@ -1,4 +1,4 @@
-name: Release macOS
+name: Release
 
 on:
   push:
@@ -6,11 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Los tres jobs corren en paralelo y compiten por crear el release: todos menos
+# uno reciben 422 "already exists", que es el camino esperado, no un fallo. Las
+# subidas posteriores son la verdadera comprobación y sí fallan ruidosamente.
 jobs:
   # Solo arm64: es lo que ya producían `dist`/`dist:dmg`. Añadir x64 obliga a
   # cross-compilar node-pty desde el runner Apple Silicon — hacerlo cuando alguien
   # lo pida, no antes.
-  build:
+  macos:
     runs-on: macos-latest
     permissions:
       contents: write
@@ -69,10 +72,75 @@ jobs:
           gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
           gh release upload "$TAG" "$DMG" --clobber
 
+  # Electron trae su propio runtime: a diferencia de Tauri no hacen falta
+  # webkit2gtk ni ninguna dependencia de sistema. Linux no se firma.
+  linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run dist:linux
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
+          find dist -maxdepth 1 \( -name '*.AppImage' -o -name '*.deb' \) -print0 \
+            | xargs -0 -I{} gh release upload "$TAG" {} --clobber
+
+  # Sin firmar por ahora: el cert de code signing de SSL.com todavía no existe,
+  # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
+  # hook `win.sign` con los secrets de eSigner y este job no cambia.
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Aquí sí se recompila node-pty (a diferencia de `dist:win-portable`, que
+      # lo salta para poder cross-buildear desde macOS y deja las terminales
+      # muertas). windows-latest ya trae las VS Build Tools.
+      - run: npm ci
+
+      - run: npm run dist:win
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
+          find dist -maxdepth 1 -name '*.exe' -print0 \
+            | xargs -0 -I{} gh release upload "$TAG" {} --clobber
+
   # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
   # que no hay que crearlo a mano: el primer tag lo genera.
   cask:
-    needs: build
+    needs: macos
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

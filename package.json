@@ -13,6 +13,8 @@
     "dist:mac-release": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64 -c.mac.notarize=true",
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
+    "dist:linux": "rm -rf dist && npm run build && electron-builder --linux --x64",
+    "dist:win": "rm -rf dist && npm run build && electron-builder --win --x64",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
@@ -85,6 +87,25 @@
           ]
         }
       ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Development",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Covenant-Gravity-${version}-${arch}.${ext}"
     },
     "win": {
       "icon": "build/icon.png",

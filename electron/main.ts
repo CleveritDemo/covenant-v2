@@ -8,8 +8,9 @@ import {
   appendFileSync,
   constants,
   statSync,
+  renameSync,
 } from 'fs'
-import { join, normalize, resolve, relative, isAbsolute } from 'path'
+import { join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
 import {
   app,
   BrowserWindow,
@@ -135,7 +136,35 @@ import {
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
 
-const APP_DISPLAY_NAME = 'AI Terminal'
+const APP_DISPLAY_NAME = 'Covenant Gravity'
+
+// Antes de `whenReady`: `setName` solo mueve `userData` si corre antes del primer
+// `getPath`. Sin esto dev usaría `gravity` (name de package.json) y el empaquetado
+// `Covenant Gravity` (productName), dos carpetas distintas.
+app.setName(APP_DISPLAY_NAME)
+
+/**
+ * Rebranding AI Terminal → Covenant Gravity: recupera config/session/historial de
+ * la ruta vieja renombrando la carpeta una única vez.
+ * ponytail: rename, no copia; si falla arrancamos limpio en la ruta nueva.
+ */
+function migrateLegacyUserData(): void {
+  const target = app.getPath('userData')
+  if (existsSync(target)) return
+  const parent = dirname(target)
+  for (const legacy of ['ai-terminal', 'AI Terminal']) {
+    const source = join(parent, legacy)
+    try {
+      if (!existsSync(source)) continue
+      renameSync(source, target)
+      return
+    } catch {
+      /* ignore: se crea limpia */
+    }
+  }
+}
+
+migrateLegacyUserData()
 
 loadDotenv({ path: resolve(process.cwd(), '.env') })
 loadDotenv({ path: resolve(process.cwd(), '.env.local'), override: true })
@@ -308,7 +337,7 @@ function spawnPtyProcess(
           HOME: home,
           SHELL: shellPath,
           TERM: 'xterm-256color',
-          TERM_PROGRAM: 'AI Terminal',
+          TERM_PROGRAM: APP_DISPLAY_NAME,
         }
 
   const env = process.platform === 'win32'
@@ -347,7 +376,7 @@ function resolvePackagedMacIcon(): string | undefined {
 }
 
 function applyAppBranding(): void {
-  app.setName(APP_DISPLAY_NAME)
+  // `setName` ya se aplicó a nivel de módulo (ver `migrateLegacyUserData`).
   if (process.platform !== 'darwin') return
   const icon = resolvePackagedMacIcon() ?? resolveOptionalWindowIcon()
   if (!icon) return

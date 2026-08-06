@@ -1,7 +1,7 @@
 {
-  "name": "ai-terminal",
+  "name": "gravity",
   "version": "0.1.0",
-  "description": "Terminal inteligente con IA, pestañas y temas",
+  "description": "Terminal como orquestador de agentes de IA",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -10,6 +10,7 @@
     "preview": "electron-vite preview",
     "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
+    "dist:mac-release": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64 -c.mac.notarize=true",
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
     "test": "vitest run",
@@ -63,8 +64,8 @@
     "vitest": "^3.2.6"
   },
   "build": {
-    "appId": "com.rodrigoanti.ai-terminal",
-    "productName": "AI Terminal",
+    "appId": "com.covenant.gravity",
+    "productName": "Covenant Gravity",
     "directories": {
       "buildResources": "build"
     },
@@ -72,6 +73,10 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
         {
           "target": "dir",
@@ -97,7 +102,7 @@
       "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
     },
     "dmg": {
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "Covenant-Gravity-${version}-${arch}.${ext}"
     },
     "files": [
       "out/**/*",

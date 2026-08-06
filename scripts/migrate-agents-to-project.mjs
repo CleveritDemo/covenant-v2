@@ -95,7 +95,7 @@ function upsertAgent(cwd, definition) {
 }
 
 function defaultSessionPath() {
-  return join(homedir(), 'Library', 'Application Support', 'ai-terminal', 'session.json')
+  return join(homedir(), 'Library', 'Application Support', 'Covenant Gravity', 'session.json')
 }
 
 function main() {

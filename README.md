@@ -1,4 +1,4 @@
-# AI Terminal
+# Covenant Gravity
 
 Terminal de escritorio para macOS que reúne shells, archivos, Git y agentes de
 programación en un mismo espacio de trabajo.
@@ -37,8 +37,8 @@ Construida con Electron, React, TypeScript, xterm.js y CodeMirror.
 ## Desarrollo
 
 ```bash
-git clone https://github.com/rodrigoanti/intelligent_terminal.git ai-terminal
-cd ai-terminal
+git clone https://github.com/CleveritDemo/covenant-v2.git covenant-gravity
+cd covenant-gravity
 npm install
 npm run dev
 ```
@@ -62,7 +62,7 @@ Abre **Ajustes** dentro de la aplicación para configurar:
 Los ajustes se guardan en:
 
 ```text
-~/Library/Application Support/AI Terminal/config.json
+~/Library/Application Support/Covenant Gravity/config.json
 ```
 
 También puedes crear `.env.local` a partir de `.env.example` para definir
@@ -72,7 +72,7 @@ También puedes crear `.env.local` a partir de `.env.example` para definir
 cp .env.example .env.local
 ```
 
-Las credenciales de los agentes no se guardan en AI Terminal: cada CLI gestiona
+Las credenciales de los agentes no se guardan en Covenant Gravity: cada CLI gestiona
 su propia autenticación.
 
 ## Uso de agentes

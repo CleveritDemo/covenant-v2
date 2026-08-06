@@ -1,0 +1,70 @@
+name: Release macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  # Solo arm64: es lo que ya producían `dist`/`dist:dmg`. Añadir x64 obliga a
+  # cross-compilar node-pty desde el runner Apple Silicon — hacerlo cuando alguien
+  # lo pida, no antes.
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # postinstall recompila node-pty contra el ABI de Electron.
+      - run: npm ci
+
+      - name: Write notary API key
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/private_keys
+          echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey.p8
+          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Build + sign + notarize
+        env:
+          # CSC_LINK acepta el .p12 en base64 directo, sin fichero intermedio.
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'true'
+          # Los secrets vienen de Covenant, que es Tauri, y el nombre colisiona:
+          # allí APPLE_API_KEY es el Key ID; en electron-builder es la RUTA al .p8
+          # (la fija el paso anterior vía GITHUB_ENV) y el Key ID va aparte.
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist:mac-release
+
+      - name: Verify signature and notarization
+        run: |
+          set -euo pipefail
+          APP="dist/mac-arm64/Covenant Gravity.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          # Falla si el ticket de notarización no está grapado en el bundle.
+          spctl --assess --type execute --verbose=4 "$APP"
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          DMG=$(find dist -maxdepth 1 -name '*.dmg' | head -n1)
+          if [ -z "$DMG" ]; then echo "missing .dmg (codesign likely failed)"; exit 1; fi
+          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
+          gh release upload "$TAG" "$DMG" --clobber

@@ -19,7 +19,7 @@ if ! command -v iconutil >/dev/null 2>&1; then
   exit 1
 fi
 
-ICONSET_DIR="$(mktemp -d /tmp/ai-terminal.iconset.XXXXXX).iconset"
+ICONSET_DIR="$(mktemp -d /tmp/gravity.iconset.XXXXXX).iconset"
 mkdir -p "$ICONSET_DIR"
 cleanup() {
   rm -rf "$ICONSET_DIR"

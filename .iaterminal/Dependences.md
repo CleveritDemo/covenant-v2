@@ -3,7 +3,7 @@
 
 <!-- iaterminal:auto -->
 {
-  "name": "ai-terminal",
+  "name": "gravity",
   "version": "0.1.0",
   "description": "Terminal inteligente con IA, pestañas y temas",
   "main": "out/main/main.js",
@@ -67,8 +67,8 @@
     "vitest": "^3.2.6"
   },
   "build": {
-    "appId": "com.rodrigoanti.ai-terminal",
-    "productName": "AI Terminal",
+    "appId": "com.covenant.gravity",
+    "productName": "Covenant Gravity",
     "directories": {
       "buildResources": "build"
     },

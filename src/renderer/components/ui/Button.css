@@ -30,13 +30,15 @@
 
 /* ── Variants ─────────────────────────────────────── */
 .btn--primary {
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--accent-solid, var(--accent));
+  color: var(--accent-solid-fg, var(--accent-fg));
   padding: 5px 12px;
 }
 
+/* ponytail: hover oscurece en vez de bajar opacity — sobre un fondo claro
+   opacity aclara el botón y le baja el contraste a la etiqueta blanca. */
 .btn--primary:hover:not(:disabled) {
-  opacity: 0.88;
+  background: color-mix(in srgb, var(--accent-solid, var(--accent)) 88%, #0c0c0e);
 }
 
 /* ponytail: borde en --text-muted (no --border): --border queda a ~1.4:1 del
@@ -90,10 +92,12 @@
   color: var(--text);
 }
 
+/* ponytail: el glifo iba en --text sobre --accent-dim, y en 20 de los 22 temas
+   eso da menos de 4.5:1 (tokyoNightDay: 1.00:1, invisible). */
 .btn--pressed,
 .btn--icon.btn--pressed {
-  background: var(--accent-dim);
-  color: var(--text);
+  background: var(--accent-pressed, var(--accent-dim));
+  color: var(--accent-pressed-fg, var(--text));
 }
 
 /* ── Sizes ────────────────────────────────────────── */

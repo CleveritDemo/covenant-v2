@@ -68,6 +68,7 @@
   "build": {
     "appId": "com.covenant.gravity",
     "productName": "Covenant Gravity",
+    "publish": null,
     "directories": {
       "buildResources": "build"
     },

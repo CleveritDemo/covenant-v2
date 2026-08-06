@@ -10,8 +10,8 @@
     "build:mac-icon": "bash scripts/generate-mac-icon.sh",
     "preview": "electron-vite preview",
     "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
-    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
-    "dist:mac-release": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64 -c.mac.notarize=true",
+    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg zip --arm64",
+    "dist:mac-release": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg zip --arm64 -c.mac.notarize=true",
     "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
     "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
     "dist:linux": "rm -rf dist && npm run build && electron-builder --linux --x64",
@@ -43,6 +43,7 @@
     "@xterm/xterm": "^5.5.0",
     "cross-spawn": "^7.0.6",
     "dotenv": "^16.6.1",
+    "electron-updater": "^6.8.9",
     "i18next": "^26.2.0",
     "node-pty": "^1.0.0",
     "react-i18next": "^17.0.8",
@@ -69,7 +70,12 @@
   "build": {
     "appId": "com.covenant.gravity",
     "productName": "Covenant Gravity",
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "CleveritDemo",
+      "repo": "covenant-v2",
+      "releaseType": "release"
+    },
     "directories": {
       "buildResources": "build"
     },
@@ -81,9 +87,16 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "artifactName": "Covenant-Gravity-${version}-${arch}-mac.${ext}",
       "target": [
         {
-          "target": "dir",
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64"
           ]
@@ -113,13 +126,16 @@
       "icon": "build/icon.png",
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable-${arch}.${ext}"

@@ -136,6 +136,7 @@ import {
 } from './fileExplorerWatcher'
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
+import { registerSelfUpdate } from './selfUpdate'
 
 const APP_DISPLAY_NAME = 'Covenant Gravity'
 
@@ -1284,6 +1285,7 @@ app.whenReady().then(() => {
   applyLoginShellPath()
   applyAppBranding()
   registerIpc()
+  registerSelfUpdate()
   createWindow()
 
   app.on('activate', () => {

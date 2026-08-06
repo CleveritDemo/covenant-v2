@@ -395,6 +395,21 @@ const en = {
     settingsAriaLabel: 'Settings',
   },
 
+  update: {
+    available: 'Update',
+    downloading: 'Downloading… {{percent}}%',
+    ready: 'Ready',
+    error: 'Error: {{message}}',
+    install: 'Install',
+    restart: 'Restart & install',
+    whatsNew: "What's new ›",
+    whatsNewTitle: "What's new",
+    notesTitle: 'View release notes',
+    noNotes: 'No release notes were attached to this build.',
+    later: 'Later',
+    dismiss: 'Dismiss',
+  },
+
   git: {
     title: 'git',
     footerHint: 'project repo · pull with --ff-only · commit only with staging · Actions via gh · ⌘G or esc close',

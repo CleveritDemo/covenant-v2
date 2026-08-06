@@ -36,6 +36,7 @@ import type {
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
+import type { UpdateState } from '../src/shared/updateState'
 
 /** Un listener IPC por canal; evita MaxListenersExceeded con muchos paneles PTY. */
 function createPtyChannelMux<TArgs extends unknown[]>(
@@ -569,6 +570,20 @@ const api = {
   },
   sendCloseReady(scrollbacks: Record<string, string>): void {
     ipcRenderer.send(IPC.APP_CLOSE_READY, scrollbacks)
+  },
+  getUpdateState(): Promise<UpdateState> {
+    return ipcRenderer.invoke(IPC.UPDATE_STATE_GET)
+  },
+  onUpdateState(cb: (state: UpdateState) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, state: UpdateState): void => cb(state)
+    ipcRenderer.on(IPC.UPDATE_STATE, listener)
+    return () => ipcRenderer.removeListener(IPC.UPDATE_STATE, listener)
+  },
+  installUpdate(): void {
+    ipcRenderer.send(IPC.UPDATE_INSTALL)
+  },
+  dismissUpdate(): void {
+    ipcRenderer.send(IPC.UPDATE_DISMISS)
   },
 }
 

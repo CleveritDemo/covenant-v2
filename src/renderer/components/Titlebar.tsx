@@ -5,6 +5,7 @@ import { useT } from '@i18n/useT'
 import { TitlebarMusicControls } from './TitlebarMusicControls'
 import { FontSizeControl } from './FontSizeControl'
 import { ThemePickerTrigger } from './ThemePickerTrigger'
+import { UpdateBanner } from './UpdateBanner'
 import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
 import './Titlebar.css'
@@ -40,6 +41,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   return (
     <div className="titlebar">
       <div className="titlebar-drag" />
+      <UpdateBanner />
       <div className="titlebar-actions">
         <TitlebarMusicControls config={config} onOpenSettings={onOpenSettings} onConfigPatch={onConfigPatch} />
 

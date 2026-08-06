@@ -1,0 +1,89 @@
+/* Centrada en la ventana, no en el hueco libre: por eso va absoluta sobre la
+   titlebar en vez de dentro del grupo de acciones. */
+.update-banner {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  flex-shrink: 0;
+}
+
+.update-banner__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: update-banner-pulse 2.2s ease-out infinite;
+}
+
+@keyframes update-banner-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner__pulse { animation: none; }
+}
+
+.update-banner__label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.update-banner__version {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.update-banner__version:hover { color: var(--accent); }
+
+.update-banner__whatsnew {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.update-banner__whatsnew:hover { text-decoration: underline; }
+
+.update-banner__empty {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Titlebar estrecha: la píldora se queda en punto + versión + acción. */
+@media (max-width: 900px) {
+  .update-banner__label,
+  .update-banner__whatsnew { display: none; }
+}
+
+/* Ya no cabe centrada sin taparse con los controles: vuelve al flujo, pegada a
+   ellos. */
+@media (max-width: 700px) {
+  .update-banner {
+    position: static;
+    transform: none;
+    margin-right: 3px;
+  }
+}

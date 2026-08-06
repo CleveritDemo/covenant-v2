@@ -136,6 +136,9 @@ a `/** @vitest-environment jsdom */` docblock at the top of the file. Coverage i
   folder on first launch.
   Persisted shapes are versioned and migrated on load in `electron/persistence.ts` — extend migrations, don't
   break old sessions.
+- El auto-updater (`electron/selfUpdate.ts` + `UpdateBanner.tsx`) depende del empaquetado: macOS necesita el
+  target `zip` junto al `dmg` y Windows el `nsis` (el `portable` no se actualiza). Si se quitan, el updater
+  deja de funcionar **sin error**. Ver `docs/AUTO_UPDATER.md`.
 - Agent Auto mode (`--permission-mode bypassPermissions` / `--force` / `--yolo`) lets the CLI act unconfirmed.
   Destructive-command heuristics are in `src/shared/agentShellGuard.ts`.
 - `src/shared/ptyInputSanitize.ts` strips ANSI before reconstructing typed lines — terminal input parsing

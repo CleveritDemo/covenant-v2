@@ -185,6 +185,14 @@ export const IPC = {
   INTERACTIONS_LOG_SAVE: 'interactionsLog:save',
   /** Renderer → main: eliminar log de interacciones de un pane */
   INTERACTIONS_LOG_DELETE: 'interactionsLog:delete',
+  /** Main → renderer: estado del auto-updater (UpdateState) */
+  UPDATE_STATE: 'update:state',
+  /** Renderer → main (invoke): estado actual del auto-updater */
+  UPDATE_STATE_GET: 'update:stateGet',
+  /** Renderer → main: descargar (si hace falta) e instalar saliendo de la app */
+  UPDATE_INSTALL: 'update:install',
+  /** Renderer → main: ocultar el banner hasta el próximo chequeo */
+  UPDATE_DISMISS: 'update:dismiss',
   /** Main → renderer: pedir que el renderer serialice los scrollbacks antes de cerrar */
   APP_SAVE_BEFORE_CLOSE: 'app:saveBeforeClose',
   /** Renderer → main: datos de cierre (scrollbacks) listos para guardar */

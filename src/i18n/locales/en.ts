@@ -12,6 +12,8 @@ const en = {
     agentCliSection: 'Agent CLIs',
     agentCliHint: 'Executable names or absolute paths. Authentication is managed by each installed CLI.',
     spotifySection: 'Spotify (title bar)',
+    musicEnabledTitle: 'Show music controls',
+    musicEnabledDescription: 'Shows the mood name and the play button in the title bar. When off, nothing is shown.',
     spotifyHint: 'Playlist IDs (22 characters from open.spotify.com/playlist/…). Requires the Spotify desktop app. The mood name advances when clicked and playback pauses; press play to start the playlist for the current mood.',
     spotifyPlaceholder: 'e.g. 37i9dQZF1DX4sWSpwq3LiO',
     spotifyInputHint: 'You can paste the 22-character ID or the full playlist link; only the ID is saved.',

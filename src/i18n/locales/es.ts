@@ -14,6 +14,8 @@ const es = {
     agentCliSection: 'CLIs de agentes',
     agentCliHint: 'Nombres de ejecutable o rutas absolutas. La autenticación se gestiona desde cada CLI instalado.',
     spotifySection: 'Spotify (barra de título)',
+    musicEnabledTitle: 'Mostrar controles de música',
+    musicEnabledDescription: 'Muestra el mood y el botón de play en la barra de título. Si está apagado, no aparece nada.',
     spotifyHint: 'IDs de playlist (22 caracteres de open.spotify.com/playlist/…). Requiere Spotify de escritorio. El nombre del mood avanza al pulsarlo y la reproducción se pausa; pulsa play para reproducir la playlist del mood mostrado.',
     spotifyPlaceholder: 'p. ej. 37i9dQZF1DX4sWSpwq3LiO',
     spotifyInputHint: 'Puedes pegar el ID de 22 caracteres o el enlace completo; al guardar se guarda solo el ID.',

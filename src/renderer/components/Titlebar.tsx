@@ -43,7 +43,9 @@ export const Titlebar: React.FC<TitlebarProps> = ({
       <div className="titlebar-drag" />
       <UpdateBanner />
       <div className="titlebar-actions">
-        <TitlebarMusicControls config={config} onOpenSettings={onOpenSettings} onConfigPatch={onConfigPatch} />
+        {config.musicEnabled && (
+          <TitlebarMusicControls config={config} onOpenSettings={onOpenSettings} onConfigPatch={onConfigPatch} />
+        )}
 
         <FontSizeControl
           fontSize={fontSize}

@@ -71,6 +71,8 @@ export interface AppConfig {
    * Solo tiene efecto en modelos que lo soportan.
    */
   thinkingMode: boolean
+  /** Muestra los controles de música en la barra de título. */
+  musicEnabled: boolean
   /**
    * IDs de playlist de Spotify (22 caracteres) por clave de estado de ánimo (`musicMoods`).
    * Solo se usan entradas no vacías.
@@ -113,6 +115,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentLoop: false,
   agentShellPolicy: 'off',
   thinkingMode: false,
+  musicEnabled: true,
   musicPlaylistIdsByMood: {},
   language: 'en',
   reduceMotion: false,

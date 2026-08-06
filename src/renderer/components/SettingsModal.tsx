@@ -46,6 +46,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       githubToken: config.githubToken,
       language: config.language,
       reduceMotion: config.reduceMotion,
+      musicEnabled: config.musicEnabled,
       agentCliCommands: { ...(config.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
     })
@@ -90,6 +91,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       githubToken: form.githubToken.trim(),
       language: form.language,
       reduceMotion: form.reduceMotion,
+      musicEnabled: form.musicEnabled,
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
@@ -205,25 +207,35 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       </SettingsSection>
 
       <SettingsSection title={t('settings.spotifySection')}>
-        <p className="settings-hint settings-hint--block">{t('settings.spotifyHint')}</p>
-        <div className="settings-spotify-grid">
-          {MUSIC_MOODS.map(m => (
-            <div key={m.id} className="settings-spotify-row">
-              <SettingsField label={m.label} htmlFor={`settings-pl-${m.id}`} compact>
-                <Input
-                  id={`settings-pl-${m.id}`}
-                  type="text"
-                  placeholder={t('settings.spotifyPlaceholder')}
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={form.musicPlaylistIdsByMood[m.id] ?? ''}
-                  onChange={e => updatePlaylistMood(m.id, e.target.value)}
-                />
-              </SettingsField>
+        <SettingToggle
+          checked={form.musicEnabled}
+          onChange={checked => update('musicEnabled', checked)}
+          title={t('settings.musicEnabledTitle')}
+          description={t('settings.musicEnabledDescription')}
+        />
+        {form.musicEnabled && (
+          <>
+            <p className="settings-hint settings-hint--block">{t('settings.spotifyHint')}</p>
+            <div className="settings-spotify-grid">
+              {MUSIC_MOODS.map(m => (
+                <div key={m.id} className="settings-spotify-row">
+                  <SettingsField label={m.label} htmlFor={`settings-pl-${m.id}`} compact>
+                    <Input
+                      id={`settings-pl-${m.id}`}
+                      type="text"
+                      placeholder={t('settings.spotifyPlaceholder')}
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={form.musicPlaylistIdsByMood[m.id] ?? ''}
+                      onChange={e => updatePlaylistMood(m.id, e.target.value)}
+                    />
+                  </SettingsField>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <span className="settings-hint">{t('settings.spotifyInputHint')}</span>
+            <span className="settings-hint">{t('settings.spotifyInputHint')}</span>
+          </>
+        )}
       </SettingsSection>
 
       <SettingsSection title={t('settings.configSection')}>

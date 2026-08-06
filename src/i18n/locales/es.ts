@@ -403,6 +403,21 @@ const es = {
     settingsAriaLabel: 'Ajustes',
   },
 
+  update: {
+    available: 'Actualización',
+    downloading: 'Descargando… {{percent}}%',
+    ready: 'Lista',
+    error: 'Error: {{message}}',
+    install: 'Instalar',
+    restart: 'Reiniciar e instalar',
+    whatsNew: 'Novedades ›',
+    whatsNewTitle: 'Novedades',
+    notesTitle: 'Ver notas de la versión',
+    noNotes: 'Esta versión no trae notas.',
+    later: 'Luego',
+    dismiss: 'Descartar',
+  },
+
   git: {
     title: 'git',
     footerHint: 'repo del proyecto · pull con --ff-only · commit solo con staging · Actions vía gh · ⌘G o esc cerrar',

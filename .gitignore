@@ -7,6 +7,9 @@ dist/
 .env
 .env.local
 
+# Notas de release que genera CI desde CHANGELOG.md (scripts/prepare-release.sh)
+build/release-notes.md
+
 # Agent emit-results (local only)
 .iaterminal/results/
 

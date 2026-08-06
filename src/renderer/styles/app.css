@@ -11,6 +11,7 @@
 /* ── Title bar ────────────────────────────────────────────────── */
 
 .titlebar {
+  position: relative; /* ancla la píldora de update, centrada en la ventana */
   height: var(--titlebar-height);
   display: flex;
   align-items: center;

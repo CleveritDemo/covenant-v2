@@ -9,6 +9,15 @@ on:
 # Los tres jobs corren en paralelo y compiten por crear el release: todos menos
 # uno reciben 422 "already exists", que es el camino esperado, no un fallo. Las
 # subidas posteriores son la verdadera comprobación y sí fallan ruidosamente.
+#
+# Las sube electron-builder (`-p always`), no `gh release upload`: además de los
+# binarios escribe latest-mac.yml / latest.yml / latest-linux.yml, que son el
+# manifiesto que consulta el auto-updater. Cada plataforma tiene el suyo, así que
+# un job caído no deja un manifiesto a medias — no hace falta gatear nada.
+env:
+  # En workflow_dispatch (sin tag) se construye pero no se publica.
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+
 jobs:
   # Solo arm64: es lo que ya producían `dist`/`dist:dmg`. Añadir x64 obliga a
   # cross-compilar node-pty desde el runner Apple Silicon — hacerlo cuando alguien
@@ -38,7 +47,14 @@ jobs:
           echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
 
-      - name: Build + sign + notarize
+      - name: Prepare release (notes + GitHub release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prepare-release.sh
+
+      # Publica dmg (instalación manual) + zip (el que consume Squirrel.Mac para
+      # auto-actualizar; sin él el updater no tiene de dónde tirar) + latest-mac.yml.
+      - name: Build + sign + notarize + publish
         env:
           # CSC_LINK acepta el .p12 en base64 directo, sin fichero intermedio.
           CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
@@ -50,7 +66,8 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run dist:mac-release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:mac-release -- -p "$PUBLISH"
 
       - name: Verify signature and notarization
         run: |
@@ -59,18 +76,6 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           # Falla si el ticket de notarización no está grapado en el bundle.
           spctl --assess --type execute --verbose=4 "$APP"
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          DMG=$(find dist -maxdepth 1 -name '*.dmg' | head -n1)
-          if [ -z "$DMG" ]; then echo "missing .dmg (codesign likely failed)"; exit 1; fi
-          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
-          gh release upload "$TAG" "$DMG" --clobber
 
   # Electron trae su propio runtime: a diferencia de Tauri no hacen falta
   # webkit2gtk ni ninguna dependencia de sistema. Linux no se firma.
@@ -89,18 +94,17 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run dist:linux
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Prepare release (notes + GitHub release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
-          find dist -maxdepth 1 \( -name '*.AppImage' -o -name '*.deb' \) -print0 \
-            | xargs -0 -I{} gh release upload "$TAG" {} --clobber
+        run: bash scripts/prepare-release.sh
+
+      # El AppImage se auto-actualiza; el .deb no (lo actualiza apt). Los dos se
+      # publican igual, el updater solo mira el AppImage vía latest-linux.yml.
+      - name: Build + publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:linux -- -p "$PUBLISH"
 
   # Sin firmar por ahora: el cert de code signing de SSL.com todavía no existe,
   # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
@@ -135,19 +139,20 @@ jobs:
       # muertas).
       - run: npm ci
 
-      - run: npm run dist:win
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Prepare release (notes + GitHub release)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" --title "$TAG" --notes "Automated release. See CHANGELOG for details." || true
-          find dist -maxdepth 1 -name '*.exe' -print0 \
-            | xargs -0 -I{} gh release upload "$TAG" {} --clobber
+        run: bash scripts/prepare-release.sh
+
+      # NSIS, no portable: el portable no se puede auto-actualizar (no hay
+      # instalador que ejecutar). Sale sin firmar hasta que exista el cert, así
+      # que SmartScreen seguirá avisando en la primera instalación.
+      - name: Build + publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win -- -p "$PUBLISH"
 
   # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
   # que no hay que crearlo a mano: el primer tag lo genera.

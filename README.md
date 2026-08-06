@@ -124,6 +124,14 @@ En Windows/Linux se usa `Ctrl` en lugar de `⌘` cuando el atajo está disponibl
 
 Los artefactos compilados se escriben en `out/` y los paquetes en `dist/`.
 
+## Actualizaciones
+
+La app busca versiones nuevas en GitHub Releases al arrancar y cada hora. Cuando
+hay una, aparece una píldora en la barra de título con la versión, las novedades
+y un botón para instalar: descarga, cierra guardando la sesión y se relanza ya
+actualizada. Detalles de operación y publicación en
+[`docs/AUTO_UPDATER.md`](docs/AUTO_UPDATER.md).
+
 ## Arquitectura
 
 ```text

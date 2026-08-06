@@ -9,3 +9,6 @@ dist/
 
 # Agent emit-results (local only)
 .iaterminal/results/
+
+# Worktrees de agentes (estado local)
+.covenant/

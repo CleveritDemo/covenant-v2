@@ -20,12 +20,13 @@ import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { Spinner } from './ui/Spinner'
 import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
-import { normalizeRepoFullName } from '../../shared/repoFullName'
+import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/repoFullName'
 
 interface Props {
   open?: boolean
@@ -690,52 +691,97 @@ function OrgAdminsSection({
   )
 }
 
-function ProjectPeopleBlock({
-  title,
-  logins,
+function WorkspacePeopleBlock({
+  assignees,
+  admins,
   memberLogins,
-  busy,
-  addLabel,
-  removeLabel,
-  onAdd,
-  onRemove,
+  canManageAssignees,
+  canManageProjectAdmins,
+  parentBusy,
+  onAssigneeAdd,
+  onAssigneeRemove,
+  onAdminAdd,
+  onAdminRemove,
 }: {
-  title: string
-  logins: string[]
+  assignees: string[]
+  admins: string[]
   memberLogins: string[]
-  busy: boolean
-  addLabel: string
-  removeLabel: string
-  onAdd: (login: string) => void
-  onRemove: (login: string) => void
+  canManageAssignees: boolean
+  canManageProjectAdmins: boolean
+  parentBusy: boolean
+  onAssigneeAdd: (login: string) => void
+  onAssigneeRemove: (login: string) => void
+  onAdminAdd: (login: string) => void
+  onAdminRemove: (login: string) => void
 }): React.ReactElement {
-  const taken = new Set(logins)
+  const { t } = useT()
+  const [role, setRole] = useState<'user' | 'admin'>('user')
+  const canManageRole = role === 'user' ? canManageAssignees : canManageProjectAdmins
+  const busy = parentBusy || !canManageRole
+  const activeLogins = role === 'user' ? assignees : admins
+  const taken = new Set(activeLogins)
   const options = memberLogins.filter(login => !taken.has(login))
+  const addLabel = role === 'user' ? t('organizations.addAssignee') : t('organizations.addAdmin')
+
   return (
-    <div className="orgs-stack">
-      <p className="orgs-list__meta">{title}</p>
-      <LoginChips
-        logins={logins}
-        busy={busy}
-        emptyLabel={title}
-        removeLabel={removeLabel}
-        onRemove={onRemove}
-      />
-      <MemberPickRow
-        options={options}
-        busy={busy}
-        selectLabel={addLabel}
-        addLabel={addLabel}
-        onAdd={onAdd}
-      />
+    <div className="orgs-people" aria-label={t('organizations.peopleSection')}>
+      <p className="orgs-people__heading">{t('organizations.peopleSection')}</p>
+      <div className="orgs-people__group">
+        <p className="orgs-list__meta">{t('organizations.assignees')}</p>
+        <LoginChips
+          logins={assignees}
+          busy={parentBusy || !canManageAssignees}
+          emptyLabel={t('organizations.assignees')}
+          removeLabel={t('organizations.unassign')}
+          onRemove={onAssigneeRemove}
+        />
+      </div>
+      <div className="orgs-people__group">
+        <p className="orgs-list__meta">{t('organizations.workspaceAdmins')}</p>
+        <LoginChips
+          logins={admins}
+          busy={parentBusy || !canManageProjectAdmins}
+          emptyLabel={t('organizations.workspaceAdmins')}
+          removeLabel={t('organizations.removeAdmin')}
+          onRemove={onAdminRemove}
+        />
+      </div>
+      {(canManageAssignees || canManageProjectAdmins) ? (
+        <div className="orgs-people__add">
+          <SegmentedControl
+            size="sm"
+            layout="equal"
+            label={t('organizations.peopleSection')}
+            value={role}
+            disabled={parentBusy}
+            onChange={setRole}
+            options={[
+              {
+                value: 'user',
+                label: t('organizations.roleUser'),
+                disabled: !canManageAssignees,
+              },
+              {
+                value: 'admin',
+                label: t('organizations.roleAdmin'),
+                disabled: !canManageProjectAdmins,
+              },
+            ]}
+          />
+          <MemberPickRow
+            options={options}
+            busy={busy}
+            selectLabel={addLabel}
+            addLabel={addLabel}
+            onAdd={login => {
+              if (role === 'user') onAssigneeAdd(login)
+              else onAdminAdd(login)
+            }}
+          />
+        </div>
+      ) : null}
     </div>
   )
-}
-
-function defaultCloneUrlFromFullName(fullName: string): string {
-  const name = fullName.trim().replace(/^\/+|\/+$/g, '')
-  if (!name) return ''
-  return `https://github.com/${name}.git`
 }
 
 function WorkspaceReposBlock({
@@ -756,7 +802,6 @@ function WorkspaceReposBlock({
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fullNameDraft, setFullNameDraft] = useState('')
   const [cloneUrlDraft, setCloneUrlDraft] = useState('')
 
   const loadRepos = useCallback(async (): Promise<void> => {
@@ -781,18 +826,22 @@ function WorkspaceReposBlock({
   }, [loadRepos])
 
   const canMutate = available && canManage && !busy && !parentBusy
-  const fullName = fullNameDraft.trim()
-  const cloneUrl = cloneUrlDraft.trim() || defaultCloneUrlFromFullName(fullName)
-  const normalizedFullName = normalizeRepoFullName(fullName)
+  const cloneUrl = cloneUrlDraft.trim()
+  const derivedFullName = repoFullNameFromCloneUrl(cloneUrl)
   const isDuplicate = Boolean(
-    normalizedFullName
-    && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === normalizedFullName),
+    derivedFullName
+    && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === derivedFullName),
   )
-  const canAdd = canMutate && fullName.length > 0 && cloneUrl.length > 0 && !isDuplicate
+  const canAdd = canMutate && cloneUrl.length > 0 && !isDuplicate
 
   async function handleAdd(): Promise<void> {
-    if (!covenant || !canMutate || fullName.length === 0 || cloneUrl.length === 0) return
-    if (isDuplicate) {
+    if (!covenant || !canMutate || cloneUrl.length === 0) return
+    const fullName = repoFullNameFromCloneUrl(cloneUrl)
+    if (!fullName) {
+      setError(t('organizations.repoUrlInvalid'))
+      return
+    }
+    if (isDuplicate || repos.some(repo => normalizeRepoFullName(repo.repoFullName) === fullName)) {
       setError(t('organizations.repoDuplicate'))
       return
     }
@@ -812,7 +861,6 @@ function WorkspaceReposBlock({
       }
       return
     }
-    setFullNameDraft('')
     setCloneUrlDraft('')
     await loadRepos()
   }
@@ -847,26 +895,14 @@ function WorkspaceReposBlock({
                     <Input
                       type="text"
                       size="sm"
-                      value={fullNameDraft}
+                      value={cloneUrlDraft}
                       disabled={!canMutate}
-                      onChange={e => setFullNameDraft(e.target.value)}
-                      placeholder={t('organizations.repoFullNamePlaceholder')}
+                      onChange={e => setCloneUrlDraft(e.target.value)}
+                      placeholder={t('organizations.repoCloneUrlPlaceholder')}
                       spellCheck={false}
-                      aria-label={t('organizations.repoFullNamePlaceholder')}
+                      aria-label={t('organizations.repoCloneUrlPlaceholder')}
                     />
                   </SettingsField>
-                </div>
-                <div className="orgs-form-row__grow">
-                  <Input
-                    type="text"
-                    size="sm"
-                    value={cloneUrlDraft}
-                    disabled={!canMutate}
-                    onChange={e => setCloneUrlDraft(e.target.value)}
-                    placeholder={t('organizations.repoCloneUrlPlaceholder')}
-                    spellCheck={false}
-                    aria-label={t('organizations.repoCloneUrlPlaceholder')}
-                  />
                 </div>
                 <Button variant="primary" size="sm" disabled={!canAdd} onClick={() => void handleAdd()}>
                   {t('organizations.addRepo')}
@@ -1015,54 +1051,55 @@ function WorkspacesSection({
                       selected ? 'is-selected' : '',
                     ].filter(Boolean).join(' ')}
                   >
-                    <div className="orgs-list__main">
+                    <div className="orgs-workspace-row">
                       <button
                         type="button"
                         className="orgs-list__open"
-                        onClick={() => setSelectedWorkspaceId(project.id)}
-                        aria-pressed={selected}
-                        aria-label={`${t('organizations.reposTab')}: ${project.name}`}
+                        onClick={() => setSelectedWorkspaceId(selected ? '' : project.id)}
+                        aria-expanded={selected}
+                        aria-label={project.name}
                       >
+                        <Icon
+                          name={selected ? 'chevron-down' : 'chevron-right'}
+                          size={12}
+                          aria-hidden
+                        />
                         <span className="orgs-list__title">{project.name}</span>
                       </button>
-                      <ProjectPeopleBlock
-                        title={t('organizations.assignees')}
-                        logins={project.assignees}
-                        memberLogins={memberLogins}
-                        busy={!canMutate || !canManageAssignees}
-                        addLabel={t('organizations.addAssignee')}
-                        removeLabel={t('organizations.unassign')}
-                        onAdd={login => onAssigneeAdd(project.id, login)}
-                        onRemove={login => onAssigneeRemove(project.id, login)}
-                      />
-                      <ProjectPeopleBlock
-                        title={t('organizations.workspaceAdmins')}
-                        logins={project.admins}
-                        memberLogins={memberLogins}
-                        busy={!canMutate || !canManageProjectAdmins}
-                        addLabel={t('organizations.addAdmin')}
-                        removeLabel={t('organizations.removeAdmin')}
-                        onAdd={login => onAdminAdd(project.id, login)}
-                        onRemove={login => onAdminRemove(project.id, login)}
-                      />
-                      {selected ? (
+                    </div>
+                    {selected ? (
+                      <div className="orgs-workspace-detail">
+                        <WorkspacePeopleBlock
+                          assignees={project.assignees}
+                          admins={project.admins}
+                          memberLogins={memberLogins}
+                          canManageAssignees={canManageAssignees}
+                          canManageProjectAdmins={canManageProjectAdmins}
+                          parentBusy={busy}
+                          onAssigneeAdd={login => onAssigneeAdd(project.id, login)}
+                          onAssigneeRemove={login => onAssigneeRemove(project.id, login)}
+                          onAdminAdd={login => onAdminAdd(project.id, login)}
+                          onAdminRemove={login => onAdminRemove(project.id, login)}
+                        />
                         <WorkspaceReposBlock
                           slug={activeSlug}
                           workspaceId={project.id}
                           canManage={canManageAssignees}
                           parentBusy={busy}
                         />
-                      ) : null}
-                    </div>
-                    {showDelete ? (
-                      <Button
-                        variant="danger"
-                        size="xs"
-                        disabled={!canMutate}
-                        onClick={() => onDeleteRequest(project)}
-                      >
-                        {t('organizations.deleteWorkspace')}
-                      </Button>
+                        {showDelete ? (
+                          <div className="orgs-workspace-detail__actions">
+                            <Button
+                              variant="danger"
+                              size="xs"
+                              disabled={!canMutate}
+                              onClick={() => onDeleteRequest(project)}
+                            >
+                              {t('organizations.deleteWorkspace')}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </li>
                 )

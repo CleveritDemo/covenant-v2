@@ -393,12 +393,64 @@
 
 .orgs-list__item--workspace,
 .orgs-list__item--project {
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-.orgs-list__item--workspace .orgs-list__main,
-.orgs-list__item--project .orgs-list__main {
+.orgs-workspace-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.orgs-list__item--workspace .orgs-list__open {
+  gap: 8px;
+}
+
+.orgs-list__item--workspace .orgs-list__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.orgs-workspace-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.orgs-workspace-detail__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.orgs-people {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orgs-people__heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.orgs-people__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orgs-people__add {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 

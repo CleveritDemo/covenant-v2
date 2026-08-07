@@ -444,6 +444,7 @@ const es = {
     brainstormsPruneOld: 'Limpiar antiguos',
     brainstormsPruneResult: 'Se eliminaron {{count}} sala(s) antigua(s).',
     loopsButton: 'Loops',
+    resyncWorkspaceButton: 'Actualizar workspace',
     loopsTitle: 'Loops',
     loopsSubtitle: 'Arma una cadena A→B→C. Cada agente ejecuta su interacción en orden; luego todos esperan el intervalo compartido y el ciclo se repite.',
     loopsEmptyTitle: 'Sin agentes',

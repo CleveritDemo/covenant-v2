@@ -442,6 +442,7 @@ const en = {
     brainstormsPruneOld: 'Clean old',
     brainstormsPruneResult: 'Removed {{count}} old room(s).',
     loopsButton: 'Loops',
+    resyncWorkspaceButton: 'Update workspace',
     loopsTitle: 'Loops',
     loopsSubtitle: 'Build a chain A→B→C. Each agent runs its interaction in order; then everyone waits the shared interval and the cycle repeats.',
     loopsEmptyTitle: 'No agents',

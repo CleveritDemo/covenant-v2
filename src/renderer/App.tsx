@@ -271,6 +271,8 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
+  /** Tabs org cuyo resync manual está en curso. */
+  const [resyncingWorkspaceTabs, setResyncingWorkspaceTabs] = useState<Set<string>>(() => new Set())
   /** Snapshot Cmd+T: null = aún no hidratado / sin sesión. */
   const [orgWorkspaceCatalog, setOrgWorkspaceCatalog] = useState<OrgWorkspaceCatalog | null>(null)
   const orgWorkspaceCatalogRef = useRef<OrgWorkspaceCatalog | null>(null)
@@ -1511,6 +1513,76 @@ export const App: React.FC = () => {
       }
     }
   }, [syncTabWithProjectAgents, t])
+
+  const handleResyncOrgWorkspace = useCallback(async (tab: TabSession) => {
+    const org = tab.orgWorkspace
+    if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
+    const covenant = getCovenantApi()
+    if (!covenant) return
+
+    setResyncingWorkspaceTabs(prev => {
+      const next = new Set(prev)
+      next.add(tab.id)
+      return next
+    })
+    try {
+      try {
+        if (
+          hasCovenantWorkspaceReposApi(covenant)
+          && typeof covenant.cloneOrgWorkspace === 'function'
+        ) {
+          const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
+          if (localDir) {
+            const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+            if (reposResult.ok && reposResult.data.length) {
+              await covenant.cloneOrgWorkspace({
+                orgSlug: org.slug,
+                workspaceSlug: sanitizeSlugSegment(org.workspaceId),
+                repos: reposResult.data.map(x => ({
+                  repoFullName: x.repoFullName,
+                  cloneUrl: x.cloneUrl,
+                })),
+                workspaceDir: localDir,
+              })
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[resync repos]', org.slug, org.workspaceId, err)
+      }
+
+      try {
+        if (hasCovenantWorkspaceContentApi(covenant)) {
+          const [agentsResult, contextsResult] = await Promise.all([
+            covenant.workspaceAgentsList(org.slug, org.workspaceId),
+            covenant.workspaceContextsList(org.slug, org.workspaceId),
+          ])
+          const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+          if (agentsResult.ok) {
+            const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+            setProjectAgentsByCwd(prev => {
+              const next = { ...prev, [catalogKey]: agents }
+              projectAgentsByCwdRef.current = next
+              return next
+            })
+            syncTabWithProjectAgents(tab.id, agents)
+          }
+          if (contextsResult.ok) {
+            const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+            setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
+          }
+        }
+      } catch (err) {
+        console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
+      }
+    } finally {
+      setResyncingWorkspaceTabs(prev => {
+        const next = new Set(prev)
+        next.delete(tab.id)
+        return next
+      })
+    }
+  }, [syncTabWithProjectAgents])
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -3703,6 +3775,12 @@ export const App: React.FC = () => {
                   onRevealProjectFolder={tab.projectFolder?.trim()
                     ? () => { window.api.openFolder(tab.projectFolder!.trim()) }
                     : undefined}
+                  canResyncWorkspace={Boolean(
+                    tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim(),
+                  )}
+                  resyncWorkspaceLabel={t('tabs.resyncWorkspaceButton')}
+                  resyncWorkspaceBusy={resyncingWorkspaceTabs.has(tab.id)}
+                  onResyncWorkspace={() => { void handleResyncOrgWorkspace(tab) }}
                   loopsOpen={Boolean(planeLoopsOpenByTab[tab.id])}
                   onLoopsOpenChange={open => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))

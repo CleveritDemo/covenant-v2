@@ -4,6 +4,20 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.4.0
+
+- **La actualización automática ya se aplica.** Al pulsar Instalar, la app se
+  cerraba antes de que el instalador terminase de copiar la versión nueva: no
+  se relanzaba y, al abrirla otra vez, seguía en la versión vieja ofreciendo la
+  misma actualización una y otra vez.
+- El updater deja traza en `updater.log`, dentro de la carpeta de configuración,
+  para que un fallo de instalación se pueda diagnosticar.
+
+> Si vienes de la 0.3.0 o anterior, esta hay que instalarla a mano desde el
+> `.dmg` (con la app cerrada). El fallo estaba en el código que *aplica* la
+> actualización, así que la versión que ya tienes instalada no puede
+> arreglarse a sí misma. A partir de la 0.4.0 el botón Instalar funciona.
+
 ## v0.3.0
 
 - **Ajustes se navega en vez de scrollearse**: cinco categorías en un riel

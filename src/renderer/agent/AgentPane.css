@@ -1727,10 +1727,41 @@ html[data-reduce-motion="true"] {
   background: var(--bg-secondary);
 }
 
-/* Galería de tipos: cards compactas con icono a la izquierda. */
+/* Grupos de tipos: host (materializados por el pipeline) vs. escritos a mano. */
+.tab-contexts__kind-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tab-contexts__kind-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tab-contexts__kind-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tab-contexts__kind-group-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Galería de tipos: cards compactas con icono a la izquierda. Flex (no grid) para
+   que grupos de distinto tamaño no dejen huecos al final de la fila. */
 .tab-contexts__kinds {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
-import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS } from '@shared/tabContext'
+import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS, HOST_CONTEXT_KINDS } from '@shared/tabContext'
 import {
   TAB_CONTEXT_COLORS,
   TAB_CONTEXT_ICON_NAMES,
@@ -27,7 +27,27 @@ export type PreviewState =
   | { status: 'empty'; filePath?: string }
   | { status: 'error'; message: string }
 
-const KINDS: TabContextKind[] = [...CREATABLE_CONTEXT_KINDS]
+/**
+ * Los tipos se agrupan por quién escribe el cuerpo, que es la distinción con
+ * consecuencias: los host los materializa el pipeline desde el disco, `notes`
+ * lo escribe la persona. El grupo «fuente externa» aparecerá cuando exista el
+ * kind `mcp`.
+ */
+const KIND_GROUPS: Array<{
+  labelKey: 'tabContexts.group_host' | 'tabContexts.group_manual'
+  kinds: TabContextKind[]
+}> = [
+  {
+    labelKey: 'tabContexts.group_host',
+    kinds: CREATABLE_CONTEXT_KINDS.filter(kind =>
+      (HOST_CONTEXT_KINDS as readonly TabContextKind[]).includes(kind)),
+  },
+  {
+    labelKey: 'tabContexts.group_manual',
+    kinds: CREATABLE_CONTEXT_KINDS.filter(kind =>
+      !(HOST_CONTEXT_KINDS as readonly TabContextKind[]).includes(kind)),
+  },
+]
 
 interface Props {
   draft: TabContext
@@ -81,15 +101,22 @@ export const TabContextsEditor: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          <div className="tab-contexts__kinds" role="radiogroup" aria-label={t('tabContexts.kind')}>
-            {KINDS.map(kind => (
-              <TabContextKindCard
-                key={kind}
-                label={t(`tabContexts.kind_${kind}`)}
-                icon={KIND_ICONS[kind]}
-                selected={draft.kind === kind}
-                onSelect={() => onSelectKind(kind)}
-              />
+          <div className="tab-contexts__kind-groups">
+            {KIND_GROUPS.map(group => (
+              <div className="tab-contexts__kind-group" key={group.labelKey}>
+                <span className="tab-contexts__kind-group-label">{t(group.labelKey)}</span>
+                <div className="tab-contexts__kinds" role="radiogroup" aria-label={t(group.labelKey)}>
+                  {group.kinds.map(kind => (
+                    <TabContextKindCard
+                      key={kind}
+                      label={t(`tabContexts.kind_${kind}`)}
+                      icon={KIND_ICONS[kind]}
+                      selected={draft.kind === kind}
+                      onSelect={() => onSelectKind(kind)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

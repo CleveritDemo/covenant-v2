@@ -6,15 +6,18 @@ import { TerminalModal } from '../components/TerminalModal'
 import { TabContextFormModal, type TabContextFormMode } from './TabContextFormModal'
 import { TabContextsList } from './TabContextsList'
 import { TabContextsListPreview } from './TabContextsListPreview'
+import { getCovenantApi, hasCovenantWorkspaceContentApi } from '../covenantApi'
 
 interface Props {
   open: boolean
-  /** Catálogo vivo leído desde `.gravity/*.md`. */
+  /** Catálogo vivo leído desde `.gravity/*.md` o workspace org. */
   contexts: TabContext[]
   /** Agentes del proyecto: CLI y rol para las filas de results. */
   agents?: ProjectAgentDefinition[]
   /** Carpeta del proyecto (cwd de contextos y materialización). */
   cwd: string
+  /** Si está, crear/editar/borrar va al API de workspace org. */
+  orgWorkspace?: { slug: string; workspaceId: string }
   /** Al abrir, selecciona este contexto para editar. */
   focusContextId?: string | null
   onFocusContextConsumed?: () => void
@@ -31,6 +34,7 @@ export const TabContextsModal: React.FC<Props> = ({
   contexts,
   agents,
   cwd,
+  orgWorkspace,
   focusContextId = null,
   onFocusContextConsumed,
   onRefresh,
@@ -81,6 +85,33 @@ export const TabContextsModal: React.FC<Props> = ({
   const resolveCwd = (): string => (cwd ?? '').trim()
 
   const removeContext = async (context: TabContext): Promise<void> => {
+    if (orgWorkspace) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+        setListError(t('tabContexts.previewError'))
+        return
+      }
+      try {
+        const result = await covenant.workspaceContextDelete(
+          orgWorkspace.slug,
+          orgWorkspace.workspaceId,
+          context.id,
+        )
+        if (!result.ok) {
+          setListError(result.error || t('tabContexts.previewError'))
+          return
+        }
+        if (formSession?.mode === 'edit' && formSession.context.id === context.id) {
+          setFormSession(null)
+        }
+        if (selectedId === context.id) setSelectedId(null)
+        setListError('')
+        onRefresh()
+      } catch (error) {
+        setListError(error instanceof Error ? error.message : t('tabContexts.previewError'))
+      }
+      return
+    }
     const workingCwd = resolveCwd()
     if (!workingCwd) {
       setListError(t('tabContexts.missingCwd'))
@@ -150,6 +181,7 @@ export const TabContextsModal: React.FC<Props> = ({
         context={formContext}
         contexts={contexts}
         cwd={cwd}
+        orgWorkspace={orgWorkspace}
         onRefresh={onRefresh}
         onClose={() => {
           if (formOpenedFromFocusRef.current) {

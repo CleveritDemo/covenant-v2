@@ -14,7 +14,7 @@ import {
 } from '../covenantApi'
 import { TerminalModal } from './TerminalModal'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
-import { SettingsSection, SettingsField } from './SettingsSection'
+import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
@@ -106,6 +106,8 @@ function canDeleteOwnedItem(opts: {
   return false
 }
 
+type OrgDetailTab = 'workspaces' | 'members' | 'admins' | 'contexts'
+
 function SectionStatus({
   loading,
   error,
@@ -117,16 +119,23 @@ function SectionStatus({
 }): React.ReactElement | null {
   if (loading) {
     return (
-      <p className="orgs-section-status">
-        <Spinner aria-label={loadingLabel} /> {loadingLabel}
+      <p className="orgs-section-status" role="status" aria-live="polite">
+        <Spinner aria-label={loadingLabel} />
+        <span>{loadingLabel}</span>
       </p>
     )
   }
-  if (error) return <p className="orgs-section-error">{error}</p>
+  if (error) {
+    return (
+      <p className="orgs-section-error" role="alert">
+        {error}
+      </p>
+    )
+  }
   return null
 }
 
-function AuthSection({
+function AuthBar({
   available,
   status,
   loading,
@@ -149,71 +158,71 @@ function AuthSection({
   const initial = (login || '?').slice(0, 1).toUpperCase()
 
   return (
-    <SettingsSection title={t('organizations.authSection')}>
-      <div className="orgs-stack">
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : signedIn ? (
-          <div className="orgs-auth">
-            {status?.avatarUrl ? (
-              <img
-                className="orgs-auth__avatar"
-                src={status.avatarUrl}
-                alt=""
-                width={32}
-                height={32}
-              />
-            ) : (
-              <span className="orgs-auth__avatar orgs-auth__avatar--placeholder" aria-hidden>
-                {initial}
-              </span>
-            )}
-            <div className="orgs-auth__meta">
-              <p className="orgs-auth__login">{login || t('organizations.signedIn')}</p>
-              {status?.name ? <p className="orgs-auth__hint">{status.name}</p> : null}
-            </div>
-            <Button variant="secondary" size="sm" disabled={busy} onClick={onSignOut}>
-              {t('organizations.signOut')}
-            </Button>
+    <div className="orgs-stack">
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : signedIn ? (
+        <div className="orgs-auth-bar" aria-label={t('organizations.authSection')}>
+          {status?.avatarUrl ? (
+            <img
+              className="orgs-auth__avatar"
+              src={status.avatarUrl}
+              alt=""
+              width={32}
+              height={32}
+            />
+          ) : (
+            <span className="orgs-auth__avatar orgs-auth__avatar--placeholder" aria-hidden>
+              {initial}
+            </span>
+          )}
+          <div className="orgs-auth-bar__meta">
+            <p className="orgs-auth__login">{login || t('organizations.signedIn')}</p>
+            {status?.name ? <p className="orgs-auth__hint">{status.name}</p> : null}
           </div>
-        ) : (
-          <div className="orgs-auth">
-            <div className="orgs-auth__meta">
-              <p className="orgs-auth__login">{t('organizations.signInPrompt')}</p>
-              <p className="orgs-auth__hint">{t('organizations.signInHint')}</p>
-            </div>
-            <Button variant="primary" size="sm" disabled={busy || loading} onClick={onSignIn}>
-              {t('organizations.signIn')}
-            </Button>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onSignOut}>
+            {t('organizations.signOut')}
+          </Button>
+        </div>
+      ) : (
+        <div className="orgs-auth-bar" aria-label={t('organizations.authSection')}>
+          <div className="orgs-auth-bar__meta">
+            <p className="orgs-auth__login">{t('organizations.signInPrompt')}</p>
+            <p className="orgs-auth__hint">{t('organizations.signInHint')}</p>
           </div>
-        )}
-      </div>
-    </SettingsSection>
+          <Button variant="primary" size="sm" disabled={busy || loading} onClick={onSignIn}>
+            {t('organizations.signIn')}
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
-function OrgsSection({
+function OrgsRail({
   available,
   signedIn,
   orgs,
+  selectedSlug,
   loading,
   error,
   busy,
   createName,
   onCreateNameChange,
-  onOpenOrg,
+  onSelectOrg,
   onCreate,
 }: {
   available: boolean
   signedIn: boolean
   orgs: CovenantOrg[]
+  selectedSlug: string
   loading: boolean
   error: string | null
   busy: boolean
   createName: string
   onCreateNameChange: (value: string) => void
-  onOpenOrg: (slug: string) => void
+  onSelectOrg: (slug: string) => void
   onCreate: () => void
 }): React.ReactElement {
   const { t } = useT()
@@ -221,43 +230,56 @@ function OrgsSection({
   const canCreate = available && signedIn && slug.length > 0 && !busy
 
   return (
-    <SettingsSection title={t('organizations.orgsSection')}>
-      <div className="orgs-stack">
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-        ) : (
-          <>
-            {orgs.length === 0 && !loading ? (
-              <p className="orgs-empty">{t('organizations.noOrgs')}</p>
-            ) : null}
-            {orgs.length > 0 ? (
-              <ul className="orgs-list">
-                {orgs.map(org => (
-                  <li key={org.slug} className="orgs-list__item orgs-list__item--org">
+    <aside className="orgs-rail" aria-label={t('organizations.orgRailHeading')}>
+      <h2 className="orgs-rail__heading">{t('organizations.orgRailHeading')}</h2>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : !signedIn ? (
+        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
+      ) : (
+        <>
+          {orgs.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.noOrgs')}</p>
+          ) : null}
+          {orgs.length > 0 ? (
+            <ul className="orgs-list" role="listbox" aria-label={t('organizations.orgRailHeading')}>
+              {orgs.map(org => {
+                const selected = org.slug === selectedSlug
+                return (
+                  <li
+                    key={org.slug}
+                    className={[
+                      'orgs-list__item',
+                      'orgs-list__item--org',
+                      selected ? 'is-selected' : '',
+                    ].filter(Boolean).join(' ')}
+                    role="option"
+                    aria-selected={selected}
+                  >
                     <button
                       type="button"
                       className="orgs-list__open"
                       disabled={busy}
-                      onClick={() => onOpenOrg(org.slug)}
-                      aria-label={t('organizations.openOrg')}
+                      onClick={() => onSelectOrg(org.slug)}
+                      aria-label={`${t('organizations.openOrg')}: ${org.name}`}
                     >
                       <span className="orgs-list__main">
-                        <span className="orgs-list__title">
-                          {org.name} ({org.slug})
-                        </span>
+                        <span className="orgs-list__title">{org.name}</span>
+                        <span className="orgs-list__meta">{org.slug}</span>
                       </span>
                       {org.role ? <Badge variant="muted">{org.role}</Badge> : null}
                     </button>
                   </li>
-                ))}
-              </ul>
-            ) : null}
+                )
+              })}
+            </ul>
+          ) : null}
+          <div className="orgs-form-zone">
+            <p className="orgs-form-zone__label">{t('organizations.formCreateOrg')}</p>
             <div className="orgs-form-row">
               <div className="orgs-form-row__grow">
-                <SettingsField label={t('organizations.orgName')}>
+                <SettingsField label={t('organizations.orgName')} compact>
                   <Input
                     type="text"
                     size="sm"
@@ -266,6 +288,7 @@ function OrgsSection({
                     onChange={e => onCreateNameChange(e.target.value)}
                     placeholder={t('organizations.orgNamePlaceholder')}
                     spellCheck={false}
+                    aria-label={t('organizations.orgName')}
                   />
                 </SettingsField>
               </div>
@@ -276,10 +299,10 @@ function OrgsSection({
             <p className="orgs-slug">
               {t('organizations.slugLabel')}: {slug || '—'}
             </p>
-          </>
-        )}
-      </div>
-    </SettingsSection>
+          </div>
+        </>
+      )}
+    </aside>
   )
 }
 
@@ -318,26 +341,28 @@ function MembersSection({
   const showError = error && !membersForbidden
 
   return (
-    <SettingsSection title={t('organizations.membersSection')}>
-      <div className="orgs-stack">
-        <SectionStatus
-          loading={loading}
-          error={showError ? error : null}
-          loadingLabel={t('organizations.loading')}
-        />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-        ) : !activeSlug ? (
-          <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-        ) : membersForbidden || !canManageMembers ? (
-          <p className="orgs-empty">{t('organizations.membersAdminsOnly')}</p>
-        ) : (
-          <>
+    <div className="orgs-stack" aria-label={t('organizations.membersSection')}>
+      <h3 className="orgs-panel-heading">{t('organizations.membersSection')}</h3>
+      <SectionStatus
+        loading={loading}
+        error={showError ? error : null}
+        loadingLabel={t('organizations.loading')}
+      />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : !signedIn ? (
+        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
+      ) : !activeSlug ? (
+        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
+      ) : membersForbidden || !canManageMembers ? (
+        <p className="orgs-empty">{t('organizations.membersAdminsOnly')}</p>
+      ) : (
+        <>
+          <div className="orgs-form-zone">
+            <p className="orgs-form-zone__label">{t('organizations.formAddMember')}</p>
             <div className="orgs-form-row">
               <div className="orgs-form-row__grow">
-                <SettingsField label={t('organizations.memberLogin')}>
+                <SettingsField label={t('organizations.memberLogin')} compact>
                   <Input
                     type="text"
                     size="sm"
@@ -346,6 +371,7 @@ function MembersSection({
                     onChange={e => onLoginDraftChange(e.target.value)}
                     placeholder={t('organizations.memberLoginPlaceholder')}
                     spellCheck={false}
+                    aria-label={t('organizations.memberLogin')}
                   />
                 </SettingsField>
               </div>
@@ -353,47 +379,47 @@ function MembersSection({
                 {t('organizations.addMember')}
               </Button>
             </div>
-            {members.length === 0 && !loading ? (
-              <p className="orgs-empty">{t('organizations.noMembers')}</p>
-            ) : (
-              <ul className="orgs-list">
-                {members.map(member => (
-                  <li key={member.login} className="orgs-list__item">
-                    {member.avatarUrl ? (
-                      <img
-                        className="orgs-auth__avatar"
-                        src={member.avatarUrl}
-                        alt=""
-                        width={32}
-                        height={32}
-                      />
+          </div>
+          {members.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.noMembers')}</p>
+          ) : (
+            <ul className="orgs-list">
+              {members.map(member => (
+                <li key={member.login} className="orgs-list__item">
+                  {member.avatarUrl ? (
+                    <img
+                      className="orgs-auth__avatar"
+                      src={member.avatarUrl}
+                      alt=""
+                      width={32}
+                      height={32}
+                    />
+                  ) : null}
+                  <div className="orgs-list__main">
+                    <p className="orgs-list__title">{member.login}</p>
+                    {member.role ? (
+                      <p className="orgs-list__meta">
+                        <Badge variant="muted">{member.role}</Badge>
+                      </p>
                     ) : null}
-                    <div className="orgs-list__main">
-                      <p className="orgs-list__title">{member.login}</p>
-                      {member.role ? (
-                        <p className="orgs-list__meta">
-                          <Badge variant="muted">{member.role}</Badge>
-                        </p>
-                      ) : null}
-                    </div>
-                    {canManageMembers ? (
-                      <Button
-                        variant="danger"
-                        size="xs"
-                        disabled={!canMutate}
-                        onClick={() => onRemove(member.login)}
-                      >
-                        {t('organizations.removeMember')}
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
-    </SettingsSection>
+                  </div>
+                  {canManageMembers ? (
+                    <Button
+                      variant="danger"
+                      size="xs"
+                      disabled={!canMutate}
+                      onClick={() => onRemove(member.login)}
+                    >
+                      {t('organizations.removeMember')}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -435,21 +461,23 @@ function DefaultsSection({
   const canSet = canMutateCreate && kindDraft.trim().length > 0 && nameDraft.trim().length > 0
 
   return (
-    <SettingsSection title={t('organizations.globalContexts')}>
-      <div className="orgs-stack">
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-        ) : !activeSlug ? (
-          <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-        ) : (
-          <>
-            {canCreate ? (
+    <div className="orgs-stack" aria-label={t('organizations.globalContexts')}>
+      <h3 className="orgs-panel-heading">{t('organizations.globalContexts')}</h3>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : !signedIn ? (
+        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
+      ) : !activeSlug ? (
+        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
+      ) : (
+        <>
+          {canCreate ? (
+            <div className="orgs-form-zone">
+              <p className="orgs-form-zone__label">{t('organizations.formAddContext')}</p>
               <div className="orgs-form-row">
                 <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.defaultKind')}>
+                  <SettingsField label={t('organizations.defaultKind')} compact>
                     <Input
                       type="text"
                       size="sm"
@@ -458,11 +486,12 @@ function DefaultsSection({
                       onChange={e => onKindDraftChange(e.target.value)}
                       placeholder={t('organizations.defaultKindPlaceholder')}
                       spellCheck={false}
+                      aria-label={t('organizations.defaultKind')}
                     />
                   </SettingsField>
                 </div>
                 <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.defaultName')}>
+                  <SettingsField label={t('organizations.defaultName')} compact>
                     <Input
                       type="text"
                       size="sm"
@@ -471,6 +500,7 @@ function DefaultsSection({
                       onChange={e => onNameDraftChange(e.target.value)}
                       placeholder={t('organizations.defaultNamePlaceholder')}
                       spellCheck={false}
+                      aria-label={t('organizations.defaultName')}
                     />
                   </SettingsField>
                 </div>
@@ -478,38 +508,38 @@ function DefaultsSection({
                   {t('organizations.setDefault')}
                 </Button>
               </div>
-            ) : null}
-            {defaults.length === 0 && !loading ? (
-              <p className="orgs-empty">{t('organizations.noDefaults')}</p>
-            ) : (
-              <ul className="orgs-list">
-                {defaults.map(item => {
-                  const canDelete = canDeleteItem(item) && !busy
-                  return (
-                    <li key={`${item.kind}:${item.name}`} className="orgs-list__item">
-                      <div className="orgs-list__main">
-                        <p className="orgs-list__title">{item.name}</p>
-                        <p className="orgs-list__meta">{item.kind}</p>
-                      </div>
-                      {canDelete ? (
-                        <Button
-                          variant="danger"
-                          size="xs"
-                          disabled={busy}
-                          onClick={() => onUnset(item.kind, item.name)}
-                        >
-                          {t('organizations.unsetDefault')}
-                        </Button>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
-    </SettingsSection>
+            </div>
+          ) : null}
+          {defaults.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.noDefaults')}</p>
+          ) : (
+            <ul className="orgs-list">
+              {defaults.map(item => {
+                const canDelete = canDeleteItem(item) && !busy
+                return (
+                  <li key={`${item.kind}:${item.name}`} className="orgs-list__item">
+                    <div className="orgs-list__main">
+                      <p className="orgs-list__title">{item.name}</p>
+                      <p className="orgs-list__meta">{item.kind}</p>
+                    </div>
+                    {canDelete ? (
+                      <Button
+                        variant="danger"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => onUnset(item.kind, item.name)}
+                      >
+                        {t('organizations.unsetDefault')}
+                      </Button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -624,24 +654,26 @@ function OrgAdminsSection({
   const options = members.map(m => m.login).filter(login => !adminSet.has(login))
 
   return (
-    <SettingsSection title={t('organizations.orgAdminsSection')}>
-      <div className="orgs-stack">
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-        ) : !activeSlug ? (
-          <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-        ) : (
-          <>
-            <LoginChips
-              logins={admins}
-              busy={!canMutate}
-              emptyLabel={t('organizations.orgAdminsSection')}
-              removeLabel={t('organizations.removeAdmin')}
-              onRemove={onRemove}
-            />
+    <div className="orgs-stack" aria-label={t('organizations.orgAdminsSection')}>
+      <h3 className="orgs-panel-heading">{t('organizations.orgAdminsSection')}</h3>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : !signedIn ? (
+        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
+      ) : !activeSlug ? (
+        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
+      ) : (
+        <>
+          <LoginChips
+            logins={admins}
+            busy={!canMutate}
+            emptyLabel={t('organizations.orgAdminsSection')}
+            removeLabel={t('organizations.removeAdmin')}
+            onRemove={onRemove}
+          />
+          <div className="orgs-form-zone">
+            <p className="orgs-form-zone__label">{t('organizations.formAddAdmin')}</p>
             <MemberPickRow
               options={options}
               busy={!canMutate}
@@ -649,10 +681,10 @@ function OrgAdminsSection({
               addLabel={t('organizations.addAdmin')}
               onAdd={onAdd}
             />
-          </>
-        )}
-      </div>
-    </SettingsSection>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -747,21 +779,23 @@ function WorkspacesSection({
   const canCreateSubmit = canMutateCreate && nameDraft.trim().length > 0
 
   return (
-    <SettingsSection title={t('organizations.workspacesSection')}>
-      <div className="orgs-stack">
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-        {!available ? (
-          <p className="orgs-empty">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-        ) : !activeSlug ? (
-          <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-        ) : (
-          <>
-            {canCreate ? (
+    <div className="orgs-stack" aria-label={t('organizations.workspacesSection')}>
+      <h3 className="orgs-panel-heading">{t('organizations.workspacesSection')}</h3>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : !signedIn ? (
+        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
+      ) : !activeSlug ? (
+        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
+      ) : (
+        <>
+          {canCreate ? (
+            <div className="orgs-form-zone">
+              <p className="orgs-form-zone__label">{t('organizations.formCreateWorkspace')}</p>
               <div className="orgs-form-row">
                 <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.workspaceName')}>
+                  <SettingsField label={t('organizations.workspaceName')} compact>
                     <Input
                       type="text"
                       size="sm"
@@ -770,6 +804,7 @@ function WorkspacesSection({
                       onChange={e => onNameDraftChange(e.target.value)}
                       placeholder={t('organizations.workspaceNamePlaceholder')}
                       spellCheck={false}
+                      aria-label={t('organizations.workspaceName')}
                     />
                   </SettingsField>
                 </div>
@@ -777,162 +812,165 @@ function WorkspacesSection({
                   {t('organizations.createWorkspace')}
                 </Button>
               </div>
-            ) : null}
-            {workspaces.length === 0 && !loading ? (
-              <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
-            ) : (
-              <ul className="orgs-list">
-                {workspaces.map(project => {
-                  const showDelete = canDeleteWorkspace(project) && canMutate
-                  const isCreator = !!currentLogin && project.createdBy === currentLogin
-                  const isProjectAdmin = !!currentLogin && project.admins.includes(currentLogin)
-                  const canManageAssignees = isOrgAdmin || isCreator || isProjectAdmin
-                  const canManageProjectAdmins = isOrgAdmin || isCreator
-                  return (
-                    <li key={project.id} className="orgs-list__item orgs-list__item--workspace">
-                      <div className="orgs-list__main">
-                        <p className="orgs-list__title">{project.name}</p>
-                        <ProjectPeopleBlock
-                          title={t('organizations.assignees')}
-                          logins={project.assignees}
-                          memberLogins={memberLogins}
-                          busy={!canMutate || !canManageAssignees}
-                          addLabel={t('organizations.addAssignee')}
-                          removeLabel={t('organizations.unassign')}
-                          onAdd={login => onAssigneeAdd(project.id, login)}
-                          onRemove={login => onAssigneeRemove(project.id, login)}
-                        />
-                        <ProjectPeopleBlock
-                          title={t('organizations.workspaceAdmins')}
-                          logins={project.admins}
-                          memberLogins={memberLogins}
-                          busy={!canMutate || !canManageProjectAdmins}
-                          addLabel={t('organizations.addAdmin')}
-                          removeLabel={t('organizations.removeAdmin')}
-                          onAdd={login => onAdminAdd(project.id, login)}
-                          onRemove={login => onAdminRemove(project.id, login)}
-                        />
-                      </div>
-                      {showDelete ? (
-                        <Button
-                          variant="danger"
-                          size="xs"
-                          disabled={!canMutate}
-                          onClick={() => onDeleteRequest(project)}
-                        >
-                          {t('organizations.deleteWorkspace')}
-                        </Button>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
-    </SettingsSection>
+            </div>
+          ) : null}
+          {workspaces.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
+          ) : (
+            <ul className="orgs-list">
+              {workspaces.map(project => {
+                const showDelete = canDeleteWorkspace(project) && canMutate
+                const isCreator = !!currentLogin && project.createdBy === currentLogin
+                const isProjectAdmin = !!currentLogin && project.admins.includes(currentLogin)
+                const canManageAssignees = isOrgAdmin || isCreator || isProjectAdmin
+                const canManageProjectAdmins = isOrgAdmin || isCreator
+                return (
+                  <li key={project.id} className="orgs-list__item orgs-list__item--workspace">
+                    <div className="orgs-list__main">
+                      <p className="orgs-list__title">{project.name}</p>
+                      <ProjectPeopleBlock
+                        title={t('organizations.assignees')}
+                        logins={project.assignees}
+                        memberLogins={memberLogins}
+                        busy={!canMutate || !canManageAssignees}
+                        addLabel={t('organizations.addAssignee')}
+                        removeLabel={t('organizations.unassign')}
+                        onAdd={login => onAssigneeAdd(project.id, login)}
+                        onRemove={login => onAssigneeRemove(project.id, login)}
+                      />
+                      <ProjectPeopleBlock
+                        title={t('organizations.workspaceAdmins')}
+                        logins={project.admins}
+                        memberLogins={memberLogins}
+                        busy={!canMutate || !canManageProjectAdmins}
+                        addLabel={t('organizations.addAdmin')}
+                        removeLabel={t('organizations.removeAdmin')}
+                        onAdd={login => onAdminAdd(project.id, login)}
+                        onRemove={login => onAdminRemove(project.id, login)}
+                      />
+                    </div>
+                    {showDelete ? (
+                      <Button
+                        variant="danger"
+                        size="xs"
+                        disabled={!canMutate}
+                        onClick={() => onDeleteRequest(project)}
+                      >
+                        {t('organizations.deleteWorkspace')}
+                      </Button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
-function OrgDetailModal({
-  open,
+function OrgDetailPanel({
   org,
   signedIn,
   isOrgAdmin,
   canLeave,
   leaveError,
   leaveBusy,
-  leaveOpen,
-  onClose,
+  activeTab,
+  onTabChange,
   onLeaveClick,
-  onLeaveConfirm,
-  onLeaveCancel,
-  deleteWorkspace,
-  onDeleteWorkspaceConfirm,
-  onDeleteWorkspaceCancel,
   membersProps,
   orgAdminsProps,
   workspacesProps,
   defaultsProps,
 }: {
-  open: boolean
-  org: CovenantOrg | null
+  org: CovenantOrg
   signedIn: boolean
   isOrgAdmin: boolean
   canLeave: boolean
   leaveError: string | null
   leaveBusy: boolean
-  leaveOpen: boolean
-  onClose: () => void
+  activeTab: OrgDetailTab
+  onTabChange: (tab: OrgDetailTab) => void
   onLeaveClick: () => void
-  onLeaveConfirm: () => void
-  onLeaveCancel: () => void
-  deleteWorkspace: CovenantWorkspace | null
-  onDeleteWorkspaceConfirm: () => void
-  onDeleteWorkspaceCancel: () => void
   membersProps: React.ComponentProps<typeof MembersSection>
   orgAdminsProps: React.ComponentProps<typeof OrgAdminsSection>
   workspacesProps: React.ComponentProps<typeof WorkspacesSection>
   defaultsProps: React.ComponentProps<typeof DefaultsSection>
 }): React.ReactElement {
   const { t } = useT()
-  const name = org?.name ?? t('organizations.orgDetailTitle')
+  const tabs: { id: OrgDetailTab; label: string; visible: boolean }[] = [
+    { id: 'workspaces', label: t('organizations.detailTabWorkspaces'), visible: true },
+    { id: 'members', label: t('organizations.detailTabMembers'), visible: isOrgAdmin },
+    { id: 'admins', label: t('organizations.detailTabAdmins'), visible: isOrgAdmin },
+    { id: 'contexts', label: t('organizations.detailTabContexts'), visible: true },
+  ]
+  const visibleTabs = tabs.filter(tab => tab.visible)
+  const resolvedTab = visibleTabs.some(tab => tab.id === activeTab)
+    ? activeTab
+    : (visibleTabs[0]?.id ?? 'workspaces')
+  const panelId = `orgs-tab-panel-${resolvedTab}`
 
   return (
-    <>
-      <TerminalModal
-        open={open}
-        onClose={onClose}
-        title={name}
-        size="md"
-        zIndex={740}
-        bodyLayout="spacious"
-        closeOnBackdrop
-        footer={
-          <>
-            {signedIn && org ? (
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={!canLeave || leaveBusy}
-                onClick={onLeaveClick}
-              >
-                {t('organizations.leaveOrg')}
-              </Button>
-            ) : null}
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-          </>
-        }
-      >
-        <div className="orgs-modal-body">
-          {leaveError ? <p className="orgs-section-error">{leaveError}</p> : null}
-          {isOrgAdmin ? <MembersSection {...membersProps} /> : null}
-          {isOrgAdmin ? <OrgAdminsSection {...orgAdminsProps} /> : null}
-          <WorkspacesSection {...workspacesProps} />
-          <DefaultsSection {...defaultsProps} />
+    <section className="orgs-detail" aria-label={org.name}>
+      <div className="orgs-detail__header">
+        <div className="orgs-detail__title-block">
+          <h2 className="orgs-detail__title">{org.name}</h2>
+          <p className="orgs-detail__meta">
+            {org.slug}
+            {org.role ? ` · ${org.role}` : ''}
+          </p>
         </div>
-      </TerminalModal>
+        <div className="orgs-detail__actions">
+          {signedIn ? (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={!canLeave || leaveBusy}
+              onClick={onLeaveClick}
+            >
+              {t('organizations.leaveOrg')}
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
-      <ConfirmTerminalModal
-        open={leaveOpen}
-        zIndex={760}
-        message={t('organizations.leaveConfirm', { name })}
-        detail={t('organizations.leaveConfirmDetail')}
-        onConfirm={onLeaveConfirm}
-        onCancel={onLeaveCancel}
-      />
+      {leaveError ? <p className="orgs-section-error" role="alert">{leaveError}</p> : null}
 
-      <ConfirmTerminalModal
-        open={deleteWorkspace != null}
-        zIndex={760}
-        message={t('organizations.deleteWorkspaceConfirm', { name: deleteWorkspace?.name ?? '' })}
-        onConfirm={onDeleteWorkspaceConfirm}
-        onCancel={onDeleteWorkspaceCancel}
-      />
-    </>
+      <div className="orgs-tabs" role="tablist" aria-label={t('organizations.detailTabsLabel')}>
+        {visibleTabs.map(tab => {
+          const selected = tab.id === resolvedTab
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`orgs-tab-${tab.id}`}
+              className="orgs-tabs__tab"
+              aria-selected={selected}
+              aria-controls={panelId}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onTabChange(tab.id)}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div
+        className="orgs-tab-panel"
+        role="tabpanel"
+        id={panelId}
+        aria-labelledby={`orgs-tab-${resolvedTab}`}
+      >
+        {resolvedTab === 'workspaces' ? <WorkspacesSection {...workspacesProps} /> : null}
+        {resolvedTab === 'members' && isOrgAdmin ? <MembersSection {...membersProps} /> : null}
+        {resolvedTab === 'admins' && isOrgAdmin ? <OrgAdminsSection {...orgAdminsProps} /> : null}
+        {resolvedTab === 'contexts' ? <DefaultsSection {...defaultsProps} /> : null}
+      </div>
+    </section>
   )
 }
 
@@ -984,6 +1022,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [leaveBusy, setLeaveBusy] = useState(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
+  const [detailTab, setDetailTab] = useState<OrgDetailTab>('workspaces')
 
   const signedIn = auth?.signedIn === true
   const currentLogin = auth?.login?.trim() || ''
@@ -1001,6 +1040,13 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     : memberLogins
   const workspacesAvailable = hasCovenantWorkspacesApi(covenant)
   const orgAdminsAvailable = hasCovenantOrgAdminsApi(covenant)
+
+  useEffect(() => {
+    if (isOrgAdmin) return
+    if (detailTab === 'members' || detailTab === 'admins') {
+      setDetailTab('workspaces')
+    }
+  }, [detailTab, isOrgAdmin])
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
     if (!covenant) {
@@ -1199,18 +1245,11 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     void loadOrgDetails(detailSlug)
   }, [open, detailSlug, loadOrgDetails])
 
-  function closeDetail(): void {
-    setDetailSlug(null)
-    setLeaveOpen(false)
-    setLeaveError(null)
-    setLeaveBusy(false)
-    setDeleteWorkspace(null)
-  }
-
   function openOrg(slug: string): void {
     setActiveSlug(slug)
     setDetailSlug(slug)
     setLeaveError(null)
+    setDetailTab('workspaces')
   }
 
   async function handleSignIn(): Promise<void> {
@@ -1264,6 +1303,8 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setCreateName('')
     setActiveSlug(result.data.slug)
+    setDetailSlug(result.data.slug)
+    setDetailTab('workspaces')
     await loadAuthAndOrgs()
   }
 
@@ -1461,6 +1502,87 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
   }
 
   const detailSlugValue = detailSlug ?? ''
+  const selectedSlug = detailSlug ?? activeSlug
+  const leaveName = detailOrg?.name ?? t('organizations.orgDetailTitle')
+
+  const membersProps = {
+    available,
+    signedIn,
+    activeSlug: detailSlugValue,
+    canManageMembers,
+    membersForbidden,
+    members,
+    loading: membersLoading,
+    error: membersError,
+    busy: membersBusy,
+    loginDraft: memberLogin,
+    onLoginDraftChange: setMemberLogin,
+    onAdd: () => void handleAddMember(),
+    onRemove: (login: string) => void handleRemoveMember(login),
+  }
+  const orgAdminsProps = {
+    available: available && orgAdminsAvailable,
+    signedIn,
+    activeSlug: detailSlugValue,
+    members,
+    admins: orgAdmins,
+    loading: orgAdminsLoading,
+    error: orgAdminsError,
+    busy: orgAdminsBusy,
+    onAdd: (login: string) => void handleOrgAdminAdd(login),
+    onRemove: (login: string) => void handleOrgAdminRemove(login),
+  }
+  const workspacesProps = {
+    available: available && workspacesAvailable,
+    signedIn,
+    activeSlug: detailSlugValue,
+    canCreate: isOrgAdmin,
+    canDeleteWorkspace: (project: CovenantWorkspace) => canDeleteOwnedItem({
+      isOwner,
+      currentLogin,
+      currentGithubId,
+      createdBy: project.createdBy,
+      createdById: project.createdById,
+    }),
+    isOrgAdmin,
+    currentLogin,
+    memberLogins: personLogins,
+    workspaces,
+    loading: workspacesLoading,
+    error: workspacesError,
+    busy: workspacesBusy,
+    nameDraft: workspaceName,
+    onNameDraftChange: setWorkspaceName,
+    onCreate: () => void handleCreateWorkspace(),
+    onDeleteRequest: (project: CovenantWorkspace) => setDeleteWorkspace(project),
+    onAssigneeAdd: (id: string, login: string) => void handleWorkspaceAssigneeAdd(id, login),
+    onAssigneeRemove: (id: string, login: string) => void handleWorkspaceAssigneeRemove(id, login),
+    onAdminAdd: (id: string, login: string) => void handleWorkspaceAdminAdd(id, login),
+    onAdminRemove: (id: string, login: string) => void handleWorkspaceAdminRemove(id, login),
+  }
+  const defaultsProps = {
+    available,
+    signedIn,
+    activeSlug: detailSlugValue,
+    canCreate: isOrgAdmin,
+    canDeleteItem: (item: CovenantDefault) => canDeleteOwnedItem({
+      isOwner,
+      currentLogin,
+      currentGithubId,
+      createdBy: item.createdBy,
+      createdById: item.createdById,
+    }),
+    defaults,
+    loading: defaultsLoading,
+    error: defaultsError,
+    busy: defaultsBusy,
+    kindDraft: defaultKind,
+    nameDraft: defaultName,
+    onKindDraftChange: setDefaultKind,
+    onNameDraftChange: setDefaultName,
+    onSet: () => void handleSetDefault(),
+    onUnset: (kind: string, name: string) => void handleUnsetDefault(kind, name),
+  }
 
   return (
     <>
@@ -1468,7 +1590,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
         open={open}
         onClose={onClose}
         title={t('organizations.title')}
-        size="lg"
+        size="xl"
         zIndex={720}
         bodyLayout="spacious"
         closeOnBackdrop
@@ -1478,12 +1600,12 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
           </Button>
         }
       >
-        <div className="orgs-modal-body">
+        <div className="orgs-shell">
           {!available ? (
             <p className="orgs-disabled">{t('organizations.unavailable')}</p>
           ) : (
             <>
-              <AuthSection
+              <AuthBar
                 available={available}
                 status={auth}
                 loading={authLoading}
@@ -1492,132 +1614,81 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
                 onSignIn={() => void handleSignIn()}
                 onSignOut={() => void handleSignOut()}
               />
-              <OrgsSection
-                available={available}
-                signedIn={signedIn}
-                orgs={orgs}
-                loading={orgsLoading}
-                error={orgsError}
-                busy={orgsBusy}
-                createName={createName}
-                onCreateNameChange={setCreateName}
-                onOpenOrg={openOrg}
-                onCreate={() => void handleCreateOrg()}
-              />
+              {signedIn ? (
+                <div className="orgs-split">
+                  <OrgsRail
+                    available={available}
+                    signedIn={signedIn}
+                    orgs={orgs}
+                    selectedSlug={selectedSlug}
+                    loading={orgsLoading}
+                    error={orgsError}
+                    busy={orgsBusy}
+                    createName={createName}
+                    onCreateNameChange={setCreateName}
+                    onSelectOrg={openOrg}
+                    onCreate={() => void handleCreateOrg()}
+                  />
+                  {detailOrg ? (
+                    <OrgDetailPanel
+                      org={detailOrg}
+                      signedIn={signedIn}
+                      isOrgAdmin={isOrgAdmin}
+                      canLeave={!!currentLogin}
+                      leaveError={leaveError}
+                      leaveBusy={leaveBusy}
+                      activeTab={detailTab}
+                      onTabChange={setDetailTab}
+                      onLeaveClick={() => {
+                        if (!currentLogin) return
+                        setLeaveError(null)
+                        setLeaveOpen(true)
+                      }}
+                      membersProps={membersProps}
+                      orgAdminsProps={orgAdminsProps}
+                      workspacesProps={workspacesProps}
+                      defaultsProps={defaultsProps}
+                    />
+                  ) : (
+                    <section className="orgs-detail" aria-label={t('organizations.orgDetailTitle')}>
+                      <p className="orgs-empty orgs-empty--panel">
+                        {t('organizations.detailSelectHint')}
+                      </p>
+                    </section>
+                  )}
+                </div>
+              ) : null}
             </>
           )}
         </div>
       </TerminalModal>
 
-      <OrgDetailModal
-        open={detailSlug != null}
-        org={detailOrg}
-        signedIn={signedIn}
-        isOrgAdmin={isOrgAdmin}
-        canLeave={!!currentLogin}
-        leaveError={leaveError}
-        leaveBusy={leaveBusy}
-        leaveOpen={leaveOpen}
-        onClose={closeDetail}
-        onLeaveClick={() => {
-          if (!currentLogin) return
-          setLeaveError(null)
-          setLeaveOpen(true)
-        }}
-        onLeaveConfirm={() => {
+      <ConfirmTerminalModal
+        open={leaveOpen}
+        zIndex={760}
+        message={t('organizations.leaveConfirm', { name: leaveName })}
+        detail={t('organizations.leaveConfirmDetail')}
+        onConfirm={() => {
           if (!detailSlug) return
           void handleLeaveOrg(detailSlug)
         }}
-        onLeaveCancel={() => {
+        onCancel={() => {
           if (leaveBusy) return
           setLeaveOpen(false)
         }}
-        deleteWorkspace={deleteWorkspace}
-        onDeleteWorkspaceConfirm={() => {
+      />
+
+      <ConfirmTerminalModal
+        open={deleteWorkspace != null}
+        zIndex={760}
+        message={t('organizations.deleteWorkspaceConfirm', { name: deleteWorkspace?.name ?? '' })}
+        onConfirm={() => {
           if (!deleteWorkspace || workspacesBusy) return
           void handleDeleteWorkspace(deleteWorkspace.id)
         }}
-        onDeleteWorkspaceCancel={() => {
+        onCancel={() => {
           if (workspacesBusy) return
           setDeleteWorkspace(null)
-        }}
-        membersProps={{
-          available,
-          signedIn,
-          activeSlug: detailSlugValue,
-          canManageMembers,
-          membersForbidden,
-          members,
-          loading: membersLoading,
-          error: membersError,
-          busy: membersBusy,
-          loginDraft: memberLogin,
-          onLoginDraftChange: setMemberLogin,
-          onAdd: () => void handleAddMember(),
-          onRemove: login => void handleRemoveMember(login),
-        }}
-        orgAdminsProps={{
-          available: available && orgAdminsAvailable,
-          signedIn,
-          activeSlug: detailSlugValue,
-          members,
-          admins: orgAdmins,
-          loading: orgAdminsLoading,
-          error: orgAdminsError,
-          busy: orgAdminsBusy,
-          onAdd: login => void handleOrgAdminAdd(login),
-          onRemove: login => void handleOrgAdminRemove(login),
-        }}
-        workspacesProps={{
-          available: available && workspacesAvailable,
-          signedIn,
-          activeSlug: detailSlugValue,
-          canCreate: isOrgAdmin,
-          canDeleteWorkspace: project => canDeleteOwnedItem({
-            isOwner,
-            currentLogin,
-            currentGithubId,
-            createdBy: project.createdBy,
-            createdById: project.createdById,
-          }),
-          isOrgAdmin,
-          currentLogin,
-          memberLogins: personLogins,
-          workspaces,
-          loading: workspacesLoading,
-          error: workspacesError,
-          busy: workspacesBusy,
-          nameDraft: workspaceName,
-          onNameDraftChange: setWorkspaceName,
-          onCreate: () => void handleCreateWorkspace(),
-          onDeleteRequest: project => setDeleteWorkspace(project),
-          onAssigneeAdd: (id, login) => void handleWorkspaceAssigneeAdd(id, login),
-          onAssigneeRemove: (id, login) => void handleWorkspaceAssigneeRemove(id, login),
-          onAdminAdd: (id, login) => void handleWorkspaceAdminAdd(id, login),
-          onAdminRemove: (id, login) => void handleWorkspaceAdminRemove(id, login),
-        }}
-        defaultsProps={{
-          available,
-          signedIn,
-          activeSlug: detailSlugValue,
-          canCreate: isOrgAdmin,
-          canDeleteItem: item => canDeleteOwnedItem({
-            isOwner,
-            currentLogin,
-            currentGithubId,
-            createdBy: item.createdBy,
-            createdById: item.createdById,
-          }),
-          defaults,
-          loading: defaultsLoading,
-          error: defaultsError,
-          busy: defaultsBusy,
-          kindDraft: defaultKind,
-          nameDraft: defaultName,
-          onKindDraftChange: setDefaultKind,
-          onNameDraftChange: setDefaultName,
-          onSet: () => void handleSetDefault(),
-          onUnset: (kind, name) => void handleUnsetDefault(kind, name),
         }}
       />
     </>

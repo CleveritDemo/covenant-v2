@@ -9,11 +9,17 @@ import {
 } from '@shared/tabContext'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { PROJECT_DIR } from '@shared/projectDir'
+import {
+  rememberWorkspaceContextBody,
+  workspaceContextBody,
+  workspaceContextUpsertPayload,
+} from '@shared/orgWorkspaceContent'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
+import { getCovenantApi, hasCovenantWorkspaceContentApi } from '../covenantApi'
 
 export type TabContextFormMode = 'create' | 'edit'
 
@@ -24,6 +30,8 @@ interface Props {
   context: TabContext | null
   contexts: TabContext[]
   cwd: string
+  /** Si está, persiste vía API de workspace org en lugar del disco. */
+  orgWorkspace?: { slug: string; workspaceId: string }
   onRefresh: () => void
   onClose: () => void
 }
@@ -64,6 +72,7 @@ export const TabContextFormModal: React.FC<Props> = ({
   context,
   contexts,
   cwd,
+  orgWorkspace,
   onRefresh,
   onClose,
 }) => {
@@ -92,6 +101,10 @@ export const TabContextFormModal: React.FC<Props> = ({
 
   const loadHostOwnedContent = async (target: TabContext): Promise<void> => {
     if (target.kind !== 'notes' && target.kind !== 'changelog' && target.kind !== 'agentResult') {
+      return
+    }
+    if (orgWorkspace && target.kind === 'notes') {
+      setNotesContent(workspaceContextBody(target.id))
       return
     }
     const workingCwd = await resolveCwd()
@@ -243,12 +256,47 @@ export const TabContextFormModal: React.FC<Props> = ({
       setPreview({ status: 'error', message: dup })
       return false
     }
+    const normalized = normalizeDraft(current)
+
+    if (orgWorkspace) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+        setPreview({ status: 'error', message: t('tabContexts.previewError') })
+        return false
+      }
+      const body = normalized.kind === 'notes' ? (notesContentRef.current ?? '') : ''
+      try {
+        const result = await covenant.workspaceContextUpsert(
+          orgWorkspace.slug,
+          orgWorkspace.workspaceId,
+          normalized.id,
+          workspaceContextUpsertPayload(normalized, body),
+        )
+        if (!result.ok) {
+          setPreview({
+            status: 'error',
+            message: result.error || t('tabContexts.previewError'),
+          })
+          return false
+        }
+        rememberWorkspaceContextBody(normalized.id, body)
+        onRefresh()
+        onClose()
+        return true
+      } catch (error) {
+        setPreview({
+          status: 'error',
+          message: error instanceof Error ? error.message : t('tabContexts.previewError'),
+        })
+        return false
+      }
+    }
+
     const workingCwd = await resolveCwd()
     if (!workingCwd) {
       setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
       return false
     }
-    const normalized = normalizeDraft(current)
     const editContext = contextRef.current
     const previousFileName = modeRef.current === 'edit' && editContext?.fileName
       && normalizeContextFileName(editContext.fileName) !== normalized.fileName

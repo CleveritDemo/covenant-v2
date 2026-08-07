@@ -6,10 +6,34 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Select, type SelectOption } from '../Select'
 
-// jsdom no implementa la Popover API; el listbox sólo necesita que exista.
+/** jsdom no implementa Popover API: polyfill mínimo + evento `toggle`. */
 beforeAll(() => {
-  HTMLElement.prototype.showPopover = function () { this.setAttribute('data-open', '') }
-  HTMLElement.prototype.hidePopover = function () { this.removeAttribute('data-open') }
+  const proto = HTMLElement.prototype as HTMLElement & {
+    showPopover: () => void
+    hidePopover: () => void
+    togglePopover: () => boolean
+  }
+
+  const dispatchToggle = (el: HTMLElement, newState: 'open' | 'closed'): void => {
+    el.dispatchEvent(Object.assign(new Event('toggle'), { newState }))
+  }
+
+  proto.showPopover = function showPopover(this: HTMLElement) {
+    this.setAttribute('data-open', '')
+    dispatchToggle(this, 'open')
+  }
+  proto.hidePopover = function hidePopover(this: HTMLElement) {
+    this.removeAttribute('data-open')
+    dispatchToggle(this, 'closed')
+  }
+  proto.togglePopover = function togglePopover(this: HTMLElement) {
+    if (this.hasAttribute('data-open')) {
+      this.hidePopover()
+      return false
+    }
+    this.showPopover()
+    return true
+  }
 })
 
 afterEach(cleanup)
@@ -53,12 +77,34 @@ describe('Select', () => {
     const onChange = vi.fn()
     render(<Select value="" options={OPTIONS} onChange={onChange} />)
     const panel = openPanel()
-    panel.showPopover()
+    act(() => {
+      panel.showPopover()
+    })
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('true')
 
+    fireEvent.pointerDown(screen.getByText('GPT-5.2'))
     fireEvent.click(screen.getByText('GPT-5.2'))
 
     expect(onChange).toHaveBeenCalledWith('gpt-5.2')
     expect(panel.hasAttribute('data-open')).toBe(false)
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('Enter confirma la opción activa y cierra el panel', () => {
+    const onChange = vi.fn()
+    render(<Select value="" options={OPTIONS} onChange={onChange} />)
+    const panel = openPanel()
+    act(() => {
+      panel.showPopover()
+    })
+
+    fireEvent.keyDown(panel, { key: 'ArrowDown' })
+    fireEvent.keyDown(panel, { key: 'ArrowDown' })
+    fireEvent.keyDown(panel, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith('gpt-5.2')
+    expect(panel.hasAttribute('data-open')).toBe(false)
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
   })
 
   it('las flechas mueven el cursor y Enter confirma', () => {

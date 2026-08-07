@@ -97,7 +97,22 @@ export const Select: React.FC<SelectProps> = ({
       ?.scrollIntoView({ block: 'nearest' })
   }, [active, open])
 
-  const close = (): void => panelRef.current?.hidePopover()
+  /**
+   * Cierre fiable: en Electron/Chromium, hidePopover() durante el click de una
+   * opción puede fallar o el click “cae” al invoker (popovertarget=toggle) y
+   * reabre. setOpen(false) defiende el aria-expanded; preventDefault en
+   * pointerdown de la opción evita el re-toggle.
+   */
+  const close = (): void => {
+    setOpen(false)
+    const panel = panelRef.current
+    if (!panel) return
+    try {
+      if (typeof panel.hidePopover === 'function') panel.hidePopover()
+    } catch {
+      /* popover ya cerrado / no soportado */
+    }
+  }
 
   const pick = (option: SelectOption): void => {
     onChange(option.value)
@@ -157,7 +172,15 @@ export const Select: React.FC<SelectProps> = ({
             className="select-panel__option"
             data-active={index === active || undefined}
             data-index={index}
-            onClick={() => pick(option)}
+            onPointerDown={event => {
+              // Evita que el click cierre+reabra vía el invoker debajo del top layer.
+              event.preventDefault()
+            }}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              pick(option)
+            }}
           >
             <span className="select-panel__check">
               {option.value === value ? <Icon name="check" size={12} aria-hidden /> : null}

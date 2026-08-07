@@ -101,6 +101,8 @@ export interface TabSession {
   orgWorkspace?: {
     slug: string
     workspaceId: string
+    /** Carpeta local donde se clonaron los repos del workspace. */
+    localDir?: string
   }
   /**
    * @deprecated Legacy nest links; ya no se orquestan. Se mantienen por sanitize.

@@ -24,6 +24,8 @@ import type {
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
   CovenantWorkspaceContextRecord,
+  CovenantWorkspaceRepoPayload,
+  CovenantWorkspaceRepoRecord,
   CovenantResult,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
@@ -53,6 +55,10 @@ import type {
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
 import type { UpdateState } from '../src/shared/updateState'
+import type {
+  OrgWorkspaceCloneRepo,
+  OrgWorkspaceCloneResult,
+} from '../src/shared/orgWorkspaceClone'
 
 /** Un listener IPC por canal; evita MaxListenersExceeded con muchos paneles PTY. */
 function createPtyChannelMux<TArgs extends unknown[]>(
@@ -533,6 +539,34 @@ const api = {
       contextId: string,
     ): Promise<CovenantResult<null>> {
       return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXT_DELETE, slug, workspaceId, contextId)
+    },
+    workspaceReposList(
+      slug: string,
+      workspaceId: string,
+    ): Promise<CovenantResult<CovenantWorkspaceRepoRecord[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPOS_LIST, slug, workspaceId)
+    },
+    workspaceRepoAdd(
+      slug: string,
+      workspaceId: string,
+      payload: CovenantWorkspaceRepoPayload,
+    ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_ADD, slug, workspaceId, payload)
+    },
+    workspaceRepoDelete(
+      slug: string,
+      workspaceId: string,
+      repoId: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_DELETE, slug, workspaceId, repoId)
+    },
+    cloneOrgWorkspace(params: {
+      orgSlug: string
+      workspaceSlug: string
+      repos: Array<OrgWorkspaceCloneRepo>
+      workspaceDir?: string
+    }): Promise<OrgWorkspaceCloneResult> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CLONE, params)
     },
     orgAdminsList(slug: string): Promise<CovenantResult<string[]>> {
       return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMINS_LIST, slug)

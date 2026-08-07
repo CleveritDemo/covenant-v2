@@ -122,11 +122,14 @@ import {
 import {
   getCovenantApi,
   hasCovenantWorkspaceContentApi,
+  hasCovenantWorkspaceReposApi,
 } from './covenantApi'
 import {
   projectAgentsFromWorkspaceAgents,
+  sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
 } from '../shared/orgWorkspaceContent'
+import { OrgWorkspaceRequirementModal } from './components/OrgWorkspaceRequirementModal'
 import {
   removePaneFromLoopChains,
   activeLoopChainPaneIds,
@@ -263,6 +266,12 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
+  const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] = useState<{
+    missingFolder?: boolean
+    missingToken?: boolean
+    cloneError?: string
+    cloning?: boolean
+  } | null>(null)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -1176,36 +1185,116 @@ export const App: React.FC = () => {
     })()
   }, [t])
 
-  const handleOrgWorkspaceTabConfirm = useCallback((selection: OrgWorkspaceSelection) => {
+  const handleOrgWorkspaceTabConfirm = useCallback(async (selection: OrgWorkspaceSelection) => {
     setOrgWorkspacePickerOpen(false)
-    const title = selection.orgWorkspace?.name?.trim()
-      || t('tabs.defaultTitle', { n: ++tabCounter })
-    const tab = newTab(title)
-    if (selection.orgWorkspace) {
-      tab.orgWorkspace = {
-        slug: selection.orgWorkspace.slug,
-        workspaceId: selection.orgWorkspace.workspaceId,
+
+    if (!selection.orgWorkspace) {
+      const title = t('tabs.defaultTitle', { n: ++tabCounter })
+      const tab = newTab(title)
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+        explorerByTabRef.current = next
+        return next
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+      return
+    }
+
+    const org = selection.orgWorkspace
+    const cfg = await window.api.getConfig()
+    const missingFolder = !cfg.defaultWorkspacesDir?.trim()
+    const missingToken = !cfg.githubToken?.trim()
+    if (missingFolder || missingToken) {
+      setOrgWorkspaceRequirement({ missingFolder, missingToken })
+      return
+    }
+
+    const workspaceSlug = sanitizeSlugSegment(org.name || org.workspaceId)
+      || sanitizeSlugSegment(org.workspaceId)
+    setOrgWorkspaceRequirement({ cloning: true })
+
+    const covenant = getCovenantApi()
+    let repos: Array<{ repoFullName: string; cloneUrl: string }> = []
+    if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+      const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+      if (reposResult.ok) {
+        repos = reposResult.data.map(r => ({
+          repoFullName: r.repoFullName,
+          cloneUrl: r.cloneUrl,
+        }))
       }
+    }
+
+    const res = await (covenant?.cloneOrgWorkspace
+      ? covenant.cloneOrgWorkspace({
+          orgSlug: org.slug,
+          workspaceSlug,
+          repos,
+        })
+      : Promise.resolve({
+          ok: false as const,
+          error: 'clone unavailable',
+        }))
+    if (!res.ok) {
+      if (res.error === 'missing-default-dir') {
+        setOrgWorkspaceRequirement({ missingFolder: true })
+      } else if (res.error === 'missing-token') {
+        setOrgWorkspaceRequirement({ missingToken: true })
+      } else {
+        setOrgWorkspaceRequirement({ cloneError: res.error })
+      }
+      return
+    }
+
+    setOrgWorkspaceRequirement(null)
+    const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
+    const tab = newTab(title)
+    tab.projectFolder = res.workspaceDir
+    tab.orgWorkspace = {
+      slug: org.slug,
+      workspaceId: org.workspaceId,
+      localDir: res.workspaceDir,
     }
     setExplorerByTab(prev => {
       const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
       explorerByTabRef.current = next
       return next
     })
-    if (selection.catalogKey) {
+    setTabs(prev => [...prev, tab])
+    setActiveTabId(tab.id)
+
+    if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+      const [agentsResult, contextsResult] = await Promise.all([
+        covenant.workspaceAgentsList(org.slug, org.workspaceId),
+        covenant.workspaceContextsList(org.slug, org.workspaceId),
+      ])
+      const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+      if (agentsResult.ok) {
+        const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+        setProjectAgentsByCwd(prev => {
+          const next = { ...prev, [catalogKey]: agents }
+          projectAgentsByCwdRef.current = next
+          return next
+        })
+        syncTabWithProjectAgents(tab.id, agents)
+      }
+      if (contextsResult.ok) {
+        const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+        setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
+      }
+    } else if (selection.catalogKey) {
       setProjectAgentsByCwd(prev => {
         const next = { ...prev, [selection.catalogKey]: selection.agents }
         projectAgentsByCwdRef.current = next
         return next
       })
-    }
-    if (selection.contexts.length) {
-      setTabContextsByTab(prev => ({ ...prev, [tab.id]: selection.contexts }))
-    }
-    setTabs(prev => [...prev, tab])
-    setActiveTabId(tab.id)
-    if (selection.agents.length) {
-      queueMicrotask(() => syncTabWithProjectAgents(tab.id, selection.agents))
+      if (selection.contexts.length) {
+        setTabContextsByTab(prev => ({ ...prev, [tab.id]: selection.contexts }))
+      }
+      if (selection.agents.length) {
+        queueMicrotask(() => syncTabWithProjectAgents(tab.id, selection.agents))
+      }
     }
   }, [syncTabWithProjectAgents, t])
 
@@ -1395,6 +1484,98 @@ export const App: React.FC = () => {
     if (!result.ok) return null
     const path = result.path.trim()
     if (!path) return null
+
+    const org = tab?.orgWorkspace
+    const orgSlug = org?.slug?.trim() ?? ''
+    const workspaceId = org?.workspaceId?.trim() ?? ''
+    const isOrgBacked = Boolean(orgSlug && workspaceId)
+    const previousLocalDir = org?.localDir?.trim() || ''
+
+    if (isOrgBacked && org && path !== previousLocalDir) {
+      const workspaceSlug = sanitizeSlugSegment(workspaceId)
+      setOrgWorkspaceRequirement({ cloning: true })
+      const covenant = getCovenantApi()
+      let repos: Array<{ repoFullName: string; cloneUrl: string }> = []
+      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+        const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
+        if (reposResult.ok) {
+          repos = reposResult.data.map(r => ({
+            repoFullName: r.repoFullName,
+            cloneUrl: r.cloneUrl,
+          }))
+        }
+      }
+      const res = await (covenant?.cloneOrgWorkspace
+        ? covenant.cloneOrgWorkspace({
+            orgSlug,
+            workspaceSlug,
+            repos,
+            workspaceDir: path,
+          })
+        : Promise.resolve({
+            ok: false as const,
+            error: 'clone unavailable',
+          }))
+      if (!res.ok) {
+        if (res.error === 'missing-default-dir') {
+          setOrgWorkspaceRequirement({ missingFolder: true })
+        } else if (res.error === 'missing-token') {
+          setOrgWorkspaceRequirement({ missingToken: true })
+        } else {
+          setOrgWorkspaceRequirement({ cloneError: res.error })
+        }
+        return null
+      }
+      setOrgWorkspaceRequirement(null)
+
+      const next = tabsRef.current.map(t => (
+        t.id === tabId
+          ? {
+              ...t,
+              projectFolder: path,
+              orgWorkspace: {
+                slug: orgSlug,
+                workspaceId,
+                localDir: path,
+              },
+            }
+          : t
+      ))
+      tabsRef.current = next
+      setTabs(next)
+
+      const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
+      const updatedTab = next.find(item => item.id === tabId)
+      const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
+      if (explorerOpen && explorerSessionId) {
+        void window.api.fileExplorerSetRoot(explorerSessionId, path)
+      }
+
+      await saveSessionNow()
+
+      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+        const [agentsResult, contextsResult] = await Promise.all([
+          covenant.workspaceAgentsList(orgSlug, workspaceId),
+          covenant.workspaceContextsList(orgSlug, workspaceId),
+        ])
+        const catalogKey = covenantWorkspaceCatalogKey(orgSlug, workspaceId)
+        if (agentsResult.ok) {
+          const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+          setProjectAgentsByCwd(prev => {
+            const nextAgents = { ...prev, [catalogKey]: agents }
+            projectAgentsByCwdRef.current = nextAgents
+            return nextAgents
+          })
+          syncTabWithProjectAgents(tabId, agents)
+        }
+        if (contextsResult.ok) {
+          const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+          setTabContextsByTab(prev => ({ ...prev, [tabId]: contexts }))
+        }
+      }
+      return path
+    }
+
     const previousCwd = tab?.projectFolder?.trim() || ''
     const next = tabsRef.current.map(t => (t.id === tabId ? { ...t, projectFolder: path } : t))
     tabsRef.current = next
@@ -1425,7 +1606,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -3562,6 +3743,16 @@ export const App: React.FC = () => {
             handleDuplicateAgentPane(pending.tabId, sourcePaneId)
           }
         }}
+      />
+
+      <OrgWorkspaceRequirementModal
+        open={orgWorkspaceRequirement !== null}
+        missingFolder={orgWorkspaceRequirement?.missingFolder}
+        missingToken={orgWorkspaceRequirement?.missingToken}
+        cloneError={orgWorkspaceRequirement?.cloneError}
+        cloning={orgWorkspaceRequirement?.cloning}
+        onClose={() => setOrgWorkspaceRequirement(null)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
     </div>
   )

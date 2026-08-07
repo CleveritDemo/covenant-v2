@@ -55,6 +55,11 @@ const es = {
     githubTokenConnected: 'conectado como {{login}}',
     githubTokenMissing: 'sin token configurado',
     githubTokenInvalid: 'GitHub rechazó este token: {{detail}}',
+    workspacesSection: 'Workspaces',
+    defaultWorkspacesDirLabel: 'Carpeta por defecto de workspaces',
+    defaultWorkspacesDirHint: 'Carpeta raíz donde se instalan los workspaces de organización en esta máquina.',
+    chooseFolder: 'Elegir carpeta',
+    clearFolder: 'Limpiar',
   },
 
   agentPane: {
@@ -571,6 +576,12 @@ const es = {
     removeAdmin: 'Quitar',
     noWorkspaces: 'Aún no hay workspaces',
     unassign: 'Quitar',
+    reposTab: 'Repos',
+    addRepo: 'Añadir repo',
+    repoFullNamePlaceholder: 'owner/repo',
+    repoCloneUrlPlaceholder: 'https://github.com/owner/repo.git',
+    removeRepo: 'Quitar',
+    reposEmpty: 'Aún no hay repos vinculados.',
     newTabWorkspaceTitle: 'Nueva pestaña',
     newTabWorkspaceHint: 'Carga un workspace de organización o continúa con una pestaña personal.',
     newTabWorkspaceLabel: 'Workspace de organización',
@@ -578,6 +589,11 @@ const es = {
     newTabWorkspaceConfirm: 'Crear pestaña',
     newTabWorkspaceLoading: 'Cargando workspaces…',
     newTabWorkspaceError: 'No se pudieron cargar los workspaces de organización.',
+    reqTitle: 'Workspace de organización',
+    reqMissingFolder: 'Configura la carpeta por defecto de workspaces en Ajustes.',
+    reqMissingToken: 'Configura un token de GitHub en Ajustes.',
+    reqCloneFailed: 'No se pudieron clonar los repos: {{error}}',
+    openSettings: 'Abrir ajustes',
   },
 
   update: {

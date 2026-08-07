@@ -1,0 +1,22 @@
+.org-ws-req__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.org-ws-req__line {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.org-ws-req__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted);
+}

@@ -53,6 +53,11 @@ const en = {
     githubTokenConnected: 'connected as {{login}}',
     githubTokenMissing: 'no token set',
     githubTokenInvalid: 'GitHub rejected this token: {{detail}}',
+    workspacesSection: 'Workspaces',
+    defaultWorkspacesDirLabel: 'Default workspaces folder',
+    defaultWorkspacesDirHint: 'Root folder where organization workspaces are installed on this machine.',
+    chooseFolder: 'Choose folder',
+    clearFolder: 'Clear',
   },
 
   agentPane: {
@@ -569,6 +574,12 @@ const en = {
     removeAdmin: 'Remove',
     noWorkspaces: 'No workspaces yet',
     unassign: 'Remove',
+    reposTab: 'Repos',
+    addRepo: 'Add repo',
+    repoFullNamePlaceholder: 'owner/repo',
+    repoCloneUrlPlaceholder: 'https://github.com/owner/repo.git',
+    removeRepo: 'Remove',
+    reposEmpty: 'No repos linked yet.',
     newTabWorkspaceTitle: 'New tab',
     newTabWorkspaceHint: 'Load an organization workspace or continue with a personal tab.',
     newTabWorkspaceLabel: 'Organization workspace',
@@ -576,6 +587,11 @@ const en = {
     newTabWorkspaceConfirm: 'Create tab',
     newTabWorkspaceLoading: 'Loading workspaces…',
     newTabWorkspaceError: 'Could not load organization workspaces.',
+    reqTitle: 'Organization workspace',
+    reqMissingFolder: 'Set the default workspaces folder in Settings.',
+    reqMissingToken: 'Configure a GitHub token in Settings.',
+    reqCloneFailed: 'Could not clone repositories: {{error}}',
+    openSettings: 'Open settings',
   },
 
   update: {

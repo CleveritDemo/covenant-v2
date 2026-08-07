@@ -50,6 +50,11 @@ export interface AppConfig {
   openaiApiKey: string
   /** Personal Access Token de GitHub para Actions y API. Alternativa: GITHUB_TOKEN en .env. */
   githubToken: string
+  /**
+   * Carpeta raíz donde se instalan los workspaces organizacionales.
+   * Vacío = sin carpeta por defecto configurada.
+   */
+  defaultWorkspacesDir: string
   defaultModel: string
   maxContextLines: number
   themeId: string
@@ -107,6 +112,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   anthropicApiKey: '',
   openaiApiKey: '',
   githubToken: '',
+  defaultWorkspacesDir: '',
   defaultModel: 'llama3.2',
   maxContextLines: 200,
   themeId: 'tokyoNight',
@@ -160,12 +166,16 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ? partial.reduceMotion
     : CONFIG_DEFAULTS.reduceMotion
   const agentCliCommands = migrateAgentCliCommands(partial)
+  const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
+    ? partial.defaultWorkspacesDir
+    : CONFIG_DEFAULTS.defaultWorkspacesDir
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
     musicPlaylistIdsByMood: moods,
     reduceMotion,
     agentCliCommands,
+    defaultWorkspacesDir,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
   return merged
@@ -193,6 +203,9 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (config.fontSize < 9 || config.fontSize > 24) {
     errors.push('fontSize debe estar entre 9 y 24')
+  }
+  if (typeof config.defaultWorkspacesDir !== 'string') {
+    errors.push('defaultWorkspacesDir debe ser un string')
   }
   for (const provider of Object.keys(config.agentCliCommands ?? {})) {
     if (!isAgentCliProvider(provider)) {

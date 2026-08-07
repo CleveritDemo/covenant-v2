@@ -67,6 +67,9 @@ function sanitizeTab(tab: TabSession): {
       ? {
           slug: orgWorkspaceRaw.slug.trim(),
           workspaceId: orgWorkspaceRaw.workspaceId.trim(),
+          ...(typeof orgWorkspaceRaw.localDir === 'string' && orgWorkspaceRaw.localDir.trim()
+            ? { localDir: orgWorkspaceRaw.localDir.trim() }
+            : {}),
         }
       : undefined
 

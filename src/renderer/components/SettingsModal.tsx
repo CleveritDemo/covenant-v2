@@ -50,6 +50,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     language: config.language,
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
+    defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
@@ -115,6 +116,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: form.language,
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
+      defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
@@ -166,6 +168,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: original.language,
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
+      defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
     })
@@ -304,15 +307,59 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'advanced' && (
-            <SettingsSection title={t('settings.configSection')}>
-              <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
-              <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
-                <Icon name="folder" size={12} />
-                {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
-                  ? t('settings.revealConfig')
-                  : t('settings.revealConfigWin')}
-              </Button>
-            </SettingsSection>
+            <>
+              <SettingsSection title={t('settings.workspacesSection')}>
+                <SettingsField
+                  label={t('settings.defaultWorkspacesDirLabel')}
+                  hint={t('settings.defaultWorkspacesDirHint')}
+                >
+                  <div className="settings-folder-row">
+                    <Input
+                      type="text"
+                      size="sm"
+                      readOnly
+                      value={form.defaultWorkspacesDir}
+                      placeholder={t('settings.defaultWorkspacesDirLabel')}
+                      aria-label={t('settings.defaultWorkspacesDirLabel')}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        void (async () => {
+                          const result = await window.api.selectDirectory({
+                            title: t('settings.chooseFolder'),
+                            defaultPath: form.defaultWorkspacesDir.trim() || undefined,
+                          })
+                          if (!result.ok) return
+                          update('defaultWorkspacesDir', result.path)
+                        })()
+                      }}
+                    >
+                      <Icon name="folder" size={12} />
+                      {t('settings.chooseFolder')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!form.defaultWorkspacesDir.trim()}
+                      onClick={() => update('defaultWorkspacesDir', '')}
+                    >
+                      {t('settings.clearFolder')}
+                    </Button>
+                  </div>
+                </SettingsField>
+              </SettingsSection>
+              <SettingsSection title={t('settings.configSection')}>
+                <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
+                <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
+                  <Icon name="folder" size={12} />
+                  {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+                    ? t('settings.revealConfig')
+                    : t('settings.revealConfigWin')}
+                </Button>
+              </SettingsSection>
+            </>
           )}
 
           {category === 'about' && (

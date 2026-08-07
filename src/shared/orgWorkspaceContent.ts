@@ -17,6 +17,11 @@ function isTabContextKind(value: string): value is TabContextKind {
   return (ALL_CONTEXT_KINDS as readonly string[]).includes(value)
 }
 
+/** Segmento de ruta seguro: solo [A-Za-z0-9._-]; el resto se colapsa a '-'. */
+export function sanitizeSlugSegment(s: string): string {
+  return s.trim().replace(/[^A-Za-z0-9._-]+/g, '-')
+}
+
 /** Cuerpos markdown de contextos org (no viven en TabContext). */
 const workspaceContextBodyById = new Map<string, string>()
 

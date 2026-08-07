@@ -186,3 +186,44 @@ alcanzable y conviene decirlo en el spec en vez de dejarlo como objetivo.
 
 La medición de tokens (criterio 5) va en A, porque es la que justifica todo lo demás y porque la
 instrumentación ya está a medio construir.
+
+---
+
+## Corrección (mismo día, tras verificación empírica)
+
+**El hallazgo bloqueante de arriba es incorrecto.** Decía que el criterio de aceptación 2 no tenía
+camino sin desacoplar `cwd`. Sí lo tiene, y no pasa por el filesystem del proyecto.
+
+`claude --help` expone tres flags por sesión que no había mirado:
+
+- `--plugin-dir <path>` — «Load a plugin from a directory or .zip **for this session only**»,
+  repetible.
+- `--setting-sources <user,project,local>` — permite **excluir** el scope de usuario, que es donde
+  se instalan los plugins (`~/.claude/plugins/cache/`).
+- `--mcp-config <configs...>` + `--strict-mcp-config` — «Only use MCP servers from --mcp-config,
+  ignoring all other MCP configurations».
+
+Verificado con un spawn real en un directorio vacío:
+
+```
+claude --setting-sources project \
+       --plugin-dir ~/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0 \
+       -p "List every skill name available to you"
+```
+
+Resultado: los 14 `superpowers:*` presentes; `ponytail:*`, `frontend-design:*` y `context7`
+**ausentes**. Las skills built-in del harness (`dataviz`, `code-review`, `run`, `init`…) siguen
+ahí: no son plugins y `--plugin-dir` no las toca.
+
+**Consecuencias:**
+
+1. La `namespace_allowlist` se implementa con flags de lanzamiento, sin `cwd` efímero ni symlinks.
+   El análisis de por qué el `cwd` no se puede repuntar sigue siendo válido — simplemente ya no
+   hace falta repuntarlo.
+2. `mcps_allowed` también es alcanzable por spawn, vía `--mcp-config` + `--strict-mcp-config`.
+3. El gate binario tiene dos candidatos: `--disallowedTools Skill` y `--disable-slash-commands`
+   («Disable all skills»). El primero es el que este repo ya usa.
+4. `claude plugin details <name>` reporta **coste de tokens proyectado** (always-on y on-invoke,
+   por componente). Eso alimenta directamente la pregunta 7 y el criterio 5 sin instrumentar nada.
+
+Todo esto pasa al Spec A.

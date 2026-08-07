@@ -201,6 +201,8 @@ export const IPC = {
   UPDATE_INSTALL: 'update:install',
   /** Renderer → main: ocultar el banner hasta el próximo chequeo */
   UPDATE_DISMISS: 'update:dismiss',
+  /** Renderer → main (invoke): versión de la app (`app.getVersion()`) */
+  APP_VERSION: 'app:version',
   /** Main → renderer: pedir que el renderer serialice los scrollbacks antes de cerrar */
   APP_SAVE_BEFORE_CLOSE: 'app:saveBeforeClose',
   /** Renderer → main: datos de cierre (scrollbacks) listos para guardar */

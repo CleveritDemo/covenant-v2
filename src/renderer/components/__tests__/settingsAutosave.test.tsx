@@ -29,7 +29,7 @@ const config = { ...CONFIG_DEFAULTS, musicEnabled: true, reduceMotion: false }
 beforeEach(() => {
   setConfig.mockReset()
   setConfig.mockResolvedValue({ ok: true })
-  vi.stubGlobal('window', Object.assign(window, { api: { setConfig, openConfigFolder: vi.fn() } }))
+  vi.stubGlobal('window', Object.assign(window, { api: { setConfig, openConfigFolder: vi.fn(), getAppVersion: vi.fn().mockResolvedValue('0.0.0') } }))
 })
 
 afterEach(() => {

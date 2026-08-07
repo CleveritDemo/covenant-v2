@@ -407,6 +407,8 @@ function registerIpc(): void {
     void shell.openPath(app.getPath('userData'))
   })
 
+  ipcMain.handle(IPC.APP_VERSION, (): string => app.getVersion())
+
   ipcMain.handle(IPC.CD_RECENT_LIST, (): string[] => readCdRecentFolders())
 
   ipcMain.handle(IPC.CD_RECENT_RECORD_LINE, (_e, sessionId: string, line: string) => {

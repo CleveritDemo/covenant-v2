@@ -13,6 +13,9 @@ import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
 import { GitHubTokenField } from './GitHubTokenField'
+import { AiMarkdown } from './AiMarkdown'
+// El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
+import changelogMd from '../../../CHANGELOG.md?raw'
 import './SettingsModal.css'
 
 interface Props {
@@ -32,6 +35,7 @@ const CATEGORIES = [
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
   { id: 'music', icon: 'play', labelKey: 'settings.spotifySection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
+  { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
 ] as const
 
 type CategoryId = (typeof CATEGORIES)[number]['id']
@@ -52,6 +56,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [appVersion, setAppVersion] = useState('')
   /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
   const [touchedMoods, setTouchedMoods] = useState<string[]>([])
   /** Config al abrir: a esto vuelve «Descartar cambios». */
@@ -147,6 +152,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   }
 
   /** Hay texto que no se está guardando: el pie tiene que decirlo, no callar. */
+  useEffect(() => {
+    void window.api.getAppVersion().then(setAppVersion)
+  }, [])
+
   const invalidMoods = MUSIC_MOODS.some(m => moodError(m.id))
 
   /** Sólo repone el form: el efecto de autoguardado se encarga de persistirlo. */
@@ -303,6 +312,14 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   ? t('settings.revealConfig')
                   : t('settings.revealConfigWin')}
               </Button>
+            </SettingsSection>
+          )}
+
+          {category === 'about' && (
+            <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
+              <div className="settings-changelog">
+                <AiMarkdown content={changelogMd} />
+              </div>
             </SettingsSection>
           )}
 

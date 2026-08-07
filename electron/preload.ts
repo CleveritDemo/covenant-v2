@@ -214,6 +214,9 @@ const api = {
   openConfigFolder(): void {
     ipcRenderer.send(IPC.CONFIG_OPEN_FOLDER)
   },
+  getAppVersion(): Promise<string> {
+    return ipcRenderer.invoke(IPC.APP_VERSION)
+  },
 
   getCdRecentList(): Promise<string[]> {
     return ipcRenderer.invoke(IPC.CD_RECENT_LIST)

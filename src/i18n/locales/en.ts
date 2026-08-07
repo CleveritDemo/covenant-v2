@@ -22,6 +22,8 @@ const en = {
     cliFilterEmpty: 'No agent matches “{{filter}}”.',
     appearanceSection: 'Appearance',
     advancedSection: 'Advanced',
+    aboutSection: 'Release log',
+    aboutVersion: 'Covenant Gravity v{{version}}',
     spotifySection: 'Spotify (title bar)',
     musicEnabledTitle: 'Show music controls',
     musicEnabledDescription: 'Shows the mood name and the play button in the title bar. When off, nothing is shown.',

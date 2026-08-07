@@ -24,6 +24,8 @@ const es = {
     cliFilterEmpty: 'Ningún agente coincide con «{{filter}}».',
     appearanceSection: 'Apariencia',
     advancedSection: 'Avanzado',
+    aboutSection: 'Novedades',
+    aboutVersion: 'Covenant Gravity v{{version}}',
     spotifySection: 'Spotify (barra de título)',
     musicEnabledTitle: 'Mostrar controles de música',
     musicEnabledDescription: 'Muestra el mood y el botón de play en la barra de título. Si está apagado, no aparece nada.',

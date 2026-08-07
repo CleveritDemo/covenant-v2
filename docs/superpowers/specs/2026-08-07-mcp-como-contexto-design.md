@@ -23,9 +23,10 @@ Un tipo de contexto nuevo, `mcp`, que materializa la respuesta de una herramient
 Markdown seccionado en `.gravity/`, y que desde ahí atraviesa el pipeline existente sin
 modificarlo: catálogo compacto, `need-sections`, presupuesto de 8 secciones / 60.000 caracteres.
 
-Segundo objetivo, en el mismo spec porque el primero lo fuerza: **rediseñar el modal de
-contextos**. Un contexto MCP pide cuatro campos que ningún otro pide, y el formulario actual ya
-está saturado antes de añadirlos.
+El rediseño del modal de contextos, que este tipo hace necesario, va en un spec aparte:
+`docs/superpowers/specs/2026-08-07-rediseno-modal-contextos-design.md`. Los dos son
+independientes y pueden mergear por separado, pero conviene hacer aquel primero — ver
+«Interfaz».
 
 ## No objetivos
 
@@ -179,49 +180,36 @@ desplegable y evita que el usuario escriba nombres de tool a mano.
 vacía. No se escribe el archivo, se conserva el anterior, se registra en el log. El modal muestra
 el estado en el medidor la próxima vez que se abra.
 
-## Rediseño del modal
+## Interfaz
 
-Mockup interactivo y diagnóstico completo:
+El rediseño del modal vive en su propio spec:
+`docs/superpowers/specs/2026-08-07-rediseno-modal-contextos-design.md`. Aquí solo lo que el kind
+`mcp` necesita del formulario, sea cual sea su forma final.
+
+**Cuatro campos** que ningún otro tipo pide:
+
+| Campo | Control | De dónde salen los valores |
+|---|---|---|
+| Servidor | desplegable | claves de `.gravity/mcp.json` |
+| Herramienta | desplegable | `tools/list` del servidor elegido |
+| Argumentos | según el schema de la tool | plantilla prerrellenada + campos avanzados |
+| Refrescar cada | desplegable | `refreshSeconds`, por defecto 600 |
+
+Las **plantillas** existen para que un PO no tenga que escribir JQL desde cero: tres o cuatro por
+servidor conocido («Mi sprint actual», «Mi backlog», «Bugs abiertos»), cada una un par
+`(tool, args)` ya relleno, con los campos crudos detrás de un desplegable de avanzado.
+
+**Dos estados** que ningún otro tipo tiene y que necesitan un sitio visible: «sin credenciales u
+OAuth vencido» y «el último refresco falló, estás viendo el snapshot de las 14:02».
+
+En el rediseño ese sitio es el medidor de presupuesto del panel derecho, donde ya está mirando
+quien va a guardar. En el modal actual no hay ningún sitio equivalente, y los cuatro campos serían
+cuatro filas más empujando la cosmética todavía más abajo. Por eso, aunque los dos specs son
+independientes y pueden mergear por separado, **conviene implementar el rediseño primero**: al
+revés, MCP paga el coste de encajar en un formulario que se va a rehacer.
+
+Mockup interactivo de ambas cosas, con el tipo MCP seleccionable:
 <https://claude.ai/code/artifact/eefb584c-d5c6-4ea0-bce7-495078ffae9c>
-
-El formulario actual (`TabContextsEditor.tsx` + `TabContextFormModal.tsx`) tiene siete problemas
-que MCP agrava:
-
-1. Los ocho tipos pesan lo mismo en una rejilla plana; con MCP serían nueve, y la rejilla esconde
-   la distinción que importa (host / escrito a mano / externo).
-2. Icono y color ocupan ~40 % del alto (`TabContextsEditor.tsx:126-160`) para dos decisiones
-   cosméticas que se toman una vez.
-3. La configuración específica del tipo va **al final**, después de la cosmética.
-4. El presupuesto es invisible: ni secciones, ni caracteres, ni cuánto de los 60.000 se ocupa.
-5. Tres acciones sin jerarquía (Preview / Regenerate / Save), y `handleDismiss`
-   (`TabContextFormModal.tsx:281-295`) guarda al cerrar sin que ningún botón lo anuncie.
-6. La ruta del `.md` es texto muerto, sin forma de abrir el archivo.
-7. Nada dice si el contexto viajará como catálogo o entero — la diferencia entre 300 y 30.000
-   tokens por turno.
-
-**La propuesta: dos paneles.** Izquierda, configuración en el orden correcto (tipo agrupado por
-origen → configuración del tipo → identidad → aspecto plegado tras un botón). Derecha, un panel
-permanente con el medidor de presupuesto y la vista previa; **`Preview` deja de ser un botón**.
-
-El medidor muestra secciones, caracteres, tokens estimados, una barra contra los 60.000, y una
-píldora `Catálogo` / `Entero`. No calcula nada nuevo: `sectionsForContext` ya devuelve las
-secciones con su tamaño y `buildContextSectionCatalog` ya las agrupa. Es el sitio donde también
-viven los estados propios de MCP («sin credenciales», «snapshot de las 14:02, el último refresco
-falló»).
-
-Dos cambios de comportamiento, no solo de maquetación:
-
-- **Cerrar con Esc o clic fuera deja de guardar en silencio.** Con cambios pendientes pregunta;
-  sin cambios, cierra.
-- **La vista previa se recalcula con debounce.** Materializar `symbols` sobre un repo grande
-  cuesta; el debounce más el caché de `materializationSignature` deberían bastar. Si no bastan, el
-  escape es recalcular solo al cambiar de tipo o al salir de un campo.
-
-Restricción del UI kit (`.cursor/rules/frontend-components.mdc`): el popover de aspecto es un
-componente nuevo con props tipadas, **sin `className` ni `style`**. `npm run check:ui` debe pasar.
-
-Coste estimado: `TabContextsEditor.tsx` +180/−90, su CSS +140, `TabContextFormModal.tsx` +40/−25,
-popover +70, i18n +30. Ningún archivo de `electron/` cambia por el rediseño.
 
 ## Tests
 
@@ -270,6 +258,10 @@ Las credenciales nunca se escriben en `.gravity/`. El `.md` materializado va a `
    contexto ya funciona de punta a punta sin cliente MCP.
 3. `mcpServers.ts` y `mcpClient.ts` con el SDK.
 4. `mcpContextRefresh.ts`, el handler de `main.ts` y `snapshotAge` en el catálogo.
-5. El rediseño del modal, con el tipo `mcp` incluido desde el principio.
+5. Los cuatro campos y los dos estados en el modal.
 
 Los pasos 1 y 2 dejan el feature verificable antes de tocar nada de red.
+
+El paso 5 asume que el rediseño del modal ya está hecho. Si se decide implementar MCP antes, ese
+paso crece: hay que meter cuatro campos y dos estados en el formulario actual, sabiendo que se
+va a rehacer.

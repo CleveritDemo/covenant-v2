@@ -44,6 +44,15 @@ describe('resolveTabContextRevealPath', () => {
     })
   })
 
+  it('rechaza una carpeta dentro de .gravity: el canal revela archivos, no directorios', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, '.gravity', 'results'), { recursive: true })
+    expect(resolveTabContextRevealPath(cwd, 'results')).toEqual({
+      ok: false,
+      error: 'la ruta no es un archivo',
+    })
+  })
+
   it('rechaza un salto relativo tipo ../../../etc/hosts', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, '.gravity'), { recursive: true })

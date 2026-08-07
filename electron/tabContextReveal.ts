@@ -1,4 +1,4 @@
-import { existsSync } from 'fs'
+import { existsSync, statSync } from 'fs'
 import { resolveSafeProjectPath } from './agentFileOps'
 import { projectDirPath } from './projectDir'
 
@@ -30,5 +30,11 @@ export function resolveTabContextRevealPath(cwd: string, fileName: string): TabC
   const abs = resolveSafeProjectPath(root, fileName)
   if (!abs) return { ok: false, error: 'ruta fuera del proyecto' }
   if (!existsSync(abs)) return { ok: false, error: 'el archivo no existe todavía' }
+  // El canal IPC es público: una carpeta dentro de `.gravity` pasa la
+  // validación de ruta igual que un archivo, y revelar un directorio no es lo
+  // que este canal promete. `throwIfNoEntry: false` cubre la carrera entre el
+  // `existsSync` de arriba y este `stat`.
+  const stats = statSync(abs, { throwIfNoEntry: false })
+  if (!stats?.isFile()) return { ok: false, error: 'la ruta no es un archivo' }
   return { ok: true, absPath: abs }
 }

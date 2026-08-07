@@ -117,6 +117,8 @@ const es = {
     emptyTitle: '¿En qué trabajamos?',
     empty: 'Describe una tarea o haz una pregunta. El agente trabaja en tu carpeta y responde aquí; las terminales quedan como apoyo.',
     activity: '{{tool}}…',
+    delegatingTitle: 'Delegando…',
+    delegatingSubtitle: 'Coordinando con agentes especialistas',
     contextLoading: 'Cargando {{n}} secciones de contexto…',
     errorPrefix: 'Error del CLI',
     emptyResponse: 'El CLI terminó sin devolver texto. Prueba de nuevo.',

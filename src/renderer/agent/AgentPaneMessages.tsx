@@ -3,6 +3,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
+import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
 import { Gravity } from './Gravity'
 import './AgentChatBubbles.css'
 
@@ -22,6 +23,8 @@ export interface AgentPaneMessagesProps {
   messages: AgentChatEntry[]
   busy: boolean
   activity: string
+  /** Orquestador esperando resultados de sub-agentes. */
+  awaitingDelegations: boolean
   loopActive: boolean
   loopIteration: number
   queuedTurns: AgentPaneQueuedTurn[]
@@ -46,6 +49,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   messages,
   busy,
   activity,
+  awaitingDelegations,
   loopActive,
   loopIteration,
   queuedTurns,
@@ -87,7 +91,12 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           surface="pane"
           scrollRef={scrollRef}
         />
-        {(busy || activity !== '') && (() => {
+        {awaitingDelegations ? (
+          <AgentDelegatingIndicator
+            label={t('agentPane.delegatingTitle')}
+            sublabel={t('agentPane.delegatingSubtitle')}
+          />
+        ) : (busy || activity !== '') && (() => {
           const activityText = activity
             ? (loopActive
                 ? `${t('agentPane.loopBadge', { n: loopIteration })} · ${activity}`

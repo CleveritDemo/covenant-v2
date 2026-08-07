@@ -115,6 +115,8 @@ const en = {
     emptyTitle: 'What are we working on?',
     empty: 'Describe a task or ask a question. The agent works in your folder and replies here; terminals stay as supporting tools.',
     activity: '{{tool}}…',
+    delegatingTitle: 'Delegating…',
+    delegatingSubtitle: 'Coordinating with specialist agents',
     contextLoading: 'Loading {{n}} context sections…',
     errorPrefix: 'CLI error',
     emptyResponse: 'The CLI finished without returning any text. Try again.',

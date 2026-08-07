@@ -385,6 +385,7 @@ const es = {
     kind_readme: 'README',
     kind_changelog: 'Changelog de la IA (solo lectura)',
     kind_agentResult: 'Resultados de agente',
+    kind_skill: 'Skill',
     group_host: 'Del repositorio · los genera el host',
     group_manual: 'Escrito a mano',
     groupProject: 'Contextos del proyecto',

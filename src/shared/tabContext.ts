@@ -8,6 +8,7 @@ export type TabContextKind =
   | 'readme'
   | 'changelog'
   | 'agentResult'
+  | 'skill'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
@@ -19,12 +20,12 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'skill',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'agentResult',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'agentResult', 'skill',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -93,6 +94,8 @@ function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOpt
       return 'changelog'
     case 'notes':
       return 'notes'
+    case 'skill':
+      return 'skill'
     default:
       return kind
   }
@@ -167,6 +170,8 @@ export function canonicalContextName(
       return 'AI Changelog'
     case 'notes':
       return (options.name ?? '').trim() || 'Notes'
+    case 'skill':
+      return (options.name ?? '').trim() || 'Skill'
     case 'agentResult':
       return (options.name ?? '').trim() || (options.agentId ?? 'agent')
     default:

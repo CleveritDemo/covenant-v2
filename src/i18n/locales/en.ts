@@ -383,6 +383,7 @@ const en = {
     kind_readme: 'README',
     kind_changelog: 'AI changelog (read-only)',
     kind_agentResult: 'Agent results',
+    kind_skill: 'Skill',
     group_host: 'From the repository · host-generated',
     group_manual: 'Hand-written',
     groupProject: 'Project contexts',

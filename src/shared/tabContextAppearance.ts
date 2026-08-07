@@ -47,6 +47,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   readme: 'book',
   changelog: 'history',
   agentResult: 'bot',
+  skill: 'sparkles',
 }
 
 const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
@@ -59,6 +60,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   readme: '#38bdf8',
   changelog: '#a3e635',
   agentResult: '#94a3b8',
+  skill: '#e879f9',
 }
 
 const ICON_SET = new Set<string>(TAB_CONTEXT_ICON_NAMES)

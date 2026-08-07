@@ -127,6 +127,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   readme: 'Gaps/outdated bits only; max 10 words.',
   changelog: 'Read-only; never annotate.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
+  skill: 'Host-installed skill; do not rewrite via annotations.',
 }
 
 function safeRoot(cwd: string, requested?: string): string {
@@ -910,6 +911,16 @@ export function reconcileNotesWithAuto(auto: string, notes: string): string {
   return parts.join('\n\n')
 }
 
+/**
+ * Ruta del `SKILL.md` fuente de un contexto `skill`, en `<projectDir>/skills/<stem>/SKILL.md`.
+ * El id del contexto es `iaterminal:skill:<stem>`; el stem es la carpeta.
+ */
+function skillSourcePath(context: TabContext, root: string): string {
+  const stem = context.id.replace(/^iaterminal:skill:/, '')
+    || context.fileName.replace(/\.md$/i, '')
+  return projectDirPath(root, 'skills', stem, 'SKILL.md')
+}
+
 function buildAutoContent(
   context: TabContext,
   cwd: string,
@@ -947,6 +958,10 @@ function buildAutoContent(
       if (!raw) return '(empty agent results)'
       const auto = extractSection(raw, AUTO_START, AUTO_END)
       return auto || raw
+    }
+    case 'skill': {
+      const path = skillSourcePath(context, root)
+      return existsSync(path) ? readFileSync(path, 'utf8').trim() || '(empty)' : '(empty)'
     }
     default:
       return '(empty)'
@@ -1221,6 +1236,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
       return []
     case 'agentResult':
       return [contextFilePath(context, cwd)]
+    case 'skill':
+      return [skillSourcePath(context, root)]
     // Git and folder trees are cheap enough to rebuild and difficult to
     // fingerprint exactly without repeating their traversal/commands.
     case 'git':

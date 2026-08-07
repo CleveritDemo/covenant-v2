@@ -235,7 +235,7 @@ export const TabContextsEditor: React.FC<Props> = ({
           <p className="tab-contexts__cwd">{t('tabContexts.cwdLabel', { cwd: resolvedCwdLabel })}</p>
         )}
 
-        {duplicateMessage && preview.status !== 'error' && (
+        {duplicateMessage && (
           <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
             <p>{duplicateMessage}</p>
           </div>

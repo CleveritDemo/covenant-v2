@@ -185,7 +185,10 @@ export const TabContextFormModal: React.FC<Props> = ({
       }
       return next
     })
-    setPreview({ status: 'idle' })
+    // No se invalida la vista previa aquí: con el panel permanente, tocar
+    // cualquier campo (color, symbolKind, etc.) borraría un contenido bueno
+    // para mostrar "Escribe un nombre..." hasta que llegue el debounce. El
+    // propio debounce se encarga de reemplazarla cuando corresponda.
   }
 
   const readOnlyChangelog = draft?.kind === 'changelog' &&
@@ -253,7 +256,9 @@ export const TabContextFormModal: React.FC<Props> = ({
     if (current.kind !== 'changelog' && !(current.name ?? '').trim()) return false
     const dup = computeDuplicateMessage(current)
     if (dup) {
-      setPreview({ status: 'error', message: dup })
+      // El duplicado ya lo muestra el panel izquierdo (duplicateMessage); no
+      // lo dupliquemos en el panel de salida, que es para errores de
+      // materialización de verdad.
       return false
     }
     const normalized = normalizeDraft(current)
@@ -346,7 +351,8 @@ export const TabContextFormModal: React.FC<Props> = ({
     if (!draft) return
     if (!(draft.name ?? '').trim() || draft.kind === 'changelog') return
     if (duplicateMessage) {
-      setPreview({ status: 'error', message: duplicateMessage })
+      // Igual que en save(): el duplicado ya se muestra en el panel
+      // izquierdo, no hace falta reflejarlo también en el panel de salida.
       return
     }
     setPreview({ status: 'loading' })
@@ -390,7 +396,11 @@ export const TabContextFormModal: React.FC<Props> = ({
 
   const loadPreview = async (): Promise<void> => {
     if (!draft) return
-    setPreview({ status: 'loading' })
+    // Si ya hay una vista previa buena en pantalla, no la tapemos con
+    // "Generando…": mejor contenido momentáneamente desactualizado que un
+    // parpadeo en cada tecla. Forma funcional para no leer un `preview`
+    // obsoleto capturado por el closure del setTimeout del debounce.
+    setPreview(current => (current.status === 'success' ? current : { status: 'loading' }))
     try {
       const workingCwd = await resolveCwd()
       if (!workingCwd) {
@@ -530,7 +540,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           onUpdate={update}
           onSelectKind={selectKind}
           onNotesContentChange={setNotesContent}
-          onPreviewReset={() => setPreview({ status: 'idle' })}
+          onPreviewReset={() => setPreview(current => (current.status === 'success' ? current : { status: 'idle' }))}
           onPickRootError={message => setPreview({ status: 'error', message })}
           countAutoKeys={countAutoKeys}
           countAnnotations={countAnnotations}

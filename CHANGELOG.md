@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.6.2
+
+- **Se acabaron los tooltips nativos.** Los cuadros amarillos del sistema
+  aparecían con retardo, se quedaban colgados al mover el ratón entre paneles y
+  no seguían el tema. Los controles que los usaban se apoyan ahora en su propia
+  etiqueta o en el tooltip de la app.
+- **Organizaciones, en español.** Quedaban etiquetas sin traducir en el panel de
+  organizaciones — los contextos globales, la invitación a iniciar sesión y los
+  campos de miembro y de contexto — que aparecían en inglés aunque tuvieras la
+  interfaz en español. También la barra de contextos del chat.
+
 ## v0.6.0
 
 - **Organizaciones y workspaces compartidos.** Puedes iniciar sesión en Covenant

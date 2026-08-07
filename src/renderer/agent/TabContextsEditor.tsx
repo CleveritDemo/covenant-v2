@@ -101,11 +101,11 @@ export const TabContextsEditor: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          <div className="tab-contexts__kind-groups">
+          <div className="tab-contexts__kind-groups" role="radiogroup" aria-label={t('tabContexts.kind')}>
             {KIND_GROUPS.map(group => (
               <div className="tab-contexts__kind-group" key={group.labelKey}>
                 <span className="tab-contexts__kind-group-label">{t(group.labelKey)}</span>
-                <div className="tab-contexts__kinds" role="radiogroup" aria-label={t(group.labelKey)}>
+                <div className="tab-contexts__kinds">
                   {group.kinds.map(kind => (
                     <TabContextKindCard
                       key={kind}

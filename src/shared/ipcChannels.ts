@@ -111,6 +111,53 @@ export const IPC = {
   /** Renderer → main (invoke): workflow runs de GitHub Actions vía gh CLI */
   GITHUB_ACTIONS_LIST: 'githubActions:list',
 
+  /** Renderer → main (invoke): estado de sesión Covenant */
+  COVENANT_STATUS: 'covenant:status',
+  /** Renderer → main (invoke): exchange JWT vía token GitHub */
+  COVENANT_SIGN_IN: 'covenant:signIn',
+  /** Renderer → main (invoke): cerrar sesión Covenant */
+  COVENANT_SIGN_OUT: 'covenant:signOut',
+  /** Renderer → main (invoke): listar organizaciones */
+  COVENANT_ORGS_LIST: 'covenant:orgs:list',
+  /** Renderer → main (invoke): crear organización */
+  COVENANT_ORG_CREATE: 'covenant:org:create',
+  /** Renderer → main (invoke): listar miembros de org */
+  COVENANT_MEMBERS_LIST: 'covenant:members:list',
+  /** Renderer → main (invoke): listar solo logins de miembros (cualquier miembro) */
+  COVENANT_MEMBER_LOGINS_LIST: 'covenant:memberLogins:list',
+  /** Renderer → main (invoke): agregar miembro a org */
+  COVENANT_MEMBER_ADD: 'covenant:member:add',
+  /** Renderer → main (invoke): quitar miembro de org */
+  COVENANT_MEMBER_REMOVE: 'covenant:member:remove',
+  /** Renderer → main (invoke): listar defaults de org */
+  COVENANT_DEFAULTS_LIST: 'covenant:defaults:list',
+  /** Renderer → main (invoke): fijar default de org */
+  COVENANT_DEFAULT_SET: 'covenant:default:set',
+  /** Renderer → main (invoke): quitar default de org */
+  COVENANT_DEFAULT_UNSET: 'covenant:default:unset',
+  /** Renderer → main (invoke): listar proyectos locales de org */
+  COVENANT_PROJECTS_LIST: 'covenant:projects:list',
+  /** Renderer → main (invoke): crear proyecto local */
+  COVENANT_PROJECT_CREATE: 'covenant:project:create',
+  /** Renderer → main (invoke): renombrar proyecto local */
+  COVENANT_PROJECT_RENAME: 'covenant:project:rename',
+  /** Renderer → main (invoke): borrar proyecto local */
+  COVENANT_PROJECT_DELETE: 'covenant:project:delete',
+  /** Renderer → main (invoke): agregar assignee a proyecto */
+  COVENANT_PROJECT_ASSIGNEE_ADD: 'covenant:project:assignee:add',
+  /** Renderer → main (invoke): quitar assignee de proyecto */
+  COVENANT_PROJECT_ASSIGNEE_REMOVE: 'covenant:project:assignee:remove',
+  /** Renderer → main (invoke): agregar admin de proyecto */
+  COVENANT_PROJECT_ADMIN_ADD: 'covenant:project:admin:add',
+  /** Renderer → main (invoke): quitar admin de proyecto */
+  COVENANT_PROJECT_ADMIN_REMOVE: 'covenant:project:admin:remove',
+  /** Renderer → main (invoke): listar admins locales de org */
+  COVENANT_ORG_ADMINS_LIST: 'covenant:orgAdmins:list',
+  /** Renderer → main (invoke): agregar admin local de org */
+  COVENANT_ORG_ADMIN_ADD: 'covenant:orgAdmin:add',
+  /** Renderer → main (invoke): quitar admin local de org */
+  COVENANT_ORG_ADMIN_REMOVE: 'covenant:orgAdmin:remove',
+
   /** Renderer → main (invoke): fijar raíz del explorador para la sesión (projectFolder del tab) */
   FILE_EXPLORER_SET_ROOT: 'fileExplorer:setRoot',
   /** Renderer → main (invoke): listar hijos de un directorio relativo al cwd de la sesión */

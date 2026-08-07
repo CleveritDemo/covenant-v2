@@ -13,6 +13,14 @@ import type {
 } from '../src/shared/gitSessionTypes'
 import type { GitHubActionsSnapshot } from '../src/shared/githubActionsTypes'
 import type {
+  CovenantDefault,
+  CovenantMember,
+  CovenantOrg,
+  CovenantProject,
+  CovenantResult,
+  CovenantStatus,
+} from '../src/shared/covenantTypes'
+import type {
   FileExplorerClipboardResult,
   FileExplorerFilePayload,
   FileExplorerListResult,
@@ -357,6 +365,98 @@ const api = {
 
   githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {
     return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
+  },
+
+  covenant: {
+    status(): Promise<CovenantResult<CovenantStatus>> {
+      return ipcRenderer.invoke(IPC.COVENANT_STATUS)
+    },
+    signIn(): Promise<CovenantResult<CovenantStatus>> {
+      return ipcRenderer.invoke(IPC.COVENANT_SIGN_IN)
+    },
+    signOut(): Promise<CovenantResult<CovenantStatus>> {
+      return ipcRenderer.invoke(IPC.COVENANT_SIGN_OUT)
+    },
+    orgsList(): Promise<CovenantResult<CovenantOrg[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORGS_LIST)
+    },
+    orgCreate(slug: string, name: string): Promise<CovenantResult<CovenantOrg>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_CREATE, slug, name)
+    },
+    membersList(slug: string): Promise<CovenantResult<CovenantMember[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBERS_LIST, slug)
+    },
+    memberLoginsList(slug: string): Promise<CovenantResult<string[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_LOGINS_LIST, slug)
+    },
+    memberAdd(slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_ADD, slug, login)
+    },
+    memberRemove(slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_REMOVE, slug, login)
+    },
+    defaultsList(slug: string): Promise<CovenantResult<CovenantDefault[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULTS_LIST, slug)
+    },
+    defaultSet(slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_SET, slug, kind, name)
+    },
+    defaultUnset(slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_UNSET, slug, kind, name)
+    },
+    projectsList(slug: string): Promise<CovenantResult<CovenantProject[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECTS_LIST, slug)
+    },
+    projectCreate(slug: string, name: string): Promise<CovenantResult<CovenantProject>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_CREATE, slug, name)
+    },
+    projectRename(
+      slug: string,
+      projectId: string,
+      name: string,
+    ): Promise<CovenantResult<CovenantProject>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_RENAME, slug, projectId, name)
+    },
+    projectDelete(slug: string, projectId: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_DELETE, slug, projectId)
+    },
+    projectAssigneeAdd(
+      slug: string,
+      projectId: string,
+      login: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ASSIGNEE_ADD, slug, projectId, login)
+    },
+    projectAssigneeRemove(
+      slug: string,
+      projectId: string,
+      login: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ASSIGNEE_REMOVE, slug, projectId, login)
+    },
+    projectAdminAdd(
+      slug: string,
+      projectId: string,
+      login: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ADMIN_ADD, slug, projectId, login)
+    },
+    projectAdminRemove(
+      slug: string,
+      projectId: string,
+      login: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ADMIN_REMOVE, slug, projectId, login)
+    },
+    orgAdminsList(slug: string): Promise<CovenantResult<string[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMINS_LIST, slug)
+    },
+    orgAdminAdd(slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_ADD, slug, login)
+    },
+    orgAdminRemove(slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_REMOVE, slug, login)
+    },
   },
 
   fileExplorerSetRoot(sessionId: string, rootPath: string): Promise<void> {

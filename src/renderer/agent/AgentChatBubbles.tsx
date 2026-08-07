@@ -206,7 +206,15 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   /** Evita que el trim del jump-to-end dispare load-earlier (scrollTop≈0). */
   const jumpToEndRef = useRef(false)
   const pendingScrollAdjustRef = useRef<{ prevHeight: number; prevTop: number } | null>(null)
+  const mountedRef = useRef(true)
   visibleCountRef.current = visibleCount
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   // Avance del chat: si el usuario sigue la cola, quedarse en los últimos N.
   // Si subió a leer historial, conservar lo ya cargado + los nuevos.
@@ -287,17 +295,22 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
 
   const scrollToEnd = useCallback((): void => {
     // Igual que al recibir mensajes en cola: montar solo el último lote.
+    // queueMicrotask: evita flushSync durante el commit de un useEffect caller.
     jumpToEndRef.current = true
     const target = Math.min(CHAT_BATCH_SIZE, rowsLengthRef.current)
-    flushSync(() => {
-      setVisibleCount(target)
-    })
-    const el = scrollRef?.current
-    if (el) scrollAiMessagesToBottom(el, true)
-    requestAnimationFrame(() => {
+    queueMicrotask(() => {
+      if (!mountedRef.current) return
+      flushSync(() => {
+        setVisibleCount(target)
+      })
+      const el = scrollRef?.current
+      if (el) scrollAiMessagesToBottom(el, true)
       requestAnimationFrame(() => {
-        if (el) el.scrollTop = el.scrollHeight
-        jumpToEndRef.current = false
+        requestAnimationFrame(() => {
+          if (!mountedRef.current) return
+          if (el) el.scrollTop = el.scrollHeight
+          jumpToEndRef.current = false
+        })
       })
     })
   }, [scrollRef])

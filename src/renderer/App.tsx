@@ -243,6 +243,7 @@ export const App: React.FC = () => {
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -2820,6 +2821,7 @@ export const App: React.FC = () => {
         onFontIncrease={() => changeFontSize(1)}
         onFontDecrease={() => changeFontSize(-1)}
         onOpenThemePicker={() => setThemePickerOpen(true)}
+        onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onConfigPatch={patchConfig}
       />
@@ -3263,12 +3265,17 @@ export const App: React.FC = () => {
       <AppModals
         config={config}
         settingsOpen={settingsOpen}
+        orgModalOpen={orgModalOpen}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
         agentCreate={agentCreate}
         agentCloneSources={agentCloneSources}
         onCloseSettings={() => {
           setSettingsOpen(false)
+          focusActiveTerminalTextarea()
+        }}
+        onCloseOrganizations={() => {
+          setOrgModalOpen(false)
           focusActiveTerminalTextarea()
         }}
         onCloseThemePicker={() => {

@@ -783,7 +783,99 @@ export const TerminalPane: React.FC<Props> = ({
     term.loadAddon(fit)
     term.loadAddon(links)
     term.loadAddon(serialize)
-    term.open(containerRef.current)
+
+    let openWaitObserver: ResizeObserver | null = null
+    let openWaitRaf = 0
+    let fontsReady = false
+    let openKick: (() => void) | null = null
+    const stopOpenWait = (): void => {
+      if (openWaitObserver) {
+        openWaitObserver.disconnect()
+        openWaitObserver = null
+      }
+      if (openWaitRaf) {
+        cancelAnimationFrame(openWaitRaf)
+        openWaitRaf = 0
+      }
+      openKick = null
+    }
+
+    const fontsPromise = (
+      document as Document & { fonts?: { ready?: Promise<unknown> } }
+    ).fonts?.ready
+    if (!fontsPromise) {
+      fontsReady = true
+    } else {
+      void fontsPromise.then(() => {
+        if (!termAlive) return
+        fontsReady = true
+        openKick?.()
+      })
+    }
+
+    const openWhenReady = (onReady: (host: HTMLElement) => void): void => {
+      const tryHost = (): HTMLElement | null => {
+        if (!fontsReady) return null
+        const el = containerRef.current
+        if (!el || el.clientWidth <= 0 || el.clientHeight <= 0) return null
+        // offsetParent === null ⇒ ancestro display:none (tab/pane inactivo).
+        if (!el.isConnected || el.offsetParent === null) return null
+        return el
+      }
+      const kick = (): void => {
+        if (!termAlive) return
+        const host = tryHost()
+        if (!host) return
+        stopOpenWait()
+        onReady(host)
+      }
+      openKick = kick
+      const ready = tryHost()
+      if (ready) {
+        stopOpenWait()
+        onReady(ready)
+        return
+      }
+      const el = containerRef.current
+      if (!el) return
+      if (typeof ResizeObserver !== 'undefined') {
+        openWaitObserver = new ResizeObserver(() => kick())
+        openWaitObserver.observe(el)
+      }
+      const tick = (): void => {
+        if (!termAlive) return
+        if (tryHost()) {
+          kick()
+          return
+        }
+        openWaitRaf = requestAnimationFrame(tick)
+      }
+      openWaitRaf = requestAnimationFrame(tick)
+    }
+
+    // Setup continues only after open succeeds (container may be 0×0 while mini/hidden).
+    let booted = false
+    let bootCleanup: (() => void) | null = null
+
+    openWhenReady(host => {
+      if (!termAlive || booted) return
+      try {
+        term.open(host)
+      } catch (e) {
+        console.warn('[terminal.open]', e)
+        return
+      }
+      // Fuerza dimensions ya (el Viewport de xterm agenda syncScrollArea en setTimeout(0)).
+      try {
+        fitTerminal(term, fit)
+      } catch {
+        /* dimensions aún no listas */
+      }
+      if (!termAlive) {
+        try { term.dispose() } catch { /* ignore */ }
+        return
+      }
+      booted = true
 
     termRef.current = term
     fitRef.current = fit
@@ -1205,8 +1297,7 @@ export const TerminalPane: React.FC<Props> = ({
     if (spawnCwd) onPtyCwdInitializedRef.current?.(sessionId, spawnCwd)
     window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))
 
-    return () => {
-      termAlive = false
+    bootCleanup = () => {
       ptyWriteBatcher.dispose()
       terminalRepaint.cancel()
       absorbUserInputRef.current = () => {}
@@ -1245,6 +1336,19 @@ export const TerminalPane: React.FC<Props> = ({
       term.dispose()
       onRegisterRef(null)
     }
+    }) // openWhenReady
+
+    return () => {
+      termAlive = false
+      stopOpenWait()
+      if (bootCleanup) {
+        bootCleanup()
+        bootCleanup = null
+      } else {
+        try { term.dispose() } catch { /* never opened */ }
+        onRegisterRef(null)
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
@@ -1280,9 +1384,10 @@ export const TerminalPane: React.FC<Props> = ({
 
   useEffect(() => {
     if (tabActive && isActivePane && fitRef.current && termRef.current) {
-      setTimeout(() => {
-        const term = termRef.current!
-        const fit = fitRef.current!
+      const id = setTimeout(() => {
+        const term = termRef.current
+        const fit = fitRef.current
+        if (!term || !fit || term.rows < 1) return
         fitTerminal(term, fit)
         syncTerminalScrolledUpState(term, setIsScrolledUp)
         window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))
@@ -1294,14 +1399,16 @@ export const TerminalPane: React.FC<Props> = ({
         })
         term.focus()
       }, 10)
+      return () => clearTimeout(id)
     }
   }, [tabActive, isActivePane, sessionId])
 
   useEffect(() => {
     if (!tabActive || !isActivePane || !fitRef.current || !termRef.current) return
     const t = setTimeout(() => {
-      const term = termRef.current!
-      const fit = fitRef.current!
+      const term = termRef.current
+      const fit = fitRef.current
+      if (!term || !fit || term.rows < 1) return
       fitTerminal(term, fit)
       syncTerminalScrolledUpState(term, setIsScrolledUp)
       window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))

@@ -249,8 +249,10 @@ export interface PaneWindowProps {
   onFocus: () => void
   /** Drop de un contexto del pool sobre este pane (agentes). */
   onDropContext?: (contextId: string) => void
+  /** Id del pane (para reportar altura mini estable al padre). */
+  paneId?: string
   /** Altura real del mini agente (contenido) para apilar en el plano. */
-  onMiniContentHeightChange?: (height: number) => void
+  onMiniContentHeightChange?: (paneId: string, height: number) => void
   /** Long-press / DnD de reorden en el plano (minis). */
   reorderEnabled?: boolean
   reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
@@ -290,6 +292,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onClose,
   onFocus,
   onDropContext,
+  paneId,
   onMiniContentHeightChange,
   reorderEnabled = false,
   reorderState = 'idle',
@@ -373,23 +376,24 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   }, [])
 
   // Mini agente: reportar altura real del contenido (height:auto) para el apilado.
+  const lastReportedHeightRef = useRef(0)
   useLayoutEffect(() => {
-    if (!showAsMini || !miniAgentCard || !onMiniContentHeightChange) return
+    if (!showAsMini || !miniAgentCard || !onMiniContentHeightChange || !paneId) return
     const el = rootRef.current
     if (!el) return
-    let last = 0
     const report = (): void => {
       const next = Math.ceil(el.getBoundingClientRect().height)
-      if (next <= 0 || next === last) return
-      last = next
-      onMiniContentHeightChange(next)
+      if (next <= 0) return
+      if (Math.abs(next - lastReportedHeightRef.current) <= 1) return
+      lastReportedHeightRef.current = next
+      onMiniContentHeightChange(paneId, next)
     }
     report()
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(report)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [showAsMini, miniAgentCard, onMiniContentHeightChange, miniFace])
+  }, [showAsMini, miniAgentCard, onMiniContentHeightChange, paneId])
 
   const stageEase = `${PANE_ZOOM_MS}ms cubic-bezier(0.05, 0.9, 0.08, 1)`
   // Terminales live: nunca animar width/height (el fit intermedio hace saltar el texto).

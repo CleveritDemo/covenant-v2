@@ -111,6 +111,33 @@ import {
 import { githubActionsListForSession } from './githubActionsOps'
 import { resolveGithubToken } from './githubToken'
 import {
+  addAssignee as covenantAddAssignee,
+  addMember as covenantAddMember,
+  addOrgAdmin as covenantAddOrgAdmin,
+  addProjectAdmin as covenantAddProjectAdmin,
+  createOrg as covenantCreateOrg,
+  createProject as covenantCreateProject,
+  CovenantApiError,
+  deleteProject as covenantDeleteProject,
+  exchange as covenantExchange,
+  listDefaults as covenantListDefaults,
+  listMembers as covenantListMembers,
+  listMemberLogins as covenantListMemberLogins,
+  listOrgAdmins as covenantListOrgAdmins,
+  listOrgs as covenantListOrgs,
+  listProjects as covenantListProjects,
+  removeAssignee as covenantRemoveAssignee,
+  removeMember as covenantRemoveMember,
+  removeOrgAdmin as covenantRemoveOrgAdmin,
+  removeProjectAdmin as covenantRemoveProjectAdmin,
+  renameProject as covenantRenameProject,
+  setDefault as covenantSetDefault,
+  signOut as covenantSignOut,
+  status as covenantStatus,
+  unsetDefault as covenantUnsetDefault,
+} from './covenantApi'
+import type { CovenantResult } from '../src/shared/covenantTypes'
+import {
   copyPathsForExplorer,
   cutPathsForExplorer,
   pasteIntoExplorer,
@@ -619,6 +646,162 @@ function registerIpc(): void {
     const token = await resolveGithubToken(readConfig())
     return githubActionsListForSession(resolveGitTargetCwd(target), token)
   })
+
+  async function covenantInvoke<T>(fn: () => Promise<T> | T): Promise<CovenantResult<T>> {
+    try {
+      return { ok: true, data: await fn() }
+    } catch (e) {
+      if (e instanceof CovenantApiError) {
+        return { ok: false, error: e.message }
+      }
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  ipcMain.handle(IPC.COVENANT_STATUS, async () => covenantInvoke(() => covenantStatus()))
+
+  ipcMain.handle(IPC.COVENANT_SIGN_IN, async () => {
+    const token = await resolveGithubToken(readConfig())
+    if (!token) return { ok: false as const, error: 'no-github-token' }
+    return covenantInvoke(async () => {
+      await covenantExchange(token)
+      return covenantStatus()
+    })
+  })
+
+  ipcMain.handle(IPC.COVENANT_SIGN_OUT, async () =>
+    covenantInvoke(() => {
+      covenantSignOut()
+      return covenantStatus()
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORGS_LIST, async () => covenantInvoke(() => covenantListOrgs()))
+
+  ipcMain.handle(IPC.COVENANT_ORG_CREATE, async (_e, slug: unknown, name: unknown) =>
+    covenantInvoke(() => covenantCreateOrg(String(slug ?? ''), String(name ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBERS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListMembers(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_LOGINS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListMemberLogins(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_ADD, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantAddMember(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_REMOVE, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantRemoveMember(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULTS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListDefaults(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULT_SET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
+    covenantInvoke(async () => {
+      await covenantSetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULT_UNSET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
+    covenantInvoke(async () => {
+      await covenantUnsetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_PROJECTS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListProjects(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_PROJECT_CREATE, async (_e, slug: unknown, name: unknown) =>
+    covenantInvoke(() => covenantCreateProject(String(slug ?? ''), String(name ?? ''))),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_PROJECT_RENAME,
+    async (_e, slug: unknown, projectId: unknown, name: unknown) =>
+      covenantInvoke(() =>
+        covenantRenameProject(String(slug ?? ''), String(projectId ?? ''), String(name ?? '')),
+      ),
+  )
+
+  ipcMain.handle(IPC.COVENANT_PROJECT_DELETE, async (_e, slug: unknown, projectId: unknown) =>
+    covenantInvoke(async () => {
+      await covenantDeleteProject(String(slug ?? ''), String(projectId ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_PROJECT_ASSIGNEE_ADD,
+    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantAddAssignee(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_PROJECT_ASSIGNEE_REMOVE,
+    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantRemoveAssignee(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_PROJECT_ADMIN_ADD,
+    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantAddProjectAdmin(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_PROJECT_ADMIN_REMOVE,
+    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantRemoveProjectAdmin(
+          String(slug ?? ''),
+          String(projectId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMINS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListOrgAdmins(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_ADD, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantAddOrgAdmin(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_REMOVE, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantRemoveOrgAdmin(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
 
   ipcMain.handle(IPC.FILE_EXPLORER_SET_ROOT, (_e, sessionId: string, rootPath: unknown) => {
     const root = typeof rootPath === 'string' ? rootPath.trim() : ''

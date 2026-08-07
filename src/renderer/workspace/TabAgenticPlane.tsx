@@ -15,6 +15,7 @@ import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
+import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
@@ -41,6 +42,7 @@ export interface TabAgenticPlaneProps {
   idleAgentLabel: string
   contextPoolTitle: string
   contextPoolConfigureLabel: string
+  contextPoolCreateLabel: string
   contextPoolChipHint?: string
   chatPlaceholder: string
   chatEmptyAgents: string
@@ -73,6 +75,7 @@ export interface TabAgenticPlaneProps {
   onMinimizeAllWindows: () => void
   onFocusWindow: (paneId: string) => void
   onConfigureContexts: () => void
+  onCreateContext: () => void
   /** Clic en chip del pool → editar ese contexto (sin DnD). */
   onOpenContext?: (contextId: string) => void
   /** Asigna un contexto arrastrado del pool a un agente. */
@@ -103,6 +106,11 @@ export interface TabAgenticPlaneProps {
   projectFolderRevealLabel: string
   onSelectProjectFolder: () => void
   onRevealProjectFolder?: () => void
+  /** Re-sincroniza repos/agentes/contextos de un workspace org. */
+  onResyncWorkspace?: () => void
+  resyncWorkspaceLabel?: string
+  resyncWorkspaceBusy?: boolean
+  canResyncWorkspace?: boolean
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
@@ -185,6 +193,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   idleAgentLabel,
   contextPoolTitle,
   contextPoolConfigureLabel,
+  contextPoolCreateLabel,
   contextPoolChipHint,
   chatPlaceholder,
   chatEmptyAgents,
@@ -215,6 +224,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onMinimizeAllWindows,
   onFocusWindow,
   onConfigureContexts,
+  onCreateContext,
   onOpenContext,
   onAssignContext,
   onOpenResultsPreview,
@@ -237,6 +247,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   projectFolderRevealLabel,
   onSelectProjectFolder,
   onRevealProjectFolder,
+  onResyncWorkspace,
+  resyncWorkspaceLabel = '',
+  resyncWorkspaceBusy = false,
+  canResyncWorkspace = false,
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
@@ -488,6 +502,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             emptyHint={projectFolderEmptyHint}
             onSelect={onSelectProjectFolder}
           />
+          {canResyncWorkspace && onResyncWorkspace ? (
+            <PlaneResyncButton
+              label={resyncWorkspaceLabel || ''}
+              busy={Boolean(resyncWorkspaceBusy)}
+              onClick={() => onResyncWorkspace()}
+            />
+          ) : null}
           {canToggleExplorer ? (
             <PlaneExplorerButton
               label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
@@ -628,9 +649,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
+          createLabel={contextPoolCreateLabel}
           chipActionHint={contextPoolChipHint}
           contexts={tabContexts}
           onConfigure={onConfigureContexts}
+          onCreate={onCreateContext}
           onOpenContext={onOpenContext}
         />
       )}

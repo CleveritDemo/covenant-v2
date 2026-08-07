@@ -29,7 +29,6 @@
 .plane-context-pool--empty {
   justify-content: center;
   padding: 0 4px;
-  gap: 0;
 }
 
 .plane-context-pool__configure {

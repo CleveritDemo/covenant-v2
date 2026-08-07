@@ -31,27 +31,31 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   canBootstrapAgents = false,
   onBootstrapAgents,
 }) => (
-  <div className="plane-fab-stack">
-    {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
+  <>
+    <div className="plane-fab-stack plane-fab-stack--left">
       <PlaneFab
-        kind="bootstrap"
-        label={bootstrapAgentsTitle}
-        disabled={!canBootstrapAgents}
-        disabledTitle={bootstrapAgentsDisabledTitle}
-        onClick={onBootstrapAgents}
+        kind="terminal"
+        label={terminalTitle}
+        disabled={!canAdd || !canAddTerminal}
+        onClick={onAddTerminal}
       />
-    ) : null}
-    <PlaneFab
-      kind="agent"
-      label={agentTitle}
-      disabled={!canAdd || !canAddAgent}
-      onClick={onAddAgent}
-    />
-    <PlaneFab
-      kind="terminal"
-      label={terminalTitle}
-      disabled={!canAdd || !canAddTerminal}
-      onClick={onAddTerminal}
-    />
-  </div>
+    </div>
+    <div className="plane-fab-stack plane-fab-stack--right">
+      {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
+        <PlaneFab
+          kind="bootstrap"
+          label={bootstrapAgentsTitle}
+          disabled={!canBootstrapAgents}
+          disabledTitle={bootstrapAgentsDisabledTitle}
+          onClick={onBootstrapAgents}
+        />
+      ) : null}
+      <PlaneFab
+        kind="agent"
+        label={agentTitle}
+        disabled={!canAdd || !canAddAgent}
+        onClick={onAddAgent}
+      />
+    </div>
+  </>
 )

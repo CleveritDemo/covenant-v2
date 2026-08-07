@@ -15,7 +15,12 @@ export interface ContextDraftDirtyInput {
   notesContent: string
   /** Cuerpo de `notes` con el que se abrió el modal (o `''` en `create`). */
   initialNotesContent: string
-  /** `changelog` ya guardado o `agentResult`: nunca hay nada que guardar aquí. */
+  /**
+   * `agentResult`: el modal no ofrece guardar (el pie oculta el botón), así que
+   * no hay nada que perder al cerrar. Un `changelog` **no** entra aquí: su
+   * nombre sí es editable y guardable, y renombrarlo tiene que ensuciar el
+   * draft como cualquier otro cambio.
+   */
   readOnly: boolean
 }
 
@@ -26,7 +31,7 @@ export interface ContextDraftDirtyInput {
  * pendiente. El cuerpo de `notes` se compara aparte de `draft` porque no vive
  * ahí, y se compara contra el valor cargado al abrir (no solo "no está
  * vacío"), para no dejar sin aviso la edición del cuerpo de una nota ya
- * existente. Los kinds de solo lectura nunca están "sucios".
+ * existente. Solo `agentResult` (ver `readOnly`) nunca está "sucio".
  */
 export function isContextDraftDirty(input: ContextDraftDirtyInput): boolean {
   const { draft, initial, notesContent, initialNotesContent, readOnly } = input

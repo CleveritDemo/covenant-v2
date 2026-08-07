@@ -128,10 +128,25 @@ describe('isContextDraftDirty', () => {
     })).toBe(false)
   })
 
-  it('read-only kinds are never dirty, regardless of draft differences', () => {
-    const original = context({ kind: 'changelog', name: 'AI Changelog' })
+  it('edit: renaming a saved changelog is dirty — only agentResult is read-only', () => {
+    // El caso se decidió pensando en agentResult (donde no hay nada que
+    // guardar) y se extendió a changelog sin ver que ahí el nombre sí es
+    // editable y guardable: el Input se renderiza y el botón Guardar se
+    // muestra. Con readOnly:true el cambio se perdía en silencio al pulsar Esc.
+    const original = context({ kind: 'changelog', name: 'AI Changelog', fileName: 'changelog.md' })
     expect(isContextDraftDirty({
-      draft: { ...original, name: 'Renamed changelog' },
+      draft: { ...original, name: 'Bitácora', fileName: 'bitacora.md' },
+      initial: original,
+      notesContent: '',
+      initialNotesContent: '',
+      readOnly: false,
+    })).toBe(true)
+  })
+
+  it('agentResult is never dirty, regardless of draft differences', () => {
+    const original = context({ kind: 'agentResult', name: 'fullstack' })
+    expect(isContextDraftDirty({
+      draft: { ...original, name: 'Renamed result' },
       initial: original,
       notesContent: '',
       initialNotesContent: '',
@@ -139,7 +154,7 @@ describe('isContextDraftDirty', () => {
     })).toBe(false)
   })
 
-  it('read-only kinds ignore notes-body differences too', () => {
+  it('agentResult ignores notes-body differences too', () => {
     // agentResult never has an editable body through this modal, but the
     // contract must hold even if some caller passed mismatched notes values.
     const original = context({ kind: 'agentResult', name: 'fullstack' })

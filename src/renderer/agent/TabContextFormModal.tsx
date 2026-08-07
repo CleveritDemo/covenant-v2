@@ -68,6 +68,12 @@ export const TabContextFormModal: React.FC<Props> = ({
   const { t } = useT()
   const [draft, setDraft] = useState<TabContext | null>(null)
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
+  // Canal aparte del de la vista previa: revelar el .md o elegir carpeta son
+  // acciones del panel izquierdo, y su fallo no debe borrar la vista previa ni
+  // el medidor. Antes iban a `preview` y, como el debounce solo se redispara
+  // con `draft`/`notesContent`, el panel derecho se quedaba en error para
+  // siempre. `''` = sin aviso.
+  const [actionMessage, setActionMessage] = useState('')
   const [notesContent, setNotesContent] = useState('')
   const [resolvedCwdLabel, setResolvedCwdLabel] = useState('')
   // Refs para dismiss/backdrop: evita estado stale en el handler async.
@@ -83,6 +89,9 @@ export const TabContextFormModal: React.FC<Props> = ({
   // Valor del cuerpo de la nota cuando se cargó (o '' en `create`), para
   // detectar ediciones del textarea: el cuerpo de `notes` no vive en `draft`.
   const notesInitialContentRef = useRef('')
+  // Contador de peticiones de vista previa: solo la última en pedirse puede
+  // escribir el resultado (ver `loadPreview`).
+  const previewSeqRef = useRef(0)
   draftRef.current = draft
   notesContentRef.current = notesContent
   modeRef.current = mode
@@ -156,6 +165,7 @@ export const TabContextFormModal: React.FC<Props> = ({
     if (!open) {
       setDraft(null)
       setPreview({ status: 'idle' })
+      setActionMessage('')
       setNotesContent('')
       notesInitialContentRef.current = ''
       setResolvedCwdLabel('')
@@ -163,6 +173,7 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
     const initial = mode === 'edit' && context ? { ...context } : emptyContext()
     setDraft(initial)
+    setActionMessage('')
     setPreview(
       initial.kind === 'changelog' || initial.kind === 'agentResult'
         ? { status: 'loading' }
@@ -220,7 +231,11 @@ export const TabContextFormModal: React.FC<Props> = ({
     initial,
     notesContent,
     initialNotesContent: notesInitialContentRef.current,
-    readOnly: readOnlyChangelog || readOnlyAgentResult,
+    // Solo `agentResult` cuenta como solo lectura: el pie le oculta el botón
+    // Guardar, así que cerrar no pierde nada. En un `changelog` el nombre sí se
+    // edita y se guarda (el Input se renderiza y el botón está ahí), y darlo
+    // por limpio hacía que Esc tirara el cambio en silencio.
+    readOnly: readOnlyAgentResult,
   })
   isDirtyRef.current = isDirty
 
@@ -375,6 +390,14 @@ export const TabContextFormModal: React.FC<Props> = ({
 
   const loadPreview = async (): Promise<void> => {
     if (!draft) return
+    // Token de secuencia: el debounce de 400 ms solo evita el solapamiento
+    // cuando materializar tarda menos que eso, y `symbols` sobre un repo
+    // grande no lo cumple. Sin esto, una petición lenta A seguida de una
+    // rápida B resuelve B y luego A, y el panel —con su medidor derivado—
+    // se queda mostrando cifras superadas como si fueran las actuales.
+    const seq = previewSeqRef.current + 1
+    previewSeqRef.current = seq
+    const stale = (): boolean => seq !== previewSeqRef.current
     // Si ya hay una vista previa buena en pantalla, no la tapemos con
     // "Generando…": mejor contenido momentáneamente desactualizado que un
     // parpadeo en cada tecla. Forma funcional para no leer un `preview`
@@ -382,6 +405,7 @@ export const TabContextFormModal: React.FC<Props> = ({
     setPreview(current => (current.status === 'success' ? current : { status: 'loading' }))
     try {
       const workingCwd = await resolveCwd()
+      if (stale()) return
       if (!workingCwd) {
         setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
         return
@@ -391,6 +415,7 @@ export const TabContextFormModal: React.FC<Props> = ({
         cwd: workingCwd,
         ...(draft.kind === 'notes' ? { content: notesContent ?? '' } : {}),
       })
+      if (stale()) return
       if (!result.ok) {
         setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
         return
@@ -406,6 +431,7 @@ export const TabContextFormModal: React.FC<Props> = ({
         filePath: result.filePath ?? `${PROJECT_DIR}/${normalizeContextFileName(draft.fileName || draft.name, draft.id)}`,
       })
     } catch (error) {
+      if (stale()) return
       setPreview({
         status: 'error',
         message: error instanceof Error ? error.message : t('tabContexts.previewError'),
@@ -506,13 +532,14 @@ export const TabContextFormModal: React.FC<Props> = ({
           resolvedCwdLabel={resolvedCwdLabel}
           projectCwd={cwd}
           duplicateMessage={duplicateMessage}
+          actionMessage={actionMessage}
           readOnlyChangelog={Boolean(readOnlyChangelog)}
           readOnlyAgentResult={Boolean(readOnlyAgentResult)}
           onUpdate={update}
           onSelectKind={selectKind}
           onNotesContentChange={setNotesContent}
           onPreviewReset={() => setPreview(current => (current.status === 'success' ? current : { status: 'idle' }))}
-          onError={message => setPreview({ status: 'error', message })}
+          onActionError={setActionMessage}
         />
       </div>
     </TerminalModal>

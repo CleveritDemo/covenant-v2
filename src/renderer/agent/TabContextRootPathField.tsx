@@ -6,6 +6,7 @@ interface Props {
   value: string
   projectCwd: string
   onChange: (rootPath: string | undefined) => void
+  /** Aviso del selector de carpeta; `''` limpia el anterior. */
   onPickError?: (message: string) => void
 }
 
@@ -19,6 +20,9 @@ export const TabContextRootPathField: React.FC<Props> = ({
   const { t } = useT()
 
   const pickFolder = async (): Promise<void> => {
+    // Cada intento parte sin el aviso del anterior: si el segundo va bien, el
+    // error del primero no debe quedarse colgado en el panel.
+    onPickError?.('')
     const cwd = projectCwd.trim()
     if (!cwd) {
       onPickError?.(t('tabContexts.missingCwd'))

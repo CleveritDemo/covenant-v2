@@ -56,14 +56,22 @@ interface Props {
   resolvedCwdLabel: string
   projectCwd: string
   duplicateMessage: string
+  /** Aviso de la última acción del panel (revelar, elegir carpeta); `''` = ninguno. */
+  actionMessage: string
   readOnlyChangelog: boolean
   readOnlyAgentResult?: boolean
   onUpdate: (patch: Partial<TabContext>) => void
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
   onPreviewReset: () => void
-  /** Canal de error hacia el padre: carpeta raíz inválida o fallo al revelar el .md. */
-  onError?: (message: string) => void
+  /**
+   * Canal de error de las acciones del panel izquierdo: carpeta raíz inválida
+   * o fallo al revelar el .md. Vive aparte de la vista previa a propósito —
+   * son fallos de acción, no de materialización, y mandarlos al panel derecho
+   * dejaba el presupuesto y la vista previa borrados hasta la siguiente
+   * edición. `''` limpia el aviso.
+   */
+  onActionError?: (message: string) => void
 }
 
 export const TabContextsEditor: React.FC<Props> = ({
@@ -74,20 +82,26 @@ export const TabContextsEditor: React.FC<Props> = ({
   resolvedCwdLabel,
   projectCwd,
   duplicateMessage,
+  actionMessage,
   readOnlyChangelog,
   readOnlyAgentResult = false,
   onUpdate,
   onSelectKind,
   onNotesContentChange,
   onPreviewReset,
-  onError,
+  onActionError,
 }) => {
   const { t } = useT()
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
   // Un contexto "guardado" es uno que ya está en el catálogo vivo del padre —
   // la vista previa (TAB_CONTEXT_PREVIEW) no escribe a disco, así que
   // preview.status === 'success' no implica que el .md exista todavía.
-  const isSaved = contexts.some(item => item.id === draft.id)
+  // También hay que comparar el archivo: editar el nombre reescribe
+  // `draft.fileName` en cada tecla mientras el `id` no cambia hasta save(), y
+  // con solo el `id` el botón quedaba habilitado apuntando a un .md que
+  // todavía no existe.
+  const savedContext = contexts.find(item => item.id === draft.id)
+  const isSaved = Boolean(savedContext && savedContext.fileName === draft.fileName)
 
   return (
     <div className="tab-contexts__panes">
@@ -125,92 +139,12 @@ export const TabContextsEditor: React.FC<Props> = ({
           </div>
         )}
 
-        <label>
-          <span>{t('tabContexts.name')}</span>
-          <Input
-            value={draft.name}
-            placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
-            onChange={event => {
-              const name = event.target.value
-              const fallback = draft.kind === 'changelog' ? 'changelog' : 'context'
-              onUpdate({
-                name,
-                fileName: normalizeContextFileName(name || fallback, fallback),
-              })
-            }}
-          />
-          {draft.kind === 'changelog' && (
-            <small>{t('tabContexts.changelogCreateHint')}</small>
-          )}
-        </label>
-        <div className="tab-contexts__file-row">
-          <span>{`${PROJECT_DIR}/${normalizeContextFileName(
-            draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-            draft.kind === 'changelog' ? 'changelog' : 'context',
-          )}`}</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!isSaved}
-            onClick={() => {
-              void window.api.revealTabContext(projectCwd, draft.fileName).then(result => {
-                if (!result.ok) onError?.(result.error ?? t('tabContexts.revealError'))
-              })
-            }}
-          >
-            {t('tabContexts.reveal')}
-          </Button>
-        </div>
-
-        {!hostOwnedReadOnly && (
-          <details className="tab-contexts__appearance-fold">
-            <summary>
-              <Icon name={appearanceIconName(resolveContextIcon(draft))} size={14} />
-              {t('tabContexts.appearance')}
-            </summary>
-            <fieldset className="tab-contexts__appearance">
-              <legend>{t('tabContexts.icon')}</legend>
-              <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
-                {TAB_CONTEXT_ICON_NAMES.map(icon => {
-                  const active = resolveContextIcon(draft) === icon
-                  return (
-                    <TabContextIconSwatch
-                      key={icon}
-                      icon={appearanceIconName(icon)}
-                      color={resolveContextColor(draft)}
-                      title={icon}
-                      selected={active}
-                      onSelect={() => onUpdate({ icon })}
-                    />
-                  )
-                })}
-              </div>
-            </fieldset>
-            <fieldset className="tab-contexts__appearance">
-              <legend>{t('tabContexts.color')}</legend>
-              <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
-                {TAB_CONTEXT_COLORS.map(color => {
-                  const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
-                  return (
-                    <TabContextColorSwatch
-                      key={color}
-                      color={color}
-                      selected={active}
-                      onSelect={() => onUpdate({ color })}
-                    />
-                  )
-                })}
-              </div>
-            </fieldset>
-          </details>
-        )}
-
         {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
           <TabContextRootPathField
             value={draft.rootPath ?? ''}
             projectCwd={projectCwd}
             onChange={rootPath => onUpdate({ rootPath })}
-            onPickError={onError}
+            onPickError={onActionError}
           />
         ) : null}
 
@@ -266,6 +200,96 @@ export const TabContextsEditor: React.FC<Props> = ({
           </label>
         )}
 
+        {/* Nombre, archivo y aspecto van después de la configuración del tipo:
+            elegir "Classes and methods" y tener que pasar por el nombre y los
+            catorce iconos antes de indicar qué carpeta indexar es el
+            formulario al revés (problema 3 del spec). */}
+        <label>
+          <span>{t('tabContexts.name')}</span>
+          <Input
+            value={draft.name}
+            placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
+            onChange={event => {
+              const name = event.target.value
+              const fallback = draft.kind === 'changelog' ? 'changelog' : 'context'
+              onUpdate({
+                name,
+                fileName: normalizeContextFileName(name || fallback, fallback),
+              })
+            }}
+          />
+          {draft.kind === 'changelog' && (
+            <small>{t('tabContexts.changelogCreateHint')}</small>
+          )}
+        </label>
+        <div className="tab-contexts__file-row">
+          <span>{`${PROJECT_DIR}/${normalizeContextFileName(
+            draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+            draft.kind === 'changelog' ? 'changelog' : 'context',
+          )}`}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!isSaved}
+            onClick={() => {
+              onActionError?.('')
+              void window.api.revealTabContext(projectCwd, draft.fileName)
+                .then(result => {
+                  if (!result.ok) onActionError?.(result.error ?? t('tabContexts.revealError'))
+                })
+                // ipcMain.handle rechaza la promesa si el handler lanza: sin
+                // este catch sería un unhandled rejection y el usuario no
+                // vería nada.
+                .catch(() => onActionError?.(t('tabContexts.revealError')))
+            }}
+          >
+            {t('tabContexts.reveal')}
+          </Button>
+        </div>
+
+        {!hostOwnedReadOnly && (
+          <details className="tab-contexts__appearance-fold">
+            <summary>
+              <Icon name={appearanceIconName(resolveContextIcon(draft))} size={14} />
+              {t('tabContexts.appearance')}
+            </summary>
+            <fieldset className="tab-contexts__appearance">
+              <legend>{t('tabContexts.icon')}</legend>
+              <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
+                {TAB_CONTEXT_ICON_NAMES.map(icon => {
+                  const active = resolveContextIcon(draft) === icon
+                  return (
+                    <TabContextIconSwatch
+                      key={icon}
+                      icon={appearanceIconName(icon)}
+                      color={resolveContextColor(draft)}
+                      title={icon}
+                      selected={active}
+                      onSelect={() => onUpdate({ icon })}
+                    />
+                  )
+                })}
+              </div>
+            </fieldset>
+            <fieldset className="tab-contexts__appearance">
+              <legend>{t('tabContexts.color')}</legend>
+              <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
+                {TAB_CONTEXT_COLORS.map(color => {
+                  const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
+                  return (
+                    <TabContextColorSwatch
+                      key={color}
+                      color={color}
+                      selected={active}
+                      onSelect={() => onUpdate({ color })}
+                    />
+                  )
+                })}
+              </div>
+            </fieldset>
+          </details>
+        )}
+
         {(draft.kind === 'changelog' || draft.kind === 'agentResult') && (
           <p className="tab-contexts__cwd">
             {t(draft.kind === 'agentResult'
@@ -281,6 +305,12 @@ export const TabContextsEditor: React.FC<Props> = ({
         {duplicateMessage && (
           <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
             <p>{duplicateMessage}</p>
+          </div>
+        )}
+
+        {actionMessage && (
+          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
+            <p>{actionMessage}</p>
           </div>
         )}
       </section>

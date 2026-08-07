@@ -19,7 +19,7 @@ export interface PlaneContextPoolItem {
 export interface PlaneContextPoolProps {
   title: string
   configureLabel: string
-  /** Hint in chip title/aria: click edits, drag assigns. */
+  /** Hint del chip (segunda línea del tooltip + aria): clic edita, arrastrar asigna. */
   chipActionHint?: string
   contexts: PlaneContextPoolItem[]
   onConfigure: () => void
@@ -73,7 +73,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
                   type="button"
                   className="plane-context-pool__drag"
                   draggable
-                  title={label}
                   aria-label={label}
                   onClick={event => {
                     event.preventDefault()
@@ -104,6 +103,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
                     kindLabel={ctx.kindLabel}
                     icon={ctx.icon}
                     color={ctx.color}
+                    hint={chipActionHint}
                     iconSize={11}
                   />
                 </button>

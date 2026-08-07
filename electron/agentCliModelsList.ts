@@ -220,7 +220,7 @@ function runCliCapture(
  * Resuelve un comando bare (`copilot`) a ruta absoluta vía PATH (+ .cmd/.exe en win32).
  * Usa realpath para seguir symlinks del binario npm.
  */
-function resolveCommandAbsolutePath(command: string): string | null {
+export function resolveCommandAbsolutePath(command: string): string | null {
   const trimmed = command.trim()
   if (!trimmed) return null
 

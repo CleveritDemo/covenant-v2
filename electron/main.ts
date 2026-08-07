@@ -61,7 +61,9 @@ import { isAgentCliProvider } from '../src/shared/agentCliProviders'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
+import type { AgentCliStatusMap } from '../src/shared/agentCliStatus'
 import { listAgentCliModels } from './agentCliModelsList'
+import { detectAgentClis } from './agentCliDetect'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -1049,6 +1051,7 @@ function registerIpc(): void {
     }
     return listAgentCliModels(provider, readConfig())
   })
+  ipcMain.handle(IPC.AGENT_CLI_DETECT, (): AgentCliStatusMap => detectAgentClis(readConfig()))
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
     const win = BrowserWindow.fromWebContents(event.sender)

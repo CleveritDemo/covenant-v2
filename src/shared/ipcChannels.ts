@@ -17,6 +17,8 @@ export const IPC = {
   AGENT_CLI_IS_ACTIVE: 'agentCli:isActive',
   /** Renderer → main: listar modelos del CLI por provider. */
   AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
+  /** Renderer → main: qué CLIs de agente están instalados. */
+  AGENT_CLI_DETECT: 'agentCli:detect',
   /** Renderer → main: iniciar sala de brainstorm round-robin. */
   BRAINSTORM_START: 'brainstorm:start',
   /** Renderer → main: detener sala de brainstorm. */

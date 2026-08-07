@@ -26,6 +26,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
+import type { AgentCliStatusMap } from '../src/shared/agentCliStatus'
 import type { AgentCliProvider } from '../src/shared/agentCliProviders'
 import type {
   TabContextAnnotationRequest,
@@ -114,6 +115,9 @@ const api = {
   },
   listAgentCliModels(provider: AgentCliProvider): Promise<AgentCliModelsResult> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
+  },
+  detectAgentClis(): Promise<AgentCliStatusMap> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_DETECT)
   },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)

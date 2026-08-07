@@ -3,8 +3,38 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+}
+
+.agent-config-modal__body {
+  display: grid;
+  grid-template-columns: 178px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.agent-config-modal__body > .agent-config-rail {
+  border-right: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 32%, transparent);
+}
+
+.agent-config-modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 16px 18px;
   overflow-y: auto;
-  gap: 0;
+}
+
+.agent-config-modal__panel-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .agent-config-modal__footer {
@@ -17,8 +47,54 @@
 
 .agent-config-modal__save-hint {
   margin: 0;
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: 12px;
   line-height: 1.35;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-config-modal__saved-flash {
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-veil-strong);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.agent-config-modal__save-file {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text) 62%, var(--text-muted));
+}
+
+@media (max-width: 640px) {
+  .agent-config-modal__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .agent-config-modal__body > .agent-config-rail {
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+  }
+}
+
+.agent-config-modal__next-turn {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
+}
+
+.agent-config-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }

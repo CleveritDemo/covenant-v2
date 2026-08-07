@@ -32,3 +32,14 @@
   color: var(--text-muted);
   opacity: 0.65;
 }
+
+/*
+ * ponytail: `field-sizing: content` hace el auto-grow sin JS ni medir alturas.
+ * Chromium lo soporta desde la 123 y Electron va por encima. En un navegador
+ * sin soporte simplemente se queda con las `rows` del elemento.
+ */
+.textarea--auto-grow {
+  field-sizing: content;
+  resize: none;
+  max-height: 40vh;
+}

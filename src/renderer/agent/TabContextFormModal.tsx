@@ -512,7 +512,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           onSelectKind={selectKind}
           onNotesContentChange={setNotesContent}
           onPreviewReset={() => setPreview(current => (current.status === 'success' ? current : { status: 'idle' }))}
-          onPickRootError={message => setPreview({ status: 'error', message })}
+          onError={message => setPreview({ status: 'error', message })}
         />
       </div>
     </TerminalModal>

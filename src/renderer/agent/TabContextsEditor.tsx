@@ -62,12 +62,13 @@ interface Props {
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
   onPreviewReset: () => void
-  onPickRootError?: (message: string) => void
+  /** Canal de error hacia el padre: carpeta raíz inválida o fallo al revelar el .md. */
+  onError?: (message: string) => void
 }
 
 export const TabContextsEditor: React.FC<Props> = ({
   draft,
-  contexts: _contexts,
+  contexts,
   preview,
   notesContent,
   resolvedCwdLabel,
@@ -79,10 +80,14 @@ export const TabContextsEditor: React.FC<Props> = ({
   onSelectKind,
   onNotesContentChange,
   onPreviewReset,
-  onPickRootError,
+  onError,
 }) => {
   const { t } = useT()
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
+  // Un contexto "guardado" es uno que ya está en el catálogo vivo del padre —
+  // la vista previa (TAB_CONTEXT_PREVIEW) no escribe a disco, así que
+  // preview.status === 'success' no implica que el .md exista todavía.
+  const isSaved = contexts.some(item => item.id === draft.id)
 
   return (
     <div className="tab-contexts__panes">
@@ -146,8 +151,12 @@ export const TabContextsEditor: React.FC<Props> = ({
           <Button
             variant="secondary"
             size="sm"
-            disabled={preview.status !== 'success'}
-            onClick={() => { void window.api.revealTabContext(projectCwd, draft.fileName) }}
+            disabled={!isSaved}
+            onClick={() => {
+              void window.api.revealTabContext(projectCwd, draft.fileName).then(result => {
+                if (!result.ok) onError?.(result.error ?? t('tabContexts.revealError'))
+              })
+            }}
           >
             {t('tabContexts.reveal')}
           </Button>
@@ -201,7 +210,7 @@ export const TabContextsEditor: React.FC<Props> = ({
             value={draft.rootPath ?? ''}
             projectCwd={projectCwd}
             onChange={rootPath => onUpdate({ rootPath })}
-            onPickError={onPickRootError}
+            onPickError={onError}
           />
         ) : null}
 

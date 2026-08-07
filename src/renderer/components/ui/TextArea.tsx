@@ -7,16 +7,18 @@ export type TextAreaVariant = 'default'
 export interface TextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> {
   size?: TextAreaSize
   variant?: TextAreaVariant
+  /** Crece con el contenido entre `rows` y un tope; sin tirador de resize. */
+  autoGrow?: boolean
 }
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea(
-  { size = 'md', variant = 'default', ...rest },
+  { size = 'md', variant = 'default', autoGrow = false, ...rest },
   ref,
 ) {
   return (
     <textarea
       ref={ref}
-      className={`textarea textarea--${size} textarea--${variant}`}
+      className={`textarea textarea--${size} textarea--${variant}${autoGrow ? ' textarea--auto-grow' : ''}`}
       {...rest}
     />
   )

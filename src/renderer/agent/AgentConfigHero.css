@@ -30,12 +30,16 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   pointer-events: none;
 }
 
 .agent-config-hero__name {
   margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 650;
@@ -47,15 +51,65 @@
   white-space: nowrap;
 }
 
-.agent-config-hero__meta {
-  margin: 0;
-  font-family: var(--font-ui);
+.agent-config-hero__role {
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 12px;
-  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agent-config-hero__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.agent-config-hero__chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 260px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.agent-config-hero__chip:hover {
+  color: var(--text);
+  border-color: var(--accent-border-soft);
+}
+
+.agent-config-hero__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.agent-config-hero__chip--warn {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.agent-config-hero__chip--warn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .agent-config-hero__edit-hint {

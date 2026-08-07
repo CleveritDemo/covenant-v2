@@ -32,7 +32,6 @@ export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
           'plane-project-folder__btn',
           hasFolder ? 'plane-project-folder__btn--set' : '',
         ].filter(Boolean).join(' ')}
-        title={hasFolder ? folderPath : emptyHint}
         aria-label={hasFolder ? changeLabel : selectLabel}
         onClick={onSelect}
       >

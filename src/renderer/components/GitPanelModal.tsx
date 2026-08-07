@@ -219,7 +219,6 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                     <div className="git-panel-top-bar__lead">
                       <div
                         className="git-panel-top-bar__cwd"
-                        title={t('git.cwdTooltip', { cwd: status.sessionCwd || '—' })}
                       >
                         <span className="git-panel-top-bar__cwd-icon" aria-hidden>
                           <Icon name="folder-filled" size={14} />

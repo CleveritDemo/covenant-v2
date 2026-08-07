@@ -80,7 +80,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           <button
             type="button"
             className="plane-mini-face__action plane-mini-face__drag-handle"
-            title={reorderLabel}
             aria-label={reorderLabel}
             onClick={event => {
               event.preventDefault()
@@ -94,11 +93,10 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
             <Icon name="drag-handle" size={11} />
           </button>
         ) : null}
-        <span className="plane-mini-face__name" title={name}>{name}</span>
+        <span className="plane-mini-face__name">{name}</span>
         <span
           className="plane-mini-face__provider"
           style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
-          title={agentCliSpec(provider).label}
           aria-label={agentCliSpec(provider).label}
         >
           <BrandIcon provider={provider} size={9} aria-hidden />
@@ -106,7 +104,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         {coordination === 'orchestrator' ? (
           <span
             className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
-            title={t('agentPane.orchestratorBadge')}
             aria-label={t('agentPane.orchestratorBadge')}
           >
             <Icon name="git-branch" size={9} aria-hidden />
@@ -115,7 +112,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         {coordination === 'productOwner' ? (
           <span
             className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
-            title={t('agentPane.productOwnerBadge')}
             aria-label={t('agentPane.productOwnerBadge')}
           >
             <Icon name="folder" size={9} aria-hidden />
@@ -128,7 +124,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           <button
             type="button"
             className="plane-mini-face__action"
-            title={configLabel}
             aria-label={configLabel}
             onClick={event => {
               event.preventDefault()
@@ -148,7 +143,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           <button
             type="button"
             className="plane-mini-face__action plane-mini-face__action--danger"
-            title={deleteLabel}
             aria-label={deleteLabel}
             onClick={event => {
               event.preventDefault()
@@ -167,7 +161,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </div>
     </div>
     <div className="plane-mini-face__body">
-      <span className="plane-mini-face__status" title={statusLabel}>{statusLabel}</span>
+      <span className="plane-mini-face__status">{statusLabel}</span>
     </div>
     {children ? (
       <div className="plane-mini-face__nodes">
@@ -178,7 +172,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       <button
         type="button"
         className="plane-mini-face__action plane-mini-face__results-drag"
-        title={resultsTitle}
         aria-label={resultsTitle}
         draggable
         onClick={event => {

@@ -198,7 +198,7 @@ const AgentResultsReport: React.FC<{
               <ul className="results-report__log">
                 {group.entries.map(entry => (
                   <li key={`${entry.timestamp}-${entry.text}`}>
-                    <time dateTime={entry.timestamp} title={entry.timestamp}>
+                    <time dateTime={entry.timestamp}>
                       {formatLogTime(entry.timestamp)}
                     </time>
                     <span className="results-report__spine" aria-hidden />

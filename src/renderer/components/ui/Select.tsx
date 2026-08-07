@@ -141,7 +141,6 @@ export const Select: React.FC<SelectProps> = ({
         type="button"
         className={`select select--${size}`}
         disabled={disabled}
-        title={title}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}

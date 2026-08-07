@@ -48,7 +48,7 @@ export const UpdateBanner: React.FC = () => {
         <button
           type="button"
           className="update-banner__version"
-          title={t('update.notesTitle')}
+          aria-label={t('update.notesTitle')}
           onClick={() => setNotesOpen(true)}
         >
           v{state.version}
@@ -72,7 +72,6 @@ export const UpdateBanner: React.FC = () => {
           variant="icon"
           tabIndex={-1}
           onClick={() => window.api.dismissUpdate()}
-          title={t('update.dismiss')}
           aria-label={t('update.dismiss')}
         >
           <Icon name="close" size={13} />

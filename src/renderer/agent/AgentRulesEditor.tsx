@@ -83,7 +83,6 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 type="button"
                 className="agent-rules-editor__move"
                 disabled={disabled || index === 0}
-                title={t('agentPane.rulesMoveUp')}
                 aria-label={t('agentPane.rulesMoveUp')}
                 onClick={() => moveBy(index, -1)}
               >
@@ -93,7 +92,6 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 type="button"
                 className="agent-rules-editor__move"
                 disabled={disabled || index === rules.length - 1}
-                title={t('agentPane.rulesMoveDown')}
                 aria-label={t('agentPane.rulesMoveDown')}
                 onClick={() => moveBy(index, 1)}
               >
@@ -103,7 +101,6 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 type="button"
                 className="agent-rules-editor__remove"
                 disabled={disabled}
-                title={t('agentPane.rulesRemove')}
                 aria-label={t('agentPane.rulesRemove')}
                 onClick={() => removeAt(index)}
               >

@@ -28,7 +28,7 @@ export const ThemePickerTrigger: React.FC<ThemePickerTriggerProps> = ({
       className="theme-picker-trigger"
       style={{ '--swatch-bg': bg, '--swatch-accent': accent } as React.CSSProperties}
       onClick={onClick}
-      title={t('themePicker.triggerTitle')}
+      aria-label={t('themePicker.triggerTitle')}
       aria-haspopup="dialog"
       aria-expanded={isOpen}
     >

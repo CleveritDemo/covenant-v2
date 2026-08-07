@@ -196,7 +196,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
           ) : null}
           {!loadingModels && modelsErrorText ? (
             <div className="agent-config-settings__error">
-              <span title={modelsErrorText}>
+              <span>
                 {t('agentPane.modelLoadErrorDetail', { detail: modelsErrorText.slice(0, 160) })}
               </span>
               {onReloadModels ? (
@@ -212,7 +212,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
           <AgentConfigFolderChip
             label={cwd.trim() ? folderLabel(cwd) : t('agentPane.projectFolderUnset')}
             path={shortenHome(cwd)}
-            title={cwd.trim() || t('agentPane.projectFolderUnset')}
           />
           <p className="agent-config-settings__hint">{t('agentPane.projectFolderHint')}</p>
         </div>

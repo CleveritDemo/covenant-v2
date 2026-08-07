@@ -177,22 +177,20 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
             'file-editor-panel__path',
             isDirty ? 'file-editor-panel__path--dirty' : '',
           ].filter(Boolean).join(' ')}
-          title={selectedPath}
         >
           {selectedPath}
           {isDirty && (
-            <span className="file-editor-panel__unsaved" title={t('fileExplorer.editor.unsaved')}>
+            <span className="file-editor-panel__unsaved">
               {' '}•
             </span>
           )}
         </code>
-        <span className="file-editor-panel__save-hint" title={`${SAVE_SHORTCUT_LABEL}`}>
+        <span className="file-editor-panel__save-hint">
           {saveHint}
         </span>
         {onClose && (
           <ExplorerToolButton
             variant="close"
-            title={t('fileExplorer.editor.closeFile')}
             aria-label={t('fileExplorer.editor.closeFileAria')}
             onClick={onClose}
           >
@@ -304,14 +302,12 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
           )}
           <FileEditorSearchNav
             direction="prev"
-            shortcutHint="Shift+Enter"
             label={t('fileExplorer.editor.findAria')}
             disabled={!findQuery.trim() || matchCount === 0}
             onClick={() => editorRef.current?.findPrevious()}
           />
           <FileEditorSearchNav
             direction="next"
-            shortcutHint="Enter"
             label={t('fileExplorer.editor.findAria')}
             disabled={!findQuery.trim() || matchCount === 0}
             onClick={() => editorRef.current?.findNext()}

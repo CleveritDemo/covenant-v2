@@ -569,7 +569,6 @@ function LoginChips({
             size="xs"
             disabled={busy}
             onClick={() => onRemove(login)}
-            title={removeLabel}
             aria-label={removeLabel}
           >
             <Icon name="close" size={12} />

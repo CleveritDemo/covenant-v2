@@ -209,7 +209,6 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
                 className="terminal-modal-traffic-btn terminal-modal-traffic-btn--close"
                 onPointerDown={closeFromTraffic}
                 onClick={closeFromTraffic}
-                title={t('ui.closeTitle')}
                 aria-label={t('ui.closeAriaLabel')}
               />
               <button

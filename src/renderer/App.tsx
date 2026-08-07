@@ -3139,7 +3139,6 @@ export const App: React.FC = () => {
                 title,
                 busy: busyPanes.has(paneId),
                 customTitle: tab.paneTitles?.[paneId]?.trim() || undefined,
-                folderPath: paneCwds[paneId]?.trim() || tab.projectFolder?.trim() || undefined,
                 folderName: (() => {
                   const name = sessionCwdFolderName(
                     paneCwds[paneId] || tab.projectFolder,

@@ -40,7 +40,7 @@ export const GitRepoPickerModal: React.FC<GitRepoPickerModalProps> = ({
             icon={<Icon name="git-branch" size={18} />}
             onClick={() => onSelect(repo.path)}
           >
-            <strong title={repo.path}>{sessionCwdPaneLabel(repo.path)}</strong>
+            <strong>{sessionCwdPaneLabel(repo.path)}</strong>
           </ChoiceCard>
         ))}
       </div>

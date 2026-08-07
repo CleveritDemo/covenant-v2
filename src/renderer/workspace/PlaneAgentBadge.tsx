@@ -24,7 +24,6 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
       selected ? 'plane-agent-badge--selected plane-chat-active' : '',
       busy ? 'plane-agent-badge--busy' : '',
     ].filter(Boolean).join(' ')}
-    title={name}
     aria-label={name}
     aria-pressed={selected}
     onClick={onSelect}

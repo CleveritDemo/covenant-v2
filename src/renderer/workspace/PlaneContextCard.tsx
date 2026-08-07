@@ -31,7 +31,6 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
       shared ? 'plane-context-card--shared' : '',
     ].filter(Boolean).join(' ')}
     style={{ '--context-color': color } as React.CSSProperties}
-    title={name}
     aria-label={name}
     onClick={event => {
       event.preventDefault()

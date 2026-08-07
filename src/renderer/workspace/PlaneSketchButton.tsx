@@ -17,7 +17,6 @@ export const PlaneSketchButton: React.FC<PlaneSketchButtonProps> = ({
   <button
     type="button"
     className="plane-sketch-btn"
-    title={label}
     aria-label={label}
     disabled={disabled}
     onClick={onClick}

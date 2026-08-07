@@ -44,7 +44,6 @@ export const AgentProviderGrid: React.FC<AgentProviderGridProps> = ({
             <strong className="agent-provider-grid__name">{agentCliSpec(provider).label}</strong>
             <span
               className={`agent-provider-grid__state${missing ? ' agent-provider-grid__state--missing' : ''}`}
-              title={status?.path ?? status?.command}
             >
               {!status
                 ? t('agentPane.providerChecking')

@@ -247,7 +247,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
               <button
                 type="button"
                 className="plane-chat-composer__queue-merge"
-                title={t('agentPane.queueMerge')}
                 aria-label={t('agentPane.queueMerge')}
                 onClick={() => onMergeQueuedTurns(selectedAgentId)}
               >

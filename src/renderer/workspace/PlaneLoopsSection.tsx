@@ -237,7 +237,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                               type="button"
                               className="plane-loops-section__chain-interval"
                               disabled={active}
-                              title={intervalLabelFor(chain.intervalMs)}
+                              aria-label={intervalLabelFor(chain.intervalMs)}
                               onClick={() => setEditIntervalChainId(chain.id)}
                             >
                               {intervalLabelFor(chain.intervalMs)}
@@ -286,7 +286,6 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                                 variant="primary"
                                 size="xs"
                                 disabled={!canStartChains}
-                                title={!canStartChains ? startBlockedHint : undefined}
                                 onClick={() => onStartChain(chain.id)}
                               >
                                 {startChainLabel}
@@ -309,7 +308,6 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                             <Button
                               variant="ghost"
                               size="xs"
-                              title={deleteChainLabel}
                               aria-label={deleteChainLabel}
                               disabled={active}
                               onClick={() => {

@@ -31,7 +31,7 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
       checked ? 'context-check-option--on' : '',
       emphasize ? 'context-check-option--emphasize' : '',
     ].filter(Boolean).join(' ')}
-    title={title}
+    aria-label={title}
   >
     <input
       type="checkbox"

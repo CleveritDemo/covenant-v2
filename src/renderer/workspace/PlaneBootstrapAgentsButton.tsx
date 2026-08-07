@@ -24,7 +24,6 @@ export const PlaneBootstrapAgentsButton: React.FC<PlaneBootstrapAgentsButtonProp
       variant="primary"
       size="sm"
       disabled={disabled}
-      title={tip}
       aria-label={tip}
       onClick={onClick}
     >

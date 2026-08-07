@@ -11,7 +11,6 @@ export interface AgentConfigHeroChip {
   /** `warn` para ajustes con radio de daño (permisos Auto). */
   tone?: 'default' | 'warn'
   section: AgentConfigSection
-  title?: string
 }
 
 export interface AgentConfigHeroProps {
@@ -67,7 +66,6 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
               key={chip.key}
               type="button"
               className={`agent-config-hero__chip${chip.tone === 'warn' ? ' agent-config-hero__chip--warn' : ''}`}
-              title={chip.title ?? chip.label}
               onClick={() => onChipClick(chip.section)}
             >
               {chip.label}

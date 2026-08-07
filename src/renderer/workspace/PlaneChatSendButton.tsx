@@ -23,7 +23,6 @@ export const PlaneChatSendButton: React.FC<PlaneChatSendButtonProps> = ({
       mode === 'stop' ? 'plane-chat-composer__send--stop' : '',
     ].filter(Boolean).join(' ')}
     disabled={disabled}
-    title={label}
     aria-label={label}
     onClick={onClick}
   >

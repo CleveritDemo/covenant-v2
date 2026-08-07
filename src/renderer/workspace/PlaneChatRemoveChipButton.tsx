@@ -20,7 +20,6 @@ export const PlaneChatRemoveChipButton: React.FC<PlaneChatRemoveChipButtonProps>
         ? 'plane-chat-composer__attachment-remove'
         : 'plane-chat-composer__queue-remove'
     }
-    title={label}
     aria-label={label}
     onClick={onClick}
   >

@@ -6,15 +6,13 @@ export interface AgentConfigFolderChipProps {
   label: string
   /** Ruta completa; se muestra bajo el nombre, no sólo en el tooltip. */
   path?: string
-  title?: string
 }
 
 export const AgentConfigFolderChip: React.FC<AgentConfigFolderChipProps> = ({
   label,
   path,
-  title,
 }) => (
-  <div className="agent-config-folder-chip" title={title}>
+  <div className="agent-config-folder-chip">
     <Icon name="folder" size={14} aria-hidden />
     <span className="agent-config-folder-chip__name">{label}</span>
     {path ? (

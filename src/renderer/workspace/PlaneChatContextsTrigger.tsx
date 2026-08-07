@@ -5,7 +5,6 @@ import './PlaneChatComposer.css'
 export interface PlaneChatContextsTriggerProps {
   label: string
   ariaLabel: string
-  title: string
   count: number
   open: boolean
   disabled?: boolean
@@ -16,7 +15,6 @@ export interface PlaneChatContextsTriggerProps {
 export const PlaneChatContextsTrigger: React.FC<PlaneChatContextsTriggerProps> = ({
   label,
   ariaLabel,
-  title,
   count,
   open,
   disabled = false,
@@ -29,7 +27,6 @@ export const PlaneChatContextsTrigger: React.FC<PlaneChatContextsTriggerProps> =
     aria-expanded={open}
     aria-label={ariaLabel}
     disabled={disabled}
-    title={title}
     onClick={onClick}
   >
     <Icon name="files" size={13} />

@@ -47,7 +47,6 @@ export const PlaneLoopAgentCard: React.FC<PlaneLoopAgentCardProps> = ({
         <button
           type="button"
           className="plane-loop-agent-card__action"
-          title={createLoopLabel}
           aria-label={createLoopLabel}
           onClick={event => {
             event.stopPropagation()

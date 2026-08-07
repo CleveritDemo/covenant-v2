@@ -5,7 +5,6 @@ import './FileExplorer.css'
 export interface FileEditorSearchNavProps {
   direction: 'prev' | 'next'
   label: string
-  shortcutHint: string
   disabled?: boolean
   onClick: () => void
 }
@@ -14,7 +13,6 @@ export interface FileEditorSearchNavProps {
 export const FileEditorSearchNav: React.FC<FileEditorSearchNavProps> = ({
   direction,
   label,
-  shortcutHint,
   disabled = false,
   onClick,
 }) => (
@@ -24,7 +22,6 @@ export const FileEditorSearchNav: React.FC<FileEditorSearchNavProps> = ({
       'file-editor-panel__search-nav',
       direction === 'prev' ? 'file-editor-panel__search-nav--up' : '',
     ].filter(Boolean).join(' ')}
-    title={shortcutHint}
     aria-label={label}
     disabled={disabled}
     onClick={onClick}

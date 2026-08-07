@@ -13,7 +13,6 @@ export const TabAddButton: React.FC<TabAddButtonProps> = ({ onClick }) => {
       className="tab-add"
       type="button"
       onClick={onClick}
-      title={t('tabs.addTitle')}
       aria-label={t('tabs.addAriaLabel')}
       tabIndex={-1}
     >

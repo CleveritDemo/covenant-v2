@@ -777,7 +777,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             <button
               type="button"
               className="pane-window__traffic-btn pane-window__traffic-btn--close"
-              title={closeLabel}
               aria-label={closeLabel}
               onClick={event => {
                 event.stopPropagation()
@@ -788,7 +787,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             <button
               type="button"
               className="pane-window__traffic-btn pane-window__traffic-btn--min"
-              title={closeLabel}
               aria-label={closeLabel}
               onClick={event => {
                 event.stopPropagation()
@@ -800,7 +798,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
             <button
               type="button"
               className="pane-window__traffic-btn pane-window__traffic-btn--zoom"
-              title={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
               aria-label={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
               onClick={event => {
                 event.stopPropagation()
@@ -848,7 +845,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
                 'pane-window__title',
                 onRename && !isMini ? 'pane-window__title--editable' : '',
               ].filter(Boolean).join(' ')}
-              title={onRename && !isMini ? renameLabel : undefined}
               onDoubleClick={onRename && !isMini
                 ? () => setRenameDraft(title)
                 : undefined}
@@ -862,7 +858,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
               <button
                 type="button"
                 className="pane-window__action"
-                title={configureLabel}
                 aria-label={configureLabel}
                 onClick={e => {
                   e.stopPropagation()

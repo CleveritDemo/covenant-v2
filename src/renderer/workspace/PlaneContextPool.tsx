@@ -54,7 +54,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       <button
         type="button"
         className="plane-context-pool__configure"
-        title={configureLabel}
         aria-label={configureLabel}
         onClick={onConfigure}
       >

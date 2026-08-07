@@ -22,7 +22,6 @@ export const PlaneMiniActions: React.FC<PlaneMiniActionsProps> = ({
       <button
         type="button"
         className="plane-mini-actions__btn"
-        title={configLabel}
         aria-label={configLabel}
         onClick={event => {
           event.preventDefault()
@@ -41,7 +40,6 @@ export const PlaneMiniActions: React.FC<PlaneMiniActionsProps> = ({
     <button
       type="button"
       className="plane-mini-actions__btn plane-mini-actions__btn--danger"
-      title={deleteLabel}
       aria-label={deleteLabel}
       onClick={event => {
         event.preventDefault()

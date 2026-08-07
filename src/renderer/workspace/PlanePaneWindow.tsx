@@ -42,8 +42,6 @@ export interface PlanePaneWindowProps {
   customTitle?: string
   /** Basename de la carpeta actual (solo terminales). */
   folderName?: string
-  /** Path completo para tooltip del badge. */
-  folderPath?: string
   children: React.ReactNode
   onExpand: () => void
   onClose: () => void
@@ -96,7 +94,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   closeWindowLabel,
   customTitle,
   folderName,
-  folderPath,
   children,
   onExpand,
   onClose,
@@ -170,7 +167,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         miniFolderBadge={!isAgent && (customTitle || folderName) ? (
           <PlaneMiniFolderBadge
             folder={customTitle || folderName!}
-            title={folderPath}
             named={Boolean(customTitle)}
           />
         ) : undefined}

@@ -98,7 +98,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           <PlaneChatContextsTrigger
             label={t('tabContexts.composerSection')}
             ariaLabel={t('tabContexts.pickerAria', { label: contextsPickerLabel })}
-            title={contexts.length === 0 ? contextsEmptyHint : contextsPickerLabel}
             count={selectedContexts.length}
             open={contextsOpen}
             disabled={contexts.length === 0}
@@ -136,7 +135,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           checked={autoImprove}
           disabled={selectedContextIds.length === 0}
           label={t('tabContexts.autoImprove')}
-          hint={t('tabContexts.autoImproveHint')}
           onChange={onAutoImproveChange}
         />
 
@@ -146,7 +144,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           disabled={loopActive}
           label={t('agentPane.loopBar')}
           ariaLabel={t('agentPane.loopTitle')}
-          title={t('agentPane.loopHint')}
           onClick={onToggleLoop}
         />
 
@@ -154,7 +151,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           <Button
             variant="icon"
             size="sm"
-            title={t('agentPane.clearConversation')}
             aria-label={t('agentPane.clearConversation')}
             disabled={!canClearConversation}
             onClick={onClearConversation}

@@ -69,7 +69,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           variant="icon"
           tabIndex={-1}
           onClick={onOpenOrganizations}
-          title={t('titlebar.organizationsTitle')}
           aria-label={t('titlebar.organizationsAriaLabel')}
         >
           <Icon name="users" size={15} />
@@ -79,7 +78,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           variant="icon"
           tabIndex={-1}
           onClick={onOpenSettings}
-          title={t('titlebar.settingsTitle')}
           aria-label={t('titlebar.settingsAriaLabel')}
         >
           <Icon name="settings" size={15} />

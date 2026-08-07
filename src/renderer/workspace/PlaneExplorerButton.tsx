@@ -21,7 +21,6 @@ export const PlaneExplorerButton = forwardRef<HTMLButtonElement, PlaneExplorerBu
           'plane-loops-button--icon-only',
           pressed ? 'plane-loops-button--pressed' : '',
         ].filter(Boolean).join(' ')}
-        title={label}
         aria-label={label}
         aria-pressed={pressed}
         onClick={onClick}

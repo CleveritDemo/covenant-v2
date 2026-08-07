@@ -17,7 +17,6 @@ export const AgentPaneAttachmentRemove: React.FC<AgentPaneAttachmentRemoveProps>
     type="button"
     className="agent-pane__attachment-remove"
     disabled={disabled}
-    title={label}
     aria-label={label}
     onClick={onClick}
   >

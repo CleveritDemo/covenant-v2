@@ -26,12 +26,12 @@ function GitFileLineStatsView({ insertions, deletions }: { insertions: number; d
   return (
     <span className="git-file-list__stats">
       {insertions > 0 ? (
-        <span className="git-file-list__stat git-file-list__stat--plus" title={`+${insertions}`}>
+        <span className="git-file-list__stat git-file-list__stat--plus">
           +{insertions}
         </span>
       ) : null}
       {deletions > 0 ? (
-        <span className="git-file-list__stat git-file-list__stat--minus" title={`−${deletions}`}>
+        <span className="git-file-list__stat git-file-list__stat--minus">
           −{deletions}
         </span>
       ) : null}
@@ -98,7 +98,7 @@ export const GitFileList: React.FC<GitFileListProps> = ({
 
             return (
               <li key={`${entry.status}:${entry.path}`} className="git-file-list__row">
-                <code className="git-file-list__name" title={entry.path}>
+                <code className="git-file-list__name">
                   {name}
                 </code>
                 <span className="git-file-list__status" aria-label={entry.status}>
@@ -115,7 +115,6 @@ export const GitFileList: React.FC<GitFileListProps> = ({
                       variant="icon"
                       size="xs"
                       disabled={!idle}
-                      title={t('git.stageFileButton')}
                       aria-label={`${t('git.stageFileButton')} ${name}`}
                       onClick={() => onStageFile(path)}
                     >
@@ -127,7 +126,6 @@ export const GitFileList: React.FC<GitFileListProps> = ({
                       variant="icon"
                       size="xs"
                       disabled={!idle}
-                      title={t('git.unstageFileButton')}
                       aria-label={`${t('git.unstageFileButton')} ${name}`}
                       onClick={() => onUnstageFile(path)}
                     >

@@ -136,7 +136,7 @@ export const GitHubActionsRunRow: React.FC<GitHubActionsRunRowProps> = ({
             <button
               type="button"
               className="gh-actions-run__external"
-              title={run.url}
+              aria-label={run.url}
               onClick={() => onOpen(run.url)}
             >
               <Icon name="arrow" size={11} aria-hidden />

@@ -17,7 +17,6 @@ export const TerminalScrollDown: React.FC<TerminalScrollDownProps> = ({
       type="button"
       tabIndex={-1}
       className="terminal-scroll-down-btn terminal-chrome-btn"
-      title={t('paneToolbar.scrollDownTitle')}
       aria-label={t('paneToolbar.scrollDownAriaLabel')}
       onMouseDown={onPointerDown}
       onClick={onClick}

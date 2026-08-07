@@ -24,7 +24,7 @@ export const SettingToggle: React.FC<SettingToggleProps> = ({
     className={['setting-toggle', checked ? 'setting-toggle--on' : ''].filter(Boolean).join(' ')}
     disabled={disabled}
     aria-pressed={checked}
-    title={hint}
+    aria-label={hint}
     onClick={() => onChange(!checked)}
   >
     <span className="setting-toggle__copy">

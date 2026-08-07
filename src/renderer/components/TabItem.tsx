@@ -117,7 +117,6 @@ export const TabItem: React.FC<TabItemProps> = ({
       onDragLeave={onDragLeave}
       onClick={() => { if (!isEditing) onSelect() }}
       onMouseEnter={handleMouseEnter}
-      title={isEditing ? undefined : tab.title}
     >
       {isBusy ? (
         <span className="tab-busy" aria-label={t('tabs.spinnerAriaLabel')}>
@@ -167,7 +166,6 @@ export const TabItem: React.FC<TabItemProps> = ({
           tabIndex={isActive ? 0 : undefined}
           onClick={isActive ? onStartEdit : undefined}
           onKeyDown={isActive ? handleKeyDown : undefined}
-          title={isActive ? t('tabs.tabClickRename') : undefined}
         >
           {tab.title}
         </span>
@@ -194,7 +192,6 @@ const TabCloseButton: React.FC<TabCloseButtonProps> = ({ title, onClose }) => (
     className="tab-close"
     role="button"
     onClick={e => { e.stopPropagation(); onClose() }}
-    title={title}
   >
     <Icon name="close" size={10} />
   </span>

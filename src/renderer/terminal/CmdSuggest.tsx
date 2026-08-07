@@ -157,7 +157,7 @@ const CmdSuggestItem: React.FC<CmdSuggestItemProps> = ({ display, draft, itemTit
     className="cmd-suggest-item"
     onMouseDown={e => { e.preventDefault(); onPick() }}
     role="option"
-    title={itemTitle}
+    aria-label={itemTitle}
   >
     <span className="cmd-suggest-script-icon" aria-hidden="true">
       <Icon name="terminal" size={12} />

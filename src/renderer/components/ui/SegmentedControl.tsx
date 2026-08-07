@@ -48,7 +48,7 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
-            title={option.title}
+            aria-label={option.title}
             disabled={disabled || option.disabled}
             className={[
               'segmented-control__btn',

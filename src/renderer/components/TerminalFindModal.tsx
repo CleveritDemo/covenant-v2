@@ -164,7 +164,7 @@ export const TerminalFindModal: React.FC<Props> = ({
                 type="button"
                 className="terminal-find-item"
                 role="listitem"
-                title={t('find.historyItemTitle')}
+                aria-label={t('find.historyItemTitle')}
                 onClick={() => onApplyHistoryLine(line)}
               >
                 <span className="terminal-find-item-meta">{t('find.historyItemMeta')}</span>

@@ -46,11 +46,6 @@ export const MusicSpectrum: React.FC<MusicSpectrumProps> = ({ animating }) => {
   return (
     <div
       className={['titlebar-music-spectrum', !animating ? 'titlebar-music-spectrum--idle' : ''].filter(Boolean).join(' ')}
-      title={
-        animating
-          ? 'Reproduciendo: animación decorativa (Spotify no expone audio a la app).'
-          : 'Sin reproducción: barras en reposo. Estado vía cliente Spotify de escritorio.'
-      }
       aria-hidden
     >
       {SPECTRUM_STATIC_LEVELS.map((lv, i) => (

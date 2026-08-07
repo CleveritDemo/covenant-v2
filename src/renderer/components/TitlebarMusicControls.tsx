@@ -90,7 +90,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onOpenSettings,
 
   if (noClient) {
     return (
-      <div className="titlebar-music" title={t('music.noClientTitle')}>
+      <div className="titlebar-music">
         <span className="titlebar-music-mood" aria-hidden>—</span>
       </div>
     )
@@ -127,7 +127,7 @@ const MoodButton: React.FC<MoodButtonProps> = ({ label, disabled, title, onClick
     type="button"
     tabIndex={-1}
     className="titlebar-music-btn titlebar-music-btn--mood"
-    title={title}
+    aria-label={title}
     onClick={onClick}
     disabled={disabled}
   >
@@ -147,7 +147,7 @@ const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({ playing, disabled, ti
     type="button"
     tabIndex={-1}
     className="titlebar-music-btn"
-    title={title}
+    aria-label={title}
     onClick={onClick}
     disabled={disabled}
   >

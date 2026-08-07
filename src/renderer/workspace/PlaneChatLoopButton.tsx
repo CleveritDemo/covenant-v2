@@ -8,7 +8,6 @@ export interface PlaneChatLoopButtonProps {
   disabled?: boolean
   label: string
   ariaLabel: string
-  title: string
   onClick: () => void
 }
 
@@ -19,7 +18,6 @@ export const PlaneChatLoopButton: React.FC<PlaneChatLoopButtonProps> = ({
   disabled = false,
   label,
   ariaLabel,
-  title,
   onClick,
 }) => (
   <button
@@ -29,7 +27,6 @@ export const PlaneChatLoopButton: React.FC<PlaneChatLoopButtonProps> = ({
       pressed ? 'plane-chat-composer__loop--on' : '',
       active ? 'plane-chat-composer__loop--active' : '',
     ].filter(Boolean).join(' ')}
-    title={title}
     aria-label={ariaLabel}
     aria-pressed={pressed}
     disabled={disabled}

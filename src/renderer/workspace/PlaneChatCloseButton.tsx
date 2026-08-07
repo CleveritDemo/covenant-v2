@@ -15,7 +15,6 @@ export const PlaneChatCloseButton: React.FC<PlaneChatCloseButtonProps> = ({
   <button
     type="button"
     className="plane-chat-close"
-    title={label}
     aria-label={label}
     onClick={onClose}
   >

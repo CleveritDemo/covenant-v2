@@ -129,7 +129,6 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
                 className="agent-pane__bubble-image"
                 src={image.dataUrl}
                 alt={image.name}
-                title={image.name}
               />
             ))}
           </div>

@@ -19,7 +19,6 @@ export const PlaneRevealFolderButton: React.FC<PlaneRevealFolderButtonProps> = (
     <button
       type="button"
       className="plane-loops-button plane-loops-button--icon-only"
-      title={title}
       aria-label={title}
       onClick={onReveal}
     >

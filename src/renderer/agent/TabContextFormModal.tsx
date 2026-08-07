@@ -489,7 +489,6 @@ export const TabContextFormModal: React.FC<Props> = ({
                 || !(draft.fileName ?? '').trim()
                 || Boolean(duplicateMessage)
               }
-              title={t('tabContexts.regenerateHint')}
               onClick={() => { void regenerate() }}
             >
               <Icon name="refresh" size={13} />

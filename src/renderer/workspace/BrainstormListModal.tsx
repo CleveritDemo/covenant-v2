@@ -242,9 +242,6 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
                     variant="secondary"
                     size="sm"
                     disabled={room.status === 'running'}
-                    title={room.status === 'running'
-                      ? t('tabs.brainstormsEditDisabledHint')
-                      : undefined}
                     onClick={() => {
                       if (room.status === 'running') return
                       setEditingRoom(room)

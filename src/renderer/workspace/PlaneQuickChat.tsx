@@ -115,7 +115,6 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
               <button
                 type="button"
                 className="agent-pane__scroll-bottom"
-                title={t('agentPane.scrollToBottom')}
                 aria-label={t('agentPane.scrollToBottom')}
                 onClick={scrollToBottom}
               >

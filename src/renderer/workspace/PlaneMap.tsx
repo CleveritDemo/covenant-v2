@@ -44,8 +44,6 @@ export interface PlaneMapEntity {
   customTitle?: string
   /** Basename de la carpeta actual (terminales). */
   folderName?: string
-  /** Path completo del cwd (tooltip del badge). */
-  folderPath?: string
   window: PaneWindowState
 }
 
@@ -587,7 +585,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           closeWindowLabel={closeWindowLabel}
           customTitle={entity.customTitle}
           folderName={entity.folderName}
-          folderPath={entity.folderPath}
           onExpand={() => onExpandEntity(entity.paneId)}
           onClose={() => onCloseWindow(entity.paneId)}
           onFocus={() => onFocusWindow(entity.paneId)}

@@ -22,7 +22,7 @@ export const TabContextKindCard: React.FC<TabContextKindCardProps> = ({
     type="button"
     role="radio"
     aria-checked={selected}
-    title={label}
+    aria-label={label}
     disabled={disabled}
     className={[
       'tab-contexts__kind-card',

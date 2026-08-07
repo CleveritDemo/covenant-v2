@@ -38,7 +38,6 @@ export const FontSizeControl: React.FC<FontSizeControlProps> = ({
         tabIndex={-1}
         onClick={onIncrease}
         disabled={fontSize >= max}
-        title={t('ui.increaseFontTitle')}
         aria-label={t('ui.increaseFontTitle')}
       >
         <Icon name="zoom-in" size={14} />

@@ -6,7 +6,6 @@ export interface PlaneChatAutoImproveToggleProps {
   checked: boolean
   disabled?: boolean
   label: string
-  hint: string
   onChange: (checked: boolean) => void
 }
 
@@ -15,7 +14,6 @@ export const PlaneChatAutoImproveToggle: React.FC<PlaneChatAutoImproveToggleProp
   checked,
   disabled = false,
   label,
-  hint,
   onChange,
 }) => (
   <button
@@ -27,7 +25,6 @@ export const PlaneChatAutoImproveToggle: React.FC<PlaneChatAutoImproveToggleProp
     ].filter(Boolean).join(' ')}
     aria-checked={checked}
     aria-label={label}
-    title={hint}
     disabled={disabled}
     onClick={() => onChange(!checked)}
   >

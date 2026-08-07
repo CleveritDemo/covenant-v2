@@ -26,7 +26,6 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
       mode === 'play' ? 'agent-pane__send--play' : '',
     ].filter(Boolean).join(' ')}
     disabled={disabled}
-    title={label}
     aria-label={label}
     onClick={onClick}
     onMouseDown={event => event.stopPropagation()}

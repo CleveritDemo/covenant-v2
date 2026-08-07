@@ -15,7 +15,6 @@ export interface PaneToolbarProps {
   /** Nombre de la carpeta actual (basename del cwd). */
   folderLabel: string
   /** Ruta completa para tooltip. */
-  folderTitle: string
   quickOpenOpen: boolean
   sessionId: string
   onQuickOpenClose: () => void
@@ -41,7 +40,6 @@ export const PaneToolbar: React.FC<PaneToolbarProps> = ({
   explorerOpen,
   explorerEnabled,
   folderLabel,
-  folderTitle,
   quickOpenOpen,
   sessionId,
   onQuickOpenClose,
@@ -105,7 +103,6 @@ export const PaneToolbar: React.FC<PaneToolbarProps> = ({
         <div className="pane-toolbar__trail">
           <span
             className="pane-toolbar__folder-label"
-            title={folderTitle}
             aria-label={t('paneToolbar.currentFolderAriaLabel', { folder: folderLabel })}
           >
             {folderLabel}
@@ -157,7 +154,6 @@ const PaneReorderHandle: React.FC<PaneReorderHandleProps> = ({
     tabIndex={-1}
     draggable
     className="pane-toolbar-reorder-handle terminal-chrome-btn"
-    title={reorderTitle}
     aria-label={reorderAriaLabel}
     aria-grabbed={isGrabbed}
     onMouseDown={e => { e.stopPropagation() }}
@@ -197,7 +193,6 @@ export const PaneToolbarButton: React.FC<PaneToolbarButtonProps> = ({
       active ? 'pane-toolbar-btn--active' : '',
       className ?? '',
     ].filter(Boolean).join(' ')}
-    title={title}
     aria-label={ariaLabel ?? title}
     onMouseDown={onPointerDown}
     onClick={onClick}

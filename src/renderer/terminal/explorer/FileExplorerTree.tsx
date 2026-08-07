@@ -1175,11 +1175,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         <div className="file-explorer-tree__toolbar">
           <span
             className="file-explorer-tree__root-label"
-            title={
-              !showHiddenDirs
-                ? `${treeRootCwd} — ${t('fileExplorer.toolbar.hiddenActive')}`
-                : treeRootCwd
-            }
           >
             {t('fileExplorer.toolbar.rootLabel', { path: sessionCwdPaneLabel(treeRootCwd, 2) })}
             {!showHiddenDirs && (
@@ -1187,7 +1182,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
             )}
           </span>
           <ExplorerToolButton
-            title={t('fileExplorer.toolbar.newMenu')}
             aria-label={t('fileExplorer.toolbar.newMenu')}
             onClick={e => setNewMenu({ x: e.clientX, y: e.clientY })}
           >
@@ -1196,7 +1190,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           {onCloseExplorer && (
             <ExplorerToolButton
               variant="close"
-              title={t('fileExplorer.toolbar.closeTitle')}
               aria-label={t('fileExplorer.toolbar.close')}
               onClick={onCloseExplorer}
             >
@@ -1214,7 +1207,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
               className="file-explorer-tree__search-input"
               value={filterQuery}
               placeholder={t('fileExplorer.search.placeholder')}
-              title={`${t('fileExplorer.search.shortcutTitle')} (${shortcutLabel('F')})`}
+              aria-label={`${t('fileExplorer.search.shortcutTitle')} (${shortcutLabel('F')})`}
               onChange={e => setFilterQuery(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Escape') {

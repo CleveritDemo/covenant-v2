@@ -22,7 +22,7 @@ export const TabContextIconSwatch: React.FC<TabContextIconSwatchProps> = ({
     type="button"
     role="radio"
     aria-checked={selected}
-    title={title}
+    aria-label={title}
     className={[
       'tab-contexts__icon-swatch',
       selected ? 'tab-contexts__icon-swatch--active' : '',

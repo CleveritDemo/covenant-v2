@@ -117,7 +117,6 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                 <button
                   type="button"
                   className="agent-pane__queue-merge"
-                  title={t('agentPane.queueMerge')}
                   aria-label={t('agentPane.queueMerge')}
                   onClick={onMergeQueuedTurns}
                 >
@@ -130,7 +129,6 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                 <button
                   type="button"
                   className="agent-pane__queue-open"
-                  title={t('agentPane.queueEditHint')}
                   aria-label={t('agentPane.queueEditHint')}
                   onClick={() => onEditQueuedTurn(item.id)}
                 >
@@ -157,7 +155,6 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                   type="button"
                   className="agent-pane__queue-remove"
                   onClick={() => onRemoveQueuedTurn(item.id)}
-                  title={t('agentPane.queueRemove')}
                   aria-label={t('agentPane.queueRemove')}
                 >
                   ×
@@ -171,7 +168,6 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
         <button
           type="button"
           className="agent-pane__scroll-bottom"
-          title={t('agentPane.scrollToBottom')}
           aria-label={t('agentPane.scrollToBottom')}
           onClick={onScrollToBottom}
         >

@@ -245,11 +245,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     : meta.permissionMode === 'plan'
       ? t('agentPane.permissionPlan')
       : t('agentPane.permissionAsk')
-  const permissionHint = meta.permissionMode === 'auto'
-    ? t('agentPane.permissionAutoHint')
-    : meta.permissionMode === 'plan'
-      ? t('agentPane.permissionPlanHint')
-      : t('agentPane.permissionAskHint')
 
   const sectionLabels: Record<AgentConfigSection, string> = {
     identity: t('agentPane.identityLabel'),
@@ -312,11 +307,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
         label: agentCliSpec(meta.provider).label,
         tone: cliStatuses[meta.provider]?.path === null ? 'warn' : 'default',
         section: 'engine',
-        title: cliStatuses[meta.provider]?.path === null
-          ? t('agentPane.providerMissingHint', { command: cliStatuses[meta.provider]?.command ?? '' })
-          : agentCliSpec(meta.provider).label,
       },
-      { key: 'model', label: modelLabel, section: 'engine', title: t('agentPane.modelLabel') },
+      { key: 'model', label: modelLabel, section: 'engine' },
       {
         key: 'permission',
         label: meta.permissionMode === 'auto'
@@ -324,7 +316,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           : permissionLabel,
         tone: meta.permissionMode === 'auto' ? 'warn' : 'default',
         section: 'permissions',
-        title: permissionHint,
       },
     ]
     if (meta.coordination === 'orchestrator' || meta.coordination === 'productOwner') {
@@ -334,7 +325,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           ? t('agentPane.coordinationOrchestrator')
           : t('agentPane.coordinationProductOwner'),
         section: 'orchestration',
-        title: t('agentPane.coordinationLabel'),
       })
     }
     if (selectedContextIds.length > 0) {
@@ -342,11 +332,10 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
         key: 'contexts',
         label: t('agentPane.configChipContexts', { n: selectedContextIds.length }),
         section: 'contexts',
-        title: t('agentPane.configTabContexts'),
       })
     }
     return chips
-  }, [meta.provider, meta.permissionMode, meta.coordination, modelLabel, permissionLabel, permissionHint, selectedContextIds.length, cliStatuses, t])
+  }, [meta.provider, meta.permissionMode, meta.coordination, modelLabel, permissionLabel, selectedContextIds.length, cliStatuses, t])
 
   const catalogFile = `${PROJECT_DIR}/agents/${draft.id.trim() || 'agent'}.json`
 
@@ -378,7 +367,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
             ) : null}
             {t('agentPane.configSaveAuto')}
             {' '}
-            <span className="agent-config-modal__save-file" title={catalogFile}>{catalogFile}</span>
+            <span className="agent-config-modal__save-file">{catalogFile}</span>
           </p>
           <div className="agent-config-modal__actions">
             {dirty ? (

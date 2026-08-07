@@ -27,7 +27,6 @@ export const PlaneGitButton: React.FC<PlaneGitButtonProps> = ({
         'plane-loops-button--icon-only',
         pressed ? 'plane-loops-button--pressed' : '',
       ].filter(Boolean).join(' ')}
-      title={title}
       aria-label={title}
       aria-pressed={pressed}
       disabled={disabled}

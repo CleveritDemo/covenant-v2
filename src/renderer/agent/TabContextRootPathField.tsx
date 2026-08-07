@@ -62,7 +62,6 @@ export const TabContextRootPathField: React.FC<Props> = ({
             variant="ghost"
             size="sm"
             onClick={() => onChange(undefined)}
-            title={t('tabContexts.clearRoot')}
           >
             {t('tabContexts.clearRoot')}
           </Button>

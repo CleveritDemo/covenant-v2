@@ -24,7 +24,6 @@ export const PlaneBrainstormButton: React.FC<PlaneBrainstormButtonProps> = ({
       'plane-loops-button',
       pressed ? 'plane-loops-button--pressed' : '',
     ].filter(Boolean).join(' ')}
-    title={disabled && disabledTitle ? disabledTitle : label}
     aria-label={label}
     aria-pressed={pressed}
     disabled={disabled}

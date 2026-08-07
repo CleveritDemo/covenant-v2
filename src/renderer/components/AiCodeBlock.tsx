@@ -41,7 +41,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
           <button
             type="button"
             className="ai-copy-btn"
-            title="Copiar código"
+            aria-label="Copiar código"
             onClick={handleCopy}
           >
             {copied ? '✓' : '⧉'}
@@ -56,7 +56,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
         <button
           type="button"
           className="ai-insert-btn"
-          title="Ctrl+U + pegar en terminal (sin Enter)"
+          aria-label="Ctrl+U + pegar en terminal (sin Enter)"
           onClick={() => onInsert(content)}
         >
           ↵ poner en terminal

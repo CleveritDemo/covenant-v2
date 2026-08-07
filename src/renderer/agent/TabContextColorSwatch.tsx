@@ -17,7 +17,7 @@ export const TabContextColorSwatch: React.FC<TabContextColorSwatchProps> = ({
     type="button"
     role="radio"
     aria-checked={selected}
-    title={color}
+    aria-label={color}
     className={[
       'tab-contexts__color-swatch',
       selected ? 'tab-contexts__color-swatch--active' : '',

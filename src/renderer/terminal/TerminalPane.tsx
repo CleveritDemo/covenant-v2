@@ -1571,7 +1571,6 @@ export const TerminalPane: React.FC<Props> = ({
           explorerOpen={explorerOpen}
           explorerEnabled={explorerEnabled}
           folderLabel={sessionCwdPaneLabel(paneCwd)}
-          folderTitle={paneCwd ? `Carpeta actual: ${paneCwd}` : 'Carpeta actual'}
           quickOpenOpen={quickOpenOpen}
           sessionId={sessionId}
           onQuickOpenClose={closeQuickOpen}

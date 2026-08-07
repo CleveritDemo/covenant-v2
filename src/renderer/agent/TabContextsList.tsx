@@ -67,7 +67,7 @@ export const TabContextsList: React.FC<Props> = ({
       ? 'agentPane.orchestratorBadge'
       : 'agentPane.productOwnerBadge')
     return (
-      <span className="tab-contexts__role" title={label} aria-label={label} role="img">
+      <span className="tab-contexts__role" aria-label={label} role="img">
         <Icon name={coordination === 'orchestrator' ? 'git-branch' : 'folder'} size={9} />
       </span>
     )
@@ -103,7 +103,6 @@ export const TabContextsList: React.FC<Props> = ({
       <button
         type="button"
         className="tab-contexts__edit"
-        title={t('tabContexts.edit')}
         aria-label={t('tabContexts.edit')}
         onClick={() => onEdit(context)}
       >
@@ -112,7 +111,6 @@ export const TabContextsList: React.FC<Props> = ({
       <button
         type="button"
         className="tab-contexts__delete"
-        title={t('tabContexts.delete')}
         aria-label={t('tabContexts.delete')}
         onClick={() => { void onDelete(context) }}
       >

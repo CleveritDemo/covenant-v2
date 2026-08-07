@@ -6,7 +6,6 @@ export type ExplorerToolButtonVariant = 'default' | 'close'
 export interface ExplorerToolButtonProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   variant?: ExplorerToolButtonVariant
-  title: string
   children?: React.ReactNode
 }
 

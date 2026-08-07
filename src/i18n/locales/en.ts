@@ -286,7 +286,6 @@ const en = {
     color: 'Color',
     preview: 'Preview',
     regenerate: 'Regenerate',
-    regenerateHint: 'Rebuild the automatic content and save the Markdown file',
     loading: 'Generating…',
     previewError: 'Could not generate preview.',
     previewEmpty: 'This context is empty.',
@@ -374,10 +373,8 @@ const en = {
     confirmCloseDetail: 'All panels in this tab and their sessions will be closed.',
     spinnerAriaLabel: 'Running',
     tabNameAriaLabel: 'Tab name',
-    tabClickRename: 'Click to rename',
     tabAriaLabel: 'Tab {{n}}',
     closeTabTitle: 'Close tab',
-    addTitle: 'New workspace (⌘T)',
     addAriaLabel: 'New workspace',
     planeEmptyTitle: 'Gravity',
     planeEmptyHint: 'Pick the project folder at the top left, then create terminals or agents.',
@@ -426,7 +423,6 @@ const en = {
     brainstormsOpen: 'Open',
     brainstormsEdit: 'Edit',
     brainstormsEditRunningHint: 'Pause or stop the room before editing.',
-    brainstormsEditDisabledHint: 'Pause or stop the room before editing.',
     brainstormEditTitle: 'Edit brainstorm',
     brainstormsCopyPath: 'Copy path',
     brainstormsCopyPathDone: 'Copied ✓',
@@ -499,9 +495,7 @@ const en = {
   },
 
   titlebar: {
-    organizationsTitle: 'Organizations',
     organizationsAriaLabel: 'Organizations',
-    settingsTitle: 'Settings',
     settingsAriaLabel: 'Settings',
   },
 
@@ -603,7 +597,6 @@ const en = {
     title: 'git',
     footerHint: 'project repo · pull with --ff-only · commit only with staging · Actions via gh · ⌘G or esc close',
     loadingAriaLabel: 'Loading git status',
-    cwdTooltip: 'Repository folder: {{cwd}}',
     refreshButton: 'refresh',
     pullButton: 'pull',
     repoRootLabel: 'repo root',
@@ -666,7 +659,6 @@ const en = {
   },
 
   music: {
-    noClientTitle: 'Install Spotify desktop to use music controls',
     pause: 'Pause',
     playPlaylist: 'Play playlist ({{mood}})',
     configurePlaylist: 'Configure the «{{mood}}» playlist in Settings',
@@ -695,7 +687,6 @@ const en = {
     increaseFontTitle: 'Increase font size',
     confirmNo: 'esc no',
     confirmOk: '[enter] OK',
-    closeTitle: 'Close (Esc)',
     closeAriaLabel: 'Close',
   },
 
@@ -787,7 +778,6 @@ const en = {
     closePaneAriaLabel: 'Close this panel',
     reorderTitle: 'Reorder panel',
     reorderAriaLabel: 'Reorder panel',
-    scrollDownTitle: 'Go to latest output (⌘End)',
     scrollDownAriaLabel: 'Go to latest output',
   },
 
@@ -802,11 +792,9 @@ const en = {
       refresh: 'Refresh tree',
       refreshTitle: 'Refresh file tree (⌘R)',
       close: 'Close explorer',
-      closeTitle: 'Close explorer (⌘E)',
       showHidden: 'Show hidden folders',
       hideHidden: 'Hide heavy folders',
       rootLabel: 'Root: {{path}}',
-      hiddenActive: 'Heavy folders hidden',
     },
     contextMenu: {
       copy: 'Copy',
@@ -904,9 +892,7 @@ const en = {
     editor: {
       selectHint: 'Select a file from the tree.',
       loading: 'Loading file',
-      closeFile: 'Close file',
       closeFileAria: 'Close file viewer',
-      unsaved: 'Unsaved changes',
       saveHint: 'Save',
       findPlaceholder: 'Find in file…',
       findAria: 'Find in file',

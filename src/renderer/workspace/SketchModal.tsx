@@ -342,7 +342,6 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
               variant="icon"
               size="xs"
               pressed={tool === item.tool}
-              title={label}
               aria-label={label}
               onClick={() => setTool(item.tool)}
             >
@@ -361,7 +360,6 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
             style={{ '--sketch-swatch': value } as React.CSSProperties}
             data-on={color === value ? '' : undefined}
             aria-pressed={color === value}
-            title={t('sketch.color', { color: value })}
             aria-label={t('sketch.color', { color: value })}
             onClick={() => setColor(value)}
           />
@@ -376,7 +374,6 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
             className="sketch-modal__width"
             data-on={width === stroke ? '' : undefined}
             aria-pressed={width === stroke}
-            title={t('sketch.width', { n: stroke })}
             aria-label={t('sketch.width', { n: stroke })}
             onClick={() => setWidth(stroke)}
           >
@@ -389,7 +386,6 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
             variant="icon"
             size="xs"
             disabled={historySize.undo === 0}
-            title={t('sketch.undo')}
             aria-label={t('sketch.undo')}
             onClick={undo}
           >
@@ -399,7 +395,6 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
             variant="icon"
             size="xs"
             disabled={historySize.redo === 0}
-            title={t('sketch.redo')}
             aria-label={t('sketch.redo')}
             onClick={redo}
           >

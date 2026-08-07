@@ -32,7 +32,6 @@ export const PlaneFab: React.FC<PlaneFabProps> = ({
       type="button"
       className={['plane-fab', `plane-fab--${kind}`].join(' ')}
       disabled={disabled}
-      title={title}
       aria-label={title}
       onClick={onClick}
     >

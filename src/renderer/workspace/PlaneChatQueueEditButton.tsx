@@ -22,7 +22,6 @@ export const PlaneChatQueueEditButton: React.FC<PlaneChatQueueEditButtonProps> =
   <button
     type="button"
     className="plane-chat-composer__queue-open"
-    title={title}
     aria-label={title}
     onClick={onClick}
   >

@@ -235,6 +235,8 @@ describe('projectAgentCatalog', () => {
       permissionMode: 'ask',
       name: 'qa',
       emitResults: true,
+      nativeSkills: { enabled: true, namespaces: ['superpowers'] },
+      mcpsAllowed: ['jira'],
     })!
     const meta = resolveAgentPaneMeta(
       { agentId: 'qa', cliSessionId: 'cli-1' },
@@ -246,6 +248,8 @@ describe('projectAgentCatalog', () => {
       provider: 'cursor',
       emitResults: true,
       cliSessionId: 'cli-1',
+      nativeSkills: { enabled: true, namespaces: ['superpowers'] },
+      mcpsAllowed: ['jira'],
     })
     expect(agentDefinitionFromMeta(meta)).toEqual(definition)
     expect(agentBindingFromMeta(meta)).toEqual({
@@ -466,6 +470,21 @@ describe('projectAgentCatalog', () => {
         .toEqual(['jira', 'figma'])
       expect(parseProjectAgentDefinition({ ...base, mcpsAllowed: [] })?.mcpsAllowed).toBeUndefined()
       expect(parseProjectAgentDefinition({ ...base, mcpsAllowed: 'jira' })?.mcpsAllowed).toBeUndefined()
+    })
+
+    it('el clon no comparte el array de namespaces con el original', () => {
+      const source = parseProjectAgentDefinition({
+        id: 'backend',
+        provider: 'claude',
+        permissionMode: 'ask',
+        nativeSkills: { enabled: true, namespaces: ['superpowers'] },
+        mcpsAllowed: ['jira'],
+      })!
+      const clone = cloneProjectAgentDefinition(source)
+      clone.nativeSkills!.namespaces!.push('ponytail')
+      clone.mcpsAllowed!.push('figma')
+      expect(source.nativeSkills!.namespaces).toEqual(['superpowers'])
+      expect(source.mcpsAllowed).toEqual(['jira'])
     })
   })
 })

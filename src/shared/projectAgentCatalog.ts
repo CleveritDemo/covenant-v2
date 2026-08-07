@@ -397,7 +397,16 @@ export function cloneProjectAgentDefinition(
       const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
       return delegateTo ? { delegateTo } : {}
     })(),
-    ...(source.nativeSkills ? { nativeSkills: { ...source.nativeSkills } } : {}),
+    ...(source.nativeSkills
+      ? {
+          nativeSkills: {
+            enabled: source.nativeSkills.enabled,
+            ...(source.nativeSkills.namespaces
+              ? { namespaces: [...source.nativeSkills.namespaces] }
+              : {}),
+          },
+        }
+      : {}),
     ...(source.mcpsAllowed ? { mcpsAllowed: [...source.mcpsAllowed] } : {}),
   }
 }
@@ -502,6 +511,8 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
     delegateTo: meta.delegateTo,
+    nativeSkills: meta.nativeSkills,
+    mcpsAllowed: meta.mcpsAllowed,
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: sanitizeProvider(meta.provider),

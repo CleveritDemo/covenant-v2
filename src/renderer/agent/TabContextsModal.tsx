@@ -21,6 +21,8 @@ interface Props {
   /** Al abrir, selecciona este contexto para editar. */
   focusContextId?: string | null
   onFocusContextConsumed?: () => void
+  /** Al abrir, salta directo al formulario de creación. */
+  openCreate?: boolean
   onRefresh: () => void
   onClose: () => void
 }
@@ -37,6 +39,7 @@ export const TabContextsModal: React.FC<Props> = ({
   orgWorkspace,
   focusContextId = null,
   onFocusContextConsumed,
+  openCreate = false,
   onRefresh,
   onClose,
 }) => {
@@ -68,6 +71,13 @@ export const TabContextsModal: React.FC<Props> = ({
     setFormSession({ mode: 'edit', context: target })
     onFocusContextConsumed?.()
   }, [open, focusContextId, contexts, onFocusContextConsumed])
+
+  // Entrada directa desde el «+» del plano: cerrar el form cierra todo el modal.
+  useEffect(() => {
+    if (!open || !openCreate) return
+    formOpenedFromFocusRef.current = true
+    setFormSession({ mode: 'create' })
+  }, [open, openCreate])
 
   // Sin selección el panel derecho no dice nada útil: cae en el primero.
   // Después del efecto de focusContextId, que tiene prioridad sobre esto.

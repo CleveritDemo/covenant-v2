@@ -385,6 +385,7 @@ export const App: React.FC = () => {
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
+  const [planeContextsCreate, setPlaneContextsCreate] = useState(false)
   const [resultsPreview, setResultsPreview] = useState<{
     tabId: string
     context: TabContext
@@ -2416,10 +2417,18 @@ export const App: React.FC = () => {
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
     setPlaneContextsFocusId(null)
+    setPlaneContextsCreate(false)
+    setPlaneContextsModalTabId(tabId)
+  }, [])
+
+  const handleCreateContextFromPlane = useCallback((tabId: string) => {
+    setPlaneContextsFocusId(null)
+    setPlaneContextsCreate(true)
     setPlaneContextsModalTabId(tabId)
   }, [])
 
   const handleOpenContextFromPlane = useCallback((tabId: string, contextId: string) => {
+    setPlaneContextsCreate(false)
     setPlaneContextsModalTabId(tabId)
     setPlaneContextsFocusId(contextId)
   }, [])
@@ -3677,6 +3686,7 @@ export const App: React.FC = () => {
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
+                  contextPoolCreateLabel={t('tabContexts.createTitle')}
                   contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
@@ -3713,6 +3723,7 @@ export const App: React.FC = () => {
                   onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  onCreateContext={() => handleCreateContextFromPlane(tab.id)}
                   onOpenContext={contextId => {
                     handleOpenContextFromPlane(tab.id, contextId)
                   }}
@@ -3941,10 +3952,12 @@ export const App: React.FC = () => {
             orgWorkspace={orgWorkspace}
             focusContextId={planeContextsFocusId}
             onFocusContextConsumed={() => setPlaneContextsFocusId(null)}
+            openCreate={planeContextsCreate}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               setPlaneContextsFocusId(null)
+              setPlaneContextsCreate(false)
               void refreshTabContexts(modalTab.id)
             }}
           />

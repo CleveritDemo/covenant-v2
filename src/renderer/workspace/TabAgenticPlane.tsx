@@ -42,6 +42,7 @@ export interface TabAgenticPlaneProps {
   idleAgentLabel: string
   contextPoolTitle: string
   contextPoolConfigureLabel: string
+  contextPoolCreateLabel: string
   contextPoolChipHint?: string
   chatPlaceholder: string
   chatEmptyAgents: string
@@ -74,6 +75,7 @@ export interface TabAgenticPlaneProps {
   onMinimizeAllWindows: () => void
   onFocusWindow: (paneId: string) => void
   onConfigureContexts: () => void
+  onCreateContext: () => void
   /** Clic en chip del pool → editar ese contexto (sin DnD). */
   onOpenContext?: (contextId: string) => void
   /** Asigna un contexto arrastrado del pool a un agente. */
@@ -191,6 +193,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   idleAgentLabel,
   contextPoolTitle,
   contextPoolConfigureLabel,
+  contextPoolCreateLabel,
   contextPoolChipHint,
   chatPlaceholder,
   chatEmptyAgents,
@@ -221,6 +224,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onMinimizeAllWindows,
   onFocusWindow,
   onConfigureContexts,
+  onCreateContext,
   onOpenContext,
   onAssignContext,
   onOpenResultsPreview,
@@ -645,9 +649,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
+          createLabel={contextPoolCreateLabel}
           chipActionHint={contextPoolChipHint}
           contexts={tabContexts}
           onConfigure={onConfigureContexts}
+          onCreate={onCreateContext}
           onOpenContext={onOpenContext}
         />
       )}

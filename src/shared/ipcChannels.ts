@@ -119,6 +119,65 @@ export const IPC = {
   /** Renderer → main (invoke): jobs y steps de un run; se pide al desplegarlo. */
   GITHUB_RUN_JOBS: 'githubActions:runJobs',
 
+  /** Renderer → main (invoke): estado de sesión Covenant */
+  COVENANT_STATUS: 'covenant:status',
+  /** Renderer → main (invoke): exchange JWT vía token GitHub */
+  COVENANT_SIGN_IN: 'covenant:signIn',
+  /** Renderer → main (invoke): cerrar sesión Covenant */
+  COVENANT_SIGN_OUT: 'covenant:signOut',
+  /** Renderer → main (invoke): listar organizaciones */
+  COVENANT_ORGS_LIST: 'covenant:orgs:list',
+  /** Renderer → main (invoke): crear organización */
+  COVENANT_ORG_CREATE: 'covenant:org:create',
+  /** Renderer → main (invoke): listar miembros de org */
+  COVENANT_MEMBERS_LIST: 'covenant:members:list',
+  /** Renderer → main (invoke): listar solo logins de miembros (cualquier miembro) */
+  COVENANT_MEMBER_LOGINS_LIST: 'covenant:memberLogins:list',
+  /** Renderer → main (invoke): agregar miembro a org */
+  COVENANT_MEMBER_ADD: 'covenant:member:add',
+  /** Renderer → main (invoke): quitar miembro de org */
+  COVENANT_MEMBER_REMOVE: 'covenant:member:remove',
+  /** Renderer → main (invoke): listar defaults de org */
+  COVENANT_DEFAULTS_LIST: 'covenant:defaults:list',
+  /** Renderer → main (invoke): fijar default de org */
+  COVENANT_DEFAULT_SET: 'covenant:default:set',
+  /** Renderer → main (invoke): quitar default de org */
+  COVENANT_DEFAULT_UNSET: 'covenant:default:unset',
+  /** Renderer → main (invoke): listar workspaces de org */
+  COVENANT_WORKSPACES_LIST: 'covenant:workspaces:list',
+  /** Renderer → main (invoke): crear workspace de org */
+  COVENANT_WORKSPACE_CREATE: 'covenant:workspace:create',
+  /** Renderer → main (invoke): renombrar workspace de org */
+  COVENANT_WORKSPACE_RENAME: 'covenant:workspace:rename',
+  /** Renderer → main (invoke): borrar workspace de org */
+  COVENANT_WORKSPACE_DELETE: 'covenant:workspace:delete',
+  /** Renderer → main (invoke): agregar assignee a workspace */
+  COVENANT_WORKSPACE_ASSIGNEE_ADD: 'covenant:workspace:assignee:add',
+  /** Renderer → main (invoke): quitar assignee de workspace */
+  COVENANT_WORKSPACE_ASSIGNEE_REMOVE: 'covenant:workspace:assignee:remove',
+  /** Renderer → main (invoke): agregar admin de workspace */
+  COVENANT_WORKSPACE_ADMIN_ADD: 'covenant:workspace:admin:add',
+  /** Renderer → main (invoke): quitar admin de workspace */
+  COVENANT_WORKSPACE_ADMIN_REMOVE: 'covenant:workspace:admin:remove',
+  /** Renderer → main (invoke): listar agentes de workspace org */
+  COVENANT_WORKSPACE_AGENTS_LIST: 'covenant:workspace:agents:list',
+  /** Renderer → main (invoke): upsert agente de workspace org */
+  COVENANT_WORKSPACE_AGENT_UPSERT: 'covenant:workspace:agent:upsert',
+  /** Renderer → main (invoke): borrar agente de workspace org */
+  COVENANT_WORKSPACE_AGENT_DELETE: 'covenant:workspace:agent:delete',
+  /** Renderer → main (invoke): listar contextos de workspace org */
+  COVENANT_WORKSPACE_CONTEXTS_LIST: 'covenant:workspace:contexts:list',
+  /** Renderer → main (invoke): upsert contexto de workspace org */
+  COVENANT_WORKSPACE_CONTEXT_UPSERT: 'covenant:workspace:context:upsert',
+  /** Renderer → main (invoke): borrar contexto de workspace org */
+  COVENANT_WORKSPACE_CONTEXT_DELETE: 'covenant:workspace:context:delete',
+  /** Renderer → main (invoke): listar admins locales de org */
+  COVENANT_ORG_ADMINS_LIST: 'covenant:orgAdmins:list',
+  /** Renderer → main (invoke): agregar admin local de org */
+  COVENANT_ORG_ADMIN_ADD: 'covenant:orgAdmin:add',
+  /** Renderer → main (invoke): quitar admin local de org */
+  COVENANT_ORG_ADMIN_REMOVE: 'covenant:orgAdmin:remove',
+
   /** Renderer → main (invoke): fijar raíz del explorador para la sesión (projectFolder del tab) */
   FILE_EXPLORER_SET_ROOT: 'fileExplorer:setRoot',
   /** Renderer → main (invoke): listar hijos de un directorio relativo al cwd de la sesión */

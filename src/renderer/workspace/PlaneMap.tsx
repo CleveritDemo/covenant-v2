@@ -602,9 +602,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
             ? contextId => onAssignContext(entity.paneId, contextId)
             : undefined}
           onOpenResultsPreview={entity.kind === 'agent' ? onOpenResultsPreview : undefined}
-          onMiniContentHeightChange={entity.kind === 'agent'
-            ? height => handleAgentMiniHeight(entity.paneId, height)
-            : undefined}
+          onMiniContentHeightChange={entity.kind === 'agent' ? handleAgentMiniHeight : undefined}
           reorderEnabled={columnEnabled}
           reorderState={reorder.getVisualState(entity.paneId)}
           reorderJiggleDelayMs={(indexInColumn % 5) * 40}

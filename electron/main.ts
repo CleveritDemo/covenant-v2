@@ -116,6 +116,40 @@ import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken } from './githubToken'
 import {
+  addAssignee as covenantAddAssignee,
+  addMember as covenantAddMember,
+  addOrgAdmin as covenantAddOrgAdmin,
+  addWorkspaceAdmin as covenantAddWorkspaceAdmin,
+  createOrg as covenantCreateOrg,
+  createWorkspace as covenantCreateWorkspace,
+  CovenantApiError,
+  deleteWorkspace as covenantDeleteWorkspace,
+  deleteWorkspaceAgent as covenantDeleteWorkspaceAgent,
+  deleteWorkspaceContext as covenantDeleteWorkspaceContext,
+  exchange as covenantExchange,
+  listDefaults as covenantListDefaults,
+  listMembers as covenantListMembers,
+  listMemberLogins as covenantListMemberLogins,
+  listOrgAdmins as covenantListOrgAdmins,
+  listOrgs as covenantListOrgs,
+  listWorkspaceAgents as covenantListWorkspaceAgents,
+  listWorkspaceContexts as covenantListWorkspaceContexts,
+  listWorkspaces as covenantListWorkspaces,
+  removeAssignee as covenantRemoveAssignee,
+  removeMember as covenantRemoveMember,
+  removeOrgAdmin as covenantRemoveOrgAdmin,
+  removeWorkspaceAdmin as covenantRemoveWorkspaceAdmin,
+  renameWorkspace as covenantRenameWorkspace,
+  setDefault as covenantSetDefault,
+  signOut as covenantSignOut,
+  status as covenantStatus,
+  unsetDefault as covenantUnsetDefault,
+  upsertWorkspaceAgent as covenantUpsertWorkspaceAgent,
+  upsertWorkspaceContext as covenantUpsertWorkspaceContext,
+  initCovenantSession,
+} from './covenantApi'
+import type { CovenantResult } from '../src/shared/covenantTypes'
+import {
   copyPathsForExplorer,
   cutPathsForExplorer,
   pasteIntoExplorer,
@@ -140,6 +174,7 @@ import {
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
 import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
+import { decryptField, encryptField, isEncryptedField } from './safeStorageUtils'
 
 const APP_DISPLAY_NAME = 'Covenant Gravity'
 
@@ -207,12 +242,49 @@ function configPath(): string {
   return join(app.getPath('userData'), 'config.json')
 }
 
+/** Campos de AppConfig que se cifran en reposo. */
+const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey'] as const
+type SecretField = (typeof SECRET_FIELDS)[number]
+
+/** Descifra los campos sensibles de un objeto leído del disco. */
+function decryptSecrets(parsed: Partial<AppConfig>): Partial<AppConfig> {
+  const out = { ...parsed }
+  for (const field of SECRET_FIELDS) {
+    const v = out[field]
+    if (typeof v === 'string' && v) out[field] = decryptField(v)
+  }
+  return out
+}
+
+/** Migra texto plano a cifrado y re-escribe el archivo si algún campo estaba sin cifrar. */
+function maybeMigrateAndEncrypt(parsed: Partial<AppConfig>): Partial<AppConfig> {
+  let dirty = false
+  const out = { ...parsed }
+  for (const field of SECRET_FIELDS) {
+    const v = out[field]
+    if (typeof v === 'string' && v && !isEncryptedField(v)) {
+      out[field] = encryptField(v) as AppConfig[SecretField]
+      dirty = true
+    }
+  }
+  if (dirty) {
+    try {
+      writeFileSync(configPath(), JSON.stringify(out, null, 2), 'utf-8')
+    } catch {
+      /* ignorar error de escritura en migración */
+    }
+  }
+  return out
+}
+
 function readConfig(): AppConfig {
   const p = configPath()
   if (!existsSync(p)) return CONFIG_DEFAULTS
   try {
     const raw = readFileSync(p, 'utf-8')
-    const parsed = JSON.parse(raw) as Partial<AppConfig>
+    let parsed = JSON.parse(raw) as Partial<AppConfig>
+    parsed = maybeMigrateAndEncrypt(parsed)
+    parsed = decryptSecrets(parsed)
     return mergeWithDefaults(parsed)
   } catch {
     return CONFIG_DEFAULTS
@@ -221,7 +293,12 @@ function readConfig(): AppConfig {
 
 function writeConfig(cfg: AppConfig): void {
   mkdirSync(app.getPath('userData'), { recursive: true })
-  writeFileSync(configPath(), JSON.stringify(cfg, null, 2), 'utf-8')
+  const toWrite: Partial<AppConfig> = { ...cfg }
+  for (const field of SECRET_FIELDS) {
+    const v = toWrite[field]
+    if (typeof v === 'string' && v) toWrite[field] = encryptField(v) as AppConfig[SecretField]
+  }
+  writeFileSync(configPath(), JSON.stringify(toWrite, null, 2), 'utf-8')
 }
 
 function projectRootForSession(sessionId: string): string {
@@ -665,6 +742,238 @@ function registerIpc(): void {
       const token = await resolveGithubToken(readConfig())
       return githubRunJobsForSession(resolveGitTargetCwd(target), token, runId)
     },
+  )
+
+  async function covenantInvoke<T>(fn: () => Promise<T> | T): Promise<CovenantResult<T>> {
+    try {
+      return { ok: true, data: await fn() }
+    } catch (e) {
+      if (e instanceof CovenantApiError) {
+        return { ok: false, error: e.message }
+      }
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  ipcMain.handle(IPC.COVENANT_STATUS, async () => covenantInvoke(() => covenantStatus()))
+
+  ipcMain.handle(IPC.COVENANT_SIGN_IN, async () => {
+    const token = await resolveGithubToken(readConfig())
+    if (!token) return { ok: false as const, error: 'no-github-token' }
+    return covenantInvoke(async () => {
+      await covenantExchange(token)
+      return covenantStatus()
+    })
+  })
+
+  ipcMain.handle(IPC.COVENANT_SIGN_OUT, async () =>
+    covenantInvoke(() => {
+      covenantSignOut()
+      return covenantStatus()
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORGS_LIST, async () => covenantInvoke(() => covenantListOrgs()))
+
+  ipcMain.handle(IPC.COVENANT_ORG_CREATE, async (_e, slug: unknown, name: unknown) =>
+    covenantInvoke(() => covenantCreateOrg(String(slug ?? ''), String(name ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBERS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListMembers(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_LOGINS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListMemberLogins(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_ADD, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantAddMember(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_REMOVE, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantRemoveMember(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULTS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListDefaults(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULT_SET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
+    covenantInvoke(async () => {
+      await covenantSetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_DEFAULT_UNSET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
+    covenantInvoke(async () => {
+      await covenantUnsetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_WORKSPACES_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListWorkspaces(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_CREATE, async (_e, slug: unknown, name: unknown) =>
+    covenantInvoke(() => covenantCreateWorkspace(String(slug ?? ''), String(name ?? ''))),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_RENAME,
+    async (_e, slug: unknown, workspaceId: unknown, name: unknown) =>
+      covenantInvoke(() =>
+        covenantRenameWorkspace(String(slug ?? ''), String(workspaceId ?? ''), String(name ?? '')),
+      ),
+  )
+
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_DELETE, async (_e, slug: unknown, workspaceId: unknown) =>
+    covenantInvoke(async () => {
+      await covenantDeleteWorkspace(String(slug ?? ''), String(workspaceId ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantAddAssignee(String(slug ?? ''), String(workspaceId ?? ''), String(login ?? ''))
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantRemoveAssignee(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ADMIN_ADD,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantAddWorkspaceAdmin(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ADMIN_REMOVE,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantRemoveWorkspaceAdmin(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENTS_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWorkspaceAgents(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENT_UPSERT,
+    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown, definition: unknown) =>
+      covenantInvoke(() =>
+        covenantUpsertWorkspaceAgent(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(agentId ?? ''),
+          definition as Parameters<typeof covenantUpsertWorkspaceAgent>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENT_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWorkspaceAgent(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(agentId ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXTS_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWorkspaceContexts(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXT_UPSERT,
+    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown, payload: unknown) =>
+      covenantInvoke(() =>
+        covenantUpsertWorkspaceContext(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(contextId ?? ''),
+          payload as Parameters<typeof covenantUpsertWorkspaceContext>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXT_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWorkspaceContext(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(contextId ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMINS_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListOrgAdmins(String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_ADD, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantAddOrgAdmin(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_REMOVE, async (_e, slug: unknown, login: unknown) =>
+    covenantInvoke(async () => {
+      await covenantRemoveOrgAdmin(String(slug ?? ''), String(login ?? ''))
+      return null
+    }),
   )
 
   ipcMain.handle(IPC.GITHUB_CHECK_TOKEN, async (_e, raw: unknown): Promise<GitHubTokenCheck> => {
@@ -1337,6 +1646,7 @@ app.whenReady().then(() => {
   // Dock/Finder/Explorer no heredan el PATH del shell; sin esto spawn(CLI) → ENOENT/-4058.
   applyLoginShellPath()
   applyAppBranding()
+  initCovenantSession()
   registerIpc()
   registerSelfUpdate()
   createWindow()

@@ -9,18 +9,19 @@ import {
   resolveAgentPaneMeta,
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
+import { tabAgentCatalogKey } from '@shared/covenantTypes'
 import { removePaneFromLoopChains } from '@shared/planeLoopChain'
 import { ensurePaneWindows } from '@shared/paneWindows'
 
-/** Resuelve la vista runtime de un pane desde binding local + catálogo del cwd. */
+/** Resuelve la vista runtime de un pane desde binding local + catálogo del cwd/org. */
 export function resolveTabAgentMeta(
   tab: TabSession,
   paneId: string,
   catalogByCwd: Record<string, ProjectAgentDefinition[]>,
 ): AgentPaneMeta {
   const binding = tab.agentByPane?.[paneId]
-  const cwd = tab.projectFolder?.trim() ?? ''
-  // Sin carpeta de proyecto se usa la clave '' (catálogo efímero en memoria).
+  const cwd = tabAgentCatalogKey(tab)
+  // Sin carpeta/org se usa la clave '' (catálogo efímero en memoria).
   const agents = catalogByCwd[cwd] ?? []
   if (!binding) {
     return {

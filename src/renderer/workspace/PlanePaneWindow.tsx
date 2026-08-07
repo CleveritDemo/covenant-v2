@@ -58,7 +58,7 @@ export interface PlanePaneWindowProps {
   /** Asigna un contexto soltado sobre este agente. */
   onDropContext?: (contextId: string) => void
   /** Altura real del mini (agentes) para apilar sin huecos. */
-  onMiniContentHeightChange?: (height: number) => void
+  onMiniContentHeightChange?: (paneId: string, height: number) => void
   reorderEnabled?: boolean
   reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
   reorderJiggleDelayMs?: number
@@ -140,6 +140,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
     <>
       <PaneWindow
         title={title}
+        paneId={paneId}
         display={display}
         geometry={{
           ...openGeometry,

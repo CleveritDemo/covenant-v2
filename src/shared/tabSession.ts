@@ -95,6 +95,14 @@ export interface TabSession {
    */
   projectFolder?: string
   /**
+   * Workspace org cargado en memoria (agentes/contextos vía Covenant).
+   * Ausente = pestaña personal (filesystem `.iaterminal`).
+   */
+  orgWorkspace?: {
+    slug: string
+    workspaceId: string
+  }
+  /**
    * @deprecated Legacy nest links; ya no se orquestan. Se mantienen por sanitize.
    */
   planeLoopLinks?: PlaneLoopLink[]

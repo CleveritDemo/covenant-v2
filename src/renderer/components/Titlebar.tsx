@@ -19,6 +19,7 @@ interface TitlebarProps {
   onFontIncrease: () => void
   onFontDecrease: () => void
   onOpenThemePicker: () => void
+  onOpenOrganizations: () => void
   onOpenSettings: () => void
   onConfigPatch?: (partial: Partial<AppConfig>) => void | Promise<void>
 }
@@ -32,6 +33,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   onFontIncrease,
   onFontDecrease,
   onOpenThemePicker,
+  onOpenOrganizations,
   onOpenSettings,
   onConfigPatch,
 }) => {
@@ -62,6 +64,16 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           isOpen={themePickerOpen}
           onClick={onOpenThemePicker}
         />
+
+        <Button
+          variant="icon"
+          tabIndex={-1}
+          onClick={onOpenOrganizations}
+          title={t('titlebar.organizationsTitle')}
+          aria-label={t('titlebar.organizationsAriaLabel')}
+        >
+          <Icon name="users" size={15} />
+        </Button>
 
         <Button
           variant="icon"

@@ -20,6 +20,10 @@ import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
+import {
+  hasAccessibleOrgWorkspaces,
+  type OrgWorkspaceSelection,
+} from './components/OrgWorkspaceTabPickerModal'
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
@@ -111,6 +115,18 @@ import {
   type ProjectAgentDefinition,
 } from '../shared/projectAgentCatalog'
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
+import {
+  covenantWorkspaceCatalogKey,
+  tabAgentCatalogKey,
+} from '../shared/covenantTypes'
+import {
+  getCovenantApi,
+  hasCovenantWorkspaceContentApi,
+} from './covenantApi'
+import {
+  projectAgentsFromWorkspaceAgents,
+  tabContextsFromWorkspaceContexts,
+} from '../shared/orgWorkspaceContent'
 import {
   removePaneFromLoopChains,
   activeLoopChainPaneIds,
@@ -245,6 +261,8 @@ export const App: React.FC = () => {
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [orgModalOpen, setOrgModalOpen] = useState(false)
+  const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -511,6 +529,7 @@ export const App: React.FC = () => {
     const root = cwd.trim()
     if (!root) return agents
     const targets = tabsRef.current.filter(tab => {
+      if (tab.orgWorkspace?.slug && tab.orgWorkspace?.workspaceId) return false
       if (tab.projectFolder?.trim() !== root) return false
       if (tabId) return tab.id === tabId
       return true
@@ -708,10 +727,38 @@ export const App: React.FC = () => {
         void (async () => {
           const folders = [...new Set(
             layoutTabs
+              .filter(tab => !(tab.orgWorkspace?.slug && tab.orgWorkspace?.workspaceId))
               .map(tab => tab.projectFolder?.trim() || '')
               .filter(Boolean),
           )]
           await Promise.all(folders.map(folder => refreshAndSyncProjectAgents(folder)))
+
+          const covenant = getCovenantApi()
+          if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+            for (const tab of layoutTabs) {
+              const org = tab.orgWorkspace
+              if (!org?.slug?.trim() || !org.workspaceId?.trim()) continue
+              const [agentsResult, contextsResult] = await Promise.all([
+                covenant.workspaceAgentsList(org.slug, org.workspaceId),
+                covenant.workspaceContextsList(org.slug, org.workspaceId),
+              ])
+              const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+              if (agentsResult.ok) {
+                const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+                setProjectAgentsByCwd(prev => {
+                  const next = { ...prev, [catalogKey]: agents }
+                  projectAgentsByCwdRef.current = next
+                  return next
+                })
+                syncTabWithProjectAgents(tab.id, agents)
+              }
+              if (contextsResult.ok) {
+                const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+                setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
+              }
+            }
+          }
+
           const snapshot = buildSessionSnapshot()
           if (snapshot) await window.api.saveSession(snapshot)
         })()
@@ -788,10 +835,12 @@ export const App: React.FC = () => {
     return `${tab.id}:${tab.paneIds.join(',')}`
   }, [tabs, activeTabId])
 
-  // Contextos solo desde disco (discoverTabContexts / `.gravity`); nunca desde session.
+  // Contextos: disco (discoverTabContexts / `.gravity`) en tabs personales;
+  // org-backed se cargan en memoria y saltan el discover.
   useEffect(() => {
     const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
     if (!tab) return
+    if (tab.orgWorkspace?.slug && tab.orgWorkspace?.workspaceId) return
     let cancelled = false
     void (async () => {
       const cwd = tab.projectFolder?.trim()
@@ -1107,15 +1156,58 @@ export const App: React.FC = () => {
   }, [patchTabExplorer])
 
   const handleAddTab = useCallback(() => {
-    const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
+    void (async () => {
+      try {
+        if (await hasAccessibleOrgWorkspaces()) {
+          setOrgWorkspacePickerOpen(true)
+          return
+        }
+      } catch {
+        /* personal fallback */
+      }
+      const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+        explorerByTabRef.current = next
+        return next
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+    })()
+  }, [t])
+
+  const handleOrgWorkspaceTabConfirm = useCallback((selection: OrgWorkspaceSelection) => {
+    setOrgWorkspacePickerOpen(false)
+    const title = selection.orgWorkspace?.name?.trim()
+      || t('tabs.defaultTitle', { n: ++tabCounter })
+    const tab = newTab(title)
+    if (selection.orgWorkspace) {
+      tab.orgWorkspace = {
+        slug: selection.orgWorkspace.slug,
+        workspaceId: selection.orgWorkspace.workspaceId,
+      }
+    }
     setExplorerByTab(prev => {
       const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
       explorerByTabRef.current = next
       return next
     })
+    if (selection.catalogKey) {
+      setProjectAgentsByCwd(prev => {
+        const next = { ...prev, [selection.catalogKey]: selection.agents }
+        projectAgentsByCwdRef.current = next
+        return next
+      })
+    }
+    if (selection.contexts.length) {
+      setTabContextsByTab(prev => ({ ...prev, [tab.id]: selection.contexts }))
+    }
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
-  }, [t])
+    if (selection.agents.length) {
+      queueMicrotask(() => syncTabWithProjectAgents(tab.id, selection.agents))
+    }
+  }, [syncTabWithProjectAgents, t])
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -1368,17 +1460,35 @@ export const App: React.FC = () => {
     if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
     const cwd = current.projectFolder?.trim() || ''
     if (!cwd) return
+    const catalogKey = tabAgentCatalogKey(current)
+    const orgWorkspace = current.orgWorkspace
+    const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
     const existing = new Set(
-      (projectAgentsByCwdRef.current[cwd] ?? []).map(agent => agent.id),
+      (projectAgentsByCwdRef.current[catalogKey] ?? []).map(agent => agent.id),
     )
     const definition = buildNewProjectAgentDefinition(provider, name, existing)
-    const written = await window.api.upsertProjectAgent(cwd, definition)
-    if (!written.ok) return
-    rememberProjectAgent(cwd, written.agent)
+    let agent = definition
+    if (isOrgBacked && orgWorkspace) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
+      const written = await covenant.workspaceAgentUpsert(
+        orgWorkspace.slug,
+        orgWorkspace.workspaceId,
+        definition.id,
+        definition,
+      )
+      if (!written.ok) return
+      agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
+    } else {
+      const written = await window.api.upsertProjectAgent(cwd, definition)
+      if (!written.ok) return
+      agent = written.agent
+    }
+    rememberProjectAgent(catalogKey, agent)
     await window.api.ensureAiAgentResults({
       cwd,
-      agentId: written.agent.id,
-      agentName: written.agent.name ?? name.trim(),
+      agentId: agent.id,
+      agentName: agent.name ?? name.trim(),
     })
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
@@ -1396,7 +1506,7 @@ export const App: React.FC = () => {
         paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: { agentId: written.agent.id },
+          [paneId]: { agentId: agent.id },
         },
       })
     }))
@@ -1406,6 +1516,7 @@ export const App: React.FC = () => {
   const bootstrapProjectAgents = useCallback(async (tabId: string) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
+    if (current.orgWorkspace?.slug && current.orgWorkspace?.workspaceId) return
     const cwd = current.projectFolder?.trim() || ''
     if (!cwd) return
     const catalog = projectAgentsByCwdRef.current[cwd] ?? []
@@ -1477,18 +1588,37 @@ export const App: React.FC = () => {
     if (current.paneKinds?.[sourcePaneId] !== 'agent') return
     const cwd = current.projectFolder?.trim() || ''
     if (!cwd) return
+    const catalogKey = tabAgentCatalogKey(current)
+    const orgWorkspace = current.orgWorkspace
+    const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
     const sourceMeta = resolveTabAgentMeta(current, sourcePaneId, projectAgentsByCwdRef.current)
     const existing = new Set(
-      (projectAgentsByCwdRef.current[cwd] ?? []).map(agent => agent.id),
+      (projectAgentsByCwdRef.current[catalogKey] ?? []).map(agent => agent.id),
     )
     const clonedFields = cloneProjectAgentDefinition(
       sourceMeta,
       i18next.t('agentPane.duplicateNameSuffix'),
     )
     const agentId = allocateAgentSlug(clonedFields.name ?? sourceMeta.id, existing)
-    const written = await window.api.upsertProjectAgent(cwd, { ...clonedFields, id: agentId })
-    if (!written.ok) return
-    rememberProjectAgent(cwd, written.agent)
+    const definition = { ...clonedFields, id: agentId }
+    let agent = definition
+    if (isOrgBacked && orgWorkspace) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
+      const written = await covenant.workspaceAgentUpsert(
+        orgWorkspace.slug,
+        orgWorkspace.workspaceId,
+        agentId,
+        definition,
+      )
+      if (!written.ok) return
+      agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
+    } else {
+      const written = await window.api.upsertProjectAgent(cwd, definition)
+      if (!written.ok) return
+      agent = written.agent
+    }
+    rememberProjectAgent(catalogKey, agent)
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
@@ -1504,7 +1634,7 @@ export const App: React.FC = () => {
         paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: { agentId: written.agent.id },
+          [paneId]: { agentId: agent.id },
         },
       })
     }))
@@ -1756,6 +1886,7 @@ export const App: React.FC = () => {
   const refreshTabContexts = useCallback(async (tabId: string): Promise<void> => {
     const tab = tabsRef.current.find(item => item.id === tabId)
     if (!tab) return
+    if (tab.orgWorkspace?.slug && tab.orgWorkspace?.workspaceId) return
     const cwd = tab.projectFolder?.trim() || ''
     if (!cwd) return
     const result = await window.api.discoverTabContexts({ cwd })
@@ -2297,7 +2428,10 @@ export const App: React.FC = () => {
   ): Promise<boolean> => {
     const tab = tabsRef.current.find(item => item.id === tabId)
     if (!tab || tab.paneKinds?.[paneId] !== 'agent') return false
-    const cwd = tab.projectFolder?.trim() || ''
+    const projectFolder = tab.projectFolder?.trim() || ''
+    const catalogKey = tabAgentCatalogKey(tab)
+    const orgWorkspace = tab.orgWorkspace
+    const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
     const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
     const next = typeof meta === 'function' ? meta(previous) : meta
     const previousId = normalizeAgentSlug(previous.id, 'agent')
@@ -2323,11 +2457,11 @@ export const App: React.FC = () => {
       toSlug: string,
     ): void => {
       setProjectAgentsByCwd(prev => {
-        const remapped = remapAgentResultIdsInCatalog(prev[cwd] ?? [], fromSlug, toSlug)
+        const remapped = remapAgentResultIdsInCatalog(prev[catalogKey] ?? [], fromSlug, toSlug)
           .filter(item => item.id !== removeId && item.id !== agent.id)
         const nextCatalog = {
           ...prev,
-          [cwd]: upsertAgentInList(remapped, agent),
+          [catalogKey]: upsertAgentInList(remapped, agent),
         }
         projectAgentsByCwdRef.current = nextCatalog
         return nextCatalog
@@ -2336,8 +2470,8 @@ export const App: React.FC = () => {
 
     const applyBindings = (fromId: string, toId: string, paneBinding: typeof binding): void => {
       setTabs(prev => {
-        const base = cwd && fromId !== toId
-          ? remapAgentBindingsInTabs(prev, cwd, fromId, toId)
+        const base = catalogKey && fromId !== toId
+          ? remapAgentBindingsInTabs(prev, catalogKey, fromId, toId)
           : prev
         const nextTabs = base.map(item => {
           if (item.id !== tabId) return item
@@ -2359,7 +2493,7 @@ export const App: React.FC = () => {
         let changed = false
         const nextMap: Record<string, TabContext[]> = { ...prev }
         for (const item of tabsRef.current) {
-          if ((item.projectFolder ?? '').trim() !== cwd) continue
+          if (tabAgentCatalogKey(item) !== catalogKey) continue
           const list = prev[item.id]
           if (!list?.length) continue
           const remapped = remapAgentResultTabContexts(list, fromSlug, toSlug)
@@ -2372,46 +2506,83 @@ export const App: React.FC = () => {
       })
       setContextsRevisionByCwd(prev => ({
         ...prev,
-        [cwd]: (prev[cwd] ?? 0) + 1,
+        [catalogKey]: (prev[catalogKey] ?? 0) + 1,
       }))
     }
 
     applyBindings(previousId, nextId, binding)
-    if (cwd && idChanged) {
+    if (catalogKey && idChanged) {
       replaceCatalogAfterSlugChange(previousId, definition, previousId, nextId)
       applyResultContextRemapInUi(previousId, nextId)
     } else {
-      rememberProjectAgent(cwd, definition)
+      rememberProjectAgent(catalogKey, definition)
     }
     void saveSessionNow()
 
-    // Sin carpeta de proyecto: solo sesión local (optimistic); no hay upsert a disco.
-    if (!cwd) return true
-
-    const result = idChanged
-      ? await window.api.renameProjectAgent(cwd, previousId, definition)
-      : await window.api.upsertProjectAgent(cwd, definition)
-
-    if (!result.ok) {
-      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
-      applyBindings(nextId, previousId, previousBinding)
+    if (isOrgBacked && orgWorkspace) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return true
       if (idChanged) {
+        await covenant.workspaceAgentDelete(
+          orgWorkspace.slug,
+          orgWorkspace.workspaceId,
+          previousId,
+        )
+      }
+      const upsert = await covenant.workspaceAgentUpsert(
+        orgWorkspace.slug,
+        orgWorkspace.workspaceId,
+        nextId,
+        definition,
+      )
+      if (!upsert.ok) {
+        const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
+        applyBindings(nextId, previousId, previousBinding)
+        if (idChanged) {
+          replaceCatalogAfterSlugChange(nextId, previousDefinition, nextId, previousId)
+          applyResultContextRemapInUi(nextId, previousId)
+        } else {
+          rememberProjectAgent(catalogKey, previousDefinition)
+        }
+        void saveSessionNow()
+        return false
+      }
+      const parsed = projectAgentsFromWorkspaceAgents([upsert.data])[0]
+      rememberProjectAgent(catalogKey, parsed ?? definition)
+      return true
+    }
+
+    // Sin carpeta de proyecto: solo sesión local (optimistic); no hay upsert a disco.
+    if (!projectFolder) return true
+
+    if (idChanged) {
+      const renamed = await window.api.renameProjectAgent(projectFolder, previousId, definition)
+      if (!renamed.ok) {
+        const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
+        applyBindings(nextId, previousId, previousBinding)
         replaceCatalogAfterSlugChange(nextId, previousDefinition, nextId, previousId)
         applyResultContextRemapInUi(nextId, previousId)
-      } else {
-        rememberProjectAgent(cwd, previousDefinition)
+        void saveSessionNow()
+        return false
       }
+      replaceCatalogAfterSlugChange(previousId, renamed.agent, previousId, renamed.toId)
+      await refreshProjectAgents(projectFolder)
+      if (!contextIdsEqual(previousDefinition.contextIds, renamed.agent.contextIds)) {
+        void refreshTabContexts(tabId)
+      }
+      return true
+    }
+
+    const upserted = await window.api.upsertProjectAgent(projectFolder, definition)
+    if (!upserted.ok) {
+      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
+      applyBindings(nextId, previousId, previousBinding)
+      rememberProjectAgent(catalogKey, previousDefinition)
       void saveSessionNow()
       return false
     }
-
-    if (idChanged) {
-      replaceCatalogAfterSlugChange(previousId, result.agent, previousId, result.toId)
-      await refreshProjectAgents(cwd)
-    } else {
-      rememberProjectAgent(cwd, result.agent)
-    }
-    if (!contextIdsEqual(previousDefinition.contextIds, result.agent.contextIds)) {
+    rememberProjectAgent(catalogKey, upserted.agent)
+    if (!contextIdsEqual(previousDefinition.contextIds, upserted.agent.contextIds)) {
       void refreshTabContexts(tabId)
     }
     return true
@@ -2838,6 +3009,7 @@ export const App: React.FC = () => {
         onFontIncrease={() => changeFontSize(1)}
         onFontDecrease={() => changeFontSize(-1)}
         onOpenThemePicker={() => setThemePickerOpen(true)}
+        onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onConfigPatch={patchConfig}
       />
@@ -2957,7 +3129,8 @@ export const App: React.FC = () => {
                   const explorerState = explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE
                   const explorerSessionId = resolveTabExplorerSessionId(tab)
                   const projectCwd = tab.projectFolder?.trim() || ''
-                  const catalogEmpty = (projectAgentsByCwd[projectCwd] ?? []).length === 0
+                  const agentCatalogKey = tabAgentCatalogKey(tab)
+                  const catalogEmpty = (projectAgentsByCwd[agentCatalogKey] ?? []).length === 0
                   const noAgentPanes = !(tab.paneIds ?? []).some(
                     paneId => tab.paneKinds?.[paneId] === 'agent',
                   )
@@ -3182,7 +3355,7 @@ export const App: React.FC = () => {
                   open={Boolean(brainstormSetupOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
                   active={activeTabId === tab.id}
                   cwd={tab.projectFolder ?? ''}
-                  agents={projectAgentsByCwd[projectCwd] ?? []}
+                  agents={projectAgentsByCwd[agentCatalogKey] ?? []}
                   onClose={() => {
                     setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
@@ -3198,7 +3371,7 @@ export const App: React.FC = () => {
                     room={brainstormRoomByTab[tab.id]!}
                     cwd={tab.projectFolder ?? ''}
                     agentNamesById={Object.fromEntries(
-                      (projectAgentsByCwd[projectCwd] ?? []).map(agent => [
+                      (projectAgentsByCwd[agentCatalogKey] ?? []).map(agent => [
                         agent.id,
                         agent.name?.trim() || agent.id,
                       ]),
@@ -3283,6 +3456,8 @@ export const App: React.FC = () => {
       <AppModals
         config={config}
         settingsOpen={settingsOpen}
+        orgModalOpen={orgModalOpen}
+        orgWorkspacePickerOpen={orgWorkspacePickerOpen}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
         agentCreate={agentCreate}
@@ -3291,6 +3466,15 @@ export const App: React.FC = () => {
           setSettingsOpen(false)
           focusActiveTerminalTextarea()
         }}
+        onCloseOrganizations={() => {
+          setOrgModalOpen(false)
+          focusActiveTerminalTextarea()
+        }}
+        onCloseOrgWorkspacePicker={() => {
+          setOrgWorkspacePickerOpen(false)
+          focusActiveTerminalTextarea()
+        }}
+        onConfirmOrgWorkspacePicker={handleOrgWorkspaceTabConfirm}
         onCloseThemePicker={() => {
           setThemePickerOpen(false)
           focusActiveTerminalTextarea()

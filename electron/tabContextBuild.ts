@@ -1,6 +1,6 @@
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, isAbsolute, join, relative, resolve, basename } from 'path'
 import ts from 'typescript'
 import type {
@@ -488,7 +488,11 @@ function conflictingContextFile(
   try {
     const meta = contextFromMetadata(readFileSync(filePath, 'utf8'), basename(filePath))
     if (!meta) return null
-    if (meta.id === normalized.id || meta.id === incomingId) return null
+    // Comparación case-insensitive: renombrar "Git" → "git" cambia el id
+    // (`…:git:Git` → `…:git:git`) pero en un FS case-insensitive (macOS) el
+    // destino resuelve al MISMO archivo, y eso no es un conflicto.
+    const sameId = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase()
+    if (sameId(meta.id, normalized.id) || sameId(meta.id, incomingId)) return null
     return 'A context file with this name already exists.'
   } catch {
     return null
@@ -504,6 +508,13 @@ function removeSupersededContextFile(
   force = false,
 ): void {
   if (!previousFilePath || previousFilePath === nextFilePath || !existsSync(previousFilePath)) return
+  // Rename que solo cambia mayúsculas: en un FS case-insensitive ambas rutas son
+  // el mismo archivo (ya escrito con el contenido nuevo), así que borrarlo
+  // perdería el contexto. Solo hay que corregir el case en disco.
+  if (previousFilePath.toLowerCase() === nextFilePath.toLowerCase()) {
+    try { renameSync(previousFilePath, nextFilePath) } catch { /* ignore */ }
+    return
+  }
   try {
     if (force) {
       unlinkSync(previousFilePath)

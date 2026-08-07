@@ -537,6 +537,24 @@ describe('tab context builders', () => {
     expect(conflict.error).toMatch(/already exists/i)
   })
 
+  it('renames a context changing only the letter case', () => {
+    const cwd = tempCwd()
+    const original = applyCanonicalContextIdentity({
+      id: '', name: 'Notas', fileName: '', kind: 'notes',
+    })
+    materializeTabContext(original, cwd, { write: true, content: 'contenido' })
+    const renamed = applyCanonicalContextIdentity({ ...original, name: 'notas' })
+    const result = materializeTabContext(renamed, cwd, {
+      write: true,
+      content: 'contenido',
+      previousFileName: original.fileName,
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.ok).toBe(true)
+    expect(readFileSync(join(cwd, PROJECT_DIR, renamed.fileName), 'utf8')).toContain('contenido')
+    expect(discoverTabContexts(cwd).contexts.map(item => item.name)).toEqual(['notas'])
+  })
+
   it('deletes a materialized context file from <projectDir>', () => {
     const cwd = tempCwd()
     const context = applyCanonicalContextIdentity({

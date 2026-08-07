@@ -207,6 +207,9 @@ const api = {
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
   },
+  revealTabContext(cwd: string, fileName: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.TAB_CONTEXT_REVEAL, cwd, fileName)
+  },
 
   onShortcutCloseTab(cb: () => void): () => void {
     const listener = (): void => {

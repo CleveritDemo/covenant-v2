@@ -40,7 +40,7 @@
 Dos, ambas para hacer menos código. Si el revisor prefiere lo que decía el spec, se revierten sin tocar el resto del plan.
 
 1. **El spec pide un popover para «Aspecto»; este plan usa un `<details>` nativo.** Un popover dentro de un modal necesita posicionamiento, cierre al hacer clic fuera y trampa de foco, y pelea con el `overflow` del panel. `<details>`/`<summary>` da plegado, teclado y accesibilidad sin componente nuevo ni riesgo en `npm run check:ui`. Ahorra ~70 líneas y un componente del UI kit (tarea 6).
-2. **Los chips se agrupan en dos grupos, no tres.** El spec dibuja «Del repositorio / Escrito a mano / Fuente externa», pero el tercero solo tiene sentido cuando exista el kind `mcp`, que es otro spec. Se implementan los dos que existen hoy; añadir el tercero será una entrada más en el array de la tarea 5.
+2. **Los chips se agrupan en dos grupos, no tres.** El diseño original dibujaba «Del repositorio / Escrito a mano / Fuente externa», pero hoy no existe ningún tipo de contexto externo. Se implementan los dos grupos que corresponden a los ocho tipos reales; si algún día se añade un tipo de otra procedencia, será una entrada más en el array de la tarea 5.
 
 ---
 
@@ -891,8 +891,7 @@ En `TabContextsEditor.tsx`, reemplaza la constante `KINDS` (línea 27) por:
 /**
  * Los tipos se agrupan por quién escribe el cuerpo, que es la distinción con
  * consecuencias: los host los materializa el pipeline desde el disco, `notes`
- * lo escribe la persona. El grupo «fuente externa» aparecerá cuando exista el
- * kind `mcp`.
+ * lo escribe la persona.
  */
 const KIND_GROUPS: Array<{ labelKey: string; kinds: TabContextKind[] }> = [
   {

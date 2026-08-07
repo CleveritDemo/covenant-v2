@@ -889,14 +889,32 @@ export const App: React.FC = () => {
 
           const covenant = getCovenantApi()
           if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+            const byWorkspace = new Map<string, {
+              slug: string
+              workspaceId: string
+              tabIds: string[]
+            }>()
             for (const tab of layoutTabs) {
               const org = tab.orgWorkspace
               if (!org?.slug?.trim() || !org.workspaceId?.trim()) continue
+              const key = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+              let entry = byWorkspace.get(key)
+              if (!entry) {
+                entry = {
+                  slug: org.slug.trim(),
+                  workspaceId: org.workspaceId.trim(),
+                  tabIds: [],
+                }
+                byWorkspace.set(key, entry)
+              }
+              entry.tabIds.push(tab.id)
+            }
+            await Promise.all([...byWorkspace.values()].map(async ws => {
               const [agentsResult, contextsResult] = await Promise.all([
-                covenant.workspaceAgentsList(org.slug, org.workspaceId),
-                covenant.workspaceContextsList(org.slug, org.workspaceId),
+                covenant.workspaceAgentsList(ws.slug, ws.workspaceId),
+                covenant.workspaceContextsList(ws.slug, ws.workspaceId),
               ])
-              const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+              const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
               if (agentsResult.ok) {
                 const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
                 setProjectAgentsByCwd(prev => {
@@ -904,13 +922,17 @@ export const App: React.FC = () => {
                   projectAgentsByCwdRef.current = next
                   return next
                 })
-                syncTabWithProjectAgents(tab.id, agents)
+                for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
               }
               if (contextsResult.ok) {
                 const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-                setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
+                setTabContextsByTab(prev => {
+                  const next = { ...prev }
+                  for (const tabId of ws.tabIds) next[tabId] = contexts
+                  return next
+                })
               }
-            }
+            }))
           }
 
           const snapshot = buildSessionSnapshot()

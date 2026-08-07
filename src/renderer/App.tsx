@@ -1779,26 +1779,21 @@ export const App: React.FC = () => {
     const agentId = t.agentByPane?.[paneId]?.agentId
     const cwd = t.projectFolder?.trim() || ''
     const org = t.orgWorkspace
-    if (isAgent && cwd && agentId) {
-      void window.api.deleteProjectAgent(cwd, agentId).then(result => {
-        if (!result.ok) return
-        setProjectAgentsByCwd(prev => {
-          const list = (prev[cwd] ?? []).filter(agent => agent.id !== agentId)
-          const next = { ...prev, [cwd]: list }
-          projectAgentsByCwdRef.current = next
-          return next
-        })
-      })
-    } else if (
-      isAgent
-      && agentId
-      && org?.slug?.trim()
-      && org.workspaceId?.trim()
-    ) {
+    const isOrgBacked = Boolean(org?.slug?.trim() && org?.workspaceId?.trim())
+    if (isAgent && agentId && isOrgBacked && org) {
       const covenant = getCovenantApi()
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
         void covenant.workspaceAgentDelete(org.slug, org.workspaceId, agentId).then(result => {
-          if (!result.ok) return
+          if (!result.ok) {
+            console.warn(
+              '[handleClosePane] workspaceAgentDelete falló, se mantiene el agente en la UI:',
+              org.slug,
+              org.workspaceId,
+              agentId,
+              result.error,
+            )
+            return
+          }
           const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
           setProjectAgentsByCwd(prev => {
             const list = (prev[catalogKey] ?? []).filter(a => a.id !== agentId)
@@ -1808,6 +1803,16 @@ export const App: React.FC = () => {
           })
         })
       }
+    } else if (isAgent && cwd && agentId) {
+      void window.api.deleteProjectAgent(cwd, agentId).then(result => {
+        if (!result.ok) return
+        setProjectAgentsByCwd(prev => {
+          const list = (prev[cwd] ?? []).filter(agent => agent.id !== agentId)
+          const next = { ...prev, [cwd]: list }
+          projectAgentsByCwdRef.current = next
+          return next
+        })
+      })
     }
     if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)

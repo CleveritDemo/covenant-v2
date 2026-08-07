@@ -28,6 +28,8 @@ export interface AgentCliArgsInput {
   model?: string
   /** Sesión previa del CLI para continuar el hilo. */
   sessionId?: string
+  /** Deniega la tool `Skill`: el proceso no puede invocar ninguna skill. */
+  disableSkills?: boolean
 }
 
 /** Disponibilidad real del CLI de un proveedor en la máquina. */
@@ -55,13 +57,27 @@ export interface AgentCliProviderSpec {
 const withModel = (flag: string, model: string | undefined): string[] =>
   model?.trim() ? [flag, model.trim()] : []
 
+/**
+ * `--disallowedTools` una sola vez con todo lo denegado. Emitir el flag dos
+ * veces no equivale a una lista fusionada.
+ */
+const disallowedTools = (mode: AgentPermissionMode, disableSkills?: boolean): string[] => {
+  const tools = [
+    // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
+    // confirmación, así que bloqueamos herramientas que mutan el workspace.
+    ...(mode === 'ask' ? ['Edit', 'Write', 'NotebookEdit', 'Bash', 'MultiEdit'] : []),
+    ...(disableSkills ? ['Skill'] : []),
+  ]
+  return tools.length ? ['--disallowedTools', tools.join(',')] : []
+}
+
 export const AGENT_CLI_PROVIDERS = {
   claude: {
     label: 'Claude Code',
     brand: '#D97757',
     command: 'claude',
     stream: 'claude',
-    args: ({ prompt, mode, model, sessionId }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills }) => [
       '-p',
       prompt,
       '--output-format',
@@ -69,9 +85,7 @@ export const AGENT_CLI_PROVIDERS = {
       '--verbose',
       '--include-partial-messages',
       ...(sessionId ? ['--resume', sessionId] : []),
-      // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
-      // confirmación, así que bloqueamos herramientas que mutan el workspace.
-      ...(mode === 'ask' ? ['--disallowedTools', 'Edit,Write,NotebookEdit,Bash,MultiEdit'] : []),
+      ...disallowedTools(mode, disableSkills),
       ...(mode === 'auto' ? ['--permission-mode', 'bypassPermissions'] : []),
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),

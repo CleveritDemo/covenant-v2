@@ -1518,10 +1518,12 @@ export const App: React.FC = () => {
   const bootstrapProjectAgents = useCallback(async (tabId: string) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
-    if (current.orgWorkspace?.slug && current.orgWorkspace?.workspaceId) return
     const cwd = current.projectFolder?.trim() || ''
-    if (!cwd) return
-    const catalog = projectAgentsByCwdRef.current[cwd] ?? []
+    const catalogKey = tabAgentCatalogKey(current)
+    const orgWorkspace = current.orgWorkspace
+    const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
+    if (!cwd && !isOrgBacked) return
+    const catalog = projectAgentsByCwdRef.current[catalogKey] ?? []
     if (catalog.length > 0) return
     const hasAgentPane = (current.paneIds ?? []).some(
       paneId => current.paneKinds?.[paneId] === 'agent',
@@ -1539,17 +1541,34 @@ export const App: React.FC = () => {
       const tabNow = tabsRef.current.find(tab => tab.id === tabId)
       if (!tabNow || tabNow.paneIds.length >= MAX_PANES_PER_TAB) break
 
-      const written = await window.api.upsertProjectAgent(cwd, definition)
-      if (!written.ok) continue
-      rememberProjectAgent(cwd, written.agent)
-      await window.api.ensureAiAgentResults({
-        cwd,
-        agentId: written.agent.id,
-        agentName: written.agent.name ?? definition.name ?? written.agent.id,
-      })
+      let agent = definition
+      if (isOrgBacked && orgWorkspace) {
+        const covenant = getCovenantApi()
+        if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) break
+        const written = await covenant.workspaceAgentUpsert(
+          orgWorkspace.slug,
+          orgWorkspace.workspaceId,
+          definition.id,
+          definition,
+        )
+        if (!written.ok) continue
+        agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
+      } else {
+        const written = await window.api.upsertProjectAgent(cwd, definition)
+        if (!written.ok) continue
+        agent = written.agent
+      }
+      rememberProjectAgent(catalogKey, agent)
+      if (cwd) {
+        await window.api.ensureAiAgentResults({
+          cwd,
+          agentId: agent.id,
+          agentName: agent.name ?? definition.name ?? agent.id,
+        })
+      }
 
       const paneId = crypto.randomUUID()
-      rememberPaneCwd(paneId, cwd)
+      if (cwd) rememberPaneCwd(paneId, cwd)
       setTabs(prev => prev.map(tab => {
         if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
         const paneWindows = { ...(tab.paneWindows ?? {}) }
@@ -1566,13 +1585,13 @@ export const App: React.FC = () => {
           paneWindows,
           agentByPane: {
             ...(tab.agentByPane ?? {}),
-            [paneId]: { agentId: written.agent.id },
+            [paneId]: { agentId: agent.id },
           },
         })
       }))
     }
     scheduleSaveSession()
-    void refreshAndSyncProjectAgents(cwd, tabId)
+    if (cwd) void refreshAndSyncProjectAgents(cwd, tabId)
   }, [
     rememberPaneCwd,
     rememberProjectAgent,

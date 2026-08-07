@@ -1542,6 +1542,7 @@ export const App: React.FC = () => {
     const isAgent = t.paneKinds?.[paneId] === 'agent'
     const agentId = t.agentByPane?.[paneId]?.agentId
     const cwd = t.projectFolder?.trim() || ''
+    const org = t.orgWorkspace
     if (isAgent && cwd && agentId) {
       void window.api.deleteProjectAgent(cwd, agentId).then(result => {
         if (!result.ok) return
@@ -1552,6 +1553,25 @@ export const App: React.FC = () => {
           return next
         })
       })
+    } else if (
+      isAgent
+      && agentId
+      && org?.slug?.trim()
+      && org.workspaceId?.trim()
+    ) {
+      const covenant = getCovenantApi()
+      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+        void covenant.workspaceAgentDelete(org.slug, org.workspaceId, agentId).then(result => {
+          if (!result.ok) return
+          const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+          setProjectAgentsByCwd(prev => {
+            const list = (prev[catalogKey] ?? []).filter(a => a.id !== agentId)
+            const next = { ...prev, [catalogKey]: list }
+            projectAgentsByCwdRef.current = next
+            return next
+          })
+        })
+      }
     }
     if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)

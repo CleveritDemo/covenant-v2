@@ -284,6 +284,7 @@ const es = {
     changelogReadOnly: 'El contenido lo escribe la IA automáticamente; puedes cambiar nombre y archivo.',
     agentResultReadOnly: 'Lo escribe el agente al registrar resultados; puedes asignarlo a otros agentes.',
     changelogCreateHint: 'Nombre y archivo son configurables; el runtime sigue el archivo de este contexto.',
+    appearance: 'Aspecto',
     icon: 'Ícono',
     color: 'Color',
     preview: 'Vista previa',

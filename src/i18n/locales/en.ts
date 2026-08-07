@@ -282,6 +282,7 @@ const en = {
     changelogReadOnly: 'Content is written automatically by the AI; you can change the name and file.',
     agentResultReadOnly: 'Written by the agent when it registers results; you can assign it to other agents.',
     changelogCreateHint: 'Name and file are configurable; runtime follows this context file.',
+    appearance: 'Appearance',
     icon: 'Icon',
     color: 'Color',
     preview: 'Preview',

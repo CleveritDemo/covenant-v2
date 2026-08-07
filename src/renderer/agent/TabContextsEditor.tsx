@@ -148,7 +148,11 @@ export const TabContextsEditor: React.FC<Props> = ({
         </label>
 
         {!hostOwnedReadOnly && (
-          <>
+          <details className="tab-contexts__appearance-fold">
+            <summary>
+              <Icon name={appearanceIconName(resolveContextIcon(draft))} size={14} />
+              {t('tabContexts.appearance')}
+            </summary>
             <fieldset className="tab-contexts__appearance">
               <legend>{t('tabContexts.icon')}</legend>
               <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
@@ -183,7 +187,7 @@ export const TabContextsEditor: React.FC<Props> = ({
                 })}
               </div>
             </fieldset>
-          </>
+          </details>
         )}
 
         {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (

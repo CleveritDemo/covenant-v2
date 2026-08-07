@@ -913,7 +913,11 @@ export const App: React.FC = () => {
               .map(tab => tab.projectFolder?.trim() || '')
               .filter(Boolean),
           )]
-          await Promise.all(folders.map(folder => refreshAndSyncProjectAgents(folder)))
+          try {
+            await Promise.all(folders.map(folder => refreshAndSyncProjectAgents(folder)))
+          } catch (err) {
+            console.warn('[boot] refreshAndSyncProjectAgents falló:', err)
+          }
 
           // QA fix (Fase 4): boot GC de worktrees huérfanos (crash/kill de sesiones previas).
           await Promise.all(folders.map(async folder => {
@@ -959,30 +963,34 @@ export const App: React.FC = () => {
               }
               entry.tabIds.push(tab.id)
             }
-            await Promise.all([...byWorkspace.values()].map(async ws => {
-              const [agentsResult, contextsResult] = await Promise.all([
-                covenant.workspaceAgentsList(ws.slug, ws.workspaceId),
-                covenant.workspaceContextsList(ws.slug, ws.workspaceId),
-              ])
-              const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
-              if (agentsResult.ok) {
-                const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-                setProjectAgentsByCwd(prev => {
-                  const next = { ...prev, [catalogKey]: agents }
-                  projectAgentsByCwdRef.current = next
-                  return next
-                })
-                for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
-              }
-              if (contextsResult.ok) {
-                const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-                setTabContextsByTab(prev => {
-                  const next = { ...prev }
-                  for (const tabId of ws.tabIds) next[tabId] = contexts
-                  return next
-                })
-              }
-            }))
+            try {
+              await Promise.all([...byWorkspace.values()].map(async ws => {
+                const [agentsResult, contextsResult] = await Promise.all([
+                  covenant.workspaceAgentsList(ws.slug, ws.workspaceId),
+                  covenant.workspaceContextsList(ws.slug, ws.workspaceId),
+                ])
+                const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
+                if (agentsResult.ok) {
+                  const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+                  setProjectAgentsByCwd(prev => {
+                    const next = { ...prev, [catalogKey]: agents }
+                    projectAgentsByCwdRef.current = next
+                    return next
+                  })
+                  for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
+                }
+                if (contextsResult.ok) {
+                  const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+                  setTabContextsByTab(prev => {
+                    const next = { ...prev }
+                    for (const tabId of ws.tabIds) next[tabId] = contexts
+                    return next
+                  })
+                }
+              }))
+            } catch (err) {
+              console.warn('[boot] org workspace agents/contexts sync falló:', err)
+            }
           }
 
           // Repos org: clona faltantes (p. ej. añadidos por admin) sin UI bloqueante.
@@ -1009,6 +1017,7 @@ export const App: React.FC = () => {
             && hasCovenantWorkspaceReposApi(covenant)
             && typeof covenant.cloneOrgWorkspace === 'function'
           ) {
+            let firstCloneError: string | null = null
             await Promise.all([...reposByWorkspace.values()].map(async ws => {
               try {
                 const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
@@ -1018,16 +1027,33 @@ export const App: React.FC = () => {
                   cloneUrl: r.cloneUrl,
                 }))
                 if (!repos.length) return
-                await covenant.cloneOrgWorkspace({
+                const res = await covenant.cloneOrgWorkspace({
                   orgSlug: ws.slug,
                   workspaceSlug: sanitizeSlugSegment(ws.workspaceId),
                   repos,
                   workspaceDir: ws.localDir,
                 })
+                if (!res.ok) {
+                  console.warn('[boot] org workspace repo clone falló', ws.slug, ws.workspaceId, res.error)
+                  if (!firstCloneError) firstCloneError = res.error
+                }
               } catch (err) {
                 console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
+                if (!firstCloneError) firstCloneError = String(err)
               }
             }))
+            if (firstCloneError) {
+              const cloneErr = firstCloneError as string
+              const requirement =
+                cloneErr === 'missing-default-dir'
+                  ? { missingFolder: true }
+                  : cloneErr === 'missing-token'
+                    ? { missingToken: true }
+                    : { cloneError: cloneErr }
+              // Updater funcional: consulta el estado VIVO (prev), no el closure stale
+              // del boot. Si otro flujo ya abrió un modal (prev !== null), no lo pisa.
+              setOrgWorkspaceRequirement(prev => (prev === null ? requirement : prev))
+            }
           }
 
           const snapshot = buildSessionSnapshot()

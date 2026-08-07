@@ -580,6 +580,7 @@ const en = {
     repoCloneUrlPlaceholder: 'https://github.com/owner/repo.git',
     removeRepo: 'Remove',
     reposEmpty: 'No repos linked yet.',
+    repoDuplicate: 'That repository is already linked to this workspace.',
     newTabWorkspaceTitle: 'New tab',
     newTabWorkspaceHint: 'Load an organization workspace or continue with a personal tab.',
     newTabWorkspaceLabel: 'Organization workspace',

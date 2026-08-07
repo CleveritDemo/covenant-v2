@@ -582,6 +582,7 @@ const es = {
     repoCloneUrlPlaceholder: 'https://github.com/owner/repo.git',
     removeRepo: 'Quitar',
     reposEmpty: 'Aún no hay repos vinculados.',
+    repoDuplicate: 'Ese repositorio ya está vinculado a este workspace.',
     newTabWorkspaceTitle: 'Nueva pestaña',
     newTabWorkspaceHint: 'Carga un workspace de organización o continúa con una pestaña personal.',
     newTabWorkspaceLabel: 'Workspace de organización',

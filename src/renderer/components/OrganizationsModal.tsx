@@ -25,6 +25,7 @@ import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
+import { normalizeRepoFullName } from '../../shared/repoFullName'
 
 interface Props {
   open?: boolean
@@ -782,10 +783,19 @@ function WorkspaceReposBlock({
   const canMutate = available && canManage && !busy && !parentBusy
   const fullName = fullNameDraft.trim()
   const cloneUrl = cloneUrlDraft.trim() || defaultCloneUrlFromFullName(fullName)
-  const canAdd = canMutate && fullName.length > 0 && cloneUrl.length > 0
+  const normalizedFullName = normalizeRepoFullName(fullName)
+  const isDuplicate = Boolean(
+    normalizedFullName
+    && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === normalizedFullName),
+  )
+  const canAdd = canMutate && fullName.length > 0 && cloneUrl.length > 0 && !isDuplicate
 
   async function handleAdd(): Promise<void> {
-    if (!covenant || !canAdd) return
+    if (!covenant || !canMutate || fullName.length === 0 || cloneUrl.length === 0) return
+    if (isDuplicate) {
+      setError(t('organizations.repoDuplicate'))
+      return
+    }
     setBusy(true)
     setError(null)
     const result = await covenant.workspaceRepoAdd(slug, workspaceId, {
@@ -794,7 +804,12 @@ function WorkspaceReposBlock({
     })
     setBusy(false)
     if (!result.ok) {
-      setError(result.error)
+      const err = result.error.toLowerCase()
+      if (err.includes('already linked') || err.includes('conflict')) {
+        setError(t('organizations.repoDuplicate'))
+      } else {
+        setError(result.error)
+      }
       return
     }
     setFullNameDraft('')

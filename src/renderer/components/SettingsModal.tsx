@@ -50,6 +50,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     language: config.language,
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
+    discordPresenceEnabled: config.discordPresenceEnabled,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
@@ -130,6 +131,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: form.language,
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
+      discordPresenceEnabled: form.discordPresenceEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
@@ -191,6 +193,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: original.language,
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
+      discordPresenceEnabled: original.discordPresenceEnabled,
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
@@ -338,6 +341,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
           {category === 'advanced' && (
             <>
+              <SettingsSection title={t('settings.discordSection')}>
+                <SettingToggle
+                  checked={form.discordPresenceEnabled}
+                  onChange={checked => update('discordPresenceEnabled', checked)}
+                  title={t('settings.discordPresenceTitle')}
+                  description={t('settings.discordPresenceDescription')}
+                />
+              </SettingsSection>
+
               <SettingsSection title={t('settings.workspacesSection')}>
                 <SettingsField
                   label={t('settings.defaultWorkspacesDirLabel')}

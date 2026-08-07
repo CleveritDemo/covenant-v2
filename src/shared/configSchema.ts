@@ -94,6 +94,12 @@ export interface AppConfig {
   /** Reiniciar shell automáticamente tras exit en un panel de terminal. */
   autoRestartShell: boolean
   /**
+   * Discord Rich Presence — publica "In <workspace> · N sesiones" en el perfil
+   * de Discord vía el socket IPC local. Off por defecto. Solo nombre de
+   * workspace y contadores: nunca comandos, rutas ni salida.
+   */
+  discordPresenceEnabled: boolean
+  /**
    * Ejecutables usados por las ventanas de agente CLI, por proveedor.
    * Entrada vacía o ausente = comando por defecto de `AGENT_CLI_PROVIDERS`.
    */
@@ -133,6 +139,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   language: 'en',
   reduceMotion: false,
   autoRestartShell: true,
+  discordPresenceEnabled: false,
   agentCliCommands: {},
   musicMood: 'focus',
 }

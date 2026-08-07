@@ -59,6 +59,11 @@ export const IPC = {
   CONFIG_GET: 'config:get',
   CONFIG_SET: 'config:set',
   CONFIG_OPEN_FOLDER: 'config:openFolder',
+  // Discord Rich Presence
+  /** Renderer → main: publica la actividad (details, state, inicio en epoch s) */
+  DISCORD_PRESENCE_SET: 'discord:presence:set',
+  /** Renderer → main: borra la actividad y cierra el socket */
+  DISCORD_PRESENCE_CLEAR: 'discord:presence:clear',
   /** Renderer → main: una línea completa enviada al PTY (para detectar `cd`) */
   CD_RECENT_RECORD_LINE: 'cdRecent:recordLine',
   /** Renderer → main: lee rutas de user-history/cd-recent.md */

@@ -45,6 +45,18 @@ import {
   agentResultContextIdForSlug,
   normalizeAgentSlug,
 } from '../src/shared/projectAgentCatalog'
+import {
+  AUTO_START,
+  AUTO_END,
+  NOTES_START,
+  NOTES_END,
+  NOTES_SECTION_KEY,
+  MAX_REQUESTED_CONTEXT_CHARS,
+  extractSection,
+  sectionsForContext,
+  type ContextSection,
+  type ContextSectionDescriptor,
+} from '@shared/contextSections'
 
 const MAX_CONTEXT_CHARS = 45_000
 /** Símbolos de monorepos Nest/React superan fácil 45k; el catálogo on-demand aguanta más. */
@@ -55,10 +67,6 @@ const TEXT_EXTENSIONS = new Set([
   '.scss', '.html', '.py', '.go', '.rs', '.java', '.kt', '.swift', '.yaml', '.yml',
   '.toml', '.sh', '.sql', '.graphql',
 ])
-const AUTO_START = '<!-- iaterminal:auto -->'
-const AUTO_END = '<!-- /iaterminal:auto -->'
-const NOTES_START = '<!-- iaterminal:notes -->'
-const NOTES_END = '<!-- /iaterminal:notes -->'
 const CONTEXT_META_RE = /<!--\s*iaterminal:context\s+(\{[^\n]*\})\s*-->/
 const ANNOTATION_RE = /^-\s+`([^`]+)`\s+—\s+(.+)\s*$/gm
 const CONTEXT_KINDS = new Set<TabContextKind>(ALL_CONTEXT_KINDS)
@@ -72,9 +80,6 @@ const SKIPPED_SCAN_DIRS = new Set([
 ])
 const MAX_SYMBOL_FILES = 500
 const MAX_REQUESTED_CONTEXT_SECTIONS = 8
-const MAX_REQUESTED_CONTEXT_CHARS = 60_000
-/** Sección de anotaciones; se adjunta sola al pedir cualquier otra del mismo contexto. */
-const NOTES_SECTION_KEY = '__notes'
 const MAX_DIRECT_CONTEXT_CHARS = 8_000
 const MAX_DIRECT_CONTEXT_TOTAL_CHARS = 8_000
 /** Personalizados: cuerpo entero siempre; sin catálogo ni need-sections. */
@@ -90,11 +95,7 @@ export const MAX_CONTEXT_HINTS = 6
 /** Máximo de anotaciones aceptadas por fence en el extract. */
 export const MAX_ANNOTATIONS_PER_UPDATE = 20
 
-export interface TabContextSectionDescriptor {
-  key: string
-  label: string
-  chars: number
-}
+export type TabContextSectionDescriptor = ContextSectionDescriptor
 
 export interface TabContextCatalogEntry {
   id: string
@@ -520,13 +521,6 @@ function removeSupersededContextFile(
       unlinkSync(previousFilePath)
     }
   } catch { /* ignore */ }
-}
-
-function extractSection(text: string, start: string, end: string): string {
-  const startIdx = text.indexOf(start)
-  const endIdx = text.indexOf(end)
-  if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) return ''
-  return text.slice(startIdx + start.length, endIdx).trim()
 }
 
 export function parseAnnotations(notes: string): TabContextAnnotation[] {
@@ -1156,14 +1150,10 @@ export function enrichmentRuleFor(kind: TabContextKind): string {
   return CONTEXT_ENRICHMENT_RULES[kind]
 }
 
-interface MaterializedContextSection extends TabContextSectionDescriptor {
-  content: string
-}
-
 interface MaterializedContextData {
   context: TabContext
   materialized: TabContextPreviewResult
-  sections: MaterializedContextSection[]
+  sections: ContextSection[]
 }
 
 interface CachedMaterializedContext {
@@ -1263,108 +1253,6 @@ function rememberMaterialization(
     if (!oldest) break
     materializationCache.delete(oldest)
   }
-}
-
-function markdownSections(body: string): MaterializedContextSection[] {
-  const lines = body.replace(/\r\n/g, '\n').split('\n')
-  const headings: Array<{ index: number; level: number; key: string; label: string }> = []
-  let inFence = false
-  for (let index = 0; index < lines.length; index++) {
-    if (/^\s*```/.test(lines[index])) {
-      inFence = !inFence
-      continue
-    }
-    if (inFence) continue
-    const match = lines[index].match(/^(#{2,3})\s+(.+?)\s*$/)
-    if (!match) continue
-    const label = match[2].trim()
-    headings.push({ index, level: match[1].length, key: label, label })
-  }
-  if (!headings.length) {
-    const content = body.trim()
-    return content ? [{ key: 'all', label: 'Contenido', chars: content.length, content }] : []
-  }
-  return headings.map((heading, position) => {
-    let end = lines.length
-    for (let next = position + 1; next < headings.length; next++) {
-      if (headings[next].level <= heading.level) {
-        end = headings[next].index
-        break
-      }
-    }
-    const content = lines.slice(heading.index, end).join('\n').trim()
-    return { key: heading.key, label: heading.label, chars: content.length, content }
-  })
-}
-
-function folderTreeSections(body: string): MaterializedContextSection[] {
-  const lines = body.replace(/\r\n/g, '\n').split('\n')
-  const starts: Array<{ index: number; key: string; label: string }> = []
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index]
-    if (!line.trim() || /^\s/.test(line)) continue
-    const label = line.trim()
-    const key = label.replace(/\s+\(.*\)$/, '').replace(/\/$/, '')
-    starts.push({ index, key: key || 'root', label })
-  }
-  return starts.map((start, position) => {
-    const end = starts[position + 1]?.index ?? lines.length
-    const content = lines.slice(start.index, end).join('\n').trim()
-    return { key: start.key, label: start.label, chars: content.length, content }
-  })
-}
-
-function dependencySections(body: string): MaterializedContextSection[] {
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>
-    return Object.entries(parsed).map(([key, value]) => {
-      const content = JSON.stringify({ [key]: value }, null, 2)
-      return { key, label: key, chars: content.length, content }
-    })
-  } catch {
-    return markdownSections(body)
-  }
-}
-
-function gitSections(body: string): MaterializedContextSection[] {
-  const marker = '\n\nDiff stat:\n'
-  const split = body.indexOf(marker)
-  if (split < 0) return markdownSections(body)
-  const status = body.slice(0, split).trim()
-  const diff = `Diff stat:\n${body.slice(split + marker.length)}`
-  return [
-    { key: 'status', label: 'Git status', chars: status.length, content: status },
-    { key: 'diff-stat', label: 'Diff stat', chars: diff.length, content: diff },
-  ]
-}
-
-function sectionsForContext(
-  context: TabContext,
-  materialized: TabContextPreviewResult,
-): MaterializedContextSection[] {
-  if (!materialized.ok) {
-    const content = `(error: ${materialized.error ?? 'could not materialize context'})`
-    return [{ key: 'error', label: 'Error', chars: content.length, content }]
-  }
-  const auto = extractSection(materialized.content, AUTO_START, AUTO_END)
-  const body = context.kind === 'changelog'
-    ? materialized.content
-    : context.kind === 'notes'
-      ? materialized.notesContent ?? ''
-      : auto || materialized.content
-  let sections: MaterializedContextSection[]
-  if (context.kind === 'folderTree') sections = folderTreeSections(body)
-  else if (context.kind === 'deps') sections = dependencySections(body)
-  else if (context.kind === 'git') sections = gitSections(body)
-  else sections = markdownSections(body)
-
-  if (context.kind !== 'notes' && context.kind !== 'changelog') {
-    const notes = extractSection(materialized.content, NOTES_START, NOTES_END)
-    if (notes && notes !== '(no annotations yet)') {
-      sections.push({ key: NOTES_SECTION_KEY, label: 'Notas y anotaciones', chars: notes.length, content: notes })
-    }
-  }
-  return sections
 }
 
 function materializedContextSections(
@@ -1493,10 +1381,10 @@ function buildRelevanceHints(
 function selectPreattachSections(
   available: Map<string, MaterializedContextData>,
   hints: ContextRelevanceHint[],
-): Array<{ data: MaterializedContextData; section: MaterializedContextSection }> {
+): Array<{ data: MaterializedContextData; section: ContextSection }> {
   const scored: Array<{
     data: MaterializedContextData
-    section: MaterializedContextSection
+    section: ContextSection
     chars: number
   }> = []
   for (const hint of hints) {
@@ -1509,7 +1397,7 @@ function selectPreattachSections(
     }
   }
   scored.sort((a, b) => a.chars - b.chars)
-  const selected: Array<{ data: MaterializedContextData; section: MaterializedContextSection }> = []
+  const selected: Array<{ data: MaterializedContextData; section: ContextSection }> = []
   const seen = new Set<string>()
   for (const item of scored) {
     const unique = `${item.data.context.id}\0${item.section.key}`
@@ -1887,7 +1775,7 @@ export function buildRequestedContextSections(
 
   const appendSection = (
     found: MaterializedContextData,
-    section: MaterializedContextSection,
+    section: ContextSection,
     options: { countTowardSectionLimit: boolean },
   ): 'ok' | 'limit' | 'budget' | 'duplicate' => {
     const uniqueKey = `${found.context.id}\0${section.key}`

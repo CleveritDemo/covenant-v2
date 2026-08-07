@@ -261,6 +261,7 @@ const en = {
     name: 'Name',
     namePlaceholder: 'E.g. Project architecture',
     fileName: 'Markdown file',
+    reveal: 'Show in Finder',
     kind: 'Context type',
     rootPath: 'Root folder (optional)',
     rootPlaceholder: 'Empty = project folder',

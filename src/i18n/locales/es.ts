@@ -263,6 +263,7 @@ const es = {
     name: 'Nombre',
     namePlaceholder: 'Ej. Arquitectura del proyecto',
     fileName: 'Archivo Markdown',
+    reveal: 'Mostrar en Finder',
     kind: 'Tipo de contexto',
     rootPath: 'Carpeta raíz (opcional)',
     rootPlaceholder: 'Vacío = carpeta del proyecto',

@@ -11,7 +11,7 @@ import { PROJECT_DIR } from '@shared/projectDir'
 import { sectionsForContext } from '@shared/contextSections'
 import { summarizeContextBudget } from '@shared/contextBudget'
 import { useT } from '@i18n/useT'
-import { Input, TextArea, Toggle } from '../components/ui'
+import { Button, Input, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
@@ -138,13 +138,20 @@ export const TabContextsEditor: React.FC<Props> = ({
             <small>{t('tabContexts.changelogCreateHint')}</small>
           )}
         </label>
-        <label>
-          <span>{t('tabContexts.fileName')}</span>
-          <small>{`${PROJECT_DIR}/${normalizeContextFileName(
+        <div className="tab-contexts__file-row">
+          <span>{`${PROJECT_DIR}/${normalizeContextFileName(
             draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
             draft.kind === 'changelog' ? 'changelog' : 'context',
-          )}`}</small>
-        </label>
+          )}`}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={preview.status !== 'success'}
+            onClick={() => { void window.api.revealTabContext(projectCwd, draft.fileName) }}
+          >
+            {t('tabContexts.reveal')}
+          </Button>
+        </div>
 
         {!hostOwnedReadOnly && (
           <details className="tab-contexts__appearance-fold">

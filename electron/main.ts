@@ -86,6 +86,7 @@ import {
   materializeTabContext,
   mergeAnnotations,
 } from './tabContextBuild'
+import { resolveTabContextRevealPath } from './tabContextReveal'
 import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextAnnotationRequest,
@@ -1327,6 +1328,15 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     return deleteTabContext(request.context, request.cwd)
+  })
+  ipcMain.handle(IPC.TAB_CONTEXT_REVEAL, (_e, cwd: unknown, fileName: unknown) => {
+    if (typeof cwd !== 'string' || typeof fileName !== 'string') {
+      return { ok: false, error: 'solicitud inválida' }
+    }
+    const result = resolveTabContextRevealPath(cwd, fileName)
+    if (!result.ok) return result
+    shell.showItemInFolder(result.absPath)
+    return { ok: true }
   })
 
   ipcMain.on(IPC.AGENT_CLI_START, (event, request: AgentCliStartRequest) => {

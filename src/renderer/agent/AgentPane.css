@@ -2048,6 +2048,25 @@ html[data-reduce-motion="true"] {
   color: var(--text-muted);
 }
 
+.tab-contexts__file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 6px);
+}
+
+.tab-contexts__file-row > span {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tab-contexts__preview-panel {
   display: flex;
   flex-direction: column;

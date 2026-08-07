@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences } from '../contextReportDoc'
+import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences, parseDeps, parseGit } from '../contextReportDoc'
 
 /** Documento tal como lo escribe composeDocument() en electron/tabContextBuild.ts. */
 const doc = [
@@ -100,6 +100,7 @@ const tree = [
   'gravity/  (project root; paths are relative to this folder)',
   '',
   'electron/',
+  '  electron/__tests__/',
   'src/',
   '  src/renderer/',
   '    src/renderer/agent/',
@@ -123,7 +124,7 @@ describe('parseFolderTree', () => {
   })
 
   it('cuenta todos los nodos, no solo los de primer nivel', () => {
-    expect(countFolderNodes(parseFolderTree(tree).nodes)).toBe(6)
+    expect(countFolderNodes(parseFolderTree(tree).nodes)).toBe(7)
   })
 
   it('conserva la línea de truncado como hoja', () => {
@@ -138,5 +139,68 @@ describe('parseFolderTree', () => {
   it('devuelve un árbol vacío sin reventar', () => {
     expect(parseFolderTree('')).toEqual({ root: '', nodes: [] })
     expect(parseFolderTree('(invalid cwd)')).toEqual({ root: '', nodes: [] })
+  })
+})
+
+describe('parseDeps', () => {
+  it('lee dependencias, dev y scripts de un package.json', () => {
+    const manifest = JSON.stringify({
+      name: 'gravity',
+      dependencies: { react: '^18.2.0' },
+      devDependencies: { vitest: '^1.6.0', typescript: '~5.4.0' },
+      scripts: { dev: 'electron-vite dev', test: 'vitest run' },
+    })
+    expect(parseDeps(manifest)).toEqual({
+      deps: [{ name: 'react', version: '^18.2.0' }],
+      devDeps: [
+        { name: 'vitest', version: '^1.6.0' },
+        { name: 'typescript', version: '~5.4.0' },
+      ],
+      scripts: [
+        { name: 'dev', command: 'electron-vite dev' },
+        { name: 'test', command: 'vitest run' },
+      ],
+    })
+  })
+
+  it('devuelve listas vacías si el JSON no trae esas claves', () => {
+    expect(parseDeps('{"name":"gravity"}')).toEqual({ deps: [], devDeps: [], scripts: [] })
+  })
+
+  it('devuelve null con un manifiesto que no es JSON', () => {
+    expect(parseDeps('[package]\nname = "gravity"')).toBeNull()
+    expect(parseDeps('(no dependency manifest found)')).toBeNull()
+  })
+})
+
+describe('parseGit', () => {
+  const status = [
+    'Git status:',
+    '## main...origin/main [ahead 1]',
+    ' M electron/main.ts',
+    '?? src/shared/contextReportDoc.ts',
+    '',
+    'Diff stat:',
+    ' electron/main.ts | 12 ++++--',
+    ' 1 file changed, 10 insertions(+), 2 deletions(-)',
+  ].join('\n')
+
+  it('saca rama, cambios y diff stat', () => {
+    const parsed = parseGit(status)
+    expect(parsed?.branch).toBe('main')
+    expect(parsed?.changes).toEqual([
+      { code: 'M', path: 'electron/main.ts' },
+      { code: '??', path: 'src/shared/contextReportDoc.ts' },
+    ])
+    expect(parsed?.diffStat).toContain('1 file changed')
+  })
+
+  it('trata el repo limpio como cero cambios', () => {
+    const clean = ['Git status:', '## main', '(clean)', '', 'Diff stat:', '(no changes)'].join('\n')
+    expect(parseGit(clean)).toEqual({ branch: 'main', changes: [], diffStat: '' })
+  })
+
+  it('devuelve null si no es un repo', () => {
+    expect(parseGit('(not a git repository or git unavailable)')).toBeNull()
   })
 })

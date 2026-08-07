@@ -152,3 +152,76 @@ export function parseFolderTree(auto: string): { root: string; nodes: FolderNode
 export function countFolderNodes(nodes: readonly FolderNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countFolderNodes(node.children), 0)
 }
+
+export interface DepEntry {
+  name: string
+  version: string
+}
+
+export interface ScriptEntry {
+  name: string
+  command: string
+}
+
+export interface DepsDoc {
+  deps: DepEntry[]
+  devDeps: DepEntry[]
+  scripts: ScriptEntry[]
+}
+
+function stringEntries(value: unknown): Array<[string, string]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, String(item)])
+}
+
+/** `null` cuando el manifiesto no es JSON (Cargo.toml, go.mod…): cae a la vista genérica. */
+export function parseDeps(auto: string): DepsDoc | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(auto)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const manifest = parsed as Record<string, unknown>
+  return {
+    deps: stringEntries(manifest.dependencies).map(([name, version]) => ({ name, version })),
+    devDeps: stringEntries(manifest.devDependencies).map(([name, version]) => ({ name, version })),
+    scripts: stringEntries(manifest.scripts).map(([name, command]) => ({ name, command })),
+  }
+}
+
+export interface GitChange {
+  /** Código de dos letras de `git status --short`: `M`, `??`, `A`… */
+  code: string
+  path: string
+}
+
+export interface GitDoc {
+  branch: string
+  changes: GitChange[]
+  diffStat: string
+}
+
+const DIFF_MARKER = '\n\nDiff stat:\n'
+
+export function parseGit(auto: string): GitDoc | null {
+  const body = auto.replace(/\r\n/g, '\n')
+  const split = body.indexOf(DIFF_MARKER)
+  const statusBlock = (split < 0 ? body : body.slice(0, split))
+    .replace(/^Git status:\s*/, '')
+    .trim()
+  if (!statusBlock || statusBlock.startsWith('(')) return null
+
+  const lines = statusBlock.split('\n')
+  const hasBranch = lines[0].startsWith('##')
+  // `## main...origin/main [ahead 1]` → `main`.
+  const branch = hasBranch ? lines[0].slice(2).trim().split(/\.{3}|\s+/)[0] : ''
+  const changes = lines
+    .slice(hasBranch ? 1 : 0)
+    .filter(line => line.trim() && !line.trim().startsWith('('))
+    .map(line => ({ code: line.slice(0, 2).trim(), path: line.slice(2).trim() }))
+
+  const diffStat = split < 0 ? '' : body.slice(split + DIFF_MARKER.length).trim()
+  return { branch, changes, diffStat: diffStat.startsWith('(') ? '' : diffStat }
+}

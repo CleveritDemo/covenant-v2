@@ -1864,7 +1864,7 @@ html[data-reduce-motion="true"] {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  cursor: default;
+  cursor: pointer;
   font-size: 12px;
   color: var(--text-muted);
   list-style: none;
@@ -1898,6 +1898,22 @@ html[data-reduce-motion="true"] {
   margin: 0;
   padding: 0;
   border: none;
+}
+
+/*
+ * Dentro de .tab-contexts__appearance-fold, gana en especificidad (0,2,0) a
+ * la regla genérica .tab-contexts__editor fieldset (0,1,1): sin esto, cada
+ * fieldset conservaba su propio borde y padding, dibujando una caja dentro
+ * de la caja del <details>.
+ */
+.tab-contexts__appearance-fold > .tab-contexts__appearance {
+  border: 0;
+  border-radius: 0;
+  padding: 8px 10px 0;
+}
+
+.tab-contexts__appearance-fold > .tab-contexts__appearance:last-child {
+  padding-bottom: 10px;
 }
 
 .tab-contexts__appearance legend {

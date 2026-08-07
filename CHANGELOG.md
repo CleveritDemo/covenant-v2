@@ -4,6 +4,29 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.5.0
+
+- **Los contextos se leen, ya no se descifran.** Abrir un contexto mostraba el
+  Markdown en crudo, con los marcadores `iaterminal:*` y un recuento en jerga de
+  parser. Ahora todos tienen el par Reporte/Fuente que hasta ahora solo tenían
+  los resultados de agente: el Reporte enseña el contenido limpio y las notas y
+  anotaciones que haya escrito la IA; Fuente sigue mostrando el `.md` tal cual.
+- **La estructura de carpetas se explora, no se lee línea a línea.** Un contexto
+  de tipo Estructura de carpetas se pinta como árbol plegable, con el número de
+  subcarpetas de cada rama y los dos primeros niveles abiertos, en vez de como
+  una lista de rutas completas repetidas.
+- **Las dependencias se ven como dependencias.** Un contexto de tipo
+  Dependencias muestra la lista con su versión, las de desarrollo marcadas, y
+  los scripts con su comando, en lugar del `package.json` en bruto. Los
+  manifiestos que no son JSON (`Cargo.toml`, `go.mod`, `pyproject.toml`) siguen
+  mostrándose como texto.
+- **La carpeta del proyecto pasa a llamarse `.gravity`.** Los proyectos que ya
+  tengan `.iaterminal` la siguen usando: no se renombra nada en tu repo, y los
+  agentes, contextos y resultados que ya tenías siguen donde estaban. Los
+  proyectos nuevos se crean con `.gravity`.
+- Los chips del pool de contextos comparten un solo tooltip, así que dejan de
+  aparecer varios a la vez al recorrerlos.
+
 ## v0.4.0
 
 - **La actualización automática ya se aplica.** Al pulsar Instalar, la app se

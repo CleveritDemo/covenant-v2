@@ -424,6 +424,18 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
   }
 
+  // La vista previa ya no es un botón: se recalcula sola. El debounce evita
+  // materializar `symbols` sobre un repo grande en cada tecla; por debajo,
+  // materializationSignature ya devuelve el resultado memorizado si el mtime
+  // no cambió.
+  useEffect(() => {
+    if (!open || !draft) return
+    const timer = setTimeout(() => { void loadPreview() }, 400)
+    return () => clearTimeout(timer)
+    // loadPreview se redefine en cada render; dependemos del contenido, no de él.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, draft, notesContent])
+
   const selectKind = (kind: TabContextKind): void => {
     if (!draft) return
     if (draft.kind === kind) return
@@ -468,18 +480,11 @@ export const TabContextFormModal: React.FC<Props> = ({
       closeOnBackdrop
       title={mode === 'edit' ? t('tabContexts.editTitle') : t('tabContexts.createTitle')}
       titleId="tab-context-form-title"
-      size="lg"
+      size="xl"
       bodyLayout="flush"
       zIndex={920}
       footer={(
         <>
-          <Button
-            variant="secondary"
-            disabled={preview.status === 'loading'}
-            onClick={() => { void loadPreview() }}
-          >
-            {preview.status === 'loading' ? t('tabContexts.loading') : t('tabContexts.preview')}
-          </Button>
           {draft.kind !== 'changelog' && draft.kind !== 'agentResult' && (
             <Button
               variant="secondary"

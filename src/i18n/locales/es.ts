@@ -291,6 +291,7 @@ const es = {
     loading: 'Generando…',
     previewError: 'No se pudo generar la vista previa.',
     previewEmpty: 'El contexto está vacío.',
+    previewIdle: 'Escribe un nombre para ver la vista previa.',
     previewStats: '{{auto}} claves · {{notes}} anotadas',
     resultsView: 'Vista',
     resultsViewReport: 'Reporte',

@@ -289,6 +289,7 @@ const en = {
     loading: 'Generating…',
     previewError: 'Could not generate preview.',
     previewEmpty: 'This context is empty.',
+    previewIdle: 'Name the context to see its preview.',
     previewStats: '{{auto}} keys · {{notes}} annotated',
     resultsView: 'View',
     resultsViewReport: 'Report',

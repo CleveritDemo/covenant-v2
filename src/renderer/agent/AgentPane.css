@@ -1641,6 +1641,65 @@ html[data-reduce-motion="true"] {
   color: var(--danger, #c44);
 }
 
+.tab-contexts__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  min-height: 430px;
+  align-items: stretch;
+}
+
+.tab-contexts__output {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+}
+
+.tab-contexts__output-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tab-contexts__output-head small {
+  font-family: var(--font-mono, monospace);
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-contexts__output-msg {
+  padding: 12px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tab-contexts__output-msg--error { color: var(--danger); }
+
+.tab-contexts__output .tab-contexts__preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+@media (max-width: 900px) {
+  .tab-contexts__panes { grid-template-columns: minmax(0, 1fr); }
+  .tab-contexts__output { border-left: 0; border-top: 1px solid var(--border); }
+}
+
 .tab-contexts__editor {
   display: flex;
   flex-direction: column;

@@ -41,6 +41,8 @@ interface Props {
   onNotesContentChange: (content: string) => void
   onPreviewReset: () => void
   onPickRootError?: (message: string) => void
+  // Sin usar aquí desde la tarea 3: el medidor de la tarea 4 las sustituye.
+  // No se borran todavía porque su limpieza queda para esa tarea.
   countAutoKeys: (content: string) => number
   countAnnotations: (content: string) => number
 }
@@ -60,214 +62,201 @@ export const TabContextsEditor: React.FC<Props> = ({
   onNotesContentChange,
   onPreviewReset,
   onPickRootError,
-  countAutoKeys,
-  countAnnotations,
+  countAutoKeys: _countAutoKeys,
+  countAnnotations: _countAnnotations,
 }) => {
   const { t } = useT()
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
 
   return (
-    <section className="tab-contexts__editor">
-      {hostOwnedReadOnly ? (
-        <div className="tab-contexts__kind-banner">
-          <span className="tab-contexts__item-icon">
-            <Icon name={readOnlyAgentResult ? 'bot' : 'history'} size={18} />
-          </span>
-          <div>
-            <strong>
-              {t(readOnlyAgentResult ? 'tabContexts.kind_agentResult' : 'tabContexts.kind_changelog')}
-            </strong>
-            <small>{`${PROJECT_DIR}/${draft.fileName}`}</small>
+    <div className="tab-contexts__panes">
+      <section className="tab-contexts__editor">
+        {hostOwnedReadOnly ? (
+          <div className="tab-contexts__kind-banner">
+            <span className="tab-contexts__item-icon">
+              <Icon name={readOnlyAgentResult ? 'bot' : 'history'} size={18} />
+            </span>
+            <div>
+              <strong>
+                {t(readOnlyAgentResult ? 'tabContexts.kind_agentResult' : 'tabContexts.kind_changelog')}
+              </strong>
+              <small>{`${PROJECT_DIR}/${draft.fileName}`}</small>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="tab-contexts__kinds" role="radiogroup" aria-label={t('tabContexts.kind')}>
-          {KINDS.map(kind => (
-            <TabContextKindCard
-              key={kind}
-              label={t(`tabContexts.kind_${kind}`)}
-              icon={KIND_ICONS[kind]}
-              selected={draft.kind === kind}
-              onSelect={() => onSelectKind(kind)}
-            />
-          ))}
-        </div>
-      )}
-
-      <label>
-        <span>{t('tabContexts.name')}</span>
-        <Input
-          value={draft.name}
-          placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
-          onChange={event => {
-            const name = event.target.value
-            const fallback = draft.kind === 'changelog' ? 'changelog' : 'context'
-            onUpdate({
-              name,
-              fileName: normalizeContextFileName(name || fallback, fallback),
-            })
-          }}
-        />
-        {draft.kind === 'changelog' && (
-          <small>{t('tabContexts.changelogCreateHint')}</small>
-        )}
-      </label>
-      <label>
-        <span>{t('tabContexts.fileName')}</span>
-        <small>{`${PROJECT_DIR}/${normalizeContextFileName(
-          draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-          draft.kind === 'changelog' ? 'changelog' : 'context',
-        )}`}</small>
-      </label>
-
-      {!hostOwnedReadOnly && (
-        <>
-          <fieldset className="tab-contexts__appearance">
-            <legend>{t('tabContexts.icon')}</legend>
-            <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
-              {TAB_CONTEXT_ICON_NAMES.map(icon => {
-                const active = resolveContextIcon(draft) === icon
-                return (
-                  <TabContextIconSwatch
-                    key={icon}
-                    icon={appearanceIconName(icon)}
-                    color={resolveContextColor(draft)}
-                    title={icon}
-                    selected={active}
-                    onSelect={() => onUpdate({ icon })}
-                  />
-                )
-              })}
-            </div>
-          </fieldset>
-          <fieldset className="tab-contexts__appearance">
-            <legend>{t('tabContexts.color')}</legend>
-            <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
-              {TAB_CONTEXT_COLORS.map(color => {
-                const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
-                return (
-                  <TabContextColorSwatch
-                    key={color}
-                    color={color}
-                    selected={active}
-                    onSelect={() => onUpdate({ color })}
-                  />
-                )
-              })}
-            </div>
-          </fieldset>
-        </>
-      )}
-
-      {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
-        <TabContextRootPathField
-          value={draft.rootPath ?? ''}
-          projectCwd={projectCwd}
-          onChange={rootPath => onUpdate({ rootPath })}
-          onPickError={onPickRootError}
-        />
-      ) : null}
-
-      {(draft.kind === 'files' || draft.kind === 'symbols') && (
-        <label>
-          <span>{t('tabContexts.paths')}</span>
-          <TextArea
-            rows={5}
-            value={(draft.paths ?? []).join('\n')}
-            placeholder={t('tabContexts.pathsPlaceholder')}
-            onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
-          />
-        </label>
-      )}
-
-      {draft.kind === 'symbols' && (
-        <fieldset>
-          <legend>{t('tabContexts.symbolKinds')}</legend>
-          {(['class', 'method'] as TabContextSymbolKind[]).map(kind => {
-            const checked = (draft.symbolKinds ?? ['class', 'method']).includes(kind)
-            return (
-              <Toggle
+        ) : (
+          <div className="tab-contexts__kinds" role="radiogroup" aria-label={t('tabContexts.kind')}>
+            {KINDS.map(kind => (
+              <TabContextKindCard
                 key={kind}
-                checked={checked}
-                label={t(`tabContexts.symbol_${kind}`)}
-                onChange={next => {
-                  const current = draft.symbolKinds ?? ['class', 'method']
-                  onUpdate({
-                    symbolKinds: next
-                      ? [...new Set([...current, kind])]
-                      : current.filter(item => item !== kind),
-                  })
-                }}
+                label={t(`tabContexts.kind_${kind}`)}
+                icon={KIND_ICONS[kind]}
+                selected={draft.kind === kind}
+                onSelect={() => onSelectKind(kind)}
               />
-            )
-          })}
-        </fieldset>
-      )}
+            ))}
+          </div>
+        )}
 
-      {draft.kind === 'notes' && (
         <label>
-          <span>{t('tabContexts.notes')}</span>
-          <small>{t('tabContexts.customHint')}</small>
-          <TextArea
-            rows={8}
-            value={notesContent}
-            placeholder={t('tabContexts.notesPlaceholder')}
+          <span>{t('tabContexts.name')}</span>
+          <Input
+            value={draft.name}
+            placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
             onChange={event => {
-              onNotesContentChange(event.target.value)
-              onPreviewReset()
+              const name = event.target.value
+              const fallback = draft.kind === 'changelog' ? 'changelog' : 'context'
+              onUpdate({
+                name,
+                fileName: normalizeContextFileName(name || fallback, fallback),
+              })
             }}
           />
+          {draft.kind === 'changelog' && (
+            <small>{t('tabContexts.changelogCreateHint')}</small>
+          )}
         </label>
-      )}
+        <label>
+          <span>{t('tabContexts.fileName')}</span>
+          <small>{`${PROJECT_DIR}/${normalizeContextFileName(
+            draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+            draft.kind === 'changelog' ? 'changelog' : 'context',
+          )}`}</small>
+        </label>
 
-      {(draft.kind === 'changelog' || draft.kind === 'agentResult') && (
-        <p className="tab-contexts__cwd">
-          {t(draft.kind === 'agentResult'
-            ? 'tabContexts.agentResultReadOnly'
-            : 'tabContexts.changelogReadOnly')}
-        </p>
-      )}
-
-      {resolvedCwdLabel && (
-        <p className="tab-contexts__cwd">{t('tabContexts.cwdLabel', { cwd: resolvedCwdLabel })}</p>
-      )}
-
-      {duplicateMessage && preview.status !== 'error' && (
-        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
-          <p>{duplicateMessage}</p>
-        </div>
-      )}
-
-      {preview.status !== 'idle' && (
-        <div className={`tab-contexts__preview-panel tab-contexts__preview-panel--${preview.status}`}>
-          {preview.status === 'loading' && (
-            <p>{t('tabContexts.loading')}</p>
-          )}
-          {preview.status === 'empty' && (
-            <>
-              <p>{t('tabContexts.previewEmpty')}</p>
-              {preview.filePath && <small>{preview.filePath}</small>}
-            </>
-          )}
-          {preview.status === 'error' && (
-            <p>{preview.message}</p>
-          )}
-          {preview.status === 'success' && (
-            <>
-              <div className="tab-contexts__preview-meta">
-                <small>{preview.filePath}</small>
-                <small>
-                  {t('tabContexts.previewStats', {
-                    auto: countAutoKeys(preview.content),
-                    notes: countAnnotations(preview.content),
-                  })}
-                </small>
+        {!hostOwnedReadOnly && (
+          <>
+            <fieldset className="tab-contexts__appearance">
+              <legend>{t('tabContexts.icon')}</legend>
+              <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
+                {TAB_CONTEXT_ICON_NAMES.map(icon => {
+                  const active = resolveContextIcon(draft) === icon
+                  return (
+                    <TabContextIconSwatch
+                      key={icon}
+                      icon={appearanceIconName(icon)}
+                      color={resolveContextColor(draft)}
+                      title={icon}
+                      selected={active}
+                      onSelect={() => onUpdate({ icon })}
+                    />
+                  )
+                })}
               </div>
-              <pre className="tab-contexts__preview">{preview.content}</pre>
-            </>
-          )}
+            </fieldset>
+            <fieldset className="tab-contexts__appearance">
+              <legend>{t('tabContexts.color')}</legend>
+              <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
+                {TAB_CONTEXT_COLORS.map(color => {
+                  const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()
+                  return (
+                    <TabContextColorSwatch
+                      key={color}
+                      color={color}
+                      selected={active}
+                      onSelect={() => onUpdate({ color })}
+                    />
+                  )
+                })}
+              </div>
+            </fieldset>
+          </>
+        )}
+
+        {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
+          <TabContextRootPathField
+            value={draft.rootPath ?? ''}
+            projectCwd={projectCwd}
+            onChange={rootPath => onUpdate({ rootPath })}
+            onPickError={onPickRootError}
+          />
+        ) : null}
+
+        {(draft.kind === 'files' || draft.kind === 'symbols') && (
+          <label>
+            <span>{t('tabContexts.paths')}</span>
+            <TextArea
+              rows={5}
+              value={(draft.paths ?? []).join('\n')}
+              placeholder={t('tabContexts.pathsPlaceholder')}
+              onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
+            />
+          </label>
+        )}
+
+        {draft.kind === 'symbols' && (
+          <fieldset>
+            <legend>{t('tabContexts.symbolKinds')}</legend>
+            {(['class', 'method'] as TabContextSymbolKind[]).map(kind => {
+              const checked = (draft.symbolKinds ?? ['class', 'method']).includes(kind)
+              return (
+                <Toggle
+                  key={kind}
+                  checked={checked}
+                  label={t(`tabContexts.symbol_${kind}`)}
+                  onChange={next => {
+                    const current = draft.symbolKinds ?? ['class', 'method']
+                    onUpdate({
+                      symbolKinds: next
+                        ? [...new Set([...current, kind])]
+                        : current.filter(item => item !== kind),
+                    })
+                  }}
+                />
+              )
+            })}
+          </fieldset>
+        )}
+
+        {draft.kind === 'notes' && (
+          <label>
+            <span>{t('tabContexts.notes')}</span>
+            <small>{t('tabContexts.customHint')}</small>
+            <TextArea
+              rows={8}
+              value={notesContent}
+              placeholder={t('tabContexts.notesPlaceholder')}
+              onChange={event => {
+                onNotesContentChange(event.target.value)
+                onPreviewReset()
+              }}
+            />
+          </label>
+        )}
+
+        {(draft.kind === 'changelog' || draft.kind === 'agentResult') && (
+          <p className="tab-contexts__cwd">
+            {t(draft.kind === 'agentResult'
+              ? 'tabContexts.agentResultReadOnly'
+              : 'tabContexts.changelogReadOnly')}
+          </p>
+        )}
+
+        {resolvedCwdLabel && (
+          <p className="tab-contexts__cwd">{t('tabContexts.cwdLabel', { cwd: resolvedCwdLabel })}</p>
+        )}
+
+        {duplicateMessage && preview.status !== 'error' && (
+          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
+            <p>{duplicateMessage}</p>
+          </div>
+        )}
+      </section>
+      <aside className="tab-contexts__output">
+        {/* aquí va el medidor en la tarea 4 */}
+        <div className="tab-contexts__output-head">
+          <span>{t('tabContexts.preview')}</span>
+          {preview.status === 'success' && <small>{preview.filePath}</small>}
         </div>
-      )}
-    </section>
+        {preview.status === 'loading' && <p className="tab-contexts__output-msg">{t('tabContexts.loading')}</p>}
+        {preview.status === 'idle' && <p className="tab-contexts__output-msg">{t('tabContexts.previewIdle')}</p>}
+        {preview.status === 'empty' && <p className="tab-contexts__output-msg">{t('tabContexts.previewEmpty')}</p>}
+        {preview.status === 'error' && (
+          <p className="tab-contexts__output-msg tab-contexts__output-msg--error">{preview.message}</p>
+        )}
+        {preview.status === 'success' && (
+          <pre className="tab-contexts__preview">{preview.content}</pre>
+        )}
+      </aside>
+    </div>
   )
 }

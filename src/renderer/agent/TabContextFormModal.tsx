@@ -15,7 +15,6 @@ import {
 } from '@shared/orgWorkspaceContent'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
-import { Icon } from '../components/ui/Icon'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
 import { getCovenantApi, hasCovenantWorkspaceContentApi } from '../covenantApi'
@@ -76,6 +75,13 @@ export const TabContextFormModal: React.FC<Props> = ({
   const modeRef = useRef(mode)
   const contextRef = useRef(context)
   const contextsRef = useRef(contexts)
+  // handleDismiss corre en el handler de Esc/backdrop, fuera del render, así
+  // que no puede leer `isDirty` (variable del closure, quedaría stale); se
+  // asigna a este ref justo después de calcularla más abajo.
+  const isDirtyRef = useRef(false)
+  // Valor del cuerpo de la nota cuando se cargó (o '' en `create`), para
+  // detectar ediciones del textarea: el cuerpo de `notes` no vive en `draft`.
+  const notesInitialContentRef = useRef('')
   draftRef.current = draft
   notesContentRef.current = notesContent
   modeRef.current = mode
@@ -93,7 +99,9 @@ export const TabContextFormModal: React.FC<Props> = ({
       return
     }
     if (orgWorkspace && target.kind === 'notes') {
-      setNotesContent(workspaceContextBody(target.id))
+      const body = workspaceContextBody(target.id)
+      setNotesContent(body)
+      notesInitialContentRef.current = body
       return
     }
     const workingCwd = await resolveCwd()
@@ -101,7 +109,9 @@ export const TabContextFormModal: React.FC<Props> = ({
     try {
       const result = await window.api.previewTabContext({ context: target, cwd: workingCwd })
       if (target.kind === 'notes' && result.ok) {
-        setNotesContent(result.notesContent ?? result.content)
+        const body = result.notesContent ?? result.content
+        setNotesContent(body)
+        notesInitialContentRef.current = body
         return
       }
       if (!result.ok) {
@@ -133,6 +143,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       setDraft(null)
       setPreview({ status: 'idle' })
       setNotesContent('')
+      notesInitialContentRef.current = ''
       setResolvedCwdLabel('')
       return
     }
@@ -144,6 +155,7 @@ export const TabContextFormModal: React.FC<Props> = ({
         : { status: 'idle' },
     )
     setNotesContent('')
+    notesInitialContentRef.current = ''
     void loadHostOwnedContent(initial)
     // Seed once per open session; avoid re-seeding on every contexts refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,6 +195,22 @@ export const TabContextFormModal: React.FC<Props> = ({
   const readOnlyChangelog = draft?.kind === 'changelog' &&
     contexts.some(item => item.id === draft.id)
   const readOnlyAgentResult = draft?.kind === 'agentResult'
+
+  // Comparación por valor contra el contexto de partida. En `create` cualquier
+  // nombre escrito ya cuenta como cambio pendiente. Para `notes` el cuerpo no
+  // vive en `draft` sino en `notesContent`; se compara contra el valor con el
+  // que se abrió el modal (o '' en `create`) en vez de solo "no está vacío",
+  // para no dejar sin aviso la edición del cuerpo de una nota ya existente.
+  // Los contextos de solo lectura (changelog ya guardado, agentResult) nunca
+  // están "sucios": no hay nada en ellos que se pueda guardar desde aquí.
+  const initial = mode === 'edit' && context ? context : null
+  const isDirty = Boolean(draft) && !readOnlyChangelog && !readOnlyAgentResult && (
+    (initial
+      ? JSON.stringify(draft) !== JSON.stringify(initial)
+      : Boolean((draft?.name ?? '').trim()))
+    || (draft?.kind === 'notes' && notesContent.trim() !== notesInitialContentRef.current.trim())
+  )
+  isDirtyRef.current = isDirty
 
   const duplicateMessage = (() => {
     if (!draft) return ''
@@ -319,68 +347,18 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
   }
 
-  /** Backdrop/Esc: guardar y cerrar; si save falla (validación/cwd), el modal permanece. */
+  /**
+   * Esc y clic fuera cierran solo si no hay nada que perder. Antes esto llamaba
+   * a save(), un guardado que ningún botón anunciaba; y descartar en silencio
+   * sería peor. Con cambios pendientes el modal se queda y el pie lo explica.
+   */
   const handleDismiss = (): void => {
-    const current = draftRef.current
-    if (!current) {
+    if (!draftRef.current) {
       onClose()
       return
     }
-    const isReadOnlyChangelog = current.kind === 'changelog'
-      && contextsRef.current.some(item => item.id === current.id)
-    const isReadOnlyAgentResult = current.kind === 'agentResult'
-    if (isReadOnlyChangelog || isReadOnlyAgentResult) {
-      onClose()
-      return
-    }
-    void save()
-  }
-
-  const regenerate = async (): Promise<void> => {
-    if (!draft) return
-    if (!(draft.name ?? '').trim() || draft.kind === 'changelog') return
-    if (duplicateMessage) {
-      // Igual que en save(): el duplicado ya se muestra en el panel
-      // izquierdo, no hace falta reflejarlo también en el panel de salida.
-      return
-    }
-    setPreview({ status: 'loading' })
-    const workingCwd = await resolveCwd()
-    if (!workingCwd) {
-      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
-    }
-    const normalized = normalizeDraft(draft)
-    try {
-      const result = await window.api.materializeTabContext({
-        context: normalized,
-        cwd: workingCwd,
-        ...(normalized.kind === 'notes' ? { content: notesContent ?? '' } : {}),
-      })
-      if (!result.ok) {
-        setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-        return
-      }
-      setDraft(normalized)
-      if (normalized.kind === 'notes') {
-        setNotesContent(result.notesContent ?? notesContent)
-      }
-      onRefresh()
-      const content = (result.content ?? '').trim()
-      setPreview(content
-        ? {
-            status: 'success',
-            content: result.content,
-            filePath: result.filePath
-              ?? `${PROJECT_DIR}/${normalizeContextFileName(normalized.fileName, normalized.id)}`,
-          }
-        : { status: 'empty', filePath: result.filePath })
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-      })
-    }
+    if (isDirtyRef.current) return
+    onClose()
   }
 
   const loadPreview = async (): Promise<void> => {
@@ -467,6 +445,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       }
     }
     setNotesContent('')
+    notesInitialContentRef.current = ''
     setPreview({ status: 'idle' })
   }
 
@@ -484,21 +463,10 @@ export const TabContextFormModal: React.FC<Props> = ({
       zIndex={920}
       footer={(
         <>
-          {draft.kind !== 'changelog' && draft.kind !== 'agentResult' && (
-            <Button
-              variant="secondary"
-              disabled={
-                preview.status === 'loading'
-                || !(draft.name ?? '').trim()
-                || !(draft.fileName ?? '').trim()
-                || Boolean(duplicateMessage)
-              }
-              onClick={() => { void regenerate() }}
-            >
-              <Icon name="refresh" size={13} />
-              {t('tabContexts.regenerate')}
-            </Button>
-          )}
+          {isDirty && <small className="tab-contexts__dirty">{t('tabContexts.unsavedHint')}</small>}
+          <Button variant="secondary" onClick={onClose}>
+            {t('tabContexts.discard')}
+          </Button>
           {draft.kind !== 'agentResult' && (
             <Button
               disabled={
@@ -509,7 +477,7 @@ export const TabContextFormModal: React.FC<Props> = ({
               }
               onClick={() => { void save() }}
             >
-              {t('tabContexts.save')}
+              {t('tabContexts.saveContext')}
             </Button>
           )}
         </>

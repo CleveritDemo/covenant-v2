@@ -2042,6 +2042,12 @@ html[data-reduce-motion="true"] {
   color: var(--text-muted);
 }
 
+.tab-contexts__dirty {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .tab-contexts__preview-panel {
   display: flex;
   flex-direction: column;

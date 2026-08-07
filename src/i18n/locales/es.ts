@@ -334,6 +334,7 @@ const es = {
     reportNotesTitle: 'Notas',
     reportNotesByAi: 'IA',
     reportEmpty: 'Este contexto aún no tiene contenido.',
+    reportTreeToggle: 'Ver subcarpetas',
     cwdLabel: 'Carpeta: {{cwd}}',
     nameDuplicate: 'Ya existe un contexto con ese nombre.',
     fileNameDuplicate: 'Ya existe un contexto con ese nombre de archivo.',

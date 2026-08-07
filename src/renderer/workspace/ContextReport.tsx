@@ -1,11 +1,14 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { TFunction } from 'i18next'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
   contextReportCounts,
+  countFolderNodes,
   parseContextDoc,
+  parseFolderTree,
   splitFences,
   type ContextDoc,
+  type FolderNode,
 } from '@shared/contextReportDoc'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../components/AiMarkdown'
@@ -68,9 +71,86 @@ const GenericBody: React.FC<{ auto: string }> = ({ auto }) => {
   )
 }
 
+/** Rutas abiertas al montar: los dos primeros niveles. */
+function initialOpenPaths(nodes: readonly FolderNode[], depth = 0): string[] {
+  if (depth >= 2) return []
+  return nodes.flatMap(node => [node.path, ...initialOpenPaths(node.children, depth + 1)])
+}
+
+const FolderTreeNode: React.FC<{
+  node: FolderNode
+  open: Set<string>
+  onToggle: (path: string) => void
+}> = ({ node, open, onToggle }) => {
+  const { t } = useT()
+  const expandable = node.children.length > 0
+  const expanded = open.has(node.path)
+
+  return (
+    <li className="context-report__tree-node">
+      <div className="context-report__tree-row">
+        {expandable ? (
+          <button
+            type="button"
+            className="context-report__tree-chevron"
+            aria-expanded={expanded}
+            aria-label={t('tabContexts.reportTreeToggle')}
+            onClick={() => onToggle(node.path)}
+          >
+            {expanded ? '▾' : '▸'}
+          </button>
+        ) : (
+          <span className="context-report__tree-chevron" aria-hidden />
+        )}
+        <span className={node.truncated ? 'context-report__tree-truncated' : 'context-report__tree-name'}>
+          {node.truncated ? node.name : `${node.name}/`}
+        </span>
+        {expandable ? (
+          <span className="context-report__tree-count">{countFolderNodes(node.children)}</span>
+        ) : null}
+      </div>
+      {expandable && expanded ? (
+        <ul className="context-report__tree">
+          {node.children.map(child => (
+            <FolderTreeNode key={child.path} node={child} open={open} onToggle={onToggle} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  )
+}
+
+const FolderTreeBody: React.FC<{ auto: string }> = ({ auto }) => {
+  const { root, nodes } = useMemo(() => parseFolderTree(auto), [auto])
+  // El estado no se persiste: al reabrir el modal se vuelve a los dos niveles.
+  const [open, setOpen] = useState(() => new Set(initialOpenPaths(nodes)))
+  const toggle = (path: string): void => {
+    setOpen(current => {
+      const next = new Set(current)
+      if (!next.delete(path)) next.add(path)
+      return next
+    })
+  }
+
+  if (!nodes.length) return <GenericBody auto={auto} />
+
+  return (
+    <div className="context-report__tree-wrap">
+      {root ? <p className="context-report__tree-root">{root}</p> : null}
+      <ul className="context-report__tree">
+        {nodes.map(node => (
+          <FolderTreeNode key={node.path} node={node} open={open} onToggle={toggle} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /** Cada kind con vista dedicada añade su caso; el resto cae en el genérico. */
 const ContextBody: React.FC<{ kind: TabContextKind; auto: string }> = ({ kind, auto }) => {
   switch (kind) {
+    case 'folderTree':
+      return <FolderTreeBody auto={auto} />
     default:
       return <GenericBody auto={auto} />
   }

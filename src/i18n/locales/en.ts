@@ -332,6 +332,7 @@ const en = {
     reportNotesTitle: 'Notes',
     reportNotesByAi: 'AI',
     reportEmpty: 'This context has no content yet.',
+    reportTreeToggle: 'Show subfolders',
     cwdLabel: 'Folder: {{cwd}}',
     nameDuplicate: 'A context with that name already exists.',
     fileNameDuplicate: 'A context with that file name already exists.',

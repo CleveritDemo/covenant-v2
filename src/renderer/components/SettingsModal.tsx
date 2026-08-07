@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
 import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
@@ -36,6 +36,9 @@ const CATEGORIES = [
 
 type CategoryId = (typeof CATEGORIES)[number]['id']
 
+/** Una escritura por ráfaga de tecleo, no una por pulsación. */
+const AUTOSAVE_DEBOUNCE_MS = 600
+
 export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const { t } = useT()
   const [form, setForm] = useState({
@@ -46,11 +49,16 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
-  const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
   /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
   const [touchedMoods, setTouchedMoods] = useState<string[]>([])
+  /** Config al abrir: a esto vuelve «Descartar cambios». */
+  const baseline = useRef(config)
+  /** Cambio pendiente de escribir; el cierre lo vacía sin esperar al debounce. */
+  const pending = useRef<AppConfig | null>(null)
+  const firstRender = useRef(true)
 
   /** Un ID no vacío que no se reconoce; derivado, sin estado que sincronizar. */
   function moodError(moodId: string): boolean {
@@ -58,16 +66,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     return Boolean(raw) && parseSpotifyPlaylistId(raw) === null
   }
 
-  useEffect(() => {
-    setForm({
-      githubToken: config.githubToken,
-      language: config.language,
-      reduceMotion: config.reduceMotion,
-      musicEnabled: config.musicEnabled,
-      agentCliCommands: { ...(config.agentCliCommands ?? {}) },
-      musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
-    })
-  }, [config])
+  // Sin efecto de resync desde `config`: AppModals remonta el modal al abrirlo, y
+  // reescribir el form tras cada guardado pisaría lo que se esté escribiendo.
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]): void {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -90,22 +90,21 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     setErrors([])
   }
 
-  async function handleSave(): Promise<void> {
-    const musicPlaylistIdsByMood: Record<string, string> = { ...(config.musicPlaylistIdsByMood ?? {}) }
-    const badMoods = MUSIC_MOODS.filter(m => moodError(m.id))
-    if (badMoods.length > 0) {
-      // El error ya se ve en cada tarjeta; hay que descubrirlas y llevar allí al usuario.
-      setTouchedMoods(MUSIC_MOODS.map(m => m.id))
-      setCategory('music')
-      return
-    }
+  /**
+   * Config a persistir. Los moods inválidos se omiten en vez de abortar el guardado
+   * entero: una playlist mal pegada no debe impedir que se guarde el resto.
+   */
+  function buildConfig(): AppConfig {
+    const musicPlaylistIdsByMood: Record<string, string> = {}
     for (const m of MUSIC_MOODS) {
       const raw = (form.musicPlaylistIdsByMood[m.id] ?? '').trim()
-      if (!raw) { delete musicPlaylistIdsByMood[m.id]; continue }
-      musicPlaylistIdsByMood[m.id] = parseSpotifyPlaylistId(raw) as string
+      if (!raw) continue
+      const id = parseSpotifyPlaylistId(raw)
+      if (!id) continue // el error ya se ve en la tarjeta del mood
+      musicPlaylistIdsByMood[m.id] = id
     }
 
-    const updated = mergeWithDefaults({
+    return mergeWithDefaults({
       ...config,
       githubToken: form.githubToken.trim(),
       language: form.language,
@@ -115,21 +114,53 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
     })
-    const errs = validateConfig(updated)
-    if (errs.length) { setErrors(errs); return }
-
-    setSaving(true)
-    const result = await window.api.setConfig(updated)
-    setSaving(false)
-
-    if (result.ok) { onSave(updated); onClose() }
-    else setErrors(result.errors ?? [t('settings.errorSave')])
   }
 
-  /** Cierre por backdrop/Escape: guardar en vez de descartar (Cancelar sigue descartando). */
+  const commit = useCallback(async (next: AppConfig): Promise<void> => {
+    pending.current = null
+    const errs = validateConfig(next)
+    if (errs.length) { setErrors(errs); return }
+
+    const result = await window.api.setConfig(next)
+    if (result.ok) {
+      setErrors([])
+      setSavedAt(new Date())
+      onSave(next)
+    } else {
+      setErrors(result.errors ?? [t('settings.errorSave')])
+    }
+  }, [onSave, t])
+
+  // Se guarda al cambiar: un debounce por ráfaga de tecleo, no por pulsación.
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    const next = buildConfig()
+    pending.current = next
+    const timer = setTimeout(() => void commit(next), AUTOSAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [form]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Escape, clic fuera y «Listo» hacen lo mismo: vaciar lo pendiente y cerrar. */
   const handleRequestClose = (): void => {
-    if (saving) return
-    void handleSave()
+    if (pending.current) void commit(pending.current)
+    onClose()
+  }
+
+  /** Hay texto que no se está guardando: el pie tiene que decirlo, no callar. */
+  const invalidMoods = MUSIC_MOODS.some(m => moodError(m.id))
+
+  /** Sólo repone el form: el efecto de autoguardado se encarga de persistirlo. */
+  const handleDiscard = (): void => {
+    const original = baseline.current
+    setForm({
+      githubToken: original.githubToken,
+      language: original.language,
+      reduceMotion: original.reduceMotion,
+      musicEnabled: original.musicEnabled,
+      agentCliCommands: { ...(original.agentCliCommands ?? {}) },
+      musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
+    })
+    setTouchedMoods([])
   }
 
   return (
@@ -143,9 +174,18 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       closeOnBackdrop
       footer={
         <>
-          <Button variant="secondary" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? t('common.saving') : t('common.save')}
+          <span className="settings-status" data-state={invalidMoods ? 'warn' : undefined}>
+            {invalidMoods
+              ? t('settings.notSavedInvalid', { section: t('settings.spotifySection') })
+              : savedAt
+                ? t('settings.savedAt', { time: savedAt.toLocaleTimeString() })
+                : t('settings.savesOnChange')}
+          </span>
+          <Button variant="secondary" size="sm" onClick={handleDiscard}>
+            {t('settings.discard')}
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleRequestClose}>
+            {t('common.done')}
           </Button>
         </>
       }
@@ -191,12 +231,9 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 <SettingsField label={t('settings.languageLabel')}>
                   <Select
                     value={form.language}
-                    onChange={e => update('language', e.target.value as Language)}
-                  >
-                    {LANGUAGES.map(l => (
-                      <option key={l.value} value={l.value}>{l.label}</option>
-                    ))}
-                  </Select>
+                    onChange={next => update('language', next as Language)}
+                    options={LANGUAGES.map(l => ({ value: l.value, label: l.label }))}
+                  />
                 </SettingsField>
               </SettingsSection>
 

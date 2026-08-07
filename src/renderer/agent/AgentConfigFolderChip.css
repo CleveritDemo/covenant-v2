@@ -1,29 +1,33 @@
 .agent-config-folder-chip {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
   align-items: center;
-  gap: 6px 8px;
-  padding: 8px 10px;
-  border-radius: 999px;
+  gap: 2px 9px;
+  padding: 9px 12px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
   background: color-mix(in srgb, var(--bg) 45%, transparent);
-  color: var(--text-muted);
   font-family: var(--font-ui);
-  font-size: 12px;
-  line-height: 1.3;
 }
 
-.agent-config-folder-chip__label {
+.agent-config-folder-chip__name {
   color: var(--text);
+  font-size: 12.5px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 12rem;
 }
 
-.agent-config-folder-chip__hint {
-  flex: 1 1 100%;
+.agent-config-folder-chip__path {
+  grid-column: 2;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
+  /* La ruta se trunca por la izquierda: la carpeta final importa más que la raíz. */
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

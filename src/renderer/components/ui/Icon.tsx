@@ -22,6 +22,7 @@ export type IconName =
   | 'sparkles'
   | 'files'
   | 'chevron-right'
+  | 'check'
   | 'refresh'
   | 'bot'
   | 'workspace'
@@ -116,6 +117,11 @@ const ICONS: Record<IconName, IconRenderer> = {
   'chevron-right': size => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 6l6 6-6 6" />
+    </svg>
+  ),
+  check: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.5l4.5 4.5L19 7" />
     </svg>
   ),
   files: size => (

@@ -71,10 +71,9 @@ describe('riel de categorías', () => {
     expect(screen.getByText('settings.reduceMotionTitle')).toBeTruthy()
   })
 
-  it('guardar con una playlist inválida salta a Música para enseñar el error', async () => {
+  it('el pie avisa del campo inválido aunque estés en otra categoría', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
-    // Se escribe la basura en Música y se navega a otra categoría antes de guardar.
     fireEvent.click(nav('settings.spotifySection'))
     fireEvent.change(document.getElementById('settings-pl-focus') as HTMLInputElement, {
       target: { value: 'basura' },
@@ -82,9 +81,8 @@ describe('riel de categorías', () => {
     fireEvent.click(nav('settings.advancedSection'))
     expect(document.getElementById('settings-pl-focus')).toBeNull()
 
-    fireEvent.click(screen.getByText('common.save'))
-
-    await waitFor(() => expect(screen.getByText('settings.spotifyError:Focus')).toBeTruthy())
-    expect(setConfig).not.toHaveBeenCalled()
+    // El error de campo ya no se ve, pero el pie sigue diciendo dónde está.
+    await waitFor(() =>
+      expect(screen.getByText('settings.notSavedInvalid:settings.spotifySection')).toBeTruthy())
   })
 })

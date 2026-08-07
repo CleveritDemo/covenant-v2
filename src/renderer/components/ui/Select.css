@@ -1,45 +1,129 @@
 .select {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface) 42%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 2);
   cursor: pointer;
-  line-height: 1.2;
-  outline: none;
-  transition: color 0.12s, border-color 0.12s;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.select--sm {
-  font-size: 0.75rem;
-  padding: 3px 5px;
-  max-width: 11rem;
+  text-align: left;
+  transition: border-color 0.15s;
 }
 
 .select--md {
+  padding: 7px 10px;
   font-size: 13px;
-  padding: 6px 10px;
-  width: 100%;
-  border-radius: calc(var(--radius) / 2);
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
+}
+
+.select--sm {
+  padding: 5px 8px;
+  font-size: 12px;
 }
 
 .select:hover:not(:disabled) {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-color: color-mix(in srgb, var(--border) 40%, var(--text-muted));
 }
 
-.select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.select:focus-visible,
+.select[aria-expanded='true'] {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .select:disabled {
-  cursor: not-allowed;
-  opacity: 0.42;
+  opacity: 0.55;
+  cursor: default;
+}
+
+.select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select__value[data-placeholder] {
+  color: var(--text-muted);
+}
+
+/* El panel vive en el top layer: `position: fixed` con las coordenadas medidas
+   del disparador, sin heredar el apilamiento ni el overflow del modal. */
+.select-panel {
+  position: fixed;
+  margin: 0;
+  padding: 4px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 45%), 0 2px 8px -4px rgb(0 0 0 / 35%);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.select-panel:not(:popover-open) {
+  display: none;
+}
+
+.select-panel::backdrop {
+  background: transparent;
+}
+
+.select-panel:focus-visible {
+  outline: none;
+}
+
+.select-panel__option {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.select-panel__option:hover,
+.select-panel__option[data-active] {
+  background: var(--surface-hover);
+}
+
+.select-panel__option[aria-selected='true'] .select-panel__label {
+  font-weight: 600;
+}
+
+.select-panel__check {
+  display: flex;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.select-panel__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.select-panel__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-panel__hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

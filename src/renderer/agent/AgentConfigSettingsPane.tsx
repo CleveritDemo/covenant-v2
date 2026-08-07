@@ -63,6 +63,14 @@ function folderLabel(cwd: string): string {
   return normalized.split(/[\\/]/).pop() || cwd || '—'
 }
 
+/** `/Users/x/Sources/app` → `~/Sources/app`; el home completo no aporta nada. */
+export function shortenHome(cwd: string): string {
+  const path = cwd.trim().replace(/[\\/]+$/, '')
+  if (!path) return ''
+  const home = path.match(/^(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)[^\\/]+/)
+  return home ? `~${path.slice(home[0].length)}` : path
+}
+
 const MAX_ROUNDS_OPTIONS = [
   0,
   ...Array.from(
@@ -168,14 +176,18 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             value={selectedModel}
             disabled={locked || loadingModels}
             title={t('agentPane.modelHint')}
-            onChange={event => onChangeModel(event.target.value)}
-          >
-            <option value="">{t('agentPane.modelDefault')}</option>
-            {modelOptions.map(option => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-            {modelIsCustom && <option value={selectedModel}>{selectedModel}</option>}
-          </Select>
+            onChange={onChangeModel}
+            options={[
+              { value: '', label: t('agentPane.modelDefault') },
+              ...modelOptions.map(option => ({
+                value: option.id,
+                // El id sólo se repite si aporta algo sobre la etiqueta.
+                hint: option.label === option.id ? undefined : option.id,
+                label: option.label,
+              })),
+              ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
+            ]}
+          />
           {loadingModels ? (
             <p className="agent-config-settings__hint">{t('agentPane.modelLoading')}</p>
           ) : null}
@@ -195,11 +207,15 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             </div>
           ) : null}
         </label>
-        <AgentConfigFolderChip
-          label={cwd.trim() ? folderLabel(cwd) : t('agentPane.projectFolderUnset')}
-          hint={t('agentPane.projectFolderHint')}
-          title={cwd.trim() || t('agentPane.projectFolderUnset')}
-        />
+        <div className="agent-config-settings__field">
+          <span className="agent-config-settings__label">{t('agentPane.workingDirectory')}</span>
+          <AgentConfigFolderChip
+            label={cwd.trim() ? folderLabel(cwd) : t('agentPane.projectFolderUnset')}
+            path={shortenHome(cwd)}
+            title={cwd.trim() || t('agentPane.projectFolderUnset')}
+          />
+          <p className="agent-config-settings__hint">{t('agentPane.projectFolderHint')}</p>
+        </div>
       </div>
     )
   }
@@ -258,16 +274,14 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 value={String(maxRounds)}
                 disabled={locked}
                 title={t('agentPane.orchestrationMaxRoundsHint')}
-                onChange={event => onOrchestrationMaxRoundsChange(Number(event.target.value))}
-              >
-                {MAX_ROUNDS_OPTIONS.map(value => (
-                  <option key={value} value={value}>
-                    {value === 0
-                      ? t('agentPane.orchestrationMaxRoundsUnlimited')
-                      : value}
-                  </option>
-                ))}
-              </Select>
+                onChange={value => onOrchestrationMaxRoundsChange(Number(value))}
+                options={MAX_ROUNDS_OPTIONS.map(value => ({
+                  value: String(value),
+                  label: value === 0
+                    ? t('agentPane.orchestrationMaxRoundsUnlimited')
+                    : String(value),
+                }))}
+              />
               <p className="agent-config-settings__hint">{t('agentPane.orchestrationMaxRoundsHint')}</p>
             </label>
             {meta.coordination === 'productOwner' ? (

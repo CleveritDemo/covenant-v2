@@ -69,25 +69,25 @@ describe('validación inline de playlists', () => {
     expect(screen.queryByText('settings.spotifyError:Chill')).toBeNull()
   })
 
-  it('guardar con un ID inválido no persiste y revela el campo culpable', async () => {
+  it('un ID inválido no se persiste, pero no bloquea el resto de los ajustes', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     gotoMusic()
 
     fireEvent.change(moodInput('energy'), { target: { value: 'basura' } })
-    fireEvent.click(screen.getByText('common.save'))
 
-    await waitFor(() => expect(screen.getByText('settings.spotifyError:Energy')).toBeTruthy())
-    expect(setConfig).not.toHaveBeenCalled()
+    await waitFor(() => expect(setConfig).toHaveBeenCalled())
+    const written = setConfig.mock.calls.at(-1)?.[0]
+    expect(written.musicPlaylistIdsByMood.energy).toBeUndefined()
+    expect(screen.getByText('settings.notSavedInvalid:settings.spotifySection')).toBeTruthy()
   })
 
-  it('guardar canonicaliza un enlace completo al ID de 22 caracteres', async () => {
+  it('guarda canonicalizando un enlace completo al ID de 22 caracteres', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     gotoMusic()
 
     fireEvent.change(moodInput('focus'), {
       target: { value: 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO?si=abc' },
     })
-    fireEvent.click(screen.getByText('common.save'))
 
     await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(1))
     expect(setConfig.mock.calls[0][0].musicPlaylistIdsByMood.focus).toBe('37i9dQZF1DX4sWSpwq3LiO')

@@ -1,0 +1,121 @@
+# Dependences
+<!-- iaterminal:context {"version":1,"id":"iaterminal:deps:Dependences","name":"Dependences","fileName":"Dependences.md","kind":"deps","icon":"package","color":"#2dd4bf"} -->
+
+<!-- iaterminal:auto -->
+{
+  "name": "gravity",
+  "version": "0.1.0",
+  "description": "Terminal inteligente con IA, pestañas y temas",
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:mac-icon": "bash scripts/generate-mac-icon.sh",
+    "preview": "electron-vite preview",
+    "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
+    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
+    "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
+    "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
+    "check:ui": "node scripts/check-ui-contract.mjs",
+    "rebuild:native": "electron-rebuild -f -w node-pty",
+    "postinstall": "electron-rebuild -f -w node-pty"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.11",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/search": "^6.7.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "cross-spawn": "^7.0.6",
+    "dotenv": "^16.6.1",
+    "i18next": "^26.2.0",
+    "node-pty": "^1.0.0",
+    "react-i18next": "^17.0.8",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "@tanstack/react-virtual": "^3.14.2",
+    "@testing-library/react": "^16.3.2",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^22.9.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "jsdom": "^26.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11",
+    "vitest": "^3.2.6"
+  },
+  "build": {
+    "appId": "com.covenant.gravity",
+    "productName": "Covenant Gravity",
+    "directories": {
+      "buildResources": "build"
+    },
+    "icon": "build/icon.png",
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "files": [
+      "out/**/*",
+      "README.md"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "nativeRebuilder": "sequential",
+    "npmRebuild": true
+  }
+}
+<!-- /iaterminal:auto -->
+
+<!-- iaterminal:notes -->
+(no annotations yet)
+<!-- /iaterminal:notes -->

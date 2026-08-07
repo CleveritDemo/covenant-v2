@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
-import { collectAutoAnnotationKeys } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextFormModal, type TabContextFormMode } from './TabContextFormModal'
 import { TabContextsList } from './TabContextsList'
 import { TabContextsListPreview } from './TabContextsListPreview'
-import type { PreviewState } from './TabContextsEditor'
 
 interface Props {
   open: boolean
@@ -25,16 +23,6 @@ type FormSession =
   | { mode: 'create' }
   | { mode: 'edit'; context: TabContext }
 
-function countAutoKeys(content: string): number {
-  const auto = content.match(/<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/)?.[1] ?? ''
-  return collectAutoAnnotationKeys(auto).size
-}
-
-function countAnnotations(content: string): number {
-  const notes = content.match(/<!-- iaterminal:notes -->([\s\S]*?)<!-- \/iaterminal:notes -->/)?.[1] ?? ''
-  return [...notes.matchAll(/^-\s+`[^`]+`\s+—\s+/gm)].length
-}
-
 export const TabContextsModal: React.FC<Props> = ({
   open,
   contexts,
@@ -47,7 +35,6 @@ export const TabContextsModal: React.FC<Props> = ({
   const { t } = useT()
   const [formSession, setFormSession] = useState<FormSession | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const [listError, setListError] = useState('')
   /** true si el form se abrió por focusContextId (plano); false si desde el listado. */
   const formOpenedFromFocusRef = useRef(false)
@@ -56,7 +43,6 @@ export const TabContextsModal: React.FC<Props> = ({
     if (!open) {
       setFormSession(null)
       setSelectedId(null)
-      setPreview({ status: 'idle' })
       setListError('')
       formOpenedFromFocusRef.current = false
     }
@@ -75,57 +61,18 @@ export const TabContextsModal: React.FC<Props> = ({
     onFocusContextConsumed?.()
   }, [open, focusContextId, contexts, onFocusContextConsumed])
 
+  // Sin selección el panel derecho no dice nada útil: cae en el primero.
+  // Después del efecto de focusContextId, que tiene prioridad sobre esto.
   useEffect(() => {
-    if (!open || !selectedId) {
-      setPreview({ status: 'idle' })
-      return
-    }
-    const target = contexts.find(context => context.id === selectedId)
-    if (!target) {
-      setSelectedId(null)
-      setPreview({ status: 'idle' })
-      return
-    }
-    const workingCwd = (cwd ?? '').trim()
-    if (!workingCwd) {
-      setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
-      return
-    }
-    let cancelled = false
-    setPreview({ status: 'loading' })
-    void (async () => {
-      try {
-        const result = await window.api.previewTabContext({
-          context: target,
-          cwd: workingCwd,
-        })
-        if (cancelled) return
-        if (!result.ok) {
-          setPreview({ status: 'error', message: result.error ?? t('tabContexts.previewError') })
-          return
-        }
-        const content = (result.content ?? '').trim()
-        if (!content) {
-          setPreview({ status: 'empty', filePath: result.filePath })
-          return
-        }
-        setPreview({
-          status: 'success',
-          content: result.content,
-          filePath: result.filePath ?? `.iaterminal/${target.fileName}`,
-        })
-      } catch (error) {
-        if (cancelled) return
-        setPreview({
-          status: 'error',
-          message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-        })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [open, selectedId, contexts, cwd, t])
+    if (!open || selectedId || focusContextId || contexts.length === 0) return
+    setSelectedId(contexts[0].id)
+  }, [open, selectedId, focusContextId, contexts])
+
+  // La selección puede apuntar a un contexto ya borrado o renombrado.
+  useEffect(() => {
+    if (!selectedId || contexts.some(context => context.id === selectedId)) return
+    setSelectedId(null)
+  }, [selectedId, contexts])
 
   const resolveCwd = (): string => (cwd ?? '').trim()
 
@@ -144,10 +91,7 @@ export const TabContextsModal: React.FC<Props> = ({
       if (formSession?.mode === 'edit' && formSession.context.id === context.id) {
         setFormSession(null)
       }
-      if (selectedId === context.id) {
-        setSelectedId(null)
-        setPreview({ status: 'idle' })
-      }
+      if (selectedId === context.id) setSelectedId(null)
       setListError('')
       onRefresh()
     } catch (error) {
@@ -189,12 +133,7 @@ export const TabContextsModal: React.FC<Props> = ({
             }}
             onDelete={removeContext}
           />
-          <TabContextsListPreview
-            context={selectedContext}
-            preview={preview}
-            countAutoKeys={countAutoKeys}
-            countAnnotations={countAnnotations}
-          />
+          <TabContextsListPreview context={selectedContext} cwd={resolveCwd()} />
           {listError && (
             <p className="tab-contexts__list-error" role="alert">{listError}</p>
           )}

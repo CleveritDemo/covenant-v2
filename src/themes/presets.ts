@@ -53,7 +53,7 @@ const tokyoNight: AppTheme = {
     '--surface-hover': '#2f3549',
     '--border': '#3b4261',
     '--text': '#c0caf5',
-    '--text-muted': '#565f89',
+    '--text-muted': '#6772a4',
     '--accent': '#7aa2f7',
     '--accent-dim': '#3d59a1',
     '--danger': '#f7768e',
@@ -562,7 +562,7 @@ const tokyoNightDay: AppTheme = {
     '--surface-hover': '#d9ddec',
     '--border': '#c3cade',
     '--text': '#3760bf',
-    '--text-muted': '#848cb5',
+    '--text-muted': '#7981a7',
     '--accent': '#2e7de9',
     '--accent-dim': '#2662c0',
     '--danger': '#f52a65',
@@ -844,7 +844,7 @@ const bladeRunnerLight: AppTheme = {
     '--surface-hover': '#e8dbc9',
     '--border': '#d8c6ae',
     '--text': '#3c3040',
-    '--text-muted': '#93819c',
+    '--text-muted': '#877790',
     '--accent': '#d97e08',
     '--accent-dim': '#b06506',
     '--danger': '#d93b5c',
@@ -1213,6 +1213,28 @@ function accentForegroundFor(accentCss: string): string {
   return best
 }
 
+/**
+ * Acento oscurecido lo justo para que el texto blanco pase 4.5:1 (WCAG AA).
+ * En los temas light el acento suele ser demasiado claro para texto blanco
+ * (avatarLight: 3.1:1), y la etiqueta oscura que gana por contraste se lee mal
+ * en botones sólidos. Mezcla hacia `#0c0c0e` en pasos del 5%.
+ */
+function accentForWhiteText(accentCss: string): string {
+  const rgb = parseHexAccent(accentCss)
+  if (!rgb) return accentCss
+  const whiteLum = relativeLuminance([247, 247, 252]) // el `#f7f7fc` real de la etiqueta
+  let mix = rgb
+  for (let p = 1; p > 0.3; p -= 0.05) {
+    mix = [
+      Math.round(rgb[0] * p + 12 * (1 - p)),
+      Math.round(rgb[1] * p + 12 * (1 - p)),
+      Math.round(rgb[2] * p + 14 * (1 - p)),
+    ]
+    if (contrastRatio(relativeLuminance(mix), whiteLum) >= 4.5) break
+  }
+  return `#${mix.map(v => v.toString(16).padStart(2, '0')).join('')}`
+}
+
 export function applyTheme(theme: AppTheme): void {
   const root = document.documentElement
   const chrome = getThemeChromeProfile(theme)
@@ -1227,6 +1249,19 @@ export function applyTheme(theme: AppTheme): void {
 
   const accent = theme.vars['--accent'] ?? theme.xterm.cursor
   root.style.setProperty('--accent-fg', accentForegroundFor(accent))
+
+  // Botones sólidos: en light se oscurece el acento para llevar etiqueta blanca;
+  // en dark el acento neón con etiqueta oscura ya es legible y se deja igual.
+  const solidAccent = isLightTheme(theme) ? accentForWhiteText(accent) : accent
+  root.style.setProperty('--accent-solid', solidAccent)
+  root.style.setProperty('--accent-solid-fg', accentForegroundFor(solidAccent))
+
+  // Estado pressed (toolbars): mismo tratamiento sobre --accent-dim. No se puede
+  // reescribir --accent-dim porque también alimenta gradientes y auroras del plano.
+  const dimAccent = theme.vars['--accent-dim'] ?? accent
+  const pressedAccent = isLightTheme(theme) ? accentForWhiteText(dimAccent) : dimAccent
+  root.style.setProperty('--accent-pressed', pressedAccent)
+  root.style.setProperty('--accent-pressed-fg', accentForegroundFor(pressedAccent))
 
   // FAB terminal: contraste sobre el acento teal del plano (mezcla con accent).
   const terminalAccent = theme.vars['--plane-terminal-accent']

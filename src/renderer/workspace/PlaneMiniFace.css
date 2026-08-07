@@ -83,22 +83,12 @@
 }
 
 /* Claude: coral cálido. Cursor: cian del tema. */
-.plane-mini-face__provider--claude {
-  border-color: color-mix(in srgb, #d97757 48%, transparent);
-  background: color-mix(in srgb, #d97757 16%, transparent);
-  color: color-mix(in srgb, #d97757 88%, #fff);
-}
-
-.plane-mini-face__provider--cursor {
-  border-color: color-mix(in srgb, var(--theme-cyan) 48%, transparent);
-  background: color-mix(in srgb, var(--theme-cyan) 16%, transparent);
-  color: color-mix(in srgb, var(--theme-cyan) 85%, #fff);
-}
-
-.plane-mini-face__provider--copilot {
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: color-mix(in srgb, var(--accent) 82%, var(--text));
+/* El color de marca lo inyecta PlaneMiniFace desde el registro de proveedores. */
+.plane-mini-face__provider {
+  --brand: var(--plane-mini-face-brand, var(--accent));
+  border-color: color-mix(in srgb, var(--brand) 48%, transparent);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  color: color-mix(in srgb, var(--brand) 88%, var(--text));
 }
 
 .plane-mini-face__provider--orchestrator {

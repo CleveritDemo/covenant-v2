@@ -23,6 +23,13 @@
   user-select: none;
 }
 
+/* Nombre propio de la terminal: pesa más que un basename de carpeta. */
+.plane-mini-folder-badge--named {
+  max-width: 10rem;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text);
+}
+
 /* Fondo ya opaco (--plane-glass-strong): quitar blur no afecta legibilidad. */
 html[data-reduce-motion="true"] {
   .plane-mini-folder-badge {

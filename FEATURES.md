@@ -1,4 +1,4 @@
-# Características de AI Terminal
+# Características de Covenant Gravity
 
 ## 1. Interfaz General
 

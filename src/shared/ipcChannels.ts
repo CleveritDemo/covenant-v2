@@ -17,6 +17,8 @@ export const IPC = {
   AGENT_CLI_IS_ACTIVE: 'agentCli:isActive',
   /** Renderer → main: listar modelos del CLI por provider. */
   AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
+  /** Renderer → main: ¿está el CLI de este provider en el PATH? Ruta y versión. */
+  AGENT_CLI_RESOLVE: 'agentCli:resolve',
   /** Renderer → main: iniciar sala de brainstorm round-robin. */
   BRAINSTORM_START: 'brainstorm:start',
   /** Renderer → main: detener sala de brainstorm. */
@@ -47,6 +49,8 @@ export const IPC = {
   TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Renderer → main: crea .iaterminal/results/<slug>.md si no existe. */
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
+  /** Renderer → main: guarda solo la región notes de un results. */
+  AGENT_RESULTS_SET_NOTES: 'agentResults:setNotes',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config
@@ -110,6 +114,8 @@ export const IPC = {
 
   /** Renderer → main (invoke): workflow runs de GitHub Actions vía gh CLI */
   GITHUB_ACTIONS_LIST: 'githubActions:list',
+  /** Renderer → main: ¿de quién es este token y con qué scopes? Vacío = el resuelto del entorno. */
+  GITHUB_CHECK_TOKEN: 'github:checkToken',
 
   /** Renderer → main (invoke): estado de sesión Covenant */
   COVENANT_STATUS: 'covenant:status',
@@ -135,22 +141,34 @@ export const IPC = {
   COVENANT_DEFAULT_SET: 'covenant:default:set',
   /** Renderer → main (invoke): quitar default de org */
   COVENANT_DEFAULT_UNSET: 'covenant:default:unset',
-  /** Renderer → main (invoke): listar proyectos locales de org */
-  COVENANT_PROJECTS_LIST: 'covenant:projects:list',
-  /** Renderer → main (invoke): crear proyecto local */
-  COVENANT_PROJECT_CREATE: 'covenant:project:create',
-  /** Renderer → main (invoke): renombrar proyecto local */
-  COVENANT_PROJECT_RENAME: 'covenant:project:rename',
-  /** Renderer → main (invoke): borrar proyecto local */
-  COVENANT_PROJECT_DELETE: 'covenant:project:delete',
-  /** Renderer → main (invoke): agregar assignee a proyecto */
-  COVENANT_PROJECT_ASSIGNEE_ADD: 'covenant:project:assignee:add',
-  /** Renderer → main (invoke): quitar assignee de proyecto */
-  COVENANT_PROJECT_ASSIGNEE_REMOVE: 'covenant:project:assignee:remove',
-  /** Renderer → main (invoke): agregar admin de proyecto */
-  COVENANT_PROJECT_ADMIN_ADD: 'covenant:project:admin:add',
-  /** Renderer → main (invoke): quitar admin de proyecto */
-  COVENANT_PROJECT_ADMIN_REMOVE: 'covenant:project:admin:remove',
+  /** Renderer → main (invoke): listar workspaces de org */
+  COVENANT_WORKSPACES_LIST: 'covenant:workspaces:list',
+  /** Renderer → main (invoke): crear workspace de org */
+  COVENANT_WORKSPACE_CREATE: 'covenant:workspace:create',
+  /** Renderer → main (invoke): renombrar workspace de org */
+  COVENANT_WORKSPACE_RENAME: 'covenant:workspace:rename',
+  /** Renderer → main (invoke): borrar workspace de org */
+  COVENANT_WORKSPACE_DELETE: 'covenant:workspace:delete',
+  /** Renderer → main (invoke): agregar assignee a workspace */
+  COVENANT_WORKSPACE_ASSIGNEE_ADD: 'covenant:workspace:assignee:add',
+  /** Renderer → main (invoke): quitar assignee de workspace */
+  COVENANT_WORKSPACE_ASSIGNEE_REMOVE: 'covenant:workspace:assignee:remove',
+  /** Renderer → main (invoke): agregar admin de workspace */
+  COVENANT_WORKSPACE_ADMIN_ADD: 'covenant:workspace:admin:add',
+  /** Renderer → main (invoke): quitar admin de workspace */
+  COVENANT_WORKSPACE_ADMIN_REMOVE: 'covenant:workspace:admin:remove',
+  /** Renderer → main (invoke): listar agentes de workspace org */
+  COVENANT_WORKSPACE_AGENTS_LIST: 'covenant:workspace:agents:list',
+  /** Renderer → main (invoke): upsert agente de workspace org */
+  COVENANT_WORKSPACE_AGENT_UPSERT: 'covenant:workspace:agent:upsert',
+  /** Renderer → main (invoke): borrar agente de workspace org */
+  COVENANT_WORKSPACE_AGENT_DELETE: 'covenant:workspace:agent:delete',
+  /** Renderer → main (invoke): listar contextos de workspace org */
+  COVENANT_WORKSPACE_CONTEXTS_LIST: 'covenant:workspace:contexts:list',
+  /** Renderer → main (invoke): upsert contexto de workspace org */
+  COVENANT_WORKSPACE_CONTEXT_UPSERT: 'covenant:workspace:context:upsert',
+  /** Renderer → main (invoke): borrar contexto de workspace org */
+  COVENANT_WORKSPACE_CONTEXT_DELETE: 'covenant:workspace:context:delete',
   /** Renderer → main (invoke): listar admins locales de org */
   COVENANT_ORG_ADMINS_LIST: 'covenant:orgAdmins:list',
   /** Renderer → main (invoke): agregar admin local de org */
@@ -232,6 +250,14 @@ export const IPC = {
   INTERACTIONS_LOG_SAVE: 'interactionsLog:save',
   /** Renderer → main: eliminar log de interacciones de un pane */
   INTERACTIONS_LOG_DELETE: 'interactionsLog:delete',
+  /** Main → renderer: estado del auto-updater (UpdateState) */
+  UPDATE_STATE: 'update:state',
+  /** Renderer → main (invoke): estado actual del auto-updater */
+  UPDATE_STATE_GET: 'update:stateGet',
+  /** Renderer → main: descargar (si hace falta) e instalar saliendo de la app */
+  UPDATE_INSTALL: 'update:install',
+  /** Renderer → main: ocultar el banner hasta el próximo chequeo */
+  UPDATE_DISMISS: 'update:dismiss',
   /** Main → renderer: pedir que el renderer serialice los scrollbacks antes de cerrar */
   APP_SAVE_BEFORE_CLOSE: 'app:saveBeforeClose',
   /** Renderer → main: datos de cierre (scrollbacks) listos para guardar */

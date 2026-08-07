@@ -27,7 +27,8 @@ export const TabContextsList: React.FC<Props> = ({
   const projectContexts = contexts.filter(context => context.kind !== 'agentResult')
   const agentResultContexts = contexts.filter(context => context.kind === 'agentResult')
 
-  const renderItem = (context: TabContext) => (
+  /** `showKind` false en un grupo cuya cabecera ya nombra el tipo. */
+  const renderItem = (context: TabContext, showKind = true) => (
     <div
       key={context.id}
       className={`tab-contexts__item${selectedId === context.id ? ' tab-contexts__item--active' : ''}`}
@@ -37,12 +38,15 @@ export const TabContextsList: React.FC<Props> = ({
           className="tab-contexts__item-icon"
           style={{ color: resolveContextColor(context) }}
         >
-          <Icon name={contextIconName(context)} size={17} />
+          <Icon name={contextIconName(context)} size={16} />
         </span>
         <span className="tab-contexts__item-text">
           <strong>{context.name}</strong>
-          <span>{t(`tabContexts.kind_${context.kind}`)}</span>
-          <span className="tab-contexts__item-file">{context.fileName}</span>
+          <span className="tab-contexts__item-file">
+            {showKind
+              ? `${t(`tabContexts.kind_${context.kind}`)} · ${context.fileName}`
+              : context.fileName}
+          </span>
         </span>
       </button>
       <button
@@ -78,13 +82,13 @@ export const TabContextsList: React.FC<Props> = ({
       {projectContexts.length > 0 && (
         <div className="tab-contexts__group">
           <h4 className="tab-contexts__group-title">{t('tabContexts.groupProject')}</h4>
-          {projectContexts.map(renderItem)}
+          {projectContexts.map(context => renderItem(context))}
         </div>
       )}
       {agentResultContexts.length > 0 && (
         <div className="tab-contexts__group">
           <h4 className="tab-contexts__group-title">{t('tabContexts.groupAgentResults')}</h4>
-          {agentResultContexts.map(renderItem)}
+          {agentResultContexts.map(context => renderItem(context, false))}
         </div>
       )}
     </aside>

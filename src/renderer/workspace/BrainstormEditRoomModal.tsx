@@ -103,14 +103,11 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
         <Select
           size="sm"
           value={String(maxRounds)}
-          onChange={event => {
-            setMaxRounds(sanitizeBrainstormMaxRounds(Number(event.target.value)))
+          onChange={next => {
+            setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))
           }}
-        >
-          {roundOptions.map(value => (
-            <option key={value} value={value}>{value}</option>
-          ))}
-        </Select>
+          options={roundOptions.map(value => ({ value: String(value), label: String(value) }))}
+        />
       </label>
     </TerminalModal>
   )

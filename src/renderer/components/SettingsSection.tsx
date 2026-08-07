@@ -15,8 +15,11 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, childre
 )
 
 interface SettingsFieldProps {
-  label: string
+  /** Texto o nodo (p. ej. marca + nombre del CLI). */
+  label: React.ReactNode
   hint?: React.ReactNode
+  /** Problema de este campo. Sustituye al hint mientras esté presente. */
+  error?: React.ReactNode
   htmlFor?: string
   compact?: boolean
   children: React.ReactNode
@@ -25,6 +28,7 @@ interface SettingsFieldProps {
 export const SettingsField: React.FC<SettingsFieldProps> = ({
   label,
   hint,
+  error,
   htmlFor,
   compact,
   children,
@@ -35,6 +39,8 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   >
     <span className="settings-label__text">{label}</span>
     {children}
-    {hint && <span className="settings-hint">{hint}</span>}
+    {error
+      ? <span className="settings-field-error" role="alert">{error}</span>
+      : hint && <span className="settings-hint">{hint}</span>}
   </label>
 )

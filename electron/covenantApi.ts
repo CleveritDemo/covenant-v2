@@ -2,9 +2,14 @@ import type {
   CovenantDefault,
   CovenantMember,
   CovenantOrg,
-  CovenantProject,
+  CovenantWorkspace,
+  CovenantWorkspaceAgentRecord,
+  CovenantWorkspaceContextPayload,
+  CovenantWorkspaceContextRecord,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
+import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import { clearCovenantSession, loadCovenantSession, persistCovenantSession } from './covenantSession'
 
 const BASE_URL = process.env.COVENANT_BACKEND_URL || 'https://forge.covenant.uno'
 
@@ -64,6 +69,13 @@ export async function exchange(githubToken: string): Promise<ExchangeResponse> {
   cachedLogin = data.login
   cachedAvatarUrl = data.avatar_url
   cachedGithubId = data.github_id
+  persistCovenantSession({
+    jwt: data.jwt,
+    login: data.login,
+    avatarUrl: data.avatar_url,
+    githubId: data.github_id,
+    githubToken,
+  })
   return data
 }
 
@@ -128,6 +140,22 @@ export function signOut(): void {
   cachedAvatarUrl = undefined
   cachedGithubId = undefined
   lastGithubToken = null
+  clearCovenantSession()
+}
+
+/**
+ * Rehidrata la sesión Covenant desde el archivo cifrado en disco.
+ * Debe llamarse al arrancar main.ts, antes de registrar los handlers IPC.
+ * Si la sesión persiste válida, status() devolverá signedIn:true sin re-login.
+ */
+export function initCovenantSession(): void {
+  const saved = loadCovenantSession()
+  if (!saved) return
+  cachedJwt = saved.jwt
+  cachedLogin = saved.login
+  cachedAvatarUrl = saved.avatarUrl
+  cachedGithubId = saved.githubId
+  lastGithubToken = saved.githubToken
 }
 
 export async function listOrgs(): Promise<CovenantOrg[]> {
@@ -188,74 +216,150 @@ export async function unsetDefault(slug: string, kind: string, name: string): Pr
   )
 }
 
-export async function listProjects(slug: string): Promise<CovenantProject[]> {
-  const response = await authedFetch(`/orgs/${encodeURIComponent(slug)}/projects`)
-  return (await response.json()) as CovenantProject[]
+export async function listWorkspaces(slug: string): Promise<CovenantWorkspace[]> {
+  const response = await authedFetch(`/orgs/${encodeURIComponent(slug)}/workspaces`)
+  return (await response.json()) as CovenantWorkspace[]
 }
 
-export async function createProject(slug: string, name: string): Promise<CovenantProject> {
-  const response = await authedFetch(`/orgs/${encodeURIComponent(slug)}/projects`, {
+export async function createWorkspace(slug: string, name: string): Promise<CovenantWorkspace> {
+  const response = await authedFetch(`/orgs/${encodeURIComponent(slug)}/workspaces`, {
     method: 'POST',
     body: { name },
   })
-  return (await response.json()) as CovenantProject
+  return (await response.json()) as CovenantWorkspace
 }
 
-export async function renameProject(
+export async function renameWorkspace(
   slug: string,
-  projectId: string,
+  workspaceId: string,
   name: string,
-): Promise<CovenantProject> {
+): Promise<CovenantWorkspace> {
   const response = await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}`,
     { method: 'PATCH', body: { name } },
   )
-  return (await response.json()) as CovenantProject
+  return (await response.json()) as CovenantWorkspace
 }
 
-export async function deleteProject(slug: string, projectId: string): Promise<void> {
+export async function deleteWorkspace(slug: string, workspaceId: string): Promise<void> {
   await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}`,
     { method: 'DELETE' },
   )
 }
 
-export async function addAssignee(slug: string, projectId: string, login: string): Promise<void> {
+export async function addAssignee(slug: string, workspaceId: string, login: string): Promise<void> {
   await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}/assignees`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/assignees`,
     { method: 'POST', body: { login } },
   )
 }
 
 export async function removeAssignee(
   slug: string,
-  projectId: string,
+  workspaceId: string,
   login: string,
 ): Promise<void> {
   await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}/assignees/${encodeURIComponent(login)}`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/assignees/${encodeURIComponent(login)}`,
     { method: 'DELETE' },
   )
 }
 
-export async function addProjectAdmin(
+export async function addWorkspaceAdmin(
   slug: string,
-  projectId: string,
+  workspaceId: string,
   login: string,
 ): Promise<void> {
   await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}/admins`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/admins`,
     { method: 'POST', body: { login } },
   )
 }
 
-export async function removeProjectAdmin(
+export async function removeWorkspaceAdmin(
   slug: string,
-  projectId: string,
+  workspaceId: string,
   login: string,
 ): Promise<void> {
   await authedFetch(
-    `/orgs/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}/admins/${encodeURIComponent(login)}`,
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/admins/${encodeURIComponent(login)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function listWorkspaceAgents(
+  slug: string,
+  workspaceId: string,
+): Promise<CovenantWorkspaceAgentRecord[]> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+  )
+  return (await response.json()) as CovenantWorkspaceAgentRecord[]
+}
+
+export async function upsertWorkspaceAgent(
+  slug: string,
+  workspaceId: string,
+  agentId: string,
+  definition: ProjectAgentDefinition,
+): Promise<CovenantWorkspaceAgentRecord> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`,
+    { method: 'PUT', body: { definition } },
+  )
+  return (await response.json()) as CovenantWorkspaceAgentRecord
+}
+
+export async function deleteWorkspaceAgent(
+  slug: string,
+  workspaceId: string,
+  agentId: string,
+): Promise<void> {
+  await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function listWorkspaceContexts(
+  slug: string,
+  workspaceId: string,
+): Promise<CovenantWorkspaceContextRecord[]> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/contexts`,
+  )
+  return (await response.json()) as CovenantWorkspaceContextRecord[]
+}
+
+export async function upsertWorkspaceContext(
+  slug: string,
+  workspaceId: string,
+  contextId: string,
+  payload: CovenantWorkspaceContextPayload,
+): Promise<CovenantWorkspaceContextRecord> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/contexts/${encodeURIComponent(contextId)}`,
+    {
+      method: 'PUT',
+      body: {
+        kind: payload.kind,
+        name: payload.name,
+        body: payload.body ?? '',
+        meta: payload.meta ?? null,
+      },
+    },
+  )
+  return (await response.json()) as CovenantWorkspaceContextRecord
+}
+
+export async function deleteWorkspaceContext(
+  slug: string,
+  workspaceId: string,
+  contextId: string,
+): Promise<void> {
+  await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/contexts/${encodeURIComponent(contextId)}`,
     { method: 'DELETE' },
   )
 }

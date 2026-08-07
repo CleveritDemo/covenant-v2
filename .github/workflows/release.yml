@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Los tres jobs corren en paralelo y compiten por crear el release: todos menos
+# uno reciben 422 "already exists", que es el camino esperado, no un fallo. Las
+# subidas posteriores son la verdadera comprobación y sí fallan ruidosamente.
+#
+# Las sube electron-builder (`-p always`), no `gh release upload`: además de los
+# binarios escribe latest-mac.yml / latest.yml / latest-linux.yml, que son el
+# manifiesto que consulta el auto-updater. Cada plataforma tiene el suyo, así que
+# un job caído no deja un manifiesto a medias — no hace falta gatear nada.
+env:
+  # En workflow_dispatch (sin tag) se construye pero no se publica.
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+
+jobs:
+  # Solo arm64: es lo que ya producían `dist`/`dist:dmg`. Añadir x64 obliga a
+  # cross-compilar node-pty desde el runner Apple Silicon — hacerlo cuando alguien
+  # lo pida, no antes.
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # postinstall recompila node-pty contra el ABI de Electron.
+      - run: npm ci
+
+      - name: Write notary API key
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/private_keys
+          echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey.p8
+          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Prepare release (notes + GitHub release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prepare-release.sh
+
+      # Publica dmg (instalación manual) + zip (el que consume Squirrel.Mac para
+      # auto-actualizar; sin él el updater no tiene de dónde tirar) + latest-mac.yml.
+      - name: Build + sign + notarize + publish
+        env:
+          # CSC_LINK acepta el .p12 en base64 directo, sin fichero intermedio.
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'true'
+          # Los secrets vienen de Covenant, que es Tauri, y el nombre colisiona:
+          # allí APPLE_API_KEY es el Key ID; en electron-builder es la RUTA al .p8
+          # (la fija el paso anterior vía GITHUB_ENV) y el Key ID va aparte.
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:mac-release -- -p "$PUBLISH"
+
+      - name: Verify signature and notarization
+        run: |
+          set -euo pipefail
+          APP="dist/mac-arm64/Covenant Gravity.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          # Falla si el ticket de notarización no está grapado en el bundle.
+          spctl --assess --type execute --verbose=4 "$APP"
+
+  # Electron trae su propio runtime: a diferencia de Tauri no hacen falta
+  # webkit2gtk ni ninguna dependencia de sistema. Linux no se firma.
+  linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prepare release (notes + GitHub release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prepare-release.sh
+
+      # El AppImage se auto-actualiza; el .deb no (lo actualiza apt). Los dos se
+      # publican igual, el updater solo mira el AppImage vía latest-linux.yml.
+      - name: Build + publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:linux -- -p "$PUBLISH"
+
+  # Sin firmar por ahora: el cert de code signing de SSL.com todavía no existe,
+  # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
+  # hook `win.sign` con los secrets de eSigner y este job no cambia.
+  windows:
+    # NO windows-latest: esa imagen ya es win25-vs2026, con Visual Studio 18, y
+    # el @electron/node-gyp que usa electron-rebuild lo encuentra pero no sabe
+    # parsear la versión ("unknown version undefined") y lo descarta. VS 2022
+    # sí lo reconoce. Revisar al subir electron/electron-rebuild.
+    runs-on: windows-2022
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Aquí sí se recompila node-pty (a diferencia de `dist:win-portable`, que
+      # lo salta para poder cross-buildear desde macOS y deja las terminales
+      # muertas).
+      - run: npm ci
+
+      - name: Prepare release (notes + GitHub release)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prepare-release.sh
+
+      # NSIS, no portable: el portable no se puede auto-actualizar (no hay
+      # instalador que ejecutar). Sale sin firmar hasta que exista el cert, así
+      # que SmartScreen seguirá avisando en la primera instalación.
+      - name: Build + publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win -- -p "$PUBLISH"
+
+  # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
+  # que no hay que crearlo a mano: el primer tag lo genera.
+  cask:
+    needs: macos
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT con Contents:write sobre karluiz/homebrew-covenant; GITHUB_TOKEN
+          # no alcanza, el tap está fuera de esta org.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set; skipping cask update"; exit 0
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          DMG="Covenant-Gravity-${VERSION}-arm64.dmg"
+
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p "$DMG" -D dmg
+          SHA=$(sha256sum "dmg/$DMG" | awk '{print $1}')
+
+          TAP_DIR="$RUNNER_TEMP/homebrew-covenant"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/karluiz/homebrew-covenant.git" "$TAP_DIR"
+          cat > "$TAP_DIR/Casks/covenant-gravity.rb" <<EOF
+          cask "covenant-gravity" do
+            version "${VERSION}"
+            sha256 "${SHA}"
+
+            url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v#{version}/Covenant-Gravity-#{version}-arm64.dmg"
+            name "Covenant Gravity"
+            desc "Terminal como orquestador de agentes de IA"
+            homepage "https://github.com/${GITHUB_REPOSITORY}"
+
+            # Solo se publica arm64; sin esto un Mac Intel instalaría un binario
+            # que no puede ejecutar.
+            depends_on arch: :arm64
+
+            app "Covenant Gravity.app"
+
+            zap trash: [
+              "~/Library/Application Support/Covenant Gravity",
+              "~/Library/Preferences/com.covenant.gravity.plist",
+              "~/Library/Caches/com.covenant.gravity",
+              "~/Library/Logs/Covenant Gravity",
+            ]
+          end
+          EOF
+          cd "$TAP_DIR"
+          git config user.name "covenant-release-bot"
+          git config user.email "noreply@covenant.uno"
+          git add Casks/covenant-gravity.rb
+          git commit -m "covenant-gravity ${VERSION}"
+          git push origin HEAD

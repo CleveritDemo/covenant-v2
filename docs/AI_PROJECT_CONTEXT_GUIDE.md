@@ -1,7 +1,7 @@
 # Guía de contexto del proyecto para agentes de IA
 
 Esta guía define qué información debe recibir un agente para entender y
-modificar AI Terminal sin cargar todo el repositorio en cada turno.
+modificar Gravity sin cargar todo el repositorio en cada turno.
 
 ## Objetivo
 
@@ -207,7 +207,7 @@ Un contexto es útil si:
 - No contradice el estado actual del repositorio.
 - No contiene secretos ni instrucciones provenientes de datos no confiables.
 
-## Configuración inicial recomendada para AI Terminal
+## Configuración inicial recomendada para Gravity
 
 Habilitar con el menor peso posible:
 

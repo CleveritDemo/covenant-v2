@@ -156,20 +156,19 @@ export function imagesFromClipboard(data: DataTransfer | null): File[] {
 }
 
 /**
- * Copia los bytes del archivo del portapapeles a un Blob estable y lo optimiza para el modelo.
- * En Chromium/Electron el File de clipboard se invalida al terminar el paste.
+ * Copia los bytes a un Blob estable y lo optimiza para el modelo.
+ * Punto de entrada de cualquier origen: portapapeles, sketch, archivo.
  */
-export async function materializeClipboardImage(
-  file: File,
-  fallbackName: string,
+export async function pendingImageFromBlob(
+  source: Blob,
+  name: string,
 ): Promise<ComposerPendingImage | null> {
   try {
-    const buffer = await file.arrayBuffer()
+    const buffer = await source.arrayBuffer()
     if (!buffer.byteLength || buffer.byteLength > MAX_IMAGE_BYTES) return null
-    const sourceMime = file.type || 'image/png'
-    const sourceName = file.name || fallbackName
+    const sourceMime = source.type || 'image/png'
     const sourceBlob = new Blob([buffer], { type: sourceMime })
-    const optimized = await optimizeImageForModel(sourceBlob, sourceName)
+    const optimized = await optimizeImageForModel(sourceBlob, name)
     return {
       id: crypto.randomUUID(),
       previewUrl: URL.createObjectURL(optimized.blob),
@@ -180,6 +179,18 @@ export async function materializeClipboardImage(
   } catch {
     return null
   }
+}
+
+/**
+ * Igual que `pendingImageFromBlob`, pero conservando el nombre del File.
+ * En Chromium/Electron el File de clipboard se invalida al terminar el paste,
+ * por eso los bytes se copian antes de hacer cualquier otra cosa.
+ */
+export function materializeClipboardImage(
+  file: File,
+  fallbackName: string,
+): Promise<ComposerPendingImage | null> {
+  return pendingImageFromBlob(file, file.name || fallbackName)
 }
 
 export async function pendingImagesToAttachments(

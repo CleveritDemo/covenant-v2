@@ -1,17 +1,27 @@
 import React from 'react'
-import type { AgentCliProvider } from '@shared/tabSession'
 import { useT } from '@i18n/useT'
 import { Badge } from '../components/ui'
+import type { AgentConfigSection } from './AgentConfigSectionRail'
 import './AgentConfigHero.css'
+
+/** Chip de estado de la cabecera; al pulsarlo salta a su sección. */
+export interface AgentConfigHeroChip {
+  key: string
+  label: string
+  /** `warn` para ajustes con radio de daño (permisos Auto). */
+  tone?: 'default' | 'warn'
+  section: AgentConfigSection
+  title?: string
+}
 
 export interface AgentConfigHeroProps {
   name: string
   role: string
-  provider: AgentCliProvider
-  modelLabel: string
+  chips: AgentConfigHeroChip[]
   busy: boolean
   loopActive: boolean
   awaitingDelegations?: boolean
+  onChipClick: (section: AgentConfigSection) => void
 }
 
 function agentInitial(name: string): string {
@@ -23,25 +33,15 @@ function agentInitial(name: string): string {
 export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   name,
   role,
-  provider,
-  modelLabel,
+  chips,
   busy,
   loopActive,
   awaitingDelegations = false,
+  onChipClick,
 }) => {
   const { t } = useT()
   const nameEmpty = !name.trim()
   const displayName = name.trim() || t('agentPane.configUnnamed')
-  const providerLabel = provider === 'claude'
-    ? t('agentPane.claude')
-    : provider === 'copilot'
-      ? t('agentPane.copilot')
-      : t('agentPane.cursor')
-  const metaParts = [
-    role.trim() || null,
-    providerLabel,
-    modelLabel.trim() || t('agentPane.modelDefault'),
-  ].filter(Boolean)
 
   const statusLabel = loopActive
     ? t('agentPane.configStatusLoop')
@@ -55,8 +55,25 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
         {agentInitial(name)}
       </span>
       <div className="agent-config-hero__text">
-        <p className="agent-config-hero__name">{displayName}</p>
-        <p className="agent-config-hero__meta">{metaParts.join(' · ')}</p>
+        <p className="agent-config-hero__name">
+          {displayName}
+          {role.trim() ? (
+            <span className="agent-config-hero__role">{role.trim()}</span>
+          ) : null}
+        </p>
+        <div className="agent-config-hero__chips">
+          {chips.map(chip => (
+            <button
+              key={chip.key}
+              type="button"
+              className={`agent-config-hero__chip${chip.tone === 'warn' ? ' agent-config-hero__chip--warn' : ''}`}
+              title={chip.title ?? chip.label}
+              onClick={() => onChipClick(chip.section)}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
         {nameEmpty ? (
           <p className="agent-config-hero__edit-hint">{t('agentPane.configHeroEditHint')}</p>
         ) : null}

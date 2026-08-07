@@ -1,4 +1,4 @@
-# AI Terminal
+# Covenant Gravity
 
 Terminal de escritorio para macOS que reúne shells, archivos, Git y agentes de
 programación en un mismo espacio de trabajo.
@@ -37,8 +37,8 @@ Construida con Electron, React, TypeScript, xterm.js y CodeMirror.
 ## Desarrollo
 
 ```bash
-git clone https://github.com/rodrigoanti/intelligent_terminal.git ai-terminal
-cd ai-terminal
+git clone https://github.com/CleveritDemo/covenant-v2.git covenant-gravity
+cd covenant-gravity
 npm install
 npm run dev
 ```
@@ -62,7 +62,7 @@ Abre **Ajustes** dentro de la aplicación para configurar:
 Los ajustes se guardan en:
 
 ```text
-~/Library/Application Support/AI Terminal/config.json
+~/Library/Application Support/Covenant Gravity/config.json
 ```
 
 También puedes crear `.env.local` a partir de `.env.example` para definir
@@ -72,7 +72,7 @@ También puedes crear `.env.local` a partir de `.env.example` para definir
 cp .env.example .env.local
 ```
 
-Las credenciales de los agentes no se guardan en AI Terminal: cada CLI gestiona
+Las credenciales de los agentes no se guardan en Covenant Gravity: cada CLI gestiona
 su propia autenticación.
 
 ## Uso de agentes
@@ -123,6 +123,14 @@ En Windows/Linux se usa `Ctrl` en lugar de `⌘` cuando el atajo está disponibl
 | `npm run rebuild:native` | Recompila `node-pty` para Electron |
 
 Los artefactos compilados se escriben en `out/` y los paquetes en `dist/`.
+
+## Actualizaciones
+
+La app busca versiones nuevas en GitHub Releases al arrancar y cada hora. Cuando
+hay una, aparece una píldora en la barra de título con la versión, las novedades
+y un botón para instalar: descarga, cierra guardando la sesión y se relanza ya
+actualizada. Detalles de operación y publicación en
+[`docs/AUTO_UPDATER.md`](docs/AUTO_UPDATER.md).
 
 ## Arquitectura
 

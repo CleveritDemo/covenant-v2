@@ -57,6 +57,18 @@ function sanitizeTab(tab: TabSession): {
   const projectFolder = typeof tab.projectFolder === 'string' && tab.projectFolder.trim()
     ? tab.projectFolder.trim()
     : undefined
+  const orgWorkspaceRaw = tab.orgWorkspace
+  const orgWorkspace =
+    orgWorkspaceRaw
+    && typeof orgWorkspaceRaw.slug === 'string'
+    && orgWorkspaceRaw.slug.trim()
+    && typeof orgWorkspaceRaw.workspaceId === 'string'
+    && orgWorkspaceRaw.workspaceId.trim()
+      ? {
+          slug: orgWorkspaceRaw.slug.trim(),
+          workspaceId: orgWorkspaceRaw.workspaceId.trim(),
+        }
+      : undefined
 
   for (const paneId of rawPaneIds) {
     if (tab.paneKinds?.[paneId] !== 'agent') continue
@@ -90,6 +102,7 @@ function sanitizeTab(tab: TabSession): {
     panePlaneNodes: _legacyPlaneNodes,
     contexts: _legacyContexts,
     projectFolder: _rawProjectFolder,
+    orgWorkspace: _rawOrgWorkspace,
     planeOpenChatAgentId: _rawOpenChat,
     planeLoopLinks: _rawLoopLinks,
     planeLoopNodePositions: _rawLoopPositions,
@@ -118,6 +131,7 @@ function sanitizeTab(tab: TabSession): {
       ...(paneWindows ? { paneWindows } : { paneWindows: undefined }),
       planeOpenChatAgentId,
       ...(projectFolder ? { projectFolder } : {}),
+      ...(orgWorkspace ? { orgWorkspace } : {}),
       ...(planeLoopLinks.length ? { planeLoopLinks } : {}),
       ...(planeLoopNodePositions ? { planeLoopNodePositions } : {}),
       ...(planeLoopChains.length ? { planeLoopChains } : {}),

@@ -1,3 +1,5 @@
+import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
+
 /** Política de ejecución de shell del modo agente (el modelo propone bloques RUN). */
 export type AgentShellPolicy = 'off' | 'ask' | 'always'
 
@@ -69,6 +71,8 @@ export interface AppConfig {
    * Solo tiene efecto en modelos que lo soportan.
    */
   thinkingMode: boolean
+  /** Muestra los controles de música en la barra de título. */
+  musicEnabled: boolean
   /**
    * IDs de playlist de Spotify (22 caracteres) por clave de estado de ánimo (`musicMoods`).
    * Solo se usan entradas no vacías.
@@ -82,10 +86,11 @@ export interface AppConfig {
   reduceMotion: boolean
   /** Reiniciar shell automáticamente tras exit en un panel de terminal. */
   autoRestartShell: boolean
-  /** Ejecutables usados por las ventanas de agente CLI. */
-  agentCliClaudeCommand: string
-  agentCliCursorCommand: string
-  agentCliCopilotCommand: string
+  /**
+   * Ejecutables usados por las ventanas de agente CLI, por proveedor.
+   * Entrada vacía o ausente = comando por defecto de `AGENT_CLI_PROVIDERS`.
+   */
+  agentCliCommands: Partial<Record<AgentCliProvider, string>>
   /** Mood de música activo en la barra de título. */
   musicMood?: string
 }
@@ -110,14 +115,39 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentLoop: false,
   agentShellPolicy: 'off',
   thinkingMode: false,
+  musicEnabled: true,
   musicPlaylistIdsByMood: {},
   language: 'en',
   reduceMotion: false,
   autoRestartShell: true,
-  agentCliClaudeCommand: 'claude',
-  agentCliCursorCommand: 'agent',
-  agentCliCopilotCommand: 'copilot',
+  agentCliCommands: {},
   musicMood: 'focus',
+}
+
+/** Claves previas a `agentCliCommands` (una por proveedor). */
+const LEGACY_AGENT_CLI_KEYS: Record<string, AgentCliProvider> = {
+  agentCliClaudeCommand: 'claude',
+  agentCliCursorCommand: 'cursor',
+  agentCliCopilotCommand: 'copilot',
+}
+
+/** Config guardada antes del registro de proveedores: pliega las 3 claves sueltas. */
+export function migrateAgentCliCommands(
+  partial: Partial<AppConfig>,
+): Partial<Record<AgentCliProvider, string>> {
+  const raw = partial as Record<string, unknown>
+  const out: Partial<Record<AgentCliProvider, string>> = {}
+  for (const [legacyKey, provider] of Object.entries(LEGACY_AGENT_CLI_KEYS)) {
+    const value = raw[legacyKey]
+    if (typeof value === 'string' && value.trim()) out[provider] = value.trim()
+  }
+  for (const [provider, value] of Object.entries(partial.agentCliCommands ?? {})) {
+    if (!isAgentCliProvider(provider)) continue
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed) out[provider] = trimmed
+    else delete out[provider]
+  }
+  return out
 }
 
 export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
@@ -129,7 +159,16 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const reduceMotion = typeof partial.reduceMotion === 'boolean'
     ? partial.reduceMotion
     : CONFIG_DEFAULTS.reduceMotion
-  return { ...CONFIG_DEFAULTS, ...partial, musicPlaylistIdsByMood: moods, reduceMotion }
+  const agentCliCommands = migrateAgentCliCommands(partial)
+  const merged = {
+    ...CONFIG_DEFAULTS,
+    ...partial,
+    musicPlaylistIdsByMood: moods,
+    reduceMotion,
+    agentCliCommands,
+  } as AppConfig & Record<string, unknown>
+  for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
+  return merged
 }
 
 export function validateConfig(config: AppConfig): string[] {
@@ -155,14 +194,10 @@ export function validateConfig(config: AppConfig): string[] {
   if (config.fontSize < 9 || config.fontSize > 24) {
     errors.push('fontSize debe estar entre 9 y 24')
   }
-  if (!config.agentCliClaudeCommand.trim()) {
-    errors.push('agentCliClaudeCommand no puede estar vacío')
-  }
-  if (!config.agentCliCursorCommand.trim()) {
-    errors.push('agentCliCursorCommand no puede estar vacío')
-  }
-  if (!config.agentCliCopilotCommand.trim()) {
-    errors.push('agentCliCopilotCommand no puede estar vacío')
+  for (const provider of Object.keys(config.agentCliCommands ?? {})) {
+    if (!isAgentCliProvider(provider)) {
+      errors.push(`agentCliCommands["${provider}"] no es un proveedor conocido`)
+    }
   }
   const pol = config.agentShellPolicy
   if (pol !== 'off' && pol !== 'ask' && pol !== 'always') {

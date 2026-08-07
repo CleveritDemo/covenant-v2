@@ -1,0 +1,33 @@
+.agent-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-provider-grid__state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-provider-grid__state--missing {
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-muted));
+}
+
+/* El nombre del CLI nunca desborda su tarjeta. */
+.agent-provider-grid__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .agent-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

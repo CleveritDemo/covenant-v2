@@ -7,6 +7,7 @@ import {
   imagesFromClipboard,
   materializeClipboardImage,
   MAX_PENDING_IMAGES,
+  pendingImageFromBlob,
   pendingImagesToAttachments,
   type ComposerPendingImage,
 } from '../agent/composerImages'
@@ -18,6 +19,8 @@ import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PlaneChatSendButton } from './PlaneChatSendButton'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
+import { PlaneSketchButton } from './PlaneSketchButton'
+import { SketchModal } from './SketchModal'
 import './PlaneChatComposer.css'
 
 export type { PlaneChatContextOption }
@@ -92,6 +95,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  const [sketchOpen, setSketchOpen] = useState(false)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
@@ -127,6 +131,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       return []
     })
     setEditingQueuedId(null)
+    setSketchOpen(false)
     const el = composerInputRef.current
     if (el) {
       el.style.height = 'auto'
@@ -179,6 +184,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     )
     void Promise.all(jobs).then(results => {
       appendPendingImages(results.filter((image): image is ComposerPendingImage => image != null))
+    })
+  }, [appendPendingImages])
+
+  const handleSketchAttach = useCallback((blob: Blob): void => {
+    void pendingImageFromBlob(blob, `sketch-${Date.now()}.png`).then(image => {
+      if (image) appendPendingImages([image])
     })
   }, [appendPendingImages])
 
@@ -304,6 +315,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         )}
 
         <div className="plane-chat-composer__row">
+          <PlaneSketchButton
+            label={t('sketch.open')}
+            disabled={agents.length === 0 || composerLocked || pendingImages.length >= MAX_PENDING_IMAGES}
+            onClick={() => setSketchOpen(true)}
+          />
           <textarea
             ref={composerInputRef}
             className="plane-chat-composer__input"
@@ -335,6 +351,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             onClick={handleSendClick}
           />        </div>
       </div>
+
+      <SketchModal
+        open={sketchOpen}
+        onClose={() => setSketchOpen(false)}
+        onAttach={handleSketchAttach}
+      />
 
       <QueuedTurnEditModal
         open={Boolean(editingQueuedId)}

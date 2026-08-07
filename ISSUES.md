@@ -114,7 +114,7 @@ Llamadas a **`scrollToBottom`**, **`refresh`**, **`fit`** o listeners (**`Resize
 
 ## 5. Migración de `themeId` obsoleto
 
-Si `~/Library/Application Support/AI Terminal/config.json` (ruta típica en macOS) contiene **`themeId`** igual a un tema eliminado (p. ej. `appleLiquidGlass`) o a un id desconocido, al arrancar la app:
+Si `~/Library/Application Support/Covenant Gravity/config.json` (ruta típica en macOS) contiene **`themeId`** igual a un tema eliminado (p. ej. `appleLiquidGlass`) o a un id desconocido, al arrancar la app:
 
 1. Se normaliza a **`vscodeDark`** en memoria.
 2. Se llama a **`setConfig({ themeId: 'vscodeDark' })`** para **persistir** el cambio.

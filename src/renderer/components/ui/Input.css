@@ -10,6 +10,17 @@
   box-sizing: border-box;
 }
 
+/* Estado inválido: se pide con aria-invalid, sin prop de estilo. */
+.input[aria-invalid='true'],
+.input[aria-invalid='true']:focus {
+  border-color: var(--danger);
+}
+
+.input--inline[aria-invalid='true'],
+.input--inline[aria-invalid='true']:focus {
+  border-bottom-color: var(--danger);
+}
+
 .input:focus {
   border-color: var(--accent);
 }

@@ -71,5 +71,7 @@ export const COPILOT_AGENT_MODELS: AgentModelOption[] = [
 export function modelsForProvider(provider: AgentCliProvider): AgentModelOption[] {
   if (provider === 'claude') return CLAUDE_AGENT_MODELS
   if (provider === 'copilot') return COPILOT_AGENT_MODELS
-  return CURSOR_AGENT_MODELS
+  if (provider === 'cursor') return CURSOR_AGENT_MODELS
+  // Resto de CLIs: sin catálogo propio; se usa el modelo por defecto del CLI.
+  return []
 }

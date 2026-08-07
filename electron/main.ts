@@ -8,8 +8,9 @@ import {
   appendFileSync,
   constants,
   statSync,
+  renameSync,
 } from 'fs'
-import { join, normalize, resolve, relative, isAbsolute } from 'path'
+import { join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
 import {
   app,
   BrowserWindow,
@@ -56,10 +57,12 @@ import {
   exportBrainstormRoomMarkdown,
 } from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import { isAgentCliProvider, type AgentCliResolution } from '../src/shared/agentCliProviders'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import { listAgentCliModels } from './agentCliModelsList'
+import { resolveAgentCli } from './agentCliResolve'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -83,7 +86,7 @@ import {
   materializeTabContext,
   mergeAnnotations,
 } from './tabContextBuild'
-import { ensureAiAgentResults } from './aiAgentResults'
+import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -109,32 +112,40 @@ import {
   gitUnstageFile,
 } from './gitSessionOps'
 import { githubActionsListForSession } from './githubActionsOps'
+import { fetchGitHubIdentity } from './githubApi'
+import type { GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken } from './githubToken'
 import {
   addAssignee as covenantAddAssignee,
   addMember as covenantAddMember,
   addOrgAdmin as covenantAddOrgAdmin,
-  addProjectAdmin as covenantAddProjectAdmin,
+  addWorkspaceAdmin as covenantAddWorkspaceAdmin,
   createOrg as covenantCreateOrg,
-  createProject as covenantCreateProject,
+  createWorkspace as covenantCreateWorkspace,
   CovenantApiError,
-  deleteProject as covenantDeleteProject,
+  deleteWorkspace as covenantDeleteWorkspace,
+  deleteWorkspaceAgent as covenantDeleteWorkspaceAgent,
+  deleteWorkspaceContext as covenantDeleteWorkspaceContext,
   exchange as covenantExchange,
   listDefaults as covenantListDefaults,
   listMembers as covenantListMembers,
   listMemberLogins as covenantListMemberLogins,
   listOrgAdmins as covenantListOrgAdmins,
   listOrgs as covenantListOrgs,
-  listProjects as covenantListProjects,
+  listWorkspaceAgents as covenantListWorkspaceAgents,
+  listWorkspaceContexts as covenantListWorkspaceContexts,
+  listWorkspaces as covenantListWorkspaces,
   removeAssignee as covenantRemoveAssignee,
   removeMember as covenantRemoveMember,
   removeOrgAdmin as covenantRemoveOrgAdmin,
-  removeProjectAdmin as covenantRemoveProjectAdmin,
-  renameProject as covenantRenameProject,
+  removeWorkspaceAdmin as covenantRemoveWorkspaceAdmin,
+  renameWorkspace as covenantRenameWorkspace,
   setDefault as covenantSetDefault,
   signOut as covenantSignOut,
   status as covenantStatus,
   unsetDefault as covenantUnsetDefault,
+  upsertWorkspaceAgent as covenantUpsertWorkspaceAgent,
+  upsertWorkspaceContext as covenantUpsertWorkspaceContext,
 } from './covenantApi'
 import type { CovenantResult } from '../src/shared/covenantTypes'
 import {
@@ -161,8 +172,39 @@ import {
 } from './fileExplorerWatcher'
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
+import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
+import { decryptField, encryptField, isEncryptedField } from './safeStorageUtils'
+import { initCovenantSession } from './covenantApi'
 
-const APP_DISPLAY_NAME = 'AI Terminal'
+const APP_DISPLAY_NAME = 'Covenant Gravity'
+
+// Antes de `whenReady`: `setName` solo mueve `userData` si corre antes del primer
+// `getPath`. Sin esto dev usaría `gravity` (name de package.json) y el empaquetado
+// `Covenant Gravity` (productName), dos carpetas distintas.
+app.setName(APP_DISPLAY_NAME)
+
+/**
+ * Rebranding AI Terminal → Covenant Gravity: recupera config/session/historial de
+ * la ruta vieja renombrando la carpeta una única vez.
+ * ponytail: rename, no copia; si falla arrancamos limpio en la ruta nueva.
+ */
+function migrateLegacyUserData(): void {
+  const target = app.getPath('userData')
+  if (existsSync(target)) return
+  const parent = dirname(target)
+  for (const legacy of ['ai-terminal', 'AI Terminal']) {
+    const source = join(parent, legacy)
+    try {
+      if (!existsSync(source)) continue
+      renameSync(source, target)
+      return
+    } catch {
+      /* ignore: se crea limpia */
+    }
+  }
+}
+
+migrateLegacyUserData()
 
 loadDotenv({ path: resolve(process.cwd(), '.env') })
 loadDotenv({ path: resolve(process.cwd(), '.env.local'), override: true })
@@ -200,12 +242,49 @@ function configPath(): string {
   return join(app.getPath('userData'), 'config.json')
 }
 
+/** Campos de AppConfig que se cifran en reposo. */
+const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey'] as const
+type SecretField = (typeof SECRET_FIELDS)[number]
+
+/** Descifra los campos sensibles de un objeto leído del disco. */
+function decryptSecrets(parsed: Partial<AppConfig>): Partial<AppConfig> {
+  const out = { ...parsed }
+  for (const field of SECRET_FIELDS) {
+    const v = out[field]
+    if (typeof v === 'string' && v) out[field] = decryptField(v)
+  }
+  return out
+}
+
+/** Migra texto plano a cifrado y re-escribe el archivo si algún campo estaba sin cifrar. */
+function maybeMigrateAndEncrypt(parsed: Partial<AppConfig>): Partial<AppConfig> {
+  let dirty = false
+  const out = { ...parsed }
+  for (const field of SECRET_FIELDS) {
+    const v = out[field]
+    if (typeof v === 'string' && v && !isEncryptedField(v)) {
+      out[field] = encryptField(v) as AppConfig[SecretField]
+      dirty = true
+    }
+  }
+  if (dirty) {
+    try {
+      writeFileSync(configPath(), JSON.stringify(out, null, 2), 'utf-8')
+    } catch {
+      /* ignorar error de escritura en migración */
+    }
+  }
+  return out
+}
+
 function readConfig(): AppConfig {
   const p = configPath()
   if (!existsSync(p)) return CONFIG_DEFAULTS
   try {
     const raw = readFileSync(p, 'utf-8')
-    const parsed = JSON.parse(raw) as Partial<AppConfig>
+    let parsed = JSON.parse(raw) as Partial<AppConfig>
+    parsed = maybeMigrateAndEncrypt(parsed)
+    parsed = decryptSecrets(parsed)
     return mergeWithDefaults(parsed)
   } catch {
     return CONFIG_DEFAULTS
@@ -214,7 +293,12 @@ function readConfig(): AppConfig {
 
 function writeConfig(cfg: AppConfig): void {
   mkdirSync(app.getPath('userData'), { recursive: true })
-  writeFileSync(configPath(), JSON.stringify(cfg, null, 2), 'utf-8')
+  const toWrite: Partial<AppConfig> = { ...cfg }
+  for (const field of SECRET_FIELDS) {
+    const v = toWrite[field]
+    if (typeof v === 'string' && v) toWrite[field] = encryptField(v) as AppConfig[SecretField]
+  }
+  writeFileSync(configPath(), JSON.stringify(toWrite, null, 2), 'utf-8')
 }
 
 function projectRootForSession(sessionId: string): string {
@@ -335,7 +419,7 @@ function spawnPtyProcess(
           HOME: home,
           SHELL: shellPath,
           TERM: 'xterm-256color',
-          TERM_PROGRAM: 'AI Terminal',
+          TERM_PROGRAM: APP_DISPLAY_NAME,
         }
 
   const env = process.platform === 'win32'
@@ -374,7 +458,7 @@ function resolvePackagedMacIcon(): string | undefined {
 }
 
 function applyAppBranding(): void {
-  app.setName(APP_DISPLAY_NAME)
+  // `setName` ya se aplicó a nivel de módulo (ver `migrateLegacyUserData`).
   if (process.platform !== 'darwin') return
   const icon = resolvePackagedMacIcon() ?? resolveOptionalWindowIcon()
   if (!icon) return
@@ -722,64 +806,140 @@ function registerIpc(): void {
     }),
   )
 
-  ipcMain.handle(IPC.COVENANT_PROJECTS_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListProjects(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_WORKSPACES_LIST, async (_e, slug: unknown) =>
+    covenantInvoke(() => covenantListWorkspaces(String(slug ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_PROJECT_CREATE, async (_e, slug: unknown, name: unknown) =>
-    covenantInvoke(() => covenantCreateProject(String(slug ?? ''), String(name ?? ''))),
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_CREATE, async (_e, slug: unknown, name: unknown) =>
+    covenantInvoke(() => covenantCreateWorkspace(String(slug ?? ''), String(name ?? ''))),
   )
 
   ipcMain.handle(
-    IPC.COVENANT_PROJECT_RENAME,
-    async (_e, slug: unknown, projectId: unknown, name: unknown) =>
+    IPC.COVENANT_WORKSPACE_RENAME,
+    async (_e, slug: unknown, workspaceId: unknown, name: unknown) =>
       covenantInvoke(() =>
-        covenantRenameProject(String(slug ?? ''), String(projectId ?? ''), String(name ?? '')),
+        covenantRenameWorkspace(String(slug ?? ''), String(workspaceId ?? ''), String(name ?? '')),
       ),
   )
 
-  ipcMain.handle(IPC.COVENANT_PROJECT_DELETE, async (_e, slug: unknown, projectId: unknown) =>
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_DELETE, async (_e, slug: unknown, workspaceId: unknown) =>
     covenantInvoke(async () => {
-      await covenantDeleteProject(String(slug ?? ''), String(projectId ?? ''))
+      await covenantDeleteWorkspace(String(slug ?? ''), String(workspaceId ?? ''))
       return null
     }),
   )
 
   ipcMain.handle(
-    IPC.COVENANT_PROJECT_ASSIGNEE_ADD,
-    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+    IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
       covenantInvoke(async () => {
-        await covenantAddAssignee(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
+        await covenantAddAssignee(String(slug ?? ''), String(workspaceId ?? ''), String(login ?? ''))
         return null
       }),
   )
 
   ipcMain.handle(
-    IPC.COVENANT_PROJECT_ASSIGNEE_REMOVE,
-    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
+    IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
       covenantInvoke(async () => {
-        await covenantRemoveAssignee(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
-        return null
-      }),
-  )
-
-  ipcMain.handle(
-    IPC.COVENANT_PROJECT_ADMIN_ADD,
-    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
-        await covenantAddProjectAdmin(String(slug ?? ''), String(projectId ?? ''), String(login ?? ''))
-        return null
-      }),
-  )
-
-  ipcMain.handle(
-    IPC.COVENANT_PROJECT_ADMIN_REMOVE,
-    async (_e, slug: unknown, projectId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
-        await covenantRemoveProjectAdmin(
+        await covenantRemoveAssignee(
           String(slug ?? ''),
-          String(projectId ?? ''),
+          String(workspaceId ?? ''),
           String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ADMIN_ADD,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantAddWorkspaceAdmin(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_ADMIN_REMOVE,
+    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantInvoke(async () => {
+        await covenantRemoveWorkspaceAdmin(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(login ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENTS_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWorkspaceAgents(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENT_UPSERT,
+    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown, definition: unknown) =>
+      covenantInvoke(() =>
+        covenantUpsertWorkspaceAgent(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(agentId ?? ''),
+          definition as Parameters<typeof covenantUpsertWorkspaceAgent>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_AGENT_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWorkspaceAgent(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(agentId ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXTS_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWorkspaceContexts(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXT_UPSERT,
+    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown, payload: unknown) =>
+      covenantInvoke(() =>
+        covenantUpsertWorkspaceContext(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(contextId ?? ''),
+          payload as Parameters<typeof covenantUpsertWorkspaceContext>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXT_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWorkspaceContext(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(contextId ?? ''),
         )
         return null
       }),
@@ -802,6 +962,19 @@ function registerIpc(): void {
       return null
     }),
   )
+
+  ipcMain.handle(IPC.GITHUB_CHECK_TOKEN, async (_e, raw: unknown): Promise<GitHubTokenCheck> => {
+    const typed = typeof raw === 'string' ? raw.trim() : ''
+    // Sin token escrito se comprueba el efectivo (entorno o credential helper).
+    const token = typed || (await resolveGithubToken(readConfig()))
+    if (!token) return { ok: false, error: 'missing' }
+    try {
+      const { login, scopes } = await fetchGitHubIdentity(token)
+      return { ok: true, login, scopes }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
 
   ipcMain.handle(IPC.FILE_EXPLORER_SET_ROOT, (_e, sessionId: string, rootPath: unknown) => {
     const root = typeof rootPath === 'string' ? rootPath.trim() : ''
@@ -1064,7 +1237,7 @@ function registerIpc(): void {
     if (!payload || typeof payload !== 'object') return
     const provider = (payload as { provider?: unknown }).provider
     const cliSessionId = (payload as { cliSessionId?: unknown }).cliSessionId
-    if ((provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') || typeof cliSessionId !== 'string') return
+    if (!isAgentCliProvider(provider) || typeof cliSessionId !== 'string') return
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
@@ -1126,6 +1299,16 @@ function registerIpc(): void {
       }
     }
   })
+  ipcMain.handle(IPC.AGENT_RESULTS_SET_NOTES, (_event, request: unknown) => {
+    const cwd = (request as { cwd?: unknown } | null)?.cwd
+    const agentId = (request as { agentId?: unknown } | null)?.agentId
+    const notes = (request as { notes?: unknown } | null)?.notes
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentId !== 'string' || !agentId.trim()
+      || typeof notes !== 'string') {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return writeAiAgentResultsNotes(cwd, agentId, notes)
+  })
   ipcMain.handle(IPC.TAB_CONTEXT_DELETE, (_event, request: TabContextDeleteRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, error: 'Solicitud inválida.' }
@@ -1149,7 +1332,7 @@ function registerIpc(): void {
       }
       return
     }
-    if (request.provider !== 'claude' && request.provider !== 'cursor' && request.provider !== 'copilot') {
+    if (!isAgentCliProvider(request.provider)) {
       reject(request.paneId, 'Proveedor de agente no válido.')
       return
     }
@@ -1192,7 +1375,7 @@ function registerIpc(): void {
     return typeof paneId === 'string' && isAgentRunActive(paneId)
   })
   ipcMain.handle(IPC.AGENT_CLI_LIST_MODELS, async (_event, provider: unknown): Promise<AgentCliModelsResult> => {
-    if (provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') {
+    if (!isAgentCliProvider(provider)) {
       return {
         models: [],
         source: 'fallback',
@@ -1201,6 +1384,17 @@ function registerIpc(): void {
     }
     return listAgentCliModels(provider, readConfig())
   })
+  ipcMain.handle(
+    IPC.AGENT_CLI_RESOLVE,
+    async (_event, provider: unknown, command: unknown): Promise<AgentCliResolution | null> => {
+      if (!isAgentCliProvider(provider)) return null
+      return resolveAgentCli(
+        provider,
+        typeof command === 'string' ? command : undefined,
+        readConfig(),
+      )
+    },
+  )
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -1335,7 +1529,9 @@ function createWindow(): BrowserWindow {
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 14, y: 14 },
+          // ponytail: 9 medido, no calculado — macOS aplica un offset propio sobre esta `y`,
+          // así que no sale de (36 − 12) / 2. Si cambia --titlebar-height, medir de nuevo.
+          trafficLightPosition: { x: 14, y: 9 },
           // Sin vibrancy: con `under-window` + canvas (xterm) en Chromium/Electron a veces
           // el lienzo deja de repintar y no se ve lo que tecleas aunque el PTY sí recibe datos.
         }
@@ -1412,7 +1608,8 @@ function createWindow(): BrowserWindow {
       }
     }
     // Cerrar la última ventana = salir (también en macOS; no quedarse en el Dock).
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // Salvo instalando: ahí quien sale es Squirrel, tras copiar el .app nuevo.
+    if (BrowserWindow.getAllWindows().length === 0 && !isInstallingUpdate()) {
       app.quit()
     }
   })
@@ -1436,7 +1633,9 @@ app.whenReady().then(() => {
   // Dock/Finder/Explorer no heredan el PATH del shell; sin esto spawn(CLI) → ENOENT/-4058.
   applyLoginShellPath()
   applyAppBranding()
+  initCovenantSession()
   registerIpc()
+  registerSelfUpdate()
   createWindow()
 
   app.on('activate', () => {
@@ -1445,6 +1644,10 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  // Instalando una actualización este handler corre ANTES que el de selfUpdate
+  // (se registra al cargar el módulo, el otro al pulsar Instalar): salir aquí
+  // mata el proceso antes del relevo a Squirrel y la actualización no se aplica.
+  if (isInstallingUpdate()) return
   // Incluye macOS: no dejar la app viva en el Dock tras cerrar la ventana.
   // Tras close+preventDefault+destroy hay que re-lanzar quit (⌘Q también).
   app.quit()

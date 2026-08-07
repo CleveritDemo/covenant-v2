@@ -2,7 +2,9 @@ import React, { useRef } from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
+import { agentCliSpec } from '@shared/agentCliProviders'
 import { Icon } from '../components/ui/Icon'
+import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import { setPlaneContextDragData } from './planeContextDrag'
 import './PlaneMiniFace.css'
@@ -68,11 +70,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       'plane-mini-face',
       busy ? 'plane-mini-face--busy' : '',
       density === 'compact' ? 'plane-mini-face--compact' : '',
-      provider === 'cursor'
-        ? 'plane-mini-face--cursor'
-        : provider === 'copilot'
-          ? 'plane-mini-face--copilot'
-          : 'plane-mini-face--claude',
+      `plane-mini-face--${provider}`,
     ].filter(Boolean).join(' ')}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
@@ -98,34 +96,12 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         ) : null}
         <span className="plane-mini-face__name" title={name}>{name}</span>
         <span
-          className={[
-            'plane-mini-face__provider',
-            provider === 'cursor'
-              ? 'plane-mini-face__provider--cursor'
-              : provider === 'copilot'
-                ? 'plane-mini-face__provider--copilot'
-                : 'plane-mini-face__provider--claude',
-          ].join(' ')}
-          title={
-            provider === 'cursor'
-              ? t('agentPane.cursor')
-              : provider === 'copilot'
-                ? t('agentPane.copilot')
-                : t('agentPane.claude')
-          }
-          aria-label={
-            provider === 'cursor'
-              ? t('agentPane.cursor')
-              : provider === 'copilot'
-                ? t('agentPane.copilot')
-                : t('agentPane.claude')
-          }
+          className="plane-mini-face__provider"
+          style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
+          title={agentCliSpec(provider).label}
+          aria-label={agentCliSpec(provider).label}
         >
-          <Icon
-            name={provider === 'cursor' ? 'sparkles' : provider === 'copilot' ? 'code' : 'bot'}
-            size={9}
-            aria-hidden
-          />
+          <BrandIcon provider={provider} size={9} aria-hidden />
         </span>
         {coordination === 'orchestrator' ? (
           <span

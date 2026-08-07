@@ -3,7 +3,7 @@
  * No toca commandAndArgs de ejecución de agentes.
  */
 import crossSpawn from 'cross-spawn'
-import { existsSync, readFileSync, readdirSync, realpathSync } from 'fs'
+import { existsSync, readFileSync, readdirSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import type { AppConfig } from '../src/shared/configSchema'
 import type {
@@ -11,8 +11,8 @@ import type {
   AgentModelOption,
 } from '../src/shared/agentCliModels'
 import { modelsForProvider } from '../src/shared/agentCliModels'
-import type { AgentCliProvider } from '../src/shared/projectAgentCatalog'
-import { resolveCliExecutable } from './shellPathEnv'
+import { agentCliCommand, type AgentCliProvider } from '../src/shared/agentCliProviders'
+import { resolveCliExecutable, resolveCommandAbsolutePath } from './shellPathEnv'
 
 const LIST_TIMEOUT_MS = 12_000
 
@@ -153,27 +153,15 @@ function commandAndListArgs(
   provider: AgentCliProvider,
   config: AppConfig,
 ): { command: string; args: string[] } {
-  if (provider === 'claude') {
-    return {
-      command: config.agentCliClaudeCommand.trim() || 'claude',
-      // Subcomando real: `claude models` (falla con auth → fallback).
-      args: ['models'],
-    }
-  }
-  if (provider === 'copilot') {
-    return {
-      command: config.agentCliCopilotCommand.trim() || 'copilot',
-      // Sin `--list-models`; la ayuda documenta `--model` (y a veces IDs).
-      args: ['help'],
-    }
-  }
-  return {
-    command: config.agentCliCursorCommand.trim() || 'agent',
-    args: ['--list-models'],
-  }
+  const command = agentCliCommand(config.agentCliCommands, provider)
+  // Subcomando real: `claude models` (falla con auth → fallback).
+  if (provider === 'claude') return { command, args: ['models'] }
+  // Copilot no tiene `--list-models`; la ayuda documenta `--model` (y a veces IDs).
+  if (provider === 'copilot') return { command, args: ['help'] }
+  return { command, args: ['--list-models'] }
 }
 
-function runCliCapture(
+export function runCliCapture(
   command: string,
   args: string[],
   timeoutMs: number,
@@ -226,42 +214,6 @@ function runCliCapture(
     })
     proc.on('close', code => finish(code))
   })
-}
-
-/**
- * Resuelve un comando bare (`copilot`) a ruta absoluta vía PATH (+ .cmd/.exe en win32).
- * Usa realpath para seguir symlinks del binario npm.
- */
-function resolveCommandAbsolutePath(command: string): string | null {
-  const trimmed = command.trim()
-  if (!trimmed) return null
-
-  const tryRealpath = (path: string): string | null => {
-    if (!existsSync(path)) return null
-    try {
-      return realpathSync(path)
-    } catch {
-      return path
-    }
-  }
-
-  if (trimmed.includes('/') || trimmed.includes('\\')) {
-    return tryRealpath(trimmed)
-  }
-
-  const pathEnv = process.env.PATH ?? process.env.Path ?? ''
-  const dirs = pathEnv.split(process.platform === 'win32' ? ';' : ':').filter(Boolean)
-  const names = process.platform === 'win32'
-    ? [trimmed, `${trimmed}.cmd`, `${trimmed}.exe`, `${trimmed}.bat`]
-    : [trimmed]
-
-  for (const dir of dirs) {
-    for (const name of names) {
-      const resolved = tryRealpath(join(dir, name))
-      if (resolved) return resolved
-    }
-  }
-  return null
 }
 
 function pushCopilotCacheCandidates(candidates: string[], cacheRoot: string): void {

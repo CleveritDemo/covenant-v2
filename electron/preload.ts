@@ -11,15 +11,19 @@ import type {
   GitRepoStatus,
   GitTarget,
 } from '../src/shared/gitSessionTypes'
-import type { GitHubActionsSnapshot } from '../src/shared/githubActionsTypes'
+import type { GitHubActionsSnapshot, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import type {
   CovenantDefault,
   CovenantMember,
   CovenantOrg,
-  CovenantProject,
+  CovenantWorkspace,
+  CovenantWorkspaceAgentRecord,
+  CovenantWorkspaceContextPayload,
+  CovenantWorkspaceContextRecord,
   CovenantResult,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
+import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import type {
   FileExplorerClipboardResult,
   FileExplorerFilePayload,
@@ -34,6 +38,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
+import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -43,6 +48,7 @@ import type {
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
+import type { UpdateState } from '../src/shared/updateState'
 
 /** Un listener IPC por canal; evita MaxListenersExceeded con muchos paneles PTY. */
 function createPtyChannelMux<TArgs extends unknown[]>(
@@ -118,8 +124,12 @@ const api = {
   isAgentTurnActive(paneId: string): Promise<boolean> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, paneId)
   },
-  listAgentCliModels(provider: 'claude' | 'cursor' | 'copilot'): Promise<AgentCliModelsResult> {
+  listAgentCliModels(provider: AgentCliProvider): Promise<AgentCliModelsResult> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
+  },
+  /** `command` vacío = el configurado o el por defecto del proveedor. */
+  resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
   },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)
@@ -159,7 +169,7 @@ const api = {
     ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
   },
   clearAgentContextDelivery(payload: {
-    provider: 'claude' | 'cursor' | 'copilot'
+    provider: AgentCliProvider
     cliSessionId: string
   }): void {
     ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)
@@ -182,6 +192,13 @@ const api = {
     agentName?: string
   }): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.AGENT_RESULTS_ENSURE, request)
+  },
+  setAiAgentResultsNotes(request: {
+    cwd: string
+    agentId: string
+    notes: string
+  }): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.AGENT_RESULTS_SET_NOTES, request)
   },
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
@@ -366,6 +383,10 @@ const api = {
   githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {
     return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
   },
+  /** `token` vacío = comprueba el efectivo (config, entorno o credential helper). */
+  githubCheckToken(token: string): Promise<GitHubTokenCheck> {
+    return ipcRenderer.invoke(IPC.GITHUB_CHECK_TOKEN, token)
+  },
 
   covenant: {
     status(): Promise<CovenantResult<CovenantStatus>> {
@@ -404,49 +425,103 @@ const api = {
     defaultUnset(slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
       return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_UNSET, slug, kind, name)
     },
-    projectsList(slug: string): Promise<CovenantResult<CovenantProject[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECTS_LIST, slug)
+    workspacesList(slug: string): Promise<CovenantResult<CovenantWorkspace[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACES_LIST, slug)
     },
-    projectCreate(slug: string, name: string): Promise<CovenantResult<CovenantProject>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_CREATE, slug, name)
+    workspaceCreate(slug: string, name: string): Promise<CovenantResult<CovenantWorkspace>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CREATE, slug, name)
     },
-    projectRename(
+    workspaceRename(
       slug: string,
-      projectId: string,
+      workspaceId: string,
       name: string,
-    ): Promise<CovenantResult<CovenantProject>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_RENAME, slug, projectId, name)
+    ): Promise<CovenantResult<CovenantWorkspace>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_RENAME, slug, workspaceId, name)
     },
-    projectDelete(slug: string, projectId: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_DELETE, slug, projectId)
+    workspaceDelete(slug: string, workspaceId: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_DELETE, slug, workspaceId)
     },
-    projectAssigneeAdd(
+    workspaceAssigneeAdd(
       slug: string,
-      projectId: string,
+      workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ASSIGNEE_ADD, slug, projectId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD, slug, workspaceId, login)
     },
-    projectAssigneeRemove(
+    workspaceAssigneeRemove(
       slug: string,
-      projectId: string,
+      workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ASSIGNEE_REMOVE, slug, projectId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE, slug, workspaceId, login)
     },
-    projectAdminAdd(
+    workspaceAdminAdd(
       slug: string,
-      projectId: string,
+      workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ADMIN_ADD, slug, projectId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_ADD, slug, workspaceId, login)
     },
-    projectAdminRemove(
+    workspaceAdminRemove(
       slug: string,
-      projectId: string,
+      workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_PROJECT_ADMIN_REMOVE, slug, projectId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_REMOVE, slug, workspaceId, login)
+    },
+    workspaceAgentsList(
+      slug: string,
+      workspaceId: string,
+    ): Promise<CovenantResult<CovenantWorkspaceAgentRecord[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENTS_LIST, slug, workspaceId)
+    },
+    workspaceAgentUpsert(
+      slug: string,
+      workspaceId: string,
+      agentId: string,
+      definition: ProjectAgentDefinition,
+    ): Promise<CovenantResult<CovenantWorkspaceAgentRecord>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_AGENT_UPSERT,
+        slug,
+        workspaceId,
+        agentId,
+        definition,
+      )
+    },
+    workspaceAgentDelete(
+      slug: string,
+      workspaceId: string,
+      agentId: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENT_DELETE, slug, workspaceId, agentId)
+    },
+    workspaceContextsList(
+      slug: string,
+      workspaceId: string,
+    ): Promise<CovenantResult<CovenantWorkspaceContextRecord[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXTS_LIST, slug, workspaceId)
+    },
+    workspaceContextUpsert(
+      slug: string,
+      workspaceId: string,
+      contextId: string,
+      payload: CovenantWorkspaceContextPayload,
+    ): Promise<CovenantResult<CovenantWorkspaceContextRecord>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_CONTEXT_UPSERT,
+        slug,
+        workspaceId,
+        contextId,
+        payload,
+      )
+    },
+    workspaceContextDelete(
+      slug: string,
+      workspaceId: string,
+      contextId: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXT_DELETE, slug, workspaceId, contextId)
     },
     orgAdminsList(slug: string): Promise<CovenantResult<string[]>> {
       return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMINS_LIST, slug)
@@ -668,6 +743,20 @@ const api = {
   },
   sendCloseReady(scrollbacks: Record<string, string>): void {
     ipcRenderer.send(IPC.APP_CLOSE_READY, scrollbacks)
+  },
+  getUpdateState(): Promise<UpdateState> {
+    return ipcRenderer.invoke(IPC.UPDATE_STATE_GET)
+  },
+  onUpdateState(cb: (state: UpdateState) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, state: UpdateState): void => cb(state)
+    ipcRenderer.on(IPC.UPDATE_STATE, listener)
+    return () => ipcRenderer.removeListener(IPC.UPDATE_STATE, listener)
+  },
+  installUpdate(): void {
+    ipcRenderer.send(IPC.UPDATE_INSTALL)
+  },
+  dismissUpdate(): void {
+    ipcRenderer.send(IPC.UPDATE_DISMISS)
   },
 }
 

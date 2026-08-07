@@ -38,6 +38,8 @@ export interface PlanePaneWindowProps {
   maximizeLabel: string
   restoreLabel: string
   closeWindowLabel: string
+  /** Nombre puesto a mano: manda sobre la carpeta en la pastilla del mini. */
+  customTitle?: string
   /** Basename de la carpeta actual (solo terminales). */
   folderName?: string
   /** Path completo para tooltip del badge. */
@@ -51,6 +53,8 @@ export interface PlanePaneWindowProps {
   /** Mini agente: clic en la card abre el chat del plano. */
   onOpenChat: () => void
   onDelete: () => void
+  /** Renombra la terminal (doble clic en el título de la ventana expandida). */
+  onRename?: (next: string) => void
   /** Asigna un contexto soltado sobre este agente. */
   onDropContext?: (contextId: string) => void
   /** Altura real del mini (agentes) para apilar sin huecos. */
@@ -90,6 +94,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   maximizeLabel,
   restoreLabel,
   closeWindowLabel,
+  customTitle,
   folderName,
   folderPath,
   children,
@@ -100,6 +105,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onOpenConfig,
   onOpenChat,
   onDelete,
+  onRename,
   onDropContext,
   onMiniContentHeightChange,
   reorderEnabled = false,
@@ -155,12 +161,18 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         closeLabel={closeWindowLabel}
         configureLabel={isAgent ? configLabel : undefined}
         onConfigure={isAgent ? onOpenConfig : undefined}
+        onRename={isAgent ? undefined : onRename}
+        renameLabel={t('tabs.planeRenameTerminal')}
         miniLivePreview={!isAgent}
         miniAgentCard={isAgent}
         // Terminales: titlebar macOS. Agentes: mini card sin chrome.
         showTitlebar={!isAgent}
-        miniFolderBadge={!isAgent && folderName ? (
-          <PlaneMiniFolderBadge folder={folderName} title={folderPath} />
+        miniFolderBadge={!isAgent && (customTitle || folderName) ? (
+          <PlaneMiniFolderBadge
+            folder={customTitle || folderName!}
+            title={folderPath}
+            named={Boolean(customTitle)}
+          />
         ) : undefined}
         miniFace={isAgent ? (
           <PlaneMiniFace

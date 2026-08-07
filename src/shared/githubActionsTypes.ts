@@ -24,6 +24,11 @@ export interface GitHubActionsRun {
   url: string
 }
 
+/** Resultado de comprobar un token contra la API de GitHub. */
+export type GitHubTokenCheck =
+  | { ok: true; login: string; scopes: string[] }
+  | { ok: false; error: string }
+
 export interface GitHubActionsSnapshot {
   ok: boolean
   repo: GitHubRepoRef | null

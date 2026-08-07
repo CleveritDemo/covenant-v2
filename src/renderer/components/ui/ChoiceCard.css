@@ -46,6 +46,17 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent);
 }
 
+/* Opción con consecuencias: solo se tiñe cuando está elegida. */
+.choice-card--warn.choice-card--selected {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--border));
+  background: color-mix(in srgb, var(--danger) 9%, var(--bg-secondary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.choice-card--warn.choice-card--selected .choice-card__content strong {
+  color: var(--danger);
+}
+
 .choice-card:disabled {
   opacity: 0.45;
   cursor: not-allowed;

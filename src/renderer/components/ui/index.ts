@@ -10,6 +10,8 @@
 export { Icon } from './Icon'
 export type { IconName } from './Icon'
 
+export { BrandIcon } from './BrandIcon'
+
 export { Button } from './Button'
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button'
 

@@ -53,6 +53,23 @@ export async function githubFetch(
   return response
 }
 
+/**
+ * Identidad del token: sirve para decir «conectado como @x» en Ajustes en vez
+ * de dejar un campo de contraseña que no se sabe si sigue siendo válido.
+ */
+export async function fetchGitHubIdentity(
+  token: string,
+): Promise<{ login: string; scopes: string[] }> {
+  const response = await githubFetch(token, 'https://api.github.com/user')
+  const body = (await response.json()) as { login?: string }
+  // Sólo los PAT clásicos declaran scopes en la cabecera; los fine-grained no la envían.
+  const scopes = (response.headers.get('x-oauth-scopes') ?? '')
+    .split(',')
+    .map(scope => scope.trim())
+    .filter(Boolean)
+  return { login: body.login ?? '', scopes }
+}
+
 export function mapRestWorkflowRun(raw: RestWorkflowRun): GitHubActionsRun | null {
   const id = raw.id
   if (!Number.isFinite(id)) return null

@@ -1,9 +1,13 @@
 import React from 'react'
 import './ChoiceCard.css'
 
+/** `warn`: opción con consecuencias (p. ej. permisos Auto); se tiñe al elegirla. */
+export type ChoiceCardTone = 'default' | 'warn'
+
 export interface ChoiceCardProps {
   selected?: boolean
   disabled?: boolean
+  tone?: ChoiceCardTone
   onClick: () => void
   children: React.ReactNode
   icon?: React.ReactNode
@@ -14,6 +18,7 @@ export interface ChoiceCardProps {
 export const ChoiceCard: React.FC<ChoiceCardProps> = ({
   selected = false,
   disabled = false,
+  tone = 'default',
   onClick,
   children,
   icon,
@@ -29,6 +34,7 @@ export const ChoiceCard: React.FC<ChoiceCardProps> = ({
       'choice-card',
       selected ? 'choice-card--selected' : '',
       icon ? 'choice-card--with-icon' : '',
+      tone === 'warn' ? 'choice-card--warn' : '',
     ].filter(Boolean).join(' ')}
     onClick={onClick}
   >

@@ -5,21 +5,31 @@ import {
   AGENT_ROLE_MAX_LENGTH,
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
+import { AGENT_IDENTITY_TEMPLATES } from '@shared/agentIdentityTemplates'
 import { useT } from '@i18n/useT'
 import { Input, TextArea } from '../components/ui'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentConfigSlugField } from './AgentConfigSlugField'
 import './AgentConfigIdentityColumn.css'
 
+/** Secciones de identidad que renderiza este bloque. */
+export type AgentConfigIdentitySection = 'identity' | 'objective' | 'rules'
+
 export interface AgentConfigIdentityColumnProps {
+  section: AgentConfigIdentitySection
   draft: AgentIdentityDraft
+  /**
+   * El agente está en marcha. Solo bloquea el slug (renombrar el archivo del
+   * catálogo en caliente); lo demás se edita y entra en el próximo turno.
+   */
   locked: boolean
   onChange: (patch: Partial<AgentIdentityDraft>) => void
   onCommit: () => void
 }
 
-/** Bloque Identidad en columna única (Plane UI). */
+/** Bloque Identidad del modal; el índice lateral elige qué sección se pinta. */
 export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps> = ({
+  section,
   draft,
   locked,
   onChange,
@@ -27,12 +37,74 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
 }) => {
   const { t } = useT()
 
-  return (
-    <section className="agent-config-identity" aria-label={t('agentPane.configWhoLabel')}>
-      <header className="agent-config-identity__head">
-        <h3 className="agent-config-identity__title">{t('agentPane.configWhoLabel')}</h3>
-      </header>
+  if (section === 'objective') {
+    const used = draft.objective.length
+    const nearMax = used > AGENT_OBJECTIVE_MAX_LENGTH * 0.9
+    const canTemplate = !draft.objective.trim() && draft.rules.length === 0
 
+    return (
+      <div className="agent-config-identity">
+        <label className="agent-config-identity__field">
+          <span className="agent-config-identity__label">
+            {t('agentPane.objectiveLabel')}
+            <span
+              className={`agent-config-identity__count${nearMax ? ' agent-config-identity__count--near' : ''}`}
+            >
+              {t('agentPane.objectiveCount', { n: used, max: AGENT_OBJECTIVE_MAX_LENGTH })}
+            </span>
+          </span>
+          <TextArea
+            rows={6}
+            autoGrow
+            value={draft.objective}
+            maxLength={AGENT_OBJECTIVE_MAX_LENGTH}
+            placeholder={t('agentPane.objectivePlaceholder')}
+            onChange={event => onChange({ objective: event.target.value })}
+            onBlur={onCommit}
+          />
+        </label>
+        <p className="agent-config-identity__hint">{t('agentPane.objectiveHint')}</p>
+
+        {canTemplate ? (
+          <div className="agent-config-identity__templates">
+            <span className="agent-config-identity__label">{t('agentPane.templatesLabel')}</span>
+            <div className="agent-config-identity__template-row">
+              {AGENT_IDENTITY_TEMPLATES.map(template => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="agent-config-identity__template"
+                  onClick={() => onChange({
+                    role: draft.role.trim() || t(template.roleKey),
+                    objective: t(template.objectiveKey),
+                    rules: template.ruleKeys.map(key => t(key)),
+                  })}
+                >
+                  {t(template.labelKey)}
+                </button>
+              ))}
+            </div>
+            <p className="agent-config-identity__hint">{t('agentPane.templatesHint')}</p>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (section === 'rules') {
+    return (
+      <div className="agent-config-identity">
+        <AgentRulesEditor
+          rules={draft.rules}
+          onChange={rules => onChange({ rules })}
+          onCommit={onCommit}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="agent-config-identity">
       <div className="agent-config-identity__row">
         <label className="agent-config-identity__field">
           <span className="agent-config-identity__label">{t('agentPane.nameLabel')}</span>
@@ -40,7 +112,6 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
             type="text"
             value={draft.name}
             maxLength={AGENT_NAME_MAX_LENGTH}
-            disabled={locked}
             placeholder={t('agentPane.namePlaceholder')}
             onChange={event => onChange({ name: event.target.value })}
             onBlur={onCommit}
@@ -53,7 +124,6 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
             type="text"
             value={draft.role}
             maxLength={AGENT_ROLE_MAX_LENGTH}
-            disabled={locked}
             placeholder={t('agentPane.rolePlaceholder')}
             onChange={event => onChange({ role: event.target.value })}
             onBlur={onCommit}
@@ -67,26 +137,9 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
         onChange={id => onChange({ id })}
         onCommit={onCommit}
       />
-
-      <label className="agent-config-identity__field">
-        <span className="agent-config-identity__label">{t('agentPane.objectiveLabel')}</span>
-        <TextArea
-          rows={3}
-          value={draft.objective}
-          maxLength={AGENT_OBJECTIVE_MAX_LENGTH}
-          disabled={locked}
-          placeholder={t('agentPane.objectivePlaceholder')}
-          onChange={event => onChange({ objective: event.target.value })}
-          onBlur={onCommit}
-        />
-      </label>
-
-      <AgentRulesEditor
-        rules={draft.rules}
-        disabled={locked}
-        onChange={rules => onChange({ rules })}
-        onCommit={onCommit}
-      />
-    </section>
+      {locked ? (
+        <p className="agent-config-identity__hint">{t('agentPane.lockedWhileRunning')}</p>
+      ) : null}
+    </div>
   )
 }

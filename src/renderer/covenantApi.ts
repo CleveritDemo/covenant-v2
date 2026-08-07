@@ -1,7 +1,20 @@
 /** Contrato renderer de window.api.covenant (implementado en main/preload). */
 
-import type { CovenantProject } from '../shared/covenantTypes'
+import type {
+  CovenantWorkspace,
+  CovenantWorkspaceAgentRecord,
+  CovenantWorkspaceContextPayload,
+  CovenantWorkspaceContextRecord,
+} from '../shared/covenantTypes'
+import type { ProjectAgentDefinition } from '../shared/projectAgentCatalog'
 
+export type {
+  CovenantWorkspace,
+  CovenantWorkspaceAgentRecord,
+  CovenantWorkspaceContextPayload,
+  CovenantWorkspaceContextRecord,
+} from '../shared/covenantTypes'
+/** @deprecated Alias temporal. */
 export type { CovenantProject } from '../shared/covenantTypes'
 
 export type CovenantResult<T> =
@@ -49,33 +62,63 @@ export interface CovenantApi {
   defaultsList(slug: string): Promise<CovenantResult<CovenantDefault[]>>
   defaultSet(slug: string, kind: string, name: string): Promise<CovenantResult<CovenantDefault>>
   defaultUnset(slug: string, kind: string, name: string): Promise<CovenantResult<unknown>>
-  projectsList(slug: string): Promise<CovenantResult<CovenantProject[]>>
-  projectCreate(slug: string, name: string): Promise<CovenantResult<CovenantProject>>
-  projectRename(
+  workspacesList(slug: string): Promise<CovenantResult<CovenantWorkspace[]>>
+  workspaceCreate(slug: string, name: string): Promise<CovenantResult<CovenantWorkspace>>
+  workspaceRename(
     slug: string,
-    projectId: string,
+    workspaceId: string,
     name: string,
-  ): Promise<CovenantResult<CovenantProject>>
-  projectDelete(slug: string, projectId: string): Promise<CovenantResult<null>>
-  projectAssigneeAdd(
+  ): Promise<CovenantResult<CovenantWorkspace>>
+  workspaceDelete(slug: string, workspaceId: string): Promise<CovenantResult<null>>
+  workspaceAssigneeAdd(
     slug: string,
-    projectId: string,
+    workspaceId: string,
     login: string,
   ): Promise<CovenantResult<null>>
-  projectAssigneeRemove(
+  workspaceAssigneeRemove(
     slug: string,
-    projectId: string,
+    workspaceId: string,
     login: string,
   ): Promise<CovenantResult<null>>
-  projectAdminAdd(
+  workspaceAdminAdd(
     slug: string,
-    projectId: string,
+    workspaceId: string,
     login: string,
   ): Promise<CovenantResult<null>>
-  projectAdminRemove(
+  workspaceAdminRemove(
     slug: string,
-    projectId: string,
+    workspaceId: string,
     login: string,
+  ): Promise<CovenantResult<null>>
+  workspaceAgentsList(
+    slug: string,
+    workspaceId: string,
+  ): Promise<CovenantResult<CovenantWorkspaceAgentRecord[]>>
+  workspaceAgentUpsert(
+    slug: string,
+    workspaceId: string,
+    agentId: string,
+    definition: ProjectAgentDefinition,
+  ): Promise<CovenantResult<CovenantWorkspaceAgentRecord>>
+  workspaceAgentDelete(
+    slug: string,
+    workspaceId: string,
+    agentId: string,
+  ): Promise<CovenantResult<null>>
+  workspaceContextsList(
+    slug: string,
+    workspaceId: string,
+  ): Promise<CovenantResult<CovenantWorkspaceContextRecord[]>>
+  workspaceContextUpsert(
+    slug: string,
+    workspaceId: string,
+    contextId: string,
+    payload: CovenantWorkspaceContextPayload,
+  ): Promise<CovenantResult<CovenantWorkspaceContextRecord>>
+  workspaceContextDelete(
+    slug: string,
+    workspaceId: string,
+    contextId: string,
   ): Promise<CovenantResult<null>>
   orgAdminsList(slug: string): Promise<CovenantResult<string[]>>
   orgAdminAdd(slug: string, login: string): Promise<CovenantResult<null>>
@@ -101,18 +144,31 @@ export function hasCovenantOrgAdminsApi(api: CovenantApi | undefined): boolean {
   )
 }
 
-/** True si el preload expone la API local de proyectos. */
-export function hasCovenantProjectsApi(api: CovenantApi | undefined): boolean {
+/** True si el preload expone la API de workspaces org. */
+export function hasCovenantWorkspacesApi(api: CovenantApi | undefined): boolean {
   return (
     !!api &&
-    typeof api.projectsList === 'function' &&
-    typeof api.projectCreate === 'function' &&
-    typeof api.projectRename === 'function' &&
-    typeof api.projectDelete === 'function' &&
-    typeof api.projectAssigneeAdd === 'function' &&
-    typeof api.projectAssigneeRemove === 'function' &&
-    typeof api.projectAdminAdd === 'function' &&
-    typeof api.projectAdminRemove === 'function'
+    typeof api.workspacesList === 'function' &&
+    typeof api.workspaceCreate === 'function' &&
+    typeof api.workspaceRename === 'function' &&
+    typeof api.workspaceDelete === 'function' &&
+    typeof api.workspaceAssigneeAdd === 'function' &&
+    typeof api.workspaceAssigneeRemove === 'function' &&
+    typeof api.workspaceAdminAdd === 'function' &&
+    typeof api.workspaceAdminRemove === 'function'
+  )
+}
+
+/** True si el preload expone CRUD de agentes/contextos de workspace. */
+export function hasCovenantWorkspaceContentApi(api: CovenantApi | undefined): boolean {
+  return (
+    !!api &&
+    typeof api.workspaceAgentsList === 'function' &&
+    typeof api.workspaceAgentUpsert === 'function' &&
+    typeof api.workspaceAgentDelete === 'function' &&
+    typeof api.workspaceContextsList === 'function' &&
+    typeof api.workspaceContextUpsert === 'function' &&
+    typeof api.workspaceContextDelete === 'function'
   )
 }
 

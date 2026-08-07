@@ -85,7 +85,7 @@ export function patchEnvForCwdReporting(
     // 2. Fuente el .zshenv real del usuario si existe.
     // 3. Instala el hook precmd que emite OSC 7 antes de cada prompt.
     const zshenv = [
-      '# AI Terminal – OSC 7 cwd hook (auto-generado)',
+      '# Covenant Gravity – OSC 7 cwd hook (auto-generado)',
       'export ZDOTDIR="${_AI_TERM_ZDOTDIR:-$HOME}"',
       'unset _AI_TERM_ZDOTDIR',
       '[[ -f "$ZDOTDIR/.zshenv" ]] && builtin source "$ZDOTDIR/.zshenv"',

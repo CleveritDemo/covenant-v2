@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync } from 'fs'
+import { accessSync, constants, existsSync, realpathSync } from 'fs'
 import { execFileSync } from 'child_process'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -171,6 +171,44 @@ export function resolveCliExecutable(
     }
   }
   return trimmed
+}
+
+/**
+ * Resuelve un comando bare (`copilot`) a ruta absoluta vía PATH (+ .cmd/.exe en win32).
+ * Usa realpath para seguir symlinks del binario npm. `null` = no está en el PATH.
+ */
+export function resolveCommandAbsolutePath(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const trimmed = command.trim()
+  if (!trimmed) return null
+
+  const tryRealpath = (path: string): string | null => {
+    if (!existsSync(path)) return null
+    try {
+      return realpathSync(path)
+    } catch {
+      return path
+    }
+  }
+
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return tryRealpath(trimmed)
+  }
+
+  const dirs = splitPath(env.PATH ?? env.Path ?? '')
+  const names = process.platform === 'win32'
+    ? [trimmed, `${trimmed}.cmd`, `${trimmed}.exe`, `${trimmed}.bat`]
+    : [trimmed]
+
+  for (const dir of dirs) {
+    for (const name of names) {
+      const resolved = tryRealpath(join(dir, name))
+      if (resolved) return resolved
+    }
+  }
+  return null
 }
 
 /** Mensaje legible para fallos típicos de spawn/cierre del CLI. */

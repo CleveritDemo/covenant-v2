@@ -4,13 +4,13 @@ import {
   getCovenantApi,
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
-  hasCovenantProjectsApi,
+  hasCovenantWorkspacesApi,
   slugifyOrgName,
   type CovenantAuthStatus,
   type CovenantDefault,
   type CovenantMember,
   type CovenantOrg,
-  type CovenantProject,
+  type CovenantWorkspace,
 } from '../covenantApi'
 import { TerminalModal } from './TerminalModal'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
@@ -574,17 +574,11 @@ function MemberPickRow({
           size="sm"
           value={selected}
           disabled={busy || options.length === 0}
-          onChange={e => setLogin(e.target.value)}
+          onChange={setLogin}
           aria-label={selectLabel}
-        >
-          {options.length === 0 ? (
-            <option value="">{selectLabel}</option>
-          ) : (
-            options.map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))
-          )}
-        </Select>
+          placeholder={selectLabel}
+          options={options.map(opt => ({ value: opt, label: opt }))}
+        />
       </div>
       <Button
         variant="secondary"
@@ -704,16 +698,16 @@ function ProjectPeopleBlock({
   )
 }
 
-function ProjectsSection({
+function WorkspacesSection({
   available,
   signedIn,
   activeSlug,
   canCreate,
-  canDeleteProject,
+  canDeleteWorkspace,
   isOrgAdmin,
   currentLogin,
   memberLogins,
-  projects,
+  workspaces,
   loading,
   error,
   busy,
@@ -730,22 +724,22 @@ function ProjectsSection({
   signedIn: boolean
   activeSlug: string
   canCreate: boolean
-  canDeleteProject: (project: CovenantProject) => boolean
+  canDeleteWorkspace: (workspace: CovenantWorkspace) => boolean
   isOrgAdmin: boolean
   currentLogin: string
   memberLogins: string[]
-  projects: CovenantProject[]
+  workspaces: CovenantWorkspace[]
   loading: boolean
   error: string | null
   busy: boolean
   nameDraft: string
   onNameDraftChange: (value: string) => void
   onCreate: () => void
-  onDeleteRequest: (project: CovenantProject) => void
-  onAssigneeAdd: (projectId: string, login: string) => void
-  onAssigneeRemove: (projectId: string, login: string) => void
-  onAdminAdd: (projectId: string, login: string) => void
-  onAdminRemove: (projectId: string, login: string) => void
+  onDeleteRequest: (workspace: CovenantWorkspace) => void
+  onAssigneeAdd: (workspaceId: string, login: string) => void
+  onAssigneeRemove: (workspaceId: string, login: string) => void
+  onAdminAdd: (workspaceId: string, login: string) => void
+  onAdminRemove: (workspaceId: string, login: string) => void
 }): React.ReactElement {
   const { t } = useT()
   const canMutate = available && signedIn && !!activeSlug && !busy
@@ -753,7 +747,7 @@ function ProjectsSection({
   const canCreateSubmit = canMutateCreate && nameDraft.trim().length > 0
 
   return (
-    <SettingsSection title={t('organizations.projectsSection')}>
+    <SettingsSection title={t('organizations.workspacesSection')}>
       <div className="orgs-stack">
         <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
         {!available ? (
@@ -767,35 +761,35 @@ function ProjectsSection({
             {canCreate ? (
               <div className="orgs-form-row">
                 <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.projectName')}>
+                  <SettingsField label={t('organizations.workspaceName')}>
                     <Input
                       type="text"
                       size="sm"
                       value={nameDraft}
                       disabled={!canMutateCreate}
                       onChange={e => onNameDraftChange(e.target.value)}
-                      placeholder={t('organizations.projectNamePlaceholder')}
+                      placeholder={t('organizations.workspaceNamePlaceholder')}
                       spellCheck={false}
                     />
                   </SettingsField>
                 </div>
                 <Button variant="primary" size="sm" disabled={!canCreateSubmit} onClick={onCreate}>
-                  {t('organizations.createProject')}
+                  {t('organizations.createWorkspace')}
                 </Button>
               </div>
             ) : null}
-            {projects.length === 0 && !loading ? (
-              <p className="orgs-empty">{t('organizations.noProjects')}</p>
+            {workspaces.length === 0 && !loading ? (
+              <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
             ) : (
               <ul className="orgs-list">
-                {projects.map(project => {
-                  const showDelete = canDeleteProject(project) && canMutate
+                {workspaces.map(project => {
+                  const showDelete = canDeleteWorkspace(project) && canMutate
                   const isCreator = !!currentLogin && project.createdBy === currentLogin
                   const isProjectAdmin = !!currentLogin && project.admins.includes(currentLogin)
                   const canManageAssignees = isOrgAdmin || isCreator || isProjectAdmin
                   const canManageProjectAdmins = isOrgAdmin || isCreator
                   return (
-                    <li key={project.id} className="orgs-list__item orgs-list__item--project">
+                    <li key={project.id} className="orgs-list__item orgs-list__item--workspace">
                       <div className="orgs-list__main">
                         <p className="orgs-list__title">{project.name}</p>
                         <ProjectPeopleBlock
@@ -809,7 +803,7 @@ function ProjectsSection({
                           onRemove={login => onAssigneeRemove(project.id, login)}
                         />
                         <ProjectPeopleBlock
-                          title={t('organizations.projectAdmins')}
+                          title={t('organizations.workspaceAdmins')}
                           logins={project.admins}
                           memberLogins={memberLogins}
                           busy={!canMutate || !canManageProjectAdmins}
@@ -826,7 +820,7 @@ function ProjectsSection({
                           disabled={!canMutate}
                           onClick={() => onDeleteRequest(project)}
                         >
-                          {t('organizations.deleteProject')}
+                          {t('organizations.deleteWorkspace')}
                         </Button>
                       ) : null}
                     </li>
@@ -854,12 +848,12 @@ function OrgDetailModal({
   onLeaveClick,
   onLeaveConfirm,
   onLeaveCancel,
-  deleteProject,
-  onDeleteProjectConfirm,
-  onDeleteProjectCancel,
+  deleteWorkspace,
+  onDeleteWorkspaceConfirm,
+  onDeleteWorkspaceCancel,
   membersProps,
   orgAdminsProps,
-  projectsProps,
+  workspacesProps,
   defaultsProps,
 }: {
   open: boolean
@@ -874,12 +868,12 @@ function OrgDetailModal({
   onLeaveClick: () => void
   onLeaveConfirm: () => void
   onLeaveCancel: () => void
-  deleteProject: CovenantProject | null
-  onDeleteProjectConfirm: () => void
-  onDeleteProjectCancel: () => void
+  deleteWorkspace: CovenantWorkspace | null
+  onDeleteWorkspaceConfirm: () => void
+  onDeleteWorkspaceCancel: () => void
   membersProps: React.ComponentProps<typeof MembersSection>
   orgAdminsProps: React.ComponentProps<typeof OrgAdminsSection>
-  projectsProps: React.ComponentProps<typeof ProjectsSection>
+  workspacesProps: React.ComponentProps<typeof WorkspacesSection>
   defaultsProps: React.ComponentProps<typeof DefaultsSection>
 }): React.ReactElement {
   const { t } = useT()
@@ -917,7 +911,7 @@ function OrgDetailModal({
           {leaveError ? <p className="orgs-section-error">{leaveError}</p> : null}
           {isOrgAdmin ? <MembersSection {...membersProps} /> : null}
           {isOrgAdmin ? <OrgAdminsSection {...orgAdminsProps} /> : null}
-          <ProjectsSection {...projectsProps} />
+          <WorkspacesSection {...workspacesProps} />
           <DefaultsSection {...defaultsProps} />
         </div>
       </TerminalModal>
@@ -932,11 +926,11 @@ function OrgDetailModal({
       />
 
       <ConfirmTerminalModal
-        open={deleteProject != null}
+        open={deleteWorkspace != null}
         zIndex={760}
-        message={t('organizations.deleteProjectConfirm', { name: deleteProject?.name ?? '' })}
-        onConfirm={onDeleteProjectConfirm}
-        onCancel={onDeleteProjectCancel}
+        message={t('organizations.deleteWorkspaceConfirm', { name: deleteWorkspace?.name ?? '' })}
+        onConfirm={onDeleteWorkspaceConfirm}
+        onCancel={onDeleteWorkspaceCancel}
       />
     </>
   )
@@ -974,12 +968,12 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
   const [defaultKind, setDefaultKind] = useState('')
   const [defaultName, setDefaultName] = useState('')
 
-  const [projects, setProjects] = useState<CovenantProject[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(false)
-  const [projectsError, setProjectsError] = useState<string | null>(null)
-  const [projectsBusy, setProjectsBusy] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  const [deleteProject, setDeleteProject] = useState<CovenantProject | null>(null)
+  const [workspaces, setWorkspaces] = useState<CovenantWorkspace[]>([])
+  const [workspacesLoading, setWorkspacesLoading] = useState(false)
+  const [workspacesError, setWorkspacesError] = useState<string | null>(null)
+  const [workspacesBusy, setWorkspacesBusy] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [deleteWorkspace, setDeleteWorkspace] = useState<CovenantWorkspace | null>(null)
 
   const [orgAdmins, setOrgAdmins] = useState<string[]>([])
   const [orgAdminsLoading, setOrgAdminsLoading] = useState(false)
@@ -1005,7 +999,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
   const personLogins = isOrgAdmin
     ? members.map(m => m.login)
     : memberLogins
-  const projectsAvailable = hasCovenantProjectsApi(covenant)
+  const workspacesAvailable = hasCovenantWorkspacesApi(covenant)
   const orgAdminsAvailable = hasCovenantOrgAdminsApi(covenant)
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
@@ -1043,7 +1037,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       setDetailSlug(null)
       setMembers([])
       setDefaults([])
-      setProjects([])
+      setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
       setOrgsLoading(false)
@@ -1075,13 +1069,13 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     if (!covenant || !slug) {
       setMembers([])
       setDefaults([])
-      setProjects([])
+      setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
       setMembersError(null)
       setMembersForbidden(false)
       setDefaultsError(null)
-      setProjectsError(null)
+      setWorkspacesError(null)
       setOrgAdminsError(null)
       return
     }
@@ -1091,17 +1085,17 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
 
     setMembersLoading(isOrgAdminHint)
     setDefaultsLoading(true)
-    setProjectsLoading(true)
+    setWorkspacesLoading(true)
     setOrgAdminsLoading(isOrgAdminHint)
     setMembersError(null)
     setMembersForbidden(false)
     setDefaultsError(null)
-    setProjectsError(null)
+    setWorkspacesError(null)
     setOrgAdminsError(null)
 
-    const projectsPromise = hasCovenantProjectsApi(covenant)
-      ? covenant.projectsList(slug)
-      : Promise.resolve({ ok: true as const, data: [] as CovenantProject[] })
+    const workspacesPromise = hasCovenantWorkspacesApi(covenant)
+      ? covenant.workspacesList(slug)
+      : Promise.resolve({ ok: true as const, data: [] as CovenantWorkspace[] })
 
     const memberLoginsPromise = hasCovenantMemberLoginsApi(covenant)
       ? covenant.memberLoginsList(slug)
@@ -1115,18 +1109,18 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       ? settleCovenantResult(covenant.orgAdminsList(slug), 'orgAdminsList failed')
       : Promise.resolve({ ok: true as const, data: [] as string[] })
 
-    const [membersResult, defaultsResult, projectsResult, orgAdminsResult, memberLoginsResult] =
+    const [membersResult, defaultsResult, workspacesResult, orgAdminsResult, memberLoginsResult] =
       await Promise.all([
         membersPromise,
         settleCovenantResult(covenant.defaultsList(slug), 'defaultsList failed'),
-        settleCovenantResult(projectsPromise, 'projectsList failed'),
+        settleCovenantResult(workspacesPromise, 'workspacesList failed'),
         orgAdminsPromise,
         settleCovenantResult(memberLoginsPromise, 'memberLoginsList failed'),
       ])
 
     setMembersLoading(false)
     setDefaultsLoading(false)
-    setProjectsLoading(false)
+    setWorkspacesLoading(false)
     setOrgAdminsLoading(false)
 
     if (!isOrgAdminHint) {
@@ -1155,14 +1149,14 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       setDefaultsError(defaultsResult.error)
     }
 
-    if (!hasCovenantProjectsApi(covenant)) {
-      setProjects([])
-      setProjectsError(null)
-    } else if (projectsResult.ok) {
-      setProjects(projectsResult.data)
+    if (!hasCovenantWorkspacesApi(covenant)) {
+      setWorkspaces([])
+      setWorkspacesError(null)
+    } else if (workspacesResult.ok) {
+      setWorkspaces(workspacesResult.data)
     } else {
-      setProjects([])
-      setProjectsError(projectsResult.error)
+      setWorkspaces([])
+      setWorkspacesError(workspacesResult.error)
     }
 
     if (isOrgAdminHint) {
@@ -1191,15 +1185,15 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     if (!detailSlug) {
       setMembers([])
       setDefaults([])
-      setProjects([])
+      setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
       setMembersError(null)
       setMembersForbidden(false)
       setDefaultsError(null)
-      setProjectsError(null)
+      setWorkspacesError(null)
       setOrgAdminsError(null)
-      setDeleteProject(null)
+      setDeleteWorkspace(null)
       return
     }
     void loadOrgDetails(detailSlug)
@@ -1210,7 +1204,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     setLeaveOpen(false)
     setLeaveError(null)
     setLeaveBusy(false)
-    setDeleteProject(null)
+    setDeleteWorkspace(null)
   }
 
   function openOrg(slug: string): void {
@@ -1249,7 +1243,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     setDetailSlug(null)
     setMembers([])
     setDefaults([])
-    setProjects([])
+    setWorkspaces([])
     setOrgAdmins([])
     setMemberLogins([])
     await loadAuthAndOrgs()
@@ -1333,91 +1327,91 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleCreateProject(): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
-    const name = projectName.trim()
+  async function handleCreateWorkspace(): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
+    const name = workspaceName.trim()
     if (!name) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectCreate(detailSlug, name)
-    setProjectsBusy(false)
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceCreate(detailSlug, name)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
-    setProjectName('')
+    setWorkspaceName('')
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleDeleteProject(projectId: string): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectDelete(detailSlug, projectId)
-    setProjectsBusy(false)
+  async function handleDeleteWorkspace(projectId: string): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceDelete(detailSlug, projectId)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
-    setDeleteProject(null)
+    setDeleteWorkspace(null)
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleProjectAssigneeAdd(projectId: string, login: string): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
+  async function handleWorkspaceAssigneeAdd(projectId: string, login: string): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
     const target = login.trim()
     if (!target) return
-    const existing = projects.find(p => p.id === projectId)
+    const existing = workspaces.find(p => p.id === projectId)
     if (existing?.assignees.includes(target)) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectAssigneeAdd(detailSlug, projectId, target)
-    setProjectsBusy(false)
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceAssigneeAdd(detailSlug, projectId, target)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleProjectAssigneeRemove(projectId: string, login: string): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectAssigneeRemove(detailSlug, projectId, login)
-    setProjectsBusy(false)
+  async function handleWorkspaceAssigneeRemove(projectId: string, login: string): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceAssigneeRemove(detailSlug, projectId, login)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleProjectAdminAdd(projectId: string, login: string): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
+  async function handleWorkspaceAdminAdd(projectId: string, login: string): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
     const target = login.trim()
     if (!target) return
-    const existing = projects.find(p => p.id === projectId)
+    const existing = workspaces.find(p => p.id === projectId)
     if (existing?.admins.includes(target)) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectAdminAdd(detailSlug, projectId, target)
-    setProjectsBusy(false)
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceAdminAdd(detailSlug, projectId, target)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
     await loadOrgDetails(detailSlug)
   }
 
-  async function handleProjectAdminRemove(projectId: string, login: string): Promise<void> {
-    if (!covenant || !detailSlug || !hasCovenantProjectsApi(covenant)) return
-    setProjectsBusy(true)
-    setProjectsError(null)
-    const result = await covenant.projectAdminRemove(detailSlug, projectId, login)
-    setProjectsBusy(false)
+  async function handleWorkspaceAdminRemove(projectId: string, login: string): Promise<void> {
+    if (!covenant || !detailSlug || !hasCovenantWorkspacesApi(covenant)) return
+    setWorkspacesBusy(true)
+    setWorkspacesError(null)
+    const result = await covenant.workspaceAdminRemove(detailSlug, projectId, login)
+    setWorkspacesBusy(false)
     if (!result.ok) {
-      setProjectsError(result.error)
+      setWorkspacesError(result.error)
       return
     }
     await loadOrgDetails(detailSlug)
@@ -1538,14 +1532,14 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
           if (leaveBusy) return
           setLeaveOpen(false)
         }}
-        deleteProject={deleteProject}
-        onDeleteProjectConfirm={() => {
-          if (!deleteProject || projectsBusy) return
-          void handleDeleteProject(deleteProject.id)
+        deleteWorkspace={deleteWorkspace}
+        onDeleteWorkspaceConfirm={() => {
+          if (!deleteWorkspace || workspacesBusy) return
+          void handleDeleteWorkspace(deleteWorkspace.id)
         }}
-        onDeleteProjectCancel={() => {
-          if (projectsBusy) return
-          setDeleteProject(null)
+        onDeleteWorkspaceCancel={() => {
+          if (workspacesBusy) return
+          setDeleteWorkspace(null)
         }}
         membersProps={{
           available,
@@ -1574,12 +1568,12 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
           onAdd: login => void handleOrgAdminAdd(login),
           onRemove: login => void handleOrgAdminRemove(login),
         }}
-        projectsProps={{
-          available: available && projectsAvailable,
+        workspacesProps={{
+          available: available && workspacesAvailable,
           signedIn,
           activeSlug: detailSlugValue,
           canCreate: isOrgAdmin,
-          canDeleteProject: project => canDeleteOwnedItem({
+          canDeleteWorkspace: project => canDeleteOwnedItem({
             isOwner,
             currentLogin,
             currentGithubId,
@@ -1589,18 +1583,18 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
           isOrgAdmin,
           currentLogin,
           memberLogins: personLogins,
-          projects,
-          loading: projectsLoading,
-          error: projectsError,
-          busy: projectsBusy,
-          nameDraft: projectName,
-          onNameDraftChange: setProjectName,
-          onCreate: () => void handleCreateProject(),
-          onDeleteRequest: project => setDeleteProject(project),
-          onAssigneeAdd: (id, login) => void handleProjectAssigneeAdd(id, login),
-          onAssigneeRemove: (id, login) => void handleProjectAssigneeRemove(id, login),
-          onAdminAdd: (id, login) => void handleProjectAdminAdd(id, login),
-          onAdminRemove: (id, login) => void handleProjectAdminRemove(id, login),
+          workspaces,
+          loading: workspacesLoading,
+          error: workspacesError,
+          busy: workspacesBusy,
+          nameDraft: workspaceName,
+          onNameDraftChange: setWorkspaceName,
+          onCreate: () => void handleCreateWorkspace(),
+          onDeleteRequest: project => setDeleteWorkspace(project),
+          onAssigneeAdd: (id, login) => void handleWorkspaceAssigneeAdd(id, login),
+          onAssigneeRemove: (id, login) => void handleWorkspaceAssigneeRemove(id, login),
+          onAdminAdd: (id, login) => void handleWorkspaceAdminAdd(id, login),
+          onAdminRemove: (id, login) => void handleWorkspaceAdminRemove(id, login),
         }}
         defaultsProps={{
           available,

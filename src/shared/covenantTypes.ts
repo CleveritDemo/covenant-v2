@@ -20,7 +20,7 @@ export interface CovenantDefault {
   createdById?: string | number
 }
 
-export interface CovenantProject {
+export interface CovenantWorkspace {
   id: string
   name: string
   createdAt: number
@@ -30,6 +30,37 @@ export interface CovenantProject {
   createdBy?: string
   /** Fallback si el backend aún envía github_id numérico. */
   createdById?: string | number
+}
+
+/** @deprecated Alias temporal; usar CovenantWorkspace. */
+export type CovenantProject = CovenantWorkspace
+
+/** Cuerpo PUT de contexto de workspace org. */
+export interface CovenantWorkspaceContextPayload {
+  kind: string
+  name: string
+  body?: string
+  meta?: Record<string, unknown>
+}
+
+/** Respuesta GET/PUT de contexto de workspace org. */
+export interface CovenantWorkspaceContextRecord extends CovenantWorkspaceContextPayload {
+  contextId: string
+  createdBy?: string
+  createdById?: string | number
+  createdAt?: number
+  updatedAt?: number
+}
+
+/** Respuesta GET/PUT de agente de workspace org. */
+export interface CovenantWorkspaceAgentRecord {
+  agentId: string
+  /** ProjectAgentDefinition completo (JSON). */
+  definition: Record<string, unknown>
+  createdBy?: string
+  createdById?: string | number
+  createdAt?: number
+  updatedAt?: number
 }
 
 export interface CovenantStatus {
@@ -43,3 +74,20 @@ export interface CovenantStatus {
 export type CovenantResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string }
+
+/** Clave de catálogo en memoria para un workspace org (no filesystem). */
+export function covenantWorkspaceCatalogKey(slug: string, workspaceId: string): string {
+  return `covenant://workspaces/${encodeURIComponent(slug)}/${encodeURIComponent(workspaceId)}`
+}
+
+/** Clave del catálogo de agentes de una pestaña (org-backed o projectFolder). */
+export function tabAgentCatalogKey(tab: {
+  projectFolder?: string
+  orgWorkspace?: { slug: string; workspaceId: string }
+}): string {
+  const org = tab.orgWorkspace
+  const slug = org?.slug?.trim() ?? ''
+  const workspaceId = org?.workspaceId?.trim() ?? ''
+  if (slug && workspaceId) return covenantWorkspaceCatalogKey(slug, workspaceId)
+  return tab.projectFolder?.trim() ?? ''
+}

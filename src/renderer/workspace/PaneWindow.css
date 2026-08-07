@@ -485,6 +485,30 @@
   white-space: nowrap;
 }
 
+.pane-window__title--editable {
+  cursor: text;
+}
+
+/* Doble clic en el título → input con la misma métrica (no salta el header). */
+.pane-window__title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--plane-border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  outline: none;
+}
+
+.pane-window__title-input:focus {
+  border-color: var(--accent);
+}
+
 .pane-window__actions {
   display: inline-flex;
   align-items: center;

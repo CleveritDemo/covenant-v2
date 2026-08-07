@@ -30,8 +30,7 @@ export type PreviewState =
 /**
  * Los tipos se agrupan por quién escribe el cuerpo, que es la distinción con
  * consecuencias: los host los materializa el pipeline desde el disco, `notes`
- * lo escribe la persona. El grupo «fuente externa» aparecerá cuando exista el
- * kind `mcp`.
+ * lo escribe la persona.
  */
 const KIND_GROUPS: Array<{
   labelKey: 'tabContexts.group_host' | 'tabContexts.group_manual'

@@ -49,7 +49,8 @@ pesa?** Todo lo demás —nombre, icono, color— es secundario respecto a eso y
 - **Tocar `electron/`.** El rediseño es de renderer más una función pura en `src/shared/`.
 - **Cambiar el formato en disco, los ids canónicos ni el pipeline de prompts.**
 - **Editar contextos `changelog` o `agentResult`.** Siguen siendo de solo lectura.
-- **Añadir el tipo `mcp`.** Va en su propio spec (ver «Relación con MCP»).
+- **Añadir tipos de contexto nuevos.** El rediseño reordena y agrupa los ocho que ya existen;
+  no introduce ninguno.
 
 ## Arquitectura
 
@@ -171,22 +172,6 @@ en `contextBudget.ts`.
 
 Además, `npm run check:ui` es parte de la definición de terminado: el popover de aspecto es
 justo el tipo de componente que tienta a pasar un `className`.
-
-## Relación con MCP
-
-Independiente. Este rediseño se puede implementar y mergear solo, y el spec de MCP
-(`2026-08-07-mcp-como-contexto-design.md`, en esta misma carpeta) también, sobre un modal sin
-rediseñar.
-
-Ahora bien, el orden importa. Un contexto `mcp` pide cuatro campos que ningún otro pide (servidor,
-herramienta, argumentos, frecuencia de refresco) y trae dos estados propios («sin credenciales»,
-«el último refresco falló, estás viendo el snapshot de las 14:02»). En la columna vertical actual
-son cuatro filas más empujando la cosmética todavía más abajo, y los estados no tienen dónde
-vivir. En el panel de configuración caben, y los estados van al medidor, que es donde ya está
-mirando quien va a guardar.
-
-**Recomendación: este spec primero.** Si se invierte, MCP paga el coste de encajar en un
-formulario que se va a rehacer.
 
 ## Coste estimado
 

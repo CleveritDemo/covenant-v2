@@ -6,6 +6,11 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 ## v0.6.0
 
+- **Organizaciones y workspaces compartidos.** Puedes iniciar sesión en Covenant
+  con tu cuenta de GitHub y crear organizaciones: añadir miembros por su login,
+  repartir permisos por rol y definir contextos globales que todos los proyectos
+  de la organización comparten. La sesión se guarda cifrada en el llavero del
+  sistema, no en texto plano.
 - **Saber qué versión llevas ya no obliga a salir de la app.** Ajustes tiene una
   categoría nueva, Novedades: arriba la versión instalada y debajo el historial
   de cambios completo, el mismo que ves en la página del release. Hasta ahora las

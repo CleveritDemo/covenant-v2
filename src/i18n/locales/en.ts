@@ -39,6 +39,7 @@ const en = {
     savesOnChange: 'Saves as you change things',
     savedAt: 'Saved at {{time}}',
     discard: 'Discard changes',
+    discarded: 'Changes discarded',
     notSavedInvalid: 'Not saved — check {{section}}',
     languageSection: 'Language',
     languageLabel: 'Interface language',

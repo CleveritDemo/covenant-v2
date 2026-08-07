@@ -41,6 +41,7 @@ const es = {
     savesOnChange: 'Se guarda al cambiar',
     savedAt: 'Guardado a las {{time}}',
     discard: 'Descartar cambios',
+    discarded: 'Cambios descartados',
     notSavedInvalid: 'Sin guardar — revisa {{section}}',
     languageSection: 'Idioma',
     languageLabel: 'Idioma de la interfaz',

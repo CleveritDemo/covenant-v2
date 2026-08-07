@@ -1644,6 +1644,12 @@ html[data-reduce-motion="true"] {
 .tab-contexts__panes {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  /* .tab-contexts--form ya fija la altura del modal (min(78vh, 760px)) y es un
+     flex column; flex:1 hace que este grid la ocupe entera en vez de encogerse
+     al contenido, y min-height:0 permite que se achique por debajo de ese
+     contenido para que el scroll interno de cada panel haga su trabajo. 430px
+     queda como piso cuando el modal es más chico. */
+  flex: 1;
   min-height: 430px;
   align-items: stretch;
 }
@@ -1652,6 +1658,9 @@ html[data-reduce-motion="true"] {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Sin esto, el hijo flex no se achica por debajo de su contenido y el
+     overflow:auto del <pre> de abajo nunca llega a activarse. */
+  min-height: 0;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border);
 }
@@ -1690,6 +1699,10 @@ html[data-reduce-motion="true"] {
 .tab-contexts__output .tab-contexts__preview {
   flex: 1;
   min-height: 0;
+  /* .tab-contexts__preview trae max-height: 180px para la vista de solo lectura;
+     aquí queremos que ocupe todo el aside, como ya hace
+     .tab-contexts__preview-pane .tab-contexts__preview para ese otro caso. */
+  max-height: none;
   overflow: auto;
   margin: 0;
   padding: 10px 12px;

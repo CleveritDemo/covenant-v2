@@ -97,3 +97,58 @@ export function splitFences(body: string): FenceChunk[] {
   flush()
   return out
 }
+
+export interface FolderNode {
+  /** Último segmento de la ruta; el render le pone la barra. */
+  name: string
+  /** Ruta relativa completa: identidad del nodo para el plegado. */
+  path: string
+  /** Línea `… (truncated: line limit)` del generador; se pinta tal cual. */
+  truncated: boolean
+  children: FolderNode[]
+}
+
+// La línea raíz del generador: `gravity/  (project root; paths are relative…)`.
+const TREE_ROOT_RE = /^(\S+\/)\s+\(project root/
+const TRUNCATED = '…'
+
+/** Árbol indentado de `gatherShallowFolderTree()` → nodos anidados. */
+export function parseFolderTree(auto: string): { root: string; nodes: FolderNode[] } {
+  const nodes: FolderNode[] = []
+  // stack[d] es el último nodo visto a profundidad d; el padre está en stack[d - 1].
+  const stack: FolderNode[] = []
+  let root = ''
+
+  for (const line of auto.replace(/\r\n/g, '\n').split('\n')) {
+    const text = line.trim()
+    if (!text) continue
+    const rootMatch = text.match(TREE_ROOT_RE)
+    if (rootMatch) {
+      root = rootMatch[1]
+      continue
+    }
+    // `(invalid cwd)`, `(could not read directory)`: no hay árbol que pintar.
+    if (text.startsWith('(')) continue
+
+    const depth = Math.floor((line.length - line.trimStart().length) / 2)
+    const truncated = text.startsWith(TRUNCATED)
+    const path = truncated ? `${stack[depth - 1]?.path ?? ''}/${TRUNCATED}` : text.replace(/\/$/, '')
+    const node: FolderNode = {
+      name: truncated ? text : path.split('/').pop() ?? path,
+      path,
+      truncated,
+      children: [],
+    }
+    const parent = stack[depth - 1]
+    if (parent) parent.children.push(node)
+    else nodes.push(node)
+    stack[depth] = node
+    stack.length = depth + 1
+  }
+
+  return { root, nodes }
+}
+
+export function countFolderNodes(nodes: readonly FolderNode[]): number {
+  return nodes.reduce((total, node) => total + 1 + countFolderNodes(node.children), 0)
+}

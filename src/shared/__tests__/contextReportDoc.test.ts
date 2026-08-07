@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseContextDoc, splitFences } from '../contextReportDoc'
+import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences } from '../contextReportDoc'
 
 /** Documento tal como lo escribe composeDocument() en electron/tabContextBuild.ts. */
 const doc = [
@@ -93,5 +93,50 @@ describe('splitFences', () => {
 
   it('ignora los tramos vacíos', () => {
     expect(splitFences('')).toEqual([])
+  })
+})
+
+const tree = [
+  'gravity/  (project root; paths are relative to this folder)',
+  '',
+  'electron/',
+  'src/',
+  '  src/renderer/',
+  '    src/renderer/agent/',
+  '    src/renderer/workspace/',
+  '  src/shared/',
+].join('\n')
+
+describe('parseFolderTree', () => {
+  it('anida por indentación y guarda solo el último segmento', () => {
+    const { root, nodes } = parseFolderTree(tree)
+    expect(root).toBe('gravity/')
+    expect(nodes.map(node => node.name)).toEqual(['electron', 'src'])
+    expect(nodes[1].children.map(node => node.name)).toEqual(['renderer', 'shared'])
+    expect(nodes[1].children[0].children.map(node => node.name)).toEqual(['agent', 'workspace'])
+  })
+
+  it('conserva la ruta completa para identificar el nodo', () => {
+    const { nodes } = parseFolderTree(tree)
+    expect(nodes[1].children[0].path).toBe('src/renderer')
+    expect(nodes[1].children[0].children[1].path).toBe('src/renderer/workspace')
+  })
+
+  it('cuenta todos los nodos, no solo los de primer nivel', () => {
+    expect(countFolderNodes(parseFolderTree(tree).nodes)).toBe(6)
+  })
+
+  it('conserva la línea de truncado como hoja', () => {
+    const { nodes } = parseFolderTree(['src/', '  … (truncated: line limit)'].join('\n'))
+    expect(nodes[0].children[0]).toMatchObject({
+      name: '… (truncated: line limit)',
+      truncated: true,
+      children: [],
+    })
+  })
+
+  it('devuelve un árbol vacío sin reventar', () => {
+    expect(parseFolderTree('')).toEqual({ root: '', nodes: [] })
+    expect(parseFolderTree('(invalid cwd)')).toEqual({ root: '', nodes: [] })
   })
 })

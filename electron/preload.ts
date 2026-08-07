@@ -235,6 +235,15 @@ const api = {
   openConfigFolder(): void {
     ipcRenderer.send(IPC.CONFIG_OPEN_FOLDER)
   },
+
+  // ─── Discord Rich Presence ─────────────────────────────────────────────────
+  /** `false` = Discord no está corriendo; reintentar en el próximo tick. */
+  discordPresenceSet(details: string, state: string, startUnixSecs: number): Promise<boolean> {
+    return ipcRenderer.invoke(IPC.DISCORD_PRESENCE_SET, details, state, startUnixSecs)
+  },
+  discordPresenceClear(): Promise<void> {
+    return ipcRenderer.invoke(IPC.DISCORD_PRESENCE_CLEAR)
+  },
   getAppVersion(): Promise<string> {
     return ipcRenderer.invoke(IPC.APP_VERSION)
   },

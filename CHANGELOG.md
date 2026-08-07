@@ -15,6 +15,20 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
   campos de miembro y de contexto — que aparecían en inglés aunque tuvieras la
   interfaz en español. También la barra de contextos del chat.
 
+## v0.6.1
+
+- **El panel de organizaciones se navega.** Pasa a maestro-detalle: la lista de
+  organizaciones queda a un lado y el detalle se reparte en pestañas
+  —Workspaces, Miembros, Admins y Contextos— en vez de apilarlo todo en una
+  columna.
+- **Los desplegables se cierran al elegir.** Pulsar una opción cerraba el menú y
+  volvía a abrirlo en el acto: el click atravesaba el popover y caía sobre el
+  propio botón que lo despliega. Afectaba a todos los desplegables de la app.
+- **Los agentes y contextos de un workspace de organización ya no se pierden.**
+  Guardar exigía una carpeta de proyecto local, así que una pestaña respaldada
+  sólo por la organización no persistía nada. Ahora se guardan contra el
+  workspace.
+
 ## v0.6.0
 
 - **Organizaciones y workspaces compartidos.** Puedes iniciar sesión en Covenant

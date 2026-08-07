@@ -1647,10 +1647,14 @@ html[data-reduce-motion="true"] {
   /* .tab-contexts--form ya fija la altura del modal (min(78vh, 760px)) y es un
      flex column; flex:1 hace que este grid la ocupe entera en vez de encogerse
      al contenido, y min-height:0 permite que se achique por debajo de ese
-     contenido para que el scroll interno de cada panel haga su trabajo. 430px
-     queda como piso cuando el modal es más chico. */
+     contenido para que el scroll interno de cada panel haga su trabajo.
+     Sin ese 0 (antes había un piso de 430px) los paneles no podían encoger:
+     por debajo de ~550px de alto de ventana el contenido se salía y
+     .terminal-modal-body--flush (overflow:hidden) lo recortaba sin scroll en
+     ninguna parte. La cadena de min-height:0 hasta el modal la completan
+     .terminal-modal-body (min-height:0) y .tab-contexts (min-height:0). */
   flex: 1;
-  min-height: 430px;
+  min-height: 0;
   align-items: stretch;
 }
 

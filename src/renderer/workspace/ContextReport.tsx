@@ -5,6 +5,7 @@ import {
   contextReportCounts,
   countFolderNodes,
   parseContextDoc,
+  parseDeps,
   parseFolderTree,
   splitFences,
   type ContextDoc,
@@ -146,11 +147,58 @@ const FolderTreeBody: React.FC<{ auto: string }> = ({ auto }) => {
   )
 }
 
+const DepsBody: React.FC<{ auto: string }> = ({ auto }) => {
+  const { t } = useT()
+  const deps = useMemo(() => parseDeps(auto), [auto])
+  // Manifiesto que no es JSON (Cargo.toml, go.mod…): se lee como texto.
+  if (!deps) return <GenericBody auto={auto} />
+
+  const all = [
+    ...deps.deps.map(dep => ({ ...dep, dev: false })),
+    ...deps.devDeps.map(dep => ({ ...dep, dev: true })),
+  ]
+
+  return (
+    <div className="context-report__deps">
+      {all.length ? (
+        <section>
+          <h3>{t('tabContexts.reportDeps')}</h3>
+          <ul className="context-report__dep-list">
+            {all.map(dep => (
+              <li key={`${dep.name}${dep.dev ? ':dev' : ''}`}>
+                <span className="context-report__dep-name">{dep.name}</span>
+                {dep.dev ? <span className="context-report__dep-dev">{t('tabContexts.reportDepDev')}</span> : null}
+                <span className="context-report__dep-version">{dep.version}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {deps.scripts.length ? (
+        <section>
+          <h3>{t('tabContexts.reportScripts')}</h3>
+          <ul className="context-report__script-list">
+            {deps.scripts.map(script => (
+              <li key={script.name}>
+                <span className="context-report__dep-name">{script.name}</span>
+                <code>{script.command}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {!all.length && !deps.scripts.length ? <GenericBody auto={auto} /> : null}
+    </div>
+  )
+}
+
 /** Cada kind con vista dedicada añade su caso; el resto cae en el genérico. */
 const ContextBody: React.FC<{ kind: TabContextKind; auto: string }> = ({ kind, auto }) => {
   switch (kind) {
     case 'folderTree':
       return <FolderTreeBody auto={auto} />
+    case 'deps':
+      return <DepsBody auto={auto} />
     default:
       return <GenericBody auto={auto} />
   }

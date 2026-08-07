@@ -252,7 +252,6 @@ const es = {
     createTitle: 'Nuevo contexto',
     editTitle: 'Editar contexto',
     edit: 'Editar',
-    save: 'Guardar',
     barTitle: 'Contextos',
     composerSection: 'Contexto',
     pickerNone: 'Ninguno',

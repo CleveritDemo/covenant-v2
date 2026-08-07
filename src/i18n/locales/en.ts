@@ -250,7 +250,6 @@ const en = {
     createTitle: 'New context',
     editTitle: 'Edit context',
     edit: 'Edit',
-    save: 'Save',
     barTitle: 'Contexts',
     composerSection: 'Context',
     pickerNone: 'None',

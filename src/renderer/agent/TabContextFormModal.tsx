@@ -7,6 +7,7 @@ import {
   suggestSymbolsIdentity,
 } from '@shared/tabContext'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
+import { isContextDraftDirty } from '@shared/contextDraftDirty'
 import { PROJECT_DIR } from '@shared/projectDir'
 import {
   rememberWorkspaceContextBody,
@@ -100,8 +101,15 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
     if (orgWorkspace && target.kind === 'notes') {
       const body = workspaceContextBody(target.id)
-      setNotesContent(body)
-      notesInitialContentRef.current = body
+      // Forma funcional: si el usuario ya escribió algo mientras esto resolvía
+      // (el textarea puede tener foco antes de que llegue el body real), no se
+      // lo pisamos, y tampoco se toca el baseline de `isDirty` en ese caso —
+      // el usuario ya está, legítimamente, en un estado sucio.
+      setNotesContent(current => {
+        if (current !== '') return current
+        notesInitialContentRef.current = body
+        return body
+      })
       return
     }
     const workingCwd = await resolveCwd()
@@ -110,8 +118,14 @@ export const TabContextFormModal: React.FC<Props> = ({
       const result = await window.api.previewTabContext({ context: target, cwd: workingCwd })
       if (target.kind === 'notes' && result.ok) {
         const body = result.notesContent ?? result.content
-        setNotesContent(body)
-        notesInitialContentRef.current = body
+        // Misma protección que en la rama de workspace org: no pisar lo que
+        // el usuario ya haya tecleado en la ventana entre abrir el modal y
+        // que resuelva el IPC.
+        setNotesContent(current => {
+          if (current !== '') return current
+          notesInitialContentRef.current = body
+          return body
+        })
         return
       }
       if (!result.ok) {
@@ -196,20 +210,18 @@ export const TabContextFormModal: React.FC<Props> = ({
     contexts.some(item => item.id === draft.id)
   const readOnlyAgentResult = draft?.kind === 'agentResult'
 
-  // Comparación por valor contra el contexto de partida. En `create` cualquier
-  // nombre escrito ya cuenta como cambio pendiente. Para `notes` el cuerpo no
-  // vive en `draft` sino en `notesContent`; se compara contra el valor con el
-  // que se abrió el modal (o '' en `create`) en vez de solo "no está vacío",
-  // para no dejar sin aviso la edición del cuerpo de una nota ya existente.
-  // Los contextos de solo lectura (changelog ya guardado, agentResult) nunca
-  // están "sucios": no hay nada en ellos que se pueda guardar desde aquí.
+  // El cálculo vive en shared/ (función pura, testeada allí) porque es la
+  // lógica con más riesgo de pérdida de datos del modal: handleDismiss lo lee
+  // por un ref (corre fuera del render, en el handler de Esc/backdrop) y el
+  // pie lo usa directamente para el aviso.
   const initial = mode === 'edit' && context ? context : null
-  const isDirty = Boolean(draft) && !readOnlyChangelog && !readOnlyAgentResult && (
-    (initial
-      ? JSON.stringify(draft) !== JSON.stringify(initial)
-      : Boolean((draft?.name ?? '').trim()))
-    || (draft?.kind === 'notes' && notesContent.trim() !== notesInitialContentRef.current.trim())
-  )
+  const isDirty = isContextDraftDirty({
+    draft,
+    initial,
+    notesContent,
+    initialNotesContent: notesInitialContentRef.current,
+    readOnly: readOnlyChangelog || readOnlyAgentResult,
+  })
   isDirtyRef.current = isDirty
 
   const duplicateMessage = (() => {
@@ -444,8 +456,10 @@ export const TabContextFormModal: React.FC<Props> = ({
         }))
       }
     }
-    setNotesContent('')
-    notesInitialContentRef.current = ''
+    // No se borra `notesContent` aquí: es un cambio de tipo, no una razón para
+    // tirar lo escrito. Si el usuario vuelve a `notes`, su texto sigue ahí; y
+    // para cualquier otro kind el contenido queda inerte (`save()`/`loadPreview()`
+    // solo lo envían cuando `kind === 'notes'`).
     setPreview({ status: 'idle' })
   }
 

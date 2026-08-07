@@ -262,7 +262,6 @@ const es = {
     empty: 'Todavía no hay contextos Markdown en .gravity.',
     name: 'Nombre',
     namePlaceholder: 'Ej. Arquitectura del proyecto',
-    fileName: 'Archivo Markdown',
     reveal: 'Mostrar en Finder',
     revealError: 'No se pudo mostrar el archivo en el Finder.',
     kind: 'Tipo de contexto',

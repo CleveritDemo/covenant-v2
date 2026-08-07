@@ -260,7 +260,6 @@ const en = {
     empty: 'No Markdown contexts found in .gravity yet.',
     name: 'Name',
     namePlaceholder: 'E.g. Project architecture',
-    fileName: 'Markdown file',
     reveal: 'Show in Finder',
     revealError: 'Could not reveal the file in Finder.',
     kind: 'Context type',

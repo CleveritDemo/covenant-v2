@@ -35,16 +35,27 @@ interface Props {
   onClose: () => void
 }
 
+/**
+ * Borrador en blanco. El nombre se deja **vacío** a propósito: como
+ * `applyCanonicalContextIdentity` lo rellena con el nombre canónico del kind
+ * (`folders` para `folderTree`), un contexto nuevo nacía con la identidad de
+ * uno que suele existir ya, disparaba el error de duplicado y dejaba Guardar
+ * deshabilitado antes de que el usuario escribiera nada. El id y el archivo
+ * canónicos sí se conservan: se recalculan al guardar desde el nombre real.
+ */
 function emptyContext(kind: TabContextKind = 'folderTree'): TabContext {
-  return applyCanonicalContextIdentity({
-    id: '',
+  return {
+    ...applyCanonicalContextIdentity({
+      id: '',
+      name: '',
+      fileName: '',
+      kind,
+      icon: defaultIconForKind(kind),
+      color: defaultColorForKind(kind),
+      ...(kind === 'symbols' ? { symbolKinds: ['class', 'method'] as const } : {}),
+    }),
     name: '',
-    fileName: '',
-    kind,
-    icon: defaultIconForKind(kind),
-    color: defaultColorForKind(kind),
-    ...(kind === 'symbols' ? { symbolKinds: ['class', 'method'] as const } : {}),
-  })
+  }
 }
 
 function comparable(value: string): string {
@@ -82,10 +93,6 @@ export const TabContextFormModal: React.FC<Props> = ({
   const modeRef = useRef(mode)
   const contextRef = useRef(context)
   const contextsRef = useRef(contexts)
-  // handleDismiss corre en el handler de Esc/backdrop, fuera del render, así
-  // que no puede leer `isDirty` (variable del closure, quedaría stale); se
-  // asigna a este ref justo después de calcularla más abajo.
-  const isDirtyRef = useRef(false)
   // Valor del cuerpo de la nota cuando se cargó (o '' en `create`), para
   // detectar ediciones del textarea: el cuerpo de `notes` no vive en `draft`.
   const notesInitialContentRef = useRef('')
@@ -237,7 +244,6 @@ export const TabContextFormModal: React.FC<Props> = ({
     // por limpio hacía que Esc tirara el cambio en silencio.
     readOnly: readOnlyAgentResult,
   })
-  isDirtyRef.current = isDirty
 
   const duplicateMessage = (() => {
     if (!draft) return ''
@@ -374,20 +380,6 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
   }
 
-  /**
-   * Esc y clic fuera cierran solo si no hay nada que perder. Antes esto llamaba
-   * a save(), un guardado que ningún botón anunciaba; y descartar en silencio
-   * sería peor. Con cambios pendientes el modal se queda y el pie lo explica.
-   */
-  const handleDismiss = (): void => {
-    if (!draftRef.current) {
-      onClose()
-      return
-    }
-    if (isDirtyRef.current) return
-    onClose()
-  }
-
   const loadPreview = async (): Promise<void> => {
     if (!draft) return
     // Token de secuencia: el debounce de 400 ms solo evita el solapamiento
@@ -494,8 +486,13 @@ export const TabContextFormModal: React.FC<Props> = ({
   return (
     <TerminalModal
       open={open}
-      onClose={handleDismiss}
-      closeOnBackdrop
+      // El botón rojo y Esc cierran siempre, descartando: son gestos explícitos
+      // y equivalen a «Descartar», que está a la vista con el aviso de cambios
+      // sin guardar. Antes pasaban por un guard que los dejaba muertos con el
+      // borrador sucio, y la ventana parecía atascada. El clic fuera sí queda
+      // desactivado: ese es el gesto accidental, y no debe descartar nada.
+      onClose={onClose}
+      closeOnBackdrop={false}
       title={mode === 'edit' ? t('tabContexts.editTitle') : t('tabContexts.createTitle')}
       titleId="tab-context-form-title"
       size="xl"

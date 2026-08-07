@@ -3,6 +3,8 @@
  * El formato canónico lo escribe `electron/tabContextBuild.ts`; aquí solo se lee.
  */
 
+import type { TabContextKind } from './tabContext'
+
 export interface ContextAnnotation {
   key: string
   text: string
@@ -224,4 +226,51 @@ export function parseGit(auto: string): GitDoc | null {
 
   const diffStat = split < 0 ? '' : body.slice(split + DIFF_MARKER.length).trim()
   return { branch, changes, diffStat: diffStat.startsWith('(') ? '' : diffStat }
+}
+
+export interface ContextReportCount {
+  /** Clave de i18n: `tabContexts.reportCount_<key>`, con plural `_one` / `_other`. */
+  key: string
+  count: number
+}
+
+function countMatches(body: string, pattern: RegExp): number {
+  return [...body.matchAll(pattern)].length
+}
+
+/** Recuentos del meta, ya resueltos por kind; el componente solo los traduce. */
+export function contextReportCounts(kind: TabContextKind, doc: ContextDoc): ContextReportCount[] {
+  const out: ContextReportCount[] = []
+  switch (kind) {
+    case 'folderTree': {
+      const total = countFolderNodes(parseFolderTree(doc.auto).nodes)
+      if (total) out.push({ key: 'folders', count: total })
+      break
+    }
+    case 'deps': {
+      const deps = parseDeps(doc.auto)
+      if (deps) {
+        out.push({ key: 'deps', count: deps.deps.length + deps.devDeps.length })
+        out.push({ key: 'scripts', count: deps.scripts.length })
+      }
+      break
+    }
+    case 'git': {
+      const git = parseGit(doc.auto)
+      if (git) out.push({ key: 'changes', count: git.changes.length })
+      break
+    }
+    case 'files':
+      // `### <ruta>` por archivo, tal como los emite buildFiles().
+      out.push({ key: 'files', count: countMatches(doc.auto, /^###\s+\S/gm) })
+      break
+    case 'symbols':
+      out.push({ key: 'files', count: countMatches(doc.auto, /^###\s+\S/gm) })
+      out.push({ key: 'symbols', count: countMatches(doc.auto, /^-\s+\S/gm) })
+      break
+    default:
+      break
+  }
+  if (doc.annotations.length) out.push({ key: 'annotations', count: doc.annotations.length })
+  return out
 }

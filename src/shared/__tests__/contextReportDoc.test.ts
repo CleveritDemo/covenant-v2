@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences, parseDeps, parseGit } from '../contextReportDoc'
+import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences, parseDeps, parseGit, contextReportCounts } from '../contextReportDoc'
 
 /** Documento tal como lo escribe composeDocument() en electron/tabContextBuild.ts. */
 const doc = [
@@ -202,5 +202,61 @@ describe('parseGit', () => {
 
   it('devuelve null si no es un repo', () => {
     expect(parseGit('(not a git repository or git unavailable)')).toBeNull()
+  })
+})
+
+describe('contextReportCounts', () => {
+  const wrap = (auto: string, notes = ''): string => [
+    '<!-- iaterminal:auto -->',
+    auto,
+    '<!-- /iaterminal:auto -->',
+    '<!-- iaterminal:notes -->',
+    notes,
+    '<!-- /iaterminal:notes -->',
+  ].join('\n')
+
+  it('cuenta carpetas del árbol', () => {
+    const doc = parseContextDoc(wrap(['src/', '  src/shared/'].join('\n')))
+    expect(contextReportCounts('folderTree', doc)).toEqual([{ key: 'folders', count: 2 }])
+  })
+
+  it('cuenta dependencias y scripts por separado', () => {
+    const manifest = JSON.stringify({
+      dependencies: { react: '18' },
+      devDependencies: { vitest: '1' },
+      scripts: { dev: 'x' },
+    })
+    const doc = parseContextDoc(wrap(manifest))
+    expect(contextReportCounts('deps', doc)).toEqual([
+      { key: 'deps', count: 2 },
+      { key: 'scripts', count: 1 },
+    ])
+  })
+
+  it('cuenta los cambios de git', () => {
+    const doc = parseContextDoc(wrap(['Git status:', '## main', ' M a.ts'].join('\n')))
+    expect(contextReportCounts('git', doc)).toEqual([{ key: 'changes', count: 1 }])
+  })
+
+  it('cuenta archivos y símbolos por sus encabezados', () => {
+    const symbols = ['### a.ts', '- Foo', '- Foo.bar', '### b.ts', '- baz'].join('\n')
+    expect(contextReportCounts('symbols', parseContextDoc(wrap(symbols)))).toEqual([
+      { key: 'files', count: 2 },
+      { key: 'symbols', count: 3 },
+    ])
+    const files = ['### a.ts', '```ts', 'const a = 1', '```'].join('\n')
+    expect(contextReportCounts('files', parseContextDoc(wrap(files)))).toEqual([
+      { key: 'files', count: 1 },
+    ])
+  })
+
+  it('añade las anotaciones a cualquier kind', () => {
+    const doc = parseContextDoc(wrap('# Léeme', '- `a.ts` — nota'))
+    expect(contextReportCounts('readme', doc)).toEqual([{ key: 'annotations', count: 1 }])
+  })
+
+  it('no cuenta nada cuando el parser específico no aplica', () => {
+    const doc = parseContextDoc(wrap('[package]\nname = "gravity"'))
+    expect(contextReportCounts('deps', doc)).toEqual([])
   })
 })

@@ -2,6 +2,7 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
+  sanitizeAgentMonogram,
   sanitizeAgentTextDraft,
 } from './agentIdentity'
 import {
@@ -19,6 +20,8 @@ import {
 export interface ProjectAgentBootstrapSpec {
   idHint: string
   name: string
+  /** Monograma de la cara; sin él se derivaría "BA" de "Backend". */
+  monogram?: string
   role: string
   objective: string
   coordination?: AgentCoordination
@@ -30,6 +33,7 @@ export const DEFAULT_PROJECT_AGENT_PACK: readonly ProjectAgentBootstrapSpec[] = 
   {
     idHint: 'tl',
     name: 'Tech Lead',
+    monogram: 'TL',
     role: 'technical leader',
     objective:
       'Turn user goals into concrete technical delegations. Coordinate specialists; do not implement large changes yourself.',
@@ -38,6 +42,7 @@ export const DEFAULT_PROJECT_AGENT_PACK: readonly ProjectAgentBootstrapSpec[] = 
   {
     idHint: 'frontend',
     name: 'Frontend',
+    monogram: 'FE',
     role: 'frontend engineer',
     objective:
       'Implement UI with clean components, accessibility, and clear interaction patterns.',
@@ -46,6 +51,7 @@ export const DEFAULT_PROJECT_AGENT_PACK: readonly ProjectAgentBootstrapSpec[] = 
   {
     idHint: 'backend',
     name: 'Backend',
+    monogram: 'BE',
     role: 'backend engineer',
     objective:
       'Implement API and server-side logic with clear contracts, persistence, and safe defaults.',
@@ -54,6 +60,7 @@ export const DEFAULT_PROJECT_AGENT_PACK: readonly ProjectAgentBootstrapSpec[] = 
   {
     idHint: 'qa',
     name: 'QA',
+    monogram: 'QA',
     role: 'quality assurance',
     objective:
       'Verify changes with focused checks. Report PASS/FAIL clearly and call out regressions.',
@@ -79,6 +86,7 @@ export function buildBootstrapProjectAgentDefinitions(
     taken.add(id)
 
     const name = sanitizeAgentTextDraft(spec.name, AGENT_NAME_MAX_LENGTH)
+    const monogram = sanitizeAgentMonogram(spec.monogram)
     const role = sanitizeAgentTextDraft(spec.role, AGENT_ROLE_MAX_LENGTH)
     const objective = sanitizeAgentTextDraft(spec.objective, AGENT_OBJECTIVE_MAX_LENGTH)
 
@@ -86,6 +94,7 @@ export function buildBootstrapProjectAgentDefinitions(
       ...draft,
       id,
       ...(name ? { name } : {}),
+      ...(monogram ? { monogram } : {}),
       ...(role ? { role } : {}),
       ...(objective ? { objective } : {}),
     }

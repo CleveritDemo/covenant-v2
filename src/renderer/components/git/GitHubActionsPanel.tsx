@@ -109,7 +109,7 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
           <ul className="gh-actions-panel__list">
             {snapshot.runs.map(run => (
               <li key={run.id}>
-                <GitHubActionsRunRow run={run} onOpen={openUrl} />
+                <GitHubActionsRunRow run={run} target={target} onOpen={openUrl} />
               </li>
             ))}
           </ul>

@@ -27,7 +27,7 @@ export const IPC = {
   BRAINSTORM_PAUSE: 'brainstorm:pause',
   /** Main → renderer: eventos de sala de brainstorm. */
   BRAINSTORM_EVENT: 'brainstorm:event',
-  /** Renderer → main (invoke): listar salas en `.iaterminal/brainstorms/`. */
+  /** Renderer → main (invoke): listar salas en `.gravity/brainstorms/`. */
   BRAINSTORM_LIST: 'brainstorm:list',
   /** Renderer → main (invoke): crear/actualizar sala en disco. */
   BRAINSTORM_UPSERT: 'brainstorm:upsert',
@@ -47,7 +47,7 @@ export const IPC = {
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
-  /** Renderer → main: crea .iaterminal/results/<slug>.md si no existe. */
+  /** Renderer → main: crea .gravity/results/<slug>.md si no existe. */
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
   /** Renderer → main: guarda solo la región notes de un results. */
   AGENT_RESULTS_SET_NOTES: 'agentResults:setNotes',
@@ -116,6 +116,8 @@ export const IPC = {
   GITHUB_ACTIONS_LIST: 'githubActions:list',
   /** Renderer → main: ¿de quién es este token y con qué scopes? Vacío = el resuelto del entorno. */
   GITHUB_CHECK_TOKEN: 'github:checkToken',
+  /** Renderer → main (invoke): jobs y steps de un run; se pide al desplegarlo. */
+  GITHUB_RUN_JOBS: 'githubActions:runJobs',
 
   /** Renderer → main (invoke): fijar raíz del explorador para la sesión (projectFolder del tab) */
   FILE_EXPLORER_SET_ROOT: 'fileExplorer:setRoot',
@@ -161,9 +163,9 @@ export const IPC = {
   SESSION_LOAD: 'session:load',
   /** Renderer → main (invoke): listar agentes del catálogo del proyecto */
   PROJECT_AGENTS_LIST: 'projectAgents:list',
-  /** Renderer → main (invoke): crear/actualizar agente en `.iaterminal/agents/` */
+  /** Renderer → main (invoke): crear/actualizar agente en `.gravity/agents/` */
   PROJECT_AGENTS_UPSERT: 'projectAgents:upsert',
-  /** Renderer → main (invoke): renombrar slug del JSON en `.iaterminal/agents/` */
+  /** Renderer → main (invoke): renombrar slug del JSON en `.gravity/agents/` */
   PROJECT_AGENTS_RENAME: 'projectAgents:rename',
   /** Renderer → main (invoke): borrar agente del catálogo del proyecto */
   PROJECT_AGENTS_DELETE: 'projectAgents:delete',

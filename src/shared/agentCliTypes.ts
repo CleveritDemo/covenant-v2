@@ -58,7 +58,7 @@ export interface AgentCliStartRequest {
   /** Resultados de delegaciones previas a inyectar en el prompt. */
   pendingDelegationResults?: DelegateResult[]
   cliSessionId?: string
-  /** Fotos pegadas en el composer; se guardan bajo .iaterminal/clipboard-images. */
+  /** Fotos pegadas en el composer; se guardan bajo .gravity/clipboard-images. */
   images?: AgentCliImageAttachment[]
 }
 

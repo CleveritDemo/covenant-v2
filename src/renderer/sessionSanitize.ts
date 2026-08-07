@@ -121,7 +121,7 @@ function sanitizeTab(tab: TabSession): {
       ...(planeLoopLinks.length ? { planeLoopLinks } : {}),
       ...(planeLoopNodePositions ? { planeLoopNodePositions } : {}),
       ...(planeLoopChains.length ? { planeLoopChains } : {}),
-      // Contextos viven en disco (`.iaterminal`); nunca en session.
+      // Contextos viven en disco (`.gravity`); nunca en session.
       contexts: undefined,
     }),
     migrations: [],

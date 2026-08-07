@@ -1,10 +1,12 @@
 import React from 'react'
 import {
+  AGENT_MONOGRAM_MAX_LENGTH,
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
+import { agentMonogram } from '@shared/tabContextAppearance'
 import { AGENT_IDENTITY_TEMPLATES } from '@shared/agentIdentityTemplates'
 import { useT } from '@i18n/useT'
 import { Input, TextArea } from '../components/ui'
@@ -105,7 +107,19 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
 
   return (
     <div className="agent-config-identity">
-      <div className="agent-config-identity__row">
+      <div className="agent-config-identity__row agent-config-identity__row--identity">
+        <label className="agent-config-identity__field">
+          <span className="agent-config-identity__label">{t('agentPane.monogramLabel')}</span>
+          <Input
+            type="text"
+            value={draft.monogram}
+            maxLength={AGENT_MONOGRAM_MAX_LENGTH}
+            placeholder={agentMonogram(draft.name || draft.id)}
+            onChange={event => onChange({ monogram: event.target.value })}
+            onBlur={onCommit}
+          />
+        </label>
+
         <label className="agent-config-identity__field">
           <span className="agent-config-identity__label">{t('agentPane.nameLabel')}</span>
           <Input

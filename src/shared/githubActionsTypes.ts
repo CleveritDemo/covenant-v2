@@ -24,6 +24,35 @@ export interface GitHubActionsRun {
   url: string
 }
 
+export interface GitHubJobStep {
+  number: number
+  name: string
+  status: string
+  conclusion: string | null
+  /** `null` mientras el step no ha arrancado (job en cola). */
+  startedAt: string | null
+  /** `null` mientras sigue corriendo. */
+  completedAt: string | null
+}
+
+export interface GitHubJob {
+  id: number
+  name: string
+  status: string
+  conclusion: string | null
+  startedAt: string | null
+  completedAt: string | null
+  url: string
+  steps: GitHubJobStep[]
+}
+
+/** Jobs de un run: petición aparte, no un campo de `GitHubActionsRun`. */
+export interface GitHubRunJobsResult {
+  ok: boolean
+  jobs: GitHubJob[]
+  error?: string
+}
+
 /** Resultado de comprobar un token contra la API de GitHub. */
 export type GitHubTokenCheck =
   | { ok: true; login: string; scopes: string[] }

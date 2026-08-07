@@ -1,5 +1,5 @@
 /**
- * Parseo puro de `.iaterminal/results/<agent>.md` para la vista Reporte.
+ * Parseo puro de `.gravity/results/<agent>.md` para la vista Reporte.
  * El formato canónico lo escribe `electron/aiAgentResults.ts`; aquí solo se lee.
  */
 

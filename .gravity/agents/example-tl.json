@@ -14,8 +14,7 @@
   "model": "auto",
   "contextIds": [
     "iaterminal:folderTree:Folders",
-    "iaterminal:deps:Dependences",
-    "iaterminal:result:qa"
+    "iaterminal:deps:Dependences"
   ],
   "autoImproveContexts": true,
   "emitResults": true,

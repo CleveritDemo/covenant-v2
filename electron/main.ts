@@ -111,9 +111,9 @@ import {
   gitUnstageAll,
   gitUnstageFile,
 } from './gitSessionOps'
-import { githubActionsListForSession } from './githubActionsOps'
+import { githubActionsListForSession, githubRunJobsForSession } from './githubActionsOps'
 import { fetchGitHubIdentity } from './githubApi'
-import type { GitHubTokenCheck } from '../src/shared/githubActionsTypes'
+import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken } from './githubToken'
 import {
   copyPathsForExplorer,
@@ -653,6 +653,17 @@ function registerIpc(): void {
     const token = await resolveGithubToken(readConfig())
     return githubActionsListForSession(resolveGitTargetCwd(target), token)
   })
+
+  ipcMain.handle(
+    IPC.GITHUB_RUN_JOBS,
+    async (_e, target: { sessionId?: string; path?: string }, runId: unknown): Promise<GitHubRunJobsResult> => {
+      if (typeof runId !== 'number' || !Number.isFinite(runId)) {
+        return { ok: false, jobs: [], error: 'runId inválido' }
+      }
+      const token = await resolveGithubToken(readConfig())
+      return githubRunJobsForSession(resolveGitTargetCwd(target), token, runId)
+    },
+  )
 
   ipcMain.handle(IPC.GITHUB_CHECK_TOKEN, async (_e, raw: unknown): Promise<GitHubTokenCheck> => {
     const typed = typeof raw === 'string' ? raw.trim() : ''

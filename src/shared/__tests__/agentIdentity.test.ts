@@ -4,6 +4,7 @@ import {
   applyAgentIdentityDraft,
   buildAgentIdentityPrompt,
   normalizeAgentRules,
+  sanitizeAgentMonogram,
   sanitizeAgentRulesDraft,
   sanitizeAgentTextDraft,
 } from '../agentIdentity'
@@ -27,6 +28,22 @@ describe('sanitizeAgentRulesDraft', () => {
   })
 })
 
+describe('sanitizeAgentMonogram', () => {
+  it('deja 2 caracteres alfanuméricos en mayúsculas', () => {
+    expect(sanitizeAgentMonogram('tl')).toBe('TL')
+    expect(sanitizeAgentMonogram('be!')).toBe('BE')
+    expect(sanitizeAgentMonogram('Frontend')).toBe('FR')
+    expect(sanitizeAgentMonogram('ñ1')).toBe('Ñ1')
+  })
+
+  it('descarta lo que no deja glifos usables', () => {
+    expect(sanitizeAgentMonogram(undefined)).toBeUndefined()
+    expect(sanitizeAgentMonogram('  ')).toBeUndefined()
+    expect(sanitizeAgentMonogram('🐛')).toBeUndefined()
+    expect(sanitizeAgentMonogram(42)).toBeUndefined()
+  })
+})
+
 describe('applyAgentIdentityDraft', () => {
   it('trims once on commit and clears blank identity fields', () => {
     expect(applyAgentIdentityDraft(
@@ -34,6 +51,7 @@ describe('applyAgentIdentityDraft', () => {
       {
         id: 'scout',
         name: '  Scout  ',
+        monogram: '',
         role: '   ',
         objective: ' Ship it ',
         rules: ['  Always verify  ', '', '  '],
@@ -43,6 +61,21 @@ describe('applyAgentIdentityDraft', () => {
       objective: 'Ship it',
       rules: ['Always verify'],
     })
+  })
+
+  it('normaliza el monograma del borrador y lo borra si queda vacío', () => {
+    const previous = { name: 'Old', monogram: 'TL' }
+    const base = { id: 'tl', role: '', objective: '', rules: [] }
+    expect(applyAgentIdentityDraft(previous, {
+      ...base,
+      name: 'Tech Lead',
+      monogram: 'b e',
+    })).toEqual({ name: 'Tech Lead', monogram: 'BE' })
+    expect(applyAgentIdentityDraft(previous, {
+      ...base,
+      name: 'Tech Lead',
+      monogram: '  ',
+    })).toEqual({ name: 'Tech Lead' })
   })
 })
 

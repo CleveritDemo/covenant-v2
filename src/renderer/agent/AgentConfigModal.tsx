@@ -11,6 +11,7 @@ import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentCoordination, DelegateToPolicy } from '@shared/agentOrchestration'
+import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
@@ -41,6 +42,7 @@ function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
   return {
     id: meta.id ?? '',
     name: meta.name ?? '',
+    monogram: meta.monogram ?? '',
     role: meta.role ?? '',
     objective: meta.objective ?? '',
     rules: meta.rules ?? [],
@@ -346,7 +348,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     return chips
   }, [meta.provider, meta.permissionMode, meta.coordination, modelLabel, permissionLabel, permissionHint, selectedContextIds.length, cliStatuses, t])
 
-  const catalogFile = `.iaterminal/agents/${draft.id.trim() || 'agent'}.json`
+  const catalogFile = `${PROJECT_DIR}/agents/${draft.id.trim() || 'agent'}.json`
 
   return (
     <TerminalModal

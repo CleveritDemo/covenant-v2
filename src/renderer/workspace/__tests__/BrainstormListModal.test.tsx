@@ -46,6 +46,7 @@ vi.mock('../BrainstormEditRoomModal', () => ({
 }))
 
 import { BrainstormListModal } from '../BrainstormListModal'
+import { PROJECT_DIR } from '@shared/projectDir'
 
 function room(partial: Partial<BrainstormRoom>): BrainstormRoom {
   return {
@@ -74,7 +75,7 @@ describe('BrainstormListModal edit/export wiring', () => {
     ])
     exportBrainstormMarkdown.mockResolvedValue({
       ok: true,
-      path: '/tmp/project/.iaterminal/brainstorms/paused-1.md',
+      path: `/tmp/project/${PROJECT_DIR}/brainstorms/paused-1.md`,
     })
     ;(window as unknown as { api: Record<string, unknown> }).api = {
       listBrainstorms,

@@ -2,11 +2,12 @@ import { createHash } from 'crypto'
 import { execFileSync } from 'child_process'
 import { lstatSync, readFileSync, readdirSync } from 'fs'
 import { join, relative, resolve, sep } from 'path'
+import { PROJECT_DIRS } from '../src/shared/projectDir'
 
 export type WorkspaceSnapshot = Map<string, string>
 
 const SKIPPED_DIRECTORIES = new Set([
-  '.git', '.iaterminal', 'node_modules', 'out', 'dist', 'build', 'coverage', '.next',
+  '.git', ...PROJECT_DIRS, 'node_modules', 'out', 'dist', 'build', 'coverage', '.next',
   '.Trash', '.Trashes', '$Recycle.Bin', 'Library', 'Applications',
 ])
 const MAX_HASH_BYTES = 20 * 1024 * 1024
@@ -94,7 +95,7 @@ export function captureWorkspaceSnapshot(cwd: string): WorkspaceSnapshot {
   }
   for (const path of paths) {
     const normalized = normalizedPath(path)
-    if (!normalized || normalized.startsWith('.iaterminal/')) continue
+    if (!normalized || PROJECT_DIRS.some(dir => normalized.startsWith(`${dir}/`))) continue
     const value = fingerprint(join(root, path))
     if (value) snapshot.set(normalized, value)
   }

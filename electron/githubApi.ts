@@ -1,4 +1,4 @@
-import type { GitHubActionsRun } from '../src/shared/githubActionsTypes'
+import type { GitHubActionsRun, GitHubJob } from '../src/shared/githubActionsTypes'
 
 export class GitHubApiError extends Error {
   readonly status: number
@@ -51,6 +51,63 @@ export async function githubFetch(
   }
 
   return response
+}
+
+interface RestJobStep {
+  number?: number
+  name?: string
+  status?: string
+  conclusion?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
+interface RestJob {
+  id?: number
+  name?: string
+  status?: string
+  conclusion?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  html_url?: string
+  steps?: RestJobStep[]
+}
+
+/** Jobs de un run con sus steps. Se pide sólo al desplegar, no por cada run listado. */
+export async function fetchRunJobs(
+  token: string,
+  fullName: string,
+  runId: number,
+): Promise<GitHubJob[]> {
+  const [owner, name] = fullName.split('/')
+  if (!owner || !name) return []
+
+  const url = new URL(
+    `https://api.github.com/repos/${owner}/${name}/actions/runs/${runId}/jobs`,
+  )
+  // 100 es el máximo de la API; ningún workflow razonable pasa de ahí.
+  url.searchParams.set('per_page', '100')
+
+  const response = await githubFetch(token, url.toString())
+  const body = (await response.json()) as { jobs?: RestJob[] }
+
+  return (body.jobs ?? []).map(job => ({
+    id: job.id ?? 0,
+    name: job.name ?? '',
+    status: job.status ?? '',
+    conclusion: job.conclusion ?? null,
+    startedAt: job.started_at ?? null,
+    completedAt: job.completed_at ?? null,
+    url: job.html_url ?? '',
+    steps: (job.steps ?? []).map(step => ({
+      number: step.number ?? 0,
+      name: step.name ?? '',
+      status: step.status ?? '',
+      conclusion: step.conclusion ?? null,
+      startedAt: step.started_at ?? null,
+      completedAt: step.completed_at ?? null,
+    })),
+  }))
 }
 
 /**

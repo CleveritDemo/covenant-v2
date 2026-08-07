@@ -1,6 +1,8 @@
 /** Identidad persistida del agente; se inyecta en cada turno del CLI. */
 export interface AgentIdentity {
   name?: string
+  /** Cara visual, no va al prompt: 2 caracteres derivados del name si falta. */
+  monogram?: string
   role?: string
   objective?: string
   /** Reglas de comportamiento; se envían en cada turno (no cada 10 como los contextos). */
@@ -12,6 +14,20 @@ export const AGENT_ROLE_MAX_LENGTH = 80
 export const AGENT_OBJECTIVE_MAX_LENGTH = 500
 export const AGENT_RULE_MAX_LENGTH = 280
 export const AGENT_RULES_MAX_COUNT = 20
+export const AGENT_MONOGRAM_MAX_LENGTH = 2
+
+/**
+ * Monograma de 2 caracteres para la cara del agente. Solo letras/dígitos:
+ * se dibuja en 9.5px mono y un emoji o signo rompe la métrica.
+ */
+export function sanitizeAgentMonogram(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const glyphs = Array.from(value.replace(/[^\p{L}\p{N}]+/gu, ''))
+    .slice(0, AGENT_MONOGRAM_MAX_LENGTH)
+    .join('')
+    .toUpperCase()
+  return glyphs || undefined
+}
 
 /**
  * Borrador de texto en UI/catálogo: conserva espacios (p. ej. al escribir
@@ -39,9 +55,10 @@ export function sanitizeAgentRulesDraft(rules: string[] | undefined): string[] {
 
 /** Borrador de identidad en el modal de config (valores crudos de inputs). */
 export interface AgentIdentityDraft {
-  /** Slug del JSON en `.iaterminal/agents/<id>.json`. */
+  /** Slug del JSON en `.gravity/agents/<id>.json`. */
   id: string
   name: string
+  monogram: string
   role: string
   objective: string
   rules: string[]
@@ -53,12 +70,14 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
   draft: AgentIdentityDraft,
 ): T {
   const name = sanitizeAgentTextDraft(draft.name.trim(), AGENT_NAME_MAX_LENGTH)
+  const monogram = sanitizeAgentMonogram(draft.monogram)
   const role = sanitizeAgentTextDraft(draft.role.trim(), AGENT_ROLE_MAX_LENGTH)
   const objective = sanitizeAgentTextDraft(draft.objective.trim(), AGENT_OBJECTIVE_MAX_LENGTH)
   const rules = normalizeAgentRules(draft.rules)
 
   const {
     name: _name,
+    monogram: _monogram,
     role: _role,
     objective: _objective,
     rules: _rules,
@@ -68,6 +87,7 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
   return {
     ...rest,
     ...(name ? { name } : {}),
+    ...(monogram ? { monogram } : {}),
     ...(role ? { role } : {}),
     ...(objective ? { objective } : {}),
     ...(rules.length ? { rules } : {}),

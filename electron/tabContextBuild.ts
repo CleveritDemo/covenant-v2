@@ -25,6 +25,8 @@ import {
   normalizeContextColor,
   normalizeContextIcon,
 } from '../src/shared/tabContextAppearance'
+import { PROJECT_DIRS } from '../src/shared/projectDir'
+import { projectDirName, projectDirPath } from './projectDir'
 import { gatherShallowFolderTree } from './agentMd'
 import {
   writeAiChangelogDocument,
@@ -65,7 +67,7 @@ const SYMBOL_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go',
 ])
 const SKIPPED_SCAN_DIRS = new Set([
-  '.git', '.iaterminal', 'node_modules', 'out', 'dist', 'build', 'coverage',
+  '.git', ...PROJECT_DIRS, 'node_modules', 'out', 'dist', 'build', 'coverage',
   '.next', '.vite', 'vendor', '__pycache__',
 ])
 const MAX_SYMBOL_FILES = 500
@@ -452,7 +454,7 @@ function firstExisting(root: string, names: string[]): string | null {
 }
 
 function contextFilePath(context: TabContext, cwd: string): string {
-  const dir = join(resolve(cwd), '.iaterminal')
+  const dir = projectDirPath(cwd)
   if (context.kind === 'agentResult') {
     const fromId = context.id.startsWith('iaterminal:result:')
       ? context.id.slice('iaterminal:result:'.length)
@@ -694,8 +696,8 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
 export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
   try {
     const base = resolve(cwd)
-    const dir = join(base, '.iaterminal')
-    // Sin `.iaterminal` en cwd → 0 contexts (solo disco del proyecto; no session/userData).
+    const dir = projectDirPath(base)
+    // Sin carpeta de proyecto en cwd → 0 contexts (solo disco del proyecto; no session/userData).
     if (!existsSync(dir)) return { ok: true, contexts: [] }
 
     const legacyResults = migrateLegacyAgentResults(cwd)
@@ -979,7 +981,7 @@ export function materializeTabContext(
             : ''
         )
       const previousFilePath = previousName
-        ? join(resolve(cwd), '.iaterminal', normalizeContextFileName(previousName, 'changelog'))
+        ? projectDirPath(cwd, normalizeContextFileName(previousName, 'changelog'))
         : ''
       const entriesSource = previousFilePath && existsSync(previousFilePath)
         ? previousFilePath
@@ -1050,9 +1052,9 @@ export function materializeTabContext(
       if (conflict) {
         return { ok: false, content: '', error: conflict }
       }
-      mkdirSync(join(resolve(cwd), '.iaterminal'), { recursive: true })
+      mkdirSync(projectDirPath(cwd), { recursive: true })
       if (contextToWrite.kind === 'agentResult') {
-        mkdirSync(join(resolve(cwd), '.iaterminal', 'results'), { recursive: true })
+        mkdirSync(projectDirPath(cwd, 'results'), { recursive: true })
       }
       writeTextIfChanged(filePath, content)
       const previousName = (options.previousFileName ?? '').trim()
@@ -1063,9 +1065,8 @@ export function materializeTabContext(
             : ''
         )
       if (previousName) {
-        const previousFilePath = join(
-          resolve(cwd),
-          '.iaterminal',
+        const previousFilePath = projectDirPath(
+          cwd,
           normalizeContextFileName(previousName, contextToWrite.id),
         )
         removeSupersededContextFile(
@@ -1143,7 +1144,7 @@ export function mergeAnnotations(
     const structuredNotes = formatAnnotations([...byKey.values()])
     const notes = [humanNotes, structuredNotes].filter(Boolean).join('\n\n')
     const content = composeDocument(normalized, auto, notes)
-    mkdirSync(join(resolve(cwd), '.iaterminal'), { recursive: true })
+    mkdirSync(projectDirPath(cwd), { recursive: true })
     writeTextIfChanged(filePath, content)
     return { ok: true, content, notesContent: notes, filePath }
   } catch (error) {
@@ -1200,7 +1201,7 @@ function safeSourcePath(root: string, requested: string): string {
   const rel = relative(root, candidate)
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
     ? candidate
-    : join(root, '.iaterminal-invalid-path')
+    : join(root, '.gravity-invalid-path')
 }
 
 function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
@@ -1403,7 +1404,7 @@ export function buildContextSectionCatalog(
     id: context.id,
     name: context.name,
     kind: context.kind,
-    file: `.iaterminal/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
+    file: `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
     sections: sections.map(({ key, label, chars }) => ({ key, label, chars })),
   }))
 }
@@ -1724,7 +1725,7 @@ export function buildContextPromptDelivery(
       id: context.id,
       name: context.name,
       kind: context.kind,
-      file: `.iaterminal/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
+      file: `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
       sections: sections.map(({ key, label, chars }) => ({ key, label, chars })),
     }))
     const compact = compactSectionCatalog(catalog)
@@ -1996,7 +1997,7 @@ export function buildAssignedContexts(
   const sections = contexts.map(context => {
     const result = materializeTabContext(context, cwd, { write: true })
     const body = result.ok ? result.content : `(error: ${result.error})`
-    const relFile = `.iaterminal/${normalizeContextFileName(context.fileName || context.name, context.id)}`
+    const relFile = `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`
     return `### ${context.name} [${context.kind}]\nid: ${context.id}\nfile: ${relFile}\n\n${body}`
   })
   let out = '## Assigned tab contexts\n'

@@ -8,6 +8,7 @@ import {
   suggestSymbolsIdentity,
 } from '@shared/tabContext'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
+import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
@@ -111,8 +112,8 @@ export const TabContextFormModal: React.FC<Props> = ({
             content: result.content,
             filePath: result.filePath
               ?? (target.kind === 'agentResult'
-                ? `.iaterminal/${target.fileName}`
-                : '.iaterminal/changelog.md'),
+                ? `${PROJECT_DIR}/${target.fileName}`
+                : `${PROJECT_DIR}/changelog.md`),
           }
         : { status: 'empty', filePath: result.filePath })
     } catch (error) {
@@ -328,7 +329,7 @@ export const TabContextFormModal: React.FC<Props> = ({
             status: 'success',
             content: result.content,
             filePath: result.filePath
-              ?? `.iaterminal/${normalizeContextFileName(normalized.fileName, normalized.id)}`,
+              ?? `${PROJECT_DIR}/${normalizeContextFileName(normalized.fileName, normalized.id)}`,
           }
         : { status: 'empty', filePath: result.filePath })
     } catch (error) {
@@ -365,7 +366,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       setPreview({
         status: 'success',
         content: result.content,
-        filePath: result.filePath ?? `.iaterminal/${normalizeContextFileName(draft.fileName || draft.name, draft.id)}`,
+        filePath: result.filePath ?? `${PROJECT_DIR}/${normalizeContextFileName(draft.fileName || draft.name, draft.id)}`,
       })
     } catch (error) {
       setPreview({

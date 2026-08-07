@@ -10,10 +10,11 @@ import {
   remapAgentResultContextIds,
   type ProjectAgentDefinition,
 } from '../src/shared/projectAgentCatalog'
+import { projectDirPath } from './projectDir'
 import type { PersistedSession } from './persistence'
 
 function agentsDir(cwd: string): string {
-  return join(cwd, '.iaterminal', PROJECT_AGENTS_DIR)
+  return projectDirPath(cwd, PROJECT_AGENTS_DIR)
 }
 
 function ensureAgentsDir(cwd: string): string {
@@ -92,7 +93,7 @@ export function deleteProjectAgent(
 }
 
 function resultsPath(cwd: string, id: string): string {
-  return join(cwd, '.iaterminal', 'results', `${normalizeAgentSlug(id)}.md`)
+  return projectDirPath(cwd, 'results', `${normalizeAgentSlug(id)}.md`)
 }
 
 function rewriteResultsFileAfterRename(
@@ -161,7 +162,7 @@ function remapResultContextIdsOnDisk(
 }
 
 /**
- * Renombra el slug del JSON en `.iaterminal/agents` (y results asociados).
+ * Renombra el slug del JSON en la carpeta `agents` (y results asociados).
  * Si fromId === toId, equivale a upsert.
  */
 export function renameProjectAgent(
@@ -236,7 +237,7 @@ export function renameProjectAgent(
 
 /**
  * Descarta rich meta legacy de session (sin escribir agentes en disco).
- * Agentes solo desde `.iaterminal/agents`. `wrote` siempre 0.
+ * Agentes solo desde la carpeta `agents` del proyecto. `wrote` siempre 0.
  */
 export function migratePersistedSessionAgents(
   session: PersistedSession,

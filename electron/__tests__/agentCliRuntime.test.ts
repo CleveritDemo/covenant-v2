@@ -19,6 +19,7 @@ import {
   shouldForceFullContextRefresh,
   stopAgentRun,
 } from '../agentCliRuntime'
+import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 const baseConfig = { agentCliCommands: {} } as AppConfig
 
@@ -589,7 +590,7 @@ describe('portable context continuation', () => {
 })
 
 describe('materializeClipboardImages', () => {
-  it('writes pasted images under .iaterminal/clipboard-images', () => {
+  it('writes pasted images under <projectDir>/clipboard-images', () => {
     const root = mkdtempSync(join(tmpdir(), 'ia-agent-img-'))
     try {
       mkdirSync(join(root, 'project'), { recursive: true })
@@ -605,7 +606,7 @@ describe('materializeClipboardImages', () => {
         base64: png.toString('base64'),
       }])
       expect(paths).toHaveLength(1)
-      expect(paths[0]).toContain(join('.iaterminal', 'clipboard-images'))
+      expect(paths[0]).toContain(join(PROJECT_DIR, 'clipboard-images'))
       expect(readFileSync(paths[0])).toEqual(png)
     } finally {
       rmSync(root, { recursive: true, force: true })

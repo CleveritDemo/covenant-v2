@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextFormModal, type TabContextFormMode } from './TabContextFormModal'
@@ -8,8 +9,10 @@ import { TabContextsListPreview } from './TabContextsListPreview'
 
 interface Props {
   open: boolean
-  /** Catálogo vivo leído desde `.iaterminal/*.md`. */
+  /** Catálogo vivo leído desde `.gravity/*.md`. */
   contexts: TabContext[]
+  /** Agentes del proyecto: CLI y rol para las filas de results. */
+  agents?: ProjectAgentDefinition[]
   /** Carpeta del proyecto (cwd de contextos y materialización). */
   cwd: string
   /** Al abrir, selecciona este contexto para editar. */
@@ -26,6 +29,7 @@ type FormSession =
 export const TabContextsModal: React.FC<Props> = ({
   open,
   contexts,
+  agents,
   cwd,
   focusContextId = null,
   onFocusContextConsumed,
@@ -120,6 +124,7 @@ export const TabContextsModal: React.FC<Props> = ({
         <div className="tab-contexts tab-contexts--list">
           <TabContextsList
             contexts={contexts}
+            agents={agents}
             selectedId={selectedId}
             onNew={() => {
               formOpenedFromFocusRef.current = false

@@ -26,6 +26,7 @@ import {
   normalizeAgentRules,
 } from '@shared/agentIdentity'
 import { normalizeAgentSlug, isAgentOwnResultContext } from '@shared/projectAgentCatalog'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -143,6 +144,8 @@ interface Props {
   getOrchestrationAgents?: () => OrchestrationAgentRef[]
   /** Otros agentes del tab (config delegateTo / exclusiones). */
   peerAgents?: DelegateToPeerAgent[]
+  /** Catálogo de agentes del proyecto (cara de las filas de results). */
+  projectAgents?: ProjectAgentDefinition[]
   /** El CLI del orquestador emitió delegaciones. */
   onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
@@ -268,6 +271,7 @@ export const AgentPane: React.FC<Props> = ({
   onPlaneQueueControlsReady,
   getOrchestrationAgents,
   peerAgents = [],
+  projectAgents = [],
   onOrchestratorDelegations,
   onOrchestratorStop,
   onDelegationTurnComplete,
@@ -327,7 +331,7 @@ export const AgentPane: React.FC<Props> = ({
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
-  /** Catálogo vivo desde `.iaterminal/*.md` (no se persiste en session). */
+  /** Catálogo vivo desde `.gravity/*.md` (no se persiste en session). */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
   const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -453,7 +457,7 @@ export const AgentPane: React.FC<Props> = ({
     diskContextsRef.current = discovered
     const discoveredIds = new Set(discovered.map(context => context.id))
     const remap = idRemap ?? {}
-    // Discover ya reescribió `.iaterminal/agents` vía idRemap: no upsertar desde
+    // Discover ya reescribió `.gravity/agents` vía idRemap: no upsertar desde
     // meta en memoria (puede estar stale y pisar el SSOT del disco).
     if (Object.keys(remap).length > 0) {
       discoveryHydratedRef.current = true
@@ -2149,6 +2153,7 @@ export const AgentPane: React.FC<Props> = ({
       <TabContextsModal
         open={contextsOpen && tabActive}
         contexts={diskContexts}
+        agents={projectAgents}
         cwd={cwd}
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}

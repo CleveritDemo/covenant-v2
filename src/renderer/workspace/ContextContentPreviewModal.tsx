@@ -9,6 +9,7 @@ import {
   parseAgentResultsDoc,
   type AgentResultsDoc,
 } from '@shared/agentResultsDoc'
+import { parseContextDoc } from '@shared/contextReportDoc'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -16,6 +17,7 @@ import { Button } from '../components/ui/Button'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { TextArea } from '../components/ui/TextArea'
 import type { PreviewState } from '../agent/TabContextsEditor'
+import { ContextReport, contextReportMetaText } from './ContextReport'
 import '../agent/AgentPane.css'
 import './ContextContentPreviewModal.css'
 
@@ -54,10 +56,10 @@ function dayLabel(day: string, t: TFunction<'app'>): string {
 
 const RESULT_ID_PREFIX = 'iaterminal:result:'
 
-/** `/Users/…/proyecto/.iaterminal/results/qa.md` → `.iaterminal/results/qa.md`. */
+/** `/Users/…/proyecto/.gravity/results/qa.md` → `.gravity/results/qa.md`. */
 function shortPath(filePath: string | undefined): string {
   const path = filePath ?? ''
-  const at = path.lastIndexOf('.iaterminal')
+  const at = path.lastIndexOf('.gravity')
   return at > 0 ? path.slice(at) : path
 }
 
@@ -236,6 +238,10 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
     () => (isResults && preview.status === 'success' ? parseAgentResultsDoc(preview.content) : null),
     [isResults, preview],
   )
+  const contextDoc = useMemo(
+    () => (preview.status === 'success' ? parseContextDoc(preview.content) : null),
+    [preview],
+  )
 
   // Quién tiene este results entre sus contextIds (el dueño no cuenta).
   useEffect(() => {
@@ -335,32 +341,36 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
           {/* Datos a la izquierda, toggle anclado a la derecha (ver el CSS). */}
           <div className="tab-contexts__preview-meta">
             <small>
-              {doc && view === 'report'
-                ? [
-                  doc.entries.length ? t('tabContexts.resultsEntries', { count: doc.entries.length }) : '',
-                  doc.notes ? t('tabContexts.resultsHasNotes') : '',
-                ].filter(Boolean).join(' · ')
-                : t('tabContexts.previewStats', {
+              {view === 'source'
+                ? t('tabContexts.previewStats', {
                   auto: countAutoKeys(preview.content),
                   notes: countAnnotations(preview.content),
-                })}
+                })
+                : doc
+                  ? [
+                    doc.entries.length ? t('tabContexts.resultsEntries', { count: doc.entries.length }) : '',
+                    doc.notes ? t('tabContexts.resultsHasNotes') : '',
+                  ].filter(Boolean).join(' · ')
+                  : contextDoc
+                    ? contextReportMetaText(context.kind, contextDoc, t)
+                    : ''}
             </small>
             <small>{shortPath(preview.filePath)}</small>
-            {doc ? (
-              <SegmentedControl
-                size="sm"
-                layout="scroll"
-                label={t('tabContexts.resultsView')}
-                value={view}
-                onChange={setView}
-                options={[
-                  { value: 'report', label: t('tabContexts.resultsViewReport') },
-                  { value: 'source', label: t('tabContexts.resultsViewSource') },
-                ]}
-              />
-            ) : null}
+            <SegmentedControl
+              size="sm"
+              layout="scroll"
+              label={t('tabContexts.resultsView')}
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'report', label: t('tabContexts.resultsViewReport') },
+                { value: 'source', label: t('tabContexts.resultsViewSource') },
+              ]}
+            />
           </div>
-          {doc && view === 'report' ? (
+          {view === 'source' ? (
+            <pre className="tab-contexts__preview">{preview.content}</pre>
+          ) : doc ? (
             <AgentResultsReport
               doc={doc}
               agentName={context.name.trim()}
@@ -368,7 +378,7 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
               onSaveNotes={saveNotes}
             />
           ) : (
-            <pre className="tab-contexts__preview">{preview.content}</pre>
+            <ContextReport context={context} content={preview.content} />
           )}
         </div>
       )}

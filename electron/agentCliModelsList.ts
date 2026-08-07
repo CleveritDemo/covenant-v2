@@ -98,8 +98,11 @@ export function parseClaudeModelsStdout(stdout: string): AgentModelOption[] {
   if (fromCursorStyle.length) return fromCursorStyle
 
   const models: AgentModelOption[] = []
-  // Aliases citados en --help: 'fable', 'opus', or 'sonnet'
-  for (const match of stdout.matchAll(/'([a-z0-9][a-z0-9._-]*)'/gi)) {
+  // Aliases citados en --help: 'fable', 'opus', or 'sonnet'.
+  // Se acota al bloque de `--model` para no capturar otras opciones citadas.
+  const modelBlockAt = stdout.search(/--model\b/)
+  const modelBlock = modelBlockAt >= 0 ? stdout.slice(modelBlockAt) : stdout
+  for (const match of modelBlock.matchAll(/'([a-z0-9][a-z0-9._-]*)'/gi)) {
     const id = match[1]
     if (id.length < 2) continue
     if (/^(e\.g|eg|or|and|the)$/i.test(id)) continue
@@ -154,8 +157,9 @@ function commandAndListArgs(
   config: AppConfig,
 ): { command: string; args: string[] } {
   const command = agentCliCommand(config.agentCliCommands, provider)
-  // Subcomando real: `claude models` (falla con auth → fallback).
-  if (provider === 'claude') return { command, args: ['models'] }
+  // `claude models` es un selector interactivo: sin TTY se cuelga y no imprime nada.
+  // La ayuda documenta los alias (`'fable'`, `'opus'`, …) y sale al instante.
+  if (provider === 'claude') return { command, args: ['--help'] }
   // Copilot no tiene `--list-models`; la ayuda documenta `--model` (y a veces IDs).
   if (provider === 'copilot') return { command, args: ['help'] }
   return { command, args: ['--list-models'] }

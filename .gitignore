@@ -10,7 +10,8 @@ dist/
 # Notas de release que genera CI desde CHANGELOG.md (scripts/prepare-release.sh)
 build/release-notes.md
 
-# Agent emit-results (local only)
+# Agent emit-results legacy (proyectos pre-rebrand; .gravity/results/ ya lo cubre
+# su propio .gitignore anidado, igual que clipboard-images/)
 .iaterminal/results/
 
 # Worktrees de agentes (estado local)

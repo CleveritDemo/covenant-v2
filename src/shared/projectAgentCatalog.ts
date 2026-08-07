@@ -3,6 +3,7 @@ import {
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
   normalizeAgentRules,
+  sanitizeAgentMonogram,
   sanitizeAgentRulesDraft,
   sanitizeAgentTextDraft,
 } from './agentIdentity'
@@ -25,12 +26,14 @@ export { isAgentCliProvider }
 export type { AgentCliProvider, AgentPermissionMode }
 export type { AgentCoordination, DelegateToPolicy }
 
-/** Definición compartible en `.iaterminal/agents/<id>.json`. */
+/** Definición compartible en `.gravity/agents/<id>.json`. */
 export interface ProjectAgentDefinition {
   id: string
   provider: AgentCliProvider
   permissionMode: AgentPermissionMode
   name?: string
+  /** 2 caracteres para la cara del agente; si falta, se derivan del name. */
+  monogram?: string
   role?: string
   objective?: string
   rules?: string[]
@@ -269,6 +272,8 @@ export function parseProjectAgentDefinition(
     AGENT_NAME_MAX_LENGTH,
   )
   if (name) def.name = name
+  const monogram = sanitizeAgentMonogram(data.monogram)
+  if (monogram) def.monogram = monogram
   const role = sanitizeAgentTextDraft(
     typeof data.role === 'string' ? data.role : undefined,
     AGENT_ROLE_MAX_LENGTH,
@@ -321,6 +326,7 @@ export function cloneProjectAgentDefinition(
     provider: source.provider,
     permissionMode: source.permissionMode,
     ...(name ? { name } : {}),
+    ...(source.monogram ? { monogram: source.monogram } : {}),
     ...(source.role ? { role: source.role } : {}),
     ...(source.objective ? { objective: source.objective } : {}),
     ...(source.rules?.length ? { rules: [...source.rules] } : {}),
@@ -432,6 +438,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     provider: meta.provider,
     permissionMode: meta.permissionMode,
     name: meta.name,
+    monogram: meta.monogram,
     role: meta.role,
     objective: meta.objective,
     rules: normalizeAgentRules(meta.rules),
@@ -478,7 +485,7 @@ export interface AgentCatalogMigrationTabInput {
 
 /**
  * Normaliza session: conserva bindings slim; descarta rich meta legacy sin escribir JSON.
- * `writes` siempre [] — agentes solo viven en `.iaterminal/agents`.
+ * `writes` siempre [] — agentes solo viven en `.gravity/agents`.
  */
 export function planAgentCatalogMigration(
   tabs: AgentCatalogMigrationTabInput[],

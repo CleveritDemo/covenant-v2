@@ -112,6 +112,14 @@ import {
   gitUnstageAll,
   gitUnstageFile,
 } from './gitSessionOps'
+import {
+  gitCurrentBranch,
+  gitWorktreeAbortMerge,
+  gitWorktreeAdd,
+  gitWorktreeList,
+  gitWorktreeMerge,
+  gitWorktreeRemove,
+} from './gitWorktreeOps'
 import { githubActionsListForSession, githubRunJobsForSession } from './githubActionsOps'
 import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
@@ -735,6 +743,46 @@ function registerIpc(): void {
     const result = gitUnstageFile(resolveGitTargetCwd(target), relPath)
     emitGitStatusChanged(target)
     return result
+  })
+
+  ipcMain.handle(IPC.GIT_CURRENT_BRANCH, (_e, target: { sessionId?: string; path?: string }) => {
+    return gitCurrentBranch(resolveGitTargetCwd(target))
+  })
+  ipcMain.handle(
+    IPC.GIT_WORKTREE_ADD,
+    (
+      _e,
+      target: { sessionId?: string; path?: string },
+      request: { worktreePath: string; branch: string; fromRef: string },
+    ) => {
+      return gitWorktreeAdd(resolveGitTargetCwd(target), request)
+    },
+  )
+  ipcMain.handle(
+    IPC.GIT_WORKTREE_MERGE,
+    (
+      _e,
+      target: { sessionId?: string; path?: string },
+      request: { branch: string; message: string },
+    ) => {
+      return gitWorktreeMerge(resolveGitTargetCwd(target), request)
+    },
+  )
+  ipcMain.handle(IPC.GIT_WORKTREE_ABORT_MERGE, (_e, target: { sessionId?: string; path?: string }) => {
+    return gitWorktreeAbortMerge(resolveGitTargetCwd(target))
+  })
+  ipcMain.handle(
+    IPC.GIT_WORKTREE_REMOVE,
+    (
+      _e,
+      target: { sessionId?: string; path?: string },
+      request: { worktreePath: string; branch: string; force?: boolean },
+    ) => {
+      return gitWorktreeRemove(resolveGitTargetCwd(target), request)
+    },
+  )
+  ipcMain.handle(IPC.GIT_WORKTREE_LIST, (_e, target: { sessionId?: string; path?: string }) => {
+    return gitWorktreeList(resolveGitTargetCwd(target))
   })
 
   ipcMain.handle(IPC.GITHUB_ACTIONS_LIST, async (_e, target: { sessionId?: string; path?: string }) => {

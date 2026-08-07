@@ -16,3 +16,6 @@ build/release-notes.md
 
 # Worktrees de agentes (estado local)
 .covenant/
+
+# Worktrees de git creados por la orquestación de agentes (Fase 1 git worktree)
+/.gravity/worktrees/

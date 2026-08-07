@@ -118,6 +118,13 @@ interface Props {
   meta: AgentPaneMeta
   /** Carpeta del proyecto de la pestaña (única fuente de cwd del agente). */
   cwd: string
+  /**
+   * Si está presente, el turno usa este cwd (worktree) en vez de la carpeta del
+   * proyecto. SOLO afecta al spawn del CLI (`startAgentTurn`): contextos, results
+   * y catálogo de agentes en disco siguen resolviéndose contra `cwd` (base), porque
+   * `.gravity/` vive en la carpeta del proyecto, no en el worktree.
+   */
+  cwdOverride?: string
   /** Sube al remapear results por rename de slug (fuerza rediscovery). */
   contextsRevision?: number
   /** El catálogo de contextos del proyecto cambió en disco (p. ej. results creado). */
@@ -256,6 +263,7 @@ export const AgentPane: React.FC<Props> = ({
   paneId,
   meta,
   cwd,
+  cwdOverride,
   contextsRevision = 0,
   onProjectContextsChanged,
   tabActive,
@@ -369,6 +377,8 @@ export const AgentPane: React.FC<Props> = ({
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
   const cwdRef = useRef(cwd)
+  /** Override efímero (worktree) para el cwd del turno; ver prop `cwdOverride`. */
+  const cwdOverrideRef = useRef(cwdOverride)
   const onMetaChangeRef = useRef(onMetaChange)
   const onProjectContextsChangedRef = useRef(onProjectContextsChanged)
   const busyRef = useRef(busy)
@@ -418,6 +428,7 @@ export const AgentPane: React.FC<Props> = ({
   metaRef.current = meta
   diskContextsRef.current = diskContexts
   cwdRef.current = cwd
+  cwdOverrideRef.current = cwdOverride
   onMetaChangeRef.current = onMetaChange
   onProjectContextsChangedRef.current = onProjectContextsChanged
   busyRef.current = busy
@@ -445,7 +456,19 @@ export const AgentPane: React.FC<Props> = ({
     setSettlingId(id)
   }, [])
 
+  /** Carpeta BASE del proyecto: usar para todo lo relacionado con `.gravity/` (contexts, results, catálogo de agentes). Nunca el worktree. */
   const resolveWorkingCwd = useCallback(async (): Promise<string> => {
+    return cwdRef.current.trim()
+  }, [])
+
+  /**
+   * Cwd del TURNO (override-aware): si hay `cwdOverride` (worktree), lo usa; si no,
+   * cae al cwd base. Úsalo SOLO para el spawn del CLI (`startAgentTurn`), nunca para
+   * contexts/results/catálogo de agentes (esos siempre resuelven contra la base).
+   */
+  const resolveTurnCwd = useCallback(async (): Promise<string> => {
+    const override = cwdOverrideRef.current?.trim()
+    if (override) return override
     return cwdRef.current.trim()
   }, [])
 
@@ -917,6 +940,7 @@ export const AgentPane: React.FC<Props> = ({
 
     const currentMeta = metaRef.current
     const assigned = options.contexts
+    // Base: usada para contextos (.gravity vive en el proyecto, nunca en el worktree).
     const resolvedCwd = await resolveWorkingCwd()
 
     if (assigned.length && resolvedCwd) {
@@ -989,6 +1013,8 @@ export const AgentPane: React.FC<Props> = ({
     }
     emptyResponseRetriesRef.current = 0
     suppressEmptyHandlingRef.current = false
+    // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
+    const turnCwd = await resolveTurnCwd()
     const rules = normalizeAgentRules(currentMeta.rules)
     const canDelegate = coordinationCanDelegate(currentMeta.coordination)
     const orchestrationAgents = canDelegate
@@ -999,7 +1025,7 @@ export const AgentPane: React.FC<Props> = ({
       paneId,
       provider: currentMeta.provider,
       prompt,
-      cwd: resolvedCwd,
+      cwd: turnCwd,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
       ...(currentMeta.id?.trim() ? { agentId: currentMeta.id.trim() } : {}),
       ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
@@ -1038,7 +1064,7 @@ export const AgentPane: React.FC<Props> = ({
     lastTurnRequestRef.current = request
     window.api.startAgentTurn(request)
     return true
-  }, [forceFollow, paneId, resolveWorkingCwd, t])
+  }, [forceFollow, paneId, resolveTurnCwd, resolveWorkingCwd, t])
 
   const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
     clearLoopTimer()

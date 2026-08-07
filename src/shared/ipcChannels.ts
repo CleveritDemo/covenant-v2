@@ -114,6 +114,19 @@ export const IPC = {
   GIT_UNSTAGE_ALL: 'git:unstageAll',
   GIT_UNSTAGE_FILE: 'git:unstageFile',
 
+  /** Renderer → main (invoke): rama actual del repo (`rev-parse --abbrev-ref HEAD`) */
+  GIT_CURRENT_BRANCH: 'git:currentBranch',
+  /** Renderer → main (invoke): crea worktree + rama nueva desde una ref */
+  GIT_WORKTREE_ADD: 'git:worktreeAdd',
+  /** Renderer → main (invoke): merge --no-ff de una rama en el repo base */
+  GIT_WORKTREE_MERGE: 'git:worktreeMerge',
+  /** Renderer → main (invoke): aborta un merge en curso (idempotente) */
+  GIT_WORKTREE_ABORT_MERGE: 'git:worktreeAbortMerge',
+  /** Renderer → main (invoke): elimina worktree + rama (best-effort) */
+  GIT_WORKTREE_REMOVE: 'git:worktreeRemove',
+  /** Renderer → main (invoke): lista worktrees del repo (`worktree list --porcelain`) */
+  GIT_WORKTREE_LIST: 'git:worktreeList',
+
   /** Renderer → main (invoke): workflow runs de GitHub Actions vía gh CLI */
   GITHUB_ACTIONS_LIST: 'githubActions:list',
   /** Renderer → main: ¿de quién es este token y con qué scopes? Vacío = el resuelto del entorno. */

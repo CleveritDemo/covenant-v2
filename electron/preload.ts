@@ -12,6 +12,17 @@ import type {
   GitTarget,
 } from '../src/shared/gitSessionTypes'
 import type {
+  GitCurrentBranchResult,
+  GitWorktreeAbortMergeResult,
+  GitWorktreeAddRequest,
+  GitWorktreeAddResult,
+  GitWorktreeEntry,
+  GitWorktreeMergeRequest,
+  GitWorktreeMergeResult,
+  GitWorktreeRemoveRequest,
+  GitWorktreeRemoveResult,
+} from '../src/shared/gitWorktree'
+import type {
   GitHubActionsSnapshot,
   GitHubRunJobsResult,
   GitHubTokenCheck,
@@ -394,6 +405,30 @@ const api = {
 
   gitUnstageFile(target: GitTarget, relPath: string): Promise<GitCommandResult> {
     return ipcRenderer.invoke(IPC.GIT_UNSTAGE_FILE, target, relPath)
+  },
+
+  gitCurrentBranch(target: GitTarget): Promise<GitCurrentBranchResult> {
+    return ipcRenderer.invoke(IPC.GIT_CURRENT_BRANCH, target)
+  },
+
+  gitWorktreeAdd(target: GitTarget, request: GitWorktreeAddRequest): Promise<GitWorktreeAddResult> {
+    return ipcRenderer.invoke(IPC.GIT_WORKTREE_ADD, target, request)
+  },
+
+  gitWorktreeMerge(target: GitTarget, request: GitWorktreeMergeRequest): Promise<GitWorktreeMergeResult> {
+    return ipcRenderer.invoke(IPC.GIT_WORKTREE_MERGE, target, request)
+  },
+
+  gitWorktreeAbortMerge(target: GitTarget): Promise<GitWorktreeAbortMergeResult> {
+    return ipcRenderer.invoke(IPC.GIT_WORKTREE_ABORT_MERGE, target)
+  },
+
+  gitWorktreeRemove(target: GitTarget, request: GitWorktreeRemoveRequest): Promise<GitWorktreeRemoveResult> {
+    return ipcRenderer.invoke(IPC.GIT_WORKTREE_REMOVE, target, request)
+  },
+
+  gitWorktreeList(target: GitTarget): Promise<GitWorktreeEntry[]> {
+    return ipcRenderer.invoke(IPC.GIT_WORKTREE_LIST, target)
   },
 
   githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {

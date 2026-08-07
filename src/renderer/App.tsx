@@ -65,6 +65,14 @@ import {
 } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
+  worktreeBranchFor,
+  worktreeRelPathFor,
+  buildMergeCommitMessage,
+  buildConflictFollowUp,
+  shouldUseWorktreeForDelegation,
+  WORKTREES_DIR_SEGMENT,
+} from '@shared/worktreeDelegation'
+import {
   clearPlaneSendsForOrchestrationAbort,
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
@@ -343,6 +351,9 @@ export const App: React.FC = () => {
   const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
+  /** Override efímero de cwd por-pane (paneId → worktree absoluto); Fase 3, no persistido. */
+  const [paneCwdOverrideTick, setPaneCwdOverrideTick] = useState(0)
+  const paneCwdOverrideRef = useRef(new Map<string, string>())
   const chainFifoByPaneRef = useRef(new Map<string, LoopChainFifoItem[]>())
   const chainOfferByPaneRef = useRef(new Map<string, LoopChainFifoItem>())
   const chainTurnWaitRef = useRef(new Map<string, LoopChainTurnWait>())
@@ -367,6 +378,21 @@ export const App: React.FC = () => {
   const completedDelegationResultsByOrchestratorRef = useRef(
     new Map<string, DelegateResult[]>(),
   )
+  /** Fase 4: rama base cacheada por orquestador (fromPaneId) — evita repetir gitCurrentBranch. */
+  const baseBranchByOrchestratorRef = useRef(
+    new Map<string, { baseCwd: string; isGitRepo: boolean; baseBranch: string }>(),
+  )
+  /** Fase 4: worktrees activos por delegación, para commit+merge+cleanup al completar. */
+  const worktreesByDelegationRef = useRef(new Map<string, {
+    fromPaneId: string
+    toPaneId: string
+    worktreePath: string
+    branch: string
+    baseCwd: string
+    baseBranch: string
+  }>())
+  /** Fase 4: cola de merges serializada por orquestador (encadena promesas, evita carreras git). */
+  const mergeQueueByOrchestratorRef = useRef(new Map<string, Promise<void>>())
   const [awaitingDelegationPaneIds, setAwaitingDelegationPaneIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -889,6 +915,28 @@ export const App: React.FC = () => {
           )]
           await Promise.all(folders.map(folder => refreshAndSyncProjectAgents(folder)))
 
+          // QA fix (Fase 4): boot GC de worktrees huérfanos (crash/kill de sesiones previas).
+          await Promise.all(folders.map(async folder => {
+            try {
+              const worktreePrefix = `${folder.replace(/\/+$/, '')}/${WORKTREES_DIR_SEGMENT}/`
+              const list = await window.api.gitWorktreeList({ path: folder })
+              const orphans = list.filter(entry => entry.path.startsWith(worktreePrefix))
+              for (const entry of orphans) {
+                try {
+                  await window.api.gitWorktreeRemove({ path: folder }, {
+                    worktreePath: entry.path,
+                    branch: entry.branch,
+                    force: true,
+                  })
+                } catch (err) {
+                  console.warn(`[worktree] boot GC falló removiendo ${entry.path}:`, err)
+                }
+              }
+            } catch (err) {
+              console.warn(`[worktree] boot GC falló listando worktrees de ${folder}:`, err)
+            }
+          }))
+
           const covenant = getCovenantApi()
           if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
             const byWorkspace = new Map<string, {
@@ -1135,6 +1183,51 @@ export const App: React.FC = () => {
       return next
     })
   }, [])
+
+  /**
+   * Fase 3 (plumbing): asigna un override de cwd (worktree) al pane `paneId` para que
+   * su próximo turno de agente spawnee el CLI ahí en vez de `tab.projectFolder`.
+   * Efímero (no persiste en session.json); Fase 4 conectará la creación real de worktrees.
+   */
+  const setPaneCwdOverride = useCallback((paneId: string, absPath: string) => {
+    const trimmed = absPath.trim()
+    if (!trimmed) return
+    if (paneCwdOverrideRef.current.get(paneId) === trimmed) return
+    paneCwdOverrideRef.current.set(paneId, trimmed)
+    setPaneCwdOverrideTick(n => n + 1)
+  }, [])
+
+  /** Limpia el override de cwd del pane `paneId`, volviendo al `tab.projectFolder` base. */
+  const clearPaneCwdOverride = useCallback((paneId: string) => {
+    if (!paneCwdOverrideRef.current.has(paneId)) return
+    paneCwdOverrideRef.current.delete(paneId)
+    setPaneCwdOverrideTick(n => n + 1)
+  }, [])
+
+  /**
+   * Fase 4 (QA fix): teardown best-effort de worktrees huérfanos al cancelar un
+   * orquestador o cerrar un pane. Borra toda entrada de worktreesByDelegationRef cuyo
+   * `fromPaneId` (orquestador) O `toPaneId` (especialista) sea `paneId` — cubre ambos
+   * casos: cerrar/abortar el orquestador, o cerrar el pane especialista que la ejecutaba.
+   */
+  const cleanupWorktreesForPane = useCallback(async (paneId: string) => {
+    const affected = [...worktreesByDelegationRef.current.entries()]
+      .filter(([, info]) => info.fromPaneId === paneId || info.toPaneId === paneId)
+    for (const [delegationId, info] of affected) {
+      try {
+        clearPaneCwdOverride(info.toPaneId)
+        await window.api.gitWorktreeRemove({ path: info.baseCwd }, {
+          worktreePath: info.worktreePath,
+          branch: info.branch,
+          force: true,
+        })
+      } catch (err) {
+        console.warn(`[worktree] cleanup falló para la delegación ${delegationId}:`, err)
+      } finally {
+        worktreesByDelegationRef.current.delete(delegationId)
+      }
+    }
+  }, [clearPaneCwdOverride])
 
   const busyTabIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1772,6 +1865,9 @@ export const App: React.FC = () => {
     delete prevBusyByPaneRef.current[paneId]
     planeLoopToggleByPaneRef.current.delete(paneId)
     planeQueueControlsByPaneRef.current.delete(paneId)
+    // QA fix: no dejar worktrees/ramas huérfanos si se cierra el orquestador o el pane
+    // especialista que estaba ejecutando una delegación en un worktree dedicado.
+    void cleanupWorktreesForPane(paneId)
     setTimeout(() => {
       window.api.deleteScrollback(paneId)
       window.api.deleteAiChat(paneId)
@@ -1779,7 +1875,7 @@ export const App: React.FC = () => {
       window.api.deleteInteractionsLog(paneId)
       window.api.deleteAgentChat(paneId)
     }, 0)
-  }, [])
+  }, [cleanupWorktreesForPane])
 
   const handlePickProjectFolder = useCallback(async (tabId: string): Promise<string | null> => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -2748,7 +2844,7 @@ export const App: React.FC = () => {
     return resolveOrchestrationMaxRounds(meta.orchestrationMaxRounds)
   }, [])
 
-  const handleOrchestratorDelegations = useCallback((
+  const handleOrchestratorDelegations = useCallback(async (
     fromPaneId: string,
     tabId: string,
     delegations: DelegateRequest[],
@@ -2802,6 +2898,52 @@ export const App: React.FC = () => {
         continue
       }
       pending.set(delegation.id, toPaneId)
+
+      // Fase 4: intenta aislar esta delegación en un worktree dedicado (best-effort).
+      // Sin repo git o sin rama base resuelta, cae al comportamiento actual (sin override).
+      const baseCwd = tab.projectFolder?.trim() || ''
+      if (baseCwd) {
+        let branchInfo = baseBranchByOrchestratorRef.current.get(fromPaneId)
+        if (!branchInfo || branchInfo.baseCwd !== baseCwd) {
+          const branchResult = await window.api.gitCurrentBranch({ path: baseCwd })
+          branchInfo = {
+            baseCwd,
+            isGitRepo: branchResult.ok,
+            baseBranch: branchResult.ok ? branchResult.branch : '',
+          }
+          baseBranchByOrchestratorRef.current.set(fromPaneId, branchInfo)
+        }
+        if (shouldUseWorktreeForDelegation({
+          isGitRepo: branchInfo.isGitRepo,
+          hasBaseBranch: branchInfo.baseBranch.trim() !== '',
+        })) {
+          const branch = worktreeBranchFor(delegation.id)
+          const relPath = worktreeRelPathFor(tabId, delegation.id)
+          const worktreePath = `${baseCwd.replace(/\/+$/, '')}/${relPath}`
+          const addResult = await window.api.gitWorktreeAdd({ path: baseCwd }, {
+            worktreePath,
+            branch,
+            fromRef: branchInfo.baseBranch,
+          })
+          if (addResult.ok) {
+            setPaneCwdOverride(toPaneId, worktreePath)
+            worktreesByDelegationRef.current.set(delegation.id, {
+              fromPaneId,
+              toPaneId,
+              worktreePath,
+              branch,
+              baseCwd,
+              baseBranch: branchInfo.baseBranch,
+            })
+          } else {
+            console.warn(
+              `[worktree] gitWorktreeAdd falló para la delegación ${delegation.id}, usando cwd base:`,
+              addResult.error || addResult.stderr,
+            )
+          }
+        }
+      }
+
       const contextHint = delegation.contextIds?.length
         ? `\n\nPreferred context ids: ${delegation.contextIds.join(', ')}`
         : ''
@@ -2817,9 +2959,80 @@ export const App: React.FC = () => {
     }
     pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
     syncAwaitingFromPending()
-  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane, syncAwaitingFromPending])
+  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane, setPaneCwdOverride, syncAwaitingFromPending])
 
-  const handleDelegationTurnComplete = useCallback((result: DelegateResult) => {
+  /**
+   * Fase 4: al completarse una delegación que usó un worktree dedicado, comitea el
+   * trabajo del especialista y mergea a la rama base. Los merges (y su commit previo)
+   * se serializan por orquestador (fromPaneId) encadenando promesas en
+   * mergeQueueByOrchestratorRef — la entrada se registra de forma SÍNCRONA (antes de
+   * cualquier await) para que el wake en handleDelegationTurnComplete pueda esperarla
+   * de forma fiable aunque no se haga `await` sobre esta llamada. En conflicto: aborta
+   * el merge, re-encola la delegación como pendiente y pide al especialista resolver en
+   * el worktree (que se conserva para el reintento). En éxito: limpia el override de cwd
+   * y borra el worktree. Devuelve la promesa encadenada (para integrarla en el wake).
+   */
+  const finalizeDelegationWorktree = useCallback((
+    fromPaneId: string,
+    result: DelegateResult,
+    info: { toPaneId: string; worktreePath: string; branch: string; baseCwd: string; baseBranch: string },
+  ): Promise<void> => {
+    const previousOp = mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve()
+    const chainedOp = previousOp.catch(() => {}).then(async () => {
+      const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+      const fromMeta = tab
+        ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+        : undefined
+      const objectiveFirstLine = (result.summary || '').split(/\r?\n/)[0] || ''
+      const commitMessage = buildMergeCommitMessage({
+        agentId: fromMeta?.id || '',
+        toAgentId: result.toAgentId,
+        objectiveFirstLine,
+        delegationId: result.id,
+      })
+
+      await window.api.gitStageAll({ path: info.worktreePath })
+      const commitResult = await window.api.gitCommit({ path: info.worktreePath }, commitMessage)
+      if (!commitResult.ok && !/nothing to commit/i.test(commitResult.stderr || '')) {
+        console.warn(`[worktree] gitCommit falló para la delegación ${result.id}:`, commitResult.stderr)
+      }
+
+      const mergeResult = await window.api.gitWorktreeMerge({ path: info.baseCwd }, {
+        branch: info.branch,
+        message: commitMessage,
+      })
+      if (mergeResult.conflicted) {
+        await window.api.gitWorktreeAbortMerge({ path: info.baseCwd })
+        // Deja el worktree intacto para el reintento y re-encola la delegación como pendiente.
+        const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
+          ?? new Map<string, string>()
+        pending.set(result.id, info.toPaneId)
+        pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
+        syncAwaitingFromPending()
+        enqueueOrchestrationSend(info.toPaneId, {
+          text: buildConflictFollowUp({ conflictFiles: mergeResult.conflictFiles, branch: info.branch }),
+          focusPane: false,
+          delegation: { id: result.id, fromPaneId, toAgentId: result.toAgentId ?? '' },
+        })
+        return
+      }
+      if (!mergeResult.ok) {
+        console.warn(`[worktree] gitWorktreeMerge falló para la delegación ${result.id}:`, mergeResult.stderr)
+        return
+      }
+      clearPaneCwdOverride(info.toPaneId)
+      await window.api.gitWorktreeRemove({ path: info.baseCwd }, {
+        worktreePath: info.worktreePath,
+        branch: info.branch,
+        force: true,
+      })
+      worktreesByDelegationRef.current.delete(result.id)
+    })
+    mergeQueueByOrchestratorRef.current.set(fromPaneId, chainedOp)
+    return chainedOp
+  }, [clearPaneCwdOverride, enqueueOrchestrationSend, syncAwaitingFromPending])
+
+  const handleDelegationTurnComplete = useCallback(async (result: DelegateResult) => {
     const fromPaneId = [...pendingDelegationsByOrchestratorRef.current.entries()]
       .find(([, map]) => map.has(result.id))?.[0]
     if (!fromPaneId) return
@@ -2833,7 +3046,21 @@ export const App: React.FC = () => {
     buffered.push(result)
     completedDelegationResultsByOrchestratorRef.current.set(fromPaneId, buffered)
     syncAwaitingFromPending()
+
+    // Fase 4: si esta delegación corrió en un worktree dedicado, comitea+mergea+limpia.
+    // finalizeDelegationWorktree registra la operación en mergeQueueByOrchestratorRef de
+    // forma SÍNCRONA antes de este punto (ver su comentario), así que el await del wake
+    // (más abajo) la incluye aunque no se espere aquí directamente.
+    const worktreeInfo = worktreesByDelegationRef.current.get(result.id)
+    if (worktreeInfo) {
+      void finalizeDelegationWorktree(fromPaneId, result, worktreeInfo)
+    }
+
     if (!shouldWakeOrchestratorOnDelegationComplete(remaining)) return
+
+    // QA fix: el orquestador debe despertar con el código YA integrado — espera la cola
+    // de merges de este orquestador (todas las delegaciones del batch) antes del follow-up.
+    await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
 
     const batchResults = completedDelegationResultsByOrchestratorRef.current.get(fromPaneId) ?? []
     completedDelegationResultsByOrchestratorRef.current.delete(fromPaneId)
@@ -2854,7 +3081,7 @@ export const App: React.FC = () => {
       orchestrationFollowUp: true,
       allowDelegations: !atCap,
     })
-  }, [enqueueOrchestrationSend, orchestrationMaxRoundsForPane, syncAwaitingFromPending])
+  }, [enqueueOrchestrationSend, finalizeDelegationWorktree, orchestrationMaxRoundsForPane, syncAwaitingFromPending])
 
   const requestPlaneStop = useCallback((paneId: string) => {
     setPlaneStopPaneIds(previous => {
@@ -2888,7 +3115,9 @@ export const App: React.FC = () => {
     }
     setOrchestrationFifoTick(n => n + 1)
     syncAwaitingFromPending()
-  }, [requestPlaneStop, syncAwaitingFromPending])
+    // QA fix: no dejar worktrees/ramas huérfanos de este orquestador al abortar.
+    void cleanupWorktreesForPane(fromPaneId)
+  }, [cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending])
 
   const handleOrchestratorStop = useCallback((fromPaneId: string) => {
     abortOrchestrationRun(fromPaneId)
@@ -3379,6 +3608,9 @@ export const App: React.FC = () => {
           paneId={paneId}
           meta={resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)}
           cwd={tab.projectFolder?.trim() ?? ''}
+          cwdOverride={
+            paneCwdOverrideTick >= 0 ? paneCwdOverrideRef.current.get(paneId) : undefined
+          }
           projectAgents={projectAgentsByCwd[tab.projectFolder?.trim() ?? ''] ?? []}
           contextsRevision={contextsRevisionByCwd[tab.projectFolder?.trim() ?? ''] ?? 0}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}

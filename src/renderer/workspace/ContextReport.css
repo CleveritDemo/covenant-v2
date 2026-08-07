@@ -1,0 +1,85 @@
+/* Cuerpo desplazable del Reporte; el meta y el toggle los pinta el modal. */
+.context-report {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 2px 4px;
+  overflow-y: auto;
+}
+
+.context-report__code {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.context-report__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.context-report__notes {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.context-report__notes > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.context-report__notes > header > h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.context-report__prov {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.context-report__notes-text {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.context-report__annotations {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.context-report__annotations > div {
+  display: contents;
+}
+
+.context-report__annotations dt {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.context-report__annotations dd {
+  margin: 0;
+}

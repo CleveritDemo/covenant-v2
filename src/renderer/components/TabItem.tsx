@@ -129,7 +129,7 @@ export const TabItem: React.FC<TabItemProps> = ({
             name={
               tab.paneKinds?.[tab.activePaneId] === 'agent' ||
               Object.values(tab.paneKinds ?? {}).includes('agent')
-                ? 'bot'
+                ? 'workspace'
                 : 'terminal'
             }
             size={11}

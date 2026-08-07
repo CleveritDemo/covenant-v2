@@ -214,19 +214,21 @@ const AgentResultsReport: React.FC<{
   )
 }
 
-/** Vista previa solo lectura del Markdown de un contexto (p. ej. results de agente). */
-export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProps> = ({
-  open,
+/**
+ * Cuerpo del preview de un contexto: meta, par Reporte/Fuente y notas.
+ * Dos anfitriones: el modal de un contexto suelto y el panel derecho del
+ * listado. Se monta ya con `context`; el host decide cuándo desmontarlo.
+ */
+export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> = ({
   context,
   cwd,
-  onClose,
 }) => {
   const { t } = useT()
-  const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
+  const [preview, setPreview] = useState<PreviewState>({ status: 'loading' })
   const [view, setView] = useState<'report' | 'source'>('report')
   const [reload, setReload] = useState(0)
   const [consumers, setConsumers] = useState<ResultsConsumer[]>([])
-  const isResults = context?.kind === 'agentResult'
+  const isResults = context.kind === 'agentResult'
   const agentId = isResults && context.id.startsWith(RESULT_ID_PREFIX)
     ? context.id.slice(RESULT_ID_PREFIX.length)
     : ''
@@ -237,7 +239,7 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
 
   // Quién tiene este results entre sus contextIds (el dueño no cuenta).
   useEffect(() => {
-    if (!open || !isResults || !cwd.trim()) {
+    if (!isResults || !cwd.trim()) {
       setConsumers([])
       return
     }
@@ -253,7 +255,7 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
     return () => {
       cancelled = true
     }
-  }, [open, isResults, cwd, agentId, context?.id])
+  }, [isResults, cwd, agentId, context.id])
 
   const saveNotes = async (notes: string): Promise<string | null> => {
     if (!agentId || !cwd.trim()) return t('tabContexts.resultsNotesSaveFailed')
@@ -263,18 +265,20 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
     return null
   }
 
+  // Identidad del contexto, no del objeto: el catálogo se reconstruye entero en
+  // cada refresh y volvería a disparar la carga (y su parpadeo) sin haber cambiado.
+  const contextKey = `${context.id} ${context.fileName} ${context.kind}`
+
   useEffect(() => {
-    if (!open || !context) {
-      setPreview({ status: 'idle' })
-      return
-    }
     const workingCwd = cwd.trim()
     if (!workingCwd) {
       setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
       return
     }
     let cancelled = false
-    setPreview({ status: 'loading' })
+    // Se conserva lo ya pintado mientras llega lo nuevo: blanquear el panel en
+    // cada cambio de selección es el parpadeo. Leer un .md local dura ms.
+    setPreview(previous => (previous.status === 'success' ? previous : { status: 'loading' }))
     void window.api.previewTabContext({ context, cwd: workingCwd }).then(result => {
       if (cancelled) return
       if (!result.ok) {
@@ -304,8 +308,82 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
     return () => {
       cancelled = true
     }
-  }, [open, context, cwd, reload, t])
+    // Sin `t`: solo se usa para textos de error y una identidad inestable
+    // (i18n recreando la función) relanzaría la carga en cada render.
+  }, [contextKey, cwd, reload])
 
+  return (
+    <div className="context-content-preview">
+      {preview.status === 'loading' && (
+        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--loading">
+          <p>{t('tabContexts.loading')}</p>
+        </div>
+      )}
+      {preview.status === 'empty' && (
+        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--empty">
+          <p>{t('tabContexts.previewEmpty')}</p>
+          {preview.filePath ? <small>{preview.filePath}</small> : null}
+        </div>
+      )}
+      {preview.status === 'error' && (
+        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
+          <p>{preview.message}</p>
+        </div>
+      )}
+      {preview.status === 'success' && (
+        <div className="tab-contexts__preview-panel tab-contexts__preview-panel--success">
+          {/* Datos a la izquierda, toggle anclado a la derecha (ver el CSS). */}
+          <div className="tab-contexts__preview-meta">
+            <small>
+              {doc && view === 'report'
+                ? [
+                  doc.entries.length ? t('tabContexts.resultsEntries', { count: doc.entries.length }) : '',
+                  doc.notes ? t('tabContexts.resultsHasNotes') : '',
+                ].filter(Boolean).join(' · ')
+                : t('tabContexts.previewStats', {
+                  auto: countAutoKeys(preview.content),
+                  notes: countAnnotations(preview.content),
+                })}
+            </small>
+            <small>{shortPath(preview.filePath)}</small>
+            {doc ? (
+              <SegmentedControl
+                size="sm"
+                layout="scroll"
+                label={t('tabContexts.resultsView')}
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'report', label: t('tabContexts.resultsViewReport') },
+                  { value: 'source', label: t('tabContexts.resultsViewSource') },
+                ]}
+              />
+            ) : null}
+          </div>
+          {doc && view === 'report' ? (
+            <AgentResultsReport
+              doc={doc}
+              agentName={context.name.trim()}
+              consumers={consumers}
+              onSaveNotes={saveNotes}
+            />
+          ) : (
+            <pre className="tab-contexts__preview">{preview.content}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Vista previa solo lectura del Markdown de un contexto (p. ej. results de agente). */
+export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProps> = ({
+  open,
+  context,
+  cwd,
+  onClose,
+}) => {
+  const { t } = useT()
   const title = context
     ? `${context.name} · ${t(`tabContexts.kind_${context.kind}`)}`
     : t('tabContexts.preview')
@@ -321,73 +399,9 @@ export const ContextContentPreviewModal: React.FC<ContextContentPreviewModalProp
       closeOnBackdrop
       zIndex={APP_OVERLAY_MODAL_Z}
     >
-      <div className="context-content-preview">
-        {preview.status === 'idle' && (
-          <p className="tab-contexts__preview-empty">{t('tabContexts.selectToPreview')}</p>
-        )}
-        {preview.status === 'loading' && (
-          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--loading">
-            <p>{t('tabContexts.loading')}</p>
-          </div>
-        )}
-        {preview.status === 'empty' && (
-          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--empty">
-            <p>{t('tabContexts.previewEmpty')}</p>
-            {preview.filePath ? <small>{preview.filePath}</small> : null}
-          </div>
-        )}
-        {preview.status === 'error' && (
-          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--error">
-            <p>{preview.message}</p>
-          </div>
-        )}
-        {preview.status === 'success' && (
-          <div className="tab-contexts__preview-panel tab-contexts__preview-panel--success">
-            <div className="tab-contexts__preview-meta">
-              {doc && view === 'report' ? (
-                <small>
-                  {doc.entries.length
-                    ? t('tabContexts.resultsEntries', { count: doc.entries.length })
-                    : ''}
-                  {doc.notes ? `${doc.entries.length ? ' · ' : ''}${t('tabContexts.resultsHasNotes')}` : ''}
-                </small>
-              ) : (
-                <small>{shortPath(preview.filePath)}</small>
-              )}
-              {doc ? (
-                <SegmentedControl
-                  size="sm"
-                  layout="scroll"
-                  label={t('tabContexts.resultsView')}
-                  value={view}
-                  onChange={setView}
-                  options={[
-                    { value: 'report', label: t('tabContexts.resultsViewReport') },
-                    { value: 'source', label: t('tabContexts.resultsViewSource') },
-                  ]}
-                />
-              ) : null}
-              <small>
-                {doc && view === 'report'
-                  ? shortPath(preview.filePath)
-                  : t('tabContexts.previewStats', {
-                    auto: countAutoKeys(preview.content),
-                    notes: countAnnotations(preview.content),
-                  })}
-              </small>
-            </div>
-            {doc && view === 'report' ? (
-              <AgentResultsReport
-                doc={doc}
-                agentName={context?.name?.trim() || ''}
-                consumers={consumers}
-                onSaveNotes={saveNotes}
-              />
-            ) : (
-              <pre className="tab-contexts__preview">{preview.content}</pre>
-            )}
-          </div>
-        )}
+      {/* El host fija la altura; el cuerpo solo rellena. */}
+      <div className="context-content-preview-host">
+        {context ? <ContextPreviewBody context={context} cwd={cwd} /> : null}
       </div>
     </TerminalModal>
   )

@@ -1378,7 +1378,8 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts--list {
   display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.2fr);
+  /* El rail es un índice, no la mitad del modal: el preview se queda el resto. */
+  grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
   height: min(78vh, 760px);
 }
 
@@ -1389,11 +1390,11 @@ html[data-reduce-motion="true"] {
 .tab-contexts__list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  padding: 12px;
+  padding: 10px;
   overflow-x: hidden;
   overflow-y: auto;
   background: color-mix(in srgb, var(--bg) 35%, var(--bg-secondary));
@@ -1417,8 +1418,8 @@ html[data-reduce-motion="true"] {
   min-height: 0;
   height: 100%;
   padding: 14px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* Scrollea ContextPreviewBody, no el panel. */
+  overflow: hidden;
   background: var(--bg-secondary);
 }
 
@@ -1474,11 +1475,11 @@ html[data-reduce-motion="true"] {
 .tab-contexts__group {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 2px;
 }
 
 .tab-contexts__group-title {
-  margin: 8px 2px 0;
+  margin: 10px 2px 2px;
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.03em;
@@ -1486,32 +1487,33 @@ html[data-reduce-motion="true"] {
   color: var(--text-muted);
 }
 
+/* Filas de índice, no tarjetas: el chrome solo aparece al hover o en la activa. */
 .tab-contexts__item {
   display: flex;
   align-items: stretch;
-  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  border-radius: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
   overflow: hidden;
-  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  transition: border-color .16s ease, background .16s ease;
 }
 
 .tab-contexts__item:hover {
-  border-color: color-mix(in srgb, var(--border) 45%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
 }
 
 .tab-contexts__item--active {
-  background: color-mix(in srgb, var(--surface) 55%, var(--bg-secondary));
-  border-color: color-mix(in srgb, var(--border) 35%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface) 85%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
 }
 
 .tab-contexts__item > button:first-child {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
-  padding: 10px;
+  padding: 7px 9px;
   color: var(--text);
   background: transparent;
   border: 0;
@@ -1519,18 +1521,15 @@ html[data-reduce-motion="true"] {
   cursor: pointer;
 }
 
-/* Insignia circular con el icono del tipo de contexto. */
+/* Glifo teñido con el color del contexto; sin caja, que la fila ya es la caja. */
 .tab-contexts__item-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface) 40%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 10px;
 }
 
 .tab-contexts__item-text {
@@ -1543,7 +1542,7 @@ html[data-reduce-motion="true"] {
 .tab-contexts__item strong {
   max-width: 100%;
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1551,7 +1550,7 @@ html[data-reduce-motion="true"] {
 .tab-contexts__item-text > span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1563,12 +1562,23 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts__edit,
 .tab-contexts__delete {
-  width: 32px;
+  width: 26px;
+  opacity: 0;
   color: var(--text-muted);
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: color .16s ease;
+  transition: color .16s ease, opacity .12s ease;
+}
+
+/* Borrar toca un .md del proyecto: que no esté siempre a tiro. */
+.tab-contexts__item:hover .tab-contexts__edit,
+.tab-contexts__item:hover .tab-contexts__delete,
+.tab-contexts__item--active .tab-contexts__edit,
+.tab-contexts__item--active .tab-contexts__delete,
+.tab-contexts__edit:focus-visible,
+.tab-contexts__delete:focus-visible {
+  opacity: 1;
 }
 
 .tab-contexts__edit:hover {
@@ -1875,7 +1885,8 @@ html[data-reduce-motion="true"] {
 
 .agent-provider-picker__options {
   display: grid;
-  grid-template-columns: 1fr;
+  /* ponytail: auto-fit cae solo a 1 columna en modales angostos. */
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 8px;
 }
 

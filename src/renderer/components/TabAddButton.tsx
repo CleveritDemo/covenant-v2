@@ -17,7 +17,7 @@ export const TabAddButton: React.FC<TabAddButtonProps> = ({ onClick }) => {
       aria-label={t('tabs.addAriaLabel')}
       tabIndex={-1}
     >
-      <Icon name="bot" size={13} />
+      <Icon name="plus" size={13} />
     </button>
   )
 }

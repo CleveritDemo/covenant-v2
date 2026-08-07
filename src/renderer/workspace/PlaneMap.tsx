@@ -40,6 +40,8 @@ export interface PlaneMapEntity {
   contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
   autoImproveContexts?: boolean
+  /** Nombre puesto a mano (terminales); sustituye la carpeta en la pastilla. */
+  customTitle?: string
   /** Basename de la carpeta actual (terminales). */
   folderName?: string
   /** Path completo del cwd (tooltip del badge). */
@@ -78,6 +80,7 @@ export interface PlaneMapProps {
   /** Mini agente: clic en la card (o sus contextos) abre/cambia el chat. */
   onOpenChat: (paneId: string) => void
   onDeletePane: (paneId: string) => void
+  onRenamePane?: (paneId: string, title: string) => void
   /** Drop de contexto del pool sobre un agente. */
   onAssignContext?: (paneId: string, contextId: string) => void
   /** Clic en icono results del mini → vista previa del contexto. */
@@ -215,6 +218,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onOpenConfig,
   onOpenChat,
   onDeletePane,
+  onRenamePane,
   onAssignContext,
   onOpenResultsPreview,
   onReorderPanes,
@@ -581,6 +585,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           maximizeLabel={maximizeLabel}
           restoreLabel={restoreLabel}
           closeWindowLabel={closeWindowLabel}
+          customTitle={entity.customTitle}
           folderName={entity.folderName}
           folderPath={entity.folderPath}
           onExpand={() => onExpandEntity(entity.paneId)}
@@ -590,6 +595,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           onOpenConfig={() => onOpenConfig(entity.paneId)}
           onOpenChat={() => onOpenChat(entity.paneId)}
           onDelete={() => onDeletePane(entity.paneId)}
+          onRename={entity.kind === 'terminal' && onRenamePane
+            ? next => onRenamePane(entity.paneId, next)
+            : undefined}
           onDropContext={entity.kind === 'agent' && onAssignContext
             ? contextId => onAssignContext(entity.paneId, contextId)
             : undefined}

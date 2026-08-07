@@ -24,6 +24,7 @@ export type IconName =
   | 'chevron-right'
   | 'refresh'
   | 'bot'
+  | 'workspace'
   | 'users'
   | 'repeat'
   | 'brain'
@@ -214,6 +215,13 @@ const ICONS: Record<IconName, IconRenderer> = {
       <path d="M15 18v2" />
       <path d="M5 12H3" />
       <path d="M21 12h-2" />
+    </svg>
+  ),
+  /** Workspace: dos paneles solapados (el tab agrupa panes). */
+  workspace: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2.5" y="2.5" width="12" height="12" rx="3.5" />
+      <rect x="9.5" y="9.5" width="12" height="12" rx="3.5" />
     </svg>
   ),
   users: size => (

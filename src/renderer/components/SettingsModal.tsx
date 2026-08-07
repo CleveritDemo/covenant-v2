@@ -2,11 +2,7 @@ import React, { useEffect, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
 import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
-import {
-  AGENT_CLI_PROVIDER_IDS,
-  agentCliSpec,
-  type AgentCliProvider,
-} from '@shared/agentCliProviders'
+import type { AgentCliProvider } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { SettingsSection, SettingsField } from './SettingsSection'
@@ -15,7 +11,8 @@ import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
-import { BrandIcon } from './ui/BrandIcon'
+import { AgentCliTable } from './AgentCliTable'
+import { GitHubTokenField } from './GitHubTokenField'
 import './SettingsModal.css'
 
 interface Props {
@@ -29,17 +26,37 @@ const LANGUAGES: { value: Language; label: string }[] = [
   { value: 'es', label: 'Español' },
 ]
 
+const CATEGORIES = [
+  { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
+  { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
+  { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
+  { id: 'music', icon: 'play', labelKey: 'settings.spotifySection' },
+  { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
+] as const
+
+type CategoryId = (typeof CATEGORIES)[number]['id']
+
 export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const { t } = useT()
   const [form, setForm] = useState({
     githubToken: config.githubToken,
     language: config.language,
     reduceMotion: config.reduceMotion,
+    musicEnabled: config.musicEnabled,
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
+  const [category, setCategory] = useState<CategoryId>('cli')
+  /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
+  const [touchedMoods, setTouchedMoods] = useState<string[]>([])
+
+  /** Un ID no vacío que no se reconoce; derivado, sin estado que sincronizar. */
+  function moodError(moodId: string): boolean {
+    const raw = (form.musicPlaylistIdsByMood[moodId] ?? '').trim()
+    return Boolean(raw) && parseSpotifyPlaylistId(raw) === null
+  }
 
   useEffect(() => {
     setForm({
@@ -75,15 +92,17 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
   async function handleSave(): Promise<void> {
     const musicPlaylistIdsByMood: Record<string, string> = { ...(config.musicPlaylistIdsByMood ?? {}) }
+    const badMoods = MUSIC_MOODS.filter(m => moodError(m.id))
+    if (badMoods.length > 0) {
+      // El error ya se ve en cada tarjeta; hay que descubrirlas y llevar allí al usuario.
+      setTouchedMoods(MUSIC_MOODS.map(m => m.id))
+      setCategory('music')
+      return
+    }
     for (const m of MUSIC_MOODS) {
       const raw = (form.musicPlaylistIdsByMood[m.id] ?? '').trim()
       if (!raw) { delete musicPlaylistIdsByMood[m.id]; continue }
-      const id = parseSpotifyPlaylistId(raw)
-      if (!id) {
-        setErrors([t('settings.spotifyError', { label: m.label })])
-        return
-      }
-      musicPlaylistIdsByMood[m.id] = id
+      musicPlaylistIdsByMood[m.id] = parseSpotifyPlaylistId(raw) as string
     }
 
     const updated = mergeWithDefaults({
@@ -120,7 +139,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       title={t('settings.title')}
       size="lg"
       zIndex={720}
-      bodyLayout="spacious"
+      bodyLayout="flush"
       closeOnBackdrop
       footer={
         <>
@@ -131,128 +150,132 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
         </>
       }
     >
-      <SettingsSection title={t('settings.agentCliSection')}>
-        <p className="settings-hint settings-hint--block">{t('settings.agentCliHint')}</p>
-        {AGENT_CLI_PROVIDER_IDS.map(provider => {
-          const spec = agentCliSpec(provider)
-          return (
-            <SettingsField
-              key={provider}
-              label={
-                <span className="settings-brand-label">
-                  <BrandIcon provider={provider} size={14} />
-                  {spec.label}
-                </span>
-              }
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label={t('settings.title')}>
+          {CATEGORIES.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              className="settings-nav__item"
+              aria-current={category === c.id ? 'page' : undefined}
+              onClick={() => setCategory(c.id)}
             >
-              <Input
-                type="text"
-                value={form.agentCliCommands[provider] ?? ''}
-                onChange={e => updateAgentCliCommand(provider, e.target.value)}
-                placeholder={spec.command}
-                spellCheck={false}
+              <Icon name={c.icon} size={13} aria-hidden />
+              {t(c.labelKey)}
+            </button>
+          ))}
+        </nav>
+
+        <div className="settings-panel">
+          {category === 'cli' && (
+            <SettingsSection title={t('settings.agentCliSection')}>
+              <AgentCliTable
+                commands={form.agentCliCommands}
+                onChange={updateAgentCliCommand}
               />
-            </SettingsField>
-          )
-        })}
-      </SettingsSection>
+            </SettingsSection>
+          )}
 
-      <SettingsSection title={t('settings.githubSection')}>
-        <SettingsField
-          label={t('settings.githubTokenLabel')}
-          hint={
+          {category === 'github' && (
+            <SettingsSection title={t('settings.githubSection')}>
+              <GitHubTokenField
+                value={form.githubToken}
+                onChange={token => update('githubToken', token)}
+              />
+            </SettingsSection>
+          )}
+
+          {category === 'appearance' && (
             <>
-              {t('settings.githubTokenHint')}{' '}
-              <button
-                type="button"
-                className="settings-inline-link"
-                onClick={() => void window.api.openExternalUrl('https://github.com/settings/tokens')}
-              >
-                github.com/settings/tokens
-              </button>
+              <SettingsSection title={t('settings.languageSection')}>
+                <SettingsField label={t('settings.languageLabel')}>
+                  <Select
+                    value={form.language}
+                    onChange={e => update('language', e.target.value as Language)}
+                  >
+                    {LANGUAGES.map(l => (
+                      <option key={l.value} value={l.value}>{l.label}</option>
+                    ))}
+                  </Select>
+                </SettingsField>
+              </SettingsSection>
+
+              <SettingsSection title={t('settings.motionSection')}>
+                <SettingToggle
+                  checked={form.reduceMotion}
+                  onChange={checked => update('reduceMotion', checked)}
+                  title={t('settings.reduceMotionTitle')}
+                  description={t('settings.reduceMotionDescription')}
+                />
+              </SettingsSection>
             </>
-          }
-        >
-          <Input
-            type="password"
-            value={form.githubToken}
-            onChange={e => update('githubToken', e.target.value)}
-            placeholder={t('settings.githubTokenPlaceholder')}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </SettingsField>
-      </SettingsSection>
+          )}
 
-      <SettingsSection title={t('settings.languageSection')}>
-        <SettingsField label={t('settings.languageLabel')}>
-          <Select
-            value={form.language}
-            onChange={e => update('language', e.target.value as Language)}
-          >
-            {LANGUAGES.map(l => (
-              <option key={l.value} value={l.value}>{l.label}</option>
-            ))}
-          </Select>
-        </SettingsField>
-      </SettingsSection>
+          {category === 'music' && (
+            <SettingsSection title={t('settings.spotifySection')}>
+              <SettingToggle
+                checked={form.musicEnabled}
+                onChange={checked => update('musicEnabled', checked)}
+                title={t('settings.musicEnabledTitle')}
+                description={t('settings.musicEnabledDescription')}
+              />
+              {form.musicEnabled && (
+                <>
+                  <p className="settings-hint settings-hint--block">{t('settings.spotifyHint')}</p>
+                  <div className="settings-spotify-grid">
+                    {MUSIC_MOODS.map(m => {
+                      const invalid = touchedMoods.includes(m.id) && moodError(m.id)
+                      return (
+                        <div key={m.id} className="settings-spotify-row">
+                          <SettingsField
+                            label={m.label}
+                            htmlFor={`settings-pl-${m.id}`}
+                            error={invalid ? t('settings.spotifyError', { label: m.label }) : undefined}
+                            compact
+                          >
+                            <Input
+                              id={`settings-pl-${m.id}`}
+                              type="text"
+                              placeholder={t('settings.spotifyPlaceholder')}
+                              autoComplete="off"
+                              spellCheck={false}
+                              aria-invalid={invalid || undefined}
+                              value={form.musicPlaylistIdsByMood[m.id] ?? ''}
+                              onChange={e => updatePlaylistMood(m.id, e.target.value)}
+                              onBlur={() => setTouchedMoods(prev =>
+                                prev.includes(m.id) ? prev : [...prev, m.id],
+                              )}
+                            />
+                          </SettingsField>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <span className="settings-hint">{t('settings.spotifyInputHint')}</span>
+                </>
+              )}
+            </SettingsSection>
+          )}
 
-      <SettingsSection title={t('settings.motionSection')}>
-        <SettingToggle
-          checked={form.reduceMotion}
-          onChange={checked => update('reduceMotion', checked)}
-          title={t('settings.reduceMotionTitle')}
-          description={t('settings.reduceMotionDescription')}
-        />
-      </SettingsSection>
+          {category === 'advanced' && (
+            <SettingsSection title={t('settings.configSection')}>
+              <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
+              <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
+                <Icon name="folder" size={12} />
+                {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+                  ? t('settings.revealConfig')
+                  : t('settings.revealConfigWin')}
+              </Button>
+            </SettingsSection>
+          )}
 
-      <SettingsSection title={t('settings.spotifySection')}>
-        <SettingToggle
-          checked={form.musicEnabled}
-          onChange={checked => update('musicEnabled', checked)}
-          title={t('settings.musicEnabledTitle')}
-          description={t('settings.musicEnabledDescription')}
-        />
-        {form.musicEnabled && (
-          <>
-            <p className="settings-hint settings-hint--block">{t('settings.spotifyHint')}</p>
-            <div className="settings-spotify-grid">
-              {MUSIC_MOODS.map(m => (
-                <div key={m.id} className="settings-spotify-row">
-                  <SettingsField label={m.label} htmlFor={`settings-pl-${m.id}`} compact>
-                    <Input
-                      id={`settings-pl-${m.id}`}
-                      type="text"
-                      placeholder={t('settings.spotifyPlaceholder')}
-                      autoComplete="off"
-                      spellCheck={false}
-                      value={form.musicPlaylistIdsByMood[m.id] ?? ''}
-                      onChange={e => updatePlaylistMood(m.id, e.target.value)}
-                    />
-                  </SettingsField>
-                </div>
-              ))}
+          {errors.length > 0 && (
+            <div className="settings-errors">
+              {errors.map((e, i) => <p key={i}>{e}</p>)}
             </div>
-            <span className="settings-hint">{t('settings.spotifyInputHint')}</span>
-          </>
-        )}
-      </SettingsSection>
-
-      <SettingsSection title={t('settings.configSection')}>
-        <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
-        <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
-          <Icon name="folder" size={12} />
-          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
-            ? t('settings.revealConfig')
-            : t('settings.revealConfigWin')}
-        </Button>
-      </SettingsSection>
-
-      {errors.length > 0 && (
-        <div className="settings-errors">
-          {errors.map((e, i) => <p key={i}>{e}</p>)}
+          )}
         </div>
-      )}
+      </div>
     </TerminalModal>
   )
 }

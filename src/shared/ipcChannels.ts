@@ -17,6 +17,8 @@ export const IPC = {
   AGENT_CLI_IS_ACTIVE: 'agentCli:isActive',
   /** Renderer → main: listar modelos del CLI por provider. */
   AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
+  /** Renderer → main: ¿está el CLI de este provider en el PATH? Ruta y versión. */
+  AGENT_CLI_RESOLVE: 'agentCli:resolve',
   /** Renderer → main: iniciar sala de brainstorm round-robin. */
   BRAINSTORM_START: 'brainstorm:start',
   /** Renderer → main: detener sala de brainstorm. */
@@ -112,6 +114,8 @@ export const IPC = {
 
   /** Renderer → main (invoke): workflow runs de GitHub Actions vía gh CLI */
   GITHUB_ACTIONS_LIST: 'githubActions:list',
+  /** Renderer → main: ¿de quién es este token y con qué scopes? Vacío = el resuelto del entorno. */
+  GITHUB_CHECK_TOKEN: 'github:checkToken',
 
   /** Renderer → main (invoke): fijar raíz del explorador para la sesión (projectFolder del tab) */
   FILE_EXPLORER_SET_ROOT: 'fileExplorer:setRoot',

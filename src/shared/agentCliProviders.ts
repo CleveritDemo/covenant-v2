@@ -30,6 +30,17 @@ export interface AgentCliArgsInput {
   sessionId?: string
 }
 
+/** Disponibilidad real del CLI de un proveedor en la máquina. */
+export interface AgentCliResolution {
+  provider: AgentCliProvider
+  /** Comando comprobado: el que se escribió, el configurado o el por defecto. */
+  command: string
+  /** Ruta absoluta del binario, o `null` si no está en el PATH. */
+  path: string | null
+  /** Versión que reporta `--version`, o `null` si el CLI no la da. */
+  version: string | null
+}
+
 export interface AgentCliProviderSpec {
   /** Nombre de marca: no se traduce. */
   label: string

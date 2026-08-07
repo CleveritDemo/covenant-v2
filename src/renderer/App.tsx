@@ -92,6 +92,7 @@ import {
   type AgentCliProvider,
   type AgentPaneMeta,
   type PaneKind,
+  setPaneTitle,
   type PlaneLoopChain,
   type TabSession,
 } from '../shared/tabSession'
@@ -1231,6 +1232,7 @@ export const App: React.FC = () => {
       const paneKinds = { ...(tab.paneKinds ?? {}) }
       const agentByPane = { ...(tab.agentByPane ?? {}) }
       const paneWindows = { ...(tab.paneWindows ?? {}) }
+      const paneTitles = setPaneTitle(tab.paneTitles, paneId, '')
       delete paneKinds[paneId]
       delete agentByPane[paneId]
       delete paneWindows[paneId]
@@ -1254,6 +1256,7 @@ export const App: React.FC = () => {
         ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
         ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
         ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
+        paneTitles,
         planeOpenChatAgentId,
         ...(planeLoopLinks.length ? { planeLoopLinks } : { planeLoopLinks: undefined }),
         ...(Object.keys(planeLoopNodePositions).length
@@ -1585,6 +1588,19 @@ export const App: React.FC = () => {
     requestAnimationFrame(() => {
       termRefs.current.get(paneId)?.refit?.()
     })
+  }, [saveSessionNow])
+
+  const handleRenamePane = useCallback((tabId: string, paneId: string, title: string) => {
+    setTabs(prev => {
+      const nextTabs = prev.map(tab => (
+        tab.id !== tabId || !tab.paneIds.includes(paneId)
+          ? tab
+          : { ...tab, paneTitles: setPaneTitle(tab.paneTitles, paneId, title) }
+      ))
+      tabsRef.current = nextTabs
+      return nextTabs
+    })
+    void saveSessionNow()
   }, [saveSessionNow])
 
   const handleMinimizeAllPaneWindows = useCallback((tabId: string) => {
@@ -2878,7 +2894,10 @@ export const App: React.FC = () => {
                   meta?.name?.trim()
                   || agentCliSpec(meta?.provider ?? 'claude').label
                 )
-                : `${t('tabs.nodeTerminal')} ${terminalIndex || index + 1}`
+                : (
+                  tab.paneTitles?.[paneId]?.trim()
+                  || `${t('tabs.nodeTerminal')} ${terminalIndex || index + 1}`
+                )
 
               if (kind === 'agent') {
                 const status = agentPlaneStatus[paneId]
@@ -2913,6 +2932,7 @@ export const App: React.FC = () => {
                 kind,
                 title,
                 busy: busyPanes.has(paneId),
+                customTitle: tab.paneTitles?.[paneId]?.trim() || undefined,
                 folderPath: paneCwds[paneId]?.trim() || tab.projectFolder?.trim() || undefined,
                 folderName: (() => {
                   const name = sessionCwdFolderName(
@@ -3110,6 +3130,7 @@ export const App: React.FC = () => {
                   startLoopChainsBlockedHint={t('agentPane.projectFolderRequired')}
                   onOpenConfig={paneId => handleOpenConfigFromPlane(tab.id, paneId)}
                   onDeletePane={paneId => handleClosePane(tab.id, paneId)}
+                  onRenamePane={(paneId, title) => handleRenamePane(tab.id, paneId, title)}
                   onToggleFullscreen={paneId => handleTogglePaneFullscreen(tab.id, paneId)}
                   onReorderPanes={(kind, orderedPaneIds) => {
                     handleReorderPanes(tab.id, kind, orderedPaneIds)

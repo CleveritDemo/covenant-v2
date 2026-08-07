@@ -57,11 +57,12 @@ import {
   exportBrainstormRoomMarkdown,
 } from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
-import { isAgentCliProvider } from '../src/shared/agentCliProviders'
+import { isAgentCliProvider, type AgentCliResolution } from '../src/shared/agentCliProviders'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import { listAgentCliModels } from './agentCliModelsList'
+import { resolveAgentCli } from './agentCliResolve'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -111,6 +112,8 @@ import {
   gitUnstageFile,
 } from './gitSessionOps'
 import { githubActionsListForSession } from './githubActionsOps'
+import { fetchGitHubIdentity } from './githubApi'
+import type { GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken } from './githubToken'
 import {
   copyPathsForExplorer,
@@ -651,6 +654,19 @@ function registerIpc(): void {
     return githubActionsListForSession(resolveGitTargetCwd(target), token)
   })
 
+  ipcMain.handle(IPC.GITHUB_CHECK_TOKEN, async (_e, raw: unknown): Promise<GitHubTokenCheck> => {
+    const typed = typeof raw === 'string' ? raw.trim() : ''
+    // Sin token escrito se comprueba el efectivo (entorno o credential helper).
+    const token = typed || (await resolveGithubToken(readConfig()))
+    if (!token) return { ok: false, error: 'missing' }
+    try {
+      const { login, scopes } = await fetchGitHubIdentity(token)
+      return { ok: true, login, scopes }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
   ipcMain.handle(IPC.FILE_EXPLORER_SET_ROOT, (_e, sessionId: string, rootPath: unknown) => {
     const root = typeof rootPath === 'string' ? rootPath.trim() : ''
     if (root) {
@@ -1059,6 +1075,17 @@ function registerIpc(): void {
     }
     return listAgentCliModels(provider, readConfig())
   })
+  ipcMain.handle(
+    IPC.AGENT_CLI_RESOLVE,
+    async (_event, provider: unknown, command: unknown): Promise<AgentCliResolution | null> => {
+      if (!isAgentCliProvider(provider)) return null
+      return resolveAgentCli(
+        provider,
+        typeof command === 'string' ? command : undefined,
+        readConfig(),
+      )
+    },
+  )
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
     const win = BrowserWindow.fromWebContents(event.sender)

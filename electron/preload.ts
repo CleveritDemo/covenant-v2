@@ -11,7 +11,7 @@ import type {
   GitRepoStatus,
   GitTarget,
 } from '../src/shared/gitSessionTypes'
-import type { GitHubActionsSnapshot } from '../src/shared/githubActionsTypes'
+import type { GitHubActionsSnapshot, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import type {
   FileExplorerClipboardResult,
   FileExplorerFilePayload,
@@ -26,7 +26,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
-import type { AgentCliProvider } from '../src/shared/agentCliProviders'
+import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
 import type {
   TabContextAnnotationRequest,
   TabContextDeleteRequest,
@@ -114,6 +114,10 @@ const api = {
   },
   listAgentCliModels(provider: AgentCliProvider): Promise<AgentCliModelsResult> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
+  },
+  /** `command` vacío = el configurado o el por defecto del proveedor. */
+  resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
   },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)
@@ -366,6 +370,10 @@ const api = {
 
   githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {
     return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
+  },
+  /** `token` vacío = comprueba el efectivo (config, entorno o credential helper). */
+  githubCheckToken(token: string): Promise<GitHubTokenCheck> {
+    return ipcRenderer.invoke(IPC.GITHUB_CHECK_TOKEN, token)
   },
 
   fileExplorerSetRoot(sessionId: string, rootPath: string): Promise<void> {

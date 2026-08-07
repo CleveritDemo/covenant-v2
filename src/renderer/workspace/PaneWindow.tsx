@@ -11,6 +11,7 @@ import {
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
+import { MAX_PANE_TITLE_LENGTH } from '@shared/tabSession'
 import { isMiniExpandSuppressed } from './miniExpandSuppress'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import {
@@ -232,6 +233,9 @@ export interface PaneWindowProps {
   closeLabel: string
   configureLabel?: string
   onConfigure?: () => void
+  /** Renombra el pane (doble clic en el título de la ventana expandida). */
+  onRename?: (next: string) => void
+  renameLabel?: string
   miniFace?: React.ReactNode
   miniActions?: React.ReactNode
   /** Badge de carpeta actual en el mini (solo basename). */
@@ -278,6 +282,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   closeLabel,
   configureLabel,
   onConfigure,
+  onRename,
+  renameLabel,
   miniFace,
   miniActions,
   miniFolderBadge,
@@ -303,6 +309,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   const isFullscreen = !isMini && geometry.fullscreen
   const prevDisplayRef = useRef(display)
   const [contextDropActive, setContextDropActive] = useState(false)
+  const [renameDraft, setRenameDraft] = useState<string | null>(null)
   const geometryRef = useRef(geometry)
   const miniOriginRef = useRef(miniOrigin)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -803,7 +810,48 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
               onPointerDown={event => event.stopPropagation()}
             />
           </div>
-          <h2 className="pane-window__title">{title}</h2>
+          {onRename && !isMini && renameDraft !== null ? (
+            <input
+              className="pane-window__title-input"
+              value={renameDraft}
+              aria-label={renameLabel}
+              autoFocus
+              spellCheck={false}
+              maxLength={MAX_PANE_TITLE_LENGTH}
+              onChange={event => setRenameDraft(event.target.value)}
+              onFocus={event => event.currentTarget.select()}
+              onBlur={() => {
+                onRename(renameDraft)
+                setRenameDraft(null)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  onRename(renameDraft)
+                  setRenameDraft(null)
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setRenameDraft(null)
+                }
+              }}
+              // El header arrastra la ventana: el input se queda los eventos.
+              onPointerDown={event => event.stopPropagation()}
+            />
+          ) : (
+            <h2
+              className={[
+                'pane-window__title',
+                onRename && !isMini ? 'pane-window__title--editable' : '',
+              ].filter(Boolean).join(' ')}
+              title={onRename && !isMini ? renameLabel : undefined}
+              onDoubleClick={onRename && !isMini
+                ? () => setRenameDraft(title)
+                : undefined}
+            >
+              {title}
+            </h2>
+          )}
           {busy && <PlaneBusyDot />}
           {!isMini && onConfigure && configureLabel ? (
             <div className="pane-window__actions">

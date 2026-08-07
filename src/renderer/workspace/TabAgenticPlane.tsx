@@ -150,6 +150,7 @@ export interface TabAgenticPlaneProps {
   startLoopChainsBlockedHint?: string
   onOpenConfig: (paneId: string) => void
   onDeletePane: (paneId: string) => void
+  onRenamePane?: (paneId: string, title: string) => void
   onToggleFullscreen: (paneId: string) => void
   renderPane: (paneId: string) => React.ReactNode
   /** Persiste el orden de minis en una columna del plano. */
@@ -283,6 +284,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   startLoopChainsBlockedHint = '',
   onOpenConfig,
   onDeletePane,
+  onRenamePane,
   onToggleFullscreen,
   renderPane,
   onReorderPanes,
@@ -594,6 +596,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onOpenConfig={onOpenConfig}
         onOpenChat={openChatAgent}
         onDeletePane={onDeletePane}
+        onRenamePane={onRenamePane}
         onAssignContext={onAssignContext}
         onOpenResultsPreview={onOpenResultsPreview}
         onReorderPanes={onReorderPanes}

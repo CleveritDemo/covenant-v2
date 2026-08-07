@@ -1,4 +1,14 @@
+/* El cuerpo solo rellena a su anfitrión: el modal de un contexto le da altura
+   fija, el panel derecho del listado le da la celda del grid. */
 .context-content-preview {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.context-content-preview-host {
   display: flex;
   flex-direction: column;
   height: min(72vh, 640px);
@@ -27,6 +37,7 @@
 
 .context-content-preview .tab-contexts__preview-meta {
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
@@ -38,12 +49,18 @@
   flex: 0 1 auto;
 }
 
-.context-content-preview .tab-contexts__preview-meta > small:last-child {
+/* La ruta: siempre el segundo small, con o sin toggle detrás. */
+.context-content-preview .tab-contexts__preview-meta > small:nth-of-type(2) {
   font-family: var(--font-mono);
-  text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* El toggle se ancla a la esquina en vez de flotar en el centro de la fila.
+   Sin toggle el ancla la hereda la ruta, que es el último hijo. */
+.context-content-preview .tab-contexts__preview-meta > *:last-child {
+  margin-left: auto;
 }
 
 /* ── Vista Reporte de results/<agente>.md ────────────────────────────── */

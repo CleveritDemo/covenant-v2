@@ -139,7 +139,7 @@ import {
 } from './fileExplorerWatcher'
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
-import { registerSelfUpdate } from './selfUpdate'
+import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
 
 const APP_DISPLAY_NAME = 'Covenant Gravity'
 
@@ -1299,7 +1299,8 @@ function createWindow(): BrowserWindow {
       }
     }
     // Cerrar la última ventana = salir (también en macOS; no quedarse en el Dock).
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // Salvo instalando: ahí quien sale es Squirrel, tras copiar el .app nuevo.
+    if (BrowserWindow.getAllWindows().length === 0 && !isInstallingUpdate()) {
       app.quit()
     }
   })
@@ -1333,6 +1334,10 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  // Instalando una actualización este handler corre ANTES que el de selfUpdate
+  // (se registra al cargar el módulo, el otro al pulsar Instalar): salir aquí
+  // mata el proceso antes del relevo a Squirrel y la actualización no se aplica.
+  if (isInstallingUpdate()) return
   // Incluye macOS: no dejar la app viva en el Dock tras cerrar la ventana.
   // Tras close+preventDefault+destroy hay que re-lanzar quit (⌘Q también).
   app.quit()

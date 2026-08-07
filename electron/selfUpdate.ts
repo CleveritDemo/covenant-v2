@@ -5,6 +5,8 @@
 // (Developer ID + notarización en macOS). En dev no corre — sin `app-update.yml`
 // empaquetado, `checkForUpdates()` solo genera ruido.
 
+import { appendFileSync } from 'fs'
+import { join } from 'path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IPC } from '@shared/ipcChannels'
@@ -17,6 +19,29 @@ const FIRST_CHECK_DELAY_MS = 5_000
 let state: UpdateState = { kind: 'idle' }
 /** El usuario pulsó Instalar: al terminar la descarga se sale y se instala. */
 let installWhenReady = false
+/** Entre el cierre de ventanas y el relevo a Squirrel nadie más puede llamar a `app.quit()`. */
+let installing = false
+
+/**
+ * `true` mientras se está aplicando una actualización. main.ts consulta esto antes
+ * de salir: si el proceso muere antes de que Squirrel copie el .app, la
+ * actualización no se aplica, la app no se relanza y al reabrir vuelve el banner.
+ */
+export function isInstallingUpdate(): boolean {
+  return installing
+}
+
+/** Traza del updater a fichero: sin esto un fallo de instalación no deja rastro. */
+function log(message: string): void {
+  console.log(`[updater] ${message}`)
+  try {
+    appendFileSync(
+      join(app.getPath('userData'), 'updater.log'),
+      `${new Date().toISOString()} ${message}\n`,
+      'utf-8',
+    )
+  } catch { /* ignore */ }
+}
 
 function setState(next: UpdateState): void {
   state = next
@@ -28,14 +53,23 @@ function setState(next: UpdateState): void {
 /**
  * Sale por la vía normal (`win.close()` dispara el guardado de scrollbacks) y solo
  * entonces instala. `quitAndInstall` a secas mataría ese handshake.
+ *
+ * `installing` se marca antes de cerrar nada: al destruirse la última ventana,
+ * main.ts llamaría a `app.quit()` por dos caminos y el proceso moriría antes de
+ * que Squirrel copiase el .app nuevo.
  */
 function quitAndInstall(): void {
+  installing = true
   const windows = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed())
+  log(`instalando: ${windows.length} ventana(s) por cerrar`)
   if (windows.length === 0) {
     autoUpdater.quitAndInstall()
     return
   }
-  app.once('window-all-closed', () => autoUpdater.quitAndInstall())
+  app.once('window-all-closed', () => {
+    log('ventanas cerradas, relevo a Squirrel')
+    autoUpdater.quitAndInstall()
+  })
   for (const win of windows) win.close()
 }
 
@@ -68,18 +102,24 @@ export function registerSelfUpdate(): void {
   if (!app.isPackaged) return
 
   autoUpdater.autoDownload = false
+  log(`versión actual ${app.getVersion()}`)
   autoUpdater.on('update-available', info => {
+    log(`disponible ${info.version}`)
     setState({ kind: 'available', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
   })
+  autoUpdater.on('update-not-available', () => log('sin actualizaciones'))
   autoUpdater.on('download-progress', progress => {
     if (state.kind !== 'downloading') return
     setState({ kind: 'downloading', version: state.version, percent: Math.round(progress.percent) })
   })
   autoUpdater.on('update-downloaded', info => {
+    log(`descargada ${info.version}`)
     setState({ kind: 'ready', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
     if (installWhenReady) quitAndInstall()
   })
   autoUpdater.on('error', err => {
+    log(`error: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
+    installing = false
     // Un fallo de red en el chequeo silencioso no debe tapar el banner ya visible.
     if (state.kind === 'idle') return
     setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })

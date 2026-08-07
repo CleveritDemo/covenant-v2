@@ -47,6 +47,8 @@ export const IPC = {
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
+  /** Renderer → main: revela el .md del contexto en el Finder. */
+  TAB_CONTEXT_REVEAL: 'tabContext:reveal',
   /** Renderer → main: crea .gravity/results/<slug>.md si no existe. */
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
   /** Renderer → main: guarda solo la región notes de un results. */

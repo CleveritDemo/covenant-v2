@@ -1641,6 +1641,82 @@ html[data-reduce-motion="true"] {
   color: var(--danger, #c44);
 }
 
+.tab-contexts__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  /* .tab-contexts--form ya fija la altura del modal (min(78vh, 760px)) y es un
+     flex column; flex:1 hace que este grid la ocupe entera en vez de encogerse
+     al contenido, y min-height:0 permite que se achique por debajo de ese
+     contenido para que el scroll interno de cada panel haga su trabajo.
+     Sin ese 0 (antes había un piso de 430px) los paneles no podían encoger:
+     por debajo de ~550px de alto de ventana el contenido se salía y
+     .terminal-modal-body--flush (overflow:hidden) lo recortaba sin scroll en
+     ninguna parte. La cadena de min-height:0 hasta el modal la completan
+     .terminal-modal-body (min-height:0) y .tab-contexts (min-height:0). */
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.tab-contexts__output {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Sin esto, el hijo flex no se achica por debajo de su contenido y el
+     overflow:auto del <pre> de abajo nunca llega a activarse. */
+  min-height: 0;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+}
+
+.tab-contexts__output-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tab-contexts__output-head small {
+  font-family: var(--font-mono, monospace);
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-contexts__output-msg {
+  padding: 12px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tab-contexts__output-msg--error { color: var(--danger); }
+
+.tab-contexts__output .tab-contexts__preview {
+  flex: 1;
+  min-height: 0;
+  /* .tab-contexts__preview trae max-height: 180px para la vista de solo lectura;
+     aquí queremos que ocupe todo el aside, como ya hace
+     .tab-contexts__preview-pane .tab-contexts__preview para ese otro caso. */
+  max-height: none;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+@media (max-width: 900px) {
+  .tab-contexts__panes { grid-template-columns: minmax(0, 1fr); }
+  .tab-contexts__output { border-left: 0; border-top: 1px solid var(--border); }
+}
+
 .tab-contexts__editor {
   display: flex;
   flex-direction: column;
@@ -1655,10 +1731,41 @@ html[data-reduce-motion="true"] {
   background: var(--bg-secondary);
 }
 
-/* Galería de tipos: cards compactas con icono a la izquierda. */
+/* Grupos de tipos: host (materializados por el pipeline) vs. escritos a mano. */
+.tab-contexts__kind-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tab-contexts__kind-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tab-contexts__kind-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tab-contexts__kind-group-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Galería de tipos: cards compactas con icono a la izquierda. Flex (no grid) para
+   que grupos de distinto tamaño no dejen huecos al final de la fila. */
 .tab-contexts__kinds {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1751,10 +1858,66 @@ html[data-reduce-motion="true"] {
   font-size: 10px;
 }
 
+.tab-contexts__appearance-fold {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+}
+
+.tab-contexts__appearance-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  list-style: none;
+  user-select: none;
+}
+
+/* Safari muestra el triángulo por defecto; lo quitamos en los dos motores. */
+.tab-contexts__appearance-fold > summary::-webkit-details-marker { display: none; }
+
+.tab-contexts__appearance-fold > summary::after {
+  content: "▸";
+  margin-left: auto;
+  font-size: 10px;
+  transition: transform .15s ease;
+}
+
+.tab-contexts__appearance-fold[open] > summary::after { transform: rotate(90deg); }
+
+.tab-contexts__appearance-fold > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tab-contexts__appearance-fold[open] > summary { border-bottom: 1px solid var(--border); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-contexts__appearance-fold > summary::after { transition: none; }
+}
+
 .tab-contexts__appearance {
   margin: 0;
   padding: 0;
   border: none;
+}
+
+/*
+ * Dentro de .tab-contexts__appearance-fold, gana en especificidad (0,2,0) a
+ * la regla genérica .tab-contexts__editor fieldset (0,1,1): sin esto, cada
+ * fieldset conservaba su propio borde y padding, dibujando una caja dentro
+ * de la caja del <details>.
+ */
+.tab-contexts__appearance-fold > .tab-contexts__appearance {
+  border: 0;
+  border-radius: 0;
+  padding: 8px 10px 0;
+}
+
+.tab-contexts__appearance-fold > .tab-contexts__appearance:last-child {
+  padding-bottom: 10px;
 }
 
 .tab-contexts__appearance legend {
@@ -1881,6 +2044,31 @@ html[data-reduce-motion="true"] {
   margin: 0;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.tab-contexts__dirty {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tab-contexts__file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 6px);
+}
+
+.tab-contexts__file-row > span {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab-contexts__preview-panel {

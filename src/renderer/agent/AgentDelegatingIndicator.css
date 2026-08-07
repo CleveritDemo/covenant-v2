@@ -1,0 +1,157 @@
+/* Indicador de delegación: mando en calma, acento solo para estado activo. */
+
+.agent-delegating {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 12px;
+  max-width: min(100%, 22rem);
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+  color: var(--text-muted);
+}
+
+.agent-delegating__orbit {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.agent-delegating__ring {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  animation: agent-delegating-ring-pulse 2.2s ease-in-out infinite;
+}
+
+.agent-delegating__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.agent-delegating__sat {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 85%, var(--text));
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 40%, transparent);
+  transform-origin: center;
+  animation: agent-delegating-orbit 2.4s linear infinite;
+}
+
+.agent-delegating__sat--a {
+  animation-delay: 0s;
+  opacity: 0.95;
+}
+
+.agent-delegating__sat--b {
+  animation-delay: -0.8s;
+  opacity: 0.7;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+}
+
+.agent-delegating__sat--c {
+  animation-delay: -1.6s;
+  opacity: 0.55;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+}
+
+.agent-delegating__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-delegating__label {
+  color: var(--text);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.agent-delegating__sublabel {
+  color: var(--text-muted);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
+  line-height: 1.3;
+}
+
+@keyframes agent-delegating-orbit {
+  from {
+    transform: rotate(0deg) translateX(10px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(10px) rotate(-360deg);
+  }
+}
+
+@keyframes agent-delegating-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+html[data-reduce-motion="true"] {
+  .agent-delegating__ring,
+  .agent-delegating__sat {
+    animation: none;
+  }
+
+  .agent-delegating__sat--a {
+    transform: rotate(20deg) translateX(10px);
+  }
+
+  .agent-delegating__sat--b {
+    transform: rotate(140deg) translateX(10px);
+  }
+
+  .agent-delegating__sat--c {
+    transform: rotate(260deg) translateX(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-delegating__ring,
+  .agent-delegating__sat {
+    animation: none;
+  }
+
+  .agent-delegating__sat--a {
+    transform: rotate(20deg) translateX(10px);
+  }
+
+  .agent-delegating__sat--b {
+    transform: rotate(140deg) translateX(10px);
+  }
+
+  .agent-delegating__sat--c {
+    transform: rotate(260deg) translateX(10px);
+  }
+}

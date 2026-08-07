@@ -5,14 +5,22 @@ import type {
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
   CovenantWorkspaceContextRecord,
+  CovenantWorkspaceRepoPayload,
+  CovenantWorkspaceRepoRecord,
 } from '../shared/covenantTypes'
 import type { ProjectAgentDefinition } from '../shared/projectAgentCatalog'
+import type {
+  OrgWorkspaceCloneRequest,
+  OrgWorkspaceCloneResult,
+} from '../shared/orgWorkspaceClone'
 
 export type {
   CovenantWorkspace,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
   CovenantWorkspaceContextRecord,
+  CovenantWorkspaceRepoPayload,
+  CovenantWorkspaceRepoRecord,
 } from '../shared/covenantTypes'
 /** @deprecated Alias temporal. */
 export type { CovenantProject } from '../shared/covenantTypes'
@@ -120,6 +128,21 @@ export interface CovenantApi {
     workspaceId: string,
     contextId: string,
   ): Promise<CovenantResult<null>>
+  workspaceReposList(
+    slug: string,
+    workspaceId: string,
+  ): Promise<CovenantResult<CovenantWorkspaceRepoRecord[]>>
+  workspaceRepoAdd(
+    slug: string,
+    workspaceId: string,
+    payload: CovenantWorkspaceRepoPayload,
+  ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>>
+  workspaceRepoDelete(
+    slug: string,
+    workspaceId: string,
+    repoId: string,
+  ): Promise<CovenantResult<null>>
+  cloneOrgWorkspace(params: OrgWorkspaceCloneRequest): Promise<OrgWorkspaceCloneResult>
   orgAdminsList(slug: string): Promise<CovenantResult<string[]>>
   orgAdminAdd(slug: string, login: string): Promise<CovenantResult<null>>
   orgAdminRemove(slug: string, login: string): Promise<CovenantResult<null>>
@@ -169,6 +192,16 @@ export function hasCovenantWorkspaceContentApi(api: CovenantApi | undefined): bo
     typeof api.workspaceContextsList === 'function' &&
     typeof api.workspaceContextUpsert === 'function' &&
     typeof api.workspaceContextDelete === 'function'
+  )
+}
+
+/** True si el preload expone CRUD de repos de workspace. */
+export function hasCovenantWorkspaceReposApi(api: CovenantApi | undefined): boolean {
+  return (
+    !!api &&
+    typeof api.workspaceReposList === 'function' &&
+    typeof api.workspaceRepoAdd === 'function' &&
+    typeof api.workspaceRepoDelete === 'function'
   )
 }
 

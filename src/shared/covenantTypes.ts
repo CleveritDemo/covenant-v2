@@ -63,6 +63,24 @@ export interface CovenantWorkspaceAgentRecord {
   updatedAt?: number
 }
 
+/** Cuerpo POST de repo de workspace org. */
+export interface CovenantWorkspaceRepoPayload {
+  repoFullName: string
+  cloneUrl: string
+  position?: number
+}
+
+/** Respuesta GET/POST de repo de workspace org. */
+export interface CovenantWorkspaceRepoRecord {
+  id: string
+  repoFullName: string
+  cloneUrl: string
+  position: number
+  createdBy?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface CovenantStatus {
   signedIn: boolean
   login?: string

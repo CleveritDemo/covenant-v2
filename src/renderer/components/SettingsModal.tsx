@@ -50,20 +50,32 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     language: config.language,
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
+    defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [footerHint, setFooterHint] = useState<'idle' | 'discarded'>('idle')
+  const [tokenFieldEpoch, setTokenFieldEpoch] = useState(0)
   const [appVersion, setAppVersion] = useState('')
   /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
   const [touchedMoods, setTouchedMoods] = useState<string[]>([])
-  /** Config al abrir: a esto vuelve «Descartar cambios». */
-  const baseline = useRef(config)
+  /**
+   * Snapshot al abrir (copia profunda de mapas). No se reescribe tras autosave:
+   * «Descartar» vuelve siempre a este estado de apertura.
+   */
+  const baseline = useRef(mergeWithDefaults({
+    ...config,
+    agentCliCommands: { ...(config.agentCliCommands ?? {}) },
+    musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
+  }))
   /** Cambio pendiente de escribir; el cierre lo vacía sin esperar al debounce. */
   const pending = useRef<AppConfig | null>(null)
   const firstRender = useRef(true)
+  /** Tras discard el commit es inmediato; el efecto no debe re-encolar otro. */
+  const skipAutosaveOnce = useRef(false)
 
   /** Un ID no vacío que no se reconoce; derivado, sin estado que sincronizar. */
   function moodError(moodId: string): boolean {
@@ -75,11 +87,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   // reescribir el form tras cada guardado pisaría lo que se esté escribiendo.
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]): void {
+    setFooterHint('idle')
     setForm(prev => ({ ...prev, [key]: value }))
     setErrors([])
   }
 
   function updateAgentCliCommand(provider: AgentCliProvider, value: string): void {
+    setFooterHint('idle')
     setForm(prev => ({
       ...prev,
       agentCliCommands: { ...prev.agentCliCommands, [provider]: value },
@@ -88,6 +102,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   }
 
   function updatePlaylistMood(moodId: string, value: string): void {
+    setFooterHint('idle')
     setForm(prev => ({
       ...prev,
       musicPlaylistIdsByMood: { ...prev.musicPlaylistIdsByMood, [moodId]: value },
@@ -115,6 +130,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: form.language,
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
+      defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
@@ -139,6 +155,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   // Se guarda al cambiar: un debounce por ráfaga de tecleo, no por pulsación.
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return }
+    if (skipAutosaveOnce.current) {
+      skipAutosaveOnce.current = false
+      return
+    }
     const next = buildConfig()
     pending.current = next
     const timer = setTimeout(() => void commit(next), AUTOSAVE_DEBOUNCE_MS)
@@ -158,18 +178,28 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
   const invalidMoods = MUSIC_MOODS.some(m => moodError(m.id))
 
-  /** Sólo repone el form: el efecto de autoguardado se encarga de persistirlo. */
+  /**
+   * Vuelve al snapshot de apertura, persiste ya (sin debounce) y da feedback.
+   * El status del token se remonta para no dejar identidad obsoleta.
+   */
   const handleDiscard = (): void => {
     const original = baseline.current
+    skipAutosaveOnce.current = true
+    pending.current = null
     setForm({
       githubToken: original.githubToken,
       language: original.language,
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
+      defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
     })
     setTouchedMoods([])
+    setErrors([])
+    setTokenFieldEpoch(n => n + 1)
+    setFooterHint('discarded')
+    void commit(mergeWithDefaults({ ...original }))
   }
 
   return (
@@ -186,9 +216,11 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           <span className="settings-status" data-state={invalidMoods ? 'warn' : undefined}>
             {invalidMoods
               ? t('settings.notSavedInvalid', { section: t('settings.spotifySection') })
-              : savedAt
-                ? t('settings.savedAt', { time: savedAt.toLocaleTimeString() })
-                : t('settings.savesOnChange')}
+              : footerHint === 'discarded'
+                ? t('settings.discarded')
+                : savedAt
+                  ? t('settings.savedAt', { time: savedAt.toLocaleTimeString() })
+                  : t('settings.savesOnChange')}
           </span>
           <Button variant="secondary" size="sm" onClick={handleDiscard}>
             {t('settings.discard')}
@@ -228,6 +260,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           {category === 'github' && (
             <SettingsSection title={t('settings.githubSection')}>
               <GitHubTokenField
+                key={tokenFieldEpoch}
                 value={form.githubToken}
                 onChange={token => update('githubToken', token)}
               />
@@ -304,15 +337,59 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'advanced' && (
-            <SettingsSection title={t('settings.configSection')}>
-              <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
-              <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
-                <Icon name="folder" size={12} />
-                {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
-                  ? t('settings.revealConfig')
-                  : t('settings.revealConfigWin')}
-              </Button>
-            </SettingsSection>
+            <>
+              <SettingsSection title={t('settings.workspacesSection')}>
+                <SettingsField
+                  label={t('settings.defaultWorkspacesDirLabel')}
+                  hint={t('settings.defaultWorkspacesDirHint')}
+                >
+                  <div className="settings-folder-row">
+                    <Input
+                      type="text"
+                      size="sm"
+                      readOnly
+                      value={form.defaultWorkspacesDir}
+                      placeholder={t('settings.defaultWorkspacesDirLabel')}
+                      aria-label={t('settings.defaultWorkspacesDirLabel')}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        void (async () => {
+                          const result = await window.api.selectDirectory({
+                            title: t('settings.chooseFolder'),
+                            defaultPath: form.defaultWorkspacesDir.trim() || undefined,
+                          })
+                          if (!result.ok) return
+                          update('defaultWorkspacesDir', result.path)
+                        })()
+                      }}
+                    >
+                      <Icon name="folder" size={12} />
+                      {t('settings.chooseFolder')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!form.defaultWorkspacesDir.trim()}
+                      onClick={() => update('defaultWorkspacesDir', '')}
+                    >
+                      {t('settings.clearFolder')}
+                    </Button>
+                  </div>
+                </SettingsField>
+              </SettingsSection>
+              <SettingsSection title={t('settings.configSection')}>
+                <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
+                <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
+                  <Icon name="folder" size={12} />
+                  {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+                    ? t('settings.revealConfig')
+                    : t('settings.revealConfigWin')}
+                </Button>
+              </SettingsSection>
+            </>
           )}
 
           {category === 'about' && (

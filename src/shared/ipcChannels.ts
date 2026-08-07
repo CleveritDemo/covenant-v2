@@ -173,6 +173,14 @@ export const IPC = {
   COVENANT_WORKSPACE_CONTEXT_UPSERT: 'covenant:workspace:context:upsert',
   /** Renderer → main (invoke): borrar contexto de workspace org */
   COVENANT_WORKSPACE_CONTEXT_DELETE: 'covenant:workspace:context:delete',
+  /** Renderer → main (invoke): listar repos de workspace org */
+  COVENANT_WORKSPACE_REPOS_LIST: 'covenant:workspace:repos:list',
+  /** Renderer → main (invoke): agregar repo a workspace org */
+  COVENANT_WORKSPACE_REPO_ADD: 'covenant:workspace:repo:add',
+  /** Renderer → main (invoke): quitar repo de workspace org */
+  COVENANT_WORKSPACE_REPO_DELETE: 'covenant:workspace:repo:delete',
+  /** Renderer → main (invoke): clonar repos de un workspace org en disco local */
+  COVENANT_WORKSPACE_CLONE: 'covenant:workspaceClone',
   /** Renderer → main (invoke): listar admins locales de org */
   COVENANT_ORG_ADMINS_LIST: 'covenant:orgAdmins:list',
   /** Renderer → main (invoke): agregar admin local de org */

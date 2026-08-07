@@ -96,6 +96,7 @@ describe('guardado al cambiar', () => {
     await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(2))
     expect(setConfig.mock.calls[1][0].musicPlaylistIdsByMood.focus).toBeUndefined()
     expect((document.getElementById('settings-pl-focus') as HTMLInputElement).value).toBe('')
+    expect(screen.getByText('settings.discarded')).toBeTruthy()
   })
 
   it('el pie pasa a marca de tiempo tras guardar', async () => {

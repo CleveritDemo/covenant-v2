@@ -488,20 +488,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             emptyHint={projectFolderEmptyHint}
             onSelect={onSelectProjectFolder}
           />
-          <PlaneLoopsButton
-            label={loopsButtonLabel}
-            pressed={loopsOpen}
-            onClick={() => onLoopsOpenChange(!loopsOpen)}
-          />
-          {onBrainstormsListOpenChange ? (
-            <PlaneBrainstormsListButton
-              label={brainstormsListButtonLabel}
-              pressed={brainstormsListOpen}
-              disabled={!canOpenBrainstorm}
-              disabledTitle={brainstormNeedFolderHint}
-              onClick={() => onBrainstormsListOpenChange(!brainstormsListOpen)}
-            />
-          ) : null}
           {canToggleExplorer ? (
             <PlaneExplorerButton
               label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
@@ -516,6 +502,20 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               disabledTitle={gitButtonDisabledTitle}
               pressed={gitPickerOpen}
               onClick={() => onGitButtonClick()}
+            />
+          ) : null}
+          <PlaneLoopsButton
+            label={loopsButtonLabel}
+            pressed={loopsOpen}
+            onClick={() => onLoopsOpenChange(!loopsOpen)}
+          />
+          {onBrainstormsListOpenChange ? (
+            <PlaneBrainstormsListButton
+              label={brainstormsListButtonLabel}
+              pressed={brainstormsListOpen}
+              disabled={!canOpenBrainstorm}
+              disabledTitle={brainstormNeedFolderHint}
+              onClick={() => onBrainstormsListOpenChange(!brainstormsListOpen)}
             />
           ) : null}
           {projectFolder.trim() && onRevealProjectFolder ? (

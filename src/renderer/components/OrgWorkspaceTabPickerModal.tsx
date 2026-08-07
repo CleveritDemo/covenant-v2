@@ -4,7 +4,6 @@ import { TerminalModal } from './TerminalModal'
 import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Select, type SelectOption } from './ui/Select'
-import { Spinner } from './ui/Spinner'
 import {
   getCovenantApi,
   hasCovenantWorkspacesApi,
@@ -18,6 +17,7 @@ import {
   projectAgentsFromWorkspaceAgents,
   tabContextsFromWorkspaceContexts,
 } from '../../shared/orgWorkspaceContent'
+import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
 import type { ProjectAgentDefinition } from '../../shared/projectAgentCatalog'
 import type { TabContext } from '../../shared/tabContext'
 import './OrganizationsModal.css'
@@ -44,6 +44,8 @@ interface Props {
   open: boolean
   onClose: () => void
   onConfirm: (selection: OrgWorkspaceSelection) => void
+  /** Snapshot en memoria: opciones al instante sin bloquear. */
+  catalog?: OrgWorkspaceCatalogEntry[]
 }
 
 function encodeWorkspaceValue(slug: string, workspaceId: string): string {
@@ -63,67 +65,51 @@ function decodeWorkspaceValue(value: string): { slug: string; workspaceId: strin
   }
 }
 
-/** True si hay al menos un workspace org accesible (signed-in + listados). */
-export async function hasAccessibleOrgWorkspaces(): Promise<boolean> {
-  const covenant = getCovenantApi()
-  if (!covenant || !hasCovenantWorkspacesApi(covenant)) return false
-  const status = await covenant.status()
-  if (!status.ok || !status.data.signedIn) return false
-  const orgsResult = await covenant.orgsList()
-  if (!orgsResult.ok) return false
-  for (const org of orgsResult.data) {
-    const slug = org.slug?.trim()
-    if (!slug) continue
-    const list = await covenant.workspacesList(slug)
-    if (list.ok && list.data.length > 0) return true
-  }
-  return false
+function optionsFromCatalog(entries: OrgWorkspaceCatalogEntry[]): WorkspaceOption[] {
+  return entries.map(entry => ({
+    value: encodeWorkspaceValue(entry.slug, entry.workspaceId),
+    slug: entry.slug,
+    workspaceId: entry.workspaceId,
+    name: entry.name,
+    label: `${entry.orgName || entry.slug} · ${entry.name}`,
+  }))
 }
 
 export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   open,
   onClose,
   onConfirm,
+  catalog,
 }) => {
   const { t } = useT()
-  const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [options, setOptions] = useState<WorkspaceOption[]>([])
+  const [options, setOptions] = useState<WorkspaceOption[]>(() => optionsFromCatalog(catalog ?? []))
   const [value, setValue] = useState(PERSONAL_VALUE)
 
   useEffect(() => {
     if (!open) return
-    let cancelled = false
-    setLoading(true)
     setBusy(false)
     setError(null)
     setValue(PERSONAL_VALUE)
-    setOptions([])
+    setOptions(optionsFromCatalog(catalog ?? []))
+  }, [open, catalog])
 
+  // Refresh en segundo plano: no bloquea el Select.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
     void (async () => {
       const covenant = getCovenantApi()
-      if (!covenant || !hasCovenantWorkspacesApi(covenant)) {
-        if (!cancelled) {
-          setLoading(false)
-          setOptions([])
-        }
-        return
-      }
+      if (!covenant || !hasCovenantWorkspacesApi(covenant)) return
       const orgsResult = await covenant.orgsList()
-      if (!orgsResult.ok) {
-        if (!cancelled) {
-          setLoading(false)
-          setError(orgsResult.error || t('organizations.newTabWorkspaceError'))
-        }
-        return
-      }
+      if (!orgsResult.ok || cancelled) return
       const next: WorkspaceOption[] = []
       for (const org of orgsResult.data) {
         const slug = org.slug?.trim()
         if (!slug) continue
         const list = await covenant.workspacesList(slug)
-        if (!list.ok) continue
+        if (!list.ok || cancelled) continue
         for (const workspace of list.data as CovenantWorkspace[]) {
           const workspaceId = workspace.id?.trim()
           const name = workspace.name?.trim()
@@ -138,14 +124,16 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         }
       }
       if (cancelled) return
-      setOptions(next)
-      setLoading(false)
+      setOptions(prev => {
+        const prevKey = prev.map(o => o.value).join('|')
+        const nextKey = next.map(o => o.value).join('|')
+        return prevKey === nextKey ? prev : next
+      })
     })()
-
     return () => {
       cancelled = true
     }
-  }, [open, t])
+  }, [open])
 
   const selectOptions: SelectOption[] = useMemo(
     () => [
@@ -156,7 +144,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   )
 
   async function handleConfirm(): Promise<void> {
-    if (busy || loading) return
+    if (busy) return
     if (!value) {
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
@@ -226,7 +214,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
           <Button
             variant="primary"
             size="sm"
-            disabled={loading || busy}
+            disabled={busy}
             onClick={() => void handleConfirm()}
           >
             {t('organizations.newTabWorkspaceConfirm')}
@@ -236,23 +224,16 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     >
       <div className="orgs-stack">
         <p className="orgs-empty">{t('organizations.newTabWorkspaceHint')}</p>
-        {loading ? (
-          <div className="orgs-inline-status">
-            <Spinner aria-label={t('organizations.newTabWorkspaceLoading')} />
-            <span>{t('organizations.newTabWorkspaceLoading')}</span>
-          </div>
-        ) : (
-          <SettingsField label={t('organizations.newTabWorkspaceLabel')}>
-            <Select
-              value={value}
-              options={selectOptions}
-              onChange={setValue}
-              size="sm"
-              disabled={busy}
-              aria-label={t('organizations.newTabWorkspaceLabel')}
-            />
-          </SettingsField>
-        )}
+        <SettingsField label={t('organizations.newTabWorkspaceLabel')}>
+          <Select
+            value={value}
+            options={selectOptions}
+            onChange={setValue}
+            size="sm"
+            disabled={busy}
+            aria-label={t('organizations.newTabWorkspaceLabel')}
+          />
+        </SettingsField>
         {error ? <p className="orgs-section-error">{error}</p> : null}
       </div>
     </TerminalModal>

@@ -6,6 +6,8 @@ import type {
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
   CovenantWorkspaceContextRecord,
+  CovenantWorkspaceRepoPayload,
+  CovenantWorkspaceRepoRecord,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
@@ -360,6 +362,94 @@ export async function deleteWorkspaceContext(
 ): Promise<void> {
   await authedFetch(
     `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/contexts/${encodeURIComponent(contextId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+function pickString(raw: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = raw[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function pickNumber(raw: Record<string, unknown>, ...keys: string[]): number {
+  for (const key of keys) {
+    const value = raw[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return 0
+}
+
+/** Normaliza JSON snake_case o camelCase del backend a CovenantWorkspaceRepoRecord. */
+export function mapWorkspaceRepoRecord(raw: unknown): CovenantWorkspaceRepoRecord | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  const id = pickString(row, 'id')
+  const repoFullName = pickString(row, 'repoFullName', 'repo_full_name')
+  const cloneUrl = pickString(row, 'cloneUrl', 'clone_url')
+  if (!id || !repoFullName || !cloneUrl) return null
+  const createdBy = pickString(row, 'createdBy', 'created_by') || undefined
+  return {
+    id,
+    repoFullName,
+    cloneUrl,
+    position: pickNumber(row, 'position'),
+    ...(createdBy ? { createdBy } : {}),
+    createdAt: pickNumber(row, 'createdAt', 'created_at'),
+    updatedAt: pickNumber(row, 'updatedAt', 'updated_at'),
+  }
+}
+
+export async function listWorkspaceRepos(
+  slug: string,
+  workspaceId: string,
+): Promise<CovenantWorkspaceRepoRecord[]> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/repos`,
+  )
+  const body = (await response.json()) as unknown
+  if (!Array.isArray(body)) return []
+  return body
+    .map(mapWorkspaceRepoRecord)
+    .filter((repo): repo is CovenantWorkspaceRepoRecord => repo != null)
+}
+
+export async function addWorkspaceRepo(
+  slug: string,
+  workspaceId: string,
+  payload: CovenantWorkspaceRepoPayload,
+): Promise<CovenantWorkspaceRepoRecord> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/repos`,
+    {
+      method: 'POST',
+      body: {
+        // Wire snake_case (contrato) + camelCase (serde del backend).
+        repo_full_name: payload.repoFullName,
+        clone_url: payload.cloneUrl,
+        repoFullName: payload.repoFullName,
+        cloneUrl: payload.cloneUrl,
+        ...(payload.position != null ? { position: payload.position } : {}),
+      },
+    },
+  )
+  const mapped = mapWorkspaceRepoRecord(await response.json())
+  if (!mapped) throw new CovenantApiError('Invalid workspace repo response', 500)
+  return mapped
+}
+
+export async function deleteWorkspaceRepo(
+  slug: string,
+  workspaceId: string,
+  repoId: string,
+): Promise<void> {
+  await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/repos/${encodeURIComponent(repoId)}`,
     { method: 'DELETE' },
   )
 }

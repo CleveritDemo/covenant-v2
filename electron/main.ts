@@ -117,6 +117,11 @@ import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken } from './githubToken'
 import {
+  cloneOrgWorkspace,
+  type OrgWorkspaceCloneRepo,
+  type OrgWorkspaceCloneResult,
+} from './orgWorkspaceClone'
+import {
   addAssignee as covenantAddAssignee,
   addMember as covenantAddMember,
   addOrgAdmin as covenantAddOrgAdmin,
@@ -135,6 +140,7 @@ import {
   listOrgs as covenantListOrgs,
   listWorkspaceAgents as covenantListWorkspaceAgents,
   listWorkspaceContexts as covenantListWorkspaceContexts,
+  listWorkspaceRepos as covenantListWorkspaceRepos,
   listWorkspaces as covenantListWorkspaces,
   removeAssignee as covenantRemoveAssignee,
   removeMember as covenantRemoveMember,
@@ -147,6 +153,8 @@ import {
   unsetDefault as covenantUnsetDefault,
   upsertWorkspaceAgent as covenantUpsertWorkspaceAgent,
   upsertWorkspaceContext as covenantUpsertWorkspaceContext,
+  addWorkspaceRepo as covenantAddWorkspaceRepo,
+  deleteWorkspaceRepo as covenantDeleteWorkspaceRepo,
   initCovenantSession,
 } from './covenantApi'
 import type { CovenantResult } from '../src/shared/covenantTypes'
@@ -957,6 +965,77 @@ function registerIpc(): void {
         )
         return null
       }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_REPOS_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWorkspaceRepos(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_REPO_ADD,
+    async (_e, slug: unknown, workspaceId: unknown, payload: unknown) =>
+      covenantInvoke(() =>
+        covenantAddWorkspaceRepo(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          payload as Parameters<typeof covenantAddWorkspaceRepo>[2],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_REPO_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, repoId: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWorkspaceRepo(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(repoId ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CLONE,
+    async (_e, params: unknown): Promise<OrgWorkspaceCloneResult> => {
+      const p = (params && typeof params === 'object' ? params : {}) as {
+        orgSlug?: unknown
+        workspaceSlug?: unknown
+        repos?: unknown
+        workspaceDir?: unknown
+      }
+      const config = readConfig()
+      const workspaceDir =
+        typeof p.workspaceDir === 'string' ? p.workspaceDir.trim() : ''
+      const baseDir = config.defaultWorkspacesDir?.trim() ?? ''
+      if (!workspaceDir && !baseDir) return { ok: false, error: 'missing-default-dir' }
+      const token = await resolveGithubToken(config)
+      if (!token) return { ok: false, error: 'missing-token' }
+      const reposRaw = Array.isArray(p.repos) ? p.repos : []
+      const repos: OrgWorkspaceCloneRepo[] = reposRaw.map((item: unknown) => {
+        const r = (item && typeof item === 'object' ? item : {}) as {
+          repoFullName?: unknown
+          cloneUrl?: unknown
+        }
+        return {
+          repoFullName: String(r.repoFullName ?? ''),
+          cloneUrl: String(r.cloneUrl ?? ''),
+        }
+      })
+      return cloneOrgWorkspace({
+        baseDir: baseDir || workspaceDir,
+        orgSlug: String(p.orgSlug ?? ''),
+        workspaceSlug: String(p.workspaceSlug ?? ''),
+        repos,
+        token,
+        ...(workspaceDir ? { workspaceDir } : {}),
+      })
+    },
   )
 
   ipcMain.handle(IPC.COVENANT_ORG_ADMINS_LIST, async (_e, slug: unknown) =>

@@ -4,6 +4,7 @@ import {
   getCovenantApi,
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
+  hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
   slugifyOrgName,
   type CovenantAuthStatus,
@@ -11,6 +12,7 @@ import {
   type CovenantMember,
   type CovenantOrg,
   type CovenantWorkspace,
+  type CovenantWorkspaceRepoRecord,
 } from '../covenantApi'
 import { TerminalModal } from './TerminalModal'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
@@ -18,15 +20,19 @@ import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { Spinner } from './ui/Spinner'
 import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
+import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/repoFullName'
 
 interface Props {
   open?: boolean
   onClose: () => void
+  /** Refresca el snapshot Cmd+T tras mutaciones de orgs/workspaces. */
+  onOrgWorkspacesMutated?: () => void
 }
 
 function mapCovenantAuthError(error: string, translate: (key: 'organizations.errorNoGithubToken') => string): string {
@@ -687,44 +693,251 @@ function OrgAdminsSection({
   )
 }
 
-function ProjectPeopleBlock({
-  title,
-  logins,
+function WorkspacePeopleBlock({
+  assignees,
+  admins,
   memberLogins,
-  busy,
-  addLabel,
-  removeLabel,
-  onAdd,
-  onRemove,
+  canManageAssignees,
+  canManageProjectAdmins,
+  parentBusy,
+  onAssigneeAdd,
+  onAssigneeRemove,
+  onAdminAdd,
+  onAdminRemove,
 }: {
-  title: string
-  logins: string[]
+  assignees: string[]
+  admins: string[]
   memberLogins: string[]
-  busy: boolean
-  addLabel: string
-  removeLabel: string
-  onAdd: (login: string) => void
-  onRemove: (login: string) => void
+  canManageAssignees: boolean
+  canManageProjectAdmins: boolean
+  parentBusy: boolean
+  onAssigneeAdd: (login: string) => void
+  onAssigneeRemove: (login: string) => void
+  onAdminAdd: (login: string) => void
+  onAdminRemove: (login: string) => void
 }): React.ReactElement {
-  const taken = new Set(logins)
+  const { t } = useT()
+  const [role, setRole] = useState<'user' | 'admin'>('user')
+  const canManageRole = role === 'user' ? canManageAssignees : canManageProjectAdmins
+  const busy = parentBusy || !canManageRole
+  const activeLogins = role === 'user' ? assignees : admins
+  const taken = new Set(activeLogins)
   const options = memberLogins.filter(login => !taken.has(login))
+  const addLabel = role === 'user' ? t('organizations.addAssignee') : t('organizations.addAdmin')
+
   return (
-    <div className="orgs-stack">
-      <p className="orgs-list__meta">{title}</p>
-      <LoginChips
-        logins={logins}
-        busy={busy}
-        emptyLabel={title}
-        removeLabel={removeLabel}
-        onRemove={onRemove}
-      />
-      <MemberPickRow
-        options={options}
-        busy={busy}
-        selectLabel={addLabel}
-        addLabel={addLabel}
-        onAdd={onAdd}
-      />
+    <div className="orgs-people" aria-label={t('organizations.peopleSection')}>
+      <p className="orgs-people__heading">{t('organizations.peopleSection')}</p>
+      <div className="orgs-people__group">
+        <p className="orgs-list__meta">{t('organizations.assignees')}</p>
+        <LoginChips
+          logins={assignees}
+          busy={parentBusy || !canManageAssignees}
+          emptyLabel={t('organizations.assignees')}
+          removeLabel={t('organizations.unassign')}
+          onRemove={onAssigneeRemove}
+        />
+      </div>
+      <div className="orgs-people__group">
+        <p className="orgs-list__meta">{t('organizations.workspaceAdmins')}</p>
+        <LoginChips
+          logins={admins}
+          busy={parentBusy || !canManageProjectAdmins}
+          emptyLabel={t('organizations.workspaceAdmins')}
+          removeLabel={t('organizations.removeAdmin')}
+          onRemove={onAdminRemove}
+        />
+      </div>
+      {(canManageAssignees || canManageProjectAdmins) ? (
+        <div className="orgs-people__add">
+          <SegmentedControl
+            size="sm"
+            layout="equal"
+            label={t('organizations.peopleSection')}
+            value={role}
+            disabled={parentBusy}
+            onChange={setRole}
+            options={[
+              {
+                value: 'user',
+                label: t('organizations.roleUser'),
+                disabled: !canManageAssignees,
+              },
+              {
+                value: 'admin',
+                label: t('organizations.roleAdmin'),
+                disabled: !canManageProjectAdmins,
+              },
+            ]}
+          />
+          <MemberPickRow
+            options={options}
+            busy={busy}
+            selectLabel={addLabel}
+            addLabel={addLabel}
+            onAdd={login => {
+              if (role === 'user') onAssigneeAdd(login)
+              else onAdminAdd(login)
+            }}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function WorkspaceReposBlock({
+  slug,
+  workspaceId,
+  canManage,
+  parentBusy,
+}: {
+  slug: string
+  workspaceId: string
+  canManage: boolean
+  parentBusy: boolean
+}): React.ReactElement {
+  const { t } = useT()
+  const covenant = useMemo(() => getCovenantApi(), [])
+  const available = hasCovenantWorkspaceReposApi(covenant)
+  const [repos, setRepos] = useState<CovenantWorkspaceRepoRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [cloneUrlDraft, setCloneUrlDraft] = useState('')
+
+  const loadRepos = useCallback(async (): Promise<void> => {
+    if (!covenant || !available || !slug || !workspaceId) {
+      setRepos([])
+      return
+    }
+    setLoading(true)
+    setError(null)
+    const result = await covenant.workspaceReposList(slug, workspaceId)
+    setLoading(false)
+    if (!result.ok) {
+      setRepos([])
+      setError(result.error)
+      return
+    }
+    setRepos(result.data)
+  }, [available, covenant, slug, workspaceId])
+
+  useEffect(() => {
+    void loadRepos()
+  }, [loadRepos])
+
+  const canMutate = available && canManage && !busy && !parentBusy
+  const cloneUrl = cloneUrlDraft.trim()
+  const derivedFullName = repoFullNameFromCloneUrl(cloneUrl)
+  const isDuplicate = Boolean(
+    derivedFullName
+    && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === derivedFullName),
+  )
+  const canAdd = canMutate && cloneUrl.length > 0 && !isDuplicate
+
+  async function handleAdd(): Promise<void> {
+    if (!covenant || !canMutate || cloneUrl.length === 0) return
+    const fullName = repoFullNameFromCloneUrl(cloneUrl)
+    if (!fullName) {
+      setError(t('organizations.repoUrlInvalid'))
+      return
+    }
+    if (isDuplicate || repos.some(repo => normalizeRepoFullName(repo.repoFullName) === fullName)) {
+      setError(t('organizations.repoDuplicate'))
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const result = await covenant.workspaceRepoAdd(slug, workspaceId, {
+      repoFullName: fullName,
+      cloneUrl,
+    })
+    setBusy(false)
+    if (!result.ok) {
+      const err = result.error.toLowerCase()
+      if (err.includes('already linked') || err.includes('conflict')) {
+        setError(t('organizations.repoDuplicate'))
+      } else {
+        setError(result.error)
+      }
+      return
+    }
+    setCloneUrlDraft('')
+    await loadRepos()
+  }
+
+  async function handleRemove(repoId: string): Promise<void> {
+    if (!covenant || !canMutate) return
+    setBusy(true)
+    setError(null)
+    const result = await covenant.workspaceRepoDelete(slug, workspaceId, repoId)
+    setBusy(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    await loadRepos()
+  }
+
+  return (
+    <div className="orgs-stack" aria-label={t('organizations.reposTab')}>
+      <p className="orgs-list__meta">{t('organizations.reposTab')}</p>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : (
+        <>
+          {canManage ? (
+            <div className="orgs-form-zone">
+              <p className="orgs-form-zone__label">{t('organizations.addRepo')}</p>
+              <div className="orgs-form-row">
+                <div className="orgs-form-row__grow">
+                  <SettingsField label={t('organizations.addRepo')} compact>
+                    <Input
+                      type="text"
+                      size="sm"
+                      value={cloneUrlDraft}
+                      disabled={!canMutate}
+                      onChange={e => setCloneUrlDraft(e.target.value)}
+                      placeholder={t('organizations.repoCloneUrlPlaceholder')}
+                      spellCheck={false}
+                      aria-label={t('organizations.repoCloneUrlPlaceholder')}
+                    />
+                  </SettingsField>
+                </div>
+                <Button variant="primary" size="sm" disabled={!canAdd} onClick={() => void handleAdd()}>
+                  {t('organizations.addRepo')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {repos.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.reposEmpty')}</p>
+          ) : (
+            <ul className="orgs-list">
+              {repos.map(repo => (
+                <li key={repo.id} className="orgs-list__item">
+                  <div className="orgs-list__main">
+                    <p className="orgs-list__title">{repo.repoFullName}</p>
+                    <p className="orgs-list__meta">{repo.cloneUrl}</p>
+                  </div>
+                  {canManage ? (
+                    <Button
+                      variant="danger"
+                      size="xs"
+                      disabled={!canMutate}
+                      onClick={() => void handleRemove(repo.id)}
+                    >
+                      {t('organizations.removeRepo')}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -773,9 +986,16 @@ function WorkspacesSection({
   onAdminRemove: (workspaceId: string, login: string) => void
 }): React.ReactElement {
   const { t } = useT()
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('')
   const canMutate = available && signedIn && !!activeSlug && !busy
   const canMutateCreate = canMutate && canCreate
   const canCreateSubmit = canMutateCreate && nameDraft.trim().length > 0
+
+  useEffect(() => {
+    if (!selectedWorkspaceId) return
+    if (workspaces.some(workspace => workspace.id === selectedWorkspaceId)) return
+    setSelectedWorkspaceId('')
+  }, [selectedWorkspaceId, workspaces])
 
   return (
     <div className="orgs-stack" aria-label={t('organizations.workspacesSection')}>
@@ -823,40 +1043,65 @@ function WorkspacesSection({
                 const isProjectAdmin = !!currentLogin && project.admins.includes(currentLogin)
                 const canManageAssignees = isOrgAdmin || isCreator || isProjectAdmin
                 const canManageProjectAdmins = isOrgAdmin || isCreator
+                const selected = selectedWorkspaceId === project.id
                 return (
-                  <li key={project.id} className="orgs-list__item orgs-list__item--workspace">
-                    <div className="orgs-list__main">
-                      <p className="orgs-list__title">{project.name}</p>
-                      <ProjectPeopleBlock
-                        title={t('organizations.assignees')}
-                        logins={project.assignees}
-                        memberLogins={memberLogins}
-                        busy={!canMutate || !canManageAssignees}
-                        addLabel={t('organizations.addAssignee')}
-                        removeLabel={t('organizations.unassign')}
-                        onAdd={login => onAssigneeAdd(project.id, login)}
-                        onRemove={login => onAssigneeRemove(project.id, login)}
-                      />
-                      <ProjectPeopleBlock
-                        title={t('organizations.workspaceAdmins')}
-                        logins={project.admins}
-                        memberLogins={memberLogins}
-                        busy={!canMutate || !canManageProjectAdmins}
-                        addLabel={t('organizations.addAdmin')}
-                        removeLabel={t('organizations.removeAdmin')}
-                        onAdd={login => onAdminAdd(project.id, login)}
-                        onRemove={login => onAdminRemove(project.id, login)}
-                      />
-                    </div>
-                    {showDelete ? (
-                      <Button
-                        variant="danger"
-                        size="xs"
-                        disabled={!canMutate}
-                        onClick={() => onDeleteRequest(project)}
+                  <li
+                    key={project.id}
+                    className={[
+                      'orgs-list__item',
+                      'orgs-list__item--workspace',
+                      selected ? 'is-selected' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    <div className="orgs-workspace-row">
+                      <button
+                        type="button"
+                        className="orgs-list__open"
+                        onClick={() => setSelectedWorkspaceId(selected ? '' : project.id)}
+                        aria-expanded={selected}
+                        aria-label={project.name}
                       >
-                        {t('organizations.deleteWorkspace')}
-                      </Button>
+                        <Icon
+                          name={selected ? 'chevron-down' : 'chevron-right'}
+                          size={12}
+                          aria-hidden
+                        />
+                        <span className="orgs-list__title">{project.name}</span>
+                      </button>
+                    </div>
+                    {selected ? (
+                      <div className="orgs-workspace-detail">
+                        <WorkspacePeopleBlock
+                          assignees={project.assignees}
+                          admins={project.admins}
+                          memberLogins={memberLogins}
+                          canManageAssignees={canManageAssignees}
+                          canManageProjectAdmins={canManageProjectAdmins}
+                          parentBusy={busy}
+                          onAssigneeAdd={login => onAssigneeAdd(project.id, login)}
+                          onAssigneeRemove={login => onAssigneeRemove(project.id, login)}
+                          onAdminAdd={login => onAdminAdd(project.id, login)}
+                          onAdminRemove={login => onAdminRemove(project.id, login)}
+                        />
+                        <WorkspaceReposBlock
+                          slug={activeSlug}
+                          workspaceId={project.id}
+                          canManage={canManageAssignees}
+                          parentBusy={busy}
+                        />
+                        {showDelete ? (
+                          <div className="orgs-workspace-detail__actions">
+                            <Button
+                              variant="danger"
+                              size="xs"
+                              disabled={!canMutate}
+                              onClick={() => onDeleteRequest(project)}
+                            >
+                              {t('organizations.deleteWorkspace')}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </li>
                 )
@@ -973,7 +1218,11 @@ function OrgDetailPanel({
   )
 }
 
-export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) => {
+export const OrganizationsModal: React.FC<Props> = ({
+  open = true,
+  onClose,
+  onOrgWorkspacesMutated,
+}) => {
   const { t } = useT()
   const covenant = useMemo(() => getCovenantApi(), [])
   const available = covenant != null
@@ -1263,6 +1512,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setAuth(result.data)
     await loadAuthAndOrgs()
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleSignOut(): Promise<void> {
@@ -1285,6 +1535,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     setOrgAdmins([])
     setMemberLogins([])
     await loadAuthAndOrgs()
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleCreateOrg(): Promise<void> {
@@ -1381,6 +1632,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setWorkspaceName('')
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleDeleteWorkspace(projectId: string): Promise<void> {
@@ -1395,6 +1647,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setDeleteWorkspace(null)
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAssigneeAdd(projectId: string, login: string): Promise<void> {
@@ -1412,6 +1665,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAssigneeRemove(projectId: string, login: string): Promise<void> {
@@ -1425,6 +1679,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAdminAdd(projectId: string, login: string): Promise<void> {
@@ -1442,6 +1697,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAdminRemove(projectId: string, login: string): Promise<void> {
@@ -1455,6 +1711,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleOrgAdminAdd(login: string): Promise<void> {

@@ -1999,6 +1999,7 @@ export const AgentPane: React.FC<Props> = ({
             messages={messages}
             busy={busy}
             activity={activity}
+            awaitingDelegations={awaitingDelegations}
             loopActive={effectiveLoopActive}
             loopIteration={loopIteration}
             queuedTurns={queuedTurns}

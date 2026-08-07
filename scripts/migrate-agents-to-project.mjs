@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Migra agentes ricos de userData/session.json → <project>/.iaterminal/agents/*.json
+ * Migra agentes ricos de userData/session.json → <project>/.gravity/agents/*.json
  * y deja bindings slim en session.json.
  *
  * Uso:
@@ -84,8 +84,14 @@ function isLegacyRich(raw) {
   return raw.provider === 'claude' || raw.provider === 'cursor'
 }
 
+// Mismo fallback que electron/projectDir.ts: script suelto, no puede importar TS.
+function projectDirName(cwd) {
+  if (existsSync(join(cwd, '.gravity'))) return '.gravity'
+  return existsSync(join(cwd, '.iaterminal')) ? '.iaterminal' : '.gravity'
+}
+
 function upsertAgent(cwd, definition) {
-  const dir = join(cwd, '.iaterminal', 'agents')
+  const dir = join(cwd, projectDirName(cwd), 'agents')
   mkdirSync(dir, { recursive: true })
   const path = join(dir, `${definition.id}.json`)
   const tmp = `${path}.tmp`

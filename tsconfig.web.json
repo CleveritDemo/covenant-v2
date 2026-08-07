@@ -23,6 +23,7 @@
     "src/**/*.tsx",
     "electron/preload.ts",
     "electron/persistence.ts",
+    "electron/projectDir.ts",
     "electron/spotifyNative.ts"
   ]
 }

@@ -96,3 +96,20 @@ export function resolveContextColor(
 ): string {
   return normalizeContextColor(context.color) ?? defaultColorForKind(context.kind)
 }
+
+/** Iniciales del agente para su monograma: 2 caracteres, mayúsculas. */
+export function agentMonogram(name: string): string {
+  const words = name.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return `${words[0][0]}${words[1][0]}`.toUpperCase()
+}
+
+/** Color de paleta estable para una semilla (mismo agente → mismo color). */
+export function paletteColorForSeed(seed: string): TabContextColor {
+  let hash = 0
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0
+  }
+  return TAB_CONTEXT_COLORS[Math.abs(hash) % TAB_CONTEXT_COLORS.length]
+}

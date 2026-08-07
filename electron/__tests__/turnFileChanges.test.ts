@@ -3,6 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from '../turnFileChanges'
+import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 describe('turn file changes', () => {
   const dirs: string[] = []
@@ -13,10 +14,10 @@ describe('turn file changes', () => {
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
-  it('detects added, modified and deleted files while ignoring .iaterminal', () => {
+  it('detects added, modified and deleted files while ignoring the project dir', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'))
-    mkdirSync(join(cwd, '.iaterminal'))
+    mkdirSync(join(cwd, PROJECT_DIR))
     writeFileSync(join(cwd, 'src', 'modified.ts'), 'before')
     writeFileSync(join(cwd, 'src', 'deleted.ts'), 'delete me')
     const before = captureWorkspaceSnapshot(cwd)
@@ -24,7 +25,7 @@ describe('turn file changes', () => {
     writeFileSync(join(cwd, 'src', 'modified.ts'), 'after')
     unlinkSync(join(cwd, 'src', 'deleted.ts'))
     writeFileSync(join(cwd, 'src', 'added.ts'), 'new')
-    writeFileSync(join(cwd, '.iaterminal', 'changelog.md'), 'automatic')
+    writeFileSync(join(cwd, PROJECT_DIR, 'changelog.md'), 'automatic')
     const after = captureWorkspaceSnapshot(cwd)
 
     expect(changedWorkspacePaths(before, after)).toEqual([

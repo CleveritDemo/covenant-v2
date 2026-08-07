@@ -10,6 +10,7 @@ import {
   upsertBrainstormRoom,
 } from '../brainstormCatalogOps'
 import type { BrainstormRoom } from '../../src/shared/brainstormRoom'
+import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 function sampleRoom(partial: Partial<BrainstormRoom> = {}): BrainstormRoom {
   return {
@@ -36,7 +37,7 @@ describe('brainstormCatalogOps', () => {
     }
   })
 
-  it('lists, upserts and deletes rooms under .iaterminal/brainstorms', () => {
+  it('lists, upserts and deletes rooms under <projectDir>/brainstorms', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-brainstorms-'))
     dirs.push(cwd)
 
@@ -68,7 +69,7 @@ describe('brainstormCatalogOps', () => {
     })
 
     const disk = JSON.parse(
-      readFileSync(join(cwd, '.iaterminal', 'brainstorms', 'ship-ideas.json'), 'utf-8'),
+      readFileSync(join(cwd, PROJECT_DIR, 'brainstorms', 'ship-ideas.json'), 'utf-8'),
     ) as { id: string; status: string }
     expect(disk.id).toBe('ship-ideas')
     expect(disk.status).toBe('running')
@@ -93,7 +94,7 @@ describe('brainstormCatalogOps', () => {
     const exported = exportBrainstormRoomMarkdown(cwd, 'ship-ideas')
     expect(exported.ok).toBe(true)
     if (!exported.ok) return
-    expect(exported.path).toBe(join(cwd, '.iaterminal', 'brainstorms', 'ship-ideas.md'))
+    expect(exported.path).toBe(join(cwd, PROJECT_DIR, 'brainstorms', 'ship-ideas.md'))
 
     const md = readFileSync(exported.path, 'utf-8')
     expect(md).toContain('# Latency budget')
@@ -106,7 +107,7 @@ describe('brainstormCatalogOps', () => {
   it('ignores corrupt json files', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-brainstorms-corrupt-'))
     dirs.push(cwd)
-    const dir = join(cwd, '.iaterminal', 'brainstorms')
+    const dir = join(cwd, PROJECT_DIR, 'brainstorms')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'broken.json'), '{not json', 'utf-8')
     writeFileSync(
@@ -132,7 +133,7 @@ describe('brainstormCatalogOps', () => {
   it('prunes old done/stopped rooms and keeps running/paused/recent', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-brainstorms-prune-'))
     dirs.push(cwd)
-    const dir = join(cwd, '.iaterminal', 'brainstorms')
+    const dir = join(cwd, PROJECT_DIR, 'brainstorms')
     mkdirSync(dir, { recursive: true })
 
     expect(pruneBrainstormRooms('')).toEqual({ ok: false, error: 'missing_cwd' })

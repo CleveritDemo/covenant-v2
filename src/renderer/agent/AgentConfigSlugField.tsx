@@ -1,4 +1,5 @@
 import React from 'react'
+import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { Input } from '../components/ui'
 import './AgentConfigSlugField.css'
@@ -10,7 +11,7 @@ export interface AgentConfigSlugFieldProps {
   onCommit: () => void
 }
 
-/** Campo del slug de archivo `.iaterminal/agents/<slug>.json`. */
+/** Campo del slug de archivo `<projectDir>/agents/<slug>.json`. */
 export const AgentConfigSlugField: React.FC<AgentConfigSlugFieldProps> = ({
   value,
   locked,
@@ -35,7 +36,7 @@ export const AgentConfigSlugField: React.FC<AgentConfigSlugFieldProps> = ({
         onBlur={onCommit}
       />
       <span className="agent-config-slug-field__hint">
-        {t('agentPane.slugHint', { file: `.iaterminal/agents/${preview}.json` })}
+        {t('agentPane.slugHint', { file: `${PROJECT_DIR}/agents/${preview}.json` })}
       </span>
     </label>
   )

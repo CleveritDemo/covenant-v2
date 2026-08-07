@@ -8,6 +8,7 @@ import {
   renameProjectAgent,
   upsertProjectAgent,
 } from '../projectAgentCatalogOps'
+import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 describe('projectAgentCatalogOps', () => {
   const dirs: string[] = []
@@ -18,7 +19,7 @@ describe('projectAgentCatalogOps', () => {
     }
   })
 
-  it('lists, upserts and deletes agents under .iaterminal/agents', () => {
+  it('lists, upserts and deletes agents under <projectDir>/agents', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-agents-'))
     dirs.push(cwd)
 
@@ -46,7 +47,7 @@ describe('projectAgentCatalogOps', () => {
     })
 
     const disk = JSON.parse(
-      readFileSync(join(cwd, '.iaterminal', 'agents', 'qa-scout.json'), 'utf-8'),
+      readFileSync(join(cwd, PROJECT_DIR, 'agents', 'qa-scout.json'), 'utf-8'),
     ) as { id: string }
     expect(disk.id).toBe('qa-scout')
 
@@ -76,7 +77,7 @@ describe('projectAgentCatalogOps', () => {
     })
     expect(qa.ok).toBe(true)
 
-    const resultsDir = join(cwd, '.iaterminal', 'results')
+    const resultsDir = join(cwd, PROJECT_DIR, 'results')
     mkdirSync(resultsDir, { recursive: true })
     writeFileSync(
       join(resultsDir, 'claude.md'),
@@ -108,8 +109,8 @@ describe('projectAgentCatalogOps', () => {
     const qaAfter = listProjectAgents(cwd).find(agent => agent.id === 'qa')
     expect(qaAfter?.contextIds).toEqual(['iaterminal:result:fullstack', 'rules'])
 
-    expect(existsSync(join(cwd, '.iaterminal', 'agents', 'claude.json'))).toBe(false)
-    expect(existsSync(join(cwd, '.iaterminal', 'agents', 'fullstack.json'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'agents', 'claude.json'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'agents', 'fullstack.json'))).toBe(true)
     expect(existsSync(join(resultsDir, 'claude.md'))).toBe(false)
     expect(existsSync(join(resultsDir, 'fullstack.md'))).toBe(true)
 

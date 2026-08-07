@@ -6,8 +6,9 @@ import type {
   GitHubActionsRun,
   GitHubActionsSnapshot,
   GitHubRepoRef,
+  GitHubRunJobsResult,
 } from '../src/shared/githubActionsTypes'
-import { fetchWorkflowRuns, GitHubApiError } from './githubApi'
+import { fetchRunJobs, fetchWorkflowRuns, GitHubApiError } from './githubApi'
 
 const TIMEOUT_MS = 120_000
 const RUN_LIST_LIMIT = 15
@@ -120,6 +121,38 @@ function fail(
   repo: GitHubRepoRef | null = null,
 ): GitHubActionsSnapshot {
   return { ok: false, repo, runs: [], error, errorCode }
+}
+
+/**
+ * Jobs y steps de un run. Va aparte del listado: sólo se pide cuando el usuario
+ * despliega una fila, no una vez por run listado en cada refresco.
+ */
+export async function githubRunJobsForSession(
+  sessionCwdRaw: string,
+  githubToken: string | null,
+  runId: number,
+): Promise<GitHubRunJobsResult> {
+  const sessionCwd = resolveWorkingDir(sessionCwdRaw)
+  if (!sessionCwd) return { ok: false, jobs: [], error: 'cwd inválido' }
+
+  const repoRoot = await getRepoRoot(sessionCwd)
+  if (!repoRoot) return { ok: false, jobs: [], error: 'no es un repositorio git' }
+
+  const repo = await resolveGitHubRepo(repoRoot)
+  if (!repo) return { ok: false, jobs: [], error: 'El remote origin no apunta a GitHub.' }
+
+  const token = githubToken?.trim()
+  if (!token) return { ok: false, jobs: [], error: 'Falta el token de GitHub.' }
+
+  try {
+    return { ok: true, jobs: await fetchRunJobs(token, repo.fullName, runId) }
+  } catch (error) {
+    if (error instanceof GitHubApiError && error.status === 404) {
+      // El run existe en el listado pero sus jobs caducaron: no es un error a gritar.
+      return { ok: true, jobs: [] }
+    }
+    return { ok: false, jobs: [], error: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 export async function githubActionsListForSession(

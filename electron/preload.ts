@@ -11,7 +11,11 @@ import type {
   GitRepoStatus,
   GitTarget,
 } from '../src/shared/gitSessionTypes'
-import type { GitHubActionsSnapshot, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
+import type {
+  GitHubActionsSnapshot,
+  GitHubRunJobsResult,
+  GitHubTokenCheck,
+} from '../src/shared/githubActionsTypes'
 import type {
   FileExplorerClipboardResult,
   FileExplorerFilePayload,
@@ -370,6 +374,10 @@ const api = {
 
   githubActionsList(target: GitTarget): Promise<GitHubActionsSnapshot> {
     return ipcRenderer.invoke(IPC.GITHUB_ACTIONS_LIST, target)
+  },
+  /** Jobs y steps de un run; se pide sólo al desplegar la fila. */
+  githubRunJobs(target: GitTarget, runId: number): Promise<GitHubRunJobsResult> {
+    return ipcRenderer.invoke(IPC.GITHUB_RUN_JOBS, target, runId)
   },
   /** `token` vacío = comprueba el efectivo (config, entorno o credential helper). */
   githubCheckToken(token: string): Promise<GitHubTokenCheck> {

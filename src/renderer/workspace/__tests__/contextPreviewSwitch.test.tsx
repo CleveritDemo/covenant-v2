@@ -11,6 +11,7 @@ vi.mock('@i18n/useT', () => ({
 }))
 
 import { ContextPreviewBody } from '../ContextContentPreviewModal'
+import { PROJECT_DIR } from '@shared/projectDir'
 
 function context(id: string): TabContext {
   return { id, name: id, fileName: `${id}.md`, kind: 'notes' }
@@ -39,7 +40,7 @@ describe('ContextPreviewBody al cambiar de contexto', () => {
     Object.assign(window, { api: { previewTabContext, listProjectAgents: vi.fn() } })
 
     const view = render(<ContextPreviewBody context={context('a')} cwd="/proyecto" />)
-    first.resolve({ ok: true, content: 'contenido de A', filePath: '/proyecto/.iaterminal/a.md' })
+    first.resolve({ ok: true, content: 'contenido de A', filePath: `/proyecto/${PROJECT_DIR}/a.md` })
     await screen.findByText('contenido de A')
 
     view.rerender(<ContextPreviewBody context={context('b')} cwd="/proyecto" />)
@@ -47,7 +48,7 @@ describe('ContextPreviewBody al cambiar de contexto', () => {
     expect(screen.getByText('contenido de A')).toBeTruthy()
     expect(screen.queryByText('tabContexts.loading')).toBeNull()
 
-    second.resolve({ ok: true, content: 'contenido de B', filePath: '/proyecto/.iaterminal/b.md' })
+    second.resolve({ ok: true, content: 'contenido de B', filePath: `/proyecto/${PROJECT_DIR}/b.md` })
     await waitFor(() => expect(screen.getByText('contenido de B')).toBeTruthy())
   })
 
@@ -57,7 +58,7 @@ describe('ContextPreviewBody al cambiar de contexto', () => {
     Object.assign(window, { api: { previewTabContext, listProjectAgents: vi.fn() } })
 
     const view = render(<ContextPreviewBody context={context('a')} cwd="/proyecto" />)
-    first.resolve({ ok: true, content: 'contenido de A', filePath: '/proyecto/.iaterminal/a.md' })
+    first.resolve({ ok: true, content: 'contenido de A', filePath: `/proyecto/${PROJECT_DIR}/a.md` })
     await screen.findByText('contenido de A')
 
     // Objeto nuevo, misma identidad: lo que hace refreshTabContexts.

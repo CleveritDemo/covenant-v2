@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrainstormRoom, BrainstormStatus } from '@shared/brainstormRoom'
 import { BRAINSTORM_DIR, brainstormFileName } from '@shared/brainstormCatalog'
+import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -101,7 +102,9 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
   const handleCopyPath = useCallback((room: BrainstormRoom): void => {
     const root = cwd.trim()
     if (!root) return
-    const path = `${root}/.iaterminal/${BRAINSTORM_DIR}/${brainstormFileName(room.id)}`
+    // ponytail: asume `.gravity`; un proyecto aún en `.iaterminal` copia la ruta nueva.
+    // Arreglar exponiendo la carpeta resuelta por IPC si alguien se queja.
+    const path = `${root}/${PROJECT_DIR}/${BRAINSTORM_DIR}/${brainstormFileName(room.id)}`
     void navigator.clipboard.writeText(path).then(() => {
       setCopiedById(prev => ({ ...prev, [room.id]: true }))
       const prevTimer = copyTimersRef.current.get(room.id)

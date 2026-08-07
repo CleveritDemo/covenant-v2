@@ -55,13 +55,20 @@ a handler in `electron/main.ts`, an exposed method in `electron/preload.ts`, and
 This is the part that requires reading several files to understand.
 
 **Agents live on disk, in the user's project — not in this repo's state.** For a pane whose cwd is
-`<project>`, the catalog is `<project>/.iaterminal/agents/<id>.json` (`ProjectAgentDefinition`:
+`<project>`, the catalog is `<project>/.gravity/agents/<id>.json` (`ProjectAgentDefinition`:
 provider, permissionMode, identity, `contextIds`, `coordination`, `delegateTo`). `session.json` in Electron
 userData only stores a thin `AgentPaneBinding` (`agentId` + `cliSessionId`) per pane, so agent definitions are
 shareable/committable while local session state is not. `electron/projectAgentCatalogOps.ts` owns read/write
 plus migration of older inline pane configs.
 
-**Contexts** are Markdown files under `<project>/.iaterminal/*.md`, structured by HTML markers:
+The folder name is resolved by `projectDirName()` (`electron/projectDir.ts`), never hardcoded: `.gravity`,
+unless the project still has the pre-rebrand `.iaterminal` and no `.gravity` — then it keeps using the old one.
+Nothing is renamed on disk (the folder lives in the user's repo). The names are `PROJECT_DIR` /
+`LEGACY_PROJECT_DIR` in `src/shared/projectDir.ts`. The `iaterminal:` HTML markers and the ` ```ia-terminal-* `
+fences below were deliberately NOT renamed — they are persisted inside users' Markdown files and invisible in
+the UI, so renaming them would break existing data for zero gain.
+
+**Contexts** are Markdown files under `<project>/.gravity/*.md`, structured by HTML markers:
 `<!-- iaterminal:context {json} -->` (id/kind/icon), `<!-- iaterminal:auto -->` (host-generated, deterministic)
 and `<!-- iaterminal:notes -->` (human- or AI-written annotations). Host kinds (`folderTree`, `files`,
 `symbols`, `git`, `deps`, `readme`, `changelog`) are re-materialized from disk at send time by
@@ -83,7 +90,7 @@ chat:
 | Fence | Parsed by | Effect |
 |---|---|---|
 | ` ```ia-terminal-delegate ` | `electron/aiAgentDelegate.ts` | orchestrator/productOwner spawns subtasks on other agents |
-| ` ```ia-terminal-results ` | `electron/aiAgentResults.ts` | appends to `.iaterminal/results/<agent>.md`, consumable as a context by other agents |
+| ` ```ia-terminal-results ` | `electron/aiAgentResults.ts` | appends to `.gravity/results/<agent>.md`, consumable as a context by other agents |
 | ` ```ia-terminal-changelog ` | `electron/aiChangelog.ts` | appends to the project AI changelog |
 
 Caps are constants in `src/shared/agentOrchestration.ts` (`MAX_DELEGATIONS_PER_TURN`,
@@ -106,7 +113,7 @@ around a central chat composer. `PaneWindow.tsx` implements the floating-window 
 live in `shared/paneWindows.ts`. `agent/AgentPane.tsx` is the full agent chat; `terminal/TerminalPane.tsx`
 wraps xterm.js and its explorer.
 
-The plane's UX intent (`.iaterminal/About.md`): *control in the center, execution at the periphery* — the user
+The plane's UX intent (`.gravity/About.md`): *control in the center, execution at the periphery* — the user
 directs, agents advance.
 
 ## Frontend rules (`.cursor/rules/frontend-components.mdc`)

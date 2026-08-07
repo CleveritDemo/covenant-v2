@@ -13,6 +13,7 @@ import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { initSessionCwd } from './cdRecentCapture'
+import { projectDirPath } from './projectDir'
 import {
   buildContextCatalogPrompt,
   buildContextPromptDelivery,
@@ -209,7 +210,7 @@ function sanitizeAttachmentName(name: string, mimeType: string, index: number): 
 }
 
 /**
- * Escribe las imágenes pegadas bajo `.iaterminal/clipboard-images` y
+ * Escribe las imágenes pegadas bajo `<projectDir>/clipboard-images` y
  * devuelve rutas absolutas que el CLI puede abrir con su herramienta Read.
  */
 export function materializeClipboardImages(
@@ -217,7 +218,7 @@ export function materializeClipboardImages(
   images: AgentCliImageAttachment[] | undefined,
 ): string[] {
   if (!Array.isArray(images) || images.length === 0) return []
-  const dir = join(cwd, '.iaterminal', 'clipboard-images')
+  const dir = projectDirPath(cwd, 'clipboard-images')
   mkdirSync(dir, { recursive: true })
   try {
     writeFileSync(join(dir, '.gitignore'), '*\n!.gitignore\n', { flag: 'wx' })

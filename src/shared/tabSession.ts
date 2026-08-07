@@ -79,7 +79,7 @@ export interface TabSession {
   paneTitles?: Record<string, string>
   /**
    * Enlace local pane → agente del catálogo del proyecto.
-   * La config compartible vive en `.iaterminal/agents/<agentId>.json`.
+   * La config compartible vive en `.gravity/agents/<agentId>.json`.
    */
   agentByPane?: Record<string, AgentPaneBinding>
   /** Ventanas del plano agéntico por paneId. */
@@ -103,8 +103,8 @@ export interface TabSession {
   /** Cadenas multi-agente A→B→C… con intervalo al final del ciclo. */
   planeLoopChains?: PlaneLoopChain[]
   /**
-   * @deprecated El catálogo vive en `.iaterminal/*.md`. Se ignora al cargar;
-   * las asignaciones van en el JSON del agente en `.iaterminal/agents/`.
+   * @deprecated El catálogo vive en `.gravity/*.md`. Se ignora al cargar;
+   * las asignaciones van en el JSON del agente en `.gravity/agents/`.
    */
   contexts?: TabContext[]
 }

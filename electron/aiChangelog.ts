@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { extname, join, resolve } from 'path'
 import { normalizeContextFileName } from '../src/shared/tabContext'
+import { projectDirPath } from './projectDir'
 
 export const DEFAULT_CHANGELOG_FILE = 'changelog.md'
 const CHANGELOG_FENCE_RE = /```ia-terminal-changelog\s*\n([\s\S]*?)\n```/g
@@ -75,7 +76,7 @@ export function resolveAiChangelogPath(
   cwd: string,
   preferredFileName?: string,
 ): string {
-  const directory = join(resolve(cwd), '.iaterminal')
+  const directory = projectDirPath(cwd)
   if (preferredFileName?.trim()) {
     return join(directory, normalizeContextFileName(preferredFileName, 'changelog'))
   }
@@ -156,7 +157,7 @@ export function ensureAiChangelog(
   options: { name?: string; fileName?: string; metadataLine?: string } = {},
 ): string {
   const filePath = resolveAiChangelogPath(cwd, options.fileName)
-  mkdirSync(join(resolve(cwd), '.iaterminal'), { recursive: true })
+  mkdirSync(projectDirPath(cwd), { recursive: true })
   if (!existsSync(filePath)) {
     try {
       writeFileSync(
@@ -183,7 +184,7 @@ export function writeAiChangelogDocument(
     entries?: AiChangelogEntry[]
   },
 ): string {
-  const directory = join(resolve(cwd), '.iaterminal')
+  const directory = projectDirPath(cwd)
   const filePath = resolveAiChangelogPath(cwd, options.fileName)
   const temporaryPath = join(directory, `.${normalizeContextFileName(options.fileName || DEFAULT_CHANGELOG_FILE)}.tmp`)
   const content = formatAiChangelogDocument({

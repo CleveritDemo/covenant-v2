@@ -102,6 +102,24 @@ describe('projectAgentCatalog', () => {
     })
   })
 
+  it('normaliza el monograma del JSON y lo mantiene al clonar', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'tl',
+      provider: 'claude',
+      permissionMode: 'auto',
+      name: 'Tech Lead',
+      monogram: 't.l',
+    })
+    expect(parsed?.monogram).toBe('TL')
+    expect(cloneProjectAgentDefinition(parsed!, ' copy').monogram).toBe('TL')
+    expect(parseProjectAgentDefinition({
+      id: 'tl',
+      provider: 'claude',
+      permissionMode: 'auto',
+      monogram: '  ',
+    })).not.toHaveProperty('monogram')
+  })
+
   it('keeps mid-word spaces so the config modal can type phrases', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'scout',

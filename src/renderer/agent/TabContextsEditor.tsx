@@ -7,6 +7,7 @@ import {
   resolveContextColor,
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
+import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { Input, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
@@ -76,7 +77,7 @@ export const TabContextsEditor: React.FC<Props> = ({
             <strong>
               {t(readOnlyAgentResult ? 'tabContexts.kind_agentResult' : 'tabContexts.kind_changelog')}
             </strong>
-            <small>{`.iaterminal/${draft.fileName}`}</small>
+            <small>{`${PROJECT_DIR}/${draft.fileName}`}</small>
           </div>
         </div>
       ) : (
@@ -113,7 +114,7 @@ export const TabContextsEditor: React.FC<Props> = ({
       </label>
       <label>
         <span>{t('tabContexts.fileName')}</span>
-        <small>{`.iaterminal/${normalizeContextFileName(
+        <small>{`${PROJECT_DIR}/${normalizeContextFileName(
           draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
           draft.kind === 'changelog' ? 'changelog' : 'context',
         )}`}</small>

@@ -125,7 +125,7 @@ export function canonicalContextId(
   return `iaterminal:${kind}`
 }
 
-/** Ruta relativa bajo `.iaterminal/` para el kind. */
+/** Ruta relativa bajo `.gravity/` para el kind. */
 export function canonicalContextFileName(
   kind: TabContextKind,
   options: CanonicalContextOptions = {},
@@ -251,7 +251,7 @@ export function isCanonicalContextId(context: Pick<TabContext, 'id' | 'kind' | '
 export interface TabContext {
   id: string
   name: string
-  /** Nombre del archivo materializado dentro de `<cwd>/.iaterminal/`. */
+  /** Nombre del archivo materializado dentro de `<cwd>/.gravity/`. */
   fileName: string
   kind: TabContextKind
   /** Ícono visual (allowlist); si falta, se deriva del kind. */

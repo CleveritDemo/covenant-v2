@@ -45,6 +45,14 @@ describe('parseClaudeModelsStdout', () => {
     expect(ids).toEqual(expect.arrayContaining(['fable', 'opus', 'sonnet', 'claude-fable-5']))
   })
 
+  it('ignores quoted words outside the --model block', () => {
+    const help = [
+      "  --agents <json>   Define agentes; equivale a la opción 'agent'.",
+      "  --model <model>   Provide an alias (e.g. 'fable', 'opus', or 'sonnet').",
+    ].join('\n')
+    expect(parseClaudeModelsStdout(help).map(m => m.id)).toEqual(['fable', 'opus', 'sonnet'])
+  })
+
   it('returns empty on auth error JSON', () => {
     expect(parseClaudeModelsStdout(JSON.stringify({
       type: 'result',

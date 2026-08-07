@@ -13,12 +13,12 @@
 ## Global Constraints
 
 - Los comentarios y la documentación se escriben **en español**; el código, en inglés.
-- Los marcadores en disco son `<!-- iaterminal:auto -->` / `<!-- /iaterminal:auto -->` y `<!-- iaterminal:notes -->` / `<!-- /iaterminal:notes -->`. **No se renombran** aunque la carpeta del proyecto ya sea `.covenant`: viven dentro de los Markdown de los usuarios (ver `CLAUDE.md`).
+- Los marcadores en disco son `<!-- iaterminal:auto -->` / `<!-- /iaterminal:auto -->` y `<!-- iaterminal:notes -->` / `<!-- /iaterminal:notes -->`. **No se renombran** aunque la carpeta del proyecto ya sea `.gravity`: viven dentro de los Markdown de los usuarios (ver `CLAUDE.md`).
 - La lógica de decisión va en `src/shared/` como función pura; React es un driver fino. No importar nada de `electron/` desde `src/renderer/` ni desde `src/shared/`.
 - Los componentes del UI kit (`src/renderer/components/ui/**`) no aceptan `className` ni `style`. `npm run check:ui` falla si se les pasa.
 - Toda cadena visible pasa por i18n y **se añade a los dos locales** (`src/i18n/locales/en.ts` y `es.ts`) en el mismo commit.
 - `npx tsc -b` arrastra ~36 errores previos en 11 archivos: no es una puerta de paso/fallo. Compara el número antes y después, no esperes cero.
-- El árbol de trabajo tiene cambios sin commitear del rebrand `.iaterminal` → `.covenant`. **No los incluyas en tus commits**: usa `git add` con rutas explícitas, nunca `git add -A`.
+- El árbol de trabajo tiene cambios sin commitear del rebrand `.iaterminal` → `.gravity`. **No los incluyas en tus commits**: usa `git add` con rutas explícitas, nunca `git add -A`.
 
 ---
 

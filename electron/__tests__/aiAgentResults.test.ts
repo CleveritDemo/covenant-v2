@@ -13,6 +13,7 @@ import {
   writeAiAgentResultsNotes,
 } from '../aiAgentResults'
 import { upsertProjectAgent } from '../projectAgentCatalogOps'
+import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 describe('AI agent results', () => {
   const dirs: string[] = []
@@ -83,7 +84,7 @@ describe('AI agent results', () => {
     }, { agentName: 'Ops Bot', timestamp: '2026-01-02T00:00:00.000Z' })
 
     const filePath = resolveAiAgentResultsPath(cwd, 'ops-bot')
-    expect(filePath).toBe(join(cwd, '.iaterminal', 'results', 'ops-bot.md'))
+    expect(filePath).toBe(join(cwd, PROJECT_DIR, 'results', 'ops-bot.md'))
     expect(existsSync(filePath)).toBe(true)
     const raw = readFileSync(filePath, 'utf8')
     expect(raw).toContain('## Latest')
@@ -135,14 +136,14 @@ describe('AI agent results', () => {
     expect(raw).toContain('"id":"iaterminal:result:fullstack"')
     expect(raw).toContain('"fileName":"results/fullstack.md"')
     expect(raw).toContain('"name":"Fullstack Expert"')
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'Fullstack-Expert.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'Fullstack-Expert.md'))).toBe(false)
   })
 
   it('deletes legacy nameSlug file when canonical agentId file already exists', () => {
     const cwd = tempCwd()
-    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    mkdirSync(join(cwd, PROJECT_DIR, 'results'), { recursive: true })
     writeFileSync(
-      join(cwd, '.iaterminal', 'results', 'fullstack.md'),
+      join(cwd, PROJECT_DIR, 'results', 'fullstack.md'),
       [
         '# fullstack — Results',
         '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:fullstack","name":"fullstack","fileName":"results/fullstack.md","kind":"agentResult"} -->',
@@ -156,7 +157,7 @@ describe('AI agent results', () => {
       'utf8',
     )
     writeFileSync(
-      join(cwd, '.iaterminal', 'results', 'example2.md'),
+      join(cwd, PROJECT_DIR, 'results', 'example2.md'),
       [
         '# example2 — Results',
         '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:example2","name":"fullstack","fileName":"results/example2.md","kind":"agentResult"} -->',
@@ -174,19 +175,19 @@ describe('AI agent results', () => {
     const { idRemap, migrated } = migrateLegacyAgentResults(cwd)
     expect(migrated).toBe(true)
     expect(idRemap['iaterminal:result:fullstack']).toBe('iaterminal:result:example2')
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'fullstack.md'))).toBe(false)
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'example2.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'fullstack.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'))).toBe(true)
     ensureAiAgentResults(cwd, 'example2', 'fullstack')
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'fullstack.md'))).toBe(false)
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'example2.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'fullstack.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'))).toBe(true)
   })
 
   it('resolves display-name agentId to catalog id on upsert and ensure', () => {
     const cwd = tempCwd()
     seedAgent(cwd, 'example2', 'fullstack')
-    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    mkdirSync(join(cwd, PROJECT_DIR, 'results'), { recursive: true })
     writeFileSync(
-      join(cwd, '.iaterminal', 'results', 'fullstack.md'),
+      join(cwd, PROJECT_DIR, 'results', 'fullstack.md'),
       '# orphan\n',
       'utf8',
     )
@@ -196,9 +197,9 @@ describe('AI agent results', () => {
       entries: ['mapped'],
     }, { agentName: 'fullstack', timestamp: '2026-01-04T00:00:00.000Z' })
 
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'fullstack.md'))).toBe(false)
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'example2.md'))).toBe(true)
-    const raw = readFileSync(join(cwd, '.iaterminal', 'results', 'example2.md'), 'utf8')
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'fullstack.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'))).toBe(true)
+    const raw = readFileSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'), 'utf8')
     expect(raw).toContain('"id":"iaterminal:result:example2"')
     expect(raw).toContain('From display name id')
 
@@ -206,21 +207,21 @@ describe('AI agent results', () => {
       summary: 'From catalog id',
       entries: ['direct'],
     }, { agentName: 'fullstack', timestamp: '2026-01-05T00:00:00.000Z' })
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'example2.md'))).toBe(true)
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'fullstack.md'))).toBe(false)
-    expect(readFileSync(join(cwd, '.iaterminal', 'results', 'example2.md'), 'utf8'))
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'fullstack.md'))).toBe(false)
+    expect(readFileSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'), 'utf8'))
       .toContain('From catalog id')
 
     ensureAiAgentResults(cwd, 'fullstack', 'fullstack')
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'fullstack.md'))).toBe(false)
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'example2.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'fullstack.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'example2.md'))).toBe(true)
   })
 
   it('migrates legacy nameSlug results file and rewrites agent contextIds', () => {
     const cwd = tempCwd()
-    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    mkdirSync(join(cwd, PROJECT_DIR, 'results'), { recursive: true })
     writeFileSync(
-      join(cwd, '.iaterminal', 'results', 'Scout.md'),
+      join(cwd, PROJECT_DIR, 'results', 'Scout.md'),
       [
         '# Scout — Results',
         '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:Scout","name":"Scout","fileName":"results/Scout.md","kind":"agentResult"} -->',
@@ -251,12 +252,12 @@ describe('AI agent results', () => {
     const { idRemap, migrated } = migrateLegacyAgentResults(cwd)
     expect(migrated).toBe(true)
     expect(idRemap['iaterminal:result:Scout']).toBe('iaterminal:result:scout')
-    expect(existsSync(join(cwd, '.iaterminal', 'results', 'scout.md'))).toBe(true)
-    const raw = readFileSync(join(cwd, '.iaterminal', 'results', 'scout.md'), 'utf8')
+    expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'scout.md'))).toBe(true)
+    const raw = readFileSync(join(cwd, PROJECT_DIR, 'results', 'scout.md'), 'utf8')
     expect(raw).toContain('"id":"iaterminal:result:scout"')
     expect(raw).toContain('"name":"Scout"')
     const agent = JSON.parse(
-      readFileSync(join(cwd, '.iaterminal', 'agents', 'scout.json'), 'utf8'),
+      readFileSync(join(cwd, PROJECT_DIR, 'agents', 'scout.json'), 'utf8'),
     ) as { contextIds: string[] }
     // Own result se quita en upsert/parse; folderTree remapeado permanece.
     expect(agent.contextIds).toEqual(['iaterminal:folderTree'])
@@ -264,9 +265,9 @@ describe('AI agent results', () => {
 
   it('renames case-only Product-Designer.md to product-designer.md via temp', () => {
     const cwd = tempCwd()
-    mkdirSync(join(cwd, '.iaterminal', 'results'), { recursive: true })
+    mkdirSync(join(cwd, PROJECT_DIR, 'results'), { recursive: true })
     writeFileSync(
-      join(cwd, '.iaterminal', 'results', 'Product-Designer.md'),
+      join(cwd, PROJECT_DIR, 'results', 'Product-Designer.md'),
       [
         '# Product Designer — Results',
         '<!-- iaterminal:context {"version":1,"id":"iaterminal:result:Product-Designer","name":"Product Designer","fileName":"results/Product-Designer.md","kind":"agentResult"} -->',
@@ -293,10 +294,10 @@ describe('AI agent results', () => {
     const { idRemap, migrated } = migrateLegacyAgentResults(cwd)
     expect(migrated).toBe(true)
     expect(idRemap['iaterminal:result:Product-Designer']).toBe('iaterminal:result:product-designer')
-    const names = readdirSync(join(cwd, '.iaterminal', 'results'))
+    const names = readdirSync(join(cwd, PROJECT_DIR, 'results'))
     expect(names).toContain('product-designer.md')
     expect(names.some(name => name === 'Product-Designer.md')).toBe(false)
-    const raw = readFileSync(join(cwd, '.iaterminal', 'results', 'product-designer.md'), 'utf8')
+    const raw = readFileSync(join(cwd, PROJECT_DIR, 'results', 'product-designer.md'), 'utf8')
     expect(raw).toContain('"id":"iaterminal:result:product-designer"')
   })
 

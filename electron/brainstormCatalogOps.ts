@@ -8,9 +8,10 @@ import {
   serializeBrainstormRoom,
 } from '../src/shared/brainstormCatalog'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
+import { projectDirPath } from './projectDir'
 
 function brainstormsDir(cwd: string): string {
-  return join(cwd, '.iaterminal', BRAINSTORM_DIR)
+  return projectDirPath(cwd, BRAINSTORM_DIR)
 }
 
 function ensureBrainstormsDir(cwd: string): string {

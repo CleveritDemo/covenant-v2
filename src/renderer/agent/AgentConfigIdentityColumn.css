@@ -83,8 +83,14 @@
   color: var(--text-muted);
 }
 
+/* El monograma son 2 caracteres: no merece una columna igual que name/role. */
+.agent-config-identity__row--identity {
+  grid-template-columns: 68px 1fr 1fr;
+}
+
 @media (max-width: 480px) {
-  .agent-config-identity__row {
+  .agent-config-identity__row,
+  .agent-config-identity__row--identity {
     grid-template-columns: 1fr;
   }
 }

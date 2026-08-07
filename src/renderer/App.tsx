@@ -258,7 +258,7 @@ export const App: React.FC = () => {
   const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
   /** Fuerza rediscovery de contextos en AgentPane tras rename de results. */
   const [contextsRevisionByCwd, setContextsRevisionByCwd] = useState<Record<string, number>>({})
-  /** Catálogo `.iaterminal/agents` indexado por projectFolder. */
+  /** Catálogo `.gravity/agents` indexado por projectFolder. */
   const [projectAgentsByCwd, setProjectAgentsByCwd] = useState<Record<string, ProjectAgentDefinition[]>>({})
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
@@ -481,7 +481,7 @@ export const App: React.FC = () => {
     }, 0)
   }, [])
 
-  /** Alinea panes de agente de una tab con `.iaterminal/agents` (fuente de verdad). */
+  /** Alinea panes de agente de una tab con `.gravity/agents` (fuente de verdad). */
   const syncTabWithProjectAgents = useCallback((
     tabId: string,
     agents: ProjectAgentDefinition[],
@@ -704,7 +704,7 @@ export const App: React.FC = () => {
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
-        // Agentes solo desde `.iaterminal/agents` (no resucitar rich meta de session).
+        // Agentes solo desde `.gravity/agents` (no resucitar rich meta de session).
         void (async () => {
           const folders = [...new Set(
             layoutTabs
@@ -788,7 +788,7 @@ export const App: React.FC = () => {
     return `${tab.id}:${tab.paneIds.join(',')}`
   }, [tabs, activeTabId])
 
-  // Contextos solo desde disco (discoverTabContexts / `.iaterminal`); nunca desde session.
+  // Contextos solo desde disco (discoverTabContexts / `.gravity`); nunca desde session.
   useEffect(() => {
     const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
     if (!tab) return
@@ -2688,6 +2688,7 @@ export const App: React.FC = () => {
           paneId={paneId}
           meta={resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)}
           cwd={tab.projectFolder?.trim() ?? ''}
+          projectAgents={projectAgentsByCwd[tab.projectFolder?.trim() ?? ''] ?? []}
           contextsRevision={contextsRevisionByCwd[tab.projectFolder?.trim() ?? ''] ?? 0}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}
           tabActive={tab.id === activeTabId}
@@ -3227,6 +3228,7 @@ export const App: React.FC = () => {
           <TabContextsModal
             open={planeContextsModalTabId === activeTabId}
             contexts={tabContextsByTab[modalTab.id] ?? []}
+            agents={projectAgentsByCwd[cwd] ?? []}
             cwd={cwd}
             focusContextId={planeContextsFocusId}
             onFocusContextConsumed={() => setPlaneContextsFocusId(null)}

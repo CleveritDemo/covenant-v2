@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, readdirSync, unlinkSync, writeFileSync } from 'fs'
-import { join, resolve } from 'path'
+import { join } from 'path'
 import {
   canonicalContextFileName,
   canonicalContextId,
@@ -11,6 +11,7 @@ import {
   type ProjectAgentDefinition,
 } from '../src/shared/projectAgentCatalog'
 import { listProjectAgents, upsertProjectAgent } from './projectAgentCatalogOps'
+import { projectDirPath } from './projectDir'
 
 export const AGENT_RESULTS_DIR = 'results'
 const RESULTS_FENCE_RE = /```ia-terminal-results\s*\n([\s\S]*?)\n```/g
@@ -80,7 +81,7 @@ export function agentResultContextId(agentId: string): string {
 
 export function resolveAiAgentResultsPath(cwd: string, agentId: string): string {
   const id = normalizeAgentId(agentId)
-  return join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR, `${id}.md`)
+  return projectDirPath(cwd, AGENT_RESULTS_DIR, `${id}.md`)
 }
 
 export function extractAiAgentResults(text: string): {
@@ -227,8 +228,7 @@ export function rewriteProjectAgentContextIds(
 
 /** Borra results/<stem>.md cuyo stem no es id de ningún agente del catálogo. */
 export function pruneOrphanAgentResults(cwd: string): boolean {
-  const root = resolve(cwd)
-  const resultsDir = join(root, '.iaterminal', AGENT_RESULTS_DIR)
+  const resultsDir = projectDirPath(cwd, AGENT_RESULTS_DIR)
   if (!existsSync(resultsDir)) return false
   const agentIds = new Set(listProjectAgents(cwd).map(agent => normalizeAgentId(agent.id)))
   let deleted = false
@@ -273,8 +273,7 @@ export function migrateLegacyAgentResults(cwd: string): {
 } {
   const idRemap: Record<string, string> = {}
   let migrated = false
-  const root = resolve(cwd)
-  const resultsDir = join(root, '.iaterminal', AGENT_RESULTS_DIR)
+  const resultsDir = projectDirPath(cwd, AGENT_RESULTS_DIR)
   if (!existsSync(resultsDir)) return { idRemap, migrated: false }
 
   const agents = listProjectAgents(cwd)
@@ -423,7 +422,7 @@ export function ensureAiAgentResults(
   const matched = listProjectAgents(cwd).find(agent => normalizeAgentId(agent.id) === id)
   const display = (agentName ?? '').trim() || matched?.name?.trim() || id
   const filePath = resolveAiAgentResultsPath(cwd, id)
-  const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
+  const directory = projectDirPath(cwd, AGENT_RESULTS_DIR)
   mkdirSync(directory, { recursive: true })
   if (existsSync(filePath)) {
     // Actualizar solo name en metadata si cambió el display (rename no mueve archivo).
@@ -455,7 +454,7 @@ export function ensureAiAgentResults(
 
 /**
  * Guarda las notas humanas de un results sin tocar el bloque `auto` del agente.
- * `agentId` se normaliza a slug, así que la ruta nunca sale de `.iaterminal/results`.
+ * `agentId` se normaliza a slug, así que la ruta nunca sale de la carpeta de results.
  */
 export function writeAiAgentResultsNotes(
   cwd: string,
@@ -489,7 +488,7 @@ export function upsertAiAgentResults(
   const display = (options.agentName ?? '').trim() || matched?.name?.trim() || id
   const timestamp = options.timestamp ?? new Date().toISOString()
   const filePath = resolveAiAgentResultsPath(cwd, id)
-  const directory = join(resolve(cwd), '.iaterminal', AGENT_RESULTS_DIR)
+  const directory = projectDirPath(cwd, AGENT_RESULTS_DIR)
   mkdirSync(directory, { recursive: true })
 
   const previousRaw = existsSync(filePath) ? readFileSync(filePath, 'utf8') : ''

@@ -35,6 +35,7 @@ vi.mock('../../components/TerminalModal', () => ({
 }))
 
 import { AgentConfigModal } from '../AgentConfigModal'
+import { PROJECT_DIR } from '@shared/projectDir'
 
 const meta: AgentPaneMeta = {
   id: 'tech-lead',
@@ -145,6 +146,16 @@ describe('AgentConfigModal', () => {
     expect(screen.getByText('agentPane.appliesNextTurn')).toBeTruthy()
   })
 
+  it('el monograma es editable y sugiere el derivado del nombre', () => {
+    renderModal()
+    const mono = screen.getByLabelText('agentPane.monogramLabel') as HTMLInputElement
+    expect(mono.value).toBe('')
+    expect(mono.placeholder).toBe('TL')
+    expect(mono.maxLength).toBe(2)
+    fireEvent.change(mono, { target: { value: 'be' } })
+    expect((screen.getByLabelText('agentPane.monogramLabel') as HTMLInputElement).value).toBe('be')
+  })
+
   it('descartar devuelve el borrador a lo guardado', () => {
     renderModal()
     const name = screen.getByLabelText('agentPane.nameLabel') as HTMLInputElement
@@ -166,6 +177,6 @@ describe('AgentConfigModal', () => {
 
   it('el pie nombra el archivo del catálogo del proyecto', () => {
     renderModal()
-    expect(screen.getByText('.iaterminal/agents/tech-lead.json')).toBeTruthy()
+    expect(screen.getByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeTruthy()
   })
 })

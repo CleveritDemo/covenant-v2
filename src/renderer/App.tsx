@@ -935,6 +935,51 @@ export const App: React.FC = () => {
             }))
           }
 
+          // Repos org: clona faltantes (p. ej. añadidos por admin) sin UI bloqueante.
+          const reposByWorkspace = new Map<string, {
+            slug: string
+            workspaceId: string
+            localDir: string
+          }>()
+          for (const tab of layoutTabs) {
+            const org = tab.orgWorkspace
+            if (!org?.slug?.trim() || !org.workspaceId?.trim()) continue
+            const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
+            if (!localDir) continue
+            const key = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+            if (reposByWorkspace.has(key)) continue
+            reposByWorkspace.set(key, {
+              slug: org.slug.trim(),
+              workspaceId: org.workspaceId.trim(),
+              localDir,
+            })
+          }
+          if (
+            covenant
+            && hasCovenantWorkspaceReposApi(covenant)
+            && typeof covenant.cloneOrgWorkspace === 'function'
+          ) {
+            await Promise.all([...reposByWorkspace.values()].map(async ws => {
+              try {
+                const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
+                if (!reposResult.ok) return
+                const repos = reposResult.data.map(r => ({
+                  repoFullName: r.repoFullName,
+                  cloneUrl: r.cloneUrl,
+                }))
+                if (!repos.length) return
+                await covenant.cloneOrgWorkspace({
+                  orgSlug: ws.slug,
+                  workspaceSlug: sanitizeSlugSegment(ws.workspaceId),
+                  repos,
+                  workspaceDir: ws.localDir,
+                })
+              } catch (err) {
+                console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
+              }
+            }))
+          }
+
           const snapshot = buildSessionSnapshot()
           if (snapshot) await window.api.saveSession(snapshot)
         })()

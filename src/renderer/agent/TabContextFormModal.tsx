@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
   applyCanonicalContextIdentity,
-  collectAutoAnnotationKeys,
   contextDefinitionKey,
   normalizeContextFileName,
   suggestSymbolsIdentity,
@@ -54,16 +53,6 @@ function comparable(value: string): string {
 
 function contextDefinition(context: TabContext): string | null {
   return contextDefinitionKey(context)
-}
-
-function countAutoKeys(content: string): number {
-  const auto = content.match(/<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/)?.[1] ?? ''
-  return collectAutoAnnotationKeys(auto).size
-}
-
-function countAnnotations(content: string): number {
-  const notes = content.match(/<!-- iaterminal:notes -->([\s\S]*?)<!-- \/iaterminal:notes -->/)?.[1] ?? ''
-  return [...notes.matchAll(/^-\s+`[^`]+`\s+—\s+/gm)].length
 }
 
 export const TabContextFormModal: React.FC<Props> = ({
@@ -542,8 +531,6 @@ export const TabContextFormModal: React.FC<Props> = ({
           onNotesContentChange={setNotesContent}
           onPreviewReset={() => setPreview(current => (current.status === 'success' ? current : { status: 'idle' }))}
           onPickRootError={message => setPreview({ status: 'error', message })}
-          countAutoKeys={countAutoKeys}
-          countAnnotations={countAnnotations}
         />
       </div>
     </TerminalModal>

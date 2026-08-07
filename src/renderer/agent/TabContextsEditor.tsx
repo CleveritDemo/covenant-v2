@@ -8,10 +8,13 @@ import {
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
 import { PROJECT_DIR } from '@shared/projectDir'
+import { sectionsForContext } from '@shared/contextSections'
+import { summarizeContextBudget } from '@shared/contextBudget'
 import { useT } from '@i18n/useT'
 import { Input, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
+import { TabContextBudgetMeter } from './TabContextBudgetMeter'
 import { TabContextColorSwatch } from './TabContextColorSwatch'
 import { TabContextIconSwatch } from './TabContextIconSwatch'
 import { TabContextKindCard } from './TabContextKindCard'
@@ -41,10 +44,6 @@ interface Props {
   onNotesContentChange: (content: string) => void
   onPreviewReset: () => void
   onPickRootError?: (message: string) => void
-  // Sin usar aquí desde la tarea 3: el medidor de la tarea 4 las sustituye.
-  // No se borran todavía porque su limpieza queda para esa tarea.
-  countAutoKeys: (content: string) => number
-  countAnnotations: (content: string) => number
 }
 
 export const TabContextsEditor: React.FC<Props> = ({
@@ -62,8 +61,6 @@ export const TabContextsEditor: React.FC<Props> = ({
   onNotesContentChange,
   onPreviewReset,
   onPickRootError,
-  countAutoKeys: _countAutoKeys,
-  countAnnotations: _countAnnotations,
 }) => {
   const { t } = useT()
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
@@ -242,7 +239,18 @@ export const TabContextsEditor: React.FC<Props> = ({
         )}
       </section>
       <aside className="tab-contexts__output">
-        {/* aquí va el medidor en la tarea 4 */}
+        {preview.status === 'success' && (
+          <TabContextBudgetMeter
+            summary={summarizeContextBudget(
+              sectionsForContext(draft, {
+                ok: true,
+                content: preview.content,
+                ...(draft.kind === 'notes' ? { notesContent } : {}),
+              }),
+              draft.kind,
+            )}
+          />
+        )}
         <div className="tab-contexts__output-head">
           <span>{t('tabContexts.preview')}</span>
           {preview.status === 'success' && <small>{preview.filePath}</small>}

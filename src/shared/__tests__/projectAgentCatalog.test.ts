@@ -413,4 +413,59 @@ describe('projectAgentCatalog', () => {
       },
     ])
   })
+
+  describe('capacidades del agente', () => {
+    const base = { id: 'backend', provider: 'claude', permissionMode: 'ask' }
+
+    it('sin nativeSkills el campo queda ausente — el llamador lo lee como ninguna', () => {
+      const def = parseProjectAgentDefinition(base)
+      expect(def?.nativeSkills).toBeUndefined()
+    })
+
+    it('acepta enabled con lista de namespaces', () => {
+      const def = parseProjectAgentDefinition({
+        ...base,
+        nativeSkills: { enabled: true, namespaces: ['superpowers', 'ponytail'] },
+      })
+      expect(def?.nativeSkills).toEqual({ enabled: true, namespaces: ['superpowers', 'ponytail'] })
+    })
+
+    it('enabled false descarta los namespaces: no hay allowlist que aplicar', () => {
+      const def = parseProjectAgentDefinition({
+        ...base,
+        nativeSkills: { enabled: false, namespaces: ['superpowers'] },
+      })
+      expect(def?.nativeSkills).toEqual({ enabled: false })
+    })
+
+    it('descarta namespaces que no son strings no vacíos', () => {
+      const def = parseProjectAgentDefinition({
+        ...base,
+        nativeSkills: { enabled: true, namespaces: ['superpowers', '', '  ', 42, null] },
+      })
+      expect(def?.nativeSkills).toEqual({ enabled: true, namespaces: ['superpowers'] })
+    })
+
+    it('deduplica namespaces conservando el orden', () => {
+      const def = parseProjectAgentDefinition({
+        ...base,
+        nativeSkills: { enabled: true, namespaces: ['b', 'a', 'b'] },
+      })
+      expect(def?.nativeSkills?.namespaces).toEqual(['b', 'a'])
+    })
+
+    it('nativeSkills que no es objeto se ignora entero', () => {
+      expect(parseProjectAgentDefinition({ ...base, nativeSkills: 'true' })?.nativeSkills)
+        .toBeUndefined()
+      expect(parseProjectAgentDefinition({ ...base, nativeSkills: { namespaces: ['x'] } })?.nativeSkills)
+        .toBeUndefined()
+    })
+
+    it('mcpsAllowed filtra vacíos y deduplica; lista vacía no se persiste', () => {
+      expect(parseProjectAgentDefinition({ ...base, mcpsAllowed: ['jira', '', 'jira', 'figma'] })?.mcpsAllowed)
+        .toEqual(['jira', 'figma'])
+      expect(parseProjectAgentDefinition({ ...base, mcpsAllowed: [] })?.mcpsAllowed).toBeUndefined()
+      expect(parseProjectAgentDefinition({ ...base, mcpsAllowed: 'jira' })?.mcpsAllowed).toBeUndefined()
+    })
+  })
 })

@@ -26,6 +26,16 @@ export { isAgentCliProvider }
 export type { AgentCliProvider, AgentPermissionMode }
 export type { AgentCoordination, DelegateToPolicy }
 
+/** Skills de plugin del harness visibles para este agente. */
+export interface AgentNativeSkills {
+  enabled: boolean
+  /**
+   * Namespaces de plugin permitidos (`superpowers`, `ponytail`…). Solo tiene
+   * sentido con `enabled: true`. Ausente o vacío = ninguno.
+   */
+  namespaces?: string[]
+}
+
 /** Definición compartible en `.gravity/agents/<id>.json`. */
 export interface ProjectAgentDefinition {
   id: string
@@ -49,6 +59,14 @@ export interface ProjectAgentDefinition {
   orchestrationMaxRounds?: number
   /** A quién puede delegar; omitido si equals default del coordination. */
   delegateTo?: DelegateToPolicy
+  /**
+   * Omitido = el agente no ve ninguna skill de plugin. El default seguro es
+   * el que no cuesta tokens: `claude plugin details superpowers` reporta ~688
+   * tokens always-on solo por ese plugin.
+   */
+  nativeSkills?: AgentNativeSkills
+  /** Servidores MCP permitidos por id. Omitido = ninguno. */
+  mcpsAllowed?: string[]
 }
 
 /** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
@@ -247,6 +265,34 @@ function sanitizeProvider(raw: unknown): AgentCliProvider {
   return isAgentCliProvider(raw) ? raw : 'claude'
 }
 
+/** Lista de strings no vacíos, recortados, sin duplicados y en orden de aparición. */
+function uniqueStrings(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const value = item.trim()
+    if (value) seen.add(value)
+  }
+  return [...seen]
+}
+
+export function sanitizeNativeSkills(raw: unknown): AgentNativeSkills | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const data = raw as Record<string, unknown>
+  if (typeof data.enabled !== 'boolean') return undefined
+  // Con el gate apagado no hay allowlist que aplicar: guardarla sería estado
+  // muerto que después miente en la UI.
+  if (!data.enabled) return { enabled: false }
+  const namespaces = uniqueStrings(data.namespaces)
+  return namespaces.length ? { enabled: true, namespaces } : { enabled: true }
+}
+
+export function sanitizeMcpsAllowed(raw: unknown): string[] | undefined {
+  const list = uniqueStrings(raw)
+  return list.length ? list : undefined
+}
+
 /** Parsea y normaliza un JSON de catálogo; null si inválido. */
 export function parseProjectAgentDefinition(
   raw: unknown,
@@ -310,6 +356,10 @@ export function parseProjectAgentDefinition(
     }
   }
   if (data.acceptDelegations === false) def.acceptDelegations = false
+  const nativeSkills = sanitizeNativeSkills(data.nativeSkills)
+  if (nativeSkills) def.nativeSkills = nativeSkills
+  const mcpsAllowed = sanitizeMcpsAllowed(data.mcpsAllowed)
+  if (mcpsAllowed) def.mcpsAllowed = mcpsAllowed
   return def
 }
 
@@ -347,6 +397,8 @@ export function cloneProjectAgentDefinition(
       const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
       return delegateTo ? { delegateTo } : {}
     })(),
+    ...(source.nativeSkills ? { nativeSkills: { ...source.nativeSkills } } : {}),
+    ...(source.mcpsAllowed ? { mcpsAllowed: [...source.mcpsAllowed] } : {}),
   }
 }
 

@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.6.0
+
+- **Saber qué versión llevas ya no obliga a salir de la app.** Ajustes tiene una
+  categoría nueva, Novedades: arriba la versión instalada y debajo el historial
+  de cambios completo, el mismo que ves en la página del release. Hasta ahora las
+  notas sólo aparecían en el banner del auto-updater, y una vez lo cerrabas no
+  había forma de volver a leerlas.
+- **El riel de categorías de Ajustes se lee.** La categoría activa se pintaba con
+  un acento demasiado claro para su etiqueta, y las inactivas en un gris que se
+  desvanecía sobre el fondo; en los temas claros ninguna de las dos llegaba al
+  mínimo de contraste. Ahora la activa usa el acento oscurecido que ya se
+  aplicaba a los botones sólidos y las inactivas suben de tono.
+
 ## v0.5.0
 
 - **Los contextos se leen, ya no se descifran.** Abrir un contexto mostraba el

@@ -31,6 +31,8 @@ import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/re
 interface Props {
   open?: boolean
   onClose: () => void
+  /** Refresca el snapshot Cmd+T tras mutaciones de orgs/workspaces. */
+  onOrgWorkspacesMutated?: () => void
 }
 
 function mapCovenantAuthError(error: string, translate: (key: 'organizations.errorNoGithubToken') => string): string {
@@ -1216,7 +1218,11 @@ function OrgDetailPanel({
   )
 }
 
-export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) => {
+export const OrganizationsModal: React.FC<Props> = ({
+  open = true,
+  onClose,
+  onOrgWorkspacesMutated,
+}) => {
   const { t } = useT()
   const covenant = useMemo(() => getCovenantApi(), [])
   const available = covenant != null
@@ -1506,6 +1512,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setAuth(result.data)
     await loadAuthAndOrgs()
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleSignOut(): Promise<void> {
@@ -1528,6 +1535,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     setOrgAdmins([])
     setMemberLogins([])
     await loadAuthAndOrgs()
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleCreateOrg(): Promise<void> {
@@ -1624,6 +1632,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setWorkspaceName('')
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleDeleteWorkspace(projectId: string): Promise<void> {
@@ -1638,6 +1647,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
     }
     setDeleteWorkspace(null)
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAssigneeAdd(projectId: string, login: string): Promise<void> {
@@ -1655,6 +1665,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAssigneeRemove(projectId: string, login: string): Promise<void> {
@@ -1668,6 +1679,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAdminAdd(projectId: string, login: string): Promise<void> {
@@ -1685,6 +1697,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleWorkspaceAdminRemove(projectId: string, login: string): Promise<void> {
@@ -1698,6 +1711,7 @@ export const OrganizationsModal: React.FC<Props> = ({ open = true, onClose }) =>
       return
     }
     await loadOrgDetails(detailSlug)
+    onOrgWorkspacesMutated?.()
   }
 
   async function handleOrgAdminAdd(login: string): Promise<void> {

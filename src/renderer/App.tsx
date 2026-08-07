@@ -20,10 +20,14 @@ import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
+import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
+import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
-  hasAccessibleOrgWorkspaces,
-  type OrgWorkspaceSelection,
-} from './components/OrgWorkspaceTabPickerModal'
+  buildOrgWorkspaceCatalog,
+  catalogForLogin,
+  catalogHasWorkspaces,
+  isCatalogFresh,
+} from '../shared/orgWorkspaceCatalog'
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
@@ -123,6 +127,7 @@ import {
   getCovenantApi,
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
+  hasCovenantWorkspacesApi,
 } from './covenantApi'
 import {
   projectAgentsFromWorkspaceAgents,
@@ -266,6 +271,11 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
+  /** Snapshot Cmd+T: null = aún no hidratado / sin sesión. */
+  const [orgWorkspaceCatalog, setOrgWorkspaceCatalog] = useState<OrgWorkspaceCatalog | null>(null)
+  const orgWorkspaceCatalogRef = useRef<OrgWorkspaceCatalog | null>(null)
+  const orgWorkspaceCatalogLoadingRef = useRef(false)
+  const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] = useState<{
     missingFolder?: boolean
     missingToken?: boolean
@@ -648,15 +658,150 @@ export const App: React.FC = () => {
 
   // Load config on mount; theme + fuente se aplican en el efecto siguiente cuando `configReady`
   useEffect(() => {
-    window.api.getConfig().then(cfg => {
+    window.api.getConfig().then(async cfg => {
       const tid = normalizeThemeId(cfg.themeId)
       if (tid !== cfg.themeId) {
         void window.api.setConfig({ themeId: tid })
       }
       setConfig({ ...cfg, themeId: tid })
+
+      let login = ''
+      try {
+        const covenant = getCovenantApi()
+        if (covenant) {
+          const status = await covenant.status()
+          if (status.ok && status.data.signedIn) {
+            login = status.data.login?.trim() ?? ''
+          }
+        }
+      } catch {
+        /* status local falló → sin cache */
+      }
+      const hydrated = login
+        ? catalogForLogin(cfg.orgWorkspaceCatalogCache, login)
+        : null
+      orgWorkspaceCatalogRef.current = hydrated
+      setOrgWorkspaceCatalog(hydrated)
       setConfigReady(true)
     })
   }, [])
+
+  const applyOrgWorkspaceCatalog = useCallback((next: OrgWorkspaceCatalog | null) => {
+    orgWorkspaceCatalogRef.current = next
+    setOrgWorkspaceCatalog(next)
+  }, [])
+
+  const persistOrgWorkspaceCatalogCache = useCallback(async (
+    next: OrgWorkspaceCatalog | null,
+  ) => {
+    setConfig(prev => {
+      if (next) {
+        if (prev.orgWorkspaceCatalogCache === next) return prev
+        return { ...prev, orgWorkspaceCatalogCache: next }
+      }
+      if (prev.orgWorkspaceCatalogCache === undefined) return prev
+      const cleared = { ...prev }
+      delete cleared.orgWorkspaceCatalogCache
+      return cleared
+    })
+    // null borra en mergeWithDefaults (undefined puede omitirse en IPC).
+    await window.api.setConfig({ orgWorkspaceCatalogCache: next })
+  }, [])
+
+  const loadOrgWorkspaceCatalog = useCallback(async (force = false) => {
+    if (orgWorkspaceCatalogLoadingRef.current && !force) return
+    const gen = ++orgWorkspaceCatalogLoadGenRef.current
+    orgWorkspaceCatalogLoadingRef.current = true
+    const CATALOG_TTL_MS = 5 * 60 * 1000
+    try {
+      const covenant = getCovenantApi()
+      if (!covenant) {
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        applyOrgWorkspaceCatalog(null)
+        await persistOrgWorkspaceCatalogCache(null)
+        return
+      }
+      const status = await covenant.status()
+      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+      if (!status.ok || !status.data.signedIn) {
+        applyOrgWorkspaceCatalog(null)
+        await persistOrgWorkspaceCatalogCache(null)
+        return
+      }
+      const login = status.data.login?.trim() ?? ''
+      if (!login) {
+        applyOrgWorkspaceCatalog(null)
+        await persistOrgWorkspaceCatalogCache(null)
+        return
+      }
+
+      const current = catalogForLogin(orgWorkspaceCatalogRef.current, login)
+      if (!force && isCatalogFresh(current, CATALOG_TTL_MS, Date.now())) {
+        if (current !== orgWorkspaceCatalogRef.current) applyOrgWorkspaceCatalog(current)
+        return
+      }
+
+      if (!hasCovenantWorkspacesApi(covenant)) {
+        const empty = buildOrgWorkspaceCatalog(login, [], {}, Date.now())
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        applyOrgWorkspaceCatalog(empty)
+        await persistOrgWorkspaceCatalogCache(empty)
+        return
+      }
+
+      const orgsResult = await covenant.orgsList()
+      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+      if (!orgsResult.ok) return
+
+      const workspacesByOrg: Record<string, Array<{ id: string; name: string }>> = {}
+      for (const org of orgsResult.data) {
+        const slug = org.slug?.trim()
+        if (!slug) continue
+        const list = await covenant.workspacesList(slug)
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        if (!list.ok) continue
+        workspacesByOrg[slug] = list.data.map(w => ({ id: w.id, name: w.name }))
+      }
+
+      const built = buildOrgWorkspaceCatalog(
+        login,
+        orgsResult.data.map(o => ({ slug: o.slug, name: o.name })),
+        workspacesByOrg,
+        Date.now(),
+      )
+      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+
+      const prev = orgWorkspaceCatalogRef.current
+      const changed =
+        !prev
+        || prev.login !== built.login
+        || prev.entries.length !== built.entries.length
+        || prev.entries.some((e, i) => {
+          const n = built.entries[i]!
+          return (
+            e.slug !== n.slug
+            || e.orgName !== n.orgName
+            || e.workspaceId !== n.workspaceId
+            || e.name !== n.name
+          )
+        })
+
+      applyOrgWorkspaceCatalog(built)
+      if (changed) await persistOrgWorkspaceCatalogCache(built)
+    } catch {
+      /* red falló: conservar snapshot en memoria */
+    } finally {
+      if (gen === orgWorkspaceCatalogLoadGenRef.current) {
+        orgWorkspaceCatalogLoadingRef.current = false
+      }
+    }
+  }, [applyOrgWorkspaceCatalog, persistOrgWorkspaceCatalogCache])
+
+  // Stale-while-revalidate tras boot (red en background; Cmd+T ya usa el snapshot).
+  useEffect(() => {
+    if (!configReady) return
+    void loadOrgWorkspaceCatalog(false)
+  }, [configReady, loadOrgWorkspaceCatalog])
 
   useEffect(() => {
     if (!configReady) return
@@ -1165,25 +1310,27 @@ export const App: React.FC = () => {
   }, [patchTabExplorer])
 
   const handleAddTab = useCallback(() => {
-    void (async () => {
-      try {
-        if (await hasAccessibleOrgWorkspaces()) {
-          setOrgWorkspacePickerOpen(true)
-          return
-        }
-      } catch {
-        /* personal fallback */
-      }
-      const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
-      setExplorerByTab(prev => {
-        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
-        explorerByTabRef.current = next
-        return next
-      })
-      setTabs(prev => [...prev, tab])
-      setActiveTabId(tab.id)
-    })()
-  }, [t])
+    const cat = orgWorkspaceCatalogRef.current
+    if (catalogHasWorkspaces(cat)) {
+      setOrgWorkspacePickerOpen(true)
+      return
+    }
+    if (cat === null) {
+      void loadOrgWorkspaceCatalog(false)
+    }
+    const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
+    setExplorerByTab(prev => {
+      const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+      explorerByTabRef.current = next
+      return next
+    })
+    setTabs(prev => [...prev, tab])
+    setActiveTabId(tab.id)
+  }, [t, loadOrgWorkspaceCatalog])
+
+  const handleOrgWorkspacesMutated = useCallback(() => {
+    void loadOrgWorkspaceCatalog(true)
+  }, [loadOrgWorkspaceCatalog])
 
   const handleOrgWorkspaceTabConfirm = useCallback(async (selection: OrgWorkspaceSelection) => {
     setOrgWorkspacePickerOpen(false)
@@ -3682,6 +3829,7 @@ export const App: React.FC = () => {
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}
+        orgWorkspaceCatalogEntries={orgWorkspaceCatalog?.entries}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
         agentCreate={agentCreate}
@@ -3694,6 +3842,7 @@ export const App: React.FC = () => {
           setOrgModalOpen(false)
           focusActiveTerminalTextarea()
         }}
+        onOrgWorkspacesMutated={handleOrgWorkspacesMutated}
         onCloseOrgWorkspacePicker={() => {
           setOrgWorkspacePickerOpen(false)
           focusActiveTerminalTextarea()

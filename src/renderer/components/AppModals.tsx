@@ -1,5 +1,6 @@
 import React from 'react'
 import type { AppConfig } from '@shared/configSchema'
+import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
 import type { AgentCliProvider } from '../../shared/tabSession'
 import {
   AgentProviderPickerModal,
@@ -19,12 +20,14 @@ interface Props {
   settingsOpen: boolean
   orgModalOpen: boolean
   orgWorkspacePickerOpen: boolean
+  orgWorkspaceCatalogEntries?: OrgWorkspaceCatalogEntry[]
   themePickerOpen: boolean
   agentPicker: { tabId: string; fromPaneId?: string } | null
   agentCreate: { tabId: string; fromPaneId?: string; provider: AgentCliProvider } | null
   agentCloneSources: AgentPickerCloneSource[]
   onCloseSettings: () => void
   onCloseOrganizations: () => void
+  onOrgWorkspacesMutated?: () => void
   onCloseOrgWorkspacePicker: () => void
   onConfirmOrgWorkspacePicker: (selection: OrgWorkspaceSelection) => void
   onCloseThemePicker: () => void
@@ -42,12 +45,14 @@ export const AppModals: React.FC<Props> = ({
   settingsOpen,
   orgModalOpen,
   orgWorkspacePickerOpen,
+  orgWorkspaceCatalogEntries,
   themePickerOpen,
   agentPicker,
   agentCreate,
   agentCloneSources,
   onCloseSettings,
   onCloseOrganizations,
+  onOrgWorkspacesMutated,
   onCloseOrgWorkspacePicker,
   onConfirmOrgWorkspacePicker,
   onCloseThemePicker,
@@ -83,13 +88,17 @@ export const AppModals: React.FC<Props> = ({
     )}
 
     {orgModalOpen && (
-      <OrganizationsModal onClose={onCloseOrganizations} />
+      <OrganizationsModal
+        onClose={onCloseOrganizations}
+        onOrgWorkspacesMutated={onOrgWorkspacesMutated}
+      />
     )}
 
     <OrgWorkspaceTabPickerModal
       open={orgWorkspacePickerOpen}
       onClose={onCloseOrgWorkspacePicker}
       onConfirm={onConfirmOrgWorkspacePicker}
+      catalog={orgWorkspaceCatalogEntries}
     />
 
     <ThemePickerModal

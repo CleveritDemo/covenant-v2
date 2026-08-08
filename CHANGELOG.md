@@ -4,6 +4,29 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.6
+
+- **Los contextos ya no hay que arrastrarlos.** La barra de arriba a la derecha
+  del plano dejó de ser una fila de iconos sin nombre: cada contexto muestra
+  cómo se llama y a cuántos agentes se lo diste. Un clic abre la lista de
+  agentes con casillas, así que se lo puedes dar a varios de una vez, sin
+  cruzar el plano con el ratón. Arrastrarlo hasta un agente sigue funcionando
+  igual, y "Editar" quedó al pie de esa misma lista.
+- **La barra se recorre con el teclado.** Antes cada icono era una parada de
+  tabulador y asignar exigía ratón sí o sí; ahora la barra entera es una sola
+  parada y te mueves entre contextos con las flechas.
+- **Al arrastrar un contexto ya no sale el recuadro blanco** de esquinas rectas
+  detrás del chip.
+- **La botonera del composer habla un solo idioma.** Contexto, Autoactualizar y
+  loop se dibujaban distinto siendo lo mismo; ahora los tres comparten forma:
+  apagado se ve como un fantasma neutro, encendido se rellena con el color de
+  acento, y el botón de borrar la conversación se fue detrás de un separador
+  para no tenerlo pegado al resto. El loop activo gira su icono en vez de
+  parecer deshabilitado, y lo que sí está deshabilitado lo dice en el tooltip
+  en vez de quedarse mudo.
+- **"Self-improve" ahora se llama "Autoactualizar"**, que es lo que hace:
+  actualizar las anotaciones de los contextos, no mejorar el prompt.
+
 ## v0.8.5
 
 - **La app arranca con su propia animación.** En vez de una ventana en negro

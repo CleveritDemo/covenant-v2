@@ -495,7 +495,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       closeOnBackdrop={false}
       title={mode === 'edit' ? t('tabContexts.editTitle') : t('tabContexts.createTitle')}
       titleId="tab-context-form-title"
-      size="xl"
+      size="xxl"
       bodyLayout="flush"
       zIndex={920}
       footer={(

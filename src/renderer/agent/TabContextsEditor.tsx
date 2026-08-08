@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
 import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS, HOST_CONTEXT_KINDS } from '@shared/tabContext'
 import {
@@ -11,8 +11,9 @@ import { PROJECT_DIR } from '@shared/projectDir'
 import { sectionsForContext } from '@shared/contextSections'
 import { summarizeContextBudget } from '@shared/contextBudget'
 import { useT } from '@i18n/useT'
-import { Button, Input, TextArea, Toggle } from '../components/ui'
+import { Button, Input, SegmentedControl, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
+import { AiMarkdown } from '../components/AiMarkdown'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
 import { TabContextColorSwatch } from './TabContextColorSwatch'
@@ -92,6 +93,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   onActionError,
 }) => {
   const { t } = useT()
+  const [previewView, setPreviewView] = useState<'rendered' | 'source'>('rendered')
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
   // Un contexto "guardado" es uno que ya está en el catálogo vivo del padre —
   // la vista previa (TAB_CONTEXT_PREVIEW) no escribe a disco, así que
@@ -330,6 +332,21 @@ export const TabContextsEditor: React.FC<Props> = ({
         <div className="tab-contexts__output-head">
           <span>{t('tabContexts.preview')}</span>
           {preview.status === 'success' && <small>{preview.filePath}</small>}
+          {preview.status === 'success' && (
+            <span className="tab-contexts__output-view">
+              <SegmentedControl
+                size="sm"
+                layout="scroll"
+                label={t('tabContexts.preview')}
+                value={previewView}
+                options={[
+                  { value: 'rendered', label: t('tabContexts.previewRendered') },
+                  { value: 'source', label: t('tabContexts.previewSource') },
+                ]}
+                onChange={setPreviewView}
+              />
+            </span>
+          )}
         </div>
         {preview.status === 'loading' && <p className="tab-contexts__output-msg">{t('tabContexts.loading')}</p>}
         {preview.status === 'idle' && <p className="tab-contexts__output-msg">{t('tabContexts.previewIdle')}</p>}
@@ -338,7 +355,16 @@ export const TabContextsEditor: React.FC<Props> = ({
           <p className="tab-contexts__output-msg tab-contexts__output-msg--error">{preview.message}</p>
         )}
         {preview.status === 'success' && (
-          <pre className="tab-contexts__preview">{preview.content}</pre>
+          previewView === 'source'
+            ? <pre className="tab-contexts__preview">{preview.content}</pre>
+            : (
+              <div className="tab-contexts__preview-rendered">
+                {/* ponytail: los marcadores `<!-- iaterminal:* -->` son andamiaje del
+                    formato, no contenido; en la vista renderizada solo hacen ruido.
+                    Se ven tal cual en "Source". */}
+                <AiMarkdown content={preview.content.replace(/<!--[\s\S]*?-->/g, '').trim()} />
+              </div>
+            )
         )}
       </aside>
     </div>

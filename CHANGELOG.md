@@ -4,6 +4,35 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.0
+
+- **Cada agente lleva sus propias skills y servidores MCP.** En la ficha del
+  agente se elige qué skills de plugin y qué MCP puede usar; lo que no está en
+  la lista no llega al CLI. No poner lista significa ninguna, no todas: el
+  default es el que no cuesta tokens. Los proveedores sin flags verificados
+  enseñan el control desactivado con el motivo, en vez de prometer un acotado
+  que luego no se aplica.
+- **Contextos de tipo skill.** Un `SKILL.md` se adjunta como contexto y se parte
+  por sus encabezados, como cualquier markdown.
+- **La vista previa de un contexto se ve renderizada.** El modal abre en "Vista"
+  —markdown, sin los marcadores del formato— y "Fuente" enseña el `.md` tal
+  cual. El modal además creció para que la previa respire.
+- **Contexto nuevo desde el plano.** Un botón "+" abre directamente el
+  formulario de creación, y la ruedita ya tiene tooltip.
+- **Tablas en el chat.** El markdown del chat renderiza tablas con su propio
+  scroll horizontal, y las notas del reporte de contexto se ven con el mismo
+  markdown que el cuerpo en vez de como texto plano.
+- **Se ve lo que cuesta un turno.** Las métricas de contexto salen del evento
+  real del CLI y suman también los tokens que caen en caché, que es donde va el
+  preámbulo.
+- **Discord Rich Presence.** Ajustes → Avanzado → Discord, apagado por defecto.
+  Publica el nombre del workspace, cuántas sesiones hay y si un agente está
+  trabajando; nunca comandos, rutas, títulos ni salida.
+- **"Novedades" se abre sola al actualizar.** Cabecera con la versión y, cuando
+  el release no trae notas, un estado vacío con enlace a GitHub en vez de una
+  URL pelada.
+- **Renombrar un contexto cambiando solo mayúsculas ya funciona.**
+
 ## v0.6.8
 
 - **Los botones de crear terminal y agente vuelven a las esquinas.** En el plano

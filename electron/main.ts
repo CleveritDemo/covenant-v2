@@ -296,16 +296,24 @@ function maybeMigrateAndEncrypt(parsed: Partial<AppConfig>): Partial<AppConfig> 
 
 function readConfig(): AppConfig {
   const p = configPath()
-  if (!existsSync(p)) return CONFIG_DEFAULTS
-  try {
-    const raw = readFileSync(p, 'utf-8')
-    let parsed = JSON.parse(raw) as Partial<AppConfig>
-    parsed = maybeMigrateAndEncrypt(parsed)
-    parsed = decryptSecrets(parsed)
-    return mergeWithDefaults(parsed)
-  } catch {
-    return CONFIG_DEFAULTS
+  let withDefaults: AppConfig
+  if (!existsSync(p)) {
+    withDefaults = { ...CONFIG_DEFAULTS }
+  } else {
+    try {
+      const raw = readFileSync(p, 'utf-8')
+      let parsed = JSON.parse(raw) as Partial<AppConfig>
+      parsed = maybeMigrateAndEncrypt(parsed)
+      parsed = decryptSecrets(parsed)
+      withDefaults = mergeWithDefaults(parsed)
+    } catch {
+      withDefaults = { ...CONFIG_DEFAULTS }
+    }
   }
+  if (!withDefaults.defaultWorkspacesDir?.trim()) {
+    withDefaults.defaultWorkspacesDir = join(app.getPath('documents'), 'covenant')
+  }
+  return withDefaults
 }
 
 function writeConfig(cfg: AppConfig): void {

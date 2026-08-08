@@ -41,6 +41,7 @@ import type {
   AgentChatEntry,
   AgentCliStartRequest,
   AgentCliUiEvent,
+  ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -183,6 +184,10 @@ const api = {
     cliSessionId: string
   }): void {
     ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)
+  },
+  /** Contadores acumulados desde el arranque: catálogo, secciones y tokens. */
+  getContextDeliveryMetrics(): Promise<ContextDeliveryMetrics> {
+    return ipcRenderer.invoke(IPC.CONTEXT_METRICS_GET)
   },
   previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_PREVIEW, request)

@@ -71,6 +71,7 @@ import {
   stopAllAgentRuns,
   clearAgentContextDeliveryForSession,
   clearAgentContextDeliveryState,
+  getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import {
   startBrainstormRoom,
@@ -1333,6 +1334,7 @@ function registerIpc(): void {
     if (!isAgentCliProvider(provider) || typeof cliSessionId !== 'string') return
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
+  ipcMain.handle(IPC.CONTEXT_METRICS_GET, () => getContextDeliveryMetrics())
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }

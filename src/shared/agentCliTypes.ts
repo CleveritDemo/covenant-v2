@@ -101,3 +101,19 @@ export interface AgentChatEntry {
   images?: AgentChatImage[]
 }
 
+
+/**
+ * Contadores acumulados desde el arranque de main. Vive aquí y no en
+ * `electron/agentCliRuntime.ts` porque el preload los expone al renderer, y
+ * este es el lado que los dos grafos pueden importar.
+ */
+export interface ContextDeliveryMetrics {
+  catalogChars: number
+  sectionsRequested: number
+  sectionsDelivered: number
+  sectionsPreattached: number
+  annotationUpserts: number
+  /** Tokens que el CLI reporta al cerrar cada turno, acumulados. */
+  inputTokens: number
+  outputTokens: number
+}

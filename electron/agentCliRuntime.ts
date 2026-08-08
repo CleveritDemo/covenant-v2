@@ -9,6 +9,7 @@ import type {
   AgentCliImageAttachment,
   AgentCliStartRequest,
   AgentCliUiEvent,
+  ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
@@ -90,20 +91,24 @@ export const CONTEXT_FULL_REFRESH_INTERVAL_TURNS = 10
 const MAX_CONTEXT_DELIVERY_SESSIONS = 100
 const sessionContextDeliveries = new Map<string, SessionContextDeliveryState>()
 
-export interface ContextDeliveryMetrics {
-  catalogChars: number
-  sectionsRequested: number
-  sectionsDelivered: number
-  sectionsPreattached: number
-  annotationUpserts: number
-}
-
 const contextDeliveryMetrics: ContextDeliveryMetrics = {
   catalogChars: 0,
   sectionsRequested: 0,
   sectionsDelivered: 0,
   sectionsPreattached: 0,
   annotationUpserts: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+}
+
+/** Suma el uso reportado por el CLI en el evento final de un turno. */
+export function recordTurnUsage(usage: { inputTokens?: number; outputTokens?: number }): void {
+  if (Number.isFinite(usage.inputTokens)) {
+    contextDeliveryMetrics.inputTokens += usage.inputTokens as number
+  }
+  if (Number.isFinite(usage.outputTokens)) {
+    contextDeliveryMetrics.outputTokens += usage.outputTokens as number
+  }
 }
 
 export function getContextDeliveryMetrics(): ContextDeliveryMetrics {
@@ -116,6 +121,8 @@ export function clearContextDeliveryMetrics(): void {
   contextDeliveryMetrics.sectionsDelivered = 0
   contextDeliveryMetrics.sectionsPreattached = 0
   contextDeliveryMetrics.annotationUpserts = 0
+  contextDeliveryMetrics.inputTokens = 0
+  contextDeliveryMetrics.outputTokens = 0
 }
 
 export function shouldForceFullContextRefresh(turnsSinceFullRefresh: number | null): boolean {
@@ -308,6 +315,31 @@ function contentText(value: unknown): string {
     .join('')
 }
 
+/**
+ * Uso de tokens de un evento `result` de Claude.
+ *
+ * Los tokens del preámbulo (identidad, catálogo de contexto, skills de plugin)
+ * caen en los campos de **caché**, no en `input_tokens`: en un turno medido de
+ * verdad fueron 2 contra 22.476 de `cache_creation_input_tokens`. Sumar los
+ * tres es lo que hace comparable un agente con plugins contra uno sin ellos,
+ * que es para lo que existe esta métrica.
+ */
+export function claudeTurnUsage(
+  event: Record<string, unknown>,
+): { inputTokens: number; outputTokens: number } {
+  const usage = event.usage as Record<string, unknown> | undefined
+  const num = (key: string): number => {
+    const value = usage?.[key]
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  }
+  return {
+    inputTokens: num('input_tokens')
+      + num('cache_creation_input_tokens')
+      + num('cache_read_input_tokens'),
+    outputTokens: num('output_tokens'),
+  }
+}
+
 export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
   if (!value || typeof value !== 'object') return []
   const obj = value as Record<string, unknown>
@@ -322,6 +354,7 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
       out.push({ type: 'assistant_delta', text: delta.text })
     }
   } else if (obj.type === 'result') {
+    recordTurnUsage(claudeTurnUsage(obj))
     const result = stringAt(obj, 'result')
     if (result) out.push({ type: 'assistant_final', text: result })
   } else if (obj.type === 'assistant') {

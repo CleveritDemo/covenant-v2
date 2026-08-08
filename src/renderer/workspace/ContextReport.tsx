@@ -40,7 +40,12 @@ const ContextNotes: React.FC<{ doc: ContextDoc }> = ({ doc }) => {
         <h3>{t('tabContexts.reportNotesTitle')}</h3>
         <span className="context-report__prov">{t('tabContexts.reportNotesByAi')}</span>
       </header>
-      {doc.notes ? <p className="context-report__notes-text">{doc.notes}</p> : null}
+      {doc.notes ? (
+        <div className="context-report__notes-text">
+          {/* Mismo render que el cuerpo: markdown + fences en <pre>. */}
+          <GenericBody auto={doc.notes} />
+        </div>
+      ) : null}
       {doc.annotations.length ? (
         <dl className="context-report__annotations">
           {doc.annotations.map(annotation => (

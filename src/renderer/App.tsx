@@ -14,6 +14,8 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { resolveContextColor } from '@shared/tabContextAppearance'
 import { contextIconName } from './agent/tabContextKindIcons'
+import type { PresenceSnapshot } from './presence'
+import { setDiscordPresenceEnabled, startDiscordPresence } from './presence'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { TabBar, type TabBarHandle } from './components/TabBar'
 import { TerminalPane } from './terminal/TerminalPane'
@@ -421,6 +423,7 @@ export const App: React.FC = () => {
   const orchestrationRoundsByPaneRef = useRef(new Map<string, number>())
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
+  const [planeContextsCreate, setPlaneContextsCreate] = useState(false)
   const [resultsPreview, setResultsPreview] = useState<{
     tabId: string
     context: TabContext
@@ -1334,6 +1337,25 @@ export const App: React.FC = () => {
     }
     return ids
   }, [tabs, busyPanes])
+
+  // Discord Rich Presence: ref reasignada cada render para que el poll de 15s
+  // lea siempre el estado actual sin resuscribirse.
+  const presenceSnapshotRef = useRef<PresenceSnapshot>({
+    workspace: null,
+    tabs: 0,
+    agentLive: false,
+  })
+  presenceSnapshotRef.current = {
+    workspace: tabs.find(t => t.id === activeTabId)?.projectFolder?.trim().split('/').pop() || null,
+    tabs: tabs.length,
+    agentLive: busyPanes.size > 0,
+  }
+
+  useEffect(() => {
+    if (!configReady) return
+    startDiscordPresence(() => presenceSnapshotRef.current, config.discordPresenceEnabled)
+    return () => setDiscordPresenceEnabled(false)
+  }, [configReady, config.discordPresenceEnabled])
 
   const handleFileExplorerChange = useCallback(
     (tabId: string, state: FileExplorerPersistedState) => {
@@ -2649,10 +2671,18 @@ export const App: React.FC = () => {
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
     setPlaneContextsFocusId(null)
+    setPlaneContextsCreate(false)
+    setPlaneContextsModalTabId(tabId)
+  }, [])
+
+  const handleCreateContextFromPlane = useCallback((tabId: string) => {
+    setPlaneContextsFocusId(null)
+    setPlaneContextsCreate(true)
     setPlaneContextsModalTabId(tabId)
   }, [])
 
   const handleOpenContextFromPlane = useCallback((tabId: string, contextId: string) => {
+    setPlaneContextsCreate(false)
     setPlaneContextsModalTabId(tabId)
     setPlaneContextsFocusId(contextId)
   }, [])
@@ -4048,6 +4078,7 @@ export const App: React.FC = () => {
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
+                  contextPoolCreateLabel={t('tabContexts.createTitle')}
                   contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
@@ -4086,6 +4117,7 @@ export const App: React.FC = () => {
                   onMinimizeAllWindows={() => handleMinimizeAllPaneWindows(tab.id)}
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
+                  onCreateContext={() => handleCreateContextFromPlane(tab.id)}
                   onOpenContext={contextId => {
                     handleOpenContextFromPlane(tab.id, contextId)
                   }}
@@ -4314,10 +4346,12 @@ export const App: React.FC = () => {
             orgWorkspace={orgWorkspace}
             focusContextId={planeContextsFocusId}
             onFocusContextConsumed={() => setPlaneContextsFocusId(null)}
+            openCreate={planeContextsCreate}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               setPlaneContextsFocusId(null)
+              setPlaneContextsCreate(false)
               void refreshTabContexts(modalTab.id)
             }}
           />

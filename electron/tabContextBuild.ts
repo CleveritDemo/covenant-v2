@@ -1,6 +1,6 @@
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, isAbsolute, join, relative, resolve, basename } from 'path'
 import ts from 'typescript'
 import type {
@@ -125,6 +125,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   readme: 'Gaps/outdated bits only; max 10 words.',
   changelog: 'Read-only; never annotate.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
+  skill: 'Host-installed skill; do not rewrite via annotations.',
 }
 
 function safeRoot(cwd: string, requested?: string): string {
@@ -486,7 +487,11 @@ function conflictingContextFile(
   try {
     const meta = contextFromMetadata(readFileSync(filePath, 'utf8'), basename(filePath))
     if (!meta) return null
-    if (meta.id === normalized.id || meta.id === incomingId) return null
+    // Comparación case-insensitive: renombrar "Git" → "git" cambia el id
+    // (`…:git:Git` → `…:git:git`) pero en un FS case-insensitive (macOS) el
+    // destino resuelve al MISMO archivo, y eso no es un conflicto.
+    const sameId = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase()
+    if (sameId(meta.id, normalized.id) || sameId(meta.id, incomingId)) return null
     return 'A context file with this name already exists.'
   } catch {
     return null
@@ -502,6 +507,13 @@ function removeSupersededContextFile(
   force = false,
 ): void {
   if (!previousFilePath || previousFilePath === nextFilePath || !existsSync(previousFilePath)) return
+  // Rename que solo cambia mayúsculas: en un FS case-insensitive ambas rutas son
+  // el mismo archivo (ya escrito con el contenido nuevo), así que borrarlo
+  // perdería el contexto. Solo hay que corregir el case en disco.
+  if (previousFilePath.toLowerCase() === nextFilePath.toLowerCase()) {
+    try { renameSync(previousFilePath, nextFilePath) } catch { /* ignore */ }
+    return
+  }
   try {
     if (force) {
       unlinkSync(previousFilePath)
@@ -908,6 +920,16 @@ export function reconcileNotesWithAuto(auto: string, notes: string): string {
   return parts.join('\n\n')
 }
 
+/**
+ * Ruta del `SKILL.md` fuente de un contexto `skill`, en `<projectDir>/skills/<stem>/SKILL.md`.
+ * El id del contexto es `iaterminal:skill:<stem>`; el stem es la carpeta.
+ */
+function skillSourcePath(context: TabContext, root: string): string {
+  const stem = context.id.replace(/^iaterminal:skill:/, '')
+    || context.fileName.replace(/\.md$/i, '')
+  return projectDirPath(root, 'skills', stem, 'SKILL.md')
+}
+
 function buildAutoContent(
   context: TabContext,
   cwd: string,
@@ -945,6 +967,10 @@ function buildAutoContent(
       if (!raw) return '(empty agent results)'
       const auto = extractSection(raw, AUTO_START, AUTO_END)
       return auto || raw
+    }
+    case 'skill': {
+      const path = skillSourcePath(context, root)
+      return existsSync(path) ? readFileSync(path, 'utf8').trim() || '(empty)' : '(empty)'
     }
     default:
       return '(empty)'
@@ -1219,6 +1245,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
       return []
     case 'agentResult':
       return [contextFilePath(context, cwd)]
+    case 'skill':
+      return [skillSourcePath(context, root)]
     // Git and folder trees are cheap enough to rebuild and difficult to
     // fingerprint exactly without repeating their traversal/commands.
     case 'git':

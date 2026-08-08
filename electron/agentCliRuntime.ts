@@ -1,6 +1,7 @@
 import crossSpawn from 'cross-spawn'
 import type { ChildProcessWithoutNullStreams } from 'child_process'
-import { mkdirSync, statSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, statSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { basename, extname, join, resolve } from 'path'
 import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
@@ -8,6 +9,7 @@ import type {
   AgentCliImageAttachment,
   AgentCliStartRequest,
   AgentCliUiEvent,
+  ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
@@ -50,8 +52,11 @@ import {
   isAgentCliProvider,
   type AgentCliProvider,
 } from '../src/shared/agentCliProviders'
+import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
+import { readInstalledPlugins } from './pluginDirs'
+import { readProjectMcpConfig, writeScopedMcpConfig } from './mcpConfigFile'
 
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
@@ -86,20 +91,24 @@ export const CONTEXT_FULL_REFRESH_INTERVAL_TURNS = 10
 const MAX_CONTEXT_DELIVERY_SESSIONS = 100
 const sessionContextDeliveries = new Map<string, SessionContextDeliveryState>()
 
-export interface ContextDeliveryMetrics {
-  catalogChars: number
-  sectionsRequested: number
-  sectionsDelivered: number
-  sectionsPreattached: number
-  annotationUpserts: number
-}
-
 const contextDeliveryMetrics: ContextDeliveryMetrics = {
   catalogChars: 0,
   sectionsRequested: 0,
   sectionsDelivered: 0,
   sectionsPreattached: 0,
   annotationUpserts: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+}
+
+/** Suma el uso reportado por el CLI en el evento final de un turno. */
+export function recordTurnUsage(usage: { inputTokens?: number; outputTokens?: number }): void {
+  if (Number.isFinite(usage.inputTokens)) {
+    contextDeliveryMetrics.inputTokens += usage.inputTokens as number
+  }
+  if (Number.isFinite(usage.outputTokens)) {
+    contextDeliveryMetrics.outputTokens += usage.outputTokens as number
+  }
 }
 
 export function getContextDeliveryMetrics(): ContextDeliveryMetrics {
@@ -112,6 +121,8 @@ export function clearContextDeliveryMetrics(): void {
   contextDeliveryMetrics.sectionsDelivered = 0
   contextDeliveryMetrics.sectionsPreattached = 0
   contextDeliveryMetrics.annotationUpserts = 0
+  contextDeliveryMetrics.inputTokens = 0
+  contextDeliveryMetrics.outputTokens = 0
 }
 
 export function shouldForceFullContextRefresh(turnsSinceFullRefresh: number | null): boolean {
@@ -304,6 +315,31 @@ function contentText(value: unknown): string {
     .join('')
 }
 
+/**
+ * Uso de tokens de un evento `result` de Claude.
+ *
+ * Los tokens del preámbulo (identidad, catálogo de contexto, skills de plugin)
+ * caen en los campos de **caché**, no en `input_tokens`: en un turno medido de
+ * verdad fueron 2 contra 22.476 de `cache_creation_input_tokens`. Sumar los
+ * tres es lo que hace comparable un agente con plugins contra uno sin ellos,
+ * que es para lo que existe esta métrica.
+ */
+export function claudeTurnUsage(
+  event: Record<string, unknown>,
+): { inputTokens: number; outputTokens: number } {
+  const usage = event.usage as Record<string, unknown> | undefined
+  const num = (key: string): number => {
+    const value = usage?.[key]
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  }
+  return {
+    inputTokens: num('input_tokens')
+      + num('cache_creation_input_tokens')
+      + num('cache_read_input_tokens'),
+    outputTokens: num('output_tokens'),
+  }
+}
+
 export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
   if (!value || typeof value !== 'object') return []
   const obj = value as Record<string, unknown>
@@ -318,6 +354,7 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
       out.push({ type: 'assistant_delta', text: delta.text })
     }
   } else if (obj.type === 'result') {
+    recordTurnUsage(claudeTurnUsage(obj))
     const result = stringAt(obj, 'result')
     if (result) out.push({ type: 'assistant_final', text: result })
   } else if (obj.type === 'assistant') {
@@ -723,9 +760,27 @@ export function commandAndArgs(
   cwd: string,
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
+  /**
+   * Home del usuario, para resolver plugins instalados. Requerido a propósito
+   * (sin default): esta función decide qué ve el proceso lanzado, y un
+   * llamador que se olvide de pasarlo no debe degradar en silencio a "sin
+   * plugins" — debe fallar en compilación.
+   */
+  home: string,
 ): { command: string; args: string[] } {
   const provider = isAgentCliProvider(request.provider) ? request.provider : 'claude'
   const spec = agentCliSpec(provider)
+  const nativeSkills = request.nativeSkills
+  const pluginDirs = nativeSkills?.enabled
+    ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
+    : []
+  const mcpConfigPath = request.mcpsAllowed?.length
+    ? writeScopedMcpConfig(
+        request.mcpsAllowed,
+        readProjectMcpConfig(cwd),
+        mkdtempSync(join(tmpdir(), 'gravity-mcp-')),
+      )
+    : null
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
     args: spec.args({
@@ -734,6 +789,11 @@ export function commandAndArgs(
       mode: request.permissionMode,
       ...(request.model?.trim() ? { model: request.model.trim() } : {}),
       ...(cliSessionId ? { sessionId: cliSessionId } : {}),
+      // `!== true` y no `=== false`: un agente sin nativeSkills también queda
+      // apagado. Ese es el default seguro de la Task 1, y aquí se hace efectivo.
+      disableSkills: nativeSkills?.enabled !== true,
+      pluginDirs,
+      ...(mcpConfigPath ? { mcpConfigPath } : {}),
     }),
   }
 }
@@ -810,6 +870,7 @@ export function runAgentCliSpawn(
     cwd,
     prompt,
     latestSessionId,
+    home,
   )
   if (!rawCommand) {
     failBeforeSpawn('El comando del CLI no está configurado.')
@@ -943,6 +1004,7 @@ export function startAgentTurn(
       cwd,
       prompt,
       latestSessionId,
+      home,
     )
     if (!rawCommand) {
       failBeforeSpawn('El comando del CLI no está configurado.')

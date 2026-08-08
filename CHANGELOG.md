@@ -4,6 +4,94 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.0
+
+- **Cada agente lleva sus propias skills y servidores MCP.** En la ficha del
+  agente se elige qué skills de plugin y qué MCP puede usar; lo que no está en
+  la lista no llega al CLI. No poner lista significa ninguna, no todas: el
+  default es el que no cuesta tokens. Los proveedores sin flags verificados
+  enseñan el control desactivado con el motivo, en vez de prometer un acotado
+  que luego no se aplica.
+- **Contextos de tipo skill.** Un `SKILL.md` se adjunta como contexto y se parte
+  por sus encabezados, como cualquier markdown.
+- **La vista previa de un contexto se ve renderizada.** El modal abre en "Vista"
+  —markdown, sin los marcadores del formato— y "Fuente" enseña el `.md` tal
+  cual. El modal además creció para que la previa respire.
+- **Contexto nuevo desde el plano.** Un botón "+" abre directamente el
+  formulario de creación, y la ruedita ya tiene tooltip.
+- **Tablas en el chat.** El markdown del chat renderiza tablas con su propio
+  scroll horizontal, y las notas del reporte de contexto se ven con el mismo
+  markdown que el cuerpo en vez de como texto plano.
+- **Se ve lo que cuesta un turno.** Las métricas de contexto salen del evento
+  real del CLI y suman también los tokens que caen en caché, que es donde va el
+  preámbulo.
+- **Discord Rich Presence.** Ajustes → Avanzado → Discord, apagado por defecto.
+  Publica el nombre del workspace, cuántas sesiones hay y si un agente está
+  trabajando; nunca comandos, rutas, títulos ni salida.
+- **"Novedades" se abre sola al actualizar.** Cabecera con la versión y, cuando
+  el release no trae notas, un estado vacío con enlace a GitHub en vez de una
+  URL pelada.
+- **Renombrar un contexto cambiando solo mayúsculas ya funciona.**
+
+## v0.6.8
+
+- **Los botones de crear terminal y agente vuelven a las esquinas.** En el plano
+  agéntico, el flotante de terminal queda abajo a la izquierda y el de agente
+  abajo a la derecha, en vez de apilados en el mismo sitio.
+
+## v0.6.7
+
+- **El modal de contextos, rediseñado.** Pasa a dos paneles —edición a un lado,
+  vista previa al otro—, los tipos se agrupan por quién escribe el cuerpo (el
+  host o tú) en un único selector, el icono y el color se pliegan cuando no los
+  tocas y ahora se ve el presupuesto que ese contexto consume en un envío.
+- **Se acabaron los cambios que se perdían sin avisar.** Cerrar el modal o
+  cambiar de contexto descartaba ediciones en silencio, y guardar tampoco era
+  siempre explícito. Ahora el cierre pregunta y las dos acciones están a la
+  vista.
+- **Mostrar en Finder para el `.md` del contexto.** Disponible en cuanto el
+  fichero existe en disco.
+- **El modal ya no se queda sin salida.** En ventanas bajas no se podía llegar a
+  los botones porque no scrolleaba, y ciertos estados dejaban el diálogo sin
+  forma de cerrarlo.
+- **Un repo que falla ya no tumba la sincronización entera.** Al arrancar, cada
+  repo y cada agente de un workspace de organización se sincroniza por su
+  cuenta.
+
+## v0.6.6
+
+- **Los repos de un workspace de organización se ponen al día al arrancar.**
+  Si alguien añadía o quitaba repos desde otra máquina, la lista local se
+  quedaba como estaba hasta volver a entrar al panel de organizaciones.
+
+## v0.6.5
+
+- **Borrar un agente de organización ahora es definitivo.** Desaparecía de la
+  lista pero volvía al recargar. También se acotó el resaltado del acordeón, que
+  se comía filas que no tocaban.
+
+## v0.6.4
+
+- **Restaurar la sesión ya no duplica agentes ni contextos.** Al abrir la app
+  con pestañas de workspaces de organización, cada una volvía a cargarlos y
+  aparecían repetidos.
+
+## v0.6.3
+
+- **Los workspaces de organización traen sus repos.** Se les puede fijar una
+  carpeta por defecto, añadir repositorios por URL de git —clonados con tu
+  token— y al abrir el workspace se cargan sus agentes y contextos. Los
+  workspaces se editan en un acordeón, asignar personas es más directo y ya no
+  se cuelan repos duplicados.
+- **Abrir una pestaña nueva no espera a la red.** ⌘T comprobaba tus
+  organizaciones y workspaces contra el servidor cada vez; ahora se cachean.
+- **Se ve cuándo un agente está delegando.** El chat lo indica mientras el
+  orquestador reparte subtareas, en vez de parecer parado.
+- **«Descartar cambios» en Ajustes hace lo que dice.** Revierte al estado de
+  apertura, lo persiste y avisa de que lo ha hecho.
+- **Barra del plano reordenada:** abrir carpeta, explorador, git, loops y
+  brainstorm, en ese orden.
+
 ## v0.6.2
 
 - **Se acabaron los tooltips nativos.** Los cuadros amarillos del sistema

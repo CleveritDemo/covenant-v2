@@ -19,10 +19,13 @@ export interface PlaneContextPoolItem {
 export interface PlaneContextPoolProps {
   title: string
   configureLabel: string
+  createLabel: string
   /** Hint del chip (segunda línea del tooltip + aria): clic edita, arrastrar asigna. */
   chipActionHint?: string
   contexts: PlaneContextPoolItem[]
   onConfigure: () => void
+  /** Abre el modal de contextos directo en el formulario de creación. */
+  onCreate: () => void
   /** Click on chip (not after a drag) opens that context for edit. */
   onOpenContext?: (contextId: string) => void
 }
@@ -30,9 +33,11 @@ export interface PlaneContextPoolProps {
 export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   title,
   configureLabel,
+  createLabel,
   chipActionHint,
   contexts,
   onConfigure,
+  onCreate,
   onOpenContext,
 }) => {
   const dragOccurredRef = useRef(false)
@@ -55,9 +60,20 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         type="button"
         className="plane-context-pool__configure"
         aria-label={configureLabel}
+        title={configureLabel}
         onClick={onConfigure}
       >
         <Icon name="settings" size={12} />
+      </button>
+
+      <button
+        type="button"
+        className="plane-context-pool__configure"
+        aria-label={createLabel}
+        title={createLabel}
+        onClick={onCreate}
+      >
+        <Icon name="plus" size={12} />
       </button>
 
       {visibleContexts.length > 0 ? (

@@ -71,6 +71,7 @@ import {
   stopAllAgentRuns,
   clearAgentContextDeliveryForSession,
   clearAgentContextDeliveryState,
+  getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import {
   startBrainstormRoom,
@@ -87,6 +88,7 @@ import {
   mergeAnnotations,
 } from './tabContextBuild'
 import { resolveTabContextRevealPath } from './tabContextReveal'
+import { clearPresence, setPresence } from './discordPresence'
 import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextAnnotationRequest,
@@ -376,6 +378,7 @@ app.on('before-quit', () => {
 })
 
 app.on('will-quit', () => {
+  clearPresence()
   stopAllAgentRuns()
   stopAllBrainstormRooms()
   killAllPtySessions()
@@ -507,6 +510,23 @@ function registerIpc(): void {
 
   ipcMain.on(IPC.CONFIG_OPEN_FOLDER, () => {
     void shell.openPath(app.getPath('userData'))
+  })
+
+  // Discord no corriendo = fallo esperado; el renderer reintenta al próximo tick.
+  ipcMain.handle(
+    IPC.DISCORD_PRESENCE_SET,
+    async (_e, details: string, state: string, startUnixSecs: number): Promise<boolean> => {
+      try {
+        await setPresence(details, state, startUnixSecs)
+        return true
+      } catch {
+        return false
+      }
+    },
+  )
+
+  ipcMain.handle(IPC.DISCORD_PRESENCE_CLEAR, (): void => {
+    clearPresence()
   })
 
   ipcMain.handle(IPC.APP_VERSION, (): string => app.getVersion())
@@ -1389,6 +1409,7 @@ function registerIpc(): void {
     if (!isAgentCliProvider(provider) || typeof cliSessionId !== 'string') return
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
+  ipcMain.handle(IPC.CONTEXT_METRICS_GET, () => getContextDeliveryMetrics())
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }

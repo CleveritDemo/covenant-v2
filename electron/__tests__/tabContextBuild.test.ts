@@ -20,8 +20,9 @@ import {
 import { appendAiChangelog } from '../aiChangelog'
 import { upsertAiAgentResults } from '../aiAgentResults'
 import { upsertProjectAgent } from '../projectAgentCatalogOps'
-import { applyCanonicalContextIdentity, normalizeAnnotation } from '../../src/shared/tabContext'
+import { applyCanonicalContextIdentity, normalizeAnnotation, type TabContext } from '../../src/shared/tabContext'
 import { PROJECT_DIR } from '../../src/shared/projectDir'
+import { sectionsForContext } from '../../src/shared/contextSections'
 
 describe('tab context builders', () => {
   const dirs: string[] = []
@@ -535,6 +536,24 @@ describe('tab context builders', () => {
     }, cwd, { write: true })
     expect(conflict.ok).toBe(false)
     expect(conflict.error).toMatch(/already exists/i)
+  })
+
+  it('renames a context changing only the letter case', () => {
+    const cwd = tempCwd()
+    const original = applyCanonicalContextIdentity({
+      id: '', name: 'Notas', fileName: '', kind: 'notes',
+    })
+    materializeTabContext(original, cwd, { write: true, content: 'contenido' })
+    const renamed = applyCanonicalContextIdentity({ ...original, name: 'notas' })
+    const result = materializeTabContext(renamed, cwd, {
+      write: true,
+      content: 'contenido',
+      previousFileName: original.fileName,
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.ok).toBe(true)
+    expect(readFileSync(join(cwd, PROJECT_DIR, renamed.fileName), 'utf8')).toContain('contenido')
+    expect(discoverTabContexts(cwd).contexts.map(item => item.name)).toEqual(['notas'])
   })
 
   it('deletes a materialized context file from <projectDir>', () => {
@@ -1415,6 +1434,51 @@ export class Widget {
     expect(refresh.fullRefresh).toBe(true)
     expect(refresh.prompt).toContain('## Tab context snapshot')
     expect(refresh.prompt).toContain('"id":"first"')
+  })
+
+  it('materializa un skill desde SKILL.md y lo secciona por encabezados', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, PROJECT_DIR, 'skills', 'afp-zero'), { recursive: true })
+    writeFileSync(
+      join(cwd, PROJECT_DIR, 'skills', 'afp-zero', 'SKILL.md'),
+      ['## Cuándo usarla', 'Al migrar AFP.', '## Pasos', '1. Leer el contrato.'].join('\n'),
+    )
+
+    const context: TabContext = {
+      id: 'iaterminal:skill:afp-zero',
+      name: 'afp-zero',
+      fileName: 'afp-zero.md',
+      kind: 'skill',
+    }
+    const result = materializeTabContext(context, cwd)
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('## Cuándo usarla')
+    expect(result.content).toContain('## Pasos')
+    expect(sectionsForContext(context, result).map(s => s.key))
+      .toEqual(['Cuándo usarla', 'Pasos'])
+  })
+
+  it('un skill sin SKILL.md en disco no revienta: cuerpo vacío, ok true', () => {
+    const cwd = tempCwd()
+    const result = materializeTabContext(
+      { id: 'iaterminal:skill:nada', name: 'nada', fileName: 'nada.md', kind: 'skill' },
+      cwd,
+    )
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('(empty)')
+  })
+
+  // Criterio de aceptación 4: install ≠ assign.
+  it('un SKILL.md en disco no aparece como contexto descubierto', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, PROJECT_DIR, 'skills', 'afp-zero'), { recursive: true })
+    writeFileSync(join(cwd, PROJECT_DIR, 'skills', 'afp-zero', 'SKILL.md'), '## Uno\ncuerpo')
+
+    // discoverTabContexts escanea `.gravity/*.md`, no subcarpetas: instalar una
+    // skill no la asigna a nadie. Solo contextIds lo hace.
+    const found = discoverTabContexts(cwd)
+    expect(found.contexts.some(context => context.kind === 'skill')).toBe(false)
   })
 })
 

@@ -1383,9 +1383,8 @@ html[data-reduce-motion="true"] {
   height: min(78vh, 760px);
 }
 
-.tab-contexts--form {
-  height: min(78vh, 760px);
-}
+/* Sin altura propia: el panel --xxl ya fija la del modal y .tab-contexts
+   (flex:1, min-height:0) la ocupa entera. */
 
 .tab-contexts__list {
   display: flex;
@@ -1643,7 +1642,7 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts__panes {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
   /* .tab-contexts--form ya fija la altura del modal (min(78vh, 760px)) y es un
      flex column; flex:1 hace que este grid la ocupe entera en vez de encogerse
      al contenido, y min-height:0 permite que se achique por debajo de ese
@@ -1671,7 +1670,7 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts__output-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
@@ -1682,7 +1681,13 @@ html[data-reduce-motion="true"] {
   color: var(--text-muted);
 }
 
+/* La ruta cede el ancho (se elipsa); el conmutador Preview/Source nunca. */
+.tab-contexts__output-view { flex: 0 0 auto; }
+
 .tab-contexts__output-head small {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
   font-family: var(--font-mono, monospace);
   text-transform: none;
   letter-spacing: 0;
@@ -1699,6 +1704,13 @@ html[data-reduce-motion="true"] {
 }
 
 .tab-contexts__output-msg--error { color: var(--danger); }
+
+.tab-contexts__preview-rendered {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px;
+}
 
 .tab-contexts__output .tab-contexts__preview {
   flex: 1;

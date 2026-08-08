@@ -28,6 +28,12 @@ export interface AgentCliArgsInput {
   model?: string
   /** Sesión previa del CLI para continuar el hilo. */
   sessionId?: string
+  /** Deniega la tool `Skill`: el proceso no puede invocar ninguna skill. */
+  disableSkills?: boolean
+  /** Rutas de plugin a cargar solo para este spawn. Vacío = ninguna. */
+  pluginDirs?: string[]
+  /** Ruta a un mcp.json efímero con solo los servidores permitidos. */
+  mcpConfigPath?: string
 }
 
 /** Disponibilidad real del CLI de un proveedor en la máquina. */
@@ -50,10 +56,30 @@ export interface AgentCliProviderSpec {
   command: string
   stream: AgentCliStreamKind
   args: (input: AgentCliArgsInput) => string[]
+  /**
+   * Qué sabe acotar este CLI por spawn. Omitido = nada.
+   * Solo se marca `true` con el flag verificado contra el `--help` del CLI,
+   * igual que el resto de la tabla.
+   */
+  capabilities?: { nativeSkills?: boolean; mcpAllowlist?: boolean }
 }
 
 const withModel = (flag: string, model: string | undefined): string[] =>
   model?.trim() ? [flag, model.trim()] : []
+
+/**
+ * `--disallowedTools` una sola vez con todo lo denegado. Emitir el flag dos
+ * veces no equivale a una lista fusionada.
+ */
+const disallowedTools = (mode: AgentPermissionMode, disableSkills?: boolean): string[] => {
+  const tools = [
+    // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
+    // confirmación, así que bloqueamos herramientas que mutan el workspace.
+    ...(mode === 'ask' ? ['Edit', 'Write', 'NotebookEdit', 'Bash', 'MultiEdit'] : []),
+    ...(disableSkills ? ['Skill'] : []),
+  ]
+  return tools.length ? ['--disallowedTools', tools.join(',')] : []
+}
 
 export const AGENT_CLI_PROVIDERS = {
   claude: {
@@ -61,21 +87,28 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#D97757',
     command: 'claude',
     stream: 'claude',
-    args: ({ prompt, mode, model, sessionId }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs, mcpConfigPath }) => [
       '-p',
       prompt,
       '--output-format',
       'stream-json',
       '--verbose',
       '--include-partial-messages',
+      // Excluye el scope `user`, que es donde el harness instala los plugins
+      // (~/.claude/plugins/cache). Sin esta exclusión, --plugin-dir solo suma
+      // y la allowlist no acota nada. Verificado con un spawn real.
+      '--setting-sources', 'project',
+      ...(pluginDirs ?? []).flatMap(dir => ['--plugin-dir', dir]),
+      // --strict-mcp-config es la mitad que acota: sin él, este config se suma
+      // a los demás en vez de sustituirlos.
+      ...(mcpConfigPath ? ['--mcp-config', mcpConfigPath, '--strict-mcp-config'] : []),
       ...(sessionId ? ['--resume', sessionId] : []),
-      // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
-      // confirmación, así que bloqueamos herramientas que mutan el workspace.
-      ...(mode === 'ask' ? ['--disallowedTools', 'Edit,Write,NotebookEdit,Bash,MultiEdit'] : []),
+      ...disallowedTools(mode, disableSkills),
       ...(mode === 'auto' ? ['--permission-mode', 'bypassPermissions'] : []),
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),
     ],
+    capabilities: { nativeSkills: true, mcpAllowlist: true },
   },
   cursor: {
     label: 'Cursor Agent',
@@ -221,6 +254,24 @@ export function isAgentCliProvider(value: unknown): value is AgentCliProvider {
 
 export function agentCliSpec(provider: AgentCliProvider): AgentCliProviderSpec {
   return AGENT_CLI_PROVIDERS[provider]
+}
+
+/**
+ * Lo que la UI puede ofrecer para este proveedor. Un CLI sin el flag
+ * verificado devuelve `false`: el control se muestra deshabilitado con el
+ * motivo, porque prometer un acotado que no se aplica es peor que no ofrecerlo.
+ */
+export function providerCapabilities(
+  provider: AgentCliProvider,
+): { nativeSkills: boolean; mcpAllowlist: boolean } {
+  // Vía `agentCliSpec` y no el registro directo: `satisfies` conserva el tipo
+  // literal de cada entrada, y las que omiten `capabilities` no tienen la
+  // propiedad en su tipo.
+  const caps = agentCliSpec(provider).capabilities
+  return {
+    nativeSkills: caps?.nativeSkills === true,
+    mcpAllowlist: caps?.mcpAllowlist === true,
+  }
 }
 
 /** Ejecutable configurado por el usuario, o el default del proveedor. */

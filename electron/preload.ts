@@ -52,6 +52,7 @@ import type {
   AgentChatEntry,
   AgentCliStartRequest,
   AgentCliUiEvent,
+  ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -195,6 +196,10 @@ const api = {
   }): void {
     ipcRenderer.send(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, payload)
   },
+  /** Contadores acumulados desde el arranque: catálogo, secciones y tokens. */
+  getContextDeliveryMetrics(): Promise<ContextDeliveryMetrics> {
+    return ipcRenderer.invoke(IPC.CONTEXT_METRICS_GET)
+  },
   previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_PREVIEW, request)
   },
@@ -245,6 +250,15 @@ const api = {
   },
   openConfigFolder(): void {
     ipcRenderer.send(IPC.CONFIG_OPEN_FOLDER)
+  },
+
+  // ─── Discord Rich Presence ─────────────────────────────────────────────────
+  /** `false` = Discord no está corriendo; reintentar en el próximo tick. */
+  discordPresenceSet(details: string, state: string, startUnixSecs: number): Promise<boolean> {
+    return ipcRenderer.invoke(IPC.DISCORD_PRESENCE_SET, details, state, startUnixSecs)
+  },
+  discordPresenceClear(): Promise<void> {
+    return ipcRenderer.invoke(IPC.DISCORD_PRESENCE_CLEAR)
   },
   getAppVersion(): Promise<string> {
     return ipcRenderer.invoke(IPC.APP_VERSION)

@@ -1167,11 +1167,11 @@ function OrgDetailPanel({
           </p>
         </div>
         <div className="orgs-detail__actions">
-          {signedIn ? (
+          {signedIn && canLeave ? (
             <Button
               variant="danger"
               size="sm"
-              disabled={!canLeave || leaveBusy}
+              disabled={leaveBusy}
               onClick={onLeaveClick}
             >
               {t('organizations.leaveOrg')}
@@ -1749,7 +1749,8 @@ export const OrganizationsModal: React.FC<Props> = ({
     const result = await covenant.memberRemove(slug, currentLogin)
     setLeaveBusy(false)
     if (!result.ok) {
-      setLeaveError(result.error)
+      // El backend responde 403 cuando el target es el owner: no se sale, se transfiere.
+      setLeaveError(isForbiddenError(result.error) ? t('organizations.leaveErrorForbidden') : result.error)
       return
     }
     setLeaveOpen(false)
@@ -1890,7 +1891,7 @@ export const OrganizationsModal: React.FC<Props> = ({
                       org={detailOrg}
                       signedIn={signedIn}
                       isOrgAdmin={isOrgAdmin}
-                      canLeave={!!currentLogin}
+                      canLeave={!!currentLogin && detailOrg.role !== 'owner'}
                       leaveError={leaveError}
                       leaveBusy={leaveBusy}
                       activeTab={detailTab}

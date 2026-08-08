@@ -564,6 +564,7 @@ const es = {
     leaveOrg: 'Salir de la organización',
     leaveConfirm: '¿Salir de {{name}}?',
     leaveConfirmDetail: 'Perderás el acceso a esta organización.',
+    leaveErrorForbidden: 'El owner no puede salir de su organización. Transfiere la propiedad primero.',
     openOrg: 'Abrir',
     detailTabsLabel: 'Secciones de la organización',
     detailTabWorkspaces: 'Workspaces',

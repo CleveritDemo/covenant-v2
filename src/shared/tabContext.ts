@@ -7,12 +7,13 @@ export type TabContextKind =
   | 'deps'
   | 'readme'
   | 'changelog'
+  | 'mcp'
   | 'agentResult'
   | 'skill'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog',
+  'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp',
 ] as const
 
 /** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
@@ -20,12 +21,12 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'skill',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'skill',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'agentResult', 'skill',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'agentResult', 'skill',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -92,6 +93,8 @@ function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOpt
       return 'readme'
     case 'changelog':
       return 'changelog'
+    case 'mcp':
+      return 'mcps'
     case 'notes':
       return 'notes'
     case 'skill':
@@ -168,6 +171,8 @@ export function canonicalContextName(
       return 'README'
     case 'changelog':
       return 'AI Changelog'
+    case 'mcp':
+      return 'MCP servers'
     case 'notes':
       return (options.name ?? '').trim() || 'Notes'
     case 'skill':
@@ -456,6 +461,9 @@ function annotationHasChangedEvidence(
   }
   if (context.kind === 'readme') {
     return underRoot.some(path => /^readme(?:\.[^/]*)?$/i.test(path.split('/').at(-1) ?? ''))
+  }
+  if (context.kind === 'mcp') {
+    return underRoot.some(path => path.split('/').at(-1) === '.mcp.json')
   }
 
   const keyPath = rootedContextPath(context, key.split('#')[0])

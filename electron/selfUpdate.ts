@@ -89,6 +89,16 @@ export function registerSelfUpdate(): void {
     })
   })
   ipcMain.on(IPC.UPDATE_DISMISS, () => setState({ kind: 'idle' }))
+  // Chequeo manual: el fallo se devuelve al que preguntó en vez de pintarse en el
+  // banner — un botón que responde «no pude» no debe dejar rastro en la titlebar.
+  ipcMain.handle(IPC.UPDATE_CHECK, async (): Promise<UpdateState> => {
+    try {
+      await autoUpdater.checkForUpdates()
+    } catch (err) {
+      return { kind: 'error', message: err instanceof Error ? err.message : String(err) }
+    }
+    return state
+  })
 
   // El banner solo existe con una release real detrás; con esto se puede mirar
   // en dev: GRAVITY_FAKE_UPDATE=1 npm run dev

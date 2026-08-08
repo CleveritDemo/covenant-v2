@@ -277,6 +277,9 @@ interface BasicTerminalFitScheduler {
 
 const FIT_BURST_COALESCE_MS = 100
 
+/** Techo del reintento durante el morph (~0.6 s a 60 fps) por si la clase se queda pegada. */
+const MAX_ZOOM_WAIT_FRAMES = 40
+
 function createBasicTerminalFitScheduler(
   getTerm: () => Terminal | null,
   getFit: () => FitAddon | null,
@@ -291,6 +294,7 @@ function createBasicTerminalFitScheduler(
   let lastRows = -1
   let lastContainerW = -1
   let lastContainerH = -1
+  let zoomWaitFrames = 0
 
   const runFit = (): void => {
     raf = 0
@@ -299,8 +303,18 @@ function createBasicTerminalFitScheduler(
     const fit = getFit()
     if (!term || !fit) return
     const host = getContainer()
-    // Morph mini↔full: no refittear (el scale lo hace PaneWindow; un fit corta el texto).
-    if (host?.closest('.pane-window--zooming')) return
+    // Morph mini↔full: no refittear durante la animación (el scale lo hace PaneWindow;
+    // un fit corta el texto). Reintenta al frame siguiente: descartarlo dejaba el fit
+    // de App.tsx (rAF al abrir) perdido y xterm con cols viejos → reflow con líneas en
+    // blanco entre prompts al expandir.
+    // ponytail: reintento por frame (~18 frames de morph), sin listener de transitionend.
+    if (host?.closest('.pane-window--zooming') && zoomWaitFrames < MAX_ZOOM_WAIT_FRAMES) {
+      zoomWaitFrames++
+      raf = requestAnimationFrame(runFit)
+      return
+    }
+    const waited = zoomWaitFrames
+    zoomWaitFrames = 0
     if (host) {
       const w = host.clientWidth
       const h = host.clientHeight
@@ -310,6 +324,9 @@ function createBasicTerminalFitScheduler(
         term.cols === lastCols &&
         term.rows === lastRows
       ) {
+        if (import.meta.env.DEV) {
+          console.log('[fit] skip (sin cambio)', `${w}x${h}`, `${term.cols}x${term.rows}`, `waited ${waited}f`)
+        }
         return
       }
       lastContainerW = w
@@ -319,6 +336,9 @@ function createBasicTerminalFitScheduler(
       const colsBefore = term.cols
       const rowsBefore = term.rows
       fitTerminal(term, fit)
+      if (import.meta.env.DEV) {
+        console.log('[fit]', `${colsBefore}x${rowsBefore} → ${term.cols}x${term.rows}`, `waited ${waited}f`)
+      }
       onAfterFit?.()
       const cols = Math.max(1, term.cols)
       const rows = Math.max(1, term.rows)
@@ -881,6 +901,33 @@ export const TerminalPane: React.FC<Props> = ({
     fitRef.current = fit
     serializeAddonRef.current = serialize
 
+    // ponytail: registro solo-dev + `__gravityTermInfo()` para diagnosticar el alto de fila.
+    if (import.meta.env.DEV) {
+      const w = window as unknown as {
+        __gravityTerms?: Record<string, Terminal>
+        __gravityTermInfo?: () => unknown[]
+      }
+      const reg = (w.__gravityTerms ??= {})
+      reg[sessionId] = term
+      w.__gravityTermInfo ??= () => Object.entries(w.__gravityTerms ?? {}).map(([id, t]) => {
+        const core = (t as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: unknown } } } } })._core
+        const el = t.element?.querySelector('.xterm-rows')
+        const first = el?.firstElementChild as HTMLElement | null
+        return {
+          id,
+          cols: t.cols,
+          rows: t.rows,
+          domRows: el?.childElementCount ?? -1,
+          cell: core?._renderService?.dimensions?.css?.cell,
+          rowHeight: first ? getComputedStyle(first).height : null,
+          rowInline: first?.style.height || '(sin inline)',
+          fontFamily: t.options.fontFamily,
+          fontSize: t.options.fontSize,
+          lineHeight: t.options.lineHeight,
+        }
+      })
+    }
+
     const syncScrollDownBtnVisibility = (): void => {
       if (!termAlive || termRef.current !== term) return
       syncTerminalScrolledUpState(term, setIsScrolledUp)
@@ -1333,6 +1380,9 @@ export const TerminalPane: React.FC<Props> = ({
       scheduleRefitTerminalRef.current = () => {}
       termRef.current = null
       fitRef.current = null
+      if (import.meta.env.DEV) {
+        delete (window as unknown as { __gravityTerms?: Record<string, Terminal> }).__gravityTerms?.[sessionId]
+      }
       term.dispose()
       onRegisterRef(null)
     }

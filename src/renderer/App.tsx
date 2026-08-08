@@ -22,6 +22,7 @@ import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
+import { QuitConfirmModal } from './components/QuitConfirmModal'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
@@ -293,6 +294,8 @@ export const App: React.FC = () => {
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  /** Confirm de salida pedido por main (⌘Q / botón rojo). */
+  const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   /** Tabs org cuyo resync manual está en curso. */
@@ -1339,6 +1342,9 @@ export const App: React.FC = () => {
     })()
     return () => { cancelled = true }
   }, [activeTabId, tabContextDiscoverKey, resolvePaneCwdForPersist, refreshProjectAgents])
+
+  // Confirmación de salida: main pide, el modal de la app responde.
+  useEffect(() => window.api.onConfirmQuit(() => setQuitConfirmOpen(true)), [])
 
   // Manejar APP_SAVE_BEFORE_CLOSE: serializar scrollbacks, actualizar cwds y responder
   useEffect(() => {
@@ -4179,6 +4185,16 @@ export const App: React.FC = () => {
 
       if (e.altKey || e.shiftKey) return
 
+      // ⌘, / Ctrl+, : Ajustes. Convención de macOS y de VS Code en Windows/Linux.
+      // Sin guardas de foco a propósito: se espera que funcione desde cualquier
+      // parte, incluida la terminal (con accel pulsado xterm no escribe la coma).
+      if (e.key === ',' || e.code === 'Comma') {
+        e.preventDefault()
+        e.stopPropagation()
+        setSettingsOpen(true)
+        return
+      }
+
       // ⌘E / Ctrl+E: explorador de archivos (abrir/cerrar en la tab activa).
       // Si el foco está en el explorador, FileExplorerSidebar ya togglea; no duplicar.
       if (e.key === 'e' || e.key === 'E' || e.code === 'KeyE') {
@@ -4589,6 +4605,12 @@ export const App: React.FC = () => {
                   contextPoolConfigureLabel={t('tabContexts.manage')}
                   contextPoolCreateLabel={t('tabContexts.createTitle')}
                   contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
+                  contextPoolAssignLabel={t('tabs.planeContextPoolAssign')}
+                  contextPoolAssignEmptyHint={t('tabs.planeContextPoolAssignEmpty')}
+                  contextPoolAssignedCountLabel={(count: number) => (
+                    t('tabs.planeContextPoolAssigned', { count })
+                  )}
+                  contextPoolEditLabel={t('tabContexts.edit')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -4985,6 +5007,17 @@ export const App: React.FC = () => {
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         onClose={() => setOrgWorkspaceRequirement(null)}
         onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <QuitConfirmModal
+        open={quitConfirmOpen}
+        terminals={termRefs.current.size}
+        agents={busyPanes.size}
+        onCancel={() => setQuitConfirmOpen(false)}
+        onConfirm={() => {
+          setQuitConfirmOpen(false)
+          window.api.sendQuitConfirmed()
+        }}
       />
     </div>
   )

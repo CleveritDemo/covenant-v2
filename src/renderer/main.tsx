@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { initI18n } from '@i18n/index'
 import { App } from './App'
+import { dismissSplash } from './splash'
 import './styles/global.css'
 
 window.api.getConfig().then(cfg => {
@@ -11,5 +12,6 @@ window.api.getConfig().then(cfg => {
         <App />
       </React.StrictMode>,
     )
+    dismissSplash()
   })
 })

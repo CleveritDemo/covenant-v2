@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import type { AgentCliProvider } from '../src/shared/agentCliProviders'
 
 /**
  * `mcp.json` efímero con solo los servidores permitidos para un agente.
@@ -37,11 +38,59 @@ export function writeScopedMcpConfig(
  * que acotar y el turno arranca sin MCPs en vez de fallar.
  */
 export function readProjectMcpConfig(cwd: string): unknown {
-  const path = join(cwd, '.mcp.json')
+  return readMcpConfigFile(join(cwd, '.mcp.json'))
+}
+
+/**
+ * Config MCP propia del CLI de Copilot (`~/.copilot/mcp-config.json`). Copilot
+ * no lee el `.mcp.json` del proyecto, y su acotado es una denylist: hay que
+ * saber qué hay configurado para poder apagar lo que no está permitido.
+ */
+export function readCopilotMcpConfig(home: string): unknown {
+  return readMcpConfigFile(join(home, '.copilot', 'mcp-config.json'))
+}
+
+/**
+ * De dónde salen los servidores de cada CLI. Copilot y Gemini leen su propia
+ * config de usuario; el resto, el `.mcp.json` del proyecto. Un archivo ausente
+ * devuelve `null` y la lista sale vacía — el modal lo dice, no falla.
+ */
+export function readMcpConfigFor(
+  provider: AgentCliProvider,
+  cwd: string,
+  home: string,
+): unknown {
+  if (provider === 'copilot') return readCopilotMcpConfig(home)
+  if (provider === 'gemini') return readMcpConfigFile(join(home, '.gemini', 'settings.json'))
+  return readProjectMcpConfig(cwd)
+}
+
+function readMcpConfigFile(path: string): unknown {
   if (!existsSync(path)) return null
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as unknown
   } catch {
     return null
   }
+}
+
+/** Nombres de servidor de un `mcpServers`, o vacío si la fuente no sirve. */
+export function mcpServerNames(source: unknown): string[] {
+  const all = source && typeof source === 'object'
+    ? (source as Record<string, unknown>).mcpServers
+    : undefined
+  return all && typeof all === 'object' && !Array.isArray(all) ? Object.keys(all) : []
+}
+
+/**
+ * Denylist derivada: lo configurado menos lo permitido. Vacía cuando no hay
+ * allowlist — sin acotado pedido no se apaga nada.
+ */
+export function mcpServersToDisable(
+  configured: readonly string[],
+  allowed: readonly string[],
+): string[] {
+  if (!allowed.length) return []
+  const keep = new Set(allowed)
+  return configured.filter(name => !keep.has(name))
 }

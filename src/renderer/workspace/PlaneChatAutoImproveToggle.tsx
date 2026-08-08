@@ -6,32 +6,33 @@ export interface PlaneChatAutoImproveToggleProps {
   checked: boolean
   disabled?: boolean
   label: string
+  /** Explica qué hace (y, si está deshabilitado, qué falta). */
+  hint?: string
   onChange: (checked: boolean) => void
 }
 
-/** Switch de auto-improve con icono + texto visible en la barra del chat. */
+/** Chip de autoactualización de contextos en la barra del chat. */
 export const PlaneChatAutoImproveToggle: React.FC<PlaneChatAutoImproveToggleProps> = ({
   checked,
   disabled = false,
   label,
+  hint,
   onChange,
 }) => (
   <button
     type="button"
-    role="switch"
     className={[
+      'plane-chat-composer__chip',
       'plane-chat-composer__auto-improve',
-      checked ? 'plane-chat-composer__auto-improve--on' : '',
+      checked ? 'plane-chat-composer__chip--on' : '',
     ].filter(Boolean).join(' ')}
-    aria-checked={checked}
+    aria-pressed={checked}
     aria-label={label}
+    title={hint}
     disabled={disabled}
     onClick={() => onChange(!checked)}
   >
     <Icon name="sparkles" size={13} />
     <span className="plane-chat-composer__auto-improve-label">{label}</span>
-    <span className="plane-chat-composer__auto-improve-switch" aria-hidden="true">
-      <span className="plane-chat-composer__auto-improve-knob" />
-    </span>
   </button>
 )

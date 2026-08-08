@@ -4,6 +4,72 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.6
+
+- **Los contextos ya no hay que arrastrarlos.** La barra de arriba a la derecha
+  del plano dejó de ser una fila de iconos sin nombre: cada contexto muestra
+  cómo se llama y a cuántos agentes se lo diste. Un clic abre la lista de
+  agentes con casillas, así que se lo puedes dar a varios de una vez, sin
+  cruzar el plano con el ratón. Arrastrarlo hasta un agente sigue funcionando
+  igual, y "Editar" quedó al pie de esa misma lista.
+- **La barra se recorre con el teclado.** Antes cada icono era una parada de
+  tabulador y asignar exigía ratón sí o sí; ahora la barra entera es una sola
+  parada y te mueves entre contextos con las flechas.
+- **Al arrastrar un contexto ya no sale el recuadro blanco** de esquinas rectas
+  detrás del chip.
+- **La botonera del composer habla un solo idioma.** Contexto, Autoactualizar y
+  loop se dibujaban distinto siendo lo mismo; ahora los tres comparten forma:
+  apagado se ve como un fantasma neutro, encendido se rellena con el color de
+  acento, y el botón de borrar la conversación se fue detrás de un separador
+  para no tenerlo pegado al resto. El loop activo gira su icono en vez de
+  parecer deshabilitado, y lo que sí está deshabilitado lo dice en el tooltip
+  en vez de quedarse mudo.
+- **"Self-improve" ahora se llama "Autoactualizar"**, que es lo que hace:
+  actualizar las anotaciones de los contextos, no mejorar el prompt.
+
+## v0.8.5
+
+- **La app arranca con su propia animación.** En vez de una ventana en negro
+  mientras carga, aparece la misma masa central con materia en caída libre que
+  ya vive en el centro del plano. Toma los colores del tema que tengas puesto y
+  respeta "Reducir movimiento" desde el primer fotograma.
+- **Salir vuelve a preguntar.** Con terminales o agentes en marcha, cerrar la
+  ventana (o ⌘Q) abre una confirmación que dice cuántos hay antes de cortarlos.
+  La sesión, las pestañas y los scrollbacks se guardan igual al salir. No
+  pregunta si no hay nada corriendo, ni mientras se instala una actualización.
+- **⌘, abre Ajustes** (Ctrl+, en Windows y Linux), desde donde estés, incluida
+  la terminal. Es el atajo que el aviso del token de GitHub ya prometía.
+- **Buscar actualizaciones a mano**, en Ajustes → Novedades, para no depender
+  del chequeo automático. Si hay versión nueva la instalas desde la titlebar,
+  como siempre.
+- **Ajustes → Developer**, para relanzar la animación de arranque y ver la
+  confirmación de salida sin cerrar nada.
+
+## v0.8.4
+
+- **Ya no queda ningún tooltip del sistema.** El botón de resincronizar y los
+  chips de repositorio del composer eran los dos últimos que seguían sacando el
+  recuadro gris con retardo; ahora usan la burbuja de la app, como el resto.
+
+## v0.8.3
+
+- **Acotar skills y MCP ya no es solo cosa de Claude.** Se revisaron los nueve
+  CLIs y cada uno acota por donde puede: Pi y Kimi aceptan la lista de skills
+  permitidas, Opencode sabe apagarlas pero no elegirlas (y el modal lo dice, en
+  vez de ofrecer una lista que no haría nada), Gemini acepta la lista de
+  servidores MCP y Copilot la aplica al revés, apagando los que no están.
+  Cursor, Hermes y Codex siguen sin poder, con el motivo a la vista.
+- **Ojo si usas Pi, Kimi u Opencode:** ahora un agente sin skills configuradas
+  arranca sin ninguna, igual que ya pasaba con Claude. Si las quieres, enciende
+  el interruptor en Agente → Capabilities.
+- **Contexto nuevo: servidores MCP.** Materializa el `.mcp.json` del proyecto
+  con una sección por servidor, para que el agente sepa qué tiene a mano. Nunca
+  escribe el valor de un token: de `env` y `headers` solo salen los nombres.
+- **La ruedita y el "+" de contextos usan el tooltip de la app**, el mismo que
+  los chips de al lado, en vez del recuadro del sistema.
+- **El terminal ya no queda con líneas en blanco al expandirlo.** El reajuste
+  que se hacía al abrir se perdía durante la animación del morph.
+
 ## v0.8.2
 
 - **Fix: los agentes de workspaces organizacionales ahora se cargan desde el backend al reiniciar (antes aparecían como Claude Code).** Nuevo modal de carga durante la sincronización. Se unificó la lógica de muestreo de agentes y contextos.

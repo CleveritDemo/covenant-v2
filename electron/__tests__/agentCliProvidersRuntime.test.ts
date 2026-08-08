@@ -95,7 +95,9 @@ describe('commandAndArgs con el registro de proveedores', () => {
       undefined,
       testHome,
     )
-    expect(args.slice(0, 3)).toEqual(['run', '--agent', 'plan'])
+    // `--pure` va antes: el gate de skills apagado es el default seguro.
+    expect(args[0]).toBe('run')
+    expect(args[args.indexOf('--agent') + 1]).toBe('plan')
   })
 })
 

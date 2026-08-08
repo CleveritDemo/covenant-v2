@@ -46,6 +46,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   deps: 'package',
   readme: 'book',
   changelog: 'history',
+  mcp: 'terminal',
   agentResult: 'bot',
   skill: 'sparkles',
 }
@@ -59,6 +60,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   deps: '#2dd4bf',
   readme: '#38bdf8',
   changelog: '#a3e635',
+  mcp: '#f472b6',
   agentResult: '#94a3b8',
   skill: '#e879f9',
 }

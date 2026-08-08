@@ -135,6 +135,9 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           checked={autoImprove}
           disabled={selectedContextIds.length === 0}
           label={t('tabContexts.autoImprove')}
+          hint={selectedContextIds.length === 0
+            ? t('tabContexts.autoImproveNeedsContext')
+            : t('tabContexts.autoImproveHint')}
           onChange={onAutoImproveChange}
         />
 
@@ -148,15 +151,19 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
         />
 
         {onClearConversation ? (
-          <Button
-            variant="icon"
-            size="sm"
-            aria-label={t('agentPane.clearConversation')}
-            disabled={!canClearConversation}
-            onClick={onClearConversation}
-          >
-            <Icon name="trash" size={13} />
-          </Button>
+          <>
+            <div className="plane-chat-composer__bar-sep" aria-hidden="true" />
+            <Button
+              variant="icon"
+              size="sm"
+              aria-label={t('agentPane.clearConversation')}
+              title={t('agentPane.clearConversation')}
+              disabled={!canClearConversation}
+              onClick={onClearConversation}
+            >
+              <Icon name="trash" size={13} />
+            </Button>
+          </>
         ) : null}
       </div>
     </div>

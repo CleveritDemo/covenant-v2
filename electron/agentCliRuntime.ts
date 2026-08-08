@@ -50,13 +50,21 @@ import {
   agentCliCommand,
   agentCliSpec,
   isAgentCliProvider,
+  providerCapabilities,
+  type AgentCliArgsInput,
   type AgentCliProvider,
 } from '../src/shared/agentCliProviders'
 import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
-import { readProjectMcpConfig, writeScopedMcpConfig } from './mcpConfigFile'
+import {
+  mcpServerNames,
+  mcpServersToDisable,
+  readMcpConfigFor,
+  readProjectMcpConfig,
+  writeScopedMcpConfig,
+} from './mcpConfigFile'
 
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
@@ -777,13 +785,7 @@ export function commandAndArgs(
   const pluginDirs = nativeSkills?.enabled
     ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
     : []
-  const mcpConfigPath = request.mcpsAllowed?.length
-    ? writeScopedMcpConfig(
-        request.mcpsAllowed,
-        readProjectMcpConfig(cwd),
-        mkdtempSync(join(tmpdir(), 'gravity-mcp-')),
-      )
-    : null
+  const mcpsAllowed = request.mcpsAllowed ?? []
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
     args: spec.args({
@@ -796,9 +798,54 @@ export function commandAndArgs(
       // apagado. Ese es el default seguro de la Task 1, y aquí se hace efectivo.
       disableSkills: nativeSkills?.enabled !== true,
       pluginDirs,
-      ...(mcpConfigPath ? { mcpConfigPath } : {}),
+      emptySkillsDir: emptySkillsDir(),
+      ...mcpScope(provider, mcpsAllowed, cwd, home),
     }),
   }
+}
+
+/**
+ * Directorio vacío compartido, para los CLIs que acotan skills sustituyendo su
+ * directorio de origen. Uno solo y reutilizado: por definición no tiene nada
+ * dentro, así que un temporal por spawn solo dejaría basura en `tmpdir`.
+ */
+function emptySkillsDir(): string {
+  const path = join(tmpdir(), 'gravity-skills-empty')
+  mkdirSync(path, { recursive: true })
+  return path
+}
+
+/**
+ * Traduce la allowlist de MCP a lo que cada CLI sabe recibir. Vive aquí y no en
+ * la tabla de proveedores porque cada vía necesita leer disco: el `.mcp.json`
+ * del proyecto, o la config propia del CLI para derivar la denylist.
+ */
+function mcpScope(
+  provider: AgentCliProvider,
+  allowed: readonly string[],
+  cwd: string,
+  home: string,
+): Pick<AgentCliArgsInput, 'mcpConfigPath' | 'mcpAllowed' | 'mcpDisabled'> {
+  if (!allowed.length) return {}
+  if (!providerCapabilities(provider).mcpAllowlist) return {}
+
+  if (provider === 'copilot') {
+    const disable = mcpServersToDisable(
+      mcpServerNames(readMcpConfigFor(provider, cwd, home)),
+      allowed,
+    )
+    // Sin nada que apagar no se emite el flag: `--disable-builtin-mcps` a solas
+    // apagaría el MCP de GitHub, que no es lo que pidió la allowlist.
+    return disable.length ? { mcpDisabled: disable } : {}
+  }
+  if (provider === 'gemini') return { mcpAllowed: [...allowed] }
+
+  const path = writeScopedMcpConfig(
+    allowed,
+    readProjectMcpConfig(cwd),
+    mkdtempSync(join(tmpdir(), 'gravity-mcp-')),
+  )
+  return path ? { mcpConfigPath: path } : {}
 }
 
 /**

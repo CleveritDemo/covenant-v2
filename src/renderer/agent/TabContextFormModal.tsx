@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
   applyCanonicalContextIdentity,
+  canonicalContextName,
   contextDefinitionKey,
+  CREATABLE_CONTEXT_KINDS,
   normalizeContextFileName,
-  suggestSymbolsIdentity,
 } from '@shared/tabContext'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { isContextDraftDirty } from '@shared/contextDraftDirty'
@@ -64,6 +65,28 @@ function comparable(value: string): string {
 
 function contextDefinition(context: TabContext): string | null {
   return contextDefinitionKey(context)
+}
+
+/**
+ * Nombre sugerido al cambiar kind o rootPath. Respeta un nombre que el usuario
+ * escribió a mano; si estaba vacío o era el canónico del kind anterior (o el
+ * patrón histórico de symbols), usa `canonicalContextName` del kind destino.
+ * `prevRootPath` detecta autogenerado; `nextRootPath` calcula la sugerencia.
+ */
+function suggestNameForKind(
+  nextKind: TabContextKind,
+  prevRootPath: string | undefined,
+  nextRootPath: string | undefined,
+  currentName: string,
+  currentKind: TabContextKind,
+): string {
+  const keepName = currentName.trim()
+  const prevAuto = canonicalContextName(currentKind, { rootPath: prevRootPath }).trim()
+  const userTyped = Boolean(keepName)
+    && keepName !== prevAuto
+    && !/^classes(\s|·|-)/i.test(keepName)
+  if (userTyped) return keepName
+  return canonicalContextName(nextKind, { rootPath: nextRootPath })
 }
 
 export const TabContextFormModal: React.FC<Props> = ({
@@ -197,23 +220,24 @@ export const TabContextFormModal: React.FC<Props> = ({
     setDraft(current => {
       if (!current) return current
       let next: TabContext = { ...current, ...patch }
-      if (
-        current.kind === 'symbols'
-        && Object.prototype.hasOwnProperty.call(patch, 'rootPath')
+      // Los cambios de kind van por selectKind(); aquí solo rootPath.
+      const rootPathChanged = Object.prototype.hasOwnProperty.call(patch, 'rootPath')
         && patch.rootPath !== current.rootPath
+      if (
+        rootPathChanged
+        && (CREATABLE_CONTEXT_KINDS as readonly string[]).includes(next.kind)
       ) {
-        const suggested = suggestSymbolsIdentity(patch.rootPath)
-        const currentDerived = normalizeContextFileName(current.name || 'context')
-        const shouldRename = !current.name.trim()
-          || /^classes(\s|·|-)/i.test(current.name.trim())
-          || current.fileName === 'context.md'
-          || current.fileName === currentDerived
-        if (shouldRename) {
-          next = {
-            ...next,
-            name: suggested.name,
-            fileName: normalizeContextFileName(suggested.name || suggested.fileStem),
-          }
+        const name = suggestNameForKind(
+          next.kind,
+          current.rootPath,
+          next.rootPath,
+          current.name,
+          current.kind,
+        )
+        next = {
+          ...next,
+          name,
+          fileName: normalizeContextFileName(name),
         }
       }
       return next
@@ -452,27 +476,15 @@ export const TabContextFormModal: React.FC<Props> = ({
       const keepName = draft.kind === 'changelog' ? '' : draft.name
       const keepRoot = draft.rootPath
       const base = emptyContext(kind)
-      if (kind === 'symbols') {
-        const suggested = suggestSymbolsIdentity(keepRoot)
-        setDraft(applyCanonicalContextIdentity({
-          ...base,
-          name: keepName.trim() || suggested.name,
-          rootPath: keepRoot,
-          symbolKinds: ['class', 'method'],
-        }))
-      } else if (kind === 'notes') {
-        setDraft(applyCanonicalContextIdentity({
-          ...base,
-          name: keepName || 'Notes',
-          fileName: normalizeContextFileName(keepName || 'notes', 'notes'),
-        }))
-      } else {
-        setDraft(applyCanonicalContextIdentity({
-          ...base,
-          name: keepName,
-          rootPath: keepRoot,
-        }))
-      }
+      const name = suggestNameForKind(kind, keepRoot, keepRoot, keepName, draft.kind)
+      const fileName = normalizeContextFileName(name, kind === 'notes' ? 'notes' : 'context')
+      setDraft(applyCanonicalContextIdentity({
+        ...base,
+        name,
+        fileName,
+        ...(kind !== 'notes' ? { rootPath: keepRoot } : {}),
+        ...(kind === 'symbols' ? { symbolKinds: ['class', 'method'] as const } : {}),
+      }))
     }
     // No se borra `notesContent` aquí: es un cambio de tipo, no una razón para
     // tirar lo escrito. Si el usuario vuelve a `notes`, su texto sigue ahí; y

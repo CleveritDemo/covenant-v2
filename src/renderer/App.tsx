@@ -137,6 +137,7 @@ import {
   hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
 } from './covenantApi'
+import { retryCovenantResult } from '../shared/covenantRetry'
 import {
   projectAgentsFromWorkspaceAgents,
   sanitizeSlugSegment,
@@ -969,8 +970,8 @@ export const App: React.FC = () => {
             try {
               await Promise.all([...byWorkspace.values()].map(async ws => {
                 const [agentsResult, contextsResult] = await Promise.all([
-                  covenant.workspaceAgentsList(ws.slug, ws.workspaceId),
-                  covenant.workspaceContextsList(ws.slug, ws.workspaceId),
+                  retryCovenantResult(() => covenant.workspaceAgentsList(ws.slug, ws.workspaceId)),
+                  retryCovenantResult(() => covenant.workspaceContextsList(ws.slug, ws.workspaceId)),
                 ])
                 const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
                 if (agentsResult.ok) {

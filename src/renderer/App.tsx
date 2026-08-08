@@ -129,6 +129,7 @@ import {
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
 import {
   covenantWorkspaceCatalogKey,
+  shouldReplaceOrgAgentCatalog,
   tabAgentCatalogKey,
 } from '../shared/covenantTypes'
 import {
@@ -313,6 +314,7 @@ export const App: React.FC = () => {
   const [projectAgentsByCwd, setProjectAgentsByCwd] = useState<Record<string, ProjectAgentDefinition[]>>({})
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
+  const resyncOrgWorkspaceRef = useRef<(tab: TabSession) => Promise<void>>(async () => {})
   const handleAgentMetaChangeRef = useRef<(
     tabId: string,
     paneId: string,
@@ -974,14 +976,27 @@ export const App: React.FC = () => {
                   retryCovenantResult(() => covenant.workspaceContextsList(ws.slug, ws.workspaceId)),
                 ])
                 const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
-                if (agentsResult.ok) {
+                if (!agentsResult.ok) {
+                  console.warn('[boot] agents list fallo, resync diferido')
+                  const tabIds = [...ws.tabIds]
+                  window.setTimeout(() => {
+                    if ((projectAgentsByCwdRef.current[catalogKey] ?? []).length > 0) return
+                    for (const tabId of tabIds) {
+                      const tab = tabsRef.current.find(item => item.id === tabId)
+                      if (tab) void resyncOrgWorkspaceRef.current(tab)
+                    }
+                  }, 1500)
+                } else {
                   const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-                  setProjectAgentsByCwd(prev => {
-                    const next = { ...prev, [catalogKey]: agents }
-                    projectAgentsByCwdRef.current = next
-                    return next
-                  })
-                  for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
+                  const existing = projectAgentsByCwdRef.current[catalogKey]
+                  if (shouldReplaceOrgAgentCatalog(agents, existing)) {
+                    setProjectAgentsByCwd(prev => {
+                      const next = { ...prev, [catalogKey]: agents }
+                      projectAgentsByCwdRef.current = next
+                      return next
+                    })
+                    for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
+                  }
                 }
                 if (contextsResult.ok) {
                   const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
@@ -1738,6 +1753,7 @@ export const App: React.FC = () => {
       })
     }
   }, [syncTabWithProjectAgents])
+  resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -3669,6 +3685,7 @@ export const App: React.FC = () => {
     const registerClose = (openConfirm: () => void) =>
       registerPaneShortcutCloseIntercept(paneId, openConfirm)
     const chainLoopActive = activeLoopChainPaneIds(tab.planeLoopChains ?? []).has(paneId)
+    const paneCatalogKey = tabAgentCatalogKey(tab)
 
     if (isAgent) {
       return (
@@ -3679,8 +3696,9 @@ export const App: React.FC = () => {
           cwdOverride={
             paneCwdOverrideTick >= 0 ? paneCwdOverrideRef.current.get(paneId) : undefined
           }
-          projectAgents={projectAgentsByCwd[tab.projectFolder?.trim() ?? ''] ?? []}
-          contextsRevision={contextsRevisionByCwd[tab.projectFolder?.trim() ?? ''] ?? 0}
+          projectAgents={projectAgentsByCwd[paneCatalogKey] ?? []}
+          contextsRevision={contextsRevisionByCwd[paneCatalogKey] ?? 0}
+          orgWorkspace={tab.orgWorkspace}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}

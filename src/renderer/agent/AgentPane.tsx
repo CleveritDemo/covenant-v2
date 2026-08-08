@@ -153,6 +153,8 @@ interface Props {
   peerAgents?: DelegateToPeerAgent[]
   /** Catálogo de agentes del proyecto (cara de las filas de results). */
   projectAgents?: ProjectAgentDefinition[]
+  /** Workspace org: contexts se borran/crean vía backend, no disco. */
+  orgWorkspace?: { slug: string; workspaceId: string }
   /** El CLI del orquestador emitió delegaciones. */
   onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
@@ -280,6 +282,7 @@ export const AgentPane: React.FC<Props> = ({
   getOrchestrationAgents,
   peerAgents = [],
   projectAgents = [],
+  orgWorkspace,
   onOrchestratorDelegations,
   onOrchestratorStop,
   onDelegationTurnComplete,
@@ -2182,6 +2185,7 @@ export const AgentPane: React.FC<Props> = ({
         contexts={diskContexts}
         agents={projectAgents}
         cwd={cwd}
+        orgWorkspace={orgWorkspace}
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}
         onRefresh={() => { void refreshDiskContexts() }}

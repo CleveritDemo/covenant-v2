@@ -109,3 +109,15 @@ export function tabAgentCatalogKey(tab: {
   if (slug && workspaceId) return covenantWorkspaceCatalogKey(slug, workspaceId)
   return tab.projectFolder?.trim() ?? ''
 }
+
+/**
+ * Boot/resync org: aplica list entrante salvo carrera que pisa un catálogo
+ * no vacío con uno vacío.
+ */
+export function shouldReplaceOrgAgentCatalog(
+  incoming: readonly unknown[],
+  existing: readonly unknown[] | undefined,
+): boolean {
+  if (incoming.length > 0) return true
+  return !existing || existing.length === 0
+}

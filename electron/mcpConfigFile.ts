@@ -37,11 +37,44 @@ export function writeScopedMcpConfig(
  * que acotar y el turno arranca sin MCPs en vez de fallar.
  */
 export function readProjectMcpConfig(cwd: string): unknown {
-  const path = join(cwd, '.mcp.json')
+  return readMcpConfigFile(join(cwd, '.mcp.json'))
+}
+
+/**
+ * Config MCP propia del CLI de Copilot (`~/.copilot/mcp-config.json`). Copilot
+ * no lee el `.mcp.json` del proyecto, y su acotado es una denylist: hay que
+ * saber qué hay configurado para poder apagar lo que no está permitido.
+ */
+export function readCopilotMcpConfig(home: string): unknown {
+  return readMcpConfigFile(join(home, '.copilot', 'mcp-config.json'))
+}
+
+function readMcpConfigFile(path: string): unknown {
   if (!existsSync(path)) return null
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as unknown
   } catch {
     return null
   }
+}
+
+/** Nombres de servidor de un `mcpServers`, o vacío si la fuente no sirve. */
+export function mcpServerNames(source: unknown): string[] {
+  const all = source && typeof source === 'object'
+    ? (source as Record<string, unknown>).mcpServers
+    : undefined
+  return all && typeof all === 'object' && !Array.isArray(all) ? Object.keys(all) : []
+}
+
+/**
+ * Denylist derivada: lo configurado menos lo permitido. Vacía cuando no hay
+ * allowlist — sin acotado pedido no se apaga nada.
+ */
+export function mcpServersToDisable(
+  configured: readonly string[],
+  allowed: readonly string[],
+): string[] {
+  if (!allowed.length) return []
+  const keep = new Set(allowed)
+  return configured.filter(name => !keep.has(name))
 }

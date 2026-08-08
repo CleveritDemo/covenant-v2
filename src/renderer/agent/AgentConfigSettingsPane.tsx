@@ -314,7 +314,12 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             {t('agentPane.nativeSkillsUnsupported', { provider: providerLabel })}
           </p>
         ) : null}
-        {caps.nativeSkills && skillsOn ? (
+        {caps.nativeSkills && !caps.nativeSkillNamespaces ? (
+          <p className="agent-config-settings__hint">
+            {t('agentPane.nativeSkillsGateOnly', { provider: providerLabel })}
+          </p>
+        ) : null}
+        {caps.nativeSkillNamespaces && skillsOn ? (
           <LineListField
             label={t('agentPane.nativeSkillsNamespacesLabel')}
             value={meta.nativeSkills?.namespaces ?? []}

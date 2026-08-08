@@ -73,12 +73,16 @@ describe('claude · allowlist de MCP', () => {
 
 describe('capacidades por proveedor', () => {
   it('claude soporta las dos', () => {
-    expect(providerCapabilities('claude')).toEqual({ nativeSkills: true, mcpAllowlist: true })
+    expect(providerCapabilities('claude')).toEqual({
+      nativeSkills: true, nativeSkillNamespaces: true, mcpAllowlist: true,
+    })
   })
 
   it('los proveedores sin flags verificados no soportan ninguna', () => {
     // Fallar visible, no en silencio: la UI deshabilita lo que no puede
     // acotar en vez de prometerlo.
-    expect(providerCapabilities('cursor')).toEqual({ nativeSkills: false, mcpAllowlist: false })
+    expect(providerCapabilities('cursor')).toEqual({
+      nativeSkills: false, nativeSkillNamespaces: false, mcpAllowlist: false,
+    })
   })
 })

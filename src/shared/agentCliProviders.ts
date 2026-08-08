@@ -32,8 +32,22 @@ export interface AgentCliArgsInput {
   disableSkills?: boolean
   /** Rutas de plugin a cargar solo para este spawn. Vacío = ninguna. */
   pluginDirs?: string[]
+  /**
+   * Directorio vacío y descartable. Para los CLIs cuyo único modo de acotar
+   * skills es "lee de aquí en vez de descubrir" (kimi): apuntarlos a un
+   * directorio sin nada es la forma de decir "ninguna".
+   */
+  emptySkillsDir?: string
   /** Ruta a un mcp.json efímero con solo los servidores permitidos. */
   mcpConfigPath?: string
+  /** Nombres permitidos, para los CLIs que aceptan la allowlist directa. */
+  mcpAllowed?: string[]
+  /**
+   * Nombres a desactivar = configurados − permitidos. Para los CLIs que solo
+   * saben quitar de uno en uno (copilot). Derivado por el runtime, que es
+   * quien puede leer la config del CLI.
+   */
+  mcpDisabled?: string[]
 }
 
 /** Disponibilidad real del CLI de un proveedor en la máquina. */
@@ -60,12 +74,34 @@ export interface AgentCliProviderSpec {
    * Qué sabe acotar este CLI por spawn. Omitido = nada.
    * Solo se marca `true` con el flag verificado contra el `--help` del CLI,
    * igual que el resto de la tabla.
+   *
+   * `nativeSkills` es poder **apagarlas**; `nativeSkillNamespaces` es además
+   * poder dejar pasar unas y no otras. Hay CLIs que solo tienen lo primero
+   * (`opencode --pure`), y ofrecer ahí una allowlist sería mentir.
    */
-  capabilities?: { nativeSkills?: boolean; mcpAllowlist?: boolean }
+  capabilities?: {
+    nativeSkills?: boolean
+    nativeSkillNamespaces?: boolean
+    mcpAllowlist?: boolean
+  }
 }
 
 const withModel = (flag: string, model: string | undefined): string[] =>
   model?.trim() ? [flag, model.trim()] : []
+
+/**
+ * Flags de los CLIs que acotan skills sustituyendo el directorio de origen en
+ * vez de excluir el scope de usuario. Sin permitidos (gate apagado o allowlist
+ * vacía) apunta al directorio vacío, que es su forma de decir "ninguna".
+ */
+const skillsDirFlags = (
+  flag: string,
+  input: Pick<AgentCliArgsInput, 'disableSkills' | 'pluginDirs' | 'emptySkillsDir'>,
+): string[] => {
+  const dirs = input.disableSkills ? [] : input.pluginDirs ?? []
+  const sources = dirs.length ? dirs : [input.emptySkillsDir].filter((dir): dir is string => Boolean(dir))
+  return sources.flatMap(dir => [flag, dir])
+}
 
 /**
  * `--disallowedTools` una sola vez con todo lo denegado. Emitir el flag dos
@@ -108,7 +144,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),
     ],
-    capabilities: { nativeSkills: true, mcpAllowlist: true },
+    capabilities: { nativeSkills: true, nativeSkillNamespaces: true, mcpAllowlist: true },
   },
   cursor: {
     label: 'Cursor Agent',
@@ -136,16 +172,25 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#6DD29A',
     command: 'copilot',
     stream: 'copilot',
-    args: ({ prompt, mode, model, sessionId }) => [
+    args: ({ prompt, mode, model, sessionId, mcpDisabled }) => [
       '-p',
       prompt,
       '--output-format',
       'json',
+      // Copilot no tiene el par --mcp-config/--strict-mcp-config: su
+      // --additional-mcp-config *suma* a ~/.copilot/mcp-config.json. La única
+      // vía es la inversa — apagar el built-in y cada servidor no permitido,
+      // que el runtime deriva de esa misma config. Un servidor que aparezca
+      // después de leerla no queda cubierto: es una denylist, no un sandbox.
+      ...(mcpDisabled?.length
+        ? ['--disable-builtin-mcps', ...mcpDisabled.flatMap(name => ['--disable-mcp-server', name])]
+        : []),
       ...(mode === 'auto' ? ['--yolo'] : []),
       ...(mode === 'plan' ? ['--plan'] : []),
       ...(sessionId ? [`--resume=${sessionId}`] : []),
       ...withModel('--model', model),
     ],
+    capabilities: { mcpAllowlist: true },
   },
   codex: {
     label: 'Codex',
@@ -175,15 +220,19 @@ export const AGENT_CLI_PROVIDERS = {
     // que Claude Code, así que reusamos su normalizador. No pude verificarlo
     // en vivo (sin auth en esta máquina); si el esquema difiere, el runtime
     // cae al volcado crudo de stdout y basta con darle su propio normalizador.
-    args: ({ prompt, mode, model }) => [
+    args: ({ prompt, mode, model, mcpAllowed }) => [
       '-p',
       prompt,
       '-o',
       'stream-json',
+      // El único CLI con allowlist nativa por nombre; no hace falta config
+      // efímero ni derivar una denylist.
+      ...(mcpAllowed?.length ? ['--allowed-mcp-server-names', ...mcpAllowed] : []),
       ...(mode === 'auto' ? ['--yolo'] : []),
       ...(mode === 'plan' ? ['--approval-mode', 'plan'] : []),
       ...withModel('-m', model),
     ],
+    capabilities: { mcpAllowlist: true },
   },
   kimi: {
     label: 'Kimi',
@@ -192,15 +241,21 @@ export const AGENT_CLI_PROVIDERS = {
     stream: 'claude',
     // ponytail: mismo caso que Gemini — `--output-format stream-json` es
     // compatible con el de Claude Code.
-    args: ({ prompt, mode, model, sessionId }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs, emptySkillsDir }) => [
       '-p',
       prompt,
       '--output-format',
       'stream-json',
+      // `--skills-dir` carga "en vez de" los directorios auto-descubiertos de
+      // usuario y proyecto, así que acota sin necesitar un flag de exclusión.
+      // Sin permitidos no hay nada que apuntar: un directorio vacío es cómo se
+      // dice "ninguna" en este CLI.
+      ...skillsDirFlags('--skills-dir', { disableSkills, pluginDirs, emptySkillsDir }),
       ...(mode === 'auto' ? ['-y'] : []),
       ...(sessionId ? ['-S', sessionId] : []),
       ...withModel('-m', model),
     ],
+    capabilities: { nativeSkills: true, nativeSkillNamespaces: true },
   },
   opencode: {
     label: 'Opencode',
@@ -210,12 +265,16 @@ export const AGENT_CLI_PROVIDERS = {
     // ponytail: `--format json` existe pero su esquema de eventos no está
     // documentado; usamos la salida normal como texto. Upgrade: normalizador
     // propio + `-s <id>` para recuperar la sesión.
-    args: ({ prompt, mode, model }) => [
+    args: ({ prompt, mode, model, disableSkills }) => [
       'run',
+      // `--pure` corre sin plugins externos: apaga, pero no sabe dejar pasar
+      // unos y no otros. De ahí que no declare `nativeSkillNamespaces`.
+      ...(disableSkills ? ['--pure'] : []),
       ...(mode === 'plan' ? ['--agent', 'plan'] : []),
       ...withModel('-m', model),
       prompt,
     ],
+    capabilities: { nativeSkills: true },
   },
   pi: {
     label: 'Pi',
@@ -224,11 +283,21 @@ export const AGENT_CLI_PROVIDERS = {
     stream: 'text',
     // ponytail: pi no expone permisos por flag (--approve es confianza en
     // archivos del proyecto, no en herramientas), así que `mode` no se mapea.
-    args: ({ prompt, model }) => [
+    args: ({ prompt, model, disableSkills, pluginDirs }) => [
       '-p',
+      // Misma forma que Claude: `--no-skills` mata el descubrimiento y
+      // `--skill` vuelve a añadir solo lo permitido.
+      // ponytail: que `--skill` sobreviva a `--no-skills` es lo que el propio
+      // help afirma del par equivalente `--no-extensions`/`-e`; no pude
+      // comprobarlo en vivo (sin auth de pi en esta máquina). Si no sobrevive,
+      // el agente se queda sin skills en vez de con todas — falla cerrado, que
+      // es el default de este gate. Upgrade: un spawn real con `--verbose`.
+      '--no-skills',
+      ...(disableSkills ? [] : (pluginDirs ?? []).flatMap(dir => ['--skill', dir])),
       ...withModel('--model', model),
       prompt,
     ],
+    capabilities: { nativeSkills: true, nativeSkillNamespaces: true },
   },
   hermes: {
     label: 'Hermes',
@@ -263,13 +332,14 @@ export function agentCliSpec(provider: AgentCliProvider): AgentCliProviderSpec {
  */
 export function providerCapabilities(
   provider: AgentCliProvider,
-): { nativeSkills: boolean; mcpAllowlist: boolean } {
+): { nativeSkills: boolean; nativeSkillNamespaces: boolean; mcpAllowlist: boolean } {
   // Vía `agentCliSpec` y no el registro directo: `satisfies` conserva el tipo
   // literal de cada entrada, y las que omiten `capabilities` no tienen la
   // propiedad en su tipo.
   const caps = agentCliSpec(provider).capabilities
   return {
     nativeSkills: caps?.nativeSkills === true,
+    nativeSkillNamespaces: caps?.nativeSkillNamespaces === true,
     mcpAllowlist: caps?.mcpAllowlist === true,
   }
 }

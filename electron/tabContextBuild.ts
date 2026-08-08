@@ -41,6 +41,8 @@ import {
   pruneProjectAgentContextIds,
 } from './aiAgentResults'
 import { listProjectAgents } from './projectAgentCatalogOps'
+import { readProjectMcpConfig } from './mcpConfigFile'
+import { formatMcpServers } from '../src/shared/mcpContext'
 import {
   agentResultContextIdForSlug,
   normalizeAgentSlug,
@@ -124,6 +126,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   deps: 'Project usage only; max 10 words.',
   readme: 'Gaps/outdated bits only; max 10 words.',
   changelog: 'Read-only; never annotate.',
+  mcp: 'Server usage only; max 10 words; never write credentials.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
   skill: 'Host-installed skill; do not rewrite via annotations.',
 }
@@ -960,6 +963,8 @@ function buildAutoContent(
       const path = firstExisting(root, ['README.md', 'README', 'readme.md'])
       return path ? readTextFile(path) ?? '(could not read README)' : '(README not found)'
     }
+    case 'mcp':
+      return formatMcpServers(readProjectMcpConfig(root))
     case 'changelog':
       return readTextFile(filePath) ?? '(empty changelog)'
     case 'agentResult': {
@@ -1237,6 +1242,10 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
     }
     case 'readme': {
       const path = firstExisting(root, ['README.md', 'README', 'readme.md'])
+      return path ? [path] : []
+    }
+    case 'mcp': {
+      const path = firstExisting(root, ['.mcp.json'])
       return path ? [path] : []
     }
     case 'changelog':

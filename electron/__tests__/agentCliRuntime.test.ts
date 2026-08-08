@@ -22,6 +22,9 @@ import {
 import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 const baseConfig = { agentCliCommands: {} } as AppConfig
+// `home` es requerido en `commandAndArgs`: sin plugins que resolver en estos
+// tests, cualquier ruta sirve, pero debe ser explícita (ver Task 5).
+const testHome = tmpdir()
 
 function request(
   partial: Partial<AgentCliStartRequest> & Pick<AgentCliStartRequest, 'provider' | 'permissionMode'>,
@@ -404,6 +407,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(ask.command).toBe('copilot')
     expect(ask.args.slice(0, 4)).toEqual(['-p', 'prompt', '--output-format', 'json'])
@@ -418,6 +423,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(auto.args).toContain('--yolo')
     expect(auto.args).not.toContain('--plan')
@@ -427,6 +434,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(plan.args).toContain('--plan')
     expect(plan.args).not.toContain('--yolo')
@@ -438,6 +447,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(cursor.args).toContain('--mode')
     expect(cursor.args[cursor.args.indexOf('--mode') + 1]).toBe('ask')
@@ -448,6 +459,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(claude.args).toContain('--disallowedTools')
     expect(claude.args[claude.args.indexOf('--disallowedTools') + 1]).toContain('Edit')
@@ -461,6 +474,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(cursorAuto.args).toContain('--force')
 
@@ -469,6 +484,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(claudePlan.args).toContain('--permission-mode')
     expect(claudePlan.args[claudePlan.args.indexOf('--permission-mode') + 1]).toBe('plan')
@@ -484,6 +501,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(cursorAuto.args).toContain('--force')
     expect(cursorAuto.args).not.toContain('--mode')
@@ -497,11 +516,15 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(claudeAuto.args).toContain('--permission-mode')
     expect(claudeAuto.args[claudeAuto.args.indexOf('--permission-mode') + 1])
       .toBe('bypassPermissions')
-    expect(claudeAuto.args).not.toContain('--disallowedTools')
+    // Sin nativeSkills, el default seguro deniega Skill en cualquier modo;
+    // lo que "auto" no debe traer son las herramientas de solo-ask (Edit, Write…).
+    expect(claudeAuto.args[claudeAuto.args.indexOf('--disallowedTools') + 1]).toBe('Skill')
 
     const cursorAsk = commandAndArgs(
       request({
@@ -512,6 +535,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(cursorAsk.args).toContain('--mode')
     expect(cursorAsk.args[cursorAsk.args.indexOf('--mode') + 1]).toBe('ask')
@@ -526,6 +551,8 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     expect(claudeAsk.args).toContain('--disallowedTools')
     expect(claudeAsk.args).not.toContain('bypassPermissions')
@@ -537,12 +564,16 @@ describe('permission mode CLI flags', () => {
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
     const claude = commandAndArgs(
       request({ provider: 'claude', permissionMode: 'ask', cliSessionId: 'claude-session' }),
       baseConfig,
       '/tmp',
       'prompt',
+      undefined,
+      testHome,
     )
 
     expect(cursor.args.slice(cursor.args.indexOf('--resume'), cursor.args.indexOf('--resume') + 2))

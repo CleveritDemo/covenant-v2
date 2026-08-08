@@ -16,6 +16,7 @@ export const KIND_ICONS: Record<TabContextKind, IconName> = {
   readme: 'book',
   changelog: 'history',
   agentResult: 'bot',
+  skill: 'sparkles',
 }
 
 export function contextIconName(

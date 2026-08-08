@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
+import { agentCliSpec, providerCapabilities } from '@shared/agentCliProviders'
+import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
@@ -12,7 +14,7 @@ import {
   type DelegateToPolicy,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
-import { Button, ChoiceCard, Icon, SegmentedControl, Select, SettingToggle } from '../components/ui'
+import { Button, ChoiceCard, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
 import { AgentProviderGrid } from './AgentProviderGrid'
 import { AgentConfigFolderChip } from './AgentConfigFolderChip'
@@ -23,7 +25,12 @@ import {
 import './AgentConfigSettingsPane.css'
 
 /** Secciones de ejecución que renderiza este bloque. */
-export type AgentConfigSettingsSection = 'engine' | 'permissions' | 'contexts' | 'orchestration'
+export type AgentConfigSettingsSection =
+  | 'engine'
+  | 'permissions'
+  | 'contexts'
+  | 'orchestration'
+  | 'capabilities'
 
 export interface AgentConfigSettingsPaneProps {
   section: AgentConfigSettingsSection
@@ -52,6 +59,8 @@ export interface AgentConfigSettingsPaneProps {
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
+  onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
+  onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
   onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
@@ -69,6 +78,40 @@ export function shortenHome(cwd: string): string {
   if (!path) return ''
   const home = path.match(/^(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)[^\\/]+/)
   return home ? `~${path.slice(home[0].length)}` : path
+}
+
+/**
+ * Lista de identificadores, uno por línea. El estado es local y se entrega en
+ * el blur: partir por líneas en cada tecla se comería el salto recién escrito.
+ */
+const LineListField: React.FC<{
+  label: string
+  hint?: string
+  value: string[]
+  disabled: boolean
+  placeholder?: string
+  onCommit: (lines: string[]) => void
+}> = ({ label, hint, value, disabled, placeholder, onCommit }) => {
+  const joined = value.join('\n')
+  const [text, setText] = useState(joined)
+  useEffect(() => { setText(joined) }, [joined])
+  return (
+    <label className="agent-config-settings__field">
+      <span className="agent-config-settings__label">{label}</span>
+      <TextArea
+        value={text}
+        rows={4}
+        spellCheck={false}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={event => setText(event.target.value)}
+        onBlur={() => onCommit(
+          text.split('\n').map(line => line.trim()).filter(Boolean),
+        )}
+      />
+      {hint ? <p className="agent-config-settings__hint">{hint}</p> : null}
+    </label>
+  )
 }
 
 const MAX_ROUNDS_OPTIONS = [
@@ -102,6 +145,8 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onChangeProvider,
   onChangeModel,
   onChangePermission,
+  onChangeNativeSkills,
+  onChangeMcpsAllowed,
   onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
@@ -243,6 +288,56 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             </ChoiceCard>
           ))}
         </div>
+      </div>
+    )
+  }
+
+  if (section === 'capabilities') {
+    const caps = providerCapabilities(meta.provider)
+    const providerLabel = agentCliSpec(meta.provider).label
+    const skillsOn = meta.nativeSkills?.enabled === true
+    return (
+      <div className="agent-config-settings__stack">
+        <SettingToggle
+          checked={skillsOn}
+          disabled={locked || !caps.nativeSkills}
+          title={t('agentPane.nativeSkillsLabel')}
+          description={t('agentPane.nativeSkillsHint')}
+          onChange={checked => onChangeNativeSkills(
+            checked
+              ? { enabled: true, ...(meta.nativeSkills?.namespaces ? { namespaces: meta.nativeSkills.namespaces } : {}) }
+              : undefined,
+          )}
+        />
+        {!caps.nativeSkills ? (
+          <p className="agent-config-settings__hint agent-config-settings__hint--warn">
+            {t('agentPane.nativeSkillsUnsupported', { provider: providerLabel })}
+          </p>
+        ) : null}
+        {caps.nativeSkills && skillsOn ? (
+          <LineListField
+            label={t('agentPane.nativeSkillsNamespacesLabel')}
+            value={meta.nativeSkills?.namespaces ?? []}
+            disabled={locked}
+            placeholder="superpowers"
+            onCommit={namespaces => onChangeNativeSkills({
+              enabled: true,
+              ...(namespaces.length ? { namespaces } : {}),
+            })}
+          />
+        ) : null}
+        <LineListField
+          label={t('agentPane.mcpsAllowedLabel')}
+          hint={t('agentPane.mcpsAllowedHint')}
+          value={meta.mcpsAllowed ?? []}
+          disabled={locked || !caps.mcpAllowlist}
+          onCommit={onChangeMcpsAllowed}
+        />
+        {!caps.mcpAllowlist ? (
+          <p className="agent-config-settings__hint agent-config-settings__hint--warn">
+            {t('agentPane.mcpsUnsupported', { provider: providerLabel })}
+          </p>
+        ) : null}
       </div>
     )
   }

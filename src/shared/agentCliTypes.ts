@@ -7,6 +7,7 @@ import type {
   DelegateResult,
   OrchestrationAgentRef,
 } from './agentOrchestration'
+import type { AgentNativeSkills } from './projectAgentCatalog'
 
 /** Imagen pegada desde el portapapeles; main la escribe a disco antes del turno. */
 export interface AgentCliImageAttachment {
@@ -35,6 +36,10 @@ export interface AgentCliStartRequest {
   rules?: string[]
   /** Si viene, se pasa como `--model` al CLI. */
   model?: string
+  /** Skills de plugin visibles; omitido = ninguna. */
+  nativeSkills?: AgentNativeSkills
+  /** Servidores MCP permitidos por id; omitido = ninguno. */
+  mcpsAllowed?: string[]
   /** Definiciones asignadas; main las materializa contra cwd justo al enviar. */
   contexts?: TabContext[]
   /** Catálogo descubierto en disco (para sugerencias; no se adjuntan solos). */
@@ -96,3 +101,19 @@ export interface AgentChatEntry {
   images?: AgentChatImage[]
 }
 
+
+/**
+ * Contadores acumulados desde el arranque de main. Vive aquí y no en
+ * `electron/agentCliRuntime.ts` porque el preload los expone al renderer, y
+ * este es el lado que los dos grafos pueden importar.
+ */
+export interface ContextDeliveryMetrics {
+  catalogChars: number
+  sectionsRequested: number
+  sectionsDelivered: number
+  sectionsPreattached: number
+  annotationUpserts: number
+  /** Tokens que el CLI reporta al cerrar cada turno, acumulados. */
+  inputTokens: number
+  outputTokens: number
+}

@@ -10,6 +10,7 @@ import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
+import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { AgentCoordination, DelegateToPolicy } from '@shared/agentOrchestration'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
@@ -71,6 +72,8 @@ export interface AgentConfigModalProps {
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
+  onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
+  onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
   onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
@@ -104,6 +107,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeProvider,
   onChangeModel,
   onChangePermission,
+  onChangeNativeSkills,
+  onChangeMcpsAllowed,
   onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
@@ -254,6 +259,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     permissions: t('agentPane.configTabPermissions'),
     contexts: t('agentPane.configTabContexts'),
     orchestration: t('agentPane.configTabOrchestration'),
+    capabilities: t('agentPane.configTabCapabilities'),
   }
 
   const identityDirty = draft.name !== (meta.name ?? '')
@@ -298,6 +304,12 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       count: selectedContextIds.length,
     },
     { id: 'orchestration', group: t('agentPane.configGroupHow'), label: sectionLabels.orchestration },
+    {
+      id: 'capabilities',
+      group: t('agentPane.configGroupHow'),
+      label: sectionLabels.capabilities,
+      count: (meta.nativeSkills?.namespaces?.length ?? 0) + (meta.mcpsAllowed?.length ?? 0),
+    },
   ]
 
   const heroChips: AgentConfigHeroChip[] = useMemo(() => {
@@ -431,6 +443,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onChangeProvider={onChangeProvider}
                 onChangeModel={onChangeModel}
                 onChangePermission={onChangePermission}
+                onChangeNativeSkills={onChangeNativeSkills}
+                onChangeMcpsAllowed={onChangeMcpsAllowed}
                 onToggleLoopMode={onToggleLoopMode}
                 onToggleContext={onToggleContext}
                 onOpenContextsModal={onOpenContextsModal}

@@ -17,6 +17,10 @@ describe('deliveryModeFor', () => {
       expect(deliveryModeFor(kind)).toBe('catalog')
     }
   })
+
+  it('skill viaja como catálogo, nunca entero', () => {
+    expect(deliveryModeFor('skill')).toBe('catalog')
+  })
 })
 
 describe('summarizeContextBudget', () => {

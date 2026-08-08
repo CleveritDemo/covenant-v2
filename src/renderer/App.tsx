@@ -122,6 +122,7 @@ import {
   normalizeAgentSlug,
   remapAgentBindingsInTabs,
   remapAgentResultContextIds,
+  parseProjectAgentDefinition,
   remapAgentResultIdsInCatalog,
   remapAgentResultTabContexts,
   type ProjectAgentDefinition,
@@ -129,6 +130,7 @@ import {
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
 import {
   covenantWorkspaceCatalogKey,
+  isOrgCatalogKey,
   shouldReplaceOrgAgentCatalog,
   tabAgentCatalogKey,
 } from '../shared/covenantTypes'
@@ -315,6 +317,8 @@ export const App: React.FC = () => {
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
   const resyncOrgWorkspaceRef = useRef<(tab: TabSession) => Promise<void>>(async () => {})
+  const orgAgentsCachePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastOrgAgentsCacheJsonRef = useRef('')
   const handleAgentMetaChangeRef = useRef<(
     tabId: string,
     paneId: string,
@@ -716,9 +720,58 @@ export const App: React.FC = () => {
         : null
       orgWorkspaceCatalogRef.current = hydrated
       setOrgWorkspaceCatalog(hydrated)
+
+      const agentsCache = cfg.orgWorkspaceAgentsCache
+      if (agentsCache && typeof agentsCache === 'object') {
+        setProjectAgentsByCwd(prev => {
+          const seed = { ...prev }
+          for (const [k, list] of Object.entries(agentsCache)) {
+            if (!isOrgCatalogKey(k) || !Array.isArray(list)) continue
+            const saneados = list
+              .map(item => parseProjectAgentDefinition(item))
+              .filter((d): d is ProjectAgentDefinition => d != null)
+            seed[k] = saneados
+          }
+          projectAgentsByCwdRef.current = seed
+          const subset: Record<string, ProjectAgentDefinition[]> = {}
+          for (const [k, v] of Object.entries(seed)) {
+            if (isOrgCatalogKey(k)) subset[k] = v
+          }
+          lastOrgAgentsCacheJsonRef.current = JSON.stringify(subset)
+          return seed
+        })
+      }
+
       setConfigReady(true)
     })
   }, [])
+
+  // Persiste defs de agentes org en config (rehidratación al boot sin red).
+  useEffect(() => {
+    if (!configReady) return
+    const subset: Record<string, ProjectAgentDefinition[]> = {}
+    for (const [k, list] of Object.entries(projectAgentsByCwd)) {
+      if (!isOrgCatalogKey(k) || k === '') continue
+      subset[k] = list
+    }
+    const json = JSON.stringify(subset)
+    if (json === lastOrgAgentsCacheJsonRef.current) return
+
+    if (orgAgentsCachePersistTimerRef.current) {
+      clearTimeout(orgAgentsCachePersistTimerRef.current)
+    }
+    orgAgentsCachePersistTimerRef.current = setTimeout(() => {
+      lastOrgAgentsCacheJsonRef.current = json
+      void window.api.setConfig({ orgWorkspaceAgentsCache: subset })
+    }, 500)
+
+    return () => {
+      if (orgAgentsCachePersistTimerRef.current) {
+        clearTimeout(orgAgentsCachePersistTimerRef.current)
+        orgAgentsCachePersistTimerRef.current = null
+      }
+    }
+  }, [configReady, projectAgentsByCwd])
 
   const applyOrgWorkspaceCatalog = useCallback((next: OrgWorkspaceCatalog | null) => {
     orgWorkspaceCatalogRef.current = next

@@ -1,6 +1,7 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
+import type { ProjectAgentDefinition } from './projectAgentCatalog'
 
 /** Política de ejecución de shell del modo agente (el modelo propone bloques RUN). */
 export type AgentShellPolicy = 'off' | 'ask' | 'always'
@@ -105,6 +106,11 @@ export interface AppConfig {
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
    */
   orgWorkspaceCatalogCache?: OrgWorkspaceCatalog | null
+  /**
+   * Catálogo de agentes org en memoria (keys `covenant://workspaces/...`).
+   * Rehidrata nombres/defs al boot sin esperar al fetch remoto.
+   */
+  orgWorkspaceAgentsCache?: Record<string, ProjectAgentDefinition[]>
 }
 
 export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
@@ -163,6 +169,18 @@ export function migrateAgentCliCommands(
   return out
 }
 
+function sanitizeOrgWorkspaceAgentsCache(
+  raw: unknown,
+): Record<string, ProjectAgentDefinition[]> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: Record<string, ProjectAgentDefinition[]> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(v)) continue
+    out[k] = v as ProjectAgentDefinition[]
+  }
+  return out
+}
+
 export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const rawMoods = {
     ...CONFIG_DEFAULTS.musicPlaylistIdsByMood,
@@ -187,6 +205,13 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
       ? undefined
       : (parseOrgWorkspaceCatalog(catalogRaw) ?? undefined)
     : undefined
+  const agentsCacheKeyPresent = Object.prototype.hasOwnProperty.call(
+    rawRecord,
+    'orgWorkspaceAgentsCache',
+  )
+  const orgWorkspaceAgentsCache = agentsCacheKeyPresent
+    ? sanitizeOrgWorkspaceAgentsCache(rawRecord.orgWorkspaceAgentsCache)
+    : undefined
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
@@ -204,6 +229,14 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     && parseOrgWorkspaceCatalog(merged.orgWorkspaceCatalogCache) == null
   ) {
     delete merged.orgWorkspaceCatalogCache
+  }
+  if (agentsCacheKeyPresent) {
+    if (orgWorkspaceAgentsCache) merged.orgWorkspaceAgentsCache = orgWorkspaceAgentsCache
+    else delete merged.orgWorkspaceAgentsCache
+  } else if (merged.orgWorkspaceAgentsCache !== undefined) {
+    const sanitized = sanitizeOrgWorkspaceAgentsCache(merged.orgWorkspaceAgentsCache)
+    if (sanitized) merged.orgWorkspaceAgentsCache = sanitized
+    else delete merged.orgWorkspaceAgentsCache
   }
   return merged as AppConfig
 }
@@ -239,6 +272,16 @@ export function validateConfig(config: AppConfig): string[] {
     && parseOrgWorkspaceCatalog(config.orgWorkspaceCatalogCache) == null
   ) {
     errors.push('orgWorkspaceCatalogCache tiene una forma inválida')
+  }
+  if (
+    config.orgWorkspaceAgentsCache !== undefined
+    && (
+      typeof config.orgWorkspaceAgentsCache !== 'object'
+      || config.orgWorkspaceAgentsCache === null
+      || Array.isArray(config.orgWorkspaceAgentsCache)
+    )
+  ) {
+    errors.push('orgWorkspaceAgentsCache debe ser un objeto')
   }
   for (const provider of Object.keys(config.agentCliCommands ?? {})) {
     if (!isAgentCliProvider(provider)) {

@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { shouldReplaceOrgAgentCatalog } from '../covenantTypes'
+import { isOrgCatalogKey, shouldReplaceOrgAgentCatalog } from '../covenantTypes'
+
+describe('isOrgCatalogKey', () => {
+  it('true para covenant://workspaces/x/y', () => {
+    expect(isOrgCatalogKey('covenant://workspaces/x/y')).toBe(true)
+  })
+
+  it('false para path absoluto', () => {
+    expect(isOrgCatalogKey('/abs/path')).toBe(false)
+  })
+
+  it('false para string vacío', () => {
+    expect(isOrgCatalogKey('')).toBe(false)
+  })
+})
 
 describe('shouldReplaceOrgAgentCatalog', () => {
   it('incoming no vacío, existing undefined => true', () => {

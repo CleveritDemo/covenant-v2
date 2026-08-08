@@ -518,6 +518,7 @@ const en = {
     planeChatContextsEmpty: 'No contexts in .gravity',
     planeDeletePane: 'Delete',
     planeCloseChat: 'Close chat',
+    planeRepoGitTitle: 'Open Git panel for {{name}}',
     planeConfirmDeleteTerminalMessage: 'Delete terminal "{{title}}"?',
     planeConfirmDeleteTerminalDetail: 'This panel\'s PTY session will be closed.',
     planeConfirmDeleteAgentMessage: 'Delete agent "{{title}}"?',
@@ -627,6 +628,7 @@ const en = {
     reqMissingFolder: 'Set the default workspaces folder in Settings.',
     reqMissingToken: 'Configure a GitHub token in Settings.',
     reqCloneFailed: 'Could not clone repositories: {{error}}',
+    reqAgentDeleteFailed: 'Could not delete the agent on the server: {{error}}. It may reappear after refreshing (you might lack manager permissions).',
     openSettings: 'Open settings',
   },
 

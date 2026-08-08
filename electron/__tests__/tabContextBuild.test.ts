@@ -1134,7 +1134,7 @@ export class Widget {
     expect(prompt).toContain('"sectionCount"')
   })
 
-  it('lists only the largest catalog sections and reports omitted count', () => {
+  it('lists only the largest catalog sections and reports omitted keys', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'), { recursive: true })
     const paths: string[] = []
@@ -1151,7 +1151,13 @@ export class Widget {
       paths,
     }
     const delivery = buildContextPromptDelivery([files], cwd)
-    expect(delivery.prompt).toContain('"omitted":6')
+    const catalogMatch = delivery.prompt.match(/```json\n(\{"contexts":.*\})\n```/)
+    expect(catalogMatch).not.toBeNull()
+    const catalog = JSON.parse(catalogMatch![1])
+    const entry = catalog.contexts[0]
+    expect(entry.sectionCount).toBe(30)
+    expect(entry.omittedKeys).toHaveLength(6)
+    expect(entry.omittedKeys.every((key: string) => typeof key === 'string')).toBe(true)
     expect(delivery.prompt).toContain('"sectionCount":30')
     expect(delivery.catalogChars).toBeGreaterThan(0)
   })

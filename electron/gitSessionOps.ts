@@ -14,10 +14,10 @@ import {
 } from '../src/shared/gitSessionTypes'
 import { GIT_ERROR_CODES } from '../src/shared/gitErrorCodes'
 
-const TIMEOUT_LOCAL_MS = 120_000
+export const TIMEOUT_LOCAL_MS = 120_000
 const TIMEOUT_NETWORK_MS = 900_000
 
-function resolveWorkingDir(cwdRaw: string): string | null {
+export function resolveWorkingDir(cwdRaw: string): string | null {
   try {
     const dir = resolve(normalize(String(cwdRaw).trim()))
     const st = statSync(dir)
@@ -102,7 +102,7 @@ function capOutput(s: string, max = GIT_MAX_OUTPUT_BYTES): string {
   return `${s.slice(0, max)}\n[…salida truncada…]`
 }
 
-function runGit(
+export function runGit(
   cwd: string,
   args: readonly string[],
   timeoutMs: number,

@@ -520,6 +520,7 @@ const es = {
     planeChatContextsEmpty: 'Sin contextos en .gravity',
     planeDeletePane: 'Eliminar',
     planeCloseChat: 'Cerrar chat',
+    planeRepoGitTitle: 'Abrir panel Git de {{name}}',
     planeConfirmDeleteTerminalMessage: '¿Eliminar la terminal «{{title}}»?',
     planeConfirmDeleteTerminalDetail: 'Se cerrará la sesión PTY de este panel.',
     planeConfirmDeleteAgentMessage: '¿Eliminar el agente «{{title}}»?',
@@ -629,6 +630,7 @@ const es = {
     reqMissingFolder: 'Configura la carpeta por defecto de workspaces en Ajustes.',
     reqMissingToken: 'Configura un token de GitHub en Ajustes.',
     reqCloneFailed: 'No se pudieron clonar los repos: {{error}}',
+    reqAgentDeleteFailed: 'No se pudo eliminar el agente en el servidor: {{error}}. Puede reaparecer al actualizar (quizá no tienes permisos de manager).',
     openSettings: 'Abrir ajustes',
   },
 

@@ -313,6 +313,7 @@ function createBasicTerminalFitScheduler(
       raf = requestAnimationFrame(runFit)
       return
     }
+    const waited = zoomWaitFrames
     zoomWaitFrames = 0
     if (host) {
       const w = host.clientWidth
@@ -323,6 +324,9 @@ function createBasicTerminalFitScheduler(
         term.cols === lastCols &&
         term.rows === lastRows
       ) {
+        if (import.meta.env.DEV) {
+          console.log('[fit] skip (sin cambio)', `${w}x${h}`, `${term.cols}x${term.rows}`, `waited ${waited}f`)
+        }
         return
       }
       lastContainerW = w
@@ -332,6 +336,9 @@ function createBasicTerminalFitScheduler(
       const colsBefore = term.cols
       const rowsBefore = term.rows
       fitTerminal(term, fit)
+      if (import.meta.env.DEV) {
+        console.log('[fit]', `${colsBefore}x${rowsBefore} → ${term.cols}x${term.rows}`, `waited ${waited}f`)
+      }
       onAfterFit?.()
       const cols = Math.max(1, term.cols)
       const rows = Math.max(1, term.rows)
@@ -894,6 +901,12 @@ export const TerminalPane: React.FC<Props> = ({
     fitRef.current = fit
     serializeAddonRef.current = serialize
 
+    // ponytail: registro solo-dev para inspeccionar cols/rows desde DevTools.
+    if (import.meta.env.DEV) {
+      const reg = ((window as unknown as { __gravityTerms?: Record<string, Terminal> }).__gravityTerms ??= {})
+      reg[sessionId] = term
+    }
+
     const syncScrollDownBtnVisibility = (): void => {
       if (!termAlive || termRef.current !== term) return
       syncTerminalScrolledUpState(term, setIsScrolledUp)
@@ -1346,6 +1359,9 @@ export const TerminalPane: React.FC<Props> = ({
       scheduleRefitTerminalRef.current = () => {}
       termRef.current = null
       fitRef.current = null
+      if (import.meta.env.DEV) {
+        delete (window as unknown as { __gravityTerms?: Record<string, Terminal> }).__gravityTerms?.[sessionId]
+      }
       term.dispose()
       onRegisterRef(null)
     }

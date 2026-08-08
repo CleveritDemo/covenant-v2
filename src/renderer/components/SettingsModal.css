@@ -363,6 +363,13 @@
 }
 
 /* El panel de ajustes ya scrollea: el changelog sólo necesita ancho de lectura. */
+.settings-update-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
 .settings-changelog {
   max-width: 68ch;
   font-size: 12.5px;

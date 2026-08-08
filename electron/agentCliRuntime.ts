@@ -1,6 +1,7 @@
 import crossSpawn from 'cross-spawn'
 import type { ChildProcessWithoutNullStreams } from 'child_process'
-import { mkdirSync, statSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, statSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { basename, extname, join, resolve } from 'path'
 import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
@@ -54,6 +55,7 @@ import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
+import { readProjectMcpConfig, writeScopedMcpConfig } from './mcpConfigFile'
 
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
@@ -739,6 +741,13 @@ export function commandAndArgs(
   const pluginDirs = nativeSkills?.enabled
     ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
     : []
+  const mcpConfigPath = request.mcpsAllowed?.length
+    ? writeScopedMcpConfig(
+        request.mcpsAllowed,
+        readProjectMcpConfig(cwd),
+        mkdtempSync(join(tmpdir(), 'gravity-mcp-')),
+      )
+    : null
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
     args: spec.args({
@@ -751,6 +760,7 @@ export function commandAndArgs(
       // apagado. Ese es el default seguro de la Task 1, y aquí se hace efectivo.
       disableSkills: nativeSkills?.enabled !== true,
       pluginDirs,
+      ...(mcpConfigPath ? { mcpConfigPath } : {}),
     }),
   }
 }

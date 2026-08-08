@@ -32,6 +32,8 @@ export interface AgentCliArgsInput {
   disableSkills?: boolean
   /** Rutas de plugin a cargar solo para este spawn. Vacío = ninguna. */
   pluginDirs?: string[]
+  /** Ruta a un mcp.json efímero con solo los servidores permitidos. */
+  mcpConfigPath?: string
 }
 
 /** Disponibilidad real del CLI de un proveedor en la máquina. */
@@ -79,7 +81,7 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#D97757',
     command: 'claude',
     stream: 'claude',
-    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs, mcpConfigPath }) => [
       '-p',
       prompt,
       '--output-format',
@@ -91,6 +93,9 @@ export const AGENT_CLI_PROVIDERS = {
       // y la allowlist no acota nada. Verificado con un spawn real.
       '--setting-sources', 'project',
       ...(pluginDirs ?? []).flatMap(dir => ['--plugin-dir', dir]),
+      // --strict-mcp-config es la mitad que acota: sin él, este config se suma
+      // a los demás en vez de sustituirlos.
+      ...(mcpConfigPath ? ['--mcp-config', mcpConfigPath, '--strict-mcp-config'] : []),
       ...(sessionId ? ['--resume', sessionId] : []),
       ...disallowedTools(mode, disableSkills),
       ...(mode === 'auto' ? ['--permission-mode', 'bypassPermissions'] : []),

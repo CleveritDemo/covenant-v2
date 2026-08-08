@@ -56,3 +56,17 @@ describe('claude · allowlist de namespace', () => {
     expect(countOf(claudeArgs(), '--plugin-dir')).toBe(0)
   })
 })
+
+describe('claude · allowlist de MCP', () => {
+  it('con ruta emite --mcp-config y --strict-mcp-config', () => {
+    const args = claudeArgs({ mcpConfigPath: '/tmp/x/mcp.json' })
+    expect(valueOf(args, '--mcp-config')).toBe('/tmp/x/mcp.json')
+    expect(args).toContain('--strict-mcp-config')
+  })
+
+  it('sin ruta no emite ninguno de los dos', () => {
+    const args = claudeArgs()
+    expect(countOf(args, '--mcp-config')).toBe(0)
+    expect(args).not.toContain('--strict-mcp-config')
+  })
+})

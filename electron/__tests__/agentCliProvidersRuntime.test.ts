@@ -5,6 +5,9 @@ import { AGENT_CLI_PROVIDER_IDS } from '../../src/shared/agentCliProviders'
 import { commandAndArgs, createAgentCliParser, normalizeCodexEvent } from '../agentCliRuntime'
 
 const config = { agentCliCommands: {} } as AppConfig
+// `home` es requerido en `commandAndArgs`: sin plugins que resolver en estos
+// tests, cualquier ruta sirve, pero debe ser explícita (ver Task 5).
+const testHome = '/home/test'
 
 function request(
   partial: Partial<AgentCliStartRequest> & Pick<AgentCliStartRequest, 'provider' | 'permissionMode'>,
@@ -20,6 +23,8 @@ describe('commandAndArgs con el registro de proveedores', () => {
         config,
         '/tmp',
         'prompt-x',
+        undefined,
+        testHome,
       )
       expect(command, provider).toBeTruthy()
       expect(args, provider).toContain('prompt-x')
@@ -32,16 +37,22 @@ describe('commandAndArgs con el registro de proveedores', () => {
       { agentCliCommands: { codex: '/opt/homebrew/bin/codex' } } as AppConfig,
       '/tmp',
       'p',
+      undefined,
+      testHome,
     )
     expect(command).toBe('/opt/homebrew/bin/codex')
   })
 
   it('codex: exec + sandbox read-only en ask, bypass en auto y resume con sesión', () => {
-    const ask = commandAndArgs(request({ provider: 'codex', permissionMode: 'ask' }), config, '/tmp', 'p')
+    const ask = commandAndArgs(
+      request({ provider: 'codex', permissionMode: 'ask' }), config, '/tmp', 'p', undefined, testHome,
+    )
     expect(ask.args.slice(0, 2)).toEqual(['exec', '--json'])
     expect(ask.args).toContain('read-only')
 
-    const auto = commandAndArgs(request({ provider: 'codex', permissionMode: 'auto' }), config, '/tmp', 'p')
+    const auto = commandAndArgs(
+      request({ provider: 'codex', permissionMode: 'auto' }), config, '/tmp', 'p', undefined, testHome,
+    )
     expect(auto.args).toContain('--dangerously-bypass-approvals-and-sandbox')
     expect(auto.args).not.toContain('read-only')
 
@@ -50,6 +61,8 @@ describe('commandAndArgs con el registro de proveedores', () => {
       config,
       '/tmp',
       'p',
+      undefined,
+      testHome,
     )
     expect(resumed.args.slice(0, 3)).toEqual(['exec', 'resume', 'thread-1'])
   })
@@ -66,6 +79,8 @@ describe('commandAndArgs con el registro de proveedores', () => {
         config,
         '/tmp',
         'p',
+        undefined,
+        testHome,
       )
       expect(args, provider).toContain(flag)
     }
@@ -77,6 +92,8 @@ describe('commandAndArgs con el registro de proveedores', () => {
       config,
       '/tmp',
       'p',
+      undefined,
+      testHome,
     )
     expect(args.slice(0, 3)).toEqual(['run', '--agent', 'plan'])
   })

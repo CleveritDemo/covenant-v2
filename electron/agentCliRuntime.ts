@@ -725,8 +725,13 @@ export function commandAndArgs(
   cwd: string,
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
-  /** Home del usuario, para resolver plugins instalados. Vacío = sin plugins. */
-  home = '',
+  /**
+   * Home del usuario, para resolver plugins instalados. Requerido a propósito
+   * (sin default): esta función decide qué ve el proceso lanzado, y un
+   * llamador que se olvide de pasarlo no debe degradar en silencio a "sin
+   * plugins" — debe fallar en compilación.
+   */
+  home: string,
 ): { command: string; args: string[] } {
   const provider = isAgentCliProvider(request.provider) ? request.provider : 'claude'
   const spec = agentCliSpec(provider)

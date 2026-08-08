@@ -303,6 +303,8 @@ const es = {
     previewError: 'No se pudo generar la vista previa.',
     previewEmpty: 'El contexto está vacío.',
     previewIdle: 'Escribe un nombre para ver la vista previa.',
+    previewRendered: 'Vista',
+    previewSource: 'Fuente',
     previewStats: '{{auto}} claves · {{notes}} anotadas',
     budgetSections: 'secciones',
     budgetChars: 'caracteres',

@@ -301,6 +301,8 @@ const en = {
     previewError: 'Could not generate preview.',
     previewEmpty: 'This context is empty.',
     previewIdle: 'Name the context to see its preview.',
+    previewRendered: 'Preview',
+    previewSource: 'Source',
     previewStats: '{{auto}} keys · {{notes}} annotated',
     budgetSections: 'sections',
     budgetChars: 'characters',

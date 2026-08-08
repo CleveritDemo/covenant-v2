@@ -10,6 +10,7 @@ export type OrgWorkspaceRequirementState = {
   missingToken?: boolean
   cloneError?: string
   cloning?: boolean
+  syncing?: boolean
   agentDeleteError?: string
 }
 
@@ -19,6 +20,7 @@ interface Props {
   missingToken?: boolean
   cloneError?: string
   cloning?: boolean
+  syncing?: boolean
   agentDeleteError?: string
   onClose: () => void
   onOpenSettings: () => void
@@ -30,11 +32,16 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   missingToken = false,
   cloneError,
   cloning = false,
+  syncing = false,
   agentDeleteError,
   onClose,
   onOpenSettings,
 }) => {
   const { t } = useT()
+  const busy = cloning || syncing
+  const statusLabel = syncing
+    ? t('organizations.reqSyncing')
+    : t('organizations.loading')
   const detail = cloneError?.trim()
     ? t('organizations.reqCloneFailed', { error: cloneError.trim() })
     : null
@@ -50,10 +57,10 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
       size="sm"
       zIndex={780}
       bodyLayout="spacious"
-      closeOnBackdrop={!cloning}
-      closeOnEscape={!cloning}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
       footer={
-        cloning ? undefined : (
+        busy ? undefined : (
           <>
             <Button variant="secondary" size="sm" onClick={onClose}>
               {t('common.cancel')}
@@ -74,10 +81,10 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
         )
       }
     >
-      {cloning ? (
+      {busy ? (
         <div className="org-ws-req__status">
-          <Spinner aria-label={t('organizations.loading')} />
-          <span>{t('organizations.loading')}</span>
+          <Spinner aria-label={statusLabel} />
+          <span>{statusLabel}</span>
         </div>
       ) : (
         <div className="org-ws-req__body">

@@ -212,6 +212,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   ) {
     delete merged.orgWorkspaceCatalogCache
   }
+  delete merged.orgWorkspaceAgentsCache
   return merged as AppConfig
 }
 

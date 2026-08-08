@@ -633,6 +633,7 @@ const es = {
     reqMissingToken: 'Configura un token de GitHub en Ajustes.',
     reqCloneFailed: 'No se pudieron clonar los repos: {{error}}',
     reqAgentDeleteFailed: 'No se pudo eliminar el agente en el servidor: {{error}}. Puede reaparecer al actualizar (quizá no tienes permisos de manager).',
+    reqSyncing: 'Cargando agentes y contextos del workspace…',
     openSettings: 'Abrir ajustes',
   },
 

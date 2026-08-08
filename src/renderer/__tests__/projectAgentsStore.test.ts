@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TabSession } from '@shared/tabSession'
-import { syncTabAgentsFromCatalog } from '../projectAgentsStore'
+import { covenantWorkspaceCatalogKey } from '@shared/covenantTypes'
+import { resolveTabAgentMeta, syncTabAgentsFromCatalog } from '../projectAgentsStore'
 
 function baseTab(partial: Partial<TabSession> = {}): TabSession {
   return {
@@ -140,5 +141,34 @@ describe('syncTabAgentsFromCatalog', () => {
     expect(result.addedPaneIds).toEqual(['new-1'])
     expect(result.tab.paneIds).toEqual(['pane-b', 'pane-a', 'new-1'])
     expect(result.tab.agentByPane?.['new-1']).toEqual({ agentId: 'gamma' })
+  })
+})
+
+describe('resolveTabAgentMeta org (TAREA 0 timing)', () => {
+  it('catálogo vacío → fallback sin name; mismo agentId con catálogo → name real', () => {
+    const catalogKey = covenantWorkspaceCatalogKey('acme', 'ws-1')
+    const tab = baseTab({
+      projectFolder: '/tmp/x',
+      orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },
+      paneIds: ['p1'],
+      activePaneId: 'p1',
+      paneKinds: { p1: 'agent' },
+      agentByPane: { p1: { agentId: 'fullstack' } },
+    })
+
+    const empty = resolveTabAgentMeta(tab, 'p1', {})
+    expect(empty.name).toBeUndefined()
+    expect(empty.provider).toBe('claude')
+
+    const seeded = resolveTabAgentMeta(tab, 'p1', {
+      [catalogKey]: [{
+        id: 'fullstack',
+        name: 'Fullstack',
+        provider: 'claude',
+        permissionMode: 'ask',
+      }],
+    })
+    expect(seeded.name).toBe('Fullstack')
+    expect(seeded.id).toBe('fullstack')
   })
 })

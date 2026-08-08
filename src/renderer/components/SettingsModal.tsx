@@ -14,6 +14,8 @@ import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
 import { GitHubTokenField } from './GitHubTokenField'
 import { AiMarkdown } from './AiMarkdown'
+import { QuitConfirmModal } from './QuitConfirmModal'
+import { replaySplash } from '../splash'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './SettingsModal.css'
@@ -36,6 +38,7 @@ const CATEGORIES = [
   { id: 'music', icon: 'play', labelKey: 'settings.spotifySection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
+  { id: 'developer', icon: 'code', labelKey: 'settings.developerSection' },
 ] as const
 
 type CategoryId = (typeof CATEGORIES)[number]['id']
@@ -64,6 +67,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [checking, setChecking] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
   /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
+  /** Preview del confirm de salida (no cierra la app). */
+  const [quitPreview, setQuitPreview] = useState(false)
   const [touchedMoods, setTouchedMoods] = useState<string[]>([])
   /**
    * Snapshot al abrir (copia profunda de mapas). No se reescribe tras autosave:
@@ -427,6 +432,27 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
             </>
           )}
 
+          {category === 'developer' && (
+            <SettingsSection title={t('settings.developerSection')}>
+              <SettingsField
+                label={t('settings.splashLabel')}
+                hint={t('settings.splashHint')}
+              >
+                <Button variant="secondary" size="sm" onClick={replaySplash}>
+                  {t('settings.splashReplay')}
+                </Button>
+              </SettingsField>
+              <SettingsField
+                label={t('settings.quitModalLabel')}
+                hint={t('settings.quitModalHint')}
+              >
+                <Button variant="secondary" size="sm" onClick={() => setQuitPreview(true)}>
+                  {t('settings.quitModalPreview')}
+                </Button>
+              </SettingsField>
+            </SettingsSection>
+          )}
+
           {category === 'about' && (
             <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
               <div className="settings-update-check">
@@ -447,6 +473,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
               {errors.map((e, i) => <p key={i}>{e}</p>)}
             </div>
           )}
+
+          {/* Portal propio: se pinta sobre Ajustes y no cierra la app. */}
+          <QuitConfirmModal
+            open={quitPreview}
+            terminals={2}
+            agents={1}
+            onCancel={() => setQuitPreview(false)}
+            onConfirm={() => setQuitPreview(false)}
+          />
         </div>
       </div>
     </TerminalModal>

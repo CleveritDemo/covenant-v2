@@ -300,4 +300,8 @@ export const IPC = {
   APP_SAVE_BEFORE_CLOSE: 'app:saveBeforeClose',
   /** Renderer → main: datos de cierre (scrollbacks) listos para guardar */
   APP_CLOSE_READY: 'app:closeReady',
+  /** Main → renderer: pedir confirmación de salida (modal de la app, no `dialog` nativo) */
+  APP_CONFIRM_QUIT: 'app:confirmQuit',
+  /** Renderer → main: el usuario confirmó salir */
+  APP_QUIT_CONFIRMED: 'app:quitConfirmed',
 } as const

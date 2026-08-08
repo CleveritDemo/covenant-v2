@@ -1301,4 +1301,22 @@ export function applyTheme(theme: AppTheme): void {
   root.style.setProperty('--theme-blue', theme.xterm.blue)
   root.style.setProperty('--theme-magenta', theme.xterm.magenta)
   root.style.setProperty('--theme-cyan', theme.xterm.cyan)
+
+  // El splash de index.html pinta antes de que exista la config, así que deja
+  // aquí las vars que necesita (chrome + las que usa Gravity.css): sin esto sale
+  // oscuro aunque el tema activo sea claro.
+  try {
+    localStorage.setItem(SPLASH_VARS_KEY, JSON.stringify({
+      '--bg': theme.vars['--bg'] ?? '#0d0d14',
+      '--bg-secondary': theme.vars['--bg-secondary'] ?? theme.vars['--surface'] ?? '#13131e',
+      '--text-muted': theme.vars['--text-muted'] ?? '#7878a8',
+      '--accent': accent,
+      '--theme-blue': theme.xterm.blue,
+      '--theme-magenta': theme.xterm.magenta,
+      '--theme-cyan': theme.xterm.cyan,
+    }))
+  } catch { /* modo privado / storage lleno: el splash usa sus defaults */ }
 }
+
+/** Lo lee el script inline de `index.html`. Cambiarlo aquí exige cambiarlo allí. */
+export const SPLASH_VARS_KEY = 'splashThemeVars'

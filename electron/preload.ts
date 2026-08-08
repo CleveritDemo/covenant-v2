@@ -846,6 +846,14 @@ const api = {
   sendCloseReady(scrollbacks: Record<string, string>): void {
     ipcRenderer.send(IPC.APP_CLOSE_READY, scrollbacks)
   },
+  onConfirmQuit(cb: () => void): () => void {
+    const listener = (): void => cb()
+    ipcRenderer.on(IPC.APP_CONFIRM_QUIT, listener)
+    return () => ipcRenderer.removeListener(IPC.APP_CONFIRM_QUIT, listener)
+  },
+  sendQuitConfirmed(): void {
+    ipcRenderer.send(IPC.APP_QUIT_CONFIRMED)
+  },
   getUpdateState(): Promise<UpdateState> {
     return ipcRenderer.invoke(IPC.UPDATE_STATE_GET)
   },

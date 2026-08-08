@@ -540,6 +540,17 @@ html[data-reduce-motion="true"] {
   transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
 }
 
+.plane-chat-composer__repo-chip--refresh {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  opacity: 0.5;
+}
+
+.plane-chat-composer__repo-chip--refresh:hover {
+  opacity: 1;
+}
+
 .plane-chat-composer__repo-chip:hover {
   color: var(--plane-composer-accent);
   border-color: transparent;

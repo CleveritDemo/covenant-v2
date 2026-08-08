@@ -3,6 +3,7 @@ import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
+import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
 import {
   extensionForMime,
@@ -80,6 +81,8 @@ export interface PlaneChatComposerProps {
   gitRepos?: GitListedRepo[]
   /** Clic en un repo de la lista → abre su modal git. */
   onOpenRepoGit?: (path: string) => void
+  /** Revalida la lista contra el disco (repos borrados/clonados fuera de la app). */
+  onRefreshRepos?: () => void
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -98,6 +101,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   onMergeQueuedTurns,
   gitRepos = [],
   onOpenRepoGit,
+  onRefreshRepos,
 }) => {
   const { t } = useT()
   const [draft, setDraft] = useState('')
@@ -372,6 +376,18 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 </button>
               </Tooltip>
             ))}
+            {onRefreshRepos ? (
+              <Tooltip content={t('tabs.planeReposRefresh')}>
+                <button
+                  type="button"
+                  className="plane-chat-composer__repo-chip plane-chat-composer__repo-chip--refresh"
+                  aria-label={t('tabs.planeReposRefresh')}
+                  onClick={onRefreshRepos}
+                >
+                  <Icon name="refresh" size={12} />
+                </button>
+              </Tooltip>
+            ) : null}
           </div>
         )}
       </div>

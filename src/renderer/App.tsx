@@ -1548,23 +1548,24 @@ export const App: React.FC = () => {
   }, [projectFolderKey, refreshTabGitRepos])
 
   // Descubre los repos git del root folder de cada tab, para la lista bajo el composer del plano.
-  useEffect(() => {
-    let cancelled = false
-    for (const tab of tabs) {
+  const refreshPlaneGitRepos = useCallback(async () => {
+    for (const tab of tabsRef.current) {
       const folder = tab.projectFolder?.trim()
       if (!folder) {
-        if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: [] }))
+        setGitReposByTab(prev => (prev[tab.id]?.length ? { ...prev, [tab.id]: [] } : prev))
         continue
       }
-      void (async () => {
-        try {
-          const repos = await window.api.gitCollectUniqueRepos([folder])
-          if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: repos }))
-        } catch {
-          if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: [] }))
-        }
-      })()
+      try {
+        const repos = await window.api.gitCollectUniqueRepos([folder])
+        setGitReposByTab(prev => ({ ...prev, [tab.id]: repos }))
+      } catch {
+        // Fallo transitorio de IPC: mantiene la lista previa en vez de vaciarla.
+      }
     }
+  }, [])
+
+  useEffect(() => {
+    void refreshPlaneGitRepos()
     // Poda tabs cerrados: solo síncrono sobre ids vigentes, no interfiere con los sets async.
     const liveIds = new Set(tabs.map(item => item.id))
     setGitReposByTab(prev => {
@@ -1576,8 +1577,14 @@ export const App: React.FC = () => {
       }
       return changed ? next : prev
     })
-    return () => { cancelled = true }
-  }, [projectFolderKey])
+  }, [projectFolderKey, refreshPlaneGitRepos])
+
+  // El disco cambia fuera de la app (borrar/clonar repos): revalida al recuperar el foco.
+  useEffect(() => {
+    const onFocus = (): void => { void refreshPlaneGitRepos() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshPlaneGitRepos])
 
   const revealTabExplorerFile = useCallback((tabId: string, relPath: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
@@ -4050,6 +4057,7 @@ export const App: React.FC = () => {
                   chatContextsEmpty={t('tabs.planeChatContextsEmpty')}
                   gitRepos={gitReposByTab[tab.id] ?? []}
                   onOpenRepoGit={(repoPath: string) => openTabGitModal(tab.id, repoPath)}
+                  onRefreshRepos={() => { void refreshPlaneGitRepos() }}
                   tabContexts={tabContextBadges}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)

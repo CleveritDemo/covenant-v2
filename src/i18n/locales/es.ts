@@ -543,6 +543,7 @@ const es = {
     planeDeletePane: 'Eliminar',
     planeCloseChat: 'Cerrar chat',
     planeRepoGitTitle: 'Abrir panel Git de {{name}}',
+    planeReposRefresh: 'Actualizar lista de repos',
     planeConfirmDeleteTerminalMessage: '¿Eliminar la terminal «{{title}}»?',
     planeConfirmDeleteTerminalDetail: 'Se cerrará la sesión PTY de este panel.',
     planeConfirmDeleteAgentMessage: '¿Eliminar el agente «{{title}}»?',

@@ -26,17 +26,19 @@ if [ -f CHANGELOG.md ] && [ -n "$TAG" ]; then
   ' CHANGELOG.md | sed '/./,$!d')
 fi
 
-if [ -z "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
-  SECTION="Ver https://github.com/${REPO}/releases/tag/${TAG}"
-fi
-
+# Sin sección: notas vacías (la app enseña su estado vacío con enlace al release,
+# mejor que una URL pelada en el modal) y el release lo escribe GitHub solo.
 printf '%s\n' "$SECTION" > "$OUT"
 echo "── release notes ($OUT)"
 cat "$OUT"
 
 case "${GITHUB_REF:-}" in
   refs/tags/v*)
-    gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" || true
+    if [ -n "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
+      gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" || true
+    else
+      gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes || true
+    fi
     ;;
   *)
     echo "sin tag: no se crea release"

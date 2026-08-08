@@ -111,6 +111,30 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
 }
 
+/* Scroll propio: una tabla ancha no debe ensanchar el contenedor. */
+.ai-md__table-wrap {
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+
+.ai-md__table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.ai-md__table th,
+.ai-md__table td {
+  padding: 0.3em 0.6em;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ai-md__table th {
+  font-weight: 650;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
 .ai-md__code {
   font-family: var(--font-mono);
   font-size: 0.88em;

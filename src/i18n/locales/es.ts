@@ -506,6 +506,7 @@ const es = {
     planeChatContextsEmpty: 'Sin contextos en .gravity',
     planeDeletePane: 'Eliminar',
     planeCloseChat: 'Cerrar chat',
+    planeRepoGitTitle: 'Abrir panel Git de {{name}}',
     planeConfirmDeleteTerminalMessage: '¿Eliminar la terminal «{{title}}»?',
     planeConfirmDeleteTerminalDetail: 'Se cerrará la sesión PTY de este panel.',
     planeConfirmDeleteAgentMessage: '¿Eliminar el agente «{{title}}»?',

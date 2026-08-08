@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
+import type { GitListedRepo } from '@shared/gitSessionTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
 import {
   computePlaneChatColumnWidth,
@@ -180,6 +181,10 @@ export interface TabAgenticPlaneProps {
   gitButtonDisabledTitle?: string
   gitPickerOpen?: boolean
   onGitButtonClick?: () => void
+  /** Repos git del root folder del tab, listados bajo el composer del plano. */
+  gitRepos: GitListedRepo[]
+  /** Clic en un repo de la lista → abre su modal git. */
+  onOpenRepoGit: (path: string) => void
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -315,6 +320,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   gitButtonDisabledTitle = '',
   gitPickerOpen = false,
   onGitButtonClick,
+  gitRepos,
+  onOpenRepoGit,
 }) => {
   const planeRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -702,6 +709,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onRemoveQueuedTurn={onRemoveQueuedTurn}
               onUpdateQueuedTurn={onUpdateQueuedTurn}
               onMergeQueuedTurns={onMergeQueuedTurns}
+              gitRepos={gitRepos}
+              onOpenRepoGit={onOpenRepoGit}
             />
           )}
         />

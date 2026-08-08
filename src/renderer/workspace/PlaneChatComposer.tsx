@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
+import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
 import {
   extensionForMime,
@@ -74,6 +75,10 @@ export interface PlaneChatComposerProps {
   onRemoveQueuedTurn?: (paneId: string, id: string) => void
   onUpdateQueuedTurn?: (paneId: string, id: string, text: string) => void
   onMergeQueuedTurns?: (paneId: string) => void
+  /** Repos git del root folder del tab, listados bajo el input. */
+  gitRepos?: GitListedRepo[]
+  /** Clic en un repo de la lista → abre su modal git. */
+  onOpenRepoGit?: (path: string) => void
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -90,6 +95,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   onRemoveQueuedTurn,
   onUpdateQueuedTurn,
   onMergeQueuedTurns,
+  gitRepos = [],
+  onOpenRepoGit,
 }) => {
   const { t } = useT()
   const [draft, setDraft] = useState('')
@@ -349,6 +356,22 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             disabled={!buttonIsStop && !canSend}
             onClick={handleSendClick}
           />        </div>
+
+        {gitRepos.length > 0 && (
+          <div className="plane-chat-composer__repos">
+            {gitRepos.map(repo => (
+              <button
+                key={repo.path}
+                type="button"
+                className="plane-chat-composer__repo-chip"
+                title={t('tabs.planeRepoGitTitle', { name: repo.name })}
+                onClick={() => onOpenRepoGit?.(repo.path)}
+              >
+                {repo.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <SketchModal

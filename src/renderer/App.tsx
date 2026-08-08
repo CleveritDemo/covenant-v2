@@ -274,6 +274,8 @@ export const App: React.FC = () => {
   }>>({})
   const gitUiByTabRef = useRef(gitUiByTab)
   gitUiByTabRef.current = gitUiByTab
+  /** Repos git del root folder por tab, para la lista bajo el composer del plano. */
+  const [gitReposByTab, setGitReposByTab] = useState<Record<string, GitListedRepo[]>>({})
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -1462,6 +1464,38 @@ export const App: React.FC = () => {
       void refreshTabGitRepos(tab.id)
     }
   }, [projectFolderKey, refreshTabGitRepos])
+
+  // Descubre los repos git del root folder de cada tab, para la lista bajo el composer del plano.
+  useEffect(() => {
+    let cancelled = false
+    for (const tab of tabs) {
+      const folder = tab.projectFolder?.trim()
+      if (!folder) {
+        if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: [] }))
+        continue
+      }
+      void (async () => {
+        try {
+          const repos = await window.api.gitCollectUniqueRepos([folder])
+          if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: repos }))
+        } catch {
+          if (!cancelled) setGitReposByTab(prev => ({ ...prev, [tab.id]: [] }))
+        }
+      })()
+    }
+    // Poda tabs cerrados: solo síncrono sobre ids vigentes, no interfiere con los sets async.
+    const liveIds = new Set(tabs.map(item => item.id))
+    setGitReposByTab(prev => {
+      const next = {} as Record<string, GitListedRepo[]>
+      let changed = false
+      for (const id of Object.keys(prev)) {
+        if (liveIds.has(id)) next[id] = prev[id]!
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+    return () => { cancelled = true }
+  }, [projectFolderKey])
 
   const revealTabExplorerFile = useCallback((tabId: string, relPath: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
@@ -3947,6 +3981,8 @@ export const App: React.FC = () => {
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
                   chatContextsEmpty={t('tabs.planeChatContextsEmpty')}
+                  gitRepos={gitReposByTab[tab.id] ?? []}
+                  onOpenRepoGit={(repoPath: string) => openTabGitModal(tab.id, repoPath)}
                   tabContexts={tabContextBadges}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)

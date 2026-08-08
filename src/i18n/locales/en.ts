@@ -504,6 +504,7 @@ const en = {
     planeChatContextsEmpty: 'No contexts in .gravity',
     planeDeletePane: 'Delete',
     planeCloseChat: 'Close chat',
+    planeRepoGitTitle: 'Open Git panel for {{name}}',
     planeConfirmDeleteTerminalMessage: 'Delete terminal "{{title}}"?',
     planeConfirmDeleteTerminalDetail: 'This panel\'s PTY session will be closed.',
     planeConfirmDeleteAgentMessage: 'Delete agent "{{title}}"?',

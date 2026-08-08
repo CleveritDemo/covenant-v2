@@ -585,3 +585,28 @@ html[data-reduce-motion="true"] {
   background: linear-gradient(135deg, #e5484d, #c92a30);
   box-shadow: 0 2px 10px rgba(229, 72, 77, 0.35);
 }
+
+.plane-chat-composer__repos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.plane-chat-composer__repo-chip {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.plane-chat-composer__repo-chip:hover {
+  color: var(--plane-composer-accent);
+  border-color: color-mix(in srgb, var(--plane-composer-accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--plane-composer-accent) 8%, var(--bg-secondary));
+}

@@ -3,6 +3,7 @@ import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
+import { Tooltip } from '../components/ui/Tooltip'
 import {
   extensionForMime,
   imagesFromClipboard,
@@ -360,15 +361,16 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         {gitRepos.length > 0 && (
           <div className="plane-chat-composer__repos">
             {gitRepos.map(repo => (
-              <button
-                key={repo.path}
-                type="button"
-                className="plane-chat-composer__repo-chip"
-                title={t('tabs.planeRepoGitTitle', { name: repo.name })}
-                onClick={() => onOpenRepoGit?.(repo.path)}
-              >
-                {repo.name}
-              </button>
+              <Tooltip key={repo.path} content={t('tabs.planeRepoGitTitle', { name: repo.name })}>
+                <button
+                  type="button"
+                  className="plane-chat-composer__repo-chip"
+                  aria-label={t('tabs.planeRepoGitTitle', { name: repo.name })}
+                  onClick={() => onOpenRepoGit?.(repo.path)}
+                >
+                  {repo.name}
+                </button>
+              </Tooltip>
             ))}
           </div>
         )}

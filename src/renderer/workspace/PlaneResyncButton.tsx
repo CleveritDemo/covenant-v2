@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneLoopsButton.css'
 
 export interface PlaneResyncButtonProps {
@@ -13,17 +14,18 @@ export const PlaneResyncButton: React.FC<PlaneResyncButtonProps> = ({
   busy,
   onClick,
 }) => (
-  <button
-    type="button"
-    className={[
-      'plane-loops-button',
-      'plane-loops-button--icon-only',
-    ].filter(Boolean).join(' ')}
-    aria-label={label}
-    title={label}
-    disabled={busy}
-    onClick={onClick}
-  >
-    <Icon name="refresh" size={13} />
-  </button>
+  <Tooltip content={label}>
+    <button
+      type="button"
+      className={[
+        'plane-loops-button',
+        'plane-loops-button--icon-only',
+      ].filter(Boolean).join(' ')}
+      aria-label={label}
+      disabled={busy}
+      onClick={onClick}
+    >
+      <Icon name="refresh" size={13} />
+    </button>
+  </Tooltip>
 )

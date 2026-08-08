@@ -4038,6 +4038,12 @@ export const App: React.FC = () => {
                   contextPoolConfigureLabel={t('tabContexts.manage')}
                   contextPoolCreateLabel={t('tabContexts.createTitle')}
                   contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
+                  contextPoolAssignLabel={t('tabs.planeContextPoolAssign')}
+                  contextPoolAssignEmptyHint={t('tabs.planeContextPoolAssignEmpty')}
+                  contextPoolAssignedCountLabel={(count: number) => (
+                    t('tabs.planeContextPoolAssigned', { count })
+                  )}
+                  contextPoolEditLabel={t('tabContexts.edit')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}

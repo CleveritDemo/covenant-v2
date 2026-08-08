@@ -22,7 +22,11 @@ import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
-import { PlaneContextPool, type PlaneContextPoolItem } from './PlaneContextPool'
+import {
+  PlaneContextPool,
+  type PlaneContextPoolAgent,
+  type PlaneContextPoolItem,
+} from './PlaneContextPool'
 import {
   TabFileExplorerWindow,
   type TabFileExplorerWindowHandle,
@@ -45,6 +49,11 @@ export interface TabAgenticPlaneProps {
   contextPoolConfigureLabel: string
   contextPoolCreateLabel: string
   contextPoolChipHint?: string
+  contextPoolAssignLabel: string
+  contextPoolAssignEmptyHint: string
+  /** Aria del contador del chip; recibe el nº de agentes. */
+  contextPoolAssignedCountLabel: (count: number) => string
+  contextPoolEditLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -200,6 +209,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolConfigureLabel,
   contextPoolCreateLabel,
   contextPoolChipHint,
+  contextPoolAssignLabel,
+  contextPoolAssignEmptyHint,
+  contextPoolAssignedCountLabel,
+  contextPoolEditLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -381,6 +394,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         }
       }),
     [agentStatuses, entities],
+  )
+
+  /** Agentes asignables desde el pool de contextos. */
+  const contextPoolAgents = useMemo<PlaneContextPoolAgent[]>(
+    () => entities
+      .filter(entity => entity.kind === 'agent')
+      .map(entity => ({
+        paneId: entity.paneId,
+        title: entity.title,
+        contextIds: entity.contextIds ?? [],
+      })),
+    [entities],
   )
 
   const terminalCount = useMemo(
@@ -658,10 +683,16 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           configureLabel={contextPoolConfigureLabel}
           createLabel={contextPoolCreateLabel}
           chipActionHint={contextPoolChipHint}
+          assignLabel={contextPoolAssignLabel}
+          assignEmptyHint={contextPoolAssignEmptyHint}
+          assignedCountLabel={contextPoolAssignedCountLabel}
+          editLabel={contextPoolEditLabel}
           contexts={tabContexts}
+          agents={contextPoolAgents}
           onConfigure={onConfigureContexts}
           onCreate={onCreateContext}
           onOpenContext={onOpenContext}
+          onToggleAssign={onToggleAgentContext}
         />
       )}
 

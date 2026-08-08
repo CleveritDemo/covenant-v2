@@ -15,7 +15,7 @@
   gap: 2px;
   height: var(--plane-top-bar-height, 26px);
   width: max-content;
-  max-width: none;
+  max-width: min(62vw, 640px);
   padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
   border-radius: var(--plane-top-bar-radius, 8px);
   border: 1px solid var(--plane-top-bar-edge);
@@ -54,38 +54,225 @@
   background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
 }
 
+/*
+ * ponytail: scroll horizontal como tope del desborde. El upgrade es el chip
+ * `+N` con buscador (fase 2), que evita tener que scrollear a ciegas.
+ */
 .plane-context-pool__icons {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 2px;
+  min-width: 0;
   height: 100%;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.plane-context-pool__icons::-webkit-scrollbar {
+  display: none;
 }
 
 .plane-context-pool__icons > [role='listitem'] {
   flex-shrink: 0;
 }
 
-.plane-context-pool__drag {
+/* Chip: ícono + nombre + nº de agentes que ya lo tienen. */
+.plane-context-pool__chip {
   display: inline-flex;
   align-items: center;
-  height: 100%;
+  gap: 5px;
+  box-sizing: border-box;
+  max-width: 148px;
+  height: 20px;
   margin: 0;
-  padding: 0;
-  border: none;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
   background: transparent;
-  color: inherit;
+  color: var(--text-muted);
   font: inherit;
-  cursor: grab;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 
-.plane-context-pool__drag:active {
+.plane-context-pool__chip:hover,
+.plane-context-pool__chip--open {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--plane-border) 40%, transparent);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-context-pool__chip:active {
   cursor: grabbing;
 }
 
-/* Badges alineados a la altura de la barra superior. */
-.plane-context-pool .context-badge {
-  width: 20px;
-  height: 20px;
+/* Clon que se arrastra: opaco y con radio propio, ya sin el glass de la barra. */
+.plane-context-pool__chip--ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  pointer-events: none;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  box-shadow: none;
+}
+
+.plane-context-pool__chip-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.plane-context-pool__chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plane-context-pool__chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--text);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Popover de asignación, anclado al borde derecho de la barra. */
+.plane-context-pool__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: max(216px, 100%);
+  max-width: min(300px, 88vw);
+  /* Opaco: el plano queda debajo del popover. */
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 22px color-mix(in srgb, #000 30%, transparent);
+  overflow: hidden;
+}
+
+.plane-context-pool__pop-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plane-context-pool__pop-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.plane-context-pool__pop-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-context-pool__pop-kind {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.plane-context-pool__pop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+}
+
+.plane-context-pool__pop-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plane-context-pool__pop-row:hover {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text);
+}
+
+.plane-context-pool__pop-row--on {
+  color: var(--text);
+}
+
+.plane-context-pool__pop-row input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.plane-context-pool__pop-row-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-context-pool__pop-empty {
+  margin: 0;
+  padding: 12px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.plane-context-pool__pop-foot {
+  display: flex;
+  padding: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.plane-context-pool__pop-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plane-context-pool__pop-action:hover {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text);
 }

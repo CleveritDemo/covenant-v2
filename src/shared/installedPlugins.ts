@@ -45,7 +45,13 @@ export function parseInstalledPlugins(raw: unknown): InstalledPluginEntry[] {
   return out
 }
 
-/** Rutas de los namespaces pedidos, en ese orden, sin duplicados. */
+/**
+ * Rutas de los namespaces pedidos, en ese orden, sin duplicados.
+ *
+ * Si un namespace está instalado bajo múltiples marketplaces, devuelve todas
+ * las rutas. Elegir una en silencio sería peor —el usuario no vería cuál se
+ * descartó. La deduplicación es por `installPath`, no por `name`.
+ */
 export function resolvePluginDirs(
   namespaces: readonly string[],
   installed: readonly InstalledPluginEntry[],

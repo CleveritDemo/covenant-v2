@@ -35,6 +35,10 @@ describe('parseInstalledPlugins', () => {
     expect(parseInstalledPlugins({ plugins: { 'sinArroba': [{ installPath: '/x' }] } })).toEqual([])
     expect(parseInstalledPlugins({ plugins: { 'a@b': [{ scope: 'user' }] } })).toEqual([])
   })
+
+  it('salta una clave válida cuyo valor no es un array', () => {
+    expect(parseInstalledPlugins({ plugins: { 'a@b': { installPath: '/x' } } })).toEqual([])
+  })
 })
 
 describe('resolvePluginDirs', () => {
@@ -59,5 +63,15 @@ describe('resolvePluginDirs', () => {
 
   it('lista vacía devuelve vacío', () => {
     expect(resolvePluginDirs([], installed)).toEqual([])
+  })
+
+  it('un namespace instalado en dos marketplaces devuelve las dos rutas', () => {
+    const dual = parseInstalledPlugins({
+      plugins: {
+        'dup@market-a': [{ scope: 'user', installPath: '/p/a/dup/1.0.0' }],
+        'dup@market-b': [{ scope: 'user', installPath: '/p/b/dup/2.0.0' }],
+      },
+    })
+    expect(resolvePluginDirs(['dup'], dual)).toEqual(['/p/a/dup/1.0.0', '/p/b/dup/2.0.0'])
   })
 })

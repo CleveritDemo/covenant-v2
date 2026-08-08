@@ -501,7 +501,9 @@ describe('permission mode CLI flags', () => {
     expect(claudeAuto.args).toContain('--permission-mode')
     expect(claudeAuto.args[claudeAuto.args.indexOf('--permission-mode') + 1])
       .toBe('bypassPermissions')
-    expect(claudeAuto.args).not.toContain('--disallowedTools')
+    // Sin nativeSkills, el default seguro deniega Skill en cualquier modo;
+    // lo que "auto" no debe traer son las herramientas de solo-ask (Edit, Write…).
+    expect(claudeAuto.args[claudeAuto.args.indexOf('--disallowedTools') + 1]).toBe('Skill')
 
     const cursorAsk = commandAndArgs(
       request({

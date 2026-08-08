@@ -50,8 +50,10 @@ import {
   isAgentCliProvider,
   type AgentCliProvider,
 } from '../src/shared/agentCliProviders'
+import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
+import { readInstalledPlugins } from './pluginDirs'
 
 interface AgentRun {
   proc: ChildProcessWithoutNullStreams | null
@@ -723,9 +725,15 @@ export function commandAndArgs(
   cwd: string,
   prompt = composePrompt(request, cwd),
   cliSessionId = request.cliSessionId,
+  /** Home del usuario, para resolver plugins instalados. Vacío = sin plugins. */
+  home = '',
 ): { command: string; args: string[] } {
   const provider = isAgentCliProvider(request.provider) ? request.provider : 'claude'
   const spec = agentCliSpec(provider)
+  const nativeSkills = request.nativeSkills
+  const pluginDirs = nativeSkills?.enabled
+    ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
+    : []
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
     args: spec.args({
@@ -734,6 +742,10 @@ export function commandAndArgs(
       mode: request.permissionMode,
       ...(request.model?.trim() ? { model: request.model.trim() } : {}),
       ...(cliSessionId ? { sessionId: cliSessionId } : {}),
+      // `!== true` y no `=== false`: un agente sin nativeSkills también queda
+      // apagado. Ese es el default seguro de la Task 1, y aquí se hace efectivo.
+      disableSkills: nativeSkills?.enabled !== true,
+      pluginDirs,
     }),
   }
 }
@@ -810,6 +822,7 @@ export function runAgentCliSpawn(
     cwd,
     prompt,
     latestSessionId,
+    home,
   )
   if (!rawCommand) {
     failBeforeSpawn('El comando del CLI no está configurado.')
@@ -943,6 +956,7 @@ export function startAgentTurn(
       cwd,
       prompt,
       latestSessionId,
+      home,
     )
     if (!rawCommand) {
       failBeforeSpawn('El comando del CLI no está configurado.')

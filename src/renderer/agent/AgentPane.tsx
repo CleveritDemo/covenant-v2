@@ -1007,6 +1007,8 @@ export const AgentPane: React.FC<Props> = ({
       ...(currentMeta.objective?.trim() ? { objective: currentMeta.objective.trim() } : {}),
       ...(rules.length ? { rules } : {}),
       ...(currentMeta.model?.trim() ? { model: currentMeta.model.trim() } : {}),
+      ...(currentMeta.nativeSkills ? { nativeSkills: currentMeta.nativeSkills } : {}),
+      ...(currentMeta.mcpsAllowed ? { mcpsAllowed: currentMeta.mcpsAllowed } : {}),
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
@@ -1119,6 +1121,8 @@ export const AgentPane: React.FC<Props> = ({
         const retryRequest: AgentCliStartRequest = {
           ...priorRequest,
           ...(sessionId ? { cliSessionId: sessionId } : {}),
+          ...(metaRef.current.nativeSkills ? { nativeSkills: metaRef.current.nativeSkills } : {}),
+          ...(metaRef.current.mcpsAllowed ? { mcpsAllowed: metaRef.current.mcpsAllowed } : {}),
         }
         lastTurnRequestRef.current = retryRequest
         turnClosedRef.current = false

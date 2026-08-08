@@ -30,6 +30,8 @@ export interface AgentCliArgsInput {
   sessionId?: string
   /** Deniega la tool `Skill`: el proceso no puede invocar ninguna skill. */
   disableSkills?: boolean
+  /** Rutas de plugin a cargar solo para este spawn. Vacío = ninguna. */
+  pluginDirs?: string[]
 }
 
 /** Disponibilidad real del CLI de un proveedor en la máquina. */
@@ -77,13 +79,18 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#D97757',
     command: 'claude',
     stream: 'claude',
-    args: ({ prompt, mode, model, sessionId, disableSkills }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs }) => [
       '-p',
       prompt,
       '--output-format',
       'stream-json',
       '--verbose',
       '--include-partial-messages',
+      // Excluye el scope `user`, que es donde el harness instala los plugins
+      // (~/.claude/plugins/cache). Sin esta exclusión, --plugin-dir solo suma
+      // y la allowlist no acota nada. Verificado con un spawn real.
+      '--setting-sources', 'project',
+      ...(pluginDirs ?? []).flatMap(dir => ['--plugin-dir', dir]),
       ...(sessionId ? ['--resume', sessionId] : []),
       ...disallowedTools(mode, disableSkills),
       ...(mode === 'auto' ? ['--permission-mode', 'bypassPermissions'] : []),

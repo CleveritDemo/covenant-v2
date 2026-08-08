@@ -35,3 +35,24 @@ describe('claude · gate de skills', () => {
       .toBe('Edit,Write,NotebookEdit,Bash,MultiEdit')
   })
 })
+
+describe('claude · allowlist de namespace', () => {
+  it('siempre excluye el scope de usuario', () => {
+    // Sin esto, --plugin-dir solo suma: los plugins de ~/.claude/plugins
+    // seguirían siendo descubribles y la allowlist no acotaría nada.
+    expect(valueOf(claudeArgs(), '--setting-sources')).toBe('project')
+  })
+
+  it('emite un --plugin-dir por ruta, en orden', () => {
+    const args = claudeArgs({ pluginDirs: ['/p/superpowers', '/p/ponytail'] })
+    expect(countOf(args, '--plugin-dir')).toBe(2)
+    const at = args.indexOf('--plugin-dir')
+    expect(args.slice(at, at + 4))
+      .toEqual(['--plugin-dir', '/p/superpowers', '--plugin-dir', '/p/ponytail'])
+  })
+
+  it('sin rutas no emite ningún --plugin-dir', () => {
+    expect(countOf(claudeArgs({ pluginDirs: [] }), '--plugin-dir')).toBe(0)
+    expect(countOf(claudeArgs(), '--plugin-dir')).toBe(0)
+  })
+})

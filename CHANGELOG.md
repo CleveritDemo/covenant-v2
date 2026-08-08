@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.4
+
+- **Ya no queda ningún tooltip del sistema.** El botón de resincronizar y los
+  chips de repositorio del composer eran los dos últimos que seguían sacando el
+  recuadro gris con retardo; ahora usan la burbuja de la app, como el resto.
+
 ## v0.8.3
 
 - **Acotar skills y MCP ya no es solo cosa de Claude.** Se revisaron los nueve

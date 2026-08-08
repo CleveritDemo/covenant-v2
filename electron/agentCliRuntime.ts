@@ -61,7 +61,7 @@ import { readInstalledPlugins } from './pluginDirs'
 import {
   mcpServerNames,
   mcpServersToDisable,
-  readCopilotMcpConfig,
+  readMcpConfigFor,
   readProjectMcpConfig,
   writeScopedMcpConfig,
 } from './mcpConfigFile'
@@ -827,7 +827,10 @@ function mcpScope(
   if (!providerCapabilities(provider).mcpAllowlist) return {}
 
   if (provider === 'copilot') {
-    const disable = mcpServersToDisable(mcpServerNames(readCopilotMcpConfig(home)), allowed)
+    const disable = mcpServersToDisable(
+      mcpServerNames(readMcpConfigFor(provider, cwd, home)),
+      allowed,
+    )
     // Sin nada que apagar no se emite el flag: `--disable-builtin-mcps` a solas
     // apagaría el MCP de GitHub, que no es lo que pidió la allowlist.
     return disable.length ? { mcpDisabled: disable } : {}

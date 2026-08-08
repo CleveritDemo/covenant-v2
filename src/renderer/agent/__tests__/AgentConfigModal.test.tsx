@@ -86,6 +86,10 @@ beforeAll(() => {
     configurable: true,
     value: {
       listAgentCliModels: vi.fn().mockResolvedValue({ models: [] }),
+      listMcpServers: vi.fn().mockResolvedValue([
+        { name: 'jira', transport: 'stdio' },
+        { name: 'context7', transport: 'http' },
+      ]),
       resolveAgentCli: vi.fn().mockImplementation((provider: string) => Promise.resolve(
         provider === 'gemini'
           ? { provider, command: 'gemini', path: null, version: null }
@@ -129,18 +133,28 @@ describe('AgentConfigModal', () => {
     renderModal()
     fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
     expect(screen.getByRole('button', { name: /nativeSkillsHint/ }).hasAttribute('disabled')).toBe(true)
-    expect(document.querySelector('textarea')?.hasAttribute('disabled')).toBe(true)
     const reasons = [...document.querySelectorAll('.agent-config-settings__hint--warn')]
       .map(node => node.textContent).join(' ')
     expect(reasons).toContain('nativeSkillsUnsupported')
     expect(reasons).toContain('mcpsUnsupported')
   })
 
-  it('claude admite las dos: sin motivos y con el textarea de MCP activo', () => {
+  it('claude admite las dos: sin motivos y con las casillas de MCP activas', async () => {
     renderModal({ provider: 'claude' })
     fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
     expect(document.querySelector('.agent-config-settings__hint--warn')).toBeNull()
-    expect(document.querySelector('textarea')?.hasAttribute('disabled')).toBe(false)
+    // Las casillas salen de la config real del CLI, no de escribir el nombre.
+    const options = await screen.findAllByRole('option')
+    expect(options.map(node => node.getAttribute('disabled'))).toEqual([null, null])
+    expect(screen.getByText('jira')).toBeTruthy()
+    expect(screen.getByText('context7')).toBeTruthy()
+  })
+
+  it('un proveedor sin la capacidad enseña las casillas deshabilitadas', async () => {
+    renderModal()
+    fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
+    const options = await screen.findAllByRole('option')
+    expect(options.every(node => node.hasAttribute('disabled'))).toBe(true)
   })
 
   it('cuenta reglas y contextos seleccionados en el índice', () => {

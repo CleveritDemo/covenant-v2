@@ -58,6 +58,8 @@ import {
 } from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { isAgentCliProvider, type AgentCliResolution } from '../src/shared/agentCliProviders'
+import { mcpServerSummaries, type McpServersListRequest } from '../src/shared/mcpContext'
+import { readMcpConfigFor } from './mcpConfigFile'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -1410,6 +1412,12 @@ function registerIpc(): void {
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.CONTEXT_METRICS_GET, () => getContextDeliveryMetrics())
+  ipcMain.handle(IPC.AGENT_MCP_SERVERS_LIST, (_event, request: McpServersListRequest) => {
+    if (!request || !isAgentCliProvider(request.provider)) return []
+    return mcpServerSummaries(
+      readMcpConfigFor(request.provider, request.cwd ?? '', app.getPath('home')),
+    )
+  })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }

@@ -11,6 +11,8 @@
  * que el agente necesita saber para entender qué le falta.
  */
 
+import type { AgentCliProvider } from './agentCliProviders'
+
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -24,6 +26,26 @@ function transportOf(entry: Record<string, unknown>): string {
   if (typeof entry.url === 'string') return 'http'
   if (typeof entry.command === 'string') return 'stdio'
   return 'unknown'
+}
+
+export interface McpServerSummary {
+  name: string
+  /** `stdio` | `http` | lo que declare el archivo; `unknown` si no se deduce. */
+  transport: string
+}
+
+/**
+ * Servidores configurados, para el selector de Capabilities. Misma lectura que
+ * el contexto `mcp`, así que la lista que marca el usuario y la que ve el
+ * modelo no pueden divergir.
+ */
+export function mcpServerSummaries(source: unknown): McpServerSummary[] {
+  const servers = asRecord(asRecord(source)?.mcpServers)
+  if (!servers) return []
+  return Object.keys(servers).map(name => ({
+    name,
+    transport: transportOf(asRecord(servers[name]) ?? {}),
+  }))
 }
 
 function serverSection(name: string, raw: unknown): string {
@@ -53,4 +75,20 @@ export function formatMcpServers(source: unknown): string {
   const names = servers ? Object.keys(servers) : []
   if (!names.length) return '(no MCP servers configured in .mcp.json)'
   return names.map(name => serverSection(name, servers![name])).join('\n\n')
+}
+
+export interface McpServersListRequest {
+  provider: AgentCliProvider
+  /** Proyecto del pane; solo lo usan los CLIs que leen `.mcp.json`. */
+  cwd?: string
+}
+
+/**
+ * Archivo del que sale la lista, para poder decirlo cuando está vacía. Vive
+ * aquí y no en `electron/` porque lo enseña el modal.
+ */
+export function mcpConfigLabelFor(provider: AgentCliProvider): string {
+  if (provider === 'copilot') return '~/.copilot/mcp-config.json'
+  if (provider === 'gemini') return '~/.gemini/settings.json'
+  return '.mcp.json'
 }

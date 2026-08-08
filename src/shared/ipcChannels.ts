@@ -44,6 +44,8 @@ export const IPC = {
   AGENT_CONTEXT_DELIVERY_CLEAR: 'agentContextDelivery:clear',
   /** Renderer → main: contadores acumulados de entrega de contexto y tokens. */
   CONTEXT_METRICS_GET: 'contextMetrics:get',
+  /** Renderer → main: servidores MCP configurados para el CLI de un proveedor. */
+  AGENT_MCP_SERVERS_LIST: 'agentMcpServers:list',
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
@@ -290,6 +292,8 @@ export const IPC = {
   UPDATE_INSTALL: 'update:install',
   /** Renderer → main: ocultar el banner hasta el próximo chequeo */
   UPDATE_DISMISS: 'update:dismiss',
+  /** Renderer → main (invoke): chequeo manual; devuelve el estado resultante */
+  UPDATE_CHECK: 'update:check',
   /** Renderer → main (invoke): versión de la app (`app.getVersion()`) */
   APP_VERSION: 'app:version',
   /** Main → renderer: pedir que el renderer serialice los scrollbacks antes de cerrar */

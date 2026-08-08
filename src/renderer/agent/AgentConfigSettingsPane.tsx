@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
 import { agentCliSpec, providerCapabilities } from '@shared/agentCliProviders'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
+import type { McpServerSummary } from '@shared/mcpContext'
+import { mcpConfigLabelFor } from '@shared/mcpContext'
 import { modelsForProvider } from '@shared/agentCliModels'
 import {
   ORCHESTRATION_MAX_ROUNDS_CAP,
@@ -14,7 +16,7 @@ import {
   type DelegateToPolicy,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
-import { Button, ChoiceCard, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
+import { Button, ChoiceCard, ContextCheckOption, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
 import { AgentProviderGrid } from './AgentProviderGrid'
 import { AgentConfigFolderChip } from './AgentConfigFolderChip'
@@ -111,6 +113,73 @@ const LineListField: React.FC<{
       />
       {hint ? <p className="agent-config-settings__hint">{hint}</p> : null}
     </label>
+  )
+}
+
+/**
+ * Allowlist de MCP por casillas, leyendo los servidores que ese CLI ve de
+ * verdad. Un nombre guardado que ya no está en la config sigue apareciendo
+ * marcado: borrarlo en silencio cambiaría lo que el agente puede usar sin que
+ * nadie lo pida.
+ */
+const McpAllowlistField: React.FC<{
+  provider: AgentCliProvider
+  cwd: string
+  value: string[]
+  disabled: boolean
+  onChange: (mcpsAllowed: string[]) => void
+}> = ({ provider, cwd, value, disabled, onChange }) => {
+  const { t } = useT()
+  const [servers, setServers] = useState<McpServerSummary[] | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setServers(null)
+    window.api.listMcpServers({ provider, cwd })
+      .then(list => { if (alive) setServers(list) })
+      .catch(() => { if (alive) setServers([]) })
+    return () => { alive = false }
+  }, [provider, cwd])
+
+  const options = useMemo(() => {
+    const found = servers ?? []
+    const known = new Set(found.map(server => server.name))
+    return [
+      ...found,
+      ...value.filter(name => !known.has(name))
+        .map(name => ({ name, transport: t('agentPane.mcpsMissing') })),
+    ]
+  }, [servers, value, t])
+
+  const toggle = (name: string): void => onChange(
+    value.includes(name) ? value.filter(item => item !== name) : [...value, name],
+  )
+
+  return (
+    <div className="agent-config-settings__field">
+      <span className="agent-config-settings__label">{t('agentPane.mcpsAllowedLabel')}</span>
+      {servers === null ? (
+        <p className="agent-config-settings__hint">{t('agentPane.mcpsLoading')}</p>
+      ) : options.length === 0 ? (
+        <p className="agent-config-settings__hint">
+          {t('agentPane.mcpsEmpty', { file: mcpConfigLabelFor(provider) })}
+        </p>
+      ) : (
+        <div role="listbox" aria-label={t('agentPane.mcpsAllowedLabel')}>
+          {options.map(server => (
+            <ContextCheckOption
+              key={server.name}
+              name={server.name}
+              kindLabel={server.transport}
+              checked={value.includes(server.name)}
+              disabled={disabled}
+              onChange={() => toggle(server.name)}
+            />
+          ))}
+        </div>
+      )}
+      <p className="agent-config-settings__hint">{t('agentPane.mcpsAllowedHint')}</p>
+    </div>
   )
 }
 
@@ -331,12 +400,12 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             })}
           />
         ) : null}
-        <LineListField
-          label={t('agentPane.mcpsAllowedLabel')}
-          hint={t('agentPane.mcpsAllowedHint')}
+        <McpAllowlistField
+          provider={meta.provider}
+          cwd={cwd}
           value={meta.mcpsAllowed ?? []}
           disabled={locked || !caps.mcpAllowlist}
-          onCommit={onChangeMcpsAllowed}
+          onChange={onChangeMcpsAllowed}
         />
         {!caps.mcpAllowlist ? (
           <p className="agent-config-settings__hint agent-config-settings__hint--warn">

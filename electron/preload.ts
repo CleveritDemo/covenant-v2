@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
 import type { AppConfig } from '../src/shared/configSchema'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
+import type { McpServerSummary, McpServersListRequest } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
 import type {
@@ -199,6 +200,10 @@ const api = {
   /** Contadores acumulados desde el arranque: catálogo, secciones y tokens. */
   getContextDeliveryMetrics(): Promise<ContextDeliveryMetrics> {
     return ipcRenderer.invoke(IPC.CONTEXT_METRICS_GET)
+  },
+  /** Servidores MCP que ese CLI ve, para marcar la allowlist en vez de escribirla. */
+  listMcpServers(request: McpServersListRequest): Promise<McpServerSummary[]> {
+    return ipcRenderer.invoke(IPC.AGENT_MCP_SERVERS_LIST, request)
   },
   previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_PREVIEW, request)
@@ -854,6 +859,9 @@ const api = {
   },
   dismissUpdate(): void {
     ipcRenderer.send(IPC.UPDATE_DISMISS)
+  },
+  checkForUpdates(): Promise<UpdateState> {
+    return ipcRenderer.invoke(IPC.UPDATE_CHECK)
   },
 }
 

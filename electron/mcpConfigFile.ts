@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import type { AgentCliProvider } from '../src/shared/agentCliProviders'
 
 /**
  * `mcp.json` efímero con solo los servidores permitidos para un agente.
@@ -47,6 +48,21 @@ export function readProjectMcpConfig(cwd: string): unknown {
  */
 export function readCopilotMcpConfig(home: string): unknown {
   return readMcpConfigFile(join(home, '.copilot', 'mcp-config.json'))
+}
+
+/**
+ * De dónde salen los servidores de cada CLI. Copilot y Gemini leen su propia
+ * config de usuario; el resto, el `.mcp.json` del proyecto. Un archivo ausente
+ * devuelve `null` y la lista sale vacía — el modal lo dice, no falla.
+ */
+export function readMcpConfigFor(
+  provider: AgentCliProvider,
+  cwd: string,
+  home: string,
+): unknown {
+  if (provider === 'copilot') return readCopilotMcpConfig(home)
+  if (provider === 'gemini') return readMcpConfigFile(join(home, '.gemini', 'settings.json'))
+  return readProjectMcpConfig(cwd)
 }
 
 function readMcpConfigFile(path: string): unknown {

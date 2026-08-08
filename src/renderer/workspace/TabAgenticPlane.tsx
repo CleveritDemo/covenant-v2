@@ -187,6 +187,8 @@ export interface TabAgenticPlaneProps {
   gitRepos: GitListedRepo[]
   /** Clic en un repo de la lista → abre su modal git. */
   onOpenRepoGit: (path: string) => void
+  /** Revalida la lista de repos contra el disco. */
+  onRefreshRepos?: () => void
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -326,6 +328,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onGitButtonClick,
   gitRepos,
   onOpenRepoGit,
+  onRefreshRepos,
 }) => {
   const planeRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -717,6 +720,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onMergeQueuedTurns={onMergeQueuedTurns}
               gitRepos={gitRepos}
               onOpenRepoGit={onOpenRepoGit}
+              onRefreshRepos={onRefreshRepos}
             />
           )}
         />

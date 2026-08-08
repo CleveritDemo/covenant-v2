@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.7
+
+- **Réplicas de expertos opcionales.** El orquestador / product owner puede
+  activar `allowExpertReplicas` para spawnear una copia del especialista cuando
+  el pane base ya está ocupado, en paralelo y con su propio worktree.
+- **Worktree-first sin pisar el cwd.** Cada delegación lleva worktree dedicado;
+  con el flag en OFF, dos encargos al mismo agente en el mismo batch se
+  serializan en FIFO: la segunda espera a que la primera termine y limpie el
+  override antes de arrancar.
+- **UI de awaiting en la ola.** Mientras el orquestador espera, se ve el
+  progreso (quién corre, réplica, hint de worktree) en el indicador de
+  delegación del plano y del chat rápido.
+
 ## v0.8.6
 
 - **Los contextos ya no hay que arrastrarlos.** La barra de arriba a la derecha

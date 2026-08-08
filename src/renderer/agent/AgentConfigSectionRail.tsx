@@ -9,6 +9,7 @@ export type AgentConfigSection =
   | 'permissions'
   | 'contexts'
   | 'orchestration'
+  | 'capabilities'
 
 export interface AgentConfigSectionItem {
   id: AgentConfigSection

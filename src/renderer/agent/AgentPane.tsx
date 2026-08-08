@@ -2112,6 +2112,24 @@ export const AgentPane: React.FC<Props> = ({
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
+        onChangeNativeSkills={nativeSkills => {
+          onMetaChange(previous => {
+            if (!nativeSkills) {
+              const { nativeSkills: _drop, ...rest } = previous
+              return rest
+            }
+            return { ...previous, nativeSkills }
+          })
+        }}
+        onChangeMcpsAllowed={mcpsAllowed => {
+          onMetaChange(previous => {
+            if (!mcpsAllowed.length) {
+              const { mcpsAllowed: _drop, ...rest } = previous
+              return rest
+            }
+            return { ...previous, mcpsAllowed }
+          })
+        }}
         onToggleLoopMode={toggleLoopMode}
         onToggleContext={toggleContext}
         onOpenContextsModal={() => setContextsOpen(true)}

@@ -71,6 +71,8 @@ function renderModal(
       onChangeProvider={() => {}}
       onChangeModel={() => {}}
       onChangePermission={() => {}}
+      onChangeNativeSkills={() => {}}
+      onChangeMcpsAllowed={() => {}}
       onToggleLoopMode={() => {}}
       onToggleContext={() => {}}
       onOpenContextsModal={() => {}}
@@ -96,10 +98,10 @@ beforeAll(() => {
 afterEach(cleanup)
 
 describe('AgentConfigModal', () => {
-  it('lista las siete secciones y arranca en Identidad', () => {
+  it('lista las ocho secciones y arranca en Identidad', () => {
     renderModal()
     const rail = screen.getByRole('navigation')
-    expect(rail.querySelectorAll('button')).toHaveLength(7)
+    expect(rail.querySelectorAll('button')).toHaveLength(8)
     expect(screen.getByRole('button', { name: /identityLabel/ }).getAttribute('aria-current')).toBe('true')
     // La sección de identidad, no el motor.
     expect(screen.getByText('agentPane.nameLabel')).toBeTruthy()
@@ -119,6 +121,26 @@ describe('AgentConfigModal', () => {
     fireEvent.click(document.querySelector('.agent-config-hero__chip--warn') as HTMLElement)
     expect(screen.getByRole('radio', { name: /permissionAuto/ }).getAttribute('aria-checked')).toBe('true')
     expect(screen.queryByText('agentPane.nameLabel')).toBeNull()
+  })
+
+  it('un proveedor sin capacidades muestra los controles bloqueados con el motivo', () => {
+    // `cursor`: ninguno de los dos flags está verificado, así que la UI no
+    // promete un acotado que no se aplicaría.
+    renderModal()
+    fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
+    expect(screen.getByRole('button', { name: /nativeSkillsHint/ }).hasAttribute('disabled')).toBe(true)
+    expect(document.querySelector('textarea')?.hasAttribute('disabled')).toBe(true)
+    const reasons = [...document.querySelectorAll('.agent-config-settings__hint--warn')]
+      .map(node => node.textContent).join(' ')
+    expect(reasons).toContain('nativeSkillsUnsupported')
+    expect(reasons).toContain('mcpsUnsupported')
+  })
+
+  it('claude admite las dos: sin motivos y con el textarea de MCP activo', () => {
+    renderModal({ provider: 'claude' })
+    fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
+    expect(document.querySelector('.agent-config-settings__hint--warn')).toBeNull()
+    expect(document.querySelector('textarea')?.hasAttribute('disabled')).toBe(false)
   })
 
   it('cuenta reglas y contextos seleccionados en el índice', () => {

@@ -56,6 +56,12 @@ export interface AgentCliProviderSpec {
   command: string
   stream: AgentCliStreamKind
   args: (input: AgentCliArgsInput) => string[]
+  /**
+   * Qué sabe acotar este CLI por spawn. Omitido = nada.
+   * Solo se marca `true` con el flag verificado contra el `--help` del CLI,
+   * igual que el resto de la tabla.
+   */
+  capabilities?: { nativeSkills?: boolean; mcpAllowlist?: boolean }
 }
 
 const withModel = (flag: string, model: string | undefined): string[] =>
@@ -102,6 +108,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),
     ],
+    capabilities: { nativeSkills: true, mcpAllowlist: true },
   },
   cursor: {
     label: 'Cursor Agent',
@@ -247,6 +254,24 @@ export function isAgentCliProvider(value: unknown): value is AgentCliProvider {
 
 export function agentCliSpec(provider: AgentCliProvider): AgentCliProviderSpec {
   return AGENT_CLI_PROVIDERS[provider]
+}
+
+/**
+ * Lo que la UI puede ofrecer para este proveedor. Un CLI sin el flag
+ * verificado devuelve `false`: el control se muestra deshabilitado con el
+ * motivo, porque prometer un acotado que no se aplica es peor que no ofrecerlo.
+ */
+export function providerCapabilities(
+  provider: AgentCliProvider,
+): { nativeSkills: boolean; mcpAllowlist: boolean } {
+  // Vía `agentCliSpec` y no el registro directo: `satisfies` conserva el tipo
+  // literal de cada entrada, y las que omiten `capabilities` no tienen la
+  // propiedad en su tipo.
+  const caps = agentCliSpec(provider).capabilities
+  return {
+    nativeSkills: caps?.nativeSkills === true,
+    mcpAllowlist: caps?.mcpAllowlist === true,
+  }
 }
 
 /** Ejecutable configurado por el usuario, o el default del proveedor. */

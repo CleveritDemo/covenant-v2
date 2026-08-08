@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_CLI_PROVIDERS } from '../agentCliProviders'
+import { AGENT_CLI_PROVIDERS, providerCapabilities } from '../agentCliProviders'
 
 const claudeArgs = (over: Partial<Parameters<typeof AGENT_CLI_PROVIDERS.claude.args>[0]> = {}) =>
   AGENT_CLI_PROVIDERS.claude.args({ prompt: 'hola', cwd: '/repo', mode: 'auto', ...over })
@@ -68,5 +68,17 @@ describe('claude · allowlist de MCP', () => {
     const args = claudeArgs()
     expect(countOf(args, '--mcp-config')).toBe(0)
     expect(args).not.toContain('--strict-mcp-config')
+  })
+})
+
+describe('capacidades por proveedor', () => {
+  it('claude soporta las dos', () => {
+    expect(providerCapabilities('claude')).toEqual({ nativeSkills: true, mcpAllowlist: true })
+  })
+
+  it('los proveedores sin flags verificados no soportan ninguna', () => {
+    // Fallar visible, no en silencio: la UI deshabilita lo que no puede
+    // acotar en vez de prometerlo.
+    expect(providerCapabilities('cursor')).toEqual({ nativeSkills: false, mcpAllowlist: false })
   })
 })

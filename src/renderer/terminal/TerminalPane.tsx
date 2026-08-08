@@ -277,6 +277,9 @@ interface BasicTerminalFitScheduler {
 
 const FIT_BURST_COALESCE_MS = 100
 
+/** Techo del reintento durante el morph (~0.6 s a 60 fps) por si la clase se queda pegada. */
+const MAX_ZOOM_WAIT_FRAMES = 40
+
 function createBasicTerminalFitScheduler(
   getTerm: () => Terminal | null,
   getFit: () => FitAddon | null,
@@ -291,6 +294,7 @@ function createBasicTerminalFitScheduler(
   let lastRows = -1
   let lastContainerW = -1
   let lastContainerH = -1
+  let zoomWaitFrames = 0
 
   const runFit = (): void => {
     raf = 0
@@ -299,8 +303,17 @@ function createBasicTerminalFitScheduler(
     const fit = getFit()
     if (!term || !fit) return
     const host = getContainer()
-    // Morph mini↔full: no refittear (el scale lo hace PaneWindow; un fit corta el texto).
-    if (host?.closest('.pane-window--zooming')) return
+    // Morph mini↔full: no refittear durante la animación (el scale lo hace PaneWindow;
+    // un fit corta el texto). Reintenta al frame siguiente: descartarlo dejaba el fit
+    // de App.tsx (rAF al abrir) perdido y xterm con cols viejos → reflow con líneas en
+    // blanco entre prompts al expandir.
+    // ponytail: reintento por frame (~18 frames de morph), sin listener de transitionend.
+    if (host?.closest('.pane-window--zooming') && zoomWaitFrames < MAX_ZOOM_WAIT_FRAMES) {
+      zoomWaitFrames++
+      raf = requestAnimationFrame(runFit)
+      return
+    }
+    zoomWaitFrames = 0
     if (host) {
       const w = host.clientWidth
       const h = host.clientHeight

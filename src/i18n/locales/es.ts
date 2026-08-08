@@ -28,6 +28,13 @@ const es = {
     discordPresenceTitle: 'Mostrar Rich Presence en tu perfil de Discord',
     discordPresenceDescription: 'Publica el nombre del workspace, el número de sesiones y si hay un agente trabajando — nunca comandos, rutas ni salida. Requiere la app de escritorio de Discord abierta.',
     aboutSection: 'Novedades',
+    developerSection: 'Developer',
+    splashLabel: 'Splash de arranque',
+    splashHint: 'Vuelve a lanzar la animación de inicio sobre la app.',
+    splashReplay: 'Reproducir splash',
+    quitModalLabel: 'Confirmación de salida',
+    quitModalHint: 'Muestra el diálogo; nunca cierra la app.',
+    quitModalPreview: 'Ver diálogo',
     aboutVersion: 'Covenant Gravity v{{version}}',
     spotifySection: 'Spotify (barra de título)',
     musicEnabledTitle: 'Mostrar controles de música',
@@ -743,6 +750,15 @@ const es = {
     listAriaLabel: 'Elegir tema',
     emptyState: 'ningún tema coincide con «{{filter}}»',
     triggerTitle: 'Elegir tema',
+  },
+
+  quit: {
+    title: '¿Salir de Covenant Gravity?',
+    detail: 'Se detendrán las terminales y los turnos de agente en curso. La sesión, las pestañas y los scrollbacks se guardan antes de salir.',
+    runningTerminals: 'terminales: {{count}}',
+    runningAgents: 'agentes: {{count}}',
+    cancel: 'Quedarme',
+    confirm: 'Salir',
   },
 
   ui: {

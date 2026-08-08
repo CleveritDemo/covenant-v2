@@ -1703,6 +1703,9 @@ function createWindow(): BrowserWindow {
     height: 800,
     minWidth: 600,
     minHeight: 400,
+    // Sin esto la ventana se pinta con `backgroundColor` (oscuro) antes de que el
+    // splash tome los colores del tema: parpadeo negro en temas claros.
+    show: false,
     ...(icon ? { icon } : {}),
     backgroundColor: '#0d0d14',
     ...(process.platform === 'darwin'
@@ -1722,6 +1725,14 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       backgroundThrottling: false,
     },
+  })
+
+  // Red de seguridad: si `ready-to-show` no llega (carga fallida), mostrar igual;
+  // una ventana invisible deja la app inusable.
+  const showTimer = setTimeout(() => { if (!win.isDestroyed()) win.show() }, 4_000)
+  win.once('ready-to-show', () => {
+    clearTimeout(showTimer)
+    win.show()
   })
 
   win.webContents.on('render-process-gone', (_e, details) => {
@@ -1754,9 +1765,28 @@ function createWindow(): BrowserWindow {
   }
 
   let closingFromReady = false
+  let quitConfirmed = false
+
+  // El confirm de salida lo pinta el renderer (modal de la app). Si el renderer
+  // está muerto no hay quien pregunte: en ese caso se cierra directo.
+  const onQuitConfirmed = (e: Electron.IpcMainEvent): void => {
+    if (win.isDestroyed() || e.sender !== win.webContents) return
+    quitConfirmed = true
+    win.close()
+  }
+  ipcMain.on(IPC.APP_QUIT_CONFIRMED, onQuitConfirmed)
+
   win.on('close', e => {
     if (closingFromReady) return
     e.preventDefault()
+
+    // Confirmar sólo si hay terminales/agentes vivos; instalando update nadie pregunta.
+    const askable = !win.webContents.isDestroyed() && !win.webContents.isCrashed()
+    if (!quitConfirmed && askable && ptySessions.size > 0 && !isInstallingUpdate()) {
+      win.webContents.send(IPC.APP_CONFIRM_QUIT)
+      return
+    }
+
     win.webContents.send(IPC.APP_SAVE_BEFORE_CLOSE)
 
     const timeout = setTimeout(() => {
@@ -1777,6 +1807,8 @@ function createWindow(): BrowserWindow {
   })
 
   win.on('closed', () => {
+    clearTimeout(showTimer)
+    ipcMain.removeListener(IPC.APP_QUIT_CONFIRMED, onQuitConfirmed)
     const closedWinId = win.id
     stopAgentRunsForWindow(closedWinId)
     stopBrainstormRoomsForWindow(closedWinId)

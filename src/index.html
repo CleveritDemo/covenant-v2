@@ -5,8 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Covenant Gravity</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' https: blob: data:; connect-src http: https: ws: wss:" />
+    <!--
+      Splash inline para pintar en el primer frame, antes del bundle del renderer.
+      La masa central es el MISMO `Gravity` del plano (clases de Gravity.css, sin
+      copiar su CSS): en producción la hoja del bundle es un <link> bloqueante, así
+      que ya está aplicada al pintar. Las vars del tema y el flag de reduce-motion
+      salen de localStorage, que dejan `applyTheme()` y `syncReduceMotionDomFlag()`.
+      Lo oculta `splash.ts` al montar React; Ajustes → Developer lo relanza.
+    -->
+    <script>
+      try {
+        var vars = JSON.parse(localStorage.getItem('splashThemeVars') || 'null')
+        if (vars) {
+          for (var key in vars) document.documentElement.style.setProperty(key, vars[key])
+        }
+        if (localStorage.getItem('splashReduceMotion') === 'true') {
+          document.documentElement.setAttribute('data-reduce-motion', 'true')
+        }
+      } catch (e) { /* sin caché: defaults del tema oscuro */ }
+    </script>
+    <style>
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        background:
+          radial-gradient(
+            circle at 50% 46%,
+            var(--bg-secondary, #13131e) 0%,
+            var(--bg, #0d0d14) 58%
+          );
+        transition: opacity 0.5s ease;
+      }
+      #splash.is-done { opacity: 0; }
+      /* Tras el fundido se queda oculto (no se borra): Ajustes → Developer lo relanza. */
+      #splash.is-hidden { display: none; }
+      .splash-name {
+        margin: 0;
+        font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        color: var(--text-muted, #7878a8);
+      }
+    </style>
   </head>
   <body>
+    <div id="splash">
+      <div class="gravity gravity--hero" aria-hidden="true">
+        <span class="gravity__core"></span>
+        <span class="gravity__particle gravity__particle--1"></span>
+        <span class="gravity__particle gravity__particle--2"></span>
+        <span class="gravity__particle gravity__particle--3"></span>
+        <span class="gravity__particle gravity__particle--4"></span>
+        <span class="gravity__particle gravity__particle--5"></span>
+        <span class="gravity__particle gravity__particle--6"></span>
+        <span class="gravity__particle gravity__particle--7"></span>
+        <span class="gravity__particle gravity__particle--8"></span>
+        <span class="gravity__particle gravity__particle--9"></span>
+        <span class="gravity__particle gravity__particle--10"></span>
+        <span class="gravity__particle gravity__particle--11"></span>
+      </div>
+      <p class="splash-name">COVENANT GRAVITY</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="./renderer/main.tsx"></script>
   </body>

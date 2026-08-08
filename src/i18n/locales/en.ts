@@ -26,6 +26,13 @@ const en = {
     discordPresenceTitle: 'Show Rich Presence on your Discord profile',
     discordPresenceDescription: 'Publishes workspace name, session count, and whether an agent is running — never commands, paths, or output. Needs the Discord desktop app running.',
     aboutSection: 'Release log',
+    developerSection: 'Developer',
+    splashLabel: 'Startup splash',
+    splashHint: 'Replays the launch animation over the app.',
+    splashReplay: 'Play splash',
+    quitModalLabel: 'Quit confirmation',
+    quitModalHint: 'Previews the dialog; it never closes the app.',
+    quitModalPreview: 'Preview dialog',
     aboutVersion: 'Covenant Gravity v{{version}}',
     spotifySection: 'Spotify (title bar)',
     musicEnabledTitle: 'Show music controls',
@@ -741,6 +748,15 @@ const en = {
     listAriaLabel: 'Choose theme',
     emptyState: 'no theme matches "{{filter}}"',
     triggerTitle: 'Choose theme',
+  },
+
+  quit: {
+    title: 'Quit Covenant Gravity?',
+    detail: 'Running terminals and agent turns will be stopped. Your session, tabs and scrollbacks are saved before leaving.',
+    runningTerminals: 'terminals: {{count}}',
+    runningAgents: 'agents: {{count}}',
+    cancel: 'Stay',
+    confirm: 'Quit',
   },
 
   ui: {

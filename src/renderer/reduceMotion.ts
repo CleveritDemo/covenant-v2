@@ -12,9 +12,12 @@ export function isReduceMotionActive(): boolean {
 export function syncReduceMotionDomFlag(appReduceMotion: boolean): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return
   const osReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (appReduceMotion || osReduce) {
+  const reduce = appReduceMotion || osReduce
+  if (reduce) {
     document.documentElement.setAttribute('data-reduce-motion', 'true')
   } else {
     document.documentElement.removeAttribute('data-reduce-motion')
   }
+  // El splash de index.html pinta antes de que exista la config: lo lee de aquí.
+  try { localStorage.setItem('splashReduceMotion', String(reduce)) } catch { /* ignore */ }
 }

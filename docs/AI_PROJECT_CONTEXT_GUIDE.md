@@ -72,7 +72,7 @@ compacto por contexto:
 
 - `sectionCount` / `totalChars`
 - `groups`: hasta las 24 secciones más grandes (`[key, chars, label?]`)
-- `omitted`: secciones no listadas (siguen siendo pedibles por clave exacta)
+- `omittedKeys`: claves exactas de las secciones no listadas en el top-24 (siguen siendo pedibles por clave exacta vía ia-terminal-need-sections)
 
 También puede incluir:
 

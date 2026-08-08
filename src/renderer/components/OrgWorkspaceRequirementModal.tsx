@@ -10,6 +10,7 @@ export type OrgWorkspaceRequirementState = {
   missingToken?: boolean
   cloneError?: string
   cloning?: boolean
+  agentDeleteError?: string
 }
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
   missingToken?: boolean
   cloneError?: string
   cloning?: boolean
+  agentDeleteError?: string
   onClose: () => void
   onOpenSettings: () => void
 }
@@ -28,12 +30,16 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   missingToken = false,
   cloneError,
   cloning = false,
+  agentDeleteError,
   onClose,
   onOpenSettings,
 }) => {
   const { t } = useT()
   const detail = cloneError?.trim()
     ? t('organizations.reqCloneFailed', { error: cloneError.trim() })
+    : null
+  const agentErr = agentDeleteError?.trim()
+    ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
     : null
 
   return (
@@ -82,6 +88,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
             <p className="org-ws-req__line">{t('organizations.reqMissingToken')}</p>
           ) : null}
           {detail ? <p className="org-ws-req__line">{detail}</p> : null}
+          {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
         </div>
       )}
     </TerminalModal>

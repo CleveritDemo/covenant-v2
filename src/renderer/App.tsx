@@ -291,6 +291,7 @@ export const App: React.FC = () => {
     missingToken?: boolean
     cloneError?: string
     cloning?: boolean
+    agentDeleteError?: string
   } | null>(null)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
@@ -1792,6 +1793,7 @@ export const App: React.FC = () => {
               agentId,
               result.error,
             )
+            setOrgWorkspaceRequirement(prev => prev ?? { agentDeleteError: result.error ?? 'unknown' })
             return
           }
           const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
@@ -4328,6 +4330,7 @@ export const App: React.FC = () => {
         missingToken={orgWorkspaceRequirement?.missingToken}
         cloneError={orgWorkspaceRequirement?.cloneError}
         cloning={orgWorkspaceRequirement?.cloning}
+        agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         onClose={() => setOrgWorkspaceRequirement(null)}
         onOpenSettings={() => setSettingsOpen(true)}
       />

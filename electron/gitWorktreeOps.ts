@@ -1,4 +1,5 @@
-import { basename, isAbsolute, normalize, relative, resolve } from 'path'
+import { existsSync, realpathSync } from 'fs'
+import { basename, dirname, isAbsolute, normalize, relative, resolve } from 'path'
 import type {
   GitCurrentBranchResult,
   GitWorktreeAbortMergeResult,
@@ -33,6 +34,17 @@ function worktreeBaseDir(baseCwd: string): string {
   return resolve(baseCwd, '.gravity', 'worktrees')
 }
 
+/** Sube por los ancestros hasta encontrar el primero que exista en disco (o la raíz). */
+function nearestExistingAncestor(path: string): string {
+  let current = path
+  while (!existsSync(current)) {
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return current
+}
+
 /**
  * Resuelve y valida `worktreePathRaw`: sin `..`/control chars, basename no puede empezar
  * con `-`, y el path resuelto debe quedar DENTRO de `<baseCwd>/.gravity/worktrees/`.
@@ -51,6 +63,22 @@ function resolveSafeWorktreePath(baseCwd: string, worktreePathRaw: string): stri
   if (relToBase === '..' || relToBase.startsWith(`..${'/'}`) || isAbsolute(relToBase)) return null
 
   if (!isSafeSegment(basename(resolved))) return null
+
+  // Defensa en profundidad: un symlink pre-plantado en un ancestro existente podría escapar
+  // el contenedor pese a que la comprobación textual anterior lo apruebe. Re-valida el
+  // containment usando el realpath del ancestro existente más cercano de `resolved` (y de
+  // `base`, si `base` tampoco existe aún).
+  try {
+    const realAncestor = realpathSync(nearestExistingAncestor(resolved))
+    const realBaseAncestor = realpathSync(nearestExistingAncestor(base))
+    const relRealToBase = relative(realBaseAncestor, realAncestor)
+    if (relRealToBase === '..' || relRealToBase.startsWith(`..${'/'}`) || isAbsolute(relRealToBase)) {
+      return null
+    }
+  } catch {
+    return null
+  }
+
   return resolved
 }
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { execFileSync } from 'child_process'
@@ -271,6 +271,43 @@ describe('gitWorktreeOps', () => {
     })
     expect(add.ok).toBe(false)
     expect(add.error).toBeTruthy()
+  })
+
+  // --- Regresión: containment por symlink (defensa en profundidad) ---
+  // Un symlink pre-plantado bajo `.gravity/worktrees/` que apunta fuera del contenedor
+  // debe rechazarse aunque el path textual (sin resolver symlinks) parezca contenido.
+
+  it('rejects gitWorktreeAdd when the worktree path traverses a symlink pointing outside .gravity/worktrees/', async () => {
+    const repo = tempDir()
+    initRepo(repo)
+    const baseBranch = (await gitCurrentBranch(repo)).branch
+    const outsideDir = tempDir()
+
+    const worktreesBase = join(repo, '.gravity', 'worktrees')
+    mkdirSync(worktreesBase, { recursive: true })
+    const escapeLink = join(worktreesBase, 'escape-link')
+    symlinkSync(outsideDir, escapeLink, 'dir')
+
+    const add = await gitWorktreeAdd(repo, {
+      worktreePath: join(escapeLink, 'evil'),
+      branch: 'feature/symlink-escape',
+      fromRef: baseBranch,
+    })
+    expect(add.ok).toBe(false)
+    expect(add.error).toBeTruthy()
+  })
+
+  it('still allows a legitimate worktree path with no symlinks after the realpath containment hardening', async () => {
+    const repo = tempDir()
+    initRepo(repo)
+    const baseBranch = (await gitCurrentBranch(repo)).branch
+
+    const add = await gitWorktreeAdd(repo, {
+      worktreePath: wtPath(repo, 'legit-after-hardening'),
+      branch: 'feature/legit-after-hardening',
+      fromRef: baseBranch,
+    })
+    expect(add.ok).toBe(true)
   })
 
   it('rejects gitWorktreeMerge when branch looks like a flag ("--detach")', async () => {

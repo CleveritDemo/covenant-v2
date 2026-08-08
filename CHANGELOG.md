@@ -4,6 +4,24 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.5
+
+- **La app arranca con su propia animación.** En vez de una ventana en negro
+  mientras carga, aparece la misma masa central con materia en caída libre que
+  ya vive en el centro del plano. Toma los colores del tema que tengas puesto y
+  respeta "Reducir movimiento" desde el primer fotograma.
+- **Salir vuelve a preguntar.** Con terminales o agentes en marcha, cerrar la
+  ventana (o ⌘Q) abre una confirmación que dice cuántos hay antes de cortarlos.
+  La sesión, las pestañas y los scrollbacks se guardan igual al salir. No
+  pregunta si no hay nada corriendo, ni mientras se instala una actualización.
+- **⌘, abre Ajustes** (Ctrl+, en Windows y Linux), desde donde estés, incluida
+  la terminal. Es el atajo que el aviso del token de GitHub ya prometía.
+- **Buscar actualizaciones a mano**, en Ajustes → Novedades, para no depender
+  del chequeo automático. Si hay versión nueva la instalas desde la titlebar,
+  como siempre.
+- **Ajustes → Developer**, para relanzar la animación de arranque y ver la
+  confirmación de salida sin cerrar nada.
+
 ## v0.8.4
 
 - **Ya no queda ningún tooltip del sistema.** El botón de resincronizar y los

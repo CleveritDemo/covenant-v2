@@ -4,6 +4,25 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.3
+
+- **Acotar skills y MCP ya no es solo cosa de Claude.** Se revisaron los nueve
+  CLIs y cada uno acota por donde puede: Pi y Kimi aceptan la lista de skills
+  permitidas, Opencode sabe apagarlas pero no elegirlas (y el modal lo dice, en
+  vez de ofrecer una lista que no haría nada), Gemini acepta la lista de
+  servidores MCP y Copilot la aplica al revés, apagando los que no están.
+  Cursor, Hermes y Codex siguen sin poder, con el motivo a la vista.
+- **Ojo si usas Pi, Kimi u Opencode:** ahora un agente sin skills configuradas
+  arranca sin ninguna, igual que ya pasaba con Claude. Si las quieres, enciende
+  el interruptor en Agente → Capabilities.
+- **Contexto nuevo: servidores MCP.** Materializa el `.mcp.json` del proyecto
+  con una sección por servidor, para que el agente sepa qué tiene a mano. Nunca
+  escribe el valor de un token: de `env` y `headers` solo salen los nombres.
+- **La ruedita y el "+" de contextos usan el tooltip de la app**, el mismo que
+  los chips de al lado, en vez del recuadro del sistema.
+- **El terminal ya no queda con líneas en blanco al expandirlo.** El reajuste
+  que se hacía al abrir se perdía durante la animación del morph.
+
 ## v0.8.2
 
 - **Fix: los agentes de workspaces organizacionales ahora se cargan desde el backend al reiniciar (antes aparecían como Claude Code).** Nuevo modal de carga durante la sincronización. Se unificó la lógica de muestreo de agentes y contextos.

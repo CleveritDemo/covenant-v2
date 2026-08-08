@@ -218,6 +218,16 @@ describe('buildOrchestratorAgentsBlock', () => {
     ])
     expect(block).toContain('agentId: qa')
     expect(block).toContain('Tester')
+    expect(block).toContain('git worktree')
+  })
+
+  it('documents expert replicas when enabled', () => {
+    const block = buildOrchestratorAgentsBlock(
+      [{ agentId: 'frontend', paneId: 'p1', name: 'Frontend' }],
+      { allowExpertReplicas: true },
+    )
+    expect(block).toContain('Expert replicas')
+    expect(block).toContain('frontend#2')
   })
 })
 

@@ -72,6 +72,18 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(text).toContain('Do NOT emit')
     expect(text).not.toContain('"delegations"')
   })
+
+  it('documents worktrees and optional expert replicas', () => {
+    const base = buildAiAgentDelegateInstruction({ allowedAgentIds: ['frontend'] })
+    expect(base).toContain('git worktrees')
+    expect(base).not.toContain('Parallel experts')
+    const withReplicas = buildAiAgentDelegateInstruction({
+      allowedAgentIds: ['frontend'],
+      allowExpertReplicas: true,
+    })
+    expect(withReplicas).toContain('Parallel experts')
+    expect(withReplicas).toContain('agentId#2')
+  })
 })
 
 describe('buildAiAgentProductOwnerInstruction', () => {

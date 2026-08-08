@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneLoopsButton.css'
 
 export interface PlaneGitButtonProps {
@@ -20,19 +21,21 @@ export const PlaneGitButton: React.FC<PlaneGitButtonProps> = ({
 }) => {
   const title = disabled ? (disabledTitle || label) : label
   return (
-    <button
-      type="button"
-      className={[
-        'plane-loops-button',
-        'plane-loops-button--icon-only',
-        pressed ? 'plane-loops-button--pressed' : '',
-      ].filter(Boolean).join(' ')}
-      aria-label={title}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Icon name="git-branch" size={13} />
-    </button>
+    <Tooltip content={title}>
+      <button
+        type="button"
+        className={[
+          'plane-loops-button',
+          'plane-loops-button--icon-only',
+          pressed ? 'plane-loops-button--pressed' : '',
+        ].filter(Boolean).join(' ')}
+        aria-label={title}
+        aria-pressed={pressed}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Icon name="git-branch" size={13} />
+      </button>
+    </Tooltip>
   )
 }

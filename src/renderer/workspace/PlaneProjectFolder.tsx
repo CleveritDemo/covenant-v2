@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneProjectFolder.css'
 
 function folderLabel(path: string): string {
@@ -24,22 +25,28 @@ export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
   onSelect,
 }) => {
   const hasFolder = Boolean(folderPath.trim())
+  const actionLabel = hasFolder ? changeLabel : selectLabel
   return (
     <div className="plane-project-folder">
-      <button
-        type="button"
-        className={[
-          'plane-project-folder__btn',
-          hasFolder ? 'plane-project-folder__btn--set' : '',
-        ].filter(Boolean).join(' ')}
-        aria-label={hasFolder ? changeLabel : selectLabel}
-        onClick={onSelect}
+      <Tooltip
+        content={actionLabel}
+        hint={hasFolder ? folderPath.trim() : emptyHint}
       >
-        <Icon name={hasFolder ? 'folder-open' : 'folder'} size={13} />
-        <span className="plane-project-folder__label">
-          {hasFolder ? folderLabel(folderPath) : selectLabel}
-        </span>
-      </button>
+        <button
+          type="button"
+          className={[
+            'plane-project-folder__btn',
+            hasFolder ? 'plane-project-folder__btn--set' : '',
+          ].filter(Boolean).join(' ')}
+          aria-label={actionLabel}
+          onClick={onSelect}
+        >
+          <Icon name={hasFolder ? 'folder-open' : 'folder'} size={13} />
+          <span className="plane-project-folder__label">
+            {hasFolder ? folderLabel(folderPath) : selectLabel}
+          </span>
+        </button>
+      </Tooltip>
     </div>
   )
 }

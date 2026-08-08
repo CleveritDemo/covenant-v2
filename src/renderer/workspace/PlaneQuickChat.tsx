@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
+import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
 import './PlaneQuickChat.css'
@@ -11,6 +13,8 @@ export interface PlaneQuickChatProps {
   messages: AgentChatEntry[]
   busy: boolean
   activity?: string
+  awaitingDelegations?: boolean
+  orchestrationAwaiting?: OrchestrationAwaitingView | null
   activeAssistantId: string | null
   fontSize?: number
   enteringIds?: readonly string[]
@@ -33,6 +37,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   messages,
   busy,
   activity = '',
+  awaitingDelegations = false,
+  orchestrationAwaiting = null,
   activeAssistantId,
   fontSize = 13,
   enteringIds = [],
@@ -62,9 +68,23 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   useEffect(() => {
     if (!nearBottom) return
     scrollToBottom()
-  }, [conversation, busy, activeAssistantId, nearBottom, scrollToBottom])
+  }, [
+    conversation,
+    busy,
+    awaitingDelegations,
+    orchestrationAwaiting,
+    activeAssistantId,
+    nearBottom,
+    scrollToBottom,
+  ])
 
   const activityText = activity.trim()
+  const waveLabel = orchestrationAwaiting
+    ? t('agentPane.awaitingWaveProgress', {
+      done: orchestrationAwaiting.done,
+      total: orchestrationAwaiting.total,
+    })
+    : t('agentPane.delegatingTitle')
 
   return (
     <div
@@ -97,7 +117,28 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 surface="pane"
                 scrollRef={scrollRef}
               />
-              {(busy || activityText !== '') && (
+              {awaitingDelegations ? (
+                <AgentDelegatingIndicator
+                  label={waveLabel}
+                  sublabel={
+                    orchestrationAwaiting
+                      ? t('agentPane.awaitingWaveSublabel')
+                      : t('agentPane.delegatingSubtitle')
+                  }
+                  items={(orchestrationAwaiting?.items ?? []).map(item => ({
+                    id: item.delegationId,
+                    label: item.agentLabel,
+                    ...(item.isReplica
+                      ? { replicaBadge: t('agentPane.awaitingReplicaBadge') }
+                      : {}),
+                    status: item.status,
+                    statusLabel: item.status === 'done'
+                      ? t('agentPane.awaitingStatusDone')
+                      : t('agentPane.awaitingStatusRunning'),
+                    ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
+                  }))}
+                />
+              ) : (busy || activityText !== '') ? (
                 <div
                   className={[
                     'agent-pane__activity',
@@ -109,7 +150,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     {activityText === '' ? '\u00A0' : activityText}
                   </span>
                 </div>
-              )}
+              ) : null}
             </div>
             {!nearBottom && conversation.length > 0 && (
               <button

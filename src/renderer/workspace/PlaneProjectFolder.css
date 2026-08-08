@@ -18,6 +18,14 @@
   pointer-events: auto;
 }
 
+/* El ancla del Tooltip debe ocupar el chip para no romper el flex del botón. */
+.plane-project-folder > .ui-tooltip {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+}
+
 .plane-project-folder__btn {
   display: inline-flex;
   align-items: center;

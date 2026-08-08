@@ -687,9 +687,10 @@ export function composePrompt(
   const canDelegate = coordinationCanDelegate(request.coordination)
   const allowDelegations = request.allowDelegations !== false
   const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
+  const allowExpertReplicas = request.allowExpertReplicas === true
   const orchestrationBlock = canDelegate
     ? [
-        buildOrchestratorAgentsBlock(request.orchestrationAgents ?? []),
+        buildOrchestratorAgentsBlock(request.orchestrationAgents ?? [], { allowExpertReplicas }),
         '',
         isProductOwner(request.coordination)
           ? buildAiAgentProductOwnerInstruction({
@@ -697,12 +698,14 @@ export function composePrompt(
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
             allowedAgentIds,
+            allowExpertReplicas,
           })
           : buildAiAgentDelegateInstruction({
             allowDelegations,
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
             allowedAgentIds,
+            allowExpertReplicas,
           }),
       ].join('\n')
     : ''

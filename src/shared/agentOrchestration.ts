@@ -380,7 +380,10 @@ export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
 }
 
 /** Bloque de agentes disponibles para el prompt del orquestador. */
-export function buildOrchestratorAgentsBlock(agents: readonly OrchestrationAgentRef[]): string {
+export function buildOrchestratorAgentsBlock(
+  agents: readonly OrchestrationAgentRef[],
+  options?: { allowExpertReplicas?: boolean },
+): string {
   if (!agents.length) {
     return [
       '## Available agents',
@@ -390,7 +393,15 @@ export function buildOrchestratorAgentsBlock(agents: readonly OrchestrationAgent
   const lines = [
     '## Available agents',
     'Delegate work to these specialists by agentId. Do not implement their work yourself.',
+    'Each specialist runs in an isolated git worktree; the host merges their branches into the base branch when you integrate results (you do not merge yourself).',
   ]
+  if (options?.allowExpertReplicas) {
+    lines.push(
+      'Expert replicas: you may emit several parallel delegations to the same role.',
+      'Reuse the base agentId (e.g. frontend) for each slice, or request a replica with frontend#2 / frontend-2.',
+      'The host spawns ephemeral specialist replicas when the base expert is busy; do not invent unrelated agentIds.',
+    )
+  }
   for (const agent of agents) {
     const role = agent.role?.trim()
     lines.push(

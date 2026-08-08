@@ -27,6 +27,7 @@ import {
 } from '@shared/agentIdentity'
 import { normalizeAgentSlug, isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -197,6 +198,8 @@ interface Props {
   chainLoopActive?: boolean
   /** El orquestador espera subtareas (Stop / drain; ya no bloquea teclear). */
   awaitingDelegations?: boolean
+  /** Detalle de ola (done/total + filas) mientras awaitingDelegations. */
+  orchestrationAwaiting?: OrchestrationAwaitingView | null
   /** Este pane ejecuta una subtarea pendiente para un orquestador. */
   delegationWorkActive?: boolean
   /** App aún tiene FIFO/preferSend de orquestación para este pane. */
@@ -224,6 +227,7 @@ export interface AgentPlaneStatus {
   materializingIds: string[]
   settlingId: string | null
   awaitingDelegations: boolean
+  orchestrationAwaiting: OrchestrationAwaitingView | null
   delegationWorkActive: boolean
   orchestratorBusy: boolean
   loopMode: boolean
@@ -306,6 +310,7 @@ export const AgentPane: React.FC<Props> = ({
   onPreferClearConversationConsumed,
   chainLoopActive = false,
   awaitingDelegations = false,
+  orchestrationAwaiting = null,
   delegationWorkActive = false,
   systemFollowUpsPending = false,
   onChainLoopStop,
@@ -802,6 +807,7 @@ export const AgentPane: React.FC<Props> = ({
       materializingIds: [...materializingIds],
       settlingId,
       awaitingDelegations,
+      orchestrationAwaiting: orchestrationAwaiting ?? null,
       delegationWorkActive,
       orchestratorBusy,
       loopMode: loopOpen || loopActive || chainLoopActive,
@@ -835,6 +841,9 @@ export const AgentPane: React.FC<Props> = ({
       busy ? (activeAssistantId ?? '') : '',
       settlingId ?? '',
       awaitingDelegations ? '1' : '0',
+      orchestrationAwaiting
+        ? `${orchestrationAwaiting.done}/${orchestrationAwaiting.total}:${orchestrationAwaiting.items.map(item => `${item.delegationId}:${item.status}`).join(',')}`
+        : '',
       delegationWorkActive ? '1' : '0',
       orchestratorBusy ? '1' : '0',
       loopOpen ? '1' : '0',
@@ -858,6 +867,7 @@ export const AgentPane: React.FC<Props> = ({
     activeAssistantId,
     activity,
     awaitingDelegations,
+    orchestrationAwaiting,
     busy,
     chainLoopActive,
     delegationWorkActive,
@@ -1051,6 +1061,7 @@ export const AgentPane: React.FC<Props> = ({
               ? 'productOwner' as const
               : 'orchestrator' as const,
             orchestrationAgents,
+            ...(currentMeta.allowExpertReplicas === true ? { allowExpertReplicas: true } : {}),
             ...(options.allowDelegations === false ? { allowDelegations: false } : {}),
             ...(roundInfo && roundInfo.round > 0
               ? {
@@ -2033,6 +2044,7 @@ export const AgentPane: React.FC<Props> = ({
             busy={busy}
             activity={activity}
             awaitingDelegations={awaitingDelegations}
+            orchestrationAwaiting={orchestrationAwaiting}
             loopActive={effectiveLoopActive}
             loopIteration={loopIteration}
             queuedTurns={queuedTurns}
@@ -2103,6 +2115,7 @@ export const AgentPane: React.FC<Props> = ({
               coordination: _drop,
               orchestrationMaxRounds: _rounds,
               delegateTo: _dt,
+              allowExpertReplicas: _replicas,
               ...rest
             } = previous
             return rest
@@ -2116,6 +2129,16 @@ export const AgentPane: React.FC<Props> = ({
                 return rest
               })()
               : { ...previous, acceptDelegations: false }
+          ))
+        }}
+        onAllowExpertReplicasChange={allow => {
+          onMetaChange(previous => (
+            allow
+              ? { ...previous, allowExpertReplicas: true }
+              : (() => {
+                const { allowExpertReplicas: _drop, ...rest } = previous
+                return rest
+              })()
           ))
         }}
         onOrchestrationMaxRoundsChange={n => {

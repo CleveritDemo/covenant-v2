@@ -22,7 +22,12 @@ export const PlaneChatContextsTrigger: React.FC<PlaneChatContextsTriggerProps> =
 }) => (
   <button
     type="button"
-    className="plane-chat-composer__contexts-trigger"
+    className={[
+      'plane-chat-composer__chip',
+      'plane-chat-composer__contexts-trigger',
+      // Encendido si hay contextos elegidos o el menú está abierto.
+      count > 0 || open ? 'plane-chat-composer__chip--on' : '',
+    ].filter(Boolean).join(' ')}
     aria-haspopup="listbox"
     aria-expanded={open}
     aria-label={ariaLabel}

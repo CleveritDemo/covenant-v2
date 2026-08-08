@@ -70,13 +70,104 @@
   color: var(--plane-composer-accent);
 }
 
+/* La barra: agrupa los controles y los separa del plano. */
 .plane-chat-composer__contexts-stack {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 14px;
+  gap: 4px;
   min-width: 0;
   max-width: min(var(--plane-chat-column-width, 640px), calc(100vw - 48px));
+  padding: 3px;
+  background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9px;
+  backdrop-filter: blur(6px);
+}
+
+/* Chip: una sola gramática para los tres controles (menú, toggle, toggle).
+   Apagado = fantasma neutro; encendido = relleno de acento. */
+.plane-chat-composer__chip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: 500 11px var(--font-ui);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.plane-chat-composer__chip > svg {
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.plane-chat-composer__chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.plane-chat-composer__chip:focus-visible {
+  outline: 2px solid var(--plane-composer-accent);
+  outline-offset: 1px;
+}
+
+.plane-chat-composer__chip--on {
+  color: var(--plane-composer-accent);
+  background: color-mix(in srgb, var(--plane-composer-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--plane-composer-accent) 42%, transparent);
+  font-weight: 650;
+}
+
+.plane-chat-composer__chip--on:hover:not(:disabled) {
+  color: var(--plane-composer-accent);
+  background: color-mix(in srgb, var(--plane-composer-accent) 22%, transparent);
+}
+
+/* Bloqueado: el borde punteado dice “falta algo”, no “está roto”. */
+.plane-chat-composer__chip:disabled {
+  cursor: default;
+  opacity: 0.5;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* Corriendo: sigue encendido y el icono gira; no lee como deshabilitado. */
+.plane-chat-composer__chip--on:disabled {
+  opacity: 0.85;
+  border-style: solid;
+}
+
+.plane-chat-composer__chip--running > svg {
+  animation: plane-chat-composer-spin 2.4s linear infinite;
+}
+
+@keyframes plane-chat-composer-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-chat-composer__chip--running > svg { animation: none; }
+}
+
+/* Separador antes de la acción destructiva. */
+.plane-chat-composer__bar-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 3px;
+  background: color-mix(in srgb, var(--border) 75%, transparent);
 }
 
 .plane-chat-composer__contexts-picker {
@@ -86,48 +177,18 @@
 }
 
 .plane-chat-composer__contexts-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  width: auto;
   max-width: min(260px, 48vw);
-  min-height: 24px;
-  padding: 2px 0;
-  color: var(--plane-composer-accent);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  font: 500 11px var(--font-ui);
-  cursor: pointer;
-  transition: color 0.16s ease, opacity 0.16s ease;
 }
 
-.plane-chat-composer__contexts-trigger:hover:not(:disabled) {
-  color: color-mix(in srgb, var(--plane-composer-accent) 82%, #fff);
-}
-
-.plane-chat-composer__contexts-trigger:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.plane-chat-composer__contexts-picker--open .plane-chat-composer__contexts-trigger {
-  color: color-mix(in srgb, var(--plane-composer-accent) 88%, #fff);
-}
-
-.plane-chat-composer__contexts-picker--open .plane-chat-composer__contexts-trigger svg:last-child {
-  transform: rotate(180deg);
-}
-
-.plane-chat-composer__contexts-trigger svg {
-  flex: 0 0 auto;
-  color: inherit;
+.plane-chat-composer__contexts-trigger > svg {
   transition: transform 0.18s ease;
 }
 
-.plane-chat-composer__contexts-trigger svg:last-child {
-  margin-left: 0;
+.plane-chat-composer__contexts-picker--open .plane-chat-composer__contexts-trigger > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.plane-chat-composer__contexts-trigger > svg:last-child {
   opacity: 0.75;
 }
 
@@ -138,23 +199,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
-  font-weight: 650;
-  letter-spacing: 0.02em;
 }
 
 .plane-chat-composer__contexts-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  /* Sobre el acento del tema: siempre blanco (accent-fg puede ser oscuro en light). */
-  color: #fff;
-  background: var(--plane-composer-accent);
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  color: var(--plane-composer-accent);
+  background: color-mix(in srgb, var(--plane-composer-accent) 22%, transparent);
   border-radius: 999px;
   font-size: 9px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
@@ -198,132 +257,7 @@
   color: color-mix(in srgb, var(--plane-composer-accent) 55%, var(--text-muted));
 }
 
-.plane-chat-composer__auto-improve {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-height: 24px;
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 2px 0;
-  color: var(--plane-composer-accent);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 650;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-  box-sizing: border-box;
-}
-
-.plane-chat-composer__auto-improve > svg {
-  flex: 0 0 auto;
-  color: inherit;
-}
-
-.plane-chat-composer__auto-improve-label {
-  flex: 0 0 auto;
-}
-
-.plane-chat-composer__auto-improve-switch {
-  position: relative;
-  width: 22px;
-  height: 12px;
-  flex: 0 0 22px;
-  margin-left: 2px;
-  background: color-mix(in srgb, var(--plane-composer-accent) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 35%, var(--border));
-  border-radius: 999px;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.plane-chat-composer__auto-improve-knob {
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 8px;
-  height: 8px;
-  background: color-mix(in srgb, var(--plane-composer-accent) 55%, var(--text-muted));
-  border-radius: 50%;
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-
-.plane-chat-composer__auto-improve--on .plane-chat-composer__auto-improve-switch {
-  background: var(--plane-composer-accent);
-  border-color: var(--plane-composer-accent);
-}
-
-.plane-chat-composer__auto-improve--on .plane-chat-composer__auto-improve-knob {
-  background: #fff;
-  transform: translateX(10px);
-}
-
-.plane-chat-composer__auto-improve:focus-visible .plane-chat-composer__auto-improve-switch {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--plane-composer-accent) 25%, transparent);
-}
-
-.plane-chat-composer__auto-improve:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.plane-chat-composer__loop {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-height: 24px;
-  flex: 0 0 auto;
-  padding: 2px 0;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 650;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-  box-sizing: border-box;
-  opacity: 0.72;
-  transition: opacity 0.16s ease, color 0.16s ease;
-}
-
-.plane-chat-composer__loop:hover:not(:disabled) {
-  opacity: 1;
-  color: var(--text);
-}
-
-.plane-chat-composer__loop--on {
-  opacity: 1;
-  color: var(--plane-composer-accent);
-}
-
-.plane-chat-composer__loop--active {
-  opacity: 1;
-  color: var(--plane-composer-accent);
-}
-
-.plane-chat-composer__loop--on:hover:not(:disabled),
-.plane-chat-composer__loop--active:hover:not(:disabled) {
-  color: var(--plane-composer-accent);
-}
-
-.plane-chat-composer__loop:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.plane-chat-composer__loop > svg {
-  flex: 0 0 auto;
-  color: inherit;
-}
-
+.plane-chat-composer__auto-improve-label,
 .plane-chat-composer__loop-label {
   flex: 0 0 auto;
 }

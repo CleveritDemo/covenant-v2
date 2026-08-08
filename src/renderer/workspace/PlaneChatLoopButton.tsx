@@ -23,9 +23,10 @@ export const PlaneChatLoopButton: React.FC<PlaneChatLoopButtonProps> = ({
   <button
     type="button"
     className={[
+      'plane-chat-composer__chip',
       'plane-chat-composer__loop',
-      pressed ? 'plane-chat-composer__loop--on' : '',
-      active ? 'plane-chat-composer__loop--active' : '',
+      pressed || active ? 'plane-chat-composer__chip--on' : '',
+      active ? 'plane-chat-composer__chip--running' : '',
     ].filter(Boolean).join(' ')}
     aria-label={ariaLabel}
     aria-pressed={pressed}

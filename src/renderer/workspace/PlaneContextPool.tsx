@@ -3,6 +3,7 @@ import type { TabContextKind } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import { ContextBadge } from './ContextBadge'
 import { setPlaneContextDragData } from './planeContextDrag'
 import './PlaneContextPool.css'
@@ -56,25 +57,27 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       aria-label={title}
       onMouseDown={event => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className="plane-context-pool__configure"
-        aria-label={configureLabel}
-        title={configureLabel}
-        onClick={onConfigure}
-      >
-        <Icon name="settings" size={12} />
-      </button>
+      <Tooltip content={configureLabel}>
+        <button
+          type="button"
+          className="plane-context-pool__configure"
+          aria-label={configureLabel}
+          onClick={onConfigure}
+        >
+          <Icon name="settings" size={12} />
+        </button>
+      </Tooltip>
 
-      <button
-        type="button"
-        className="plane-context-pool__configure"
-        aria-label={createLabel}
-        title={createLabel}
-        onClick={onCreate}
-      >
-        <Icon name="plus" size={12} />
-      </button>
+      <Tooltip content={createLabel}>
+        <button
+          type="button"
+          className="plane-context-pool__configure"
+          aria-label={createLabel}
+          onClick={onCreate}
+        >
+          <Icon name="plus" size={12} />
+        </button>
+      </Tooltip>
 
       {visibleContexts.length > 0 ? (
         <div className="plane-context-pool__icons" role="list">

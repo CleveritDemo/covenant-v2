@@ -80,8 +80,6 @@ const SKIPPED_SCAN_DIRS = new Set([
 ])
 const MAX_SYMBOL_FILES = 500
 const MAX_REQUESTED_CONTEXT_SECTIONS = 8
-const MAX_DIRECT_CONTEXT_CHARS = 8_000
-const MAX_DIRECT_CONTEXT_TOTAL_CHARS = 8_000
 /** Personalizados: cuerpo entero siempre; sin catálogo ni need-sections. */
 const DIRECT_CONTEXT_KINDS = new Set<TabContextKind>(['notes', 'agentResult'])
 /** Máximo de secciones listadas por contexto en el catálogo compacto. */
@@ -1302,7 +1300,7 @@ function compactSectionCatalog(entries: TabContextCatalogEntry[]): unknown[] {
     const totalChars = entry.sections.reduce((sum, section) => sum + section.chars, 0)
     const ranked = [...entry.sections].sort((a, b) => b.chars - a.chars)
     const listed = ranked.slice(0, MAX_CATALOG_LISTED_SECTIONS)
-    const omitted = Math.max(0, entry.sections.length - listed.length)
+    const omittedKeys = ranked.slice(MAX_CATALOG_LISTED_SECTIONS).map(section => section.key)
     const grouped = new Map<string, Array<[string, number, string?]>>()
     for (const section of listed) {
       const slash = section.key.lastIndexOf('/')
@@ -1320,7 +1318,7 @@ function compactSectionCatalog(entries: TabContextCatalogEntry[]): unknown[] {
       file: entry.file,
       sectionCount: entry.sections.length,
       totalChars,
-      ...(omitted > 0 ? { omitted } : {}),
+      ...(omittedKeys.length > 0 ? { omittedKeys } : {}),
       groups: Object.fromEntries(grouped),
     }
   })
@@ -1500,21 +1498,13 @@ export function buildContextPromptDelivery(
   const available = materializedContextSections(contexts, cwd)
   const allDirect: MaterializedContextData[] = []
   const allOnDemand: MaterializedContextData[] = []
-  let directChars = 0
   for (const context of contexts) {
     const data = available.get(context.id)
     if (!data) continue
-    const body = directContextBody(data)
     // notes / agentResult: siempre directo, sin tope de tamaño.
-    const fits = DIRECT_CONTEXT_KINDS.has(context.kind) && data.materialized.ok && (
-      context.kind === 'notes'
-      || context.kind === 'agentResult'
-      || (body.length <= MAX_DIRECT_CONTEXT_CHARS &&
-        directChars + body.length <= MAX_DIRECT_CONTEXT_TOTAL_CHARS)
-    )
+    const fits = DIRECT_CONTEXT_KINDS.has(context.kind) && data.materialized.ok
     if (fits) {
       allDirect.push(data)
-      if (context.kind !== 'notes' && context.kind !== 'agentResult') directChars += body.length
     } else {
       allOnDemand.push(data)
     }
@@ -1593,7 +1583,7 @@ export function buildContextPromptDelivery(
     if (lines.length) lines.push('')
     lines.push(
       '## Context hints',
-      'Likely sections for this prompt (metadata only). Prefer these keys first.',
+      'Likely relevant sections. Request them with the ia-terminal-need-sections fence before answering if you need their content.',
       '```json',
       JSON.stringify({ hints }),
       '```',
@@ -1622,12 +1612,12 @@ export function buildContextPromptDelivery(
     if (lines.length) lines.push('')
     lines.push(
       '## Available tab contexts (on demand)',
-      'Catalog only. Request needed sections, or answer without a request.',
+      'Catalog only (no bodies). Request the sections you need with the ia-terminal-need-sections fence before answering.',
       '```ia-terminal-need-sections',
       '{"requests":[{"id":"context-id","sections":["exact-section-key"]}]}',
       '```',
       `Budget: ≤${MAX_REQUESTED_CONTEXT_SECTIONS} sections · ≤${MAX_REQUESTED_CONTEXT_CHARS} chars · ≤2 requests (resets each need-sections round).`,
-      `Catalog lists top ${MAX_CATALOG_LISTED_SECTIONS} sections by size; omitted = not listed but still requestable by exact key.`,
+      `Catalog lists top ${MAX_CATALOG_LISTED_SECTIONS} sections by size; omittedKeys lists the rest by exact key — request any of them directly.`,
       `Requesting any section also attaches ${NOTES_SECTION_KEY} for that context (does not spend the section quota).`,
       'groups: [key, chars, optional-label]',
       '',

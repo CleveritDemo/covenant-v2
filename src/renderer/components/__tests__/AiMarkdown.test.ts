@@ -59,3 +59,18 @@ describe('parseAiMarkdownBlocks', () => {
     ])
   })
 })
+
+describe('parseAiMarkdownBlocks · tablas', () => {
+  it('parses a pipe table with its divider', () => {
+    const blocks = parseAiMarkdownBlocks('| A | B |\n|---|:-:|\n| 1 | 2 |\n\nFin.')
+    expect(blocks).toEqual([
+      { type: 'table', head: ['A', 'B'], rows: [['1', '2']] },
+      { type: 'p', lines: ['Fin.'] },
+    ])
+  })
+
+  it('leaves a pipe line without divider as text', () => {
+    const blocks = parseAiMarkdownBlocks('| solo una fila |')
+    expect(blocks).toEqual([{ type: 'p', lines: ['| solo una fila |'] }])
+  })
+})

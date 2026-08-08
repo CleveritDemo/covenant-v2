@@ -7,6 +7,7 @@ type MdBlock =
   | { type: 'quote'; lines: string[] }
   | { type: 'ul'; items: string[] }
   | { type: 'ol'; items: string[] }
+  | { type: 'table'; head: string[]; rows: string[][] }
   | { type: 'p'; lines: string[] }
 
 interface AiMarkdownProps {
@@ -98,6 +99,19 @@ function isOlItem(line: string): string | null {
   return m ? m[1] : null
 }
 
+/** Celdas de una fila `| a | b |`; sin pipes escapados (nadie los escribe en el chat). */
+function tableCells(line: string): string[] | null {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('|')) return null
+  return trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim())
+}
+
+/** `|---|:--:|` — la fila que confirma que la anterior era la cabecera. */
+function isTableDivider(line: string | undefined): boolean {
+  const cells = line === undefined ? null : tableCells(line)
+  return !!cells && cells.length > 0 && cells.every(cell => /^:?-{1,}:?$/.test(cell))
+}
+
 function isQuote(line: string): string | null {
   const m = line.match(/^\s*>\s?(.*)$/)
   return m ? m[1] : null
@@ -138,6 +152,20 @@ function parseBlocks(raw: string): MdBlock[] {
     if (isHr(line)) {
       blocks.push({ type: 'hr' })
       i++
+      continue
+    }
+
+    const head = tableCells(line)
+    if (head && isTableDivider(lines[i + 1])) {
+      const rows: string[][] = []
+      i += 2
+      while (i < lines.length) {
+        const cells = tableCells(lines[i])
+        if (!cells) break
+        rows.push(cells)
+        i++
+      }
+      blocks.push({ type: 'table', head, rows })
       continue
     }
 
@@ -233,6 +261,29 @@ function renderBlock(block: MdBlock, index: number): React.ReactNode {
             <li key={j}>{parseInline(item)}</li>
           ))}
         </ol>
+      )
+    case 'table':
+      return (
+        <div key={key} className="ai-md__table-wrap">
+          <table className="ai-md__table">
+            <thead>
+              <tr>
+                {block.head.map((cell, j) => (
+                  <th key={j}>{parseInline(cell)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, j) => (
+                <tr key={j}>
+                  {row.map((cell, k) => (
+                    <td key={k}>{parseInline(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )
     case 'p':
       return (

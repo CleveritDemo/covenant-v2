@@ -901,10 +901,31 @@ export const TerminalPane: React.FC<Props> = ({
     fitRef.current = fit
     serializeAddonRef.current = serialize
 
-    // ponytail: registro solo-dev para inspeccionar cols/rows desde DevTools.
+    // ponytail: registro solo-dev + `__gravityTermInfo()` para diagnosticar el alto de fila.
     if (import.meta.env.DEV) {
-      const reg = ((window as unknown as { __gravityTerms?: Record<string, Terminal> }).__gravityTerms ??= {})
+      const w = window as unknown as {
+        __gravityTerms?: Record<string, Terminal>
+        __gravityTermInfo?: () => unknown[]
+      }
+      const reg = (w.__gravityTerms ??= {})
       reg[sessionId] = term
+      w.__gravityTermInfo ??= () => Object.entries(w.__gravityTerms ?? {}).map(([id, t]) => {
+        const core = (t as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: unknown } } } } })._core
+        const el = t.element?.querySelector('.xterm-rows')
+        const first = el?.firstElementChild as HTMLElement | null
+        return {
+          id,
+          cols: t.cols,
+          rows: t.rows,
+          domRows: el?.childElementCount ?? -1,
+          cell: core?._renderService?.dimensions?.css?.cell,
+          rowHeight: first ? getComputedStyle(first).height : null,
+          rowInline: first?.style.height || '(sin inline)',
+          fontFamily: t.options.fontFamily,
+          fontSize: t.options.fontSize,
+          lineHeight: t.options.lineHeight,
+        }
+      })
     }
 
     const syncScrollDownBtnVisibility = (): void => {

@@ -98,11 +98,6 @@ export function covenantWorkspaceCatalogKey(slug: string, workspaceId: string): 
   return `covenant://workspaces/${encodeURIComponent(slug)}/${encodeURIComponent(workspaceId)}`
 }
 
-/** True si la key de catálogo es de un workspace org (no path de disco). */
-export function isOrgCatalogKey(key: string): boolean {
-  return key.startsWith('covenant://workspaces/')
-}
-
 /** Clave del catálogo de agentes de una pestaña (org-backed o projectFolder). */
 export function tabAgentCatalogKey(tab: {
   projectFolder?: string

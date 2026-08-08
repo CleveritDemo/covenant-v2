@@ -124,7 +124,6 @@ import {
   normalizeAgentSlug,
   remapAgentBindingsInTabs,
   remapAgentResultContextIds,
-  parseProjectAgentDefinition,
   remapAgentResultIdsInCatalog,
   remapAgentResultTabContexts,
   type ProjectAgentDefinition,
@@ -132,7 +131,6 @@ import {
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
 import {
   covenantWorkspaceCatalogKey,
-  isOrgCatalogKey,
   shouldReplaceOrgAgentCatalog,
   tabAgentCatalogKey,
 } from '../shared/covenantTypes'
@@ -299,6 +297,7 @@ export const App: React.FC = () => {
     missingToken?: boolean
     cloneError?: string
     cloning?: boolean
+    syncing?: boolean
     agentDeleteError?: string
   } | null>(null)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
@@ -319,8 +318,14 @@ export const App: React.FC = () => {
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
   const resyncOrgWorkspaceRef = useRef<(tab: TabSession) => Promise<void>>(async () => {})
-  const orgAgentsCachePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastOrgAgentsCacheJsonRef = useRef('')
+  const syncOrgWorkspaceContentRef = useRef<(
+    slug: string,
+    workspaceId: string,
+    tabIds: string[],
+  ) => Promise<{ agentsOk: boolean; contextsOk: boolean }>>(async () => ({
+    agentsOk: false,
+    contextsOk: false,
+  }))
   const handleAgentMetaChangeRef = useRef<(
     tabId: string,
     paneId: string,
@@ -584,6 +589,48 @@ export const App: React.FC = () => {
     setTabs(nextTabs)
   }, [cleanupRemovedAgentPanes, rememberPaneCwd])
 
+  /**
+   * Fetch único de agentes+contextos org (backend) y aplica a catálogo en memoria
+   * + contextos por tabId. Misma ruta para boot, resync, carpeta y refresh.
+   */
+  const syncOrgWorkspaceContent = useCallback(async (
+    slug: string,
+    workspaceId: string,
+    tabIds: string[],
+  ): Promise<{ agentsOk: boolean; contextsOk: boolean }> => {
+    const covenant = getCovenantApi()
+    if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+      return { agentsOk: false, contextsOk: false }
+    }
+    const [agentsResult, contextsResult] = await Promise.all([
+      retryCovenantResult(() => covenant.workspaceAgentsList(slug, workspaceId)),
+      retryCovenantResult(() => covenant.workspaceContextsList(slug, workspaceId)),
+    ])
+    const catalogKey = covenantWorkspaceCatalogKey(slug, workspaceId)
+    if (agentsResult.ok) {
+      const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
+      const existing = projectAgentsByCwdRef.current[catalogKey]
+      if (shouldReplaceOrgAgentCatalog(agents, existing)) {
+        setProjectAgentsByCwd(prev => {
+          const next = { ...prev, [catalogKey]: agents }
+          projectAgentsByCwdRef.current = next
+          return next
+        })
+        for (const tabId of tabIds) syncTabWithProjectAgents(tabId, agents)
+      }
+    }
+    if (contextsResult.ok) {
+      const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+      setTabContextsByTab(prev => {
+        const next = { ...prev }
+        for (const tabId of tabIds) next[tabId] = contexts
+        return next
+      })
+    }
+    return { agentsOk: agentsResult.ok, contextsOk: contextsResult.ok }
+  }, [syncTabWithProjectAgents])
+  syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
+
   const refreshAndSyncProjectAgents = useCallback(async (cwd: string, tabId?: string) => {
     const agents = await refreshProjectAgents(cwd)
     const root = cwd.trim()
@@ -723,58 +770,9 @@ export const App: React.FC = () => {
         : null
       orgWorkspaceCatalogRef.current = hydrated
       setOrgWorkspaceCatalog(hydrated)
-
-      const agentsCache = cfg.orgWorkspaceAgentsCache
-      if (agentsCache && typeof agentsCache === 'object') {
-        setProjectAgentsByCwd(prev => {
-          const seed = { ...prev }
-          for (const [k, list] of Object.entries(agentsCache)) {
-            if (!isOrgCatalogKey(k) || !Array.isArray(list)) continue
-            const saneados = list
-              .map(item => parseProjectAgentDefinition(item))
-              .filter((d): d is ProjectAgentDefinition => d != null)
-            seed[k] = saneados
-          }
-          projectAgentsByCwdRef.current = seed
-          const subset: Record<string, ProjectAgentDefinition[]> = {}
-          for (const [k, v] of Object.entries(seed)) {
-            if (isOrgCatalogKey(k)) subset[k] = v
-          }
-          lastOrgAgentsCacheJsonRef.current = JSON.stringify(subset)
-          return seed
-        })
-      }
-
       setConfigReady(true)
     })
   }, [])
-
-  // Persiste defs de agentes org en config (rehidratación al boot sin red).
-  useEffect(() => {
-    if (!configReady) return
-    const subset: Record<string, ProjectAgentDefinition[]> = {}
-    for (const [k, list] of Object.entries(projectAgentsByCwd)) {
-      if (!isOrgCatalogKey(k) || k === '') continue
-      subset[k] = list
-    }
-    const json = JSON.stringify(subset)
-    if (json === lastOrgAgentsCacheJsonRef.current) return
-
-    if (orgAgentsCachePersistTimerRef.current) {
-      clearTimeout(orgAgentsCachePersistTimerRef.current)
-    }
-    orgAgentsCachePersistTimerRef.current = setTimeout(() => {
-      lastOrgAgentsCacheJsonRef.current = json
-      void window.api.setConfig({ orgWorkspaceAgentsCache: subset })
-    }, 500)
-
-    return () => {
-      if (orgAgentsCachePersistTimerRef.current) {
-        clearTimeout(orgAgentsCachePersistTimerRef.current)
-        orgAgentsCachePersistTimerRef.current = null
-      }
-    }
-  }, [configReady, projectAgentsByCwd])
 
   const applyOrgWorkspaceCatalog = useCallback((next: OrgWorkspaceCatalog | null) => {
     orgWorkspaceCatalogRef.current = next
@@ -1026,43 +1024,30 @@ export const App: React.FC = () => {
               entry.tabIds.push(tab.id)
             }
             try {
-              await Promise.all([...byWorkspace.values()].map(async ws => {
-                const [agentsResult, contextsResult] = await Promise.all([
-                  retryCovenantResult(() => covenant.workspaceAgentsList(ws.slug, ws.workspaceId)),
-                  retryCovenantResult(() => covenant.workspaceContextsList(ws.slug, ws.workspaceId)),
-                ])
-                const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
-                if (!agentsResult.ok) {
-                  console.warn('[boot] agents list fallo, resync diferido')
-                  const tabIds = [...ws.tabIds]
-                  window.setTimeout(() => {
-                    if ((projectAgentsByCwdRef.current[catalogKey] ?? []).length > 0) return
-                    for (const tabId of tabIds) {
-                      const tab = tabsRef.current.find(item => item.id === tabId)
-                      if (tab) void resyncOrgWorkspaceRef.current(tab)
-                    }
-                  }, 1500)
-                } else {
-                  const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-                  const existing = projectAgentsByCwdRef.current[catalogKey]
-                  if (shouldReplaceOrgAgentCatalog(agents, existing)) {
-                    setProjectAgentsByCwd(prev => {
-                      const next = { ...prev, [catalogKey]: agents }
-                      projectAgentsByCwdRef.current = next
-                      return next
-                    })
-                    for (const tabId of ws.tabIds) syncTabWithProjectAgents(tabId, agents)
+              setOrgWorkspaceRequirement({ syncing: true })
+              try {
+                await Promise.all([...byWorkspace.values()].map(async ws => {
+                  const result = await syncOrgWorkspaceContentRef.current(
+                    ws.slug,
+                    ws.workspaceId,
+                    ws.tabIds,
+                  )
+                  if (!result.agentsOk) {
+                    console.warn('[boot] agents list fallo, resync diferido')
+                    const catalogKey = covenantWorkspaceCatalogKey(ws.slug, ws.workspaceId)
+                    const tabIds = [...ws.tabIds]
+                    window.setTimeout(() => {
+                      if ((projectAgentsByCwdRef.current[catalogKey] ?? []).length > 0) return
+                      for (const tabId of tabIds) {
+                        const tab = tabsRef.current.find(item => item.id === tabId)
+                        if (tab) void resyncOrgWorkspaceRef.current(tab)
+                      }
+                    }, 1500)
                   }
-                }
-                if (contextsResult.ok) {
-                  const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-                  setTabContextsByTab(prev => {
-                    const next = { ...prev }
-                    for (const tabId of ws.tabIds) next[tabId] = contexts
-                    return next
-                  })
-                }
-              }))
+                }))
+              } finally {
+                setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+              }
             } catch (err) {
               console.warn('[boot] org workspace agents/contexts sync falló:', err)
             }
@@ -1726,23 +1711,11 @@ export const App: React.FC = () => {
     setActiveTabId(tab.id)
 
     if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-      const [agentsResult, contextsResult] = await Promise.all([
-        covenant.workspaceAgentsList(org.slug, org.workspaceId),
-        covenant.workspaceContextsList(org.slug, org.workspaceId),
-      ])
-      const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
-      if (agentsResult.ok) {
-        const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-        setProjectAgentsByCwd(prev => {
-          const next = { ...prev, [catalogKey]: agents }
-          projectAgentsByCwdRef.current = next
-          return next
-        })
-        syncTabWithProjectAgents(tab.id, agents)
-      }
-      if (contextsResult.ok) {
-        const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-        setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
+      setOrgWorkspaceRequirement({ syncing: true })
+      try {
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id])
+      } finally {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       }
     } else if (selection.catalogKey) {
       setProjectAgentsByCwd(prev => {
@@ -1757,7 +1730,7 @@ export const App: React.FC = () => {
         queueMicrotask(() => syncTabWithProjectAgents(tab.id, selection.agents))
       }
     }
-  }, [syncTabWithProjectAgents, t])
+  }, [syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleResyncOrgWorkspace = useCallback(async (tab: TabSession) => {
     const org = tab.orgWorkspace
@@ -1770,6 +1743,7 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
+    setOrgWorkspaceRequirement({ syncing: true })
     try {
       try {
         if (
@@ -1797,37 +1771,19 @@ export const App: React.FC = () => {
       }
 
       try {
-        if (hasCovenantWorkspaceContentApi(covenant)) {
-          const [agentsResult, contextsResult] = await Promise.all([
-            covenant.workspaceAgentsList(org.slug, org.workspaceId),
-            covenant.workspaceContextsList(org.slug, org.workspaceId),
-          ])
-          const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
-          if (agentsResult.ok) {
-            const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-            setProjectAgentsByCwd(prev => {
-              const next = { ...prev, [catalogKey]: agents }
-              projectAgentsByCwdRef.current = next
-              return next
-            })
-            syncTabWithProjectAgents(tab.id, agents)
-          }
-          if (contextsResult.ok) {
-            const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-            setTabContextsByTab(prev => ({ ...prev, [tab.id]: contexts }))
-          }
-        }
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id])
       } catch (err) {
         console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
       }
     } finally {
+      setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       setResyncingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
         return next
       })
     }
-  }, [syncTabWithProjectAgents])
+  }, [syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
@@ -2115,23 +2071,11 @@ export const App: React.FC = () => {
       await saveSessionNow()
 
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-        const [agentsResult, contextsResult] = await Promise.all([
-          covenant.workspaceAgentsList(orgSlug, workspaceId),
-          covenant.workspaceContextsList(orgSlug, workspaceId),
-        ])
-        const catalogKey = covenantWorkspaceCatalogKey(orgSlug, workspaceId)
-        if (agentsResult.ok) {
-          const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
-          setProjectAgentsByCwd(prev => {
-            const nextAgents = { ...prev, [catalogKey]: agents }
-            projectAgentsByCwdRef.current = nextAgents
-            return nextAgents
-          })
-          syncTabWithProjectAgents(tabId, agents)
-        }
-        if (contextsResult.ok) {
-          const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
-          setTabContextsByTab(prev => ({ ...prev, [tabId]: contexts }))
+        setOrgWorkspaceRequirement({ syncing: true })
+        try {
+          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId])
+        } finally {
+          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
         }
       }
       return path
@@ -2167,7 +2111,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -2652,14 +2596,12 @@ export const App: React.FC = () => {
     if (!tab) return
     const org = tab.orgWorkspace
     if (org?.slug?.trim() && org.workspaceId?.trim()) {
-      const covenant = getCovenantApi()
-      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
-      const contextsResult = await covenant.workspaceContextsList(org.slug, org.workspaceId)
-      if (!contextsResult.ok) return
-      setTabContextsByTab(prev => ({
-        ...prev,
-        [tabId]: tabContextsFromWorkspaceContexts(contextsResult.data),
-      }))
+      setOrgWorkspaceRequirement({ syncing: true })
+      try {
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tabId])
+      } finally {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      }
       return
     }
     const cwd = tab.projectFolder?.trim() || ''
@@ -2667,7 +2609,7 @@ export const App: React.FC = () => {
     const result = await window.api.discoverTabContexts({ cwd })
     if (!result.ok) return
     setTabContextsByTab(prev => ({ ...prev, [tabId]: result.contexts }))
-  }, [])
+  }, [syncOrgWorkspaceContent])
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
     setPlaneContextsFocusId(null)
@@ -4472,6 +4414,7 @@ export const App: React.FC = () => {
         missingToken={orgWorkspaceRequirement?.missingToken}
         cloneError={orgWorkspaceRequirement?.cloneError}
         cloning={orgWorkspaceRequirement?.cloning}
+        syncing={orgWorkspaceRequirement?.syncing}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         onClose={() => setOrgWorkspaceRequirement(null)}
         onOpenSettings={() => setSettingsOpen(true)}

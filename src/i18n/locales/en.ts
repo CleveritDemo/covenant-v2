@@ -629,6 +629,7 @@ const en = {
     reqMissingToken: 'Configure a GitHub token in Settings.',
     reqCloneFailed: 'Could not clone repositories: {{error}}',
     reqAgentDeleteFailed: 'Could not delete the agent on the server: {{error}}. It may reappear after refreshing (you might lack manager permissions).',
+    reqSyncing: 'Loading workspace agents and contexts…',
     openSettings: 'Open settings',
   },
 

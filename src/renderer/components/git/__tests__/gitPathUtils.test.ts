@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
+  GIT_STATUS_LETTER,
   canGitStageEntry,
   canGitUnstageEntry,
   gitDisplayFileName,
+  gitSplitDisplayPath,
+  gitStatusKind,
   gitWorktreePath,
   hasGitStagedChanges,
   hasGitUnstagedChanges,
   isGitEntryFullyStaged,
   splitGitFilesByArea,
+  type GitStatusKind,
 } from '../gitPathUtils'
 
 describe('gitPathUtils', () => {
@@ -54,5 +58,50 @@ describe('gitPathUtils', () => {
     expect(canGitUnstageEntry({ status: 'M ', path: 'a' })).toBe(true)
     expect(canGitUnstageEntry({ status: '??', path: 'a' })).toBe(false)
     expect(canGitUnstageEntry({ status: ' M', path: 'a' })).toBe(false)
+  })
+
+  it('gitSplitDisplayPath separates directory and name', () => {
+    expect(gitSplitDisplayPath({ status: 'M ', path: 'src/foo/bar.ts' })).toEqual({
+      dir: 'src/foo/',
+      name: 'bar.ts',
+    })
+    expect(gitSplitDisplayPath({ status: '??', path: 'top.md' })).toEqual({ dir: '', name: 'top.md' })
+    // En renombres se muestra el destino.
+    expect(gitSplitDisplayPath({ status: 'R ', path: 'a/old.ts -> b/new.ts' })).toEqual({
+      dir: 'b/',
+      name: 'new.ts',
+    })
+  })
+
+  it('gitStatusKind reads the requested area', () => {
+    expect(gitStatusKind({ status: '??', path: 'a' }, 'worktree')).toBe('untracked')
+    expect(gitStatusKind({ status: 'A ', path: 'a' }, 'index')).toBe('added')
+    // MD: modificado en índice, borrado en worktree.
+    expect(gitStatusKind({ status: 'MD', path: 'a' }, 'index')).toBe('modified')
+    expect(gitStatusKind({ status: 'MD', path: 'a' }, 'worktree')).toBe('deleted')
+    expect(gitStatusKind({ status: 'R ', path: 'a -> b' }, 'index')).toBe('renamed')
+    expect(gitStatusKind({ status: ' M', path: 'a' }, 'index')).toBe('other')
+  })
+
+  it('gitStatusKind flags conflicts on both sides', () => {
+    for (const status of ['UU', 'AU', 'UD', 'DU', 'AA', 'DD']) {
+      expect(gitStatusKind({ status, path: 'a' }, 'index')).toBe('conflict')
+      expect(gitStatusKind({ status, path: 'a' }, 'worktree')).toBe('conflict')
+    }
+  })
+
+  it('every status kind has a letter', () => {
+    const kinds: GitStatusKind[] = [
+      'added',
+      'modified',
+      'deleted',
+      'renamed',
+      'copied',
+      'typeChange',
+      'untracked',
+      'conflict',
+      'other',
+    ]
+    for (const kind of kinds) expect(GIT_STATUS_LETTER[kind]).toBeTruthy()
   })
 })

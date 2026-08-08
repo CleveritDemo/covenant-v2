@@ -62,3 +62,54 @@ export function gitDisplayFileName(entry: GitPathEntry): string {
   const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   return slash >= 0 ? path.slice(slash + 1) : path
 }
+
+/** Directorio (con separador final) y nombre, para pintar la ruta con el directorio atenuado. */
+export function gitSplitDisplayPath(entry: GitPathEntry): { dir: string; name: string } {
+  const path = gitWorktreePath(entry)
+  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return slash >= 0
+    ? { dir: path.slice(0, slash + 1), name: path.slice(slash + 1) }
+    : { dir: '', name: path }
+}
+
+export type GitStatusKind =
+  | 'added'
+  | 'modified'
+  | 'deleted'
+  | 'renamed'
+  | 'copied'
+  | 'typeChange'
+  | 'untracked'
+  | 'conflict'
+  | 'other'
+
+const CODE_KIND: Record<string, GitStatusKind> = {
+  A: 'added',
+  M: 'modified',
+  D: 'deleted',
+  R: 'renamed',
+  C: 'copied',
+  T: 'typeChange',
+}
+
+/** Letra mostrada en el chip de estado (la porcelana cruda queda en el `title`). */
+export const GIT_STATUS_LETTER: Record<GitStatusKind, string> = {
+  added: 'A',
+  modified: 'M',
+  deleted: 'D',
+  renamed: 'R',
+  copied: 'C',
+  typeChange: 'T',
+  untracked: 'U',
+  conflict: '!',
+  other: '·',
+}
+
+/** Traduce el estado porcelana del área pedida a un tipo con significado. */
+export function gitStatusKind(entry: GitPathEntry, area: 'index' | 'worktree'): GitStatusKind {
+  if (entry.status === '??') return 'untracked'
+  // Conflicto: cualquier `U`, más los casos AA/DD de ambos lados.
+  if (entry.status.includes('U') || entry.status === 'AA' || entry.status === 'DD') return 'conflict'
+  const code = (area === 'index' ? entry.status[0] : entry.status[1]) ?? ' '
+  return CODE_KIND[code] ?? 'other'
+}

@@ -33,6 +33,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [lastLog, setLastLog] = useState('')
+  const [lastRun, setLastRun] = useState<{ label: string; ok: boolean } | null>(null)
   const [commitMsg, setCommitMsg] = useState('')
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
   const aiAbortRef = useRef<AbortController | null>(null)
@@ -75,6 +76,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setStatus(null)
     setCommitMsg('')
     setLastLog('')
+    setLastRun(null)
     setActionsRefreshToken(n => n + 1)
     void refresh()
     // Solo al abrir o cambiar de repo: no re-ejecutar por identidad de callbacks.
@@ -102,9 +104,11 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
       try {
         const r = await fn()
         setLastLog(formatGitCommandResult(t, label, r))
+        setLastRun({ label, ok: r.ok })
         await refresh()
       } catch (e) {
         setLastLog(`${label}: ${e instanceof Error ? e.message : String(e)}`)
+        setLastRun({ label, ok: false })
       } finally {
         setBusy(null)
       }
@@ -160,6 +164,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     aiAbortRef.current = ctrl
     setBusy('ai-suggest')
     setLastLog('')
+    setLastRun(null)
     void (async (): Promise<void> => {
       try {
         const diff = await window.api.gitDiffForAi(targetRef.current)
@@ -186,6 +191,10 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const idle = !busy && !loading
   const canCommit =
     repo && status && status.hasStaged && commitMsg.trim().length > 0 && idle
+  const ahead = status?.ahead ?? 0
+  const behind = status?.behind ?? 0
+  // Sin upstream `ahead` no viene: entonces se permite push (`push -u` es el caso normal).
+  const canPush = repo && idle && (typeof status?.ahead !== 'number' || ahead > 0)
 
   return (
     <>
@@ -241,7 +250,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                         {t('git.refreshButton')}
                       </Button>
                       <Button variant="secondary" size="sm" disabled={!repo || !idle} onClick={onPull}>
-                        {t('git.pullButton')}
+                        {behind > 0 ? `${t('git.pullButton')} ↓${behind}` : t('git.pullButton')}
                       </Button>
                     </div>
                   </div>
@@ -274,13 +283,26 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                     />
                   )}
 
+                  {lastLog.trim().length > 0 && (
+                    <details
+                      className={`git-panel-log-strip git-panel-log-strip--${lastRun?.ok ? 'ok' : 'fail'}`}
+                    >
+                      <summary className="git-panel-log-strip__summary">
+                        <span className="git-panel-log-strip__mark" aria-hidden>
+                          {lastRun?.ok ? '✓' : '✗'}
+                        </span>
+                        <code className="git-panel-log-strip__label">
+                          {lastRun?.label ?? lastLog.split('\n')[0]}
+                        </code>
+                      </summary>
+                      <pre className="git-panel-log" role="log">{lastLog}</pre>
+                    </details>
+                  )}
+
                   {repo && status && (
                     <div className="git-panel-commit">
                       <h3 className="git-panel-section-title">{t('git.commitTitle')}</h3>
-                      <p className="git-panel-commit-hint">
-                        {t('git.commitHint')}
-                        {!status.hasStaged && t('git.nothingStaged')}
-                      </p>
+                      <p className="git-panel-commit-hint">{t('git.commitHint')}</p>
                       <div className="git-panel-commit-row">
                         <Button variant="ghost" size="sm" disabled={!idle} onClick={onSuggestAi}>
                           {busy === 'ai-suggest' ? (
@@ -305,15 +327,11 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                         {t('git.commitButton')}
                       </Button>
                       <div className="git-panel-push-row">
-                        <Button variant="secondary" size="sm" disabled={!repo || !idle} onClick={onPush}>
-                          {t('git.pushButton')}
+                        <Button variant="secondary" size="sm" disabled={!canPush} onClick={onPush}>
+                          {ahead > 0 ? `${t('git.pushButton')} ↑${ahead}` : t('git.pushButton')}
                         </Button>
                       </div>
                     </div>
-                  )}
-
-                  {lastLog.trim().length > 0 && (
-                    <pre className="git-panel-log" role="log">{lastLog}</pre>
                   )}
                 </>
               )}

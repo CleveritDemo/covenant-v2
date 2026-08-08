@@ -41,6 +41,14 @@ function numStatLookupPaths(entry: GitPathEntry): string[] {
   return [...paths]
 }
 
+/** Stats de un archivo en un área concreta (staged o unstaged), sin sumar la otra. */
+export function gitEntryAreaStats(
+  entry: GitPathEntry,
+  map: Map<string, GitFileLineStats>,
+): GitFileLineStats | null {
+  return lookupGitNumStat(map, entry) ?? null
+}
+
 function lookupGitNumStat(
   map: Map<string, GitFileLineStats>,
   entry: GitPathEntry,

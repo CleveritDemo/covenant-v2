@@ -29,10 +29,10 @@ export const GitBranchBadge: React.FC<GitBranchBadgeProps> = ({ status, labelSty
         </span>
       )}
       {typeof status.ahead === 'number' && status.ahead > 0 && (
-        <Badge variant="accent">{`+${status.ahead}`}</Badge>
+        <Badge variant="accent">{`↑${status.ahead}`}</Badge>
       )}
       {typeof status.behind === 'number' && status.behind > 0 && (
-        <Badge variant="muted">{`−${status.behind}`}</Badge>
+        <Badge variant="muted">{`↓${status.behind}`}</Badge>
       )}
     </div>
   )

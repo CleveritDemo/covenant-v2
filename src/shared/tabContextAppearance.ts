@@ -16,6 +16,10 @@ export const TAB_CONTEXT_ICON_NAMES = [
   'search',
   'terminal',
   'settings',
+  'jira',
+  'atlassian',
+  'port',
+  'mcp',
 ] as const
 
 export type TabContextIconName = (typeof TAB_CONTEXT_ICON_NAMES)[number]

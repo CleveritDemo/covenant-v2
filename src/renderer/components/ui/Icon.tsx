@@ -47,6 +47,10 @@ export type IconName =
   | 'eraser'
   | 'undo'
   | 'redo'
+  | 'jira'
+  | 'atlassian'
+  | 'port'
+  | 'mcp'
 
 interface IconProps {
   name: IconName
@@ -362,6 +366,35 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="m15 14 5-5-5-5" />
       <path d="M20 9H9a5 5 0 0 0 0 10h4" />
+    </svg>
+  ),
+  /*
+   * Marcas: el `path` viene de simple-icons (CC0), copiado en vez de añadir el
+   * paquete — misma vía que `BrandIcon`. Van rellenas con `currentColor`
+   * porque el selector de contextos las tiñe con el color que elija el usuario.
+   */
+  jira: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0Z" />
+    </svg>
+  ),
+  mcp: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M13.85 0a4.16 4.16 0 0 0-2.95 1.217L1.456 10.66a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l9.442-9.442a2.49 2.49 0 0 1 3.541 0 2.49 2.49 0 0 1 0 3.541L8.59 12.97l-.1.1a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l.1-.098 7.03-7.034a2.49 2.49 0 0 1 3.542 0l.049.05a2.49 2.49 0 0 1 0 3.54l-8.54 8.54a1.96 1.96 0 0 0 0 2.755l1.753 1.753a.835.835 0 0 0 1.18 0 .835.835 0 0 0 0-1.18l-1.753-1.753a.266.266 0 0 1 0-.394l8.54-8.54a4.185 4.185 0 0 0 0-5.9l-.05-.05a4.16 4.16 0 0 0-2.95-1.218c-.2 0-.401.02-.6.048a4.17 4.17 0 0 0-1.17-3.552A4.16 4.16 0 0 0 13.85 0m0 3.333a.84.84 0 0 0-.59.245L6.275 10.56a4.186 4.186 0 0 0 0 5.902 4.186 4.186 0 0 0 5.902 0L19.16 9.48a.835.835 0 0 0 0-1.18.835.835 0 0 0-1.18 0l-6.985 6.984a2.49 2.49 0 0 1-3.54 0 2.49 2.49 0 0 1 0-3.54l6.983-6.985a.835.835 0 0 0 0-1.18.84.84 0 0 0-.59-.245" />
+    </svg>
+  ),
+  atlassian: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" clipRule="evenodd">
+      <path d="M12 1C12.3631 1 12.6978 1.19689 12.8741 1.51436L22.8741 19.5143C23.2377 20.1687 22.7486 21 22 21L15.6363 21C15.2896 21 14.9675 20.8204 14.7854 20.5253L10.3787 13.3863C8.47776 10.3069 8.38895 6.4407 10.1464 3.27722L11.1258 1.51436C11.3022 1.19689 11.6368 1 12 1ZM12 4.05912C10.5615 6.64846 10.5044 9.78249 12.0805 12.3358L16.1942 19L20.3005 19L12 4.05912Z" />
+      <path d="M9.2727 21C9.66564 21 10.0222 20.7699 10.184 20.4118C10.8232 18.5999 10.7168 16.6428 10.2409 14.8C9.80541 13.1133 9.06064 11.2016 7.63993 10.0831C7.1613 9.74036 6.46941 9.89587 6.1835 10.4105L1.12581 19.5143C0.762257 20.1687 1.25136 21 1.99997 21H9.2727ZM8.30446 15.3C7.98569 14.0655 7.5767 13.2119 7.22782 12.649L3.69948 19H8.52032C8.65345 18.3163 8.75857 17.0586 8.30446 15.3Z" />
+    </svg>
+  ),
+  /* El original de 400 deja 19% de aire y se veía pequeño junto al resto; los
+     trazos van de 75 a 325, así que este viewBox lo recorta dejando el ~8% de
+     margen que usa la rejilla (comparado contra `folder`). */
+  port: size => (
+    <svg width={size} height={size} viewBox="50 50 300 300" fill="currentColor" fillRule="evenodd" clipRule="evenodd">
+      <path d="M75 231.238L200.562 231.239L75 105.683V231.238ZM75 274.716V275C75 302.614 97.3858 325 125 325H325V125C325 97.3858 302.614 75 275 75H274.727L274.726 274.715H274.282V274.717L75 274.716ZM229.89 75L229.89 199.079L105.805 75H229.89Z" />
     </svg>
   ),
 }

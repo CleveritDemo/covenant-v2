@@ -4,6 +4,32 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.9.0
+
+- **Gravity ya sabe cuánto la usas.** Hay un botón nuevo en la barra del plano,
+  junto a Loops: abre **Pulse**, un panel con tu racha de días activos, los
+  prompts de hoy comparados con tu media de los últimos treinta, el total de
+  prompts, de commits y de tokens, y un mapa de calor de los últimos doce meses
+  que puedes mirar por prompts, por commits o por los dos a la vez. Hasta ahora
+  la app no guardaba ni una sola medición: lo único que contaba vivía en memoria
+  y se perdía al cerrar.
+- **Empieza en cero, a propósito.** No importa historial de ningún sitio, así
+  que el panel estará vacío hasta que envíes tu primer prompt o hagas tu primer
+  commit desde la app. No es un fallo: es que la cuenta arranca hoy.
+- **Nada de esto sale de tu máquina.** Los eventos se guardan en un fichero
+  local junto al resto de tu configuración. No hay envío a ningún servidor, ni
+  hace falta estar identificado para que Pulse funcione.
+- **El mapa de calor se tiñe con el acento de tu tema**, no con un verde fijo,
+  y usa la variante que ya viene ajustada para que se lea en los temas claros.
+- **Los selectores de contexto y de agente dejan el checkbox del sistema.** El
+  azul lo pintaba el SO, así que sobrevivía intacto a los quince temas y gritaba
+  más que el acento; ahora el estado lo lleva la propia fila, con icono por tipo
+  y un contador n/total en cada cabecera de grupo.
+- **En el pool de contextos el monograma pasó a ser el control**: relleno
+  significa que el agente lo lee, hueco que no, y el tipo deja sitio al
+  contador. La botonera del composer pierde la caja y el cristal: los chips van
+  sueltos.
+
 ## v0.8.8
 
 - **El panel git ya enseña qué cambió.** Hasta ahora te pedía un mensaje de

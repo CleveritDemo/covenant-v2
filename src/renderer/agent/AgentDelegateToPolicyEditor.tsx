@@ -6,8 +6,9 @@ import {
   type AgentCoordination,
   type DelegateToPolicy,
 } from '@shared/agentOrchestration'
+import { agentMonogram } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
-import { SettingToggle } from '../components/ui'
+import { ContextCheckOption, SettingToggle } from '../components/ui'
 import './AgentDelegateToPolicyEditor.css'
 
 export interface DelegateToPeerAgent {
@@ -88,22 +89,34 @@ export const AgentDelegateToPolicyEditor: React.FC<AgentDelegateToPolicyEditorPr
           className="agent-delegate-to-policy__specialists"
           aria-label={t('agentPane.delegateToSpecialistsList')}
         >
+          <h5 className="agent-delegate-to-policy__group-title">
+            {t('agentPane.delegateToSpecialistsList')}
+            <span className="agent-delegate-to-policy__group-count">
+              {selectedIds.size}
+              /
+              {specialists.length}
+            </span>
+          </h5>
           {specialists.length === 0 ? (
             <p className="agent-delegate-to-policy__hint">{t('agentPane.delegateToSpecialistsEmpty')}</p>
           ) : (
             <div className="agent-delegate-to-policy__list" role="group">
               {specialists.map(agent => {
                 const checked = selectedIds.has(agent.id.trim().toLowerCase())
+                const label = agent.name.trim() || agent.id
+                const mono = agentMonogram(label)
                 return (
-                  <label key={agent.id} className="agent-delegate-to-policy__check">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={event => toggleSpecialist(agent.id, event.target.checked)}
-                    />
-                    <span>{agent.name.trim() || agent.id}</span>
-                  </label>
+                  <ContextCheckOption
+                    key={agent.id}
+                    appearance="panel"
+                    icon="bot"
+                    name={label}
+                    /* Un monograma igual al nombre (QA) solo repetiría la fila. */
+                    kindLabel={mono === label.toUpperCase() ? undefined : mono}
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleSpecialist(agent.id, !checked)}
+                  />
                 )
               })}
             </div>

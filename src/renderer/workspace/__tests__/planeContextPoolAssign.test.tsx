@@ -60,9 +60,11 @@ describe('PlaneContextPool — asignación por clic', () => {
     setup()
     fireEvent.click(screen.getByRole('button', { name: /Estructura/ }))
     expect(screen.getByRole('dialog', { name: 'Asignar a agentes' })).toBeTruthy()
-    const [atlas, forja] = screen.getAllByRole('option') as HTMLInputElement[]
-    expect(atlas.checked).toBe(true)
-    expect(forja.checked).toBe(false)
+    const [atlas, forja] = screen.getAllByRole('option')
+    expect(atlas.getAttribute('aria-selected')).toBe('true')
+    expect(forja.getAttribute('aria-selected')).toBe('false')
+    // El contador de la cabecera resume el reparto.
+    expect(screen.getByRole('dialog').textContent).toContain('1/2')
   })
 
   it('marcar un agente lo asigna y desmarcar lo quita', () => {

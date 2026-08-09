@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TabContextKind } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
+import { agentMonogram } from '@shared/tabContextAppearance'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
@@ -276,7 +277,14 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
               <Icon name={openContext.icon} size={13} aria-hidden />
             </span>
             <span className="plane-context-pool__pop-name">{openContext.name}</span>
-            <span className="plane-context-pool__pop-kind">{openContext.kindLabel}</span>
+            {/* El kind ya va en el tooltip del chip; aquí pesa más el reparto. */}
+            {agents.length > 0 ? (
+              <span className="plane-context-pool__pop-count">
+                {agents.filter(agent => agent.contextIds.includes(openContext.id)).length}
+                /
+                {agents.length}
+              </span>
+            ) : null}
           </div>
 
           {agents.length > 0 ? (
@@ -289,22 +297,23 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
               {agents.map(agent => {
                 const checked = agent.contextIds.includes(openContext.id)
                 return (
-                  <label
+                  <button
                     key={agent.paneId}
+                    type="button"
+                    role="option"
+                    aria-selected={checked}
                     className={[
                       'plane-context-pool__pop-row',
                       checked ? 'plane-context-pool__pop-row--on' : '',
                     ].filter(Boolean).join(' ')}
+                    onClick={() => onToggleAssign(agent.paneId, openContext.id)}
                   >
-                    <input
-                      type="checkbox"
-                      role="option"
-                      aria-selected={checked}
-                      checked={checked}
-                      onChange={() => onToggleAssign(agent.paneId, openContext.id)}
-                    />
+                    {/* El monograma es el control: relleno = lo lee, hueco = no. */}
+                    <span className="plane-context-pool__pop-row-mono" aria-hidden="true">
+                      {agentMonogram(agent.title)}
+                    </span>
                     <span className="plane-context-pool__pop-row-name">{agent.title}</span>
-                  </label>
+                  </button>
                 )
               })}
             </div>

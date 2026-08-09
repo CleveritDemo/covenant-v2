@@ -1,4 +1,5 @@
 import React from 'react'
+import { agentMonogram } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { Badge } from '../components/ui'
 import type { AgentConfigSection } from './AgentConfigSectionRail'
@@ -15,6 +16,8 @@ export interface AgentConfigHeroChip {
 
 export interface AgentConfigHeroProps {
   name: string
+  /** Monograma explícito del agente; si falta se derivan las iniciales del nombre. */
+  monogram?: string
   role: string
   chips: AgentConfigHeroChip[]
   busy: boolean
@@ -23,14 +26,16 @@ export interface AgentConfigHeroProps {
   onChipClick: (section: AgentConfigSection) => void
 }
 
-function agentInitial(name: string): string {
-  const trimmed = name.trim()
-  if (!trimmed) return '?'
-  return trimmed.charAt(0).toUpperCase()
+function heroMonogram(monogram: string | undefined, name: string): string {
+  const explicit = (monogram ?? '').trim().toUpperCase()
+  if (explicit) return explicit.slice(0, 2)
+  if (!name.trim()) return '?'
+  return agentMonogram(name)
 }
 
 export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   name,
+  monogram,
   role,
   chips,
   busy,
@@ -51,7 +56,7 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   return (
     <div className="agent-config-hero">
       <span className="agent-config-hero__avatar" aria-hidden>
-        {agentInitial(name)}
+        {heroMonogram(monogram, name)}
       </span>
       <div className="agent-config-hero__text">
         <p className="agent-config-hero__name">

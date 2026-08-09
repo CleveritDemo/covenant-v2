@@ -3,6 +3,7 @@ import type { TabContext } from '@shared/tabContext'
 import { isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Button, ContextCheckOption, SettingToggle } from '../components/ui'
+import { contextIconName } from './tabContextKindIcons'
 import './AgentConfigContextSummary.css'
 
 export interface AgentConfigContextSummaryProps {
@@ -45,6 +46,7 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
       <ContextCheckOption
         appearance="panel"
         name={context.name}
+        icon={contextIconName(context)}
         kindLabel={t(`tabContexts.kind_${context.kind}`)}
         checked={selectedContextIds.includes(context.id)}
         disabled={locked}
@@ -53,19 +55,33 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
     </li>
   )
 
+  const renderGroup = (title: string, items: TabContext[]) => (
+    <div className="agent-config-contexts__group">
+      <h5 className="agent-config-contexts__group-title">
+        {title}
+        <span className="agent-config-contexts__group-count">
+          {items.filter(context => selectedContextIds.includes(context.id)).length}
+          /
+          {items.length}
+        </span>
+      </h5>
+      <ul className="agent-config-contexts__list" role="listbox" aria-multiselectable="true">
+        {items.map(renderItem)}
+      </ul>
+    </div>
+  )
+
   return (
     <div className="agent-config-contexts">
       <header className="agent-config-contexts__head">
-        <div>
-          <h4 className="agent-config-contexts__title">{t('tabContexts.barTitle')}</h4>
-          <p className="agent-config-contexts__summary">
-            {!hasDiskContexts
-              ? t('tabContexts.empty')
-              : selectedCount === 0
-                ? t('agentPane.configContextsNoneActive')
-                : t('tabContexts.pickerSelected', { n: selectedCount })}
-          </p>
-        </div>
+        {/* El título de la sección ya lo pinta el panel: aquí solo el estado. */}
+        <p className="agent-config-contexts__summary">
+          {!hasDiskContexts
+            ? t('tabContexts.empty')
+            : selectedCount === 0
+              ? t('agentPane.configContextsNoneActive')
+              : t('tabContexts.pickerSelected', { n: selectedCount })}
+        </p>
         <Button variant="secondary" size="sm" disabled={locked} onClick={onOpenContextsModal}>
           {t('tabContexts.manage')}
         </Button>
@@ -82,22 +98,10 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
         </div>
       ) : (
         <div className="agent-config-contexts__groups">
-          {projectContexts.length > 0 && (
-            <div className="agent-config-contexts__group">
-              <h5 className="agent-config-contexts__group-title">{t('tabContexts.groupProject')}</h5>
-              <ul className="agent-config-contexts__list" role="listbox" aria-multiselectable="true">
-                {projectContexts.map(renderItem)}
-              </ul>
-            </div>
-          )}
-          {agentResultContexts.length > 0 && (
-            <div className="agent-config-contexts__group">
-              <h5 className="agent-config-contexts__group-title">{t('tabContexts.groupAgentResults')}</h5>
-              <ul className="agent-config-contexts__list" role="listbox" aria-multiselectable="true">
-                {agentResultContexts.map(renderItem)}
-              </ul>
-            </div>
-          )}
+          {projectContexts.length > 0
+            && renderGroup(t('tabContexts.groupProject'), projectContexts)}
+          {agentResultContexts.length > 0
+            && renderGroup(t('tabContexts.groupAgentResults'), agentResultContexts)}
         </div>
       )}
 

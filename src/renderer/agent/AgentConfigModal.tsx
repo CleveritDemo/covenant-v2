@@ -365,6 +365,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       headerContent={(
         <AgentConfigHero
           name={draft.name}
+          monogram={draft.monogram}
           role={draft.role}
           chips={heroChips}
           busy={busy}

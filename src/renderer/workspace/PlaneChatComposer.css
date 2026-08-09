@@ -78,11 +78,8 @@
   gap: 4px;
   min-width: 0;
   max-width: min(var(--plane-chat-column-width, 640px), calc(100vw - 48px));
-  padding: 3px;
-  background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 9px;
-  backdrop-filter: blur(6px);
+  /* Sin caja propia: los chips ya se leen sueltos sobre el plano. */
+  padding: 0;
 }
 
 /* Chip: una sola gramática para los tres controles (menú, toggle, toggle).

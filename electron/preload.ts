@@ -5,6 +5,7 @@ import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServerSummary, McpServersListRequest } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
+import type { PulseSnapshot } from '../src/shared/pulseEvents'
 import type {
   GitCommandResult,
   GitDiffForAiPayload,
@@ -882,6 +883,9 @@ const api = {
   },
   checkForUpdates(): Promise<UpdateState> {
     return ipcRenderer.invoke(IPC.UPDATE_CHECK)
+  },
+  pulseSnapshot(): Promise<PulseSnapshot> {
+    return ipcRenderer.invoke(IPC.PULSE_SNAPSHOT)
   },
 }
 

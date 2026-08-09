@@ -180,7 +180,7 @@ export function runGit(
   })
 }
 
-async function getRepoRoot(sessionCwd: string): Promise<string | null> {
+export async function getRepoRoot(sessionCwd: string): Promise<string | null> {
   const r = await runGit(sessionCwd, ['rev-parse', '--show-toplevel'], TIMEOUT_LOCAL_MS)
   if (r.exitCode !== 0) return null
   const root = r.stdout.trim().split('\n')[0]?.trim()

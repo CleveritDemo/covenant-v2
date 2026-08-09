@@ -16,6 +16,8 @@ import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from 
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
+import { recordPulseEvent } from './pulseStore'
+import { getRepoRoot } from './gitSessionOps'
 import {
   buildContextCatalogPrompt,
   buildContextPromptDelivery,
@@ -1039,6 +1041,8 @@ export function startAgentTurn(
   const contextDelivery = planContextDelivery(request, cwd)
   const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
   let contextDeliveryCommitted = false
+  const turnStartedAt = Date.now()
+  const tokensAtStart = getContextDeliveryMetrics()
 
   const failBeforeSpawn = (message: string): void => {
     const current = agentRuns.get(request.paneId)
@@ -1271,8 +1275,39 @@ export function startAgentTurn(
           message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
         })
       }
+      recordTurnInPulse()
       finishAgentTurn(win, request.paneId, code ?? 0)
     })
+  }
+
+  /**
+   * Un turno = un prompt del usuario, sin importar cuántas fases de contexto
+   * hicieron falta. Solo se llama en el cierre real (las continuaciones
+   * retornan antes).
+   *
+   * ponytail: los tokens salen del delta del contador global, no de una
+   * atribución por panel. Con varios paneles corriendo a la vez el reparto
+   * entre turnos puede sesgarse, pero el total —que es lo que muestra el
+   * hero band— queda exacto. Si algún día hace falta el desglose por
+   * agente/modelo, el upgrade es propagar el usage por paneId desde el parser.
+   */
+  function recordTurnInPulse(): void {
+    const after = getContextDeliveryMetrics()
+    const event = {
+      ts: turnStartedAt,
+      kind: 'prompt' as const,
+      provider: request.provider,
+      agentId: request.agentId,
+      tokensIn: Math.max(0, after.inputTokens - tokensAtStart.inputTokens),
+      tokensOut: Math.max(0, after.outputTokens - tokensAtStart.outputTokens),
+    }
+    if (!cwd) {
+      recordPulseEvent(event)
+      return
+    }
+    void getRepoRoot(cwd)
+      .then(root => recordPulseEvent(root ? { ...event, repo: basename(root) } : event))
+      .catch(() => recordPulseEvent(event))
   }
 
   startPhase(initialPrompt, 0)

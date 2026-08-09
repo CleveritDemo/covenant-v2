@@ -38,6 +38,19 @@ export function isReplicaAgentId(toAgentId: string, baseAgentId?: string): boole
   return /^.+-\d+$/i.test(to)
 }
 
+/**
+ * Réplica efímera a borrar al completar/abortar: solo si el pending trajo
+ * `baseAgentId` (spawn). Nunca el experto base.
+ */
+export function shouldDisposeReplicaOnComplete(input: {
+  toAgentId: string
+  baseAgentId?: string
+}): boolean {
+  const base = input.baseAgentId?.trim()
+  if (!base) return false
+  return isReplicaAgentId(input.toAgentId, base)
+}
+
 /** Hint corto del path de worktree (p. ej. `tab/dlg-id`). */
 export function shortWorktreeHint(worktreePath: string | undefined): string | undefined {
   const raw = worktreePath?.trim()

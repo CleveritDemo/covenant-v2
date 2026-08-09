@@ -300,7 +300,7 @@ const en = {
     acceptDelegationsLabel: 'Accept delegations',
     acceptDelegationsHint: 'Allow an orchestrator or product owner to assign subtasks to this agent.',
     allowExpertReplicasLabel: 'Clone experts on demand',
-    allowExpertReplicasHint: 'When an expert is busy, spawn a temporary replica for parallel delegations to the same role. Worktrees stay on for every delegation.',
+    allowExpertReplicasHint: 'When an expert is busy, spawn a temporary replica for parallel delegations to the same role. The replica (pane, agent, and chat) is removed when the task ends. Worktrees stay on for every delegation.',
     orchestrationMaxRoundsLabel: 'Delegation waves',
     orchestrationMaxRoundsHint: 'Maximum delegation waves per user request for this coordinator. “Unlimited” means no host wave cap.',
     orchestrationMaxRoundsUnlimited: 'Unlimited',

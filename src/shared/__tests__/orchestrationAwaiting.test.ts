@@ -3,6 +3,7 @@ import {
   buildOrchestrationAwaitingView,
   isReplicaAgentId,
   shortWorktreeHint,
+  shouldDisposeReplicaOnComplete,
 } from '../orchestrationAwaiting'
 
 describe('isReplicaAgentId', () => {
@@ -14,6 +15,27 @@ describe('isReplicaAgentId', () => {
   it('falls back to -N suffix heuristic', () => {
     expect(isReplicaAgentId('frontend-2')).toBe(true)
     expect(isReplicaAgentId('frontend')).toBe(false)
+  })
+})
+
+describe('shouldDisposeReplicaOnComplete', () => {
+  it('never disposes the base expert', () => {
+    expect(shouldDisposeReplicaOnComplete({
+      toAgentId: 'frontend',
+      baseAgentId: 'frontend',
+    })).toBe(false)
+    expect(shouldDisposeReplicaOnComplete({ toAgentId: 'frontend' })).toBe(false)
+  })
+
+  it('disposes spawned replicas with baseAgentId', () => {
+    expect(shouldDisposeReplicaOnComplete({
+      toAgentId: 'frontend-2',
+      baseAgentId: 'frontend',
+    })).toBe(true)
+  })
+
+  it('ignores -N heuristic alone (no spawn marker)', () => {
+    expect(shouldDisposeReplicaOnComplete({ toAgentId: 'frontend-2' })).toBe(false)
   })
 })
 

@@ -302,7 +302,7 @@ const es = {
     acceptDelegationsLabel: 'Aceptar delegaciones',
     acceptDelegationsHint: 'Permite que un orquestador o product owner le asigne subtareas.',
     allowExpertReplicasLabel: 'Clonar expertos a demanda',
-    allowExpertReplicasHint: 'Si un experto está ocupado, crea una réplica temporal para delegaciones en paralelo al mismo rol. Los worktrees siguen activos en cada delegación.',
+    allowExpertReplicasHint: 'Si un experto está ocupado, crea una réplica temporal para delegaciones en paralelo al mismo rol. La réplica (pane, agente y chat) se elimina al terminar la tarea. Los worktrees siguen activos en cada delegación.',
     orchestrationMaxRoundsLabel: 'Oleadas de delegación',
     orchestrationMaxRoundsHint: 'Máximo de oleadas de delegación por pedido del usuario para este coordinador. «Sin límite» no aplica tope del host.',
     orchestrationMaxRoundsUnlimited: 'Sin límite',

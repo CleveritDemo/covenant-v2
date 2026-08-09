@@ -5,7 +5,6 @@ import {
   contextReportCounts,
   countFolderNodes,
   parseContextDoc,
-  parseDeps,
   parseFolderTree,
   splitFences,
   type ContextDoc,
@@ -13,6 +12,7 @@ import {
 } from '@shared/contextReportDoc'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../components/AiMarkdown'
+import { JsonTree, parseJsonTree } from '../components/JsonTree'
 import './ContextReport.css'
 
 /** Texto de la primera `<small>` del meta: `148 carpetas · 3 anotadas`. */
@@ -60,18 +60,27 @@ const ContextNotes: React.FC<{ doc: ContextDoc }> = ({ doc }) => {
   )
 }
 
-/** Cuerpo por defecto: fences en `<pre>`, el resto por el markdown del chat. */
+/**
+ * Cuerpo por defecto: JSON en árbol plegable, fences en `<pre>`, el resto por
+ * el markdown del chat. El JSON crudo (manifiestos, .mcp.json) caía en el
+ * markdown y salía como una línea suelta por clave.
+ */
 const GenericBody: React.FC<{ auto: string }> = ({ auto }) => {
   const { t } = useT()
-  const chunks = useMemo(() => splitFences(auto), [auto])
+  const chunks = useMemo(
+    () => splitFences(auto).map(chunk => ({ ...chunk, json: parseJsonTree(chunk.text) })),
+    [auto],
+  )
   if (!chunks.length) return <p className="context-report__empty">{t('tabContexts.reportEmpty')}</p>
 
   return (
     <>
       {chunks.map((chunk, index) => (
-        chunk.fence
-          ? <pre key={index} className="context-report__code">{chunk.text}</pre>
-          : <AiMarkdown key={index} content={chunk.text} />
+        chunk.json !== undefined
+          ? <JsonTree key={index} value={chunk.json} />
+          : chunk.fence
+            ? <pre key={index} className="context-report__code">{chunk.text}</pre>
+            : <AiMarkdown key={index} content={chunk.text} />
       ))}
     </>
   )
@@ -152,58 +161,13 @@ const FolderTreeBody: React.FC<{ auto: string }> = ({ auto }) => {
   )
 }
 
-const DepsBody: React.FC<{ auto: string }> = ({ auto }) => {
-  const { t } = useT()
-  const deps = useMemo(() => parseDeps(auto), [auto])
-  // Manifiesto que no es JSON (Cargo.toml, go.mod…): se lee como texto.
-  if (!deps) return <GenericBody auto={auto} />
-
-  const all = [
-    ...deps.deps.map(dep => ({ ...dep, dev: false })),
-    ...deps.devDeps.map(dep => ({ ...dep, dev: true })),
-  ]
-
-  return (
-    <div className="context-report__deps">
-      {all.length ? (
-        <section>
-          <h3>{t('tabContexts.reportDeps')}</h3>
-          <ul className="context-report__dep-list">
-            {all.map(dep => (
-              <li key={`${dep.name}${dep.dev ? ':dev' : ''}`}>
-                <span className="context-report__dep-name">{dep.name}</span>
-                {dep.dev ? <span className="context-report__dep-dev">{t('tabContexts.reportDepDev')}</span> : null}
-                <span className="context-report__dep-version">{dep.version}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {deps.scripts.length ? (
-        <section>
-          <h3>{t('tabContexts.reportScripts')}</h3>
-          <ul className="context-report__script-list">
-            {deps.scripts.map(script => (
-              <li key={script.name}>
-                <span className="context-report__dep-name">{script.name}</span>
-                <code>{script.command}</code>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {!all.length && !deps.scripts.length ? <GenericBody auto={auto} /> : null}
-    </div>
-  )
-}
-
 /** Cada kind con vista dedicada añade su caso; el resto cae en el genérico. */
 const ContextBody: React.FC<{ kind: TabContextKind; auto: string }> = ({ kind, auto }) => {
   switch (kind) {
     case 'folderTree':
       return <FolderTreeBody auto={auto} />
-    case 'deps':
-      return <DepsBody auto={auto} />
+    // `deps` no tiene vista propia: el manifiesto JSON lo pinta el árbol del
+    // genérico (y Cargo.toml/go.mod, que no son JSON, caen a texto).
     default:
       return <GenericBody auto={auto} />
   }

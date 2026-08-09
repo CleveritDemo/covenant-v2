@@ -705,6 +705,7 @@ const en = {
     footerHint: 'project repo · pull with --ff-only · commit only with staging · Actions via gh · ⌘G or esc close',
     loadingAriaLabel: 'Loading git status',
     refreshButton: 'refresh',
+    worktreeLabel: 'Worktree',
     pullButton: 'pull',
     repoRootLabel: 'repo root',
     notGitRepo: 'This folder is not a git repository.',

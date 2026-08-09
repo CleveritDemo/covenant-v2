@@ -78,7 +78,16 @@ export const Select: React.FC<SelectProps> = ({
       const trigger = triggerRef.current?.getBoundingClientRect()
       if (trigger) {
         const { top, bottom, maxHeight } = panelPlacement(trigger)
-        setBox({ top, bottom, left: trigger.left, width: trigger.width, maxHeight })
+        // Ancho del disparador como mínimo, pero el panel crece con su contenido
+        // (un disparador estrecho no debe recortar cada opción a puntos suspensivos).
+        setBox({
+          top,
+          bottom,
+          left: trigger.left,
+          minWidth: trigger.width,
+          maxWidth: Math.max(trigger.width, Math.min(460, window.innerWidth - trigger.left - 8)),
+          maxHeight,
+        })
       }
       setActive(selectedIndexRef.current >= 0 ? selectedIndexRef.current : 0)
       // El panel toma el foco para que las flechas funcionen sin tabular por las opciones.

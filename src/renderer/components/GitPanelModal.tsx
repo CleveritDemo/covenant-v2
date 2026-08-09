@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig } from '@shared/configSchema'
 import type { GitCommandResult, GitRepoStatus, GitTarget } from '@shared/gitSessionTypes'
+import type { GitWorktreeEntry } from '@shared/gitWorktree'
 import { suggestGitCommitMessage, aiOptionsFromConfig } from '@ai/aiClient'
 import { useT } from '@i18n/useT'
 import { shortcutLabel } from '@i18n/modKeyLabel'
@@ -10,6 +11,7 @@ import { Button } from './ui/Button'
 import { TextArea } from './ui/TextArea'
 import { Spinner } from './ui/Spinner'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { Select } from './ui/Select'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
 import { GitBranchBadge } from './git/GitBranchBadge'
@@ -18,6 +20,7 @@ import { GitHubActionsPanel } from './git/GitHubActionsPanel'
 import { GitDiffPane, type GitDiffSelection } from './git/GitDiffPane'
 import { formatGitCommandResult } from './git/gitErrorI18n'
 import { splitGitFilesByArea } from './git/gitPathUtils'
+import { gitWorktreeOptions } from './git/gitWorktreeOptions'
 import { gitAreaTotals, parseGitNumStat } from './git/gitDiffNumStat'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './GitPanelModal.css'
@@ -53,9 +56,17 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     null,
   )
   const aiAbortRef = useRef<AbortController | null>(null)
-  const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
-  const targetRef = useRef(target)
-  targetRef.current = target
+  // Worktrees del repo: inspeccionar el diff de otro sin mover la pestaña.
+  const [worktrees, setWorktrees] = useState<GitWorktreeEntry[]>([])
+  const [worktreePath, setWorktreePath] = useState('')
+  const propKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
+  const effectiveTarget = useMemo<GitTarget>(
+    () => (worktreePath ? { path: worktreePath } : target),
+    [worktreePath, propKey], // eslint-disable-line react-hooks/exhaustive-deps -- target por valor
+  )
+  const targetKey = worktreePath || propKey
+  const targetRef = useRef(effectiveTarget)
+  targetRef.current = effectiveTarget
 
   useEffect(() => {
     return () => {
@@ -87,6 +98,19 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     void refresh()
     setActionsRefreshToken(n => n + 1)
   }, [refresh])
+
+  // Lista de worktrees: se recarga al abrir y al cambiar de repo (no en cada switch).
+  useEffect(() => {
+    if (!open) return
+    setWorktreePath('')
+    let alive = true
+    void window.api
+      .gitWorktreeList(target)
+      .then(list => { if (alive) setWorktrees(list) })
+      .catch(() => { if (alive) setWorktrees([]) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- target por valor
+  }, [open, propKey])
 
   useEffect(() => {
     if (!open) return
@@ -285,6 +309,18 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                 <>
                   <div className="git-panel-top-bar">
                     <div className="git-panel-top-bar__lead">
+                      {worktrees.length > 1 && (
+                        <div className="git-panel-top-bar__worktree">
+                          <Select
+                            size="sm"
+                            aria-label={t('git.worktreeLabel')}
+                            value={worktreePath || status.repoRoot || ''}
+                            placeholder={t('git.worktreeLabel')}
+                            options={gitWorktreeOptions(worktrees)}
+                            onChange={setWorktreePath}
+                          />
+                        </div>
+                      )}
                       <div
                         className="git-panel-top-bar__cwd"
                       >
@@ -444,12 +480,12 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
               ) : null}
             </div>
             <div className="git-panel-side__pane" hidden={effectiveTab !== 'diff'}>
-              <GitDiffPane target={target} selection={selection} refreshToken={statusToken} />
+              <GitDiffPane target={effectiveTarget} selection={selection} refreshToken={statusToken} />
             </div>
             {/* Montado siempre: es quien avisa de si el remoto es de GitHub. */}
             <div className="git-panel-side__pane" hidden={effectiveTab !== 'actions'}>
               <GitHubActionsPanel
-                target={target}
+                target={effectiveTarget}
                 repoStatus={status}
                 refreshToken={actionsRefreshToken}
                 onAvailable={setActionsAvailable}

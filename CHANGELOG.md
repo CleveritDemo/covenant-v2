@@ -4,6 +4,41 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.10.0
+
+- **El editor de archivos ya entiende el código, no solo lo colorea.** Abre un
+  `.ts`, `.rs`, `.cs` o `.java` desde el explorador y tienes ⌘-clic para ir a la
+  definición, ⌥⌘-clic para ver todas las referencias en un panel, hover con la
+  firma y la documentación, F2 para renombrar un símbolo por todo el proyecto,
+  errores subrayados según los ve el compilador de verdad, la bombilla del
+  margen para aplicar su corrección, y autocompletado que sabe qué existe en
+  lugar de repetir palabras que ya están en pantalla.
+- **Ir a la definición cruza de archivo.** Si el símbolo vive en otro fichero
+  del proyecto, el explorador lo abre y salta a la línea. El renombrado también
+  cruza: cuando toca más de un archivo te dice cuántos antes de tocar nada.
+- **Los servidores se bajan solos, cuando hacen falta y con tu permiso.** Al
+  abrir el primer archivo de un lenguaje, el editor te dice qué va a descargar y
+  cuánto ocupa, y no baja nada hasta que aceptas. Se verifica el hash de lo
+  descargado antes de instalarlo.
+- **Si falta Java o .NET, te dice dónde está.** En vez de fallar en seco, busca
+  la versión que sí sirve en los sitios donde suele instalarse y te da el
+  `export PATH=…` exacto para dejarla a mano, o el `brew install` si no hay
+  ninguna. Un botón vuelve a comprobar sin reiniciar la app.
+- **Todo esto se apaga y se gestiona desde Ajustes → Avanzado**, donde ves qué
+  servidor tienes instalado, cuánto ocupa en disco y puedes borrarlo o
+  instalarlo por adelantado. Nada de esto habla con ningún servicio externo: los
+  servidores corren en tu máquina.
+- **El árbol de archivos ya no parpadea.** Al expandir una carpeta se vaciaba
+  entero y se repoblaba acto seguido, con un "Empty folder" de por medio, y con
+  la raíz en una carpeta con movimiento —tu home, por ejemplo— eso se repetía
+  solo, sin tocar nada, porque cualquier escritura de fondo de otra app
+  disparaba una recarga. Ahora expandir no toca lo ya cargado y los cambios de
+  carpetas que no tienes abiertas se ignoran.
+- **En Pulse, las cifras grandes dejan de desbordar la tarjeta.** Por encima del
+  millón se abrevian (52M) y el número exacto vive en el tooltip. El detalle de
+  cada día del mapa de calor pasó del renglón de abajo a un tooltip anclado a la
+  celda que estás mirando.
+
 ## v0.9.0
 
 - **Gravity ya sabe cuánto la usas.** Hay un botón nuevo en la barra del plano,

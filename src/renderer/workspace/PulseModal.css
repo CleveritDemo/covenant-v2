@@ -330,7 +330,7 @@
 .pulse-agent__chip {
   flex: 0 0 auto;
   padding: 1px 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   letter-spacing: 0.04em;
   border-radius: 999px;
@@ -347,7 +347,7 @@
 }
 
 .pulse-agent__num {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -499,7 +499,7 @@
 
 .pulse-agent__list dd {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }

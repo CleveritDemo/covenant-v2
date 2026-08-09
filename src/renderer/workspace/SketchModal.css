@@ -111,7 +111,7 @@
 .sketch-modal__hint {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   color: var(--text-muted);
   overflow: hidden;

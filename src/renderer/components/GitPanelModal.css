@@ -366,7 +366,7 @@
 }
 
 .git-file-list__filter-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -410,7 +410,7 @@
 }
 
 .git-file-list__count {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 600;
   color: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
@@ -453,7 +453,7 @@ button.git-file-list__name {
   text-align: left;
   cursor: pointer;
   font: inherit;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
 }
 
@@ -473,7 +473,7 @@ button.git-file-list__name {
 }
 
 .git-file-list__name {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   min-width: 0;
   overflow: hidden;
@@ -488,7 +488,7 @@ button.git-file-list__name {
 
 /* Chip de estado: la letra dice el tipo, el color el signo del cambio */
 .git-file-list__st {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -530,7 +530,7 @@ button.git-file-list__name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 600;
   min-width: 4.5rem;
@@ -623,7 +623,7 @@ button.git-file-list__name {
 }
 
 .git-panel-log-strip__label {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   color: var(--text);
   overflow: hidden;
@@ -658,7 +658,7 @@ button.git-file-list__name {
 }
 
 .git-panel-commit-summary {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -667,7 +667,7 @@ button.git-file-list__name {
 }
 
 .git-panel-commit-kbd {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   margin-left: 6px;
   opacity: 0.7;
@@ -676,7 +676,7 @@ button.git-file-list__name {
 .git-panel-log {
   margin: 0;
   padding: 8px 10px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   line-height: 1.4;
   white-space: pre-wrap;

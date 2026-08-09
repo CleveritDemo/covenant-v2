@@ -3,7 +3,7 @@
   align-items: baseline;
   gap: 8px;
   min-height: 14px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   line-height: 1.4;
   color: var(--text-muted);

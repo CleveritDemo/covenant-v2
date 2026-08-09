@@ -120,7 +120,7 @@
 }
 
 .select-panel__hint {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   color: var(--text-muted);
   overflow: hidden;

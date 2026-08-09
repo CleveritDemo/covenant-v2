@@ -188,7 +188,7 @@ html[data-reduce-motion="true"] {
   gap: 4px 8px;
   font-size: 10px;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .gh-actions-run-row__branch {
@@ -301,7 +301,7 @@ html[data-reduce-motion="true"] {
 }
 
 .gh-job__name {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 600;
   color: var(--text);
@@ -332,7 +332,7 @@ html[data-reduce-motion="true"] {
 .gh-job__bar--running { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 .gh-job__dur {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   color: var(--text-muted);
   text-align: right;
@@ -347,7 +347,7 @@ html[data-reduce-motion="true"] {
   align-items: baseline;
   gap: 7px;
   padding: 2px 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   line-height: 1.45;
   color: var(--text-muted);
@@ -407,7 +407,7 @@ html[data-reduce-motion="true"] {
   padding: 5px 7px;
   border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   background: color-mix(in srgb, var(--bg) 45%, transparent);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   line-height: 1.5;
   color: var(--text-muted);

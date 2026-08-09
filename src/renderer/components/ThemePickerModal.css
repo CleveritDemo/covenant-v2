@@ -113,7 +113,7 @@
   max-width: 46%;
   margin-right: calc(-1 * var(--tp-tab-overlap));
   flex-shrink: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9px;
   line-height: 1.2;
   color: var(--tp-muted);
@@ -184,7 +184,7 @@
   align-items: center;
   justify-content: center;
   width: 24px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 500;
   color: var(--tp-muted);
@@ -243,7 +243,7 @@ html[data-reduce-motion="true"] {
   padding: 5px 10px 6px;
   border-top: 1px solid var(--tp-border);
   background: var(--tp-surface);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .theme-picker-preview-name {

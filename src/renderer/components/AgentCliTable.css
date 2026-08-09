@@ -16,7 +16,7 @@
 
 .agent-cli-table__tally {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -71,7 +71,7 @@
 }
 
 .agent-cli-row__cmd {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   color: var(--text-muted);
   overflow: hidden;
@@ -83,7 +83,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   white-space: nowrap;
   padding: 2px 7px;
@@ -139,7 +139,7 @@
 
 .agent-cli-row__note {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   line-height: 1.5;
   color: var(--text-muted);

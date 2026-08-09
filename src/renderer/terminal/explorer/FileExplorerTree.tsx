@@ -13,6 +13,7 @@ import { FILE_EXPLORER_ERROR_CODES } from '@shared/fileExplorerErrorCodes'
 import { useT } from '@i18n/useT'
 import { shortcutLabel } from '@i18n/modKeyLabel'
 import { Icon } from '../../components/ui/Icon'
+import { Tooltip } from '../../components/ui/Tooltip'
 import { ExplorerToolButton } from './ExplorerToolButton'
 import { FileExplorerCreateAction } from './FileExplorerCreateAction'
 import {
@@ -271,7 +272,8 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const expandedKey = useMemo(() => expandedPathsKey(expandedRelPaths), [expandedRelPaths])
     const loadedExpandedKeyRef = useRef<string | null>(null)
     const loadedSessionRef = useRef<string | null>(null)
-    const lastManualResetAtRef = useRef<number>(0)
+    /** Raíz a la que pertenece `childrenByDir`; si el cwd deja de coincidir, el cache está caduco. */
+    const cacheRootRef = useRef<string>('')
 
     const reloadExpandedDirs = useCallback(async (): Promise<void> => {
       loadedExpandedKeyRef.current = expandedPathsKey(expandedRelPaths)
@@ -293,7 +295,6 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         const ok = await canResetSessionRoot()
         if (!ok) return
       }
-      lastManualResetAtRef.current = Date.now()
       setRootError(null)
       setContextMenu(null)
       loadedExpandedKeyRef.current = null
@@ -311,6 +312,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       setRenamingEntry(null)
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
       setTreeRootCwd(cwd)
+      cacheRootRef.current = cwd
       onSessionRootChange?.()
       window.api.fileExplorerWatchStart(sessionId)
       await loadDir('')
@@ -402,8 +404,13 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       setMultiSelected(new Set())
       loadedExpandedKeyRef.current = null
       loadedSessionRef.current = sessionId
+      // Cache nuevo: todavía no pertenece a ninguna raíz conocida. `syncCwd`
+      // adopta la primera que lea en vez de disparar un reset gratuito.
+      cacheRootRef.current = ''
       void window.api.getSessionCwd(sessionId).then(cwd => {
-        setTreeRootCwd(normalizeSessionCwd(cwd))
+        const normalized = normalizeSessionCwd(cwd)
+        setTreeRootCwd(normalized)
+        cacheRootRef.current = normalized
       })
       void loadDir('')
     }, [sessionId, loadDir])
@@ -451,21 +458,30 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       }
     }, [expandedKey, loadDir, sessionId])
 
+    // El cache pertenece SIEMPRE a una raíz concreta, y `cacheRootRef` dice a
+    // cuál. Antes esto se guiaba por un debounce temporal: se actualizaba la
+    // etiqueta de la raíz y, si el cambio caía dentro de los 3 s siguientes a un
+    // reset manual, se salía sin vaciar el cache. El resultado era una cabecera
+    // diciendo una carpeta y un árbol mostrando el contenido de otra, y al abrir
+    // un archivo la ruta se resolvía contra la raíz nueva: "Could not load".
+    //
+    // Comparar contra la raíz del cache en vez de contra un reloj hace el
+    // invariante explícito y quita el caso de carrera: si no coinciden, se
+    // recarga; si coinciden, no hay nada que hacer aunque acabe de haber un
+    // reset manual. La etiqueta la mueve `resetTreeForNewCwd`, así que ya no
+    // puede adelantarse al contenido.
     useEffect(() => {
-      let lastCwd = ''
-      const MANUAL_RESET_DEBOUNCE_MS = 3000
       const syncCwd = async (): Promise<void> => {
         const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
         if (!cwd) return
-        if (lastCwd === '') {
-          lastCwd = cwd
+        if (cacheRootRef.current === '') {
+          // Primera lectura tras montar: el efecto de sesión ya está cargando
+          // para esta raíz, así que se adopta en vez de resetear.
+          cacheRootRef.current = cwd
           setTreeRootCwd(cwd)
           return
         }
-        if (cwd === lastCwd) return
-        lastCwd = cwd
-        setTreeRootCwd(cwd)
-        if (Date.now() - lastManualResetAtRef.current < MANUAL_RESET_DEBOUNCE_MS) return
+        if (cwd === cacheRootRef.current) return
         await resetTreeForNewCwd()
       }
       void syncCwd()
@@ -1234,6 +1250,31 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           >
             <Icon name="plus" size={11} aria-hidden />
           </ExplorerToolButton>
+          <Tooltip content={t('fileExplorer.toolbar.foldAll')}>
+            <ExplorerToolButton
+              aria-label={t('fileExplorer.toolbar.foldAll')}
+              disabled={expandedRelPaths.length === 0}
+              onClick={() => commitExpandedPaths([])}
+            >
+              <Icon name="fold-all" size={11} aria-hidden />
+            </ExplorerToolButton>
+          </Tooltip>
+          <Tooltip
+            content={showHiddenDirs
+              ? t('fileExplorer.toolbar.hideHidden')
+              : t('fileExplorer.toolbar.showHidden')}
+            hint={t('fileExplorer.toolbar.heavyDirsHint')}
+          >
+            <ExplorerToolButton
+              aria-label={showHiddenDirs
+                ? t('fileExplorer.toolbar.hideHidden')
+                : t('fileExplorer.toolbar.showHidden')}
+              aria-pressed={showHiddenDirs}
+              onClick={() => onShowHiddenDirsChange(!showHiddenDirs)}
+            >
+              <Icon name={showHiddenDirs ? 'eye' : 'eye-off'} size={11} aria-hidden />
+            </ExplorerToolButton>
+          </Tooltip>
           {onCloseExplorer && (
             <ExplorerToolButton
               variant="close"

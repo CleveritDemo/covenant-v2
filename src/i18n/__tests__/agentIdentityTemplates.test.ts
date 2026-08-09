@@ -31,4 +31,13 @@ describe('plantillas de identidad', () => {
     const ids = AGENT_IDENTITY_TEMPLATES.map(template => template.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+
+  // Los chips se distinguen sólo por su etiqueta: dos iguales serían dos
+  // botones indistinguibles que rellenan cosas distintas.
+  it.each([['en', en], ['es', es]] as const)('%s no repite etiquetas', (_name, locale) => {
+    const labels = AGENT_IDENTITY_TEMPLATES.map(
+      template => lookup(locale as unknown as Record<string, unknown>, template.labelKey),
+    )
+    expect(new Set(labels).size).toBe(labels.length)
+  })
 })

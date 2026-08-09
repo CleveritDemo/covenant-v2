@@ -40,6 +40,39 @@ export const AGENT_IDENTITY_TEMPLATES = [
       'agentPane.templateImplementerRule3',
     ],
   },
+  {
+    id: 'productOwner',
+    labelKey: 'agentPane.templateProductOwnerLabel',
+    roleKey: 'agentPane.templateProductOwnerRole',
+    objectiveKey: 'agentPane.templateProductOwnerObjective',
+    ruleKeys: [
+      'agentPane.templateProductOwnerRule1',
+      'agentPane.templateProductOwnerRule2',
+      'agentPane.templateProductOwnerRule3',
+    ],
+  },
+  {
+    id: 'backendDeveloper',
+    labelKey: 'agentPane.templateBackendLabel',
+    roleKey: 'agentPane.templateBackendRole',
+    objectiveKey: 'agentPane.templateBackendObjective',
+    ruleKeys: [
+      'agentPane.templateBackendRule1',
+      'agentPane.templateBackendRule2',
+      'agentPane.templateBackendRule3',
+    ],
+  },
+  {
+    id: 'frontendDeveloper',
+    labelKey: 'agentPane.templateFrontendLabel',
+    roleKey: 'agentPane.templateFrontendRole',
+    objectiveKey: 'agentPane.templateFrontendObjective',
+    ruleKeys: [
+      'agentPane.templateFrontendRule1',
+      'agentPane.templateFrontendRule2',
+      'agentPane.templateFrontendRule3',
+    ],
+  },
 ] as const
 
 export type AgentIdentityTemplate = (typeof AGENT_IDENTITY_TEMPLATES)[number]

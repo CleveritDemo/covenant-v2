@@ -18,6 +18,9 @@ export type IconName =
   | 'send'
   | 'stop'
   | 'search'
+  | 'eye'
+  | 'eye-off'
+  | 'fold-all'
   | 'git-branch'
   | 'sparkles'
   | 'files'
@@ -188,6 +191,27 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="7" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  ),
+  eye: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  'eye-off': size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-6 10-6c1.5 0 2.9.3 4.1.8" />
+      <path d="M21.5 10.6c.3.5.5.9.5 1.4 0 0-3.5 6-10 6-1.2 0-2.3-.2-3.3-.5" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <line x1="3" y1="3" x2="21" y2="21" />
+    </svg>
+  ),
+  'fold-all': size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 4l4 4 4-4" />
+      <path d="M8 20l4-4 4 4" />
+      <line x1="4" y1="12" x2="20" y2="12" />
     </svg>
   ),
   'git-branch': size => (

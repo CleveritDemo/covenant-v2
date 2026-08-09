@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   GIT_STATUS_LETTER,
   canGitStageEntry,
+  filterGitEntries,
   canGitUnstageEntry,
   gitDisplayFileName,
   gitSplitDisplayPath,
@@ -88,6 +89,22 @@ describe('gitPathUtils', () => {
       expect(gitStatusKind({ status, path: 'a' }, 'index')).toBe('conflict')
       expect(gitStatusKind({ status, path: 'a' }, 'worktree')).toBe('conflict')
     }
+  })
+
+  it('filterGitEntries matches the whole path, case-insensitive', () => {
+    const files = [
+      { status: ' M', path: 'src/renderer/App.tsx' },
+      { status: '??', path: 'docs/README.md' },
+      { status: 'R ', path: 'a/old.ts -> src/new.ts' },
+    ]
+    expect(filterGitEntries(files, 'src').map(f => f.path)).toEqual([
+      'src/renderer/App.tsx',
+      'a/old.ts -> src/new.ts',
+    ])
+    expect(filterGitEntries(files, 'README').map(f => f.path)).toEqual(['docs/README.md'])
+    // Sin consulta no filtra; en renombres busca sobre el destino.
+    expect(filterGitEntries(files, '  ')).toHaveLength(3)
+    expect(filterGitEntries(files, 'old.ts')).toHaveLength(0)
   })
 
   it('every status kind has a letter', () => {

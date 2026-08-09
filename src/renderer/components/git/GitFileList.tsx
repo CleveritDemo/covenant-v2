@@ -1,15 +1,21 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { GitPathEntry } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
 import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
+import { Tooltip } from '../ui/Tooltip'
 import {
   GIT_STATUS_LETTER,
+  filterGitEntries,
   gitSplitDisplayPath,
   gitStatusKind,
   gitWorktreePath,
   splitGitFilesByArea,
 } from './gitPathUtils'
-import { gitEntryAreaStats, parseGitNumStat, type GitFileLineStats } from './gitDiffNumStat'
+import { gitAreaTotals, gitEntryAreaStats, parseGitNumStat, type GitFileLineStats } from './gitDiffNumStat'
+
+/** A partir de aquí la lista deja de escanearse a ojo y aparece el filtro. */
+const FILTER_THRESHOLD = 10
 
 interface GitFileListProps {
   files: GitPathEntry[]
@@ -68,17 +74,7 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
   onFileAction,
 }) => {
   const { t } = useT()
-  const total = useMemo(() => {
-    let insertions = 0
-    let deletions = 0
-    for (const entry of entries) {
-      const stats = gitEntryAreaStats(entry, numStat)
-      if (!stats) continue
-      insertions += stats.insertions
-      deletions += stats.deletions
-    }
-    return { insertions, deletions }
-  }, [entries, numStat])
+  const total = useMemo(() => gitAreaTotals(entries, numStat), [entries, numStat])
 
   return (
     <div className="git-file-list__group">
@@ -101,20 +97,24 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
             const { dir, name } = gitSplitDisplayPath(entry)
             const stats = gitEntryAreaStats(entry, numStat)
             const kind = gitStatusKind(entry, area)
+            const kindName = t(`git.statusNames.${kind}` as 'git.statusNames.modified')
 
             return (
               <li key={`${entry.status}:${entry.path}`} className="git-file-list__row">
-                <span
-                  className={`git-file-list__st git-file-list__st--${kind}`}
-                  title={`${t(`git.statusNames.${kind}` as 'git.statusNames.modified')} (${entry.status})`}
-                  aria-label={t(`git.statusNames.${kind}` as 'git.statusNames.modified')}
-                >
-                  {GIT_STATUS_LETTER[kind]}
-                </span>
-                <code className="git-file-list__name" title={path}>
-                  {dir ? <span className="git-file-list__dir">{dir}</span> : null}
-                  {name}
-                </code>
+                <Tooltip content={`${kindName} (${entry.status})`}>
+                  <span
+                    className={`git-file-list__st git-file-list__st--${kind}`}
+                    aria-label={kindName}
+                  >
+                    {GIT_STATUS_LETTER[kind]}
+                  </span>
+                </Tooltip>
+                <Tooltip content={path}>
+                  <code className="git-file-list__name">
+                    {dir ? <span className="git-file-list__dir">{dir}</span> : null}
+                    {name}
+                  </code>
+                </Tooltip>
                 {stats ? (
                   <GitFileLineStatsView insertions={stats.insertions} deletions={stats.deletions} />
                 ) : (
@@ -151,9 +151,26 @@ export const GitFileList: React.FC<GitFileListProps> = ({
   onUnstageAll,
 }) => {
   const { t } = useT()
+  const [query, setQuery] = useState('')
   const unstagedMap = useMemo(() => parseGitNumStat(unstagedNumStat), [unstagedNumStat])
   const stagedMap = useMemo(() => parseGitNumStat(stagedNumStat), [stagedNumStat])
-  const { staged, unstaged } = useMemo(() => splitGitFilesByArea(files), [files])
+  const visible = useMemo(() => filterGitEntries(files, query), [files, query])
+  const { staged, unstaged } = useMemo(() => splitGitFilesByArea(visible), [visible])
+
+  // ↑↓ mueven el foco entre los botones de las filas; espacio/enter los activa (nativo).
+  const onListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const buttons = [
+      ...e.currentTarget.querySelectorAll<HTMLButtonElement>('.git-file-list__actions button'),
+    ].filter(b => !b.disabled)
+    if (buttons.length === 0) return
+    const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const next = e.key === 'ArrowDown' ? current + 1 : current - 1
+    const target = buttons[Math.max(0, Math.min(buttons.length - 1, current < 0 ? 0 : next))]
+    if (!target) return
+    e.preventDefault()
+    target.focus()
+  }
 
   if (files.length === 0) {
     return (
@@ -165,7 +182,27 @@ export const GitFileList: React.FC<GitFileListProps> = ({
 
   return (
     <section className="git-file-list" aria-label={t('git.filesTitle')}>
-      <div className="git-file-list__scroll">
+      {files.length > FILTER_THRESHOLD && (
+        <div className="git-file-list__filter">
+          <Input
+            size="sm"
+            variant="inline"
+            type="search"
+            placeholder={t('git.filterPlaceholder')}
+            aria-label={t('git.filterPlaceholder')}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          <span className="git-file-list__filter-count">
+            {visible.length === files.length ? files.length : `${visible.length}/${files.length}`}
+          </span>
+        </div>
+      )}
+      <div className="git-file-list__scroll" onKeyDown={onListKeyDown}>
+        {visible.length === 0 ? (
+          <p className="git-file-list__empty">{t('git.filterNoMatch')}</p>
+        ) : (
+          <>
         <GitFileGroup
           area="index"
           title={t('git.stagedColumnTitle')}
@@ -192,6 +229,8 @@ export const GitFileList: React.FC<GitFileListProps> = ({
           fileActionSign="+"
           onFileAction={onStageFile}
         />
+          </>
+        )}
       </div>
     </section>
   )

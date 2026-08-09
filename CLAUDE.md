@@ -121,6 +121,9 @@ directs, agents advance.
 - Shared UI kit components (`src/renderer/components/ui/**`, shared chrome) must **not** expose `className` or
   `style` props. Style through typed props (`size`, `variant`, `pressed`, …). `npm run check:ui` fails the
   build on violations.
+- Tooltips are always `components/ui/Tooltip`, never the browser's `title` attribute — the native one ignores
+  the theme, has an uncontrollable delay and can't carry the second `hint` line. `check:ui` also fails on a
+  `title=` over a DOM element or over a kit component that spreads `{...rest}` (`Button`).
 - Need a different look that props can't express? Create a new component with its own CSS — don't patch with
   `className` or `!important`.
 - Allowed: feature-internal BEM classes (`agent-pane__header`), CSS vars set inside the owning component for

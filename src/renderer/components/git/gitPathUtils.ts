@@ -72,6 +72,13 @@ export function gitSplitDisplayPath(entry: GitPathEntry): { dir: string; name: s
     : { dir: '', name: path }
 }
 
+/** Filtra por subcadena sobre la ruta completa (sin distinguir mayúsculas). */
+export function filterGitEntries(files: GitPathEntry[], query: string): GitPathEntry[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return files
+  return files.filter(entry => gitWorktreePath(entry).toLowerCase().includes(q))
+}
+
 export type GitStatusKind =
   | 'added'
   | 'modified'

@@ -1,17 +1,21 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig } from '@shared/configSchema'
 import type { GitCommandResult, GitRepoStatus, GitTarget } from '@shared/gitSessionTypes'
 import { suggestGitCommitMessage, aiOptionsFromConfig } from '@ai/aiClient'
 import { useT } from '@i18n/useT'
+import { shortcutLabel } from '@i18n/modKeyLabel'
 import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
 import { TextArea } from './ui/TextArea'
 import { Spinner } from './ui/Spinner'
 import { Icon } from './ui/Icon'
+import { Tooltip } from './ui/Tooltip'
 import { GitBranchBadge } from './git/GitBranchBadge'
 import { GitFileList } from './git/GitFileList'
 import { GitHubActionsPanel } from './git/GitHubActionsPanel'
 import { formatGitCommandResult } from './git/gitErrorI18n'
+import { splitGitFilesByArea } from './git/gitPathUtils'
+import { gitAreaTotals, parseGitNumStat } from './git/gitDiffNumStat'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './GitPanelModal.css'
 
@@ -36,6 +40,8 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [lastRun, setLastRun] = useState<{ label: string; ok: boolean } | null>(null)
   const [commitMsg, setCommitMsg] = useState('')
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
+  // El panel de Actions avisa si el remoto no es de GitHub; entonces sobra la columna.
+  const [actionsAvailable, setActionsAvailable] = useState(true)
   const aiAbortRef = useRef<AbortController | null>(null)
   const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
   const targetRef = useRef(target)
@@ -77,6 +83,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setCommitMsg('')
     setLastLog('')
     setLastRun(null)
+    setActionsAvailable(true)
     setActionsRefreshToken(n => n + 1)
     void refresh()
     // Solo al abrir o cambiar de repo: no re-ejecutar por identidad de callbacks.
@@ -99,16 +106,18 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   }, [open, onClose])
 
   const runAndLog = useCallback(
-    async (label: string, fn: () => Promise<GitCommandResult>): Promise<void> => {
+    async (label: string, fn: () => Promise<GitCommandResult>): Promise<boolean> => {
       setBusy(label)
       try {
         const r = await fn()
         setLastLog(formatGitCommandResult(t, label, r))
         setLastRun({ label, ok: r.ok })
         await refresh()
+        return r.ok
       } catch (e) {
         setLastLog(`${label}: ${e instanceof Error ? e.message : String(e)}`)
         setLastRun({ label, ok: false })
+        return false
       } finally {
         setBusy(null)
       }
@@ -146,16 +155,34 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     void runAndLog('git push', () => window.api.gitPush(targetRef.current))
   }
 
-  const onCommit = (): void => {
+  /** Commitea y devuelve si salió bien; solo entonces se vacía el mensaje. */
+  const doCommit = async (): Promise<boolean> => {
     const msg = commitMsg.trim()
     if (!msg) {
       setLastLog(t('git.emptyMessageError'))
-      return
+      setLastRun({ label: 'git commit', ok: false })
+      return false
     }
+    const ok = await runAndLog('git commit', () => window.api.gitCommit(targetRef.current, msg))
+    if (ok) setCommitMsg('')
+    return ok
+  }
+
+  const onCommit = (): void => {
+    void doCommit()
+  }
+
+  const onCommitAndPush = (): void => {
     void (async (): Promise<void> => {
-      await runAndLog('git commit', () => window.api.gitCommit(targetRef.current, msg))
-      setCommitMsg('')
+      if (!(await doCommit())) return
+      await runAndLog('git push', () => window.api.gitPush(targetRef.current))
     })()
+  }
+
+  const onCommitKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (!(e.metaKey || e.ctrlKey) || e.key !== 'Enter') return
+    e.preventDefault()
+    if (canCommit) onCommit()
   }
 
   const onSuggestAi = (): void => {
@@ -193,8 +220,15 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     repo && status && status.hasStaged && commitMsg.trim().length > 0 && idle
   const ahead = status?.ahead ?? 0
   const behind = status?.behind ?? 0
+  /** Lo que realmente viaja en el commit: archivos en el índice y sus líneas. */
+  const stagedSummary = useMemo(() => {
+    const { staged } = splitGitFilesByArea(status?.files ?? [])
+    const totals = gitAreaTotals(staged, parseGitNumStat(status?.stagedDiffNumStat ?? ''))
+    return { count: staged.length, ...totals }
+  }, [status])
   // Sin upstream `ahead` no viene: entonces se permite push (`push -u` es el caso normal).
   const canPush = repo && idle && (typeof status?.ahead !== 'number' || ahead > 0)
+  const actionsHidden = repo && !actionsAvailable
 
   return (
     <>
@@ -213,7 +247,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
           </span>
         }
       >
-        <div className="git-panel-layout">
+        <div className={`git-panel-layout${actionsHidden ? ' git-panel-layout--single' : ''}`}>
           <div className="git-panel-layout__main">
             <div className="git-panel-scroll">
               {loading && !status && (
@@ -299,49 +333,78 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                     </details>
                   )}
 
-                  {repo && status && (
-                    <div className="git-panel-commit">
-                      <h3 className="git-panel-section-title">{t('git.commitTitle')}</h3>
-                      <p className="git-panel-commit-hint">{t('git.commitHint')}</p>
-                      <div className="git-panel-commit-row">
-                        <Button variant="ghost" size="sm" disabled={!idle} onClick={onSuggestAi}>
-                          {busy === 'ai-suggest' ? (
-                            <Spinner aria-label={t('git.suggestingAriaLabel')} />
-                          ) : (
-                            <span className="git-panel-ia-suggest-inner">
-                              <Icon name="sparkles" size={14} aria-hidden />
-                              <span>{t('git.suggestButton')}</span>
-                            </span>
-                          )}
-                        </Button>
-                      </div>
-                      <TextArea
-                        size="md"
-                        rows={2}
-                        placeholder={t('git.commitPlaceholder')}
-                        value={commitMsg}
-                        onChange={e => setCommitMsg(e.target.value)}
-                        spellCheck
-                      />
-                      <Button variant="primary" size="sm" disabled={!canCommit} onClick={onCommit}>
-                        {t('git.commitButton')}
-                      </Button>
-                      <div className="git-panel-push-row">
-                        <Button variant="secondary" size="sm" disabled={!canPush} onClick={onPush}>
-                          {ahead > 0 ? `${t('git.pushButton')} ↑${ahead}` : t('git.pushButton')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>
+
+            {repo && status && (
+              <div className="git-panel-commit">
+                <TextArea
+                  size="md"
+                  rows={2}
+                  autoGrow
+                  placeholder={t('git.commitPlaceholder')}
+                  value={commitMsg}
+                  onChange={e => setCommitMsg(e.target.value)}
+                  onKeyDown={onCommitKeyDown}
+                  spellCheck
+                />
+                <div className="git-panel-commit-foot">
+                  <Tooltip content={t('git.suggestButton')}>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      disabled={!idle}
+                      aria-label={t('git.suggestButton')}
+                      onClick={onSuggestAi}
+                    >
+                      {busy === 'ai-suggest' ? (
+                        <Spinner aria-label={t('git.suggestingAriaLabel')} />
+                      ) : (
+                        <span className="git-panel-ia-suggest-inner">
+                          <Icon name="sparkles" size={14} aria-hidden />
+                        </span>
+                      )}
+                    </Button>
+                  </Tooltip>
+                  <span className="git-panel-commit-summary">
+                    {stagedSummary.count > 0
+                      ? t('git.commitSummary', {
+                          count: stagedSummary.count,
+                          ins: stagedSummary.insertions,
+                          del: stagedSummary.deletions,
+                        })
+                      : t('git.commitHint')}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!canCommit}
+                    onClick={onCommitAndPush}
+                  >
+                    {t('git.commitAndPushButton')}
+                  </Button>
+                  <Button variant="primary" size="sm" disabled={!canCommit} onClick={onCommit}>
+                    {t('git.commitButton')}
+                    <kbd className="git-panel-commit-kbd">{shortcutLabel('↵')}</kbd>
+                  </Button>
+                </div>
+                <div className="git-panel-push-row">
+                  <Button variant="secondary" size="sm" disabled={!canPush} onClick={onPush}>
+                    {ahead > 0 ? `${t('git.pushButton')} ↑${ahead}` : t('git.pushButton')}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-          <GitHubActionsPanel
-            target={target}
-            repoStatus={status}
-            refreshToken={actionsRefreshToken}
-          />
+          {!actionsHidden && (
+            <GitHubActionsPanel
+              target={target}
+              repoStatus={status}
+              refreshToken={actionsRefreshToken}
+              onAvailable={setActionsAvailable}
+            />
+          )}
         </div>
       </TerminalModal>
     </>

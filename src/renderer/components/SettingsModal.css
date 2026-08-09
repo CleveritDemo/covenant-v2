@@ -362,12 +362,18 @@
   min-width: 0;
 }
 
-/* El panel de ajustes ya scrollea: el changelog sólo necesita ancho de lectura. */
+/* Acciones de actualización: botones en fila; el mensaje puede saltar de línea. */
 .settings-update-check {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  margin-top: 8px;
   margin-bottom: 14px;
+}
+
+.settings-update-check .settings-hint {
+  flex: 1 1 100%;
 }
 
 .settings-changelog {

@@ -104,6 +104,11 @@ export interface AppConfig {
    */
   discordPresenceEnabled: boolean
   /**
+   * Chequeos silenciosos de actualización al arrancar y cada hora.
+   * Off = solo búsqueda manual / forzar desde Ajustes. Default ON.
+   */
+  autoUpdatesEnabled: boolean
+  /**
    * Ejecutables usados por las ventanas de agente CLI, por proveedor.
    * Entrada vacía o ausente = comando por defecto de `AGENT_CLI_PROVIDERS`.
    */
@@ -146,6 +151,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   reduceMotion: false,
   autoRestartShell: true,
   discordPresenceEnabled: false,
+  autoUpdatesEnabled: true,
   agentCliCommands: {},
   musicMood: 'focus',
 }
@@ -185,6 +191,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const reduceMotion = typeof partial.reduceMotion === 'boolean'
     ? partial.reduceMotion
     : CONFIG_DEFAULTS.reduceMotion
+  const autoUpdatesEnabled = typeof partial.autoUpdatesEnabled === 'boolean'
+    ? partial.autoUpdatesEnabled
+    : CONFIG_DEFAULTS.autoUpdatesEnabled
   const agentCliCommands = migrateAgentCliCommands(partial)
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
@@ -205,6 +214,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ...partial,
     musicPlaylistIdsByMood: moods,
     reduceMotion,
+    autoUpdatesEnabled,
     agentCliCommands,
     defaultWorkspacesDir,
   } as AppConfig & Record<string, unknown>
@@ -258,6 +268,9 @@ export function validateConfig(config: AppConfig): string[] {
     if (!isAgentCliProvider(provider)) {
       errors.push(`agentCliCommands["${provider}"] no es un proveedor conocido`)
     }
+  }
+  if (typeof config.autoUpdatesEnabled !== 'boolean') {
+    errors.push('autoUpdatesEnabled debe ser boolean')
   }
   const pol = config.agentShellPolicy
   if (pol !== 'off' && pol !== 'ask' && pol !== 'always') {

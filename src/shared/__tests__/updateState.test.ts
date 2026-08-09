@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatReleaseNotes } from '../updateState'
+import { formatReleaseNotes, shouldScheduleSilentUpdateChecks } from '../updateState'
 
 describe('formatReleaseNotes', () => {
   it('devuelve null cuando no hay notas', () => {
@@ -21,5 +21,12 @@ describe('formatReleaseNotes', () => {
       { version: '0.1.0', note: 'viejo' },
     ])
     expect(out).toBe('## 0.2.0\n\nnuevo\n\n## 0.1.0\n\nviejo')
+  })
+})
+
+describe('shouldScheduleSilentUpdateChecks', () => {
+  it('solo agenda chequeos silenciosos con el flag ON', () => {
+    expect(shouldScheduleSilentUpdateChecks(true)).toBe(true)
+    expect(shouldScheduleSilentUpdateChecks(false)).toBe(false)
   })
 })

@@ -34,3 +34,8 @@ export function formatReleaseNotes(raw: RawReleaseNotes): string | null {
     .map(entry => `## ${entry.version}\n\n${entry.note!.trim()}`)
   return parts.length ? parts.join('\n\n') : null
 }
+
+/** Silent startup/hourly checks only when the user left auto-updates on. */
+export function shouldScheduleSilentUpdateChecks(autoUpdatesEnabled: boolean): boolean {
+  return autoUpdatesEnabled === true
+}

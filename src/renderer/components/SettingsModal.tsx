@@ -40,6 +40,7 @@ const CATEGORIES = [
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
   { id: 'music', icon: 'play', labelKey: 'settings.spotifySection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
+  { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
   { id: 'developer', icon: 'code', labelKey: 'settings.developerSection' },
 ] as const
@@ -57,6 +58,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
     discordPresenceEnabled: config.discordPresenceEnabled,
+    autoUpdatesEnabled: config.autoUpdatesEnabled !== false,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     fontUi: config.fontUi ?? '',
     fontMono: config.fontMono ?? '',
@@ -70,6 +72,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [tokenFieldEpoch, setTokenFieldEpoch] = useState(0)
   const [appVersion, setAppVersion] = useState('')
   const [checking, setChecking] = useState(false)
+  const [forcing, setForcing] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
   /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
   /** Preview del confirm de salida (no cierra la app). */
@@ -135,10 +138,37 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           ? t('settings.checkUpdatesError', { message: state.message })
           : state.kind === 'idle'
             ? t('settings.checkUpdatesNone')
-            : t('settings.checkUpdatesFound', { version: state.version }),
+            : state.kind === 'downloading'
+              ? t('settings.forceUpdateBusy')
+              : t('settings.checkUpdatesFound', { version: state.version }),
       )
     } finally {
       setChecking(false)
+    }
+  }
+
+  /** Busca y, si hay versión nueva, dispara descarga+instalación (mismo path que el badge). */
+  async function forceUpdate(): Promise<void> {
+    setForcing(true)
+    setCheckMsg('')
+    try {
+      const state = await window.api.checkForUpdates()
+      if (state.kind === 'error') {
+        setCheckMsg(t('settings.checkUpdatesError', { message: state.message }))
+        return
+      }
+      if (state.kind === 'idle') {
+        setCheckMsg(t('settings.checkUpdatesNone'))
+        return
+      }
+      if (state.kind === 'downloading') {
+        setCheckMsg(t('settings.forceUpdateBusy'))
+        return
+      }
+      setCheckMsg(t('settings.forceUpdateStarting', { version: state.version }))
+      window.api.installUpdate()
+    } finally {
+      setForcing(false)
     }
   }
 
@@ -190,6 +220,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
       discordPresenceEnabled: form.discordPresenceEnabled,
+      autoUpdatesEnabled: form.autoUpdatesEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       fontUi: form.fontUi,
       fontMono: form.fontMono,
@@ -254,7 +285,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
       discordPresenceEnabled: original.discordPresenceEnabled,
+      autoUpdatesEnabled: original.autoUpdatesEnabled !== false,
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
+      fontUi: original.fontUi ?? '',
+      fontMono: original.fontMono ?? '',
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
       musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
     })
@@ -539,15 +573,39 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
             </SettingsSection>
           )}
 
-          {category === 'about' && (
+          {category === 'updates' && (
             <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
+              <SettingToggle
+                checked={form.autoUpdatesEnabled}
+                onChange={checked => update('autoUpdatesEnabled', checked)}
+                title={t('settings.autoUpdatesTitle')}
+                description={t('settings.autoUpdatesDescription')}
+              />
               <div className="settings-update-check">
-                <Button variant="secondary" size="sm" disabled={checking} onClick={checkUpdates}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={checking || forcing}
+                  onClick={() => void checkUpdates()}
+                >
                   <Icon name="refresh" size={12} />
                   {checking ? t('settings.checkUpdatesRunning') : t('settings.checkUpdates')}
                 </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={checking || forcing}
+                  onClick={() => void forceUpdate()}
+                >
+                  {forcing ? t('settings.checkUpdatesRunning') : t('settings.forceUpdate')}
+                </Button>
                 {checkMsg && <span className="settings-hint">{checkMsg}</span>}
               </div>
+            </SettingsSection>
+          )}
+
+          {category === 'about' && (
+            <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
               <div className="settings-changelog">
                 <AiMarkdown content={changelogMd} />
               </div>

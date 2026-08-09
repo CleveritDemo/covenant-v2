@@ -33,6 +33,19 @@ describe('parsePulseLines', () => {
     expect(parsePulseLines(text)).toEqual([{ ts: 3000, kind: 'prompt' }])
   })
 
+  it('acepta los cuatro kinds y sigue rechazando lo inventado', () => {
+    const text = [
+      '{"ts":1,"kind":"prompt"}',
+      '{"ts":2,"kind":"commit"}',
+      '{"ts":3,"kind":"delegate","agentId":"tl","toAgentId":"dev"}',
+      '{"ts":4,"kind":"result","agentId":"dev"}',
+      '{"ts":5,"kind":"rm -rf"}',
+    ].join('\n')
+    expect(parsePulseLines(text).map(e => e.kind)).toEqual([
+      'prompt', 'commit', 'delegate', 'result',
+    ])
+  })
+
   it('tolera archivo vacío y líneas en blanco', () => {
     expect(parsePulseLines('')).toEqual([])
     expect(parsePulseLines('\n\n  \n')).toEqual([])

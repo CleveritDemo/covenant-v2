@@ -67,6 +67,7 @@ import {
   orchestrationRoundsAtCap,
 } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
+import { pulseWorkspaceTag } from '@shared/pulseEvents'
 import {
   buildMergeCommitMessage,
   buildConflictFollowUp,
@@ -366,6 +367,7 @@ export const App: React.FC = () => {
     text: string
     images: AgentCliImageAttachment[]
     focusPane?: boolean
+    viaLoop?: boolean
     orchestrationFollowUp?: boolean
     allowDelegations?: boolean
     delegation?: {
@@ -3008,6 +3010,7 @@ export const App: React.FC = () => {
             text: head.text,
             images: [],
             focusPane: false,
+            viaLoop: true,
           },
         }
       })
@@ -3631,7 +3634,12 @@ export const App: React.FC = () => {
       })
 
       await window.api.gitStageAll({ path: info.worktreePath })
-      const commitResult = await window.api.gitCommit({ path: info.worktreePath }, commitMessage)
+      // El commit del worktree es trabajo del agente delegado, no de la persona:
+      // se le atribuye a él para que aparezca en su fila del roster de Pulse.
+      const commitResult = await window.api.gitCommit({ path: info.worktreePath }, commitMessage, {
+        ...(result.toAgentId ? { agentId: result.toAgentId } : {}),
+        ...(pulseWorkspaceTag(tab?.orgWorkspace) ? { workspace: pulseWorkspaceTag(tab?.orgWorkspace)! } : {}),
+      })
       if (!commitResult.ok && !/nothing to commit/i.test(commitResult.stderr || '')) {
         console.warn(`[worktree] gitCommit falló para la delegación ${result.id}:`, commitResult.stderr)
       }
@@ -4944,6 +4952,7 @@ export const App: React.FC = () => {
                 open={isActive}
                 target={{ path: gitUi.repoPath }}
                 config={config}
+                workspace={pulseWorkspaceTag(tab.orgWorkspace) ?? undefined}
                 onClose={() => closeTabGitModal(tab.id)}
               />
             ) : null}

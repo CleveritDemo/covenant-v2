@@ -25,6 +25,7 @@ import {
   type AgentIdentityDraft,
   normalizeAgentRules,
 } from '@shared/agentIdentity'
+import { pulseWorkspaceTag } from '@shared/pulseEvents'
 import { normalizeAgentSlug, isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
@@ -88,6 +89,8 @@ interface QueuedTurn {
   id: string
   text: string
   images: PendingImage[]
+  /** Se encoló un turno de loop: al drenarlo sigue siendo de loop. */
+  viaLoop?: boolean
   orchestrationFollowUp?: boolean
   allowDelegations?: boolean
   delegation?: {
@@ -102,6 +105,8 @@ export interface AgentPreferSend {
   images?: AgentCliImageAttachment[]
   /** Si false, no enfoca la ventana del pane (p. ej. cadenas en background). */
   focusPane?: boolean
+  /** Lo despachó una cadena de loop del plano, no una persona. */
+  viaLoop?: boolean
   /** Follow-up de orquestación (no resetea oleadas). */
   orchestrationFollowUp?: boolean
   /** Si false, el host prohíbe nuevas delegaciones en este turno. */
@@ -411,10 +416,7 @@ export const AgentPane: React.FC<Props> = ({
    * callback en cada cambio de pestaña sin ninguna otra razón.
    */
   const orgWorkspaceRef = useRef<string | null>(null)
-  orgWorkspaceRef.current =
-    orgWorkspace?.slug && orgWorkspace?.workspaceId
-      ? `${orgWorkspace.slug}/${orgWorkspace.workspaceId}`
-      : null
+  orgWorkspaceRef.current = pulseWorkspaceTag(orgWorkspace)
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
@@ -928,6 +930,7 @@ export const AgentPane: React.FC<Props> = ({
     images?: AgentCliImageAttachment[]
     displayImages?: AgentChatImage[]
     allowDelegations?: boolean
+    viaLoop?: boolean
     delegation?: {
       id: string
       fromPaneId: string
@@ -1086,6 +1089,7 @@ export const AgentPane: React.FC<Props> = ({
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
       ...(orgWorkspaceRef.current ? { workspace: orgWorkspaceRef.current } : {}),
+      ...(options.viaLoop ? { viaLoop: true } : {}),
     }
     if (forceContextFullRefreshRef.current) forceContextFullRefreshRef.current = false
     lastTurnRequestRef.current = request
@@ -1422,6 +1426,7 @@ export const AgentPane: React.FC<Props> = ({
       delegation?: QueuedTurn['delegation']
       allowDelegations?: boolean
       orchestrationFollowUp?: boolean
+      viaLoop?: boolean
     },
   ): Promise<boolean> => {
     const assigned = diskContextsRef.current.filter(context =>
@@ -1459,6 +1464,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(displayImages.length ? { displayImages } : {}),
       ...(options?.delegation ? { delegation: options.delegation } : {}),
       ...(options?.allowDelegations === false ? { allowDelegations: false } : {}),
+      ...(options?.viaLoop ? { viaLoop: true } : {}),
     })
   }, [startTurn, t])
 
@@ -1468,7 +1474,7 @@ export const AgentPane: React.FC<Props> = ({
     if (!objective || !loopActiveRef.current) return
     loopIterationRef.current = iteration
     setLoopIteration(iteration)
-    void dispatchMessage(objective, []).then(ok => {
+    void dispatchMessage(objective, [], { viaLoop: true }).then(ok => {
       if (!ok && loopActiveRef.current) finishLoop('stopped')
     })
   }, [dispatchMessage, finishLoop])
@@ -1519,6 +1525,7 @@ export const AgentPane: React.FC<Props> = ({
     const inboundImages = preferSend.images ?? []
     const delegation = preferSend.delegation
     const orchestrationFollowUp = preferSend.orchestrationFollowUp === true
+    const viaLoop = preferSend.viaLoop === true
     const allowDelegations = preferSend.allowDelegations
     const isHumanTurn = !orchestrationFollowUp && !delegation
     // Busy: no consumir follow-ups ni delegaciones; App FIFO reintenta al idle.
@@ -1534,6 +1541,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(delegation ? { delegation } : {}),
       ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
       ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
+      ...(viaLoop ? { viaLoop: true as const } : {}),
     }
     // Solo humanos / no-delegación encolan en local; delegaciones nunca mientras busy.
     const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
@@ -1655,6 +1663,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(next.delegation ? { delegation: next.delegation } : {}),
       ...(next.allowDelegations === false ? { allowDelegations: false } : {}),
       ...(next.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
+      ...(next.viaLoop ? { viaLoop: true } : {}),
     }).finally(() => {
       drainingRef.current = false
     })

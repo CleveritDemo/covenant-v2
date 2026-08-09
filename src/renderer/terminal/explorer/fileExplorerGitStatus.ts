@@ -77,3 +77,20 @@ export function gitStatusFromMap(
 ): ExplorerGitStatus | null {
   return map.get(relPath) ?? null
 }
+
+/**
+ * ¿Dos mapas de estado git son equivalentes? `buildGitStatusMap` siempre
+ * construye un Map nuevo, y el watcher del explorador lo llama varias veces por
+ * segundo; sin esta comparación cada llamada re-renderiza el árbol entero
+ * aunque git no haya cambiado nada.
+ */
+export function sameGitStatusMap(
+  a: Map<string, ExplorerGitStatus>,
+  b: Map<string, ExplorerGitStatus>,
+): boolean {
+  if (a.size !== b.size) return false
+  for (const [path, status] of a) {
+    if (b.get(path) !== status) return false
+  }
+  return true
+}

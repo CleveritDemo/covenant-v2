@@ -40,6 +40,7 @@ import {
 import { mergeListDirIntoCache } from './explorerListCache'
 import {
   buildGitStatusMap,
+  sameGitStatusMap,
   gitStatusFromMap,
   type ExplorerGitStatus,
 } from './fileExplorerGitStatus'
@@ -204,13 +205,18 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       closeContextMenu()
     }, [closeContextMenu])
 
+    // Mismo motivo que en `loadDir`: el watcher llama a esto cada pocos cientos
+    // de milisegundos y `buildGitStatusMap` siempre devuelve un Map nuevo, así
+    // que sin comparar antes cada evento re-renderizaba el árbol entero aunque
+    // git dijera exactamente lo mismo.
     const refreshGitStatus = useCallback(async (): Promise<void> => {
+      let next: Map<string, ExplorerGitStatus>
       try {
-        const status = await window.api.gitStatus({ sessionId })
-        setGitStatusByPath(buildGitStatusMap(status))
+        next = buildGitStatusMap(await window.api.gitStatus({ sessionId }))
       } catch {
-        setGitStatusByPath(new Map())
+        next = new Map()
       }
+      setGitStatusByPath(prev => (sameGitStatusMap(prev, next) ? prev : next))
     }, [sessionId])
 
     const loadDirGenRef = useRef(new Map<string, number>())
@@ -223,7 +229,12 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
 
         const gen = (loadDirGenRef.current.get(relPath) ?? 0) + 1
         loadDirGenRef.current.set(relPath, gen)
-        setLoadingDirs(prev => new Set(prev).add(relPath))
+        // Sólo se anuncia "cargando" la PRIMERA vez. Una revalidación de fondo
+        // —y con la raíz en $HOME el watcher dispara una cada ~600 ms— no debe
+        // tocar `loadingDirs`: está en las deps de `visibleRows`, así que cada
+        // add+delete rehacía la lista de filas dos veces por evento.
+        const isFirstLoad = !childrenByDirRef.current.has(relPath)
+        if (isFirstLoad) setLoadingDirs(prev => new Set(prev).add(relPath))
 
         const run = (async (): Promise<void> => {
           try {
@@ -234,8 +245,9 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
             }
             setChildrenByDir(prev => mergeListDirIntoCache(prev, relPath, result))
           } finally {
-            if (loadDirGenRef.current.get(relPath) === gen) {
+            if (isFirstLoad && loadDirGenRef.current.get(relPath) === gen) {
               setLoadingDirs(prev => {
+                if (!prev.has(relPath)) return prev
                 const next = new Set(prev)
                 next.delete(relPath)
                 return next
@@ -364,7 +376,13 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     useEffect(() => {
       window.api.fileExplorerWatchStart(sessionId)
       const unsub = window.api.onFileExplorerFsChanged(sessionId, dirs => {
-        const unique = Array.from(new Set(dirs))
+        // El watcher reporta CUALQUIER cambio bajo la raíz de la sesión. Con la
+        // raíz en $HOME eso incluye la caché de Chrome, el análisis de Fotos o
+        // el .git de otro repo: directorios que el árbol no tiene abiertos ni
+        // cargados. Recargarlos no cambiaba nada en pantalla pero sí encendía y
+        // apagaba `loadingDirs` en cada evento, y eso rehace la lista de filas.
+        // Sólo se revalida lo que el árbol ya tiene en cache.
+        const unique = Array.from(new Set(dirs)).filter(d => childrenByDirRef.current.has(d))
         void Promise.all(unique.map(d => loadDir(d)))
         void loadDir('')
         void refreshGitStatus()
@@ -390,14 +408,32 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       void loadDir('')
     }, [sessionId, loadDir])
 
+    // Vaciar y recargar el árbol es SÓLO para el toggle de "ver ocultos".
+    //
+    // Tenía `reloadExpandedDirs` en las deps, y esa callback depende de
+    // `expandedRelPaths`: cambiaba de identidad cada vez que se expandía o
+    // colapsaba una carpeta, así que el efecto corría y lo primero que hace es
+    // `setChildrenByDir(new Map())` — el árbol entero se vaciaba y se repoblaba
+    // en cada clic, y también varias veces durante el arranque mientras el
+    // estado de expansión se asienta. Eso era el parpadeo: filas desapareciendo
+    // y volviendo, con un "Empty folder" de por medio.
+    //
+    // Ahora se compara el valor real y la callback se lee de una ref, que es lo
+    // que hace que la identidad de `expandedRelPaths` deje de importar aquí.
+    const reloadExpandedDirsRef = useRef(reloadExpandedDirs)
+    reloadExpandedDirsRef.current = reloadExpandedDirs
+    const prevShowHiddenRef = useRef(showHiddenDirs)
+
     useEffect(() => {
+      if (prevShowHiddenRef.current === showHiddenDirs) return
+      prevShowHiddenRef.current = showHiddenDirs
       loadedExpandedKeyRef.current = null
       setChildrenByDir(new Map())
       void (async () => {
         await loadDir('')
-        await reloadExpandedDirs()
+        await reloadExpandedDirsRef.current()
       })()
-    }, [showHiddenDirs, loadDir, reloadExpandedDirs])
+    }, [showHiddenDirs, loadDir])
 
     // Al expandir una carpeta esto recargaba TODAS las expandidas: con 15
     // abiertas, 15 idas y vueltas por IPC y sus 15 `setChildrenByDir`. Sólo hay

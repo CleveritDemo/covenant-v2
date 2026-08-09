@@ -13,6 +13,8 @@ interface TabItemProps {
   dragOverPlace: 'before' | 'after' | null
   isBusy: boolean
   isEditing: boolean
+  /** Si false, el título no es editable (workspace org sin permiso). */
+  titleEditable?: boolean
   editDraft: string
   editInputRef: React.RefObject<HTMLInputElement>
   onSelect: () => void
@@ -37,6 +39,7 @@ export const TabItem: React.FC<TabItemProps> = ({
   dragOverPlace,
   isBusy,
   isEditing,
+  titleEditable = true,
   editDraft,
   editInputRef,
   onSelect,
@@ -53,15 +56,16 @@ export const TabItem: React.FC<TabItemProps> = ({
   skipBlurCommitRef,
 }) => {
   const { t } = useT()
+  const canEditTitle = isActive && titleEditable
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (isActive && (e.key === 'Enter' || e.key === ' ')) {
+    if (canEditTitle && (e.key === 'Enter' || e.key === ' ')) {
       if (!isEditing) {
         e.preventDefault()
         e.stopPropagation()
       }
     }
-  }, [isActive, isEditing])
+  }, [canEditTitle, isEditing])
 
   const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -161,11 +165,16 @@ export const TabItem: React.FC<TabItemProps> = ({
         />
       ) : (
         <span
-          className={['tab-title', isActive ? 'tab-title--editable' : ''].filter(Boolean).join(' ')}
-          role={isActive ? 'button' : undefined}
-          tabIndex={isActive ? 0 : undefined}
-          onClick={isActive ? onStartEdit : undefined}
-          onKeyDown={isActive ? handleKeyDown : undefined}
+          className={['tab-title', canEditTitle ? 'tab-title--editable' : ''].filter(Boolean).join(' ')}
+          role={canEditTitle ? 'button' : undefined}
+          tabIndex={canEditTitle ? 0 : undefined}
+          title={
+            isActive && !titleEditable
+              ? t('tabs.tabNameLockedOrgHint')
+              : undefined
+          }
+          onClick={canEditTitle ? onStartEdit : undefined}
+          onKeyDown={canEditTitle ? handleKeyDown : undefined}
         >
           {tab.title}
         </span>

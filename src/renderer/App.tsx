@@ -28,9 +28,13 @@ import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerMo
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
+  canRenameOrgWorkspace,
   catalogForLogin,
   catalogHasWorkspaces,
+  findOrgWorkspaceCatalogEntry,
   isCatalogFresh,
+  patchOrgWorkspaceCatalogName,
+  syncTabTitlesFromOrgWorkspaceCatalog,
 } from '../shared/orgWorkspaceCatalog'
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
@@ -148,6 +152,7 @@ import {
 } from '../shared/covenantTypes'
 import {
   getCovenantApi,
+  hasCovenantOrgAdminsApi,
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
@@ -314,6 +319,7 @@ export const App: React.FC = () => {
     syncing?: boolean
     agentDeleteError?: string
     agentUpdateError?: string
+    workspaceRenameError?: string
   } | null>(null)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
@@ -896,6 +902,11 @@ export const App: React.FC = () => {
   const applyOrgWorkspaceCatalog = useCallback((next: OrgWorkspaceCatalog | null) => {
     orgWorkspaceCatalogRef.current = next
     setOrgWorkspaceCatalog(next)
+    const synced = syncTabTitlesFromOrgWorkspaceCatalog(tabsRef.current, next)
+    if (synced) {
+      tabsRef.current = synced
+      setTabs(synced)
+    }
   }, [])
 
   const persistOrgWorkspaceCatalogCache = useCallback(async (
@@ -943,8 +954,14 @@ export const App: React.FC = () => {
       }
 
       const current = catalogForLogin(orgWorkspaceCatalogRef.current, login)
-      if (!force && isCatalogFresh(current, CATALOG_TTL_MS, Date.now())) {
-        if (current !== orgWorkspaceCatalogRef.current) applyOrgWorkspaceCatalog(current)
+      const renameFlagsReady = !current
+        || current.entries.every(e => typeof e.canRename === 'boolean')
+      if (
+        !force
+        && isCatalogFresh(current, CATALOG_TTL_MS, Date.now())
+        && renameFlagsReady
+      ) {
+        if (current) applyOrgWorkspaceCatalog(current)
         return
       }
 
@@ -960,14 +977,37 @@ export const App: React.FC = () => {
       if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
       if (!orgsResult.ok) return
 
-      const workspacesByOrg: Record<string, Array<{ id: string; name: string }>> = {}
+      const workspacesByOrg: Record<string, Array<{
+        id: string
+        name: string
+        canRename: boolean
+      }>> = {}
+      const orgAdminsApi = hasCovenantOrgAdminsApi(covenant)
       for (const org of orgsResult.data) {
         const slug = org.slug?.trim()
         if (!slug) continue
         const list = await covenant.workspacesList(slug)
         if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
         if (!list.ok) continue
-        workspacesByOrg[slug] = list.data.map(w => ({ id: w.id, name: w.name }))
+        let isOrgAdmin = org.role?.trim() === 'owner'
+        if (!isOrgAdmin && orgAdminsApi) {
+          const adminsResult = await covenant.orgAdminsList(slug)
+          if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+          if (adminsResult.ok) {
+            isOrgAdmin = adminsResult.data.some(a => a.trim() === login)
+          }
+        }
+        workspacesByOrg[slug] = list.data.map(w => ({
+          id: w.id,
+          name: w.name,
+          canRename: canRenameOrgWorkspace({
+            login,
+            orgRole: org.role ?? '',
+            isOrgAdmin,
+            createdBy: w.createdBy,
+            admins: w.admins,
+          }),
+        }))
       }
 
       const built = buildOrgWorkspaceCatalog(
@@ -990,6 +1030,7 @@ export const App: React.FC = () => {
             || e.orgName !== n.orgName
             || e.workspaceId !== n.workspaceId
             || e.name !== n.name
+            || e.canRename !== n.canRename
           )
         })
 
@@ -1009,6 +1050,15 @@ export const App: React.FC = () => {
     if (!configReady) return
     void loadOrgWorkspaceCatalog(false)
   }, [configReady, loadOrgWorkspaceCatalog])
+
+  // Catálogo y sesión cargan en paralelo: alinear títulos org cuando ambos estén listos.
+  useEffect(() => {
+    if (!sessionReady.loaded || !orgWorkspaceCatalog) return
+    const synced = syncTabTitlesFromOrgWorkspaceCatalog(tabsRef.current, orgWorkspaceCatalog)
+    if (!synced) return
+    tabsRef.current = synced
+    setTabs(synced)
+  }, [sessionReady.loaded, orgWorkspaceCatalog])
 
   useEffect(() => {
     if (!configReady) return
@@ -1840,6 +1890,7 @@ export const App: React.FC = () => {
     setOrgWorkspaceRequirement(null)
     const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
     const tab = newTab(title)
+    tab.titleLocked = true
     tab.projectFolder = res.workspaceDir
     tab.orgWorkspace = {
       slug: org.slug,
@@ -4124,13 +4175,85 @@ export const App: React.FC = () => {
     setTabs(prev => prev.map(t => {
       if (t.id !== id) return t
       if (t.titleLocked) return t
+      if (t.orgWorkspace?.slug?.trim() && t.orgWorkspace?.workspaceId?.trim()) return t
       return { ...t, title }
     }))
   }, [])
 
-  const handleRenameTab = useCallback((id: string, name: string) => {
-    setTabs(prev => prev.map(t => (t.id === id ? { ...t, title: name, titleLocked: true } : t)))
+  const canRenameTab = useCallback((tab: TabSession): boolean => {
+    const org = tab.orgWorkspace
+    const slug = org?.slug?.trim() ?? ''
+    const workspaceId = org?.workspaceId?.trim() ?? ''
+    if (!slug || !workspaceId) return true
+    const entry = findOrgWorkspaceCatalogEntry(orgWorkspaceCatalogRef.current, slug, workspaceId)
+    return entry?.canRename === true
   }, [])
+
+  const handleRenameTab = useCallback((id: string, name: string) => {
+    const next = name.trim().slice(0, 40)
+    if (!next) return
+    const tab = tabsRef.current.find(t => t.id === id)
+    if (!tab) return
+
+    const org = tab.orgWorkspace
+    const slug = org?.slug?.trim() ?? ''
+    const workspaceId = org?.workspaceId?.trim() ?? ''
+    if (!slug || !workspaceId) {
+      setTabs(prev => {
+        const mapped = prev.map(t => (t.id === id ? { ...t, title: next, titleLocked: true } : t))
+        tabsRef.current = mapped
+        return mapped
+      })
+      return
+    }
+
+    if (!canRenameTab(tab)) {
+      setOrgWorkspaceRequirement({
+        workspaceRenameError: t('tabs.tabNameLockedOrgHint'),
+      })
+      return
+    }
+    if (next === tab.title.trim()) return
+
+    const covenant = getCovenantApi()
+    if (!covenant || !hasCovenantWorkspacesApi(covenant)) {
+      setOrgWorkspaceRequirement({
+        workspaceRenameError: t('organizations.unavailable'),
+      })
+      return
+    }
+
+    void (async () => {
+      const result = await covenant.workspaceRename(slug, workspaceId, next)
+      if (!result.ok) {
+        setOrgWorkspaceRequirement({ workspaceRenameError: result.error })
+        return
+      }
+      const canonical = result.data.name?.trim() || next
+      setTabs(prev => {
+        const mapped = prev.map(t => {
+          const o = t.orgWorkspace
+          if (o?.slug?.trim() === slug && o?.workspaceId?.trim() === workspaceId) {
+            return { ...t, title: canonical, titleLocked: true }
+          }
+          return t
+        })
+        tabsRef.current = mapped
+        return mapped
+      })
+      const patched = patchOrgWorkspaceCatalogName(
+        orgWorkspaceCatalogRef.current,
+        slug,
+        workspaceId,
+        canonical,
+        true,
+      )
+      if (patched && patched !== orgWorkspaceCatalogRef.current) {
+        applyOrgWorkspaceCatalog(patched)
+        void persistOrgWorkspaceCatalogCache(patched)
+      }
+    })()
+  }, [applyOrgWorkspaceCatalog, canRenameTab, persistOrgWorkspaceCatalogCache, t])
 
   const handleReorderTabs = useCallback((
     dragId: string,
@@ -4541,6 +4664,7 @@ export const App: React.FC = () => {
         onRename={handleRenameTab}
         onReorder={handleReorderTabs}
         busyTabIds={busyTabIds}
+        canRenameTab={canRenameTab}
       />
 
       {/* ── Main area ── */}
@@ -5076,6 +5200,7 @@ export const App: React.FC = () => {
         syncing={orgWorkspaceRequirement?.syncing}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}
+        workspaceRenameError={orgWorkspaceRequirement?.workspaceRenameError}
         onClose={() => setOrgWorkspaceRequirement(null)}
         onOpenSettings={() => setSettingsOpen(true)}
       />

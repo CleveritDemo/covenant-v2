@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.16.0
+
+- **Renombrar una tab de workspace organizacional renombra el workspace en el
+  servidor.** El nuevo nombre queda en Covenant, no solo en la pestaña local.
+- **Solo pueden renombrar** el owner de la org, un org-admin, el creador del
+  workspace o un workspace-admin; si no tienes permiso, ves un error claro.
+- **Los títulos de las tabs org se alinean** con el nombre del catálogo/servidor,
+  para que lo que ves en la barra coincida con Covenant.
+
 ## v0.15.0
 
 - **En workspaces organizacionales, el contexto que arrastras a un agente ya no

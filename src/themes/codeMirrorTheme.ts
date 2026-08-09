@@ -84,6 +84,83 @@ export function createCodeMirrorTheme(theme: AppTheme): Extension {
         backgroundColor: colorMix(x.yellow, 0.55),
         outline: `1px solid ${colorMix(x.yellow, 0.75)}`,
       },
+      '.cm-selectionMatch': {
+        backgroundColor: colorMix(x.cyan, 0.18),
+      },
+      // Plegado: el gutter nativo de cm6 con los triángulos del tema.
+      '.cm-foldGutter span': {
+        color: muted,
+        padding: '0 2px',
+        cursor: 'pointer',
+      },
+      '.cm-foldGutter span:hover': {
+        color: fg,
+      },
+      '.cm-foldPlaceholder': {
+        backgroundColor: colorMix(surface, 0.9),
+        border: `1px solid ${colorMix(fg, 0.25)}`,
+        borderRadius: '3px',
+        color: muted,
+        margin: '0 2px',
+        padding: '0 4px',
+      },
+      // Panel de búsqueda/reemplazo nativo.
+      '.cm-panels': {
+        backgroundColor: colorMix(surface, 0.92),
+        color: fg,
+        fontFamily: 'var(--font-ui)',
+        fontSize: '11px',
+      },
+      '.cm-panels.cm-panels-top': {
+        borderBottom: `1px solid ${colorMix(fg, 0.18)}`,
+      },
+      '.cm-panel.cm-search': {
+        padding: '6px 8px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '6px',
+      },
+      '.cm-panel.cm-search label': {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        fontSize: '11px',
+        color: muted,
+      },
+      '.cm-panel.cm-search input[type=text]': {
+        backgroundColor: bg,
+        color: fg,
+        fontFamily: 'var(--font-mono)',
+        fontSize: '11px',
+        padding: '3px 6px',
+        border: `1px solid ${colorMix(fg, 0.22)}`,
+        borderRadius: '4px',
+        outline: 'none',
+      },
+      '.cm-panel.cm-search input[type=text]:focus': {
+        borderColor: colorMix(x.cyan, 0.7),
+      },
+      '.cm-panel.cm-search button:not([name=close])': {
+        backgroundColor: colorMix(fg, 0.08),
+        backgroundImage: 'none',
+        color: fg,
+        fontFamily: 'var(--font-ui)',
+        fontSize: '11px',
+        padding: '3px 8px',
+        border: `1px solid ${colorMix(fg, 0.18)}`,
+        borderRadius: '4px',
+        cursor: 'pointer',
+      },
+      '.cm-panel.cm-search button:not([name=close]):hover': {
+        backgroundColor: colorMix(x.cyan, 0.2),
+      },
+      '.cm-panel.cm-search button[name=close]': {
+        color: muted,
+        fontSize: '15px',
+        padding: '0 6px',
+        cursor: 'pointer',
+      },
     }, { dark: theme.appearance !== 'light' }),
     syntaxHighlighting(highlightStyle),
   ]

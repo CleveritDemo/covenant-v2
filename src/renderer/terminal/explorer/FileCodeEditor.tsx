@@ -1,9 +1,23 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { defaultKeymap, history, historyKeymap, indentWithTab, selectAll } from '@codemirror/commands'
 import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
 import { autocompletion } from '@codemirror/autocomplete'
-import { bracketMatching, indentOnInput } from '@codemirror/language'
+import {
+  bracketMatching,
+  foldAll,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
+  unfoldAll,
+} from '@codemirror/language'
+import {
+  highlightSelectionMatches,
+  openSearchPanel,
+  search,
+  searchKeymap,
+  selectSelectionMatches,
+} from '@codemirror/search'
 import { useT } from '@i18n/useT'
 import { getTheme } from '../../../themes/presets'
 import { createCodeMirrorTheme } from '../../../themes/codeMirrorTheme'
@@ -12,27 +26,13 @@ import { lspManager, onCodeIntelChange, type LspDoc, type LspDocStatus } from '.
 import { lspRangeToCm } from '../../lsp/positions'
 import type { LspEdit } from '../../lsp/edits'
 import { languageExtensionForPath } from './languageFromPath'
-import {
-  countSearchMatches,
-  fileEditorSearchExtension,
-  fileFindFirst,
-  fileFindNext,
-  fileFindPrevious,
-  searchQueryFromTerm,
-  setFileSearchQuery,
-} from './fileEditorSearch'
+import { FileEditorContextMenu } from './FileEditorContextMenu'
 import '../../lsp/lsp.css'
-
-export interface FileCodeEditorHandle {
-  findNext: () => boolean
-  findPrevious: () => boolean
-}
 
 interface FileCodeEditorProps {
   filePath: string
   themeId: string
   content: string
-  findQuery?: string
   readOnly?: boolean
   /** Sesión dueña del explorador; el main resuelve las rutas contra su raíz. */
   sessionId?: string
@@ -47,43 +47,33 @@ interface FileCodeEditorProps {
   gotoTarget?: { line: number; nonce: number }
   onChange: (content: string) => void
   onSave: () => void
-  onMatchCountChange?: (count: number) => void
-  onFindFocusRequest?: () => void
   onLspStatusChange?: (status: LspDocStatus) => void
   /** Abre otro archivo del proyecto (ruta relativa a la raíz de la sesión). */
   onOpenFile?: (relPath: string, line: number) => void
 }
 
-export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorProps>(function FileCodeEditor(
-  {
-    filePath,
-    themeId,
-    content,
-    findQuery = '',
-    readOnly = false,
-    sessionId,
-    lspRetryToken = 0,
-    gotoTarget,
-    onChange,
-    onSave,
-    onMatchCountChange,
-    onFindFocusRequest,
-    onLspStatusChange,
-    onOpenFile,
-  },
-  ref,
-) {
+export const FileCodeEditor: React.FC<FileCodeEditorProps> = ({
+  filePath,
+  themeId,
+  content,
+  readOnly = false,
+  sessionId,
+  lspRetryToken = 0,
+  gotoTarget,
+  onChange,
+  onSave,
+  onLspStatusChange,
+  onOpenFile,
+}) => {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const onSaveRef = useRef(onSave)
-  const onMatchCountChangeRef = useRef(onMatchCountChange)
-  const onFindFocusRequestRef = useRef(onFindFocusRequest)
   const onLspStatusChangeRef = useRef(onLspStatusChange)
   const onOpenFileRef = useRef(onOpenFile)
-  const findQueryRef = useRef(findQuery)
   const suppressUpdateRef = useRef(false)
+  const [menu, setMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
 
   // Estado LSP del archivo abierto. `lspDocRef` es null mientras el server no
   // esté listo, y todas las extensiones de cm6 hacen no-op en ese caso.
@@ -95,24 +85,8 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
 
   onChangeRef.current = onChange
   onSaveRef.current = onSave
-  onMatchCountChangeRef.current = onMatchCountChange
-  onFindFocusRequestRef.current = onFindFocusRequest
   onLspStatusChangeRef.current = onLspStatusChange
   onOpenFileRef.current = onOpenFile
-  findQueryRef.current = findQuery
-
-  useImperativeHandle(ref, () => ({
-    findNext: () => {
-      const view = viewRef.current
-      if (!view) return false
-      return fileFindNext(view)
-    },
-    findPrevious: () => {
-      const view = viewRef.current
-      if (!view) return false
-      return fileFindPrevious(view)
-    },
-  }))
 
   const lspHost = useMemo<LspHost>(() => ({
     doc: () => lspDocRef.current,
@@ -150,15 +124,37 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
     },
   }), [t])
 
-  const applySearchQuery = (view: EditorView, term: string, scrollToFirst: boolean): void => {
-    const query = searchQueryFromTerm(term)
-    view.dispatch({ effects: setFileSearchQuery.of(query) })
-    onMatchCountChangeRef.current?.(countSearchMatches(view.state, query))
-    if (scrollToFirst && term && query.valid) {
-      queueMicrotask(() => {
-        if (viewRef.current === view) fileFindFirst(view)
-      })
-    }
+  // Textos del panel de búsqueda nativo de cm6. Se capturan al montar: cambiar de
+  // idioma con un archivo abierto es raro y basta con reabrirlo.
+  const searchPhrases = useMemo(() => ({
+    Find: t('fileExplorer.editor.search.find'),
+    Replace: t('fileExplorer.editor.search.replaceField'),
+    next: t('fileExplorer.editor.search.next'),
+    previous: t('fileExplorer.editor.search.previous'),
+    all: t('fileExplorer.editor.search.all'),
+    'match case': t('fileExplorer.editor.search.matchCase'),
+    regexp: t('fileExplorer.editor.search.regexp'),
+    'by word': t('fileExplorer.editor.search.byWord'),
+    replace: t('fileExplorer.editor.search.replace'),
+    'replace all': t('fileExplorer.editor.search.replaceAll'),
+    close: t('fileExplorer.editor.search.close'),
+    'current match': t('fileExplorer.editor.search.currentMatch'),
+    'on line': t('fileExplorer.editor.search.onLine'),
+    'Go to line': t('fileExplorer.editor.search.gotoLine'),
+    go: t('fileExplorer.editor.search.go'),
+  }), [t])
+
+  /** Ejecuta un comando de cm6 sobre la vista viva y le devuelve el foco. */
+  const runOnView = (fn: (view: EditorView) => unknown): void => {
+    const view = viewRef.current
+    if (!view) return
+    fn(view)
+    view.focus()
+  }
+
+  const selectedText = (view: EditorView): string => {
+    const { from, to } = view.state.selection.main
+    return view.state.sliceDoc(from, to)
   }
 
   useEffect(() => {
@@ -181,12 +177,17 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
 
     const extensions: Extension[] = [
       lineNumbers(),
+      foldGutter(),
       highlightActiveLine(),
       highlightActiveLineGutter(),
       history(),
       indentOnInput(),
       bracketMatching(),
-      ...fileEditorSearchExtension(),
+      // Panel de búsqueda/reemplazo nativo de cm6: next/previous/all, match case,
+      // regexp, by word y replace all salen de aquí.
+      search({ top: true }),
+      highlightSelectionMatches(),
+      EditorState.phrases.of(searchPhrases),
       EditorView.lineWrapping,
       EditorState.tabSize.of(2),
       EditorView.updateListener.of(update => {
@@ -195,14 +196,10 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
           // disco: el documento del server tiene que seguir al buffer o los
           // diagnósticos quedan apuntando a offsets que ya no existen.
           lspDocRef.current?.changeIncremental(update)
-          if (!suppressUpdateRef.current) {
-            onChangeRef.current(update.state.doc.toString())
-            const query = searchQueryFromTerm(findQueryRef.current.trim())
-            onMatchCountChangeRef.current?.(countSearchMatches(update.state, query))
-          }
+          if (!suppressUpdateRef.current) onChangeRef.current(update.state.doc.toString())
         }
       }),
-      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
       saveKeymap,
       ...languageExtensionForPath(filePath),
       // El compartimento arranca sin fuente semántica y se reconfigura cuando el
@@ -223,8 +220,6 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
 
     const view = new EditorView({ state, parent: el })
     viewRef.current = view
-
-    applySearchQuery(view, findQueryRef.current.trim(), true)
 
     return () => {
       view.destroy()
@@ -309,12 +304,6 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
   }, [gotoTarget, filePath])
 
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    applySearchQuery(view, findQuery.trim(), true)
-  }, [findQuery])
-
-  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.type !== 'keydown') return
       if (!e.metaKey && !e.ctrlKey) return
@@ -323,10 +312,12 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
       const view = viewRef.current
       if (!view?.dom.contains(document.activeElement)) return
 
+      // ⌘F se captura aquí, antes que cualquier handler global de la app, y abre
+      // el panel nativo de cm6 en vez de dejar que lo robe otra búsqueda.
       if (!e.shiftKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
         e.preventDefault()
         e.stopPropagation()
-        onFindFocusRequestRef.current?.()
+        openSearchPanel(view)
         return
       }
 
@@ -340,5 +331,51 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [readOnly])
 
-  return <div className="file-code-editor" ref={containerRef} aria-label={t('fileExplorer.editor.codeEditorAria')} />
-})
+  return (
+    <>
+      <div
+        className="file-code-editor"
+        ref={containerRef}
+        aria-label={t('fileExplorer.editor.codeEditorAria')}
+        onContextMenu={e => {
+          const view = viewRef.current
+          if (!view) return
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, hasSelection: !view.state.selection.main.empty })
+        }}
+      />
+      {menu && (
+        <FileEditorContextMenu
+          x={menu.x}
+          y={menu.y}
+          hasSelection={menu.hasSelection}
+          readOnly={readOnly}
+          onCut={() => runOnView(view => {
+            const { from, to } = view.state.selection.main
+            void navigator.clipboard.writeText(selectedText(view)).catch(() => {})
+            view.dispatch({ changes: { from, to, insert: '' } })
+          })}
+          onCopy={() => runOnView(view => {
+            void navigator.clipboard.writeText(selectedText(view)).catch(() => {})
+          })}
+          onPaste={() => runOnView(view => {
+            void navigator.clipboard.readText().then(text => {
+              if (!text || viewRef.current !== view) return
+              const { from, to } = view.state.selection.main
+              view.dispatch({
+                changes: { from, to, insert: text },
+                selection: { anchor: from + text.length },
+              })
+            }).catch(() => {})
+          })}
+          onSelectAll={() => runOnView(selectAll)}
+          onSelectOccurrences={() => runOnView(selectSelectionMatches)}
+          onFind={() => runOnView(openSearchPanel)}
+          onFoldAll={() => runOnView(foldAll)}
+          onUnfoldAll={() => runOnView(unfoldAll)}
+          onClose={() => setMenu(null)}
+        />
+      )}
+    </>
+  )
+}

@@ -3,6 +3,7 @@ import { applyTheme, getTheme, normalizeThemeId } from '@themes/presets'
 import type { AppConfig } from '@shared/configSchema'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
 import { agentCliSpec } from '@shared/agentCliProviders'
+import { fontStack } from '@shared/fontStacks'
 import { i18next } from '@i18n/index'
 import { useT } from '@i18n/useT'
 import {
@@ -1012,6 +1013,21 @@ export const App: React.FC = () => {
     if (!configReady) return
     applyTheme(getTheme(config.themeId))
   }, [configReady, config.themeId])
+
+  // Tipografía elegida en Ajustes. `applyTheme` no toca estas variables, así que
+  // cambiar de tema no pisa la fuente. Sin elección se borra el inline y manda global.css.
+  useEffect(() => {
+    if (!configReady) return
+    const root = document.documentElement
+    for (const [cssVar, kind, choice] of [
+      ['--font-ui', 'ui', config.fontUi],
+      ['--font-mono', 'mono', config.fontMono],
+    ] as const) {
+      const stack = fontStack(choice ?? '', kind)
+      if (stack) root.style.setProperty(cssVar, stack)
+      else root.style.removeProperty(cssVar)
+    }
+  }, [configReady, config.fontUi, config.fontMono])
 
   useEffect(() => {
     if (!configReady) return

@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { getTheme } from '@themes/presets'
 import type { AppConfig } from '@shared/configSchema'
+import { fontStack } from '@shared/fontStacks'
 import { feedCompletedUserLines } from '@renderer/history/feedCompletedUserLines'
 import { isClearCommandLine } from '@renderer/terminal/isClearCommand'
 import { ConfirmTerminalModal } from '@renderer/components/ConfirmTerminalModal'
@@ -242,6 +243,18 @@ function syncTerminalScrolledUpState(
   setIsScrolledUp: React.Dispatch<React.SetStateAction<boolean>>,
 ): void {
   setIsScrolledUp(term ? isTerminalScrolledUp(term) : false)
+}
+
+/**
+ * Familia para xterm. Se calcula desde la config y no leyendo `--font-mono`
+ * porque los efectos del hijo corren antes que el de App que escribe la variable:
+ * al cambiar la fuente, el DOM todavía tiene la anterior.
+ */
+function monoFontFamily(choice: string | undefined): string {
+  const stack = fontStack(choice ?? '', 'mono')
+  if (stack) return stack
+  const fromDom = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim()
+  return fromDom || 'monospace'
 }
 
 function fitTerminal(term: Terminal, fit: FitAddon): void {
@@ -784,7 +797,7 @@ export const TerminalPane: React.FC<Props> = ({
     // creating the terminal with CONFIG_DEFAULTS before getConfig() resolves)
     const initialTheme = getTheme(configRef.current.themeId)
     const term = new Terminal({
-      fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace',
+      fontFamily: monoFontFamily(configRef.current.fontMono),
       fontSize: configRef.current.fontSize,
       lineHeight: 1.4,
       cursorBlink: true,
@@ -1430,11 +1443,15 @@ export const TerminalPane: React.FC<Props> = ({
     const fit = fitRef.current
     if (term && fit) {
       term.options.fontSize = config.fontSize
+      term.options.fontFamily = monoFontFamily(config.fontMono)
+      // Cambiar de familia deja glifos de la anterior en el atlas (igual que al cambiar de tema).
+      ;(term as Terminal & { clearTextureAtlas?: () => void }).clearTextureAtlas?.()
+      // La celda cambia de ancho: sin fit + ptyResize el PTY sigue con las cols viejas.
       fitTerminal(term, fit)
       syncTerminalScrolledUpState(term, setIsScrolledUp)
       window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))
     }
-  }, [config.fontSize, sessionId])
+  }, [config.fontSize, config.fontMono, sessionId])
 
   useEffect(() => {
     if (tabActive && isActivePane && fitRef.current && termRef.current) {

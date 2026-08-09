@@ -1,5 +1,6 @@
 // Auto-updater contra GitHub Releases (electron-updater). Chequeo silencioso al
-// arrancar y cada hora; el usuario decide cuándo instalar desde el banner.
+// arrancar y cada hora cuando `autoUpdatesEnabled`; el usuario decide cuándo
+// instalar desde el banner o Ajustes → Actualizaciones.
 //
 // No hay llaves de firma propias: la confianza viene de la firma de plataforma
 // (Developer ID + notarización en macOS). En dev no corre — sin `app-update.yml`
@@ -11,7 +12,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IPC } from '@shared/ipcChannels'
 import type { UpdateState } from '@shared/updateState'
-import { formatReleaseNotes } from '@shared/updateState'
+import { formatReleaseNotes, shouldScheduleSilentUpdateChecks } from '@shared/updateState'
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000
 const FIRST_CHECK_DELAY_MS = 5_000
@@ -21,6 +22,10 @@ let state: UpdateState = { kind: 'idle' }
 let installWhenReady = false
 /** Entre el cierre de ventanas y el relevo a Squirrel nadie más puede llamar a `app.quit()`. */
 let installing = false
+/** Timers del chequeo silencioso (null = parado). */
+let firstCheckTimer: ReturnType<typeof setTimeout> | null = null
+let intervalTimer: ReturnType<typeof setInterval> | null = null
+let silentChecksAllowed = false
 
 /**
  * `true` mientras se está aplicando una actualización. main.ts consulta esto antes
@@ -73,7 +78,77 @@ function quitAndInstall(): void {
   for (const win of windows) win.close()
 }
 
-export function registerSelfUpdate(): void {
+function silentCheck(): void {
+  void autoUpdater.checkForUpdates().catch((err: unknown) => {
+    console.warn('[updater] chequeo fallido:', err)
+  })
+}
+
+function stopSilentChecks(): void {
+  if (firstCheckTimer) {
+    clearTimeout(firstCheckTimer)
+    firstCheckTimer = null
+  }
+  if (intervalTimer) {
+    clearInterval(intervalTimer)
+    intervalTimer = null
+  }
+}
+
+function startSilentChecks(): void {
+  stopSilentChecks()
+  firstCheckTimer = setTimeout(() => {
+    firstCheckTimer = null
+    silentCheck()
+    intervalTimer = setInterval(silentCheck, CHECK_INTERVAL_MS)
+  }, FIRST_CHECK_DELAY_MS)
+}
+
+/**
+ * Activa o para los chequeos silenciosos sin reiniciar la app.
+ * El IPC `UPDATE_CHECK` manual sigue disponible siempre.
+ */
+export function setAutoUpdatesEnabled(enabled: boolean): void {
+  if (!app.isPackaged) return
+  const allow = shouldScheduleSilentUpdateChecks(enabled)
+  if (allow === silentChecksAllowed) return
+  silentChecksAllowed = allow
+  if (allow) {
+    log('chequeos silenciosos ON')
+    startSilentChecks()
+  } else {
+    log('chequeos silenciosos OFF')
+    stopSilentChecks()
+  }
+}
+
+function wireUpdaterEvents(): void {
+  autoUpdater.autoDownload = false
+  log(`versión actual ${app.getVersion()}`)
+  autoUpdater.on('update-available', info => {
+    log(`disponible ${info.version}`)
+    setState({ kind: 'available', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
+  })
+  autoUpdater.on('update-not-available', () => log('sin actualizaciones'))
+  autoUpdater.on('download-progress', progress => {
+    if (state.kind !== 'downloading') return
+    setState({ kind: 'downloading', version: state.version, percent: Math.round(progress.percent) })
+  })
+  autoUpdater.on('update-downloaded', info => {
+    log(`descargada ${info.version}`)
+    setState({ kind: 'ready', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
+    if (installWhenReady) quitAndInstall()
+  })
+  autoUpdater.on('error', err => {
+    log(`error: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
+    installing = false
+    // Un fallo de red en el chequeo silencioso no debe tapar el banner ya visible.
+    if (state.kind === 'idle') return
+    setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+  })
+}
+
+export function registerSelfUpdate(autoUpdatesEnabled = true): void {
   ipcMain.handle(IPC.UPDATE_STATE_GET, () => state)
   ipcMain.on(IPC.UPDATE_INSTALL, () => {
     if (state.kind === 'ready') {
@@ -111,35 +186,6 @@ export function registerSelfUpdate(): void {
 
   if (!app.isPackaged) return
 
-  autoUpdater.autoDownload = false
-  log(`versión actual ${app.getVersion()}`)
-  autoUpdater.on('update-available', info => {
-    log(`disponible ${info.version}`)
-    setState({ kind: 'available', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
-  })
-  autoUpdater.on('update-not-available', () => log('sin actualizaciones'))
-  autoUpdater.on('download-progress', progress => {
-    if (state.kind !== 'downloading') return
-    setState({ kind: 'downloading', version: state.version, percent: Math.round(progress.percent) })
-  })
-  autoUpdater.on('update-downloaded', info => {
-    log(`descargada ${info.version}`)
-    setState({ kind: 'ready', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
-    if (installWhenReady) quitAndInstall()
-  })
-  autoUpdater.on('error', err => {
-    log(`error: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
-    installing = false
-    // Un fallo de red en el chequeo silencioso no debe tapar el banner ya visible.
-    if (state.kind === 'idle') return
-    setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
-  })
-
-  const check = (): void => {
-    void autoUpdater.checkForUpdates().catch((err: unknown) => {
-      console.warn('[updater] chequeo fallido:', err)
-    })
-  }
-  setTimeout(check, FIRST_CHECK_DELAY_MS)
-  setInterval(check, CHECK_INTERVAL_MS)
+  wireUpdaterEvents()
+  setAutoUpdatesEnabled(autoUpdatesEnabled)
 }

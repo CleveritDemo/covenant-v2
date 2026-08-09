@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.19.0
+
+- **Nueva sección Actualizaciones en Ajustes**: activar/desactivar actualizaciones
+  automáticas (encendidas por defecto), buscar actualizaciones y forzar la
+  instalación si hay una nueva.
+
 ## v0.18.0
 
 - **Las réplicas de expertos creadas a demanda se eliminan** al terminar o

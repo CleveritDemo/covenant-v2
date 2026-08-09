@@ -201,7 +201,7 @@ import { loadFileBytesForExplorer } from './fileExplorerOps'
 const FILE_EXPLORER_MAX_PREVIEW_BYTES = 100_000_000
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
-import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
+import { isInstallingUpdate, registerSelfUpdate, setAutoUpdatesEnabled } from './selfUpdate'
 import { decryptField, encryptField, isEncryptedField } from './safeStorageUtils'
 import {
   initLspEngine,
@@ -529,6 +529,7 @@ function registerIpc(): void {
     const errs = validateConfig(next)
     if (errs.length) return { ok: false as const, errors: errs }
     writeConfig(next)
+    setAutoUpdatesEnabled(next.autoUpdatesEnabled)
     return { ok: true as const }
   })
 
@@ -1989,7 +1990,7 @@ app.whenReady().then(() => {
     },
   })
   registerIpc()
-  registerSelfUpdate()
+  registerSelfUpdate(readConfig().autoUpdatesEnabled)
   createWindow()
 
   app.on('activate', () => {

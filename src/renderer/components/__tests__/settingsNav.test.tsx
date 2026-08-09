@@ -37,7 +37,15 @@ function nav(name: string): HTMLElement {
 beforeEach(() => {
   setConfig.mockReset()
   setConfig.mockResolvedValue({ ok: true })
-  vi.stubGlobal('window', Object.assign(window, { api: { setConfig, openConfigFolder: vi.fn(), getAppVersion: vi.fn().mockResolvedValue('0.0.0') } }))
+  vi.stubGlobal('window', Object.assign(window, {
+    api: {
+      setConfig,
+      openConfigFolder: vi.fn(),
+      getAppVersion: vi.fn().mockResolvedValue('0.0.0'),
+      checkForUpdates: vi.fn().mockResolvedValue({ kind: 'idle' }),
+      installUpdate: vi.fn(),
+    },
+  }))
 })
 
 afterEach(cleanup)
@@ -69,6 +77,16 @@ describe('riel de categorías', () => {
 
     expect(screen.getByText('settings.languageLabel')).toBeTruthy()
     expect(screen.getByText('settings.reduceMotionTitle')).toBeTruthy()
+  })
+
+  it('Actualizaciones muestra toggle y acciones de update', () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+
+    fireEvent.click(nav('settings.updatesSection'))
+
+    expect(screen.getByText('settings.autoUpdatesTitle')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.checkUpdates' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.forceUpdate' })).toBeTruthy()
   })
 
   it('el pie avisa del campo inválido aunque estés en otra categoría', async () => {

@@ -70,16 +70,17 @@
   --plane-glow: var(--accent-glow);
   --plane-glow-strong: var(--accent-glow-strong);
   --plane-highlight: color-mix(in srgb, #fff 7%, transparent);
-  --plane-shadow: 0 14px 42px color-mix(in srgb, #000 38%, transparent);
-  --plane-shadow-soft: 0 8px 26px color-mix(in srgb, #000 30%, transparent);
+  /* Elevación clara sobre el plano oscuro (sin glow de acento). */
+  --plane-shadow: 0 16px 48px color-mix(in srgb, #000 55%, transparent);
+  --plane-shadow-soft: 0 10px 32px color-mix(in srgb, #000 44%, transparent);
   /* Cards mini (agentes a la derecha; terminales usan la variante left). */
   --plane-mini-card-shadow:
-    5px 6px 18px color-mix(in srgb, #000 16%, transparent),
-    1px 2px 5px color-mix(in srgb, #000 8%, transparent),
+    5px 7px 22px color-mix(in srgb, #000 30%, transparent),
+    1px 2px 6px color-mix(in srgb, #000 14%, transparent),
     inset 0 0 0 1px var(--plane-highlight);
   --plane-mini-card-shadow-left:
-    -5px 6px 18px color-mix(in srgb, #000 16%, transparent),
-    -1px 2px 5px color-mix(in srgb, #000 8%, transparent),
+    -5px 7px 22px color-mix(in srgb, #000 30%, transparent),
+    -1px 2px 6px color-mix(in srgb, #000 14%, transparent),
     inset 0 0 0 1px var(--plane-highlight);
   --plane-grid-line: color-mix(in srgb, var(--border) 22%, var(--accent) 8%);
   --plane-atmosphere-a: var(--accent-veil-strong);

@@ -43,9 +43,9 @@
   border-radius: 12px;
   font-family: var(--font-ui);
   color: var(--text);
-  /* Misma sombra que .pane-window--full. */
+  /* Misma elevación que ventanas del plano (token dark/light). */
   box-shadow:
-    0 14px 42px color-mix(in srgb, #000 27%, transparent),
+    var(--plane-shadow),
     inset 0 0 0 1px var(--plane-highlight);
   outline: none;
   overflow: hidden;

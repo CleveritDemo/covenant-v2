@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { TabContextKind } from '@shared/tabContext'
+import type { TabContext, TabContextKind } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
-import { agentMonogram } from '@shared/tabContextAppearance'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
 import { setPlaneContextDragData } from './planeContextDrag'
+import { PlaneContextAssignModal } from './PlaneContextAssignModal'
 import './PlaneContextPool.css'
 
 export interface PlaneContextPoolItem {
@@ -60,7 +60,7 @@ export interface PlaneContextPoolProps {
   createLabel: string
   /** Hint del chip (segunda línea del tooltip + aria): clic asigna, arrastrar también. */
   chipActionHint?: string
-  /** Título del popover de asignación (`{{name}}` ya resuelto por el llamador). */
+  /** Título del modal de asignación. */
   assignLabel: string
   /** Texto cuando el plano no tiene agentes. */
   assignEmptyHint: string
@@ -68,12 +68,16 @@ export interface PlaneContextPoolProps {
   assignedCountLabel: (count: number) => string
   editLabel: string
   contexts: PlaneContextPoolItem[]
+  /** Catálogo completo para el preview del modal. */
+  contextCatalog?: TabContext[]
+  /** Carpeta del proyecto (preview IPC). */
+  cwd?: string
   /** Agentes del plano (orden de la columna). */
   agents: PlaneContextPoolAgent[]
   onConfigure: () => void
   /** Abre el modal de contextos directo en el formulario de creación. */
   onCreate: () => void
-  /** Abre ese contexto para editarlo (acción del pie del popover). */
+  /** Abre ese contexto para editarlo. */
   onOpenContext?: (contextId: string) => void
   /** Asigna/desasigna un contexto a un agente. */
   onToggleAssign: (paneId: string, contextId: string) => void
@@ -89,6 +93,8 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   assignedCountLabel,
   editLabel,
   contexts,
+  contextCatalog = [],
+  cwd = '',
   agents,
   onConfigure,
   onCreate,
@@ -111,29 +117,14 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const openContext = openContextId
     ? visibleContexts.find(ctx => ctx.id === openContextId) ?? null
     : null
+  const previewContext = openContextId
+    ? contextCatalog.find(ctx => ctx.id === openContextId) ?? null
+    : null
 
   // El contexto abierto puede desaparecer (borrado desde el modal).
   useEffect(() => {
     if (openContextId && !openContext) setOpenContextId(null)
   }, [openContextId, openContext])
-
-  useEffect(() => {
-    if (!openContextId) return
-    const onPointerDown = (event: MouseEvent): void => {
-      const root = rootRef.current
-      if (!root || root.contains(event.target as Node)) return
-      setOpenContextId(null)
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpenContextId(null)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [openContextId])
 
   /** Roving tabindex: la barra entera es una sola parada de tabulación. */
   const onToolbarKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -155,6 +146,8 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     tabIndex: index === rovingIndex ? 0 : -1,
     onFocus: () => setRovingIndex(index),
   })
+
+  const closeAssignModal = useCallback(() => setOpenContextId(null), [])
 
   return (
     <div
@@ -197,7 +190,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
           {visibleContexts.map((ctx, index) => {
             const assignedCount = (assignedByContext[ctx.id] ?? []).length
             const open = openContextId === ctx.id
-            // Primera línea de la burbuja: qué es y a cuántos se lo diste.
             const summary = [
               `${ctx.name} — ${ctx.kindLabel}`,
               assignedCount > 0 ? assignedCountLabel(assignedCount) : '',
@@ -257,82 +249,19 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         </div>
       ) : null}
 
-      {openContext && (
-        <div
-          className="plane-context-pool__pop"
-          role="dialog"
-          aria-label={assignLabel}
-        >
-          <div className="plane-context-pool__pop-head">
-            <span
-              className="plane-context-pool__pop-icon"
-              style={{ color: openContext.color }}
-            >
-              <Icon name={openContext.icon} size={13} aria-hidden />
-            </span>
-            <span className="plane-context-pool__pop-name">{openContext.name}</span>
-            {/* El kind ya va en el tooltip del chip; aquí pesa más el reparto. */}
-            {agents.length > 0 ? (
-              <span className="plane-context-pool__pop-count">
-                {agents.filter(agent => agent.contextIds.includes(openContext.id)).length}
-                /
-                {agents.length}
-              </span>
-            ) : null}
-          </div>
-
-          {agents.length > 0 ? (
-            <div
-              className="plane-context-pool__pop-list"
-              role="listbox"
-              aria-multiselectable="true"
-              aria-label={assignLabel}
-            >
-              {agents.map(agent => {
-                const checked = agent.contextIds.includes(openContext.id)
-                return (
-                  <button
-                    key={agent.paneId}
-                    type="button"
-                    role="option"
-                    aria-selected={checked}
-                    className={[
-                      'plane-context-pool__pop-row',
-                      checked ? 'plane-context-pool__pop-row--on' : '',
-                    ].filter(Boolean).join(' ')}
-                    onClick={() => onToggleAssign(agent.paneId, openContext.id)}
-                  >
-                    {/* El monograma es el control: relleno = lo lee, hueco = no. */}
-                    <span className="plane-context-pool__pop-row-mono" aria-hidden="true">
-                      {agentMonogram(agent.title)}
-                    </span>
-                    <span className="plane-context-pool__pop-row-name">{agent.title}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="plane-context-pool__pop-empty">{assignEmptyHint}</p>
-          )}
-
-          {onOpenContext ? (
-            <div className="plane-context-pool__pop-foot">
-              <button
-                type="button"
-                className="plane-context-pool__pop-action"
-                onClick={() => {
-                  const contextId = openContext.id
-                  setOpenContextId(null)
-                  onOpenContext(contextId)
-                }}
-              >
-                <Icon name="pencil" size={12} aria-hidden />
-                {editLabel}
-              </button>
-            </div>
-          ) : null}
-        </div>
-      )}
+      <PlaneContextAssignModal
+        open={Boolean(openContext)}
+        context={openContext}
+        previewContext={previewContext}
+        cwd={cwd}
+        agents={agents}
+        assignLabel={assignLabel}
+        assignEmptyHint={assignEmptyHint}
+        editLabel={editLabel}
+        onClose={closeAssignModal}
+        onToggleAssign={onToggleAssign}
+        onEdit={onOpenContext}
+      />
     </div>
   )
 }

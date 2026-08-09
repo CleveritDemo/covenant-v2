@@ -4873,6 +4873,7 @@ export const App: React.FC = () => {
                   onOpenRepoGit={(repoPath: string) => openTabGitModal(tab.id, repoPath)}
                   onRefreshRepos={() => { void refreshPlaneGitRepos() }}
                   tabContexts={tabContextBadges}
+                  contextCatalog={discoveredContexts}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}

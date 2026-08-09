@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.23.0
+
+- **Al pulsar un contexto del plano se abre un modal**: fila de agentes para
+  asignar o quitar, preview del contenido y botón Editar; ya no hay dropdown.
+- **Modo turbo del orquestador es un switch** justo encima de clonar expertos.
+- **Sombras más visibles en modo oscuro** en modales y ventanas/terminales.
+- **El tema Zelda — Breath of the Wild** gana más color (verde, oro y silent
+  princess), no solo celestes.
+
 ## v0.22.0
 
 - **El orquestador gana estilo de trabajo Lineal o Turbo.** Lineal espera a que

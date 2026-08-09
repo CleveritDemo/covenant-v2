@@ -443,24 +443,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
         </div>
         {coordinationCanDelegate(meta.coordination) ? (
           <>
-            {meta.coordination === 'orchestrator' ? (
-              <label className="agent-config-settings__field">
-                <span className="agent-config-settings__label">{t('agentPane.orchestrationWorkStyleLabel')}</span>
-                <Select
-                  value={workStyle}
-                  disabled={locked}
-                  title={t('agentPane.orchestrationWorkStyleHint')}
-                  onChange={value => onOrchestrationWorkStyleChange(
-                    value === 'turbo' ? 'turbo' : 'linear',
-                  )}
-                  options={[
-                    { value: 'linear', label: t('agentPane.orchestrationWorkStyleLinear') },
-                    { value: 'turbo', label: t('agentPane.orchestrationWorkStyleTurbo') },
-                  ]}
-                />
-                <p className="agent-config-settings__hint">{t('agentPane.orchestrationWorkStyleHint')}</p>
-              </label>
-            ) : null}
             <label className="agent-config-settings__field">
               <span className="agent-config-settings__label">{t('agentPane.orchestrationMaxRoundsLabel')}</span>
               <Select
@@ -490,6 +472,16 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 onChange={onChangeDelegateTo}
               />
             )}
+            {meta.coordination === 'orchestrator' ? (
+              <SettingToggle
+                checked={workStyle === 'turbo'}
+                disabled={locked}
+                title={t('agentPane.orchestrationWorkStyleLabel')}
+                description={t('agentPane.orchestrationWorkStyleHint')}
+                hint={t('agentPane.orchestrationWorkStyleHint')}
+                onChange={checked => onOrchestrationWorkStyleChange(checked ? 'turbo' : 'linear')}
+              />
+            ) : null}
             <SettingToggle
               checked={turboReplicasLocked || meta.allowExpertReplicas === true}
               disabled={locked || turboReplicasLocked}

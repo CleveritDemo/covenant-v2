@@ -67,7 +67,7 @@
   color: var(--tp-fg);
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 8px 24px color-mix(in srgb, black 18%, transparent);
+  box-shadow: var(--plane-shadow-soft);
 }
 
 .theme-picker-tp-shell {

@@ -1,0 +1,150 @@
+.plane-context-assign-modal__head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px 2px;
+  min-width: 0;
+}
+
+.plane-context-assign-modal__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.plane-context-assign-modal__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.plane-context-assign-modal__title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.plane-context-assign-modal__name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-context-assign-modal__meta {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.plane-context-assign-modal__agents-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plane-context-assign-modal__agents-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.plane-context-assign-modal__agents {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 2px 0 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.plane-context-assign-modal__agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  max-width: 160px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.plane-context-assign-modal__agent:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 90%, var(--accent));
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.plane-context-assign-modal__agent:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.plane-context-assign-modal__agent--on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.plane-context-assign-modal__agent-mono {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.plane-context-assign-modal__agent--on .plane-context-assign-modal__agent-mono {
+  border-color: var(--accent-solid);
+  background: var(--accent-solid);
+  color: var(--accent-solid-fg);
+}
+
+.plane-context-assign-modal__agent-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-context-assign-modal__empty {
+  margin: 0;
+  padding: 8px 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.plane-context-assign-modal__preview {
+  display: flex;
+  flex-direction: column;
+  height: min(58vh, 520px);
+  min-height: min(40vh, 360px);
+  max-height: min(58vh, 520px);
+  padding: 0 14px 14px;
+  overflow: hidden;
+}
+
+.plane-context-assign-modal__preview .context-content-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+}

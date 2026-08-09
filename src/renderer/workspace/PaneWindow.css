@@ -165,15 +165,14 @@
   min-width: 320px;
   min-height: 200px;
   border-radius: var(--plane-radius-sm);
-  /* Sombra ~30% menos intensa que --plane-shadow (38% → ~27%). */
   box-shadow:
-    0 14px 42px color-mix(in srgb, #000 27%, transparent),
+    var(--plane-shadow),
     inset 0 0 0 1px var(--plane-highlight);
 }
 
 .pane-window--full.pane-window--focused {
   box-shadow:
-    0 14px 42px color-mix(in srgb, #000 27%, transparent),
+    var(--plane-shadow),
     0 0 0 0.5px color-mix(in srgb, #000 18%, transparent),
     inset 0 0.5px 0 color-mix(in srgb, #fff 10%, transparent);
 }
@@ -337,7 +336,7 @@
 
 .pane-window--mini-bare:not(.pane-window--agent-card):hover {
   border: none;
-  box-shadow: 0 10px 28px color-mix(in srgb, #000 28%, transparent);
+  box-shadow: var(--plane-shadow-soft);
 }
 
 .pane-window--mini-preview .pane-window__body,

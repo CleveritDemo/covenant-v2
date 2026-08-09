@@ -35,6 +35,7 @@ import {
   type TabFileExplorerWindowHandle,
 } from './TabFileExplorerWindow'
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
+import type { TabContext } from '@shared/tabContext'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './TabAgenticPlane.css'
 
@@ -61,6 +62,8 @@ export interface TabAgenticPlaneProps {
   chatEmptyAgents: string
   chatSendLabel: string
   tabContexts: PlaneContextPoolItem[]
+  /** Catálogo completo (preview del modal de asignación). */
+  contextCatalog?: TabContext[]
   onToggleAgentContext: (paneId: string, contextId: string) => void
   onAutoImproveChange: (paneId: string, enabled: boolean) => void
   onToggleLoop: (paneId: string) => void
@@ -226,6 +229,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   chatEmptyAgents,
   chatSendLabel,
   tabContexts,
+  contextCatalog = [],
   onToggleAgentContext,
   onAutoImproveChange,
   onToggleLoop,
@@ -695,6 +699,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           assignedCountLabel={contextPoolAssignedCountLabel}
           editLabel={contextPoolEditLabel}
           contexts={tabContexts}
+          contextCatalog={contextCatalog}
+          cwd={projectFolder}
           agents={contextPoolAgents}
           onConfigure={onConfigureContexts}
           onCreate={onCreateContext}

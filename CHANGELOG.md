@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.12.0
+
+- **El panel Git ya no está atado a un solo worktree.** Si el repo tiene varios,
+  aparece un selector arriba a la izquierda con todos ellos —el principal
+  primero, cada uno con su rama— y al elegir uno el estado, la lista de
+  archivos, el diff y GitHub Actions pasan a ese worktree. Revisar qué tocó cada
+  agente ya no obliga a cambiar de carpeta ni de pestaña.
+- **La pestaña se queda donde está.** El selector solo cambia lo que inspeccionas:
+  tus terminales, el explorador y los agentes siguen en la carpeta de siempre.
+- **Los desplegables dejan de recortar.** El panel de los selectores usaba el
+  ancho del botón, así que las opciones largas acababan en puntos suspensivos;
+  ahora ese ancho es el mínimo y el panel crece con su contenido.
+
 ## v0.11.0
 
 - **El explorador ya no solo abre texto.** Haz clic en un PDF, una hoja de

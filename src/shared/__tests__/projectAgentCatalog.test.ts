@@ -196,11 +196,13 @@ describe('projectAgentCatalog', () => {
       orchestrationMaxRounds: 7,
       allowExpertReplicas: true,
     })
+    expect(orch?.orchestrationWorkStyle).toBeUndefined()
     const clone = cloneProjectAgentDefinition(orch!)
     expect(clone.coordination).toBe('orchestrator')
     expect(clone.acceptDelegations).toBe(false)
     expect(clone.orchestrationMaxRounds).toBe(7)
     expect(clone.allowExpertReplicas).toBe(true)
+    expect(clone.orchestrationWorkStyle).toBeUndefined()
 
     const unlimited = parseProjectAgentDefinition({
       id: 'boss-unlimited',
@@ -222,6 +224,33 @@ describe('projectAgentCatalog', () => {
     expect(defaultRounds?.orchestrationMaxRounds).toBeUndefined()
     expect(defaultRounds?.allowExpertReplicas).toBeUndefined()
 
+    const turbo = parseProjectAgentDefinition({
+      id: 'boss-turbo',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      orchestrationWorkStyle: 'turbo',
+    })
+    expect(turbo).toMatchObject({
+      coordination: 'orchestrator',
+      orchestrationWorkStyle: 'turbo',
+      allowExpertReplicas: true,
+    })
+    const turboClone = cloneProjectAgentDefinition(turbo!)
+    expect(turboClone.orchestrationWorkStyle).toBe('turbo')
+    expect(turboClone.allowExpertReplicas).toBe(true)
+
+    const linearExplicit = parseProjectAgentDefinition({
+      id: 'boss-linear',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      orchestrationWorkStyle: 'linear',
+      allowExpertReplicas: true,
+    })
+    expect(linearExplicit?.orchestrationWorkStyle).toBeUndefined()
+    expect(linearExplicit?.allowExpertReplicas).toBe(true)
+
     const po = parseProjectAgentDefinition({
       id: 'po',
       provider: 'claude',
@@ -229,24 +258,29 @@ describe('projectAgentCatalog', () => {
       coordination: 'productOwner',
       orchestrationMaxRounds: 5,
       allowExpertReplicas: true,
+      orchestrationWorkStyle: 'turbo',
     })
     expect(po).toMatchObject({
       coordination: 'productOwner',
       orchestrationMaxRounds: 5,
       allowExpertReplicas: true,
     })
+    expect(po?.orchestrationWorkStyle).toBeUndefined()
     const poClone = cloneProjectAgentDefinition(po!)
     expect(poClone.coordination).toBe('productOwner')
     expect(poClone.orchestrationMaxRounds).toBe(5)
     expect(poClone.allowExpertReplicas).toBe(true)
+    expect(poClone.orchestrationWorkStyle).toBeUndefined()
 
     const specialist = parseProjectAgentDefinition({
       id: 'qa',
       provider: 'claude',
       permissionMode: 'auto',
       allowExpertReplicas: true,
+      orchestrationWorkStyle: 'turbo',
     })
     expect(specialist?.allowExpertReplicas).toBeUndefined()
+    expect(specialist?.orchestrationWorkStyle).toBeUndefined()
   })
 
   it('keeps empty rule drafts so the editor can add slots', () => {

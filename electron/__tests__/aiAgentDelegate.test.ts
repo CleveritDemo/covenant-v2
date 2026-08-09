@@ -84,6 +84,19 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(withReplicas).toContain('Parallel experts')
     expect(withReplicas).toContain('agentId#2')
   })
+
+  it('injects turbo job guidance and forces replica wording', () => {
+    const text = buildAiAgentDelegateInstruction({
+      allowedAgentIds: ['frontend'],
+      workStyle: 'turbo',
+      orchestrationJobId: 'job-abc',
+      maxRounds: 3,
+    })
+    expect(text).toContain('Work style: turbo')
+    expect(text).toContain('job-abc')
+    expect(text).toContain('Parallel experts')
+    expect(text).toContain('per job/user message')
+  })
 })
 
 describe('buildAiAgentProductOwnerInstruction', () => {

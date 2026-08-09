@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.22.0
+
+- **El orquestador gana estilo de trabajo Lineal o Turbo.** Lineal espera a que
+  cierren las delegaciones antes del siguiente mensaje. Turbo deja seguir
+  enviando en cuanto el orquestador queda libre, con olas en paralelo, y fuerza
+  clonar expertos a demanda (sin poder apagarlo).
+
 ## v0.21.0
 
 - **La barra de contextos del plano vuelve a ser solo íconos**: se quita el

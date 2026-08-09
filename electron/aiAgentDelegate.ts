@@ -65,6 +65,8 @@ export function buildAiAgentDelegateInstruction(options?: {
   maxRounds?: number
   allowedAgentIds?: readonly string[]
   allowExpertReplicas?: boolean
+  workStyle?: 'linear' | 'turbo'
+  orchestrationJobId?: string
 }): string {
   const allow = options?.allowDelegations !== false
   if (!allow) {
@@ -76,10 +78,24 @@ export function buildAiAgentDelegateInstruction(options?: {
     ].join('\n')
   }
   const exampleId = exampleAgentId(options?.allowedAgentIds)
-  const replicaLines = options?.allowExpertReplicas
+  const turbo = options?.workStyle === 'turbo'
+  const allowExpertReplicas = options?.allowExpertReplicas === true || turbo
+  const replicaLines = allowExpertReplicas
     ? [
       'Parallel experts: you may delegate multiple slices to the same specialist role at once.',
       'Use the listed agentId repeatedly, or agentId#2 / agentId-2; the host clones busy experts into temporary replicas.',
+    ]
+    : []
+  const turboLines = turbo
+    ? [
+      '## Work style: turbo',
+      'A single CLI runs on this pane; specialist waves from multiple jobs may run in parallel.',
+      options?.orchestrationJobId?.trim()
+        ? `Current job id: ${options.orchestrationJobId.trim()}. Treat each human message as its own job/thread.`
+        : 'Treat each human message as its own job/thread; follow-ups name the job they belong to.',
+      'New user messages may arrive without aborting prior specialist waves.',
+      'Do not assume the git working tree is quiet — other jobs may still be merging.',
+      'Delegation wave caps apply per job/user message, not globally across the pane.',
     ]
     : []
   return [
@@ -90,6 +106,7 @@ export function buildAiAgentDelegateInstruction(options?: {
     'Specialists work in dedicated git worktrees. When their turns complete, the host merges those branches into the base branch in order — you integrate outcomes in chat; you do not run git merge yourself.',
     formatAllowedAgentIdsLine(options?.allowedAgentIds),
     ...replicaLines,
+    ...turboLines,
     orchestrationWaveCapLine(options),
     'Stop delegating when: the user goal is met, specialists already answered, or another wave would only repeat work.',
     'When the goal is met, reply to the user and do NOT emit a delegate fence.',

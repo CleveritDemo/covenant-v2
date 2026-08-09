@@ -68,6 +68,7 @@ function renderModal(
       onAcceptDelegationsChange={() => {}}
       onAllowExpertReplicasChange={() => {}}
       onOrchestrationMaxRoundsChange={() => {}}
+      onOrchestrationWorkStyleChange={() => {}}
       onChangeDelegateTo={() => {}}
       onChangeProvider={() => {}}
       onChangeModel={() => {}}
@@ -236,6 +237,7 @@ describe('AgentConfigModal', () => {
         onAcceptDelegationsChange={() => {}}
         onAllowExpertReplicasChange={() => {}}
         onOrchestrationMaxRoundsChange={() => {}}
+        onOrchestrationWorkStyleChange={() => {}}
         onChangeDelegateTo={() => {}}
         onChangeProvider={() => {}}
         onChangeModel={() => {}}

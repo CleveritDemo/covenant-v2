@@ -10,10 +10,12 @@ import {
 import {
   sanitizeAgentCoordination,
   sanitizeOrchestrationMaxRounds,
+  sanitizeOrchestrationWorkStyle,
   persistableDelegateTo,
   MAX_ORCHESTRATION_ROUNDS,
   type AgentCoordination,
   type DelegateToPolicy,
+  type OrchestrationWorkStyle,
 } from './agentOrchestration'
 import { normalizeContextFileName, type TabContext } from './tabContext'
 import {
@@ -24,7 +26,7 @@ import {
 
 export { isAgentCliProvider }
 export type { AgentCliProvider, AgentPermissionMode }
-export type { AgentCoordination, DelegateToPolicy }
+export type { AgentCoordination, DelegateToPolicy, OrchestrationWorkStyle }
 
 /** Skills de plugin del harness visibles para este agente. */
 export interface AgentNativeSkills {
@@ -57,12 +59,18 @@ export interface ProjectAgentDefinition {
   acceptDelegations?: boolean
   /** Tope de oleadas de delegación (solo orquestador; default 3, omitido si default). */
   orchestrationMaxRounds?: number
+  /**
+   * Solo orchestrator: linear (default, omitido) | turbo (fuerza réplicas y cola durante awaiting).
+   * Al salir de orchestrator se descarta.
+   */
+  orchestrationWorkStyle?: OrchestrationWorkStyle
   /** A quién puede delegar; omitido si equals default del coordination. */
   delegateTo?: DelegateToPolicy
   /**
    * Solo orchestrator|productOwner: el host puede clonar especialistas a demanda
    * cuando el experto base está ocupado o el toAgentId pide una réplica.
    * Omitido/false = comportamiento actual (sin spawn).
+   * Con orchestrationWorkStyle turbo siempre true.
    */
   allowExpertReplicas?: boolean
   /**
@@ -411,7 +419,15 @@ export function parseProjectAgentDefinition(
       const delegateTo = persistableDelegateTo(coordination, data.delegateTo)
       if (delegateTo) def.delegateTo = delegateTo
     }
-    if (data.allowExpertReplicas === true) def.allowExpertReplicas = true
+    const workStyle = coordination === 'orchestrator'
+      ? sanitizeOrchestrationWorkStyle(data.orchestrationWorkStyle)
+      : 'linear'
+    if (workStyle === 'turbo') {
+      def.orchestrationWorkStyle = 'turbo'
+      def.allowExpertReplicas = true
+    } else if (data.allowExpertReplicas === true) {
+      def.allowExpertReplicas = true
+    }
   }
   if (data.acceptDelegations === false) def.acceptDelegations = false
   const nativeSkills = sanitizeNativeSkills(data.nativeSkills)
@@ -451,10 +467,13 @@ export function cloneProjectAgentDefinition(
       && source.orchestrationMaxRounds !== MAX_ORCHESTRATION_ROUNDS
       ? { orchestrationMaxRounds: sanitizeOrchestrationMaxRounds(source.orchestrationMaxRounds) }
       : {}),
-    ...((source.coordination === 'orchestrator' || source.coordination === 'productOwner')
-      && source.allowExpertReplicas === true
-      ? { allowExpertReplicas: true }
-      : {}),
+    ...(source.coordination === 'orchestrator'
+      && sanitizeOrchestrationWorkStyle(source.orchestrationWorkStyle) === 'turbo'
+      ? { orchestrationWorkStyle: 'turbo' as const, allowExpertReplicas: true as const }
+      : (source.coordination === 'orchestrator' || source.coordination === 'productOwner')
+        && source.allowExpertReplicas === true
+        ? { allowExpertReplicas: true as const }
+        : {}),
     ...(() => {
       const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
       return delegateTo ? { delegateTo } : {}
@@ -572,6 +591,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
+    orchestrationWorkStyle: meta.orchestrationWorkStyle,
     delegateTo: meta.delegateTo,
     allowExpertReplicas: meta.allowExpertReplicas,
     nativeSkills: meta.nativeSkills,

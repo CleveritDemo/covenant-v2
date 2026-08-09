@@ -387,6 +387,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           awaitingDelegations: Boolean(status?.awaitingDelegations),
           delegationWorkActive: Boolean(status?.delegationWorkActive),
           orchestratorBusy: Boolean(status?.orchestratorBusy),
+          orchestrationWorkStyle: status?.orchestrationWorkStyle === 'turbo' ? 'turbo' : 'linear',
         }
       }),
     [agentStatuses, entities],

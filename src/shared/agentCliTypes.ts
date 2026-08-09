@@ -72,6 +72,10 @@ export interface AgentCliStartRequest {
    * No afecta el aislamiento por worktree (siempre on si hay repo).
    */
   allowExpertReplicas?: boolean
+  /** Solo orchestrator: linear (default) | turbo (jobs concurrentes). */
+  orchestrationWorkStyle?: 'linear' | 'turbo'
+  /** Turbo: job/hilo activo de este turno (humano o follow-up). */
+  orchestrationJobId?: string
   /** Resultados de delegaciones previas a inyectar en el prompt. */
   pendingDelegationResults?: DelegateResult[]
   cliSessionId?: string

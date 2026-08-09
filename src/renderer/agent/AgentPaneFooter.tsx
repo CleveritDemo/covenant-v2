@@ -19,6 +19,8 @@ export interface AgentPaneFooterProps {
   awaitingDelegations: boolean
   delegationWorkActive: boolean
   orchestratorBusy: boolean
+  /** turbo: placeholder distinto mientras awaiting y no busy. */
+  orchestrationWorkStyle?: 'linear' | 'turbo'
   input: string
   showStop: boolean
   showPlay: boolean
@@ -39,6 +41,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   awaitingDelegations,
   delegationWorkActive,
   orchestratorBusy,
+  orchestrationWorkStyle = 'linear',
   input,
   showStop,
   showPlay,
@@ -56,6 +59,16 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
     : showPlay
       ? t('agentPane.loopStart')
       : t('agentPane.send')
+  const turboAwaitingOpen = orchestrationWorkStyle === 'turbo'
+    && awaitingDelegations
+    && !busy
+  const composerPlaceholder = loopActive || loopMode
+    ? t('agentPane.loopPlaceholder')
+    : turboAwaitingOpen
+      ? t('agentPane.turboAwaitingPlaceholder')
+      : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+        ? t('agentPane.queuePlaceholder')
+        : t('agentPane.placeholder')
 
   return (
     <div className="agent-pane__footer agent-pane__footer--chat-only">
@@ -79,13 +92,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           ref={composerInputRef}
           value={input}
           disabled={composerDisabled}
-          placeholder={
-            loopActive ? t('agentPane.loopPlaceholder')
-              : loopMode ? t('agentPane.loopPlaceholder')
-              : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                ? t('agentPane.queuePlaceholder')
-              : t('agentPane.placeholder')
-          }
+          placeholder={composerPlaceholder}
           rows={1}
           onChange={event => onInputChange(event.target.value)}
           onPaste={onComposerPaste}

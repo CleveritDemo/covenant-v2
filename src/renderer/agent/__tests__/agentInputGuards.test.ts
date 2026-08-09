@@ -27,6 +27,31 @@ describe('agent input anti-collision guards', () => {
     })).toBe(false)
   })
 
+  it('drains while awaiting when orchestrationWorkStyle is turbo', () => {
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(true)
+  })
+
+  it('still blocks awaiting drain in linear work style', () => {
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'linear',
+    })).toBe(false)
+  })
+
+  it('turbo still blocks drain when busy', () => {
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      busy: true,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(false)
+  })
+
   it('does not drain while system follow-ups are pending', () => {
     expect(canDrainAgentQueue({
       ...idleBase,

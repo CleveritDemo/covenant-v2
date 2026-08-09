@@ -2,6 +2,9 @@
 
 export type AgentCoordination = 'none' | 'orchestrator' | 'productOwner'
 
+/** Solo orchestrator. Omitido / 'linear' = ciclo actual (abort al nuevo turno humano). */
+export type OrchestrationWorkStyle = 'linear' | 'turbo'
+
 export const MAX_DELEGATIONS_PER_TURN = 5
 /** Oleadas de delegación por pedido del usuario (default / omitido en catálogo). */
 export const MAX_ORCHESTRATION_ROUNDS = 3
@@ -41,6 +44,31 @@ export function sanitizeOrchestrationMaxRounds(raw: unknown): number {
 
 export function resolveOrchestrationMaxRounds(value?: number): number {
   return sanitizeOrchestrationMaxRounds(value)
+}
+
+/** Solo orquestador; cualquier otro valor → linear (omitido en disco). */
+export function sanitizeOrchestrationWorkStyle(raw: unknown): OrchestrationWorkStyle {
+  return raw === 'turbo' ? 'turbo' : 'linear'
+}
+
+/**
+ * Efectivo: turbo solo si coordination === orchestrator y raw === 'turbo'.
+ * Overload de 1 arg: trata el valor como raw (compat host/helpers).
+ */
+export function resolveOrchestrationWorkStyle(
+  coordinationOrRaw?: AgentCoordination | OrchestrationWorkStyle | string | null,
+  raw?: unknown,
+): OrchestrationWorkStyle {
+  if (arguments.length >= 2) {
+    if (coordinationOrRaw !== 'orchestrator') return 'linear'
+    return sanitizeOrchestrationWorkStyle(raw)
+  }
+  return sanitizeOrchestrationWorkStyle(coordinationOrRaw)
+}
+
+/** Linear aborta la ola al nuevo turno humano; turbo no. */
+export function shouldAbortOnHumanTurn(workStyle: OrchestrationWorkStyle): boolean {
+  return resolveOrchestrationWorkStyle(workStyle) !== 'turbo'
 }
 
 export interface OrchestrationAgentRef {
@@ -422,6 +450,9 @@ export function formatDelegationResultFollowUp(
     batchRemaining?: number
     /** PO autónomo: tras PASS, seguir con el siguiente slice sin preguntar. */
     continuousProductOwner?: boolean
+    /** Turbo: hilo/job al que pertenece este resultado. */
+    orchestrationJobId?: string
+    workStyle?: OrchestrationWorkStyle
   },
 ): string {
   const lines = [
@@ -432,11 +463,19 @@ export function formatDelegationResultFollowUp(
   ]
   if (result.toAgentId) lines.push(`toAgentId: ${result.toAgentId}`)
   if (result.resultContextId) lines.push(`resultContextId: ${result.resultContextId}`)
+  if (options?.orchestrationJobId?.trim()) {
+    lines.push(`orchestrationJobId: ${options.orchestrationJobId.trim()}`)
+  }
   const round = options?.round
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
   const unlimited = isOrchestrationRoundsUnlimited(maxRounds)
   if (typeof round === 'number') {
-    lines.push(`orchestrationRound: ${formatOrchestrationRoundLabel(round, maxRounds)}`)
+    const roundScope = resolveOrchestrationWorkStyle(options?.workStyle) === 'turbo'
+      ? ' (per job/user message)'
+      : ''
+    lines.push(
+      `orchestrationRound: ${formatOrchestrationRoundLabel(round, maxRounds)}${roundScope}`,
+    )
   }
   const remaining = options?.batchRemaining
   if (typeof remaining === 'number' && remaining > 0) {
@@ -485,19 +524,62 @@ export function buildBatchedDelegationFollowUp(
     round?: number
     maxRounds?: number
     continuousProductOwner?: boolean
+    orchestrationJobId?: string
+    workStyle?: OrchestrationWorkStyle
   },
 ): string {
   if (results.length === 0) return ''
   const last = results.length - 1
-  return results
+  const body = results
     .map((result, index) => formatDelegationResultFollowUp(result, {
       round: options?.round,
       maxRounds: options?.maxRounds,
       batchRemaining: 0,
       continuousProductOwner:
         options?.continuousProductOwner === true && index === last,
+      orchestrationJobId: options?.orchestrationJobId,
+      workStyle: options?.workStyle,
     }))
     .join('\n\n')
+  if (resolveOrchestrationWorkStyle(options?.workStyle) !== 'turbo') return body
+  const jobLine = options?.orchestrationJobId?.trim()
+    ? `These results belong to job ${options.orchestrationJobId.trim()} only.`
+    : 'These results belong to one concurrent job only.'
+  return [
+    body,
+    '',
+    '## Concurrent jobs (turbo)',
+    jobLine,
+    'Other jobs/waves may still be in flight; do not assume the repo or working tree is quiet.',
+    'Integrate only this batch; do not cancel or rewrite unrelated parallel jobs.',
+  ].join('\n')
+}
+
+/**
+ * Instrucciones extra del modo turbo (hilos/jobs concurrentes).
+ * Vacío en linear. Réplicas se asumen on en la práctica.
+ */
+export function buildOrchestratorTurboWorkStyleBlock(options?: {
+  jobId?: string
+  maxRounds?: number
+}): string {
+  const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
+  const unlimited = isOrchestrationRoundsUnlimited(maxRounds)
+  const waveCap = unlimited
+    ? 'There is no host wave cap per job (unlimited).'
+    : `Delegation wave cap is per job/user message (at most ${maxRounds} waves), not global across the pane.`
+  const jobLine = options?.jobId?.trim()
+    ? `Current job id: ${options.jobId.trim()}. Treat each human message as its own job/thread.`
+    : 'Treat each human message as its own job/thread; follow-ups name the job they belong to.'
+  return [
+    '## Work style: turbo',
+    'The host keeps a single CLI on this pane but runs specialist waves from multiple jobs in parallel.',
+    jobLine,
+    'New user messages may arrive without waiting for prior specialist waves to finish; do not assume previous jobs were aborted.',
+    'When a role is busy, prefer replicas (reuse base agentId or agentId#2 / agentId-2); the host always allows expert replicas in turbo.',
+    'Do not assume the git working tree is stable between messages — other jobs may still be merging.',
+    waveCap,
+  ].join('\n')
 }
 
 /** Host: despertar al orquestador solo cuando no quedan especialistas en la oleada. */

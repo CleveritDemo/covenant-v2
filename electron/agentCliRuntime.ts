@@ -45,6 +45,7 @@ import {
 } from './aiAgentDelegate'
 import {
   buildOrchestratorAgentsBlock,
+  buildOrchestratorTurboWorkStyleBlock,
   coordinationCanDelegate,
   formatDelegationResultFollowUp,
   isProductOwner,
@@ -698,11 +699,21 @@ export function composePrompt(
   const canDelegate = coordinationCanDelegate(request.coordination)
   const allowDelegations = request.allowDelegations !== false
   const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
-  const allowExpertReplicas = request.allowExpertReplicas === true
+  const workStyle = request.orchestrationWorkStyle === 'turbo' ? 'turbo' as const : 'linear' as const
+  const allowExpertReplicas = request.allowExpertReplicas === true || workStyle === 'turbo'
   const orchestrationBlock = canDelegate
     ? [
         buildOrchestratorAgentsBlock(request.orchestrationAgents ?? [], { allowExpertReplicas }),
         '',
+        ...(workStyle === 'turbo' && !isProductOwner(request.coordination)
+          ? [
+              buildOrchestratorTurboWorkStyleBlock({
+                jobId: request.orchestrationJobId,
+                maxRounds: request.orchestrationMaxRounds,
+              }),
+              '',
+            ]
+          : []),
         isProductOwner(request.coordination)
           ? buildAiAgentProductOwnerInstruction({
             allowDelegations,
@@ -717,6 +728,8 @@ export function composePrompt(
             maxRounds: request.orchestrationMaxRounds,
             allowedAgentIds,
             allowExpertReplicas,
+            workStyle,
+            orchestrationJobId: request.orchestrationJobId,
           }),
       ].join('\n')
     : ''

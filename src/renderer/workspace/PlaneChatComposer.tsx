@@ -50,6 +50,8 @@ export interface PlaneChatAgentOption {
   delegationWorkActive?: boolean
   /** El orquestador está ocupado y no acepta cola humana. */
   orchestratorBusy?: boolean
+  /** turbo: placeholder distinto mientras awaiting y no busy. */
+  orchestrationWorkStyle?: 'linear' | 'turbo'
 }
 
 export interface PlaneChatQueuedTurn {
@@ -131,6 +133,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const awaitingDelegations = Boolean(selected?.awaitingDelegations)
   const delegationWorkActive = Boolean(selected?.delegationWorkActive)
   const orchestratorBusy = Boolean(selected?.orchestratorBusy)
+  const turboAwaitingOpen = selected?.orchestrationWorkStyle === 'turbo'
+    && awaitingDelegations
+    && !busy
   // Solo el loop bloquea teclear; busy/delegaciones permiten encolar.
   const composerLocked = loopActive
   const canSend = Boolean(
@@ -432,9 +437,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 ? emptyAgentsHint
                 : loopActive
                   ? t('agentPane.loopPlaceholder')
-                  : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                    ? t('agentPane.queuePlaceholder')
-                    : placeholder
+                  : turboAwaitingOpen
+                    ? t('agentPane.turboAwaitingPlaceholder')
+                    : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                      ? t('agentPane.queuePlaceholder')
+                      : placeholder
             }
             rows={1}
             onChange={event => setDraft(event.target.value)}

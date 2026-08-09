@@ -38,6 +38,7 @@ import {
   MAX_ORCHESTRATION_ROUNDS,
   coordinationCanDelegate,
   resolveOrchestrationMaxRounds,
+  resolveOrchestrationWorkStyle,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -95,6 +96,8 @@ interface QueuedTurn {
   extraContextIds?: string[]
   orchestrationFollowUp?: boolean
   allowDelegations?: boolean
+  /** Turbo: follow-up / redelegación anclada a este job. */
+  orchestrationJobId?: string
   delegation?: {
     id: string
     fromPaneId: string
@@ -115,6 +118,8 @@ export interface AgentPreferSend {
   orchestrationFollowUp?: boolean
   /** Si false, el host prohíbe nuevas delegaciones en este turno. */
   allowDelegations?: boolean
+  /** Turbo: job dueño del follow-up. */
+  orchestrationJobId?: string
   /** Subtarea originada por un orquestador. */
   delegation?: {
     id: string
@@ -179,7 +184,12 @@ interface Props {
   /** Pedido humano nuevo: reinicia el contador de oleadas de orquestación. */
   onOrchestrationUserTurn?: () => void
   /** Oleada actual / tope para el prompt del orquestador. */
-  getOrchestrationRound?: () => { round: number; maxRounds: number }
+  getOrchestrationRound?: () => {
+    round: number
+    maxRounds: number
+    jobId?: string
+    workStyle?: 'linear' | 'turbo'
+  }
   /** Pedido externo: abrir modal de configuración (p. ej. desde el plano). */
   preferOpenConfig?: boolean
   onPreferOpenConfigConsumed?: () => void
@@ -244,6 +254,8 @@ export interface AgentPlaneStatus {
   orchestrationAwaiting: OrchestrationAwaitingView | null
   delegationWorkActive: boolean
   orchestratorBusy: boolean
+  /** Estilo de trabajo del orquestador (para placeholder/cola del plano). */
+  orchestrationWorkStyle?: 'linear' | 'turbo'
   loopMode: boolean
   loopActive: boolean
   /** Solo el loop local del chat (no cadenas del modal Loops). */
@@ -353,9 +365,14 @@ export const AgentPane: React.FC<Props> = ({
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
   const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
+  const orchestrationWorkStyle = resolveOrchestrationWorkStyle(
+    meta.coordination,
+    meta.orchestrationWorkStyle,
+  )
   const humanInputBlocked = isAgentHumanInputBlocked({ loopActive })
+  const awaitingBlocksHuman = orchestrationWorkStyle !== 'turbo' && awaitingDelegations
   const canStartHumanTurnNow = !busy
-    && !awaitingDelegations
+    && !awaitingBlocksHuman
     && !delegationWorkActive
     && !systemFollowUpsPending
     && !loopActive
@@ -862,6 +879,7 @@ export const AgentPane: React.FC<Props> = ({
       orchestrationAwaiting: orchestrationAwaiting ?? null,
       delegationWorkActive,
       orchestratorBusy,
+      orchestrationWorkStyle,
       loopMode: loopOpen || loopActive || chainLoopActive,
       loopActive: loopActive || chainLoopActive,
       localLoopActive: loopActive,
@@ -898,6 +916,7 @@ export const AgentPane: React.FC<Props> = ({
         : '',
       delegationWorkActive ? '1' : '0',
       orchestratorBusy ? '1' : '0',
+      orchestrationWorkStyle,
       loopOpen ? '1' : '0',
       loopActive ? '1' : '0',
       chainLoopActive ? '1' : '0',
@@ -933,6 +952,7 @@ export const AgentPane: React.FC<Props> = ({
     meta.cliSessionId,
     meta.contextIds,
     onPlaneStatusChange,
+    orchestrationWorkStyle,
     orchestratorBusy,
     pendingImages.length,
     queuedTurns,
@@ -1001,6 +1021,7 @@ export const AgentPane: React.FC<Props> = ({
     images?: AgentCliImageAttachment[]
     displayImages?: AgentChatImage[]
     allowDelegations?: boolean
+    orchestrationJobId?: string
     viaLoop?: boolean
     delegation?: {
       id: string
@@ -1145,7 +1166,18 @@ export const AgentPane: React.FC<Props> = ({
               ? 'productOwner' as const
               : 'orchestrator' as const,
             orchestrationAgents,
-            ...(currentMeta.allowExpertReplicas === true ? { allowExpertReplicas: true } : {}),
+            ...((
+              currentMeta.allowExpertReplicas === true
+              || roundInfo?.workStyle === 'turbo'
+            ) ? { allowExpertReplicas: true } : {}),
+            ...(roundInfo?.workStyle === 'turbo'
+              ? { orchestrationWorkStyle: 'turbo' as const }
+              : {}),
+            ...(roundInfo?.jobId?.trim()
+              ? { orchestrationJobId: roundInfo.jobId.trim() }
+              : options.orchestrationJobId?.trim()
+                ? { orchestrationJobId: options.orchestrationJobId.trim() }
+                : {}),
             ...(options.allowDelegations === false ? { allowDelegations: false } : {}),
             ...(roundInfo && roundInfo.round > 0
               ? {
@@ -1497,6 +1529,7 @@ export const AgentPane: React.FC<Props> = ({
       delegation?: QueuedTurn['delegation']
       allowDelegations?: boolean
       orchestrationFollowUp?: boolean
+      orchestrationJobId?: string
       viaLoop?: boolean
       extraContextIds?: string[]
     },
@@ -1544,6 +1577,9 @@ export const AgentPane: React.FC<Props> = ({
       ...(displayImages.length ? { displayImages } : {}),
       ...(options?.delegation ? { delegation: options.delegation } : {}),
       ...(options?.allowDelegations === false ? { allowDelegations: false } : {}),
+      ...(options?.orchestrationJobId?.trim()
+        ? { orchestrationJobId: options.orchestrationJobId.trim() }
+        : {}),
       ...(options?.viaLoop ? { viaLoop: true } : {}),
     })
   }, [startTurn, t])
@@ -1608,6 +1644,7 @@ export const AgentPane: React.FC<Props> = ({
     const viaLoop = preferSend.viaLoop === true
     const extraContextIds = preferSend.extraContextIds ?? []
     const allowDelegations = preferSend.allowDelegations
+    const orchestrationJobId = preferSend.orchestrationJobId
     const isHumanTurn = !orchestrationFollowUp && !delegation
     // Busy: no consumir follow-ups ni delegaciones; App FIFO reintenta al idle.
     if (busy && (preferSend.focusPane === false || Boolean(delegation))) {
@@ -1622,6 +1659,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(delegation ? { delegation } : {}),
       ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
       ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
+      ...(orchestrationJobId?.trim() ? { orchestrationJobId: orchestrationJobId.trim() } : {}),
       ...(viaLoop ? { viaLoop: true as const } : {}),
       ...(extraContextIds.length ? { extraContextIds } : {}),
     }
@@ -1729,6 +1767,7 @@ export const AgentPane: React.FC<Props> = ({
       delegationWorkActive,
       systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
       headIsDelegation,
+      orchestrationWorkStyle,
     }) || drainingRef.current) return
     const next = head
     if (!next) return
@@ -1745,6 +1784,9 @@ export const AgentPane: React.FC<Props> = ({
       ...(next.delegation ? { delegation: next.delegation } : {}),
       ...(next.allowDelegations === false ? { allowDelegations: false } : {}),
       ...(next.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
+      ...(next.orchestrationJobId?.trim()
+        ? { orchestrationJobId: next.orchestrationJobId.trim() }
+        : {}),
       ...(next.viaLoop ? { viaLoop: true } : {}),
       ...(next.extraContextIds?.length ? { extraContextIds: next.extraContextIds } : {}),
     }).finally(() => {
@@ -1757,6 +1799,7 @@ export const AgentPane: React.FC<Props> = ({
     dispatchMessage,
     loaded,
     loopActive,
+    orchestrationWorkStyle,
     preferSend,
     queuedTurns,
     systemFollowUpsPending,
@@ -2177,6 +2220,7 @@ export const AgentPane: React.FC<Props> = ({
             awaitingDelegations={awaitingDelegations}
             delegationWorkActive={delegationWorkActive}
             orchestratorBusy={orchestratorBusy}
+            orchestrationWorkStyle={orchestrationWorkStyle}
             input={input}
             showStop={buttonIsStop}
             showPlay={showPlay}
@@ -2214,11 +2258,16 @@ export const AgentPane: React.FC<Props> = ({
           onMetaChange(previous => {
             if (coordination === 'orchestrator' || coordination === 'productOwner') {
               const { acceptDelegations: _drop, delegateTo: _dt, ...rest } = previous
+              if (coordination !== 'orchestrator') {
+                const { orchestrationWorkStyle: _style, ...withoutStyle } = rest
+                return { ...withoutStyle, coordination }
+              }
               return { ...rest, coordination }
             }
             const {
               coordination: _drop,
               orchestrationMaxRounds: _rounds,
+              orchestrationWorkStyle: _style,
               delegateTo: _dt,
               allowExpertReplicas: _replicas,
               ...rest
@@ -2254,6 +2303,21 @@ export const AgentPane: React.FC<Props> = ({
               return rest
             }
             return { ...previous, orchestrationMaxRounds: maxRounds }
+          })
+        }}
+        onOrchestrationWorkStyleChange={workStyle => {
+          onMetaChange(previous => {
+            if (previous.coordination !== 'orchestrator') return previous
+            if (workStyle === 'turbo') {
+              return {
+                ...previous,
+                orchestrationWorkStyle: 'turbo',
+                allowExpertReplicas: true,
+              }
+            }
+            const { orchestrationWorkStyle: _drop, ...rest } = previous
+            // Al volver a linear no apagar réplicas automáticamente.
+            return rest
           })
         }}
         onChangeDelegateTo={policy => {

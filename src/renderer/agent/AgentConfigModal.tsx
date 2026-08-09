@@ -11,7 +11,7 @@ import { modelsForProvider } from '@shared/agentCliModels'
 import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
-import type { AgentCoordination, DelegateToPolicy } from '@shared/agentOrchestration'
+import type { AgentCoordination, DelegateToPolicy, OrchestrationWorkStyle } from '@shared/agentOrchestration'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -72,6 +72,7 @@ export interface AgentConfigModalProps {
   onAcceptDelegationsChange: (accept: boolean) => void
   onAllowExpertReplicasChange: (allow: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
+  onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeModel: (model: string) => void
@@ -113,6 +114,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onAcceptDelegationsChange,
   onAllowExpertReplicasChange,
   onOrchestrationMaxRoundsChange,
+  onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
   onChangeModel,
@@ -266,7 +268,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const savedSnapshot = JSON.stringify([
     meta.id, meta.name, meta.role, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
-    meta.coordination, meta.orchestrationMaxRounds, meta.delegateTo,
+    meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
     meta.acceptDelegations, meta.allowExpertReplicas, meta.autoImproveContexts,
     selectedContextIds,
   ])
@@ -493,6 +495,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onAcceptDelegationsChange={onAcceptDelegationsChange}
                 onAllowExpertReplicasChange={onAllowExpertReplicasChange}
                 onOrchestrationMaxRoundsChange={onOrchestrationMaxRoundsChange}
+                onOrchestrationWorkStyleChange={onOrchestrationWorkStyleChange}
                 onChangeDelegateTo={onChangeDelegateTo}
                 onChangeProvider={onChangeProvider}
                 onChangeModel={onChangeModel}

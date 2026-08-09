@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildOrchestratorAgentsBlock,
+  buildOrchestratorTurboWorkStyleBlock,
   buildBatchedDelegationFollowUp,
   coordinationCanDelegate,
   formatDelegationResultFollowUp,
@@ -228,6 +229,30 @@ describe('buildOrchestratorAgentsBlock', () => {
     )
     expect(block).toContain('Expert replicas')
     expect(block).toContain('frontend#2')
+  })
+})
+
+describe('turbo work style prompt', () => {
+  it('builds turbo instruction block with per-job wave cap', () => {
+    const text = buildOrchestratorTurboWorkStyleBlock({
+      jobId: 'job-1',
+      maxRounds: 3,
+    })
+    expect(text).toContain('Work style: turbo')
+    expect(text).toContain('job-1')
+    expect(text).toContain('per job/user message')
+    expect(text).toContain('working tree')
+  })
+
+  it('annotates batched follow-up with concurrent job guidance', () => {
+    const text = buildBatchedDelegationFollowUp(
+      [{ id: 'd1', status: 'ok', summary: 'done' }],
+      { round: 1, maxRounds: 3, orchestrationJobId: 'job-9', workStyle: 'turbo' },
+    )
+    expect(text).toContain('orchestrationJobId: job-9')
+    expect(text).toContain('Concurrent jobs (turbo)')
+    expect(text).toContain('job-9')
+    expect(text).toContain('do not assume')
   })
 })
 

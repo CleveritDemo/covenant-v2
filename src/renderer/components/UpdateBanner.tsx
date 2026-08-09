@@ -18,7 +18,7 @@ const releaseUrl = (version: string): string =>
 type NotesView = { version: string; notes: string | null; installed: boolean }
 
 /**
- * Píldora en la titlebar cuando hay versión nueva: versión, novedades e instalar.
+ * Chip compacto en la titlebar: punto + versión + acción (o barra al descargar).
  * El estado vive en main (electron/selfUpdate.ts); aquí solo se pinta.
  *
  * Además abre «Novedades» sola en el primer arranque tras subir de versión,
@@ -55,41 +55,73 @@ export const UpdateBanner: React.FC = () => {
     window.api.installUpdate()
   }
   const openPending = (): void => {
-    if (state.kind === 'idle' || state.kind === 'error') return
-    setView({ version: state.version, notes, installed: false })
+    if (state.kind !== 'available' && state.kind !== 'ready') return
+    setView({ version: state.version, notes: state.notes, installed: false })
   }
 
-  const label =
+  const percent = state.kind === 'downloading'
+    ? Math.max(0, Math.min(100, Math.round(state.percent)))
+    : 0
+
+  const chipAria =
     state.kind === 'downloading'
-      ? t('update.downloading', { percent: state.percent })
-      : state.kind === 'ready'
-        ? t('update.ready')
-        : state.kind === 'error'
-          ? t('update.error', { message: state.message })
-          : t('update.available')
+      ? t('update.downloadingAria', { version: state.version, percent })
+      : state.kind === 'error'
+        ? t('update.error', { message: state.message })
+        : state.kind === 'ready'
+          ? t('update.readyAria', { version: state.version })
+          : state.kind === 'available'
+            ? t('update.availableAria', { version: state.version })
+            : undefined
 
   return (
     <>
       {state.kind !== 'idle' && (
-        <div className="update-banner">
-          <span className="update-banner__pulse" aria-hidden="true" />
-          <span className="update-banner__label">{label}</span>
+        <div
+          className={[
+            'update-banner',
+            state.kind === 'downloading' ? 'update-banner--downloading' : '',
+            state.kind === 'error' ? 'update-banner--error' : '',
+          ].filter(Boolean).join(' ')}
+          role="status"
+          aria-label={chipAria}
+        >
+          {state.kind === 'error' ? (
+            <span className="update-banner__pulse update-banner__pulse--error" aria-hidden="true" />
+          ) : (
+            <span className="update-banner__pulse" aria-hidden="true" />
+          )}
 
-          {state.kind !== 'error' && (
+          {state.kind === 'error' ? (
+            <span className="update-banner__error" title={state.message}>
+              {state.message}
+            </span>
+          ) : (
             <button
               type="button"
               className="update-banner__version"
               aria-label={t('update.notesTitle')}
               onClick={openPending}
+              disabled={state.kind === 'downloading'}
             >
               v{state.version}
             </button>
           )}
 
-          {canInstall && notes && (
-            <button type="button" className="update-banner__whatsnew" onClick={openPending}>
-              {t('update.whatsNew')}
-            </button>
+          {state.kind === 'downloading' && (
+            <div
+              className="update-banner__track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              aria-label={t('update.downloadingAria', { version: state.version, percent })}
+            >
+              <div
+                className="update-banner__fill"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
           )}
 
           {canInstall && (

@@ -88,6 +88,7 @@ import {
 } from '@shared/expertReplicas'
 import {
   buildOrchestrationAwaitingView,
+  shouldDisposeReplicaOnComplete,
   type OrchestrationAwaitingItemInput,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
@@ -454,6 +455,8 @@ export const App: React.FC = () => {
     branch: string
     baseCwd: string
     baseBranch: string
+    /** Réplica spawn: para dispose tras merge ok / conflict retry. */
+    baseAgentId?: string
   }>())
   /** Fase 4: cola de merges serializada por orquestador (encadena promesas, evita carreras git). */
   const mergeQueueByOrchestratorRef = useRef(new Map<string, Promise<void>>())
@@ -472,6 +475,7 @@ export const App: React.FC = () => {
       branch: string
       baseCwd: string
       baseBranch: string
+      baseAgentId?: string
     }
   }>>())
   const [awaitingDelegationPaneIds, setAwaitingDelegationPaneIds] = useState<ReadonlySet<string>>(
@@ -3276,8 +3280,8 @@ export const App: React.FC = () => {
         toPaneId = decision.paneId
         routedAgentId = decision.agentId
       } else {
-        // Spawn réplica efímera del experto base (catálogo + pane). Cleanup: se conserva
-        // el pane/definición de réplica al completar; no se borra el experto base.
+        // Spawn réplica efímera del experto base (catálogo + pane). Al completar o
+        // abortar se dispose la réplica (pane+catálogo+chat); nunca el experto base.
         baseAgentId = decision.baseAgentId
         if (tab.paneIds.length >= MAX_PANES_PER_TAB) {
           enqueueOrchestrationSend(fromPaneId, {
@@ -3494,6 +3498,7 @@ export const App: React.FC = () => {
               branch,
               baseCwd,
               baseBranch: branchInfo.baseBranch,
+              ...(baseAgentId ? { baseAgentId } : {}),
             })
           } else {
             const detail = addResult.error || addResult.stderr || 'unknown error'
@@ -3689,7 +3694,14 @@ export const App: React.FC = () => {
   const finalizeDelegationWorktree = useCallback((
     fromPaneId: string,
     result: DelegateResult,
-    info: { toPaneId: string; worktreePath: string; branch: string; baseCwd: string; baseBranch: string },
+    info: {
+      toPaneId: string
+      worktreePath: string
+      branch: string
+      baseCwd: string
+      baseBranch: string
+      baseAgentId?: string
+    },
   ): Promise<void> => {
     const previousOp = mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve()
     const chainedOp = previousOp.catch(() => {}).then(async () => {
@@ -3728,6 +3740,7 @@ export const App: React.FC = () => {
         pending.set(result.id, {
           toPaneId: info.toPaneId,
           toAgentId: result.toAgentId ?? '',
+          ...(info.baseAgentId ? { baseAgentId: info.baseAgentId } : {}),
         })
         pendingDelegationsByOrchestratorRef.current.set(fromPaneId, pending)
         syncAwaitingFromPending()
@@ -3749,10 +3762,18 @@ export const App: React.FC = () => {
         force: true,
       })
       worktreesByDelegationRef.current.delete(result.id)
+      // Réplica efímera: dispose tras merge ok (no en conflict retry).
+      if (shouldDisposeReplicaOnComplete({
+        toAgentId: result.toAgentId ?? '',
+        baseAgentId: info.baseAgentId,
+      })) {
+        const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(info.toPaneId))
+        if (replicaTab) handleClosePane(replicaTab.id, info.toPaneId)
+      }
     })
     mergeQueueByOrchestratorRef.current.set(fromPaneId, chainedOp)
     return chainedOp
-  }, [clearPaneCwdOverride, enqueueOrchestrationSend, syncAwaitingFromPending])
+  }, [clearPaneCwdOverride, enqueueOrchestrationSend, handleClosePane, syncAwaitingFromPending])
 
   const handleDelegationTurnComplete = useCallback(async (result: DelegateResult) => {
     const fromPaneId = [...pendingDelegationsByOrchestratorRef.current.entries()]
@@ -3761,6 +3782,10 @@ export const App: React.FC = () => {
     const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
     const completedMeta = pending?.get(result.id)
     const freedPaneId = completedMeta?.toPaneId
+    const disposeReplica = Boolean(
+      completedMeta
+      && shouldDisposeReplicaOnComplete(completedMeta),
+    )
     pending?.delete(result.id)
     let remaining = pending?.size ?? 0
     if (pending && remaining === 0) {
@@ -3794,6 +3819,7 @@ export const App: React.FC = () => {
           branch: worktreeInfo.branch,
           baseCwd: worktreeInfo.baseCwd,
           baseBranch: worktreeInfo.baseBranch,
+          ...(worktreeInfo.baseAgentId ? { baseAgentId: worktreeInfo.baseAgentId } : {}),
         })
         await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
       }
@@ -3803,6 +3829,7 @@ export const App: React.FC = () => {
       if (remaining > 0 || deferredLeft > 0) return
     } else if (canFinalize && worktreeInfo) {
       // Acumula merges: solo el orquestador dueño finaliza (nunca el especialista).
+      // Réplica: dispose tras merge ok dentro de finalize (no aquí: conflict reusa el pane).
       const queue = pendingWorktreeMergesByOrchestratorRef.current.get(fromPaneId) ?? []
       queue.push({
         delegationId: result.id,
@@ -3811,6 +3838,10 @@ export const App: React.FC = () => {
         info: worktreeInfo,
       })
       pendingWorktreeMergesByOrchestratorRef.current.set(fromPaneId, queue)
+    } else if (disposeReplica && freedPaneId) {
+      // Sin worktree (o no finalizable aquí): dispose inmediato de la réplica.
+      const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(freedPaneId))
+      if (replicaTab) handleClosePane(replicaTab.id, freedPaneId)
     }
 
     const deferredLeft = deferredDelegationsByOrchestratorRef.current.get(fromPaneId)?.length ?? 0
@@ -3857,6 +3888,7 @@ export const App: React.FC = () => {
   }, [
     enqueueOrchestrationSend,
     finalizeDelegationWorktree,
+    handleClosePane,
     orchestrationMaxRoundsForPane,
     startNextDeferredForPane,
     syncAwaitingFromPending,
@@ -3875,6 +3907,13 @@ export const App: React.FC = () => {
     const pending = pendingDelegationsByOrchestratorRef.current.get(fromPaneId)
     const runningTargets = pending
       ? [...new Set([...pending.values()].map(item => item.toPaneId))]
+      : []
+    const replicaPaneIds = pending
+      ? [...new Set(
+        [...pending.values()]
+          .filter(item => shouldDisposeReplicaOnComplete(item))
+          .map(item => item.toPaneId),
+      )]
       : []
     pendingDelegationsByOrchestratorRef.current.delete(fromPaneId)
     deferredDelegationsByOrchestratorRef.current.delete(fromPaneId)
@@ -3897,11 +3936,16 @@ export const App: React.FC = () => {
     for (const paneId of runningTargets) {
       requestPlaneStop(paneId)
     }
+    // Réplicas efímeras: dispose completo (pane+catálogo+chat); el experto base queda.
+    for (const paneId of replicaPaneIds) {
+      const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+      if (tab) handleClosePane(tab.id, paneId)
+    }
     setOrchestrationFifoTick(n => n + 1)
     syncAwaitingFromPending()
     // QA fix: no dejar worktrees/ramas huérfanos de este orquestador al abortar.
     void cleanupWorktreesForPane(fromPaneId)
-  }, [cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending])
+  }, [cleanupWorktreesForPane, handleClosePane, requestPlaneStop, syncAwaitingFromPending])
 
   const handleOrchestratorStop = useCallback((fromPaneId: string) => {
     abortOrchestrationRun(fromPaneId)

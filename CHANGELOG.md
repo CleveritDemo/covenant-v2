@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.18.0
+
+- **Las réplicas de expertos creadas a demanda se eliminan** al terminar o
+  abortar (pane, agente del catálogo y chats); el experto base no se toca.
+- **El tema Zelda pasa a llamarse Breath of the Wild** (oscuro y light) con
+  paleta actualizada.
+
+## v0.17.0
+
+- **El badge de actualización es más simple**: menos texto en la titlebar; al
+  descargar muestra una barra de progreso en lugar del porcentaje en letras.
+- **Nuevo tema Zelda — Bosque Profundo** (oscuro y light) en el picker de temas.
+
 ## v0.16.0
 
 - **Renombrar una tab de workspace organizacional renombra el workspace en el

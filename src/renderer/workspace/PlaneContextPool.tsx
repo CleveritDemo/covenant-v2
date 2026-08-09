@@ -249,11 +249,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
                     >
                       <Icon name={ctx.icon} size={13} aria-hidden />
                     </span>
-                    {assignedCount > 0 && (
-                      <span className="plane-context-pool__chip-count" aria-hidden="true">
-                        {assignedCount}
-                      </span>
-                    )}
                   </button>
                 </Tooltip>
               </div>

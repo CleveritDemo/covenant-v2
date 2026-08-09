@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.21.0
+
+- **La barra de contextos del plano vuelve a ser solo íconos**: se quita el
+  número de agentes asignados al lado de cada chip; el conteo sigue en el
+  tooltip y en el menú de asignación.
+
 ## v0.20.0
 
 - **Pulse se divide en dos secciones.** Arriba, «Human in the loop»: tu racha,

@@ -80,21 +80,18 @@
   flex-shrink: 0;
 }
 
-/* Chip: solo ícono (+ badge si hay agentes asignados). El nombre va en el popover. */
+/* Chip: solo ícono. El nombre y el conteo van en tooltip/popover. */
 .plane-context-pool__chip {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   flex-shrink: 0;
   box-sizing: border-box;
-  /* Cuadrado cuando no hay cuenta; con cuenta crece a lo ancho en vez de
-     apilar el número sobre el ícono. */
-  min-width: 20px;
+  width: 20px;
   height: 20px;
   margin: 0;
-  padding: 0 3px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
   background: transparent;
@@ -133,30 +130,6 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-/*
- * La cuenta va AL LADO del ícono, no encima. Encima resolvía el recorte del
- * scroller pero tapaba justo el ícono que identifica al contexto —que es lo
- * único que distingue un chip de otro— y el número pesaba más que él.
- */
-.plane-context-pool__chip-count {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 9px;
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.plane-context-pool__chip:hover .plane-context-pool__chip-count,
-.plane-context-pool__chip--open .plane-context-pool__chip-count {
-  color: var(--text);
 }
 
 /* Popover de asignación, anclado al borde derecho de la barra. */

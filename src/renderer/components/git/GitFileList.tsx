@@ -114,6 +114,8 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
               area === 'index' ? 'staged' : untracked ? 'untracked' : 'worktree'
             const selected = selection?.path === path && selection.area === diffArea
 
+            const selectFile = (): void => onSelect({ path, area: diffArea })
+
             return (
               <li
                 key={`${entry.status}:${entry.path}`}
@@ -132,14 +134,21 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
                     type="button"
                     className="git-file-list__name"
                     aria-pressed={selected}
-                    onClick={() => onSelect({ path, area: diffArea })}
+                    onClick={selectFile}
                   >
                     {dir ? <span className="git-file-list__dir">{dir}</span> : null}
                     {name}
                   </button>
                 </Tooltip>
                 {stats ? (
-                  <GitFileLineStatsView insertions={stats.insertions} deletions={stats.deletions} />
+                  <button
+                    type="button"
+                    className="git-file-list__stats-hit"
+                    aria-label={t('git.diffRowHint')}
+                    onClick={selectFile}
+                  >
+                    <GitFileLineStatsView insertions={stats.insertions} deletions={stats.deletions} />
+                  </button>
                 ) : (
                   <span className="git-file-list__stats git-file-list__stats--empty" aria-hidden />
                 )}

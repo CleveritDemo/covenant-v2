@@ -27,7 +27,7 @@ export const PlaneExplorerButton = forwardRef<HTMLButtonElement, PlaneExplorerBu
           aria-pressed={pressed}
           onClick={onClick}
         >
-          <Icon name="files" size={13} />
+          <Icon name="files" size={12} />
         </button>
       </Tooltip>
     )

@@ -41,7 +41,7 @@ export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
           aria-label={actionLabel}
           onClick={onSelect}
         >
-          <Icon name={hasFolder ? 'folder-open' : 'folder'} size={13} />
+          <Icon name={hasFolder ? 'folder-open' : 'folder'} size={12} />
           <span className="plane-project-folder__label">
             {hasFolder ? folderLabel(folderPath) : selectLabel}
           </span>

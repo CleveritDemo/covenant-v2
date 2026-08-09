@@ -12,7 +12,7 @@ describe('listOrchestrationTargets', () => {
         meta: {
           id: 'boss',
           provider: 'claude',
-          permissionMode: 'ask',
+          permissionMode: 'auto',
           coordination: 'orchestrator',
           name: 'Boss',
         },
@@ -22,7 +22,7 @@ describe('listOrchestrationTargets', () => {
         meta: {
           id: 'po',
           provider: 'claude',
-          permissionMode: 'ask',
+          permissionMode: 'auto',
           coordination: 'productOwner',
           name: 'PO',
         },
@@ -32,7 +32,7 @@ describe('listOrchestrationTargets', () => {
         meta: {
           id: 'qa',
           provider: 'claude',
-          permissionMode: 'ask',
+          permissionMode: 'auto',
           name: 'QA',
           role: 'Tester',
         },

@@ -71,7 +71,7 @@ describe('composePrompt identity', () => {
     const prompt = composePrompt(
       request({
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         name: 'Architect',
         role: 'System design',
         objective: 'Keep boundaries clean',
@@ -93,7 +93,7 @@ describe('composePrompt identity', () => {
     const prompt = composePrompt(
       request({
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         name: 'QA',
         rules: ['Verify bugs in code', 'Prefer concise replies'],
         prompt: 'check this',
@@ -111,7 +111,7 @@ describe('composePrompt identity', () => {
     const prompt = composePrompt(
       request({
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         prompt: 'hola',
       }),
       '/tmp',
@@ -125,7 +125,7 @@ describe('composePrompt identity', () => {
     const prompt = composePrompt(
       request({
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         name: 'Scout',
         prompt: 'hola',
       }),
@@ -205,7 +205,7 @@ describe('composePrompt identity', () => {
 
   it('reminds the model to deliver plan body when permissionMode is plan', () => {
     const ask = composePrompt(
-      request({ provider: 'cursor', permissionMode: 'ask', prompt: 'hola' }),
+      request({ provider: 'cursor', permissionMode: 'auto', prompt: 'hola' }),
       '/tmp',
       [],
       '',
@@ -441,9 +441,9 @@ describe('permission mode CLI flags', () => {
     expect(plan.args).not.toContain('--yolo')
   })
 
-  it('maps ask to read-only flags for Cursor and Claude', () => {
+  it('maps plan mode for Cursor and Claude', () => {
     const cursor = commandAndArgs(
-      request({ provider: 'cursor', permissionMode: 'ask' }),
+      request({ provider: 'cursor', permissionMode: 'plan' }),
       baseConfig,
       '/tmp',
       'prompt',
@@ -451,20 +451,19 @@ describe('permission mode CLI flags', () => {
       testHome,
     )
     expect(cursor.args).toContain('--mode')
-    expect(cursor.args[cursor.args.indexOf('--mode') + 1]).toBe('ask')
+    expect(cursor.args[cursor.args.indexOf('--mode') + 1]).toBe('plan')
     expect(cursor.args).not.toContain('--force')
 
     const claude = commandAndArgs(
-      request({ provider: 'claude', permissionMode: 'ask' }),
+      request({ provider: 'claude', permissionMode: 'plan' }),
       baseConfig,
       '/tmp',
       'prompt',
       undefined,
       testHome,
     )
-    expect(claude.args).toContain('--disallowedTools')
-    expect(claude.args[claude.args.indexOf('--disallowedTools') + 1]).toContain('Edit')
-    expect(claude.args[claude.args.indexOf('--disallowedTools') + 1]).toContain('Write')
+    expect(claude.args).toContain('--permission-mode')
+    expect(claude.args[claude.args.indexOf('--permission-mode') + 1]).toBe('plan')
     expect(claude.args).not.toContain('bypassPermissions')
   })
 
@@ -522,14 +521,13 @@ describe('permission mode CLI flags', () => {
     expect(claudeAuto.args).toContain('--permission-mode')
     expect(claudeAuto.args[claudeAuto.args.indexOf('--permission-mode') + 1])
       .toBe('bypassPermissions')
-    // Sin nativeSkills, el default seguro deniega Skill en cualquier modo;
-    // lo que "auto" no debe traer son las herramientas de solo-ask (Edit, Write…).
+    // Sin nativeSkills, el default seguro deniega Skill en cualquier modo.
     expect(claudeAuto.args[claudeAuto.args.indexOf('--disallowedTools') + 1]).toBe('Skill')
 
-    const cursorAsk = commandAndArgs(
+    const cursorPlan = commandAndArgs(
       request({
         provider: 'cursor',
-        permissionMode: 'ask',
+        permissionMode: 'plan',
         coordination: 'orchestrator',
       }),
       baseConfig,
@@ -538,14 +536,14 @@ describe('permission mode CLI flags', () => {
       undefined,
       testHome,
     )
-    expect(cursorAsk.args).toContain('--mode')
-    expect(cursorAsk.args[cursorAsk.args.indexOf('--mode') + 1]).toBe('ask')
-    expect(cursorAsk.args).not.toContain('--force')
+    expect(cursorPlan.args).toContain('--mode')
+    expect(cursorPlan.args[cursorPlan.args.indexOf('--mode') + 1]).toBe('plan')
+    expect(cursorPlan.args).not.toContain('--force')
 
-    const claudeAsk = commandAndArgs(
+    const claudePlan = commandAndArgs(
       request({
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'plan',
         coordination: 'orchestrator',
       }),
       baseConfig,
@@ -554,13 +552,14 @@ describe('permission mode CLI flags', () => {
       undefined,
       testHome,
     )
-    expect(claudeAsk.args).toContain('--disallowedTools')
-    expect(claudeAsk.args).not.toContain('bypassPermissions')
+    expect(claudePlan.args).toContain('--permission-mode')
+    expect(claudePlan.args[claudePlan.args.indexOf('--permission-mode') + 1]).toBe('plan')
+    expect(claudePlan.args).not.toContain('bypassPermissions')
   })
 
   it('resumes both current CLI providers when a session exists', () => {
     const cursor = commandAndArgs(
-      request({ provider: 'cursor', permissionMode: 'ask', cliSessionId: 'cursor-session' }),
+      request({ provider: 'cursor', permissionMode: 'auto', cliSessionId: 'cursor-session' }),
       baseConfig,
       '/tmp',
       'prompt',
@@ -568,7 +567,7 @@ describe('permission mode CLI flags', () => {
       testHome,
     )
     const claude = commandAndArgs(
-      request({ provider: 'claude', permissionMode: 'ask', cliSessionId: 'claude-session' }),
+      request({ provider: 'claude', permissionMode: 'auto', cliSessionId: 'claude-session' }),
       baseConfig,
       '/tmp',
       'prompt',

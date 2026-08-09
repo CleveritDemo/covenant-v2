@@ -498,13 +498,8 @@ export const TabContextFormModal: React.FC<Props> = ({
   return (
     <TerminalModal
       open={open}
-      // El botón rojo y Esc cierran siempre, descartando: son gestos explícitos
-      // y equivalen a «Descartar», que está a la vista con el aviso de cambios
-      // sin guardar. Antes pasaban por un guard que los dejaba muertos con el
-      // borrador sucio, y la ventana parecía atascada. El clic fuera sí queda
-      // desactivado: ese es el gesto accidental, y no debe descartar nada.
       onClose={onClose}
-      closeOnBackdrop={false}
+      closeOnBackdrop
       title={mode === 'edit' ? t('tabContexts.editTitle') : t('tabContexts.createTitle')}
       titleId="tab-context-form-title"
       size="xxl"

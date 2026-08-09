@@ -34,7 +34,7 @@ export const PlaneGitButton: React.FC<PlaneGitButtonProps> = ({
         disabled={disabled}
         onClick={onClick}
       >
-        <Icon name="git-branch" size={13} />
+        <Icon name="git-branch" size={12} />
       </button>
     </Tooltip>
   )

@@ -57,6 +57,11 @@
   white-space: nowrap;
 }
 
+.agent-config-modal__save-error {
+  color: var(--danger, #c44);
+  white-space: normal;
+}
+
 .agent-config-modal__saved-flash {
   margin-right: 6px;
   padding: 1px 6px;

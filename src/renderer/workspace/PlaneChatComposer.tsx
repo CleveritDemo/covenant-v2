@@ -17,7 +17,6 @@ import {
 import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
 import { PlaneChatCloseButton } from './PlaneChatCloseButton'
-import type { PlaneChatContextOption } from './PlaneChatContextsBar'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PlaneChatSendButton } from './PlaneChatSendButton'
@@ -25,8 +24,6 @@ import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import './PlaneChatComposer.css'
-
-export type { PlaneChatContextOption }
 
 const MAX_COMPOSER_ROWS = 8
 

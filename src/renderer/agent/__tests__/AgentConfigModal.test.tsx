@@ -216,4 +216,39 @@ describe('AgentConfigModal', () => {
     renderModal()
     expect(screen.getByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeTruthy()
   })
+
+  it('en workspace org el pie apunta a Covenant, no al JSON local', () => {
+    render(
+      <AgentConfigModal
+        open
+        meta={meta}
+        cwd="/tmp/project"
+        busy={false}
+        loopMode={false}
+        loopActive={false}
+        diskContexts={[]}
+        selectedContextIds={[]}
+        contextNotice=""
+        orgWorkspace={{ slug: 'rodrigoanti', workspaceId: 'ws-1' }}
+        onClose={() => {}}
+        onCommitIdentity={() => true}
+        onChangeCoordination={() => {}}
+        onAcceptDelegationsChange={() => {}}
+        onAllowExpertReplicasChange={() => {}}
+        onOrchestrationMaxRoundsChange={() => {}}
+        onChangeDelegateTo={() => {}}
+        onChangeProvider={() => {}}
+        onChangeModel={() => {}}
+        onChangePermission={() => {}}
+        onChangeNativeSkills={() => {}}
+        onChangeMcpsAllowed={() => {}}
+        onToggleLoopMode={() => {}}
+        onToggleContext={() => {}}
+        onOpenContextsModal={() => {}}
+        onAutoImproveChange={() => {}}
+      />,
+    )
+    expect(screen.getByText('agentPane.configSaveOrg')).toBeTruthy()
+    expect(screen.queryByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeNull()
+  })
 })

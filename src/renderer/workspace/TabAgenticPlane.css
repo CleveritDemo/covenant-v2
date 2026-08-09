@@ -14,22 +14,81 @@
 }
 
 .plane-top-left-bar {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
   position: absolute;
   top: var(--plane-top-bar-inset, 16px);
   left: var(--plane-top-bar-inset, 16px);
   z-index: 70;
+  box-sizing: border-box;
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
-  max-width: calc(100% - 28px);
+  flex-wrap: nowrap;
+  gap: 2px;
+  height: var(--plane-top-bar-height, 26px);
+  width: max-content;
+  max-width: min(72vw, calc(100% - 28px));
+  padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  border: 1px solid var(--plane-top-bar-edge);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   pointer-events: auto;
+}
+
+.plane-top-left-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .plane-top-left-bar .plane-project-folder {
   position: static;
   top: auto;
   left: auto;
-  max-width: min(240px, 100%);
+  flex: 0 1 auto;
+  height: 100%;
+  max-width: min(200px, 42vw);
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.plane-top-left-bar .plane-loops-button {
+  flex-shrink: 0;
+  height: 20px;
+  width: 20px;
+  min-width: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  backdrop-filter: none;
+}
+
+.plane-top-left-bar .plane-loops-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-top-left-bar .plane-loops-button--pressed {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--plane-border) 40%, transparent);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-top-left-bar .plane-loops-button--pressed:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--plane-border) 40%, transparent);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-top-left-bar .plane-loops-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .plane-fab-stack {

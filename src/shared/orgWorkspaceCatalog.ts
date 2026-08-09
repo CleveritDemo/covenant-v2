@@ -5,12 +5,24 @@ export type OrgWorkspaceCatalogEntry = {
   orgName: string
   workspaceId: string
   name: string
+  /**
+   * Si el usuario actual puede renombrar este workspace (y por tanto la tab).
+   * Ausente en snapshots antiguos → tratar como desconocido.
+   */
+  canRename?: boolean
 }
 
 export type OrgWorkspaceCatalog = {
   login: string
   entries: OrgWorkspaceCatalogEntry[]
   fetchedAt: number
+}
+
+/** Input al construir el catálogo (permisos ya resueltos por el caller). */
+export type OrgWorkspaceCatalogWorkspaceInput = {
+  id: string
+  name: string
+  canRename?: boolean
 }
 
 export function catalogHasWorkspaces(cat?: OrgWorkspaceCatalog | null): boolean {
@@ -37,10 +49,28 @@ export function isCatalogFresh(
   return nowMs - cat.fetchedAt <= ttlMs
 }
 
+/**
+ * Owner de org, org-admin, creador del workspace o workspace-admin.
+ * Alineado con `require_workspace_manager(..., manage_admins=false)` del server.
+ */
+export function canRenameOrgWorkspace(opts: {
+  login: string
+  orgRole: string
+  isOrgAdmin: boolean
+  createdBy?: string
+  admins?: readonly string[]
+}): boolean {
+  const login = opts.login.trim()
+  if (!login) return false
+  if (opts.orgRole.trim() === 'owner' || opts.isOrgAdmin) return true
+  if ((opts.createdBy ?? '').trim() === login) return true
+  return (opts.admins ?? []).some(a => a.trim() === login)
+}
+
 export function buildOrgWorkspaceCatalog(
   login: string,
   orgs: Array<{ slug: string; name: string }>,
-  workspacesByOrg: Record<string, Array<{ id: string; name: string }>>,
+  workspacesByOrg: Record<string, OrgWorkspaceCatalogWorkspaceInput[]>,
   nowMs: number,
 ): OrgWorkspaceCatalog {
   const entries: OrgWorkspaceCatalogEntry[] = []
@@ -53,7 +83,13 @@ export function buildOrgWorkspaceCatalog(
       const workspaceId = workspace.id?.trim() ?? ''
       const name = workspace.name?.trim() ?? ''
       if (!workspaceId || !name) continue
-      entries.push({ slug, orgName, workspaceId, name })
+      entries.push({
+        slug,
+        orgName,
+        workspaceId,
+        name,
+        canRename: workspace.canRename === true,
+      })
     }
   }
   return {
@@ -79,7 +115,76 @@ export function parseOrgWorkspaceCatalog(raw: unknown): OrgWorkspaceCatalog | nu
     const workspaceId = typeof e.workspaceId === 'string' ? e.workspaceId.trim() : ''
     const name = typeof e.name === 'string' ? e.name.trim() : ''
     if (!slug || !workspaceId || !name) continue
-    entries.push({ slug, orgName: orgName || slug, workspaceId, name })
+    const entry: OrgWorkspaceCatalogEntry = {
+      slug,
+      orgName: orgName || slug,
+      workspaceId,
+      name,
+    }
+    if (typeof e.canRename === 'boolean') entry.canRename = e.canRename
+    entries.push(entry)
   }
   return { login: obj.login.trim(), entries, fetchedAt: obj.fetchedAt }
+}
+
+export function findOrgWorkspaceCatalogEntry(
+  catalog: OrgWorkspaceCatalog | null | undefined,
+  slug: string,
+  workspaceId: string,
+): OrgWorkspaceCatalogEntry | undefined {
+  const s = slug.trim()
+  const id = workspaceId.trim()
+  if (!catalog || !s || !id) return undefined
+  return catalog.entries.find(e => e.slug === s && e.workspaceId === id)
+}
+
+/**
+ * Alinea títulos de tabs org con el nombre canónico del catálogo.
+ * Devuelve `null` si no hay cambios.
+ */
+export function syncTabTitlesFromOrgWorkspaceCatalog<T extends {
+  title: string
+  titleLocked?: boolean
+  orgWorkspace?: { slug: string; workspaceId: string }
+}>(tabs: readonly T[], catalog: OrgWorkspaceCatalog | null | undefined): T[] | null {
+  if (!catalog) return null
+  let changed = false
+  const next = tabs.map(tab => {
+    const org = tab.orgWorkspace
+    const slug = org?.slug?.trim() ?? ''
+    const workspaceId = org?.workspaceId?.trim() ?? ''
+    if (!slug || !workspaceId) return tab
+    const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
+    if (!entry) return tab
+    const name = entry.name.trim()
+    if (!name) return tab
+    if (tab.title === name && tab.titleLocked) return tab
+    changed = true
+    return { ...tab, title: name, titleLocked: true }
+  })
+  return changed ? next : null
+}
+
+/** Parchea el nombre (y opcionalmente canRename) de una entrada del catálogo. */
+export function patchOrgWorkspaceCatalogName(
+  catalog: OrgWorkspaceCatalog | null | undefined,
+  slug: string,
+  workspaceId: string,
+  name: string,
+  canRename?: boolean,
+): OrgWorkspaceCatalog | null {
+  if (!catalog) return null
+  const s = slug.trim()
+  const id = workspaceId.trim()
+  const nextName = name.trim()
+  if (!s || !id || !nextName) return catalog
+  let changed = false
+  const entries = catalog.entries.map(entry => {
+    if (entry.slug !== s || entry.workspaceId !== id) return entry
+    const nextCan = canRename === undefined ? entry.canRename : canRename
+    if (entry.name === nextName && entry.canRename === nextCan) return entry
+    changed = true
+    return { ...entry, name: nextName, canRename: nextCan }
+  })
+  return changed ? { ...catalog, entries } : catalog
 }

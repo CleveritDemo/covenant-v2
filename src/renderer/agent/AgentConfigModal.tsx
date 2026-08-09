@@ -63,8 +63,11 @@ export interface AgentConfigModalProps {
   selectedContextIds: string[]
   contextNotice: string
   onClose: () => void
-  /** Persistencia de identidad: blur de inputs o cierre del modal. */
-  onCommitIdentity: (draft: AgentIdentityDraft) => void
+  /**
+   * Persistencia de identidad: blur de inputs o cierre del modal.
+   * Debe devolver `false` si falló (el modal no cierra / muestra error).
+   */
+  onCommitIdentity: (draft: AgentIdentityDraft) => void | boolean | Promise<void | boolean>
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onAllowExpertReplicasChange: (allow: boolean) => void
@@ -86,6 +89,11 @@ export interface AgentConfigModalProps {
   closeOnBackdrop?: boolean
   /** Tab activa: oculta el portal sin cerrar configOpen del padre. */
   active?: boolean
+  /**
+   * Workspace org: la config se persiste en Covenant, no en `.gravity/agents`.
+   * Si está definido, el pie muestra ese destino.
+   */
+  orgWorkspace?: { slug: string; workspaceId: string }
 }
 
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
@@ -119,6 +127,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   peerAgents = [],
   closeOnBackdrop = true,
   active = true,
+  orgWorkspace,
 }) => {
   const { t } = useT()
   const locked = busy || loopActive || awaitingDelegations
@@ -132,6 +141,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const [modelsError, setModelsError] = useState('')
   const [modelsReload, setModelsReload] = useState(0)
   const [cliStatuses, setCliStatuses] = useState<Partial<Record<AgentCliProvider, AgentCliResolution>>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const savingRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -139,7 +151,11 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     draftRef.current = next
     setDraft(next)
     setSection('identity')
-  }, [open, meta.id, meta.name, meta.role, meta.objective, rulesKey])
+    setSaveError('')
+    // Solo al abrir: si un PUT falla y revierte `meta`, no queremos pisar el
+    // borrador ni borrar el mensaje de error.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- meta al open
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -185,7 +201,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     })
   }, [])
 
-  const commitIdentity = useCallback(() => {
+  const commitIdentity = useCallback(async (): Promise<boolean> => {
     const current = draftRef.current
     const normalizedId = normalizeAgentSlug(current.id, meta.id) || meta.id
     const next = normalizedId === current.id ? current : { ...current, id: normalizedId }
@@ -193,12 +209,31 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       draftRef.current = next
       setDraft(next)
     }
-    onCommitIdentity(next)
+    try {
+      const result = await Promise.resolve(onCommitIdentity(next))
+      if (result === false) {
+        setSaveError(prev => prev.trim() || 'persist failed')
+        return false
+      }
+      setSaveError('')
+      return true
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error))
+      return false
+    }
   }, [meta.id, onCommitIdentity])
 
   const handleClose = useCallback(() => {
-    commitIdentity()
-    onClose()
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    setSaveError('')
+    void commitIdentity().then(ok => {
+      savingRef.current = false
+      setSaving(false)
+      if (!ok) return
+      onClose()
+    })
   }, [commitIdentity, onClose])
 
   /** Vuelve el borrador a lo último persistido (no toca disco: meta ya es eso). */
@@ -206,6 +241,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     const next = identityDraftFromMeta(meta)
     draftRef.current = next
     setDraft(next)
+    setSaveError('')
   }, [meta])
 
   const selectSection = useCallback((next: AgentConfigSection) => {
@@ -216,6 +252,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   /** ⌘↵ / Ctrl+↵ cierra igual que el botón del pie. */
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return
+    if (savingRef.current) return
     event.preventDefault()
     handleClose()
   }, [handleClose])
@@ -247,11 +284,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     return () => window.clearTimeout(timer)
   }, [open, savedSnapshot])
 
-  const permissionLabel = meta.permissionMode === 'auto'
-    ? t('agentPane.permissionAuto')
-    : meta.permissionMode === 'plan'
-      ? t('agentPane.permissionPlan')
-      : t('agentPane.permissionAsk')
+  const permissionLabel = meta.permissionMode === 'plan'
+    ? t('agentPane.permissionPlan')
+    : t('agentPane.permissionAuto')
 
   const sectionLabels: Record<AgentConfigSection, string> = {
     identity: t('agentPane.identityLabel'),
@@ -352,6 +387,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   }, [meta.provider, meta.permissionMode, meta.coordination, modelLabel, permissionLabel, selectedContextIds.length, cliStatuses, t])
 
   const catalogFile = `${PROJECT_DIR}/agents/${draft.id.trim() || 'agent'}.json`
+  const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
 
   return (
     <TerminalModal
@@ -361,7 +397,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       size="xl"
       zIndex={820}
       bodyLayout="flush"
-      closeOnBackdrop={closeOnBackdrop}
+      closeOnBackdrop={closeOnBackdrop && !saving}
+      closeOnEscape={!saving}
       headerContent={(
         <AgentConfigHero
           name={draft.name}
@@ -377,21 +414,34 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       footer={(
         <div className="agent-config-modal__footer">
           <p className="agent-config-modal__save-hint">
-            {savedFlash ? (
+            {saving ? (
+              <span className="agent-config-modal__saved-flash">{t('agentPane.configSaving')}</span>
+            ) : null}
+            {!saving && savedFlash ? (
               <span className="agent-config-modal__saved-flash">{t('agentPane.configSaved')}</span>
             ) : null}
-            {t('agentPane.configSaveAuto')}
-            {' '}
-            <span className="agent-config-modal__save-file">{catalogFile}</span>
+            {saveError ? (
+              <span className="agent-config-modal__save-error">
+                {t('agentPane.configSaveFailed', { error: saveError })}
+              </span>
+            ) : isOrgBacked ? (
+              t('agentPane.configSaveOrg')
+            ) : (
+              <>
+                {t('agentPane.configSaveAuto')}
+                {' '}
+                <span className="agent-config-modal__save-file">{catalogFile}</span>
+              </>
+            )}
           </p>
           <div className="agent-config-modal__actions">
             {dirty ? (
-              <Button variant="secondary" size="sm" onClick={discardDraft}>
+              <Button variant="secondary" size="sm" onClick={discardDraft} disabled={saving}>
                 {t('agentPane.discardDraft')}
               </Button>
             ) : null}
-            <Button variant="primary" size="sm" onClick={handleClose}>
-              {t('agentPane.configDone')}
+            <Button variant="primary" size="sm" onClick={handleClose} disabled={saving}>
+              {saving ? t('agentPane.configSaving') : t('agentPane.configDone')}
             </Button>
           </div>
         </div>

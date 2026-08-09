@@ -12,6 +12,8 @@ export type OrgWorkspaceRequirementState = {
   cloning?: boolean
   syncing?: boolean
   agentDeleteError?: string
+  agentUpdateError?: string
+  workspaceRenameError?: string
 }
 
 interface Props {
@@ -22,6 +24,8 @@ interface Props {
   cloning?: boolean
   syncing?: boolean
   agentDeleteError?: string
+  agentUpdateError?: string
+  workspaceRenameError?: string
   onClose: () => void
   onOpenSettings: () => void
 }
@@ -34,6 +38,8 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloning = false,
   syncing = false,
   agentDeleteError,
+  agentUpdateError,
+  workspaceRenameError,
   onClose,
   onOpenSettings,
 }) => {
@@ -47,6 +53,11 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     : null
   const agentErr = agentDeleteError?.trim()
     ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
+    : agentUpdateError?.trim()
+      ? t('organizations.reqAgentUpdateFailed', { error: agentUpdateError.trim() })
+      : null
+  const renameErr = workspaceRenameError?.trim()
+    ? t('organizations.reqWorkspaceRenameFailed', { error: workspaceRenameError.trim() })
     : null
 
   return (
@@ -96,6 +107,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
           ) : null}
           {detail ? <p className="org-ws-req__line">{detail}</p> : null}
           {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
+          {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
         </div>
       )}
     </TerminalModal>

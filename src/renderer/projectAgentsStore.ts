@@ -27,7 +27,7 @@ export function resolveTabAgentMeta(
     return {
       id: `missing-${paneId.slice(0, 8)}`,
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
     }
   }
   const definition = agents.find(agent => agent.id === binding.agentId)

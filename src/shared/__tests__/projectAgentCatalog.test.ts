@@ -22,6 +22,8 @@ import {
   resolveCatalogAgentId,
   isAgentOwnResultContext,
   agentResultContextIdForSlug,
+  tabContextForAgentResult,
+  withCatalogAgentResultContexts,
 } from '@shared/projectAgentCatalog'
 
 describe('projectAgentCatalog', () => {
@@ -39,11 +41,50 @@ describe('projectAgentCatalog', () => {
     expect(isAgentOwnResultContext(null, 'iaterminal:result:fullstack')).toBe(false)
   })
 
-  it('strips own results from parsed contextIds', () => {
+  it('synthesizes agentResult contexts from the live agent catalog', () => {
+    const notes = {
+      id: 'iaterminal:notes:x',
+      name: 'Notes',
+      fileName: 'x.md',
+      kind: 'notes' as const,
+    }
+    const orphan = {
+      id: 'iaterminal:result:gone',
+      name: 'Gone',
+      fileName: 'results/gone.md',
+      kind: 'agentResult' as const,
+    }
+    const agents = [
+      { id: 'qa', provider: 'cursor' as const, permissionMode: 'auto' as const, name: 'QA' },
+      { id: 'fullstack', provider: 'claude' as const, permissionMode: 'auto' as const, name: 'Full Stack' },
+    ]
+    const merged = withCatalogAgentResultContexts([notes, orphan], agents)
+    expect(merged.filter(c => c.kind !== 'agentResult')).toEqual([notes])
+    expect(merged.filter(c => c.kind === 'agentResult').map(c => c.id)).toEqual([
+      'iaterminal:result:fullstack',
+      'iaterminal:result:qa',
+    ])
+    expect(tabContextForAgentResult(agents[0])).toMatchObject({
+      id: 'iaterminal:result:qa',
+      name: 'QA',
+      kind: 'agentResult',
+    })
+  })
+
+  it('migrates legacy ask permissionMode to auto', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'qa',
       provider: 'cursor',
       permissionMode: 'ask',
+    })
+    expect(parsed?.permissionMode).toBe('auto')
+  })
+
+  it('strips own results from parsed contextIds', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'cursor',
+      permissionMode: 'auto',
       contextIds: [
         'iaterminal:folderTree:folders',
         'iaterminal:result:qa',
@@ -124,7 +165,7 @@ describe('projectAgentCatalog', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'scout',
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       name: 'Hello ',
       role: 'Full stack ',
       objective: 'Ship features ',
@@ -184,7 +225,7 @@ describe('projectAgentCatalog', () => {
     const po = parseProjectAgentDefinition({
       id: 'po',
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       coordination: 'productOwner',
       orchestrationMaxRounds: 5,
       allowExpertReplicas: true,
@@ -202,7 +243,7 @@ describe('projectAgentCatalog', () => {
     const specialist = parseProjectAgentDefinition({
       id: 'qa',
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       allowExpertReplicas: true,
     })
     expect(specialist?.allowExpertReplicas).toBeUndefined()
@@ -212,7 +253,7 @@ describe('projectAgentCatalog', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'draft',
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       rules: [''],
     })
     expect(parsed?.rules).toEqual([''])
@@ -247,7 +288,7 @@ describe('projectAgentCatalog', () => {
     const definition = parseProjectAgentDefinition({
       id: 'qa',
       provider: 'cursor',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       name: 'qa',
       emitResults: true,
       nativeSkills: { enabled: true, namespaces: ['superpowers'] },
@@ -275,7 +316,7 @@ describe('projectAgentCatalog', () => {
     expect(cloneProjectAgentDefinition({
       id: 'legacy',
       provider: 'claude',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
     }, ' (copy)')).toMatchObject({ emitResults: true })
   })
 
@@ -380,7 +421,7 @@ describe('projectAgentCatalog', () => {
         {
           id: 'qa',
           provider: 'cursor',
-          permissionMode: 'ask',
+          permissionMode: 'auto',
           contextIds: ['iaterminal:result:claude', 'rules'],
         },
       ],
@@ -396,7 +437,7 @@ describe('projectAgentCatalog', () => {
       {
         id: 'qa',
         provider: 'cursor',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         contextIds: ['iaterminal:result:fullstack', 'rules'],
       },
     ])
@@ -434,7 +475,7 @@ describe('projectAgentCatalog', () => {
   })
 
   describe('capacidades del agente', () => {
-    const base = { id: 'backend', provider: 'claude', permissionMode: 'ask' }
+    const base = { id: 'backend', provider: 'claude', permissionMode: 'auto' }
 
     it('sin nativeSkills el campo queda ausente — el llamador lo lee como ninguna', () => {
       const def = parseProjectAgentDefinition(base)
@@ -491,7 +532,7 @@ describe('projectAgentCatalog', () => {
       const source = parseProjectAgentDefinition({
         id: 'backend',
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
         nativeSkills: { enabled: true, namespaces: ['superpowers'] },
         mcpsAllowed: ['jira'],
       })!

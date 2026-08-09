@@ -27,7 +27,7 @@ export const PlanePulseButton: React.FC<PlanePulseButtonProps> = ({
       aria-pressed={pressed}
       onClick={onClick}
     >
-      <Icon name="pulse" size={13} />
+      <Icon name="pulse" size={12} />
     </button>
   </Tooltip>
 )

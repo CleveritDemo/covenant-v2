@@ -78,25 +78,24 @@
   flex-shrink: 0;
 }
 
-/* Chip: ícono + nombre + nº de agentes que ya lo tienen. */
+/* Chip: solo ícono (+ badge si hay agentes asignados). El nombre va en el popover. */
 .plane-context-pool__chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  flex-shrink: 0;
   box-sizing: border-box;
-  max-width: 148px;
+  width: 20px;
   height: 20px;
   margin: 0;
-  padding: 0 6px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 11px;
-  font-weight: 600;
   line-height: 1;
-  white-space: nowrap;
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
@@ -127,28 +126,28 @@
 .plane-context-pool__chip-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-}
-
-.plane-context-pool__chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .plane-context-pool__chip-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: color-mix(in srgb, var(--accent) 32%, var(--bg-secondary));
   color: var(--text);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* Popover de asignación, anclado al borde derecho de la barra. */

@@ -8,14 +8,15 @@
 }
 
 .agent-config-rail__group {
-  margin: 10px 8px 4px;
+  margin: 12px 9px 3px;
   font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .agent-config-rail__group:first-child {

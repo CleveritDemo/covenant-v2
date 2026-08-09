@@ -4,6 +4,45 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.16.0
+
+- **Renombrar una tab de workspace organizacional renombra el workspace en el
+  servidor.** El nuevo nombre queda en Covenant, no solo en la pestaña local.
+- **Solo pueden renombrar** el owner de la org, un org-admin, el creador del
+  workspace o un workspace-admin; si no tienes permiso, ves un error claro.
+- **Los títulos de las tabs org se alinean** con el nombre del catálogo/servidor,
+  para que lo que ves en la barra coincida con Covenant.
+
+## v0.15.0
+
+- **En workspaces organizacionales, el contexto que arrastras a un agente ya no
+  desaparece** al abrir su modal de configuración. Antes un refresh contra disco
+  local borraba esas asignaciones.
+- **Los results de otros agentes vuelven a verse en el modal**, en su propio
+  grupo («Resultados de agentes»), listos para asignarlos.
+- **La barra de arriba a la izquierda del plano es una sola pieza**: carpeta,
+  loops y el resto de acciones van juntos, más compactos.
+- **En el panel Git, elegir un archivo abre el diff al momento** (también si
+  pulsas las stats +/-). El visor ya no se queda cargando en bucle al cambiar
+  de archivo.
+
+## v0.14.0
+
+- **Los agentes de workspaces organizacionales se guardan de verdad en Covenant.**
+  Al pulsar Listo en la configuración, la app espera el `PUT` al servidor; si
+  falla, el modal no cierra y muestra el error. Ya no se finge éxito solo en
+  memoria ni se escribe en `.gravity/agents` local.
+- **Sin modo Ask.** Permisos del agente: solo Auto y Plan (Ask pasa a Auto).
+- **Crear equipo vuelve bajo el logo.** En un tab vacío, debajo de Gravity
+  aparece el botón para montar el equipo por defecto — en workspaces
+  personales y organizacionales.
+- **La barra de contextos del plano es solo íconos.** El nombre se ve al abrir
+  el menú de asignación. Arriba del chat ya no hay picker de contextos: la
+  asignación vive en el pool del plano.
+- **Más claro el menú del modal de agente.** Las categorías del sidebar
+  (Quién es / Cómo funciona) se leen más chicas que los ítems.
+- **Clic fuera cierra el modal de editar contexto.**
+
 ## v0.13.0
 
 - **La app se ve con tu fuente.** Ajustes → Apariencia estrena *Tipografía*, con

@@ -49,11 +49,14 @@ function setup(overrides: Partial<PlaneContextPoolProps> = {}) {
 }
 
 describe('PlaneContextPool — asignación por clic', () => {
-  it('el chip muestra nombre y cuántos agentes lo tienen', () => {
+  it('el chip es solo ícono; el nombre aparece al abrir el popover', () => {
     setup()
     const chip = screen.getByRole('button', { name: /Estructura/ })
-    expect(chip.textContent).toContain('Estructura')
+    expect(chip.querySelector('.plane-context-pool__chip-name')).toBeNull()
     expect(chip.textContent).toContain('1')
+    fireEvent.click(chip)
+    const dialog = screen.getByRole('dialog', { name: 'Asignar a agentes' })
+    expect(dialog.textContent).toContain('Estructura')
   })
 
   it('el clic abre el popover con los agentes del plano y su estado', () => {

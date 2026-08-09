@@ -143,6 +143,57 @@ export function agentResultContextIdForSlug(agentId: string): string {
   return `iaterminal:result:${normalizeAgentSlug(agentId, 'agent')}`
 }
 
+/** TabContext sintético de results para un agente del catálogo. */
+export function tabContextForAgentResult(
+  agent: Pick<ProjectAgentDefinition, 'id' | 'name'>,
+): TabContext {
+  const slug = normalizeAgentSlug(agent.id, 'agent') || 'agent'
+  const name = (agent.name ?? '').trim() || slug
+  return {
+    id: agentResultContextIdForSlug(slug),
+    name,
+    fileName: `results/${slug}.md`,
+    kind: 'agentResult',
+    icon: 'bot',
+    color: '#94a3b8',
+  }
+}
+
+/**
+ * Asegura una entrada `agentResult` por agente vivo del catálogo.
+ * Conserva contextos de proyecto; descarta results huérfanos; sintetiza los faltantes.
+ * Útil en org (sin disco) y como red de seguridad en personal.
+ */
+export function withCatalogAgentResultContexts(
+  contexts: readonly TabContext[],
+  agents: readonly ProjectAgentDefinition[],
+): TabContext[] {
+  const agentBySlug = new Map<string, ProjectAgentDefinition>()
+  for (const agent of agents) {
+    const slug = normalizeAgentSlug(agent.id, 'agent')
+    if (slug) agentBySlug.set(slug, agent)
+  }
+  const project = contexts.filter(context => context.kind !== 'agentResult')
+  const resultById = new Map<string, TabContext>()
+  for (const context of contexts) {
+    if (context.kind !== 'agentResult') continue
+    const stem = context.id.replace(/^iaterminal:result:/, '')
+    const slug = normalizeAgentSlug(stem, 'agent')
+    if (!slug || !agentBySlug.has(slug)) continue
+    const agent = agentBySlug.get(slug)!
+    const catalogName = (agent.name ?? '').trim()
+    resultById.set(context.id, catalogName && catalogName !== context.name
+      ? { ...context, name: catalogName }
+      : context)
+  }
+  for (const agent of agents) {
+    const synthetic = tabContextForAgentResult(agent)
+    if (!resultById.has(synthetic.id)) resultById.set(synthetic.id, synthetic)
+  }
+  const results = [...resultById.values()].sort((a, b) => a.name.localeCompare(b.name))
+  return [...project, ...results]
+}
+
 /** ¿Es el contexto results del propio agente? (no debe autoasignarse). */
 export function isAgentOwnResultContext(
   agentId: string | undefined | null,
@@ -262,9 +313,9 @@ export function remapAgentResultTabContexts(
 }
 
 function sanitizePermissionMode(raw: unknown): AgentPermissionMode {
-  if (raw === 'auto') return 'auto'
   if (raw === 'plan' || raw === 'readonly') return 'plan'
-  return 'ask'
+  // 'ask' y cualquier otro valor legado → auto
+  return 'auto'
 }
 
 function sanitizeProvider(raw: unknown): AgentCliProvider {
@@ -494,7 +545,7 @@ export function resolveAgentPaneMeta(
     : {
         id: resolvedId,
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
       }
   return {
     ...base,
@@ -528,11 +579,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: sanitizeProvider(meta.provider),
-    permissionMode: meta.permissionMode === 'auto'
-      ? 'auto'
-      : meta.permissionMode === 'plan'
-        ? 'plan'
-        : 'ask',
+    permissionMode: meta.permissionMode === 'plan' ? 'plan' : 'auto',
     emitResults: true,
   }
 }

@@ -14,7 +14,7 @@ import { planDelegationWorktrees, planWorktreeMergeOrder } from '../worktreeDele
 const frontend: ProjectAgentDefinition = {
   id: 'frontend',
   provider: 'claude',
-  permissionMode: 'ask',
+  permissionMode: 'auto',
   name: 'Frontend',
   role: 'frontend engineer',
   emitResults: true,

@@ -4,6 +4,24 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.13.0
+
+- **La app se ve con tu fuente.** Ajustes → Apariencia estrena *Tipografía*, con
+  un selector para la interfaz —menús, paneles y chat de agentes— y otro para
+  las terminales, que arrastra también al editor y a los bloques de código. El
+  cambio entra al momento, sin reiniciar, y «Predeterminada» devuelve las de
+  siempre.
+- **También la que compraste.** Bajo cada selector hay un campo donde escribir
+  el nombre exacto de cualquier familia instalada —Comic Code, Berkeley Mono,
+  MonoLisa…—, porque ninguna lista va a tenerlas todas. Te avisa si el nombre
+  no está en el equipo, y en la de terminal si la fuente no es monoespaciada y
+  va a descuadrar el cursor.
+- **El desplegable solo enseña lo que tienes instalado**: comprueba una a una
+  las fuentes del catálogo y esconde el resto, así que no eliges algo que luego
+  no se aplica.
+- El menú contextual del explorador pedía una fuente que no existía en la app y
+  se pintaba con la que tocara.
+
 ## v0.12.0
 
 - **El panel Git ya no está atado a un solo worktree.** Si el repo tiene varios,

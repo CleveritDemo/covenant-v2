@@ -6,6 +6,7 @@ import { AiMarkdown } from './AiMarkdown'
 import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
+import { Tooltip } from './ui/Tooltip'
 // El CHANGELOG viaja dentro del bundle: tras actualizar es la única fuente local.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './UpdateBanner.css'
@@ -93,9 +94,11 @@ export const UpdateBanner: React.FC = () => {
           )}
 
           {state.kind === 'error' ? (
-            <span className="update-banner__error" title={state.message}>
-              {state.message}
-            </span>
+            <Tooltip content={state.message}>
+              <span className="update-banner__error">
+                {state.message}
+              </span>
+            </Tooltip>
           ) : (
             <button
               type="button"

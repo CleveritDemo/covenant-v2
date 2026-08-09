@@ -4,6 +4,36 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.20.0
+
+- **Pulse se divide en dos secciones.** Arriba, «Human in the loop»: tu racha,
+  los turnos que dirigiste, los commits y cuántos turnos te toma cerrar uno.
+  Abajo, «Agentic engineering»: una fila por agente con sus turnos, sus tokens,
+  su reparto Ask/Plan/Auto y su actividad de los últimos 30 días.
+- **Pulse se filtra por workspace, repo y rango** (30d / 90d / todo). El heatmap
+  se ajusta al rango elegido en vez de mostrar siempre doce meses.
+- **Cada agente reporta lo que hizo**: commits que se le atribuyen, duración
+  media del turno, delegaciones emitidas y recibidas, resultados escritos y
+  turnos disparados por un loop. Lo que todavía no se mide se muestra como
+  «sin dato», nunca como cero.
+- **Arrastrar un contexto o un resultado al chat lo adjunta a ese turno.** Antes
+  caía el id interno como texto dentro del campo; ahora aparece un chip con su
+  ícono y su nombre, con ✕ para quitarlo, y se envía solo con ese mensaje sin
+  cambiar la configuración del agente. Los resultados de agente se distinguen
+  con borde punteado.
+- **El editor gana plegado de código, menú contextual y el buscador nativo**
+  (buscar/reemplazar con mayúsculas, regex y palabra completa) en lugar de la
+  barra «Find in file…».
+- **El JSON de los contextos se ve como árbol plegable** en la vista previa y en
+  el modal de edición, en vez de una línea por clave.
+- **La fuente de interfaz vuelve a aplicarse a toda la app.** Elegir una fuente
+  de terminal ya no repinta Pulse, el panel Git, GitHub Actions ni los modales:
+  en monoespaciada queda solo lo que es código o salida real.
+- **La barra de contexto del plano se lee mejor**: la cuenta de agentes
+  asignados va al lado del ícono y ya no lo tapa ni se recorta.
+- **El aviso de «no puedes renombrar esta tab» usa el tooltip de la app**, con
+  el tema y el retardo del resto, en vez del del sistema operativo.
+
 ## v0.19.0
 
 - **Nueva sección Actualizaciones en Ajustes**: activar/desactivar actualizaciones

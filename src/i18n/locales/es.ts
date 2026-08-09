@@ -1069,9 +1069,6 @@ const es = {
       ready: 'LSP',
       starting: 'LSP…',
       downloading: 'LSP ↓',
-      'consent-needed': 'LSP off',
-      'needs-runtime': 'LSP ⚠',
-      error: 'LSP ✕',
     },
     consent: {
       hint: '{{name}} (~{{size}} MB) habilita ir a definición, referencias y diagnósticos.',

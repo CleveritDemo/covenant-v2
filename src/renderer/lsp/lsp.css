@@ -1,50 +1,61 @@
 /* Superficies LSP dentro del editor de código del explorador.
-   Los tokens (--surface, --text, --border…) son los mismos que usa el resto del
-   file explorer, así los temas siguen mandando sin duplicar paletas. */
+   Sólo tokens del tema (`src/themes/presets.ts` y `styles/global.css`) y NINGÚN
+   fallback literal: un token mal escrito con fallback oscuro se ve bien en los
+   temas oscuros y se rompe en silencio en los claros, que es exactamente el bug
+   que tenía este archivo. Sin fallback, el error se nota en el acto. */
 
 .lsp-hover {
   max-width: 520px;
   max-height: 320px;
   overflow: auto;
   padding: 8px 10px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
-  color: var(--text, #ddd);
-  background: var(--surface-raised, #1c1c1f);
-  border: 1px solid var(--border, #333);
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 6px;
+  box-shadow: 0 8px 28px color-mix(in srgb, black 35%, transparent);
 }
 
+/* Mismo lenguaje visual que `.file-explorer-context-menu`. */
 .lsp-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: 10000;
   min-width: 200px;
   max-width: 420px;
   padding: 4px;
   display: flex;
   flex-direction: column;
-  background: var(--surface-raised, #1c1c1f);
-  border: 1px solid var(--border, #333);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: 0 8px 28px color-mix(in srgb, black 35%, transparent);
 }
 
 .lsp-menu__item {
-  padding: 6px 8px;
-  font-size: 12px;
-  text-align: left;
-  color: var(--text, #ddd);
-  background: none;
-  border: 0;
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
   border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  /* `--font-sans` no existe (FileExplorer.css lo referencia y resuelve a nada);
+     el token real de UI es `--font-ui`, declarado en styles/global.css. */
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-align: left;
   cursor: pointer;
 }
 
 .lsp-menu__item:hover,
 .lsp-menu__item:focus-visible {
-  background: var(--surface-hover, #2a2a2e);
+  background: var(--surface-hover);
 }
 
 .lsp-codeaction-gutter {
@@ -56,15 +67,17 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--warning, #e0b341);
+  /* No hay token de warning en los temas; el acento es el color de "aquí hay
+     algo que puedes accionar" en el resto de la app. */
+  color: var(--accent);
   cursor: pointer;
 }
 
 .lsp-references {
   max-height: 220px;
   overflow: auto;
-  border-top: 1px solid var(--border, #333);
-  background: var(--surface, #161618);
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--surface) 8%, var(--bg));
 }
 
 .lsp-references__header {
@@ -76,9 +89,9 @@
   gap: 8px;
   padding: 5px 8px;
   font-size: 11px;
-  color: var(--text-muted, #999);
+  color: var(--text-muted);
   background: inherit;
-  border-bottom: 1px solid var(--border, #333);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .lsp-references__close {
@@ -89,6 +102,10 @@
   cursor: pointer;
 }
 
+.lsp-references__close:hover {
+  color: var(--text);
+}
+
 .lsp-references__list {
   display: flex;
   flex-direction: column;
@@ -96,50 +113,57 @@
 
 .lsp-references__row {
   padding: 4px 8px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
   text-align: left;
-  color: var(--text, #ddd);
+  color: var(--text);
   background: none;
   border: 0;
   cursor: pointer;
 }
 
 .lsp-references__row:hover {
-  background: var(--surface-hover, #2a2a2e);
+  background: var(--surface-hover);
 }
 
 .lsp-references__more {
-  color: var(--text-muted, #999);
+  color: var(--text-muted);
   cursor: default;
 }
 
 .lsp-rename {
   position: fixed;
-  z-index: 1000;
+  z-index: 10000;
   padding: 6px;
-  background: var(--surface-raised, #1c1c1f);
-  border: 1px solid var(--border, #333);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: 0 8px 28px color-mix(in srgb, black 35%, transparent);
 }
 
 .lsp-rename__input {
   width: 220px;
   padding: 4px 6px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text, #ddd);
-  background: var(--surface, #161618);
-  border: 1px solid var(--border, #333);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 4px;
+}
+
+.lsp-rename__input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .lsp-rename__confirm-msg {
   max-width: 260px;
   padding: 2px 4px 6px;
   font-size: 12px;
-  color: var(--text, #ddd);
+  color: var(--text);
 }
 
 .lsp-rename__confirm-actions {
@@ -151,59 +175,66 @@
 .lsp-rename__confirm-actions button {
   padding: 3px 10px;
   font-size: 11px;
-  color: var(--text, #ddd);
-  background: var(--surface, #161618);
-  border: 1px solid var(--border, #333);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 4px;
   cursor: pointer;
 }
 
-/* Chip de estado + banner en la cabecera del panel de archivo. */
+.lsp-rename__confirm-actions button:hover {
+  background: var(--surface-hover);
+}
+
+/* Chip de estado + banner en la cabecera del panel de archivo. El banner copia
+   la receta de `.file-editor-panel__disk-banner`, su hermano en esa cabecera. */
 
 .lsp-chip {
+  flex-shrink: 0;
   padding: 1px 6px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #999);
-  border: 1px solid var(--border, #333);
+  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 999px;
   white-space: nowrap;
 }
 
 .lsp-chip--ready {
-  color: var(--success, #6fbf73);
-  border-color: currentcolor;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .lsp-chip--error {
-  color: var(--danger, #d9736f);
-  border-color: currentcolor;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
 }
 
 .lsp-banner {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--text, #ddd);
-  background: var(--surface-raised, #1c1c1f);
-  border-bottom: 1px solid var(--border, #333);
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .lsp-banner__command {
   padding: 2px 6px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text, #ddd);
-  background: var(--surface, #161618);
-  border: 1px solid var(--border, #333);
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 4px;
   user-select: all;
 }
 
 .lsp-banner__progress {
-  color: var(--text-muted, #999);
+  color: var(--text-muted);
 }

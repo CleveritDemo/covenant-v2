@@ -3,12 +3,10 @@ import { useT } from '@i18n/useT'
 import { Icon } from '../../components/ui/Icon'
 import { ExplorerToolButton } from './ExplorerToolButton'
 import { FileEditorActionButton } from './FileEditorActionButton'
-import { FileEditorSearchNav } from './FileEditorSearchNav'
-import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { SegmentedControl } from '../../components/ui/SegmentedControl'
 import { Tooltip } from '../../components/ui/Tooltip'
-import { FileCodeEditor, type FileCodeEditorHandle } from './FileCodeEditor'
+import { FileCodeEditor } from './FileCodeEditor'
 import { LspStatusBanner } from '../../lsp/LspStatusBanner'
 import type { LspDocStatus } from '../../lsp/manager'
 import { lspLanguageId } from '@shared/lspLanguages'
@@ -63,16 +61,12 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [findQuery, setFindQuery] = useState('')
-  const [matchCount, setMatchCount] = useState(0)
   const [isBinary, setIsBinary] = useState(false)
   const [largeFileInfo, setLargeFileInfo] = useState<{ sizeBytes: number; maxBytes: number } | null>(null)
   const [diskConflict, setDiskConflict] = useState(false)
   const [lspStatus, setLspStatus] = useState<LspDocStatus | null>(null)
   const [lspRetryToken, setLspRetryToken] = useState(0)
   const [showSource, setShowSource] = useState(false)
-  const editorRef = useRef<FileCodeEditorHandle>(null)
-  const findInputRef = useRef<HTMLInputElement>(null)
 
   const lspLanguage = selectedPath ? lspLanguageId(selectedPath) : null
   const previewKind = selectedPath ? filePreviewKindForPath(selectedPath) : null
@@ -91,19 +85,12 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   }, [isDirty, onDirtyChange])
 
   useEffect(() => {
-    setFindQuery('')
-    setMatchCount(0)
     setIsBinary(false)
     setLargeFileInfo(null)
     setDiskConflict(false)
     setLspStatus(null)
     setShowSource(false)
   }, [selectedPath])
-
-  const focusFindInput = useCallback(() => {
-    findInputRef.current?.focus()
-    findInputRef.current?.select()
-  }, [])
 
   const loadGenRef = useRef(0)
 
@@ -322,73 +309,21 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
         )}
         {!loading && !error && !isBinary && !largeFileInfo && viewingSource && (
           <FileCodeEditor
-            ref={editorRef}
             key={selectedPath}
             filePath={selectedPath}
             themeId={themeId}
             content={draftContent}
-            findQuery={findQuery}
             sessionId={sessionId}
             lspRetryToken={lspRetryToken}
             gotoTarget={gotoTarget}
             onChange={setDraftContent}
             onSave={() => void handleSave()}
-            onMatchCountChange={setMatchCount}
-            onFindFocusRequest={focusFindInput}
             onLspStatusChange={setLspStatus}
             onOpenFile={onOpenFile}
           />
         )}
       </div>
 
-      {!loading && !error && !isBinary && !largeFileInfo && viewingSource && (
-        <div className="file-editor-panel__search" role="search">
-          <div className="file-editor-panel__search-field">
-            <Input
-              ref={findInputRef}
-              type="text"
-              size="sm"
-              value={findQuery}
-              onChange={e => setFindQuery(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  if (e.shiftKey) editorRef.current?.findPrevious()
-                  else editorRef.current?.findNext()
-                }
-                if (e.key === 'Escape') {
-                  e.preventDefault()
-                  setFindQuery('')
-                  e.currentTarget.blur()
-                }
-              }}
-              placeholder={t('fileExplorer.editor.findPlaceholder')}
-              aria-label={t('fileExplorer.editor.findAria')}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </div>
-          {findQuery.trim() !== '' && (
-            <span className="file-editor-panel__search-meta" aria-live="polite">
-              {matchCount === 0
-                ? t('fileExplorer.editor.noMatches')
-                : t('fileExplorer.editor.matchCount', { count: matchCount })}
-            </span>
-          )}
-          <FileEditorSearchNav
-            direction="prev"
-            label={t('fileExplorer.editor.findAria')}
-            disabled={!findQuery.trim() || matchCount === 0}
-            onClick={() => editorRef.current?.findPrevious()}
-          />
-          <FileEditorSearchNav
-            direction="next"
-            label={t('fileExplorer.editor.findAria')}
-            disabled={!findQuery.trim() || matchCount === 0}
-            onClick={() => editorRef.current?.findNext()}
-          />
-        </div>
-      )}
     </div>
   )
 }

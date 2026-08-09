@@ -6,6 +6,8 @@ export interface FileExplorerMenuItemProps {
   onClick: () => void
   danger?: boolean
   disabled?: boolean
+  /** Atajo mostrado a la derecha (sólo etiqueta: el binding vive en el keymap). */
+  shortcut?: string
 }
 
 /** Ítem de menú contextual / new-menu del explorador. */
@@ -14,6 +16,7 @@ export const FileExplorerMenuItem: React.FC<FileExplorerMenuItemProps> = ({
   onClick,
   danger = false,
   disabled = false,
+  shortcut,
 }) => (
   <button
     type="button"
@@ -25,6 +28,7 @@ export const FileExplorerMenuItem: React.FC<FileExplorerMenuItemProps> = ({
     disabled={disabled}
     onClick={onClick}
   >
-    {label}
+    <span>{label}</span>
+    {shortcut && <span className="file-explorer-context-menu__shortcut">{shortcut}</span>}
   </button>
 )

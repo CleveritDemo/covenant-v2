@@ -1,4 +1,5 @@
 import React from 'react'
+import { Tooltip } from '../components/ui/Tooltip'
 import './AgentDelegatingIndicator.css'
 
 export interface AgentDelegatingListItem {
@@ -56,9 +57,9 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
               ) : null}
               <span className="agent-delegating__status">{item.statusLabel}</span>
               {item.worktreeHint ? (
-                <span className="agent-delegating__wt" title={item.worktreeHint}>
-                  {item.worktreeHint}
-                </span>
+                <Tooltip content={item.worktreeHint}>
+                  <span className="agent-delegating__wt">{item.worktreeHint}</span>
+                </Tooltip>
               ) : null}
             </li>
           ))}

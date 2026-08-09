@@ -1,11 +1,16 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { EditorState, Prec, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
+import { autocompletion } from '@codemirror/autocomplete'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { useT } from '@i18n/useT'
 import { getTheme } from '../../../themes/presets'
 import { createCodeMirrorTheme } from '../../../themes/codeMirrorTheme'
+import { applyLspDiagnostics, lspCompletionSource, lspExtensions, type LspHost } from '../../lsp/cm6'
+import { lspManager, onCodeIntelChange, type LspDoc, type LspDocStatus } from '../../lsp/manager'
+import { lspRangeToCm } from '../../lsp/positions'
+import type { LspEdit } from '../../lsp/edits'
 import { languageExtensionForPath } from './languageFromPath'
 import {
   countSearchMatches,
@@ -16,6 +21,7 @@ import {
   searchQueryFromTerm,
   setFileSearchQuery,
 } from './fileEditorSearch'
+import '../../lsp/lsp.css'
 
 export interface FileCodeEditorHandle {
   findNext: () => boolean
@@ -28,10 +34,24 @@ interface FileCodeEditorProps {
   content: string
   findQuery?: string
   readOnly?: boolean
+  /** Sesión dueña del explorador; el main resuelve las rutas contra su raíz. */
+  sessionId?: string
+  /** Fuerza reintentar el arranque LSP (tras conceder permiso o instalar). */
+  lspRetryToken?: number
+  /**
+   * Salto a una línea 1-based (go-to-definition, panel de referencias). Lleva
+   * `nonce` porque saltar dos veces a la MISMA línea es el caso normal —con un
+   * número pelado el efecto no volvería a dispararse y el segundo click no haría
+   * nada.
+   */
+  gotoTarget?: { line: number; nonce: number }
   onChange: (content: string) => void
   onSave: () => void
   onMatchCountChange?: (count: number) => void
   onFindFocusRequest?: () => void
+  onLspStatusChange?: (status: LspDocStatus) => void
+  /** Abre otro archivo del proyecto (ruta relativa a la raíz de la sesión). */
+  onOpenFile?: (relPath: string, line: number) => void
 }
 
 export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorProps>(function FileCodeEditor(
@@ -41,10 +61,15 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
     content,
     findQuery = '',
     readOnly = false,
+    sessionId,
+    lspRetryToken = 0,
+    gotoTarget,
     onChange,
     onSave,
     onMatchCountChange,
     onFindFocusRequest,
+    onLspStatusChange,
+    onOpenFile,
   },
   ref,
 ) {
@@ -55,13 +80,25 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
   const onSaveRef = useRef(onSave)
   const onMatchCountChangeRef = useRef(onMatchCountChange)
   const onFindFocusRequestRef = useRef(onFindFocusRequest)
+  const onLspStatusChangeRef = useRef(onLspStatusChange)
+  const onOpenFileRef = useRef(onOpenFile)
   const findQueryRef = useRef(findQuery)
   const suppressUpdateRef = useRef(false)
+
+  // Estado LSP del archivo abierto. `lspDocRef` es null mientras el server no
+  // esté listo, y todas las extensiones de cm6 hacen no-op en ese caso.
+  const lspDocRef = useRef<LspDoc | null>(null)
+  const completionCompartment = useRef(new Compartment()).current
+  // Cambiar el toggle de code intelligence tiene que apagar la sesión en curso,
+  // no sólo la próxima: este contador re-dispara el efecto LSP.
+  const [codeIntelToken, setCodeIntelToken] = useState(0)
 
   onChangeRef.current = onChange
   onSaveRef.current = onSave
   onMatchCountChangeRef.current = onMatchCountChange
   onFindFocusRequestRef.current = onFindFocusRequest
+  onLspStatusChangeRef.current = onLspStatusChange
+  onOpenFileRef.current = onOpenFile
   findQueryRef.current = findQuery
 
   useImperativeHandle(ref, () => ({
@@ -76,6 +113,42 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
       return fileFindPrevious(view)
     },
   }))
+
+  const lspHost = useMemo<LspHost>(() => ({
+    doc: () => lspDocRef.current,
+    activeUri: () => lspDocRef.current?.uri ?? null,
+    openFile: (absPath, line) => {
+      const doc = lspDocRef.current
+      if (!doc) return
+      const prefix = doc.sessionRoot.endsWith('/') ? doc.sessionRoot : `${doc.sessionRoot}/`
+      // Un destino fuera de la raíz de la sesión (dependencia del sistema, otro
+      // repo del monorepo) no se puede abrir en este explorador: se ignora en vez
+      // de abrir algo que el panel no sabe leer.
+      if (!absPath.startsWith(prefix)) return
+      onOpenFileRef.current?.(absPath.slice(prefix.length), line)
+    },
+    applyToActiveView: (edits: LspEdit[]) => {
+      const view = viewRef.current
+      if (!view) return
+      // Todos los rangos están en coordenadas del MISMO documento, así que se
+      // despachan juntos: CM6 los resuelve como un solo ChangeSet.
+      const changes = edits
+        .map(e => {
+          const { from, to } = lspRangeToCm(view.state.doc, e.range)
+          return { from, to, insert: e.newText }
+        })
+        .sort((a, b) => a.from - b.from)
+      view.dispatch({ changes })
+    },
+    labels: {
+      referencesCount: n => t('lsp.references.count', { count: n }),
+      referencesMore: n => t('lsp.references.more', { count: n }),
+      close: t('lsp.close'),
+      cancel: t('common.cancel'),
+      apply: t('lsp.rename.apply'),
+      renameTouchesFiles: n => t('lsp.rename.touchesFiles', { count: n }),
+    },
+  }), [t])
 
   const applySearchQuery = (view: EditorView, term: string, scrollToFirst: boolean): void => {
     const query = searchQueryFromTerm(term)
@@ -117,15 +190,25 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
       EditorView.lineWrapping,
       EditorState.tabSize.of(2),
       EditorView.updateListener.of(update => {
-        if (update.docChanged && !suppressUpdateRef.current) {
-          onChangeRef.current(update.state.doc.toString())
-          const query = searchQueryFromTerm(findQueryRef.current.trim())
-          onMatchCountChangeRef.current?.(countSearchMatches(update.state, query))
+        if (update.docChanged) {
+          // El sync con el server va SIEMPRE, incluso durante una recarga desde
+          // disco: el documento del server tiene que seguir al buffer o los
+          // diagnósticos quedan apuntando a offsets que ya no existen.
+          lspDocRef.current?.changeIncremental(update)
+          if (!suppressUpdateRef.current) {
+            onChangeRef.current(update.state.doc.toString())
+            const query = searchQueryFromTerm(findQueryRef.current.trim())
+            onMatchCountChangeRef.current?.(countSearchMatches(update.state, query))
+          }
         }
       }),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       saveKeymap,
       ...languageExtensionForPath(filePath),
+      // El compartimento arranca sin fuente semántica y se reconfigura cuando el
+      // `LspDoc` queda listo, así el completado degrada en vez de desaparecer.
+      completionCompartment.of(autocompletion()),
+      lspExtensions(lspHost),
       createCodeMirrorTheme(appTheme),
     ]
 
@@ -147,9 +230,60 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
       view.destroy()
       viewRef.current = null
     }
-    // Remount when file, theme or read-only mode changes
+    // Remonta al cambiar archivo, tema o modo sólo-lectura
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, themeId, readOnly])
+
+  // Ciclo de vida del documento LSP. Comparte las deps del efecto de arriba
+  // porque el `LspDoc` está atado a la vista concreta que ese efecto creó: si la
+  // vista se rehace (cambio de tema) hay que re-suscribir diagnósticos y volver a
+  // configurar el compartimento de completado sobre la vista nueva.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !sessionId) return
+
+    let cancelled = false
+    let unsubDiagnostics: (() => void) | null = null
+
+    const run = async (): Promise<void> => {
+      const status = await lspManager.status(filePath)
+      if (cancelled) return
+      onLspStatusChangeRef.current?.(status)
+      if (status.kind !== 'ready') return
+
+      onLspStatusChangeRef.current?.({ kind: 'starting' })
+      try {
+        const doc = await lspManager.open(sessionId, filePath, view.state.doc.toString())
+        if (cancelled) {
+          doc.close()
+          return
+        }
+        lspDocRef.current = doc
+        unsubDiagnostics = doc.onDiagnostics(diags => {
+          if (viewRef.current === view) applyLspDiagnostics(view, diags)
+        })
+        view.dispatch({
+          effects: completionCompartment.reconfigure(
+            autocompletion({ override: [lspCompletionSource(lspHost)] }),
+          ),
+        })
+        onLspStatusChangeRef.current?.({ kind: 'ready' })
+      } catch (e) {
+        if (!cancelled) onLspStatusChangeRef.current?.({ kind: 'error', message: String(e) })
+      }
+    }
+    void run()
+
+    return () => {
+      cancelled = true
+      unsubDiagnostics?.()
+      lspDocRef.current?.close()
+      lspDocRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, themeId, readOnly, sessionId, lspRetryToken, codeIntelToken])
+
+  useEffect(() => onCodeIntelChange(() => setCodeIntelToken(n => n + 1)), [])
 
   useEffect(() => {
     const view = viewRef.current
@@ -162,6 +296,17 @@ export const FileCodeEditor = forwardRef<FileCodeEditorHandle, FileCodeEditorPro
     })
     suppressUpdateRef.current = false
   }, [content])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !gotoTarget) return
+    const line = view.state.doc.line(Math.min(Math.max(1, gotoTarget.line), view.state.doc.lines))
+    view.dispatch({
+      selection: { anchor: line.from },
+      effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+    })
+    view.focus()
+  }, [gotoTarget, filePath])
 
   useEffect(() => {
     const view = viewRef.current

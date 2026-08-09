@@ -20,6 +20,9 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* Sin min-width:0 un item de grid no baja de su min-content, así que un
+     número largo (los tokens) se sale de la tarjeta en vez de encogerla. */
+  min-width: 0;
 }
 
 /* El acento como texto sobre --surface: en light el acento crudo no llega a
@@ -30,11 +33,14 @@
 
 .pulse__value {
   font-family: var(--font-mono);
-  font-size: 30px;
+  /* Se encoge con la tarjeta en vez de desbordarla cuando entran seis columnas. */
+  font-size: clamp(20px, 2.2vw, 30px);
   font-weight: 600;
   line-height: 1;
   color: var(--text);
   letter-spacing: -0.02em;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .pulse__label {
@@ -135,6 +141,12 @@
   gap: 3px;
 }
 
+/* Cada celda va envuelta en el <span> ancla del Tooltip, así que es el ancla
+   —y no la celda— quien hace de flex item de la columna. */
+.pulse__col > .ui-tooltip {
+  flex: 0 0 auto;
+}
+
 .pulse__cell {
   width: 11px;
   height: 11px;
@@ -159,12 +171,6 @@
   margin-top: 12px;
   font-size: 10px;
   color: var(--text-muted);
-}
-
-.pulse__hovered {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .pulse__empty {

@@ -405,6 +405,16 @@ export const AgentPane: React.FC<Props> = ({
   const discoveredCwdRef = useRef<string | null>(null)
   /** Tras migración de ids en disco, el próximo turno fuerza refresh del snapshot. */
   const forceContextFullRefreshRef = useRef(false)
+  /**
+   * Workspace org en un ref y no en las deps de `startTurn`: solo lo lee la
+   * instrumentación al armar el request, y meterlo en las deps recrearía el
+   * callback en cada cambio de pestaña sin ninguna otra razón.
+   */
+  const orgWorkspaceRef = useRef<string | null>(null)
+  orgWorkspaceRef.current =
+    orgWorkspace?.slug && orgWorkspace?.workspaceId
+      ? `${orgWorkspace.slug}/${orgWorkspace.workspaceId}`
+      : null
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
@@ -1075,6 +1085,7 @@ export const AgentPane: React.FC<Props> = ({
         : {}),
       cliSessionId: currentMeta.cliSessionId,
       ...(options.images?.length ? { images: options.images } : {}),
+      ...(orgWorkspaceRef.current ? { workspace: orgWorkspaceRef.current } : {}),
     }
     if (forceContextFullRefreshRef.current) forceContextFullRefreshRef.current = false
     lastTurnRequestRef.current = request

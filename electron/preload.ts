@@ -7,6 +7,14 @@ import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
 import type { PulseSnapshot } from '../src/shared/pulseEvents'
 import type {
+  LspDownloadProgress,
+  LspFileReadResult,
+  LspFileWriteResult,
+  LspInstalledServer,
+  LspServerStatus,
+  LspStartResponse,
+} from '../src/shared/lspTypes'
+import type {
   GitCommandResult,
   GitDiffForAiPayload,
   GitListedRepo,
@@ -114,6 +122,12 @@ const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_
 const subscribeBrainstormEvent = createPtyChannelMux<[event: BrainstormEvent]>(IPC.BRAINSTORM_EVENT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
+// Los tres canales LSP se multiplexan igual que los de PTY: el primer argumento
+// es la clave (serverId como string, o el lenguaje en el de progreso).
+const subscribeLspMessage = createPtyChannelMux<[message: string]>(IPC.LSP_MESSAGE)
+const subscribeLspExit = createPtyChannelMux<[]>(IPC.LSP_EXIT)
+const subscribeLspDownloadProgress =
+  createPtyChannelMux<[progress: LspDownloadProgress]>(IPC.LSP_DOWNLOAD_PROGRESS)
 
 const api = {
   // ─── PTY ───────────────────────────────────────────────────────────────────
@@ -886,6 +900,47 @@ const api = {
   },
   pulseSnapshot(): Promise<PulseSnapshot> {
     return ipcRenderer.invoke(IPC.PULSE_SNAPSHOT)
+  },
+
+  // ─── LSP (code intelligence) ───────────────────────────────────────────────
+  lspServerStatus(language: string): Promise<LspServerStatus | { error: string }> {
+    return ipcRenderer.invoke(IPC.LSP_SERVER_STATUS, language)
+  },
+  lspDownloadServer(language: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.LSP_DOWNLOAD_SERVER, language)
+  },
+  lspListInstalled(): Promise<LspInstalledServer[]> {
+    return ipcRenderer.invoke(IPC.LSP_LIST_INSTALLED)
+  },
+  lspDeleteServer(language: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.LSP_DELETE_SERVER, language)
+  },
+  lspRecheckRuntimes(): Promise<void> {
+    return ipcRenderer.invoke(IPC.LSP_RECHECK_RUNTIMES)
+  },
+  lspStart(sessionId: string, relPath: string): Promise<LspStartResponse> {
+    return ipcRenderer.invoke(IPC.LSP_START, sessionId, relPath)
+  },
+  lspSend(serverId: number, message: string): void {
+    ipcRenderer.send(IPC.LSP_SEND, serverId, message)
+  },
+  lspStop(serverId: number): void {
+    ipcRenderer.send(IPC.LSP_STOP, serverId)
+  },
+  lspReadFile(serverId: number, absPath: string): Promise<LspFileReadResult> {
+    return ipcRenderer.invoke(IPC.LSP_READ_FILE, serverId, absPath)
+  },
+  lspWriteFile(serverId: number, absPath: string, content: string): Promise<LspFileWriteResult> {
+    return ipcRenderer.invoke(IPC.LSP_WRITE_FILE, serverId, absPath, content)
+  },
+  onLspMessage(serverId: number, cb: (message: string) => void): () => void {
+    return subscribeLspMessage(String(serverId), cb)
+  },
+  onLspExit(serverId: number, cb: () => void): () => void {
+    return subscribeLspExit(String(serverId), cb)
+  },
+  onLspDownloadProgress(language: string, cb: (progress: LspDownloadProgress) => void): () => void {
+    return subscribeLspDownloadProgress(language, cb)
   },
 }
 

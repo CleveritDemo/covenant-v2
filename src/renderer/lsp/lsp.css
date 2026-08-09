@@ -1,0 +1,209 @@
+/* Superficies LSP dentro del editor de código del explorador.
+   Los tokens (--surface, --text, --border…) son los mismos que usa el resto del
+   file explorer, así los temas siguen mandando sin duplicar paletas. */
+
+.lsp-hover {
+  max-width: 520px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px 10px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--text, #ddd);
+  background: var(--surface-raised, #1c1c1f);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+}
+
+.lsp-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 420px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised, #1c1c1f);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.lsp-menu__item {
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text, #ddd);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lsp-menu__item:hover,
+.lsp-menu__item:focus-visible {
+  background: var(--surface-hover, #2a2a2e);
+}
+
+.lsp-codeaction-gutter {
+  width: 16px;
+}
+
+.lsp-codeaction-lightbulb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--warning, #e0b341);
+  cursor: pointer;
+}
+
+.lsp-references {
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid var(--border, #333);
+  background: var(--surface, #161618);
+}
+
+.lsp-references__header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  background: inherit;
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.lsp-references__close {
+  padding: 0 4px;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.lsp-references__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lsp-references__row {
+  padding: 4px 8px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 11px;
+  text-align: left;
+  color: var(--text, #ddd);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.lsp-references__row:hover {
+  background: var(--surface-hover, #2a2a2e);
+}
+
+.lsp-references__more {
+  color: var(--text-muted, #999);
+  cursor: default;
+}
+
+.lsp-rename {
+  position: fixed;
+  z-index: 1000;
+  padding: 6px;
+  background: var(--surface-raised, #1c1c1f);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.lsp-rename__input {
+  width: 220px;
+  padding: 4px 6px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  color: var(--text, #ddd);
+  background: var(--surface, #161618);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+}
+
+.lsp-rename__confirm-msg {
+  max-width: 260px;
+  padding: 2px 4px 6px;
+  font-size: 12px;
+  color: var(--text, #ddd);
+}
+
+.lsp-rename__confirm-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.lsp-rename__confirm-actions button {
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--text, #ddd);
+  background: var(--surface, #161618);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Chip de estado + banner en la cabecera del panel de archivo. */
+
+.lsp-chip {
+  padding: 1px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #999);
+  border: 1px solid var(--border, #333);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.lsp-chip--ready {
+  color: var(--success, #6fbf73);
+  border-color: currentcolor;
+}
+
+.lsp-chip--error {
+  color: var(--danger, #d9736f);
+  border-color: currentcolor;
+}
+
+.lsp-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text, #ddd);
+  background: var(--surface-raised, #1c1c1f);
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.lsp-banner__command {
+  padding: 2px 6px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 11px;
+  color: var(--text, #ddd);
+  background: var(--surface, #161618);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  user-select: all;
+}
+
+.lsp-banner__progress {
+  color: var(--text-muted, #999);
+}

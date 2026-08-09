@@ -37,4 +37,28 @@ describe('parsePulseLines', () => {
     expect(parsePulseLines('')).toEqual([])
     expect(parsePulseLines('\n\n  \n')).toEqual([])
   })
+
+  it('conserva las dimensiones de atribución', () => {
+    const line = JSON.stringify({
+      ts: 1000,
+      kind: 'prompt',
+      repo: 'gravity',
+      branch: 'main',
+      workspace: 'cleverit/ws-42',
+      permissionMode: 'auto',
+    })
+    expect(parsePulseLines(line)[0]).toMatchObject({
+      repo: 'gravity',
+      branch: 'main',
+      workspace: 'cleverit/ws-42',
+      permissionMode: 'auto',
+    })
+  })
+
+  it('los eventos viejos sin las dimensiones nuevas siguen siendo válidos', () => {
+    // Lo escrito antes de añadir workspace/branch/permissionMode no se migra:
+    // el agregado los trata como ausentes y sigue contando.
+    const [e] = parsePulseLines('{"ts":1000,"kind":"prompt","provider":"claude"}')
+    expect(e).toEqual({ ts: 1000, kind: 'prompt', provider: 'claude' })
+  })
 })

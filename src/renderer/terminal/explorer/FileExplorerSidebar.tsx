@@ -55,6 +55,7 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
     const { t } = useT()
     const [isEditorDirty, setIsEditorDirty] = useState(false)
     const [fsReloadToken, setFsReloadToken] = useState(0)
+    const [gotoTarget, setGotoTarget] = useState<{ line: number; nonce: number } | undefined>()
     const treeRef = useRef<FileExplorerTreeHandle>(null)
     const asideRef = useRef<HTMLElement>(null)
     const onToggleExplorerRef = useRef(onToggleExplorer)
@@ -186,6 +187,18 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
     const handleFileSaved = useCallback(() => {
       void treeRef.current?.refreshGitStatus()
     }, [])
+
+    // Go-to-definition / panel de referencias: abre el archivo destino en el
+    // editor y le pide saltar a la línea. El `nonce` hace que dos saltos a la
+    // misma línea sigan re-centrando la vista.
+    const handleLspOpenFile = useCallback((relPath: string, line: number) => {
+      void (async () => {
+        const ok = await requestSelectEntry(relPath, false, undefined, { open: true })
+        if (!ok) return
+        treeRef.current?.expandParents(relPath)
+        setGotoTarget(prev => ({ line, nonce: (prev?.nonce ?? 0) + 1 }))
+      })()
+    }, [requestSelectEntry])
 
     useEffect(() => {
       const unsub = window.api.onFileExplorerFsChanged(sessionId, dirs => {
@@ -371,9 +384,11 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
                       themeId={themeId}
                       selectedPath={openFilePath}
                       fsReloadToken={fsReloadToken}
+                      gotoTarget={gotoTarget}
                       onFileSaved={handleFileSaved}
                       onDirtyChange={setIsEditorDirty}
                       onClose={() => { void handleCloseFile() }}
+                      onOpenFile={handleLspOpenFile}
                     />
                   </section>
                 </>

@@ -50,6 +50,38 @@ a handler in `electron/main.ts`, an exposed method in `electron/preload.ts`, and
 (`@shared`, `@renderer`, `@themes`, `@ai`, `@i18n`) are declared three times — `electron.vite.config.ts`,
 `vitest.config.ts`, and both tsconfigs — keep them in sync.
 
+## The LSP layer (code intelligence)
+
+Ported from Covenant's Rust `crates/lsp` + Tauri commands. Same split, different processes:
+
+- `electron/lsp/` is the engine — `registry.ts` (the server manifest as a TS const: rust-analyzer,
+  typescript-language-server, Roslyn, jdtls), `install.ts` (sha256-verified download, `gunzipSync` for gzip and
+  shell-out to `unzip`/`tar` for the rest, `npm install --prefix` for npm-method servers), `runtimeDetect.ts`
+  (node/dotnet/java on `process.env.PATH`, which `applyLoginShellPath()` already widened), `root.ts`,
+  `framing.ts`, `serverProcess.ts`, and `lspOps.ts` (live-server registry, spawn args per install kind, the
+  Roslyn `solution/open` vs `project/open` handshake, and the fs trust boundary).
+- `src/renderer/lsp/` is the client — `client.ts` (JSON-RPC correlation), `manager.ts` (one `LspClient` per
+  server, LRU + idle shutdown, consent in `localStorage`), `cm6.ts` (definition, hover, references panel,
+  rename, code actions, diagnostics, completion), `edits.ts` (WorkspaceEdit applier).
+
+Everything crosses via 10 IPC channels + 3 muxed events (`LSP_*` in `ipcChannels.ts`). **The renderer never
+sends absolute paths in**: `lspStart(sessionId, relPath)` and the main resolves against the session's explorer
+root. Reads/writes for cross-file renames go back through `lspReadFile`/`lspWriteFile`, validated against the
+workspace root *main itself* computed with `detectRoot` — and against its realpath, since `/var` →
+`/private/var` on macOS would otherwise break the inside-the-project check.
+
+`lspStart` is fully synchronous, which is why it has none of the double-check/race-loser cleanup the Rust
+original needs. `detectRuntimeCached` exists because runtime detection is an `execFileSync` on the main
+thread; the "Recheck" button clears it.
+
+`electron/__tests__/lspSmoke.test.ts` is the end-to-end check: for each of the four languages it really
+installs the server, spawns it and does an `initialize → didOpen → hover`. Skipped unless `LSP_SMOKE=1`, since
+it downloads ~290 MB; `LSP_SMOKE_DATA_DIR=/path` reuses the installs across runs. The csharp and java hovers
+are deliberately **cross-file** — a same-file hover passes even with the project-load handshake broken
+(verified: disabling `solution/open`/`project/open` makes Roslyn return `null` for two minutes). jdtls needs a
+JDK ≥ 21 on `PATH`, so a Homebrew-only `openjdk@17` box has to run it as
+`PATH="/opt/homebrew/opt/openjdk/bin:$PATH" LSP_SMOKE=1 …`.
+
 ## The agent layer
 
 This is the part that requires reading several files to understand.

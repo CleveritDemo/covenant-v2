@@ -14,10 +14,19 @@ export interface PulseEvent {
   kind: PulseEventKind
   /** basename del repo root, si el evento ocurrió dentro de uno. */
   repo?: string
+  /** Rama activa en el repo al momento del evento. */
+  branch?: string
+  /**
+   * Workspace org de la pestaña, como `<slug>/<workspaceId>`. Ausente en
+   * pestañas personales — que es justamente la distinción que interesa medir.
+   */
+  workspace?: string
   /** CLI que atendió el turno (solo prompts). */
   provider?: string
   /** Id del catálogo del agente que envió el turno (solo prompts). */
   agentId?: string
+  /** Ask/Auto/Plan del turno: la postura de riesgo con la que se trabajó. */
+  permissionMode?: string
   /** Tokens reportados por el CLI al cerrar el turno; `in` incluye la caché. */
   tokensIn?: number
   tokensOut?: number

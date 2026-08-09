@@ -5,10 +5,10 @@ import {
   heatmapGrid,
   intensityLevels,
   levelFor,
-  type PulseCell,
   type PulseSnapshot,
 } from '@shared/pulseEvents'
 import { TerminalModal } from '../components/TerminalModal'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PulseModal.css'
 
 export interface PulseModalProps {
@@ -31,6 +31,22 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(Math.round(value))
 }
 
+/**
+ * Los tokens llegan a cientos de millones y el número exacto desborda la
+ * tarjeta. Por encima del millón se abrevia (52M) y el exacto vive en el
+ * tooltip; por debajo se muestra entero, que es lo que se quiere leer.
+ */
+const COMPACT_FROM = 1_000_000
+
+function formatStat(value: number): string {
+  const n = Math.round(value)
+  if (n < COMPACT_FROM) return formatNumber(n)
+  return new Intl.NumberFormat(undefined, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(n)
+}
+
 /** Variación de hoy contra la media de 30 días, en % redondeado. */
 function todayDelta(snapshot: PulseSnapshot): number | null {
   if (snapshot.avgPrompts30d <= 0) return null
@@ -42,7 +58,6 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
   const { t } = useT()
   const [snapshot, setSnapshot] = useState<PulseSnapshot | null>(null)
   const [metric, setMetric] = useState<Metric>('both')
-  const [hovered, setHovered] = useState<PulseCell | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -114,15 +129,17 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
               </span>
             </div>
             <div className="pulse__stat">
-              <span className="pulse__value">{formatNumber(snapshot.totalPrompts)}</span>
+              <span className="pulse__value">{formatStat(snapshot.totalPrompts)}</span>
               <span className="pulse__label">{t('pulse.totalPrompts')}</span>
             </div>
             <div className="pulse__stat">
-              <span className="pulse__value">{formatNumber(snapshot.totalCommits)}</span>
+              <span className="pulse__value">{formatStat(snapshot.totalCommits)}</span>
               <span className="pulse__label">{t('pulse.totalCommits')}</span>
             </div>
             <div className="pulse__stat">
-              <span className="pulse__value">{formatNumber(snapshot.totalTokens)}</span>
+              <Tooltip content={formatNumber(snapshot.totalTokens)}>
+                <span className="pulse__value">{formatStat(snapshot.totalTokens)}</span>
+              </Tooltip>
               <span className="pulse__label">{t('pulse.totalTokens')}</span>
             </div>
             <div className="pulse__stat">
@@ -158,32 +175,28 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
               <p className="pulse__empty">{t('pulse.empty')}</p>
             ) : (
               <>
-                <div className="pulse__grid" onMouseLeave={() => setHovered(null)}>
+                <div className="pulse__grid">
                   {grid.map(column => (
                     <div className="pulse__col" key={column[0]!.day}>
                       {column.map(cell => (
-                        <span
+                        <Tooltip
                           key={cell.day}
-                          className="pulse__cell"
-                          data-level={levelFor(valueOf(cell), thresholds)}
-                          onMouseEnter={() => setHovered(cell)}
-                        />
+                          content={cell.day}
+                          hint={t('pulse.dayDetail', {
+                            prompts: cell.prompts,
+                            commits: cell.commits,
+                          })}
+                        >
+                          <span
+                            className="pulse__cell"
+                            data-level={levelFor(valueOf(cell), thresholds)}
+                          />
+                        </Tooltip>
                       ))}
                     </div>
                   ))}
                 </div>
                 <div className="pulse__legend">
-                  {/* El detalle del día vive acá y no en un tooltip por celda: son
-                      371 celdas y el tooltip propio monta un portal por instancia. */}
-                  <span className="pulse__hovered">
-                    {hovered
-                      ? t('pulse.dayDetail', {
-                          day: hovered.day,
-                          prompts: hovered.prompts,
-                          commits: hovered.commits,
-                        })
-                      : ''}
-                  </span>
                   <span>{t('pulse.less')}</span>
                   {[0, 1, 2, 3, 4].map(level => (
                     <span key={level} className="pulse__cell" data-level={level} />

@@ -196,64 +196,66 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
           {visibleContexts.map((ctx, index) => {
             const assignedCount = (assignedByContext[ctx.id] ?? []).length
             const open = openContextId === ctx.id
-            const label = [
+            // Primera línea de la burbuja: qué es y a cuántos se lo diste.
+            const summary = [
               `${ctx.name} — ${ctx.kindLabel}`,
               assignedCount > 0 ? assignedCountLabel(assignedCount) : '',
-              chipActionHint ?? '',
-            ].filter(Boolean).join('. ')
+            ].filter(Boolean).join(' · ')
+            const label = [summary, chipActionHint ?? ''].filter(Boolean).join('. ')
             return (
               <div key={ctx.id} role="listitem">
-                <button
-                  type="button"
-                  className={[
-                    'plane-context-pool__chip',
-                    open ? 'plane-context-pool__chip--open' : '',
-                  ].filter(Boolean).join(' ')}
-                  draggable
-                  aria-haspopup="dialog"
-                  aria-expanded={open}
-                  aria-label={label}
-                  title={label}
-                  onClick={event => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    if (dragOccurredRef.current) {
-                      dragOccurredRef.current = false
-                      return
-                    }
-                    setOpenContextId(current => (current === ctx.id ? null : ctx.id))
-                  }}
-                  onPointerDown={event => {
-                    event.stopPropagation()
-                  }}
-                  onDragStart={event => {
-                    event.stopPropagation()
-                    dragOccurredRef.current = true
-                    setOpenContextId(null)
-                    setPlaneContextDragData(event.dataTransfer, ctx.id)
-                    setChipDragImage(event)
-                  }}
-                  onDragEnd={event => {
-                    event.stopPropagation()
-                    window.setTimeout(() => {
-                      dragOccurredRef.current = false
-                    }, 50)
-                  }}
-                  {...itemProps(index + 2)}
-                >
-                  <span
-                    className="plane-context-pool__chip-icon"
-                    style={{ color: ctx.color }}
+                <Tooltip content={summary} hint={chipActionHint}>
+                  <button
+                    type="button"
+                    className={[
+                      'plane-context-pool__chip',
+                      open ? 'plane-context-pool__chip--open' : '',
+                    ].filter(Boolean).join(' ')}
+                    draggable
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
+                    aria-label={label}
+                    onClick={event => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      if (dragOccurredRef.current) {
+                        dragOccurredRef.current = false
+                        return
+                      }
+                      setOpenContextId(current => (current === ctx.id ? null : ctx.id))
+                    }}
+                    onPointerDown={event => {
+                      event.stopPropagation()
+                    }}
+                    onDragStart={event => {
+                      event.stopPropagation()
+                      dragOccurredRef.current = true
+                      setOpenContextId(null)
+                      setPlaneContextDragData(event.dataTransfer, ctx.id)
+                      setChipDragImage(event)
+                    }}
+                    onDragEnd={event => {
+                      event.stopPropagation()
+                      window.setTimeout(() => {
+                        dragOccurredRef.current = false
+                      }, 50)
+                    }}
+                    {...itemProps(index + 2)}
                   >
-                    <Icon name={ctx.icon} size={12} aria-hidden />
-                  </span>
-                  <span className="plane-context-pool__chip-name">{ctx.name}</span>
-                  {assignedCount > 0 && (
-                    <span className="plane-context-pool__chip-count" aria-hidden="true">
-                      {assignedCount}
+                    <span
+                      className="plane-context-pool__chip-icon"
+                      style={{ color: ctx.color }}
+                    >
+                      <Icon name={ctx.icon} size={12} aria-hidden />
                     </span>
-                  )}
-                </button>
+                    <span className="plane-context-pool__chip-name">{ctx.name}</span>
+                    {assignedCount > 0 && (
+                      <span className="plane-context-pool__chip-count" aria-hidden="true">
+                        {assignedCount}
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
               </div>
             )
           })}

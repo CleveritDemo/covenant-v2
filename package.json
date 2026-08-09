@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
-    "check:ui": "node scripts/check-ui-contract.mjs",
+    "check:ui": "node scripts/check-ui-contract.mjs && node scripts/check-no-native-tooltips.mjs",
     "rebuild:native": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty"
   },

@@ -1,5 +1,5 @@
 ---
-description: Reglas Front — componetización, props-only UI kit, sin className
+description: Reglas Front — componetización, props-only UI kit, sin className, sin tooltips nativos
 globs: src/renderer/**/*.{tsx,ts,css}
 alwaysApply: false
 ---
@@ -12,6 +12,34 @@ alwaysApply: false
 2. Extraer componentes reutilizables; evitar duplicar UI.
 3. Sin `className` ni `style` en props **públicas** de componentes reutilizables (`src/renderer/components/ui/**`, `TerminalModal`, etc.). Solo props tipadas (`size`, `variant`, `pressed`, …).
 4. Buenas prácticas TypeScript/React del repo.
+
+## Tooltips
+
+Los tooltips son siempre `components/ui/Tooltip`, nunca el atributo `title` del
+navegador. El nativo llega con medio segundo de retardo que no controlamos, se
+pinta con la tipografía y el gris del sistema —fuera del tema— y no sabe partir
+la pista de interacción en una segunda línea. La burbuja de la app sí:
+
+```tsx
+<Tooltip content="Nuevo contexto" hint="Clic para asignar · arrastra a un agente">
+  <button …>…</button>
+</Tooltip>
+```
+
+- `content` es qué es la cosa; `hint` es la segunda línea atenuada, para decir
+  qué hace el clic o el arrastre. Con `content` vacío el Tooltip se aparta y
+  renderiza el hijo tal cual, así que un hint opcional no necesita condicional.
+- El `aria-label` va en el control, no en el Tooltip: la burbuja es visual y el
+  lector de pantalla necesita su propio texto.
+- Envuelve al control, no lo sustituye: `Tooltip` mete un `span` `inline-flex`,
+  que no altera filas flex ni grid.
+- Sirve igual sobre un control `disabled`: los eventos los escucha el `span`,
+  que no está deshabilitado — que es justo cuando hace falta explicar qué falta.
+
+`npm run check:ui` falla si aparece un `title=` sobre un elemento del DOM o
+sobre un componente del kit que reparta `{...rest}` (p. ej. `Button`). `title`
+sobre un componente propio que lo use de otra cosa (`ContextCheckOption` lo
+convierte en `aria-label`) no cuenta.
 
 ## Kit vs componente nuevo
 

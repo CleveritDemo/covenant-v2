@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneChatComposer.css'
 
 export interface PlaneChatAutoImproveToggleProps {
@@ -19,20 +20,21 @@ export const PlaneChatAutoImproveToggle: React.FC<PlaneChatAutoImproveToggleProp
   hint,
   onChange,
 }) => (
-  <button
-    type="button"
-    className={[
-      'plane-chat-composer__chip',
-      'plane-chat-composer__auto-improve',
-      checked ? 'plane-chat-composer__chip--on' : '',
-    ].filter(Boolean).join(' ')}
-    aria-pressed={checked}
-    aria-label={label}
-    title={hint}
-    disabled={disabled}
-    onClick={() => onChange(!checked)}
-  >
-    <Icon name="sparkles" size={13} />
-    <span className="plane-chat-composer__auto-improve-label">{label}</span>
-  </button>
+  <Tooltip content={hint ?? ''}>
+    <button
+      type="button"
+      className={[
+        'plane-chat-composer__chip',
+        'plane-chat-composer__auto-improve',
+        checked ? 'plane-chat-composer__chip--on' : '',
+      ].filter(Boolean).join(' ')}
+      aria-pressed={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+    >
+      <Icon name="sparkles" size={13} />
+      <span className="plane-chat-composer__auto-improve-label">{label}</span>
+    </button>
+  </Tooltip>
 )

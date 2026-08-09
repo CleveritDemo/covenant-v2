@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { IconName } from '../components/ui/Icon'
-import { Button, ContextCheckOption, Icon } from '../components/ui'
+import { Button, ContextCheckOption, Icon, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
 import type { TabContextKind } from '@shared/tabContext'
 import { PlaneChatAutoImproveToggle } from './PlaneChatAutoImproveToggle'
@@ -153,16 +153,17 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
         {onClearConversation ? (
           <>
             <div className="plane-chat-composer__bar-sep" aria-hidden="true" />
-            <Button
-              variant="icon"
-              size="sm"
-              aria-label={t('agentPane.clearConversation')}
-              title={t('agentPane.clearConversation')}
-              disabled={!canClearConversation}
-              onClick={onClearConversation}
-            >
-              <Icon name="trash" size={13} />
-            </Button>
+            <Tooltip content={t('agentPane.clearConversation')}>
+              <Button
+                variant="icon"
+                size="sm"
+                aria-label={t('agentPane.clearConversation')}
+                disabled={!canClearConversation}
+                onClick={onClearConversation}
+              >
+                <Icon name="trash" size={13} />
+              </Button>
+            </Tooltip>
           </>
         ) : null}
       </div>

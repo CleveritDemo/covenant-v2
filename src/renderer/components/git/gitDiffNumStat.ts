@@ -49,6 +49,22 @@ export function gitEntryAreaStats(
   return lookupGitNumStat(map, entry) ?? null
 }
 
+/** Suma de líneas de un conjunto de archivos dentro de una misma área. */
+export function gitAreaTotals(
+  entries: GitPathEntry[],
+  map: Map<string, GitFileLineStats>,
+): GitFileLineStats {
+  let insertions = 0
+  let deletions = 0
+  for (const entry of entries) {
+    const stats = lookupGitNumStat(map, entry)
+    if (!stats) continue
+    insertions += stats.insertions
+    deletions += stats.deletions
+  }
+  return { insertions, deletions }
+}
+
 function lookupGitNumStat(
   map: Map<string, GitFileLineStats>,
   entry: GitPathEntry,

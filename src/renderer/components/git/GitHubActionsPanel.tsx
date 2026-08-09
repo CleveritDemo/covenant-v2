@@ -11,12 +11,15 @@ interface GitHubActionsPanelProps {
   target: GitTarget
   repoStatus: GitRepoStatus | null
   refreshToken: number
+  /** Falso cuando el remoto no es de GitHub: el panel no tiene nada que enseñar. */
+  onAvailable?: (available: boolean) => void
 }
 
 export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
   target,
   repoStatus,
   refreshToken,
+  onAvailable,
 }) => {
   const { t } = useT()
   const [snapshot, setSnapshot] = useState<GitHubActionsSnapshot | null>(null)
@@ -51,6 +54,11 @@ export const GitHubActionsPanel: React.FC<GitHubActionsPanelProps> = ({
   useEffect(() => {
     void refresh()
   }, [refresh, refreshToken])
+
+  useEffect(() => {
+    if (!snapshot) return
+    onAvailable?.(!(snapshot.ok === false && snapshot.errorCode === 'not_github'))
+  }, [snapshot, onAvailable])
 
   const openUrl = useCallback((url: string): void => {
     void window.api.openExternalUrl(url)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gitFileLineStats, parseGitNumStat } from '../gitDiffNumStat'
+import { gitAreaTotals, gitFileLineStats, parseGitNumStat } from '../gitDiffNumStat'
 
 describe('parseGitNumStat', () => {
   it('parses tab-separated lines', () => {
@@ -40,5 +40,24 @@ describe('gitFileLineStats', () => {
     expect(
       gitFileLineStats({ status: '??', path: 'new.ts' }, unstaged, staged),
     ).toBeNull()
+  })
+})
+
+describe('gitAreaTotals', () => {
+  it('sums only the entries given, ignoring files missing from the numstat', () => {
+    const map = parseGitNumStat('10\t5\tsrc/foo.ts\n3\t0\tbar.ts\n')
+    const totals = gitAreaTotals(
+      [
+        { status: 'M ', path: 'src/foo.ts' },
+        { status: 'A ', path: 'bar.ts' },
+        { status: 'A ', path: 'sin-stats.ts' },
+      ],
+      map,
+    )
+    expect(totals).toEqual({ insertions: 13, deletions: 5 })
+  })
+
+  it('is zero for an empty area', () => {
+    expect(gitAreaTotals([], parseGitNumStat(''))).toEqual({ insertions: 0, deletions: 0 })
   })
 })

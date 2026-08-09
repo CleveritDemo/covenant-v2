@@ -23,16 +23,14 @@ describe('claude · gate de skills', () => {
     expect(valueOf(args, '--disallowedTools')).toBe('Skill')
   })
 
-  it('modo ask + disableSkills fusionan en UN solo flag', () => {
-    const args = claudeArgs({ mode: 'ask', disableSkills: true })
-    expect(countOf(args, '--disallowedTools')).toBe(1)
-    expect(valueOf(args, '--disallowedTools'))
-      .toBe('Edit,Write,NotebookEdit,Bash,MultiEdit,Skill')
+  it('modo plan no emite --disallowedTools por escritura', () => {
+    expect(countOf(claudeArgs({ mode: 'plan' }), '--disallowedTools')).toBe(0)
   })
 
-  it('modo ask sin disableSkills conserva la lista original', () => {
-    expect(valueOf(claudeArgs({ mode: 'ask' }), '--disallowedTools'))
-      .toBe('Edit,Write,NotebookEdit,Bash,MultiEdit')
+  it('modo plan + disableSkills deniega solo Skill', () => {
+    const args = claudeArgs({ mode: 'plan', disableSkills: true })
+    expect(countOf(args, '--disallowedTools')).toBe(1)
+    expect(valueOf(args, '--disallowedTools')).toBe('Skill')
   })
 })
 

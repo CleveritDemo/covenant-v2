@@ -262,9 +262,9 @@ export function remapAgentResultTabContexts(
 }
 
 function sanitizePermissionMode(raw: unknown): AgentPermissionMode {
-  if (raw === 'auto') return 'auto'
   if (raw === 'plan' || raw === 'readonly') return 'plan'
-  return 'ask'
+  // 'ask' y cualquier otro valor legado → auto
+  return 'auto'
 }
 
 function sanitizeProvider(raw: unknown): AgentCliProvider {
@@ -494,7 +494,7 @@ export function resolveAgentPaneMeta(
     : {
         id: resolvedId,
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
       }
   return {
     ...base,
@@ -528,11 +528,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
   }, meta.id) ?? {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: sanitizeProvider(meta.provider),
-    permissionMode: meta.permissionMode === 'auto'
-      ? 'auto'
-      : meta.permissionMode === 'plan'
-        ? 'plan'
-        : 'ask',
+    permissionMode: meta.permissionMode === 'plan' ? 'plan' : 'auto',
     emitResults: true,
   }
 }

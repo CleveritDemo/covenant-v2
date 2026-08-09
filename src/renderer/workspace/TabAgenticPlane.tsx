@@ -8,7 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
-import { PlaneChatComposer, type PlaneChatContextOption } from './PlaneChatComposer'
+import { PlaneChatComposer } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
@@ -60,7 +60,6 @@ export interface TabAgenticPlaneProps {
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
-  chatContextsEmpty: string
   tabContexts: PlaneContextPoolItem[]
   onToggleAgentContext: (paneId: string, contextId: string) => void
   onAutoImproveChange: (paneId: string, enabled: boolean) => void
@@ -221,7 +220,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
-  chatContextsEmpty,
   tabContexts,
   onToggleAgentContext,
   onAutoImproveChange,
@@ -467,18 +465,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     entities.find(entity => entity.paneId === openChatAgentId)?.autoImproveContexts,
   )
 
-  const composerContexts = useMemo<PlaneChatContextOption[]>(
-    () => tabContexts.map(context => ({
-      id: context.id,
-      name: context.name,
-      kind: context.kind,
-      kindLabel: context.kindLabel,
-      icon: context.icon,
-      color: context.color,
-    })),
-    [tabContexts],
-  )
-
   const quickChatStatus = openChatAgentId
     ? agentStatuses[openChatAgentId] ?? null
     : null
@@ -638,14 +624,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onStopChain={onStopLoopChain}
       />
       <PlaneMap
-        emptyTitle={emptyTitle}
-        emptyHint={emptyHint}
-        bootstrapAgentsLabel={bootstrapAgentsLabel}
-        bootstrapAgentsTitle={bootstrapAgentsTitle}
-        bootstrapAgentsDisabledTitle={bootstrapAgentsDisabledTitle}
-        showBootstrapAgents={showBootstrapAgents}
-        canBootstrapAgents={canBootstrapAgents}
-        onBootstrapAgents={onBootstrapAgents}
         idleAgentLabel={idleAgentLabel}
         entities={entities}
         activePaneId={activePaneId}
@@ -689,7 +667,15 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       ) : null}
 
       {showIdleGravity && (
-        <PlaneIdleGravity />
+        <PlaneIdleGravity
+          emptyHint={entities.length === 0 ? emptyHint : undefined}
+          bootstrapAgentsLabel={bootstrapAgentsLabel}
+          bootstrapAgentsTitle={bootstrapAgentsTitle}
+          bootstrapAgentsDisabledTitle={bootstrapAgentsDisabledTitle}
+          showBootstrapAgents={showBootstrapAgents && entities.length === 0}
+          canBootstrapAgents={canBootstrapAgents}
+          onBootstrapAgents={onBootstrapAgents}
+        />
       )}
 
       {!anyFullscreen && (
@@ -715,16 +701,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
-              contexts={composerContexts}
-              selectedContextIds={selectedContextIds}
-              contextsEmptyHint={chatContextsEmpty}
+              assignedContextCount={selectedContextIds.length}
               autoImprove={autoImprove}
               loopMode={Boolean(quickChatStatus?.loopMode)}
               loopActive={Boolean(quickChatStatus?.loopActive)}
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
-              onToggleContext={contextId => {
-                onToggleAgentContext(openChatAgentId, contextId)
-              }}
               onAutoImproveChange={enabled => {
                 onAutoImproveChange(openChatAgentId, enabled)
               }}

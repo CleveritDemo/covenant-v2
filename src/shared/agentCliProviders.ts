@@ -10,7 +10,7 @@
  */
 
 /** Modo de permisos del pane de agente. */
-export type AgentPermissionMode = 'ask' | 'auto' | 'plan'
+export type AgentPermissionMode = 'auto' | 'plan'
 
 /**
  * Cómo se interpreta stdout del CLI:
@@ -107,14 +107,8 @@ const skillsDirFlags = (
  * `--disallowedTools` una sola vez con todo lo denegado. Emitir el flag dos
  * veces no equivale a una lista fusionada.
  */
-const disallowedTools = (mode: AgentPermissionMode, disableSkills?: boolean): string[] => {
-  const tools = [
-    // Ask: sin escritura. Claude no tiene --mode ask; en -p no hay UI de
-    // confirmación, así que bloqueamos herramientas que mutan el workspace.
-    ...(mode === 'ask' ? ['Edit', 'Write', 'NotebookEdit', 'Bash', 'MultiEdit'] : []),
-    ...(disableSkills ? ['Skill'] : []),
-  ]
-  return tools.length ? ['--disallowedTools', tools.join(',')] : []
+const disallowedTools = (disableSkills?: boolean): string[] => {
+  return disableSkills ? ['--disallowedTools', 'Skill'] : []
 }
 
 export const AGENT_CLI_PROVIDERS = {
@@ -139,7 +133,7 @@ export const AGENT_CLI_PROVIDERS = {
       // a los demás en vez de sustituirlos.
       ...(mcpConfigPath ? ['--mcp-config', mcpConfigPath, '--strict-mcp-config'] : []),
       ...(sessionId ? ['--resume', sessionId] : []),
-      ...disallowedTools(mode, disableSkills),
+      ...disallowedTools(disableSkills),
       ...(mode === 'auto' ? ['--permission-mode', 'bypassPermissions'] : []),
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),
@@ -159,8 +153,7 @@ export const AGENT_CLI_PROVIDERS = {
       '--workspace',
       cwd,
       ...(sessionId ? ['--resume', sessionId] : []),
-      // Ask/Plan son solo lectura en el CLI de Cursor; sin flag, el default escribe.
-      ...(mode === 'ask' ? ['--mode', 'ask'] : []),
+      // Plan es solo lectura en el CLI de Cursor; sin flag, el default escribe.
       ...(mode === 'auto' ? ['--force'] : []),
       ...(mode === 'plan' ? ['--mode', 'plan'] : []),
       ...withModel('--model', model),

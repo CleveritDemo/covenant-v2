@@ -7,3 +7,28 @@
   justify-content: center;
   pointer-events: none;
 }
+
+.plane-idle-gravity__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: min(420px, calc(100% - 48px));
+  padding: 0 24px;
+  text-align: center;
+}
+
+.plane-idle-gravity__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.plane-idle-gravity__cta {
+  pointer-events: auto;
+  max-width: min(240px, 100%);
+  padding: 0 4px;
+  margin-top: 4px;
+}

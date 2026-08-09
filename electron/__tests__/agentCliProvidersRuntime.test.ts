@@ -33,7 +33,7 @@ describe('commandAndArgs con el registro de proveedores', () => {
 
   it('respeta el comando configurado por el usuario', () => {
     const { command } = commandAndArgs(
-      request({ provider: 'codex', permissionMode: 'ask' }),
+      request({ provider: 'codex', permissionMode: 'auto' }),
       { agentCliCommands: { codex: '/opt/homebrew/bin/codex' } } as AppConfig,
       '/tmp',
       'p',
@@ -43,12 +43,12 @@ describe('commandAndArgs con el registro de proveedores', () => {
     expect(command).toBe('/opt/homebrew/bin/codex')
   })
 
-  it('codex: exec + sandbox read-only en ask, bypass en auto y resume con sesión', () => {
-    const ask = commandAndArgs(
-      request({ provider: 'codex', permissionMode: 'ask' }), config, '/tmp', 'p', undefined, testHome,
+  it('codex: exec + sandbox read-only en plan, bypass en auto y resume con sesión', () => {
+    const plan = commandAndArgs(
+      request({ provider: 'codex', permissionMode: 'plan' }), config, '/tmp', 'p', undefined, testHome,
     )
-    expect(ask.args.slice(0, 2)).toEqual(['exec', '--json'])
-    expect(ask.args).toContain('read-only')
+    expect(plan.args.slice(0, 2)).toEqual(['exec', '--json'])
+    expect(plan.args).toContain('read-only')
 
     const auto = commandAndArgs(
       request({ provider: 'codex', permissionMode: 'auto' }), config, '/tmp', 'p', undefined, testHome,

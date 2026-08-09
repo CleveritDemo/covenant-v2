@@ -15,7 +15,6 @@ import {
 } from '@shared/paneWindows'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
-import { PlaneBootstrapAgentsButton } from './PlaneBootstrapAgentsButton'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
 import './PlaneMap.css'
@@ -48,14 +47,6 @@ export interface PlaneMapEntity {
 }
 
 export interface PlaneMapProps {
-  emptyTitle: string
-  emptyHint: string
-  bootstrapAgentsLabel?: string
-  bootstrapAgentsTitle?: string
-  bootstrapAgentsDisabledTitle?: string
-  showBootstrapAgents?: boolean
-  canBootstrapAgents?: boolean
-  onBootstrapAgents?: () => void
   idleAgentLabel: string
   entities: PlaneMapEntity[]
   activePaneId: string
@@ -189,14 +180,6 @@ function usePrefersReducedMotion(): boolean {
 }
 
 export const PlaneMap: React.FC<PlaneMapProps> = ({
-  emptyTitle,
-  emptyHint,
-  bootstrapAgentsLabel,
-  bootstrapAgentsTitle,
-  bootstrapAgentsDisabledTitle,
-  showBootstrapAgents = false,
-  canBootstrapAgents = false,
-  onBootstrapAgents,
   idleAgentLabel,
   entities,
   activePaneId,
@@ -639,21 +622,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       <div className="plane-map__atmosphere" aria-hidden="true" />
       <div className="plane-map__grid" aria-hidden="true" />
       {entities.length === 0 ? (
-        <div className="plane-map__empty">
-          <strong>{emptyTitle}</strong>
-          <p>{emptyHint}</p>
-          {showBootstrapAgents && bootstrapAgentsLabel && onBootstrapAgents ? (
-            <div className="plane-map__empty-cta">
-              <PlaneBootstrapAgentsButton
-                label={bootstrapAgentsLabel}
-                title={bootstrapAgentsTitle}
-                disabled={!canBootstrapAgents}
-                disabledTitle={bootstrapAgentsDisabledTitle}
-                onClick={onBootstrapAgents}
-              />
-            </div>
-          ) : null}
-        </div>
+        <div className="plane-map__empty" aria-hidden="true" />
       ) : (
         <div className="plane-map__stage">
           {terminalsDom.length > 0 ? (

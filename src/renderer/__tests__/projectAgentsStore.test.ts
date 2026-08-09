@@ -27,7 +27,7 @@ describe('syncTabAgentsFromCatalog', () => {
         },
       }),
       [
-        { id: 'qa', provider: 'cursor', permissionMode: 'ask', name: 'qa' },
+        { id: 'qa', provider: 'cursor', permissionMode: 'auto', name: 'qa' },
         { id: 'example2', provider: 'cursor', permissionMode: 'auto', name: 'example2' },
       ],
       {
@@ -61,7 +61,7 @@ describe('syncTabAgentsFromCatalog', () => {
           'a-qa': { open: true, fullscreen: false, zIndex: 3 },
         },
       }),
-      [{ id: 'qa', provider: 'claude', permissionMode: 'ask' }],
+      [{ id: 'qa', provider: 'claude', permissionMode: 'auto' }],
       {
         maxPanes: 10,
         createPaneId: () => 'should-not-run',
@@ -95,8 +95,8 @@ describe('syncTabAgentsFromCatalog', () => {
         },
       }),
       [
-        { id: 'alpha', provider: 'cursor', permissionMode: 'ask', name: 'alpha' },
-        { id: 'beta', provider: 'cursor', permissionMode: 'ask', name: 'beta' },
+        { id: 'alpha', provider: 'cursor', permissionMode: 'auto', name: 'alpha' },
+        { id: 'beta', provider: 'cursor', permissionMode: 'auto', name: 'beta' },
       ],
       {
         maxPanes: 10,
@@ -126,9 +126,9 @@ describe('syncTabAgentsFromCatalog', () => {
         },
       }),
       [
-        { id: 'alpha', provider: 'cursor', permissionMode: 'ask', name: 'alpha' },
-        { id: 'beta', provider: 'cursor', permissionMode: 'ask', name: 'beta' },
-        { id: 'gamma', provider: 'cursor', permissionMode: 'ask', name: 'gamma' },
+        { id: 'alpha', provider: 'cursor', permissionMode: 'auto', name: 'alpha' },
+        { id: 'beta', provider: 'cursor', permissionMode: 'auto', name: 'beta' },
+        { id: 'gamma', provider: 'cursor', permissionMode: 'auto', name: 'gamma' },
       ],
       {
         maxPanes: 10,
@@ -165,7 +165,7 @@ describe('resolveTabAgentMeta org (TAREA 0 timing)', () => {
         id: 'fullstack',
         name: 'Fullstack',
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
       }],
     })
     expect(seeded.name).toBe('Fullstack')

@@ -1616,7 +1616,7 @@ function registerIpc(): void {
       reject(request.paneId, 'Proveedor de agente no válido.')
       return
     }
-    if (!['ask', 'auto', 'plan'].includes(request.permissionMode)) {
+    if (!['auto', 'plan'].includes(request.permissionMode)) {
       reject(request.paneId, 'Modo de permisos no válido.')
       return
     }

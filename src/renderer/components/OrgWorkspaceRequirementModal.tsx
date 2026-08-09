@@ -12,6 +12,7 @@ export type OrgWorkspaceRequirementState = {
   cloning?: boolean
   syncing?: boolean
   agentDeleteError?: string
+  agentUpdateError?: string
 }
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
   cloning?: boolean
   syncing?: boolean
   agentDeleteError?: string
+  agentUpdateError?: string
   onClose: () => void
   onOpenSettings: () => void
 }
@@ -34,6 +36,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloning = false,
   syncing = false,
   agentDeleteError,
+  agentUpdateError,
   onClose,
   onOpenSettings,
 }) => {
@@ -47,7 +50,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     : null
   const agentErr = agentDeleteError?.trim()
     ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
-    : null
+    : agentUpdateError?.trim()
+      ? t('organizations.reqAgentUpdateFailed', { error: agentUpdateError.trim() })
+      : null
 
   return (
     <TerminalModal

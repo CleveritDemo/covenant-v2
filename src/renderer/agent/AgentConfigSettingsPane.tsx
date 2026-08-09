@@ -252,9 +252,8 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     value: AgentPermissionMode
     label: string
     hint: string
-    icon: 'shield-question' | 'shield-off' | 'shield-check'
+    icon: 'shield-off' | 'shield-check'
   }> = [
-    { value: 'ask', label: t('agentPane.permissionAsk'), hint: t('agentPane.permissionAskHint'), icon: 'shield-question' },
     { value: 'auto', label: t('agentPane.permissionAuto'), hint: t('agentPane.permissionAutoHint'), icon: 'shield-off' },
     { value: 'plan', label: t('agentPane.permissionPlan'), hint: t('agentPane.permissionPlanHint'), icon: 'shield-check' },
   ]

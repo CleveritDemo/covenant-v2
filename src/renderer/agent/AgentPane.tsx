@@ -1928,7 +1928,7 @@ export const AgentPane: React.FC<Props> = ({
 
   const changePermission = (permissionMode: AgentPermissionMode): void => {
     if (permissionMode === meta.permissionMode) return
-    // Bug del CLI de Cursor: --resume conserva ask/plan en SQLite y no hay
+    // Bug del CLI de Cursor: --resume conserva plan en SQLite y no hay
     // --mode agent. Ante cualquier cambio de modo con sesión activa, reiniciamos
     // el hilo CLI y el próximo turno reinyecta el historial local del chat.
     const mustResetCliSession =
@@ -1965,12 +1965,13 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const commitIdentity = (draft: AgentIdentityDraft): void => {
-    onMetaChange(previous => {
+  const commitIdentity = async (draft: AgentIdentityDraft): Promise<boolean> => {
+    const result = await Promise.resolve(onMetaChange(previous => {
       const withIdentity = applyAgentIdentityDraft(previous, draft)
       const nextId = normalizeAgentSlug(draft.id, previous.id)
       return { ...withIdentity, id: nextId || previous.id }
-    })
+    }))
+    return result !== false
   }
 
   const toggleContext = (contextId: string): void => {
@@ -2109,6 +2110,7 @@ export const AgentPane: React.FC<Props> = ({
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
         contextNotice={contextNotice}
+        orgWorkspace={orgWorkspace}
         onClose={() => {
           // Desbloquear + suppress post-cierre (click-through al mini del plano).
           onConfigClose?.()

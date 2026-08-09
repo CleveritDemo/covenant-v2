@@ -4,6 +4,23 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.14.0
+
+- **Los agentes de workspaces organizacionales se guardan de verdad en Covenant.**
+  Al pulsar Listo en la configuración, la app espera el `PUT` al servidor; si
+  falla, el modal no cierra y muestra el error. Ya no se finge éxito solo en
+  memoria ni se escribe en `.gravity/agents` local.
+- **Sin modo Ask.** Permisos del agente: solo Auto y Plan (Ask pasa a Auto).
+- **Crear equipo vuelve bajo el logo.** En un tab vacío, debajo de Gravity
+  aparece el botón para montar el equipo por defecto — en workspaces
+  personales y organizacionales.
+- **La barra de contextos del plano es solo íconos.** El nombre se ve al abrir
+  el menú de asignación. Arriba del chat ya no hay picker de contextos: la
+  asignación vive en el pool del plano.
+- **Más claro el menú del modal de agente.** Las categorías del sidebar
+  (Quién es / Cómo funciona) se leen más chicas que los ítems.
+- **Clic fuera cierra el modal de editar contexto.**
+
 ## v0.13.0
 
 - **La app se ve con tu fuente.** Ajustes → Apariencia estrena *Tipografía*, con

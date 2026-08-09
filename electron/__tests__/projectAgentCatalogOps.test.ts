@@ -72,7 +72,7 @@ describe('projectAgentCatalogOps', () => {
     const qa = upsertProjectAgent(cwd, {
       id: 'qa',
       provider: 'cursor',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
       contextIds: ['iaterminal:result:claude', 'rules'],
     })
     expect(qa.ok).toBe(true)
@@ -117,7 +117,7 @@ describe('projectAgentCatalogOps', () => {
     const conflict = upsertProjectAgent(cwd, {
       id: 'other',
       provider: 'cursor',
-      permissionMode: 'ask',
+      permissionMode: 'auto',
     })
     expect(conflict.ok).toBe(true)
     const taken = renameProjectAgent(cwd, 'fullstack', {

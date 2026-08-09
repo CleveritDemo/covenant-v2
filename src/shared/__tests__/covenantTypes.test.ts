@@ -34,7 +34,7 @@ describe('TAREA 0: org agentId round-trip (binding vs list)', () => {
         id: 'WRONG-ID-IN-JSONB',
         name: 'Fullstack',
         provider: 'claude',
-        permissionMode: 'ask',
+        permissionMode: 'auto',
       },
     }])
     expect(listEcho[0]?.id).toBe(upsertedSlug)

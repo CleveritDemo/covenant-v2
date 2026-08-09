@@ -23,7 +23,7 @@ function agent(id: string, name: string): ProjectAgentDefinition {
     id,
     name,
     provider: 'claude',
-    permissionMode: 'ask',
+    permissionMode: 'auto',
     role: `${name} role`,
   }
 }

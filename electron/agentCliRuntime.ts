@@ -17,6 +17,7 @@ import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
+import type { PulseEvent } from '../src/shared/pulseEvents'
 import { repoAndBranch } from './gitSessionOps'
 import {
   buildContextCatalogPrompt,
@@ -1043,6 +1044,27 @@ export function startAgentTurn(
   let contextDeliveryCommitted = false
   const turnStartedAt = Date.now()
   const tokensAtStart = getContextDeliveryMetrics()
+  /**
+   * Repo y rama del turno, resueltos una sola vez: los tres eventos de Pulse que
+   * puede emitir un turno (prompt, resultado, delegación) llevan la misma
+   * etiqueta, y sin esto cada uno gastaría su propio par de `git`.
+   */
+  const repoCtx: Promise<{ repo?: string; branch?: string }> = cwd
+    ? repoAndBranch(cwd).catch(() => ({}))
+    : Promise.resolve({})
+
+  /** Etiquetas comunes a todo evento de Pulse del turno. */
+  const pulseTags = {
+    ...(request.agentId ? { agentId: request.agentId } : {}),
+    ...(request.name?.trim() ? { agentName: request.name.trim() } : {}),
+    ...(request.workspace ? { workspace: request.workspace } : {}),
+  }
+
+  /** Nunca await en el camino del turno: la telemetría va por detrás. */
+  const recordDerivedPulse = (event: Omit<PulseEvent, 'ts'>): void => {
+    const ts = Date.now()
+    void repoCtx.then(ctx => recordPulseEvent({ ts, ...ctx, ...event }))
+  }
 
   const failBeforeSpawn = (message: string): void => {
     const current = agentRuns.get(request.paneId)
@@ -1188,12 +1210,22 @@ export function startAgentTurn(
               upsertAiAgentResults(cwd, resolvedAgentId, resultsPayload, {
                 agentName: request.name?.trim(),
               })
+              recordDerivedPulse({ kind: 'result', ...pulseTags })
             }
             const { visibleText, delegations } = coordinationCanDelegate(request.coordination)
               ? extractAiAgentDelegates(afterResults)
               : { visibleText: afterResults, delegations: [] }
             if (delegations.length && request.allowDelegations !== false) {
               send(win, request.paneId, { type: 'delegate', delegations })
+              // Un evento por delegación: el roster cuenta emitidas del
+              // orquestador y recibidas del ejecutor con los mismos registros.
+              for (const delegation of delegations) {
+                recordDerivedPulse({
+                  kind: 'delegate',
+                  ...pulseTags,
+                  ...(delegation.toAgentId?.trim() ? { toAgentId: delegation.toAgentId.trim() } : {}),
+                })
+              }
             }
             if (visibleText.trim()) sawAssistantText = true
             send(win, request.paneId, { ...event, text: visibleText })
@@ -1293,23 +1325,18 @@ export function startAgentTurn(
    */
   function recordTurnInPulse(): void {
     const after = getContextDeliveryMetrics()
-    const event = {
+    const event: PulseEvent = {
       ts: turnStartedAt,
-      kind: 'prompt' as const,
+      kind: 'prompt',
       provider: request.provider,
-      agentId: request.agentId,
       permissionMode: request.permissionMode,
-      ...(request.workspace ? { workspace: request.workspace } : {}),
+      ...pulseTags,
       tokensIn: Math.max(0, after.inputTokens - tokensAtStart.inputTokens),
       tokensOut: Math.max(0, after.outputTokens - tokensAtStart.outputTokens),
+      durationMs: Math.max(0, Date.now() - turnStartedAt),
+      ...(request.viaLoop ? { viaLoop: true } : {}),
     }
-    if (!cwd) {
-      recordPulseEvent(event)
-      return
-    }
-    void repoAndBranch(cwd)
-      .then(ctx => recordPulseEvent({ ...event, ...ctx }))
-      .catch(() => recordPulseEvent(event))
+    void repoCtx.then(ctx => recordPulseEvent({ ...event, ...ctx }))
   }
 
   startPhase(initialPrompt, 0)

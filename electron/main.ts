@@ -786,7 +786,17 @@ function registerIpc(): void {
     emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.PULSE_SNAPSHOT, () => pulseSnapshot())
+  ipcMain.handle(IPC.PULSE_SNAPSHOT, (_e, scope: unknown) => {
+    // El alcance viene del renderer: se aceptan solo strings, el resto se ignora.
+    const raw = (scope ?? {}) as Record<string, unknown>
+    const pick = (key: string): string | undefined =>
+      typeof raw[key] === 'string' && raw[key] ? (raw[key] as string) : undefined
+    return pulseSnapshot({
+      workspace: pick('workspace'),
+      repo: pick('repo'),
+      sinceDay: pick('sinceDay'),
+    })
+  })
 
   // ─── LSP ────────────────────────────────────────────────────────────────
   ipcMain.handle(IPC.LSP_SERVER_STATUS, (_e, language: unknown) =>
@@ -823,12 +833,26 @@ function registerIpc(): void {
     }
     return lspWriteFile(serverId, absPath, content)
   })
-  ipcMain.handle(IPC.GIT_COMMIT, async (_e, target: { sessionId?: string; path?: string }, message: unknown) => {
+  ipcMain.handle(IPC.GIT_COMMIT, async (
+    _e,
+    target: { sessionId?: string; path?: string },
+    message: unknown,
+    meta: unknown,
+  ) => {
     const cwd = resolveGitTargetCwd(target)
     const result = await gitCommit(cwd, message)
     emitGitStatusChanged(target)
     if (result.ok) {
-      recordPulseEvent({ ts: Date.now(), kind: 'commit', ...(await repoAndBranch(cwd)) })
+      const tag = (meta ?? {}) as Record<string, unknown>
+      const str = (key: string): string | undefined =>
+        typeof tag[key] === 'string' && tag[key] ? (tag[key] as string) : undefined
+      recordPulseEvent({
+        ts: Date.now(),
+        kind: 'commit',
+        ...(await repoAndBranch(cwd)),
+        ...(str('agentId') ? { agentId: str('agentId') } : {}),
+        ...(str('workspace') ? { workspace: str('workspace') } : {}),
+      })
     }
     return result
   })

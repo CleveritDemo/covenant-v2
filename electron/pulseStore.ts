@@ -1,7 +1,15 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import { aggregatePulse, type PulseEvent, type PulseSnapshot } from '../src/shared/pulseEvents'
+import {
+  aggregatePulse,
+  filterPulseEvents,
+  pulseScopeOptions,
+  PULSE_EVENT_KINDS,
+  type PulseEvent,
+  type PulseScope,
+  type PulseSnapshot,
+} from '../src/shared/pulseEvents'
 
 /**
  * Bitácora local de Pulse: NDJSON append-only en userData. Un evento pesa ~150
@@ -35,7 +43,7 @@ export function parsePulseLines(text: string): PulseEvent[] {
     try {
       const parsed = JSON.parse(line) as Partial<PulseEvent>
       if (typeof parsed.ts !== 'number' || !Number.isFinite(parsed.ts)) continue
-      if (parsed.kind !== 'prompt' && parsed.kind !== 'commit') continue
+      if (!parsed.kind || !PULSE_EVENT_KINDS.includes(parsed.kind)) continue
       out.push(parsed as PulseEvent)
     } catch {
       continue
@@ -54,6 +62,10 @@ export function readPulseEvents(): PulseEvent[] {
   }
 }
 
-export function pulseSnapshot(): PulseSnapshot {
-  return aggregatePulse(readPulseEvents(), Date.now())
+export function pulseSnapshot(scope: PulseScope = {}): PulseSnapshot {
+  const all = readPulseEvents()
+  return {
+    ...aggregatePulse(filterPulseEvents(all, scope), Date.now()),
+    scopes: pulseScopeOptions(all),
+  }
 }

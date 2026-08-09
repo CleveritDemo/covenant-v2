@@ -29,6 +29,8 @@ interface GitPanelModalProps {
   open: boolean
   target: GitTarget
   config: AppConfig
+  /** Workspace org de la pestaña; solo etiqueta el evento de Pulse del commit. */
+  workspace?: string
   onClose: () => void
 }
 
@@ -36,6 +38,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   open,
   target,
   config,
+  workspace,
   onClose,
 }) => {
   const { t } = useT()
@@ -200,7 +203,9 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
       setLastRun({ label: 'git commit', ok: false })
       return false
     }
-    const ok = await runAndLog('git commit', () => window.api.gitCommit(targetRef.current, msg))
+    const ok = await runAndLog('git commit', () =>
+      window.api.gitCommit(targetRef.current, msg, workspace ? { workspace } : undefined),
+    )
     if (ok) setCommitMsg('')
     return ok
   }

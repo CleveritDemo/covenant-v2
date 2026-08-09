@@ -33,6 +33,8 @@ export interface AgentCliStartRequest {
    * la instrumentación de Pulse; no entra en el prompt ni en los flags del CLI.
    */
   workspace?: string
+  /** El turno lo disparó un loop; solo lo consume la instrumentación de Pulse. */
+  viaLoop?: boolean
   /** Rol del agente; se inyecta en el prompt del turno. */
   role?: string
   /** Objetivo persistente; se inyecta en el prompt del turno. */

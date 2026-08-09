@@ -5,7 +5,7 @@ import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServerSummary, McpServersListRequest } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
-import type { PulseSnapshot } from '../src/shared/pulseEvents'
+import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type {
   LspDownloadProgress,
   LspFileReadResult,
@@ -434,8 +434,13 @@ const api = {
     return ipcRenderer.invoke(IPC.GIT_PUSH, target)
   },
 
-  gitCommit(target: GitTarget, message: string): Promise<GitCommandResult> {
-    return ipcRenderer.invoke(IPC.GIT_COMMIT, target, message)
+  /** `meta` solo etiqueta el evento de Pulse; no cambia el commit. */
+  gitCommit(
+    target: GitTarget,
+    message: string,
+    meta?: { agentId?: string; workspace?: string },
+  ): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_COMMIT, target, message, meta)
   },
 
   gitStageAll(target: GitTarget): Promise<GitCommandResult> {
@@ -907,8 +912,8 @@ const api = {
   checkForUpdates(): Promise<UpdateState> {
     return ipcRenderer.invoke(IPC.UPDATE_CHECK)
   },
-  pulseSnapshot(): Promise<PulseSnapshot> {
-    return ipcRenderer.invoke(IPC.PULSE_SNAPSHOT)
+  pulseSnapshot(scope?: PulseScope): Promise<PulseSnapshot> {
+    return ipcRenderer.invoke(IPC.PULSE_SNAPSHOT, scope)
   },
 
   // ─── LSP (code intelligence) ───────────────────────────────────────────────

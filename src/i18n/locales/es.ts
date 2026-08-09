@@ -1042,6 +1042,27 @@ const es = {
       collapse: 'Colapsar carpeta',
     },
   },
+  pulse: {
+    title: 'Pulse',
+    button: 'Pulse',
+    loading: 'Cargando…',
+    empty: 'Todavía no hay actividad. Envía un prompt o haz un commit y aparece acá.',
+    currentStreak: 'Racha actual',
+    longestStreak: 'Racha más larga',
+    today: 'Hoy',
+    vsAverage: 'vs media 30d',
+    totalPrompts: 'Prompts totales',
+    totalCommits: 'Commits totales',
+    totalTokens: 'Tokens totales',
+    daysSuffix: 'd',
+    activity: 'Actividad · últimos 12 meses',
+    metric_prompts: 'Prompts',
+    metric_commits: 'Commits',
+    metric_both: 'Ambos',
+    dayDetail: '{{day}} · {{prompts}} prompts · {{commits}} commits',
+    less: 'Menos',
+    more: 'Más',
+  },
 } satisfies AppTranslations
 
 export default es

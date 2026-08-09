@@ -308,4 +308,6 @@ export const IPC = {
   APP_CONFIRM_QUIT: 'app:confirmQuit',
   /** Renderer → main: el usuario confirmó salir */
   APP_QUIT_CONFIRMED: 'app:quitConfirmed',
+  /** Renderer → main (invoke): agregado de la bitácora local de Pulse */
+  PULSE_SNAPSHOT: 'pulse:snapshot',
 } as const

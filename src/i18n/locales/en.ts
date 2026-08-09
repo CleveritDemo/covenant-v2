@@ -1040,6 +1040,27 @@ const en = {
       collapse: 'Collapse folder',
     },
   },
+  pulse: {
+    title: 'Pulse',
+    button: 'Pulse',
+    loading: 'Loading…',
+    empty: 'No activity yet. Send a prompt or make a commit and it lands here.',
+    currentStreak: 'Current streak',
+    longestStreak: 'Longest streak',
+    today: 'Today',
+    vsAverage: 'vs 30d avg',
+    totalPrompts: 'Total prompts',
+    totalCommits: 'Total commits',
+    totalTokens: 'Total tokens',
+    daysSuffix: 'd',
+    activity: 'Activity · last 12 months',
+    metric_prompts: 'Prompts',
+    metric_commits: 'Commits',
+    metric_both: 'Both',
+    dayDetail: '{{day}} · {{prompts}} prompts · {{commits}} commits',
+    less: 'Less',
+    more: 'More',
+  },
 }
 
 export default en

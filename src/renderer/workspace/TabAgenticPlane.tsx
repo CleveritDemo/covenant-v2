@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useT } from '@i18n/useT'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
@@ -20,6 +21,8 @@ import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
+import { PlanePulseButton } from './PlanePulseButton'
+import { PulseModal } from './PulseModal'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import {
@@ -343,8 +346,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onOpenRepoGit,
   onRefreshRepos,
 }) => {
+  const { t } = useT()
   const planeRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  // Pulse solo lee del store por IPC: no necesita nada del padre, así que su
+  // estado se queda acá en vez de engordar las props de App.tsx.
+  const [pulseOpen, setPulseOpen] = useState(false)
 
   useLayoutEffect(() => {
     const el = planeRef.current
@@ -565,6 +572,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             pressed={loopsOpen}
             onClick={() => onLoopsOpenChange(!loopsOpen)}
           />
+          <PlanePulseButton
+            label={t('pulse.button')}
+            pressed={pulseOpen}
+            onClick={() => setPulseOpen(open => !open)}
+          />
           {onBrainstormsListOpenChange ? (
             <PlaneBrainstormsListButton
               label={brainstormsListButtonLabel}
@@ -775,6 +787,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onBootstrapAgents={onBootstrapAgents}
         />
       )}
+
+      <PulseModal open={pulseOpen} onClose={() => setPulseOpen(false)} />
     </div>
   )
 }

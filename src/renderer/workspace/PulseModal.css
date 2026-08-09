@@ -1,0 +1,176 @@
+.pulse {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ─── Hero band ─────────────────────────────────────────────────────────── */
+
+.pulse__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.pulse__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* El acento como texto sobre --surface: en light el acento crudo no llega a
+   4.5:1, el sólido sí. Mismo motivo que el toggle activo. */
+.pulse__stat--accent .pulse__value {
+  color: var(--accent-solid, var(--accent));
+}
+
+.pulse__value {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.pulse__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pulse__delta {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent-solid, var(--accent));
+}
+
+.pulse__delta--down {
+  color: var(--text-muted);
+}
+
+/* ─── Heatmap ───────────────────────────────────────────────────────────── */
+
+.pulse__panel {
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pulse__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.pulse__panel-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pulse__toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pulse__toggle-btn {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+}
+
+/* El :not() no es decorativo: sin él, `:hover` (0,2,0) le gana a `--on` (0,1,0)
+   y el botón activo recupera el texto oscuro sobre el fondo acento oscuro. */
+.pulse__toggle-btn:not(.pulse__toggle-btn--on):hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* `--accent-solid` y no `--accent`: en los temas light el acento es demasiado
+   claro para llevar etiqueta encima y el par sólido ya viene oscurecido a 4.5:1
+   (ver accentForWhiteText en themes/presets.ts). */
+.pulse__toggle-btn--on {
+  color: var(--accent-solid-fg, var(--accent-fg));
+  background: var(--accent-solid, var(--accent));
+}
+
+.pulse__grid {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pulse__col {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pulse__cell {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* Rampa de intensidad sobre el acento del tema, no un verde fijo: Gravity deja
+   elegir tema y un color quemado se pelearía con la mitad de ellos. Sobre el
+   acento sólido (oscurecido en light) porque el crudo arranca tan pálido que el
+   nivel 1 no se distingue de una celda vacía. El piso es 35% por lo mismo. */
+.pulse__cell[data-level='1'] { background: color-mix(in srgb, var(--accent-solid, var(--accent)) 35%, transparent); }
+.pulse__cell[data-level='2'] { background: color-mix(in srgb, var(--accent-solid, var(--accent)) 55%, transparent); }
+.pulse__cell[data-level='3'] { background: color-mix(in srgb, var(--accent-solid, var(--accent)) 78%, transparent); }
+.pulse__cell[data-level='4'] { background: var(--accent-solid, var(--accent)); }
+
+.pulse__legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.pulse__hovered {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.pulse__empty {
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}

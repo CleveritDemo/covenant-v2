@@ -10,7 +10,7 @@ import {
   statSync,
   renameSync,
 } from 'fs'
-import { join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
+import { basename, join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
 import {
   app,
   BrowserWindow,
@@ -90,6 +90,7 @@ import {
   mergeAnnotations,
 } from './tabContextBuild'
 import { resolveTabContextRevealPath } from './tabContextReveal'
+import { pulseSnapshot, recordPulseEvent } from './pulseStore'
 import { clearPresence, setPresence } from './discordPresence'
 import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
@@ -111,6 +112,7 @@ import {
   gitGetRepoStatus,
   gitListRepos,
   gitCollectUniqueRepos,
+  getRepoRoot,
   gitPull,
   gitPush,
   gitStageAll,
@@ -766,9 +768,19 @@ function registerIpc(): void {
     emitGitStatusChanged(target)
     return result
   })
-  ipcMain.handle(IPC.GIT_COMMIT, (_e, target: { sessionId?: string; path?: string }, message: unknown) => {
-    const result = gitCommit(resolveGitTargetCwd(target), message)
+  ipcMain.handle(IPC.PULSE_SNAPSHOT, () => pulseSnapshot())
+  ipcMain.handle(IPC.GIT_COMMIT, async (_e, target: { sessionId?: string; path?: string }, message: unknown) => {
+    const cwd = resolveGitTargetCwd(target)
+    const result = await gitCommit(cwd, message)
     emitGitStatusChanged(target)
+    if (result.ok) {
+      const root = await getRepoRoot(cwd).catch(() => null)
+      recordPulseEvent({
+        ts: Date.now(),
+        kind: 'commit',
+        ...(root ? { repo: basename(root) } : {}),
+      })
+    }
     return result
   })
   ipcMain.handle(IPC.GIT_STAGE_ALL, (_e, target: { sessionId?: string; path?: string }) => {

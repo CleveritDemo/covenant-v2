@@ -1,0 +1,87 @@
+.json-tree {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.json-tree__leaf,
+.json-tree__node > summary {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0 4px;
+  border-radius: 5px;
+}
+
+.json-tree__node > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.json-tree__node > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* El triángulo lo dibujamos nosotros para que gire con el estado. */
+.json-tree__node > summary::before {
+  content: '▸';
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.json-tree__node[open] > summary::before {
+  content: '▾';
+}
+
+.json-tree__leaf {
+  /* Alinea con el texto del summary, que lleva el triángulo delante. */
+  padding-left: 17px;
+}
+
+.json-tree__leaf:hover,
+.json-tree__node > summary:hover {
+  background: var(--surface);
+}
+
+.json-tree__key {
+  /* `install:app:reuse` partido en dos líneas no se lee; que desborde y se
+     desplace la vista antes que romper la clave. */
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.json-tree__brace {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.json-tree__count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.json-tree__value {
+  min-width: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.json-tree__value--string {
+  color: var(--accent);
+}
+
+.json-tree__value--number,
+.json-tree__value--boolean,
+.json-tree__value--null {
+  color: var(--text-muted);
+}
+
+.json-tree__children {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}

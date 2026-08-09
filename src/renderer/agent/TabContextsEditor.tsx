@@ -13,7 +13,7 @@ import { summarizeContextBudget } from '@shared/contextBudget'
 import { useT } from '@i18n/useT'
 import { Button, Input, SegmentedControl, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
-import { AiMarkdown } from '../components/AiMarkdown'
+import { ContextReport } from '../workspace/ContextReport'
 import { appearanceIconName, KIND_ICONS } from './tabContextKindIcons'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
 import { TabContextColorSwatch } from './TabContextColorSwatch'
@@ -359,10 +359,10 @@ export const TabContextsEditor: React.FC<Props> = ({
             ? <pre className="tab-contexts__preview">{preview.content}</pre>
             : (
               <div className="tab-contexts__preview-rendered">
-                {/* ponytail: los marcadores `<!-- iaterminal:* -->` son andamiaje del
-                    formato, no contenido; en la vista renderizada solo hacen ruido.
-                    Se ven tal cual en "Source". */}
-                <AiMarkdown content={preview.content.replace(/<!--[\s\S]*?-->/g, '').trim()} />
+                {/* Mismo Reporte que el modal de vista previa: árbol de carpetas,
+                    dependencias y JSON plegable en vez de markdown crudo. Los
+                    marcadores `<!-- iaterminal:* -->` solo se ven en "Source". */}
+                <ContextReport context={draft} content={preview.content} />
               </div>
             )
         )}

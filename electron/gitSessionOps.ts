@@ -180,6 +180,27 @@ export function runGit(
   })
 }
 
+/**
+ * Repo (basename del toplevel) y rama activa, para etiquetar los eventos de
+ * Pulse. Fuera de un repo git devuelve `{}`. Nunca lanza: es telemetría, no
+ * puede tumbar el turno ni el commit que la origina.
+ */
+export async function repoAndBranch(
+  cwd: string,
+): Promise<{ repo?: string; branch?: string }> {
+  try {
+    const root = await getRepoRoot(cwd)
+    if (!root) return {}
+    const repo = basename(root)
+    const r = await runGit(root, ['branch', '--show-current'], TIMEOUT_LOCAL_MS)
+    const branch = r.exitCode === 0 ? r.stdout.trim().split('\n')[0]?.trim() : ''
+    // HEAD desacoplado devuelve vacío; se omite en vez de guardar "".
+    return branch ? { repo, branch } : { repo }
+  } catch {
+    return {}
+  }
+}
+
 export async function getRepoRoot(sessionCwd: string): Promise<string | null> {
   const r = await runGit(sessionCwd, ['rev-parse', '--show-toplevel'], TIMEOUT_LOCAL_MS)
   if (r.exitCode !== 0) return null

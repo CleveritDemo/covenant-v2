@@ -17,7 +17,7 @@ import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
-import { getRepoRoot } from './gitSessionOps'
+import { repoAndBranch } from './gitSessionOps'
 import {
   buildContextCatalogPrompt,
   buildContextPromptDelivery,
@@ -1298,6 +1298,8 @@ export function startAgentTurn(
       kind: 'prompt' as const,
       provider: request.provider,
       agentId: request.agentId,
+      permissionMode: request.permissionMode,
+      ...(request.workspace ? { workspace: request.workspace } : {}),
       tokensIn: Math.max(0, after.inputTokens - tokensAtStart.inputTokens),
       tokensOut: Math.max(0, after.outputTokens - tokensAtStart.outputTokens),
     }
@@ -1305,8 +1307,8 @@ export function startAgentTurn(
       recordPulseEvent(event)
       return
     }
-    void getRepoRoot(cwd)
-      .then(root => recordPulseEvent(root ? { ...event, repo: basename(root) } : event))
+    void repoAndBranch(cwd)
+      .then(ctx => recordPulseEvent({ ...event, ...ctx }))
       .catch(() => recordPulseEvent(event))
   }
 

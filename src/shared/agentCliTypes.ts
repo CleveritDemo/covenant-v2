@@ -28,6 +28,11 @@ export interface AgentCliStartRequest {
   name?: string
   /** Id estable del catálogo; resultados y contextIds usan este id. */
   agentId?: string
+  /**
+   * Workspace org de la pestaña como `<slug>/<workspaceId>`. Solo lo consume
+   * la instrumentación de Pulse; no entra en el prompt ni en los flags del CLI.
+   */
+  workspace?: string
   /** Rol del agente; se inyecta en el prompt del turno. */
   role?: string
   /** Objetivo persistente; se inyecta en el prompt del turno. */

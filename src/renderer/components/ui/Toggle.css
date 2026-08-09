@@ -4,7 +4,7 @@
   gap: 6px;
   cursor: pointer;
   user-select: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 0.8125em;
   color: var(--text-muted);
   padding: 2px 4px;

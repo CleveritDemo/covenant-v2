@@ -167,7 +167,7 @@
 /* En un pie con justify-content: flex-end, esto empuja los botones a la derecha. */
 .settings-status {
   margin-right: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10.5px;
   color: var(--text-muted);
 }
@@ -335,7 +335,7 @@
 }
 
 .settings-spotify-row .settings-label--compact input {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 12px;
   padding: 7px 9px;
   border-radius: 8px;

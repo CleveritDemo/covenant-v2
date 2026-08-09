@@ -41,7 +41,7 @@
   border: none;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   border-radius: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   padding: 0;
   color: var(--text);

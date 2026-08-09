@@ -1544,7 +1544,7 @@ html[data-reduce-motion="true"] {
   background: color-mix(in srgb, var(--tab-context-mono) 20%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tab-context-mono) 38%, transparent);
   color: color-mix(in srgb, var(--tab-context-mono) 55%, var(--text));
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9.5px;
   font-weight: 700;
 }
@@ -1688,7 +1688,7 @@ html[data-reduce-motion="true"] {
   flex: 1 1 auto;
   min-width: 0;
   text-align: right;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-ui);
   text-transform: none;
   letter-spacing: 0;
   overflow: hidden;
@@ -1866,7 +1866,7 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts__kind-banner small {
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
 }
 

@@ -6,7 +6,7 @@
 }
 
 .agent-provider-grid__state {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   line-height: 1.4;
   color: var(--text-muted);

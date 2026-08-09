@@ -74,7 +74,7 @@
 }
 
 .context-report__annotations dt {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }

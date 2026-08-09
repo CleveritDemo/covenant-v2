@@ -31,7 +31,7 @@
 }
 
 .agent-config-identity__count {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);

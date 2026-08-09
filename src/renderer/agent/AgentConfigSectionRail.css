@@ -81,7 +81,7 @@
   border: 1px solid var(--border);
   border-radius: 5px;
   background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   line-height: 16px;
   color: var(--text-muted);

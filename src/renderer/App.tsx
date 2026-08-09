@@ -375,6 +375,8 @@ export const App: React.FC = () => {
     images: AgentCliImageAttachment[]
     focusPane?: boolean
     viaLoop?: boolean
+    /** Contextos adjuntos solo a este turno (drop en el composer). */
+    extraContextIds?: string[]
     orchestrationFollowUp?: boolean
     allowDelegations?: boolean
     delegation?: {
@@ -4865,11 +4867,16 @@ export const App: React.FC = () => {
                   }}
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
-                  onSendChat={(paneId, text, images) => {
+                  onSendChat={(paneId, text, images, contextIds) => {
                     yieldChainOfferForUserSend(paneId)
                     setPlaneSendByPane(prev => ({
                       ...prev,
-                      [paneId]: { text, images, focusPane: true },
+                      [paneId]: {
+                        text,
+                        images,
+                        focusPane: true,
+                        ...(contextIds.length ? { extraContextIds: contextIds } : {}),
+                      },
                     }))
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {

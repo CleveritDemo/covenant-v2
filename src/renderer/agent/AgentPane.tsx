@@ -91,6 +91,8 @@ interface QueuedTurn {
   images: PendingImage[]
   /** Se encoló un turno de loop: al drenarlo sigue siendo de loop. */
   viaLoop?: boolean
+  /** Contextos adjuntos solo a este turno; se encolan con él. */
+  extraContextIds?: string[]
   orchestrationFollowUp?: boolean
   allowDelegations?: boolean
   delegation?: {
@@ -107,6 +109,8 @@ export interface AgentPreferSend {
   focusPane?: boolean
   /** Lo despachó una cadena de loop del plano, no una persona. */
   viaLoop?: boolean
+  /** Contextos adjuntos a este turno desde el composer (no van al catálogo). */
+  extraContextIds?: string[]
   /** Follow-up de orquestación (no resetea oleadas). */
   orchestrationFollowUp?: boolean
   /** Si false, el host prohíbe nuevas delegaciones en este turno. */
@@ -1494,10 +1498,19 @@ export const AgentPane: React.FC<Props> = ({
       allowDelegations?: boolean
       orchestrationFollowUp?: boolean
       viaLoop?: boolean
+      extraContextIds?: string[]
     },
   ): Promise<boolean> => {
+    /**
+     * Los del catálogo del agente más los que vengan adjuntos al turno. El Set
+     * deduplica: adjuntar algo ya asignado no lo manda dos veces.
+     */
+    const wantedContextIds = new Set([
+      ...(metaRef.current.contextIds ?? []),
+      ...(options?.extraContextIds ?? []),
+    ])
     const assigned = diskContextsRef.current.filter(context =>
-      (metaRef.current.contextIds ?? []).includes(context.id))
+      wantedContextIds.has(context.id))
     const images: AgentCliImageAttachment[] = []
     const displayImages: AgentChatImage[] = []
     for (const [index, image] of imagesSnapshot.entries()) {
@@ -1593,6 +1606,7 @@ export const AgentPane: React.FC<Props> = ({
     const delegation = preferSend.delegation
     const orchestrationFollowUp = preferSend.orchestrationFollowUp === true
     const viaLoop = preferSend.viaLoop === true
+    const extraContextIds = preferSend.extraContextIds ?? []
     const allowDelegations = preferSend.allowDelegations
     const isHumanTurn = !orchestrationFollowUp && !delegation
     // Busy: no consumir follow-ups ni delegaciones; App FIFO reintenta al idle.
@@ -1609,6 +1623,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
       ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
       ...(viaLoop ? { viaLoop: true as const } : {}),
+      ...(extraContextIds.length ? { extraContextIds } : {}),
     }
     // Solo humanos / no-delegación encolan en local; delegaciones nunca mientras busy.
     const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
@@ -1731,6 +1746,7 @@ export const AgentPane: React.FC<Props> = ({
       ...(next.allowDelegations === false ? { allowDelegations: false } : {}),
       ...(next.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
       ...(next.viaLoop ? { viaLoop: true } : {}),
+      ...(next.extraContextIds?.length ? { extraContextIds: next.extraContextIds } : {}),
     }).finally(() => {
       drainingRef.current = false
     })

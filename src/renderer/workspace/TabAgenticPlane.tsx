@@ -94,7 +94,12 @@ export interface TabAgenticPlaneProps {
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
   onOpenResultsPreview?: (contextId: string) => void
-  onSendChat: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
+  onSendChat: (
+    paneId: string,
+    text: string,
+    images: AgentCliImageAttachment[],
+    contextIds: string[],
+  ) => void
   /** Detiene el turno activo del agente desde el composer del plano. */
   onStopChat: (paneId: string) => void
   /** Pide limpiar la conversación del agente (confirmación en AgentPane). */
@@ -732,6 +737,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           composer={(
             <PlaneChatComposer
               agents={agents}
+              contexts={tabContexts}
               selectedAgentId={openChatAgentId}
               placeholder={chatPlaceholder}
               emptyAgentsHint={chatEmptyAgents}

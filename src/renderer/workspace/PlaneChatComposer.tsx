@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
+import { hasPlaneContextDrag, readPlaneContextDragData } from './planeContextDrag'
+import type { PlaneContextPoolItem } from './PlaneContextPool'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
@@ -62,6 +64,8 @@ export interface PlaneChatQueuedTurn {
 
 export interface PlaneChatComposerProps {
   agents: PlaneChatAgentOption[]
+  /** Catálogo del pool: resuelve el id que llega en el drop a nombre/ícono. */
+  contexts?: PlaneContextPoolItem[]
   selectedAgentId: string | null
   placeholder: string
   emptyAgentsHint: string
@@ -70,7 +74,12 @@ export interface PlaneChatComposerProps {
   onSelectAgent: (paneId: string) => void
   onCloseChat?: () => void
   onStop: (paneId: string) => void
-  onSend: (paneId: string, text: string, images: AgentCliImageAttachment[]) => void
+  onSend: (
+    paneId: string,
+    text: string,
+    images: AgentCliImageAttachment[],
+    contextIds: string[],
+  ) => void
   onRemoveQueuedTurn?: (paneId: string, id: string) => void
   onUpdateQueuedTurn?: (paneId: string, id: string, text: string) => void
   onMergeQueuedTurns?: (paneId: string) => void
@@ -84,6 +93,7 @@ export interface PlaneChatComposerProps {
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   agents,
+  contexts = [],
   selectedAgentId,
   placeholder,
   emptyAgentsHint,
@@ -103,6 +113,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const { t } = useT()
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
+  /**
+   * Contextos adjuntos a ESTE turno. No tocan el catálogo del agente: se envían
+   * con el mensaje y se limpian, igual que las imágenes pegadas.
+   */
+  const [pendingContextIds, setPendingContextIds] = useState<string[]>([])
+  const [dropActive, setDropActive] = useState(false)
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const [sketchOpen, setSketchOpen] = useState(false)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
@@ -202,15 +218,57 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     })
   }, [appendPendingImages])
 
+  const pendingContexts = useMemo(
+    () => pendingContextIds
+      .map(id => contexts.find(context => context.id === id))
+      .filter((context): context is PlaneContextPoolItem => context != null),
+    [contexts, pendingContextIds],
+  )
+
+  const removePendingContext = useCallback((id: string): void => {
+    setPendingContextIds(previous => previous.filter(contextId => contextId !== id))
+  }, [])
+
+  /**
+   * Sin `preventDefault` el navegador pega el `text/plain` del arrastre (el id
+   * crudo) dentro del textarea. Hay que interceptarlo aunque el id no se
+   * reconozca, o el default gana.
+   */
+  const handleDragOver = useCallback((event: React.DragEvent): void => {
+    if (!hasPlaneContextDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setDropActive(true)
+  }, [])
+
+  const handleDragLeave = useCallback((event: React.DragEvent): void => {
+    // Solo al salir del composer entero, no al cruzar entre sus hijos.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDropActive(false)
+  }, [])
+
+  const handleDrop = useCallback((event: React.DragEvent): void => {
+    if (!hasPlaneContextDrag(event.dataTransfer)) return
+    event.preventDefault()
+    setDropActive(false)
+    const id = readPlaneContextDragData(event.dataTransfer)
+    if (!id || !contexts.some(context => context.id === id)) return
+    setPendingContextIds(previous => (
+      previous.includes(id) ? previous : [...previous, id]
+    ))
+  }, [contexts])
+
   const submit = (): void => {
     const text = draft.trim()
     if (!selected || composerLocked || (!text && pendingImages.length === 0)) return
     const imagesSnapshot = pendingImages
+    const contextIdsSnapshot = pendingContextIds
     setDraft('')
     setPendingImages([])
+    setPendingContextIds([])
     void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
-      onSend(selected.paneId, text, attachments)
+      onSend(selected.paneId, text, attachments, contextIdsSnapshot)
     })
   }
 
@@ -241,7 +299,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           busy || loopActive || awaitingDelegations || delegationWorkActive
             ? 'plane-chat-composer--working'
             : '',
+          dropActive ? 'plane-chat-composer--drop' : '',
         ].filter(Boolean).join(' ')}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
       <div className="plane-chat-composer__body">
         {queuedTurns.length > 0 && selectedAgentId && (
@@ -304,6 +366,38 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             </>
           )}
         </div>
+
+        {(pendingContexts.length > 0 || dropActive) && (
+          <div
+            className="plane-chat-composer__turn-contexts"
+            aria-label={t('tabs.planeComposerContextsLabel', { n: pendingContexts.length })}
+          >
+            {pendingContexts.map(context => (
+              <span
+                key={context.id}
+                className={[
+                  'plane-chat-composer__context',
+                  context.kind === 'agentResult' ? 'plane-chat-composer__context--result' : '',
+                ].filter(Boolean).join(' ')}
+                style={{ '--context-color': context.color } as React.CSSProperties}
+              >
+                <Icon name={context.icon} size={12} aria-hidden />
+                <span className="plane-chat-composer__context-name">{context.name}</span>
+                <span className="plane-chat-composer__context-kind">{context.kindLabel}</span>
+                <PlaneChatRemoveChipButton
+                  appearance="chip"
+                  label={t('tabs.planeComposerContextRemove', { name: context.name })}
+                  onClick={() => removePendingContext(context.id)}
+                />
+              </span>
+            ))}
+            {dropActive ? (
+              <span className="plane-chat-composer__drop-hint">
+                {t('tabs.planeComposerContextDropHint')}
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {pendingImages.length > 0 && (
           <div

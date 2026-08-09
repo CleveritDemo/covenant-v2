@@ -1,5 +1,6 @@
 import React from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
@@ -25,6 +26,7 @@ export interface AgentPaneMessagesProps {
   activity: string
   /** Orquestador esperando resultados de sub-agentes. */
   awaitingDelegations: boolean
+  orchestrationAwaiting?: OrchestrationAwaitingView | null
   loopActive: boolean
   loopIteration: number
   queuedTurns: AgentPaneQueuedTurn[]
@@ -50,6 +52,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   busy,
   activity,
   awaitingDelegations,
+  orchestrationAwaiting = null,
   loopActive,
   loopIteration,
   queuedTurns,
@@ -67,6 +70,12 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onScrollToBottom,
 }) => {
   const { t } = useT()
+  const waveLabel = orchestrationAwaiting
+    ? t('agentPane.awaitingWaveProgress', {
+      done: orchestrationAwaiting.done,
+      total: orchestrationAwaiting.total,
+    })
+    : t('agentPane.delegatingTitle')
 
   return (
     <div className="agent-pane__messages-wrap">
@@ -93,8 +102,24 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
         />
         {awaitingDelegations ? (
           <AgentDelegatingIndicator
-            label={t('agentPane.delegatingTitle')}
-            sublabel={t('agentPane.delegatingSubtitle')}
+            label={waveLabel}
+            sublabel={
+              orchestrationAwaiting
+                ? t('agentPane.awaitingWaveSublabel')
+                : t('agentPane.delegatingSubtitle')
+            }
+            items={(orchestrationAwaiting?.items ?? []).map(item => ({
+              id: item.delegationId,
+              label: item.agentLabel,
+              ...(item.isReplica
+                ? { replicaBadge: t('agentPane.awaitingReplicaBadge') }
+                : {}),
+              status: item.status,
+              statusLabel: item.status === 'done'
+                ? t('agentPane.awaitingStatusDone')
+                : t('agentPane.awaitingStatusRunning'),
+              ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
+            }))}
           />
         ) : (busy || activity !== '') && (() => {
           const activityText = activity

@@ -124,3 +124,32 @@ export interface ShouldUseWorktreeInput {
 export function shouldUseWorktreeForDelegation(input: ShouldUseWorktreeInput): boolean {
   return input.isGitRepo && input.hasBaseBranch
 }
+
+export interface PlannedDelegationWorktree {
+  delegationId: string
+  branch: string
+  relPath: string
+  worktreePath: string
+}
+
+/**
+ * Planifica worktrees distintos por delegationId (base o réplica).
+ * Dos delegaciones en paralelo → dos paths/branches; no depende de allowExpertReplicas.
+ */
+export function planDelegationWorktrees(input: {
+  baseCwd: string
+  tabId: string
+  delegationIds: readonly string[]
+}): PlannedDelegationWorktree[] {
+  const base = String(input.baseCwd ?? '').replace(/\/+$/, '')
+  return input.delegationIds.map(delegationId => {
+    const branch = worktreeBranchFor(delegationId)
+    const relPath = worktreeRelPathFor(input.tabId, delegationId)
+    return {
+      delegationId,
+      branch,
+      relPath,
+      worktreePath: base ? `${base}/${relPath}` : relPath,
+    }
+  })
+}

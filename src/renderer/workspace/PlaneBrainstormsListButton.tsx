@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneLoopsButton.css'
 
 export interface PlaneBrainstormsListButtonProps {
@@ -17,19 +18,24 @@ export const PlaneBrainstormsListButton: React.FC<PlaneBrainstormsListButtonProp
   disabled = false,
   disabledTitle,
   onClick,
-}) => (
-  <button
-    type="button"
-    className={[
-      'plane-loops-button',
-      'plane-loops-button--icon-only',
-      pressed ? 'plane-loops-button--pressed' : '',
-    ].filter(Boolean).join(' ')}
-    aria-label={label}
-    aria-pressed={pressed}
-    disabled={disabled}
-    onClick={onClick}
-  >
-    <Icon name="brain" size={13} />
-  </button>
-)
+}) => {
+  const title = disabled ? (disabledTitle || label) : label
+  return (
+    <Tooltip content={title}>
+      <button
+        type="button"
+        className={[
+          'plane-loops-button',
+          'plane-loops-button--icon-only',
+          pressed ? 'plane-loops-button--pressed' : '',
+        ].filter(Boolean).join(' ')}
+        aria-label={title}
+        aria-pressed={pressed}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Icon name="brain" size={13} />
+      </button>
+    </Tooltip>
+  )
+}

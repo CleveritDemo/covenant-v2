@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildConflictFollowUp,
   buildMergeCommitMessage,
+  planDelegationWorktrees,
   planWorktreeMergeOrder,
   sanitizeDelegationSlug,
   shouldUseWorktreeForDelegation,
@@ -188,5 +189,21 @@ describe('shouldUseWorktreeForDelegation', () => {
     expect(shouldUseWorktreeForDelegation({ isGitRepo: true, hasBaseBranch: false })).toBe(false)
     expect(shouldUseWorktreeForDelegation({ isGitRepo: false, hasBaseBranch: true })).toBe(false)
     expect(shouldUseWorktreeForDelegation({ isGitRepo: false, hasBaseBranch: false })).toBe(false)
+  })
+})
+
+describe('planDelegationWorktrees', () => {
+  it('plans distinct absolute paths per delegation under WORKTREES_DIR_SEGMENT', () => {
+    const planned = planDelegationWorktrees({
+      baseCwd: '/Users/me/repo',
+      tabId: 'tab-a',
+      delegationIds: ['d1', 'd2'],
+    })
+    expect(planned.map(item => item.worktreePath)).toEqual([
+      `/Users/me/repo/${WORKTREES_DIR_SEGMENT}/tab-a/d1`,
+      `/Users/me/repo/${WORKTREES_DIR_SEGMENT}/tab-a/d2`,
+    ])
+    expect(planned[0]!.branch).toBe('gravity/deleg/d1')
+    expect(planned[1]!.branch).toBe('gravity/deleg/d2')
   })
 })

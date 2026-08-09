@@ -60,6 +60,12 @@ export interface ProjectAgentDefinition {
   /** A quién puede delegar; omitido si equals default del coordination. */
   delegateTo?: DelegateToPolicy
   /**
+   * Solo orchestrator|productOwner: el host puede clonar especialistas a demanda
+   * cuando el experto base está ocupado o el toAgentId pide una réplica.
+   * Omitido/false = comportamiento actual (sin spawn).
+   */
+  allowExpertReplicas?: boolean
+  /**
    * Omitido = el agente no ve ninguna skill de plugin. El default seguro es
    * el que no cuesta tokens: `claude plugin details superpowers` reporta ~688
    * tokens always-on solo por ese plugin.
@@ -354,6 +360,7 @@ export function parseProjectAgentDefinition(
       const delegateTo = persistableDelegateTo(coordination, data.delegateTo)
       if (delegateTo) def.delegateTo = delegateTo
     }
+    if (data.allowExpertReplicas === true) def.allowExpertReplicas = true
   }
   if (data.acceptDelegations === false) def.acceptDelegations = false
   const nativeSkills = sanitizeNativeSkills(data.nativeSkills)
@@ -392,6 +399,10 @@ export function cloneProjectAgentDefinition(
       && typeof source.orchestrationMaxRounds === 'number'
       && source.orchestrationMaxRounds !== MAX_ORCHESTRATION_ROUNDS
       ? { orchestrationMaxRounds: sanitizeOrchestrationMaxRounds(source.orchestrationMaxRounds) }
+      : {}),
+    ...((source.coordination === 'orchestrator' || source.coordination === 'productOwner')
+      && source.allowExpertReplicas === true
+      ? { allowExpertReplicas: true }
       : {}),
     ...(() => {
       const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
@@ -511,6 +522,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
     delegateTo: meta.delegateTo,
+    allowExpertReplicas: meta.allowExpertReplicas,
     nativeSkills: meta.nativeSkills,
     mcpsAllowed: meta.mcpsAllowed,
   }, meta.id) ?? {

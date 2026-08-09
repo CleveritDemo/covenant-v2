@@ -56,6 +56,7 @@ export interface AgentConfigSettingsPaneProps {
   cliStatuses?: Partial<Record<AgentCliProvider, AgentCliResolution>>
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
+  onAllowExpertReplicasChange: (allow: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
@@ -209,6 +210,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   cliStatuses = {},
   onChangeCoordination,
   onAcceptDelegationsChange,
+  onAllowExpertReplicasChange,
   onOrchestrationMaxRoundsChange,
   onChangeDelegateTo,
   onChangeProvider,
@@ -465,6 +467,14 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 onChange={onChangeDelegateTo}
               />
             )}
+            <SettingToggle
+              checked={meta.allowExpertReplicas === true}
+              disabled={locked}
+              title={t('agentPane.allowExpertReplicasLabel')}
+              description={t('agentPane.allowExpertReplicasHint')}
+              hint={t('agentPane.allowExpertReplicasHint')}
+              onChange={onAllowExpertReplicasChange}
+            />
           </>
         ) : (
           <SettingToggle

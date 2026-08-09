@@ -1,5 +1,6 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneLoopsButton.css'
 
 export interface PlaneRevealFolderButtonProps {
@@ -14,15 +15,17 @@ export const PlaneRevealFolderButton: React.FC<PlaneRevealFolderButtonProps> = (
   label,
   onReveal,
 }) => {
-  const title = folderPath.trim() || label
+  const path = folderPath.trim()
   return (
-    <button
-      type="button"
-      className="plane-loops-button plane-loops-button--icon-only"
-      aria-label={title}
-      onClick={onReveal}
-    >
-      <Icon name="folder" size={13} />
-    </button>
+    <Tooltip content={label} hint={path || undefined}>
+      <button
+        type="button"
+        className="plane-loops-button plane-loops-button--icon-only"
+        aria-label={path || label}
+        onClick={onReveal}
+      >
+        <Icon name="folder" size={13} />
+      </button>
+    </Tooltip>
   )
 }

@@ -60,6 +60,11 @@ export interface AgentCliStartRequest {
   orchestrationMaxRounds?: number
   /** Especialistas del plano visibles para el orquestador. */
   orchestrationAgents?: OrchestrationAgentRef[]
+  /**
+   * Orquestador puede pedir varias delegaciones al mismo rol; el host spawnea réplicas.
+   * No afecta el aislamiento por worktree (siempre on si hay repo).
+   */
+  allowExpertReplicas?: boolean
   /** Resultados de delegaciones previas a inyectar en el prompt. */
   pendingDelegationResults?: DelegateResult[]
   cliSessionId?: string

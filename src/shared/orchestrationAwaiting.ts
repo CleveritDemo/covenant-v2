@@ -1,0 +1,75 @@
+/**
+ * Presentación pura del estado de ola de delegaciones (awaiting).
+ * Sin React/electron: App arma inputs desde refs; UI solo renderiza la vista.
+ */
+
+export type OrchestrationAwaitingItemStatus = 'running' | 'done'
+
+export interface OrchestrationAwaitingItemInput {
+  delegationId: string
+  toAgentId: string
+  /** Si la ruta usó un experto base distinto (réplica spawn). */
+  baseAgentId?: string
+  status: OrchestrationAwaitingItemStatus
+  worktreePath?: string
+}
+
+export interface OrchestrationAwaitingItemView {
+  delegationId: string
+  agentLabel: string
+  isReplica: boolean
+  status: OrchestrationAwaitingItemStatus
+  /** Último segmento útil del worktree (barato, sin IPC). */
+  worktreeHint?: string
+}
+
+export interface OrchestrationAwaitingView {
+  done: number
+  total: number
+  items: OrchestrationAwaitingItemView[]
+}
+
+/** Heurística: `frontend-2` es réplica de `frontend` si no hay base explícita. */
+export function isReplicaAgentId(toAgentId: string, baseAgentId?: string): boolean {
+  const to = toAgentId.trim().toLowerCase()
+  if (!to) return false
+  const base = baseAgentId?.trim().toLowerCase()
+  if (base) return to !== base
+  return /^.+-\d+$/i.test(to)
+}
+
+/** Hint corto del path de worktree (p. ej. `tab/dlg-id`). */
+export function shortWorktreeHint(worktreePath: string | undefined): string | undefined {
+  const raw = worktreePath?.trim()
+  if (!raw) return undefined
+  const normalized = raw.replace(/\\/g, '/').replace(/\/+$/, '')
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length === 0) return undefined
+  const idx = parts.findIndex(part => part === 'worktrees')
+  if (idx >= 0 && parts[idx + 1] && parts[idx + 2]) {
+    return `${parts[idx + 1]}/${parts[idx + 2]}`
+  }
+  if (parts.length >= 2) return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`
+  return parts[parts.length - 1]
+}
+
+export function buildOrchestrationAwaitingView(
+  items: readonly OrchestrationAwaitingItemInput[],
+): OrchestrationAwaitingView | null {
+  if (!items.length) return null
+  const views: OrchestrationAwaitingItemView[] = items.map(item => ({
+    delegationId: item.delegationId,
+    agentLabel: item.toAgentId.trim() || item.delegationId,
+    isReplica: isReplicaAgentId(item.toAgentId, item.baseAgentId),
+    status: item.status,
+    ...(shortWorktreeHint(item.worktreePath)
+      ? { worktreeHint: shortWorktreeHint(item.worktreePath) }
+      : {}),
+  }))
+  const done = views.filter(item => item.status === 'done').length
+  return {
+    done,
+    total: views.length,
+    items: views,
+  }
+}

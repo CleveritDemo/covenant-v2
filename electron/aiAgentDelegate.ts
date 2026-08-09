@@ -64,6 +64,7 @@ export function buildAiAgentDelegateInstruction(options?: {
   round?: number
   maxRounds?: number
   allowedAgentIds?: readonly string[]
+  allowExpertReplicas?: boolean
 }): string {
   const allow = options?.allowDelegations !== false
   if (!allow) {
@@ -75,12 +76,20 @@ export function buildAiAgentDelegateInstruction(options?: {
     ].join('\n')
   }
   const exampleId = exampleAgentId(options?.allowedAgentIds)
+  const replicaLines = options?.allowExpertReplicas
+    ? [
+      'Parallel experts: you may delegate multiple slices to the same specialist role at once.',
+      'Use the listed agentId repeatedly, or agentId#2 / agentId-2; the host clones busy experts into temporary replicas.',
+    ]
+    : []
   return [
     '## Agent orchestration',
     'You are an orchestrator. Your job is to decompose work, delegate to specialists, integrate results, and report to the user.',
     'Do not implement large code changes yourself. Prefer delegating when a specialist fits the work.',
     'Trivial answers (clarifications, short factual replies) may be answered directly — without delegating.',
+    'Specialists work in dedicated git worktrees. When their turns complete, the host merges those branches into the base branch in order — you integrate outcomes in chat; you do not run git merge yourself.',
     formatAllowedAgentIdsLine(options?.allowedAgentIds),
+    ...replicaLines,
     orchestrationWaveCapLine(options),
     'Stop delegating when: the user goal is met, specialists already answered, or another wave would only repeat work.',
     'When the goal is met, reply to the user and do NOT emit a delegate fence.',
@@ -103,6 +112,7 @@ export function buildAiAgentProductOwnerInstruction(options?: {
   round?: number
   maxRounds?: number
   allowedAgentIds?: readonly string[]
+  allowExpertReplicas?: boolean
 }): string {
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
   const unlimited = isOrchestrationRoundsUnlimited(maxRounds)
@@ -122,13 +132,20 @@ export function buildAiAgentProductOwnerInstruction(options?: {
   const continueLine = unlimited
     ? 'When work remains in the user request scope, emit exactly one fenced JSON block (user-facing text outside it):'
     : 'When work remains in the user request scope and waves remain, emit exactly one fenced JSON block (user-facing text outside it):'
+  const replicaLines = options?.allowExpertReplicas
+    ? [
+      'Parallel experts: you may delegate multiple slices to the same orchestrator/specialist role; the host clones busy experts into temporary replicas.',
+    ]
+    : []
   return [
     '## Product owner coordination',
     'You are the product owner steering continuous delivery of the user\'s initial request.',
     'Prioritize and decompose the user\'s initial request (and attached contexts / agent results PASS/FAIL / changelog).',
     'Do not invent unrelated product features. You do NOT write code or implement UI.',
     'Delegate only to agents listed under Available agents (host-enforced). Prefer orchestrators for build work.',
+    'Delegates run in isolated git worktrees; the host merges into the base branch when integrating results.',
     formatAllowedAgentIdsLine(options?.allowedAgentIds),
+    ...replicaLines,
     orchestrationWaveCapLine(options),
     'After a slice PASSes, immediately emit the next ```ia-terminal-delegate``` fence to the orchestrator for the next concrete slice toward the user request.',
     'FORBIDDEN: asking "should we continue?", "¿seguimos?", or requesting human priority/approval between slices.',

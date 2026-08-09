@@ -66,6 +66,7 @@ function renderModal(
       onCommitIdentity={() => {}}
       onChangeCoordination={() => {}}
       onAcceptDelegationsChange={() => {}}
+      onAllowExpertReplicasChange={() => {}}
       onOrchestrationMaxRoundsChange={() => {}}
       onChangeDelegateTo={() => {}}
       onChangeProvider={() => {}}

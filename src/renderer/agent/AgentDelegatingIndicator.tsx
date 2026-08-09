@@ -37,32 +37,39 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
       <span className="agent-delegating__sat agent-delegating__sat--c" />
     </div>
     <div className="agent-delegating__copy">
-      <span className="agent-delegating__label">{label}</span>
-      {sublabel ? (
-        <span className="agent-delegating__sublabel">{sublabel}</span>
-      ) : null}
+      <div className="agent-delegating__headline">
+        <span className="agent-delegating__label">{label}</span>
+        {sublabel ? (
+          <span className="agent-delegating__sublabel">{sublabel}</span>
+        ) : null}
+      </div>
       {items.length > 0 ? (
         <ul className="agent-delegating__list">
-          {items.map(item => (
-            <li
-              key={item.id}
-              className={[
-                'agent-delegating__row',
-                item.status === 'done' ? 'agent-delegating__row--done' : '',
-              ].filter(Boolean).join(' ')}
-            >
-              <span className="agent-delegating__agent">{item.label}</span>
-              {item.replicaBadge ? (
-                <span className="agent-delegating__badge">{item.replicaBadge}</span>
-              ) : null}
-              <span className="agent-delegating__status">{item.statusLabel}</span>
-              {item.worktreeHint ? (
-                <Tooltip content={item.worktreeHint}>
-                  <span className="agent-delegating__wt">{item.worktreeHint}</span>
-                </Tooltip>
-              ) : null}
-            </li>
-          ))}
+          {items.map(item => {
+            const chip = (
+              <span
+                className={[
+                  'agent-delegating__chip',
+                  item.status === 'done' ? 'agent-delegating__chip--done' : '',
+                ].filter(Boolean).join(' ')}
+              >
+                <span className="agent-delegating__agent">{item.label}</span>
+                {item.replicaBadge ? (
+                  <span className="agent-delegating__badge">{item.replicaBadge}</span>
+                ) : null}
+                <span className="agent-delegating__status">{item.statusLabel}</span>
+              </span>
+            )
+            return (
+              <li key={item.id} className="agent-delegating__row">
+                {item.worktreeHint ? (
+                  <Tooltip content={item.worktreeHint}>{chip}</Tooltip>
+                ) : (
+                  chip
+                )}
+              </li>
+            )
+          })}
         </ul>
       ) : null}
     </div>

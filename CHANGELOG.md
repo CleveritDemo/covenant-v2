@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.24.0
+
+- **El indicador de ola del orquestador (Waiting X/Y) es más compacto**: título
+  y subtítulo en una línea, especialistas en chips horizontales y menos altura.
+
 ## v0.23.0
 
 - **Al pulsar un contexto del plano se abre un modal**: fila de agentes para

@@ -53,6 +53,7 @@ import type {
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import type {
   FileExplorerClipboardResult,
+  FileExplorerBytesPayload,
   FileExplorerFilePayload,
   FileExplorerListResult,
   FileExplorerSearchResult,
@@ -681,6 +682,14 @@ const api = {
     options?: { allowLarge?: boolean },
   ): Promise<FileExplorerFilePayload> {
     return ipcRenderer.invoke(IPC.FILE_EXPLORER_LOAD_FILE, sessionId, relPath, options)
+  },
+
+  fileExplorerLoadBytes(
+    sessionId: string,
+    relPath: string,
+    maxBytes: number,
+  ): Promise<FileExplorerBytesPayload> {
+    return ipcRenderer.invoke(IPC.FILE_EXPLORER_LOAD_BYTES, sessionId, relPath, maxBytes)
   },
 
   fileExplorerSaveFile(

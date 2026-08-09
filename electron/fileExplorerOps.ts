@@ -13,6 +13,7 @@ import {
   type Dirent,
 } from 'fs'
 import type {
+  FileExplorerBytesPayload,
   FileExplorerEntry,
   FileExplorerFilePayload,
   FileExplorerListResult,
@@ -561,5 +562,53 @@ function runRgFileSearch(projectRoot: string, globPattern: string): string[] | n
       .slice(0, FILE_EXPLORER_SEARCH_MAX_RESULTS)
   } catch {
     return null
+  }
+}
+
+/**
+ * Lee un archivo como bytes, para los visores que no trabajan con texto
+ * (imágenes, PDF, XLSX, DOCX). Va por su propio canal porque
+ * `loadFileForExplorer` se niega a leer binarios a propósito: devolverlos como
+ * UTF-8 los corrompe y llena el editor de reemplazos.
+ *
+ * `maxBytes` lo decide quien llama a partir del tipo de visor: un PDF de 40 MB
+ * es razonable, un DOCX de 40 MB casi seguro es un error.
+ */
+export function loadFileBytesForExplorer(
+  projectRootRaw: string,
+  relPath: string,
+  maxBytes: number,
+): FileExplorerBytesPayload {
+  const projectRoot = resolveWorkingDir(projectRootRaw)
+  if (!projectRoot) {
+    return { ok: false, relPath, error: 'cwd inválido', code: FILE_EXPLORER_ERROR_CODES.CWD_INVALID }
+  }
+
+  const abs = resolveSafeProjectPath(projectRoot, relPath)
+  if (!abs) {
+    return { ok: false, relPath, error: 'ruta inválida', code: FILE_EXPLORER_ERROR_CODES.PATH_INVALID }
+  }
+
+  try {
+    const st = statSync(abs)
+    if (!st.isFile()) {
+      return { ok: false, relPath, error: 'no es un archivo', code: FILE_EXPLORER_ERROR_CODES.NOT_A_FILE }
+    }
+    // El tope se comprueba ANTES de leer: si no, un archivo de 2 GB se carga
+    // entero en el main sólo para descartarlo después.
+    if (st.size > maxBytes) {
+      return {
+        ok: false,
+        relPath,
+        error: 'archivo demasiado grande',
+        code: FILE_EXPLORER_ERROR_CODES.FILE_TOO_LARGE,
+        sizeBytes: st.size,
+        maxBytes,
+      }
+    }
+    return { ok: true, relPath, bytes: readFileSync(abs), sizeBytes: st.size }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, relPath, error: msg, code: FILE_EXPLORER_ERROR_CODES.LOAD_FAILED }
   }
 }

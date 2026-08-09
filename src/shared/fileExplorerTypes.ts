@@ -59,3 +59,14 @@ export interface FileExplorerSearchResult {
   error?: string
   code?: FileExplorerErrorCode
 }
+
+export interface FileExplorerBytesPayload {
+  ok: boolean
+  relPath: string
+  /** Contenido crudo. `undefined` cuando `ok` es false. */
+  bytes?: Uint8Array
+  sizeBytes?: number
+  maxBytes?: number
+  error?: string
+  code?: FileExplorerFilePayload['code']
+}

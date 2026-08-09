@@ -220,6 +220,8 @@ export const IPC = {
   FILE_EXPLORER_LIST_DIR: 'fileExplorer:listDir',
   /** Renderer → main (invoke): leer archivo para el explorador */
   FILE_EXPLORER_LOAD_FILE: 'fileExplorer:loadFile',
+  /** Renderer → main (invoke): leer archivo como bytes para los visores (imagen, pdf, xlsx, docx) */
+  FILE_EXPLORER_LOAD_BYTES: 'fileExplorer:loadBytes',
   /** Renderer → main (invoke): guardar archivo relativo al cwd de la sesión */
   FILE_EXPLORER_SAVE_FILE: 'fileExplorer:saveFile',
   /** Renderer → main (invoke): crear carpeta relativa al cwd de la sesión */

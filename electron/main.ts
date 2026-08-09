@@ -196,6 +196,9 @@ import {
   stopAllFileExplorerWatches,
   stopFileExplorerWatch,
 } from './fileExplorerWatcher'
+import { loadFileBytesForExplorer } from './fileExplorerOps'
+/** Techo duro del main para cualquier visor, por encima de lo que pida el renderer. */
+const FILE_EXPLORER_MAX_PREVIEW_BYTES = 100_000_000
 import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
 import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
@@ -1261,6 +1264,21 @@ function registerIpc(): void {
   )
 
   ipcMain.handle(
+    IPC.FILE_EXPLORER_LOAD_BYTES,
+    (_e, sessionId: string, relPath: unknown, maxBytes: unknown) => {
+      if (typeof relPath !== 'string' || !relPath.trim()) {
+        return { ok: false, relPath: '', error: 'ruta vacía' }
+      }
+      // El tope lo fija el renderer según el visor, pero se acota acá: el main
+      // no acepta que le pidan cargar un archivo arbitrariamente grande.
+      const cap = typeof maxBytes === 'number' && Number.isFinite(maxBytes)
+        ? Math.min(Math.max(0, maxBytes), FILE_EXPLORER_MAX_PREVIEW_BYTES)
+        : FILE_EXPLORER_MAX_PREVIEW_BYTES
+      return loadFileBytesForExplorer(explorerRootForSession(sessionId), relPath, cap)
+    },
+  )
+
+  ipcMain.handle(
     IPC.FILE_EXPLORER_SAVE_FILE,
     (_e, sessionId: string, relPath: unknown, content: unknown) => {
       if (typeof relPath !== 'string' || !relPath.trim()) {
@@ -1807,6 +1825,9 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: false,
+      // El visor de PDF integrado de Chromium es un "plugin" interno: sin esto
+      // un iframe apuntando a un blob application/pdf no pinta nada.
+      plugins: true,
     },
   })
 

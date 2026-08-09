@@ -6,11 +6,14 @@ import { FileEditorActionButton } from './FileEditorActionButton'
 import { FileEditorSearchNav } from './FileEditorSearchNav'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
+import { SegmentedControl } from '../../components/ui/SegmentedControl'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { FileCodeEditor, type FileCodeEditorHandle } from './FileCodeEditor'
 import { LspStatusBanner } from '../../lsp/LspStatusBanner'
 import type { LspDocStatus } from '../../lsp/manager'
 import { lspLanguageId } from '@shared/lspLanguages'
+import { filePreviewKindForPath, previewHasSource } from '@shared/filePreviewKind'
+import { FilePreview } from './preview/FilePreview'
 import { fileExplorerErrorMessage } from './fileExplorerErrorI18n'
 
 const SAVE_SHORTCUT_LABEL =
@@ -67,10 +70,15 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   const [diskConflict, setDiskConflict] = useState(false)
   const [lspStatus, setLspStatus] = useState<LspDocStatus | null>(null)
   const [lspRetryToken, setLspRetryToken] = useState(0)
+  const [showSource, setShowSource] = useState(false)
   const editorRef = useRef<FileCodeEditorHandle>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
 
   const lspLanguage = selectedPath ? lspLanguageId(selectedPath) : null
+  const previewKind = selectedPath ? filePreviewKindForPath(selectedPath) : null
+  const hasSource = previewKind === null || previewHasSource(previewKind)
+  // Los binarios no tienen fuente que enseñar: el visor es la única vista.
+  const viewingSource = previewKind === null || (hasSource && showSource)
 
   const isDirty = draftContent !== savedContent
   const saveHint = useMemo(() => {
@@ -89,6 +97,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
     setLargeFileInfo(null)
     setDiskConflict(false)
     setLspStatus(null)
+    setShowSource(false)
   }, [selectedPath])
 
   const focusFindInput = useCallback(() => {
@@ -203,6 +212,18 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
             </span>
           )}
         </code>
+        {previewKind && hasSource && (
+          <SegmentedControl
+            size="sm"
+            value={showSource ? 'source' : 'preview'}
+            onChange={next => setShowSource(next === 'source')}
+            options={[
+              { value: 'preview', label: t('fileExplorer.preview.tabPreview') },
+              { value: 'source', label: t('fileExplorer.preview.tabSource') },
+            ]}
+            label={t('fileExplorer.preview.tabsAria')}
+          />
+        )}
         <span className="file-editor-panel__save-hint">
           {saveHint}
         </span>
@@ -272,7 +293,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
             />
           </div>
         )}
-        {!loading && isBinary && (
+        {!loading && isBinary && !previewKind && (
           <div className="file-editor-panel__special">
             <p className="file-editor-panel__special-title">{t('fileExplorer.editor.binaryTitle')}</p>
             <p className="file-editor-panel__special-hint">{t('fileExplorer.editor.binaryHint')}</p>
@@ -288,7 +309,18 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
         {!loading && saveError && (
           <p className="file-editor-panel__error" role="alert">{saveError}</p>
         )}
-        {!loading && !error && !isBinary && !largeFileInfo && (
+        {!loading && !error && !largeFileInfo && previewKind && !viewingSource && (
+          <div className="file-preview">
+            <FilePreview
+              kind={previewKind}
+              sessionId={sessionId}
+              relPath={selectedPath}
+              content={draftContent}
+              onChange={previewKind === 'csv' ? setDraftContent : undefined}
+            />
+          </div>
+        )}
+        {!loading && !error && !isBinary && !largeFileInfo && viewingSource && (
           <FileCodeEditor
             ref={editorRef}
             key={selectedPath}
@@ -309,7 +341,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
         )}
       </div>
 
-      {!loading && !error && !isBinary && !largeFileInfo && (
+      {!loading && !error && !isBinary && !largeFileInfo && viewingSource && (
         <div className="file-editor-panel__search" role="search">
           <div className="file-editor-panel__search-field">
             <Input

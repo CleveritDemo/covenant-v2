@@ -1,0 +1,195 @@
+/* Visores de archivo del explorador. Sólo tokens del tema; sin literales de
+   color, que es lo que rompe los temas claros en silencio. */
+
+.file-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-preview__center {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.file-preview__message {
+  max-width: 46ch;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.file-preview__message--error {
+  color: var(--danger);
+}
+
+/* Imagen ─ el tablero de ajedrez deja ver la transparencia real del PNG. */
+
+.file-preview__image-wrap {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--border) 40%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--border) 40%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--border) 40%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--border) 40%, transparent) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.file-preview__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Iframes: PDF, SVG, HTML y DOCX */
+
+.file-preview__pdf,
+.file-preview__html,
+.file-preview__doc,
+.file-preview__svg {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.file-preview__pdf,
+.file-preview__html,
+.file-preview__doc {
+  background: #fff;
+}
+
+.file-preview__svg {
+  background: transparent;
+}
+
+/* Markdown ─ reutiliza el estilo de AiMarkdown y sólo añade el margen. */
+
+.file-preview__markdown {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+/* Tablas: CSV y XLSX comparten cromo */
+
+.file-preview__sheet {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-preview__sheet-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.file-preview__sheet-tab {
+  padding: 3px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.file-preview__sheet-tab:hover {
+  background: var(--surface-hover);
+}
+
+.file-preview__sheet-tab--active {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.file-preview__table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-preview__table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.file-preview__table-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding: 2px 8px;
+  font-weight: 400;
+  text-align: right;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  user-select: none;
+}
+
+.file-preview__table-cell {
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.file-preview__table-value {
+  display: block;
+  width: 100%;
+  min-width: 60px;
+  max-width: 320px;
+  padding: 2px 6px;
+  overflow: hidden;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  background: none;
+  border: 0;
+}
+
+button.file-preview__table-value {
+  cursor: cell;
+}
+
+button.file-preview__table-value:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+button.file-preview__table-value:disabled {
+  cursor: default;
+}
+
+.file-preview__table-input {
+  width: 100%;
+  min-width: 60px;
+  padding: 2px 6px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.file-preview__table-more {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

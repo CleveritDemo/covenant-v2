@@ -26,7 +26,7 @@ export const PlaneLoopsButton: React.FC<PlaneLoopsButtonProps> = ({
       aria-pressed={pressed}
       onClick={onClick}
     >
-      <Icon name="repeat" size={13} />
+      <Icon name="repeat" size={12} />
     </button>
   </Tooltip>
 )

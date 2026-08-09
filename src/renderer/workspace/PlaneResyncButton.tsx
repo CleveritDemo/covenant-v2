@@ -25,7 +25,7 @@ export const PlaneResyncButton: React.FC<PlaneResyncButtonProps> = ({
       disabled={busy}
       onClick={onClick}
     >
-      <Icon name="refresh" size={13} />
+      <Icon name="refresh" size={12} />
     </button>
   </Tooltip>
 )

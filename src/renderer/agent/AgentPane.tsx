@@ -25,7 +25,7 @@ import {
   type AgentIdentityDraft,
   normalizeAgentRules,
 } from '@shared/agentIdentity'
-import { normalizeAgentSlug, isAgentOwnResultContext } from '@shared/projectAgentCatalog'
+import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import type {
@@ -154,6 +154,11 @@ interface Props {
   peerAgents?: DelegateToPeerAgent[]
   /** Catálogo de agentes del proyecto (cara de las filas de results). */
   projectAgents?: ProjectAgentDefinition[]
+  /**
+   * Catálogo de contextos del tab (App). En org es el SSOT en memoria;
+   * en personal suele coincidir con el discover de disco.
+   */
+  tabContexts?: TabContext[]
   /** Workspace org: contexts se borran/crean vía backend, no disco. */
   orgWorkspace?: { slug: string; workspaceId: string }
   /** El CLI del orquestador emitió delegaciones. */
@@ -286,6 +291,7 @@ export const AgentPane: React.FC<Props> = ({
   getOrchestrationAgents,
   peerAgents = [],
   projectAgents = [],
+  tabContexts = [],
   orgWorkspace,
   onOrchestratorDelegations,
   onOrchestratorStop,
@@ -347,7 +353,10 @@ export const AgentPane: React.FC<Props> = ({
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
-  /** Catálogo vivo desde `.gravity/*.md` (no se persiste en session). */
+  /**
+   * Catálogo vivo de contextos para este pane.
+   * Personal: discover de `.gravity/*.md`. Org: `tabContexts` desde App/API.
+   */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
   const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -452,6 +461,16 @@ export const AgentPane: React.FC<Props> = ({
   busyRef.current = busy
   loopActiveRef.current = loopActive
   loopIterationRef.current = loopIteration
+  const projectAgentsRef = useRef(projectAgents)
+  projectAgentsRef.current = projectAgents
+
+  /** Catálogo UI = contextos base + agentResult de cada agente vivo. */
+  const commitContextsCatalog = useCallback((contexts: TabContext[]): TabContext[] => {
+    const merged = withCatalogAgentResultContexts(contexts, projectAgentsRef.current)
+    setDiskContexts(merged)
+    diskContextsRef.current = merged
+    return merged
+  }, [])
 
   const stableOnMetaChange = useCallback((
     next: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
@@ -494,9 +513,16 @@ export const AgentPane: React.FC<Props> = ({
     discovered: TabContext[],
     idRemap?: Record<string, string>,
   ): void => {
-    setDiskContexts(discovered)
-    diskContextsRef.current = discovered
-    const discoveredIds = new Set(discovered.map(context => context.id))
+    commitContextsCatalog(discovered)
+    // Org: el SSOT de contextos es el catálogo en memoria (API), no el discover
+    // local. Podar contextIds contra disco borraría asignaciones por drag.
+    if (orgWorkspaceRef.current) {
+      discoveryHydratedRef.current = true
+      return
+    }
+    const discoveredIds = new Set(
+      withCatalogAgentResultContexts(discovered, projectAgentsRef.current).map(context => context.id),
+    )
     const remap = idRemap ?? {}
     // Discover ya reescribió `.gravity/agents` vía idRemap: no upsertar desde
     // meta en memoria (puede estar stale y pisar el SSOT del disco).
@@ -535,7 +561,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       return { ...previous, contextIds: nextIds }
     })
-  }, [stableOnMetaChange])
+  }, [commitContextsCatalog, stableOnMetaChange])
 
   const prepareContextDiscovery = useCallback((resolvedCwd: string): void => {
     const next = resolvedCwd.trim()
@@ -546,6 +572,11 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const refreshDiskContexts = useCallback(async (): Promise<void> => {
+    // Org: refrescar vía App (API), no discover de `.gravity`.
+    if (orgWorkspaceRef.current) {
+      onProjectContextsChangedRef.current?.()
+      return
+    }
     const resolvedCwd = await resolveWorkingCwd()
     // Siempre descubrir (migración canónica en disco), aunque el cwd no cambie.
     prepareContextDiscovery(resolvedCwd)
@@ -765,6 +796,11 @@ export const AgentPane: React.FC<Props> = ({
   // Al abrir config, refrescar contextos y asegurar results del agente.
   useEffect(() => {
     if (!configOpen) return
+    // Org: catálogo vía API (App). No discover local ni ensure de results en disco.
+    if (orgWorkspaceRef.current) {
+      onProjectContextsChangedRef.current?.()
+      return
+    }
     void (async () => {
       await refreshDiskContexts()
       const resolvedCwd = await resolveWorkingCwd()
@@ -903,8 +939,30 @@ export const AgentPane: React.FC<Props> = ({
     return () => throttler.dispose()
   }, [])
 
-  // Catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
+  // Org: hidratar catálogo desde App (API) + results sintéticos del catálogo de agentes.
   useEffect(() => {
+    if (!orgWorkspace?.slug?.trim() || !orgWorkspace?.workspaceId?.trim()) return
+    commitContextsCatalog(tabContexts)
+    discoveryHydratedRef.current = true
+  }, [commitContextsCatalog, orgWorkspace?.slug, orgWorkspace?.workspaceId, paneId, tabContexts])
+
+  // Si cambia el catálogo de agentes, re-mezclar results (altas/bajas/renombres).
+  useEffect(() => {
+    setDiskContexts(previous => {
+      const next = withCatalogAgentResultContexts(previous, projectAgents)
+      const same = previous.length === next.length
+        && previous.every((context, index) => (
+          context.id === next[index]?.id && context.name === next[index]?.name
+        ))
+      if (same) return previous
+      diskContextsRef.current = next
+      return next
+    })
+  }, [projectAgents])
+
+  // Personal: catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
+  useEffect(() => {
+    if (orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim()) return
     let cancelled = false
     void resolveWorkingCwd().then(async resolvedCwd => {
       if (cancelled) return
@@ -918,7 +976,16 @@ export const AgentPane: React.FC<Props> = ({
       applyDiscoveredContexts(result.contexts, result.idRemap)
     }).catch(() => undefined)
     return () => { cancelled = true }
-  }, [applyDiscoveredContexts, contextsOpen, contextsRevision, cwd, prepareContextDiscovery, resolveWorkingCwd])
+  }, [
+    applyDiscoveredContexts,
+    contextsOpen,
+    contextsRevision,
+    cwd,
+    orgWorkspace?.slug,
+    orgWorkspace?.workspaceId,
+    prepareContextDiscovery,
+    resolveWorkingCwd,
+  ])
 
   const startTurn = useCallback(async (options: {
     prompt: string

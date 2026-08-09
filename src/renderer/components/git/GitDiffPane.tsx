@@ -24,18 +24,27 @@ export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, ref
   const [loading, setLoading] = useState(false)
   const path = selection?.path ?? ''
   const area = selection?.area ?? 'worktree'
+  const targetPath = target.path ?? ''
+  const targetSessionId = target.sessionId ?? ''
 
   useEffect(() => {
     if (!path) {
       setDiff(null)
       setError('')
+      setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
+    setDiff(null)
+    setError('')
     void (async (): Promise<void> => {
       try {
-        const r = await window.api.gitDiffFile(target, path, area)
+        const r = await window.api.gitDiffFile(
+          { path: targetPath || undefined, sessionId: targetSessionId || undefined },
+          path,
+          area,
+        )
         if (cancelled) return
         if (!r.ok && !r.stdout) {
           setDiff(null)
@@ -55,15 +64,16 @@ export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, ref
     return () => {
       cancelled = true
     }
-    // `target` es un objeto nuevo en cada render del padre: se sigue por su contenido.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- target por valor
-  }, [path, area, refreshToken, target.path, target.sessionId, t])
+    // `t` no va en deps: en react-i18next puede cambiar de identidad y reentrar
+    // el efecto en bucle (setDiff → render → nuevo t → cancel → …).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t solo para mensajes
+  }, [path, area, refreshToken, targetPath, targetSessionId])
 
   if (!path) {
     return <p className="git-diff-pane__hint">{t('git.diffEmptyHint')}</p>
   }
 
-  if (loading && !diff) {
+  if (loading || (!diff && !error)) {
     return (
       <div className="git-diff-pane__loading">
         <Spinner aria-label={t('git.diffLoadingAriaLabel')} />

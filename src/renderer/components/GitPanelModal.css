@@ -25,6 +25,10 @@
   min-width: 0;
 }
 
+.git-panel-side__tabs > .segmented-control {
+  flex-shrink: 0;
+}
+
 .git-panel-side__path {
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -472,7 +476,13 @@ button.git-file-list__name {
   min-width: 0;
 }
 
+.git-file-list__row > .ui-tooltip:has(.git-file-list__name) {
+  width: 100%;
+}
+
 .git-file-list__name {
+  display: block;
+  width: 100%;
   font-family: var(--font-mono);
   font-size: 11px;
   min-width: 0;
@@ -480,6 +490,19 @@ button.git-file-list__name {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+}
+
+button.git-file-list__stats-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
 
 .git-file-list__dir {

@@ -34,21 +34,22 @@
   min-width: 0;
   flex: 1 1 auto;
   height: 100%;
-  padding: 0 var(--plane-top-bar-pad-x, 8px);
+  padding: 0 4px 0 0;
   border: none;
-  border-radius: var(--plane-top-bar-radius, 8px);
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
   background: transparent;
-  color: var(--text);
+  color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 550;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: color 0.14s, background 0.14s;
+  transition: color 0.12s, background 0.12s;
 }
 
 .plane-project-folder__btn:hover {
-  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
 }
 
 .plane-project-folder__btn--set {

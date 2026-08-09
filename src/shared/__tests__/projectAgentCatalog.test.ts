@@ -22,6 +22,8 @@ import {
   resolveCatalogAgentId,
   isAgentOwnResultContext,
   agentResultContextIdForSlug,
+  tabContextForAgentResult,
+  withCatalogAgentResultContexts,
 } from '@shared/projectAgentCatalog'
 
 describe('projectAgentCatalog', () => {
@@ -37,6 +39,36 @@ describe('projectAgentCatalog', () => {
     expect(isAgentOwnResultContext('fullstack', 'iaterminal:notes:x')).toBe(false)
     expect(isAgentOwnResultContext('', 'iaterminal:result:fullstack')).toBe(false)
     expect(isAgentOwnResultContext(null, 'iaterminal:result:fullstack')).toBe(false)
+  })
+
+  it('synthesizes agentResult contexts from the live agent catalog', () => {
+    const notes = {
+      id: 'iaterminal:notes:x',
+      name: 'Notes',
+      fileName: 'x.md',
+      kind: 'notes' as const,
+    }
+    const orphan = {
+      id: 'iaterminal:result:gone',
+      name: 'Gone',
+      fileName: 'results/gone.md',
+      kind: 'agentResult' as const,
+    }
+    const agents = [
+      { id: 'qa', provider: 'cursor' as const, permissionMode: 'auto' as const, name: 'QA' },
+      { id: 'fullstack', provider: 'claude' as const, permissionMode: 'auto' as const, name: 'Full Stack' },
+    ]
+    const merged = withCatalogAgentResultContexts([notes, orphan], agents)
+    expect(merged.filter(c => c.kind !== 'agentResult')).toEqual([notes])
+    expect(merged.filter(c => c.kind === 'agentResult').map(c => c.id)).toEqual([
+      'iaterminal:result:fullstack',
+      'iaterminal:result:qa',
+    ])
+    expect(tabContextForAgentResult(agents[0])).toMatchObject({
+      id: 'iaterminal:result:qa',
+      name: 'QA',
+      kind: 'agentResult',
+    })
   })
 
   it('migrates legacy ask permissionMode to auto', () => {

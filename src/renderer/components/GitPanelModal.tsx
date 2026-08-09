@@ -376,7 +376,10 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                       onStageAll={onStageAll}
                       onUnstageAll={onUnstageAll}
                       selection={selection}
-                      onSelect={setSelection}
+                      onSelect={next => {
+                        setSelection(next)
+                        setSideTab('diff')
+                      }}
                       onDiscardFile={(path, untracked) => setDiscardTarget({ path, untracked })}
                     />
                   )}

@@ -1,6 +1,7 @@
 .plane-loops-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   box-sizing: border-box;
   height: var(--plane-top-bar-height, 26px);
@@ -15,10 +16,10 @@
   letter-spacing: -0.01em;
   cursor: pointer;
   backdrop-filter: blur(var(--plane-blur));
-  transition: color 0.14s, background 0.14s, border-color 0.14s;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
 }
 
-.plane-loops-button:hover {
+.plane-loops-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
   border-color: color-mix(in srgb, var(--plane-border-strong) 40%, transparent);
 }
@@ -34,4 +35,9 @@
   padding: 0;
   justify-content: center;
   gap: 0;
+}
+
+.plane-loops-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }

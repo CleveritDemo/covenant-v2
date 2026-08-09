@@ -4374,6 +4374,7 @@ export const App: React.FC = () => {
           }
           projectAgents={projectAgentsByCwd[paneCatalogKey] ?? []}
           contextsRevision={contextsRevisionByCwd[paneCatalogKey] ?? 0}
+          tabContexts={tabContextsByTab[tab.id] ?? []}
           orgWorkspace={tab.orgWorkspace}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}
           tabActive={tab.id === activeTabId}

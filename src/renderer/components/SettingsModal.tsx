@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
 import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
+import { UI_FONTS, MONO_FONTS } from '@shared/fontStacks'
+import { availableFonts, isFontInstalled, isMonospaced } from '@renderer/fontAvailability'
 import type { AgentCliProvider } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
@@ -56,6 +58,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     musicEnabled: config.musicEnabled,
     discordPresenceEnabled: config.discordPresenceEnabled,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
+    fontUi: config.fontUi ?? '',
+    fontMono: config.fontMono ?? '',
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
     musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
@@ -85,6 +89,31 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const firstRender = useRef(true)
   /** Tras discard el commit es inmediato; el efecto no debe re-encolar otro. */
   const skipAutosaveOnce = useRef(false)
+
+  /**
+   * Catálogo curado filtrado por lo instalado, más la elección actual aunque venga
+   * del campo libre: un ajuste guardado nunca desaparece del desplegable.
+   */
+  const fontOptions = useMemo(() => {
+    const build = (catalog: readonly string[], current: string): { value: string; label: string }[] => {
+      const list = availableFonts(catalog)
+      const withCurrent = current && !list.includes(current) ? [current, ...list] : list
+      return [
+        { value: '', label: t('settings.fontDefault') },
+        ...withCurrent.map(f => ({ value: f, label: f })),
+      ]
+    }
+    return { ui: build(UI_FONTS, form.fontUi), mono: build(MONO_FONTS, form.fontMono) }
+  }, [form.fontUi, form.fontMono, t])
+
+  /** Aviso bajo el campo libre: nombre mal escrito, o proporcional en la terminal. */
+  function fontWarning(family: string, kind: 'ui' | 'mono'): string | undefined {
+    const name = family.trim()
+    if (!name) return undefined
+    if (!isFontInstalled(name)) return t('settings.fontNotInstalled')
+    if (kind === 'mono' && !isMonospaced(name)) return t('settings.fontNotMonospaced')
+    return undefined
+  }
 
   /** Un ID no vacío que no se reconoce; derivado, sin estado que sincronizar. */
   function moodError(moodId: string): boolean {
@@ -162,6 +191,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       musicEnabled: form.musicEnabled,
       discordPresenceEnabled: form.discordPresenceEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
+      fontUi: form.fontUi,
+      fontMono: form.fontMono,
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
       musicPlaylistIdsByMood,
@@ -301,6 +332,54 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
           {category === 'appearance' && (
             <>
+              <SettingsSection title={t('settings.typographySection')}>
+                <SettingsField label={t('settings.fontUiLabel')} hint={t('settings.fontUiHint')}>
+                  <Select
+                    value={form.fontUi}
+                    onChange={next => update('fontUi', next)}
+                    options={fontOptions.ui}
+                  />
+                </SettingsField>
+                <SettingsField
+                  label={t('settings.fontCustomLabel')}
+                  hint={fontWarning(form.fontUi, 'ui') ?? t('settings.fontCustomHint')}
+                  compact
+                >
+                  <Input
+                    type="text"
+                    size="sm"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={t('settings.fontCustomPlaceholder')}
+                    value={form.fontUi}
+                    onChange={e => update('fontUi', e.target.value)}
+                  />
+                </SettingsField>
+
+                <SettingsField label={t('settings.fontMonoLabel')} hint={t('settings.fontMonoHint')}>
+                  <Select
+                    value={form.fontMono}
+                    onChange={next => update('fontMono', next)}
+                    options={fontOptions.mono}
+                  />
+                </SettingsField>
+                <SettingsField
+                  label={t('settings.fontCustomLabel')}
+                  hint={fontWarning(form.fontMono, 'mono') ?? t('settings.fontCustomHint')}
+                  compact
+                >
+                  <Input
+                    type="text"
+                    size="sm"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={t('settings.fontCustomMonoPlaceholder')}
+                    value={form.fontMono}
+                    onChange={e => update('fontMono', e.target.value)}
+                  />
+                </SettingsField>
+              </SettingsSection>
+
               <SettingsSection title={t('settings.languageSection')}>
                 <SettingsField label={t('settings.languageLabel')}>
                   <Select

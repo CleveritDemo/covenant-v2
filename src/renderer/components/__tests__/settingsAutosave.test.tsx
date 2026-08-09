@@ -99,6 +99,24 @@ describe('guardado al cambiar', () => {
     expect(screen.getByText('settings.discarded')).toBeTruthy()
   })
 
+  // El commit arma el AppConfig campo a campo: un ajuste que no esté listado ahí
+  // se pierde en el primer autosave de cualquier otro control.
+  it('conserva la tipografía elegida al guardar otro ajuste', async () => {
+    render(
+      <SettingsModal
+        config={{ ...config, fontUi: 'Optima', fontMono: 'Menlo' }}
+        onSave={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.reduceMotionTitle/ }))
+
+    await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(1))
+    expect(setConfig.mock.calls[0][0].fontUi).toBe('Optima')
+    expect(setConfig.mock.calls[0][0].fontMono).toBe('Menlo')
+  })
+
   it('el pie pasa a marca de tiempo tras guardar', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))

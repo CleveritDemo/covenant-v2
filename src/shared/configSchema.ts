@@ -61,6 +61,10 @@ export interface AppConfig {
   maxContextLines: number
   themeId: string
   fontSize: number
+  /** Familia de la interfaz. Vacío = stack por defecto de `global.css`. Ver `fontStacks.ts`. */
+  fontUi: string
+  /** Familia monoespaciada (terminales y código). Vacío = stack por defecto. */
+  fontMono: string
   /** Si true, el chat puede leer/escribir archivos bajo el cwd (modo agente). UI: cabecera del panel IA. */
   agentMode: boolean
   /**
@@ -130,6 +134,8 @@ export const CONFIG_DEFAULTS: AppConfig = {
   maxContextLines: 200,
   themeId: 'tokyoNight',
   fontSize: 13,
+  fontUi: '',
+  fontMono: '',
   agentMode: false,
   agentLoop: false,
   agentShellPolicy: 'off',

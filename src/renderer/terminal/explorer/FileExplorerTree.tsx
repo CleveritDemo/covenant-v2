@@ -116,6 +116,11 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const [childrenByDir, setChildrenByDir] = useState<Map<string, FileExplorerEntry[]>>(
       () => new Map(),
     )
+    // Espejo del cache para leerlo dentro de efectos sin meterlo en sus deps:
+    // como dependencia haría que el efecto de expansión se re-dispare en cada
+    // respuesta de `listDir`, que es justo lo que se quiere evitar.
+    const childrenByDirRef = useRef(childrenByDir)
+    childrenByDirRef.current = childrenByDir
     const [loadingDirs, setLoadingDirs] = useState<Set<string>>(() => new Set())
     const [createMode, setCreateMode] = useState<CreateMode>(null)
     const [createName, setCreateName] = useState('')
@@ -394,12 +399,18 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
       })()
     }, [showHiddenDirs, loadDir, reloadExpandedDirs])
 
+    // Al expandir una carpeta esto recargaba TODAS las expandidas: con 15
+    // abiertas, 15 idas y vueltas por IPC y sus 15 `setChildrenByDir`. Sólo hay
+    // que cargar las que aún no están en el cache — al resto ya las trajo el
+    // `prefetchDepth: 1` de su padre, y `reloadTree()` sigue siendo quien fuerza
+    // una recarga completa cuando de verdad hace falta.
     useEffect(() => {
       if (loadedSessionRef.current !== sessionId) return
       if (loadedExpandedKeyRef.current === expandedKey) return
       loadedExpandedKeyRef.current = expandedKey
       if (!expandedKey) return
       for (const rel of expandedKey.split('\0')) {
+        if (childrenByDirRef.current.has(rel)) continue
         void loadDir(rel)
       }
     }, [expandedKey, loadDir, sessionId])

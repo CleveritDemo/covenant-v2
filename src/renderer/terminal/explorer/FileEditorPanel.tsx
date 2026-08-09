@@ -18,6 +18,9 @@ const SAVE_SHORTCUT_LABEL =
     ? '⌘S'
     : 'Ctrl+S'
 
+/** Estados LSP que dibuja el chip; el resto los explica el banner. */
+const CHIP_KINDS: string[] = ['ready', 'starting', 'downloading']
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -203,16 +206,17 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
         <span className="file-editor-panel__save-hint">
           {saveHint}
         </span>
-        {lspLanguage && lspStatus && lspStatus.kind !== 'unsupported' && lspStatus.kind !== 'disabled' && (
-          <Tooltip content={lspStatus.kind === 'error' ? lspStatus.message : lspLanguage}>
+        {/* El chip es el estado AMBIENTE; los estados accionables
+            (consent-needed, needs-runtime, error) los explica el banner de
+            abajo con su botón. Mostrar ambos hacía que un «LSP OFF» conviviera
+            con un «Descargar» y se leyera como que la función está apagada. */}
+        {lspLanguage && lspStatus && CHIP_KINDS.includes(lspStatus.kind) && (
+          <Tooltip content={lspLanguage}>
             <span
-              className={[
-                'lsp-chip',
-                lspStatus.kind === 'ready' ? 'lsp-chip--ready' : '',
-                lspStatus.kind === 'error' ? 'lsp-chip--error' : '',
-              ].filter(Boolean).join(' ')}
+              className={['lsp-chip', lspStatus.kind === 'ready' ? 'lsp-chip--ready' : '']
+                .filter(Boolean).join(' ')}
             >
-              {t(`lsp.chip.${lspStatus.kind}`)}
+              {t(`lsp.chip.${lspStatus.kind as 'ready' | 'starting' | 'downloading'}`)}
             </span>
           </Tooltip>
         )}

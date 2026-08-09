@@ -49,3 +49,62 @@ describe('mergeListDirIntoCache', () => {
     expect(next.get('src')).toEqual([])
   })
 })
+
+describe('mergeListDirIntoCache: identidad estable', () => {
+  const entries = [
+    { name: 'src', relPath: 'src', isDirectory: true },
+    { name: 'main.rs', relPath: 'main.rs', isDirectory: false },
+  ]
+
+  it('devuelve el MISMO Map cuando el listado no cambió', () => {
+    // `visibleRows` es un useMemo sobre este Map: devolver uno nuevo rehace la
+    // lista entera de filas, y con el watcher de fs eso es una ráfaga de
+    // recomputados por interacción — el parpadeo del árbol.
+    const first = mergeListDirIntoCache(new Map(), '', { ok: true, entries })
+    const second = mergeListDirIntoCache(first, '', { ok: true, entries: [...entries] })
+    expect(second).toBe(first)
+  })
+
+  it('devuelve un Map nuevo cuando aparece una entrada', () => {
+    const first = mergeListDirIntoCache(new Map(), '', { ok: true, entries })
+    const second = mergeListDirIntoCache(first, '', {
+      ok: true,
+      entries: [...entries, { name: 'lib.rs', relPath: 'lib.rs', isDirectory: false }],
+    })
+    expect(second).not.toBe(first)
+    expect(second.get('')).toHaveLength(3)
+  })
+
+  it('devuelve un Map nuevo cuando una entrada desaparece', () => {
+    const first = mergeListDirIntoCache(new Map(), '', { ok: true, entries })
+    const second = mergeListDirIntoCache(first, '', { ok: true, entries: [entries[0]] })
+    expect(second).not.toBe(first)
+    expect(second.get('')).toHaveLength(1)
+  })
+
+  it('detecta que un nombre cambió aunque el total sea el mismo', () => {
+    const first = mergeListDirIntoCache(new Map(), '', { ok: true, entries })
+    const renamed = [entries[0], { name: 'lib.rs', relPath: 'lib.rs', isDirectory: false }]
+    expect(mergeListDirIntoCache(first, '', { ok: true, entries: renamed })).not.toBe(first)
+  })
+
+  it('un dir que pasa a archivo cuenta como cambio', () => {
+    const first = mergeListDirIntoCache(new Map(), '', { ok: true, entries })
+    const flipped = [{ ...entries[0], isDirectory: false }, entries[1]]
+    expect(mergeListDirIntoCache(first, '', { ok: true, entries: flipped })).not.toBe(first)
+  })
+
+  it('el prefetch de claves ya presentes no rompe la identidad', () => {
+    const first = mergeListDirIntoCache(new Map(), '', {
+      ok: true,
+      entries,
+      prefetched: { src: [{ name: 'a.rs', relPath: 'src/a.rs', isDirectory: false }] },
+    })
+    const second = mergeListDirIntoCache(first, '', {
+      ok: true,
+      entries: [...entries],
+      prefetched: { src: [{ name: 'a.rs', relPath: 'src/a.rs', isDirectory: false }] },
+    })
+    expect(second).toBe(first)
+  })
+})

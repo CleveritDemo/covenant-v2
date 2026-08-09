@@ -4,6 +4,49 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.8.8
+
+- **El panel git ya enseña qué cambió.** Hasta ahora te pedía un mensaje de
+  commit para algo que no podías ver: el diff solo existía para la IA. Clic en
+  cualquier archivo y su diff aparece a la derecha, con las líneas numeradas y
+  coloreadas. Los que aún no están en git se enseñan enteros, como altas, en
+  vez de salir en blanco.
+- **Lo que entra en el commit está separado de lo que no.** La lista plana de
+  antes se partió en dos secciones, "En el commit" y "Sin preparar", cada una
+  con su total de líneas. Ya no hace falta la frase que avisaba de que no había
+  nada preparado: se ve.
+- **Los estados dejaron de ser jeroglíficos.** Aquellos `??`, `M ` y ` M` en
+  crudo ahora son una letra con color —añadido, modificado, borrado,
+  renombrado, sin seguimiento, conflicto— y el código original sigue ahí, en el
+  tooltip. Las rutas muestran también su carpeta, así que dos `index.ts` de
+  sitios distintos ya no se ven iguales.
+- **Se pueden descartar los cambios de un archivo** sin salir al terminal,
+  detrás de una confirmación que dice si va a volver a HEAD o a borrarlo del
+  disco, que no es lo mismo.
+- **La caja de commit ya no se va con el scroll.** Se quedó anclada abajo, con
+  el resumen de lo que va a viajar ("3 archivos · +128 −34"), ⌘↵ para
+  confirmar y un botón de commit + push. Si el commit falla, el mensaje que
+  escribiste sigue ahí.
+- **Pull y push dicen cuántos commits van y vienen** (`↑2 ↓0`), en vez de ser
+  dos botones mudos, y push se apaga cuando no hay nada que subir.
+- **Con muchos archivos hay un filtro**, y la lista se recorre con las flechas.
+- **GitHub Actions deja de ocupar un tercio del panel** en repos que no son de
+  GitHub: esa pestaña solo aparece cuando el remoto lo es.
+- **El resultado del último comando aparece junto al botón que lo lanzó**, en
+  una línea con ✓ o ✗ que se despliega si quieres la salida completa, en vez de
+  apilarse al final del scroll donde nadie miraba.
+- **Los tooltips son los de la app en todas partes.** Quedaban sitios con el
+  gris del sistema, con su medio segundo de retardo y su tipografía ajena al
+  tema; ahora todos son la burbuja de Gravity, y un chequeo en el build impide
+  que vuelvan a colarse.
+- **El scrollback restaurado ya no arrastra el prompt del shell muerto**: al
+  reabrir una terminal salía pegado el prompt de la sesión anterior, como si
+  hubiera algo escrito.
+- **El selector de contextos enseña iconos de marca** (Jira, Atlassian, Port,
+  MCP) en vez de un genérico para todo.
+- **La lista de repos bajo el composer se revalida contra el disco**, así que
+  ya no ofrece carpetas que ya no existen.
+
 ## v0.8.7
 
 - **Réplicas de expertos opcionales.** El orquestador / product owner puede

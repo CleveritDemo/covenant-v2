@@ -6,6 +6,7 @@ import type { AgentCliProvider } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { SettingsSection, SettingsField } from './SettingsSection'
+import { CodeIntelligenceSettings } from '../lsp/CodeIntelligenceSettings'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
@@ -430,6 +431,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 </Button>
               </SettingsSection>
             </>
+          )}
+
+          {category === 'advanced' && (
+            <SettingsSection title={t('lsp.settings.title')}>
+              <CodeIntelligenceSettings />
+            </SettingsSection>
           )}
 
           {category === 'developer' && (

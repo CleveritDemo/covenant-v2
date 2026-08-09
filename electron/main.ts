@@ -10,7 +10,7 @@ import {
   statSync,
   renameSync,
 } from 'fs'
-import { basename, join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
+import { join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
 import {
   app,
   BrowserWindow,
@@ -112,7 +112,7 @@ import {
   gitGetRepoStatus,
   gitListRepos,
   gitCollectUniqueRepos,
-  getRepoRoot,
+  repoAndBranch,
   gitPull,
   gitPush,
   gitStageAll,
@@ -200,6 +200,20 @@ import { applyLoginShellPath } from './shellPathEnv'
 import { readCdRecentFolders } from './cdRecentMd'
 import { isInstallingUpdate, registerSelfUpdate } from './selfUpdate'
 import { decryptField, encryptField, isEncryptedField } from './safeStorageUtils'
+import {
+  initLspEngine,
+  lspDeleteServer,
+  lspDownloadServer,
+  lspListInstalled,
+  lspReadFile,
+  lspRecheckRuntimes,
+  lspSend,
+  lspServerStatus,
+  lspStart,
+  lspStop,
+  lspWriteFile,
+  stopAllLspServers,
+} from './lsp/lspOps'
 
 const APP_DISPLAY_NAME = 'Covenant Gravity'
 
@@ -387,6 +401,7 @@ app.on('will-quit', () => {
   clearPresence()
   stopAllAgentRuns()
   stopAllBrainstormRooms()
+  stopAllLspServers()
   killAllPtySessions()
   stopAllFileExplorerWatches()
 })
@@ -769,17 +784,48 @@ function registerIpc(): void {
     return result
   })
   ipcMain.handle(IPC.PULSE_SNAPSHOT, () => pulseSnapshot())
+
+  // ─── LSP ────────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.LSP_SERVER_STATUS, (_e, language: unknown) =>
+    lspServerStatus(typeof language === 'string' ? language : ''))
+  ipcMain.handle(IPC.LSP_DOWNLOAD_SERVER, (_e, language: unknown) =>
+    lspDownloadServer(typeof language === 'string' ? language : ''))
+  ipcMain.handle(IPC.LSP_LIST_INSTALLED, () => lspListInstalled())
+  ipcMain.handle(IPC.LSP_DELETE_SERVER, (_e, language: unknown) =>
+    lspDeleteServer(typeof language === 'string' ? language : ''))
+  ipcMain.handle(IPC.LSP_RECHECK_RUNTIMES, () => lspRecheckRuntimes())
+  ipcMain.handle(IPC.LSP_START, (_e, sessionId: unknown, relPath: unknown) => {
+    if (typeof sessionId !== 'string' || typeof relPath !== 'string' || !relPath.trim()) {
+      return { ok: false, error: 'ruta vacía' }
+    }
+    return lspStart(explorerRootForSession(sessionId), relPath)
+  })
+  ipcMain.on(IPC.LSP_SEND, (_e, serverId: unknown, message: unknown) => {
+    if (typeof serverId !== 'number' || typeof message !== 'string') return
+    lspSend(serverId, message)
+  })
+  ipcMain.on(IPC.LSP_STOP, (_e, serverId: unknown) => {
+    if (typeof serverId !== 'number') return
+    lspStop(serverId)
+  })
+  ipcMain.handle(IPC.LSP_READ_FILE, (_e, serverId: unknown, absPath: unknown) => {
+    if (typeof serverId !== 'number' || typeof absPath !== 'string') {
+      return { ok: false, error: 'argumentos inválidos' }
+    }
+    return lspReadFile(serverId, absPath)
+  })
+  ipcMain.handle(IPC.LSP_WRITE_FILE, (_e, serverId: unknown, absPath: unknown, content: unknown) => {
+    if (typeof serverId !== 'number' || typeof absPath !== 'string' || typeof content !== 'string') {
+      return { ok: false, error: 'argumentos inválidos' }
+    }
+    return lspWriteFile(serverId, absPath, content)
+  })
   ipcMain.handle(IPC.GIT_COMMIT, async (_e, target: { sessionId?: string; path?: string }, message: unknown) => {
     const cwd = resolveGitTargetCwd(target)
     const result = await gitCommit(cwd, message)
     emitGitStatusChanged(target)
     if (result.ok) {
-      const root = await getRepoRoot(cwd).catch(() => null)
-      recordPulseEvent({
-        ts: Date.now(),
-        kind: 'commit',
-        ...(root ? { repo: basename(root) } : {}),
-      })
+      recordPulseEvent({ ts: Date.now(), kind: 'commit', ...(await repoAndBranch(cwd)) })
     }
     return result
   })
@@ -1882,6 +1928,21 @@ app.whenReady().then(() => {
   applyLoginShellPath()
   applyAppBranding()
   initCovenantSession()
+  // Los eventos LSP se emiten a TODAS las ventanas: el mux del preload filtra
+  // por serverId, así que una ventana sin ese server simplemente los ignora.
+  initLspEngine({
+    dataDir: app.getPath('userData'),
+    emit: (channel, ...args) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send(channel, ...args)
+      }
+    },
+    channels: {
+      message: IPC.LSP_MESSAGE,
+      exit: IPC.LSP_EXIT,
+      downloadProgress: IPC.LSP_DOWNLOAD_PROGRESS,
+    },
+  })
   registerIpc()
   registerSelfUpdate()
   createWindow()

@@ -1057,9 +1057,56 @@ const en = {
     metric_prompts: 'Prompts',
     metric_commits: 'Commits',
     metric_both: 'Both',
-    dayDetail: '{{day}} · {{prompts}} prompts · {{commits}} commits',
+    dayDetail: '{{prompts}} prompts · {{commits}} commits',
     less: 'Less',
     more: 'More',
+  },
+
+  lsp: {
+    chip: {
+      ready: 'LSP',
+      starting: 'LSP…',
+      downloading: 'LSP ↓',
+      'consent-needed': 'LSP off',
+      'needs-runtime': 'LSP ⚠',
+      error: 'LSP ✕',
+    },
+    consent: {
+      hint: '{{name}} (~{{size}} MB) enables go to definition, references and diagnostics.',
+      download: 'Download',
+    },
+    installing: 'Installing…',
+    installingPercent: 'Installing… {{percent}}%',
+    runtime: {
+      missing: '{{name}} {{min}} or newer is required and was not found.',
+      tooOld: '{{name}} {{min}} or newer is required; found {{found}}.',
+      onDiskNotOnPath:
+        'Version {{version}} is at {{dir}}, but that directory is not on your shell PATH. Add it to ~/.zprofile, then re-check:',
+      install: 'Install a supported version, then re-check:',
+    },
+    recheck: 'Re-check',
+    retry: 'Retry',
+    error: 'Code intelligence failed: {{message}}',
+    close: 'Close',
+    references: {
+      count: '{{count}} reference',
+      count_plural: '{{count}} references',
+      more: '+ {{count}} more',
+    },
+    rename: {
+      touchesFiles: 'Rename touches {{count}} file.',
+      touchesFiles_plural: 'Rename touches {{count}} files.',
+      apply: 'Apply',
+    },
+    settings: {
+      title: 'Code intelligence',
+      hint: 'Language servers run locally and are downloaded on demand into the app data folder.',
+      masterToggle: 'Enable code intelligence',
+      installed: 'Installed · {{size}}',
+      notInstalled: 'Not installed',
+      delete: 'Delete',
+      install: 'Install',
+    },
   },
 }
 

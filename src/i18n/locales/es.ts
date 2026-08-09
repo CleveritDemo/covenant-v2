@@ -1059,9 +1059,56 @@ const es = {
     metric_prompts: 'Prompts',
     metric_commits: 'Commits',
     metric_both: 'Ambos',
-    dayDetail: '{{day}} · {{prompts}} prompts · {{commits}} commits',
+    dayDetail: '{{prompts}} prompts · {{commits}} commits',
     less: 'Menos',
     more: 'Más',
+  },
+
+  lsp: {
+    chip: {
+      ready: 'LSP',
+      starting: 'LSP…',
+      downloading: 'LSP ↓',
+      'consent-needed': 'LSP off',
+      'needs-runtime': 'LSP ⚠',
+      error: 'LSP ✕',
+    },
+    consent: {
+      hint: '{{name}} (~{{size}} MB) habilita ir a definición, referencias y diagnósticos.',
+      download: 'Descargar',
+    },
+    installing: 'Instalando…',
+    installingPercent: 'Instalando… {{percent}}%',
+    runtime: {
+      missing: 'Hace falta {{name}} {{min}} o superior y no se encontró.',
+      tooOld: 'Hace falta {{name}} {{min}} o superior; se encontró {{found}}.',
+      onDiskNotOnPath:
+        'Tienes la versión {{version}} en {{dir}}, pero ese directorio no está en el PATH de tu shell. Agrégalo a ~/.zprofile y vuelve a comprobar:',
+      install: 'Instala una versión compatible y vuelve a comprobar:',
+    },
+    recheck: 'Comprobar de nuevo',
+    retry: 'Reintentar',
+    error: 'Falló la inteligencia de código: {{message}}',
+    close: 'Cerrar',
+    references: {
+      count: '{{count}} referencia',
+      count_plural: '{{count}} referencias',
+      more: '+ {{count}} más',
+    },
+    rename: {
+      touchesFiles: 'El renombrado toca {{count}} archivo.',
+      touchesFiles_plural: 'El renombrado toca {{count}} archivos.',
+      apply: 'Aplicar',
+    },
+    settings: {
+      title: 'Inteligencia de código',
+      hint: 'Los language servers corren en local y se descargan bajo demanda en la carpeta de datos de la app.',
+      masterToggle: 'Activar inteligencia de código',
+      installed: 'Instalado · {{size}}',
+      notInstalled: 'No instalado',
+      delete: 'Borrar',
+      install: 'Instalar',
+    },
   },
 } satisfies AppTranslations
 

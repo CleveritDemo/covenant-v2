@@ -6,7 +6,11 @@ import { FileEditorActionButton } from './FileEditorActionButton'
 import { FileEditorSearchNav } from './FileEditorSearchNav'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
+import { Tooltip } from '../../components/ui/Tooltip'
 import { FileCodeEditor, type FileCodeEditorHandle } from './FileCodeEditor'
+import { LspStatusBanner } from '../../lsp/LspStatusBanner'
+import type { LspDocStatus } from '../../lsp/manager'
+import { lspLanguageId } from '@shared/lspLanguages'
 import { fileExplorerErrorMessage } from './fileExplorerErrorI18n'
 
 const SAVE_SHORTCUT_LABEL =
@@ -26,9 +30,13 @@ interface FileEditorPanelProps {
   selectedPath: string | null
   /** Incrementar para recargar desde disco si el archivo no está dirty. */
   fsReloadToken?: number
+  /** Salto a una línea 1-based (go-to-definition, panel de referencias). */
+  gotoTarget?: { line: number; nonce: number }
   onFileSaved?: () => void
   onDirtyChange?: (dirty: boolean) => void
   onClose?: () => void
+  /** Abre otro archivo del proyecto (ruta relativa a la raíz de la sesión). */
+  onOpenFile?: (relPath: string, line: number) => void
 }
 
 export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
@@ -36,9 +44,11 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   themeId,
   selectedPath,
   fsReloadToken = 0,
+  gotoTarget,
   onFileSaved,
   onDirtyChange,
   onClose,
+  onOpenFile,
 }) => {
   const { t } = useT()
   const [loading, setLoading] = useState(false)
@@ -52,8 +62,12 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
   const [isBinary, setIsBinary] = useState(false)
   const [largeFileInfo, setLargeFileInfo] = useState<{ sizeBytes: number; maxBytes: number } | null>(null)
   const [diskConflict, setDiskConflict] = useState(false)
+  const [lspStatus, setLspStatus] = useState<LspDocStatus | null>(null)
+  const [lspRetryToken, setLspRetryToken] = useState(0)
   const editorRef = useRef<FileCodeEditorHandle>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
+
+  const lspLanguage = selectedPath ? lspLanguageId(selectedPath) : null
 
   const isDirty = draftContent !== savedContent
   const saveHint = useMemo(() => {
@@ -71,6 +85,7 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
     setIsBinary(false)
     setLargeFileInfo(null)
     setDiskConflict(false)
+    setLspStatus(null)
   }, [selectedPath])
 
   const focusFindInput = useCallback(() => {
@@ -188,6 +203,19 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
         <span className="file-editor-panel__save-hint">
           {saveHint}
         </span>
+        {lspLanguage && lspStatus && lspStatus.kind !== 'unsupported' && lspStatus.kind !== 'disabled' && (
+          <Tooltip content={lspStatus.kind === 'error' ? lspStatus.message : lspLanguage}>
+            <span
+              className={[
+                'lsp-chip',
+                lspStatus.kind === 'ready' ? 'lsp-chip--ready' : '',
+                lspStatus.kind === 'error' ? 'lsp-chip--error' : '',
+              ].filter(Boolean).join(' ')}
+            >
+              {t(`lsp.chip.${lspStatus.kind}`)}
+            </span>
+          </Tooltip>
+        )}
         {onClose && (
           <ExplorerToolButton
             variant="close"
@@ -212,6 +240,12 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
           />
         </div>
       )}
+
+      <LspStatusBanner
+        status={lspStatus}
+        language={lspLanguage}
+        onRetry={() => setLspRetryToken(n => n + 1)}
+      />
 
       <div className="file-editor-panel__body">
         {loading && (
@@ -258,10 +292,15 @@ export const FileEditorPanel: React.FC<FileEditorPanelProps> = ({
             themeId={themeId}
             content={draftContent}
             findQuery={findQuery}
+            sessionId={sessionId}
+            lspRetryToken={lspRetryToken}
+            gotoTarget={gotoTarget}
             onChange={setDraftContent}
             onSave={() => void handleSave()}
             onMatchCountChange={setMatchCount}
             onFindFocusRequest={focusFindInput}
+            onLspStatusChange={setLspStatus}
+            onOpenFile={onOpenFile}
           />
         )}
       </div>

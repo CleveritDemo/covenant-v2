@@ -310,4 +310,32 @@ export const IPC = {
   APP_QUIT_CONFIRMED: 'app:quitConfirmed',
   /** Renderer → main (invoke): agregado de la bitácora local de Pulse */
   PULSE_SNAPSHOT: 'pulse:snapshot',
+
+  // ─── Motor LSP (code intelligence) ─────────────────────────────────────────
+  /** Renderer → main (invoke): estado de instalación + runtime de un lenguaje */
+  LSP_SERVER_STATUS: 'lsp:serverStatus',
+  /** Renderer → main (invoke): descargar/instalar el server de un lenguaje */
+  LSP_DOWNLOAD_SERVER: 'lsp:downloadServer',
+  /** Renderer → main (invoke): inventario de servers del manifiesto + tamaño en disco */
+  LSP_LIST_INSTALLED: 'lsp:listInstalled',
+  /** Renderer → main (invoke): borrar el server instalado de un lenguaje */
+  LSP_DELETE_SERVER: 'lsp:deleteServer',
+  /** Renderer → main (invoke): re-detectar runtimes (node/dotnet/java) */
+  LSP_RECHECK_RUNTIMES: 'lsp:recheckRuntimes',
+  /** Renderer → main (invoke): arrancar/reutilizar un server para un archivo */
+  LSP_START: 'lsp:start',
+  /** Renderer → main: mensaje JSON-RPC hacia el server */
+  LSP_SEND: 'lsp:send',
+  /** Renderer → main: parar un server */
+  LSP_STOP: 'lsp:stop',
+  /** Renderer → main (invoke): leer un archivo dentro de la raíz del workspace */
+  LSP_READ_FILE: 'lsp:readFile',
+  /** Renderer → main (invoke): escribir un archivo dentro de la raíz del workspace */
+  LSP_WRITE_FILE: 'lsp:writeFile',
+  /** Main → renderer: mensaje JSON-RPC del server (multiplexado por serverId) */
+  LSP_MESSAGE: 'lsp:message',
+  /** Main → renderer: el server murió (multiplexado por serverId) */
+  LSP_EXIT: 'lsp:exit',
+  /** Main → renderer: progreso de descarga/instalación (multiplexado por lenguaje) */
+  LSP_DOWNLOAD_PROGRESS: 'lsp:downloadProgress',
 } as const

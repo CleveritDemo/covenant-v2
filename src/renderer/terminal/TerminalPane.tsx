@@ -19,6 +19,7 @@ import {
   createTerminalRepaintScheduler,
   repaintTerminalCanvas,
 } from './terminalCanvasRepaint'
+import { trimRestoredScrollback } from './terminalScrollbackRestore'
 import { TerminalSuggestStack } from './TerminalSuggestStack'
 import { TerminalScrollDown } from './TerminalScrollDown'
 import { normalizeSessionCwd, sessionCwdPaneLabel } from './explorer/explorerPathUtils'
@@ -991,8 +992,11 @@ export const TerminalPane: React.FC<Props> = ({
       flushPtyDataBuffer()
     }
 
-    const writeScrollbackThenHydrate = (saved: string | null): void => {
+    const writeScrollbackThenHydrate = (rawSaved: string | null): void => {
       if (!termAlive || termRef.current !== term) return
+      // Sin la última línea (prompt del shell muerto): si no, el shell nuevo
+      // arranca a media línea y antepone su marca de fin de línea.
+      const saved = rawSaved ? trimRestoredScrollback(rawSaved) : ''
       if (!saved) {
         markScrollbackHydrated()
         return

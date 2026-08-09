@@ -9,6 +9,7 @@
   align-items: center;
   gap: 6px;
   height: 24px;
+  max-width: min(420px, calc(100vw - 220px));
   padding: 0 4px 0 8px;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 999px;
@@ -16,12 +17,29 @@
   flex-shrink: 0;
 }
 
+.update-banner--downloading {
+  /* Ancho estable: el % no reflowea el chip en cada tick. */
+  min-width: 168px;
+  padding-right: 8px;
+}
+
+.update-banner--error {
+  border-color: color-mix(in srgb, var(--danger, #e5484d) 40%, transparent);
+  background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent);
+}
+
 .update-banner__pulse {
+  flex-shrink: 0;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
   animation: update-banner-pulse 2.2s ease-out infinite;
+}
+
+.update-banner__pulse--error {
+  background: var(--danger, #e5484d);
+  animation: none;
 }
 
 @keyframes update-banner-pulse {
@@ -30,20 +48,8 @@
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .update-banner__pulse { animation: none; }
-}
-
-.update-banner__label {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
 .update-banner__version {
+  flex-shrink: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -53,19 +59,72 @@
   cursor: pointer;
 }
 
-.update-banner__version:hover { color: var(--accent); }
+.update-banner__version:hover:not(:disabled) { color: var(--accent); }
 
-.update-banner__whatsnew {
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--accent);
-  cursor: pointer;
+.update-banner__version:disabled {
+  cursor: default;
+  opacity: 1;
+  color: var(--text);
 }
 
-.update-banner__whatsnew:hover { text-decoration: underline; }
+.update-banner__error {
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* Barra de descarga: track fijo + fill con transición suave. */
+.update-banner__track {
+  position: relative;
+  flex: 1 1 auto;
+  width: 72px;
+  min-width: 72px;
+  max-width: 96px;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface, transparent));
+}
+
+.update-banner__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease-out;
+}
+
+.update-banner__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text) 28%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: update-banner-sheen 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes update-banner-sheen {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner__pulse { animation: none; }
+  .update-banner__fill { transition: none; }
+  .update-banner__fill::after { animation: none; }
+}
 
 /* Cabecera del modal de novedades: chip de versión + título + de dónde salen. */
 .update-notes__head {
@@ -107,10 +166,10 @@
   font-size: 12px;
 }
 
-/* Titlebar estrecha: la píldora se queda en punto + versión + acción. */
+/* Titlebar estrecha: versión + acción (o barra) bastan. */
 @media (max-width: 900px) {
-  .update-banner__label,
-  .update-banner__whatsnew { display: none; }
+  .update-banner__error { max-width: 96px; }
+  .update-banner--downloading { min-width: 140px; }
 }
 
 /* Ya no cabe centrada sin taparse con los controles: vuelve al flujo, pegada a
@@ -120,5 +179,6 @@
     position: static;
     transform: none;
     margin-right: 3px;
+    max-width: none;
   }
 }

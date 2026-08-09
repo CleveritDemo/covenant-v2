@@ -698,13 +698,12 @@ const es = {
   },
 
   update: {
-    available: 'Actualización',
-    downloading: 'Descargando… {{percent}}%',
-    ready: 'Lista',
-    error: 'Error: {{message}}',
+    availableAria: 'Actualización v{{version}} disponible',
+    downloadingAria: 'Descargando v{{version}}, {{percent}}%',
+    readyAria: 'Actualización v{{version}} lista para instalar',
+    error: '{{message}}',
     install: 'Instalar',
-    restart: 'Reiniciar e instalar',
-    whatsNew: 'Novedades ›',
+    restart: 'Reiniciar',
     whatsNewTitle: 'Novedades',
     notesTitle: 'Ver notas de la versión',
     noNotes: 'Esta versión no trae notas.',

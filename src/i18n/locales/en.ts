@@ -696,13 +696,12 @@ const en = {
   },
 
   update: {
-    available: 'Update',
-    downloading: 'Downloading… {{percent}}%',
-    ready: 'Ready',
-    error: 'Error: {{message}}',
+    availableAria: 'Update v{{version}} available',
+    downloadingAria: 'Downloading v{{version}}, {{percent}}%',
+    readyAria: 'Update v{{version}} ready to install',
+    error: '{{message}}',
     install: 'Install',
-    restart: 'Restart & install',
-    whatsNew: "What's new ›",
+    restart: 'Restart',
     whatsNewTitle: "What's new",
     notesTitle: 'View release notes',
     noNotes: 'No release notes were attached to this build.',

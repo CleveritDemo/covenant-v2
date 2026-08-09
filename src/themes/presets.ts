@@ -546,6 +546,52 @@ const avatar: AppTheme = {
   },
 }
 
+/** Zelda — Bosque Profundo: musgo húmedo, linterna fairy, niebla del Lost Woods */
+const zeldaDeepWoods: AppTheme = {
+  id: 'zeldaDeepWoods',
+  name: 'Zelda — Bosque Profundo',
+  vars: {
+    '--bg': '#0b130f',
+    '--bg-secondary': '#0e1812',
+    '--surface': '#142018',
+    '--surface-hover': '#1a2a20',
+    '--border': '#2a3d32',
+    '--text': '#d4e0c8',
+    '--text-muted': '#7a9178',
+    '--accent': '#e4b84a',
+    '--accent-dim': '#a88430',
+    '--danger': '#c4685c',
+    '--tab-active-bg': '#142018',
+    '--tab-inactive-bg': '#0b130f',
+    '--scrollbar': '#2a3d32',
+    '--radius': '10px',
+  },
+  xterm: {
+    background: '#0b130f',
+    foreground: '#d4e0c8',
+    cursor: '#e4b84a',
+    cursorAccent: '#0b130f',
+    selectionBackground: '#e4b84a33',
+    selectionForeground: '#f4f7ec',
+    black: '#121a15',
+    red: '#c4685c',
+    green: '#6bc47a',
+    yellow: '#e4b84a',
+    blue: '#7aa8b8',
+    magenta: '#b888a0',
+    cyan: '#6ab8a0',
+    white: '#d4e0c8',
+    brightBlack: '#4a5f52',
+    brightRed: '#d88a80',
+    brightGreen: '#8fd99a',
+    brightYellow: '#f0d078',
+    brightBlue: '#9cc4d0',
+    brightMagenta: '#d0a8bc',
+    brightCyan: '#8ed0b8',
+    brightWhite: '#f4f7ec',
+  },
+}
+
 // ---------------------------------------------------------------------------
 // Cinematic light — contraparte clara de cada tema cinematic
 // ---------------------------------------------------------------------------
@@ -1067,6 +1113,53 @@ const avatarLight: AppTheme = {
   },
 }
 
+/** Zelda — Bosque Profundo Light: claro de niebla tras el bosque */
+const zeldaDeepWoodsLight: AppTheme = {
+  id: 'zeldaDeepWoodsLight',
+  name: 'Zelda — Bosque Profundo Light',
+  appearance: 'light',
+  vars: {
+    '--bg': '#f5f7f0',
+    '--bg-secondary': '#e8eee0',
+    '--surface': '#dfe8d4',
+    '--surface-hover': '#d0dcc4',
+    '--border': '#b5c4a8',
+    '--text': '#1e2e22',
+    '--text-muted': '#5f735e',
+    '--accent': '#9a7a18',
+    '--accent-dim': '#7a6012',
+    '--danger': '#b04a4a',
+    '--tab-active-bg': '#dfe8d4',
+    '--tab-inactive-bg': '#f5f7f0',
+    '--scrollbar': '#b5c4a8',
+    '--radius': '10px',
+  },
+  xterm: {
+    background: '#f5f7f0',
+    foreground: '#1e2e22',
+    cursor: '#9a7a18',
+    cursorAccent: '#f5f7f0',
+    selectionBackground: '#9a7a1826',
+    selectionForeground: '#152018',
+    black: '#1e2e22',
+    red: '#b04a4a',
+    green: '#2f8a48',
+    yellow: '#9a7a18',
+    blue: '#3d6e82',
+    magenta: '#8a5570',
+    cyan: '#2f7a68',
+    white: '#a8b89c',
+    brightBlack: '#4a5f52',
+    brightRed: '#8f3c3c',
+    brightGreen: '#25703a',
+    brightYellow: '#7a6012',
+    brightBlue: '#325a6c',
+    brightMagenta: '#704458',
+    brightCyan: '#266454',
+    brightWhite: '#152018',
+  },
+}
+
 export const THEMES: AppTheme[] = [
   // Cinematic — dark
   tokyoNight,
@@ -1080,6 +1173,7 @@ export const THEMES: AppTheme[] = [
   fallout,
   starWars,
   avatar,
+  zeldaDeepWoods,
   // Cinematic — light, espejo del orden de sus contrapartes oscuras
   tokyoNightDay,
   matrixLight,
@@ -1092,6 +1186,7 @@ export const THEMES: AppTheme[] = [
   falloutLight,
   starWarsLight,
   avatarLight,
+  zeldaDeepWoodsLight,
 ]
 
 export function getTheme(id: string): AppTheme {
@@ -1110,6 +1205,7 @@ const THEME_CHROME_PROFILES: Record<string, ThemeChromeProfile> = {
   fallout: { category: 'glow', tabShape: 'square', glowMultiplier: 1.55, panelRadius: '8px' },
   starWars: { category: 'glow', tabShape: 'square', glowMultiplier: 1.45, panelRadius: '8px' },
   avatar: { category: 'glow', tabShape: 'square', glowMultiplier: 1.6, panelRadius: '14px' },
+  zeldaDeepWoods: { category: 'glow', tabShape: 'square', glowMultiplier: 1.55, panelRadius: '14px' },
   // Lights: mismo carácter glow con intensidad reducida para fondos claros
   tokyoNightDay: { category: 'glow', tabShape: 'square', glowMultiplier: 1.0, panelRadius: '10px' },
   matrixLight: { category: 'glow', tabShape: 'square', glowMultiplier: 1.15, panelRadius: '8px' },
@@ -1122,6 +1218,7 @@ const THEME_CHROME_PROFILES: Record<string, ThemeChromeProfile> = {
   falloutLight: { category: 'glow', tabShape: 'square', glowMultiplier: 1.1, panelRadius: '8px' },
   starWarsLight: { category: 'glow', tabShape: 'square', glowMultiplier: 1.05, panelRadius: '8px' },
   avatarLight: { category: 'glow', tabShape: 'square', glowMultiplier: 1.15, panelRadius: '14px' },
+  zeldaDeepWoodsLight: { category: 'glow', tabShape: 'square', glowMultiplier: 1.1, panelRadius: '14px' },
 }
 
 export function getThemeChromeProfile(theme: AppTheme | string): ThemeChromeProfile {

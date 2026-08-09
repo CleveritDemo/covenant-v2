@@ -4,6 +4,40 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.11.0
+
+- **El explorador ya no solo abre texto.** Haz clic en un PDF, una hoja de
+  cálculo, un documento de Word o una imagen y se ven, ahí mismo, sin salir a
+  Finder. Hasta ahora cualquiera de esos archivos era un callejón sin salida
+  que solo ofrecía "Mostrar en Finder".
+- **Cada formato con su vista.** Los PDF usan el visor del propio Chromium; los
+  `.xlsx`, `.xls` y `.ods` salen como tabla con una pestaña por hoja; los
+  `.docx` se convierten a texto con sus títulos, listas y tablas; las imágenes
+  (png, jpg, gif, webp, bmp, ico, avif) van sobre un tablero que deja ver la
+  transparencia real; el Markdown se ve renderizado, el SVG dibujado y el HTML
+  como lo pintaría un navegador.
+- **Vista o Fuente, tú eliges.** Los formatos de texto —Markdown, HTML, SVG,
+  CSV— ganan un control en la cabecera para saltar entre lo renderizado y el
+  código, y editarlo sigue funcionando igual. Los binarios no lo muestran: su
+  "fuente" no significa nada y tocarla los rompe.
+- **Los CSV y TSV se editan como una hoja de cálculo.** Clic en una celda,
+  escribe, Enter. Los números se guardan exactamente como estaban: un
+  `9007199254740993` o un `3e-06` no se redondean ni se reescriben al tocar
+  una celda de al lado.
+- **Plegar todas las carpetas de una vez**, con un botón nuevo en la barra del
+  explorador.
+- **El ojo para las carpetas pesadas sale a la barra.** Mostrar u ocultar
+  `node_modules`, `.git`, `dist`, `build` y compañía estaba escondido en el menú
+  contextual; ahora se ve el estado de un vistazo y el tooltip dice exactamente
+  qué esconde.
+- **Tres plantillas de agente más**: product owner, backend y frontend, junto a
+  tech lead, revisor e implementador. Siguen rellenando rol, objetivo y reglas
+  solo mientras están vacíos.
+- **Se arregló el "Could not load" al abrir un archivo.** Si cambiabas la
+  carpeta raíz, la cabecera pasaba a la nueva pero el árbol seguía mostrando el
+  contenido de la anterior, así que al abrir cualquier cosa buscaba una ruta que
+  no existía.
+
 ## v0.10.0
 
 - **El editor de archivos ya entiende el código, no solo lo colorea.** Abre un

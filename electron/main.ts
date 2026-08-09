@@ -105,7 +105,9 @@ import type { PatchHunk } from './agentFileOps'
 import { runAgentShellCommand } from './agentShellOps'
 import {
   gitCommit,
+  gitDiffFile,
   gitDiffForAi,
+  gitDiscardFile,
   gitGetRepoStatus,
   gitListRepos,
   gitCollectUniqueRepos,
@@ -739,6 +741,21 @@ function registerIpc(): void {
   ipcMain.handle(IPC.GIT_DIFF_FOR_AI, (_e, target: { sessionId?: string; path?: string }) => {
     return gitDiffForAi(resolveGitTargetCwd(target))
   })
+  ipcMain.handle(
+    IPC.GIT_DIFF_FILE,
+    (_e, target: { sessionId?: string; path?: string }, relPath: unknown, area: unknown) => {
+      const safeArea = area === 'staged' || area === 'untracked' ? area : 'worktree'
+      return gitDiffFile(resolveGitTargetCwd(target), relPath, safeArea)
+    },
+  )
+  ipcMain.handle(
+    IPC.GIT_DISCARD_FILE,
+    (_e, target: { sessionId?: string; path?: string }, relPath: unknown, untracked: unknown) => {
+      const result = gitDiscardFile(resolveGitTargetCwd(target), relPath, untracked === true)
+      emitGitStatusChanged(target)
+      return result
+    },
+  )
   ipcMain.handle(IPC.GIT_PULL, (_e, target: { sessionId?: string; path?: string }) => {
     const result = gitPull(resolveGitTargetCwd(target))
     emitGitStatusChanged(target)

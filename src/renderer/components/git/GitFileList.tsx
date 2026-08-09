@@ -4,6 +4,7 @@ import { useT } from '@i18n/useT'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Tooltip } from '../ui/Tooltip'
+import type { GitDiffSelection } from './GitDiffPane'
 import {
   GIT_STATUS_LETTER,
   filterGitEntries,
@@ -26,6 +27,9 @@ interface GitFileListProps {
   onUnstageFile: (relPath: string) => void
   onStageAll: () => void
   onUnstageAll: () => void
+  selection: GitDiffSelection | null
+  onSelect: (selection: GitDiffSelection) => void
+  onDiscardFile: (relPath: string, untracked: boolean) => void
 }
 
 function GitFileLineStatsView({ insertions, deletions }: GitFileLineStats) {
@@ -58,6 +62,10 @@ interface GitFileGroupProps {
   fileActionLabel: string
   fileActionSign: string
   onFileAction: (relPath: string) => void
+  selection: GitDiffSelection | null
+  onSelect: (selection: GitDiffSelection) => void
+  /** Solo en el worktree: descartar es destructivo y no aplica al índice. */
+  onDiscardFile?: (relPath: string, untracked: boolean) => void
 }
 
 const GitFileGroup: React.FC<GitFileGroupProps> = ({
@@ -72,6 +80,9 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
   fileActionLabel,
   fileActionSign,
   onFileAction,
+  selection,
+  onSelect,
+  onDiscardFile,
 }) => {
   const { t } = useT()
   const total = useMemo(() => gitAreaTotals(entries, numStat), [entries, numStat])
@@ -98,9 +109,16 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
             const stats = gitEntryAreaStats(entry, numStat)
             const kind = gitStatusKind(entry, area)
             const kindName = t(`git.statusNames.${kind}` as 'git.statusNames.modified')
+            const untracked = kind === 'untracked'
+            const diffArea: GitDiffSelection['area'] =
+              area === 'index' ? 'staged' : untracked ? 'untracked' : 'worktree'
+            const selected = selection?.path === path && selection.area === diffArea
 
             return (
-              <li key={`${entry.status}:${entry.path}`} className="git-file-list__row">
+              <li
+                key={`${entry.status}:${entry.path}`}
+                className={`git-file-list__row${selected ? ' git-file-list__row--selected' : ''}`}
+              >
                 <Tooltip content={`${kindName} (${entry.status})`}>
                   <span
                     className={`git-file-list__st git-file-list__st--${kind}`}
@@ -109,11 +127,16 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
                     {GIT_STATUS_LETTER[kind]}
                   </span>
                 </Tooltip>
-                <Tooltip content={path}>
-                  <code className="git-file-list__name">
+                <Tooltip content={path} hint={t('git.diffRowHint')}>
+                  <button
+                    type="button"
+                    className="git-file-list__name"
+                    aria-pressed={selected}
+                    onClick={() => onSelect({ path, area: diffArea })}
+                  >
                     {dir ? <span className="git-file-list__dir">{dir}</span> : null}
                     {name}
-                  </code>
+                  </button>
                 </Tooltip>
                 {stats ? (
                   <GitFileLineStatsView insertions={stats.insertions} deletions={stats.deletions} />
@@ -121,6 +144,19 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
                   <span className="git-file-list__stats git-file-list__stats--empty" aria-hidden />
                 )}
                 <div className="git-file-list__actions">
+                  {onDiscardFile ? (
+                    <Tooltip content={t('git.discardFileButton')}>
+                      <Button
+                        variant="icon"
+                        size="xs"
+                        disabled={!idle}
+                        aria-label={`${t('git.discardFileButton')} ${name}`}
+                        onClick={() => onDiscardFile(path, untracked)}
+                      >
+                        ⌫
+                      </Button>
+                    </Tooltip>
+                  ) : null}
                   <Button
                     variant="icon"
                     size="xs"
@@ -149,6 +185,9 @@ export const GitFileList: React.FC<GitFileListProps> = ({
   onUnstageFile,
   onStageAll,
   onUnstageAll,
+  selection,
+  onSelect,
+  onDiscardFile,
 }) => {
   const { t } = useT()
   const [query, setQuery] = useState('')
@@ -161,7 +200,7 @@ export const GitFileList: React.FC<GitFileListProps> = ({
   const onListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     const buttons = [
-      ...e.currentTarget.querySelectorAll<HTMLButtonElement>('.git-file-list__actions button'),
+      ...e.currentTarget.querySelectorAll<HTMLButtonElement>('button.git-file-list__name'),
     ].filter(b => !b.disabled)
     if (buttons.length === 0) return
     const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
@@ -215,6 +254,8 @@ export const GitFileList: React.FC<GitFileListProps> = ({
           fileActionLabel={t('git.unstageFileButton')}
           fileActionSign="−"
           onFileAction={onUnstageFile}
+          selection={selection}
+          onSelect={onSelect}
         />
         <GitFileGroup
           area="worktree"
@@ -228,6 +269,9 @@ export const GitFileList: React.FC<GitFileListProps> = ({
           fileActionLabel={t('git.stageFileButton')}
           fileActionSign="+"
           onFileAction={onStageFile}
+          selection={selection}
+          onSelect={onSelect}
+          onDiscardFile={onDiscardFile}
         />
           </>
         )}

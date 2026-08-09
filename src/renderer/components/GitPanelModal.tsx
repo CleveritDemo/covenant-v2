@@ -5,14 +5,17 @@ import { suggestGitCommitMessage, aiOptionsFromConfig } from '@ai/aiClient'
 import { useT } from '@i18n/useT'
 import { shortcutLabel } from '@i18n/modKeyLabel'
 import { TerminalModal } from './TerminalModal'
+import { ConfirmTerminalModal } from './ConfirmTerminalModal'
 import { Button } from './ui/Button'
 import { TextArea } from './ui/TextArea'
 import { Spinner } from './ui/Spinner'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
 import { GitBranchBadge } from './git/GitBranchBadge'
 import { GitFileList } from './git/GitFileList'
 import { GitHubActionsPanel } from './git/GitHubActionsPanel'
+import { GitDiffPane, type GitDiffSelection } from './git/GitDiffPane'
 import { formatGitCommandResult } from './git/gitErrorI18n'
 import { splitGitFilesByArea } from './git/gitPathUtils'
 import { gitAreaTotals, parseGitNumStat } from './git/gitDiffNumStat'
@@ -42,6 +45,13 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
   // El panel de Actions avisa si el remoto no es de GitHub; entonces sobra la columna.
   const [actionsAvailable, setActionsAvailable] = useState(true)
+  const [sideTab, setSideTab] = useState<'diff' | 'actions'>('diff')
+  // Sube con cada gitStatus: el diff visible se recarga tras stage/unstage/descartar.
+  const [statusToken, setStatusToken] = useState(0)
+  const [selection, setSelection] = useState<GitDiffSelection | null>(null)
+  const [discardTarget, setDiscardTarget] = useState<{ path: string; untracked: boolean } | null>(
+    null,
+  )
   const aiAbortRef = useRef<AbortController | null>(null)
   const targetKey = `${target.path ?? ''}|${target.sessionId ?? ''}`
   const targetRef = useRef(target)
@@ -58,6 +68,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     try {
       const s = await window.api.gitStatus(targetRef.current)
       setStatus(s)
+      setStatusToken(n => n + 1)
     } catch (e) {
       setStatus({
         isRepo: false,
@@ -84,6 +95,8 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     setLastLog('')
     setLastRun(null)
     setActionsAvailable(true)
+    setSelection(null)
+    setDiscardTarget(null)
     setActionsRefreshToken(n => n + 1)
     void refresh()
     // Solo al abrir o cambiar de repo: no re-ejecutar por identidad de callbacks.
@@ -185,6 +198,16 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
     if (canCommit) onCommit()
   }
 
+  const onDiscardConfirmed = (): void => {
+    const target = discardTarget
+    setDiscardTarget(null)
+    if (!target) return
+    const label = target.untracked ? `git clean -f ${target.path}` : `git restore ${target.path}`
+    void runAndLog(label, () =>
+      window.api.gitDiscardFile(targetRef.current, target.path, target.untracked),
+    )
+  }
+
   const onSuggestAi = (): void => {
     aiAbortRef.current?.abort()
     const ctrl = new AbortController()
@@ -228,7 +251,9 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   }, [status])
   // Sin upstream `ahead` no viene: entonces se permite push (`push -u` es el caso normal).
   const canPush = repo && idle && (typeof status?.ahead !== 'number' || ahead > 0)
-  const actionsHidden = repo && !actionsAvailable
+  // La columna derecha ya no se oculta (lleva el diff); lo que se cae es la pestaña.
+  const showActionsTab = repo && actionsAvailable
+  const effectiveTab: 'diff' | 'actions' = showActionsTab ? sideTab : 'diff'
 
   return (
     <>
@@ -247,7 +272,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
           </span>
         }
       >
-        <div className={`git-panel-layout${actionsHidden ? ' git-panel-layout--single' : ''}`}>
+        <div className="git-panel-layout">
           <div className="git-panel-layout__main">
             <div className="git-panel-scroll">
               {loading && !status && (
@@ -314,6 +339,9 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                       onUnstageFile={onUnstageFile}
                       onStageAll={onStageAll}
                       onUnstageAll={onUnstageAll}
+                      selection={selection}
+                      onSelect={setSelection}
+                      onDiscardFile={(path, untracked) => setDiscardTarget({ path, untracked })}
                     />
                   )}
 
@@ -376,6 +404,9 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                         })
                       : t('git.commitHint')}
                   </span>
+                  <Button variant="secondary" size="sm" disabled={!canPush} onClick={onPush}>
+                    {ahead > 0 ? `${t('git.pushButton')} ↑${ahead}` : t('git.pushButton')}
+                  </Button>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -389,24 +420,54 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                     <kbd className="git-panel-commit-kbd">{shortcutLabel('↵')}</kbd>
                   </Button>
                 </div>
-                <div className="git-panel-push-row">
-                  <Button variant="secondary" size="sm" disabled={!canPush} onClick={onPush}>
-                    {ahead > 0 ? `${t('git.pushButton')} ↑${ahead}` : t('git.pushButton')}
-                  </Button>
-                </div>
               </div>
             )}
           </div>
-          {!actionsHidden && (
-            <GitHubActionsPanel
-              target={target}
-              repoStatus={status}
-              refreshToken={actionsRefreshToken}
-              onAvailable={setActionsAvailable}
-            />
-          )}
+          <aside className="git-panel-side">
+            <div className="git-panel-side__tabs">
+              <SegmentedControl
+                size="sm"
+                label={t('git.sideTabsLabel')}
+                value={effectiveTab}
+                onChange={setSideTab}
+                options={
+                  showActionsTab
+                    ? [
+                        { value: 'diff', label: t('git.diffTab') },
+                        { value: 'actions', label: t('githubActions.title') },
+                      ]
+                    : [{ value: 'diff', label: t('git.diffTab') }]
+                }
+              />
+              {effectiveTab === 'diff' && selection ? (
+                <code className="git-panel-side__path">{selection.path}</code>
+              ) : null}
+            </div>
+            <div className="git-panel-side__pane" hidden={effectiveTab !== 'diff'}>
+              <GitDiffPane target={target} selection={selection} refreshToken={statusToken} />
+            </div>
+            {/* Montado siempre: es quien avisa de si el remoto es de GitHub. */}
+            <div className="git-panel-side__pane" hidden={effectiveTab !== 'actions'}>
+              <GitHubActionsPanel
+                target={target}
+                repoStatus={status}
+                refreshToken={actionsRefreshToken}
+                onAvailable={setActionsAvailable}
+              />
+            </div>
+          </aside>
         </div>
       </TerminalModal>
+      <ConfirmTerminalModal
+        open={discardTarget !== null}
+        zIndex={APP_OVERLAY_MODAL_Z + 10}
+        message={t('git.discardConfirmMessage', { path: discardTarget?.path ?? '' })}
+        detail={
+          discardTarget?.untracked ? t('git.discardConfirmUntracked') : t('git.discardConfirmDetail')
+        }
+        onConfirm={onDiscardConfirmed}
+        onCancel={() => setDiscardTarget(null)}
+      />
     </>
   )
 }

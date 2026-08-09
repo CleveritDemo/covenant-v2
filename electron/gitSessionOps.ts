@@ -447,6 +447,104 @@ export async function gitUnstageAll(sessionCwdRaw: string): Promise<GitCommandRe
   return runGit(repoRoot, ['restore', '--staged', '.'], TIMEOUT_LOCAL_MS)
 }
 
+/** Área del diff pedido: índice, worktree, o archivo aún sin seguimiento. */
+export type GitDiffArea = 'staged' | 'worktree' | 'untracked'
+
+function invalidPath(): GitCommandResult {
+  return {
+    ok: false,
+    exitCode: null,
+    stdout: '',
+    stderr: 'ruta inválida',
+    errorCode: GIT_ERROR_CODES.CWD_INVALID,
+  }
+}
+
+/** Normaliza y valida la ruta relativa igual que stage/unstage. */
+function safeRelPath(relPathRaw: unknown): string | null {
+  const relPath = String(relPathRaw ?? '').trim().replace(/\\/g, '/')
+  if (!relPath || relPath.includes('\0') || relPath.startsWith('/')) return null
+  return relPath
+}
+
+async function resolveRepoRootOrError(
+  sessionCwdRaw: string,
+): Promise<{ repoRoot: string } | { error: GitCommandResult }> {
+  const sessionCwd = resolveWorkingDir(sessionCwdRaw)
+  if (!sessionCwd) {
+    return {
+      error: {
+        ok: false,
+        exitCode: null,
+        stdout: '',
+        stderr: 'cwd inválido',
+        errorCode: GIT_ERROR_CODES.CWD_INVALID,
+      },
+    }
+  }
+  const repoRoot = await getRepoRoot(sessionCwd)
+  if (!repoRoot) {
+    return {
+      error: {
+        ok: false,
+        exitCode: null,
+        stdout: '',
+        stderr: 'no es un repositorio git',
+        errorCode: GIT_ERROR_CODES.NOT_A_REPO,
+      },
+    }
+  }
+  return { repoRoot }
+}
+
+/** Diff de un solo archivo. El texto va en `stdout`, ya recortado por `runGit`. */
+export async function gitDiffFile(
+  sessionCwdRaw: string,
+  relPathRaw: unknown,
+  area: GitDiffArea,
+): Promise<GitCommandResult> {
+  const relPath = safeRelPath(relPathRaw)
+  if (!relPath) return invalidPath()
+  const resolved = await resolveRepoRootOrError(sessionCwdRaw)
+  if ('error' in resolved) return resolved.error
+
+  if (area === 'untracked') {
+    // Un archivo sin seguimiento no tiene diff: se compara contra la nada para
+    // enseñarlo como altas. `--no-index` sale con 1 cuando hay diferencias, que
+    // aquí es el caso normal, no un fallo.
+    // ponytail: usa /dev/null; en Windows sin git-bash esto puede fallar y el
+    // panel enseñará el stderr. Si hace falta, el reemplazo es `git show :0:`.
+    const r = await runGit(
+      resolved.repoRoot,
+      ['diff', '--no-index', '--', '/dev/null', relPath],
+      TIMEOUT_LOCAL_MS,
+    )
+    return r.exitCode === 1 && r.stdout ? { ...r, ok: true } : r
+  }
+
+  const args = area === 'staged' ? ['diff', '--cached', '--', relPath] : ['diff', '--', relPath]
+  return runGit(resolved.repoRoot, args, TIMEOUT_LOCAL_MS)
+}
+
+/**
+ * Destructivo: descarta los cambios del worktree de un archivo. Los de un
+ * archivo sin seguimiento se borran; los del índice no se tocan (para eso está
+ * unstage). Quien llama debe confirmar antes.
+ */
+export async function gitDiscardFile(
+  sessionCwdRaw: string,
+  relPathRaw: unknown,
+  untracked: boolean,
+): Promise<GitCommandResult> {
+  const relPath = safeRelPath(relPathRaw)
+  if (!relPath) return invalidPath()
+  const resolved = await resolveRepoRootOrError(sessionCwdRaw)
+  if ('error' in resolved) return resolved.error
+
+  const args = untracked ? ['clean', '-f', '--', relPath] : ['restore', '--', relPath]
+  return runGit(resolved.repoRoot, args, TIMEOUT_LOCAL_MS)
+}
+
 export async function gitUnstageFile(sessionCwdRaw: string, relPathRaw: unknown): Promise<GitCommandResult> {
   const relPath = String(relPathRaw ?? '').trim().replace(/\\/g, '/')
   if (!relPath || relPath.includes('\0') || relPath.startsWith('/')) {

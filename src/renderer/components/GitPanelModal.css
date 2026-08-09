@@ -6,9 +6,48 @@
   min-width: 0;
 }
 
-/* Sin Actions (remoto que no es de GitHub) la columna sobra: se la queda la lista */
-.git-panel-layout--single {
-  grid-template-columns: minmax(0, 1fr);
+/* Columna derecha: diff del archivo elegido y, si el remoto es de GitHub, Actions */
+.git-panel-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 18%, var(--bg));
+}
+
+.git-panel-side__tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.git-panel-side__path {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  min-width: 0;
+}
+
+.git-panel-side__pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* `hidden` tiene que ganar al display:flex de arriba */
+.git-panel-side__pane[hidden] {
+  display: none;
 }
 
 .git-panel-layout__main {
@@ -36,7 +75,7 @@
     grid-template-rows: minmax(0, 1fr) auto;
   }
 
-  .gh-actions-panel {
+  .git-panel-side {
     border-left: none;
     border-top: 1px solid var(--border);
     max-height: min(38vh, 320px);
@@ -301,18 +340,6 @@
   gap: 6px;
 }
 
-.git-panel-push-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.git-panel-push-row .btn {
-  flex: 1;
-  min-width: 120px;
-}
-
 /* Lista de archivos en dos áreas: lo que entra en el commit y lo que no */
 .git-file-list {
   display: flex;
@@ -415,6 +442,22 @@
 .git-file-list__row:hover,
 .git-file-list__row:focus-within {
   background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+.git-file-list__row--selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* El nombre es el control que elige el archivo del diff */
+button.git-file-list__name {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 /* La fila con el foco dentro es la "seleccionada" al navegar con ↑↓ */

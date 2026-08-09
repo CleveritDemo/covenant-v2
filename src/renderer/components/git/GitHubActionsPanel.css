@@ -3,7 +3,6 @@
   flex-direction: column;
   min-height: 0;
   height: 100%;
-  border-left: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 18%, var(--bg-secondary));
 }
 

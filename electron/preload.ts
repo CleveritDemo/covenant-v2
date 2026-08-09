@@ -398,6 +398,18 @@ const api = {
     return ipcRenderer.invoke(IPC.GIT_DIFF_FOR_AI, target)
   },
 
+  gitDiffFile(
+    target: GitTarget,
+    relPath: string,
+    area: 'staged' | 'worktree' | 'untracked',
+  ): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_DIFF_FILE, target, relPath, area)
+  },
+
+  gitDiscardFile(target: GitTarget, relPath: string, untracked: boolean): Promise<GitCommandResult> {
+    return ipcRenderer.invoke(IPC.GIT_DISCARD_FILE, target, relPath, untracked)
+  },
+
   gitPull(target: GitTarget): Promise<GitCommandResult> {
     return ipcRenderer.invoke(IPC.GIT_PULL, target)
   },

@@ -115,6 +115,8 @@ export const IPC = {
   GIT_COLLECT_UNIQUE_REPOS: 'git:collectUniqueRepos',
   /** Renderer → main (invoke): texto truncado para sugerir mensaje de commit (IA) */
   GIT_DIFF_FOR_AI: 'git:diffForAi',
+  /** Diff de un archivo concreto, para verlo antes de commitear. */
+  GIT_DIFF_FILE: 'git:diffFile',
   GIT_PULL: 'git:pull',
   GIT_PUSH: 'git:push',
   GIT_COMMIT: 'git:commit',
@@ -122,6 +124,8 @@ export const IPC = {
   GIT_STAGE_FILE: 'git:stageFile',
   GIT_UNSTAGE_ALL: 'git:unstageAll',
   GIT_UNSTAGE_FILE: 'git:unstageFile',
+  /** Destructivo: tira los cambios del worktree de un archivo. */
+  GIT_DISCARD_FILE: 'git:discardFile',
 
   /** Renderer → main (invoke): rama actual del repo (`rev-parse --abbrev-ref HEAD`) */
   GIT_CURRENT_BRANCH: 'git:currentBranch',

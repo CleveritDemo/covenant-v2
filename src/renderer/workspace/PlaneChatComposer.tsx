@@ -149,6 +149,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     loopActive,
     busy,
     awaitingDelegations,
+    delegationWorkActive,
   }))
   const buttonIsStop = Boolean(showStop && (loopActive || !canSend))
   const editingQueuedText = editingQueuedId

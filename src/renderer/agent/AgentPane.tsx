@@ -43,6 +43,7 @@ import {
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
+import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
@@ -1178,6 +1179,28 @@ export const AgentPane: React.FC<Props> = ({
       ? (getOrchestrationAgentsRef.current?.() ?? [])
       : []
     const roundInfo = canDelegate ? getOrchestrationRoundRef.current?.() : undefined
+    // Subtarea del orquestador: CLI fresco (sin --resume de jobs previos en el pane).
+    const resumeCliSession = shouldResumeCliSessionForTurn({
+      delegation: options.delegation,
+    })
+    if (!resumeCliSession) {
+      const staleSessionId = currentMeta.cliSessionId?.trim()
+      if (staleSessionId) {
+        window.api.clearAgentContextDelivery({
+          provider: currentMeta.provider,
+          cliSessionId: staleSessionId,
+        })
+      }
+      onMetaChange(previous => {
+        if (!previous.cliSessionId) return previous
+        const { cliSessionId: _dropped, ...rest } = previous
+        return rest
+      })
+      if (metaRef.current.cliSessionId) {
+        const { cliSessionId: _dropped, ...rest } = metaRef.current
+        metaRef.current = rest
+      }
+    }
     const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
@@ -1229,7 +1252,9 @@ export const AgentPane: React.FC<Props> = ({
                 : {}),
           }
         : {}),
-      cliSessionId: currentMeta.cliSessionId,
+      ...(resumeCliSession && currentMeta.cliSessionId
+        ? { cliSessionId: currentMeta.cliSessionId }
+        : {}),
       ...(options.images?.length ? { images: options.images } : {}),
       ...(orgWorkspaceRef.current ? { workspace: orgWorkspaceRef.current } : {}),
       ...(options.viaLoop ? { viaLoop: true } : {}),
@@ -1238,7 +1263,7 @@ export const AgentPane: React.FC<Props> = ({
     lastTurnRequestRef.current = request
     window.api.startAgentTurn(request)
     return true
-  }, [forceFollow, paneId, resolveTurnCwd, resolveWorkingCwd, t])
+  }, [forceFollow, onMetaChange, paneId, resolveTurnCwd, resolveWorkingCwd, t])
 
   const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
     clearLoopTimer()
@@ -2227,6 +2252,7 @@ export const AgentPane: React.FC<Props> = ({
     loopActive: effectiveLoopActive,
     busy,
     awaitingDelegations,
+    delegationWorkActive: false,
   })
   const showPlay = loopMode && !effectiveLoopActive && !busy
   const composerDisabled = effectiveLoopActive

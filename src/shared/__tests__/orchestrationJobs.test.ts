@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
+  canReconcileIdlePending,
   createOrchestrationJob,
   findJobByDelegation,
   findPendingDelegationByToPane,
   flattenAwaitingItemsFromJobs,
   jobRoundsAtCap,
+  markPendingSawBusyForPane,
   occupiedPaneIdsAcrossJobs,
   pendingOrchestratorIdsFromJobs,
   resolveOrchestrationWorkStyle,
@@ -146,8 +148,28 @@ describe('findPendingDelegationByToPane', () => {
     expect(findPendingDelegationByToPane(byPane, 'pane-front')).toMatchObject({
       fromPaneId: 'orch',
       delegationId: 'd1',
+      sawBusy: false,
     })
     expect(findPendingDelegationByToPane(byPane, 'missing')).toBeNull()
+  })
+})
+
+describe('pending sawBusy / idle reconcile gate', () => {
+  it('markPendingSawBusyForPane arms reconcile; fresh pending stays blocked', () => {
+    const byPane = new Map<string, Map<string, ReturnType<typeof createOrchestrationJob>>>()
+    const jobs = new Map<string, ReturnType<typeof createOrchestrationJob>>()
+    const job = jobWithPending('orch', 'd-new', 'pane-be')
+    jobs.set(job.jobId, job)
+    byPane.set('orch', jobs)
+
+    const fresh = findPendingDelegationByToPane(byPane, 'pane-be')
+    expect(fresh?.sawBusy).toBe(false)
+    expect(canReconcileIdlePending(fresh?.sawBusy)).toBe(false)
+
+    markPendingSawBusyForPane(byPane, 'pane-be')
+    const armed = findPendingDelegationByToPane(byPane, 'pane-be')
+    expect(armed?.sawBusy).toBe(true)
+    expect(canReconcileIdlePending(armed?.sawBusy)).toBe(true)
   })
 })
 

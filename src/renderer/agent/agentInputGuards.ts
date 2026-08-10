@@ -48,13 +48,15 @@ export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
 }
 
 /**
- * Stop rojo del composer: solo turno propio (busy / loop).
- * awaitingDelegations NO cuenta — cada especialista se cancela en Waiting.
+ * Stop rojo del composer: turno propio (busy / loop) o target seleccionado
+ * de una delegación en el plano. awaitingDelegations NO cuenta: el
+ * orquestador cancela especialistas desde Waiting, fila por fila.
  */
 export function shouldShowComposerStop(state: {
   loopActive: boolean
   busy: boolean
   awaitingDelegations?: boolean
+  delegationWorkActive?: boolean
 }): boolean {
-  return Boolean(state.loopActive || state.busy)
+  return Boolean(state.loopActive || state.busy || state.delegationWorkActive)
 }

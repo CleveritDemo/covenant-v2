@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.1
+
+- **Delegaciones más confiables**: los especialistas ya no se completan con el
+  último mensaje viejo antes de empezar el turno nuevo.
+- **Subtareas con sesión limpia**: las delegaciones arrancan sin reusar el hilo
+  CLI anterior del pane, evitando respuestas de flujos pasados.
+- **Estado visual y Stop del plano**: los agentes delegados se marcan en curso
+  aunque todavía estén arrancando, y el Stop cancela la delegación correcta.
+
 ## v0.39.0
 
 - **Brainstorm acepta voz humana en cualquier momento**: el mensaje entra al

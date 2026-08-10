@@ -76,12 +76,14 @@ import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
+  canReconcileIdlePending,
   createOrchestrationJob,
   findJobByDelegation,
   findPendingDelegationByToPane,
   flattenAwaitingItemsFromJobs,
   isJobAwaiting,
   listJobsForPane,
+  markPendingSawBusyForPane,
   occupiedPaneIdsAcrossJobs,
   occupiedTargetPaneIdsAcrossAllJobs,
   pendingOrchestratorIdsFromJobs,
@@ -504,10 +506,13 @@ export const App: React.FC = () => {
     }
     setOrchestrationAwaitingByPane(nextViews)
 
-    // Pending huérfano: especialista ya idle (notify perdido) → reconciliar.
+    // Pending huérfano: especialista idle tras haber estado busy (notify perdido).
+    // No reconciliar pending recién creado: el pane aún idle con lastSnippet viejo.
     for (const toPaneId of occupiedTargetPaneIdsAcrossAllJobs(byPane)) {
       const status = agentPlaneStatusRef.current[toPaneId]
       if (!status || status.busy || status.awaitingDelegations || status.localLoopActive) continue
+      const pending = findPendingDelegationByToPane(byPane, toPaneId)
+      if (!pending || !canReconcileIdlePending(pending.sawBusy)) continue
       reconcileIdleDelegationTargetRef.current(toPaneId, status.lastSnippet)
     }
   }, [])
@@ -2886,7 +2891,16 @@ export const App: React.FC = () => {
         && !status.awaitingDelegations
         && !status.localLoopActive
       ) {
-        reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
+        const pending = findPendingDelegationByToPane(
+          orchestrationJobsByPaneRef.current,
+          paneId,
+        )
+        if (pending && canReconcileIdlePending(pending.sawBusy)) {
+          reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
+        }
+      }
+      if (status.busy) {
+        markPendingSawBusyForPane(orchestrationJobsByPaneRef.current, paneId)
       }
       return { ...prev, [paneId]: status }
     })
@@ -3983,6 +3997,8 @@ export const App: React.FC = () => {
     if (reconcilingIdleDelegationPaneIdsRef.current.has(paneId)) return
     const found = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
     if (!found) return
+    // No cerrar con snippet viejo antes de que el especialista arranque el turno nuevo.
+    if (!canReconcileIdlePending(found.sawBusy)) return
     // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
     if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
     reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
@@ -3990,6 +4006,7 @@ export const App: React.FC = () => {
       if (turnActive) return
       const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
       if (!still || still.delegationId !== found.delegationId) return
+      if (!canReconcileIdlePending(still.sawBusy)) return
       if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
       void handleDelegationTurnComplete({
         id: found.delegationId,
@@ -5025,6 +5042,8 @@ export const App: React.FC = () => {
 
               if (kind === 'agent') {
                 const status = agentPlaneStatus[paneId]
+                const delegationWorkActive = delegationTargetPaneIds.has(paneId)
+                const visuallyBusy = busyPanes.has(paneId) || delegationWorkActive
                 const assignedIds = meta?.contextIds ?? []
                 const assignedContexts = resolveAssignedContextChips(
                   assignedIds,
@@ -5036,14 +5055,18 @@ export const App: React.FC = () => {
                   paneId,
                   kind,
                   title,
-                  busy: busyPanes.has(paneId),
+                  busy: visuallyBusy,
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'
                     || meta?.coordination === 'productOwner'
                     ? meta.coordination
                     : 'none') as 'none' | 'orchestrator' | 'productOwner',
-                  snippet: status?.lastSnippet ?? status?.activity ?? '',
+                  snippet: status?.activity?.trim()
+                    || (delegationWorkActive ? t('agentPane.awaitingStatusRunning') : '')
+                    || status?.lastSnippet
+                    || '',
                   agentId: meta?.id,
+                  delegationWorkActive,
                   contextIds: assignedIds,
                   contexts: assignedContexts,
                   autoImproveContexts: meta?.autoImproveContexts === true,
@@ -5209,6 +5232,17 @@ export const App: React.FC = () => {
                     void saveSessionNow()
                   }}
                   onStopChat={paneId => {
+                    const pendingDelegation = findPendingDelegationByToPane(
+                      orchestrationJobsByPaneRef.current,
+                      paneId,
+                    )
+                    if (pendingDelegation) {
+                      void abortSingleDelegation(
+                        pendingDelegation.fromPaneId,
+                        pendingDelegation.delegationId,
+                      )
+                      return
+                    }
                     requestPlaneStop(paneId)
                     stopChainsForPane(tab.id, paneId)
                   }}

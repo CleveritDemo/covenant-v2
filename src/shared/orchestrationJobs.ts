@@ -26,6 +26,12 @@ export interface OrchestrationJobPendingMeta {
   toPaneId: string
   toAgentId: string
   baseAgentId?: string
+  /**
+   * True when the target pane has been busy at least once while this pending
+   * was live. Reconcile-idle must not complete a brand-new pending with an old
+   * chat snippet before the specialist starts the new objective.
+   */
+  sawBusy?: boolean
 }
 
 export interface OrchestrationDeferredItem {
@@ -261,7 +267,13 @@ export function pendingOrchestratorIdsFromJobs(
 export function findPendingDelegationByToPane(
   byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
   toPaneId: string,
-): { fromPaneId: string; job: OrchestrationJob; delegationId: string; toAgentId: string } | null {
+): {
+  fromPaneId: string
+  job: OrchestrationJob
+  delegationId: string
+  toAgentId: string
+  sawBusy: boolean
+} | null {
   const wanted = toPaneId.trim()
   if (!wanted) return null
   for (const [fromPaneId, jobs] of byPane.entries()) {
@@ -273,12 +285,34 @@ export function findPendingDelegationByToPane(
             job,
             delegationId,
             toAgentId: meta.toAgentId,
+            sawBusy: meta.sawBusy === true,
           }
         }
       }
     }
   }
   return null
+}
+
+/** Marca pending del especialista como “ya estuvo busy” (listo para reconcile). */
+export function markPendingSawBusyForPane(
+  byPane: ReadonlyMap<string, Map<string, OrchestrationJob>>,
+  toPaneId: string,
+): void {
+  const wanted = toPaneId.trim()
+  if (!wanted) return
+  for (const jobs of byPane.values()) {
+    for (const job of jobs.values()) {
+      for (const meta of job.pending.values()) {
+        if (meta.toPaneId === wanted) meta.sawBusy = true
+      }
+    }
+  }
+}
+
+/** Solo reconciliar idle si el target ya corrió un turno con este pending. */
+export function canReconcileIdlePending(sawBusy: boolean | undefined): boolean {
+  return sawBusy === true
 }
 
 export interface AbortOneDelegationResult {

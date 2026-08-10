@@ -30,6 +30,8 @@ export interface PlaneMapEntity {
   kind: PaneKind
   title: string
   busy: boolean
+  /** Trabajo reservado/activo por una delegación del orquestador. */
+  delegationWorkActive?: boolean
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   snippet?: string

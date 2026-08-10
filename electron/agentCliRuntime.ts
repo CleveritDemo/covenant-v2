@@ -812,6 +812,7 @@ export function commandAndArgs(
     ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
     : []
   const mcpsAllowed = request.mcpsAllowed ?? []
+  const sessionId = typeof cliSessionId === 'string' ? cliSessionId.trim() : ''
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
     args: spec.args({
@@ -819,7 +820,7 @@ export function commandAndArgs(
       cwd,
       mode: request.permissionMode,
       ...(request.model?.trim() ? { model: request.model.trim() } : {}),
-      ...(cliSessionId ? { sessionId: cliSessionId } : {}),
+      ...(sessionId ? { sessionId } : {}),
       // `!== true` y no `=== false`: un agente sin nativeSkills también queda
       // apagado. Ese es el default seguro de la Task 1, y aquí se hace efectivo.
       disableSkills: nativeSkills?.enabled !== true,

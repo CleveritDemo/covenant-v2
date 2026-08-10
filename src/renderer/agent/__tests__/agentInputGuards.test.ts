@@ -112,4 +112,12 @@ describe('shouldShowComposerStop', () => {
     expect(shouldShowComposerStop({ loopActive: false, busy: true })).toBe(true)
     expect(shouldShowComposerStop({ loopActive: true, busy: false })).toBe(true)
   })
+
+  it('shows Stop for a selected delegation target in the plane composer', () => {
+    expect(shouldShowComposerStop({
+      loopActive: false,
+      busy: false,
+      delegationWorkActive: true,
+    })).toBe(true)
+  })
 })

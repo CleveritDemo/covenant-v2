@@ -16,7 +16,7 @@
   display: flex;
   align-items: center;
   background: color-mix(in srgb, var(--bg) 88%, var(--surface));
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
+  border-bottom: 1px solid transparent;
   box-shadow: none;
   -webkit-app-region: drag;
   flex-shrink: 0;

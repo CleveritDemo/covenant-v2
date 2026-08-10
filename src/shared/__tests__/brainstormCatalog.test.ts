@@ -28,6 +28,26 @@ describe('brainstormCatalog', () => {
     })).toBeNull()
   })
 
+  it('conserva el working set al guardar y releer', () => {
+    const parsed = parseBrainstormRoomDefinition({
+      id: 'r1',
+      topic: 'Tenancy',
+      participantAgentIds: ['qa', 'fe'],
+      contextIds: ['iaterminal:notes:ct-89', 'iaterminal:notes:ct-89'],
+      filePaths: ['docs/guide.md'],
+      outcome: 'decision',
+    })
+    expect(parsed?.contextIds).toEqual(['iaterminal:notes:ct-89'])
+    expect(parsed?.filePaths).toEqual(['docs/guide.md'])
+    expect(parsed?.outcome).toBe('decision')
+
+    const reparsed = parseBrainstormRoomDefinition(
+      JSON.parse(serializeBrainstormRoom(parsed!)),
+    )
+    expect(reparsed?.filePaths).toEqual(['docs/guide.md'])
+    expect(reparsed?.outcome).toBe('decision')
+  })
+
   it('uses hint id when data.id is empty and preserves messages', () => {
     const parsed = parseBrainstormRoomDefinition({
       topic: 'Latency',

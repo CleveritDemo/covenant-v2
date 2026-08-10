@@ -1,6 +1,8 @@
 import {
   dedupeAgentIdsPreservingOrder,
   sanitizeBrainstormMaxRounds,
+  sanitizeBrainstormOutcome,
+  sanitizeBrainstormWorkingSet,
   type BrainstormMessage,
   type BrainstormRoom,
   type BrainstormStatus,
@@ -109,5 +111,8 @@ export function parseBrainstormRoomDefinition(
     round: sanitizeNonNegativeInt(data.round),
     cursor: sanitizeNonNegativeInt(data.cursor),
     messages: sanitizeMessages(data.messages),
+    contextIds: sanitizeBrainstormWorkingSet(data.contextIds),
+    filePaths: sanitizeBrainstormWorkingSet(data.filePaths),
+    outcome: sanitizeBrainstormOutcome(data.outcome),
   }
 }

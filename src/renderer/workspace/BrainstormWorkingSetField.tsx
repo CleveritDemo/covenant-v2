@@ -64,7 +64,10 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
     const timer = window.setTimeout(() => {
       void window.api.searchProjectFiles(root, q).then(result => {
         if (cancelled) return
-        setFileHits(result.ok ? result.paths : [])
+        // Solo archivos: una carpeta en el working set no se puede leer.
+        setFileHits(result.ok
+          ? result.hits.filter(hit => !hit.isDirectory).map(hit => hit.relPath)
+          : [])
       }).catch(() => {
         if (!cancelled) setFileHits([])
       })

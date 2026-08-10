@@ -19,3 +19,6 @@ build/release-notes.md
 
 # Worktrees de git creados por la orquestación de agentes (Fase 1 git worktree)
 /.gravity/worktrees/
+
+# Helper nativo de dictado (se compila con npm run build:mac-dictation)
+/native/mac-dictation/gravity-mac-dictation

@@ -25,7 +25,7 @@ import { PlaneChatSendButton } from './PlaneChatSendButton'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
-import { usePushToTalkSpeech } from '../pushToTalkSpeech'
+import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
@@ -287,12 +287,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   ])
 
   const mapDictationError = useCallback((code: string): string => {
-    if (code === 'unsupported' || code === 'start-failed') {
-      return t('agentPane.dictationUnsupported')
-    }
-    if (code === 'not-allowed' || code === 'service-not-allowed') {
-      return t('agentPane.dictationPermissionDenied')
-    }
+    const kind = classifyDictationError(code)
+    if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
+    if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
+    if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
     return t('agentPane.dictationError')
   }, [t])
 

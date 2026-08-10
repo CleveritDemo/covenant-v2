@@ -30,6 +30,7 @@ const PLACEHOLDERS = new Set([
   '(empty notes)',
   '(no annotations yet)',
   '(no results yet)',
+  '(manual notes context)',
 ])
 
 function clean(value: string): string {

@@ -212,6 +212,7 @@ import { loadFileBytesForExplorer } from './fileExplorerOps'
 /** Techo duro del main para cualquier visor, por encima de lo que pida el renderer. */
 const FILE_EXPLORER_MAX_PREVIEW_BYTES = 100_000_000
 import { applyLoginShellPath } from './shellPathEnv'
+import { getDictationRuntime } from './dictationRuntime'
 import { readCdRecentFolders } from './cdRecentMd'
 import { isInstallingUpdate, registerSelfUpdate, setAutoUpdatesEnabled } from './selfUpdate'
 import { decryptField, encryptField, isEncryptedField } from './safeStorageUtils'
@@ -534,6 +535,20 @@ function applyAppBranding(): void {
 }
 
 function registerIpc(): void {
+  const dictation = getDictationRuntime()
+  dictation.setEmit((channel, ...args) => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send(channel, ...args)
+    }
+  })
+
+  ipcMain.handle(IPC.DICTATION_AVAILABLE, () => dictation.availability())
+  ipcMain.handle(IPC.DICTATION_START, async (_e, lang?: unknown) => {
+    const locale = typeof lang === 'string' && lang.trim() ? lang.trim() : 'en-US'
+    return dictation.start(locale)
+  })
+  ipcMain.handle(IPC.DICTATION_STOP, async () => dictation.stop())
+
   ipcMain.handle(IPC.CONFIG_GET, (): AppConfig => readConfig())
 
   ipcMain.handle(IPC.CONFIG_SET, (_e, partial: Partial<AppConfig>) => {
@@ -2085,6 +2100,7 @@ app.on('window-all-closed', () => {
   // (se registra al cargar el módulo, el otro al pulsar Instalar): salir aquí
   // mata el proceso antes del relevo a Squirrel y la actualización no se aplica.
   if (isInstallingUpdate()) return
+  getDictationRuntime().dispose()
   // Incluye macOS: no dejar la app viva en el Dock tras cerrar la ventana.
   // Tras close+preventDefault+destroy hay que re-lanzar quit (⌘Q también).
   app.quit()

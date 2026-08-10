@@ -4,6 +4,23 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.29.0
+
+- **La preview de contextos Custom (Markdown) muestra el contenido humano**: deja de
+  pintar el stub `(manual notes context)` y usa el Markdown de la sección notes.
+
+## v0.28.0
+
+- **El dictado push-to-talk cierra bien al soltar**: el helper macOS espera el
+  resultado final en vez de cancelar a medias, y si no hubo voz avisa en lugar
+  de no hacer nada.
+
+## v0.27.0
+
+- **El dictado del composer usa el reconocimiento de voz de macOS**
+  (`SFSpeechRecognizer`), no la Web Speech de Chromium. Se acabó el error
+  «Could not dictate» por `network` en Electron.
+
 ## v0.26.0
 
 - **Dictado por voz en el composer (push-to-talk).** Si no hay texto, el botón

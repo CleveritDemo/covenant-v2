@@ -1,48 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  classifyDictationError,
+  isIgnorableDictationError,
+  type DictationUiErrorKind,
+} from '../shared/dictation'
 
-/** Subconjunto tipado de la Web Speech API (Chromium / Electron). */
-interface SpeechRecognitionAlternativeLike {
-  transcript: string
+export type { DictationUiErrorKind }
+export { classifyDictationError }
+
+function hasNativeDictationApi(): boolean {
+  const api = window.api as Window['api'] | undefined
+  return Boolean(
+    api
+    && typeof api.dictationAvailable === 'function'
+    && typeof api.dictationStart === 'function'
+    && typeof api.dictationStop === 'function',
+  )
 }
 
-interface SpeechRecognitionResultLike {
-  readonly isFinal: boolean
-  readonly length: number
-  [index: number]: SpeechRecognitionAlternativeLike
-}
-
-interface SpeechRecognitionEventLike {
-  readonly resultIndex: number
-  readonly results: {
-    readonly length: number
-    [index: number]: SpeechRecognitionResultLike
-  }
-}
-
-interface SpeechRecognitionLike {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: ((event: { error?: string }) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-  abort: () => void
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike
-
-function speechRecognitionCtor(): SpeechRecognitionCtor | null {
-  const w = window as Window & {
-    SpeechRecognition?: SpeechRecognitionCtor
-    webkitSpeechRecognition?: SpeechRecognitionCtor
-  }
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
-}
-
+/** true si hay bridge IPC de dictado nativo (Electron); no usa Web Speech. */
 export function isPushToTalkSpeechSupported(): boolean {
-  return speechRecognitionCtor() != null
+  return hasNativeDictationApi()
 }
 
 export interface UsePushToTalkSpeechOptions {
@@ -50,7 +28,7 @@ export interface UsePushToTalkSpeechOptions {
   lang?: string
   /** Transcript final al soltar (ya trim); no se llama si queda vacío. */
   onTranscript: (text: string) => void
-  /** Error de permiso / no-soporte / runtime (mensaje corto para UI). */
+  /** Código de error corto para mapear a i18n (`classifyDictationError`). */
   onError?: (message: string) => void
 }
 
@@ -62,133 +40,116 @@ export interface UsePushToTalkSpeechResult {
 }
 
 /**
- * Push-to-talk con Web Speech API: start al mantener, stop al soltar.
- * Acumula resultados finales (+ interim pendiente) y entrega el transcript.
+ * Push-to-talk vía dictado nativo del SO (macOS SFSpeechRecognizer por IPC).
+ * Win/Linux: start reporta unsupported.
  */
 export function usePushToTalkSpeech(
   options: UsePushToTalkSpeechOptions,
 ): UsePushToTalkSpeechResult {
   const { lang = 'en-US', onTranscript, onError } = options
   const [listening, setListening] = useState(false)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
-  const finalRef = useRef('')
-  const interimRef = useRef('')
+  const [supported, setSupported] = useState(() => hasNativeDictationApi())
   const wantListenRef = useRef(false)
+  const startingRef = useRef(false)
   const onTranscriptRef = useRef(onTranscript)
   const onErrorRef = useRef(onError)
   onTranscriptRef.current = onTranscript
   onErrorRef.current = onError
 
-  const supported = isPushToTalkSpeechSupported()
-
-  const cleanupRecognition = useCallback(() => {
-    const recognition = recognitionRef.current
-    recognitionRef.current = null
-    if (!recognition) return
-    recognition.onresult = null
-    recognition.onerror = null
-    recognition.onend = null
-    try {
-      recognition.abort()
-    } catch {
-      /* ya parado */
-    }
+  const reportError = useCallback((code: string) => {
+    if (isIgnorableDictationError(code)) return
+    onErrorRef.current?.(code)
   }, [])
 
-  useEffect(() => () => {
-    wantListenRef.current = false
-    cleanupRecognition()
-  }, [cleanupRecognition])
-
-  const finishSession = useCallback(() => {
-    const text = `${finalRef.current}${interimRef.current}`.replace(/\s+/g, ' ').trim()
-    finalRef.current = ''
-    interimRef.current = ''
+  const deliverStopResult = useCallback((stopResult: {
+    ok?: boolean
+    text?: string
+    error?: string
+  } | null | undefined) => {
     setListening(false)
-    recognitionRef.current = null
-    if (text) onTranscriptRef.current(text)
-  }, [])
+    if (!stopResult?.ok) {
+      if (stopResult?.error) reportError(stopResult.error)
+      return
+    }
+    const text = stopResult.text?.replace(/\s+/g, ' ').trim() ?? ''
+    if (text) {
+      onTranscriptRef.current(text)
+      return
+    }
+    reportError('no-speech')
+  }, [reportError])
+
+  useEffect(() => {
+    let cancelled = false
+    const api = window.api
+    if (!hasNativeDictationApi()) {
+      setSupported(false)
+      return
+    }
+    void api.dictationAvailable().then(info => {
+      if (!cancelled) setSupported(Boolean(info?.ok))
+    }).catch(() => {
+      if (!cancelled) setSupported(false)
+    })
+    const offError = api.onDictationError?.(err => {
+      if (!wantListenRef.current && !startingRef.current) return
+      wantListenRef.current = false
+      startingRef.current = false
+      setListening(false)
+      reportError(err?.code || 'error')
+    })
+    return () => {
+      cancelled = true
+      offError?.()
+      if (wantListenRef.current || startingRef.current) {
+        wantListenRef.current = false
+        startingRef.current = false
+        void api.dictationStop().catch(() => {})
+      }
+    }
+  }, [reportError])
 
   const start = useCallback(() => {
-    if (wantListenRef.current) return
-    if (!supported) {
-      onErrorRef.current?.('unsupported')
+    if (wantListenRef.current || startingRef.current) return
+    if (!hasNativeDictationApi()) {
+      reportError('unsupported')
       return
     }
-    const Ctor = speechRecognitionCtor()
-    if (!Ctor) {
-      onErrorRef.current?.('unsupported')
-      return
-    }
-    cleanupRecognition()
-    finalRef.current = ''
-    interimRef.current = ''
     wantListenRef.current = true
-
-    const recognition = new Ctor()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = lang
-    recognition.onresult = (event) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i]
-        const piece = result[0]?.transcript ?? ''
-        if (result.isFinal) finalRef.current += piece
-        else interim += piece
-      }
-      interimRef.current = interim
-    }
-    recognition.onerror = (event) => {
-      const code = event.error ?? 'error'
-      // aborted: stop/abort voluntario; no es error de UX.
-      if (code !== 'aborted' && code !== 'no-speech') {
-        onErrorRef.current?.(code)
-      }
-      wantListenRef.current = false
-      // Algunos errores no disparan onend a tiempo; desbloquear UI ya.
-      setListening(false)
-    }
-    recognition.onend = () => {
+    startingRef.current = true
+    setListening(true)
+    void window.api.dictationStart(lang).then(result => {
+      startingRef.current = false
       if (!wantListenRef.current) {
-        finishSession()
+        // Soltó antes de que arrancara: parar ya.
+        void window.api.dictationStop().then(deliverStopResult).catch(() => setListening(false))
         return
       }
-      // Chromium a veces corta continuous; reanudar si seguimos pulsando.
-      try {
-        recognition.start()
-      } catch {
+      if (!result?.ok) {
         wantListenRef.current = false
-        finishSession()
+        setListening(false)
+        reportError(result?.error || 'start-failed')
       }
-    }
-
-    recognitionRef.current = recognition
-    setListening(true)
-    try {
-      recognition.start()
-    } catch {
+    }).catch(() => {
+      startingRef.current = false
       wantListenRef.current = false
       setListening(false)
-      recognitionRef.current = null
-      onErrorRef.current?.('start-failed')
-    }
-  }, [cleanupRecognition, finishSession, lang, supported])
+      reportError('start-failed')
+    })
+  }, [deliverStopResult, lang, reportError])
 
   const stop = useCallback(() => {
-    if (!wantListenRef.current && !recognitionRef.current) return
+    if (!wantListenRef.current && !startingRef.current) return
     wantListenRef.current = false
-    const recognition = recognitionRef.current
-    if (!recognition) {
-      finishSession()
+    if (startingRef.current) {
+      // start() en vuelo: él hará stop al resolver.
       return
     }
-    try {
-      recognition.stop()
-    } catch {
-      finishSession()
-    }
-  }, [finishSession])
+    void window.api.dictationStop().then(deliverStopResult).catch(() => {
+      setListening(false)
+      reportError('error')
+    })
+  }, [deliverStopResult, reportError])
 
   return { supported, listening, start, stop }
 }

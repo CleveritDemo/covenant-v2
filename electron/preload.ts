@@ -964,6 +964,40 @@ const api = {
   onLspDownloadProgress(language: string, cb: (progress: LspDownloadProgress) => void): () => void {
     return subscribeLspDownloadProgress(language, cb)
   },
+
+  // ─── Dictation (native macOS SFSpeechRecognizer) ───────────────────────────
+  dictationAvailable(): Promise<{
+    ok: boolean
+    platform: NodeJS.Platform
+    error?: string
+    message?: string
+  }> {
+    return ipcRenderer.invoke(IPC.DICTATION_AVAILABLE)
+  },
+  dictationStart(lang?: string): Promise<{ ok: boolean; error?: string; message?: string }> {
+    return ipcRenderer.invoke(IPC.DICTATION_START, lang)
+  },
+  dictationStop(): Promise<{ ok: boolean; text?: string; error?: string; message?: string }> {
+    return ipcRenderer.invoke(IPC.DICTATION_STOP)
+  },
+  onDictationPartial(cb: (text: string) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)
+    ipcRenderer.on(IPC.DICTATION_PARTIAL, listener)
+    return () => ipcRenderer.removeListener(IPC.DICTATION_PARTIAL, listener)
+  },
+  onDictationResult(cb: (text: string) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)
+    ipcRenderer.on(IPC.DICTATION_RESULT, listener)
+    return () => ipcRenderer.removeListener(IPC.DICTATION_RESULT, listener)
+  },
+  onDictationError(cb: (error: { code: string; message: string }) => void): () => void {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      error: { code: string; message: string },
+    ): void => cb(error)
+    ipcRenderer.on(IPC.DICTATION_ERROR, listener)
+    return () => ipcRenderer.removeListener(IPC.DICTATION_ERROR, listener)
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

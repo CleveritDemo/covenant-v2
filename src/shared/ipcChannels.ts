@@ -342,4 +342,17 @@ export const IPC = {
   LSP_EXIT: 'lsp:exit',
   /** Main → renderer: progreso de descarga/instalación (multiplexado por lenguaje) */
   LSP_DOWNLOAD_PROGRESS: 'lsp:downloadProgress',
+
+  /** Renderer → main (invoke): ¿dictado nativo disponible? */
+  DICTATION_AVAILABLE: 'dictation:available',
+  /** Renderer → main (invoke): iniciar captura push-to-talk */
+  DICTATION_START: 'dictation:start',
+  /** Renderer → main (invoke): detener y obtener transcript final */
+  DICTATION_STOP: 'dictation:stop',
+  /** Main → renderer: texto parcial mientras escucha */
+  DICTATION_PARTIAL: 'dictation:partial',
+  /** Main → renderer: transcript final (además del return de stop) */
+  DICTATION_RESULT: 'dictation:result',
+  /** Main → renderer: error de dictado */
+  DICTATION_ERROR: 'dictation:error',
 } as const

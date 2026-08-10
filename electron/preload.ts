@@ -66,6 +66,7 @@ import type {
   AgentCliUiEvent,
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
+import type { AgentChatRef } from '../src/shared/agentChatPersistence'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
@@ -203,14 +204,14 @@ const api = {
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)
   },
-  loadAgentChat(paneId: string): Promise<AgentChatEntry[]> {
-    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId)
+  loadAgentChat(ref: AgentChatRef | string): Promise<AgentChatEntry[]> {
+    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, ref)
   },
-  saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, paneId, entries)
+  saveAgentChat(ref: AgentChatRef | string, entries: AgentChatEntry[]): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, ref, entries)
   },
-  deleteAgentChat(paneId: string): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
+  deleteAgentChat(ref: AgentChatRef | string): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, ref)
   },
   clearAgentContextDelivery(payload: {
     provider: AgentCliProvider

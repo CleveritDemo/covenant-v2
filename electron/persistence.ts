@@ -4,6 +4,10 @@ import { app } from 'electron'
 import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
 import type { AgentChatEntry } from '../src/shared/agentCliTypes'
+import {
+  normalizeAgentChatRef,
+  type AgentChatRef,
+} from '../src/shared/agentChatPersistence'
 import { migratePersistedSessionAgents } from './projectAgentCatalogOps'
 
 const USER_DATA = (): string => app.getPath('userData')
@@ -228,9 +232,10 @@ export function deleteScrollback(paneId: string): void {
 }
 
 // ─── Agent CLI chat history ─────────────────────────────────────────────────
+// Archivos bajo agent-chats/: clave estable (agentId+scope) o legacy paneId.json.
 
 const agentChatDir = (): string => join(USER_DATA(), 'agent-chats')
-const agentChatFile = (paneId: string): string => join(agentChatDir(), `${paneId}.json`)
+const agentChatFile = (storageKey: string): string => join(agentChatDir(), `${storageKey}.json`)
 
 function isAgentChatImage(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
@@ -250,9 +255,9 @@ function isAgentChatEntry(value: unknown): value is AgentChatEntry {
   )
 }
 
-export function loadAgentChat(paneId: string): AgentChatEntry[] {
+function readAgentChatFile(storageKey: string): AgentChatEntry[] {
   try {
-    const path = agentChatFile(paneId)
+    const path = agentChatFile(storageKey)
     if (!existsSync(path)) return []
     const data = JSON.parse(readFileSync(path, 'utf-8')) as unknown
     return Array.isArray(data) ? data.filter(isAgentChatEntry) : []
@@ -261,16 +266,48 @@ export function loadAgentChat(paneId: string): AgentChatEntry[] {
   }
 }
 
-export function saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
+function writeAgentChatFile(storageKey: string, entries: AgentChatEntry[]): void {
+  ensureDir(agentChatDir())
+  writeFileSync(agentChatFile(storageKey), JSON.stringify(entries), 'utf-8')
+}
+
+function unlinkAgentChatFile(storageKey: string): void {
   try {
-    ensureDir(agentChatDir())
-    writeFileSync(agentChatFile(paneId), JSON.stringify(entries), 'utf-8')
+    const path = agentChatFile(storageKey)
+    if (existsSync(path)) unlinkSync(path)
   } catch { /* ignore */ }
 }
 
-export function deleteAgentChat(paneId: string): void {
+/**
+ * Carga el transcript por clave estable; si falta, migra desde legacy paneId.
+ */
+export function loadAgentChat(ref: AgentChatRef | string): AgentChatEntry[] {
+  const { storageKey, legacyPaneId } = normalizeAgentChatRef(ref)
+  const primary = readAgentChatFile(storageKey)
+  if (primary.length > 0) {
+    if (legacyPaneId) unlinkAgentChatFile(legacyPaneId)
+    return primary
+  }
+  if (!legacyPaneId) return []
+  const legacy = readAgentChatFile(legacyPaneId)
+  if (legacy.length === 0) return []
   try {
-    const path = agentChatFile(paneId)
-    if (existsSync(path)) unlinkSync(path)
+    writeAgentChatFile(storageKey, legacy)
+    unlinkAgentChatFile(legacyPaneId)
   } catch { /* ignore */ }
+  return legacy
+}
+
+export function saveAgentChat(ref: AgentChatRef | string, entries: AgentChatEntry[]): void {
+  try {
+    const { storageKey, legacyPaneId } = normalizeAgentChatRef(ref)
+    writeAgentChatFile(storageKey, entries)
+    if (legacyPaneId) unlinkAgentChatFile(legacyPaneId)
+  } catch { /* ignore */ }
+}
+
+export function deleteAgentChat(ref: AgentChatRef | string): void {
+  const { storageKey, legacyPaneId } = normalizeAgentChatRef(ref)
+  unlinkAgentChatFile(storageKey)
+  if (legacyPaneId) unlinkAgentChatFile(legacyPaneId)
 }

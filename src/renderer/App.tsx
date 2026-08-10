@@ -155,6 +155,11 @@ import {
   syncTabAgentsFromCatalog,
   upsertAgentInList,
 } from './projectAgentsStore'
+import {
+  agentChatRefFor,
+  planAgentChatCleanupForRemovedPanes,
+  type AgentChatScope,
+} from '../shared/agentChatPersistence'
 import './styles/app.css'
 
 import {
@@ -599,7 +604,14 @@ export const App: React.FC = () => {
   }, [])
 
   /** Limpia recursos locales de panes de agente eliminados al sincronizar con el catálogo. */
-  const cleanupRemovedAgentPanes = useCallback((paneIds: string[]) => {
+  const cleanupRemovedAgentPanes = useCallback((
+    paneIds: string[],
+    options?: {
+      removedAgentByPane?: Record<string, string>
+      catalogAgentIds?: ReadonlySet<string>
+      scope?: AgentChatScope
+    },
+  ) => {
     for (const paneId of paneIds) {
       window.api.stopAgentTurn(paneId)
       termRefs.current.delete(paneId)
@@ -655,13 +667,28 @@ export const App: React.FC = () => {
       }
       return changed ? next : prev
     })
+    const chatActions = planAgentChatCleanupForRemovedPanes(
+      paneIds.map(paneId => ({
+        paneId,
+        agentId: options?.removedAgentByPane?.[paneId],
+      })),
+      options?.catalogAgentIds ?? new Set(),
+      options?.scope ?? {},
+    )
     setTimeout(() => {
       for (const paneId of paneIds) {
         window.api.deleteScrollback(paneId)
         window.api.deleteAiChat(paneId)
         window.api.deleteCmdHistory(paneId)
         window.api.deleteInteractionsLog(paneId)
-        window.api.deleteAgentChat(paneId)
+      }
+      for (const action of chatActions) {
+        if (action.type === 'preserve') {
+          // Migra legacy paneId → clave estable; no borra el transcript.
+          void window.api.loadAgentChat(action.ref)
+          continue
+        }
+        window.api.deleteAgentChat(action.ref)
       }
     }, 0)
   }, [])
@@ -684,7 +711,27 @@ export const App: React.FC = () => {
       ...(isOrgBacked ? { preserveCliSessionIds: false } : {}),
     })
     if (!synced.changed) return
-    if (synced.removedPaneIds.length) cleanupRemovedAgentPanes(synced.removedPaneIds)
+    if (synced.removedPaneIds.length) {
+      const removedAgentByPane: Record<string, string> = {}
+      for (const paneId of synced.removedPaneIds) {
+        const agentId = current.agentByPane?.[paneId]?.agentId?.trim()
+        if (agentId) removedAgentByPane[paneId] = agentId
+      }
+      const orgSlug = current.orgWorkspace?.slug?.trim() ?? ''
+      const orgWorkspaceId = current.orgWorkspace?.workspaceId?.trim() ?? ''
+      cleanupRemovedAgentPanes(synced.removedPaneIds, {
+        removedAgentByPane,
+        catalogAgentIds: new Set(agents.map(agent => agent.id)),
+        scope: {
+          ...(current.projectFolder?.trim()
+            ? { projectFolder: current.projectFolder.trim() }
+            : {}),
+          ...(orgSlug && orgWorkspaceId
+            ? { orgWorkspace: { slug: orgSlug, workspaceId: orgWorkspaceId } }
+            : {}),
+        },
+      })
+    }
     for (const paneId of synced.addedPaneIds) {
       const cwd = synced.tab.projectFolder?.trim() || ''
       if (cwd) rememberPaneCwd(paneId, cwd)
@@ -2144,7 +2191,21 @@ export const App: React.FC = () => {
           window.api.deleteAiChat(pid)
           window.api.deleteCmdHistory(pid)
           window.api.deleteInteractionsLog(pid)
-          window.api.deleteAgentChat(pid)
+          const agentId = victim.agentByPane?.[pid]?.agentId
+          const orgSlug = victim.orgWorkspace?.slug?.trim() ?? ''
+          const orgWorkspaceId = victim.orgWorkspace?.workspaceId?.trim() ?? ''
+          window.api.deleteAgentChat(agentChatRefFor(
+            {
+              ...(victim.projectFolder?.trim()
+                ? { projectFolder: victim.projectFolder.trim() }
+                : {}),
+              ...(orgSlug && orgWorkspaceId
+                ? { orgWorkspace: { slug: orgSlug, workspaceId: orgWorkspaceId } }
+                : {}),
+            },
+            agentId,
+            pid,
+          ))
         }
       }, 0)
     }
@@ -2270,7 +2331,18 @@ export const App: React.FC = () => {
       window.api.deleteAiChat(paneId)
       window.api.deleteCmdHistory(paneId)
       window.api.deleteInteractionsLog(paneId)
-      window.api.deleteAgentChat(paneId)
+      const orgSlug = t.orgWorkspace?.slug?.trim() ?? ''
+      const orgWorkspaceId = t.orgWorkspace?.workspaceId?.trim() ?? ''
+      window.api.deleteAgentChat(agentChatRefFor(
+        {
+          ...(t.projectFolder?.trim() ? { projectFolder: t.projectFolder.trim() } : {}),
+          ...(orgSlug && orgWorkspaceId
+            ? { orgWorkspace: { slug: orgSlug, workspaceId: orgWorkspaceId } }
+            : {}),
+        },
+        agentId,
+        paneId,
+      ))
     }, 0)
   }, [cleanupWorktreesForPane])
 

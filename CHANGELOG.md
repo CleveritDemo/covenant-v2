@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.17
+
+- **El chat del agente sobrevive al sync**: el historial se guarda por agente y workspace (no por paneId); al sincronizar o realinear el catálogo no se pierde el transcript. Migra automáticamente los archivos antiguos ligados al pane.
+
 ## v0.39.16
 
 - **Editar carpeta de repos del workspace**: en Organizaciones, los gestores

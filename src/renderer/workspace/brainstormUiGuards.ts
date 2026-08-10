@@ -2,6 +2,7 @@ import {
   createBrainstormRoom,
   sanitizeBrainstormInviteIds,
   type BrainstormRoom,
+  type BrainstormRoomBrief,
 } from '@shared/brainstormRoom'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 
@@ -31,9 +32,10 @@ export function tryCreateBrainstormSession(
   participantAgentIds: readonly string[],
   maxRounds?: number,
   agents?: BrainstormInviteCatalog,
+  brief?: BrainstormRoomBrief,
 ): BrainstormRoom | null {
   const ids = agents
     ? sanitizeBrainstormInviteIds(participantAgentIds, agents)
     : [...participantAgentIds]
-  return createBrainstormRoom(topic, ids, maxRounds)
+  return createBrainstormRoom(topic, ids, maxRounds, brief)
 }

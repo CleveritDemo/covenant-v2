@@ -4,10 +4,12 @@ import {
   BRAINSTORM_DEFAULT_ROUNDS,
   BRAINSTORM_MAX_ROUNDS_CAP,
   sanitizeBrainstormMaxRounds,
+  sanitizeBrainstormWorkingSet,
 } from '@shared/brainstormRoom'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button, Select, TextArea } from '../components/ui'
+import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
 import './BrainstormEditRoomModal.css'
 
 export interface BrainstormEditRoomModalProps {
@@ -31,12 +33,16 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
   const { t } = useT()
   const [topic, setTopic] = useState('')
   const [maxRounds, setMaxRounds] = useState(BRAINSTORM_DEFAULT_ROUNDS)
+  const [contextIds, setContextIds] = useState<string[]>([])
+  const [filePaths, setFilePaths] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open || !room) return
     setTopic(room.topic)
     setMaxRounds(sanitizeBrainstormMaxRounds(room.maxRounds))
+    setContextIds(sanitizeBrainstormWorkingSet(room.contextIds))
+    setFilePaths(sanitizeBrainstormWorkingSet(room.filePaths))
     setSaving(false)
   }, [open, room])
 
@@ -57,6 +63,8 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
         ...room,
         topic: topic.trim(),
         maxRounds: sanitizeBrainstormMaxRounds(maxRounds),
+        contextIds,
+        filePaths,
       }
       const result = await window.api.saveBrainstorm(root, next)
       if (result.ok) onSaved(result.room)
@@ -98,6 +106,20 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
           onChange={event => setTopic(event.target.value)}
         />
       </label>
+      <div className="brainstorm-edit-room-modal__field">
+        <span className="brainstorm-edit-room-modal__label">
+          {t('tabs.brainstormWorkingSetLabel')}
+        </span>
+        <BrainstormWorkingSetField
+          cwd={cwd}
+          contextIds={contextIds}
+          filePaths={filePaths}
+          onChange={next => {
+            setContextIds(next.contextIds)
+            setFilePaths(next.filePaths)
+          }}
+        />
+      </div>
       <label className="brainstorm-edit-room-modal__field">
         <span className="brainstorm-edit-room-modal__label">{t('tabs.brainstormRoundsLabel')}</span>
         <Select

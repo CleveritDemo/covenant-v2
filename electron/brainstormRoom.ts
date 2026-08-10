@@ -1,7 +1,10 @@
+import { readFileSync, realpathSync } from 'node:fs'
+import { resolve, sep } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
 import type { AgentCliStartRequest, AgentCliUiEvent } from '../src/shared/agentCliTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import type { TabContext } from '../src/shared/tabContext'
 import {
   advanceBrainstormCursor,
   appendBrainstormHumanMessage,
@@ -11,14 +14,22 @@ import {
   nextSpeakerAgentId,
   resolveBrainstormParticipantIds,
   sanitizeBrainstormMaxRounds,
+  sanitizeBrainstormOutcome,
+  sanitizeBrainstormWorkingSet,
+  shouldSendWorkingSetBodies,
   type BrainstormEvent,
   type BrainstormMessage,
   type BrainstormRoom,
+  type BrainstormWorkingSet,
 } from '../src/shared/brainstormRoom'
 import { IPC } from '../src/shared/ipcChannels'
 import { listProjectAgents } from './projectAgentCatalogOps'
 import { listBrainstormRooms, upsertBrainstormRoom } from './brainstormCatalogOps'
+import { discoverTabContexts } from './tabContextBuild'
 import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+
+/** Tope por archivo del working set; los contextos van por su propio presupuesto. */
+const BRAINSTORM_FILE_CHARS = 6_000
 
 export type { BrainstormEvent }
 
@@ -28,6 +39,11 @@ export interface BrainstormStartConfig {
   participantAgentIds: string[]
   maxRounds: number
   cwd: string
+  /** Working set: ids de contextos del proyecto. */
+  contextIds?: string[]
+  /** Working set: rutas relativas al cwd. */
+  filePaths?: string[]
+  outcome?: string
   /** Reanudar desde estado persistido / snapshot (no resetea round/cursor/messages). */
   resume?: boolean
   round?: number
@@ -41,6 +57,8 @@ export interface BrainstormSpeakerTurnInput {
   prompt: string
   cwd: string
   cliSessionId?: string
+  /** Contextos del working set; el runtime ya sabe entregarlos (catálogo + need-sections). */
+  contexts?: TabContext[]
   isStale: () => boolean
   onDelta: (text: string) => void
   onSession?: (cliSessionId: string) => void
@@ -109,7 +127,7 @@ export function defaultRunBrainstormSpeakerTurn(
     const request: AgentCliStartRequest = {
       paneId: input.paneId,
       provider: input.agent.provider,
-      // Brainstorm: auto (no plan) — camino más corto; sin tools/contexto/delegación.
+      // Brainstorm: auto (no plan) — camino más corto; sin tools ni delegación.
       permissionMode: 'auto',
       prompt: input.prompt,
       cwd: input.cwd,
@@ -126,7 +144,7 @@ export function defaultRunBrainstormSpeakerTurn(
       autoImproveContexts: false,
       nativeSkills: undefined,
       mcpsAllowed: [],
-      contexts: [],
+      contexts: input.contexts ?? [],
     }
 
     runAgentCliSpawn(request, config, home, {
@@ -166,6 +184,53 @@ export function defaultRunBrainstormSpeakerTurn(
   })
 }
 
+/** Contextos del proyecto que están en el working set, en el orden elegido. */
+export function resolveWorkingSetContexts(cwd: string, contextIds: string[]): TabContext[] {
+  if (!contextIds.length) return []
+  const byId = new Map(discoverTabContexts(cwd).contexts.map(item => [item.id, item]))
+  return contextIds
+    .map(id => byId.get(id))
+    .filter((item): item is TabContext => Boolean(item))
+}
+
+/** Lee los archivos del working set; descarta lo que caiga fuera del proyecto. */
+export function readWorkingSetFiles(cwd: string, filePaths: string[]): string[] {
+  if (!filePaths.length) return []
+  let root: string
+  try {
+    root = realpathSync(resolve(cwd))
+  } catch {
+    return []
+  }
+  const blocks: string[] = []
+  for (const rel of filePaths) {
+    let target = resolve(root, rel)
+    try {
+      target = realpathSync(target)
+    } catch {
+      blocks.push(`### ${rel}\n(no existe)`)
+      continue
+    }
+    if (target !== root && !target.startsWith(root + sep)) continue
+    try {
+      blocks.push(`### ${rel}\n${readFileSync(target, 'utf8').slice(0, BRAINSTORM_FILE_CHARS)}`)
+    } catch {
+      blocks.push(`### ${rel}\n(no se pudo leer)`)
+    }
+  }
+  return blocks
+}
+
+export function brainstormWorkingSetLabels(
+  contexts: TabContext[],
+  filePaths: string[],
+): string[] {
+  return [
+    ...contexts.map(context => `${context.kind} ${context.name}`),
+    ...filePaths.map(path => `file ${path}`),
+  ]
+}
+
 /**
  * Secuencia round-robin pura (inyectable para tests).
  * Emite eventos y muta `room` vía el estado del caller.
@@ -174,6 +239,10 @@ export async function runBrainstormSequence(
   initial: BrainstormRoom,
   deps: {
     resolveAgent: (agentId: string) => ProjectAgentDefinition | null
+    /** Working set del turno (labels + cuerpos según ronda). */
+    buildWorkingSet?: (room: BrainstormRoom) => BrainstormWorkingSet
+    /** Contextos del proyecto asignados a la sala. */
+    contexts?: TabContext[]
     runSpeakerTurn: (
       input: Omit<BrainstormSpeakerTurnInput, 'isStale'> & { isStale: () => boolean },
     ) => Promise<BrainstormSpeakerTurnResult>
@@ -252,13 +321,20 @@ export async function runBrainstormSequence(
     const agentName = agent.name?.trim() || agent.id
     const speakRound = room.round
     const paneId = brainstormPaneId(deps.roomId, agent.id)
-    const prompt = buildBrainstormTurnPrompt(room, agent.id, agentName, agent.role)
+    const prompt = buildBrainstormTurnPrompt(
+      room,
+      agent.id,
+      agentName,
+      agent.role,
+      deps.buildWorkingSet?.(room),
+    )
 
     const result = await deps.runSpeakerTurn({
       paneId,
       agent,
       prompt,
       cwd: '',
+      contexts: deps.contexts,
       onDelta: text => {
         if (deps.isStale()) return
         deps.emit({
@@ -342,6 +418,18 @@ function invalidateBrainstormGeneration(run: RoomRunState): void {
   }
 }
 
+function briefFromConfig(config: BrainstormStartConfig): {
+  contextIds: string[]
+  filePaths: string[]
+  outcome: BrainstormRoom['outcome']
+} {
+  return {
+    contextIds: sanitizeBrainstormWorkingSet(config.contextIds),
+    filePaths: sanitizeBrainstormWorkingSet(config.filePaths),
+    outcome: sanitizeBrainstormOutcome(config.outcome),
+  }
+}
+
 function resolveResumeRoom(
   config: BrainstormStartConfig,
   cwd: string,
@@ -353,11 +441,15 @@ function resolveResumeRoom(
   const fromDisk = listBrainstormRooms(cwd).find(item => item.id === roomId)
   const fromMemory = roomRuns.get(roomId)?.room
   const base = fromDisk ?? fromMemory
+  const brief = briefFromConfig(config)
   if (base) {
     return {
       ...base,
       id: roomId,
       topic: topic || base.topic,
+      contextIds: config.contextIds ? brief.contextIds : base.contextIds,
+      filePaths: config.filePaths ? brief.filePaths : base.filePaths,
+      outcome: config.outcome ? brief.outcome : base.outcome,
       participantAgentIds: participants.length >= 2 ? participants : base.participantAgentIds,
       maxRounds: sanitizeBrainstormMaxRounds(config.maxRounds ?? base.maxRounds),
       round: typeof config.round === 'number' ? Math.max(0, Math.floor(config.round)) : base.round,
@@ -372,7 +464,7 @@ function resolveResumeRoom(
   ) {
     return null
   }
-  const template = createBrainstormRoom(topic, participants, maxRounds)
+  const template = createBrainstormRoom(topic, participants, maxRounds, brief)
   if (!template) return null
   return {
     ...template,
@@ -447,7 +539,7 @@ export function startBrainstormRoom(
     const existing = roomRuns.get(roomId)
     if (existing) invalidateBrainstormGeneration(existing)
   } else {
-    const template = createBrainstormRoom(topic, unique, maxRounds)
+    const template = createBrainstormRoom(topic, unique, maxRounds, briefFromConfig(config))
     if (!template) return { ok: false, error: 'No se pudo crear la sala' }
     room = { ...template, id: roomId }
     stopBrainstormRoom(roomId)
@@ -479,10 +571,20 @@ export function startBrainstormRoom(
       upsertBrainstormRoom(run.cwd, next)
     }
 
+    const workingSetContexts = resolveWorkingSetContexts(cwd, room.contextIds ?? [])
+
     const finalRoom = await runBrainstormSequence(room, {
       roomId,
       isStale,
       resolveAgent: id => byId.get(id) ?? null,
+      contexts: workingSetContexts,
+      buildWorkingSet: current => ({
+        labels: brainstormWorkingSetLabels(workingSetContexts, current.filePaths ?? []),
+        // Cuerpos solo en la ronda 1; después el transcript ya carga el turno.
+        fileBlocks: shouldSendWorkingSetBodies(current)
+          ? readWorkingSetFiles(cwd, current.filePaths ?? [])
+          : undefined,
+      }),
       emit: event => emitBrainstorm(win, roomId, event),
       onRoomChange: persistRoom,
       drainPendingHumanMessages: () => {

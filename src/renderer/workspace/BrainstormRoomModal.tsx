@@ -3,21 +3,28 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
   BRAINSTORM_MAX_ROUNDS_CAP,
+  BRAINSTORM_OUTCOMES,
   brainstormCatalogAgentLabel,
+  brainstormTurnCount,
   filterBrainstormInvitableAgents,
   isBrainstormInvitableAgent,
   sanitizeBrainstormInviteIds,
   sanitizeBrainstormMaxRounds,
+  type BrainstormOutcome,
   type BrainstormRoom,
 } from '@shared/brainstormRoom'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button, ChoiceCard, Select, TextArea } from '../components/ui'
+import { Button, ChoiceCard, SegmentedControl, Select, TextArea } from '../components/ui'
+import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
 import {
   canAdvanceBrainstormInviteStep,
   tryCreateBrainstormSession,
 } from './brainstormUiGuards'
 import './BrainstormRoomModal.css'
+
+/** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
+const MINUTES_PER_TURN = 0.4
 
 export type BrainstormModalStep = 'invite' | 'topic'
 
@@ -44,6 +51,9 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [topic, setTopic] = useState('')
   const [maxRounds, setMaxRounds] = useState(BRAINSTORM_DEFAULT_ROUNDS)
+  const [contextIds, setContextIds] = useState<string[]>([])
+  const [filePaths, setFilePaths] = useState<string[]>([])
+  const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
 
   const invitableAgents = useMemo(
     () => filterBrainstormInvitableAgents(agents),
@@ -61,6 +71,9 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     setSelectedIds([])
     setTopic('')
     setMaxRounds(BRAINSTORM_DEFAULT_ROUNDS)
+    setContextIds([])
+    setFilePaths([])
+    setOutcome('ideas')
   }, [open])
 
   useEffect(() => {
@@ -73,10 +86,19 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     return map
   }, [safeSelectedIds])
 
+  const outcomeLabels: Record<BrainstormOutcome, string> = {
+    ideas: t('tabs.brainstormOutcomeIdeas'),
+    decision: t('tabs.brainstormOutcomeDecision'),
+    plan: t('tabs.brainstormOutcomePlan'),
+    critique: t('tabs.brainstormOutcomeCritique'),
+  }
+
+  const brief = { contextIds, filePaths, outcome }
   const canNext = canAdvanceBrainstormInviteStep(safeSelectedIds, agents)
   const canStart = Boolean(
-    tryCreateBrainstormSession(topic, safeSelectedIds, maxRounds, agents),
+    tryCreateBrainstormSession(topic, safeSelectedIds, maxRounds, agents, brief),
   )
+  const turns = brainstormTurnCount({ participantAgentIds: safeSelectedIds, maxRounds })
 
   const toggleAgent = (agentId: string): void => {
     const agent = agents.find(item => item.id === agentId)
@@ -96,6 +118,7 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       safeSelectedIds,
       maxRounds,
       agents,
+      brief,
     )
     if (!room || !cwd.trim()) return
     window.api.startBrainstorm({
@@ -103,6 +126,9 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       topic: room.topic,
       participantAgentIds: room.participantAgentIds,
       maxRounds: room.maxRounds,
+      contextIds: room.contextIds,
+      filePaths: room.filePaths,
+      outcome: room.outcome,
       cwd: cwd.trim(),
     })
     onStarted(room)
@@ -111,7 +137,19 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   const roundOptions = Array.from(
     { length: BRAINSTORM_MAX_ROUNDS_CAP },
     (_, index) => index + 1,
-  )
+  ).map(value => {
+    const meaning = value === 1
+      ? t('tabs.brainstormRoundsQuick')
+      : value === 3
+        ? t('tabs.brainstormRoundsBalanced')
+        : value >= 6
+          ? t('tabs.brainstormRoundsDeep')
+          : ''
+    return {
+      value: String(value),
+      label: meaning ? `${value} — ${meaning}` : String(value),
+    }
+  })
 
   const title = step === 'invite'
     ? t('tabs.brainstormInviteTitle')
@@ -191,18 +229,60 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
           )}
         </>
       ) : (
-        <>
+        <div
+          onKeyDown={event => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && canStart) {
+              event.preventDefault()
+              handleStart()
+            }
+          }}
+        >
           <p className="brainstorm-room-modal__hint">{t('tabs.brainstormTopicHint')}</p>
           <label className="brainstorm-room-modal__field">
             <span className="brainstorm-room-modal__label">{t('tabs.brainstormTopicLabel')}</span>
             <TextArea
               value={topic}
               autoFocus
-              rows={4}
+              rows={3}
               placeholder={t('tabs.brainstormTopicPlaceholder')}
               onChange={event => setTopic(event.target.value)}
             />
+            <span className="brainstorm-room-modal__hint">
+              {t('tabs.brainstormTopicFieldHint')}
+            </span>
           </label>
+          <div className="brainstorm-room-modal__field">
+            <span className="brainstorm-room-modal__label">
+              {t('tabs.brainstormWorkingSetLabel')}
+            </span>
+            <BrainstormWorkingSetField
+              cwd={cwd}
+              contextIds={contextIds}
+              filePaths={filePaths}
+              onChange={next => {
+                setContextIds(next.contextIds)
+                setFilePaths(next.filePaths)
+              }}
+            />
+            <span className="brainstorm-room-modal__hint">
+              {t('tabs.brainstormWorkingSetHint')}
+            </span>
+          </div>
+          <div className="brainstorm-room-modal__field">
+            <span className="brainstorm-room-modal__label">
+              {t('tabs.brainstormOutcomeLabel')}
+            </span>
+            <SegmentedControl
+              size="sm"
+              label={t('tabs.brainstormOutcomeLabel')}
+              value={outcome}
+              onChange={setOutcome}
+              options={BRAINSTORM_OUTCOMES.map(value => ({
+                value,
+                label: outcomeLabels[value],
+              }))}
+            />
+          </div>
           <label className="brainstorm-room-modal__field">
             <span className="brainstorm-room-modal__label">{t('tabs.brainstormRoundsLabel')}</span>
             <Select
@@ -211,10 +291,17 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
               onChange={next => {
                 setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))
               }}
-              options={roundOptions.map(value => ({ value: String(value), label: String(value) }))}
+              options={roundOptions}
             />
           </label>
-        </>
+          <p className="brainstorm-room-modal__summary">
+            {t('tabs.brainstormRunSummary', {
+              turns: String(turns),
+              contexts: String(contextIds.length + filePaths.length),
+              minutes: String(Math.max(1, Math.round(turns * MINUTES_PER_TURN))),
+            })}
+          </p>
+        </div>
       )}
     </TerminalModal>
   )

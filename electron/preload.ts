@@ -183,6 +183,9 @@ const api = {
     participantAgentIds: string[]
     maxRounds: number
     cwd: string
+    contextIds?: string[]
+    filePaths?: string[]
+    outcome?: string
     resume?: boolean
     round?: number
     cursor?: number
@@ -779,6 +782,10 @@ const api = {
 
   fileExplorerSearch(sessionId: string, query: string): Promise<FileExplorerSearchResult> {
     return ipcRenderer.invoke(IPC.FILE_EXPLORER_SEARCH, sessionId, query)
+  },
+
+  searchProjectFiles(cwd: string, query: string): Promise<FileExplorerSearchResult> {
+    return ipcRenderer.invoke(IPC.PROJECT_FILE_SEARCH, cwd, query)
   },
 
   fileExplorerWatchStart(sessionId: string): void {

@@ -77,6 +77,21 @@
   color: var(--text);
 }
 
+.brainstorm-room-modal__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
 .brainstorm-room-modal__footer {
   display: flex;
   justify-content: flex-end;

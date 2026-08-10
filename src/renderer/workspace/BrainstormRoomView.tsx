@@ -204,6 +204,9 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       topic: room.topic,
       participantAgentIds: participantResolution.resolvedIds,
       maxRounds: room.maxRounds,
+      contextIds: room.contextIds,
+      filePaths: room.filePaths,
+      outcome: room.outcome,
       cwd: cwd.trim(),
       resume: true,
     })

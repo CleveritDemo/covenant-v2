@@ -1,0 +1,103 @@
+.brainstorm-working-set {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.brainstorm-working-set__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.brainstorm-working-set__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 6px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brainstorm-working-set__tag {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.brainstorm-working-set__tag--file {
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  color: var(--text-muted);
+}
+
+.brainstorm-working-set__remove {
+  border: 0;
+  background: none;
+  padding: 0 1px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.brainstorm-working-set__remove:hover {
+  color: var(--text);
+}
+
+.brainstorm-working-set__menu {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--surface);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.brainstorm-working-set__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.brainstorm-working-set__menu li:first-child .brainstorm-working-set__option {
+  border-top: 0;
+}
+
+.brainstorm-working-set__option--active {
+  background: var(--surface-hover);
+}
+
+.brainstorm-working-set__option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

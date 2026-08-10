@@ -27,6 +27,9 @@ npm run rebuild:native   # rebuild node-pty for the current Electron ABI
 npm run dist:dmg         # macOS arm64 DMG
 ```
 
+El toolchain es Vite 6 + electron-vite 5, que piden Node `^20.19 || >=22.12` (antes bastaba Node 18).
+`vitest` se queda en 3.x a propósito: Vite 7/8 exigiría vitest 4, y eso es otro cambio.
+
 There is no linter. `npx tsc -b` typechecks but **currently reports ~36 pre-existing errors** across 11 files
 (`App.tsx`, `PaneWindow.tsx`, `planeLoopChain.ts`, `projectAgentCatalog.ts`, several tests) — the build uses
 esbuild and does not typecheck, so `tsc -b` is not a pass/fail gate. Compare error counts before/after rather

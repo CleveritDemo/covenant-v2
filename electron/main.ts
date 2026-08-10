@@ -1574,12 +1574,14 @@ function registerIpc(): void {
     deleteInteractionsLog(paneId)
   })
 
-  ipcMain.handle(IPC.AGENT_CHAT_LOAD, (_e, paneId: string) => loadAgentChat(paneId))
-  ipcMain.on(IPC.AGENT_CHAT_SAVE, (_e, paneId: string, entries: unknown) => {
-    saveAgentChat(paneId, entries as AgentChatEntry[])
+  ipcMain.handle(IPC.AGENT_CHAT_LOAD, (_e, paneId: string, threadId: string) => (
+    loadAgentChat(paneId, threadId)
+  ))
+  ipcMain.on(IPC.AGENT_CHAT_SAVE, (_e, paneId: string, threadId: string, entries: unknown) => {
+    saveAgentChat(paneId, threadId, entries as AgentChatEntry[])
   })
-  ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, paneId: string) => {
-    deleteAgentChat(paneId)
+  ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, paneId: string, threadId?: string) => {
+    deleteAgentChat(paneId, threadId)
   })
   ipcMain.on(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, (_e, payload: unknown) => {
     if (!payload || typeof payload !== 'object') return

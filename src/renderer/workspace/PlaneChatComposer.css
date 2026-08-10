@@ -90,6 +90,13 @@
   padding: 0;
 }
 
+/* Selector de conversaciones: se encoge antes que el resto de la barra. */
+.plane-chat-composer__threads {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 190px;
+}
+
 /* Chip: una sola gramática para los tres controles (menú, toggle, toggle).
    Apagado = fantasma neutro; encendido = relleno de acento. */
 .plane-chat-composer__chip {

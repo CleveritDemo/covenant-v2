@@ -1,0 +1,147 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_THREAD_ID,
+  MAX_THREADS_PER_PANE,
+  deleteThread,
+  newThread,
+  renameThread,
+  sanitizeThreadState,
+  selectThread,
+  setActiveThreadSession,
+  sortThreadsByRecency,
+  stripThreadSessions,
+  threadPatch,
+  threadTitleFrom,
+  touchActiveThread,
+} from '../agentThreads'
+
+describe('threadTitleFrom', () => {
+  it('colapsa espacios y recorta', () => {
+    expect(threadTitleFrom('  hola\n  como   estas? ')).toBe('hola como estas?')
+    expect(threadTitleFrom('x'.repeat(80))).toHaveLength(48)
+    expect(threadTitleFrom('x'.repeat(80)).endsWith('…')).toBe(true)
+  })
+})
+
+describe('sanitizeThreadState', () => {
+  it('migra el cliSessionId suelto de un binding pre-threads', () => {
+    const state = sanitizeThreadState(undefined, undefined, 'sess-1')
+    expect(state.activeThreadId).toBe(DEFAULT_THREAD_ID)
+    expect(state.threads).toEqual([
+      { id: DEFAULT_THREAD_ID, title: '', updatedAt: 0, cliSessionId: 'sess-1' },
+    ])
+  })
+
+  it('siempre deja un thread y un activo válido', () => {
+    const state = sanitizeThreadState([], 'no-existe')
+    expect(state.threads).toHaveLength(1)
+    expect(state.activeThreadId).toBe(state.threads[0]!.id)
+  })
+
+  it('descarta ids inservibles como path y duplicados', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: '../escape', title: 'a', updatedAt: 1 },
+        { id: 'ok', title: 'b', updatedAt: 2 },
+        { id: 'ok', title: 'duplicado', updatedAt: 3 },
+      ],
+      'ok',
+    )
+    expect(state.threads.map(thread => thread.id)).toEqual(['ok'])
+    expect(state.threads[0]!.title).toBe('b')
+  })
+
+  it('poda al tope sin tocar el activo', () => {
+    const raw = Array.from({ length: MAX_THREADS_PER_PANE + 5 }, (_, index) => ({
+      id: `t${index}`,
+      title: '',
+      updatedAt: index,
+    }))
+    const state = sanitizeThreadState(raw, 't0')
+    expect(state.threads).toHaveLength(MAX_THREADS_PER_PANE)
+    expect(state.threads.some(thread => thread.id === 't0')).toBe(true)
+    // Se van los más viejos, no el activo.
+    expect(state.threads.some(thread => thread.id === 't1')).toBe(false)
+  })
+})
+
+describe('operaciones', () => {
+  const base = sanitizeThreadState(
+    [
+      { id: 'a', title: 'vieja', updatedAt: 10 },
+      { id: 'b', title: 'nueva', updatedAt: 20, cliSessionId: 'sess-b' },
+    ],
+    'a',
+  )
+
+  it('newThread activa el nuevo y no borra el anterior', () => {
+    const next = newThread(base, 'c', 30)
+    expect(next.activeThreadId).toBe('c')
+    expect(next.threads.map(thread => thread.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('selectThread ignora ids que no existen', () => {
+    expect(selectThread(base, 'zzz')).toBe(base)
+    expect(selectThread(base, 'b').activeThreadId).toBe('b')
+  })
+
+  it('deleteThread del activo salta al más reciente', () => {
+    const next = deleteThread(base, 'a', 'fallback', 40)
+    expect(next.threads.map(thread => thread.id)).toEqual(['b'])
+    expect(next.activeThreadId).toBe('b')
+  })
+
+  it('deleteThread del último deja uno vacío', () => {
+    const one = sanitizeThreadState([{ id: 'a', title: 'x', updatedAt: 1 }], 'a')
+    const next = deleteThread(one, 'a', 'fresh', 40)
+    expect(next.threads).toEqual([{ id: 'fresh', title: '', updatedAt: 40 }])
+    expect(next.activeThreadId).toBe('fresh')
+  })
+
+  it('setActiveThreadSession fija y borra la sesión del activo', () => {
+    const withSession = setActiveThreadSession(base, 'sess-a')
+    expect(withSession.threads[0]!.cliSessionId).toBe('sess-a')
+    const cleared = setActiveThreadSession(withSession, undefined)
+    expect(cleared.threads[0]!.cliSessionId).toBeUndefined()
+    // El thread inactivo conserva la suya.
+    expect(cleared.threads[1]!.cliSessionId).toBe('sess-b')
+  })
+
+  it('touchActiveThread titula una sola vez', () => {
+    const fresh = newThread(base, 'c', 30)
+    const first = touchActiveThread(fresh, 'arreglar el login', 31)
+    const second = touchActiveThread(first, 'y ahora el logout', 32)
+    const active = second.threads.find(thread => thread.id === 'c')!
+    expect(active.title).toBe('arreglar el login')
+    expect(active.updatedAt).toBe(32)
+  })
+
+  it('renameThread ignora vacíos y no toca los demás', () => {
+    expect(renameThread(base, 'a', '   ')).toBe(base)
+    expect(renameThread(base, 'no-existe', 'x')).toBe(base)
+    const next = renameThread(base, 'a', '  refactor  del   login ')
+    expect(next.threads[0]!.title).toBe('refactor del login')
+    expect(next.threads[1]!.title).toBe('nueva')
+  })
+
+  it('el título puesto a mano sobrevive al turno siguiente', () => {
+    const renamed = renameThread(base, 'a', 'mi hilo')
+    const after = touchActiveThread(renamed, 'otro mensaje cualquiera', 99)
+    expect(after.threads[0]!.title).toBe('mi hilo')
+  })
+
+  it('threadPatch proyecta la sesión del thread activo', () => {
+    expect(threadPatch(selectThread(base, 'b')).cliSessionId).toBe('sess-b')
+    expect(threadPatch(selectThread(base, 'a')).cliSessionId).toBeUndefined()
+  })
+
+  it('sortThreadsByRecency ordena de más nuevo a más viejo', () => {
+    expect(sortThreadsByRecency(base.threads).map(thread => thread.id)).toEqual(['b', 'a'])
+  })
+
+  it('stripThreadSessions deja el historial y quita la sesión CLI', () => {
+    const stripped = stripThreadSessions(base.threads)
+    expect(stripped.map(thread => thread.title)).toEqual(['vieja', 'nueva'])
+    expect(stripped.every(thread => thread.cliSessionId === undefined)).toBe(true)
+  })
+})

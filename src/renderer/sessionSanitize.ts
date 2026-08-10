@@ -8,6 +8,7 @@ import type {
 } from '@shared/tabSession'
 import {
   parseAgentPaneBinding,
+  stripBindingCliSessions,
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
 import {
@@ -57,13 +58,9 @@ export function stripOrgTabAgentCliSessionIds(tab: TabSession): TabSession {
   let changed = false
   const next: Record<string, AgentPaneBinding> = {}
   for (const [paneId, binding] of Object.entries(agentByPane)) {
-    if (binding.cliSessionId) {
-      const { cliSessionId: _dropped, ...rest } = binding
-      next[paneId] = rest
-      changed = true
-    } else {
-      next[paneId] = binding
-    }
+    const stripped = stripBindingCliSessions(binding)
+    if (stripped !== binding) changed = true
+    next[paneId] = stripped
   }
   return changed ? { ...tab, agentByPane: next } : tab
 }
@@ -103,12 +100,7 @@ function sanitizeTab(tab: TabSession): {
     if (binding) {
       paneKinds[paneId] = 'agent'
       // Org: no rehidratar cliSessionId desde session compartida/local contaminada.
-      if (orgWorkspace && binding.cliSessionId) {
-        const { cliSessionId: _dropped, ...rest } = binding
-        agentByPane[paneId] = rest
-      } else {
-        agentByPane[paneId] = binding
-      }
+      agentByPane[paneId] = orgWorkspace ? stripBindingCliSessions(binding) : binding
       continue
     }
     // Rich meta legacy o binding inválido: pane huérfano (no migrar, no inventar agentId).

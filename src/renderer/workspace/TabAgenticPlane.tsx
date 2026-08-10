@@ -37,6 +37,7 @@ import {
 } from './TabFileExplorerWindow'
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
+import type { AgentThread } from '@shared/agentThreads'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import './TabAgenticPlane.css'
@@ -117,8 +118,17 @@ export interface TabAgenticPlaneProps {
   onStopChat: (paneId: string) => void
   /** Stop por fila en Waiting: cancela solo esa delegación del orquestador. */
   onAbortDelegation?: (fromPaneId: string, delegationId: string) => void
-  /** Pide limpiar la conversación del agente (confirmación en AgentPane). */
+  /** Pide borrar la conversación activa del agente (confirmación en AgentPane). */
   onClearConversation: (paneId: string) => void
+  /** Abre una conversación nueva sin borrar la actual. */
+  onNewThread: (paneId: string) => void
+  /** Reanuda otra conversación del agente. */
+  onSelectThread: (paneId: string, threadId: string) => void
+  /** Retitula la conversación activa del agente. */
+  onRenameThread: (paneId: string, title: string) => void
+  /** Conversaciones del agente con el chat abierto. */
+  openChatThreads?: readonly AgentThread[]
+  openChatActiveThreadId?: string
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
   openChatAgentId: string | null
   /** Abre/cambia el chat, o lo cierra con `null`. */
@@ -284,6 +294,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onStopChat,
   onAbortDelegation,
   onClearConversation,
+  onNewThread,
+  onSelectThread,
+  onRenameThread,
+  openChatThreads = [],
+  openChatActiveThreadId = '',
   openChatAgentId,
   onOpenChatAgentChange,
   agentStatuses = {},
@@ -759,11 +774,23 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               loopMode={Boolean(quickChatStatus?.loopMode)}
               loopActive={Boolean(quickChatStatus?.loopActive)}
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
+              threads={openChatThreads}
+              activeThreadId={openChatActiveThreadId}
+              // Cambiar de conversación con un turno o un loop vivo dejaría el
+              // stream escribiendo en el transcript equivocado.
+              threadsLocked={Boolean(
+                quickChatStatus?.busy
+                || quickChatStatus?.loopActive
+                || quickChatStatus?.awaitingDelegations,
+              )}
               onAutoImproveChange={enabled => {
                 onAutoImproveChange(openChatAgentId, enabled)
               }}
               onToggleLoop={() => onToggleLoop(openChatAgentId)}
               onClearConversation={() => onClearConversation(openChatAgentId)}
+              onNewThread={() => onNewThread(openChatAgentId)}
+              onSelectThread={threadId => onSelectThread(openChatAgentId, threadId)}
+              onRenameThread={title => onRenameThread(openChatAgentId, title)}
             />
           ) : null}
           chat={quickChatVisible && openChatAgentId ? (

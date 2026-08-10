@@ -8,6 +8,7 @@ import type {
 import {
   resolveAgentPaneMeta,
   sortProjectAgentsByPlaneOrder,
+  stripBindingCliSessions,
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
 import { tabAgentCatalogKey } from '@shared/covenantTypes'
@@ -139,13 +140,17 @@ export function syncTabAgentsFromCatalog(
       paneWindows[paneId] = options.createWindow(paneWindows, false)
     }
     paneKinds[paneId] = 'agent'
+    // Las conversaciones son del pane, no del catálogo: sobreviven al sync.
+    const carried = existing
+      ? (preserveCliSessionIds
+          ? existing.binding
+          : stripBindingCliSessions(existing.binding))
+      : undefined
     agentByPane[paneId] = {
+      ...carried,
       agentId: definition.id,
       ...(definition.localOnly === true || existing?.binding.localOnly === true
         ? { localOnly: true }
-        : {}),
-      ...(preserveCliSessionIds && existing?.binding.cliSessionId
-        ? { cliSessionId: existing.binding.cliSessionId }
         : {}),
     }
     agentPaneIds.push(paneId)

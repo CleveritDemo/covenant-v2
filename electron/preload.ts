@@ -202,14 +202,15 @@ const api = {
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)
   },
-  loadAgentChat(paneId: string): Promise<AgentChatEntry[]> {
-    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId)
+  loadAgentChat(paneId: string, threadId: string): Promise<AgentChatEntry[]> {
+    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId, threadId)
   },
-  saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, paneId, entries)
+  saveAgentChat(paneId: string, threadId: string, entries: AgentChatEntry[]): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, paneId, threadId, entries)
   },
-  deleteAgentChat(paneId: string): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId)
+  /** Sin `threadId` borra todas las conversaciones del pane (al cerrarlo). */
+  deleteAgentChat(paneId: string, threadId?: string): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId, threadId)
   },
   clearAgentContextDelivery(payload: {
     provider: AgentCliProvider

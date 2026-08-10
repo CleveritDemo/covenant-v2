@@ -177,8 +177,16 @@ import {
   remapAgentResultContextIds,
   remapAgentResultIdsInCatalog,
   remapAgentResultTabContexts,
+  stripBindingCliSessions,
+  threadStateOf,
   type ProjectAgentDefinition,
 } from '../shared/projectAgentCatalog'
+import {
+  renameThread,
+  sanitizeThreadState,
+  selectThread,
+  threadPatch,
+} from '../shared/agentThreads'
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
 import {
   covenantWorkspaceCatalogKey,
@@ -424,6 +432,7 @@ export const App: React.FC = () => {
   }>>({})
   const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
+  const [planeNewThreadPaneId, setPlaneNewThreadPaneId] = useState<string | null>(null)
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
@@ -4291,13 +4300,8 @@ export const App: React.FC = () => {
     const nextId = normalizeAgentSlug(next.id, previousId) || previousId
     const idChanged = previousId !== nextId
     const bindingRaw = agentBindingFromMeta({ ...next, id: nextId })
-    // Org: no persistir cliSessionId en agentByPane (sesión CLI local al usuario).
-    const binding = isOrgBacked && bindingRaw.cliSessionId
-      ? (() => {
-          const { cliSessionId: _dropped, ...rest } = bindingRaw
-          return rest
-        })()
-      : bindingRaw
+    // Org: no persistir sesiones CLI en agentByPane (son locales al usuario).
+    const binding = isOrgBacked ? stripBindingCliSessions(bindingRaw) : bindingRaw
     const previousDefinition = agentDefinitionFromMeta({ ...previous, id: previousId })
     const nextWithRemappedResults: AgentPaneMeta = {
       ...next,
@@ -4384,11 +4388,8 @@ export const App: React.FC = () => {
 
     const revertOptimistic = (): void => {
       const previousBindingRaw = agentBindingFromMeta({ ...previous, id: previousId })
-      const previousBinding = isOrgBacked && previousBindingRaw.cliSessionId
-        ? (() => {
-            const { cliSessionId: _dropped, ...rest } = previousBindingRaw
-            return rest
-          })()
+      const previousBinding = isOrgBacked
+        ? stripBindingCliSessions(previousBindingRaw)
         : previousBindingRaw
       applyBindings(nextId, previousId, previousBinding)
       if (idChanged) {
@@ -4894,6 +4895,10 @@ export const App: React.FC = () => {
           onPreferClearConversationConsumed={() => {
             setPlaneClearPaneId(current => (current === paneId ? null : current))
           }}
+          preferNewThread={planeNewThreadPaneId === paneId}
+          onPreferNewThreadConsumed={() => {
+            setPlaneNewThreadPaneId(current => (current === paneId ? null : current))
+          }}
           registerShortcutCloseInterceptor={registerClose}
           fontSize={config.fontSize ?? 13}
         />
@@ -5096,6 +5101,12 @@ export const App: React.FC = () => {
                     tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim(),
                   )
                   const canBootstrapAgents = showBootstrapAgents && (Boolean(projectCwd) || orgBacked)
+                  const openChatBinding = tab.planeOpenChatAgentId
+                    ? tab.agentByPane?.[tab.planeOpenChatAgentId]
+                    : undefined
+                  const openChatThreadState = openChatBinding
+                    ? threadStateOf(openChatBinding)
+                    : null
                   return (
                       <div className="tab-terminal-group__main">
                 <TabAgenticPlane
@@ -5236,6 +5247,32 @@ export const App: React.FC = () => {
                   onClearConversation={paneId => {
                     setPlaneClearPaneId(paneId)
                   }}
+                  onNewThread={paneId => {
+                    setPlaneNewThreadPaneId(paneId)
+                  }}
+                  onSelectThread={(paneId, threadId) => {
+                    void handleAgentMetaChange(tab.id, paneId, previous => ({
+                      ...previous,
+                      ...threadPatch(selectThread(
+                        sanitizeThreadState(previous.threads, previous.activeThreadId),
+                        threadId,
+                      )),
+                    }))
+                  }}
+                  onRenameThread={(paneId, title) => {
+                    void handleAgentMetaChange(tab.id, paneId, previous => {
+                      const state = sanitizeThreadState(
+                        previous.threads,
+                        previous.activeThreadId,
+                      )
+                      return {
+                        ...previous,
+                        ...renameThread(state, state.activeThreadId, title),
+                      }
+                    })
+                  }}
+                  openChatThreads={openChatThreadState?.threads ?? []}
+                  openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   agentStatuses={agentPlaneStatus}
                   chatFontSize={config.fontSize ?? 13}
                   configLabel={t('agentPane.openConfig')}

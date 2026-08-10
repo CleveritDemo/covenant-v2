@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.33.0
+
+- **El modal de Ajustes tiene altura fija**: al cambiar de sección ya no crece
+  ni se encoge; el panel derecho hace scroll.
+- **Más aire bajo el buscador de Ajustes**, separado de la lista de secciones.
+
 ## v0.32.0
 
 - **Eliminar contexto pide confirmación** (modal) desde assign, listado y al

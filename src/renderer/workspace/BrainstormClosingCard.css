@@ -1,0 +1,76 @@
+.brainstorm-closing {
+  display: flex;
+  flex-direction: column;
+  margin: 12px 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.brainstorm-closing__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.brainstorm-closing__title {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.brainstorm-closing__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.brainstorm-closing__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.brainstorm-closing__block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.brainstorm-closing__label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-closing__text {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.brainstorm-closing__feedback {
+  margin: 0;
+  padding: 0 14px 12px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.brainstorm-closing__feedback--error {
+  color: var(--danger, #c44);
+}

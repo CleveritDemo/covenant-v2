@@ -6,6 +6,7 @@ import {
   brainstormTurnsDone,
   dedupeAgentIdsPreservingOrder,
   isBrainstormHumanMessage,
+  parseBrainstormClosing,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
   stripBrainstormProtocolFences,
@@ -27,6 +28,7 @@ import {
   isBrainstormStoppable,
   stopBrainstormIfActive,
 } from './brainstormViewClose'
+import { BrainstormClosingCard } from './BrainstormClosingCard'
 import { BrainstormHumanComposer } from './BrainstormHumanComposer'
 import './BrainstormRoomView.css'
 
@@ -169,15 +171,34 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const seats = useMemo(() => brainstormSeats({
     participantAgentIds: participantResolution.resolvedIds,
     messages: live.messages,
-    round: live.round,
+    // Al terminar, `round` ya apunta fuera: los asientos miran la última ronda.
+    round: live.status === 'done'
+      ? Math.max(0, Math.min(live.round, room.maxRounds - 1))
+      : live.round,
     speakingAgentId: live.speakingAgentId,
-  }), [live.messages, live.round, live.speakingAgentId, participantResolution.resolvedIds])
+  }), [
+    live.messages,
+    live.round,
+    live.speakingAgentId,
+    live.status,
+    participantResolution.resolvedIds,
+    room.maxRounds,
+  ])
 
   const turnsDone = brainstormTurnsDone(live.messages)
   const totalTurns = brainstormTurnCount({
     participantAgentIds: participantResolution.resolvedIds,
     maxRounds: room.maxRounds,
   })
+
+  // El cierre es la última entrada, no una pantalla nueva: solo si el turno
+  // final trajo las etiquetas y la sala ya terminó.
+  const closingOfLastMessage = useMemo(() => {
+    if (live.status !== 'done' || live.streaming) return null
+    const last = live.messages[live.messages.length - 1]
+    if (!last || isBrainstormHumanMessage(last)) return null
+    return parseBrainstormClosing(stripBrainstormProtocolFences(last.text))
+  }, [live.messages, live.status, live.streaming])
 
   const workingSetLabels = useMemo(() => [
     ...(room.contextIds ?? []).map(id => ({ key: id, ...workingSetLabel(id) })),
@@ -354,6 +375,27 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
               : paletteColorForSeed(laneAgentId)
             const previous = live.messages[index - 1]
             const opensRound = !previous || previous.round !== message.round
+            const closing = !human && index === live.messages.length - 1
+              ? closingOfLastMessage
+              : null
+            if (closing) {
+              return (
+                <React.Fragment key={`${message.agentId}-${message.round}-${index}`}>
+                  {opensRound ? (
+                    <p className="brainstorm-room-view__round-sep">
+                      {t('tabs.brainstormRoundSeparator', { round: message.round + 1 })}
+                    </p>
+                  ) : null}
+                  <BrainstormClosingCard
+                    roomId={room.id}
+                    topic={room.topic}
+                    cwd={cwd}
+                    closing={closing}
+                    speakerLabel={speakerLabel(message.agentId, message.agentName)}
+                  />
+                </React.Fragment>
+              )
+            }
             return (
               <React.Fragment key={`${message.agentId}-${message.round}-${index}`}>
                 {opensRound ? (

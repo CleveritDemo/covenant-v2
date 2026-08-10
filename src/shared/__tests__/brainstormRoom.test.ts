@@ -13,11 +13,13 @@ import {
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
   filterBrainstormInvitableAgents,
+  formatBrainstormClosing,
   isBrainstormComplete,
   isBrainstormInvitableAgent,
   isExpertReplicaAgent,
   isFinalBrainstormTurn,
   nextSpeakerAgentId,
+  parseBrainstormClosing,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
   sanitizeBrainstormInviteIds,
@@ -246,6 +248,51 @@ describe('buildBrainstormTurnPrompt', () => {
     const final = { ...room, round: 1, cursor: 1 }
     expect(isFinalBrainstormTurn(final)).toBe(true)
     expect(buildBrainstormTurnPrompt(final, 'fe', 'Frontend')).toContain('Final turn')
+  })
+})
+
+describe('parseBrainstormClosing', () => {
+  const text = [
+    'Decision: schema-per-filial, con runner automatizado.',
+    'Why: el backup por filial es trivial por esquema.',
+    '- Agreed: aislamiento por esquema y tests de fuga.',
+    'Open: Backend objeta las 40 migraciones por release.',
+    'Next: Arquitecto hace el spike del runner.',
+  ].join('\n')
+
+  it('lee los bloques etiquetados, con o sin viñeta', () => {
+    expect(parseBrainstormClosing(text)).toEqual({
+      decision: 'schema-per-filial, con runner automatizado.',
+      why: 'el backup por filial es trivial por esquema.',
+      agreed: 'aislamiento por esquema y tests de fuga.',
+      open: 'Backend objeta las 40 migraciones por release.',
+      next: 'Arquitecto hace el spike del runner.',
+    })
+  })
+
+  it('sin decisión no hay tarjeta (el turno se pinta normal)', () => {
+    expect(parseBrainstormClosing('Creo que schema gana, pero habría que medir.')).toBeNull()
+    expect(parseBrainstormClosing('')).toBeNull()
+    expect(parseBrainstormClosing('Next: medir p95')).toBeNull()
+  })
+
+  it('acepta un cierre parcial', () => {
+    expect(parseBrainstormClosing('Decision: RLS\nNext: escribir el test')).toEqual({
+      decision: 'RLS',
+      next: 'escribir el test',
+    })
+  })
+
+  it('formatea el cierre en markdown para copiar / exportar', () => {
+    const md = formatBrainstormClosing('Tenancy', { decision: 'RLS', next: 'test' })
+    expect(md).toBe('# Tenancy\n\n**Decision:** RLS\n\n**Next:** test\n')
+  })
+
+  it('el último turno pide las etiquetas del cierre', () => {
+    const room = createBrainstormRoom('Tenancy', ['a', 'b'], 1)!
+    const final = { ...room, cursor: 1 }
+    expect(buildBrainstormTurnPrompt(final, 'b', 'B')).toContain('Decision: <the call')
+    expect(buildBrainstormTurnPrompt(room, 'a', 'A')).not.toContain('Decision: <the call')
   })
 })
 

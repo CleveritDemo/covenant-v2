@@ -322,6 +322,60 @@ export function createBrainstormRoom(
   }
 }
 
+/** Bloques del cierre; todos opcionales salvo `decision`, que es el ancla. */
+export interface BrainstormClosing {
+  decision: string
+  why?: string
+  agreed?: string
+  open?: string
+  next?: string
+}
+
+/** Etiquetas que se le piden al último turno (inglés: el prompt es en inglés). */
+const CLOSING_FIELDS: ReadonlyArray<[keyof BrainstormClosing, RegExp]> = [
+  ['decision', /^(?:decision|outcome|cierre)\s*:\s*(.+)$/i],
+  ['why', /^(?:why|because|por qué|porque)\s*:\s*(.+)$/i],
+  ['agreed', /^(?:agreed|acuerdo|acordado)\s*:\s*(.+)$/i],
+  ['open', /^(?:open|disagreement|sin acuerdo|abierto)\s*:\s*(.+)$/i],
+  ['next', /^(?:next|next step|siguiente paso)\s*:\s*(.+)$/i],
+]
+
+/**
+ * Lee el cierre del último turno. Sin línea `Decision:` no hay tarjeta —
+ * el turno se pinta como una entrada normal y nadie inventa un acuerdo.
+ */
+export function parseBrainstormClosing(text: string): BrainstormClosing | null {
+  if (typeof text !== 'string' || !text.trim()) return null
+  const found: Partial<BrainstormClosing> = {}
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim().replace(/^[-*]\s+/, '')
+    if (!line) continue
+    for (const [field, pattern] of CLOSING_FIELDS) {
+      if (found[field]) continue
+      const match = pattern.exec(line)
+      if (match?.[1]) {
+        found[field] = match[1].trim()
+        break
+      }
+    }
+  }
+  if (!found.decision) return null
+  return found as BrainstormClosing
+}
+
+/** El cierre en Markdown, para copiar / exportar / guardar como contexto. */
+export function formatBrainstormClosing(
+  topic: string,
+  closing: BrainstormClosing,
+): string {
+  const lines = [`# ${topic}`, '', `**Decision:** ${closing.decision}`]
+  if (closing.why) lines.push('', `**Why:** ${closing.why}`)
+  if (closing.agreed) lines.push('', `**Agreed:** ${closing.agreed}`)
+  if (closing.open) lines.push('', `**Open:** ${closing.open}`)
+  if (closing.next) lines.push('', `**Next:** ${closing.next}`)
+  return `${lines.join('\n')}\n`
+}
+
 export type BrainstormSeatState = 'speaking' | 'spoke' | 'waiting'
 
 export interface BrainstormSeat {
@@ -501,7 +555,15 @@ export function buildBrainstormTurnPrompt(
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),
     ...(isFinalBrainstormTurn(room)
-      ? ['- Final turn: close the room with the desired outcome, same length limit.']
+      ? [
+          '- Final turn: close the room. Instead of prose, write these labeled lines',
+          '  (one line each, ≤20 words each, skip a label if there is nothing real):',
+          '  Decision: <the call, or the leading option if there was no agreement>',
+          '  Why: <the reason that settled it>',
+          '  Agreed: <what everyone accepted>',
+          '  Open: <what stayed unresolved, and who objects>',
+          '  Next: <the next concrete step, with an owner if there is one>',
+        ]
       : []),
     '- React to the latest points; stay on topic; no preamble or recap.',
     '- Do not delegate, call tools, ask for approval, or wait for the user.',

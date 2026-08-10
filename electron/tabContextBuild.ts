@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, isAbsolute, join, relative, resolve, basename } from 'path'
 import ts from 'typescript'
+import { read as readXlsx, utils as xlsxUtils } from 'xlsx'
 import type {
   TabContext,
   TabContextAnnotation,
@@ -127,6 +128,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   readme: 'Gaps/outdated bits only; max 10 words.',
   changelog: 'Read-only; never annotate.',
   mcp: 'Server usage only; max 10 words; never write credentials.',
+  spreadsheet: 'Sheet/column meaning only; max 10 words; never restate rows.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
   skill: 'Host-installed skill; do not rewrite via annotations.',
 }
@@ -172,6 +174,61 @@ function buildFiles(context: TabContext, root: string): string {
     sections.push(content == null
       ? `### ${relPath}\n(binary or unsupported file)`
       : `### ${relPath}\n\`\`\`${extname(path).slice(1)}\n${content}\n\`\`\``)
+  }
+  return sections.join('\n\n')
+}
+
+/**
+ * Tope de filas por hoja. Un backlog de PO puede traer miles y el prompt se lo
+ * comería entero; cuando se recorta se dice cuántas quedaron fuera, porque un
+ * corte silencioso se lee como «esas historias no existen».
+ */
+const SPREADSHEET_MAX_ROWS_PER_SHEET = 400
+
+/**
+ * Hojas de cálculo (.xlsx/.xlsm/.csv…) como texto para el prompt. Sale CSV y no
+ * tabla Markdown: la tabla gasta el triple de tokens en tuberías y guiones, y el
+ * modelo lee CSV igual de bien. `xlsx` ya estaba en el proyecto para la vista
+ * previa del explorador.
+ */
+function buildSpreadsheet(context: TabContext, root: string): string {
+  const requested = (context.paths ?? []).map(path => path.trim()).filter(Boolean)
+  if (requested.length === 0) return '(no spreadsheet selected)'
+
+  const sections: string[] = []
+  for (const relPath of requested) {
+    const path = safeFile(root, relPath)
+    if (!path) {
+      sections.push(`### ${relPath}\n(unavailable)`)
+      continue
+    }
+    try {
+      const book = readXlsx(readFileSync(path), { type: 'buffer', cellDates: true })
+      if (book.SheetNames.length === 0) {
+        sections.push(`### ${relPath}\n(no sheets)`)
+        continue
+      }
+      for (const sheetName of book.SheetNames) {
+        const sheet = book.Sheets[sheetName]
+        if (!sheet) continue
+        const csv = xlsxUtils.sheet_to_csv(sheet, { blankrows: false, FS: ',' }).trimEnd()
+        if (!csv) {
+          sections.push(`### ${relPath} · ${sheetName}\n(empty sheet)`)
+          continue
+        }
+        const rows = csv.split('\n')
+        const kept = rows.slice(0, SPREADSHEET_MAX_ROWS_PER_SHEET)
+        const dropped = rows.length - kept.length
+        const note = dropped > 0
+          ? `\n(${dropped} more row(s) not included; raise the limit or split the sheet)`
+          : ''
+        sections.push(
+          `### ${relPath} · ${sheetName}\n\`\`\`csv\n${kept.join('\n')}\n\`\`\`${note}`,
+        )
+      }
+    } catch (error) {
+      sections.push(`### ${relPath}\n(could not read: ${(error as Error).message})`)
+    }
   }
   return sections.join('\n\n')
 }
@@ -945,6 +1002,8 @@ function buildAutoContent(
       return gatherShallowFolderTree(root)
     case 'files':
       return buildFiles(context, root)
+    case 'spreadsheet':
+      return buildSpreadsheet(context, root)
     case 'symbols':
       return buildSymbols(context, root)
     case 'notes':
@@ -1227,6 +1286,7 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
   const root = safeRoot(cwd, context.rootPath)
   switch (context.kind) {
     case 'files':
+    case 'spreadsheet':
       return (context.paths ?? []).map(path => safeSourcePath(root, path))
     case 'symbols': {
       const requested = (context.paths ?? []).map(path => path.trim()).filter(Boolean)

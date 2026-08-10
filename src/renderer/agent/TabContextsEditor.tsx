@@ -150,13 +150,15 @@ export const TabContextsEditor: React.FC<Props> = ({
           />
         ) : null}
 
-        {(draft.kind === 'files' || draft.kind === 'symbols') && (
+        {(draft.kind === 'files' || draft.kind === 'symbols' || draft.kind === 'spreadsheet') && (
           <label>
             <span>{t('tabContexts.paths')}</span>
             <TextArea
               rows={5}
               value={(draft.paths ?? []).join('\n')}
-              placeholder={t('tabContexts.pathsPlaceholder')}
+              placeholder={t(draft.kind === 'spreadsheet'
+                ? 'tabContexts.pathsPlaceholderSpreadsheet'
+                : 'tabContexts.pathsPlaceholder')}
               onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
             />
           </label>

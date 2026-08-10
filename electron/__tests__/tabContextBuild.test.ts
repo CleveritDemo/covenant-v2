@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { utils as xlsxUtils, writeFile as writeXlsx } from 'xlsx'
 import {
   buildAssignedContexts,
   buildContextCatalogPrompt,
@@ -32,6 +33,60 @@ describe('tab context builders', () => {
     return dir
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
+
+  it('materializa una hoja de cálculo como CSV por hoja', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'docs'), { recursive: true })
+    const book = xlsxUtils.book_new()
+    xlsxUtils.book_append_sheet(book, xlsxUtils.aoa_to_sheet([
+      ['ID', 'Historia', 'Puntos'],
+      ['US-1', 'Como PO quiero adjuntar el backlog', 3],
+    ]), 'Sprint 4')
+    xlsxUtils.book_append_sheet(book, xlsxUtils.aoa_to_sheet([['Nota'], ['revisar']]), 'Notas')
+    writeXlsx(book, join(cwd, 'docs', 'historias.xlsx'))
+
+    const result = materializeTabContext({
+      id: 'historias',
+      name: 'Historias',
+      fileName: 'historias.md',
+      kind: 'spreadsheet' as const,
+      paths: ['docs/historias.xlsx'],
+    }, cwd)
+
+    expect(result.ok).toBe(true)
+    // Una sección por hoja, con su nombre, y el contenido en CSV.
+    expect(result.content).toContain('docs/historias.xlsx · Sprint 4')
+    expect(result.content).toContain('docs/historias.xlsx · Notas')
+    // SheetJS entrecomilla un «ID» al inicio del CSV a propósito: sin comillas,
+    // Excel lo detecta como archivo SYLK y se niega a abrirlo.
+    expect(result.content).toContain('"ID",Historia,Puntos')
+    expect(result.content).toContain('US-1,Como PO quiero adjuntar el backlog,3')
+    expect(result.content).toContain('```csv')
+  })
+
+  it('una hoja que no existe no rompe el turno', () => {
+    const cwd = tempCwd()
+    const result = materializeTabContext({
+      id: 'historias',
+      name: 'Historias',
+      fileName: 'historias.md',
+      kind: 'spreadsheet' as const,
+      paths: ['docs/no-esta.xlsx'],
+    }, cwd)
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('docs/no-esta.xlsx')
+  })
+
+  it('sin rutas elegidas lo dice en vez de quedar vacío', () => {
+    const cwd = tempCwd()
+    const result = materializeTabContext({
+      id: 'historias',
+      name: 'Historias',
+      fileName: 'historias.md',
+      kind: 'spreadsheet' as const,
+    }, cwd)
+    expect(result.content).toContain('(no spreadsheet selected)')
+  })
 
   it('returns zero contexts when cwd has no project folder', () => {
     const cwd = tempCwd()

@@ -8,12 +8,13 @@ export type TabContextKind =
   | 'readme'
   | 'changelog'
   | 'mcp'
+  | 'spreadsheet'
   | 'agentResult'
   | 'skill'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp',
+  'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
 ] as const
 
 /** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
@@ -21,12 +22,14 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'skill',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
+  'skill',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
-  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'agentResult', 'skill',
+  'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
+  'agentResult', 'skill',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'

@@ -15,7 +15,8 @@ export const KIND_ICONS: Record<TabContextKind, IconName> = {
   deps: 'package',
   readme: 'book',
   changelog: 'history',
-  mcp: 'terminal',
+  mcp: 'mcp',
+  spreadsheet: 'table',
   agentResult: 'bot',
   skill: 'sparkles',
 }

@@ -20,6 +20,7 @@ export const TAB_CONTEXT_ICON_NAMES = [
   'atlassian',
   'port',
   'mcp',
+  'table',
 ] as const
 
 export type TabContextIconName = (typeof TAB_CONTEXT_ICON_NAMES)[number]
@@ -50,7 +51,8 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   deps: 'package',
   readme: 'book',
   changelog: 'history',
-  mcp: 'terminal',
+  mcp: 'mcp',
+  spreadsheet: 'table',
   agentResult: 'bot',
   skill: 'sparkles',
 }
@@ -65,6 +67,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   readme: '#38bdf8',
   changelog: '#a3e635',
   mcp: '#f472b6',
+  spreadsheet: '#34d399',
   agentResult: '#94a3b8',
   skill: '#e879f9',
 }

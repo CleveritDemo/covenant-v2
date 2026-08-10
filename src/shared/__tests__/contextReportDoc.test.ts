@@ -55,6 +55,22 @@ describe('parseContextDoc', () => {
     expect(parsed.notes).toBe('')
   })
 
+  it('descarta el stub auto de contextos notes', () => {
+    const raw = [
+      '<!-- iaterminal:auto -->',
+      '(manual notes context)',
+      '<!-- /iaterminal:auto -->',
+      '<!-- iaterminal:notes -->',
+      '## Brief',
+      '',
+      'Contenido humano real.',
+      '<!-- /iaterminal:notes -->',
+    ].join('\n')
+    const parsed = parseContextDoc(raw)
+    expect(parsed.auto).toBe('')
+    expect(parsed.notes).toContain('Contenido humano real.')
+  })
+
   it('deja las notas vacías cuando solo hay anotaciones', () => {
     const raw = [
       '<!-- iaterminal:notes -->',

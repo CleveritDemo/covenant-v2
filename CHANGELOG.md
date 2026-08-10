@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.29.0
+
+- **La preview de contextos Custom (Markdown) muestra el contenido humano**: deja de
+  pintar el stub `(manual notes context)` y usa el Markdown de la sección notes.
+
 ## v0.28.0
 
 - **El dictado push-to-talk cierra bien al soltar**: el helper macOS espera el

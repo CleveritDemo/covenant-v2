@@ -30,9 +30,14 @@ export function contextReportMetaText(
 }
 
 /** Notas humanas y anotaciones por clave. Solo lectura: escribirlas exige un IPC nuevo. */
-const ContextNotes: React.FC<{ doc: ContextDoc }> = ({ doc }) => {
+const ContextNotes: React.FC<{
+  doc: ContextDoc
+  /** Si el cuerpo principal ya es `doc.notes` (kind notes), no repetir el texto. */
+  hideNotesText?: boolean
+}> = ({ doc, hideNotesText = false }) => {
   const { t } = useT()
-  if (!doc.notes && !doc.annotations.length) return null
+  const showNotesText = Boolean(doc.notes) && !hideNotesText
+  if (!showNotesText && !doc.annotations.length) return null
 
   return (
     <section className="context-report__notes">
@@ -40,7 +45,7 @@ const ContextNotes: React.FC<{ doc: ContextDoc }> = ({ doc }) => {
         <h3>{t('tabContexts.reportNotesTitle')}</h3>
         <span className="context-report__prov">{t('tabContexts.reportNotesByAi')}</span>
       </header>
-      {doc.notes ? (
+      {showNotesText ? (
         <div className="context-report__notes-text">
           {/* Mismo render que el cuerpo: markdown + fences en <pre>. */}
           <GenericBody auto={doc.notes} />
@@ -179,11 +184,14 @@ export const ContextReport: React.FC<{ context: TabContext; content: string }> =
   content,
 }) => {
   const doc = useMemo(() => parseContextDoc(content), [content])
+  // Custom Markdown: el contenido útil está en notes; auto es stub materialize.
+  const notesKind = context.kind === 'notes'
+  const body = notesKind ? doc.notes : doc.auto
 
   return (
     <div className="context-report">
-      <ContextBody kind={context.kind} auto={doc.auto} />
-      <ContextNotes doc={doc} />
+      <ContextBody kind={context.kind} auto={body} />
+      <ContextNotes doc={doc} hideNotesText={notesKind} />
     </div>
   )
 }

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.19
+
+- **Contextos y resultados de agentes separados**: en la lista de contextos del agente, los contextos normales van primero y los resultados debajo, con un separador visual sutil entre ambos grupos.
+
 ## v0.39.18
 
 - **Carpeta de repo al instante tras editar**: al guardar el nombre de carpeta local en Organizaciones, la fila se actualiza de inmediato (sin esperar el refresco) y la meta solo se muestra si hay nombre real (no espacios).

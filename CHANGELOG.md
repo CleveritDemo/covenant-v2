@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.11
+
+- **Repos org locales con carpeta configurada**: al detectar clones ya instalados
+  se respeta el `folderName` del repo (si existe) en lugar del nombre remoto
+  original, así no se vuelve a clonar ni se busca la carpeta equivocada.
+
 ## v0.39.10
 
 - **Mensaje actual siempre a la vista**: el último mensaje largo del agente o del

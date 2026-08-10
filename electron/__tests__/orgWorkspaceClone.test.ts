@@ -203,6 +203,60 @@ describe('cloneOrgWorkspace', () => {
     expect(args[args.length - 1]).toBe(join(base, 'org', 'ws', 'custom-dir'))
   })
 
+  it('skipea instalado por folderName y no busca el nombre remoto', async () => {
+    const base = tempDir()
+    const workspaceDir = join(base, 'org', 'ws')
+    mkdirSync(join(workspaceDir, 'custom-dir', '.git'), { recursive: true })
+    // Señuelo: .git bajo el nombre remoto no debe contar si hay folderName.
+    mkdirSync(join(workspaceDir, 'repo-a', '.git'), { recursive: true })
+    mockSpawnSuccess()
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'owner/repo-a',
+        cloneUrl: 'https://github.com/owner/repo-a.git',
+        folderName: 'custom-dir',
+      }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.skipped).toEqual(['owner/repo-a'])
+    expect(result.cloned).toEqual([])
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('con folderName no trata repo-a/.git como instalado', async () => {
+    const base = tempDir()
+    const workspaceDir = join(base, 'org', 'ws')
+    mkdirSync(join(workspaceDir, 'repo-a', '.git'), { recursive: true })
+    mockSpawnSuccess()
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'owner/repo-a',
+        cloneUrl: 'https://github.com/owner/repo-a.git',
+        folderName: 'custom-dir',
+      }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.skipped).toEqual([])
+    expect(result.cloned).toEqual(['owner/repo-a'])
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    const args = spawnMock.mock.calls[0]?.[1] as string[]
+    expect(args[args.length - 1]).toBe(join(workspaceDir, 'custom-dir'))
+  })
+
   it('rechaza folderName inseguro antes de llamar git', async () => {
     const base = tempDir()
     mockSpawnSuccess()

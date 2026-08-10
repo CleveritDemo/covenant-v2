@@ -182,7 +182,6 @@ import {
   projectAgentsFromWorkspaceAgents,
   sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
-  workspaceContextBody,
 } from '../shared/orgWorkspaceContent'
 import { OrgWorkspaceRequirementModal } from './components/OrgWorkspaceRequirementModal'
 import {
@@ -710,22 +709,7 @@ export const App: React.FC = () => {
         for (const tabId of tabIds) next[tabId] = contexts
         return next
       })
-      // Espejo notes org → `.gravity` del proyecto para que disco = UI.
-      for (const tabId of tabIds) {
-        const tab = tabsRef.current.find(item => item.id === tabId)
-        const projectCwd = tab?.projectFolder?.trim()
-        if (!projectCwd) continue
-        for (const context of contexts) {
-          if (context.kind !== 'notes') continue
-          const body = workspaceContextBody(context.id)
-          if (!body.trim()) continue
-          void window.api.materializeTabContext({
-            context,
-            cwd: projectCwd,
-            content: body,
-          })
-        }
-      }
+      // Org notes: cuerpo en memoria (rememberWorkspaceContextBody). No escribir `.gravity`.
     }
     return { agentsOk: agentsResult.ok, contextsOk: contextsResult.ok }
   }, [syncTabWithProjectAgents])

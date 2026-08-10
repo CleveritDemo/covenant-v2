@@ -76,6 +76,7 @@ import {
   workspaceContextBody,
 } from '@shared/orgWorkspaceContent'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
+import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
@@ -555,13 +556,12 @@ export const AgentPane: React.FC<Props> = ({
     discovered: TabContext[],
     idRemap?: Record<string, string>,
   ): void => {
-    commitContextsCatalog(discovered)
-    // Org: el SSOT de contextos es el catálogo en memoria (API), no el discover
-    // local. Podar contextIds contra disco borraría asignaciones por drag.
+    // Org: SSOT = catálogo API. No mergear notes (ni el catálogo) desde disco.
     if (orgWorkspaceRef.current) {
       discoveryHydratedRef.current = true
       return
     }
+    commitContextsCatalog(discovered)
     const discoveredIds = new Set(
       withCatalogAgentResultContexts(discovered, projectAgentsRef.current).map(context => context.id),
     )
@@ -1082,8 +1082,17 @@ export const AgentPane: React.FC<Props> = ({
     const resolvedCwd = await resolveWorkingCwd()
 
     if (assigned.length && resolvedCwd) {
+      const isOrg = Boolean(orgWorkspaceRef.current)
       const previews = await Promise.all(
         assigned.map(context => {
+          // Org notes: body desde caché API; no preview/materialize a disco.
+          if (isOrg && context.kind === 'notes') {
+            const body = workspaceContextBody(context.id)
+            return Promise.resolve({
+              ok: Boolean(body.trim()),
+              content: body,
+            })
+          }
           const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
           return window.api.previewTabContext({
             context,
@@ -1257,12 +1266,13 @@ export const AgentPane: React.FC<Props> = ({
     setActivity('')
 
     const finishSideEffects = (): void => {
-      const assigned = new Set(metaRef.current.contextIds ?? [])
+      const assignedIds = new Set(metaRef.current.contextIds ?? [])
       const projectCwd = cwdRef.current.trim()
       if (projectCwd) {
-        const refresh = diskContextsRef.current.filter(context => (
-          assigned.has(context.id) && context.kind !== 'agentResult'
-        ))
+        const assigned = diskContextsRef.current.filter(context => assignedIds.has(context.id))
+        const refresh = contextsToRematerializeAfterTurn(assigned, {
+          orgWorkspace: Boolean(orgWorkspaceRef.current),
+        })
         contextWriteQueueRef.current = contextWriteQueueRef.current
           .catch(() => undefined)
           .then(() => Promise.all(refresh.map(context => {

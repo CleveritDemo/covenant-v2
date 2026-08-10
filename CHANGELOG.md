@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.38.0
+
+- **En workspaces org, los customs (notes) ya no se espejan en `.gravity`**:
+  viven en la API y llegan al agente por `contextContents`.
+- **Los proyectos locales sin org** siguen guardando notes en `.gravity` como
+  antes.
+
 ## v0.37.0
 
 - **Los contextos custom (notes) de workspaces org llegan al agente** con su

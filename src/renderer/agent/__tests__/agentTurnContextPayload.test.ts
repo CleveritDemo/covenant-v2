@@ -41,4 +41,28 @@ describe('buildAgentTurnContextPayload', () => {
       },
     ])).toEqual({ projectCwd: '/repo' })
   })
+
+  it('never puts agentResult bodies into contextContents', () => {
+    rememberWorkspaceContextBody('iaterminal:result:fe', 'should not ship')
+    rememberWorkspaceContextBody('iaterminal:notes:About', 'About only')
+    const payload = buildAgentTurnContextPayload('/proj', [
+      {
+        id: 'iaterminal:notes:About',
+        name: 'About',
+        fileName: 'About.md',
+        kind: 'notes',
+      },
+      {
+        id: 'iaterminal:result:fe',
+        name: 'FE',
+        fileName: 'results/fe.md',
+        kind: 'agentResult',
+      },
+    ])
+    expect(payload.contextContents).toEqual({
+      'iaterminal:notes:About': 'About only',
+    })
+    forgetWorkspaceContextBody('iaterminal:result:fe')
+    forgetWorkspaceContextBody('iaterminal:notes:About')
+  })
 })

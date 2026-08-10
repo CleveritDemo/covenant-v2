@@ -1337,7 +1337,7 @@ export class Widget {
     expect(delivery.prompt).not.toContain('"id":"custom-notes"')
   })
 
-  it('uses contextContents for org notes when disk stub is empty', () => {
+  it('uses contextContents for org notes without writing .gravity mirrors', () => {
     const cwd = tempCwd()
     const notes = {
       id: 'iaterminal:notes:About',
@@ -1345,8 +1345,13 @@ export class Widget {
       fileName: 'About.md',
       kind: 'notes' as const,
     }
-    materializeTabContext(notes, cwd, { write: true, content: '' })
+    const aboutPath = join(cwd, PROJECT_DIR, 'About.md')
+    // Stub vacío previo (o ausente): no debe crecer/actualizarse con el body org.
+    mkdirSync(join(cwd, PROJECT_DIR), { recursive: true })
+    writeFileSync(aboutPath, '# stub\n', 'utf8')
+    const before = readFileSync(aboutPath, 'utf8')
 
+    clearTabContextMaterializationCache(cwd)
     const delivery = buildContextPromptDelivery([notes], cwd, {
       forceFullRefresh: true,
       contextContents: {
@@ -1357,6 +1362,27 @@ export class Widget {
     expect(delivery.prompt).toContain('Org About body from API')
     expect(delivery.prompt).not.toContain('(empty notes)')
     expect(delivery.prompt).not.toContain('(no annotations yet)')
+    expect(readFileSync(aboutPath, 'utf8')).toBe(before)
+  })
+
+  it('contextContents with missing disk file still embeds body and does not create file', () => {
+    const cwd = tempCwd()
+    const notes = {
+      id: 'iaterminal:notes:About',
+      name: 'About',
+      fileName: 'About.md',
+      kind: 'notes' as const,
+    }
+    const aboutPath = join(cwd, PROJECT_DIR, 'About.md')
+    clearTabContextMaterializationCache(cwd)
+    const delivery = buildContextPromptDelivery([notes], cwd, {
+      forceFullRefresh: true,
+      contextContents: {
+        'iaterminal:notes:About': 'Only in memory',
+      },
+    })
+    expect(delivery.prompt).toContain('Only in memory')
+    expect(existsSync(aboutPath)).toBe(false)
   })
 
   it('without contextContents still reads notes body from disk', () => {
@@ -1368,6 +1394,7 @@ export class Widget {
       kind: 'notes' as const,
     }
     materializeTabContext(notes, cwd, { write: true, content: 'Disk About body' })
+    clearTabContextMaterializationCache(cwd)
     const delivery = buildContextPromptDelivery([notes], cwd, { forceFullRefresh: true })
     expect(delivery.prompt).toContain('Disk About body')
   })

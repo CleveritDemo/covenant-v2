@@ -2,7 +2,8 @@ import type { TabContext } from '@shared/tabContext'
 import { contextContentsForNotes } from '@shared/orgWorkspaceContent'
 
 /**
- * Campos de turno CLI para contextos: projectCwd (`.gravity`) + bodies org notes.
+ * Campos de turno CLI: projectCwd + contextContents de notes (caché API / memoria).
+ * Org: el body no se materializa a disco; el runtime usa contextContents.
  */
 export function buildAgentTurnContextPayload(
   projectCwd: string,

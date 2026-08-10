@@ -1405,6 +1405,8 @@ function materializedContextSections(
   for (const context of contexts) {
     const inline = contentById?.[context.id]
     const hasInline = typeof inline === 'string'
+    // Notes org (u otros) con body en memoria: prompt desde content, sin escribir .gravity.
+    const skipDiskWrite = hasInline && context.kind === 'notes'
     const cacheKey = `${resolve(cwd)}\0${context.id}`
     const signature = materializationSignature(
       context,
@@ -1419,7 +1421,7 @@ function materializedContextSections(
       continue
     }
     const materialized = materializeTabContext(context, cwd, {
-      write: true,
+      write: !skipDiskWrite,
       ...(hasInline ? { content: inline } : {}),
     })
     const data = {

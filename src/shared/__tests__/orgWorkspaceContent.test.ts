@@ -166,6 +166,7 @@ describe('contextContentsForNotes', () => {
   it('includes remembered notes bodies and skips empty / non-notes', () => {
     rememberWorkspaceContextBody('iaterminal:notes:About', 'About product body')
     rememberWorkspaceContextBody('iaterminal:notes:Empty', '   ')
+    rememberWorkspaceContextBody('iaterminal:result:fe', 'result body ignored')
     const contents = contextContentsForNotes([
       {
         id: 'iaterminal:notes:About',
@@ -197,5 +198,6 @@ describe('contextContentsForNotes', () => {
     })
     forgetWorkspaceContextBody('iaterminal:notes:About')
     forgetWorkspaceContextBody('iaterminal:notes:Empty')
+    forgetWorkspaceContextBody('iaterminal:result:fe')
   })
 })

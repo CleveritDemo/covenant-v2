@@ -43,13 +43,14 @@ export function workspaceContextBody(contextId: string): string {
 
 /**
  * Cuerpos recordados (org) listos para el turno CLI.
- * Incluye cualquier contextId con body en memoria no vacío (notes y demás).
+ * Solo `kind === 'notes'` con body no vacío en memoria.
  */
 export function contextContentsForNotes(
   contexts: readonly TabContext[],
 ): Record<string, string> {
   const out: Record<string, string> = {}
   for (const context of contexts) {
+    if (context.kind !== 'notes') continue
     const body = workspaceContextBody(context.id)
     if (!body.trim()) continue
     out[context.id] = body

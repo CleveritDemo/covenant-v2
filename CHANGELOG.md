@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.9
+
+- **El dictado ya no culpa al micrófono cuando fue un clic**: si sueltas el botón
+  antes de que dé tiempo a grabar, el aviso te dice que lo mantengas pulsado en
+  vez de mandarte a revisar el dispositivo y los permisos de macOS.
+- **El error de micrófono mudo ahora trae el dato útil**: muestra el pico de audio
+  medido, que distingue entre "no llegó nada" y "entra pero muy bajo".
+
 ## v0.39.8
 
 - **Sesiones de agentes seguras en workspaces org**: los workspaces de

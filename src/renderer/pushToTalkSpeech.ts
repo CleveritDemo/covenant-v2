@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   classifyDictationError,
+  dictationStopErrorCode,
   isIgnorableDictationError,
   type DictationUiErrorKind,
 } from '../shared/dictation'
@@ -36,8 +37,11 @@ export interface UsePushToTalkSpeechOptions {
   lang?: string
   /** Transcript final al soltar (ya trim); no se llama si queda vacío. */
   onTranscript: (text: string) => void
-  /** Código de error corto para mapear a i18n (`classifyDictationError`). */
-  onError?: (message: string) => void
+  /**
+   * Código de error corto para mapear a i18n (`classifyDictationError`).
+   * `detail.peak` es el pico medido por el helper (0–1), útil solo en `no-audio`.
+   */
+  onError?: (message: string, detail?: { peak?: number }) => void
 }
 
 export interface UsePushToTalkSpeechResult {
@@ -70,10 +74,15 @@ export function usePushToTalkSpeech(
   onTranscriptRef.current = onTranscript
   onErrorRef.current = onError
 
-  const reportError = useCallback((code: string) => {
+  const reportError = useCallback((code: string, detail?: { peak: number }) => {
     if (isIgnorableDictationError(code)) return
-    onErrorRef.current?.(code)
+    // Sin detalle se llama con un solo argumento: solo el stop mide el pico.
+    if (detail) onErrorRef.current?.(code, detail)
+    else onErrorRef.current?.(code)
   }, [])
+
+  /** Inicio real de la captura; 0 mientras no hay sesión viva. */
+  const startedAtRef = useRef(0)
 
   const clearLive = useCallback(() => {
     setListening(false)
@@ -85,10 +94,19 @@ export function usePushToTalkSpeech(
     ok?: boolean
     text?: string
     error?: string
+    peak?: number
   } | null | undefined) => {
     clearLive()
+    const startedAt = startedAtRef.current
+    startedAtRef.current = 0
+    // Sin marca de inicio (start que nunca llegó a capturar) no se reclasifica.
+    const elapsed = startedAt ? Date.now() - startedAt : Number.POSITIVE_INFINITY
+    const peak = stopResult?.peak
+    const detail = typeof peak === 'number' ? { peak } : undefined
     if (!stopResult?.ok) {
-      if (stopResult?.error) reportError(stopResult.error)
+      if (stopResult?.error) {
+        reportError(dictationStopErrorCode(stopResult.error, elapsed), detail)
+      }
       return
     }
     const text = stopResult.text?.replace(/\s+/g, ' ').trim() ?? ''
@@ -96,7 +114,7 @@ export function usePushToTalkSpeech(
       onTranscriptRef.current(text)
       return
     }
-    reportError('no-speech')
+    reportError(dictationStopErrorCode('no-speech', elapsed), detail)
   }, [clearLive, reportError])
 
   useEffect(() => {
@@ -164,6 +182,7 @@ export function usePushToTalkSpeech(
       }
       playVoiceMessageSound()
       setListening(true)
+      startedAtRef.current = Date.now()
       return window.api.dictationStart(lang)
     }).then(result => {
       if (!result) return

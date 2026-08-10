@@ -82,7 +82,10 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
         ? t('agentPane.queuePlaceholder')
         : t('agentPane.placeholder')
 
-  const mapDictationError = useCallback((code: string): string => {
+  const mapDictationError = useCallback((
+    code: string,
+    detail?: { peak?: number },
+  ): string => {
     const kind = classifyDictationError(code)
     if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
     if (kind === 'helperMissing') return t('agentPane.dictationHelperMissing')
@@ -90,7 +93,12 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
     if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
     if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
     if (kind === 'noSpeech') return t('agentPane.dictationNoSpeech')
-    if (kind === 'noAudio') return t('agentPane.dictationNoAudio')
+    if (kind === 'tooShort') return t('agentPane.dictationTooShort')
+    if (kind === 'noAudio') {
+      // El pico medido separa "micro mudo" de "el tap nunca recibió buffers".
+      const peak = typeof detail?.peak === 'number' ? detail.peak : 0
+      return t('agentPane.dictationNoAudio', { peak: peak.toFixed(3) })
+    }
     return t('agentPane.dictationError')
   }, [t])
 
@@ -98,8 +106,8 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   const { listening, interim, level, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
     lang: speechLang,
     onTranscript: onDictateSend,
-    onError: code => {
-      setDictationError(mapDictationError(code))
+    onError: (code, detail) => {
+      setDictationError(mapDictationError(code, detail))
       window.setTimeout(() => setDictationError(''), 5000)
     },
   })

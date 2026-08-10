@@ -1000,7 +1000,14 @@ const api = {
   dictationStart(lang?: string): Promise<{ ok: boolean; error?: string; message?: string }> {
     return ipcRenderer.invoke(IPC.DICTATION_START, lang)
   },
-  dictationStop(): Promise<{ ok: boolean; text?: string; error?: string; message?: string }> {
+  dictationStop(): Promise<{
+    ok: boolean
+    text?: string
+    error?: string
+    message?: string
+    /** Pico de audio de la sesión (0–1); el runtime ya lo devuelve. */
+    peak?: number
+  }> {
     return ipcRenderer.invoke(IPC.DICTATION_STOP)
   },
   onDictationPartial(cb: (text: string) => void): () => void {

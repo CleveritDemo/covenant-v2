@@ -11,7 +11,27 @@ export type DictationUiErrorKind =
   | 'electronUnavailable'
   | 'noSpeech'
   | 'noAudio'
+  | 'tooShort'
   | 'generic'
+
+/**
+ * Bajo este umbral el tap de audio no alcanza a recibir buffers: el helper
+ * reporta `peak = 0` y eso llegaba al usuario como "no hay señal de micrófono",
+ * culpando al dispositivo cuando en realidad fue un clic en vez de mantener
+ * pulsado. El helper emite `level` cada ~40 ms, así que 400 ms son ~10 muestras.
+ */
+export const MIN_DICTATION_MS = 400
+
+/**
+ * Reclasifica el resultado vacío de una sesión demasiado corta. Solo aplica a
+ * los dos códigos que significan "no hubo nada que transcribir": el resto son
+ * fallos reales y se respetan tal cual.
+ */
+export function dictationStopErrorCode(code: string, elapsedMs: number): string {
+  const normalized = code.trim().toLowerCase()
+  if (normalized !== 'no-audio' && normalized !== 'no-speech') return code
+  return elapsedMs < MIN_DICTATION_MS ? 'too-short' : code
+}
 
 export interface DictationPermissionResult {
   ok: boolean
@@ -25,6 +45,7 @@ export function classifyDictationError(code: string): DictationUiErrorKind {
   if (normalized === 'network') return 'electronUnavailable'
   if (normalized === 'no-speech') return 'noSpeech'
   if (normalized === 'no-audio') return 'noAudio'
+  if (normalized === 'too-short') return 'tooShort'
   if (normalized === 'unsupported') return 'unsupported'
   if (normalized === 'helper-missing') return 'helperMissing'
   if (

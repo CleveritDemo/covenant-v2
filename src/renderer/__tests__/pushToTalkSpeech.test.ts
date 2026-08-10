@@ -3,6 +3,7 @@
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { dictationStopErrorCode, MIN_DICTATION_MS } from '../../shared/dictation'
 import {
   classifyDictationError,
   isPushToTalkSpeechSupported,
@@ -80,6 +81,27 @@ describe('classifyDictationError', () => {
     expect(classifyDictationError('helper-missing')).toBe('helperMissing')
     expect(classifyDictationError('start-failed')).toBe('startFailed')
     expect(classifyDictationError('audio-failed')).toBe('startFailed')
+  })
+
+  it('maps too-short to tooShort', () => {
+    expect(classifyDictationError('too-short')).toBe('tooShort')
+  })
+})
+
+describe('dictationStopErrorCode', () => {
+  it('turns a click-length no-audio into too-short', () => {
+    expect(dictationStopErrorCode('no-audio', 50)).toBe('too-short')
+    expect(dictationStopErrorCode('no-speech', 50)).toBe('too-short')
+  })
+
+  it('keeps no-audio when the press was long enough', () => {
+    expect(dictationStopErrorCode('no-audio', MIN_DICTATION_MS)).toBe('no-audio')
+    expect(dictationStopErrorCode('no-audio', 3000)).toBe('no-audio')
+  })
+
+  it('never reclassifies real failures, however short', () => {
+    expect(dictationStopErrorCode('permission-denied', 10)).toBe('permission-denied')
+    expect(dictationStopErrorCode('start-failed', 10)).toBe('start-failed')
   })
 })
 
@@ -232,7 +254,8 @@ describe('usePushToTalkSpeech', () => {
     })
   })
 
-  it('stop() without speech calls onError no-speech', async () => {
+  // Un start/stop inmediato es el clic accidental: no llega ni un buffer.
+  it('stop() right after start calls onError too-short', async () => {
     const api = installDictationApi()
     const onTranscript = vi.fn()
     const onError = vi.fn()
@@ -252,8 +275,37 @@ describe('usePushToTalkSpeech', () => {
 
     await waitFor(() => {
       expect(result.current.listening).toBe(false)
+      expect(onError).toHaveBeenCalledWith('too-short')
+    })
+    expect(onTranscript).not.toHaveBeenCalled()
+  })
+
+  it('stop() without speech after a real hold calls onError no-speech', async () => {
+    const api = installDictationApi()
+    const onTranscript = vi.fn()
+    const onError = vi.fn()
+    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript, onError }))
+
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(api.dictationStart).toHaveBeenCalled())
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // Mantener pulsado más que el umbral sin esperar en tiempo real.
+    const realNow = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 2000)
+    act(() => {
+      result.current.stop()
+    })
+
+    await waitFor(() => {
+      expect(result.current.listening).toBe(false)
       expect(onError).toHaveBeenCalledWith('no-speech')
     })
+    nowSpy.mockRestore()
     expect(onTranscript).not.toHaveBeenCalled()
   })
 

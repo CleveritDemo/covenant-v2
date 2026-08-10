@@ -15,7 +15,7 @@ import {
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button } from '../components/ui'
+import { Button, Tooltip } from '../components/ui'
 import { AiMarkdown } from '../components/AiMarkdown'
 import {
   createInitialBrainstormLiveState,
@@ -433,9 +433,11 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 } as React.CSSProperties}
               >
                 <span className="brainstorm-room-view__seat-dot" aria-hidden />
-                <span className="brainstorm-room-view__seat-name">
-                  {speakerLabel(seat.agentId)}
-                </span>
+                <Tooltip content={speakerLabel(seat.agentId)} hint={t(seatStateKey(seat.state))}>
+                  <span className="brainstorm-room-view__seat-name">
+                    {speakerLabel(seat.agentId)}
+                  </span>
+                </Tooltip>
                 <span className="brainstorm-room-view__seat-state">
                   {t(seatStateKey(seat.state))}
                 </span>
@@ -449,10 +451,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 {t('tabs.brainstormWorkingSetLabel')}
               </h3>
               {workingSetLabels.map(item => (
-                <span key={item.key} className="brainstorm-room-view__ws-chip">
-                  <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
-                  {item.label}
-                </span>
+                <Tooltip key={item.key} content={item.label} hint={item.tag}>
+                  <span className="brainstorm-room-view__ws-chip">
+                    <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
+                    <span className="brainstorm-room-view__ws-name">{item.label}</span>
+                  </span>
+                </Tooltip>
               ))}
             </section>
           ) : null}

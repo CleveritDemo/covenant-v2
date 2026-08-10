@@ -8,10 +8,29 @@ import {
   appendBrainstormHumanMessage,
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
+  filterBrainstormInvitableAgents,
   isBrainstormComplete,
+  isBrainstormInvitableAgent,
+  isExpertReplicaAgent,
   nextSpeakerAgentId,
+  resolveBrainstormParticipantDisplay,
+  resolveBrainstormParticipantIds,
+  sanitizeBrainstormInviteIds,
   sanitizeBrainstormMaxRounds,
 } from '../brainstormRoom'
+import type { ProjectAgentDefinition } from '../projectAgentCatalog'
+
+function agent(
+  id: string,
+  overrides: Partial<ProjectAgentDefinition> = {},
+): ProjectAgentDefinition {
+  return {
+    id,
+    provider: 'claude',
+    permissionMode: 'auto',
+    ...overrides,
+  }
+}
 
 describe('sanitizeBrainstormMaxRounds', () => {
   it('defaults and clamps to 1..cap', () => {
@@ -19,6 +38,98 @@ describe('sanitizeBrainstormMaxRounds', () => {
     expect(sanitizeBrainstormMaxRounds(0)).toBe(1)
     expect(sanitizeBrainstormMaxRounds(99)).toBe(BRAINSTORM_MAX_ROUNDS_CAP)
     expect(sanitizeBrainstormMaxRounds(4.7)).toBe(4)
+  })
+})
+
+describe('brainstorm invite filter (expert replicas)', () => {
+  it('treats localOnly as expert replica and keeps normal agents', () => {
+    const normal = agent('frontend', { name: 'Frontend' })
+    const replica = agent('frontend-2', { name: 'Frontend (replica)', localOnly: true })
+    expect(isExpertReplicaAgent(replica)).toBe(true)
+    expect(isExpertReplicaAgent(normal)).toBe(false)
+    expect(isBrainstormInvitableAgent(normal)).toBe(true)
+    expect(isBrainstormInvitableAgent(replica)).toBe(false)
+    expect(filterBrainstormInvitableAgents([normal, replica])).toEqual([normal])
+  })
+
+  it('strips replica and unknown ids; keeps only invitable catalog agents', () => {
+    const catalog = [
+      agent('frontend'),
+      agent('frontend-2', { localOnly: true }),
+      agent('qa'),
+    ]
+    expect(sanitizeBrainstormInviteIds(
+      ['frontend', 'frontend-2', 'qa', 'frontend-2', 'ghost'],
+      catalog,
+    )).toEqual(['frontend', 'qa'])
+  })
+
+  it('blocks create when selection only has a normal + replica pair', () => {
+    const catalog = [
+      agent('frontend'),
+      agent('frontend-2', { localOnly: true }),
+    ]
+    const cleaned = sanitizeBrainstormInviteIds(
+      ['frontend', 'frontend-2'],
+      catalog,
+    )
+    expect(cleaned).toEqual(['frontend'])
+    expect(createBrainstormRoom('Ship UX', cleaned)).toBeNull()
+  })
+})
+
+describe('resolveBrainstormParticipantDisplay', () => {
+  it('prefers catalog name and marks technical orphans as unknown', () => {
+    const catalog = [
+      agent('david', { name: 'David' }),
+      agent('qa', { name: 'QA' }),
+    ]
+    expect(resolveBrainstormParticipantDisplay('david', catalog)).toEqual({
+      agentId: 'david',
+      label: 'David',
+      known: true,
+    })
+    expect(resolveBrainstormParticipantDisplay('frontend', catalog)).toEqual({
+      agentId: 'frontend',
+      label: 'frontend',
+      known: false,
+    })
+  })
+
+  it('remaps orphan id to unique catalog agent by name slug', () => {
+    const catalog = [
+      agent('david', { name: 'Frontend' }),
+      agent('qa', { name: 'QA' }),
+    ]
+    expect(resolveBrainstormParticipantDisplay('frontend', catalog)).toEqual({
+      agentId: 'david',
+      label: 'Frontend',
+      known: true,
+    })
+  })
+
+  it('does not remap when several agents match the same slug', () => {
+    const catalog = [
+      agent('a', { name: 'Frontend' }),
+      agent('b', { role: 'frontend' }),
+    ]
+    expect(resolveBrainstormParticipantDisplay('frontend', catalog).known).toBe(false)
+  })
+})
+
+describe('resolveBrainstormParticipantIds', () => {
+  it('drops orphan technical ids and keeps real catalog agents', () => {
+    const catalog = [
+      agent('fullstack', { name: 'fullstack' }),
+      agent('qa', { name: 'QA' }),
+    ]
+    expect(resolveBrainstormParticipantIds(
+      ['frontend', 'qa', 'fullstack'],
+      catalog,
+    )).toEqual({
+      resolvedIds: ['qa', 'fullstack'],
+      orphanIds: ['frontend'],
+    })
   })
 })
 

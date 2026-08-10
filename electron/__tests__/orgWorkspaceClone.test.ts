@@ -178,4 +178,52 @@ describe('cloneOrgWorkspace', () => {
     expect(result.cloned).toEqual([])
     expect(spawnMock).not.toHaveBeenCalled()
   })
+
+  it('usa folderName personalizado como carpeta destino', async () => {
+    const base = tempDir()
+    mockSpawnSuccess()
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'owner/repo-a',
+        cloneUrl: 'https://github.com/owner/repo-a.git',
+        folderName: 'custom-dir',
+      }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.cloned).toEqual(['owner/repo-a'])
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    const args = spawnMock.mock.calls[0]?.[1] as string[]
+    expect(args[args.length - 1]).toBe(join(base, 'org', 'ws', 'custom-dir'))
+  })
+
+  it('rechaza folderName inseguro antes de llamar git', async () => {
+    const base = tempDir()
+    mockSpawnSuccess()
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'owner/repo-a',
+        cloneUrl: 'https://github.com/owner/repo-a.git',
+        folderName: '../escape',
+      }],
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('invalid folder name')
+    expect(result.error).toContain('owner/repo-a')
+    expect(result.failure?.repoFullName).toBe('owner/repo-a')
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
 })

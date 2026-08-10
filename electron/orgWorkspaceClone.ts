@@ -147,10 +147,21 @@ export async function cloneOrgWorkspace(
         ...(fullName ? { repoFullName: fullName } : {}),
       })
     }
-    const destName = lastPathSegment(fullName)
-    if (!destName || destName === '.' || destName === '..' || destName.includes('/') || destName.includes('\\')) {
-      const error = `invalid repo name: ${fullName}`
-      return failResult(error, { workspaceDir, repoFullName: fullName })
+    const customFolder = repo.folderName?.trim() ?? ''
+    let destName: string
+    if (customFolder) {
+      const safeFolder = sanitizeSlug(customFolder)
+      if (!safeFolder) {
+        const error = `invalid folder name for ${fullName}: ${customFolder}`
+        return failResult(error, { workspaceDir, repoFullName: fullName })
+      }
+      destName = safeFolder
+    } else {
+      destName = lastPathSegment(fullName)
+      if (!destName || destName === '.' || destName === '..' || destName.includes('/') || destName.includes('\\')) {
+        const error = `invalid repo name: ${fullName}`
+        return failResult(error, { workspaceDir, repoFullName: fullName })
+      }
     }
     const dest = join(workspaceDir, destName)
     if (existsSync(join(dest, '.git'))) {

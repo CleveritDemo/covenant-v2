@@ -77,6 +77,8 @@ export interface CovenantWorkspaceAgentRecord {
 export interface CovenantWorkspaceRepoPayload {
   repoFullName: string
   cloneUrl: string
+  /** Nombre de carpeta local opcional al clonar (un solo segmento). */
+  folderName?: string
   position?: number
 }
 
@@ -85,6 +87,8 @@ export interface CovenantWorkspaceRepoRecord {
   id: string
   repoFullName: string
   cloneUrl: string
+  /** Nombre de carpeta local opcional al clonar (un solo segmento). */
+  folderName?: string
   position: number
   createdBy?: string
   createdAt: number

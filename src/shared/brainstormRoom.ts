@@ -1,5 +1,8 @@
 /** Sala de brainstorm multi-agente secuencial (round-robin). */
 
+import type { ProjectAgentDefinition } from './projectAgentCatalog'
+import { normalizeAgentSlug } from './projectAgentCatalog'
+
 export type BrainstormStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'done'
 
 export interface BrainstormMessage {
@@ -69,6 +72,174 @@ export function dedupeAgentIdsPreservingOrder(ids: readonly string[]): string[] 
     out.push(id)
   }
   return out
+}
+
+/**
+ * Réplica temporal de experto: `localOnly` en ProjectAgentDefinition
+ * (equivalente a expertReplica en sync org).
+ */
+export function isExpertReplicaAgent(
+  agent: Pick<ProjectAgentDefinition, 'localOnly'>,
+): boolean {
+  return agent.localOnly === true
+}
+
+/** Agente permanente del catálogo; invitables a Brainstorm. */
+export function isBrainstormInvitableAgent(
+  agent: Pick<ProjectAgentDefinition, 'localOnly'>,
+): boolean {
+  return !isExpertReplicaAgent(agent)
+}
+
+/** Catálogo visible/seleccionable en el modal de invite. */
+export function filterBrainstormInvitableAgents<
+  T extends Pick<ProjectAgentDefinition, 'localOnly'>,
+>(agents: readonly T[]): T[] {
+  return agents.filter(isBrainstormInvitableAgent)
+}
+
+export type BrainstormCatalogAgent = Pick<
+  ProjectAgentDefinition,
+  'id' | 'name' | 'role' | 'localOnly'
+>
+
+/** Agente permanente del catálogo por id exacto (nunca réplica). */
+export function findBrainstormCatalogAgent(
+  agentId: string,
+  agents: readonly BrainstormCatalogAgent[],
+): BrainstormCatalogAgent | null {
+  const id = agentId.trim()
+  if (!id) return null
+  const found = agents.find(agent => agent.id === id && isBrainstormInvitableAgent(agent))
+  return found ?? null
+}
+
+/**
+ * Label de catálogo: name trim → id. Solo para agentes invitables conocidos.
+ */
+export function brainstormCatalogAgentLabel(
+  agent: Pick<BrainstormCatalogAgent, 'id' | 'name'>,
+): string {
+  const name = agent.name?.trim()
+  return name || agent.id
+}
+
+/**
+ * Remapeo inequívoco de un id huérfano → agente real del catálogo.
+ * Exacto primero; si no, un único match por slug de id / name / role.
+ * Nunca mapea a réplicas (`localOnly`).
+ */
+export function remapBrainstormParticipantId(
+  agentId: string,
+  agents: readonly BrainstormCatalogAgent[],
+): string | null {
+  const raw = agentId.trim()
+  if (!raw) return null
+  const exact = findBrainstormCatalogAgent(raw, agents)
+  if (exact) return exact.id
+
+  const invitable = filterBrainstormInvitableAgents(agents)
+  if (!invitable.length) return null
+
+  const needle = normalizeAgentSlug(raw, '')
+  if (!needle) return null
+
+  const matches = invitable.filter(agent => {
+    const idSlug = normalizeAgentSlug(agent.id, '')
+    if (idSlug && idSlug === needle) return true
+    const nameSlug = normalizeAgentSlug(agent.name ?? '', '')
+    if (nameSlug && nameSlug === needle) return true
+    const roleSlug = normalizeAgentSlug(agent.role ?? '', '')
+    if (roleSlug && roleSlug === needle) return true
+    return false
+  })
+  if (matches.length !== 1) return null
+  return matches[0]?.id ?? null
+}
+
+export type BrainstormParticipantDisplay = {
+  /** Id efectivo (remapeado si hubo match inequívoco). */
+  agentId: string
+  /** Texto listo para UI (nombre de catálogo o id huérfano). */
+  label: string
+  /** Está en el catálogo invitable (tras remap). */
+  known: boolean
+}
+
+/**
+ * Resuelve cómo mostrar un participante: catálogo → remap inequívoco → huérfano.
+ * `storedName` (p. ej. message.agentName) solo se usa si el agente es conocido
+ * y el catálogo no trae name, o como pista de remap por slug de nombre.
+ */
+export function resolveBrainstormParticipantDisplay(
+  agentId: string,
+  agents: readonly BrainstormCatalogAgent[],
+  storedName?: string,
+): BrainstormParticipantDisplay {
+  const raw = agentId.trim()
+  const catalog = findBrainstormCatalogAgent(raw, agents)
+  if (catalog) {
+    return {
+      agentId: catalog.id,
+      label: brainstormCatalogAgentLabel(catalog),
+      known: true,
+    }
+  }
+
+  const remappedId = remapBrainstormParticipantId(raw, agents)
+    ?? (storedName?.trim()
+      ? remapBrainstormParticipantId(storedName.trim(), agents)
+      : null)
+  if (remappedId) {
+    const agent = findBrainstormCatalogAgent(remappedId, agents)
+    if (agent) {
+      return {
+        agentId: agent.id,
+        label: brainstormCatalogAgentLabel(agent),
+        known: true,
+      }
+    }
+  }
+
+  return {
+    agentId: raw,
+    label: raw,
+    known: false,
+  }
+}
+
+/**
+ * Reescribe participantAgentIds con remap inequívoco; reporta huérfanos.
+ */
+export function resolveBrainstormParticipantIds(
+  participantAgentIds: readonly string[],
+  agents: readonly BrainstormCatalogAgent[],
+): { resolvedIds: string[]; orphanIds: string[] } {
+  const resolvedIds: string[] = []
+  const orphanIds: string[] = []
+  const seen = new Set<string>()
+  for (const raw of dedupeAgentIdsPreservingOrder(participantAgentIds)) {
+    const display = resolveBrainstormParticipantDisplay(raw, agents)
+    if (!display.known) {
+      if (!orphanIds.includes(raw)) orphanIds.push(raw)
+      continue
+    }
+    if (seen.has(display.agentId)) continue
+    seen.add(display.agentId)
+    resolvedIds.push(display.agentId)
+  }
+  return { resolvedIds, orphanIds }
+}
+
+/**
+ * Solo ids de agentes invitables del catálogo (sin réplicas ni huérfanos).
+ * Aplica remap inequívoco antes de filtrar.
+ */
+export function sanitizeBrainstormInviteIds(
+  participantAgentIds: readonly string[],
+  agents: readonly BrainstormCatalogAgent[],
+): string[] {
+  return resolveBrainstormParticipantIds(participantAgentIds, agents).resolvedIds
 }
 
 export function createBrainstormRoom(

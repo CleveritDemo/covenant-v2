@@ -43,7 +43,10 @@ import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
-import type { BrainstormRoom } from '../shared/brainstormRoom'
+import {
+  filterBrainstormInvitableAgents,
+  type BrainstormRoom,
+} from '../shared/brainstormRoom'
 import { TabFileExplorerWindow, type TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
 import {
   armMiniExpandSuppress,
@@ -1255,6 +1258,7 @@ export const App: React.FC = () => {
                 const repos = reposResult.data.map(r => ({
                   repoFullName: r.repoFullName,
                   cloneUrl: r.cloneUrl,
+                  ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
                 }))
                 if (!repos.length) return
                 const res = await covenant.cloneOrgWorkspace({
@@ -1844,13 +1848,14 @@ export const App: React.FC = () => {
     setOrgWorkspaceRequirement({ cloning: true })
 
     const covenant = getCovenantApi()
-    let repos: Array<{ repoFullName: string; cloneUrl: string }> = []
+    let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
     if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
       const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
       if (reposResult.ok) {
         repos = reposResult.data.map(r => ({
           repoFullName: r.repoFullName,
           cloneUrl: r.cloneUrl,
+          ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
         }))
       }
     }
@@ -1945,6 +1950,7 @@ export const App: React.FC = () => {
                 repos: reposResult.data.map(x => ({
                   repoFullName: x.repoFullName,
                   cloneUrl: x.cloneUrl,
+                  ...(x.folderName?.trim() ? { folderName: x.folderName.trim() } : {}),
                 })),
                 workspaceDir: localDir,
               })
@@ -2206,13 +2212,14 @@ export const App: React.FC = () => {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
       setOrgWorkspaceRequirement({ cloning: true })
       const covenant = getCovenantApi()
-      let repos: Array<{ repoFullName: string; cloneUrl: string }> = []
+      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
       if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
         const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
         if (reposResult.ok) {
           repos = reposResult.data.map(r => ({
             repoFullName: r.repoFullName,
             cloneUrl: r.cloneUrl,
+            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
           }))
         }
       }
@@ -5461,7 +5468,9 @@ export const App: React.FC = () => {
                   open={Boolean(brainstormSetupOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
                   active={activeTabId === tab.id}
                   cwd={tab.projectFolder ?? ''}
-                  agents={projectAgentsByCwd[agentCatalogKey] ?? []}
+                  agents={filterBrainstormInvitableAgents(
+                    projectAgentsByCwd[agentCatalogKey] ?? [],
+                  )}
                   onClose={() => {
                     setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
@@ -5476,11 +5485,8 @@ export const App: React.FC = () => {
                     active={activeTabId === tab.id}
                     room={brainstormRoomByTab[tab.id]!}
                     cwd={tab.projectFolder ?? ''}
-                    agentNamesById={Object.fromEntries(
-                      (projectAgentsByCwd[agentCatalogKey] ?? []).map(agent => [
-                        agent.id,
-                        agent.name?.trim() || agent.id,
-                      ]),
+                    agents={filterBrainstormInvitableAgents(
+                      projectAgentsByCwd[agentCatalogKey] ?? [],
                     )}
                     onClose={() => {
                       setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))

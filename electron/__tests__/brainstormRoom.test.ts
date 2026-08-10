@@ -211,7 +211,32 @@ describe('startBrainstormRoom + stop', () => {
         listAgents: () => [agent('alpha', 'Alpha')],
       },
     )
-    expect(result).toEqual({ ok: false, error: 'Participante desconocido: missing' })
+    expect(result).toEqual({
+      ok: false,
+      error: 'Participantes no están en el catálogo: missing',
+    })
+  })
+
+  it('remaps unequivocal orphan ids and drops technical aliases not in catalog', () => {
+    const result = startBrainstormRoom(
+      fakeWindow(2),
+      {
+        roomId: 'room-remap',
+        topic: 'X',
+        participantAgentIds: ['frontend', 'qa'],
+        maxRounds: 2,
+        cwd: '/tmp/project',
+      },
+      baseConfig,
+      '/tmp',
+      {
+        listAgents: () => [
+          agent('david', 'Frontend'),
+          agent('qa', 'QA'),
+        ],
+      },
+    )
+    expect(result).toEqual({ ok: true })
   })
 })
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   getCovenantApi,
@@ -799,6 +799,7 @@ function WorkspaceReposBlock({
   parentBusy: boolean
 }): React.ReactElement {
   const { t } = useT()
+  const folderHintId = useId()
   const covenant = useMemo(() => getCovenantApi(), [])
   const available = hasCovenantWorkspaceReposApi(covenant)
   const [repos, setRepos] = useState<CovenantWorkspaceRepoRecord[]>([])
@@ -806,6 +807,7 @@ function WorkspaceReposBlock({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cloneUrlDraft, setCloneUrlDraft] = useState('')
+  const [folderNameDraft, setFolderNameDraft] = useState('')
 
   const loadRepos = useCallback(async (): Promise<void> => {
     if (!covenant || !available || !slug || !workspaceId) {
@@ -850,9 +852,11 @@ function WorkspaceReposBlock({
     }
     setBusy(true)
     setError(null)
+    const folderName = folderNameDraft.trim()
     const result = await covenant.workspaceRepoAdd(slug, workspaceId, {
       repoFullName: fullName,
       cloneUrl,
+      ...(folderName ? { folderName } : {}),
     })
     setBusy(false)
     if (!result.ok) {
@@ -865,6 +869,7 @@ function WorkspaceReposBlock({
       return
     }
     setCloneUrlDraft('')
+    setFolderNameDraft('')
     await loadRepos()
   }
 
@@ -907,10 +912,28 @@ function WorkspaceReposBlock({
                     />
                   </SettingsField>
                 </div>
+                <div className="orgs-form-row__grow">
+                  <SettingsField label={t('organizations.repoFolderNameLabel')} compact>
+                    <Input
+                      type="text"
+                      size="sm"
+                      value={folderNameDraft}
+                      disabled={!canMutate}
+                      onChange={e => setFolderNameDraft(e.target.value)}
+                      placeholder={t('organizations.repoFolderNamePlaceholder')}
+                      spellCheck={false}
+                      aria-label={t('organizations.repoFolderNameLabel')}
+                      aria-describedby={folderHintId}
+                    />
+                  </SettingsField>
+                </div>
                 <Button variant="primary" size="sm" disabled={!canAdd} onClick={() => void handleAdd()}>
                   {t('organizations.addRepo')}
                 </Button>
               </div>
+              <p id={folderHintId} className="orgs-list__meta">
+                {t('organizations.repoFolderNameHint')}
+              </p>
             </div>
           ) : null}
           {repos.length === 0 && !loading ? (
@@ -921,6 +944,11 @@ function WorkspaceReposBlock({
                 <li key={repo.id} className="orgs-list__item">
                   <div className="orgs-list__main">
                     <p className="orgs-list__title">{repo.repoFullName}</p>
+                    {repo.folderName ? (
+                      <p className="orgs-list__meta">
+                        {t('organizations.repoFolderNameMeta', { folder: repo.folderName })}
+                      </p>
+                    ) : null}
                     <p className="orgs-list__meta">{repo.cloneUrl}</p>
                   </div>
                   {canManage ? (

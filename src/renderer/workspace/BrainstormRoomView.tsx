@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
-import { isBrainstormHumanMessage } from '@shared/brainstormRoom'
+import {
+  dedupeAgentIdsPreservingOrder,
+  isBrainstormHumanMessage,
+  resolveBrainstormParticipantDisplay,
+  resolveBrainstormParticipantIds,
+  type BrainstormCatalogAgent,
+} from '@shared/brainstormRoom'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -24,7 +30,12 @@ export interface BrainstormRoomViewProps {
   active?: boolean
   room: BrainstormRoom
   cwd: string
-  /** Nombres de catálogo para el streaming (antes de speaker_final). */
+  /** Catálogo real del workspace (sin roles técnicos de orquestación). */
+  agents?: readonly BrainstormCatalogAgent[]
+  /**
+   * @deprecated Preferir `agents`. Solo fallback si no hay catálogo.
+   * Nombres de catálogo para el streaming (antes de speaker_final).
+   */
   agentNamesById?: Record<string, string>
   onClose: () => void
 }
@@ -56,6 +67,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   active = true,
   room,
   cwd,
+  agents = [],
   agentNamesById = {},
   onClose,
 }) => {
@@ -67,20 +79,47 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   liveStatusRef.current = live.status
 
+  const participantResolution = useMemo(() => {
+    // Sin catálogo aún: no marcar huérfanos (evita falso positivo al montar).
+    if (!agents.length) {
+      return {
+        resolvedIds: dedupeAgentIdsPreservingOrder(room.participantAgentIds),
+        orphanIds: [] as string[],
+      }
+    }
+    return resolveBrainstormParticipantIds(room.participantAgentIds, agents)
+  }, [agents, room.participantAgentIds])
+
+  const speakerLabel = useCallback((agentId: string, storedName?: string): string => {
+    if (agents.length > 0) {
+      const display = resolveBrainstormParticipantDisplay(agentId, agents, storedName)
+      if (display.known) return display.label
+      return t('tabs.brainstormUnknownParticipant', { id: display.agentId })
+    }
+    const fromMap = agentNamesById[agentId]?.trim()
+    if (fromMap) return fromMap
+    const stored = storedName?.trim()
+    if (stored && stored !== agentId) return stored
+    return t('tabs.brainstormUnknownParticipant', { id: agentId })
+  }, [agentNamesById, agents, t])
+
   const speakerOrder = useMemo(() => {
     const seen: string[] = []
-    for (const id of room.participantAgentIds) {
-      if (!seen.includes(id)) seen.push(id)
+    const push = (id: string): void => {
+      const display = agents.length > 0
+        ? resolveBrainstormParticipantDisplay(id, agents)
+        : { agentId: id, known: true, label: id }
+      const key = display.known ? display.agentId : id
+      if (!seen.includes(key)) seen.push(key)
     }
+    for (const id of participantResolution.resolvedIds) push(id)
     for (const message of live.messages) {
       if (isBrainstormHumanMessage(message)) continue
-      if (!seen.includes(message.agentId)) seen.push(message.agentId)
+      push(message.agentId)
     }
-    if (live.streaming && !seen.includes(live.streaming.agentId)) {
-      seen.push(live.streaming.agentId)
-    }
+    if (live.streaming) push(live.streaming.agentId)
     return seen
-  }, [room.participantAgentIds, live.messages, live.streaming])
+  }, [agents, live.messages, live.streaming, participantResolution.resolvedIds])
 
   useEffect(() => {
     if (!open) return
@@ -124,15 +163,20 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
   const streamingName = useMemo(() => {
     if (!live.streaming) return ''
-    return agentNamesById[live.streaming.agentId]
-      || live.streaming.agentId
-  }, [agentNamesById, live.streaming])
+    return speakerLabel(live.streaming.agentId)
+  }, [live.streaming, speakerLabel])
 
   const showPause = canPauseBrainstorm(live.status)
   const showPlay = canResumeBrainstorm(live.status)
+    && participantResolution.resolvedIds.length >= 2
   const showStop = isBrainstormStoppable(live.status) || live.status === 'paused'
   const showComposer = live.status === 'running' || live.status === 'paused'
   const displayRound = Math.max(live.round, 0) + (live.status === 'running' ? 1 : 0)
+  const orphanWarning = participantResolution.orphanIds.length > 0
+    ? t('tabs.brainstormOrphanParticipants', {
+      ids: participantResolution.orphanIds.join(', '),
+    })
+    : null
 
   const handleStop = (): void => {
     if (pendingStopTimerRef.current != null) {
@@ -153,11 +197,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
   const handlePlay = (): void => {
     if (!canResumeBrainstorm(liveStatusRef.current)) return
+    if (participantResolution.resolvedIds.length < 2) return
     stoppedRef.current = false
     window.api.startBrainstorm({
       roomId: room.id,
       topic: room.topic,
-      participantAgentIds: room.participantAgentIds,
+      participantAgentIds: participantResolution.resolvedIds,
       maxRounds: room.maxRounds,
       cwd: cwd.trim(),
       resume: true,
@@ -250,12 +295,19 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
         >
           {live.messages.map((message, index) => {
             const human = isBrainstormHumanMessage(message)
+            const laneAgentId = human
+              ? message.agentId
+              : resolveBrainstormParticipantDisplay(
+                message.agentId,
+                agents,
+                message.agentName,
+              ).agentId
             const color = human
               ? 'var(--accent)'
-              : paletteColorForSeed(message.agentId)
+              : paletteColorForSeed(laneAgentId)
             const lane = human
               ? 'human'
-              : speakerLane(message.agentId, speakerOrder) % 2 === 1
+              : speakerLane(laneAgentId, speakerOrder) % 2 === 1
                 ? 'end'
                 : 'start'
             return (
@@ -271,7 +323,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                   {human
                     ? t('tabs.brainstormHumanLabel')
                     : t('tabs.brainstormSpeakerLabel', {
-                        name: message.agentName,
+                        name: speakerLabel(message.agentId, message.agentName),
                         round: message.round + 1,
                       })}
                 </span>
@@ -281,7 +333,11 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                     human ? 'brainstorm-room-view__bubble--human' : '',
                   ].filter(Boolean).join(' ')}
                 >
-                  <AiMarkdown content={message.text} />
+                  {human ? (
+                    <div className="brainstorm-room-view__plain">{message.text}</div>
+                  ) : (
+                    <AiMarkdown content={message.text} />
+                  )}
                 </div>
               </article>
             )
@@ -292,11 +348,22 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 'brainstorm-room-view__row',
                 'brainstorm-room-view__row--live',
                 `brainstorm-room-view__row--${
-                  speakerLane(live.streaming.agentId, speakerOrder) % 2 === 1 ? 'end' : 'start'
+                  speakerLane(
+                    resolveBrainstormParticipantDisplay(
+                      live.streaming.agentId,
+                      agents,
+                    ).agentId,
+                    speakerOrder,
+                  ) % 2 === 1 ? 'end' : 'start'
                 }`,
               ].join(' ')}
               style={{
-                '--brainstorm-speaker': paletteColorForSeed(live.streaming.agentId),
+                '--brainstorm-speaker': paletteColorForSeed(
+                  resolveBrainstormParticipantDisplay(
+                    live.streaming.agentId,
+                    agents,
+                  ).agentId,
+                ),
               } as React.CSSProperties}
             >
               <span className="brainstorm-room-view__speaker">
@@ -312,6 +379,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           ) : null}
           <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
         </div>
+
+        {orphanWarning ? (
+          <p className="brainstorm-room-view__error" role="status">
+            {orphanWarning}
+          </p>
+        ) : null}
 
         {live.lastError ? (
           <p className="brainstorm-room-view__error">{live.lastError}</p>

@@ -1258,10 +1258,13 @@ function registerIpc(): void {
         const r = (item && typeof item === 'object' ? item : {}) as {
           repoFullName?: unknown
           cloneUrl?: unknown
+          folderName?: unknown
         }
+        const folderName = typeof r.folderName === 'string' ? r.folderName.trim() : ''
         return {
           repoFullName: String(r.repoFullName ?? ''),
           cloneUrl: String(r.cloneUrl ?? ''),
+          ...(folderName ? { folderName } : {}),
         }
       })
       return cloneOrgWorkspace({

@@ -9,6 +9,7 @@ import type { AgentCliProvider } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { SettingsSection, SettingsField } from './SettingsSection'
+import { SettingsFontFamilyField } from './SettingsFontFamilyField'
 import { CodeIntelligenceSettings } from '../lsp/CodeIntelligenceSettings'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -20,9 +21,12 @@ import { GitHubTokenField } from './GitHubTokenField'
 import { AiMarkdown } from './AiMarkdown'
 import { QuitConfirmModal } from './QuitConfirmModal'
 import { replaySplash } from '../splash'
+import { changelogRecentModifications } from '@shared/changelog'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './SettingsModal.css'
+
+const settingsChangelogMd = changelogRecentModifications(changelogMd)
 
 interface Props {
   config: AppConfig
@@ -451,51 +455,26 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           {category === 'appearance' && (
             <>
               <SettingsSection title={t('settings.typographySection')} anchor="settings-typography">
-                <SettingsField label={t('settings.fontUiLabel')} hint={t('settings.fontUiHint')}>
-                  <Select
-                    value={form.fontUi}
-                    onChange={next => update('fontUi', next)}
-                    options={fontOptions.ui}
-                  />
-                </SettingsField>
-                <SettingsField
-                  label={t('settings.fontCustomLabel')}
-                  hint={fontWarning(form.fontUi, 'ui') ?? t('settings.fontCustomHint')}
-                  compact
-                >
-                  <Input
-                    type="text"
-                    size="sm"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder={t('settings.fontCustomPlaceholder')}
-                    value={form.fontUi}
-                    onChange={e => update('fontUi', e.target.value)}
-                  />
-                </SettingsField>
-
-                <SettingsField label={t('settings.fontMonoLabel')} hint={t('settings.fontMonoHint')}>
-                  <Select
-                    value={form.fontMono}
-                    onChange={next => update('fontMono', next)}
-                    options={fontOptions.mono}
-                  />
-                </SettingsField>
-                <SettingsField
-                  label={t('settings.fontCustomLabel')}
-                  hint={fontWarning(form.fontMono, 'mono') ?? t('settings.fontCustomHint')}
-                  compact
-                >
-                  <Input
-                    type="text"
-                    size="sm"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder={t('settings.fontCustomMonoPlaceholder')}
-                    value={form.fontMono}
-                    onChange={e => update('fontMono', e.target.value)}
-                  />
-                </SettingsField>
+                <SettingsFontFamilyField
+                  label={t('settings.fontUiLabel')}
+                  hint={t('settings.fontUiHint')}
+                  warning={fontWarning(form.fontUi, 'ui')}
+                  value={form.fontUi}
+                  options={fontOptions.ui}
+                  onChange={next => update('fontUi', next)}
+                  customLabel={t('settings.fontCustomLabel')}
+                  placeholder={t('settings.fontCustomPlaceholder')}
+                />
+                <SettingsFontFamilyField
+                  label={t('settings.fontMonoLabel')}
+                  hint={t('settings.fontMonoHint')}
+                  warning={fontWarning(form.fontMono, 'mono')}
+                  value={form.fontMono}
+                  options={fontOptions.mono}
+                  onChange={next => update('fontMono', next)}
+                  customLabel={t('settings.fontCustomLabel')}
+                  placeholder={t('settings.fontCustomMonoPlaceholder')}
+                />
               </SettingsSection>
 
               <SettingsSection title={t('settings.languageSection')} anchor="settings-language">
@@ -697,7 +676,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
               anchor="settings-about"
             >
               <div className="settings-changelog">
-                <AiMarkdown content={changelogMd} />
+                <AiMarkdown content={settingsChangelogMd} />
               </div>
             </SettingsSection>
           )}

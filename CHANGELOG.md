@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.10
+
+- **Mensaje actual siempre a la vista**: el último mensaje largo del agente o del
+  usuario ya no se pliega; solo los anteriores mantienen "Ver más" / "Ver menos".
+
 ## v0.39.9
 
 - **El dictado ya no culpa al micrófono cuando fue un clic**: si sueltas el botón

@@ -9,6 +9,7 @@ import {
   createBrainstormRoom,
   isBrainstormComplete,
   nextSpeakerAgentId,
+  resolveBrainstormParticipantIds,
   sanitizeBrainstormMaxRounds,
   type BrainstormEvent,
   type BrainstormMessage,
@@ -402,24 +403,22 @@ export function startBrainstormRoom(
   const listAgents = options?.listAgents ?? listProjectAgents
   const agents = listAgents(cwd)
   const byId = new Map(agents.map(agent => [agent.id, agent]))
-  const participants = (Array.isArray(config.participantAgentIds) ? config.participantAgentIds : [])
+  const rawParticipants = (Array.isArray(config.participantAgentIds) ? config.participantAgentIds : [])
     .map(id => (typeof id === 'string' ? id.trim() : ''))
     .filter(Boolean)
 
-  const unique: string[] = []
-  const seen = new Set<string>()
-  for (const id of participants) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    unique.push(id)
-  }
+  const { resolvedIds: unique, orphanIds } = resolveBrainstormParticipantIds(
+    rawParticipants,
+    agents,
+  )
   if (unique.length < 2) {
-    return { ok: false, error: 'Se requieren al menos 2 participantes' }
-  }
-  for (const id of unique) {
-    if (!byId.has(id)) {
-      return { ok: false, error: `Participante desconocido: ${id}` }
+    if (orphanIds.length) {
+      return {
+        ok: false,
+        error: `Participantes no están en el catálogo: ${orphanIds.join(', ')}`,
+      }
     }
+    return { ok: false, error: 'Se requieren al menos 2 participantes' }
   }
 
   const maxRounds = sanitizeBrainstormMaxRounds(config.maxRounds)
@@ -428,15 +427,23 @@ export function startBrainstormRoom(
   if (resume) {
     const resumed = resolveResumeRoom(config, cwd, topic, unique, maxRounds)
     if (!resumed) return { ok: false, error: 'No se pudo reanudar la sala' }
-    if (resumed.participantAgentIds.length < 2) {
+    const resumedResolved = resolveBrainstormParticipantIds(
+      resumed.participantAgentIds,
+      agents,
+    )
+    if (resumedResolved.resolvedIds.length < 2) {
+      if (resumedResolved.orphanIds.length) {
+        return {
+          ok: false,
+          error: `Participantes no están en el catálogo: ${resumedResolved.orphanIds.join(', ')}`,
+        }
+      }
       return { ok: false, error: 'Se requieren al menos 2 participantes' }
     }
-    for (const id of resumed.participantAgentIds) {
-      if (!byId.has(id)) {
-        return { ok: false, error: `Participante desconocido: ${id}` }
-      }
+    room = {
+      ...resumed,
+      participantAgentIds: resumedResolved.resolvedIds,
     }
-    room = resumed
     const existing = roomRuns.get(roomId)
     if (existing) invalidateBrainstormGeneration(existing)
   } else {

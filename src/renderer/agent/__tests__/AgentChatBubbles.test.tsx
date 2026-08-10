@@ -36,31 +36,32 @@ function renderBubbles(messages: AgentChatEntry[], busy = false, activeAssistant
 }
 
 describe('AgentChatBubbles markdown + collapse', () => {
-  it('renders a user ```ts fence as a code block, not literal backticks', () => {
+  it('renders user content as plain text (no Markdown, no code blocks)', () => {
     renderBubbles([
       {
         id: 'u1',
         role: 'user',
-        content: 'Look:\n```ts\nconst x = 1\n```\nDone.',
+        content: 'Look:\n```js\nconst x = 1\n```\n**hola**',
       },
     ])
-    expect(document.querySelector('.ai-code-block')).not.toBeNull()
-    expect(document.querySelector('.ai-code-lang')?.textContent).toBe('ts')
-    expect(document.querySelector('.ai-code-pre')?.textContent).toContain('const x = 1')
-    expect(screen.queryByText(/```ts/)).toBeNull()
+    const plain = document.querySelector('.agent-pane__bubble-plain')
+    expect(plain).not.toBeNull()
+    expect(plain?.textContent).toBe('Look:\n```js\nconst x = 1\n```\n**hola**')
+    expect(document.querySelector('.ai-code-block')).toBeNull()
+    expect(document.querySelector('strong')).toBeNull()
+    expect(document.querySelector('.ai-md')).toBeNull()
   })
 
-  it('renders a user numbered list as <ol>', () => {
+  it('keeps Markdown for assistant messages', () => {
     renderBubbles([
       {
-        id: 'u2',
-        role: 'user',
-        content: '1. First\n2. Second\n3. Third',
+        id: 'a0',
+        role: 'assistant',
+        content: '**hola**',
       },
     ])
-    const list = document.querySelector('ol.ai-md__ol')
-    expect(list).not.toBeNull()
-    expect(list?.querySelectorAll('li')).toHaveLength(3)
+    expect(document.querySelector('strong')?.textContent).toBe('hola')
+    expect(document.querySelector('.agent-pane__bubble-plain')).toBeNull()
   })
 
   it('does not show Show more for a short user message', () => {
@@ -74,13 +75,32 @@ describe('AgentChatBubbles markdown + collapse', () => {
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
   })
 
-  it('shows Show more for a long user message and reveals all on expand', () => {
+  it('does not show Show more for a single long latest message', () => {
     const long = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of the delegation objective.`).join('\n')
     renderBubbles([
       {
         id: 'u4',
         role: 'user',
         content: long,
+      },
+    ])
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+    expect(document.querySelector('.agent-pane__bubble-body--collapsed')).toBeNull()
+    expect(screen.getByText(/Line 40 of the delegation objective/)).toBeTruthy()
+  })
+
+  it('shows Show more only on a long earlier message, not the latest', () => {
+    const long = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of the delegation objective.`).join('\n')
+    renderBubbles([
+      {
+        id: 'u4',
+        role: 'user',
+        content: long,
+      },
+      {
+        id: 'a2',
+        role: 'assistant',
+        content: 'Short reply.',
       },
     ])
     const more = screen.getByRole('button', { name: 'Show more' })
@@ -90,6 +110,7 @@ describe('AgentChatBubbles markdown + collapse', () => {
     expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
     expect(document.querySelector('.agent-pane__bubble-body--collapsed')).toBeNull()
     expect(screen.getByText(/Line 40 of the delegation objective/)).toBeTruthy()
+    expect(screen.getByText('Short reply.')).toBeTruthy()
   })
 
   it('hides agent control fences in assistant messages', () => {

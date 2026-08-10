@@ -43,7 +43,10 @@ const BubbleBody: React.FC<{
   live: boolean
   role: 'user' | 'assistant'
 }> = ({ content, live, role }) => {
-  const raw = role === 'assistant' ? stripAgentControlFences(content) : content
+  if (role === 'user') {
+    return <div className="agent-pane__bubble-plain">{content}</div>
+  }
+  const raw = stripAgentControlFences(content)
   const segments = splitAssistantBody(raw)
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
@@ -92,6 +95,8 @@ interface AgentChatBubbleRowProps {
   materializingIds: ReadonlySet<string>
   settlingId: string | null
   expanded: boolean
+  /** Última fila renderizable: no colapsar (el usuario lee el mensaje actual). */
+  isLatestRenderable: boolean
   onToggleExpand: (id: string) => void
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
   onEnteringAnimationEnd?: (id: string) => void
@@ -106,6 +111,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   materializingIds,
   settlingId,
   expanded,
+  isLatestRenderable,
   onToggleExpand,
   scrollRef,
   onEnteringAnimationEnd,
@@ -120,6 +126,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   const materializing = materializingIds.has(message.id)
   const gravityOnly = live && !message.content
   const canCollapse = !live &&
+    !isLatestRenderable &&
     Boolean(message.content) &&
     isLongBubbleContent(message.content)
   const collapsed = canCollapse && !expanded
@@ -409,11 +416,12 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
 
   return (
     <div className={rootClass}>
-      {visibleRows.map(message => (
+      {visibleRows.map((message, index) => (
         <AgentChatBubbleRow
           key={message.id}
           message={message}
           expanded={expandedIds.has(message.id)}
+          isLatestRenderable={index === visibleRows.length - 1}
           {...rowProps}
         />
       ))}

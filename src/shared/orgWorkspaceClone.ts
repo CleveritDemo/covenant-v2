@@ -7,6 +7,8 @@ export type { OrgWorkspaceCloneFailure, OrgWorkspaceCloneErrorKind } from './org
 export type OrgWorkspaceCloneRepo = {
   repoFullName: string
   cloneUrl: string
+  /** Carpeta destino opcional; si falta, se usa el último segmento de repoFullName. */
+  folderName?: string
 }
 
 export type OrgWorkspaceCloneRequest = {

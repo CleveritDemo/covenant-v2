@@ -412,10 +412,12 @@ export function mapWorkspaceRepoRecord(raw: unknown): CovenantWorkspaceRepoRecor
   const cloneUrl = pickString(row, 'cloneUrl', 'clone_url')
   if (!id || !repoFullName || !cloneUrl) return null
   const createdBy = pickString(row, 'createdBy', 'created_by') || undefined
+  const folderName = pickString(row, 'folderName', 'folder_name') || undefined
   return {
     id,
     repoFullName,
     cloneUrl,
+    ...(folderName ? { folderName } : {}),
     position: pickNumber(row, 'position'),
     ...(createdBy ? { createdBy } : {}),
     createdAt: pickNumber(row, 'createdAt', 'created_at'),
@@ -452,6 +454,12 @@ export async function addWorkspaceRepo(
         clone_url: payload.cloneUrl,
         repoFullName: payload.repoFullName,
         cloneUrl: payload.cloneUrl,
+        ...(payload.folderName?.trim()
+          ? {
+              folder_name: payload.folderName.trim(),
+              folderName: payload.folderName.trim(),
+            }
+          : {}),
         ...(payload.position != null ? { position: payload.position } : {}),
       },
     },

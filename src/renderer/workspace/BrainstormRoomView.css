@@ -98,6 +98,13 @@
   color: var(--text);
 }
 
+/* Humano: texto literal (sin Markdown). */
+.brainstorm-room-view__plain {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .brainstorm-room-view__speaker {
   font-family: var(--font-ui);
   font-size: 10.5px;

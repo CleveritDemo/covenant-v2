@@ -117,6 +117,25 @@ describe('guardado al cambiar', () => {
     expect(setConfig.mock.calls[0][0].fontMono).toBe('Menlo')
   })
 
+  it('los inputs de tipografía guardan fontUi y fontMono', async () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
+
+    expect(screen.getByRole('button', { name: 'settings.fontUiLabel' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.fontMonoLabel' })).toBeTruthy()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.fontCustomPlaceholder'), {
+      target: { value: 'Optima' },
+    })
+    await waitFor(() => expect(setConfig).toHaveBeenCalled())
+    expect(setConfig.mock.calls.at(-1)?.[0].fontUi).toBe('Optima')
+
+    fireEvent.change(screen.getByPlaceholderText('settings.fontCustomMonoPlaceholder'), {
+      target: { value: 'Menlo' },
+    })
+    await waitFor(() => expect(setConfig.mock.calls.at(-1)?.[0].fontMono).toBe('Menlo'))
+  })
+
   it('el pie pasa a marca de tiempo tras guardar', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))

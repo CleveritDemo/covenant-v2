@@ -19,6 +19,12 @@ vi.mock('@i18n/useT', () => ({
       if (key === 'tabs.brainstormHumanLabel') return 'You'
       if (key === 'tabs.brainstormHumanPlaceholder') return 'Add a direction…'
       if (key === 'tabs.brainstormHumanSend') return 'Send'
+      if (key === 'tabs.brainstormUnknownParticipant') {
+        return `Unknown participant (${opts?.id})`
+      }
+      if (key === 'tabs.brainstormOrphanParticipants') {
+        return `Saved participants missing from the catalog (skipped): ${opts?.ids}`
+      }
       return key
     },
   }),
@@ -120,6 +126,44 @@ describe('BrainstormRoomView chat bubbles', () => {
     expect(document.querySelector('.brainstorm-room-view__row--human')).toBeTruthy()
   })
 
+  it('renderiza humano como texto plano y agentes con Markdown', () => {
+    const withHuman: BrainstormRoom = {
+      ...room,
+      messages: [
+        {
+          agentId: 'atlas',
+          agentName: 'Atlas',
+          round: 0,
+          text: '**agente**',
+        },
+        {
+          agentId: 'human',
+          agentName: 'You',
+          round: 0,
+          role: 'human',
+          text: '**hola**\n```js\nconst x = 1\n```',
+        },
+      ],
+    }
+
+    render(
+      <BrainstormRoomView
+        open
+        room={withHuman}
+        cwd="/tmp/project"
+        agentNamesById={{ atlas: 'Atlas', forge: 'Forge' }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const plain = document.querySelector('.brainstorm-room-view__plain')
+    expect(plain).not.toBeNull()
+    expect(plain?.textContent).toBe('**hola**\n```js\nconst x = 1\n```')
+    expect(document.querySelector('.brainstorm-room-view__bubble--human strong')).toBeNull()
+    expect(document.querySelector('.brainstorm-room-view__bubble--human .ai-code-block')).toBeNull()
+    expect(document.querySelector('.brainstorm-room-view__bubble:not(.brainstorm-room-view__bubble--human) strong')?.textContent).toBe('agente')
+  })
+
   it('muestra el composer cuando la sala está pausada', () => {
     render(
       <BrainstormRoomView
@@ -166,5 +210,46 @@ describe('BrainstormRoomView chat bubbles', () => {
       />,
     )
     expect(screen.queryByPlaceholderText('Add a direction…')).toBeNull()
+  })
+
+  it('muestra nombre de catálogo y no trata un id huérfano como participante válido', () => {
+    const orphanRoom: BrainstormRoom = {
+      ...room,
+      participantAgentIds: ['frontend', 'qa', 'david'],
+      messages: [
+        {
+          agentId: 'david',
+          agentName: 'David',
+          round: 0,
+          text: 'From the real agent.',
+        },
+        {
+          agentId: 'frontend',
+          agentName: 'frontend',
+          round: 0,
+          text: 'Stale technical id message.',
+        },
+      ],
+    }
+
+    render(
+      <BrainstormRoomView
+        open
+        room={orphanRoom}
+        cwd="/tmp/project"
+        agents={[
+          { id: 'david', name: 'David' },
+          { id: 'qa', name: 'QA' },
+        ]}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('David · round 1')).toBeTruthy()
+    expect(screen.getByText('Unknown participant (frontend) · round 1')).toBeTruthy()
+    expect(screen.getByText(
+      'Saved participants missing from the catalog (skipped): frontend',
+    )).toBeTruthy()
+    expect(screen.queryByText(/^frontend · round/)).toBeNull()
   })
 })

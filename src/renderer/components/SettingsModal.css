@@ -202,6 +202,37 @@
   color: var(--danger);
 }
 
+/* Tipografía: catálogo + nombre libre en una fila (interfaz / terminales). */
+.settings-font-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-font-field__label {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.settings-font-field__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.settings-font-field__select,
+.settings-font-field__custom {
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .settings-font-field__row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-inline-link {
   font-family: inherit;
   font-size: inherit;

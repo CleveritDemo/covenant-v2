@@ -3,6 +3,10 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
   BRAINSTORM_MAX_ROUNDS_CAP,
+  brainstormCatalogAgentLabel,
+  filterBrainstormInvitableAgents,
+  isBrainstormInvitableAgent,
+  sanitizeBrainstormInviteIds,
   sanitizeBrainstormMaxRounds,
   type BrainstormRoom,
 } from '@shared/brainstormRoom'
@@ -41,6 +45,16 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   const [topic, setTopic] = useState('')
   const [maxRounds, setMaxRounds] = useState(BRAINSTORM_DEFAULT_ROUNDS)
 
+  const invitableAgents = useMemo(
+    () => filterBrainstormInvitableAgents(agents),
+    [agents],
+  )
+
+  const safeSelectedIds = useMemo(
+    () => sanitizeBrainstormInviteIds(selectedIds, agents),
+    [selectedIds, agents],
+  )
+
   useEffect(() => {
     if (!open) return
     setStep('invite')
@@ -49,26 +63,40 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     setMaxRounds(BRAINSTORM_DEFAULT_ROUNDS)
   }, [open])
 
+  useEffect(() => {
+    setSelectedIds(previous => sanitizeBrainstormInviteIds(previous, agents))
+  }, [agents])
+
   const selectedIndex = useMemo(() => {
     const map = new Map<string, number>()
-    selectedIds.forEach((id, index) => map.set(id, index + 1))
+    safeSelectedIds.forEach((id, index) => map.set(id, index + 1))
     return map
-  }, [selectedIds])
+  }, [safeSelectedIds])
 
-  const canNext = canAdvanceBrainstormInviteStep(selectedIds)
-  const canStart = Boolean(tryCreateBrainstormSession(topic, selectedIds, maxRounds))
+  const canNext = canAdvanceBrainstormInviteStep(safeSelectedIds, agents)
+  const canStart = Boolean(
+    tryCreateBrainstormSession(topic, safeSelectedIds, maxRounds, agents),
+  )
 
   const toggleAgent = (agentId: string): void => {
+    const agent = agents.find(item => item.id === agentId)
+    if (!agent || !isBrainstormInvitableAgent(agent)) return
     setSelectedIds(previous => {
-      if (previous.includes(agentId)) {
-        return previous.filter(id => id !== agentId)
+      const cleaned = sanitizeBrainstormInviteIds(previous, agents)
+      if (cleaned.includes(agentId)) {
+        return cleaned.filter(id => id !== agentId)
       }
-      return [...previous, agentId]
+      return [...cleaned, agentId]
     })
   }
 
   const handleStart = (): void => {
-    const room = tryCreateBrainstormSession(topic, selectedIds, maxRounds)
+    const room = tryCreateBrainstormSession(
+      topic,
+      safeSelectedIds,
+      maxRounds,
+      agents,
+    )
     if (!room || !cwd.trim()) return
     window.api.startBrainstorm({
       roomId: room.id,
@@ -133,11 +161,11 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       {step === 'invite' ? (
         <>
           <p className="brainstorm-room-modal__hint">{t('tabs.brainstormInviteHint')}</p>
-          {agents.length === 0 ? (
+          {invitableAgents.length === 0 ? (
             <p className="brainstorm-room-modal__hint">{t('tabs.brainstormEmptyCatalog')}</p>
           ) : (
             <div className="brainstorm-room-modal__list" role="list">
-              {agents.map(agent => {
+              {invitableAgents.map(agent => {
                 const selected = selectedIndex.has(agent.id)
                 const role = agent.role?.trim()
                 return (
@@ -150,7 +178,7 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
                   >
                     <span className="brainstorm-room-modal__agent-row">
                       <span className="brainstorm-room-modal__agent-name">
-                        {agent.name?.trim() || agent.id}
+                        {brainstormCatalogAgentLabel(agent)}
                       </span>
                       {role ? (
                         <span className="brainstorm-room-modal__agent-role">{role}</span>

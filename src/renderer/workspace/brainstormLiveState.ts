@@ -14,6 +14,8 @@ import {
 export interface BrainstormLiveState {
   messages: BrainstormMessage[]
   streaming: { agentId: string; round: number; text: string } | null
+  /** Turno concedido (llega antes del primer delta); null cuando nadie habla. */
+  speakingAgentId: string | null
   round: number
   status: BrainstormStatus
   lastError: string | null
@@ -25,6 +27,7 @@ export function createInitialBrainstormLiveState(
   return {
     messages: room?.messages ? [...room.messages] : [],
     streaming: null,
+    speakingAgentId: null,
     round: room?.round ?? 0,
     status: room?.status ?? 'running',
     lastError: null,
@@ -49,6 +52,8 @@ export function reduceBrainstormLiveEvent(
   event: BrainstormEvent,
 ): BrainstormLiveState {
   switch (event.type) {
+    case 'speaker_start':
+      return { ...state, speakingAgentId: event.agentId, round: event.round }
     case 'speaker_delta': {
       const prev = state.streaming
       const same =
@@ -57,6 +62,7 @@ export function reduceBrainstormLiveEvent(
         && prev.round === event.round
       return {
         ...state,
+        speakingAgentId: event.agentId,
         streaming: {
           agentId: event.agentId,
           round: event.round,
@@ -75,6 +81,7 @@ export function reduceBrainstormLiveEvent(
         ...state,
         messages: [...state.messages, message],
         streaming: null,
+        speakingAgentId: null,
       }
     }
     case 'human_message': {
@@ -95,8 +102,15 @@ export function reduceBrainstormLiveEvent(
     }
     case 'round':
       return { ...state, round: event.round }
-    case 'status':
-      return { ...state, status: event.status, streaming: event.status === 'paused' ? null : state.streaming }
+    case 'status': {
+      const running = event.status === 'running'
+      return {
+        ...state,
+        status: event.status,
+        streaming: event.status === 'paused' ? null : state.streaming,
+        speakingAgentId: running ? state.speakingAgentId : null,
+      }
+    }
     case 'error':
       return {
         ...state,

@@ -66,7 +66,7 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
         if (cancelled) return
         // Solo archivos: una carpeta en el working set no se puede leer.
         setFileHits(result.ok
-          ? result.hits.filter(hit => !hit.isDirectory).map(hit => hit.relPath)
+          ? (result.hits ?? []).filter(hit => !hit.isDirectory).map(hit => hit.relPath)
           : [])
       }).catch(() => {
         if (!cancelled) setFileHits([])

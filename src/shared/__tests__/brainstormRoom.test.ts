@@ -7,7 +7,9 @@ import {
   BRAINSTORM_WORKING_SET_CAP,
   advanceBrainstormCursor,
   appendBrainstormHumanMessage,
+  brainstormSeats,
   brainstormTurnCount,
+  brainstormTurnsDone,
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
   filterBrainstormInvitableAgents,
@@ -244,6 +246,40 @@ describe('buildBrainstormTurnPrompt', () => {
     const final = { ...room, round: 1, cursor: 1 }
     expect(isFinalBrainstormTurn(final)).toBe(true)
     expect(buildBrainstormTurnPrompt(final, 'fe', 'Frontend')).toContain('Final turn')
+  })
+})
+
+describe('brainstormSeats', () => {
+  const messages = [
+    { agentId: 'a', agentName: 'A', round: 0, text: 'x' },
+    { agentId: 'b', agentName: 'B', round: 0, text: 'y' },
+    { agentId: 'a', agentName: 'A', round: 1, text: 'z' },
+    { agentId: 'human', agentName: 'Human', round: 1, text: 'ojo', role: 'human' as const },
+  ]
+
+  it('marca quién habla, quién ya habló y quién espera en la ronda en curso', () => {
+    expect(brainstormSeats({
+      participantAgentIds: ['a', 'b', 'c'],
+      messages,
+      round: 1,
+      speakingAgentId: 'b',
+    })).toEqual([
+      { agentId: 'a', state: 'spoke' },
+      { agentId: 'b', state: 'speaking' },
+      { agentId: 'c', state: 'waiting' },
+    ])
+  })
+
+  it('sin orador todos esperan salvo los que ya hablaron', () => {
+    expect(brainstormSeats({
+      participantAgentIds: ['a', 'b'],
+      messages,
+      round: 1,
+    }).map(seat => seat.state)).toEqual(['spoke', 'waiting'])
+  })
+
+  it('las intervenciones humanas no consumen turno', () => {
+    expect(brainstormTurnsDone(messages)).toBe(3)
   })
 })
 

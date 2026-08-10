@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
 import {
+  brainstormSeats,
+  brainstormTurnCount,
+  brainstormTurnsDone,
   dedupeAgentIdsPreservingOrder,
   isBrainstormHumanMessage,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
   stripBrainstormProtocolFences,
   type BrainstormCatalogAgent,
+  type BrainstormSeatState,
 } from '@shared/brainstormRoom'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
@@ -55,7 +59,27 @@ function statusLabelKey(
   return 'tabs.brainstormStatusIdle'
 }
 
-/** Vista en vivo: chat multi-agente + play/pausa/stop; cierre detiene si running/idle. */
+function seatStateKey(
+  state: BrainstormSeatState,
+): 'tabs.brainstormSeatSpeaking' | 'tabs.brainstormSeatSpoke' | 'tabs.brainstormSeatWaiting' {
+  if (state === 'speaking') return 'tabs.brainstormSeatSpeaking'
+  if (state === 'spoke') return 'tabs.brainstormSeatSpoke'
+  return 'tabs.brainstormSeatWaiting'
+}
+
+/**
+ * Etiqueta del working set desde el id, sin ir a disco:
+ * `iaterminal:<kind>:<stem>` → kind + stem.
+ * ponytail: el nombre real exigiría discoverTabContexts; el stem alcanza para reconocerlo.
+ */
+function workingSetLabel(contextId: string): { tag: string; label: string } {
+  const parts = contextId.split(':')
+  const kind = parts[1] ?? 'ctx'
+  const stem = parts.slice(2).join(':').replace(/-/g, ' ')
+  return { tag: kind, label: stem || kind }
+}
+
+/** Vista en vivo: acta multi-agente + play/pausa/stop; cierre detiene si running/idle. */
 export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   open,
   active = true,
@@ -142,12 +166,33 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return speakerLabel(live.streaming.agentId)
   }, [live.streaming, speakerLabel])
 
+  const seats = useMemo(() => brainstormSeats({
+    participantAgentIds: participantResolution.resolvedIds,
+    messages: live.messages,
+    round: live.round,
+    speakingAgentId: live.speakingAgentId,
+  }), [live.messages, live.round, live.speakingAgentId, participantResolution.resolvedIds])
+
+  const turnsDone = brainstormTurnsDone(live.messages)
+  const totalTurns = brainstormTurnCount({
+    participantAgentIds: participantResolution.resolvedIds,
+    maxRounds: room.maxRounds,
+  })
+
+  const workingSetLabels = useMemo(() => [
+    ...(room.contextIds ?? []).map(id => ({ key: id, ...workingSetLabel(id) })),
+    ...(room.filePaths ?? []).map(path => ({ key: path, tag: 'file', label: path })),
+  ], [room.contextIds, room.filePaths])
+
   const showPause = canPauseBrainstorm(live.status)
   const showPlay = canResumeBrainstorm(live.status)
     && participantResolution.resolvedIds.length >= 2
   const showStop = isBrainstormStoppable(live.status) || live.status === 'paused'
   const showComposer = live.status === 'running' || live.status === 'paused'
-  const displayRound = Math.max(live.round, 0) + (live.status === 'running' ? 1 : 0)
+  // `round` es índice de ronda en curso: la ronda humana es +1, salvo al terminar.
+  const displayRound = live.status === 'done'
+    ? room.maxRounds
+    : Math.min(Math.max(live.round, 0) + 1, room.maxRounds)
   const orphanWarning = participantResolution.orphanIds.length > 0
     ? t('tabs.brainstormOrphanParticipants', {
       ids: participantResolution.orphanIds.join(', '),
@@ -249,6 +294,20 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
         <header className="brainstorm-room-view__head">
           <p className="brainstorm-room-view__topic">{room.topic}</p>
           <div className="brainstorm-room-view__meta">
+            <span className="brainstorm-room-view__pips" aria-hidden>
+              {Array.from({ length: room.maxRounds }, (_, index) => (
+                <i
+                  key={index}
+                  className={[
+                    'brainstorm-room-view__pip',
+                    index < live.round ? 'brainstorm-room-view__pip--done' : '',
+                    index === live.round && live.status === 'running'
+                      ? 'brainstorm-room-view__pip--now'
+                      : '',
+                  ].filter(Boolean).join(' ')}
+                />
+              ))}
+            </span>
             <span>
               {t('tabs.brainstormRoundLabel')}
               {' '}
@@ -260,13 +319,22 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
               </strong>
             </span>
             <span>
-              {t('tabs.brainstormStatusLabel')}
-              {' '}
-              <strong>{t(statusLabelKey(live.status))}</strong>
+              {t('tabs.brainstormTurnProgress', {
+                current: Math.min(turnsDone + (live.speakingAgentId ? 1 : 0), totalTurns),
+                total: totalTurns,
+              })}
+            </span>
+            <span>
+              {live.speakingAgentId
+                ? t('tabs.brainstormSpeakingNow', {
+                    name: speakerLabel(live.speakingAgentId),
+                  })
+                : t(statusLabelKey(live.status))}
             </span>
           </div>
         </header>
 
+        <div className="brainstorm-room-view__body">
         <div
           className="brainstorm-room-view__messages"
           role="log"
@@ -346,6 +414,49 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             </article>
           ) : null}
           <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
+        </div>
+
+        <aside className="brainstorm-room-view__side">
+          <section className="brainstorm-room-view__side-group">
+            <h3 className="brainstorm-room-view__side-title">
+              {t('tabs.brainstormSeatsTitle')}
+            </h3>
+            {seats.map(seat => (
+              <p
+                key={seat.agentId}
+                className={[
+                  'brainstorm-room-view__seat',
+                  seat.state === 'speaking' ? 'brainstorm-room-view__seat--speaking' : '',
+                ].filter(Boolean).join(' ')}
+                style={{
+                  '--brainstorm-speaker': paletteColorForSeed(seat.agentId),
+                } as React.CSSProperties}
+              >
+                <span className="brainstorm-room-view__seat-dot" aria-hidden />
+                <span className="brainstorm-room-view__seat-name">
+                  {speakerLabel(seat.agentId)}
+                </span>
+                <span className="brainstorm-room-view__seat-state">
+                  {t(seatStateKey(seat.state))}
+                </span>
+              </p>
+            ))}
+          </section>
+
+          {workingSetLabels.length ? (
+            <section className="brainstorm-room-view__side-group">
+              <h3 className="brainstorm-room-view__side-title">
+                {t('tabs.brainstormWorkingSetLabel')}
+              </h3>
+              {workingSetLabels.map(item => (
+                <span key={item.key} className="brainstorm-room-view__ws-chip">
+                  <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
+                  {item.label}
+                </span>
+              ))}
+            </section>
+          ) : null}
+        </aside>
         </div>
 
         {orphanWarning ? (

@@ -45,6 +45,7 @@ export interface BrainstormWorkingSet {
 
 /** Eventos main → renderer (canal brainstorm:event). */
 export type BrainstormEvent =
+  | { type: 'speaker_start'; agentId: string; round: number }
   | { type: 'speaker_delta'; agentId: string; round: number; text: string }
   | { type: 'speaker_final'; agentId: string; agentName: string; round: number; text: string }
   | { type: 'human_message'; text: string; round: number }
@@ -319,6 +320,40 @@ export function createBrainstormRoom(
     filePaths: sanitizeBrainstormWorkingSet(brief.filePaths),
     outcome: sanitizeBrainstormOutcome(brief.outcome),
   }
+}
+
+export type BrainstormSeatState = 'speaking' | 'spoke' | 'waiting'
+
+export interface BrainstormSeat {
+  agentId: string
+  state: BrainstormSeatState
+}
+
+/** Asientos en orden de habla con su estado en la ronda en curso. */
+export function brainstormSeats(input: {
+  participantAgentIds: readonly string[]
+  messages: readonly BrainstormMessage[]
+  round: number
+  speakingAgentId?: string | null
+}): BrainstormSeat[] {
+  const spoke = new Set(
+    input.messages
+      .filter(message => !isBrainstormHumanMessage(message) && message.round === input.round)
+      .map(message => message.agentId),
+  )
+  return dedupeAgentIdsPreservingOrder(input.participantAgentIds).map(agentId => ({
+    agentId,
+    state: agentId === input.speakingAgentId
+      ? 'speaking'
+      : spoke.has(agentId)
+        ? 'spoke'
+        : 'waiting',
+  }))
+}
+
+/** Turnos de agente ya cerrados (las intervenciones humanas no cuentan). */
+export function brainstormTurnsDone(messages: readonly BrainstormMessage[]): number {
+  return messages.filter(message => !isBrainstormHumanMessage(message)).length
 }
 
 /** Turnos totales de la tirada: participantes × rondas. */

@@ -330,6 +330,8 @@ export async function runBrainstormSequence(
       deps.buildWorkingSet?.(room),
     )
 
+    deps.emit({ type: 'speaker_start', agentId: agent.id, round: speakRound })
+
     const result = await deps.runSpeakerTurn({
       paneId,
       agent,

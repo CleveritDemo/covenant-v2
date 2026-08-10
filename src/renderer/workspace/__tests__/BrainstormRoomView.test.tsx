@@ -90,7 +90,8 @@ describe('BrainstormRoomView chat bubbles', () => {
     )
 
     expect(screen.getByText('Ship the chat UI')).toBeTruthy()
-    expect(screen.getByText('Atlas')).toBeTruthy()
+    // El nombre sale en la entrada y en el panel de asientos.
+    expect(screen.getAllByText('Atlas').length).toBeGreaterThan(0)
     expect(screen.getByText('Round 1')).toBeTruthy()
     expect(screen.getByText('First take from Atlas.')).toBeTruthy()
     expect(document.querySelectorAll('.brainstorm-room-view__bubble').length).toBe(2)
@@ -255,7 +256,7 @@ describe('BrainstormRoomView chat bubbles', () => {
       />,
     )
 
-    expect(screen.getByText('David')).toBeTruthy()
+    expect(screen.getAllByText('David').length).toBeGreaterThan(0)
     expect(screen.getByText('Unknown participant (frontend)')).toBeTruthy()
     expect(screen.getByText(
       'Saved participants missing from the catalog (skipped): frontend',

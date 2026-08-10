@@ -29,6 +29,7 @@ export type IconName =
   | 'chevron-right'
   | 'check'
   | 'refresh'
+  | 'upload'
   | 'bot'
   | 'workspace'
   | 'users'
@@ -249,6 +250,13 @@ const ICONS: Record<IconName, IconRenderer> = {
       <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
       <path d="M3 22v-6h6" />
       <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+    </svg>
+  ),
+  upload: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 16V5" />
+      <path d="M8 8l4-4 4 4" />
+      <path d="M4 19h16" />
     </svg>
   ),
   bot: size => (

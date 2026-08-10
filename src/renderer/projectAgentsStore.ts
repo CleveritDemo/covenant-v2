@@ -7,6 +7,7 @@ import type {
 } from '@shared/tabSession'
 import {
   resolveAgentPaneMeta,
+  sortProjectAgentsByPlaneOrder,
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
 import { tabAgentCatalogKey } from '@shared/covenantTypes'
@@ -38,8 +39,16 @@ export function upsertAgentInList(
   agents: ProjectAgentDefinition[],
   next: ProjectAgentDefinition,
 ): ProjectAgentDefinition[] {
-  const without = agents.filter(agent => agent.id !== next.id)
-  return [...without, next].sort((a, b) => a.id.localeCompare(b.id))
+  const index = agents.findIndex(agent => agent.id === next.id)
+  if (index >= 0) {
+    const copy = [...agents]
+    copy[index] = next
+    return sortProjectAgentsByPlaneOrder(copy, agents.map(agent => agent.id))
+  }
+  return sortProjectAgentsByPlaneOrder(
+    [...agents, next],
+    [...agents.map(agent => agent.id), next.id],
+  )
 }
 
 export function mergeRemoteAgentsWithLocalOnly(
@@ -50,7 +59,13 @@ export function mergeRemoteAgentsWithLocalOnly(
   const localOnly = (existingAgents ?? []).filter(agent => (
     agent.localOnly === true && !remoteIds.has(agent.id)
   ))
-  return [...remoteAgents, ...localOnly].sort((a, b) => a.id.localeCompare(b.id))
+  const preferredIds = [
+    ...remoteAgents.map(agent => agent.id),
+    ...((existingAgents ?? [])
+      .map(agent => agent.id)
+      .filter(id => !remoteIds.has(id))),
+  ]
+  return sortProjectAgentsByPlaneOrder([...remoteAgents, ...localOnly], preferredIds)
 }
 
 export interface SyncTabAgentsFromCatalogOptions {

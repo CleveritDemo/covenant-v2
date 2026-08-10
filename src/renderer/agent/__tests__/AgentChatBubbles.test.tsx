@@ -64,6 +64,37 @@ describe('AgentChatBubbles markdown + collapse', () => {
     expect(document.querySelector('.agent-pane__bubble-plain')).toBeNull()
   })
 
+  it('keeps user sentence punctuation in one plain block (no AiMarkdown split)', () => {
+    renderBubbles([
+      {
+        id: 'u-sentences',
+        role: 'user',
+        content: 'Uno. Dos. Tres.',
+      },
+    ])
+    const plain = document.querySelector('.agent-pane__bubble-plain')
+    expect(plain).not.toBeNull()
+    expect(plain?.textContent).toBe('Uno. Dos. Tres.')
+    expect(document.querySelector('.ai-md')).toBeNull()
+    expect(document.querySelectorAll('.ai-md__p')).toHaveLength(0)
+  })
+
+  it('splits assistant sentences into separate markdown paragraphs', () => {
+    renderBubbles([
+      {
+        id: 'a-sentences',
+        role: 'assistant',
+        content: 'Uno. Dos. Tres.',
+      },
+    ])
+    expect(document.querySelector('.agent-pane__bubble-plain')).toBeNull()
+    const paragraphs = document.querySelectorAll('.ai-md__p')
+    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs[0]?.textContent).toBe('Uno.')
+    expect(paragraphs[1]?.textContent).toBe('Dos.')
+    expect(paragraphs[2]?.textContent).toBe('Tres.')
+  })
+
   it('does not show Show more for a short user message', () => {
     renderBubbles([
       {

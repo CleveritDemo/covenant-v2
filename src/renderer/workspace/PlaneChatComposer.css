@@ -33,13 +33,21 @@
   pointer-events: auto;
 }
 
+/* Cola en el dock inferior: compacta, con tope, sin invadir el chat central. */
 .plane-chat-composer__queue {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  align-content: flex-start;
   gap: 5px;
-  padding: 10px 10px 2px;
+  max-height: 52px;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 4px 10px 2px;
   pointer-events: auto;
+  scrollbar-width: thin;
 }
 
 .plane-chat-composer__agents {
@@ -176,7 +184,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  max-width: min(100%, 360px);
+  flex: 0 1 auto;
+  max-width: min(100%, 220px);
   padding: 2px 4px 2px 2px;
   border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 55%, var(--bg-secondary));
   border-radius: 14px 14px 4px 14px;
@@ -259,23 +268,24 @@
   opacity: 1;
 }
 
-/* Acción de fusión: arriba de las burbujas, mismo lenguaje que la cola. */
+/* Acción de fusión: secundaria/discreta; no compite con el envío. */
 .plane-chat-composer__queue-merge {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 55%, var(--bg-secondary));
+  border: 1px dashed color-mix(in srgb, var(--plane-composer-accent) 35%, var(--bg-secondary));
   border-radius: 10px;
-  background: color-mix(in srgb, var(--plane-composer-accent) 24%, var(--bg-secondary));
+  background: transparent;
   color: var(--text);
   font-size: 10px;
   line-height: 1.4;
-  opacity: 1;
+  opacity: 0.7;
   cursor: pointer;
 }
 
 .plane-chat-composer__queue-merge:hover {
-  background: color-mix(in srgb, var(--plane-composer-accent) 36%, var(--bg-secondary));
+  opacity: 1;
+  background: color-mix(in srgb, var(--plane-composer-accent) 12%, transparent);
 }
 
 /* ─── Contextos adjuntos al turno (drop desde el pool) ─────────────────── */

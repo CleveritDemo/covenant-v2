@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { TabSession } from '@shared/tabSession'
-import { covenantWorkspaceCatalogKey } from '@shared/covenantTypes'
 import {
   mergeRemoteAgentsWithLocalOnly,
   resolveTabAgentMeta,
@@ -50,6 +49,52 @@ describe('syncTabAgentsFromCatalog', () => {
       'new-2': { agentId: 'example2' },
     })
     expect(result.tab.paneKinds?.['term-1']).toBe('terminal')
+  })
+
+  it('remote catalog order → panes; keeps local pane order for existing agents', () => {
+    let n = 0
+    const kept = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['a-fe', 'a-qa'],
+        activePaneId: 'a-qa',
+        paneKinds: { 'a-fe': 'agent', 'a-qa': 'agent' },
+        agentByPane: {
+          'a-fe': { agentId: 'frontend' },
+          'a-qa': { agentId: 'qa' },
+        },
+      }),
+      [
+        { id: 'qa', provider: 'claude', permissionMode: 'auto', order: 0 },
+        { id: 'frontend', provider: 'claude', permissionMode: 'auto', order: 1 },
+        { id: 'backend', provider: 'claude', permissionMode: 'auto', order: 2 },
+      ],
+      {
+        maxPanes: 10,
+        createPaneId: () => `new-${++n}`,
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+    expect(kept.tab.paneIds).toEqual(['a-fe', 'a-qa', 'new-1'])
+    expect(kept.tab.agentByPane?.['a-fe']?.agentId).toBe('frontend')
+    expect(kept.tab.agentByPane?.['a-qa']?.agentId).toBe('qa')
+    expect(kept.tab.agentByPane?.['new-1']?.agentId).toBe('backend')
+
+    const fresh = syncTabAgentsFromCatalog(
+      baseTab({ paneIds: [], activePaneId: '' }),
+      [
+        { id: 'qa', provider: 'claude', permissionMode: 'auto', order: 0 },
+        { id: 'frontend', provider: 'claude', permissionMode: 'auto', order: 1 },
+        { id: 'backend', provider: 'claude', permissionMode: 'auto', order: 2 },
+      ],
+      {
+        maxPanes: 10,
+        createPaneId: () => `new-${++n}`,
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+    expect(fresh.tab.agentByPane?.['new-2']?.agentId).toBe('qa')
+    expect(fresh.tab.agentByPane?.['new-3']?.agentId).toBe('frontend')
+    expect(fresh.tab.agentByPane?.['new-4']?.agentId).toBe('backend')
   })
 
   it('reuses pane ids and cliSessionId when agentId already exists', () => {
@@ -244,7 +289,7 @@ describe('mergeRemoteAgentsWithLocalOnly', () => {
 
 describe('resolveTabAgentMeta org (TAREA 0 timing)', () => {
   it('catálogo vacío → fallback sin name; mismo agentId con catálogo → name real', () => {
-    const catalogKey = covenantWorkspaceCatalogKey('acme', 'ws-1')
+    const catalogKey = '/tmp/x'
     const tab = baseTab({
       projectFolder: '/tmp/x',
       orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },

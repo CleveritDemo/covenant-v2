@@ -26,6 +26,17 @@ export type OrgWorkspaceCatalogWorkspaceInput = {
   canAccess?: boolean
 }
 
+/** GitHub logins: trim + case-insensitive. */
+export function normalizeGithubLogin(login: string): string {
+  return login.trim().toLowerCase()
+}
+
+export function sameGithubLogin(a: string, b: string): boolean {
+  const left = normalizeGithubLogin(a)
+  if (!left) return false
+  return left === normalizeGithubLogin(b)
+}
+
 export function catalogHasWorkspaces(cat?: OrgWorkspaceCatalog | null): boolean {
   return Boolean(cat && cat.entries.length > 0)
 }
@@ -35,9 +46,9 @@ export function catalogForLogin(
   cat: OrgWorkspaceCatalog | null | undefined,
   login: string,
 ): OrgWorkspaceCatalog | null {
-  const normalized = login.trim()
+  const normalized = normalizeGithubLogin(login)
   if (!cat || !normalized) return null
-  if (cat.login.trim() !== normalized) return null
+  if (normalizeGithubLogin(cat.login) !== normalized) return null
   return cat
 }
 
@@ -61,11 +72,12 @@ export function canRenameOrgWorkspace(opts: {
   createdBy?: string
   admins?: readonly string[]
 }): boolean {
-  const login = opts.login.trim()
+  const login = normalizeGithubLogin(opts.login)
   if (!login) return false
-  if (opts.orgRole.trim() === 'owner' || opts.isOrgAdmin) return true
-  if ((opts.createdBy ?? '').trim() === login) return true
-  return (opts.admins ?? []).some(a => a.trim() === login)
+  const orgRole = opts.orgRole.trim()
+  if (orgRole === 'owner' || orgRole === 'admin' || opts.isOrgAdmin) return true
+  if (sameGithubLogin(opts.createdBy ?? '', login)) return true
+  return (opts.admins ?? []).some(a => sameGithubLogin(a, login))
 }
 
 /**
@@ -80,14 +92,15 @@ export function canAccessOrgWorkspace(opts: {
   admins?: readonly string[]
   assignees?: readonly string[]
 }): boolean {
-  const login = opts.login.trim()
+  const login = normalizeGithubLogin(opts.login)
   if (!login) return false
-  if (opts.orgRole.trim() === 'owner' || opts.orgRole.trim() === 'admin' || opts.isOrgAdmin) {
+  const orgRole = opts.orgRole.trim()
+  if (orgRole === 'owner' || orgRole === 'admin' || opts.isOrgAdmin) {
     return true
   }
-  if ((opts.createdBy ?? '').trim() === login) return true
-  if ((opts.admins ?? []).some(a => a.trim() === login)) return true
-  return (opts.assignees ?? []).some(a => a.trim() === login)
+  if (sameGithubLogin(opts.createdBy ?? '', login)) return true
+  if ((opts.admins ?? []).some(a => sameGithubLogin(a, login))) return true
+  return (opts.assignees ?? []).some(a => sameGithubLogin(a, login))
 }
 
 export function buildOrgWorkspaceCatalog(

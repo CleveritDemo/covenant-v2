@@ -37,6 +37,7 @@ describe('catalogForLogin', () => {
   it('devuelve el catálogo si el login coincide', () => {
     expect(catalogForLogin(cat, 'alice')).toBe(cat)
     expect(catalogForLogin(cat, ' alice ')).toBe(cat)
+    expect(catalogForLogin(cat, 'Alice')).toBe(cat)
   })
 
   it('null si el login no coincide', () => {
@@ -69,6 +70,11 @@ describe('canRenameOrgWorkspace', () => {
     })).toBe(true)
     expect(canRenameOrgWorkspace({
       login: 'carol',
+      orgRole: 'admin',
+      isOrgAdmin: false,
+    })).toBe(true)
+    expect(canRenameOrgWorkspace({
+      login: 'carol',
       orgRole: 'member',
       isOrgAdmin: false,
       createdBy: 'carol',
@@ -81,48 +87,19 @@ describe('canRenameOrgWorkspace', () => {
     })).toBe(true)
   })
 
-  describe('canAccessOrgWorkspace', () => {
-    it('permite managers de org y participantes del workspace', () => {
-      expect(canAccessOrgWorkspace({
-        login: 'owner',
-        orgRole: 'owner',
-        isOrgAdmin: false,
-      })).toBe(true)
-      expect(canAccessOrgWorkspace({
-        login: 'admin',
-        orgRole: 'member',
-        isOrgAdmin: true,
-      })).toBe(true)
-      expect(canAccessOrgWorkspace({
-        login: 'creator',
-        orgRole: 'member',
-        isOrgAdmin: false,
-        createdBy: 'creator',
-      })).toBe(true)
-      expect(canAccessOrgWorkspace({
-        login: 'lead',
-        orgRole: 'member',
-        isOrgAdmin: false,
-        admins: ['lead'],
-      })).toBe(true)
-      expect(canAccessOrgWorkspace({
-        login: 'dev',
-        orgRole: 'member',
-        isOrgAdmin: false,
-        assignees: ['dev'],
-      })).toBe(true)
-    })
-
-    it('niega miembros de org no asignados al workspace', () => {
-      expect(canAccessOrgWorkspace({
-        login: 'outsider',
-        orgRole: 'member',
-        isOrgAdmin: false,
-        createdBy: 'creator',
-        admins: ['lead'],
-        assignees: ['dev'],
-      })).toBe(false)
-    })
+  it('compara creator y workspace-admins sin importar casing', () => {
+    expect(canRenameOrgWorkspace({
+      login: 'RodrigoAnti',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      createdBy: 'rodrigoanti',
+    })).toBe(true)
+    expect(canRenameOrgWorkspace({
+      login: 'rodrigoanti',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      admins: ['RodrigoAnti'],
+    })).toBe(true)
   })
 
   it('niega assignees sin rol de manager', () => {
@@ -132,6 +109,83 @@ describe('canRenameOrgWorkspace', () => {
       isOrgAdmin: false,
       createdBy: 'alice',
       admins: ['bob'],
+    })).toBe(false)
+    expect(canRenameOrgWorkspace({
+      login: 'Erin',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      createdBy: 'alice',
+      admins: ['bob'],
+    })).toBe(false)
+  })
+})
+
+describe('canAccessOrgWorkspace', () => {
+  it('permite managers de org y participantes del workspace', () => {
+    expect(canAccessOrgWorkspace({
+      login: 'owner',
+      orgRole: 'owner',
+      isOrgAdmin: false,
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'orgadmin',
+      orgRole: 'admin',
+      isOrgAdmin: false,
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'admin',
+      orgRole: 'member',
+      isOrgAdmin: true,
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'creator',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      createdBy: 'creator',
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'lead',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      admins: ['lead'],
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'dev',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      assignees: ['dev'],
+    })).toBe(true)
+  })
+
+  it('compara creator, admins y assignees sin importar casing', () => {
+    expect(canAccessOrgWorkspace({
+      login: 'Alice',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      createdBy: 'alice',
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'bob',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      admins: ['Bob'],
+    })).toBe(true)
+    expect(canAccessOrgWorkspace({
+      login: 'Carol',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      assignees: ['carol'],
+    })).toBe(true)
+  })
+
+  it('niega miembros de org no asignados al workspace', () => {
+    expect(canAccessOrgWorkspace({
+      login: 'outsider',
+      orgRole: 'member',
+      isOrgAdmin: false,
+      createdBy: 'creator',
+      admins: ['lead'],
+      assignees: ['dev'],
     })).toBe(false)
   })
 })

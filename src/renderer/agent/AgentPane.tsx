@@ -40,6 +40,7 @@ import {
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
 } from '@shared/agentOrchestration'
+import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
@@ -189,8 +190,11 @@ interface Props {
   tabContexts?: TabContext[]
   /** Workspace org: contexts se borran/crean vía backend, no disco. */
   orgWorkspace?: { slug: string; workspaceId: string }
-  /** El CLI del orquestador emitió delegaciones. */
-  onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
+  /** El CLI del orquestador emitió delegaciones (jobId = dueño del turno en turbo). */
+  onOrchestratorDelegations?: (
+    delegations: DelegateRequest[],
+    orchestrationJobId?: string,
+  ) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
   onOrchestratorStop?: () => void
   /** Stop por fila en Waiting: cancela solo esa delegación. */
@@ -400,7 +404,7 @@ export const AgentPane: React.FC<Props> = ({
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
   /**
    * Catálogo vivo de contextos para este pane.
-   * Personal: discover de `.gravity/*.md`. Org: `tabContexts` desde App/API.
+   * Personal y org local-first: discover de `.gravity/*.md`.
    */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
@@ -557,11 +561,6 @@ export const AgentPane: React.FC<Props> = ({
     discovered: TabContext[],
     idRemap?: Record<string, string>,
   ): void => {
-    // Org: SSOT = catálogo API. No mergear notes (ni el catálogo) desde disco.
-    if (orgWorkspaceRef.current) {
-      discoveryHydratedRef.current = true
-      return
-    }
     commitContextsCatalog(discovered)
     const discoveredIds = new Set(
       withCatalogAgentResultContexts(discovered, projectAgentsRef.current).map(context => context.id),
@@ -615,11 +614,6 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const refreshDiskContexts = useCallback(async (): Promise<void> => {
-    // Org: refrescar vía App (API), no discover de `.gravity`.
-    if (orgWorkspaceRef.current) {
-      onProjectContextsChangedRef.current?.()
-      return
-    }
     const resolvedCwd = await resolveWorkingCwd()
     // Siempre descubrir (migración canónica en disco), aunque el cwd no cambie.
     prepareContextDiscovery(resolvedCwd)
@@ -839,11 +833,6 @@ export const AgentPane: React.FC<Props> = ({
   // Al abrir config, refrescar contextos y asegurar results del agente.
   useEffect(() => {
     if (!configOpen) return
-    // Org: catálogo vía API (App). No discover local ni ensure de results en disco.
-    if (orgWorkspaceRef.current) {
-      onProjectContextsChangedRef.current?.()
-      return
-    }
     void (async () => {
       await refreshDiskContexts()
       const resolvedCwd = await resolveWorkingCwd()
@@ -985,13 +974,6 @@ export const AgentPane: React.FC<Props> = ({
     return () => throttler.dispose()
   }, [])
 
-  // Org: hidratar catálogo desde App (API) + results sintéticos del catálogo de agentes.
-  useEffect(() => {
-    if (!orgWorkspace?.slug?.trim() || !orgWorkspace?.workspaceId?.trim()) return
-    commitContextsCatalog(tabContexts)
-    discoveryHydratedRef.current = true
-  }, [commitContextsCatalog, orgWorkspace?.slug, orgWorkspace?.workspaceId, paneId, tabContexts])
-
   // Si cambia el catálogo de agentes, re-mezclar results (altas/bajas/renombres).
   useEffect(() => {
     setDiskContexts(previous => {
@@ -1006,9 +988,8 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [projectAgents])
 
-  // Personal: catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
+  // Catálogo = disco. Se refresca al cambiar cwd y al abrir el gestor.
   useEffect(() => {
-    if (orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim()) return
     let cancelled = false
     void resolveWorkingCwd().then(async resolvedCwd => {
       if (cancelled) return
@@ -1027,8 +1008,6 @@ export const AgentPane: React.FC<Props> = ({
     contextsOpen,
     contextsRevision,
     cwd,
-    orgWorkspace?.slug,
-    orgWorkspace?.workspaceId,
     prepareContextDiscovery,
     resolveWorkingCwd,
   ])
@@ -1083,17 +1062,8 @@ export const AgentPane: React.FC<Props> = ({
     const resolvedCwd = await resolveWorkingCwd()
 
     if (assigned.length && resolvedCwd) {
-      const isOrg = Boolean(orgWorkspaceRef.current)
       const previews = await Promise.all(
         assigned.map(context => {
-          // Org notes: body desde caché API; no preview/materialize a disco.
-          if (isOrg && context.kind === 'notes') {
-            const body = workspaceContextBody(context.id)
-            return Promise.resolve({
-              ok: Boolean(body.trim()),
-              content: body,
-            })
-          }
           const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
           return window.api.previewTabContext({
             context,
@@ -1236,11 +1206,14 @@ export const AgentPane: React.FC<Props> = ({
             ...(roundInfo?.workStyle === 'turbo'
               ? { orchestrationWorkStyle: 'turbo' as const }
               : {}),
-            ...(roundInfo?.jobId?.trim()
-              ? { orchestrationJobId: roundInfo.jobId.trim() }
-              : options.orchestrationJobId?.trim()
-                ? { orchestrationJobId: options.orchestrationJobId.trim() }
-                : {}),
+            // Explicit follow-up/request jobId wins over pane “active” (turbo race).
+            ...(() => {
+              const jobId = resolveOrchestrationJobIdForTurn(
+                options.orchestrationJobId,
+                roundInfo?.jobId,
+              )
+              return jobId ? { orchestrationJobId: jobId } : {}
+            })(),
             ...(options.allowDelegations === false ? { allowDelegations: false } : {}),
             ...(roundInfo && roundInfo.round > 0
               ? {
@@ -1431,7 +1404,11 @@ export const AgentPane: React.FC<Props> = ({
       if (event.delegations.length > 0) {
         nestedDelegationsDispatchedThisTurnRef.current = true
       }
-      onOrchestratorDelegationsRef.current?.(event.delegations)
+      const jobId = resolveOrchestrationJobIdForTurn(
+        event.orchestrationJobId,
+        lastTurnRequestRef.current?.orchestrationJobId,
+      )
+      onOrchestratorDelegationsRef.current?.(event.delegations, jobId)
       if (event.delegations.length) {
         const names = event.delegations
           .map(item => item.toAgentId)
@@ -2378,7 +2355,6 @@ export const AgentPane: React.FC<Props> = ({
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
         contextNotice={contextNotice}
-        orgWorkspace={orgWorkspace}
         onClose={() => {
           // Desbloquear + suppress post-cierre (click-through al mini del plano).
           onConfigClose?.()
@@ -2531,7 +2507,6 @@ export const AgentPane: React.FC<Props> = ({
         contexts={diskContexts}
         agents={projectAgents}
         cwd={cwd}
-        orgWorkspace={orgWorkspace}
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}
         onRefresh={() => { void refreshDiskContexts() }}

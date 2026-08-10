@@ -112,15 +112,11 @@ export function covenantWorkspaceCatalogKey(slug: string, workspaceId: string): 
   return `covenant://workspaces/${encodeURIComponent(slug)}/${encodeURIComponent(workspaceId)}`
 }
 
-/** Clave del catálogo de agentes de una pestaña (org-backed o projectFolder). */
+/** Clave del catálogo de agentes de una pestaña (projectFolder local-first). */
 export function tabAgentCatalogKey(tab: {
   projectFolder?: string
   orgWorkspace?: { slug: string; workspaceId: string }
 }): string {
-  const org = tab.orgWorkspace
-  const slug = org?.slug?.trim() ?? ''
-  const workspaceId = org?.workspaceId?.trim() ?? ''
-  if (slug && workspaceId) return covenantWorkspaceCatalogKey(slug, workspaceId)
   return tab.projectFolder?.trim() ?? ''
 }
 

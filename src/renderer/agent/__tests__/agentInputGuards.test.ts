@@ -52,6 +52,24 @@ describe('agent input anti-collision guards', () => {
     })).toBe(false)
   })
 
+  it('turbo still blocks drain when system follow-ups are pending', () => {
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      awaitingDelegations: true,
+      systemFollowUpsPending: true,
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(false)
+  })
+
+  it('turbo still blocks human-head drain when delegationWorkActive', () => {
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      awaitingDelegations: true,
+      delegationWorkActive: true,
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(false)
+  })
+
   it('does not drain while system follow-ups are pending', () => {
     expect(canDrainAgentQueue({
       ...idleBase,

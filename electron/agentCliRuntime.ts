@@ -1242,7 +1242,12 @@ export function startAgentTurn(
               ? extractAiAgentDelegates(afterResults)
               : { visibleText: afterResults, delegations: [] }
             if (delegations.length && request.allowDelegations !== false) {
-              send(win, request.paneId, { type: 'delegate', delegations })
+              const jobId = request.orchestrationJobId?.trim()
+              send(win, request.paneId, {
+                type: 'delegate',
+                delegations,
+                ...(jobId ? { orchestrationJobId: jobId } : {}),
+              })
               // Un evento por delegación: el roster cuenta emitidas del
               // orquestador y recibidas del ejecutor con los mismos registros.
               for (const delegation of delegations) {

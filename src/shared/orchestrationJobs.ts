@@ -111,6 +111,20 @@ export function supersedeOrchestrationJobsForHumanTurn(
 }
 
 /**
+ * Prioridad de jobId para un turno: el explícito del follow-up/request gana
+ * sobre el “activo” del pane (que puede fliparse al despertar otro job en turbo).
+ */
+export function resolveOrchestrationJobIdForTurn(
+  optionsJobId?: string | null,
+  activeJobId?: string | null,
+): string | undefined {
+  const fromOptions = optionsJobId?.trim()
+  if (fromOptions) return fromOptions
+  const fromActive = activeJobId?.trim()
+  return fromActive || undefined
+}
+
+/**
  * True solo si el job sigue vivo en el mapa y no está superseded.
  * Usar antes de encolar formatDelegationResultFollowUp / batch wake.
  */

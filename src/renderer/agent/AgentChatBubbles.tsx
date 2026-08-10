@@ -12,12 +12,7 @@ import { flushSync } from 'react-dom'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
-import { AiMarkdown } from '../components/AiMarkdown'
-import { AiCodeBlock } from '../components/AiCodeBlock'
-import {
-  splitAssistantBody,
-  stripAgentControlFences,
-} from '../components/ai/assistantBodySegments'
+import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
 import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
@@ -43,31 +38,13 @@ const BubbleBody: React.FC<{
   live: boolean
   role: 'user' | 'assistant'
 }> = ({ content, live, role }) => {
+  // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
     return <div className="agent-pane__bubble-plain">{content}</div>
   }
-  const raw = stripAgentControlFences(content)
-  const segments = splitAssistantBody(raw)
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
-      {segments.map((segment, index) =>
-        segment.type === 'code' ? (
-          <AiCodeBlock
-            key={index}
-            lang={segment.lang}
-            content={segment.content}
-            isStreaming={live}
-            isLastSegment={index === segments.length - 1}
-            onInsert={() => undefined}
-          />
-        ) : (
-          <AiMarkdown
-            key={index}
-            content={segment.content}
-            showCursor={live && index === segments.length - 1}
-          />
-        ),
-      )}
+      <AssistantFormattedBody content={content} live={live} />
     </div>
   )
 }

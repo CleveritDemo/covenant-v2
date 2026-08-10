@@ -78,6 +78,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     ].filter(Boolean).join(' ')}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
+    {busy ? <PlaneBusyDot placement="corner" /> : null}
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">
         {showReorder ? (
@@ -126,7 +127,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         ) : null}
       </div>
       <div className="plane-mini-face__header-end">
-        {busy ? <PlaneBusyDot /> : null}
         {onConfigure && configLabel ? (
           <button
             type="button"

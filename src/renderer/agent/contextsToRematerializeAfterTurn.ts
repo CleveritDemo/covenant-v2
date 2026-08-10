@@ -2,15 +2,11 @@ import type { TabContext } from '@shared/tabContext'
 
 /**
  * Contextos a rematerializar tras un turno.
- * Org: nunca notes (SSOT = API + contextContents). Nunca agentResult (no pisar Latest/Log).
+ * Nunca agentResult (no pisar Latest/Log). Notes y el resto van a disco local-first.
  */
 export function contextsToRematerializeAfterTurn(
   assigned: readonly TabContext[],
-  options: { orgWorkspace: boolean },
+  _options?: { orgWorkspace?: boolean },
 ): TabContext[] {
-  return assigned.filter(context => {
-    if (context.kind === 'agentResult') return false
-    if (options.orgWorkspace && context.kind === 'notes') return false
-    return true
-  })
+  return assigned.filter(context => context.kind !== 'agentResult')
 }

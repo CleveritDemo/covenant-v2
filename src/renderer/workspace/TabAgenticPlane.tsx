@@ -18,6 +18,7 @@ import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
+import { PlaneUploadButton } from './PlaneUploadButton'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
@@ -37,7 +38,10 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import './TabAgenticPlane.css'
+
+type PendingWorkspaceAction = 'resync' | 'upload'
 
 export type { PlaneMapEntity }
 
@@ -139,6 +143,11 @@ export interface TabAgenticPlaneProps {
   resyncWorkspaceLabel?: string
   resyncWorkspaceBusy?: boolean
   canResyncWorkspace?: boolean
+  /** Sube agentes/contextos locales al backend (managers). */
+  onUploadWorkspace?: () => void
+  uploadWorkspaceLabel?: string
+  uploadWorkspaceBusy?: boolean
+  canUploadWorkspace?: boolean
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
@@ -295,6 +304,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   resyncWorkspaceLabel = '',
   resyncWorkspaceBusy = false,
   canResyncWorkspace = false,
+  onUploadWorkspace,
+  uploadWorkspaceLabel = '',
+  uploadWorkspaceBusy = false,
+  canUploadWorkspace = false,
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
@@ -373,6 +386,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // Pulse solo lee del store por IPC: no necesita nada del padre, así que su
   // estado se queda acá en vez de engordar las props de App.tsx.
   const [pulseOpen, setPulseOpen] = useState(false)
+  const [pendingWorkspaceAction, setPendingWorkspaceAction] = useState<PendingWorkspaceAction | null>(null)
 
   useLayoutEffect(() => {
     const el = planeRef.current
@@ -555,11 +569,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             emptyHint={projectFolderEmptyHint}
             onSelect={onSelectProjectFolder}
           />
+          {canUploadWorkspace && onUploadWorkspace ? (
+            <PlaneUploadButton
+              label={uploadWorkspaceLabel || ''}
+              busy={Boolean(uploadWorkspaceBusy)}
+              onClick={() => setPendingWorkspaceAction('upload')}
+            />
+          ) : null}
           {canResyncWorkspace && onResyncWorkspace ? (
             <PlaneResyncButton
               label={resyncWorkspaceLabel || ''}
               busy={Boolean(resyncWorkspaceBusy)}
-              onClick={() => onResyncWorkspace()}
+              onClick={() => setPendingWorkspaceAction('resync')}
             />
           ) : null}
           {canToggleExplorer ? (
@@ -808,6 +829,29 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       )}
 
       <PulseModal open={pulseOpen} onClose={() => setPulseOpen(false)} />
+
+      <ConfirmTerminalModal
+        open={pendingWorkspaceAction !== null}
+        active={tabActive}
+        zIndex={APP_OVERLAY_MODAL_Z}
+        message={
+          pendingWorkspaceAction === 'upload'
+            ? t('tabs.uploadWorkspaceConfirmMessage')
+            : t('tabs.resyncWorkspaceConfirmMessage')
+        }
+        detail={
+          pendingWorkspaceAction === 'upload'
+            ? t('tabs.uploadWorkspaceConfirmDetail')
+            : t('tabs.resyncWorkspaceConfirmDetail')
+        }
+        onConfirm={() => {
+          const action = pendingWorkspaceAction
+          setPendingWorkspaceAction(null)
+          if (action === 'upload') onUploadWorkspace?.()
+          else if (action === 'resync') onResyncWorkspace?.()
+        }}
+        onCancel={() => setPendingWorkspaceAction(null)}
+      />
     </div>
   )
 }

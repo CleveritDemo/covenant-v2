@@ -4,6 +4,24 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.13
+
+- **Dot de workspace con agentes en marcha**: la pestaña del workspace muestra
+  actividad si cualquier agente dentro está ejecutando, en loop, delegado o
+  esperando delegaciones — aunque mires otro pane.
+- **Cola del composer sin tapar el chat**: los mensajes en cola quedan en el
+  dock inferior, compactos y con scroll, sin cubrir el centro de la conversación.
+
+## v0.39.12
+
+- **Workspaces org en local-first**: agentes y contextos viven en la carpeta del
+  proyecto (`.gravity`); al abrir o actualizar se materializan desde el servidor
+  al disco, igual que en un workspace personal.
+- **Subir cambios al workspace**: managers pueden publicar agentes y contextos
+  locales al workspace de la organización con confirmación previa.
+- **Actualizar workspace con aviso**: antes de reemplazar lo local por la versión
+  remota pide confirmación, para no pisar cambios sin querer.
+
 ## v0.39.11
 
 - **Repos org locales con carpeta configurada**: al detectar clones ya instalados

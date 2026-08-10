@@ -109,6 +109,8 @@ export type AgentCliUiEvent =
       objective: string
       contextIds?: string[]
     }>
+    /** Dueño del turno en turbo; evita mezclar olas entre jobs concurrentes. */
+    orchestrationJobId?: string
   }
   /** Cierre ordenado del turno en el mismo canal que el stream (evita carreras con EXIT). */
   | { type: 'done'; code: number }

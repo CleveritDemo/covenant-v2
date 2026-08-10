@@ -90,11 +90,6 @@ export interface AgentConfigModalProps {
   closeOnBackdrop?: boolean
   /** Tab activa: oculta el portal sin cerrar configOpen del padre. */
   active?: boolean
-  /**
-   * Workspace org: la config se persiste en Covenant, no en `.gravity/agents`.
-   * Si está definido, el pie muestra ese destino.
-   */
-  orgWorkspace?: { slug: string; workspaceId: string }
 }
 
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
@@ -129,7 +124,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   peerAgents = [],
   closeOnBackdrop = true,
   active = true,
-  orgWorkspace,
 }) => {
   const { t } = useT()
   const locked = busy || loopActive || awaitingDelegations
@@ -389,7 +383,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   }, [meta.provider, meta.permissionMode, meta.coordination, modelLabel, permissionLabel, selectedContextIds.length, cliStatuses, t])
 
   const catalogFile = `${PROJECT_DIR}/agents/${draft.id.trim() || 'agent'}.json`
-  const isOrgBacked = Boolean(orgWorkspace?.slug?.trim() && orgWorkspace?.workspaceId?.trim())
 
   return (
     <TerminalModal
@@ -426,8 +419,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
               <span className="agent-config-modal__save-error">
                 {t('agentPane.configSaveFailed', { error: saveError })}
               </span>
-            ) : isOrgBacked ? (
-              t('agentPane.configSaveOrg')
             ) : (
               <>
                 {t('agentPane.configSaveAuto')}

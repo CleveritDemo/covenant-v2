@@ -13,6 +13,7 @@ import {
   pendingOrchestratorIdsFromJobs,
   resolveOrchestrationWorkStyle,
   sanitizeOrchestrationWorkStyle,
+  resolveOrchestrationJobIdForTurn,
   shouldAbortOnHumanTurn,
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
@@ -313,5 +314,21 @@ describe('linear cleanup vs turbo parallel human jobs', () => {
     expect(shouldDeliverOrchestrationJobFollowUp(jobs, prior)).toBe(true)
     expect(shouldDeliverOrchestrationJobFollowUp(jobs, next)).toBe(true)
     expect(prior.superseded).toBeFalsy()
+  })
+
+  it('resolveOrchestrationJobIdForTurn prefers explicit follow-up over flipped active', () => {
+    expect(resolveOrchestrationJobIdForTurn('job-owner', 'job-other-active')).toBe('job-owner')
+    expect(resolveOrchestrationJobIdForTurn(undefined, 'job-active')).toBe('job-active')
+    expect(resolveOrchestrationJobIdForTurn('  ', 'job-active')).toBe('job-active')
+    expect(resolveOrchestrationJobIdForTurn(null, null)).toBeUndefined()
+  })
+
+  it('findJobByDelegation routes follow-ups to the owning turbo job only', () => {
+    const jobA = jobWithPending('orch', 'd-a', 'pane-a')
+    jobA.jobId = 'job-a'
+    const jobB = jobWithPending('orch', 'd-b', 'pane-b')
+    jobB.jobId = 'job-b'
+    expect(findJobByDelegation([jobA, jobB], 'd-a')?.jobId).toBe('job-a')
+    expect(findJobByDelegation([jobA, jobB], 'd-b')?.jobId).toBe('job-b')
   })
 })

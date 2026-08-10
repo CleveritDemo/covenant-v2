@@ -220,7 +220,7 @@
   border-top: 1px solid var(--plane-border);
 }
 
-/* Busy: sin glow; el indicador es PlaneBusyDot en el header. */
+/* Busy: sin glow; el indicador es PlaneBusyDot en la esquina. */
 .plane-mini-face--busy .plane-mini-face__glow {
   opacity: 0;
 }

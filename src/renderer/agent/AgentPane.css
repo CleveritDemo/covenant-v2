@@ -883,19 +883,19 @@ html[data-reduce-motion="true"] {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border: 1px dashed color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 35%, transparent);
   border-radius: 10px;
   background: transparent;
   color: var(--terminal-modal-text, #e6e6e6);
   font-size: calc(var(--agent-chat-font-size) * 0.75);
   line-height: 1.4;
-  opacity: 0.75;
+  opacity: 0.7;
   cursor: pointer;
 }
 
 .agent-pane__queue-merge:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 25%, transparent);
+  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 12%, transparent);
 }
 
 @keyframes agent-pane-queue-chip-in {

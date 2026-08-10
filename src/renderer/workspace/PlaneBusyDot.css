@@ -20,6 +20,15 @@
     plane-busy-dot-glow 1.7s ease-in-out infinite;
 }
 
+/* Esquina del padre `position: relative`; inset para no clippear con overflow. */
+.plane-busy-dot--corner {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  pointer-events: none;
+}
+
 @keyframes plane-busy-dot-spin {
   to { transform: rotate(360deg); }
 }

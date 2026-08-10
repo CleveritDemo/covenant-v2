@@ -83,6 +83,12 @@ export interface ProjectAgentDefinition {
   nativeSkills?: AgentNativeSkills
   /** Servidores MCP permitidos por id. Omitido = ninguno. */
   mcpsAllowed?: string[]
+  /**
+   * Orden del plano (0-based) para sync org vía definition JSON.
+   * Localmente el orden visual vive en `paneIds` (session); este campo viaja
+   * en upload/download cuando no hay endpoint de orden.
+   */
+  order?: number
 }
 
 /** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
@@ -362,6 +368,47 @@ export function sanitizeMcpsAllowed(raw: unknown): string[] | undefined {
   return list.length ? list : undefined
 }
 
+/** Entero ≥ 0 finito; undefined si ausente/inválido. */
+export function sanitizeAgentOrder(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  const n = Math.floor(raw)
+  return n >= 0 ? n : undefined
+}
+
+/**
+ * Ordena el catálogo: `order` explícito primero; sin `order`, `preferredIds`
+ * (p. ej. paneIds locales); resto por id estable.
+ */
+export function sortProjectAgentsByPlaneOrder<
+  T extends Pick<ProjectAgentDefinition, 'id' | 'order'>,
+>(
+  agents: readonly T[],
+  preferredIds?: readonly string[],
+): T[] {
+  const preferredIndex = new Map<string, number>()
+  if (preferredIds) {
+    for (const raw of preferredIds) {
+      const id = raw.trim()
+      if (!id || preferredIndex.has(id)) continue
+      preferredIndex.set(id, preferredIndex.size)
+    }
+  }
+  const rank = (agent: T): [number, number] => {
+    const order = sanitizeAgentOrder(agent.order)
+    if (order !== undefined) return [0, order]
+    const preferred = preferredIndex.get(agent.id)
+    if (preferred !== undefined) return [1, preferred]
+    return [2, 0]
+  }
+  return [...agents].sort((a, b) => {
+    const [ag, ai] = rank(a)
+    const [bg, bi] = rank(b)
+    if (ag !== bg) return ag - bg
+    if (ai !== bi) return ai - bi
+    return a.id.localeCompare(b.id)
+  })
+}
+
 /** Parsea y normaliza un JSON de catálogo; null si inválido. */
 export function parseProjectAgentDefinition(
   raw: unknown,
@@ -412,6 +459,8 @@ export function parseProjectAgentDefinition(
     ).filter(id => !isAgentOwnResultContext(def.id, id))
     if (contextIds.length) def.contextIds = contextIds
   }
+  const order = sanitizeAgentOrder(data.order)
+  if (order !== undefined) def.order = order
   if (data.autoImproveContexts === true) def.autoImproveContexts = true
   def.emitResults = true
   const coordination = sanitizeAgentCoordination(data.coordination)
@@ -461,6 +510,7 @@ export function cloneProjectAgentDefinition(
     ...(source.model ? { model: source.model } : {}),
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
+    // Clones no heredan order: van al final del plano hasta reorder/upload.
     emitResults: true,
     ...(source.coordination === 'orchestrator' || source.coordination === 'productOwner'
       ? { coordination: source.coordination }
@@ -591,6 +641,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     rules: normalizeAgentRules(meta.rules),
     model: meta.model,
     contextIds: meta.contextIds,
+    order: meta.order,
     autoImproveContexts: meta.autoImproveContexts,
     emitResults: true,
     coordination: meta.coordination,

@@ -1,5 +1,6 @@
 import {
   parseProjectAgentDefinition,
+  sortProjectAgentsByPlaneOrder,
   type ProjectAgentDefinition,
 } from './projectAgentCatalog'
 import {
@@ -172,6 +173,7 @@ export function orgWorkspacePersistContext(args: {
 /** Convierte agentes del backend a definiciones de catálogo en memoria. */
 export function projectAgentsFromWorkspaceAgents(
   items: readonly CovenantWorkspaceAgentRecord[],
+  preferredIds?: readonly string[],
 ): ProjectAgentDefinition[] {
   const out: ProjectAgentDefinition[] = []
   for (const item of items) {
@@ -184,7 +186,7 @@ export function projectAgentsFromWorkspaceAgents(
     const parsed = parseProjectAgentDefinition(raw, agentId)
     if (parsed) out.push(parsed)
   }
-  return out.sort((a, b) => a.id.localeCompare(b.id))
+  return sortProjectAgentsByPlaneOrder(out, preferredIds)
 }
 
 /** Convierte contextos del backend a TabContext en memoria (sin filesystem). */

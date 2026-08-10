@@ -10,17 +10,10 @@ import {
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { isContextDraftDirty } from '@shared/contextDraftDirty'
 import { PROJECT_DIR } from '@shared/projectDir'
-import {
-  orgWorkspacePersistContext,
-  rememberWorkspaceContextBody,
-  workspaceContextBody,
-  workspaceContextUpsertPayload,
-} from '@shared/orgWorkspaceContent'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import { TerminalModal } from '../components/TerminalModal'
 import { TabContextsEditor, type PreviewState } from './TabContextsEditor'
-import { getCovenantApi, hasCovenantWorkspaceContentApi } from '../covenantApi'
 
 export type TabContextFormMode = 'create' | 'edit'
 
@@ -31,8 +24,6 @@ interface Props {
   context: TabContext | null
   contexts: TabContext[]
   cwd: string
-  /** Si está, persiste vía API de workspace org en lugar del disco. */
-  orgWorkspace?: { slug: string; workspaceId: string }
   onRefresh: () => void
   onClose: () => void
 }
@@ -96,7 +87,6 @@ export const TabContextFormModal: React.FC<Props> = ({
   context,
   contexts,
   cwd,
-  orgWorkspace,
   onRefresh,
   onClose,
 }) => {
@@ -142,27 +132,13 @@ export const TabContextFormModal: React.FC<Props> = ({
     if (target.kind !== 'notes' && target.kind !== 'changelog' && target.kind !== 'agentResult') {
       return
     }
-    if (orgWorkspace && target.kind === 'notes') {
-      const body = workspaceContextBody(target.id)
-      // Forma funcional: si el usuario ya escribió algo mientras esto resolvía
-      // (el textarea puede tener foco antes de que llegue el body real), no se
-      // lo pisamos, y tampoco se toca el baseline de `isDirty` en ese caso —
-      // el usuario ya está, legítimamente, en un estado sucio.
-      setNotesContent(current => {
-        if (current !== '') return current
-        notesInitialContentRef.current = body
-        return body
-      })
-      return
-    }
     const workingCwd = await resolveCwd()
     if (!workingCwd) return
     try {
       const result = await window.api.previewTabContext({ context: target, cwd: workingCwd })
       if (target.kind === 'notes' && result.ok) {
         const body = result.notesContent ?? result.content
-        // Misma protección que en la rama de workspace org: no pisar lo que
-        // el usuario ya haya tecleado en la ventana entre abrir el modal y
+        // No pisar lo que el usuario ya haya tecleado entre abrir el modal y
         // que resuelva el IPC.
         setNotesContent(current => {
           if (current !== '') return current
@@ -352,57 +328,6 @@ export const TabContextFormModal: React.FC<Props> = ({
       return false
     }
     const normalized = normalizeDraft(current)
-
-    if (orgWorkspace) {
-      const covenant = getCovenantApi()
-      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
-        setPreview({ status: 'error', message: t('tabContexts.previewError') })
-        return false
-      }
-      const body = normalized.kind === 'notes' ? (notesContentRef.current ?? '') : ''
-      // Prefer stable org API id on rename (PUT same contextId). Fallback:
-      // workspaceContextRename = PUT(newId)+DELETE(old) when ids diverge.
-      const previousId = modeRef.current === 'edit' ? (originalIdRef.current ?? '').trim() : ''
-      const { persistId, context: persistContext } = orgWorkspacePersistContext({
-        mode: modeRef.current,
-        originalId: previousId,
-        normalized,
-      })
-      const payload = workspaceContextUpsertPayload(persistContext, body)
-      try {
-        const result = previousId && previousId !== persistId && typeof covenant.workspaceContextRename === 'function'
-          ? await covenant.workspaceContextRename(
-            orgWorkspace.slug,
-            orgWorkspace.workspaceId,
-            previousId,
-            persistId,
-            payload,
-          )
-          : await covenant.workspaceContextUpsert(
-            orgWorkspace.slug,
-            orgWorkspace.workspaceId,
-            persistId,
-            payload,
-          )
-        if (!result.ok) {
-          setPreview({
-            status: 'error',
-            message: result.error || t('tabContexts.previewError'),
-          })
-          return false
-        }
-        rememberWorkspaceContextBody(persistId, body)
-        onRefresh()
-        onClose()
-        return true
-      } catch (error) {
-        setPreview({
-          status: 'error',
-          message: error instanceof Error ? error.message : t('tabContexts.previewError'),
-        })
-        return false
-      }
-    }
 
     const workingCwd = await resolveCwd()
     if (!workingCwd) {

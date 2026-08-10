@@ -8,6 +8,7 @@ import {
   planAgentCatalogMigration,
   projectAgentFileName,
   remapAgentResultContextIds,
+  sortProjectAgentsByPlaneOrder,
   type ProjectAgentDefinition,
 } from '../src/shared/projectAgentCatalog'
 import { projectDirPath } from './projectDir'
@@ -47,7 +48,7 @@ export function listProjectAgents(cwd: string): ProjectAgentDefinition[] {
       if (parsed) out.push(parsed)
     } catch { /* skip corrupt */ }
   }
-  return out
+  return sortProjectAgentsByPlaneOrder(out)
 }
 
 export function upsertProjectAgent(

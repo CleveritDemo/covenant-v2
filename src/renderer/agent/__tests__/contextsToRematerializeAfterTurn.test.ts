@@ -22,10 +22,10 @@ const results: TabContext = {
 }
 
 describe('contextsToRematerializeAfterTurn', () => {
-  it('skips notes and agentResult when orgWorkspace', () => {
+  it('keeps notes for org local-first; still skips agentResult', () => {
     expect(contextsToRematerializeAfterTurn([notes, folder, results], {
       orgWorkspace: true,
-    })).toEqual([folder])
+    })).toEqual([notes, folder])
   })
 
   it('keeps local notes writes; still skips agentResult', () => {

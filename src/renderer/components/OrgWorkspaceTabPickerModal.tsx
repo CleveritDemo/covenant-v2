@@ -19,7 +19,7 @@ import {
   tabContextsFromWorkspaceContexts,
 } from '../../shared/orgWorkspaceContent'
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
-import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
+import { canAccessOrgWorkspace, sameGithubLogin } from '../../shared/orgWorkspaceCatalog'
 import type { ProjectAgentDefinition } from '../../shared/projectAgentCatalog'
 import type { TabContext } from '../../shared/tabContext'
 import './OrganizationsModal.css'
@@ -116,11 +116,12 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         if (!slug) continue
         const list = await covenant.workspacesList(slug)
         if (!list.ok || cancelled) continue
-        let isOrgAdmin = org.role?.trim() === 'owner' || org.role?.trim() === 'admin'
+        const orgRole = org.role?.trim() ?? ''
+        let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
         if (!isOrgAdmin && hasCovenantOrgAdminsApi(covenant)) {
           const admins = await covenant.orgAdminsList(slug)
           if (cancelled) return
-          if (admins.ok) isOrgAdmin = admins.data.some(a => a.trim() === login)
+          if (admins.ok) isOrgAdmin = admins.data.some(a => sameGithubLogin(a, login))
         }
         for (const workspace of list.data as CovenantWorkspace[]) {
           const workspaceId = workspace.id?.trim()

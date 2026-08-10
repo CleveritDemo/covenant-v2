@@ -13,9 +13,11 @@ export type OrgWorkspaceRequirementState = {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
   workspaceRenameError?: string
+  uploadError?: string
 }
 
 interface Props {
@@ -26,9 +28,11 @@ interface Props {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
   workspaceRenameError?: string
+  uploadError?: string
   onClose: () => void
   onOpenSettings: () => void
 }
@@ -139,18 +143,22 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloneFailure,
   cloning = false,
   syncing = false,
+  uploading = false,
   agentDeleteError,
   agentUpdateError,
   workspaceRenameError,
+  uploadError,
   onClose,
   onOpenSettings,
 }) => {
   const { t } = useT()
   const [ssoOpenFailedUrl, setSsoOpenFailedUrl] = useState<string | null>(null)
-  const busy = cloning || syncing
-  const statusLabel = syncing
-    ? t('organizations.reqSyncing')
-    : t('organizations.loading')
+  const busy = cloning || syncing || uploading
+  const statusLabel = uploading
+    ? t('organizations.reqUploading')
+    : syncing
+      ? t('organizations.reqSyncing')
+      : t('organizations.loading')
   const legacyCloneRaw = !cloneFailure && cloneError?.trim() ? cloneError.trim() : null
   const agentErr = agentDeleteError?.trim()
     ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
@@ -159,6 +167,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
       : null
   const renameErr = workspaceRenameError?.trim()
     ? t('organizations.reqWorkspaceRenameFailed', { error: workspaceRenameError.trim() })
+    : null
+  const uploadErr = uploadError?.trim()
+    ? t('organizations.reqUploadFailed', { error: uploadError.trim() })
     : null
 
   const showAuthorize =
@@ -243,6 +254,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
           ) : null}
           {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
           {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
+          {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
         </div>
       )}
     </TerminalModal>

@@ -222,7 +222,7 @@ describe('AgentConfigModal', () => {
     expect(screen.getByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeTruthy()
   })
 
-  it('en workspace org el pie apunta a Covenant, no al JSON local', () => {
+  it('el pie nombra el archivo del catálogo del proyecto también en workspace org', () => {
     render(
       <AgentConfigModal
         open
@@ -234,7 +234,6 @@ describe('AgentConfigModal', () => {
         diskContexts={[]}
         selectedContextIds={[]}
         contextNotice=""
-        orgWorkspace={{ slug: 'rodrigoanti', workspaceId: 'ws-1' }}
         onClose={() => {}}
         onCommitIdentity={() => true}
         onChangeCoordination={() => {}}
@@ -254,7 +253,7 @@ describe('AgentConfigModal', () => {
         onAutoImproveChange={() => {}}
       />,
     )
-    expect(screen.getByText('agentPane.configSaveOrg')).toBeTruthy()
-    expect(screen.queryByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeNull()
+    expect(screen.getByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeTruthy()
+    expect(screen.queryByText('agentPane.configSaveOrg')).toBeNull()
   })
 })

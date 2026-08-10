@@ -80,6 +80,24 @@ describe('projectAgentCatalog', () => {
     expect(parsed?.permissionMode).toBe('auto')
   })
 
+  it('parses and round-trips plane order', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'cursor',
+      permissionMode: 'auto',
+      order: 3.9,
+      contextIds: ['about'],
+    })
+    expect(parsed?.order).toBe(3)
+    expect(parsed?.contextIds).toEqual(['about'])
+    expect(parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'cursor',
+      permissionMode: 'auto',
+      order: -1,
+    })?.order).toBeUndefined()
+  })
+
   it('strips own results from parsed contextIds', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'qa',

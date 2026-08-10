@@ -149,6 +149,7 @@ const en = {
     imagesAttached: '{{n}} attached image(s)',
     imageOnlyMessage: '(attached image)',
     queuePlaceholder: 'Type and press Enter to queue…',
+    historyPosition: 'Recalled message {{n}} of {{total}}',
     queueLabel: '{{n}} queued message(s)',
     queueRemove: 'Remove from queue',
     queueMerge: 'Merge messages',

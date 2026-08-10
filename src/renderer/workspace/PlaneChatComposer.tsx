@@ -28,6 +28,7 @@ import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { shouldShowComposerStop } from '../agent/agentInputGuards'
+import { recallStep, rememberComposerEntry } from '@shared/composerHistory'
 import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
@@ -130,6 +131,14 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
+  /**
+   * Historial ↑/↓ del chat. Vive en memoria y por chat: no se persiste en
+   * session.json a propósito. `historyIndex === null` es el estado idle, donde
+   * las flechas siguen siendo del textarea.
+   */
+  const historyRef = useRef<string[]>([])
+  const stashRef = useRef('')
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const busy = Boolean(selected?.busy)
@@ -171,6 +180,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     })
     setEditingQueuedId(null)
     setSketchOpen(false)
+    historyRef.current = []
+    stashRef.current = ''
+    setHistoryIndex(null)
     const el = composerInputRef.current
     if (el) {
       el.style.height = 'auto'
@@ -277,6 +289,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     if (!selected || composerLocked || (!text && pendingImages.length === 0)) return
     const imagesSnapshot = pendingImages
     const contextIdsSnapshot = pendingContextIds
+    historyRef.current = rememberComposerEntry(historyRef.current, text)
+    stashRef.current = ''
+    setHistoryIndex(null)
     setDraft('')
     setPendingImages([])
     setPendingContextIds([])
@@ -325,6 +340,40 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         window.setTimeout(() => setDictationError(''), 5000)
       },
     })
+
+  /**
+   * Aplica un texto recuperado: cursor al final (se recupera para reenviar o
+   * retocar el final) y un swap de un frame para que el cambio no aparezca de
+   * golpe. La clase se quita antes de volver a ponerla o la animación no se
+   * reinicia.
+   */
+  const applyRecall = useCallback((text: string): void => {
+    setDraft(text)
+    const el = composerInputRef.current
+    if (!el) return
+    el.classList.remove('plane-chat-composer__input--swap')
+    void el.offsetWidth
+    el.classList.add('plane-chat-composer__input--swap')
+    requestAnimationFrame(() => el.setSelectionRange(text.length, text.length))
+  }, [])
+
+  const handleHistoryKey = useCallback((
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ): boolean => {
+    const el = event.currentTarget
+    const step = recallStep(historyRef.current, historyIndex, event.key, {
+      draft,
+      stash: stashRef.current,
+      atFirstLine: el.selectionStart === el.selectionEnd
+        && !el.value.slice(0, el.selectionStart).includes('\n'),
+    })
+    if (!step) return false
+    event.preventDefault()
+    stashRef.current = step.stash
+    setHistoryIndex(step.index)
+    applyRecall(step.text)
+    return true
+  }, [applyRecall, draft, historyIndex])
 
   const handleSendClick = (): void => {
     if (buttonIsStop && selected) {
@@ -489,9 +538,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             disabled={agents.length === 0 || composerLocked || pendingImages.length >= MAX_PENDING_IMAGES}
             onClick={() => setSketchOpen(true)}
           />
+          <span className="plane-chat-composer__field">
           <textarea
             ref={composerInputRef}
-            className="plane-chat-composer__input"
+            className={`plane-chat-composer__input${historyIndex !== null ? ' plane-chat-composer__input--recalling' : ''}`}
             value={draft}
             disabled={agents.length === 0 || composerLocked}
             placeholder={
@@ -506,15 +556,34 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                       : placeholder
             }
             rows={1}
-            onChange={event => setDraft(event.target.value)}
+            onChange={event => {
+              setDraft(event.target.value)
+              // Editar el texto recuperado es tomar posesión: vuelve a idle.
+              if (historyIndex !== null) setHistoryIndex(null)
+            }}
             onPaste={handlePaste}
             onKeyDown={event => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 handleSendClick()
+                return
               }
+              handleHistoryKey(event)
             }}
           />
+          {historyIndex !== null ? (
+            <span
+              className="plane-chat-composer__history-badge"
+              role="status"
+              aria-label={t('agentPane.historyPosition', {
+                n: historyIndex + 1,
+                total: historyRef.current.length,
+              })}
+            >
+              {historyIndex + 1} / {historyRef.current.length}
+            </span>
+          ) : null}
+          </span>
           <PlaneChatSendButton
             mode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
             label={

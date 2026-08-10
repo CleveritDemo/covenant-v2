@@ -151,6 +151,7 @@ const es = {
     imagesAttached: '{{n}} imagen(es) adjunta(s)',
     imageOnlyMessage: '(imagen adjunta)',
     queuePlaceholder: 'Escribe y presiona Enter para encolar…',
+    historyPosition: 'Mensaje recuperado {{n}} de {{total}}',
     queueLabel: '{{n}} mensaje(s) en cola',
     queueRemove: 'Quitar de la cola',
     queueMerge: 'Unir mensajes',

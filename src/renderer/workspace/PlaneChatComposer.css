@@ -457,6 +457,14 @@
   box-shadow: none;
 }
 
+/* Envuelve el textarea solo para anclar el contador del historial. */
+.plane-chat-composer__field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
 .plane-chat-composer__input {
   flex: 1 1 auto;
   min-width: 0;
@@ -508,6 +516,47 @@ html[data-reduce-motion="true"] {
   background: color-mix(in srgb, var(--bg-secondary) 55%, var(--bg));
   border-color: color-mix(in srgb, var(--border) 40%, transparent);
   cursor: default;
+}
+
+/*
+ * Recuperación con ↑: el borde marca el estado, el contador la profundidad.
+ * Va después de :focus y con la misma especificidad (dos clases) para ganarle
+ * por orden: recuperando, el borde manda sobre el de foco.
+ */
+.plane-chat-composer__field .plane-chat-composer__input--recalling {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+}
+
+.plane-chat-composer__history-badge {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+/* Un frame de swap para que el texto recuperado no aparezca de golpe. */
+.plane-chat-composer__input--swap {
+  animation: plane-chat-composer-swap 0.14s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes plane-chat-composer-swap {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
+  animation: none;
 }
 
 .plane-chat-composer__send {

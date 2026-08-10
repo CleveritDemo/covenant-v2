@@ -4,6 +4,7 @@ import {
   abortOneDelegationInJob,
   createOrchestrationJob,
   findJobByDelegation,
+  findPendingDelegationByToPane,
   flattenAwaitingItemsFromJobs,
   jobRoundsAtCap,
   occupiedPaneIdsAcrossJobs,
@@ -129,6 +130,21 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
 
     expect([...awaitingOrchestratorPaneIds(byPane)]).toEqual(['orch-1'])
     expect([...pendingOrchestratorIdsFromJobs(byPane)]).toEqual(['orch-1'])
+  })
+})
+
+describe('findPendingDelegationByToPane', () => {
+  it('returns the pending entry for a specialist pane', () => {
+    const byPane = new Map<string, Map<string, ReturnType<typeof createOrchestrationJob>>>()
+    const jobs = new Map<string, ReturnType<typeof createOrchestrationJob>>()
+    const job = jobWithPending('orch', 'd1', 'pane-front')
+    jobs.set(job.jobId, job)
+    byPane.set('orch', jobs)
+    expect(findPendingDelegationByToPane(byPane, 'pane-front')).toMatchObject({
+      fromPaneId: 'orch',
+      delegationId: 'd1',
+    })
+    expect(findPendingDelegationByToPane(byPane, 'missing')).toBeNull()
   })
 })
 

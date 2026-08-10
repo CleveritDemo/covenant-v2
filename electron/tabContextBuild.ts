@@ -40,6 +40,7 @@ import {
   rewriteProjectAgentContextIds,
   pruneOrphanAgentResults,
   pruneProjectAgentContextIds,
+  ensureAiAgentResults,
 } from './aiAgentResults'
 import { listProjectAgents } from './projectAgentCatalogOps'
 import { readProjectMcpConfig } from './mcpConfigFile'
@@ -1114,6 +1115,47 @@ export function materializeTabContext(
     }
     const contextToWrite = normalizedInput
     const filePath = contextFilePath(contextToWrite, cwd)
+
+    // agentResult: leer/ensure vía helpers; nunca compose+write stub '(empty agent results)'.
+    if (contextToWrite.kind === 'agentResult') {
+      const resultStem = contextToWrite.id.startsWith('iaterminal:result:')
+        ? contextToWrite.id.slice('iaterminal:result:'.length)
+        : normalizeAgentSlug(
+          (contextToWrite.fileName || contextToWrite.name).replace(/^results[/\\]/i, '').replace(/\.md$/i, ''),
+          'agent',
+        )
+      if (existsSync(filePath)) {
+        const raw = readFileSync(filePath, 'utf8')
+        // No reescribir si ya hay documento real (p. ej. ## Latest).
+        if (raw.trim() && !/^\(empty agent results\)\s*$/.test(raw.trim())) {
+          return {
+            ok: true,
+            content: raw,
+            notesContent: readExistingNotes(filePath),
+            filePath,
+          }
+        }
+      }
+      if (options.write) {
+        const ensuredPath = ensureAiAgentResults(cwd, resultStem, contextToWrite.name)
+        if (ensuredPath && existsSync(ensuredPath)) {
+          const raw = readFileSync(ensuredPath, 'utf8')
+          return {
+            ok: true,
+            content: raw,
+            notesContent: readExistingNotes(ensuredPath),
+            filePath: ensuredPath,
+          }
+        }
+      }
+      return {
+        ok: true,
+        content: '(empty agent results)',
+        notesContent: '',
+        filePath,
+      }
+    }
+
     const existingNotes = readExistingNotes(filePath)
     const auto = buildAutoContent(contextToWrite, cwd, options, filePath)
     let notes: string
@@ -1135,9 +1177,6 @@ export function materializeTabContext(
         return { ok: false, content: '', error: conflict }
       }
       mkdirSync(projectDirPath(cwd), { recursive: true })
-      if (contextToWrite.kind === 'agentResult') {
-        mkdirSync(projectDirPath(cwd, 'results'), { recursive: true })
-      }
       writeTextIfChanged(filePath, content)
       const previousName = (options.previousFileName ?? '').trim()
         || (
@@ -1324,7 +1363,11 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
   }
 }
 
-function materializationSignature(context: TabContext, cwd: string): string | null {
+function materializationSignature(
+  context: TabContext,
+  cwd: string,
+  contentOverride?: string,
+): string | null {
   const sourcePaths = cacheSourcePaths(context, cwd)
   if (sourcePaths === null) return null
   const contextPath = contextFilePath(context, cwd)
@@ -1333,6 +1376,9 @@ function materializationSignature(context: TabContext, cwd: string): string | nu
     `context:${fileFingerprint(contextPath)}`,
     ...sourcePaths.map(path => `${path}:${fileFingerprint(path)}`),
   ]
+  if (typeof contentOverride === 'string') {
+    parts.push(`content:${createHash('sha256').update(contentOverride).digest('hex')}`)
+  }
   return createHash('sha256').update(parts.join('\0')).digest('hex')
 }
 
@@ -1353,11 +1399,18 @@ function rememberMaterialization(
 function materializedContextSections(
   contexts: TabContext[],
   cwd: string,
+  contentById?: Readonly<Record<string, string>>,
 ): Map<string, MaterializedContextData> {
   const out = new Map<string, MaterializedContextData>()
   for (const context of contexts) {
+    const inline = contentById?.[context.id]
+    const hasInline = typeof inline === 'string'
     const cacheKey = `${resolve(cwd)}\0${context.id}`
-    const signature = materializationSignature(context, cwd)
+    const signature = materializationSignature(
+      context,
+      cwd,
+      hasInline ? inline : undefined,
+    )
     const cached = signature ? materializationCache.get(cacheKey) : undefined
     if (cached?.signature === signature) {
       materializationCache.delete(cacheKey)
@@ -1365,14 +1418,21 @@ function materializedContextSections(
       out.set(context.id, cached.data)
       continue
     }
-    const materialized = materializeTabContext(context, cwd, { write: true })
+    const materialized = materializeTabContext(context, cwd, {
+      write: true,
+      ...(hasInline ? { content: inline } : {}),
+    })
     const data = {
       context,
       materialized,
       sections: sectionsForContext(context, materialized),
     }
     out.set(context.id, data)
-    const refreshedSignature = materializationSignature(context, cwd)
+    const refreshedSignature = materializationSignature(
+      context,
+      cwd,
+      hasInline ? inline : undefined,
+    )
     if (refreshedSignature) rememberMaterialization(cacheKey, refreshedSignature, data)
   }
   return out
@@ -1555,6 +1615,8 @@ interface ContextPromptOptions {
   forceFullRefresh?: boolean
   userPrompt?: string
   discoveredContexts?: TabContext[]
+  /** Cuerpos inline (org notes) por contextId; pisan el stub de disco. */
+  contextContents?: Readonly<Record<string, string>>
 }
 
 function deliveryFingerprint(data: MaterializedContextData, mode: 'direct' | 'catalog'): string {
@@ -1592,7 +1654,11 @@ export function buildContextPromptDelivery(
       catalogChars: 0,
     }
   }
-  const available = materializedContextSections(contexts, cwd)
+  const available = materializedContextSections(
+    contexts,
+    cwd,
+    options.contextContents,
+  )
   const allDirect: MaterializedContextData[] = []
   const allOnDemand: MaterializedContextData[] = []
   for (const context of contexts) {
@@ -1849,9 +1915,10 @@ export function buildRequestedContextSections(
   cwd: string,
   requests: TabContextSectionRequest[],
   requestErrors: readonly string[] = [],
+  options: { contextContents?: Readonly<Record<string, string>> } = {},
 ): { prompt: string; sectionCount: number; errors: string[]; truncated: boolean } {
   const available = requests.length
-    ? materializedContextSections(contexts, cwd)
+    ? materializedContextSections(contexts, cwd, options.contextContents)
     : new Map<string, MaterializedContextData>()
   const selected: string[] = []
   const errors = [...requestErrors]

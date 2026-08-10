@@ -41,6 +41,22 @@ export function workspaceContextBody(contextId: string): string {
   return workspaceContextBodyById.get(contextId.trim()) ?? ''
 }
 
+/**
+ * Cuerpos recordados (org) listos para el turno CLI.
+ * Incluye cualquier contextId con body en memoria no vacío (notes y demás).
+ */
+export function contextContentsForNotes(
+  contexts: readonly TabContext[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const context of contexts) {
+    const body = workspaceContextBody(context.id)
+    if (!body.trim()) continue
+    out[context.id] = body
+  }
+  return out
+}
+
 /** Payload PUT para upsert de contexto org. */
 export function workspaceContextUpsertPayload(
   context: TabContext,

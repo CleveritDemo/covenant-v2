@@ -22,7 +22,18 @@ export interface AgentCliStartRequest {
   paneId: string
   provider: AgentCliProvider
   prompt: string
+  /** Cwd del spawn CLI (puede ser worktree). */
   cwd: string
+  /**
+   * Carpeta del proyecto donde vive `.gravity/` (contexts, results, changelog,
+   * clipboard-images). Si falta, se usa `cwd`. El spawn del CLI sigue usando `cwd`.
+   */
+  projectCwd?: string
+  /**
+   * Cuerpos markdown en memoria (p. ej. notes org) por contextId.
+   * Se pasan a materializeTabContext como `content` cuando aplica.
+   */
+  contextContents?: Record<string, string>
   permissionMode: AgentPermissionMode
   /** Nombre del agente; se inyecta en el prompt del turno. */
   name?: string
@@ -47,7 +58,7 @@ export interface AgentCliStartRequest {
   nativeSkills?: AgentNativeSkills
   /** Servidores MCP permitidos por id; omitido = ninguno. */
   mcpsAllowed?: string[]
-  /** Definiciones asignadas; main las materializa contra cwd justo al enviar. */
+  /** Definiciones asignadas; main las materializa contra projectCwd justo al enviar. */
   contexts?: TabContext[]
   /** Catálogo descubierto en disco (para sugerencias; no se adjuntan solos). */
   discoveredContexts?: TabContext[]

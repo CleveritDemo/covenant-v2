@@ -7,6 +7,7 @@ import {
   renameWorkspaceContext,
   renameWorkspaceContextFromTab,
   sanitizeSlugSegment,
+  contextContentsForNotes,
   workspaceContextBody,
   workspaceContextUpsertPayload,
 } from '../orgWorkspaceContent'
@@ -158,5 +159,43 @@ describe('renameWorkspaceContext', () => {
     expect(del).toHaveBeenCalledWith('acme', 'ws-1', 'old')
     expect(result.deletedPrevious).toBe(true)
     forgetWorkspaceContextBody('new')
+  })
+})
+
+describe('contextContentsForNotes', () => {
+  it('includes remembered notes bodies and skips empty / non-notes', () => {
+    rememberWorkspaceContextBody('iaterminal:notes:About', 'About product body')
+    rememberWorkspaceContextBody('iaterminal:notes:Empty', '   ')
+    const contents = contextContentsForNotes([
+      {
+        id: 'iaterminal:notes:About',
+        name: 'About',
+        fileName: 'About.md',
+        kind: 'notes',
+      },
+      {
+        id: 'iaterminal:notes:Empty',
+        name: 'Empty',
+        fileName: 'Empty.md',
+        kind: 'notes',
+      },
+      {
+        id: 'iaterminal:result:fe',
+        name: 'FE results',
+        fileName: 'results/fe.md',
+        kind: 'agentResult',
+      },
+      {
+        id: 'iaterminal:notes:Missing',
+        name: 'Missing',
+        fileName: 'Missing.md',
+        kind: 'notes',
+      },
+    ])
+    expect(contents).toEqual({
+      'iaterminal:notes:About': 'About product body',
+    })
+    forgetWorkspaceContextBody('iaterminal:notes:About')
+    forgetWorkspaceContextBody('iaterminal:notes:Empty')
   })
 })

@@ -227,6 +227,30 @@ export function pendingOrchestratorIdsFromJobs(
   return out
 }
 
+/** Primera pending cuyo especialista es `toPaneId` (reconcile idle). */
+export function findPendingDelegationByToPane(
+  byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+  toPaneId: string,
+): { fromPaneId: string; job: OrchestrationJob; delegationId: string; toAgentId: string } | null {
+  const wanted = toPaneId.trim()
+  if (!wanted) return null
+  for (const [fromPaneId, jobs] of byPane.entries()) {
+    for (const job of jobs.values()) {
+      for (const [delegationId, meta] of job.pending.entries()) {
+        if (meta.toPaneId === wanted) {
+          return {
+            fromPaneId,
+            job,
+            delegationId,
+            toAgentId: meta.toAgentId,
+          }
+        }
+      }
+    }
+  }
+  return null
+}
+
 export interface AbortOneDelegationResult {
   ok: boolean
   toPaneId?: string

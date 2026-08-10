@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.37.0
+
+- **Los contextos custom (notes) de workspaces org llegan al agente** con su
+  texto real, no con el stub vacío del `.gravity` local.
+- **Results y demás archivos de `.gravity` se escriben en el proyecto**, no en
+  el worktree del turno, así el results deja de quedar vacío donde lo miras.
+- **Los results ya no se pisan** con el placeholder `(empty agent results)`.
+
 ## v0.36.0
 
 - **La app corre sobre un Chromium mucho más nuevo.** Electron 33 → 43 (Chromium

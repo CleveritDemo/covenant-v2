@@ -66,7 +66,16 @@ import {
   MAX_PENDING_IMAGES,
   type ComposerPendingImage,
 } from './composerImages'
+import {
+  clearActiveParentDelegation,
+  peekActiveParentDelegation,
+  rememberActiveParentDelegation,
+} from './activeParentDelegation'
 import { decideParentDelegationNotify } from './parentDelegationNotify'
+import {
+  workspaceContextBody,
+} from '@shared/orgWorkspaceContent'
+import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import './AgentPane.css'
@@ -464,7 +473,7 @@ export const AgentPane: React.FC<Props> = ({
     id: string
     fromPaneId: string
     toAgentId: string
-  } | null>(null)
+  } | null>(peekActiveParentDelegation(paneId))
   /** Este turno emitió fences anidados; no despertar al padre aún. */
   const nestedDelegationsDispatchedThisTurnRef = useRef(false)
   const onOrchestratorDelegationsRef = useRef(onOrchestratorDelegations)
@@ -1058,6 +1067,7 @@ export const AgentPane: React.FC<Props> = ({
     // Conservar hold del padre en follow-ups; solo fijar si llega una nueva subtarea.
     if (options.delegation) {
       activeDelegationRef.current = options.delegation
+      rememberActiveParentDelegation(paneId, options.delegation)
     }
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
     forceFollow()
@@ -1073,7 +1083,14 @@ export const AgentPane: React.FC<Props> = ({
 
     if (assigned.length && resolvedCwd) {
       const previews = await Promise.all(
-        assigned.map(context => window.api.previewTabContext({ context, cwd: resolvedCwd })),
+        assigned.map(context => {
+          const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
+          return window.api.previewTabContext({
+            context,
+            cwd: resolvedCwd,
+            ...(body.trim() ? { content: body } : {}),
+          })
+        }),
       )
       if (previews.every(preview => !preview.ok || !preview.content.trim())) {
         setMessages(prev => prev.map(message => (
@@ -1092,6 +1109,7 @@ export const AgentPane: React.FC<Props> = ({
         nestedDelegationsDispatchedThisTurnRef.current = false
         const failedDelegation = activeDelegationRef.current
         activeDelegationRef.current = null
+        clearActiveParentDelegation(paneId)
         if (failedDelegation) {
           onDelegationTurnCompleteRef.current?.({
             id: failedDelegation.id,
@@ -1121,6 +1139,7 @@ export const AgentPane: React.FC<Props> = ({
       nestedDelegationsDispatchedThisTurnRef.current = false
       const failedDelegation = activeDelegationRef.current
       activeDelegationRef.current = null
+      clearActiveParentDelegation(paneId)
       if (failedDelegation) {
         onDelegationTurnCompleteRef.current?.({
           id: failedDelegation.id,
@@ -1143,6 +1162,7 @@ export const AgentPane: React.FC<Props> = ({
     suppressEmptyHandlingRef.current = false
     // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
     const turnCwd = await resolveTurnCwd()
+    const contextPayload = buildAgentTurnContextPayload(resolvedCwd, assigned)
     const rules = normalizeAgentRules(currentMeta.rules)
     const canDelegate = coordinationCanDelegate(currentMeta.coordination)
     const orchestrationAgents = canDelegate
@@ -1154,6 +1174,7 @@ export const AgentPane: React.FC<Props> = ({
       provider: currentMeta.provider,
       prompt,
       cwd: turnCwd,
+      ...contextPayload,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
       ...(currentMeta.id?.trim() ? { agentId: currentMeta.id.trim() } : {}),
       ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
@@ -1237,13 +1258,21 @@ export const AgentPane: React.FC<Props> = ({
 
     const finishSideEffects = (): void => {
       const assigned = new Set(metaRef.current.contextIds ?? [])
-      const currentCwd = cwdRef.current
-      if (currentCwd) {
-        const refresh = diskContextsRef.current.filter(context => assigned.has(context.id))
+      const projectCwd = cwdRef.current.trim()
+      if (projectCwd) {
+        const refresh = diskContextsRef.current.filter(context => (
+          assigned.has(context.id) && context.kind !== 'agentResult'
+        ))
         contextWriteQueueRef.current = contextWriteQueueRef.current
           .catch(() => undefined)
-          .then(() => Promise.all(refresh.map(context =>
-            window.api.materializeTabContext({ context, cwd: currentCwd }))))
+          .then(() => Promise.all(refresh.map(context => {
+            const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
+            return window.api.materializeTabContext({
+              context,
+              cwd: projectCwd,
+              ...(body.trim() ? { content: body } : {}),
+            })
+          })))
       }
       if (!loopActiveRef.current) return
       if (skipLoopContinueRef.current) {
@@ -1324,14 +1353,19 @@ export const AgentPane: React.FC<Props> = ({
             : entry))
       }
 
-      const delegation = activeDelegationRef.current
+      const delegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+      if (delegation && !activeDelegationRef.current) {
+        activeDelegationRef.current = delegation
+      }
       const decision = decideParentDelegationNotify({
         held: Boolean(delegation),
         dispatchedNested: nestedDelegationsDispatchedThisTurnRef.current,
+        canDelegate: coordinationCanDelegate(metaRef.current.coordination),
       })
       nestedDelegationsDispatchedThisTurnRef.current = false
       if (decision === 'notify' && delegation) {
         activeDelegationRef.current = null
+        clearActiveParentDelegation(paneId)
         const summary = isEmpty
           ? t('agentPane.delegationEmptySummary')
           : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
@@ -1897,13 +1931,14 @@ export const AgentPane: React.FC<Props> = ({
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
     nestedDelegationsDispatchedThisTurnRef.current = false
-    const delegation = activeDelegationRef.current
+    const delegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
     const decision = decideParentDelegationNotify({
       held: Boolean(delegation),
       dispatchedNested: false,
       aborted: true,
     })
     activeDelegationRef.current = null
+    clearActiveParentDelegation(paneId)
     if (decision === 'notify' && delegation) {
       onDelegationTurnCompleteRef.current?.({
         id: delegation.id,
@@ -1959,6 +1994,19 @@ export const AgentPane: React.FC<Props> = ({
     setMaterializingIds(new Set())
     knownMessageIdsRef.current = new Set()
     messageContentLenRef.current = new Map()
+    const clearedDelegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+    activeDelegationRef.current = null
+    clearActiveParentDelegation(paneId)
+    nestedDelegationsDispatchedThisTurnRef.current = false
+    if (clearedDelegation) {
+      onDelegationTurnCompleteRef.current?.({
+        id: clearedDelegation.id,
+        status: 'aborted',
+        summary: t('agentPane.delegationAbortedSummary'),
+        toAgentId: clearedDelegation.toAgentId,
+        toPaneId: paneId,
+      })
+    }
     setPendingImages(previous => {
       previous.forEach(image => URL.revokeObjectURL(image.previewUrl))
       return []
@@ -1985,7 +2033,7 @@ export const AgentPane: React.FC<Props> = ({
       return rest
     })
     window.api.deleteAgentChat(paneId)
-  }, [beginLiveSettle, clearLoopTimer, onMetaChange, paneId])
+  }, [beginLiveSettle, clearLoopTimer, onMetaChange, paneId, t])
 
   const requestClearConversation = useCallback((): void => {
     setConfirmClear(true)
@@ -2005,8 +2053,7 @@ export const AgentPane: React.FC<Props> = ({
     const objective = fromOverride || fromStored || fromInput || fromMeta
     if (!objective || loopActiveRef.current) return false
     onRequestPaneFocus()
-    // Si había un turno normal en curso, se corta sin notify: startAgentTurn
-    // mata el proceso anterior en silencio (evita que un done/EXIT cierre el loop).
+    // Si había un turno normal en curso, se corta y se avisa al padre si era subtarea.
     if (busyRef.current) {
       skipLoopContinueRef.current = true
       turnClosedRef.current = true
@@ -2019,6 +2066,18 @@ export const AgentPane: React.FC<Props> = ({
       setActivity('')
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
+      const cutDelegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+      activeDelegationRef.current = null
+      clearActiveParentDelegation(paneId)
+      if (cutDelegation) {
+        onDelegationTurnCompleteRef.current?.({
+          id: cutDelegation.id,
+          status: 'aborted',
+          summary: t('agentPane.delegationAbortedSummary'),
+          toAgentId: cutDelegation.toAgentId,
+          toPaneId: paneId,
+        })
+      }
       if (chainLoopActive) onChainLoopStop?.()
     }
     clearLoopTimer()
@@ -2038,7 +2097,9 @@ export const AgentPane: React.FC<Props> = ({
     input,
     onChainLoopStop,
     onRequestPaneFocus,
+    paneId,
     runLoopIteration,
+    t,
   ])
 
   useEffect(() => {

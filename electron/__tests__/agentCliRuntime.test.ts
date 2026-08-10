@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { AppConfig } from '../../src/shared/configSchema'
@@ -15,11 +15,14 @@ import {
   normalizeCursorEvent,
   normalizeCopilotEvent,
   closeAgentCliStdin,
+  resolveProjectCwd,
   shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
   stopAgentRun,
 } from '../agentCliRuntime'
 import { PROJECT_DIR } from '../../src/shared/projectDir'
+import { upsertAiAgentResults } from '../aiAgentResults'
+import { upsertProjectAgent } from '../projectAgentCatalogOps'
 
 const baseConfig = { agentCliCommands: {} } as AppConfig
 // `home` es requerido en `commandAndArgs`: sin plugins que resolver en estos
@@ -36,6 +39,67 @@ function request(
     ...partial,
   }
 }
+
+describe('resolveProjectCwd', () => {
+  it('prefers projectCwd over turn cwd for .gravity ops', () => {
+    const home = mkdtempSync(join(tmpdir(), 'gravity-home-'))
+    const project = mkdtempSync(join(tmpdir(), 'gravity-project-'))
+    const worktree = mkdtempSync(join(tmpdir(), 'gravity-worktree-'))
+    try {
+      expect(resolveProjectCwd({ cwd: worktree, projectCwd: project }, home)).toBe(project)
+      expect(resolveProjectCwd({ cwd: worktree }, home)).toBe(worktree)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+      rmSync(project, { recursive: true, force: true })
+      rmSync(worktree, { recursive: true, force: true })
+    }
+  })
+
+  it('writes results under projectCwd when turn cwd is a worktree', () => {
+    const project = mkdtempSync(join(tmpdir(), 'gravity-proj-'))
+    const worktree = mkdtempSync(join(tmpdir(), 'gravity-wt-'))
+    try {
+      upsertProjectAgent(project, {
+        id: 'scout',
+        name: 'Scout',
+        provider: 'claude',
+        permissionMode: 'auto',
+      })
+      const projectCwd = resolveProjectCwd({ cwd: worktree, projectCwd: project }, project)
+      upsertAiAgentResults(projectCwd, 'scout', {
+        summary: 'From worktree turn',
+        entries: ['entry'],
+      }, { agentName: 'Scout' })
+      const resultsPath = join(projectCwd, PROJECT_DIR, 'results', 'scout.md')
+      expect(existsSync(resultsPath)).toBe(true)
+      expect(readFileSync(resultsPath, 'utf8')).toContain('## Latest')
+      expect(readFileSync(resultsPath, 'utf8')).toContain('From worktree turn')
+      expect(existsSync(join(worktree, PROJECT_DIR, 'results', 'scout.md'))).toBe(false)
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+      rmSync(worktree, { recursive: true, force: true })
+    }
+  })
+
+  it('materializeClipboardImages under projectCwd path', () => {
+    const project = mkdtempSync(join(tmpdir(), 'gravity-clip-'))
+    try {
+      const tinyPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ).toString('base64')
+      const paths = materializeClipboardImages(project, [{
+        name: 'paste.png',
+        mimeType: 'image/png',
+        base64: tinyPng,
+      }])
+      expect(paths.length).toBe(1)
+      expect(paths[0].startsWith(join(project, PROJECT_DIR, 'clipboard-images'))).toBe(true)
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('shouldFinishOnProcessClose', () => {
   it('only finishes while the process is still the active run', () => {

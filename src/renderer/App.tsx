@@ -78,8 +78,10 @@ import {
   abortOneDelegationInJob,
   createOrchestrationJob,
   findJobByDelegation,
+  findPendingDelegationByToPane,
   flattenAwaitingItemsFromJobs,
   isJobAwaiting,
+  listJobsForPane,
   occupiedPaneIdsAcrossJobs,
   occupiedTargetPaneIdsAcrossAllJobs,
   pendingOrchestratorIdsFromJobs,
@@ -180,6 +182,7 @@ import {
   projectAgentsFromWorkspaceAgents,
   sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
+  workspaceContextBody,
 } from '../shared/orgWorkspaceContent'
 import { OrgWorkspaceRequirementModal } from './components/OrgWorkspaceRequirementModal'
 import {
@@ -347,6 +350,8 @@ export const App: React.FC = () => {
     provider: AgentCliProvider
   } | null>(null)
   const [agentPlaneStatus, setAgentPlaneStatus] = useState<Record<string, AgentPlaneStatus>>({})
+  const agentPlaneStatusRef = useRef(agentPlaneStatus)
+  agentPlaneStatusRef.current = agentPlaneStatus
   const planeLoopToggleByPaneRef = useRef(new Map<string, () => void>())
   const planeQueueControlsByPaneRef = useRef(new Map<string, AgentPlaneQueueControls>())
   const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
@@ -465,6 +470,12 @@ export const App: React.FC = () => {
   const [delegationTargetPaneIds, setDelegationTargetPaneIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
+  /** Especialista idle con pending huérfano → completar (notify perdido / remount). */
+  const reconcileIdleDelegationTargetRef = useRef<(
+    paneId: string,
+    summary: string,
+  ) => void>(() => undefined)
+  const reconcilingIdleDelegationPaneIdsRef = useRef(new Set<string>())
   const syncAwaitingFromPending = useCallback(() => {
     const byPane = orchestrationJobsByPaneRef.current
     setAwaitingDelegationPaneIds(awaitingOrchestratorPaneIds(byPane))
@@ -491,6 +502,13 @@ export const App: React.FC = () => {
       }
     }
     setOrchestrationAwaitingByPane(nextViews)
+
+    // Pending huérfano: especialista ya idle (notify perdido) → reconciliar.
+    for (const toPaneId of occupiedTargetPaneIdsAcrossAllJobs(byPane)) {
+      const status = agentPlaneStatusRef.current[toPaneId]
+      if (!status || status.busy || status.awaitingDelegations || status.localLoopActive) continue
+      reconcileIdleDelegationTargetRef.current(toPaneId, status.lastSnippet)
+    }
   }, [])
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
@@ -692,6 +710,22 @@ export const App: React.FC = () => {
         for (const tabId of tabIds) next[tabId] = contexts
         return next
       })
+      // Espejo notes org → `.gravity` del proyecto para que disco = UI.
+      for (const tabId of tabIds) {
+        const tab = tabsRef.current.find(item => item.id === tabId)
+        const projectCwd = tab?.projectFolder?.trim()
+        if (!projectCwd) continue
+        for (const context of contexts) {
+          if (context.kind !== 'notes') continue
+          const body = workspaceContextBody(context.id)
+          if (!body.trim()) continue
+          void window.api.materializeTabContext({
+            context,
+            cwd: projectCwd,
+            content: body,
+          })
+        }
+      }
     }
     return { agentsOk: agentsResult.ok, contextsOk: contextsResult.ok }
   }, [syncTabWithProjectAgents])
@@ -2860,6 +2894,14 @@ export const App: React.FC = () => {
       ) {
         return prev
       }
+      if (
+        previous?.busy
+        && !status.busy
+        && !status.awaitingDelegations
+        && !status.localLoopActive
+      ) {
+        reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
+      }
       return { ...prev, [paneId]: status }
     })
   }, [])
@@ -3934,6 +3976,30 @@ export const App: React.FC = () => {
     startNextDeferredForPane,
     syncAwaitingFromPending,
   ])
+
+  reconcileIdleDelegationTargetRef.current = (paneId, summary) => {
+    if (reconcilingIdleDelegationPaneIdsRef.current.has(paneId)) return
+    const found = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
+    if (!found) return
+    // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
+    if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+    reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
+    void window.api.isAgentTurnActive(paneId).catch(() => false).then(turnActive => {
+      if (turnActive) return
+      const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
+      if (!still || still.delegationId !== found.delegationId) return
+      if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+      void handleDelegationTurnComplete({
+        id: found.delegationId,
+        status: 'ok',
+        summary: summary.trim() || i18next.t('agentPane.delegationEmptySummary'),
+        toAgentId: found.toAgentId,
+        toPaneId: paneId,
+      })
+    }).finally(() => {
+      reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
+    })
+  }
 
   const requestPlaneStop = useCallback((paneId: string) => {
     setPlaneStopPaneIds(previous => {

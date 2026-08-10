@@ -146,9 +146,18 @@ function contextSessionKey(provider: AgentCliStartRequest['provider'], cliSessio
   return `${provider}\0${cliSessionId}`
 }
 
+/** Carpeta del proyecto (`.gravity/`); el spawn CLI sigue usando el cwd del turno. */
+export function resolveProjectCwd(
+  request: Pick<AgentCliStartRequest, 'cwd' | 'projectCwd'>,
+  home: string,
+): string {
+  const project = (request.projectCwd ?? '').trim()
+  return resolveWorkingDirectory(project || request.cwd, home)
+}
+
 function planContextDelivery(
   request: AgentCliStartRequest,
-  cwd: string,
+  projectCwd: string,
 ): PlannedContextDelivery {
   const sessionKey = request.cliSessionId
     ? contextSessionKey(request.provider, request.cliSessionId)
@@ -158,12 +167,13 @@ function planContextDelivery(
     || shouldForceFullContextRefresh(
       previous?.turnsSinceFullRefresh ?? null,
     )
-  const delivery = buildContextPromptDelivery(request.contexts ?? [], cwd, {
+  const delivery = buildContextPromptDelivery(request.contexts ?? [], projectCwd, {
     allowAnnotationUpdates: request.autoImproveContexts === true,
     previousSnapshot: request.forceContextFullRefresh === true ? undefined : previous?.snapshot,
     forceFullRefresh,
     userPrompt: request.prompt,
     discoveredContexts: request.discoveredContexts,
+    contextContents: request.contextContents,
   })
   contextDeliveryMetrics.catalogChars += delivery.catalogChars
   contextDeliveryMetrics.sectionsPreattached += delivery.preattachedSectionCount
@@ -1046,13 +1056,14 @@ export function startAgentTurn(
   const generation = nextAgentRunGeneration++
   agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
   const cwd = resolveWorkingDirectory(request.cwd, home)
+  const projectCwd = resolveProjectCwd(request, home)
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
   if (cwd) initSessionCwd(request.paneId, cwd)
-  const imagePaths = materializeClipboardImages(cwd, request.images)
+  const imagePaths = materializeClipboardImages(projectCwd, request.images)
   const beforeSnapshot = captureWorkspaceSnapshot(cwd)
   let latestSessionId = request.cliSessionId
   let changelogPersisted = false
-  const contextDelivery = planContextDelivery(request, cwd)
+  const contextDelivery = planContextDelivery(request, projectCwd)
   const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
   let contextDeliveryCommitted = false
   const turnStartedAt = Date.now()
@@ -1163,9 +1174,10 @@ export function startAgentTurn(
             if (sectionRequest.fenceFound && contextRound < 2) {
               const payload = buildRequestedContextSections(
                 request.contexts ?? [],
-                cwd,
+                projectCwd,
                 sectionRequest.requests,
                 sectionRequest.errors,
+                { contextContents: request.contextContents },
               )
               contextDeliveryMetrics.sectionsRequested += sectionRequest.requests
                 .reduce((sum, item) => sum + (item.sections?.length ?? 1), 0)
@@ -1209,7 +1221,7 @@ export function startAgentTurn(
               changedPaths,
             )
             if (changes.length && !changelogPersisted) {
-              appendAiChangelog(cwd, changes)
+              appendAiChangelog(projectCwd, changes)
               changelogPersisted = true
             }
             const { visibleText: afterResults, payload: resultsPayload } = extractAiAgentResults(
@@ -1219,8 +1231,8 @@ export function startAgentTurn(
               resultsPayload
               && request.agentId?.trim()
             ) {
-              const resolvedAgentId = resolveResultsAgentId(cwd, request.agentId.trim())
-              upsertAiAgentResults(cwd, resolvedAgentId, resultsPayload, {
+              const resolvedAgentId = resolveResultsAgentId(projectCwd, request.agentId.trim())
+              upsertAiAgentResults(projectCwd, resolvedAgentId, resultsPayload, {
                 agentName: request.name?.trim(),
               })
               recordDerivedPulse({ kind: 'result', ...pulseTags })

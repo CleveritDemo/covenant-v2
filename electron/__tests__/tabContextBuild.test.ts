@@ -1337,6 +1337,121 @@ export class Widget {
     expect(delivery.prompt).not.toContain('"id":"custom-notes"')
   })
 
+  it('uses contextContents for org notes when disk stub is empty', () => {
+    const cwd = tempCwd()
+    const notes = {
+      id: 'iaterminal:notes:About',
+      name: 'About',
+      fileName: 'About.md',
+      kind: 'notes' as const,
+    }
+    materializeTabContext(notes, cwd, { write: true, content: '' })
+
+    const delivery = buildContextPromptDelivery([notes], cwd, {
+      forceFullRefresh: true,
+      contextContents: {
+        'iaterminal:notes:About': 'Org About body from API',
+      },
+    })
+
+    expect(delivery.prompt).toContain('Org About body from API')
+    expect(delivery.prompt).not.toContain('(empty notes)')
+    expect(delivery.prompt).not.toContain('(no annotations yet)')
+  })
+
+  it('without contextContents still reads notes body from disk', () => {
+    const cwd = tempCwd()
+    const notes = {
+      id: 'iaterminal:notes:About',
+      name: 'About',
+      fileName: 'About.md',
+      kind: 'notes' as const,
+    }
+    materializeTabContext(notes, cwd, { write: true, content: 'Disk About body' })
+    const delivery = buildContextPromptDelivery([notes], cwd, { forceFullRefresh: true })
+    expect(delivery.prompt).toContain('Disk About body')
+  })
+
+  it('agentResult materialize keeps ## Latest format (no empty stub overwrite)', () => {
+    const cwd = tempCwd()
+    upsertProjectAgent(cwd, {
+      id: 'scout',
+      name: 'Scout',
+      provider: 'claude',
+      permissionMode: 'auto',
+    })
+    upsertAiAgentResults(cwd, 'scout', {
+      summary: 'Real summary',
+      entries: ['Did the thing'],
+    }, { agentName: 'Scout' })
+    const context = {
+      id: 'iaterminal:result:scout',
+      name: 'Scout',
+      fileName: 'results/scout.md',
+      kind: 'agentResult' as const,
+    }
+    const result = materializeTabContext(context, cwd, { write: true })
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('## Latest')
+    expect(result.content).toContain('Real summary')
+    expect(result.content).not.toMatch(/^\(empty agent results\)$/m)
+    const again = materializeTabContext(context, cwd, { write: true })
+    expect(again.content).toContain('Real summary')
+  })
+
+  it('matrix smoke: notes, agentResult, symbols, folderTree, changelog materialize', () => {
+    const cwd = tempCwd()
+    mkdirSync(join(cwd, 'src'), { recursive: true })
+    writeFileSync(join(cwd, 'src', 'a.ts'), 'export const a = 1\n', 'utf8')
+    upsertProjectAgent(cwd, {
+      id: 'bot',
+      name: 'Bot',
+      provider: 'claude',
+      permissionMode: 'auto',
+    })
+    upsertAiAgentResults(cwd, 'bot', { summary: 'ok', entries: [] }, { agentName: 'Bot' })
+
+    const kinds = [
+      materializeTabContext({
+        id: 'iaterminal:notes:N',
+        name: 'N',
+        fileName: 'N.md',
+        kind: 'notes',
+      }, cwd, { write: true, content: 'note body' }),
+      materializeTabContext({
+        id: 'iaterminal:result:bot',
+        name: 'Bot',
+        fileName: 'results/bot.md',
+        kind: 'agentResult',
+      }, cwd, { write: true }),
+      materializeTabContext({
+        id: 'iaterminal:symbols:S',
+        name: 'S',
+        fileName: 'S.md',
+        kind: 'symbols',
+        paths: ['src/a.ts'],
+      }, cwd, { write: true }),
+      materializeTabContext({
+        id: 'iaterminal:folderTree:F',
+        name: 'F',
+        fileName: 'F.md',
+        kind: 'folderTree',
+      }, cwd, { write: true }),
+      materializeTabContext({
+        id: 'iaterminal:changelog:C',
+        name: 'C',
+        fileName: 'C.md',
+        kind: 'changelog',
+      }, cwd, { write: true }),
+    ]
+    expect(kinds.every(item => item.ok)).toBe(true)
+    expect(kinds[0].content).toContain('note body')
+    expect(kinds[1].content).toContain('## Latest')
+    expect(kinds[2].ok).toBe(true)
+    expect(kinds[3].ok).toBe(true)
+    expect(kinds[4].ok).toBe(true)
+  })
+
   it('leaves all contexts on demand regardless of size', () => {
     const cwd = tempCwd()
     mkdirSync(join(cwd, 'src'), { recursive: true })

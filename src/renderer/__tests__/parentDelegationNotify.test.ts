@@ -14,17 +14,27 @@ describe('decideParentDelegationNotify', () => {
     })).toBe('none')
   })
 
-  it('holds while nested delegations were dispatched', () => {
+  it('holds while nested delegations were dispatched by a delegator', () => {
     expect(decideParentDelegationNotify({
       held: true,
       dispatchedNested: true,
+      canDelegate: true,
     })).toBe('hold')
+  })
+
+  it('notifies workers even if a nested fence was seen', () => {
+    expect(decideParentDelegationNotify({
+      held: true,
+      dispatchedNested: true,
+      canDelegate: false,
+    })).toBe('notify')
   })
 
   it('notifies when held and no nested dispatch', () => {
     expect(decideParentDelegationNotify({
       held: true,
       dispatchedNested: false,
+      canDelegate: true,
     })).toBe('notify')
   })
 
@@ -32,6 +42,7 @@ describe('decideParentDelegationNotify', () => {
     expect(decideParentDelegationNotify({
       held: true,
       dispatchedNested: true,
+      canDelegate: true,
       aborted: true,
     })).toBe('notify')
   })

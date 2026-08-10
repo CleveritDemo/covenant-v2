@@ -37,6 +37,8 @@ export const IPC = {
   BRAINSTORM_DELETE: 'brainstorm:delete',
   /** Renderer → main (invoke): limpiar salas done/stopped antiguas. */
   BRAINSTORM_PRUNE: 'brainstorm:prune',
+  /** Renderer → main (invoke): añadir contexto/archivo al working set de una sala activa. */
+  BRAINSTORM_WORKING_SET_ADD: 'brainstorm:workingSetAdd',
   /** Renderer → main (invoke): exportar transcript de sala a Markdown. */
   BRAINSTORM_EXPORT_MD: 'brainstorm:exportMd',
   AGENT_CHAT_LOAD: 'agentChat:load',

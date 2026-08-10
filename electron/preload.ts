@@ -199,8 +199,14 @@ const api = {
   pauseBrainstorm(roomId: string): void {
     ipcRenderer.send(IPC.BRAINSTORM_PAUSE, roomId)
   },
-  injectBrainstormHumanMessage(roomId: string, text: string): void {
-    ipcRenderer.send(IPC.BRAINSTORM_INJECT_HUMAN, roomId, text)
+  addBrainstormWorkingSet(
+    roomId: string,
+    working: { contextIds?: string[]; filePaths?: string[]; cwd?: string },
+  ): Promise<{ ok: true; contextIds: string[]; filePaths: string[] } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.BRAINSTORM_WORKING_SET_ADD, roomId, working)
+  },
+  injectBrainstormHumanMessage(roomId: string, text: string, targetAgentId?: string): void {
+    ipcRenderer.send(IPC.BRAINSTORM_INJECT_HUMAN, roomId, text, targetAgentId)
   },
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)

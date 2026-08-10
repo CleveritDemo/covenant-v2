@@ -12,6 +12,8 @@ export interface BrainstormMessage {
   text: string
   /** Usuario interrumpe; omitido o `agent` = orador del círculo. */
   role?: 'agent' | 'human'
+  /** Solo mensajes humanos: dirigido a un agente en vez de a la sala. */
+  targetAgentId?: string
 }
 
 /** Salida acordada de la sala; añade una línea al prompt y cierra el último turno. */
@@ -48,7 +50,7 @@ export type BrainstormEvent =
   | { type: 'speaker_start'; agentId: string; round: number }
   | { type: 'speaker_delta'; agentId: string; round: number; text: string }
   | { type: 'speaker_final'; agentId: string; agentName: string; round: number; text: string }
-  | { type: 'human_message'; text: string; round: number }
+  | { type: 'human_message'; text: string; round: number; targetAgentId?: string }
   | { type: 'round'; round: number }
   | { type: 'status'; status: BrainstormStatus }
   | { type: 'error'; agentId?: string; message: string }
@@ -454,9 +456,11 @@ export function advanceBrainstormCursor(room: BrainstormRoom): BrainstormRoom {
 export function appendBrainstormHumanMessage(
   room: BrainstormRoom,
   text: string,
+  targetAgentId?: string,
 ): BrainstormRoom | null {
   const trimmed = typeof text === 'string' ? text.trim() : ''
   if (!trimmed) return null
+  const target = typeof targetAgentId === 'string' ? targetAgentId.trim() : ''
   return {
     ...room,
     messages: [
@@ -467,6 +471,9 @@ export function appendBrainstormHumanMessage(
         round: room.round,
         text: trimmed,
         role: 'human',
+        ...(target && room.participantAgentIds.includes(target)
+          ? { targetAgentId: target }
+          : {}),
       },
     ],
   }
@@ -525,13 +532,16 @@ export function buildBrainstormTurnPrompt(
     : ''
   const outcomeLine = room.outcome ? OUTCOME_LINES[room.outcome] : ''
   const hasWorkingSet = Boolean(workingSet?.labels?.some(label => label.trim()))
+  const addressedToSpeaker = room.messages.some(msg =>
+    isBrainstormHumanMessage(msg) && msg.targetAgentId === speakerAgentId)
   const transcript = room.messages.length
     ? room.messages
       .map(msg => {
-        const who = msg.role === 'human' || msg.agentId === 'human'
-          ? `${msg.agentName || 'You'} (human)`
-          : `${msg.agentName} (round ${msg.round})`
-        return `${who}: ${msg.text}`
+        if (isBrainstormHumanMessage(msg)) {
+          const to = msg.targetAgentId ? ` → ${msg.targetAgentId}` : ''
+          return `${msg.agentName || 'You'} (human${to}): ${msg.text}`
+        }
+        return `${msg.agentName} (round ${msg.round}): ${msg.text}`
       })
       .join('\n')
     : '(No prior messages yet.)'
@@ -553,6 +563,9 @@ export function buildBrainstormTurnPrompt(
     '- No headings, bullets, numbered lists, or code fences.',
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
+      : []),
+    ...(addressedToSpeaker
+      ? ['- The user addressed you directly in the transcript: answer that first.']
       : []),
     ...(isFinalBrainstormTurn(room)
       ? [

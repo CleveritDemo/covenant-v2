@@ -125,7 +125,7 @@ describe('runBrainstormSequence', () => {
       ['beta', agent('beta', 'Beta')],
     ])
     const events: BrainstormEvent[] = []
-    const pending: string[] = []
+    const pending: Array<{ text: string; targetAgentId?: string }> = []
     const prompts: string[] = []
 
     const final = await runBrainstormSequence(room, {
@@ -135,7 +135,7 @@ describe('runBrainstormSequence', () => {
       emit: event => events.push(event),
       drainPendingHumanMessages: () => pending.splice(0),
       runSpeakerTurn: async input => {
-        if (input.agent.id === 'alpha') pending.push('Human nudge')
+        if (input.agent.id === 'alpha') pending.push({ text: 'Human nudge' })
         prompts.push(input.prompt)
         return { ok: true, text: `${input.agent.id} ok` }
       },

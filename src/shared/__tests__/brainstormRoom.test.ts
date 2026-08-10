@@ -251,6 +251,37 @@ describe('buildBrainstormTurnPrompt', () => {
   })
 })
 
+describe('nota humana dirigida', () => {
+  const room = createBrainstormRoom('Tenancy', ['backend', 'qa'], 2)!
+
+  it('guarda el destino solo si es participante', () => {
+    expect(appendBrainstormHumanMessage(room, 'ojo', 'qa')?.messages[0]).toMatchObject({
+      role: 'human',
+      targetAgentId: 'qa',
+    })
+    expect(appendBrainstormHumanMessage(room, 'ojo', 'ghost')?.messages[0]?.targetAgentId)
+      .toBeUndefined()
+    expect(appendBrainstormHumanMessage(room, 'ojo')?.messages[0]?.targetAgentId)
+      .toBeUndefined()
+  })
+
+  it('el prompt marca el destino y avisa solo al destinatario', () => {
+    const withNote = appendBrainstormHumanMessage(room, 'priorizad el coste', 'qa')!
+    const toQa = buildBrainstormTurnPrompt(withNote, 'qa', 'QA')
+    expect(toQa).toContain('(human → qa): priorizad el coste')
+    expect(toQa).toContain('The user addressed you directly')
+
+    const toBackend = buildBrainstormTurnPrompt(withNote, 'backend', 'Backend')
+    expect(toBackend).toContain('(human → qa): priorizad el coste')
+    expect(toBackend).not.toContain('The user addressed you directly')
+  })
+
+  it('sin destino el transcript no inventa flecha', () => {
+    const toRoom = appendBrainstormHumanMessage(room, 'a todos')!
+    expect(buildBrainstormTurnPrompt(toRoom, 'qa', 'QA')).toContain('(human): a todos')
+  })
+})
+
 describe('parseBrainstormClosing', () => {
   const text = [
     'Decision: schema-per-filial, con runner automatizado.',

@@ -91,6 +91,7 @@ import {
   startBrainstormRoom,
   stopBrainstormRoom,
   pauseBrainstormRoom,
+  addBrainstormWorkingSet,
   injectBrainstormHumanMessage,
   stopAllBrainstormRooms,
   stopBrainstormRoomsForWindow,
@@ -1539,6 +1540,13 @@ function registerIpc(): void {
     )
   })
 
+  ipcMain.handle(IPC.BRAINSTORM_WORKING_SET_ADD, (_e, roomId: unknown, working: unknown) => {
+    const payload = working && typeof working === 'object'
+      ? working as { contextIds?: unknown; filePaths?: unknown }
+      : {}
+    return addBrainstormWorkingSet(typeof roomId === 'string' ? roomId : '', payload)
+  })
+
   ipcMain.handle(IPC.BRAINSTORM_EXPORT_MD, (_e, cwd: unknown, roomId: unknown) => {
     return exportBrainstormRoomMarkdown(
       typeof cwd === 'string' ? cwd : '',
@@ -1836,10 +1844,18 @@ function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     pauseBrainstormRoom(roomId, win ? { win, notify: true } : {})
   })
-  ipcMain.on(IPC.BRAINSTORM_INJECT_HUMAN, (event, roomId: string, text: string) => {
+  ipcMain.on(IPC.BRAINSTORM_INJECT_HUMAN, (
+    event,
+    roomId: string,
+    text: string,
+    targetAgentId?: unknown,
+  ) => {
     if (typeof roomId !== 'string') return
     const win = BrowserWindow.fromWebContents(event.sender)
-    const result = injectBrainstormHumanMessage(roomId, text, win ? { win } : {})
+    const result = injectBrainstormHumanMessage(roomId, text, {
+      ...(win ? { win } : {}),
+      ...(typeof targetAgentId === 'string' ? { targetAgentId } : {}),
+    })
     if (!result.ok && win) {
       win.webContents.send(IPC.BRAINSTORM_EVENT, roomId, {
         type: 'error',

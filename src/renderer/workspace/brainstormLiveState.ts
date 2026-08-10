@@ -94,6 +94,7 @@ export function reduceBrainstormLiveEvent(
         round: event.round,
         text: event.text,
         role: 'human',
+        ...(event.targetAgentId ? { targetAgentId: event.targetAgentId } : {}),
       }
       return {
         ...state,

@@ -55,12 +55,16 @@ function sanitizeMessages(raw: unknown): BrainstormMessage[] {
         : agentId === 'human'
           ? 'human'
           : undefined
+    const targetAgentId = typeof data.targetAgentId === 'string'
+      ? data.targetAgentId.trim()
+      : ''
     out.push({
       agentId,
       agentName: agentNameRaw || agentId,
       round: sanitizeNonNegativeInt(data.round),
       text,
       ...(role ? { role } : {}),
+      ...(role === 'human' && targetAgentId ? { targetAgentId } : {}),
     })
   }
   return out

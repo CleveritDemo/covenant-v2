@@ -29,6 +29,12 @@ import { listBrainstormRooms, upsertBrainstormRoom } from './brainstormCatalogOp
 import { discoverTabContexts } from './tabContextBuild'
 import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
 
+/** Nota humana en cola, con destino opcional. */
+interface PendingHumanMessage {
+  text: string
+  targetAgentId?: string
+}
+
 /** Tope por archivo del working set; los contextos van por su propio presupuesto. */
 const BRAINSTORM_FILE_CHARS = 6_000
 
@@ -83,7 +89,7 @@ interface RoomRunState {
   cliSessions: Map<string, string>
   activePaneId: string | null
   /** Mensajes humanos en cola hasta el próximo speaker_final (status running). */
-  pendingHumanMessages: string[]
+  pendingHumanMessages: PendingHumanMessage[]
 }
 
 const roomRuns = new Map<string, RoomRunState>()
@@ -242,8 +248,8 @@ export async function runBrainstormSequence(
     resolveAgent: (agentId: string) => ProjectAgentDefinition | null
     /** Working set del turno (labels + cuerpos según ronda). */
     buildWorkingSet?: (room: BrainstormRoom) => BrainstormWorkingSet
-    /** Contextos del proyecto asignados a la sala. */
-    contexts?: TabContext[]
+    /** Contextos del proyecto asignados a la sala (se relee por turno). */
+    contextsFor?: (room: BrainstormRoom) => TabContext[]
     runSpeakerTurn: (
       input: Omit<BrainstormSpeakerTurnInput, 'isStale'> & { isStale: () => boolean },
     ) => Promise<BrainstormSpeakerTurnResult>
@@ -253,7 +259,9 @@ export async function runBrainstormSequence(
     isStale: () => boolean
     roomId: string
     /** Drena y limpia la cola de voz humana pendiente (tras speaker_final / entre turnos). */
-    drainPendingHumanMessages?: () => string[]
+    drainPendingHumanMessages?: () => PendingHumanMessage[]
+    /** Working set de la sala viva; puede haber crecido fuera de la secuencia. */
+    readExternalWorkingSet?: () => { contextIds: string[]; filePaths: string[] } | null
   },
 ): Promise<BrainstormRoom> {
   let room: BrainstormRoom = {
@@ -269,8 +277,8 @@ export async function runBrainstormSequence(
 
   const flushPendingHumans = (): void => {
     const pending = deps.drainPendingHumanMessages?.() ?? []
-    for (const text of pending) {
-      const trimmed = text.trim()
+    for (const item of pending) {
+      const trimmed = item.text.trim()
       if (!trimmed) continue
       const already = room.messages.some(message => (
         (message.role === 'human' || message.agentId === 'human')
@@ -278,7 +286,7 @@ export async function runBrainstormSequence(
         && message.round === room.round
       ))
       if (already) continue
-      const next = appendBrainstormHumanMessage(room, trimmed)
+      const next = appendBrainstormHumanMessage(room, trimmed, item.targetAgentId)
       if (!next) continue
       commit(next)
       // Emit solo si aún no se avisó al encolar (p. ej. tests sin inject).
@@ -305,6 +313,15 @@ export async function runBrainstormSequence(
       commit({ ...room, status: 'stopped' })
       deps.emit({ type: 'status', status: 'stopped' })
       return room
+    }
+
+    const external = deps.readExternalWorkingSet?.()
+    if (external) {
+      const sameContexts = (room.contextIds ?? []).join('\u0000') === external.contextIds.join('\u0000')
+      const samePaths = (room.filePaths ?? []).join('\u0000') === external.filePaths.join('\u0000')
+      if (!sameContexts || !samePaths) {
+        commit({ ...room, contextIds: external.contextIds, filePaths: external.filePaths })
+      }
     }
 
     const agent = deps.resolveAgent(agentId)
@@ -337,7 +354,7 @@ export async function runBrainstormSequence(
       agent,
       prompt,
       cwd: '',
-      contexts: deps.contexts,
+      contexts: deps.contextsFor?.(room),
       onDelta: text => {
         if (deps.isStale()) return
         deps.emit({
@@ -574,15 +591,26 @@ export function startBrainstormRoom(
       upsertBrainstormRoom(run.cwd, next)
     }
 
-    const workingSetContexts = resolveWorkingSetContexts(cwd, room.contextIds ?? [])
+    // Recalcular por ronda: el working set puede crecer a mitad de sala.
+    let cachedKey = ''
+    let cachedContexts: TabContext[] = []
+    const contextsFor = (current: BrainstormRoom): TabContext[] => {
+      const ids = current.contextIds ?? []
+      const key = ids.join('\u0000')
+      if (key !== cachedKey) {
+        cachedKey = key
+        cachedContexts = resolveWorkingSetContexts(cwd, ids)
+      }
+      return cachedContexts
+    }
 
     const finalRoom = await runBrainstormSequence(room, {
       roomId,
       isStale,
       resolveAgent: id => byId.get(id) ?? null,
-      contexts: workingSetContexts,
+      contextsFor,
       buildWorkingSet: current => ({
-        labels: brainstormWorkingSetLabels(workingSetContexts, current.filePaths ?? []),
+        labels: brainstormWorkingSetLabels(contextsFor(current), current.filePaths ?? []),
         // Cuerpos solo en la ronda 1; después el transcript ya carga el turno.
         fileBlocks: shouldSendWorkingSetBodies(current)
           ? readWorkingSetFiles(cwd, current.filePaths ?? [])
@@ -590,6 +618,14 @@ export function startBrainstormRoom(
       }),
       emit: event => emitBrainstorm(win, roomId, event),
       onRoomChange: persistRoom,
+      readExternalWorkingSet: () => {
+        const run = roomRuns.get(roomId)
+        if (!run || run.generation !== generation) return null
+        return {
+          contextIds: run.room.contextIds ?? [],
+          filePaths: run.room.filePaths ?? [],
+        }
+      },
       drainPendingHumanMessages: () => {
         const run = roomRuns.get(roomId)
         if (!run || run.generation !== generation) return []
@@ -647,8 +683,8 @@ function commitPendingHumansToRoom(
   if (!run.pendingHumanMessages.length) return
   const pending = run.pendingHumanMessages.splice(0)
   let room = run.room
-  for (const text of pending) {
-    const next = appendBrainstormHumanMessage(room, text)
+  for (const item of pending) {
+    const next = appendBrainstormHumanMessage(room, item.text, item.targetAgentId)
     if (!next) continue
     room = next
     const msg = next.messages[next.messages.length - 1]!
@@ -692,7 +728,7 @@ export function pauseBrainstormRoom(
 export function injectBrainstormHumanMessage(
   roomId: string,
   text: string,
-  options?: { win?: BrowserWindow },
+  options?: { win?: BrowserWindow; targetAgentId?: string },
 ): { ok: true } | { ok: false; error: string } {
   const id = typeof roomId === 'string' ? roomId.trim() : ''
   const trimmed = typeof text === 'string' ? text.trim() : ''
@@ -702,8 +738,15 @@ export function injectBrainstormHumanMessage(
   const run = roomRuns.get(id)
   if (!run) return { ok: false, error: 'sala no activa' }
 
+  const target = typeof options?.targetAgentId === 'string'
+    ? options.targetAgentId.trim()
+    : ''
+  const targetAgentId = target && run.room.participantAgentIds.includes(target)
+    ? target
+    : undefined
+
   if (run.room.status === 'paused') {
-    const next = appendBrainstormHumanMessage(run.room, trimmed)
+    const next = appendBrainstormHumanMessage(run.room, trimmed, targetAgentId)
     if (!next) return { ok: false, error: 'mensaje vacío' }
     run.room = next
     upsertBrainstormRoom(run.cwd, next)
@@ -713,25 +756,61 @@ export function injectBrainstormHumanMessage(
         type: 'human_message',
         text: msg.text,
         round: msg.round,
+        ...(msg.targetAgentId ? { targetAgentId: msg.targetAgentId } : {}),
       })
     }
     return { ok: true }
   }
 
   if (run.room.status === 'running' || run.room.status === 'idle') {
-    run.pendingHumanMessages.push(trimmed)
+    run.pendingHumanMessages.push({ text: trimmed, ...(targetAgentId ? { targetAgentId } : {}) })
     // Preview live; el transcript se confirma tras speaker_final (reduce dedupea re-emit).
     if (options?.win) {
       emitBrainstorm(options.win, id, {
         type: 'human_message',
         text: trimmed,
         round: run.room.round,
+        ...(targetAgentId ? { targetAgentId } : {}),
       })
     }
     return { ok: true }
   }
 
   return { ok: false, error: `no se puede inyectar en status ${run.room.status}` }
+}
+
+/**
+ * Añade contextos/archivos al working set de una sala activa. La ronda en curso
+ * ya está pedida: entra en el próximo turno.
+ */
+export function addBrainstormWorkingSet(
+  roomId: string,
+  working: { contextIds?: unknown; filePaths?: unknown; cwd?: unknown },
+): { ok: true; contextIds: string[]; filePaths: string[] } | { ok: false; error: string } {
+  const id = typeof roomId === 'string' ? roomId.trim() : ''
+  if (!id) return { ok: false, error: 'roomId inválido' }
+
+  // Sala viva: entra en el próximo turno. Sala en disco (pausada, sin corrida):
+  // se edita el JSON, que es lo que leerá el resume.
+  const run = roomRuns.get(id)
+  const cwd = run?.cwd ?? (typeof working.cwd === 'string' ? working.cwd.trim() : '')
+  if (!cwd) return { ok: false, error: 'cwd inválido' }
+  const base = run?.room ?? listBrainstormRooms(cwd).find(item => item.id === id)
+  if (!base) return { ok: false, error: 'sala no encontrada' }
+
+  const contextIds = sanitizeBrainstormWorkingSet([
+    ...(base.contextIds ?? []),
+    ...sanitizeBrainstormWorkingSet(working.contextIds),
+  ])
+  const filePaths = sanitizeBrainstormWorkingSet([
+    ...(base.filePaths ?? []),
+    ...sanitizeBrainstormWorkingSet(working.filePaths),
+  ])
+  const next: BrainstormRoom = { ...base, contextIds, filePaths }
+  if (run) run.room = next
+  const written = upsertBrainstormRoom(cwd, next)
+  if (!written.ok) return { ok: false, error: written.error }
+  return { ok: true, contextIds, filePaths }
 }
 
 export function stopBrainstormRoom(

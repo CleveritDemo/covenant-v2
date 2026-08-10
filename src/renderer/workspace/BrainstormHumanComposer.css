@@ -1,14 +1,83 @@
 .brainstorm-human-composer {
   flex-shrink: 0;
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  gap: 7px;
   padding: 10px 16px 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   background: color-mix(in srgb, var(--bg) 70%, var(--bg-secondary));
 }
 
+.brainstorm-human-composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .brainstorm-human-composer .textarea {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.brainstorm-human-composer__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.brainstorm-human-composer__targets {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.brainstorm-human-composer__target {
+  padding: 3px 9px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.brainstorm-human-composer__targets > .brainstorm-human-composer__target:first-child {
+  border-left: 0;
+}
+
+.brainstorm-human-composer__target:hover {
+  color: var(--text);
+}
+
+.brainstorm-human-composer__target--on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.brainstorm-human-composer__at {
+  padding: 3px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.brainstorm-human-composer__at:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.brainstorm-human-composer__timing {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }

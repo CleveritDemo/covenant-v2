@@ -131,7 +131,8 @@ describe('BrainstormRoomView chat bubbles', () => {
     fireEvent.change(input, { target: { value: 'Focus on the composer first.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    expect(inject).toHaveBeenCalledWith('room-1', 'Focus on the composer first.')
+    // Sin destino elegido: va a la sala (targetAgentId undefined).
+    expect(inject).toHaveBeenCalledWith('room-1', 'Focus on the composer first.', undefined)
     expect(screen.getByText('You')).toBeTruthy()
     expect(screen.getByText('Focus on the composer first.')).toBeTruthy()
     expect(document.querySelector('.brainstorm-room-view__row--human')).toBeTruthy()

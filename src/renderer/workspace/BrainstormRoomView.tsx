@@ -97,6 +97,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const stoppedRef = useRef(false)
   const pendingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  /** Working set tras añadir en caliente (la sala en disco la actualiza main). */
+  const [hotWorkingSet, setHotWorkingSet] = useState<{
+    contextIds: string[]
+    filePaths: string[]
+  } | null>(null)
+  const [workingSetError, setWorkingSetError] = useState<string | null>(null)
   liveStatusRef.current = live.status
 
   const participantResolution = useMemo(() => {
@@ -126,6 +132,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   useEffect(() => {
     if (!open) return
     setLive(createInitialBrainstormLiveState(room))
+    setHotWorkingSet(null)
+    setWorkingSetError(null)
     stoppedRef.current = false
   }, [open, room.id])
 
@@ -200,10 +208,14 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return parseBrainstormClosing(stripBrainstormProtocolFences(last.text))
   }, [live.messages, live.status, live.streaming])
 
-  const workingSetLabels = useMemo(() => [
-    ...(room.contextIds ?? []).map(id => ({ key: id, ...workingSetLabel(id) })),
-    ...(room.filePaths ?? []).map(path => ({ key: path, tag: 'file', label: path })),
-  ], [room.contextIds, room.filePaths])
+  const workingSetLabels = useMemo(() => {
+    const contextIds = hotWorkingSet?.contextIds ?? room.contextIds ?? []
+    const filePaths = hotWorkingSet?.filePaths ?? room.filePaths ?? []
+    return [
+      ...contextIds.map(id => ({ key: id, ...workingSetLabel(id) })),
+      ...filePaths.map(path => ({ key: path, tag: 'file', label: path })),
+    ]
+  }, [hotWorkingSet, room.contextIds, room.filePaths])
 
   const showPause = canPauseBrainstorm(live.status)
   const showPlay = canResumeBrainstorm(live.status)
@@ -270,14 +282,27 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     onClose()
   }
 
-  const handleHumanSend = useCallback((text: string): void => {
+  const handleHumanSend = useCallback((text: string, targetAgentId?: string): void => {
     setLive(previous => reduceBrainstormLiveEvent(previous, {
       type: 'human_message',
       text,
       round: previous.round,
+      ...(targetAgentId ? { targetAgentId } : {}),
     }))
-    window.api.injectBrainstormHumanMessage(room.id, text)
+    window.api.injectBrainstormHumanMessage(room.id, text, targetAgentId)
   }, [room.id])
+
+  const handleAddWorkingSet = useCallback((working: {
+    contextIds: string[]
+    filePaths: string[]
+  }): void => {
+    void window.api
+      .addBrainstormWorkingSet(room.id, { ...working, cwd: cwd.trim() })
+      .then(result => {
+        if (result.ok) setHotWorkingSet(result)
+        else setWorkingSetError(result.error)
+      })
+  }, [cwd, room.id])
 
   return (
     <TerminalModal
@@ -414,7 +439,11 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                   <div className="brainstorm-room-view__entry">
                     <span className="brainstorm-room-view__speaker">
                       {human
-                        ? t('tabs.brainstormHumanLabel')
+                        ? (message.targetAgentId
+                            ? t('tabs.brainstormHumanToLabel', {
+                                name: speakerLabel(message.targetAgentId),
+                              })
+                            : t('tabs.brainstormHumanLabel'))
                         : speakerLabel(message.agentId, message.agentName)}
                     </span>
                     <div className="brainstorm-room-view__bubble">
@@ -515,10 +544,27 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           <p className="brainstorm-room-view__error">{live.lastError}</p>
         ) : null}
 
+        {workingSetError ? (
+          <p className="brainstorm-room-view__error" role="status">{workingSetError}</p>
+        ) : null}
+
         {showComposer ? (
           <BrainstormHumanComposer
             placeholder={t('tabs.brainstormHumanPlaceholder')}
             sendLabel={t('tabs.brainstormHumanSend')}
+            roomLabel={t('tabs.brainstormTargetRoom')}
+            targets={participantResolution.resolvedIds.map(agentId => ({
+              agentId,
+              label: speakerLabel(agentId),
+            }))}
+            timingHint={t('tabs.brainstormHumanTiming', {
+              turn: Math.min(turnsDone + 1, totalTurns),
+            })}
+            cwd={cwd}
+            addContextLabel={t('tabs.brainstormHumanAddContext')}
+            onAddWorkingSet={live.status === 'running' || live.status === 'paused'
+              ? handleAddWorkingSet
+              : undefined}
             onSend={handleHumanSend}
           />
         ) : null}

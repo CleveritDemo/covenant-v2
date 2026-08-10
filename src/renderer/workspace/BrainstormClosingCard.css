@@ -1,6 +1,9 @@
 .brainstorm-closing {
   display: flex;
   flex-direction: column;
+  /* En una columna flex con alto fijo los items se encogen; con overflow
+     hidden eso recorta la tarjeta en vez de dejar scrollar al acta. */
+  flex: none;
   margin: 12px 0 4px;
   border: 1px solid var(--accent);
   border-radius: 10px;

@@ -87,18 +87,15 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  min-width: 22px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
-  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
-  color: color-mix(in srgb, var(--accent) 72%, var(--text));
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  color: color-mix(in srgb, var(--text-muted) 78%, var(--text));
   font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
 }
 
 /* Claude: coral cálido. Cursor: cian del tema. */
@@ -152,8 +149,14 @@
 }
 
 .plane-mini-face__drag-handle {
+  border-color: transparent;
+  background: transparent;
   cursor: grab;
   touch-action: none;
+}
+
+.plane-mini-face__drag-handle:hover {
+  background: color-mix(in srgb, var(--surface) 32%, transparent);
 }
 
 .plane-mini-face__drag-handle:active {
@@ -241,10 +244,7 @@
 }
 
 .plane-mini-face--compact .plane-mini-face__monogram {
-  min-width: 20px;
-  height: 17px;
-  padding: 0 4px;
-  font-size: 8.5px;
+  font-size: 10.5px;
 }
 
 .plane-mini-face--compact .plane-mini-face__status {

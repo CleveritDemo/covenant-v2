@@ -560,6 +560,18 @@ html[data-reduce-motion="true"] {
   text-align: center;
 }
 
+.plane-chat-composer__dictation-live {
+  margin: 6px 0 0;
+  padding: 0 4px;
+  color: color-mix(in srgb, var(--plane-composer-accent, var(--accent)) 70%, var(--text-muted));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .plane-chat-composer__repos {
   display: flex;
   flex-wrap: wrap;

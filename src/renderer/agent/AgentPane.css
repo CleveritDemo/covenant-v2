@@ -172,6 +172,7 @@ html[data-reduce-motion="true"] {
 
 .agent-pane__footer--chat-only {
   gap: 8px;
+  overflow: visible;
 }
 
 .agent-pane__footer--chat-only .agent-pane__composer {
@@ -1068,6 +1069,16 @@ html[data-reduce-motion="true"] {
   padding: 0 2px;
   color: var(--danger, #e5484d);
   font-size: 11px;
+}
+
+.agent-pane__dictation-live {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-muted));
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-pane__composer--loop textarea {

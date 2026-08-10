@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildOrgWorkspaceCatalog,
+  canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   catalogForLogin,
   catalogHasWorkspaces,
@@ -80,6 +81,50 @@ describe('canRenameOrgWorkspace', () => {
     })).toBe(true)
   })
 
+  describe('canAccessOrgWorkspace', () => {
+    it('permite managers de org y participantes del workspace', () => {
+      expect(canAccessOrgWorkspace({
+        login: 'owner',
+        orgRole: 'owner',
+        isOrgAdmin: false,
+      })).toBe(true)
+      expect(canAccessOrgWorkspace({
+        login: 'admin',
+        orgRole: 'member',
+        isOrgAdmin: true,
+      })).toBe(true)
+      expect(canAccessOrgWorkspace({
+        login: 'creator',
+        orgRole: 'member',
+        isOrgAdmin: false,
+        createdBy: 'creator',
+      })).toBe(true)
+      expect(canAccessOrgWorkspace({
+        login: 'lead',
+        orgRole: 'member',
+        isOrgAdmin: false,
+        admins: ['lead'],
+      })).toBe(true)
+      expect(canAccessOrgWorkspace({
+        login: 'dev',
+        orgRole: 'member',
+        isOrgAdmin: false,
+        assignees: ['dev'],
+      })).toBe(true)
+    })
+
+    it('niega miembros de org no asignados al workspace', () => {
+      expect(canAccessOrgWorkspace({
+        login: 'outsider',
+        orgRole: 'member',
+        isOrgAdmin: false,
+        createdBy: 'creator',
+        admins: ['lead'],
+        assignees: ['dev'],
+      })).toBe(false)
+    })
+  })
+
   it('niega assignees sin rol de manager', () => {
     expect(canRenameOrgWorkspace({
       login: 'erin',
@@ -92,7 +137,7 @@ describe('canRenameOrgWorkspace', () => {
 })
 
 describe('buildOrgWorkspaceCatalog', () => {
-  it('filtra slug/id/name vacíos y propaga canRename', () => {
+  it('filtra slug/id/name vacíos, no accesibles y propaga canRename', () => {
     const built = buildOrgWorkspaceCatalog(
       'alice',
       [
@@ -103,6 +148,7 @@ describe('buildOrgWorkspaceCatalog', () => {
       {
         acme: [
           { id: 'w1', name: 'Alpha', canRename: true },
+          { id: 'hidden', name: 'Hidden', canAccess: false },
           { id: '', name: 'NoId' },
           { id: 'w2', name: '  ' },
         ],

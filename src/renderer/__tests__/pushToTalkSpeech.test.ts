@@ -15,6 +15,7 @@ vi.mock('../uiSounds', () => ({
 
 type DictationMock = {
   dictationAvailable: ReturnType<typeof vi.fn>
+  dictationRequestPermission: ReturnType<typeof vi.fn>
   dictationStart: ReturnType<typeof vi.fn>
   dictationStop: ReturnType<typeof vi.fn>
   onDictationError: ReturnType<typeof vi.fn>
@@ -29,6 +30,7 @@ function installDictationApi(overrides?: Partial<DictationMock>): DictationMock 
       ok: true,
       platform: 'darwin' as NodeJS.Platform,
     })),
+    dictationRequestPermission: vi.fn(async () => ({ ok: true })),
     dictationStart: vi.fn(async (_lang?: string) => ({ ok: true })),
     dictationStop: vi.fn(async () => ({ ok: true, text: '' })),
     onDictationError: vi.fn(() => () => {}),
@@ -94,7 +96,7 @@ describe('isPushToTalkSpeechSupported', () => {
 })
 
 describe('usePushToTalkSpeech', () => {
-  it('start() sets listening and calls dictationStart(lang)', async () => {
+  it('start() requests permission before listening and calling dictationStart(lang)', async () => {
     const { playVoiceMessageSound } = await import('../uiSounds')
     const api = installDictationApi()
     const onTranscript = vi.fn()
@@ -106,11 +108,37 @@ describe('usePushToTalkSpeech', () => {
       result.current.start()
     })
 
-    expect(playVoiceMessageSound).toHaveBeenCalled()
-    expect(result.current.listening).toBe(true)
+    expect(result.current.listening).toBe(false)
+    await waitFor(() => expect(api.dictationRequestPermission).toHaveBeenCalledTimes(1))
     await waitFor(() => {
+      expect(playVoiceMessageSound).toHaveBeenCalled()
+      expect(result.current.listening).toBe(true)
       expect(api.dictationStart).toHaveBeenCalledWith('es-ES')
     })
+  })
+
+  it('permission denied before start does not start dictation', async () => {
+    const { playVoiceMessageSound } = await import('../uiSounds')
+    const api = installDictationApi({
+      dictationRequestPermission: vi.fn(async () => ({
+        ok: false,
+        error: 'permission-denied',
+      })),
+    })
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      usePushToTalkSpeech({ onTranscript: vi.fn(), onError }),
+    )
+
+    act(() => {
+      result.current.start()
+    })
+
+    await waitFor(() => expect(api.dictationRequestPermission).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('permission-denied'))
+    expect(api.dictationStart).not.toHaveBeenCalled()
+    expect(playVoiceMessageSound).not.toHaveBeenCalled()
+    expect(result.current.listening).toBe(false)
   })
 
   it('updates interim from onDictationPartial while listening', async () => {
@@ -289,9 +317,10 @@ describe('usePushToTalkSpeech', () => {
     act(() => {
       result.current.start()
     })
-    expect(result.current.listening).toBe(true)
+    expect(result.current.listening).toBe(false)
 
     await waitFor(() => {
+      expect(api.dictationRequestPermission).toHaveBeenCalled()
       expect(api.dictationStart).toHaveBeenCalled()
       expect(onError).toHaveBeenCalledWith('permission-denied')
       expect(result.current.listening).toBe(false)

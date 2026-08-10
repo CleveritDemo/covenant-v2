@@ -14,6 +14,7 @@ function hasNativeDictationApi(): boolean {
   return Boolean(
     api
     && typeof api.dictationAvailable === 'function'
+    && typeof api.dictationRequestPermission === 'function'
     && typeof api.dictationStart === 'function'
     && typeof api.dictationStop === 'function',
   )
@@ -144,13 +145,28 @@ export function usePushToTalkSpeech(
       reportError('unsupported')
       return
     }
-    playVoiceMessageSound()
     wantListenRef.current = true
     startingRef.current = true
     setInterim('')
     setLevel(0)
-    setListening(true)
-    void window.api.dictationStart(lang).then(result => {
+    void window.api.dictationRequestPermission().then(permission => {
+      if (!wantListenRef.current) {
+        startingRef.current = false
+        clearLive()
+        return null
+      }
+      if (!permission?.ok) {
+        wantListenRef.current = false
+        startingRef.current = false
+        clearLive()
+        reportError(permission?.error || 'permission-denied')
+        return null
+      }
+      playVoiceMessageSound()
+      setListening(true)
+      return window.api.dictationStart(lang)
+    }).then(result => {
+      if (!result) return
       startingRef.current = false
       if (!wantListenRef.current) {
         void window.api.dictationStop().then(deliverStopResult).catch(() => clearLive())

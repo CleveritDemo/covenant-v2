@@ -15,6 +15,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { app, systemPreferences } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
+import type { DictationPermissionResult } from '../src/shared/dictation'
 
 /** Espejo de `silencePeakThreshold` en native/mac-dictation/main.swift */
 export const DICTATION_SILENCE_PEAK_THRESHOLD = 0.008
@@ -254,6 +255,17 @@ export class DictationRuntime {
     return dictationAvailabilityForPlatform(this.platform, this.resolveHelperPath())
   }
 
+  async requestMicrophoneAccess(): Promise<DictationPermissionResult> {
+    if (this.platform !== 'darwin') {
+      return { ok: false, error: 'unsupported', message: 'Microphone permission is only supported on macOS' }
+    }
+    const micOk = await this.askMicrophoneAccess()
+    if (!micOk) {
+      return { ok: false, error: 'permission-denied', message: 'Microphone permission denied' }
+    }
+    return { ok: true }
+  }
+
   async start(lang = 'en-US'): Promise<DictationStartResult> {
     const avail = this.availability()
     if (!avail.ok) {
@@ -262,9 +274,13 @@ export class DictationRuntime {
     if (this.sessionActive) {
       return { ok: false, error: 'busy', message: 'Dictation already running' }
     }
-    const micOk = await this.askMicrophoneAccess()
-    if (!micOk) {
-      return { ok: false, error: 'permission-denied', message: 'Microphone permission denied' }
+    const permission = await this.requestMicrophoneAccess()
+    if (!permission.ok) {
+      return {
+        ok: false,
+        error: permission.error === 'unsupported' ? 'unsupported' : 'permission-denied',
+        message: permission.message,
+      }
     }
     const helperPath = this.resolveHelperPath()
     if (!helperPath) {

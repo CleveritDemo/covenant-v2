@@ -28,6 +28,7 @@ import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerMo
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
+  canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   catalogForLogin,
   catalogHasWorkspaces,
@@ -90,6 +91,7 @@ import {
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
   supersedeOrchestrationJobsForHumanTurn,
+  upsertOrchestrationWaveItem,
   type OrchestrationJob,
 } from '@shared/orchestrationJobs'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
@@ -963,17 +965,24 @@ export const App: React.FC = () => {
             isOrgAdmin = adminsResult.data.some(a => a.trim() === login)
           }
         }
-        workspacesByOrg[slug] = list.data.map(w => ({
-          id: w.id,
-          name: w.name,
-          canRename: canRenameOrgWorkspace({
+        workspacesByOrg[slug] = list.data.map(w => {
+          const workspaceAccess = {
             login,
             orgRole: org.role ?? '',
             isOrgAdmin,
             createdBy: w.createdBy,
             admins: w.admins,
-          }),
-        }))
+          }
+          return {
+            id: w.id,
+            name: w.name,
+            canAccess: canAccessOrgWorkspace({
+              ...workspaceAccess,
+              assignees: w.assignees,
+            }),
+            canRename: canRenameOrgWorkspace(workspaceAccess),
+          }
+        })
       }
 
       const built = buildOrgWorkspaceCatalog(
@@ -3352,9 +3361,10 @@ export const App: React.FC = () => {
           toAgentId: decision.agentId,
         })
         occupiedPaneIds.add(decision.paneId)
-        waveItems.push({
+        upsertOrchestrationWaveItem(job, {
           delegationId: delegation.id,
           toAgentId: decision.agentId,
+          toPaneId: decision.paneId,
           status: 'running',
         })
         continue
@@ -3547,9 +3557,10 @@ export const App: React.FC = () => {
         ...(baseAgentId ? { baseAgentId } : {}),
       })
       occupiedPaneIds.add(toPaneId)
-      waveItems.push({
+      upsertOrchestrationWaveItem(job, {
         delegationId: delegation.id,
         toAgentId: routedAgentId,
+        toPaneId,
         ...(baseAgentId ? { baseAgentId } : {}),
         status: 'running',
       })
@@ -3682,6 +3693,14 @@ export const App: React.FC = () => {
     job.pending.set(next.delegation.id, {
       toPaneId: next.toPaneId,
       toAgentId: next.toAgentId,
+      ...(next.baseAgentId ? { baseAgentId: next.baseAgentId } : {}),
+    })
+    upsertOrchestrationWaveItem(job, {
+      delegationId: next.delegation.id,
+      toAgentId: next.toAgentId,
+      toPaneId: next.toPaneId,
+      ...(next.baseAgentId ? { baseAgentId: next.baseAgentId } : {}),
+      status: 'running',
     })
 
     if (baseCwd) {

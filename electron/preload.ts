@@ -78,6 +78,7 @@ import type {
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
 import type { UpdateState } from '../src/shared/updateState'
+import type { DictationPermissionResult } from '../src/shared/dictation'
 import type {
   OrgWorkspaceCloneRepo,
   OrgWorkspaceCloneResult,
@@ -992,6 +993,9 @@ const api = {
     message?: string
   }> {
     return ipcRenderer.invoke(IPC.DICTATION_AVAILABLE)
+  },
+  dictationRequestPermission(): Promise<DictationPermissionResult> {
+    return ipcRenderer.invoke(IPC.DICTATION_REQUEST_PERMISSION)
   },
   dictationStart(lang?: string): Promise<{ ok: boolean; error?: string; message?: string }> {
     return ipcRenderer.invoke(IPC.DICTATION_START, lang)

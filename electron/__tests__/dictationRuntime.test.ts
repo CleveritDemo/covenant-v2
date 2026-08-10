@@ -210,9 +210,25 @@ describe('DictationRuntime', () => {
       spawnHelper,
       askMicrophoneAccess: async () => true,
     })
+
     const start = await runtime.start('es-ES')
     expect(start.ok).toBe(false)
     expect(start.error).toBe('unsupported')
+    expect(spawnHelper).not.toHaveBeenCalled()
+  })
+
+  it('requestMicrophoneAccess reports denied without spawning helper', async () => {
+    const spawnHelper = vi.fn()
+    const runtime = new DictationRuntime({
+      platform: 'darwin',
+      resolveHelperPath: () => '/fake',
+      spawnHelper,
+      askMicrophoneAccess: async () => false,
+    })
+    await expect(runtime.requestMicrophoneAccess()).resolves.toMatchObject({
+      ok: false,
+      error: 'permission-denied',
+    })
     expect(spawnHelper).not.toHaveBeenCalled()
   })
 

@@ -23,6 +23,7 @@ export type OrgWorkspaceCatalogWorkspaceInput = {
   id: string
   name: string
   canRename?: boolean
+  canAccess?: boolean
 }
 
 export function catalogHasWorkspaces(cat?: OrgWorkspaceCatalog | null): boolean {
@@ -67,6 +68,28 @@ export function canRenameOrgWorkspace(opts: {
   return (opts.admins ?? []).some(a => a.trim() === login)
 }
 
+/**
+ * Visibilidad del workspace para el usuario actual.
+ * Managers de org ven todos; miembros normales solo si participan en ese workspace.
+ */
+export function canAccessOrgWorkspace(opts: {
+  login: string
+  orgRole: string
+  isOrgAdmin: boolean
+  createdBy?: string
+  admins?: readonly string[]
+  assignees?: readonly string[]
+}): boolean {
+  const login = opts.login.trim()
+  if (!login) return false
+  if (opts.orgRole.trim() === 'owner' || opts.orgRole.trim() === 'admin' || opts.isOrgAdmin) {
+    return true
+  }
+  if ((opts.createdBy ?? '').trim() === login) return true
+  if ((opts.admins ?? []).some(a => a.trim() === login)) return true
+  return (opts.assignees ?? []).some(a => a.trim() === login)
+}
+
 export function buildOrgWorkspaceCatalog(
   login: string,
   orgs: Array<{ slug: string; name: string }>,
@@ -83,6 +106,7 @@ export function buildOrgWorkspaceCatalog(
       const workspaceId = workspace.id?.trim() ?? ''
       const name = workspace.name?.trim() ?? ''
       if (!workspaceId || !name) continue
+      if (workspace.canAccess === false) continue
       entries.push({
         slug,
         orgName,

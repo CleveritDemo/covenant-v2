@@ -8,6 +8,7 @@ import {
   getCovenantApi,
   hasCovenantWorkspacesApi,
   hasCovenantWorkspaceContentApi,
+  hasCovenantOrgAdminsApi,
 } from '../covenantApi'
 import {
   covenantWorkspaceCatalogKey,
@@ -18,6 +19,7 @@ import {
   tabContextsFromWorkspaceContexts,
 } from '../../shared/orgWorkspaceContent'
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
+import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
 import type { ProjectAgentDefinition } from '../../shared/projectAgentCatalog'
 import type { TabContext } from '../../shared/tabContext'
 import './OrganizationsModal.css'
@@ -102,6 +104,10 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     void (async () => {
       const covenant = getCovenantApi()
       if (!covenant || !hasCovenantWorkspacesApi(covenant)) return
+      const status = await covenant.status()
+      if (!status.ok || !status.data.signedIn || cancelled) return
+      const login = status.data.login?.trim() ?? ''
+      if (!login) return
       const orgsResult = await covenant.orgsList()
       if (!orgsResult.ok || cancelled) return
       const next: WorkspaceOption[] = []
@@ -110,10 +116,24 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         if (!slug) continue
         const list = await covenant.workspacesList(slug)
         if (!list.ok || cancelled) continue
+        let isOrgAdmin = org.role?.trim() === 'owner' || org.role?.trim() === 'admin'
+        if (!isOrgAdmin && hasCovenantOrgAdminsApi(covenant)) {
+          const admins = await covenant.orgAdminsList(slug)
+          if (cancelled) return
+          if (admins.ok) isOrgAdmin = admins.data.some(a => a.trim() === login)
+        }
         for (const workspace of list.data as CovenantWorkspace[]) {
           const workspaceId = workspace.id?.trim()
           const name = workspace.name?.trim()
           if (!workspaceId || !name) continue
+          if (!canAccessOrgWorkspace({
+            login,
+            orgRole: org.role ?? '',
+            isOrgAdmin,
+            createdBy: workspace.createdBy,
+            admins: workspace.admins,
+            assignees: workspace.assignees,
+          })) continue
           next.push({
             value: encodeWorkspaceValue(slug, workspaceId),
             slug,

@@ -4,6 +4,18 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.2
+
+- **Micrófono con permisos al día**: cada pulsación del botón de voz vuelve a
+  revisar el permiso y lo solicita de nuevo si la app no lo tiene.
+- **Workspaces de organización filtrados**: los miembros ven solo proyectos
+  asignados al abrir organizaciones o crear una nueva tab; owners/admins siguen
+  viendo todo.
+- **Delegaciones réplica visibles**: las réplicas aparecen en Waiting con Stop,
+  igual que los agentes base.
+- **Composer más legible**: badges de agentes y burbujas de queue usan colores
+  sólidos, sin transparencias.
+
 ## v0.39.1
 
 - **Delegaciones más confiables**: los especialistas ya no se completan con el

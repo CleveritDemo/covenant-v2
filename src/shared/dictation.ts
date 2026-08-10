@@ -13,6 +13,12 @@ export type DictationUiErrorKind =
   | 'noAudio'
   | 'generic'
 
+export interface DictationPermissionResult {
+  ok: boolean
+  error?: 'unsupported' | 'permission-denied'
+  message?: string
+}
+
 /** Clasifica códigos IPC/legacy (p. ej. `network` de Web Speech) para i18n. */
 export function classifyDictationError(code: string): DictationUiErrorKind {
   const normalized = code.trim().toLowerCase()

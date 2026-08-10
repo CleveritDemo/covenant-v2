@@ -178,13 +178,13 @@
   gap: 4px;
   max-width: min(100%, 360px);
   padding: 2px 4px 2px 2px;
-  border: 1px dashed color-mix(in srgb, var(--plane-composer-accent) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 55%, var(--bg-secondary));
   border-radius: 14px 14px 4px 14px;
-  background: color-mix(in srgb, var(--plane-composer-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--plane-composer-accent) 28%, var(--bg-secondary));
   color: var(--text);
   font-size: 11px;
   line-height: 1.35;
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .plane-chat-composer__queue-open {
@@ -211,7 +211,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--plane-composer-accent) 32%, transparent);
+  background: var(--plane-composer-accent);
+  color: #fff;
   font-size: 9px;
   font-weight: 700;
 }
@@ -263,19 +264,18 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border: 1px dashed color-mix(in srgb, var(--plane-composer-accent) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--plane-composer-accent) 55%, var(--bg-secondary));
   border-radius: 10px;
-  background: transparent;
+  background: color-mix(in srgb, var(--plane-composer-accent) 24%, var(--bg-secondary));
   color: var(--text);
   font-size: 10px;
   line-height: 1.4;
-  opacity: 0.75;
+  opacity: 1;
   cursor: pointer;
 }
 
 .plane-chat-composer__queue-merge:hover {
-  opacity: 1;
-  background: color-mix(in srgb, var(--plane-composer-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--plane-composer-accent) 36%, var(--bg-secondary));
 }
 
 /* ─── Contextos adjuntos al turno (drop desde el pool) ─────────────────── */

@@ -17,6 +17,7 @@ import {
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
   supersedeOrchestrationJobsForHumanTurn,
+  upsertOrchestrationWaveItem,
   type OrchestrationJob,
 } from '../orchestrationJobs'
 import { ORCHESTRATION_UNLIMITED_ROUNDS } from '../agentOrchestration'
@@ -122,6 +123,53 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
     expect(items.map(item => item.toPaneId)).toEqual(['pane-a', 'pane-b'])
   })
 
+  it('flattens deferred replicas with baseAgentId and pane for Waiting Stop', () => {
+    const job = createOrchestrationJob('orch')
+    job.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-replica', toAgentId: 'frontend#2', objective: 'x' },
+      toPaneId: 'pane-replica',
+      toAgentId: 'frontend-2',
+      baseAgentId: 'frontend',
+    })
+    expect(flattenAwaitingItemsFromJobs([job])).toEqual([
+      {
+        delegationId: 'd-replica',
+        toAgentId: 'frontend-2',
+        toPaneId: 'pane-replica',
+        baseAgentId: 'frontend',
+        status: 'running',
+      },
+    ])
+  })
+
+  it('upserts wave items with replica metadata instead of dropping pane/base info', () => {
+    const job = createOrchestrationJob('orch')
+    upsertOrchestrationWaveItem(job, {
+      delegationId: 'd-replica',
+      toAgentId: 'frontend-2',
+      toPaneId: 'pane-replica',
+      baseAgentId: 'frontend',
+      status: 'running',
+    })
+    upsertOrchestrationWaveItem(job, {
+      delegationId: 'd-replica',
+      toAgentId: 'frontend-2',
+      toPaneId: 'pane-replica-new',
+      baseAgentId: 'frontend',
+      status: 'running',
+    })
+    expect(job.waveItems).toEqual([
+      {
+        delegationId: 'd-replica',
+        toAgentId: 'frontend-2',
+        toPaneId: 'pane-replica-new',
+        baseAgentId: 'frontend',
+        status: 'running',
+      },
+    ])
+  })
+
   it('tracks awaiting and pending orchestrator panes', () => {
     const byPane = new Map<string, Map<string, OrchestrationJob>>()
     const jobs = new Map<string, OrchestrationJob>()
@@ -211,6 +259,24 @@ describe('abortOneDelegationInJob', () => {
       remainingDeferred: 0,
     })
     expect(job.pending.has('d1')).toBe(true)
+  })
+
+  it('returns baseAgentId when aborting a deferred replica', () => {
+    const job = createOrchestrationJob('orch')
+    job.deferred.push({
+      tabId: 't',
+      delegation: { id: 'd-replica', toAgentId: 'frontend#2', objective: 'x' },
+      toPaneId: 'pane-replica',
+      toAgentId: 'frontend-2',
+      baseAgentId: 'frontend',
+    })
+    expect(abortOneDelegationInJob(job, 'd-replica')).toMatchObject({
+      ok: true,
+      wasDeferred: true,
+      toPaneId: 'pane-replica',
+      toAgentId: 'frontend-2',
+      baseAgentId: 'frontend',
+    })
   })
 })
 

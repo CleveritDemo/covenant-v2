@@ -39,6 +39,7 @@ export interface OrchestrationDeferredItem {
   delegation: DelegateRequest
   toPaneId: string
   toAgentId: string
+  baseAgentId?: string
 }
 
 export interface OrchestrationPendingMerge {
@@ -212,11 +213,34 @@ export function flattenAwaitingItemsFromJobs(
         delegationId: deferred.delegation.id,
         toAgentId: deferred.toAgentId,
         toPaneId: deferred.toPaneId,
+        ...(deferred.baseAgentId ? { baseAgentId: deferred.baseAgentId } : {}),
         status: 'running',
       })
     }
   }
   return out
+}
+
+export function upsertOrchestrationWaveItem(
+  job: OrchestrationJob,
+  input: OrchestrationAwaitingItemInput,
+): void {
+  const id = input.delegationId.trim()
+  if (!id) return
+  const next: OrchestrationAwaitingItemInput = {
+    delegationId: id,
+    toAgentId: input.toAgentId,
+    status: input.status,
+    ...(input.toPaneId?.trim() ? { toPaneId: input.toPaneId.trim() } : {}),
+    ...(input.baseAgentId?.trim() ? { baseAgentId: input.baseAgentId.trim() } : {}),
+    ...(input.worktreePath?.trim() ? { worktreePath: input.worktreePath.trim() } : {}),
+  }
+  const idx = job.waveItems.findIndex(item => item.delegationId === id)
+  if (idx >= 0) {
+    job.waveItems[idx] = { ...job.waveItems[idx], ...next }
+    return
+  }
+  job.waveItems.push(next)
 }
 
 /** Panes orquestadores con al menos un job awaiting. */
@@ -369,7 +393,7 @@ export function abortOneDelegationInJob(
 
   const toPaneId = pendingMeta?.toPaneId ?? deferred?.toPaneId
   const toAgentId = pendingMeta?.toAgentId ?? deferred?.toAgentId
-  const baseAgentId = pendingMeta?.baseAgentId
+  const baseAgentId = pendingMeta?.baseAgentId ?? deferred?.baseAgentId
 
   return {
     ok: true,

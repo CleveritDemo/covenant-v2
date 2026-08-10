@@ -545,6 +545,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.DICTATION_AVAILABLE, () => dictation.availability())
+  ipcMain.handle(IPC.DICTATION_REQUEST_PERMISSION, async () => dictation.requestMicrophoneAccess())
   ipcMain.handle(IPC.DICTATION_START, async (_e, lang?: unknown) => {
     const locale = typeof lang === 'string' && lang.trim() ? lang.trim() : 'en-US'
     return dictation.start(locale)

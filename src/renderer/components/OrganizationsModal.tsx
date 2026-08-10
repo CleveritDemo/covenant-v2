@@ -27,6 +27,7 @@ import { Icon } from './ui/Icon'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
 import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/repoFullName'
+import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
 
 interface Props {
   open?: boolean
@@ -999,7 +1000,6 @@ function WorkspacesSection({
 
   return (
     <div className="orgs-stack" aria-label={t('organizations.workspacesSection')}>
-      <h3 className="orgs-panel-heading">{t('organizations.workspacesSection')}</h3>
       <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
       {!available ? (
         <p className="orgs-empty">{t('organizations.unavailable')}</p>
@@ -1447,7 +1447,14 @@ export const OrganizationsModal: React.FC<Props> = ({
       setWorkspaces([])
       setWorkspacesError(null)
     } else if (workspacesResult.ok) {
-      setWorkspaces(workspacesResult.data)
+      setWorkspaces(workspacesResult.data.filter(workspace => canAccessOrgWorkspace({
+        login: currentLogin,
+        orgRole: orgRole ?? '',
+        isOrgAdmin: isOrgAdminHint,
+        createdBy: workspace.createdBy,
+        admins: workspace.admins,
+        assignees: workspace.assignees,
+      })))
     } else {
       setWorkspaces([])
       setWorkspacesError(workspacesResult.error)
@@ -1467,7 +1474,7 @@ export const OrganizationsModal: React.FC<Props> = ({
 
     if (memberLoginsResult.ok) setMemberLogins(memberLoginsResult.data)
     else setMemberLogins([])
-  }, [covenant, orgs])
+  }, [covenant, currentLogin, orgs])
 
   useEffect(() => {
     if (!open) return

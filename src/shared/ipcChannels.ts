@@ -349,6 +349,8 @@ export const IPC = {
 
   /** Renderer → main (invoke): ¿dictado nativo disponible? */
   DICTATION_AVAILABLE: 'dictation:available',
+  /** Renderer → main (invoke): revisar/pedir permiso de micrófono */
+  DICTATION_REQUEST_PERMISSION: 'dictation:requestPermission',
   /** Renderer → main (invoke): iniciar captura push-to-talk */
   DICTATION_START: 'dictation:start',
   /** Renderer → main (invoke): detener y obtener transcript final */

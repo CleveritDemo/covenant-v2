@@ -206,6 +206,12 @@
   min-width: 0;
 }
 
+.git-panel-top-bar__lead > .ui-tooltip:has(.git-panel-top-bar__cwd) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .git-panel-top-bar__cwd {
   display: flex;
   flex-direction: row;

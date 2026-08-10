@@ -69,19 +69,20 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
               </span>
             )
             const stop = item.status === 'running' && onStopItem && stopItemLabel ? (
-              <button
-                type="button"
-                className="agent-delegating__stop"
-                aria-label={stopItemLabel}
-                title={stopItemLabel}
-                onClick={event => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onStopItem(item.id)
-                }}
-              >
-                <Icon name="stop" size={10} aria-hidden />
-              </button>
+              <Tooltip content={stopItemLabel}>
+                <button
+                  type="button"
+                  className="agent-delegating__stop"
+                  aria-label={stopItemLabel}
+                  onClick={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onStopItem(item.id)
+                  }}
+                >
+                  <Icon name="stop" size={10} aria-hidden />
+                </button>
+              </Tooltip>
             ) : null
             return (
               <li key={item.id} className="agent-delegating__row">

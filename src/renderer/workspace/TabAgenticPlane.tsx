@@ -8,7 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
-import { PlaneChatComposer } from './PlaneChatComposer'
+import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
@@ -392,11 +392,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     return () => observer.disconnect()
   }, [])
 
-  const agents = useMemo(
-    () => entities
+  const agents = useMemo((): PlaneChatAgentOption[] => (
+    entities
       .filter(entity => entity.kind === 'agent')
       .map(entity => {
         const status = agentStatuses[entity.paneId]
+        const workStyle = status?.orchestrationWorkStyle
         return {
           paneId: entity.paneId,
           title: entity.title,
@@ -405,11 +406,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           awaitingDelegations: Boolean(status?.awaitingDelegations),
           delegationWorkActive: Boolean(status?.delegationWorkActive),
           orchestratorBusy: Boolean(status?.orchestratorBusy),
-          orchestrationWorkStyle: status?.orchestrationWorkStyle === 'turbo' ? 'turbo' : 'linear',
+          orchestrationWorkStyle: workStyle === 'turbo' ? 'turbo' : 'linear',
         }
-      }),
-    [agentStatuses, entities],
-  )
+      })
+  ), [agentStatuses, entities])
 
   const loopAgents = useMemo<PlaneLoopsAgent[]>(
     () => entities

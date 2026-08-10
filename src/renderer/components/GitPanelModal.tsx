@@ -327,17 +327,25 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                           />
                         </div>
                       )}
-                      <div
-                        className="git-panel-top-bar__cwd"
-                        title={status.sessionCwd || undefined}
-                      >
-                        <span className="git-panel-top-bar__cwd-icon" aria-hidden>
-                          <Icon name="folder-filled" size={14} />
-                        </span>
-                        <code className="git-panel-top-bar__cwd-path">
-                          {status.sessionCwd ? shortPathTail(status.sessionCwd) : '—'}
-                        </code>
-                      </div>
+                      {status.sessionCwd ? (
+                        <Tooltip content={status.sessionCwd}>
+                          <div className="git-panel-top-bar__cwd">
+                            <span className="git-panel-top-bar__cwd-icon" aria-hidden>
+                              <Icon name="folder-filled" size={14} />
+                            </span>
+                            <code className="git-panel-top-bar__cwd-path">
+                              {shortPathTail(status.sessionCwd)}
+                            </code>
+                          </div>
+                        </Tooltip>
+                      ) : (
+                        <div className="git-panel-top-bar__cwd">
+                          <span className="git-panel-top-bar__cwd-icon" aria-hidden>
+                            <Icon name="folder-filled" size={14} />
+                          </span>
+                          <code className="git-panel-top-bar__cwd-path">—</code>
+                        </div>
+                      )}
                       {status.isRepo && (
                         <div className="git-panel-top-bar__branch">
                           <GitBranchBadge status={status} labelStyle="icon" />
@@ -362,9 +370,11 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
                   {status.isRepo && status.repoRoot && status.repoRoot !== status.sessionCwd && (
                     <div className="git-panel-meta git-panel-meta--extra">
                       <span className="git-panel-meta__label">{t('git.repoRootLabel')}</span>
-                      <code className="git-panel-meta__path" title={status.repoRoot}>
-                        {shortPathTail(status.repoRoot)}
-                      </code>
+                      <Tooltip content={status.repoRoot}>
+                        <code className="git-panel-meta__path">
+                          {shortPathTail(status.repoRoot)}
+                        </code>
+                      </Tooltip>
                     </div>
                   )}
 

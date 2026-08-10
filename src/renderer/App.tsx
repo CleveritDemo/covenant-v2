@@ -4780,7 +4780,7 @@ export const App: React.FC = () => {
           getOrchestrationRound={() => {
             const activeId = activeOrchestrationJobByPaneRef.current.get(paneId)
             const jobs = orchestrationJobsByPaneRef.current.get(paneId)
-            const job = activeId && jobs?.get(activeId)
+            const job = activeId ? jobs?.get(activeId) : undefined
             const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
             return {
               round: job?.round ?? 0,

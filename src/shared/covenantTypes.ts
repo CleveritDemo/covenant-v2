@@ -43,7 +43,17 @@ export interface CovenantWorkspaceContextPayload {
   meta?: Record<string, unknown>
 }
 
-/** Respuesta GET/PUT de contexto de workspace org. */
+/**
+ * Contrato HTTP de contextos de workspace org (sin PATCH rename-in-place):
+ * - PUT    /orgs/:slug/workspaces/:wsId/contexts/:contextId → crea/actualiza ese id
+ * - DELETE /orgs/:slug/workspaces/:wsId/contexts/:contextId → borra ese id
+ * - GET    /orgs/:slug/workspaces/:wsId/contexts → lista
+ *
+ * El `contextId` de la URL es la identidad del registro. Preferencia del cliente:
+ * rename conserva el mismo contextId (PUT con name/body/meta nuevos; ver
+ * `orgWorkspacePersistContext`). Si el producto exige ids name-derived,
+ * `renameWorkspaceContext` hace PUT(nuevo) + DELETE(anterior) tras upsert OK.
+ */
 export interface CovenantWorkspaceContextRecord extends CovenantWorkspaceContextPayload {
   contextId: string
   createdBy?: string

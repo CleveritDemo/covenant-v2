@@ -11,6 +11,7 @@ import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppea
 import { isContextDraftDirty } from '@shared/contextDraftDirty'
 import { PROJECT_DIR } from '@shared/projectDir'
 import {
+  orgWorkspacePersistContext,
   rememberWorkspaceContextBody,
   workspaceContextBody,
   workspaceContextUpsertPayload,
@@ -122,6 +123,9 @@ export const TabContextFormModal: React.FC<Props> = ({
   // Contador de peticiones de vista previa: solo la última en pedirse puede
   // escribir el resultado (ver `loadPreview`).
   const previewSeqRef = useRef(0)
+  // Frozen at edit open: org upsert must keep this API id on rename.
+  const originalIdRef = useRef('')
+  const originalFileNameRef = useRef('')
   draftRef.current = draft
   notesContentRef.current = notesContent
   modeRef.current = mode
@@ -198,10 +202,15 @@ export const TabContextFormModal: React.FC<Props> = ({
       setActionMessage('')
       setNotesContent('')
       notesInitialContentRef.current = ''
+      originalIdRef.current = ''
+      originalFileNameRef.current = ''
       setResolvedCwdLabel('')
       return
     }
     const initial = mode === 'edit' && context ? { ...context } : emptyContext()
+    // Freeze identity for the open session (do not follow draft renames).
+    originalIdRef.current = mode === 'edit' && context ? context.id : ''
+    originalFileNameRef.current = mode === 'edit' && context ? context.fileName : ''
     setDraft(initial)
     setActionMessage('')
     setPreview(
@@ -269,9 +278,13 @@ export const TabContextFormModal: React.FC<Props> = ({
     readOnly: readOnlyAgentResult,
   })
 
+  const editExcludeId = (): string =>
+    mode === 'edit' && originalIdRef.current ? originalIdRef.current : (draft?.id ?? '')
+
   const duplicateMessage = (() => {
     if (!draft) return ''
-    const others = contexts.filter(item => item.id !== draft.id)
+    const excludeId = editExcludeId()
+    const others = contexts.filter(item => item.id !== excludeId)
     const fileName = normalizeContextFileName(
       draft.name || draft.fileName,
       draft.kind === 'changelog' ? 'changelog' : 'context',
@@ -303,7 +316,10 @@ export const TabContextFormModal: React.FC<Props> = ({
   })
 
   const computeDuplicateMessage = (current: TabContext): string => {
-    const others = contextsRef.current.filter(item => item.id !== current.id)
+    const excludeId = modeRef.current === 'edit' && originalIdRef.current
+      ? originalIdRef.current
+      : current.id
+    const others = contextsRef.current.filter(item => item.id !== excludeId)
     const fileName = normalizeContextFileName(
       current.name || current.fileName,
       current.kind === 'changelog' ? 'changelog' : 'context',
@@ -344,13 +360,30 @@ export const TabContextFormModal: React.FC<Props> = ({
         return false
       }
       const body = normalized.kind === 'notes' ? (notesContentRef.current ?? '') : ''
+      // Prefer stable org API id on rename (PUT same contextId). Fallback:
+      // workspaceContextRename = PUT(newId)+DELETE(old) when ids diverge.
+      const previousId = modeRef.current === 'edit' ? (originalIdRef.current ?? '').trim() : ''
+      const { persistId, context: persistContext } = orgWorkspacePersistContext({
+        mode: modeRef.current,
+        originalId: previousId,
+        normalized,
+      })
+      const payload = workspaceContextUpsertPayload(persistContext, body)
       try {
-        const result = await covenant.workspaceContextUpsert(
-          orgWorkspace.slug,
-          orgWorkspace.workspaceId,
-          normalized.id,
-          workspaceContextUpsertPayload(normalized, body),
-        )
+        const result = previousId && previousId !== persistId && typeof covenant.workspaceContextRename === 'function'
+          ? await covenant.workspaceContextRename(
+            orgWorkspace.slug,
+            orgWorkspace.workspaceId,
+            previousId,
+            persistId,
+            payload,
+          )
+          : await covenant.workspaceContextUpsert(
+            orgWorkspace.slug,
+            orgWorkspace.workspaceId,
+            persistId,
+            payload,
+          )
         if (!result.ok) {
           setPreview({
             status: 'error',
@@ -358,7 +391,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           })
           return false
         }
-        rememberWorkspaceContextBody(normalized.id, body)
+        rememberWorkspaceContextBody(persistId, body)
         onRefresh()
         onClose()
         return true
@@ -376,10 +409,9 @@ export const TabContextFormModal: React.FC<Props> = ({
       setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
       return false
     }
-    const editContext = contextRef.current
-    const previousFileName = modeRef.current === 'edit' && editContext?.fileName
-      && normalizeContextFileName(editContext.fileName) !== normalized.fileName
-      ? editContext.fileName
+    const previousFileName = modeRef.current === 'edit' && originalFileNameRef.current
+      && normalizeContextFileName(originalFileNameRef.current) !== normalized.fileName
+      ? originalFileNameRef.current
       : undefined
     try {
       const result = await window.api.materializeTabContext({

@@ -631,6 +631,22 @@ const api = {
         payload,
       )
     },
+    workspaceContextRename(
+      slug: string,
+      workspaceId: string,
+      previousId: string,
+      nextId: string,
+      payload: CovenantWorkspaceContextPayload,
+    ): Promise<CovenantResult<{ record: CovenantWorkspaceContextRecord; deletedPrevious: boolean }>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_CONTEXT_RENAME,
+        slug,
+        workspaceId,
+        previousId,
+        nextId,
+        payload,
+      )
+    },
     workspaceContextDelete(
       slug: string,
       workspaceId: string,

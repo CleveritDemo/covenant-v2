@@ -11,6 +11,7 @@ import type {
   CovenantStatus,
 } from '../src/shared/covenantTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import { renameWorkspaceContext as renameWorkspaceContextHelper } from '../src/shared/orgWorkspaceContent'
 import { clearCovenantSession, loadCovenantSession, persistCovenantSession } from './covenantSession'
 
 const BASE_URL = process.env.COVENANT_BACKEND_URL || 'https://forge.covenant.uno'
@@ -364,6 +365,23 @@ export async function deleteWorkspaceContext(
     `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/contexts/${encodeURIComponent(contextId)}`,
     { method: 'DELETE' },
   )
+}
+
+/**
+ * Rename org context: PUT nextId, then DELETE previousId si difiere.
+ * La API no expone PATCH rename-in-place; ver contrato en covenantTypes.
+ */
+export async function renameWorkspaceContext(
+  slug: string,
+  workspaceId: string,
+  previousId: string,
+  nextId: string,
+  payload: CovenantWorkspaceContextPayload,
+): Promise<{ record: CovenantWorkspaceContextRecord; deletedPrevious: boolean }> {
+  return renameWorkspaceContextHelper(previousId, nextId, payload, {
+    upsert: (contextId, body) => upsertWorkspaceContext(slug, workspaceId, contextId, body),
+    delete: contextId => deleteWorkspaceContext(slug, workspaceId, contextId),
+  })
 }
 
 function pickString(raw: Record<string, unknown>, ...keys: string[]): string {

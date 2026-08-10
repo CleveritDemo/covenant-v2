@@ -23,6 +23,7 @@ import './PlaneLoopsSection.css'
 export interface PlaneLoopsAgent {
   paneId: string
   title: string
+  monogram?: string
   busy: boolean
   loopActive: boolean
   loopMode?: boolean
@@ -258,6 +259,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                                   {agent ? (
                                     <PlaneLoopAgentCard
                                       title={agent.title}
+                                      monogram={agent.monogram}
                                       provider={agent.provider}
                                       busy={agent.busy}
                                       loopActive={agent.loopActive}

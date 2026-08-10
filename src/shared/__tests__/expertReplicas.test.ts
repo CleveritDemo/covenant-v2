@@ -7,6 +7,7 @@ import {
   shouldDeferOccupiedPaneWithoutReplicas,
   shouldFinalizeWorktreeFromOrchestrator,
   shouldHoldWakeForSerializedDelegations,
+  shouldSyncOrgWorkspaceAgentDefinition,
 } from '../expertReplicas'
 import type { ProjectAgentDefinition } from '../projectAgentCatalog'
 import { planDelegationWorktrees, planWorktreeMergeOrder } from '../worktreeDelegation'
@@ -162,6 +163,13 @@ describe('buildExpertReplicaDefinition', () => {
     expect(replica.acceptDelegations).toBeUndefined()
     expect(replica.name).toContain('Frontend')
     expect(replica.role).toBe('frontend engineer')
+  })
+})
+
+describe('shouldSyncOrgWorkspaceAgentDefinition', () => {
+  it('syncs original agents but never expert replicas', () => {
+    expect(shouldSyncOrgWorkspaceAgentDefinition({ expertReplica: false })).toBe(true)
+    expect(shouldSyncOrgWorkspaceAgentDefinition({ expertReplica: true })).toBe(false)
   })
 })
 

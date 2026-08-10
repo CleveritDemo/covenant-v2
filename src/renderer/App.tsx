@@ -108,6 +108,7 @@ import {
   buildExpertReplicaDefinition,
   resolveExpertDelegationTarget,
   shouldFinalizeWorktreeFromOrchestrator,
+  shouldSyncOrgWorkspaceAgentDefinition,
 } from '@shared/expertReplicas'
 import {
   buildOrchestrationAwaitingView,
@@ -141,6 +142,7 @@ import {
 import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
 import { resolveTabExplorerSessionId } from './tabFileExplorer'
 import {
+  mergeRemoteAgentsWithLocalOnly,
   resolveTabAgentMeta,
   syncTabAgentsFromCatalog,
   upsertAgentInList,
@@ -700,8 +702,11 @@ export const App: React.FC = () => {
     ])
     const catalogKey = covenantWorkspaceCatalogKey(slug, workspaceId)
     if (agentsResult.ok) {
-      const agents = projectAgentsFromWorkspaceAgents(agentsResult.data)
       const existing = projectAgentsByCwdRef.current[catalogKey]
+      const agents = mergeRemoteAgentsWithLocalOnly(
+        projectAgentsFromWorkspaceAgents(agentsResult.data),
+        existing,
+      )
       if (shouldReplaceOrgAgentCatalog(agents, existing)) {
         setProjectAgentsByCwd(prev => {
           const next = { ...prev, [catalogKey]: agents }
@@ -2029,11 +2034,12 @@ export const App: React.FC = () => {
     const t = tabsRef.current.find(x => x.id === tabId)
     if (!t || !t.paneIds.includes(paneId)) return
     const isAgent = t.paneKinds?.[paneId] === 'agent'
-    const agentId = t.agentByPane?.[paneId]?.agentId
+    const agentBinding = t.agentByPane?.[paneId]
+    const agentId = agentBinding?.agentId
     const cwd = t.projectFolder?.trim() || ''
     const org = t.orgWorkspace
     const isOrgBacked = Boolean(org?.slug?.trim() && org?.workspaceId?.trim())
-    if (isAgent && agentId && isOrgBacked && org) {
+    if (isAgent && agentId && isOrgBacked && org && agentBinding?.localOnly !== true) {
       const covenant = getCovenantApi()
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
         void covenant.workspaceAgentDelete(org.slug, org.workspaceId, agentId).then(result => {
@@ -2057,6 +2063,14 @@ export const App: React.FC = () => {
           })
         })
       }
+    } else if (isAgent && agentId && isOrgBacked && org && agentBinding?.localOnly === true) {
+      const catalogKey = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+      setProjectAgentsByCwd(prev => {
+        const list = (prev[catalogKey] ?? []).filter(agent => agent.id !== agentId)
+        const next = { ...prev, [catalogKey]: list }
+        projectAgentsByCwdRef.current = next
+        return next
+      })
     } else if (isAgent && cwd && agentId) {
       void window.api.deleteProjectAgent(cwd, agentId).then(result => {
         if (!result.ok) return
@@ -2489,25 +2503,31 @@ export const App: React.FC = () => {
       i18next.t('agentPane.duplicateNameSuffix'),
     )
     const agentId = allocateAgentSlug(clonedFields.name ?? sourceMeta.id, existing)
-    const definition = { ...clonedFields, id: agentId }
+    const definition = {
+      ...clonedFields,
+      id: agentId,
+      ...(sourceMeta.localOnly === true ? { localOnly: true } : {}),
+    }
     let agent = definition
     if (isOrgBacked && orgWorkspace) {
-      const covenant = getCovenantApi()
-      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
-        setOrgWorkspaceRequirement(prev => prev ?? { agentUpdateError: 'Covenant API unavailable' })
-        return
+      if (definition.localOnly !== true) {
+        const covenant = getCovenantApi()
+        if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+          setOrgWorkspaceRequirement(prev => prev ?? { agentUpdateError: 'Covenant API unavailable' })
+          return
+        }
+        const written = await covenant.workspaceAgentUpsert(
+          orgWorkspace.slug,
+          orgWorkspace.workspaceId,
+          agentId,
+          definition,
+        )
+        if (!written.ok) {
+          setOrgWorkspaceRequirement(prev => prev ?? { agentUpdateError: written.error ?? 'unknown' })
+          return
+        }
+        agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
       }
-      const written = await covenant.workspaceAgentUpsert(
-        orgWorkspace.slug,
-        orgWorkspace.workspaceId,
-        agentId,
-        definition,
-      )
-      if (!written.ok) {
-        setOrgWorkspaceRequirement(prev => prev ?? { agentUpdateError: written.error ?? 'unknown' })
-        return
-      }
-      agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
     } else {
       const written = await window.api.upsertProjectAgent(cwd, definition)
       if (!written.ok) return
@@ -2529,7 +2549,10 @@ export const App: React.FC = () => {
         paneWindows,
         agentByPane: {
           ...(tab.agentByPane ?? {}),
-          [paneId]: { agentId: agent.id },
+          [paneId]: {
+            agentId: agent.id,
+            ...(agent.localOnly === true ? { localOnly: true } : {}),
+          },
         },
       })
     }))
@@ -3441,57 +3464,62 @@ export const App: React.FC = () => {
           continue
         }
 
-        const definition = buildExpertReplicaDefinition(baseDef, decision.preferredSlug)
+        const replicaDefinition = buildExpertReplicaDefinition(baseDef, decision.preferredSlug)
+        const definition = isOrgBacked
+          ? { ...replicaDefinition, localOnly: true }
+          : replicaDefinition
         let agent = definition
         if (isOrgBacked && orgWorkspace) {
-          const covenant = getCovenantApi()
-          if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
-            enqueueOrchestrationSend(fromPaneId, {
-              text: formatDelegationResultFollowUp({
-                id: delegation.id,
-                status: 'fail',
-                summary: `Cannot upsert expert replica "${definition.id}" (org API unavailable).`,
-                toAgentId: delegation.toAgentId,
-              }, {
-                round: nextRound,
-                maxRounds,
-                batchRemaining: 0,
-                continuousProductOwner: fromMeta.coordination === 'productOwner',
-              }),
-              focusPane: false,
-              orchestrationFollowUp: true,
-              orchestrationJobId: job.jobId,
-              allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
-            })
-            continue
+          if (shouldSyncOrgWorkspaceAgentDefinition({ expertReplica: definition.localOnly === true })) {
+            const covenant = getCovenantApi()
+            if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+              enqueueOrchestrationSend(fromPaneId, {
+                text: formatDelegationResultFollowUp({
+                  id: delegation.id,
+                  status: 'fail',
+                  summary: `Cannot upsert expert replica "${definition.id}" (org API unavailable).`,
+                  toAgentId: delegation.toAgentId,
+                }, {
+                  round: nextRound,
+                  maxRounds,
+                  batchRemaining: 0,
+                  continuousProductOwner: fromMeta.coordination === 'productOwner',
+                }),
+                focusPane: false,
+                orchestrationFollowUp: true,
+                orchestrationJobId: job.jobId,
+                allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+              })
+              continue
+            }
+            const written = await covenant.workspaceAgentUpsert(
+              orgWorkspace.slug,
+              orgWorkspace.workspaceId,
+              definition.id,
+              definition,
+            )
+            if (!written.ok) {
+              enqueueOrchestrationSend(fromPaneId, {
+                text: formatDelegationResultFollowUp({
+                  id: delegation.id,
+                  status: 'fail',
+                  summary: `Failed to persist expert replica "${definition.id}".`,
+                  toAgentId: delegation.toAgentId,
+                }, {
+                  round: nextRound,
+                  maxRounds,
+                  batchRemaining: 0,
+                  continuousProductOwner: fromMeta.coordination === 'productOwner',
+                }),
+                focusPane: false,
+                orchestrationFollowUp: true,
+                orchestrationJobId: job.jobId,
+                allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+              })
+              continue
+            }
+            agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
           }
-          const written = await covenant.workspaceAgentUpsert(
-            orgWorkspace.slug,
-            orgWorkspace.workspaceId,
-            definition.id,
-            definition,
-          )
-          if (!written.ok) {
-            enqueueOrchestrationSend(fromPaneId, {
-              text: formatDelegationResultFollowUp({
-                id: delegation.id,
-                status: 'fail',
-                summary: `Failed to persist expert replica "${definition.id}".`,
-                toAgentId: delegation.toAgentId,
-              }, {
-                round: nextRound,
-                maxRounds,
-                batchRemaining: 0,
-                continuousProductOwner: fromMeta.coordination === 'productOwner',
-              }),
-              focusPane: false,
-              orchestrationFollowUp: true,
-              orchestrationJobId: job.jobId,
-              allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
-            })
-            continue
-          }
-          agent = projectAgentsFromWorkspaceAgents([written.data])[0] ?? definition
         } else if (baseCwd) {
           const written = await window.api.upsertProjectAgent(baseCwd, definition)
           if (!written.ok) {
@@ -3539,7 +3567,10 @@ export const App: React.FC = () => {
             paneWindows,
             agentByPane: {
               ...(item.agentByPane ?? {}),
-              [paneId]: { agentId: agent.id },
+              [paneId]: {
+                agentId: agent.id,
+                ...(agent.localOnly === true ? { localOnly: true } : {}),
+              },
             },
           })
         }))
@@ -4409,6 +4440,17 @@ export const App: React.FC = () => {
         return failOrgUpdate('Organization workspace binding missing')
       }
       if (definitionUnchanged) return true
+      if (definition.localOnly === true || previousDefinition.localOnly === true) {
+        const localDefinition = { ...definition, localOnly: true }
+        if (idChanged) {
+          replaceCatalogAfterSlugChange(previousId, localDefinition, previousId, nextId)
+          applyResultContextRemapInUi(previousId, nextId)
+        } else {
+          rememberProjectAgent(catalogKey, localDefinition)
+        }
+        await saveSessionNow()
+        return true
+      }
       const covenant = getCovenantApi()
       if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
         return failOrgUpdate('Covenant API unavailable')
@@ -5074,6 +5116,7 @@ export const App: React.FC = () => {
                   paneId,
                   kind,
                   title,
+                  monogram: meta?.monogram,
                   busy: visuallyBusy,
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'

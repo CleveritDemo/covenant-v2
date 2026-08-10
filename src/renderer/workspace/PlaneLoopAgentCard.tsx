@@ -7,6 +7,7 @@ import './PlaneChatActive.css'
 
 export interface PlaneLoopAgentCardProps {
   title: string
+  monogram?: string
   provider?: AgentCliProvider
   busy: boolean
   loopActive: boolean
@@ -24,6 +25,7 @@ export interface PlaneLoopAgentCardProps {
 /** Card de agente para el modal de loops (misma face que el plano). */
 export const PlaneLoopAgentCard: React.FC<PlaneLoopAgentCardProps> = ({
   title,
+  monogram,
   provider = 'claude',
   busy,
   loopActive,
@@ -83,6 +85,7 @@ export const PlaneLoopAgentCard: React.FC<PlaneLoopAgentCardProps> = ({
     >
       <PlaneMiniFace
         name={title}
+        monogram={monogram}
         busy={busy || loopActive}
         provider={provider}
         statusLabel={statusLabel}

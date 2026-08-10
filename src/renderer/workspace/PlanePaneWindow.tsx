@@ -17,6 +17,7 @@ export interface PlanePaneWindowProps {
   paneId: string
   kind: PaneKind
   title: string
+  monogram?: string
   busy?: boolean
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator' | 'productOwner'
@@ -75,6 +76,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   paneId,
   kind,
   title,
+  monogram,
   busy = false,
   provider,
   coordination,
@@ -173,6 +175,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         miniFace={isAgent ? (
           <PlaneMiniFace
             name={title}
+            monogram={monogram}
             busy={busy}
             provider={provider}
             coordination={coordination}

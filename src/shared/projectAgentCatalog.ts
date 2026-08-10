@@ -43,6 +43,8 @@ export interface ProjectAgentDefinition {
   id: string
   provider: AgentCliProvider
   permissionMode: AgentPermissionMode
+  /** Definición efímera de sesión; no se sincroniza con catálogos remotos. */
+  localOnly?: boolean
   name?: string
   /** 2 caracteres para la cara del agente; si falta, se derivan del name. */
   monogram?: string
@@ -87,6 +89,8 @@ export interface ProjectAgentDefinition {
 export interface AgentPaneBinding {
   agentId: string
   cliSessionId?: string
+  /** Pane asociado a una réplica efímera local, no al catálogo remoto. */
+  localOnly?: boolean
 }
 
 /** Vista runtime: catálogo + sesión CLI local. */
@@ -526,6 +530,7 @@ export function parseAgentPaneBinding(raw: unknown): AgentPaneBinding | null {
   if (typeof data.cliSessionId === 'string' && data.cliSessionId.trim()) {
     binding.cliSessionId = data.cliSessionId.trim()
   }
+  if (data.localOnly === true) binding.localOnly = true
   return binding
 }
 
@@ -575,7 +580,7 @@ export function resolveAgentPaneMeta(
 }
 
 export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefinition {
-  return parseProjectAgentDefinition({
+  const parsed = parseProjectAgentDefinition({
     id: meta.id,
     provider: meta.provider,
     permissionMode: meta.permissionMode,
@@ -596,17 +601,26 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     allowExpertReplicas: meta.allowExpertReplicas,
     nativeSkills: meta.nativeSkills,
     mcpsAllowed: meta.mcpsAllowed,
-  }, meta.id) ?? {
+  }, meta.id)
+  if (parsed) {
+    return {
+      ...parsed,
+      ...(meta.localOnly === true ? { localOnly: true } : {}),
+    }
+  }
+  return {
     id: normalizeAgentSlug(meta.id, 'agent'),
     provider: sanitizeProvider(meta.provider),
     permissionMode: meta.permissionMode === 'plan' ? 'plan' : 'auto',
     emitResults: true,
+    ...(meta.localOnly === true ? { localOnly: true } : {}),
   }
 }
 
 export function agentBindingFromMeta(meta: AgentPaneMeta): AgentPaneBinding {
   return {
     agentId: normalizeAgentSlug(meta.id, 'agent'),
+    ...(meta.localOnly === true ? { localOnly: true } : {}),
     ...(typeof meta.cliSessionId === 'string' && meta.cliSessionId.trim()
       ? { cliSessionId: meta.cliSessionId.trim() }
       : {}),

@@ -3,6 +3,7 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { agentCliSpec } from '@shared/agentCliProviders'
+import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneBusyDot } from './PlaneBusyDot'
@@ -11,6 +12,7 @@ import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
   name: string
+  monogram?: string
   busy?: boolean
   provider?: AgentCliProvider
   /** Muestra chip de orquestador / product owner junto al proveedor. */
@@ -37,6 +39,7 @@ export interface PlaneMiniFaceProps {
 /** Cara mini del agente: card con proveedor, estado y contextos. */
 export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   name,
+  monogram,
   busy = false,
   provider = 'claude',
   coordination = 'none',
@@ -63,6 +66,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   // Visible si hay agentId; el label i18n no oculta el control.
   const showResultsDrag = Boolean(resultsId)
   const resultsTitle = resultsDragLabel || resultsId
+  const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
 
   return (
   <div
@@ -93,6 +97,9 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
             <Icon name="drag-handle" size={11} />
           </button>
         ) : null}
+        <span className="plane-mini-face__monogram" aria-hidden>
+          {displayMonogram}
+        </span>
         <span className="plane-mini-face__name">{name}</span>
         <span
           className="plane-mini-face__provider"

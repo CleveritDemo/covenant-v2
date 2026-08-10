@@ -149,6 +149,7 @@ export const PlaneLoopChainModal: React.FC<PlaneLoopChainModalProps> = ({
                 <PlaneLoopAgentCard
                   key={agent.paneId}
                   title={agent.title}
+                  monogram={agent.monogram}
                   provider={agent.provider}
                   busy={agent.busy}
                   loopActive={agent.loopActive}

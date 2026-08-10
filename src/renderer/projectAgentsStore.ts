@@ -42,6 +42,17 @@ export function upsertAgentInList(
   return [...without, next].sort((a, b) => a.id.localeCompare(b.id))
 }
 
+export function mergeRemoteAgentsWithLocalOnly(
+  remoteAgents: readonly ProjectAgentDefinition[],
+  existingAgents: readonly ProjectAgentDefinition[] | undefined,
+): ProjectAgentDefinition[] {
+  const remoteIds = new Set(remoteAgents.map(agent => agent.id))
+  const localOnly = (existingAgents ?? []).filter(agent => (
+    agent.localOnly === true && !remoteIds.has(agent.id)
+  ))
+  return [...remoteAgents, ...localOnly].sort((a, b) => a.id.localeCompare(b.id))
+}
+
 export interface SyncTabAgentsFromCatalogOptions {
   maxPanes: number
   createPaneId: () => string
@@ -108,6 +119,9 @@ export function syncTabAgentsFromCatalog(
     paneKinds[paneId] = 'agent'
     agentByPane[paneId] = {
       agentId: definition.id,
+      ...(definition.localOnly === true || existing?.binding.localOnly === true
+        ? { localOnly: true }
+        : {}),
       ...(existing?.binding.cliSessionId
         ? { cliSessionId: existing.binding.cliSessionId }
         : {}),

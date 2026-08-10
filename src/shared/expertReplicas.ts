@@ -205,6 +205,13 @@ export function buildExpertReplicaDefinition(
   }
 }
 
+/** En workspaces org, solo los agentes originales se sincronizan al backend. */
+export function shouldSyncOrgWorkspaceAgentDefinition(input: {
+  expertReplica: boolean
+}): boolean {
+  return !input.expertReplica
+}
+
 /**
  * Finalize de worktree solo desde el orquestador dueño (fromPaneId), nunca ad-hoc
  * desde el especialista.

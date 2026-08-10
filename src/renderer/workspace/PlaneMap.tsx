@@ -29,6 +29,7 @@ export interface PlaneMapEntity {
   paneId: string
   kind: PaneKind
   title: string
+  monogram?: string
   busy: boolean
   /** Trabajo reservado/activo por una delegación del orquestador. */
   delegationWorkActive?: boolean
@@ -551,6 +552,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           paneId={entity.paneId}
           kind={entity.kind}
           title={entity.title}
+          monogram={entity.monogram}
           busy={entity.busy}
           provider={entity.provider}
           coordination={entity.coordination}

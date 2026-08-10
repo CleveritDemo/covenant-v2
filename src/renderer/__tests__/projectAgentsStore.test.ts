@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TabSession } from '@shared/tabSession'
 import { covenantWorkspaceCatalogKey } from '@shared/covenantTypes'
-import { resolveTabAgentMeta, syncTabAgentsFromCatalog } from '../projectAgentsStore'
+import {
+  mergeRemoteAgentsWithLocalOnly,
+  resolveTabAgentMeta,
+  syncTabAgentsFromCatalog,
+} from '../projectAgentsStore'
 
 function baseTab(partial: Partial<TabSession> = {}): TabSession {
   return {
@@ -141,6 +145,63 @@ describe('syncTabAgentsFromCatalog', () => {
     expect(result.addedPaneIds).toEqual(['new-1'])
     expect(result.tab.paneIds).toEqual(['pane-b', 'pane-a', 'new-1'])
     expect(result.tab.agentByPane?.['new-1']).toEqual({ agentId: 'gamma' })
+  })
+
+  it('preserves localOnly replica bindings when present in the merged catalog', () => {
+    const result = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['pane-base', 'pane-replica'],
+        activePaneId: 'pane-replica',
+        paneKinds: { 'pane-base': 'agent', 'pane-replica': 'agent' },
+        agentByPane: {
+          'pane-base': { agentId: 'frontend' },
+          'pane-replica': { agentId: 'frontend-2', localOnly: true },
+        },
+      }),
+      [
+        { id: 'frontend', provider: 'cursor', permissionMode: 'auto', name: 'Frontend' },
+        {
+          id: 'frontend-2',
+          provider: 'cursor',
+          permissionMode: 'auto',
+          name: 'Frontend (replica)',
+          localOnly: true,
+        },
+      ],
+      {
+        maxPanes: 10,
+        createPaneId: () => 'should-not-run',
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+
+    expect(result.removedPaneIds).toEqual([])
+    expect(result.tab.agentByPane?.['pane-replica']).toEqual({
+      agentId: 'frontend-2',
+      localOnly: true,
+    })
+  })
+})
+
+describe('mergeRemoteAgentsWithLocalOnly', () => {
+  it('keeps org backend agents and session-local replicas without syncing them remotely', () => {
+    const merged = mergeRemoteAgentsWithLocalOnly(
+      [{ id: 'frontend', provider: 'cursor', permissionMode: 'auto', name: 'Frontend' }],
+      [
+        { id: 'frontend', provider: 'cursor', permissionMode: 'auto', name: 'Old Frontend' },
+        {
+          id: 'frontend-2',
+          provider: 'cursor',
+          permissionMode: 'auto',
+          name: 'Frontend (replica)',
+          localOnly: true,
+        },
+      ],
+    )
+
+    expect(merged.map(agent => agent.id)).toEqual(['frontend', 'frontend-2'])
+    expect(merged.find(agent => agent.id === 'frontend')?.name).toBe('Frontend')
+    expect(merged.find(agent => agent.id === 'frontend-2')?.localOnly).toBe(true)
   })
 })
 

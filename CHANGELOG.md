@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.4
+
+- **Monogramas en cards de agentes**: las iniciales aparecen a la izquierda del
+  nombre en el plano y en loops.
+- **Réplicas locales en workspaces org**: las réplicas de delegación no se
+  sincronizan al backend; solo los agentes originales se publican al workspace.
+
 ## v0.39.3
 
 - **Tema Zelda — Breath of the Wild más evocador**: mezcla fondo profundo,

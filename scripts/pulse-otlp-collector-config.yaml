@@ -1,0 +1,22 @@
+# Disposable OTLP collector for pulse-otlp-export.mjs empirical validation.
+# Not production infra — delete when done.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

@@ -272,8 +272,10 @@
 
 .pane-window--agent-card.pane-window--mini {
   border-radius: var(--plane-radius-sm);
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border: none;
   background: var(--plane-glass-strong);
+  /* Sin anillo inset del .pane-window base: la card se lee sin borde. */
+  box-shadow: none;
   overflow: visible;
   display: flex;
   flex-direction: column;
@@ -281,13 +283,12 @@
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.16s,
     box-shadow 0.16s,
     filter 0.16s;
 }
 
 .pane-window--agent-card.pane-window--mini:hover {
-  border-color: color-mix(in srgb, var(--border) 72%, var(--text-muted));
+  box-shadow: none;
 }
 
 .pane-window--agent-card.pane-window--mini .pane-window__body {
@@ -319,11 +320,11 @@
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.16s,
+    box-shadow 0.16s,
     filter 0.16s;
 }
 
-/* Chat activo: borde sólido accent (.plane-chat-active, ver PlaneChatActive.css). */
+/* Chat activo: anillo accent vía box-shadow (.plane-chat-active, ver PlaneChatActive.css). */
 
 /* Terminal mini sin chrome (legacy bare). Con titlebar macOS usa el marco normal. */
 .pane-window--mini-bare:not(.pane-window--agent-card) {

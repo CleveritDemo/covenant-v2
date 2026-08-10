@@ -185,6 +185,15 @@
   flex: 0 0 auto;
 }
 
+/* Superficie interna del estado/stream: limpia, sin borde. */
+.plane-mini-face__status-surface {
+  min-width: 0;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+
 .plane-mini-face__name {
   flex: 0 1 auto;
   min-width: 0;

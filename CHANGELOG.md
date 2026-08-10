@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.21
+
+- **Mini-card de agente sin bordes**: la face del plano queda limpia (sin anillo en la card ni en el status); el chat activo se marca solo con box-shadow accent.
+
 ## v0.39.20
 
 - **Separación más limpia en la face del plano**: entre contextos y resultados de agentes hay un espacio claro, sin línea divisoria.

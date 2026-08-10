@@ -6,10 +6,10 @@
   border-color: var(--accent);
 }
 
-/* Cards: ganan a .pane-window--agent-card.pane-window--mini (2 clases). */
+/* Cards: ganan a .pane-window--agent-card.pane-window--mini (sin border). */
 .pane-window--agent-card.pane-window--mini.plane-chat-active,
 .pane-window--agent-card.pane-window--mini.plane-chat-active:hover {
-  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* Loop cards: ganan a hover selectable. */

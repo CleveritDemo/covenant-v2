@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.36.0
+
+- **La app corre sobre un Chromium mucho más nuevo.** Electron 33 → 43 (Chromium
+  150): además de las correcciones de seguridad del motor, llegan las mejoras de
+  rendimiento y de render de diez versiones de Chrome.
+- **Cero avisos de seguridad pendientes.** Se cerraron los 62 que había:
+  el lector de hojas de cálculo (que ahora procesa los XLSX que te mandan), el
+  actualizador automático y toda la cadena de compilación y empaquetado.
+- **La vista previa de un contexto de notas vuelve a mostrar su texto** cuando el
+  archivo no trae los marcadores del host, en lugar de decir que está vacío.
+
 ## v0.35.1
 
 - **Tooltips del modal Git y del Stop por fila** usan el componente de la app

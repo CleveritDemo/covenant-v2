@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# Corre los gates del repo antes de pushear.
+#
+# Existe porque llegaron a `main` cuatro veces cosas que estos comandos habrían
+# frenado en un segundo: tres `title=` nativos (que `check:ui` prohíbe) y un test
+# roto. Arreglarlo después es más caro que esperar diez segundos acá.
+#
+# Se activa solo: `npm install` deja `core.hooksPath` apuntando a `.githooks/`.
+# Para saltarlo en un caso puntual: `git push --no-verify`.
+
+set -e
+
+# Empujar solo tags no cambia código: es el paso final de un release cuyo commit
+# ya pasó por acá. Volver a correr todo ahí solo alarga el release.
+solo_tags=1
+while read -r local_ref _local_sha _remote_ref _remote_sha; do
+  [ -z "$local_ref" ] && continue
+  case "$local_ref" in
+    refs/tags/*) ;;
+    *) solo_tags=0 ;;
+  esac
+done
+
+if [ "$solo_tags" = "1" ]; then
+  exit 0
+fi
+
+echo "pre-push: contrato de UI…"
+npm run --silent check:ui
+
+echo "pre-push: tests…"
+npm test --silent
+
+echo "pre-push: ok"

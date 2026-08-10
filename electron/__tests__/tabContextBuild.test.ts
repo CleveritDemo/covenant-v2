@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { utils as xlsxUtils, writeFile as writeXlsx } from 'xlsx'
+// `write` a buffer y no `writeFile`: el build ESM de SheetJS no trae `fs`
+// enlazado (haría falta `set_fs`), y el código real tampoco lo usa —lee el
+// archivo por su cuenta y le pasa los bytes—.
+import { utils as xlsxUtils, write as writeXlsxBuffer } from 'xlsx'
 import {
   buildAssignedContexts,
   buildContextCatalogPrompt,
@@ -43,7 +46,10 @@ describe('tab context builders', () => {
       ['US-1', 'Como PO quiero adjuntar el backlog', 3],
     ]), 'Sprint 4')
     xlsxUtils.book_append_sheet(book, xlsxUtils.aoa_to_sheet([['Nota'], ['revisar']]), 'Notas')
-    writeXlsx(book, join(cwd, 'docs', 'historias.xlsx'))
+    writeFileSync(
+      join(cwd, 'docs', 'historias.xlsx'),
+      writeXlsxBuffer(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer,
+    )
 
     const result = materializeTabContext({
       id: 'historias',

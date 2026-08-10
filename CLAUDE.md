@@ -181,6 +181,11 @@ a `/** @vitest-environment jsdom */` docblock at the top of the file. Coverage i
 - El auto-updater (`electron/selfUpdate.ts` + `UpdateBanner.tsx`) depende del empaquetado: macOS necesita el
   target `zip` junto al `dmg` y Windows el `nsis` (el `portable` no se actualiza). Si se quitan, el updater
   deja de funcionar **sin error**. Ver `docs/AUTO_UPDATER.md`.
+- `xlsx` se instala desde el CDN de SheetJS (la URL está en `dependencies`), no desde npm: npm
+  se quedó en 0.18.5, que arrastra prototype pollution (CVE-2023-30533) y ReDoS (CVE-2024-22363),
+  y las versiones corregidas solo se publican en `cdn.sheetjs.com`. El lock guarda el `integrity`,
+  así que `npm ci` es reproducible, pero **el install necesita alcanzar ese host**. Al subir versión
+  hay que cambiar la URL a mano; Dependabot no ve este paquete.
 - Agent Auto mode (`--permission-mode bypassPermissions` / `--force` / `--yolo`) lets the CLI act unconfirmed.
   Destructive-command heuristics are in `src/shared/agentShellGuard.ts`.
 - `src/shared/ptyInputSanitize.ts` strips ANSI before reconstructing typed lines — terminal input parsing

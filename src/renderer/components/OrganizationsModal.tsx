@@ -883,6 +883,8 @@ function WorkspaceReposBlock({
       setError(result.error)
       return false
     }
+    // Refleja la carpeta guardada de inmediato; loadRepos confirma contra el listado.
+    setRepos(prev => prev.map(repo => (repo.id === repoId ? result.data : repo)))
     await loadRepos()
     return true
   }
@@ -972,6 +974,16 @@ function WorkspaceReposBlock({
   )
 }
 
+/** Meta de carpeta local en modo lectura (solo si hay folderName). */
+function WorkspaceRepoFolderMeta({ folder }: { folder: string }): React.ReactElement {
+  const { t } = useT()
+  return (
+    <p className="orgs-list__meta">
+      {t('organizations.repoFolderNameMeta', { folder })}
+    </p>
+  )
+}
+
 /** Fila de repo vinculado: ver / editar folderName (solo gestores). */
 function WorkspaceRepoListItem({
   repo,
@@ -988,20 +1000,21 @@ function WorkspaceRepoListItem({
 }): React.ReactElement {
   const { t } = useT()
   const [editing, setEditing] = useState(false)
-  const [folderDraft, setFolderDraft] = useState(repo.folderName ?? '')
+  const folderName = repo.folderName?.trim() ?? ''
+  const [folderDraft, setFolderDraft] = useState(folderName)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!editing) setFolderDraft(repo.folderName ?? '')
-  }, [editing, repo.folderName])
+    if (!editing) setFolderDraft(folderName)
+  }, [editing, folderName])
 
   function startEdit(): void {
-    setFolderDraft(repo.folderName ?? '')
+    setFolderDraft(folderName)
     setEditing(true)
   }
 
   function cancelEdit(): void {
-    setFolderDraft(repo.folderName ?? '')
+    setFolderDraft(folderName)
     setEditing(false)
   }
 
@@ -1037,11 +1050,8 @@ function WorkspaceRepoListItem({
               aria-label={t('organizations.repoFolderNameLabel')}
             />
           </SettingsField>
-        ) : repo.folderName ? (
-          <p className="orgs-list__meta">
-            {t('organizations.repoFolderNameMeta', { folder: repo.folderName })}
-          </p>
         ) : null}
+        {!editing && folderName ? <WorkspaceRepoFolderMeta folder={folderName} /> : null}
         <p className="orgs-list__meta">{repo.cloneUrl}</p>
       </div>
       {canManage ? (

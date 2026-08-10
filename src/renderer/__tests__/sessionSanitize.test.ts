@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { deriveTabCounter, sanitizePersistedSession } from '../sessionSanitize'
+import {
+  deriveTabCounter,
+  sanitizePersistedSession,
+  stripOrgTabAgentCliSessionIds,
+} from '../sessionSanitize'
 import type { TabSession } from '../App'
 
 function tab(id: string, paneId: string, title = 'Terminal 1'): TabSession {
@@ -280,6 +284,87 @@ describe('sanitizePersistedSession', () => {
       cliSessionId: 'sess-1',
     })
     expect(again?.pendingAgentMigrations).toEqual([])
+  })
+
+  it('strips cliSessionId from org workspace tabs but keeps localOnly', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Org',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },
+        agentByPane: {
+          agent: {
+            agentId: 'frontend-2',
+            cliSessionId: 'sess-org',
+            localOnly: true,
+          },
+        },
+      }],
+      cwds: {},
+    })
+    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
+      agentId: 'frontend-2',
+      localOnly: true,
+    })
+    expect(result?.tabs[0]?.agentByPane?.agent).not.toHaveProperty('cliSessionId')
+  })
+
+  it('keeps cliSessionId for local workspace tabs', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Local',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        projectFolder: '/tmp/proj',
+        agentByPane: {
+          agent: {
+            agentId: 'qa',
+            cliSessionId: 'sess-local',
+          },
+        },
+      }],
+      cwds: {},
+    })
+    expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
+      agentId: 'qa',
+      cliSessionId: 'sess-local',
+    })
+  })
+
+  it('stripOrgTabAgentCliSessionIds only mutates org-backed tabs', () => {
+    const local: TabSession = {
+      id: 'local',
+      title: 'Local',
+      paneIds: ['a'],
+      activePaneId: 'a',
+      paneKinds: { a: 'agent' },
+      agentByPane: { a: { agentId: 'qa', cliSessionId: 'keep' } },
+    }
+    const org: TabSession = {
+      id: 'org',
+      title: 'Org',
+      paneIds: ['a'],
+      activePaneId: 'a',
+      paneKinds: { a: 'agent' },
+      orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },
+      agentByPane: {
+        a: { agentId: 'qa', cliSessionId: 'drop', localOnly: true },
+      },
+    }
+    expect(stripOrgTabAgentCliSessionIds(local)).toBe(local)
+    expect(stripOrgTabAgentCliSessionIds(org).agentByPane?.a).toEqual({
+      agentId: 'qa',
+      localOnly: true,
+    })
   })
 
   it('persists projectFolder and migrates it from terminal pane cwds when missing', () => {

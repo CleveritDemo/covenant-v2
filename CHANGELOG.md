@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.8
+
+- **Sesiones de agentes seguras en workspaces org**: los workspaces de
+  organización ya no guardan ni reutilizan sesiones CLI de agentes entre usuarios.
+- **Temas con más profundidad**: paletas oscuras con acentos más notorios y temas
+  claros con fondos más cercanos al blanco, menos pastel pesado.
+
 ## v0.39.7
 
 - **Errores de clonado que se entienden**: si un repo de organización no se puede

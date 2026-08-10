@@ -60,6 +60,12 @@ export interface SyncTabAgentsFromCatalogOptions {
     paneWindows: Record<string, PaneWindowState> | undefined,
     open: boolean,
   ) => PaneWindowState
+  /**
+   * Si es `false`, no reutiliza `cliSessionId` del binding existente
+   * (workspaces org: la sesión CLI es local al usuario, no se sincroniza).
+   * Default: `true` (workspaces locales reanudan sesión).
+   */
+  preserveCliSessionIds?: boolean
 }
 
 export interface SyncTabAgentsFromCatalogResult {
@@ -78,6 +84,7 @@ export function syncTabAgentsFromCatalog(
   catalog: readonly ProjectAgentDefinition[],
   options: SyncTabAgentsFromCatalogOptions,
 ): SyncTabAgentsFromCatalogResult {
+  const preserveCliSessionIds = options.preserveCliSessionIds !== false
   const terminalIds = tab.paneIds.filter(id => tab.paneKinds?.[id] !== 'agent')
   const agentSlots = Math.max(0, options.maxPanes - terminalIds.length)
   const catalogById = new Map(catalog.map(definition => [definition.id, definition]))
@@ -122,7 +129,7 @@ export function syncTabAgentsFromCatalog(
       ...(definition.localOnly === true || existing?.binding.localOnly === true
         ? { localOnly: true }
         : {}),
-      ...(existing?.binding.cliSessionId
+      ...(preserveCliSessionIds && existing?.binding.cliSessionId
         ? { cliSessionId: existing.binding.cliSessionId }
         : {}),
     }
@@ -165,12 +172,20 @@ export function syncTabAgentsFromCatalog(
     : (nextPaneIds[nextPaneIds.length - 1] ?? '')
 
   const ensuredWindows = ensurePaneWindows(nextPaneIds, paneWindows)
+  const agentBindingsChanged = Object.entries(agentByPane).some(([paneId, binding]) => {
+    const previous = tab.agentByPane?.[paneId]
+    if (!previous) return false
+    return (previous.cliSessionId ?? '') !== (binding.cliSessionId ?? '')
+      || Boolean(previous.localOnly) !== Boolean(binding.localOnly)
+      || previous.agentId !== binding.agentId
+  })
   const changed =
     removedPaneIds.length > 0
     || addedPaneIds.length > 0
     || nextPaneIds.length !== tab.paneIds.length
     || nextPaneIds.some((id, index) => tab.paneIds[index] !== id)
     || catalog.some(definition => !existingByAgentId.has(definition.id))
+    || agentBindingsChanged
 
   const nextTab: TabSession = {
     ...tab,

@@ -139,7 +139,11 @@ import {
   reorderPaneIdsByKind,
   type PaneReorderKind,
 } from './arrayReorder'
-import { deriveTabCounter, sanitizePersistedSession } from './sessionSanitize'
+import {
+  deriveTabCounter,
+  sanitizePersistedSession,
+  stripOrgTabAgentCliSessionIds,
+} from './sessionSanitize'
 import { resolveTabExplorerSessionId } from './tabFileExplorer'
 import {
   mergeRemoteAgentsWithLocalOnly,
@@ -660,10 +664,15 @@ export const App: React.FC = () => {
   ): void => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
+    const isOrgBacked = Boolean(
+      current.orgWorkspace?.slug?.trim() && current.orgWorkspace?.workspaceId?.trim(),
+    )
     const synced = syncTabAgentsFromCatalog(current, agents, {
       maxPanes: MAX_PANES_PER_TAB,
       createPaneId: () => crypto.randomUUID(),
       createWindow: (paneWindows, open) => createPaneWindowState(paneWindows, open),
+      // Org: sesiones CLI son locales al usuario; no reutilizar ni sincronizar.
+      ...(isOrgBacked ? { preserveCliSessionIds: false } : {}),
     })
     if (!synced.changed) return
     if (synced.removedPaneIds.length) cleanupRemovedAgentPanes(synced.removedPaneIds)
@@ -743,13 +752,14 @@ export const App: React.FC = () => {
     const currentActiveTabId = activeTabIdRef.current
     if (!currentTabs.length || !currentActiveTabId) return null
     const tabs = currentTabs.map(tab => {
-      const planeLoopChains = planeLoopChainsForPersist(tab.planeLoopChains)
+      const sanitized = stripOrgTabAgentCliSessionIds(tab)
+      const planeLoopChains = planeLoopChainsForPersist(sanitized.planeLoopChains)
       if (!planeLoopChains) {
-        if (!tab.planeLoopChains) return tab
-        const { planeLoopChains: _dropped, ...rest } = tab
+        if (!sanitized.planeLoopChains) return sanitized
+        const { planeLoopChains: _dropped, ...rest } = sanitized
         return rest
       }
-      return { ...tab, planeLoopChains }
+      return { ...sanitized, planeLoopChains }
     })
     return {
       version: 1 as const,
@@ -4322,12 +4332,24 @@ export const App: React.FC = () => {
     const projectFolder = tab.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(tab)
     const orgWorkspace = tab.orgWorkspace
+    // Catálogo covenant://… ⇒ siempre API org (no .gravity/agents local).
+    const orgSlug = orgWorkspace?.slug?.trim() ?? ''
+    const orgWorkspaceId = orgWorkspace?.workspaceId?.trim() ?? ''
+    const isOrgCatalog = catalogKey.startsWith('covenant://')
+    const isOrgBacked = Boolean(orgSlug && orgWorkspaceId) || isOrgCatalog
     const previous = resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current)
     const next = typeof meta === 'function' ? meta(previous) : meta
     const previousId = normalizeAgentSlug(previous.id, 'agent')
     const nextId = normalizeAgentSlug(next.id, previousId) || previousId
     const idChanged = previousId !== nextId
-    const binding = agentBindingFromMeta({ ...next, id: nextId })
+    const bindingRaw = agentBindingFromMeta({ ...next, id: nextId })
+    // Org: no persistir cliSessionId en agentByPane (sesión CLI local al usuario).
+    const binding = isOrgBacked && bindingRaw.cliSessionId
+      ? (() => {
+          const { cliSessionId: _dropped, ...rest } = bindingRaw
+          return rest
+        })()
+      : bindingRaw
     const previousDefinition = agentDefinitionFromMeta({ ...previous, id: previousId })
     const nextWithRemappedResults: AgentPaneMeta = {
       ...next,
@@ -4413,7 +4435,13 @@ export const App: React.FC = () => {
       && JSON.stringify(previousDefinition) === JSON.stringify(definition)
 
     const revertOptimistic = (): void => {
-      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
+      const previousBindingRaw = agentBindingFromMeta({ ...previous, id: previousId })
+      const previousBinding = isOrgBacked && previousBindingRaw.cliSessionId
+        ? (() => {
+            const { cliSessionId: _dropped, ...rest } = previousBindingRaw
+            return rest
+          })()
+        : previousBindingRaw
       applyBindings(nextId, previousId, previousBinding)
       if (idChanged) {
         replaceCatalogAfterSlugChange(nextId, previousDefinition, nextId, previousId)
@@ -4429,12 +4457,6 @@ export const App: React.FC = () => {
       setOrgWorkspaceRequirement(prev => prev ?? { agentUpdateError: error })
       return false
     }
-
-    // Catálogo covenant://… ⇒ siempre API org (no .gravity/agents local).
-    const orgSlug = orgWorkspace?.slug?.trim() ?? ''
-    const orgWorkspaceId = orgWorkspace?.workspaceId?.trim() ?? ''
-    const isOrgCatalog = catalogKey.startsWith('covenant://')
-    const isOrgBacked = Boolean(orgSlug && orgWorkspaceId) || isOrgCatalog
 
     if (isOrgBacked) {
       if (!orgSlug || !orgWorkspaceId) {

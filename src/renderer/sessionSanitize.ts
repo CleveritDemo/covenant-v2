@@ -45,6 +45,29 @@ export interface SanitizedSession {
   }>
 }
 
+/**
+ * Workspaces org no deben persistir/reutilizar `cliSessionId`:
+ * la sesión CLI es local al usuario.
+ */
+export function stripOrgTabAgentCliSessionIds(tab: TabSession): TabSession {
+  const org = tab.orgWorkspace
+  if (!org?.slug?.trim() || !org?.workspaceId?.trim()) return tab
+  const agentByPane = tab.agentByPane
+  if (!agentByPane) return tab
+  let changed = false
+  const next: Record<string, AgentPaneBinding> = {}
+  for (const [paneId, binding] of Object.entries(agentByPane)) {
+    if (binding.cliSessionId) {
+      const { cliSessionId: _dropped, ...rest } = binding
+      next[paneId] = rest
+      changed = true
+    } else {
+      next[paneId] = binding
+    }
+  }
+  return changed ? { ...tab, agentByPane: next } : tab
+}
+
 function sanitizeTab(tab: TabSession): {
   tab: TabSession
   migrations: SanitizedSession['pendingAgentMigrations']
@@ -79,7 +102,13 @@ function sanitizeTab(tab: TabSession): {
     const binding = parseAgentPaneBinding(raw)
     if (binding) {
       paneKinds[paneId] = 'agent'
-      agentByPane[paneId] = binding
+      // Org: no rehidratar cliSessionId desde session compartida/local contaminada.
+      if (orgWorkspace && binding.cliSessionId) {
+        const { cliSessionId: _dropped, ...rest } = binding
+        agentByPane[paneId] = rest
+      } else {
+        agentByPane[paneId] = binding
+      }
       continue
     }
     // Rich meta legacy o binding inválido: pane huérfano (no migrar, no inventar agentId).

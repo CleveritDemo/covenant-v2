@@ -83,6 +83,43 @@ describe('syncTabAgentsFromCatalog', () => {
     })
   })
 
+  it('drops cliSessionId when preserveCliSessionIds is false and marks changed', () => {
+    const result = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['a-qa'],
+        activePaneId: 'a-qa',
+        paneKinds: { 'a-qa': 'agent' },
+        agentByPane: {
+          'a-qa': { agentId: 'qa', cliSessionId: 'sess-1', localOnly: true },
+        },
+        paneWindows: {
+          'a-qa': { open: true, fullscreen: false, zIndex: 3 },
+        },
+      }),
+      [{
+        id: 'qa',
+        provider: 'claude',
+        permissionMode: 'auto',
+        localOnly: true,
+      }],
+      {
+        maxPanes: 10,
+        createPaneId: () => 'should-not-run',
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+        preserveCliSessionIds: false,
+      },
+    )
+
+    expect(result.changed).toBe(true)
+    expect(result.addedPaneIds).toEqual([])
+    expect(result.removedPaneIds).toEqual([])
+    expect(result.tab.agentByPane?.['a-qa']).toEqual({
+      agentId: 'qa',
+      localOnly: true,
+    })
+    expect(result.tab.agentByPane?.['a-qa']).not.toHaveProperty('cliSessionId')
+  })
+
   it('preserves session agent order instead of catalog file order', () => {
     const result = syncTabAgentsFromCatalog(
       baseTab({

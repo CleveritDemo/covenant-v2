@@ -18,3 +18,14 @@
   width: 100%;
   line-height: 1.15;
 }
+
+/* Separador sutil entre contextos normales y resultados. */
+.plane-agent-context-nodes__sep {
+  flex: 0 0 auto;
+  height: 0;
+  margin: 5px 8px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--plane-border, var(--border)) 50%, transparent);
+  list-style: none;
+  pointer-events: none;
+}

@@ -1,10 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
-import {
-  AGENT_CLI_PROVIDER_IDS,
-  agentCliSpec,
-  type AgentCliResolution,
-} from '@shared/agentCliProviders'
+import { agentCliSpec } from '@shared/agentCliProviders'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
@@ -20,6 +16,7 @@ import { AgentConfigHero, type AgentConfigHeroChip } from './AgentConfigHero'
 import { AgentConfigIdentityColumn } from './AgentConfigIdentityColumn'
 import { AgentConfigLockBanner } from './AgentConfigLockBanner'
 import { AgentConfigSettingsPane } from './AgentConfigSettingsPane'
+import { useAgentCliStatuses } from './useAgentCliStatuses'
 import {
   AgentConfigSectionRail,
   type AgentConfigSection,
@@ -136,7 +133,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState('')
   const [modelsReload, setModelsReload] = useState(0)
-  const [cliStatuses, setCliStatuses] = useState<Partial<Record<AgentCliProvider, AgentCliResolution>>>({})
+  const cliStatuses = useAgentCliStatuses(open)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const savingRef = useRef(false)
@@ -172,22 +169,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     })
     return () => { cancelled = true }
   }, [open, meta.provider, modelsReload])
-
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    void Promise.all(
-      AGENT_CLI_PROVIDER_IDS.map(provider => window.api.resolveAgentCli(provider)),
-    ).then(resolutions => {
-      if (cancelled) return
-      const next: Partial<Record<AgentCliProvider, AgentCliResolution>> = {}
-      for (const resolution of resolutions) {
-        if (resolution) next[resolution.provider] = resolution
-      }
-      setCliStatuses(next)
-    }).catch(() => { /* sin resolución: la rejilla no afirma nada */ })
-    return () => { cancelled = true }
-  }, [open])
 
   const updateDraft = useCallback((patch: Partial<AgentIdentityDraft>) => {
     setDraft(previous => {

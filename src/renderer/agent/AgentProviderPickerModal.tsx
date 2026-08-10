@@ -4,6 +4,7 @@ import { AGENT_CLI_PROVIDER_IDS, agentCliSpec } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { BrandIcon, ChoiceCard } from '../components/ui'
+import { useAgentCliStatuses } from './useAgentCliStatuses'
 import './AgentPane.css'
 
 export interface AgentPickerCloneSource {
@@ -31,6 +32,7 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const showClone = Boolean(onClone && cloneSources.length > 0)
+  const statuses = useAgentCliStatuses(open)
 
   return (
     <TerminalModal
@@ -42,16 +44,32 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
     >
       <p className="agent-provider-picker__description">{t('agentPane.pickerDescription')}</p>
       <div className="agent-provider-picker__options" role="list">
-        {AGENT_CLI_PROVIDER_IDS.map(id => (
-          <ChoiceCard
-            key={id}
-            role="listitem"
-            icon={<BrandIcon provider={id} size={18} />}
-            onClick={() => onSelect(id)}
-          >
-            <strong>{agentCliSpec(id).label}</strong>
-          </ChoiceCard>
-        ))}
+        {AGENT_CLI_PROVIDER_IDS.map(id => {
+          const status = statuses[id]
+          // Mientras no hay resolución no se bloquea nada: un mapa vacío es
+          // «todavía comprobando», no «no instalado».
+          const missing = status ? status.path === null : false
+          return (
+            <ChoiceCard
+              key={id}
+              role="listitem"
+              disabled={missing}
+              icon={<BrandIcon provider={id} size={18} />}
+              onClick={() => onSelect(id)}
+            >
+              <strong>{agentCliSpec(id).label}</strong>
+              <span
+                className={`agent-provider-picker__state${missing ? ' agent-provider-picker__state--missing' : ''}`}
+              >
+                {!status
+                  ? t('agentPane.providerChecking')
+                  : missing
+                    ? t('agentPane.providerMissing')
+                    : status.version ?? t('agentPane.providerInstalled')}
+              </span>
+            </ChoiceCard>
+          )
+        })}
       </div>
 
       {showClone ? (
@@ -61,15 +79,24 @@ export const AgentProviderPickerModal: React.FC<Props> = ({
           <div className="agent-provider-picker__options" role="list">
             {cloneSources.map(source => {
               const providerLabel = agentCliSpec(source.provider).label
+              // Duplicar hereda el proveedor, así que se bloquea por el mismo
+              // motivo que la tarjeta del CLI que falta.
+              const status = statuses[source.provider]
+              const missing = status ? status.path === null : false
               return (
                 <ChoiceCard
                   key={source.paneId}
                   role="listitem"
+                  disabled={missing}
                   icon={<BrandIcon provider={source.provider} size={18} />}
                   onClick={() => onClone?.(source.paneId)}
                 >
                   <strong>{source.name.trim() || t('agentPane.pickerDuplicateUnnamed')}</strong>
-                  <span className="agent-provider-picker__clone-meta">{providerLabel}</span>
+                  <span
+                    className={`agent-provider-picker__clone-meta${missing ? ' agent-provider-picker__state--missing' : ''}`}
+                  >
+                    {missing ? `${providerLabel} · ${t('agentPane.providerMissing')}` : providerLabel}
+                  </span>
                 </ChoiceCard>
               )
             })}

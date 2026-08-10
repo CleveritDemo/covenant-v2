@@ -2189,6 +2189,18 @@ html[data-reduce-motion="true"] {
   gap: 8px;
 }
 
+.agent-provider-picker__state {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.agent-provider-picker__state--missing {
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-muted));
+}
+
 .agent-provider-picker__clone {
   margin-top: 16px;
   padding-top: 14px;

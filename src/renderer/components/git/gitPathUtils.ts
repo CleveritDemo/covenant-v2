@@ -63,6 +63,19 @@ export function gitDisplayFileName(entry: GitPathEntry): string {
   return slash >= 0 ? path.slice(slash + 1) : path
 }
 
+/**
+ * Últimos N segmentos de una ruta absoluta (p. ej. cwd del panel git).
+ * `/Users/.../covenant/covenant-v2` → `covenant/covenant-v2`.
+ */
+export function shortPathTail(path: string, segments = 2): string {
+  const trimmed = path.trim().replace(/[/\\]+$/, '')
+  if (!trimmed) return ''
+  const parts = trimmed.split(/[/\\]+/).filter(Boolean)
+  if (parts.length === 0) return trimmed
+  const n = Math.max(1, Math.floor(segments))
+  return parts.slice(-n).join('/')
+}
+
 /** Directorio (con separador final) y nombre, para pintar la ruta con el directorio atenuado. */
 export function gitSplitDisplayPath(entry: GitPathEntry): { dir: string; name: string } {
   const path = gitWorktreePath(entry)

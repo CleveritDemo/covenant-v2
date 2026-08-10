@@ -774,8 +774,6 @@ const es = {
     commitAndPushButton: 'commit + push',
     commitSummary_one: '{{count}} archivo · +{{ins}} −{{del}}',
     commitSummary_other: '{{count}} archivos · +{{ins}} −{{del}}',
-    diffTab: 'Diff',
-    sideTabsLabel: 'Panel derecho',
     diffEmptyHint: 'Elige un archivo para ver qué cambió.',
     diffLoadingAriaLabel: 'Cargando diff',
     diffBinary: 'Archivo binario: no hay líneas que enseñar.',

@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.35.0
+
+- **El modal Git pone el diff junto a la lista de archivos**; la columna derecha
+  muestra solo GitHub Actions (sin pestañas Diff | Actions).
+- **La ruta del repo se acorta** a los dos últimos niveles (tooltip con la
+  completa).
+- **El cuadro de diff aparece solo al seleccionar un archivo** y se oculta al
+  deseleccionarlo.
+
 ## v0.34.0
 
 - **Stop del composer solo en turno propio** (busy / loop): ya no aparece rojo

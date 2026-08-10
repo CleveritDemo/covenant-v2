@@ -28,7 +28,8 @@ interface GitFileListProps {
   onStageAll: () => void
   onUnstageAll: () => void
   selection: GitDiffSelection | null
-  onSelect: (selection: GitDiffSelection) => void
+  /** null = deseleccionar (clic en la fila ya seleccionada). */
+  onSelect: (selection: GitDiffSelection | null) => void
   onDiscardFile: (relPath: string, untracked: boolean) => void
 }
 
@@ -63,7 +64,7 @@ interface GitFileGroupProps {
   fileActionSign: string
   onFileAction: (relPath: string) => void
   selection: GitDiffSelection | null
-  onSelect: (selection: GitDiffSelection) => void
+  onSelect: (selection: GitDiffSelection | null) => void
   /** Solo en el worktree: descartar es destructivo y no aplica al índice. */
   onDiscardFile?: (relPath: string, untracked: boolean) => void
 }
@@ -114,7 +115,10 @@ const GitFileGroup: React.FC<GitFileGroupProps> = ({
               area === 'index' ? 'staged' : untracked ? 'untracked' : 'worktree'
             const selected = selection?.path === path && selection.area === diffArea
 
-            const selectFile = (): void => onSelect({ path, area: diffArea })
+            const selectFile = (): void => {
+              if (selected) onSelect(null)
+              else onSelect({ path, area: diffArea })
+            }
 
             return (
               <li

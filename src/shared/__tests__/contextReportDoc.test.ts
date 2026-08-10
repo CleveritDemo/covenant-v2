@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { countFolderNodes, parseContextDoc, parseFolderTree, splitFences, parseDeps, parseGit, contextReportCounts } from '../contextReportDoc'
+import {
+  countFolderNodes,
+  parseContextDoc,
+  parseFolderTree,
+  resolveNotesPreviewContent,
+  splitFences,
+  parseDeps,
+  parseGit,
+  contextReportCounts,
+} from '../contextReportDoc'
 
 /** Documento tal como lo escribe composeDocument() en electron/tabContextBuild.ts. */
 const doc = [
@@ -85,6 +94,45 @@ describe('parseContextDoc', () => {
   it('no confunde el marcador de contexto con contenido', () => {
     const parsed = parseContextDoc(doc)
     expect(parsed.auto).not.toContain('iaterminal:context')
+  })
+})
+
+describe('resolveNotesPreviewContent', () => {
+  it('prefiere el cuerpo org en caché', () => {
+    expect(resolveNotesPreviewContent({
+      cachedBody: 'Org plain body',
+      notesContent: 'ignored',
+      content: '<!-- iaterminal:auto -->\n(manual notes context)\n<!-- /iaterminal:auto -->',
+    })).toBe('Org plain body')
+  })
+
+  it('usa notesContent del IPC cuando no hay caché', () => {
+    expect(resolveNotesPreviewContent({
+      notesContent: '## Human notes',
+      content: '<!-- iaterminal:auto -->\n(manual notes context)\n<!-- /iaterminal:auto -->',
+    })).toBe('## Human notes')
+  })
+
+  it('texto plano sin marcadores no queda vacío', () => {
+    expect(resolveNotesPreviewContent({
+      content: 'Release checklist\n\n- ship it',
+    })).toBe('Release checklist\n\n- ship it')
+  })
+
+  it('solo stub materialize sigue vacío', () => {
+    const stub = [
+      '# Brief',
+      '<!-- iaterminal:context {"version":1,"id":"x","kind":"notes"} -->',
+      '',
+      '<!-- iaterminal:auto -->',
+      '(manual notes context)',
+      '<!-- /iaterminal:auto -->',
+      '',
+      '<!-- iaterminal:notes -->',
+      '(no annotations yet)',
+      '<!-- /iaterminal:notes -->',
+    ].join('\n')
+    expect(resolveNotesPreviewContent({ content: stub })).toBe('')
   })
 })
 

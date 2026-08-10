@@ -174,6 +174,7 @@ import {
 } from './covenantApi'
 import { retryCovenantResult } from '../shared/covenantRetry'
 import {
+  forgetWorkspaceContextBody,
   projectAgentsFromWorkspaceAgents,
   sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
@@ -2780,6 +2781,44 @@ export const App: React.FC = () => {
     setPlaneContextsFocusId(contextId)
   }, [])
 
+  const handleDeleteContextFromPlane = useCallback(async (tabId: string, contextId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const contexts = tabContextsByTabRef.current[tabId] ?? []
+    const context = contexts.find(item => item.id === contextId)
+    if (!context) return
+
+    const org = tab.orgWorkspace
+    const isOrgBacked = Boolean(org?.slug?.trim() && org?.workspaceId?.trim())
+    if (isOrgBacked && org) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
+      const result = await covenant.workspaceContextDelete(
+        org.slug.trim(),
+        org.workspaceId.trim(),
+        contextId,
+      )
+      if (!result.ok) return
+      forgetWorkspaceContextBody(contextId)
+    } else {
+      const cwd = tab.projectFolder?.trim() || ''
+      if (!cwd) return
+      const result = await window.api.deleteTabContext({ context, cwd })
+      if (!result.ok) return
+    }
+
+    const agentPaneIds = (tab.paneIds ?? []).filter(id => tab.paneKinds?.[id] === 'agent')
+    for (const paneId of agentPaneIds) {
+      handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+        const nextIds = (previous.contextIds ?? []).filter(id => id !== contextId)
+        if (nextIds.length === (previous.contextIds ?? []).length) return previous
+        return { ...previous, contextIds: nextIds }
+      })
+    }
+
+    await refreshTabContexts(tabId)
+  }, [refreshTabContexts])
+
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
     setAgentPlaneStatus(prev => {
       const previous = prev[paneId]
@@ -4866,6 +4905,12 @@ export const App: React.FC = () => {
                     t('tabs.planeContextPoolAssigned', { count })
                   )}
                   contextPoolEditLabel={t('tabContexts.edit')}
+                  contextPoolDeleteLabel={t('tabs.planeDeletePane')}
+                  contextPoolDeleteConfirmMessage={(name: string) => (
+                    t('tabs.planeConfirmDeleteContextMessage', { name })
+                  )}
+                  contextPoolDeleteConfirmDetail={t('tabs.planeConfirmDeleteContextDetail')}
+                  contextPoolTrashDropLabel={t('tabs.planeContextPoolTrashDrop')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -4907,6 +4952,9 @@ export const App: React.FC = () => {
                   onCreateContext={() => handleCreateContextFromPlane(tab.id)}
                   onOpenContext={contextId => {
                     handleOpenContextFromPlane(tab.id, contextId)
+                  }}
+                  onDeleteContext={contextId => {
+                    void handleDeleteContextFromPlane(tab.id, contextId)
                   }}
                   onAssignContext={(paneId, contextId) => {
                     handleAssignContextToAgent(tab.id, paneId, contextId)

@@ -12,6 +12,7 @@ vi.mock('@i18n/useT', () => ({
 
 import { ContextPreviewBody } from '../ContextContentPreviewModal'
 import { PROJECT_DIR } from '@shared/projectDir'
+import { forgetWorkspaceContextBody, rememberWorkspaceContextBody } from '@shared/orgWorkspaceContent'
 
 function context(id: string): TabContext {
   return { id, name: id, fileName: `${id}.md`, kind: 'notes' }
@@ -29,6 +30,8 @@ function deferred() {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  forgetWorkspaceContextBody('a')
+  forgetWorkspaceContextBody('org-notes')
 })
 
 describe('ContextPreviewBody al cambiar de contexto', () => {
@@ -64,5 +67,34 @@ describe('ContextPreviewBody al cambiar de contexto', () => {
     // Objeto nuevo, misma identidad: lo que hace refreshTabContexts.
     view.rerender(<ContextPreviewBody context={context('a')} cwd="/proyecto" />)
     expect(previewTabContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('notes org: muestra workspaceContextBody aunque el materialize sea stub', async () => {
+    rememberWorkspaceContextBody('org-notes', 'Body from org workspace API')
+    const previewTabContext = vi.fn().mockResolvedValue({
+      ok: true,
+      content: [
+        '# org-notes',
+        '<!-- iaterminal:auto -->',
+        '(manual notes context)',
+        '<!-- /iaterminal:auto -->',
+        '<!-- iaterminal:notes -->',
+        '(no annotations yet)',
+        '<!-- /iaterminal:notes -->',
+      ].join('\n'),
+      notesContent: '',
+      filePath: '/tmp/.gravity/org-notes.md',
+    })
+    Object.assign(window, { api: { previewTabContext, listProjectAgents: vi.fn() } })
+
+    render(
+      <ContextPreviewBody
+        context={{ id: 'org-notes', name: 'Org', fileName: 'Org.md', kind: 'notes' }}
+        cwd="/proyecto"
+      />,
+    )
+
+    expect(await screen.findByText('Body from org workspace API')).toBeTruthy()
+    expect(screen.queryByText('tabContexts.reportEmpty')).toBeNull()
   })
 })

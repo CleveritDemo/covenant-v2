@@ -58,6 +58,10 @@ export interface TabAgenticPlaneProps {
   /** Aria del contador del chip; recibe el nº de agentes. */
   contextPoolAssignedCountLabel: (count: number) => string
   contextPoolEditLabel: string
+  contextPoolDeleteLabel: string
+  contextPoolDeleteConfirmMessage: (name: string) => string
+  contextPoolDeleteConfirmDetail: string
+  contextPoolTrashDropLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -93,6 +97,8 @@ export interface TabAgenticPlaneProps {
   onCreateContext: () => void
   /** Clic en chip del pool → editar ese contexto (sin DnD). */
   onOpenContext?: (contextId: string) => void
+  /** Elimina un contexto del catálogo (org o local). */
+  onDeleteContext?: (contextId: string) => void
   /** Asigna un contexto arrastrado del pool a un agente. */
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
@@ -225,6 +231,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolAssignEmptyHint,
   contextPoolAssignedCountLabel,
   contextPoolEditLabel,
+  contextPoolDeleteLabel,
+  contextPoolDeleteConfirmMessage,
+  contextPoolDeleteConfirmDetail,
+  contextPoolTrashDropLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -256,6 +266,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onConfigureContexts,
   onCreateContext,
   onOpenContext,
+  onDeleteContext,
   onAssignContext,
   onOpenResultsPreview,
   onSendChat,
@@ -698,6 +709,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           assignEmptyHint={contextPoolAssignEmptyHint}
           assignedCountLabel={contextPoolAssignedCountLabel}
           editLabel={contextPoolEditLabel}
+          deleteLabel={contextPoolDeleteLabel}
+          deleteConfirmMessage={contextPoolDeleteConfirmMessage}
+          deleteConfirmDetail={contextPoolDeleteConfirmDetail}
+          trashDropLabel={contextPoolTrashDropLabel}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -705,6 +720,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onConfigure={onConfigureContexts}
           onCreate={onCreateContext}
           onOpenContext={onOpenContext}
+          onDeleteContext={onDeleteContext}
           onToggleAssign={onToggleAgentContext}
         />
       )}

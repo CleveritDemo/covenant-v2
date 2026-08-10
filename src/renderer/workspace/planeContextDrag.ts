@@ -4,7 +4,8 @@ export const PLANE_CONTEXT_DRAG_MIME = 'application/x-iaterminal-tab-context'
 export function setPlaneContextDragData(dataTransfer: DataTransfer, contextId: string): void {
   dataTransfer.setData(PLANE_CONTEXT_DRAG_MIME, contextId)
   dataTransfer.setData('text/plain', contextId)
-  dataTransfer.effectAllowed = 'copy'
+  // copy → asignar a agente; move → soltar en papelera del pool.
+  dataTransfer.effectAllowed = 'copyMove'
 }
 
 export function hasPlaneContextDrag(dataTransfer: DataTransfer): boolean {

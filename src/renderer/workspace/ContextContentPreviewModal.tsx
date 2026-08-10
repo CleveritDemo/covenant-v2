@@ -9,7 +9,8 @@ import {
   parseAgentResultsDoc,
   type AgentResultsDoc,
 } from '@shared/agentResultsDoc'
-import { parseContextDoc } from '@shared/contextReportDoc'
+import { parseContextDoc, resolveNotesPreviewContent } from '@shared/contextReportDoc'
+import { workspaceContextBody } from '@shared/orgWorkspaceContent'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -277,24 +278,57 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
 
   useEffect(() => {
     const workingCwd = cwd.trim()
-    if (!workingCwd) {
+    let cancelled = false
+    // Org notes viven en memoria (sin marcadores); preferirlos antes del IPC.
+    if (context.kind === 'notes') {
+      const cached = workspaceContextBody(context.id).trim()
+      if (cached) {
+        setPreview({
+          status: 'success',
+          content: cached,
+          filePath: context.fileName,
+        })
+        if (!workingCwd) {
+          return () => {
+            cancelled = true
+          }
+        }
+      } else if (!workingCwd) {
+        setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
+        return
+      }
+    } else if (!workingCwd) {
       setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
       return
     }
-    let cancelled = false
+
+    if (!workingCwd) {
+      return () => {
+        cancelled = true
+      }
+    }
+
     // Se conserva lo ya pintado mientras llega lo nuevo: blanquear el panel en
     // cada cambio de selección es el parpadeo. Leer un .md local dura ms.
     setPreview(previous => (previous.status === 'success' ? previous : { status: 'loading' }))
     void window.api.previewTabContext({ context, cwd: workingCwd }).then(result => {
       if (cancelled) return
       if (!result.ok) {
+        // Si ya mostramos el cuerpo org, no pisarlo con el fallo de materialize local.
+        if (context.kind === 'notes' && workspaceContextBody(context.id).trim()) return
         setPreview({
           status: 'error',
           message: result.error?.trim() || t('tabContexts.previewError'),
         })
         return
       }
-      const content = result.content ?? ''
+      const content = context.kind === 'notes'
+        ? resolveNotesPreviewContent({
+          cachedBody: workspaceContextBody(context.id),
+          notesContent: result.notesContent,
+          content: result.content,
+        })
+        : (result.content ?? '')
       if (!content.trim()) {
         setPreview({ status: 'empty', filePath: result.filePath })
         return
@@ -306,6 +340,7 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
       })
     }).catch(error => {
       if (cancelled) return
+      if (context.kind === 'notes' && workspaceContextBody(context.id).trim()) return
       setPreview({
         status: 'error',
         message: error instanceof Error ? error.message : String(error),

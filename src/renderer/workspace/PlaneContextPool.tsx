@@ -1,10 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
-import { setPlaneContextDragData } from './planeContextDrag'
+import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
+import {
+  hasPlaneContextDrag,
+  readPlaneContextDragData,
+  setPlaneContextDragData,
+} from './planeContextDrag'
 import { PlaneContextAssignModal } from './PlaneContextAssignModal'
 import './PlaneContextPool.css'
 
@@ -67,6 +73,11 @@ export interface PlaneContextPoolProps {
   /** Aria del contador del chip, ya interpolado. */
   assignedCountLabel: (count: number) => string
   editLabel: string
+  deleteLabel: string
+  deleteConfirmMessage: (name: string) => string
+  deleteConfirmDetail: string
+  /** Aria de la zona soltar-para-borrar (visible solo al arrastrar). */
+  trashDropLabel: string
   contexts: PlaneContextPoolItem[]
   /** Catálogo completo para el preview del modal. */
   contextCatalog?: TabContext[]
@@ -79,6 +90,8 @@ export interface PlaneContextPoolProps {
   onCreate: () => void
   /** Abre ese contexto para editarlo. */
   onOpenContext?: (contextId: string) => void
+  /** Elimina el contexto (tras ConfirmTerminalModal en assign o trash drop). */
+  onDeleteContext?: (contextId: string) => void
   /** Asigna/desasigna un contexto a un agente. */
   onToggleAssign: (paneId: string, contextId: string) => void
 }
@@ -92,6 +105,10 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   assignEmptyHint,
   assignedCountLabel,
   editLabel,
+  deleteLabel,
+  deleteConfirmMessage,
+  deleteConfirmDetail,
+  trashDropLabel,
   contexts,
   contextCatalog = [],
   cwd = '',
@@ -99,12 +116,17 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   onConfigure,
   onCreate,
   onOpenContext,
+  onDeleteContext,
   onToggleAssign,
 }) => {
   const dragOccurredRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const [openContextId, setOpenContextId] = useState<string | null>(null)
   const [rovingIndex, setRovingIndex] = useState(0)
+  /** Id del chip en arrastre: muestra la papelera a la izquierda de los chips. */
+  const [draggingContextId, setDraggingContextId] = useState<string | null>(null)
+  const [trashHot, setTrashHot] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
 
   const visibleContexts = useMemo(
     () => contexts.filter(isProjectContext),
@@ -149,12 +171,28 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
 
   const closeAssignModal = useCallback(() => setOpenContextId(null), [])
 
+  const endChipDrag = useCallback(() => {
+    setDraggingContextId(null)
+    setTrashHot(false)
+    window.setTimeout(() => {
+      dragOccurredRef.current = false
+    }, 50)
+  }, [])
+
+  const requestDelete = useCallback((contextId: string, name: string) => {
+    if (!onDeleteContext) return
+    setPendingDelete({ id: contextId, name })
+  }, [onDeleteContext])
+
+  const showTrash = Boolean(draggingContextId && onDeleteContext)
+
   return (
     <div
       ref={rootRef}
       className={[
         'plane-context-pool',
         visibleContexts.length === 0 ? 'plane-context-pool--empty' : '',
+        showTrash ? 'plane-context-pool--dragging' : '',
       ].filter(Boolean).join(' ')}
       role="toolbar"
       aria-label={title}
@@ -184,6 +222,46 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
           <Icon name="plus" size={12} />
         </button>
       </Tooltip>
+
+      {showTrash ? (
+        <div
+          className={[
+            'plane-context-pool__trash',
+            trashHot ? 'plane-context-pool__trash--hot' : '',
+          ].filter(Boolean).join(' ')}
+          role="button"
+          aria-label={trashDropLabel}
+          data-testid="plane-context-pool-trash"
+          onDragEnter={event => {
+            if (!hasPlaneContextDrag(event.dataTransfer)) return
+            event.preventDefault()
+            setTrashHot(true)
+          }}
+          onDragOver={event => {
+            if (!hasPlaneContextDrag(event.dataTransfer)) return
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'move'
+            setTrashHot(true)
+          }}
+          onDragLeave={event => {
+            if (event.currentTarget.contains(event.relatedTarget as Node)) return
+            setTrashHot(false)
+          }}
+          onDrop={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            const droppedId = readPlaneContextDragData(event.dataTransfer)
+              || draggingContextId
+            endChipDrag()
+            if (!droppedId) return
+            const target = visibleContexts.find(ctx => ctx.id === droppedId)
+            if (!target) return
+            requestDelete(target.id, target.name)
+          }}
+        >
+          <Icon name="trash" size={12} aria-hidden />
+        </div>
+      ) : null}
 
       {visibleContexts.length > 0 ? (
         <div className="plane-context-pool__icons" role="list">
@@ -224,14 +302,13 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
                       event.stopPropagation()
                       dragOccurredRef.current = true
                       setOpenContextId(null)
+                      setDraggingContextId(ctx.id)
                       setPlaneContextDragData(event.dataTransfer, ctx.id)
                       setChipDragImage(event)
                     }}
                     onDragEnd={event => {
                       event.stopPropagation()
-                      window.setTimeout(() => {
-                        dragOccurredRef.current = false
-                      }, 50)
+                      endChipDrag()
                     }}
                     {...itemProps(index + 2)}
                   >
@@ -258,9 +335,26 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         assignLabel={assignLabel}
         assignEmptyHint={assignEmptyHint}
         editLabel={editLabel}
+        deleteLabel={deleteLabel}
+        deleteConfirmMessage={deleteConfirmMessage(openContext?.name ?? '')}
+        deleteConfirmDetail={deleteConfirmDetail}
         onClose={closeAssignModal}
         onToggleAssign={onToggleAssign}
         onEdit={onOpenContext}
+        onDelete={onDeleteContext}
+      />
+
+      <ConfirmTerminalModal
+        open={Boolean(pendingDelete)}
+        zIndex={APP_OVERLAY_MODAL_Z + 20}
+        message={deleteConfirmMessage(pendingDelete?.name ?? '')}
+        detail={deleteConfirmDetail}
+        onConfirm={() => {
+          const id = pendingDelete?.id
+          setPendingDelete(null)
+          if (id) onDeleteContext?.(id)
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   )

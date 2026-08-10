@@ -4,6 +4,16 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.32.0
+
+- **Eliminar contexto pide confirmación** (modal) desde assign, listado y al
+  soltar un chip en la papelera.
+- **Al arrastrar un contexto** aparece una papelera a la izquierda de los chips;
+  soltar ahí abre el mismo confirm y borra.
+- **Preview de Custom** muestra cuerpos org o texto plano sin marcadores
+  `iaterminal:*` (ya no queda «sin contenido» con texto real).
+- **Botón Eliminar** en el modal de asignación del plano.
+
 ## v0.31.0
 
 - **Renombrar un contexto en un workspace org ya no crea un gemelo**: se

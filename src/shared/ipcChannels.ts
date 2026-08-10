@@ -351,6 +351,8 @@ export const IPC = {
   DICTATION_STOP: 'dictation:stop',
   /** Main → renderer: texto parcial mientras escucha */
   DICTATION_PARTIAL: 'dictation:partial',
+  /** Main → renderer: pico de nivel de mic (throttled) para waveform */
+  DICTATION_LEVEL: 'dictation:level',
   /** Main → renderer: transcript final (además del return de stop) */
   DICTATION_RESULT: 'dictation:result',
   /** Main → renderer: error de dictado */

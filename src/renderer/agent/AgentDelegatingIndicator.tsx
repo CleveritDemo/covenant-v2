@@ -21,7 +21,7 @@ export interface AgentDelegatingIndicatorProps {
 
 /**
  * Estado de orquestación: el agente emitió delegaciones y espera a especialistas.
- * Markup propio (BEM); sin UI-kit / sin className externo.
+ * Flush en el stream (sin card); acento solo en estado running/done.
  */
 export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> = ({
   label,
@@ -37,22 +37,23 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
       <span className="agent-delegating__sat agent-delegating__sat--c" />
     </div>
     <div className="agent-delegating__copy">
-      <div className="agent-delegating__headline">
-        <span className="agent-delegating__label">{label}</span>
-        {sublabel ? (
-          <span className="agent-delegating__sublabel">{sublabel}</span>
-        ) : null}
-      </div>
+      <p className="agent-delegating__label">{label}</p>
+      {sublabel ? (
+        <p className="agent-delegating__sublabel">{sublabel}</p>
+      ) : null}
       {items.length > 0 ? (
         <ul className="agent-delegating__list">
           {items.map(item => {
-            const chip = (
+            const row = (
               <span
                 className={[
-                  'agent-delegating__chip',
-                  item.status === 'done' ? 'agent-delegating__chip--done' : '',
-                ].filter(Boolean).join(' ')}
+                  'agent-delegating__item',
+                  item.status === 'done'
+                    ? 'agent-delegating__item--done'
+                    : 'agent-delegating__item--running',
+                ].join(' ')}
               >
+                <span className="agent-delegating__dot" aria-hidden="true" />
                 <span className="agent-delegating__agent">{item.label}</span>
                 {item.replicaBadge ? (
                   <span className="agent-delegating__badge">{item.replicaBadge}</span>
@@ -63,9 +64,9 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
             return (
               <li key={item.id} className="agent-delegating__row">
                 {item.worktreeHint ? (
-                  <Tooltip content={item.worktreeHint}>{chip}</Tooltip>
+                  <Tooltip content={item.worktreeHint}>{row}</Tooltip>
                 ) : (
-                  chip
+                  row
                 )}
               </li>
             )

@@ -26,6 +26,7 @@ import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
+import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
@@ -289,14 +290,17 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const mapDictationError = useCallback((code: string): string => {
     const kind = classifyDictationError(code)
     if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
+    if (kind === 'helperMissing') return t('agentPane.dictationHelperMissing')
+    if (kind === 'startFailed') return t('agentPane.dictationStartFailed')
     if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
     if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
     if (kind === 'noSpeech') return t('agentPane.dictationNoSpeech')
+    if (kind === 'noAudio') return t('agentPane.dictationNoAudio')
     return t('agentPane.dictationError')
   }, [t])
 
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
-  const { listening, start: startDictation, stop: stopDictation } =
+  const { listening, interim, level, start: startDictation, stop: stopDictation } =
     usePushToTalkSpeech({
       lang: speechLang,
       onTranscript: text => {
@@ -304,7 +308,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       },
       onError: code => {
         setDictationError(mapDictationError(code))
-        window.setTimeout(() => setDictationError(''), 4000)
+        window.setTimeout(() => setDictationError(''), 5000)
       },
     })
 
@@ -350,6 +354,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         onDrop={handleDrop}
       >
       <div className="plane-chat-composer__body">
+        <DictationListeningOverlay
+          active={listening}
+          level={level}
+          text={interim.trim() || t('agentPane.dictationLive')}
+        />
         {queuedTurns.length > 0 && selectedAgentId && (
           <div
             className="plane-chat-composer__queue"
@@ -508,7 +517,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             onMicStop={stopDictation}
           />
         </div>
-        {dictationError ? (
+        {!listening && dictationError ? (
           <p className="plane-chat-composer__dictation-error" role="status">
             {dictationError}
           </p>

@@ -4,17 +4,28 @@ import AVFoundation
 
 /// Protocolo línea a línea por stdin/stdout (JSON en stdout).
 /// Comandos: START <locale> | STOP | QUIT
+///
+/// Contrato STOP:
+/// - Con texto → `{"type":"final","text":"...","peak":N}` luego `stopped`.
+/// - Sin texto y peak < umbral → `error` code `no-audio` (mic silencioso / input vacío).
+/// - Sin texto y peak OK → `final` con text vacío (renderer → no-speech); no es fallo de mic.
+
+/// Pico abs. mínimo (PCM float) para considerar que hubo captura de mic.
+let silencePeakThreshold: Float = 0.008
+/// Intervalo mínimo entre eventos `level` (~25/s, bajo el tope de ~40/s).
+let levelEmitIntervalSec: CFAbsoluteTime = 0.04
 
 enum OutEvent: Encodable {
   case ready
   case started
   case partial(text: String)
-  case finalText(text: String)
+  case level(peak: Float)
+  case finalText(text: String, peak: Float)
   case stopped
   case error(code: String, message: String)
 
   enum CodingKeys: String, CodingKey {
-    case type, text, code, message
+    case type, text, code, message, peak
   }
 
   func encode(to encoder: Encoder) throws {
@@ -27,9 +38,13 @@ enum OutEvent: Encodable {
     case .partial(let text):
       try c.encode("partial", forKey: .type)
       try c.encode(text, forKey: .text)
-    case .finalText(let text):
+    case .level(let peak):
+      try c.encode("level", forKey: .type)
+      try c.encode(peak, forKey: .peak)
+    case .finalText(let text, let peak):
       try c.encode("final", forKey: .type)
       try c.encode(text, forKey: .text)
+      try c.encode(peak, forKey: .peak)
     case .stopped:
       try c.encode("stopped", forKey: .type)
     case .error(let code, let message):
@@ -59,24 +74,57 @@ func normalizeTranscript(_ raw: String) -> String {
     .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+/// Pico absoluto de un buffer PCM (float). Extraíble para tests / espejo TS.
+func peakAbsoluteFromBuffer(_ buffer: AVAudioPCMBuffer) -> Float {
+  let frames = Int(buffer.frameLength)
+  guard frames > 0, let channels = buffer.floatChannelData else { return 0 }
+  let channelCount = Int(buffer.format.channelCount)
+  var peak: Float = 0
+  for ch in 0..<channelCount {
+    let samples = channels[ch]
+    for i in 0..<frames {
+      let v = abs(samples[i])
+      if v > peak { peak = v }
+    }
+  }
+  return peak
+}
+
+func isSilentPeak(_ peak: Float, threshold: Float = silencePeakThreshold) -> Bool {
+  !peak.isFinite || peak < threshold
+}
+
+enum DictationStartError: String {
+  case alreadyRunning = "already-running"
+  case permissionDenied = "permission-denied"
+  case startFailed = "start-failed"
+  case audioFailed = "audio-failed"
+  case unsupported = "unsupported"
+}
+
 final class DictationEngine: NSObject {
-  private let audioEngine = AVAudioEngine()
+  /// Se recrea tras fallos: un engine tras NSException en prepare puede quedar inválido.
+  private var audioEngine = AVAudioEngine()
   private var recognizer: SFSpeechRecognizer?
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
   private var bestTranscript = ""
+  private var sessionPeak: Float = 0
+  /// Max pico desde el último `level` emitido (ventana para waveform).
+  private var levelWindowPeak: Float = 0
+  private var lastLevelEmitAt: CFAbsoluteTime = 0
   private var running = false
   private var awaitingFinal = false
-  private var stopCompletion: ((String) -> Void)?
+  /// (text, peak, optionalErrorCode) — errorCode p.ej. no-audio
+  private var stopCompletion: ((String, Float, String?) -> Void)?
   private let lock = NSLock()
-  /// Espera tras endAudio a un resultado isFinal antes de cancelar.
   private let stopFinalizeTimeoutMs: Int = 700
 
   func start(localeIdentifier: String, completion: @escaping (Bool, String?) -> Void) {
     lock.lock()
     if running || awaitingFinal {
       lock.unlock()
-      completion(false, "already-running")
+      completion(false, DictationStartError.alreadyRunning.rawValue)
       return
     }
     lock.unlock()
@@ -84,7 +132,7 @@ final class DictationEngine: NSObject {
     requestMicAndSpeech { [weak self] ok, err in
       guard let self else { return }
       if !ok {
-        completion(false, err ?? "permission-denied")
+        completion(false, err ?? DictationStartError.permissionDenied.rawValue)
         return
       }
       DispatchQueue.main.async {
@@ -92,16 +140,24 @@ final class DictationEngine: NSObject {
           try self.beginRecognition(localeIdentifier: localeIdentifier)
           logErr("start ok locale=\(localeIdentifier)")
           completion(true, nil)
+        } catch let err as NSError {
+          let code = err.domain == "gravity.dictation"
+            ? (err.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+              ?? DictationStartError.startFailed.rawValue)
+            : DictationStartError.audioFailed.rawValue
+          logErr("start failed code=\(code) msg=\(err.localizedDescription)")
+          self.teardownAudio(resetEngine: true)
+          completion(false, code)
         } catch {
           logErr("start failed: \(error.localizedDescription)")
-          completion(false, "start-failed")
+          self.teardownAudio(resetEngine: true)
+          completion(false, DictationStartError.startFailed.rawValue)
         }
       }
     }
   }
 
-  /// Termina el audio, espera resultado final (o timeout) y entrega bestTranscript.
-  func stop(completion: @escaping (String) -> Void) {
+  func stop(completion: @escaping (String, Float, String?) -> Void) {
     lock.lock()
     let wasRunning = running
     let alreadyAwaiting = awaitingFinal
@@ -109,31 +165,27 @@ final class DictationEngine: NSObject {
     lock.unlock()
 
     if alreadyAwaiting {
-      // STOP duplicado: encolar tras el pendiente.
       let previous = stopCompletion
-      stopCompletion = { text in
-        previous?(text)
-        completion(text)
+      stopCompletion = { text, peak, code in
+        previous?(text, peak, code)
+        completion(text, peak, code)
       }
       return
     }
 
     if !wasRunning {
       let text = normalizeTranscript(bestTranscript)
-      logErr("stop idle chars=\(text.count)")
-      completion(text)
+      let peak = sessionPeak
+      logErr("stop idle chars=\(text.count) peak=\(String(format: "%.6f", peak))")
+      completion(text, peak, classifyEmptyStop(text: text, peak: peak))
       return
     }
 
-    logErr("stop begin chars=\(bestTranscript.count)")
+    logErr("stop begin chars=\(bestTranscript.count) peak=\(String(format: "%.6f", sessionPeak))")
     awaitingFinal = true
     stopCompletion = completion
 
-    // 1) Dejar de capturar; 2) endAudio para que el recognizer finalice (NO cancel).
-    if audioEngine.isRunning {
-      audioEngine.stop()
-      audioEngine.inputNode.removeTap(onBus: 0)
-    }
+    stopAudioCapture()
     request?.endAudio()
 
     let timeout = DispatchTime.now() + .milliseconds(stopFinalizeTimeoutMs)
@@ -149,6 +201,13 @@ final class DictationEngine: NSObject {
     }
   }
 
+  private func classifyEmptyStop(text: String, peak: Float) -> String? {
+    if !text.isEmpty { return nil }
+    if isSilentPeak(peak) { return "no-audio" }
+    // Energía OK sin palabras: el runtime/renderer trata final vacío como no-speech.
+    return nil
+  }
+
   private func finishStop(reason: String) {
     lock.lock()
     guard awaitingFinal || stopCompletion != nil else {
@@ -161,61 +220,112 @@ final class DictationEngine: NSObject {
     lock.unlock()
 
     let text = normalizeTranscript(bestTranscript)
-    logErr("stop done reason=\(reason) chars=\(text.count)")
-
-    task = nil
-    request = nil
-    recognizer = nil
-    cb?(text)
+    let peak = sessionPeak
+    let errCode = classifyEmptyStop(text: text, peak: peak)
+    logErr(
+      "stop done reason=\(reason) chars=\(text.count) peak=\(String(format: "%.6f", peak))"
+        + (errCode.map { " code=\($0)" } ?? "")
+    )
+    teardownAudio(resetEngine: false)
+    cb?(text, peak, errCode)
   }
 
   private func beginRecognition(localeIdentifier: String) throws {
     bestTranscript = ""
+    sessionPeak = 0
+    levelWindowPeak = 0
+    lastLevelEmitAt = 0
     awaitingFinal = false
     stopCompletion = nil
+    teardownAudio(resetEngine: true)
 
     let locale = Locale(identifier: localeIdentifier)
     guard let recognizer = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer() else {
-      throw NSError(domain: "gravity.dictation", code: 1, userInfo: [
-        NSLocalizedDescriptionKey: "SFSpeechRecognizer unavailable",
-      ])
+      throw dictationError(code: .unsupported, message: "SFSpeechRecognizer unavailable")
     }
     self.recognizer = recognizer
     if !recognizer.isAvailable {
-      throw NSError(domain: "gravity.dictation", code: 2, userInfo: [
-        NSLocalizedDescriptionKey: "recognizer not available",
-      ])
+      throw dictationError(code: .unsupported, message: "recognizer not available")
     }
 
     let request = SFSpeechAudioBufferRecognitionRequest()
     request.shouldReportPartialResults = true
-    // Solo on-device cuando el runtime lo soporta; si no hay modelo, no forzar.
+    // No forzar on-device: con modelo incompleto suele devolver vacío pese a audio audible.
+    // Reconocimiento por defecto (servidor cuando aplica) es más fiable para push-to-talk.
+    request.requiresOnDeviceRecognition = false
     if recognizer.supportsOnDeviceRecognition {
-      request.requiresOnDeviceRecognition = true
-      logErr("on-device recognition enabled")
+      logErr("on-device available but not forced (prefer default ASR)")
     } else {
-      request.requiresOnDeviceRecognition = false
-      logErr("on-device recognition unavailable; using default")
+      logErr("using default recognition")
     }
     self.request = request
 
-    // Formato de hardware del mic (evita outputFormat con 0 channels antes de arrancar).
-    audioEngine.prepare()
-    let input = audioEngine.inputNode
+    let engine = audioEngine
+    let input = engine.inputNode
+
+    // Validar formato ANTES de start/prepare (prepare lanza NSException no capturable por Swift).
     let format = input.inputFormat(forBus: 0)
-    guard format.sampleRate > 0, format.channelCount > 0 else {
+    guard isValidAudioFormat(format) else {
       logErr("invalid input format rate=\(format.sampleRate) channels=\(format.channelCount)")
-      throw NSError(domain: "gravity.dictation", code: 3, userInfo: [
-        NSLocalizedDescriptionKey: "invalid audio input format",
-      ])
+      throw dictationError(code: .audioFailed, message: "invalid audio input format")
     }
     logErr("audio format rate=\(Int(format.sampleRate)) channels=\(Int(format.channelCount))")
 
+    // No llamar prepare(): en algunos macOS Initialize lanza NSException → SIGABRT.
     input.removeTap(onBus: 0)
-    input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-      self?.request?.append(buffer)
+
+    var installEx: NSException?
+    let installed = GravityCatchException({
+      input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        guard let self else { return }
+        let peak = peakAbsoluteFromBuffer(buffer)
+        self.lock.lock()
+        if peak > self.sessionPeak { self.sessionPeak = peak }
+        if peak > self.levelWindowPeak { self.levelWindowPeak = peak }
+        var emitPeak: Float?
+        let now = CFAbsoluteTimeGetCurrent()
+        if self.running && (self.lastLevelEmitAt == 0 || now - self.lastLevelEmitAt >= levelEmitIntervalSec) {
+          self.lastLevelEmitAt = now
+          emitPeak = self.levelWindowPeak
+          self.levelWindowPeak = 0
+        }
+        self.lock.unlock()
+        if let emitPeak {
+          emit(.level(peak: emitPeak))
+        }
+        self.request?.append(buffer)
+      }
+    }, &installEx)
+    if !installed {
+      let reason = installEx?.reason ?? "installTap failed"
+      logErr("installTap NSException: \(reason)")
+      throw dictationError(code: .audioFailed, message: reason)
     }
-    try audioEngine.start()
+
+    var startError: NSError?
+    var startEx: NSException?
+    let started = GravityCatchException({
+      do {
+        try engine.start()
+      } catch {
+        startError = error as NSError
+      }
+    }, &startEx)
+
+    if let startEx {
+      logErr("engine.start NSException: \(startEx.reason ?? "?")")
+      input.removeTap(onBus: 0)
+      throw dictationError(code: .audioFailed, message: startEx.reason ?? "AVAudioEngine start exception")
+    }
+    if !started {
+      input.removeTap(onBus: 0)
+      throw dictationError(code: .audioFailed, message: "AVAudioEngine start aborted")
+    }
+    if let startError {
+      logErr("engine.start error: \(startError.localizedDescription)")
+      input.removeTap(onBus: 0)
+      throw dictationError(code: .audioFailed, message: startError.localizedDescription)
+    }
 
     lock.lock()
     running = true
@@ -238,7 +348,6 @@ final class DictationEngine: NSObject {
       }
       if let error {
         let ns = error as NSError
-        // Cancelación voluntaria / fin de audio: no es error de UX.
         if ns.domain == "kAFAssistantErrorDomain", ns.code == 216 { return }
         if ns.code == 1 || ns.localizedDescription.lowercased().contains("cancel") { return }
         self.lock.lock()
@@ -252,16 +361,52 @@ final class DictationEngine: NSObject {
     }
   }
 
+  private func isValidAudioFormat(_ format: AVAudioFormat) -> Bool {
+    format.sampleRate > 0 && format.channelCount > 0
+  }
+
+  private func dictationError(code: DictationStartError, message: String) -> NSError {
+    NSError(domain: "gravity.dictation", code: 1, userInfo: [
+      NSLocalizedDescriptionKey: message,
+      NSLocalizedFailureReasonErrorKey: code.rawValue,
+    ])
+  }
+
+  private func stopAudioCapture() {
+    if audioEngine.isRunning {
+      audioEngine.stop()
+    }
+    var ex: NSException?
+    _ = GravityCatchException({
+      self.audioEngine.inputNode.removeTap(onBus: 0)
+    }, &ex)
+    if let ex {
+      logErr("removeTap: \(ex.reason ?? "?")")
+    }
+  }
+
+  private func teardownAudio(resetEngine: Bool) {
+    stopAudioCapture()
+    task?.cancel()
+    task = nil
+    request = nil
+    recognizer = nil
+    if resetEngine {
+      audioEngine = AVAudioEngine()
+      logErr("audio engine reset")
+    }
+  }
+
   private func requestMicAndSpeech(completion: @escaping (Bool, String?) -> Void) {
     SFSpeechRecognizer.requestAuthorization { status in
       guard status == .authorized else {
         logErr("speech auth=\(status.rawValue)")
-        completion(false, "permission-denied")
+        completion(false, DictationStartError.permissionDenied.rawValue)
         return
       }
       Self.requestMicrophone { micOk in
         if !micOk { logErr("mic permission denied") }
-        completion(micOk, micOk ? nil : "permission-denied")
+        completion(micOk, micOk ? nil : DictationStartError.permissionDenied.rawValue)
       }
     }
   }
@@ -298,16 +443,24 @@ func handleLine(_ raw: String) {
       if ok {
         emit(.started)
       } else {
-        emit(.error(code: err ?? "start-failed", message: err ?? "start-failed"))
+        let code = err ?? DictationStartError.startFailed.rawValue
+        emit(.error(code: code, message: code))
       }
     }
   case "STOP":
-    engine.stop { text in
-      emit(.finalText(text: text))
+    engine.stop { text, peak, errCode in
+      if let errCode {
+        emit(.error(
+          code: errCode,
+          message: "\(errCode) peak=\(String(format: "%.6f", peak)) threshold=\(String(format: "%.6f", silencePeakThreshold))"
+        ))
+      } else {
+        emit(.finalText(text: text, peak: peak))
+      }
       emit(.stopped)
     }
   case "QUIT":
-    engine.stop { _ in
+    engine.stop { _, _, _ in
       exit(0)
     }
   default:

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
+import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { AgentPaneAttachmentRemove } from './AgentPaneAttachmentRemove'
 import { AgentPaneSendButton } from './AgentPaneSendButton'
 
@@ -84,19 +85,22 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   const mapDictationError = useCallback((code: string): string => {
     const kind = classifyDictationError(code)
     if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
+    if (kind === 'helperMissing') return t('agentPane.dictationHelperMissing')
+    if (kind === 'startFailed') return t('agentPane.dictationStartFailed')
     if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
     if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
     if (kind === 'noSpeech') return t('agentPane.dictationNoSpeech')
+    if (kind === 'noAudio') return t('agentPane.dictationNoAudio')
     return t('agentPane.dictationError')
   }, [t])
 
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
-  const { listening, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
+  const { listening, interim, level, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
     lang: speechLang,
     onTranscript: onDictateSend,
     onError: code => {
       setDictationError(mapDictationError(code))
-      window.setTimeout(() => setDictationError(''), 4000)
+      window.setTimeout(() => setDictationError(''), 5000)
     },
   })
 
@@ -104,6 +108,11 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
 
   return (
     <div className="agent-pane__footer agent-pane__footer--chat-only">
+      <DictationListeningOverlay
+        active={listening}
+        level={level}
+        text={interim.trim() || t('agentPane.dictationLive')}
+      />
       {pendingImages.length > 0 && (
         <div className="agent-pane__attachments" aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}>
           {pendingImages.map(image => (
@@ -141,7 +150,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           onMicStop={stopDictation}
         />
       </div>
-      {dictationError ? (
+      {!listening && dictationError ? (
         <p className="agent-pane__dictation-error" role="status">{dictationError}</p>
       ) : null}
     </div>

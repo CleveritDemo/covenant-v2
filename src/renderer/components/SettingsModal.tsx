@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
 import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
 import { MUSIC_MOODS } from '@shared/musicMoods'
+import { filterSettingsEntries } from '@shared/settingsSearch'
 import { UI_FONTS, MONO_FONTS } from '@shared/fontStacks'
 import { availableFonts, isFontInstalled, isMonospaced } from '@renderer/fontAvailability'
 import type { AgentCliProvider } from '@shared/agentCliProviders'
@@ -47,11 +48,39 @@ const CATEGORIES = [
 
 type CategoryId = (typeof CATEGORIES)[number]['id']
 
+/**
+ * Índice del buscador: una entrada por sección, con las etiquetas de sus campos
+ * como términos que también hacen match aunque no se muestren. Buscar «fuente»
+ * tiene que llevar a Tipografía, y «rich presence» a Discord.
+ *
+ * ponytail: escrito a mano y no derivado de los componentes. Son ~12 entradas y
+ * el compilador no puede saber qué campo vive en qué sección; si algún día se
+ * desincroniza, el upgrade es declarar las secciones como datos y renderizarlas
+ * desde ahí, no un extractor de i18n.
+ */
+const SEARCH_INDEX = [
+  { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
+  { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
+  { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
+  { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
+  { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
+  { category: 'music', anchor: 'settings-spotify', titleKey: 'settings.spotifySection', termKeys: ['settings.musicEnabledTitle', 'settings.spotifyHint'] },
+  { category: 'advanced', anchor: 'settings-discord', titleKey: 'settings.discordSection', termKeys: ['settings.discordPresenceTitle'] },
+  { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
+  { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
+  { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
+  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel'] },
+  { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates'] },
+  { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
+  // `as const` no es decoración: sin literales, `t()` rechaza las claves.
+] as const
+
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
 
 export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const { t } = useT()
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     githubToken: config.githubToken,
     language: config.language,
@@ -67,6 +96,33 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   })
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
+
+  const searchResults = useMemo(() => filterSettingsEntries(
+    SEARCH_INDEX.map(entry => ({
+      ...entry,
+      title: t(entry.titleKey),
+      categoryLabel: t(
+        CATEGORIES.find(c => c.id === entry.category)?.labelKey ?? entry.titleKey,
+      ),
+      terms: (entry.termKeys ?? []).map(key => t(key)),
+    })),
+    search,
+  ), [search, t])
+
+  /**
+   * La sección se monta al cambiar de categoría, así que el scroll va en el
+   * frame siguiente: en este todavía no existe el ancla.
+   */
+  const goToResult = useCallback((result: { category: CategoryId; anchor: string }): void => {
+    setCategory(result.category)
+    setSearch('')
+    requestAnimationFrame(() => {
+      const target = document.getElementById(result.anchor)
+      target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      target?.classList.add('settings-section--found')
+      window.setTimeout(() => target?.classList.remove('settings-section--found'), 1400)
+    })
+  }, [])
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [footerHint, setFooterHint] = useState<'idle' | 'discarded'>('idle')
   const [tokenFieldEpoch, setTokenFieldEpoch] = useState(0)
@@ -330,23 +386,51 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     >
       <div className="settings-layout">
         <nav className="settings-nav" aria-label={t('settings.title')}>
-          {CATEGORIES.map(c => (
-            <button
-              key={c.id}
-              type="button"
-              className="settings-nav__item"
-              aria-current={category === c.id ? 'page' : undefined}
-              onClick={() => setCategory(c.id)}
-            >
-              <Icon name={c.icon} size={13} aria-hidden />
-              {t(c.labelKey)}
-            </button>
-          ))}
+          <Input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            size="sm"
+            placeholder={t('settings.searchPlaceholder')}
+            aria-label={t('settings.searchPlaceholder')}
+          />
+
+          {search.trim() ? (
+            searchResults.length === 0 ? (
+              <p className="settings-nav__empty">
+                {t('settings.searchEmpty', { query: search.trim() })}
+              </p>
+            ) : (
+              searchResults.map(result => (
+                <button
+                  key={result.anchor}
+                  type="button"
+                  className="settings-nav__result"
+                  onClick={() => goToResult(result)}
+                >
+                  <span className="settings-nav__result-title">{result.title}</span>
+                  <span className="settings-nav__result-category">{result.categoryLabel}</span>
+                </button>
+              ))
+            )
+          ) : (
+            CATEGORIES.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                className="settings-nav__item"
+                aria-current={category === c.id ? 'page' : undefined}
+                onClick={() => setCategory(c.id)}
+              >
+                <Icon name={c.icon} size={13} aria-hidden />
+                {t(c.labelKey)}
+              </button>
+            ))
+          )}
         </nav>
 
         <div className="settings-panel">
           {category === 'cli' && (
-            <SettingsSection title={t('settings.agentCliSection')}>
+            <SettingsSection title={t('settings.agentCliSection')} anchor="settings-cli">
               <AgentCliTable
                 commands={form.agentCliCommands}
                 onChange={updateAgentCliCommand}
@@ -355,7 +439,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'github' && (
-            <SettingsSection title={t('settings.githubSection')}>
+            <SettingsSection title={t('settings.githubSection')} anchor="settings-github">
               <GitHubTokenField
                 key={tokenFieldEpoch}
                 value={form.githubToken}
@@ -366,7 +450,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
           {category === 'appearance' && (
             <>
-              <SettingsSection title={t('settings.typographySection')}>
+              <SettingsSection title={t('settings.typographySection')} anchor="settings-typography">
                 <SettingsField label={t('settings.fontUiLabel')} hint={t('settings.fontUiHint')}>
                   <Select
                     value={form.fontUi}
@@ -414,7 +498,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 </SettingsField>
               </SettingsSection>
 
-              <SettingsSection title={t('settings.languageSection')}>
+              <SettingsSection title={t('settings.languageSection')} anchor="settings-language">
                 <SettingsField label={t('settings.languageLabel')}>
                   <Select
                     value={form.language}
@@ -424,7 +508,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 </SettingsField>
               </SettingsSection>
 
-              <SettingsSection title={t('settings.motionSection')}>
+              <SettingsSection title={t('settings.motionSection')} anchor="settings-motion">
                 <SettingToggle
                   checked={form.reduceMotion}
                   onChange={checked => update('reduceMotion', checked)}
@@ -436,7 +520,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'music' && (
-            <SettingsSection title={t('settings.spotifySection')}>
+            <SettingsSection title={t('settings.spotifySection')} anchor="settings-spotify">
               <SettingToggle
                 checked={form.musicEnabled}
                 onChange={checked => update('musicEnabled', checked)}
@@ -483,7 +567,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
 
           {category === 'advanced' && (
             <>
-              <SettingsSection title={t('settings.discordSection')}>
+              <SettingsSection title={t('settings.discordSection')} anchor="settings-discord">
                 <SettingToggle
                   checked={form.discordPresenceEnabled}
                   onChange={checked => update('discordPresenceEnabled', checked)}
@@ -492,7 +576,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 />
               </SettingsSection>
 
-              <SettingsSection title={t('settings.workspacesSection')}>
+              <SettingsSection title={t('settings.workspacesSection')} anchor="settings-workspaces">
                 <SettingsField
                   label={t('settings.defaultWorkspacesDirLabel')}
                   hint={t('settings.defaultWorkspacesDirHint')}
@@ -534,7 +618,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   </div>
                 </SettingsField>
               </SettingsSection>
-              <SettingsSection title={t('settings.configSection')}>
+              <SettingsSection title={t('settings.configSection')} anchor="settings-config">
                 <p className="settings-hint settings-hint--block">{t('settings.configHint')}</p>
                 <Button variant="secondary" size="sm" onClick={() => window.api.openConfigFolder()}>
                   <Icon name="folder" size={12} />
@@ -547,13 +631,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'advanced' && (
-            <SettingsSection title={t('lsp.settings.title')}>
+            <SettingsSection title={t('lsp.settings.title')} anchor="settings-lsp">
               <CodeIntelligenceSettings />
             </SettingsSection>
           )}
 
           {category === 'developer' && (
-            <SettingsSection title={t('settings.developerSection')}>
+            <SettingsSection title={t('settings.developerSection')} anchor="settings-developer">
               <SettingsField
                 label={t('settings.splashLabel')}
                 hint={t('settings.splashHint')}
@@ -574,7 +658,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'updates' && (
-            <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
+            <SettingsSection
+              title={t('settings.aboutVersion', { version: appVersion })}
+              anchor="settings-updates"
+            >
               <SettingToggle
                 checked={form.autoUpdatesEnabled}
                 onChange={checked => update('autoUpdatesEnabled', checked)}
@@ -605,7 +692,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'about' && (
-            <SettingsSection title={t('settings.aboutVersion', { version: appVersion })}>
+            <SettingsSection
+              title={t('settings.aboutVersion', { version: appVersion })}
+              anchor="settings-about"
+            >
               <div className="settings-changelog">
                 <AiMarkdown content={changelogMd} />
               </div>

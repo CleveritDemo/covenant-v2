@@ -1,8 +1,14 @@
 /* Riel de categorías + panel: evita la columna única con las 6 secciones apiladas. */
+/*
+ * Alto fijo. El panel de TerminalModal en `lg` solo fija el ancho, así que el
+ * alto lo ponía el contenido y el modal crecía y se encogía con cada sección:
+ * al cambiar de una a otra, la caja bailaba bajo el cursor.
+ */
 .settings-layout {
   display: grid;
   grid-template-columns: 176px 1fr;
   flex: 1;
+  height: min(72vh, 620px);
   min-height: 0;
 }
 
@@ -379,4 +385,63 @@
 .settings-changelog {
   max-width: 68ch;
   font-size: 12.5px;
+}
+
+/* ─── Buscador de la barra lateral ──────────────────────────────────────── */
+
+.settings-nav__result {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav__result:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.settings-nav__result:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.settings-nav__result-title {
+  font-weight: 600;
+}
+
+.settings-nav__result-category {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.settings-nav__empty {
+  margin: 4px 2px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* Al llegar desde un resultado: un destello, no un color permanente — el estado
+   de «te traje acá» deja de ser cierto en cuanto lo miras. */
+.settings-section--found {
+  animation: settings-section-found 1.4s ease-out;
+}
+
+@keyframes settings-section-found {
+  from { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  to { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-section--found { animation: none; }
 }

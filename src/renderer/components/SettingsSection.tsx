@@ -2,11 +2,13 @@ import React from 'react'
 
 interface SettingsSectionProps {
   title: string
+  /** Id de salto para el buscador de ajustes. */
+  anchor?: string
   children: React.ReactNode
 }
 
-export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, children }) => (
-  <section className="settings-section">
+export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, anchor, children }) => (
+  <section className="settings-section" id={anchor}>
     <h3 className="settings-section-title">{title}</h3>
     <div className="settings-section__body">
       {children}

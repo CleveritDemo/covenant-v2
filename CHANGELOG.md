@@ -4,6 +4,25 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.24
+
+- **Varias conversaciones con el mismo agente**: el tacho deja de ser la única
+  forma de empezar de cero. Cada agente lleva su lista de conversaciones en la
+  barra del chat: `+` abre una nueva sin tocar la anterior, el selector retoma
+  cualquiera con su historial *y* su sesión del CLI, y el lápiz la retitula.
+  Borrar pasa a afectar solo a la conversación abierta. Lo que ya tenías se
+  convierte en tu primera conversación, sin perder nada.
+- **Una subtarea ya no le borra la memoria al especialista**: cuando el
+  orquestador delegaba, el agente destino perdía el hilo de su propia
+  conversación y tu siguiente mensaje arrancaba en frío. Ahora la subtarea corre
+  en su CLI aparte y la conversación del agente sigue donde estaba.
+- **La sala de brainstorm se lee como un acta**: estado visible por agente, voz
+  dirigida a uno solo sin que el resto lo tome como orden, contexto que se puede
+  sumar en caliente y un cierre con la decisión tomada en vez de un transcript
+  suelto. El brief arranca con un working set de contextos y archivos.
+- **↑/↓ recuperan lo que ya mandaste**: en el chat del plano, las flechas
+  recorren tus mensajes anteriores como en una terminal.
+
 ## v0.39.23
 
 - **Separador titlebar–tabs menos visible**: la línea entre la barra de título y las pestañas queda transparente, con menos ruido visual.

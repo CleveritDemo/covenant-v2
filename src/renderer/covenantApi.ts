@@ -123,6 +123,14 @@ export interface CovenantApi {
     contextId: string,
     payload: CovenantWorkspaceContextPayload,
   ): Promise<CovenantResult<CovenantWorkspaceContextRecord>>
+  /** PUT nextId + DELETE previousId si difiere (sin PATCH rename-in-place en API). */
+  workspaceContextRename(
+    slug: string,
+    workspaceId: string,
+    previousId: string,
+    nextId: string,
+    payload: CovenantWorkspaceContextPayload,
+  ): Promise<CovenantResult<{ record: CovenantWorkspaceContextRecord; deletedPrevious: boolean }>>
   workspaceContextDelete(
     slug: string,
     workspaceId: string,

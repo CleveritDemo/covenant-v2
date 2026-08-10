@@ -631,6 +631,22 @@ const api = {
         payload,
       )
     },
+    workspaceContextRename(
+      slug: string,
+      workspaceId: string,
+      previousId: string,
+      nextId: string,
+      payload: CovenantWorkspaceContextPayload,
+    ): Promise<CovenantResult<{ record: CovenantWorkspaceContextRecord; deletedPrevious: boolean }>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_CONTEXT_RENAME,
+        slug,
+        workspaceId,
+        previousId,
+        nextId,
+        payload,
+      )
+    },
     workspaceContextDelete(
       slug: string,
       workspaceId: string,
@@ -984,6 +1000,11 @@ const api = {
     const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)
     ipcRenderer.on(IPC.DICTATION_PARTIAL, listener)
     return () => ipcRenderer.removeListener(IPC.DICTATION_PARTIAL, listener)
+  },
+  onDictationLevel(cb: (peak: number) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, peak: number): void => cb(peak)
+    ipcRenderer.on(IPC.DICTATION_LEVEL, listener)
+    return () => ipcRenderer.removeListener(IPC.DICTATION_LEVEL, listener)
   },
   onDictationResult(cb: (text: string) => void): () => void {
     const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)

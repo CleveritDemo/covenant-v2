@@ -4,6 +4,22 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.31.0
+
+- **Renombrar un contexto en un workspace org ya no crea un gemelo**: se
+  mantiene el mismo `contextId` en la API (PUT in-place) con el nombre nuevo.
+
+## v0.30.0
+
+- **El dictado push-to-talk deja de crashear el helper macOS** al arrancar el mic
+  (ya no llama `AVAudioEngine.prepare`).
+- **Mientras mantienes el micrófono**, un overlay sobre el chat muestra ondas
+  reactivas al nivel real del audio y el texto en vivo.
+- **Mensajes más claros**: distingue mic sin señal, sin voz reconocida y fallos
+  de arranque (ya no todo parece «plataforma»).
+- **El indicador Waiting de la ola** pierde el marco tipo caja: texto ligero
+  en el stream.
+
 ## v0.29.0
 
 - **La preview de contextos Custom (Markdown) muestra el contenido humano**: deja de

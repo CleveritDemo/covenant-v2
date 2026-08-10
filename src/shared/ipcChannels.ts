@@ -199,6 +199,8 @@ export const IPC = {
   COVENANT_WORKSPACE_CONTEXTS_LIST: 'covenant:workspace:contexts:list',
   /** Renderer → main (invoke): upsert contexto de workspace org */
   COVENANT_WORKSPACE_CONTEXT_UPSERT: 'covenant:workspace:context:upsert',
+  /** Renderer → main (invoke): rename contexto org (PUT nuevo id + DELETE previousId) */
+  COVENANT_WORKSPACE_CONTEXT_RENAME: 'covenant:workspace:context:rename',
   /** Renderer → main (invoke): borrar contexto de workspace org */
   COVENANT_WORKSPACE_CONTEXT_DELETE: 'covenant:workspace:context:delete',
   /** Renderer → main (invoke): listar repos de workspace org */
@@ -351,6 +353,8 @@ export const IPC = {
   DICTATION_STOP: 'dictation:stop',
   /** Main → renderer: texto parcial mientras escucha */
   DICTATION_PARTIAL: 'dictation:partial',
+  /** Main → renderer: pico de nivel de mic (throttled) para waveform */
+  DICTATION_LEVEL: 'dictation:level',
   /** Main → renderer: transcript final (además del return de stop) */
   DICTATION_RESULT: 'dictation:result',
   /** Main → renderer: error de dictado */

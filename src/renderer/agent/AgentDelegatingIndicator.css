@@ -1,32 +1,31 @@
-/* Indicador de delegación: denso, acento solo para estado activo. */
+/* Waiting / delegación: flush en el stream, sin marco tipo card. */
 
 .agent-delegating {
-  display: inline-flex;
+  display: flex;
   align-items: flex-start;
-  align-self: center;
-  gap: 8px;
-  max-width: min(100%, 26rem);
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+  align-self: stretch;
+  gap: 10px;
+  max-width: min(100%, 28rem);
+  margin: 2px 0 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--text-muted);
 }
 
 .agent-delegating__orbit {
   position: relative;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
 }
 
 .agent-delegating__ring {
   position: absolute;
   inset: 1px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
   animation: agent-delegating-ring-pulse 2.2s ease-in-out infinite;
 }
 
@@ -39,7 +38,6 @@
   margin: -2px 0 0 -2px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .agent-delegating__sat {
@@ -50,10 +48,9 @@
   height: 2.5px;
   margin: -1.25px 0 0 -1.25px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 85%, var(--text));
-  box-shadow: 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 80%, var(--text));
   transform-origin: center;
-  animation: agent-delegating-orbit 2.4s linear infinite;
+  animation: agent-delegating-orbit 2.6s linear infinite;
 }
 
 .agent-delegating__sat--a {
@@ -62,7 +59,7 @@
 }
 
 .agent-delegating__sat--b {
-  animation-delay: -0.8s;
+  animation-delay: -0.87s;
   opacity: 0.7;
   width: 2px;
   height: 2px;
@@ -70,8 +67,8 @@
 }
 
 .agent-delegating__sat--c {
-  animation-delay: -1.6s;
-  opacity: 0.55;
+  animation-delay: -1.73s;
+  opacity: 0.5;
   width: 2px;
   height: 2px;
   margin: -1px 0 0 -1px;
@@ -80,45 +77,38 @@
 .agent-delegating__copy {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
-}
-
-.agent-delegating__headline {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
+  flex: 1;
 }
 
 .agent-delegating__label {
-  flex-shrink: 0;
+  margin: 0;
   color: var(--text);
-  font-size: calc(var(--agent-chat-font-size, 13px) * 0.88);
+  font-family: var(--font-ui, inherit);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
   font-weight: 600;
   letter-spacing: 0.01em;
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1.25;
 }
 
 .agent-delegating__sublabel {
-  min-width: 0;
+  margin: 0;
   color: var(--text-muted);
-  font-size: calc(var(--agent-chat-font-size, 13px) * 0.72);
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
 }
 
 .agent-delegating__list {
   list-style: none;
-  margin: 0;
+  margin: 4px 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 3px 4px;
+  gap: 2px 14px;
   min-width: 0;
 }
 
@@ -126,56 +116,91 @@
   display: contents;
 }
 
-.agent-delegating__chip {
+.agent-delegating__item {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  gap: 5px;
   max-width: 100%;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-  background: color-mix(in srgb, var(--surface) 45%, transparent);
-  font-size: calc(var(--agent-chat-font-size, 13px) * 0.72);
-  line-height: 1.25;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
+  line-height: 1.35;
   color: var(--text-muted);
 }
 
-.agent-delegating__chip--done {
-  opacity: 0.72;
+.agent-delegating__dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-bottom: 0.1em;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+}
+
+.agent-delegating__item--running .agent-delegating__dot {
+  background: var(--accent);
+  animation: agent-delegating-dot-pulse 1.6s ease-in-out infinite;
+}
+
+.agent-delegating__item--done {
+  opacity: 0.78;
+}
+
+.agent-delegating__item--done .agent-delegating__dot {
+  background: color-mix(in srgb, var(--success, #3dd68c) 75%, var(--text-muted));
+}
+
+.agent-delegating__item--done .agent-delegating__status {
+  color: color-mix(in srgb, var(--success, #3dd68c) 55%, var(--text-muted));
+}
+
+.agent-delegating__item--running .agent-delegating__status {
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-muted));
 }
 
 .agent-delegating__agent {
   color: var(--text);
   font-weight: 550;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 7rem;
+  overflow-wrap: anywhere;
 }
 
 .agent-delegating__badge {
   flex-shrink: 0;
-  color: color-mix(in srgb, var(--accent) 70%, var(--text-muted));
+  color: color-mix(in srgb, var(--accent) 65%, var(--text-muted));
   font-size: 0.92em;
   letter-spacing: 0.02em;
 }
 
 .agent-delegating__status {
   flex-shrink: 0;
-  opacity: 0.85;
+  font-weight: 500;
 }
 
 @keyframes agent-delegating-orbit {
   from {
-    transform: rotate(0deg) translateX(6px) rotate(0deg);
+    transform: rotate(0deg) translateX(6.5px) rotate(0deg);
   }
   to {
-    transform: rotate(360deg) translateX(6px) rotate(-360deg);
+    transform: rotate(360deg) translateX(6.5px) rotate(-360deg);
   }
 }
 
 @keyframes agent-delegating-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes agent-delegating-dot-pulse {
   0%,
   100% {
     opacity: 0.55;
@@ -183,44 +208,46 @@
   }
   50% {
     opacity: 1;
-    transform: scale(1.06);
+    transform: scale(1.25);
   }
 }
 
 html[data-reduce-motion="true"] {
   .agent-delegating__ring,
-  .agent-delegating__sat {
+  .agent-delegating__sat,
+  .agent-delegating__item--running .agent-delegating__dot {
     animation: none;
   }
 
   .agent-delegating__sat--a {
-    transform: rotate(20deg) translateX(6px);
+    transform: rotate(20deg) translateX(6.5px);
   }
 
   .agent-delegating__sat--b {
-    transform: rotate(140deg) translateX(6px);
+    transform: rotate(140deg) translateX(6.5px);
   }
 
   .agent-delegating__sat--c {
-    transform: rotate(260deg) translateX(6px);
+    transform: rotate(260deg) translateX(6.5px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .agent-delegating__ring,
-  .agent-delegating__sat {
+  .agent-delegating__sat,
+  .agent-delegating__item--running .agent-delegating__dot {
     animation: none;
   }
 
   .agent-delegating__sat--a {
-    transform: rotate(20deg) translateX(6px);
+    transform: rotate(20deg) translateX(6.5px);
   }
 
   .agent-delegating__sat--b {
-    transform: rotate(140deg) translateX(6px);
+    transform: rotate(140deg) translateX(6.5px);
   }
 
   .agent-delegating__sat--c {
-    transform: rotate(260deg) translateX(6px);
+    transform: rotate(260deg) translateX(6.5px);
   }
 }

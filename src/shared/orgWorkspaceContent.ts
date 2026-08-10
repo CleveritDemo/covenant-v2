@@ -31,6 +31,12 @@ export function rememberWorkspaceContextBody(contextId: string, body: string): v
   workspaceContextBodyById.set(id, body)
 }
 
+export function forgetWorkspaceContextBody(contextId: string): void {
+  const id = contextId.trim()
+  if (!id) return
+  workspaceContextBodyById.delete(id)
+}
+
 export function workspaceContextBody(contextId: string): string {
   return workspaceContextBodyById.get(contextId.trim()) ?? ''
 }
@@ -55,6 +61,95 @@ export function workspaceContextUpsertPayload(
     body: resolvedBody,
     meta,
   }
+}
+
+export interface RenameWorkspaceContextDeps {
+  upsert: (
+    contextId: string,
+    payload: CovenantWorkspaceContextPayload,
+  ) => Promise<CovenantWorkspaceContextRecord>
+  delete: (contextId: string) => Promise<void>
+}
+
+export interface RenameWorkspaceContextResult {
+  record: CovenantWorkspaceContextRecord
+  /** true si se borró previousId tras el upsert (ids distintos). */
+  deletedPrevious: boolean
+}
+
+/**
+ * Upsert del contexto en `nextId`; si `previousId` es otro id, DELETE tras upsert OK.
+ * Fallback cuando el producto exige ids name-derived. Prefer `orgWorkspacePersistContext`
+ * (stable API id) for org edit renames in TabContextFormModal.
+ */
+export async function renameWorkspaceContext(
+  previousId: string,
+  nextId: string,
+  payload: CovenantWorkspaceContextPayload,
+  deps: RenameWorkspaceContextDeps,
+): Promise<RenameWorkspaceContextResult> {
+  const prev = previousId.trim()
+  const next = nextId.trim()
+  if (!next) throw new Error('next context id required')
+
+  const record = await deps.upsert(next, payload)
+  rememberWorkspaceContextBody(next, payload.body ?? '')
+
+  if (prev && prev !== next) {
+    await deps.delete(prev)
+    forgetWorkspaceContextBody(prev)
+    return { record, deletedPrevious: true }
+  }
+  return { record, deletedPrevious: false }
+}
+
+/**
+ * Variante tipada TabContext: arma el payload y renombra/upserta.
+ * Usar cuando el id canónico puede cambiar con el name.
+ */
+export async function renameWorkspaceContextFromTab(
+  slug: string,
+  workspaceId: string,
+  previousId: string,
+  nextContext: TabContext,
+  body: string | undefined,
+  deps: {
+    upsert: (
+      slug: string,
+      workspaceId: string,
+      contextId: string,
+      payload: CovenantWorkspaceContextPayload,
+    ) => Promise<CovenantWorkspaceContextRecord>
+    delete: (slug: string, workspaceId: string, contextId: string) => Promise<void>
+  },
+): Promise<RenameWorkspaceContextResult> {
+  const payload = workspaceContextUpsertPayload(nextContext, body)
+  return renameWorkspaceContext(previousId, nextContext.id, payload, {
+    upsert: (contextId, p) => deps.upsert(slug, workspaceId, contextId, p),
+    delete: contextId => deps.delete(slug, workspaceId, contextId),
+  })
+}
+
+/**
+ * Org workspace contexts keep a stable API `contextId` on rename.
+ * Local `.gravity` materialization may regenerate id/fileName from the name;
+ * for endpoint-backed org rows we upsert under the original id and only update
+ * name/body/meta (fileName, icon, color, …). Avoids upsert(newId) leaving the
+ * old id behind as a twin.
+ */
+export function orgWorkspacePersistContext(args: {
+  mode: 'create' | 'edit'
+  originalId: string
+  normalized: TabContext
+}): { persistId: string; context: TabContext } {
+  const originalId = args.originalId.trim()
+  if (args.mode === 'edit' && originalId) {
+    return {
+      persistId: originalId,
+      context: { ...args.normalized, id: originalId },
+    }
+  }
+  return { persistId: args.normalized.id, context: args.normalized }
 }
 
 /** Convierte agentes del backend a definiciones de catálogo en memoria. */

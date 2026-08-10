@@ -181,6 +181,7 @@ import {
   unsetDefault as covenantUnsetDefault,
   upsertWorkspaceAgent as covenantUpsertWorkspaceAgent,
   upsertWorkspaceContext as covenantUpsertWorkspaceContext,
+  renameWorkspaceContext as covenantRenameWorkspaceContext,
   addWorkspaceRepo as covenantAddWorkspaceRepo,
   deleteWorkspaceRepo as covenantDeleteWorkspaceRepo,
   initCovenantSession,
@@ -1158,6 +1159,27 @@ function registerIpc(): void {
           String(workspaceId ?? ''),
           String(contextId ?? ''),
           payload as Parameters<typeof covenantUpsertWorkspaceContext>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_CONTEXT_RENAME,
+    async (
+      _e,
+      slug: unknown,
+      workspaceId: unknown,
+      previousId: unknown,
+      nextId: unknown,
+      payload: unknown,
+    ) =>
+      covenantInvoke(() =>
+        covenantRenameWorkspaceContext(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(previousId ?? ''),
+          String(nextId ?? ''),
+          payload as Parameters<typeof covenantRenameWorkspaceContext>[4],
         ),
       ),
   )

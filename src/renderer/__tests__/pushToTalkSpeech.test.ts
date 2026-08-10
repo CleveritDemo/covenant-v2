@@ -15,6 +15,7 @@ type DictationMock = {
   dictationStop: ReturnType<typeof vi.fn>
   onDictationError: ReturnType<typeof vi.fn>
   onDictationPartial?: ReturnType<typeof vi.fn>
+  onDictationLevel?: ReturnType<typeof vi.fn>
   onDictationResult?: ReturnType<typeof vi.fn>
 }
 
@@ -28,6 +29,7 @@ function installDictationApi(overrides?: Partial<DictationMock>): DictationMock 
     dictationStop: vi.fn(async () => ({ ok: true, text: '' })),
     onDictationError: vi.fn(() => () => {}),
     onDictationPartial: vi.fn(() => () => {}),
+    onDictationLevel: vi.fn(() => () => {}),
     onDictationResult: vi.fn(() => () => {}),
     ...overrides,
   }
@@ -58,6 +60,21 @@ describe('classifyDictationError', () => {
   it('maps no-speech to noSpeech', () => {
     expect(classifyDictationError('no-speech')).toBe('noSpeech')
   })
+
+  it('maps no-audio to noAudio (distinct from no-speech)', () => {
+    expect(classifyDictationError('no-audio')).toBe('noAudio')
+    expect(classifyDictationError('no-audio')).not.toBe(classifyDictationError('no-speech'))
+  })
+
+  it('maps unsupported only for true platform unsupported', () => {
+    expect(classifyDictationError('unsupported')).toBe('unsupported')
+  })
+
+  it('maps helper-missing and start-failed to distinct kinds', () => {
+    expect(classifyDictationError('helper-missing')).toBe('helperMissing')
+    expect(classifyDictationError('start-failed')).toBe('startFailed')
+    expect(classifyDictationError('audio-failed')).toBe('startFailed')
+  })
 })
 
 describe('isPushToTalkSpeechSupported', () => {
@@ -87,6 +104,69 @@ describe('usePushToTalkSpeech', () => {
     expect(result.current.listening).toBe(true)
     await waitFor(() => {
       expect(api.dictationStart).toHaveBeenCalledWith('es-ES')
+    })
+  })
+
+  it('updates interim from onDictationPartial while listening', async () => {
+    let partialCb: ((text: string) => void) | null = null
+    const api = installDictationApi({
+      onDictationPartial: vi.fn((cb: (text: string) => void) => {
+        partialCb = cb
+        return () => {
+          partialCb = null
+        }
+      }),
+    })
+    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript: vi.fn() }))
+
+    await waitFor(() => expect(api.onDictationPartial).toHaveBeenCalled())
+
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(api.dictationStart).toHaveBeenCalled())
+
+    act(() => {
+      partialCb?.('hola parcial')
+    })
+
+    expect(result.current.interim).toBe('hola parcial')
+  })
+
+  it('updates level from onDictationLevel and clears on stop', async () => {
+    let levelCb: ((level: number) => void) | null = null
+    const api = installDictationApi({
+      onDictationLevel: vi.fn((cb: (level: number) => void) => {
+        levelCb = cb
+        return () => {
+          levelCb = null
+        }
+      }),
+      dictationStop: vi.fn(async () => ({ ok: true, text: 'ok' })),
+    })
+    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript: vi.fn() }))
+
+    await waitFor(() => expect(api.onDictationLevel).toHaveBeenCalled())
+
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(api.dictationStart).toHaveBeenCalled())
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    act(() => {
+      levelCb?.(0.64)
+    })
+    expect(result.current.level).toBeCloseTo(0.64)
+
+    act(() => {
+      result.current.stop()
+    })
+    await waitFor(() => {
+      expect(result.current.listening).toBe(false)
+      expect(result.current.level).toBe(0)
     })
   })
 

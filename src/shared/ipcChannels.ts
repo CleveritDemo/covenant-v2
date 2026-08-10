@@ -248,6 +248,8 @@ export const IPC = {
   FILE_EXPLORER_REVEAL: 'fileExplorer:reveal',
   /** Renderer → main (invoke): búsqueda global de archivos (rg --files) */
   FILE_EXPLORER_SEARCH: 'fileExplorer:search',
+  /** Renderer → main (invoke): misma búsqueda pero por cwd, sin sesión de explorador */
+  PROJECT_FILE_SEARCH: 'project:fileSearch',
   /** Renderer → main: iniciar watcher del cwd */
   FILE_EXPLORER_WATCH_START: 'fileExplorer:watchStart',
   /** Renderer → main: detener watcher */

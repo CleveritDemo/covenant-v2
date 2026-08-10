@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
   BRAINSTORM_MAX_ROUNDS_CAP,
+  BRAINSTORM_WORKING_SET_CAP,
   advanceBrainstormCursor,
+  brainstormTurnCount,
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
   isBrainstormComplete,
+  isFinalBrainstormTurn,
   nextSpeakerAgentId,
   sanitizeBrainstormMaxRounds,
+  sanitizeBrainstormWorkingSet,
+  shouldSendWorkingSetBodies,
 } from '../brainstormRoom'
 
 describe('sanitizeBrainstormMaxRounds', () => {
@@ -63,7 +68,7 @@ describe('nextSpeaker / complete / advance', () => {
 })
 
 describe('buildBrainstormTurnPrompt', () => {
-  it('includes topic, speaker labels, and brief plain-reply constraints', () => {
+  it('includes objective, speaker labels, and brief plain-reply constraints', () => {
     const room = createBrainstormRoom('Latency budget', ['qa', 'fe'], 3)!
     room.messages.push({
       agentId: 'qa',
@@ -72,7 +77,7 @@ describe('buildBrainstormTurnPrompt', () => {
       text: 'Measure p95 first.',
     })
     const prompt = buildBrainstormTurnPrompt(room, 'fe', 'Frontend', 'UI craft')
-    expect(prompt).toContain('Topic: Latency budget')
+    expect(prompt).toContain('Objective: Latency budget')
     expect(prompt).toContain('QA (round 0): Measure p95 first.')
     expect(prompt).not.toContain('### QA')
     expect(prompt).toContain('Your role: UI craft')
@@ -84,5 +89,67 @@ describe('buildBrainstormTurnPrompt', () => {
     expect(prompt).toContain('One idea only')
     expect(prompt).toContain('Output only your spoken contribution')
     expect(prompt).not.toMatch(/^## /m)
+  })
+
+  it('keeps the prompt free of working-set lines when there is none', () => {
+    const room = createBrainstormRoom('Latency budget', ['qa', 'fe'], 3)!
+    const prompt = buildBrainstormTurnPrompt(room, 'fe', 'Frontend')
+    expect(prompt).not.toContain('Working set')
+    expect(prompt).not.toContain('not in the working set')
+    expect(prompt).not.toContain('Desired outcome')
+  })
+
+  it('lists the working set and grounds claims on it', () => {
+    const room = createBrainstormRoom('Tenancy', ['qa', 'fe'], 3, {
+      filePaths: ['electron/tenancy.ts'],
+      outcome: 'decision',
+    })!
+    const prompt = buildBrainstormTurnPrompt(room, 'fe', 'Frontend', undefined, {
+      labels: ['file electron/tenancy.ts'],
+      fileBlocks: ['### electron/tenancy.ts\nexport const schema = 1'],
+    })
+    expect(prompt).toContain('Desired outcome: one decision')
+    expect(prompt).toContain('- file electron/tenancy.ts')
+    expect(prompt).toContain('export const schema = 1')
+    expect(prompt).toContain('not in the working set')
+  })
+
+  it('sends bodies only on the first round', () => {
+    const room = createBrainstormRoom('Tenancy', ['qa', 'fe'], 3)!
+    expect(shouldSendWorkingSetBodies(room)).toBe(true)
+    expect(shouldSendWorkingSetBodies({ ...room, round: 1 })).toBe(false)
+  })
+
+  it('marks the last turn of the last round as final', () => {
+    const room = createBrainstormRoom('Tenancy', ['qa', 'fe'], 2)!
+    expect(isFinalBrainstormTurn({ ...room, round: 0, cursor: 1 })).toBe(false)
+    expect(isFinalBrainstormTurn({ ...room, round: 1, cursor: 0 })).toBe(false)
+    const final = { ...room, round: 1, cursor: 1 }
+    expect(isFinalBrainstormTurn(final)).toBe(true)
+    expect(buildBrainstormTurnPrompt(final, 'fe', 'Frontend')).toContain('Final turn')
+  })
+})
+
+describe('working set', () => {
+  it('trims, dedupes and caps', () => {
+    expect(sanitizeBrainstormWorkingSet(['a', ' a ', 'b', 7])).toEqual(['a', 'b'])
+    expect(sanitizeBrainstormWorkingSet('nope')).toEqual([])
+    const many = Array.from({ length: BRAINSTORM_WORKING_SET_CAP + 5 }, (_, i) => `f${i}`)
+    expect(sanitizeBrainstormWorkingSet(many)).toHaveLength(BRAINSTORM_WORKING_SET_CAP)
+  })
+
+  it('createBrainstormRoom stores the brief sanitized', () => {
+    const room = createBrainstormRoom('Tenancy', ['qa', 'fe'], 3, {
+      contextIds: ['iaterminal:notes:ct-89', 'iaterminal:notes:ct-89'],
+      filePaths: ['a.ts'],
+      outcome: 'nonsense',
+    })!
+    expect(room.contextIds).toEqual(['iaterminal:notes:ct-89'])
+    expect(room.filePaths).toEqual(['a.ts'])
+    expect(room.outcome).toBeUndefined()
+  })
+
+  it('counts turns as participants × rounds', () => {
+    expect(brainstormTurnCount({ participantAgentIds: ['a', 'b', 'c'], maxRounds: 3 })).toBe(9)
   })
 })

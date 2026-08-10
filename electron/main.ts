@@ -1445,6 +1445,10 @@ function registerIpc(): void {
     return searchProjectFiles(explorerRootForSession(sessionId), query)
   })
 
+  ipcMain.handle(IPC.PROJECT_FILE_SEARCH, (_e, cwd: unknown, query: unknown) => {
+    return searchProjectFiles(typeof cwd === 'string' ? cwd : '', query)
+  })
+
   ipcMain.handle(IPC.FILE_EXPLORER_REVEAL, (_e, sessionId: string, relPath: unknown) => {
     if (typeof relPath !== 'string' || !relPath.trim()) {
       return { ok: false, error: 'ruta vacía' }

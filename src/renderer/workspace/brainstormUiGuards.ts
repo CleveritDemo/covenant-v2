@@ -1,6 +1,7 @@
 import {
   createBrainstormRoom,
   type BrainstormRoom,
+  type BrainstormRoomBrief,
 } from '@shared/brainstormRoom'
 
 /** Paso invitados: hace falta al menos 2 agentes. */
@@ -18,6 +19,7 @@ export function tryCreateBrainstormSession(
   topic: string,
   participantAgentIds: readonly string[],
   maxRounds?: number,
+  brief?: BrainstormRoomBrief,
 ): BrainstormRoom | null {
-  return createBrainstormRoom(topic, [...participantAgentIds], maxRounds)
+  return createBrainstormRoom(topic, [...participantAgentIds], maxRounds, brief)
 }

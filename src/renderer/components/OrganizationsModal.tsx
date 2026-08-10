@@ -873,6 +873,20 @@ function WorkspaceReposBlock({
     await loadRepos()
   }
 
+  async function handleUpdateFolder(repoId: string, folderName: string): Promise<boolean> {
+    if (!covenant || !canMutate) return false
+    setBusy(true)
+    setError(null)
+    const result = await covenant.workspaceRepoUpdate(slug, workspaceId, repoId, { folderName })
+    setBusy(false)
+    if (!result.ok) {
+      setError(result.error)
+      return false
+    }
+    await loadRepos()
+    return true
+  }
+
   async function handleRemove(repoId: string): Promise<void> {
     if (!covenant || !canMutate) return
     setBusy(true)
@@ -941,33 +955,147 @@ function WorkspaceReposBlock({
           ) : (
             <ul className="orgs-list">
               {repos.map(repo => (
-                <li key={repo.id} className="orgs-list__item">
-                  <div className="orgs-list__main">
-                    <p className="orgs-list__title">{repo.repoFullName}</p>
-                    {repo.folderName ? (
-                      <p className="orgs-list__meta">
-                        {t('organizations.repoFolderNameMeta', { folder: repo.folderName })}
-                      </p>
-                    ) : null}
-                    <p className="orgs-list__meta">{repo.cloneUrl}</p>
-                  </div>
-                  {canManage ? (
-                    <Button
-                      variant="danger"
-                      size="xs"
-                      disabled={!canMutate}
-                      onClick={() => void handleRemove(repo.id)}
-                    >
-                      {t('organizations.removeRepo')}
-                    </Button>
-                  ) : null}
-                </li>
+                <WorkspaceRepoListItem
+                  key={repo.id}
+                  repo={repo}
+                  canManage={canManage}
+                  canMutate={canMutate}
+                  onSaveFolder={handleUpdateFolder}
+                  onRemove={repoId => void handleRemove(repoId)}
+                />
               ))}
             </ul>
           )}
         </>
       )}
     </div>
+  )
+}
+
+/** Fila de repo vinculado: ver / editar folderName (solo gestores). */
+function WorkspaceRepoListItem({
+  repo,
+  canManage,
+  canMutate,
+  onSaveFolder,
+  onRemove,
+}: {
+  repo: CovenantWorkspaceRepoRecord
+  canManage: boolean
+  canMutate: boolean
+  onSaveFolder: (repoId: string, folderName: string) => Promise<boolean>
+  onRemove: (repoId: string) => void
+}): React.ReactElement {
+  const { t } = useT()
+  const [editing, setEditing] = useState(false)
+  const [folderDraft, setFolderDraft] = useState(repo.folderName ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!editing) setFolderDraft(repo.folderName ?? '')
+  }, [editing, repo.folderName])
+
+  function startEdit(): void {
+    setFolderDraft(repo.folderName ?? '')
+    setEditing(true)
+  }
+
+  function cancelEdit(): void {
+    setFolderDraft(repo.folderName ?? '')
+    setEditing(false)
+  }
+
+  async function saveEdit(): Promise<void> {
+    if (!canMutate || saving) return
+    setSaving(true)
+    const ok = await onSaveFolder(repo.id, folderDraft.trim())
+    setSaving(false)
+    if (ok) setEditing(false)
+  }
+
+  function clearFolderDraft(): void {
+    if (!canMutate || saving) return
+    setFolderDraft('')
+  }
+
+  const actionsDisabled = !canMutate || saving
+
+  return (
+    <li className="orgs-list__item">
+      <div className="orgs-list__main">
+        <p className="orgs-list__title">{repo.repoFullName}</p>
+        {editing ? (
+          <SettingsField label={t('organizations.repoFolderNameLabel')} compact>
+            <Input
+              type="text"
+              size="sm"
+              value={folderDraft}
+              disabled={actionsDisabled}
+              onChange={e => setFolderDraft(e.target.value)}
+              placeholder={t('organizations.repoFolderNamePlaceholder')}
+              spellCheck={false}
+              aria-label={t('organizations.repoFolderNameLabel')}
+            />
+          </SettingsField>
+        ) : repo.folderName ? (
+          <p className="orgs-list__meta">
+            {t('organizations.repoFolderNameMeta', { folder: repo.folderName })}
+          </p>
+        ) : null}
+        <p className="orgs-list__meta">{repo.cloneUrl}</p>
+      </div>
+      {canManage ? (
+        <div className="orgs-list__actions">
+          {editing ? (
+            <>
+              <Button
+                variant="primary"
+                size="xs"
+                disabled={actionsDisabled}
+                onClick={() => void saveEdit()}
+              >
+                {t('common.save')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={actionsDisabled}
+                onClick={cancelEdit}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={actionsDisabled || folderDraft.length === 0}
+                onClick={clearFolderDraft}
+              >
+                {t('organizations.clearRepoFolder')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                size="xs"
+                disabled={actionsDisabled}
+                onClick={startEdit}
+              >
+                {t('organizations.editRepoFolder')}
+              </Button>
+              <Button
+                variant="danger"
+                size="xs"
+                disabled={actionsDisabled}
+                onClick={() => onRemove(repo.id)}
+              >
+                {t('organizations.removeRepo')}
+              </Button>
+            </>
+          )}
+        </div>
+      ) : null}
+    </li>
   )
 }
 

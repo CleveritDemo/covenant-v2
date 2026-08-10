@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.16
+
+- **Editar carpeta de repos del workspace**: en Organizaciones, los gestores
+  pueden cambiar o limpiar el nombre de carpeta local de un repo ya vinculado
+  (sin quitarlo), y el cambio se guarda en el servidor.
+
 ## v0.39.15
 
 - **Sincronizar workspace sin borrar extras locales**: el botón (antes «Actualizar»)

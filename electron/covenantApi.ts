@@ -8,6 +8,7 @@ import type {
   CovenantWorkspaceContextRecord,
   CovenantWorkspaceRepoPayload,
   CovenantWorkspaceRepoRecord,
+  CovenantWorkspaceRepoUpdatePayload,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
@@ -478,6 +479,29 @@ export async function deleteWorkspaceRepo(
     `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/repos/${encodeURIComponent(repoId)}`,
     { method: 'DELETE' },
   )
+}
+
+export async function updateWorkspaceRepo(
+  slug: string,
+  workspaceId: string,
+  repoId: string,
+  payload: CovenantWorkspaceRepoUpdatePayload,
+): Promise<CovenantWorkspaceRepoRecord> {
+  // Vacío limpia folderName custom en el backend.
+  const folderName = typeof payload.folderName === 'string' ? payload.folderName.trim() : ''
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/repos/${encodeURIComponent(repoId)}`,
+    {
+      method: 'PATCH',
+      body: {
+        folder_name: folderName,
+        folderName,
+      },
+    },
+  )
+  const mapped = mapWorkspaceRepoRecord(await response.json())
+  if (!mapped) throw new CovenantApiError('Invalid workspace repo response', 500)
+  return mapped
 }
 
 export async function listOrgAdmins(slug: string): Promise<string[]> {

@@ -47,6 +47,7 @@ import type {
   CovenantWorkspaceContextRecord,
   CovenantWorkspaceRepoPayload,
   CovenantWorkspaceRepoRecord,
+  CovenantWorkspaceRepoUpdatePayload,
   CovenantResult,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
@@ -670,6 +671,20 @@ const api = {
       payload: CovenantWorkspaceRepoPayload,
     ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
       return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_ADD, slug, workspaceId, payload)
+    },
+    workspaceRepoUpdate(
+      slug: string,
+      workspaceId: string,
+      repoId: string,
+      payload: CovenantWorkspaceRepoUpdatePayload,
+    ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_REPO_UPDATE,
+        slug,
+        workspaceId,
+        repoId,
+        payload,
+      )
     },
     workspaceRepoDelete(
       slug: string,

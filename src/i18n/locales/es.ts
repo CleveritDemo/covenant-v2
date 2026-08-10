@@ -727,6 +727,8 @@ const es = {
     repoFolderNamePlaceholder: 'opcional',
     repoFolderNameHint: 'Opcional. Un solo segmento (letras, números, . _ -). Si se omite, se usa el nombre del repo.',
     repoFolderNameMeta: 'Carpeta: {{folder}}',
+    editRepoFolder: 'Editar carpeta',
+    clearRepoFolder: 'Limpiar carpeta',
     removeRepo: 'Quitar',
     reposEmpty: 'Aún no hay repos vinculados.',
     repoDuplicate: 'Ese repositorio ya está vinculado a este workspace.',

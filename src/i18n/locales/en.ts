@@ -725,6 +725,8 @@ const en = {
     repoFolderNamePlaceholder: 'optional',
     repoFolderNameHint: 'Optional. One segment (letters, numbers, . _ -). If empty, the repo name is used.',
     repoFolderNameMeta: 'Folder: {{folder}}',
+    editRepoFolder: 'Edit folder',
+    clearRepoFolder: 'Clear folder',
     removeRepo: 'Remove',
     reposEmpty: 'No repos linked yet.',
     repoDuplicate: 'That repository is already linked to this workspace.',

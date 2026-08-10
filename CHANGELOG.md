@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.14
+
+- **El nuevo agente ya no ofrece CLIs que no tienes**: la ventana de "Nuevo
+  agente" muestra la versión instalada de cada CLI y deja bloqueado el que no
+  está en el PATH, en vez de dejarte elegirlo y fallar al lanzar el pane. Lo
+  mismo al duplicar un agente, que hereda su proveedor.
+
 ## v0.39.13
 
 - **Dot de workspace con agentes en marcha**: la pestaña del workspace muestra

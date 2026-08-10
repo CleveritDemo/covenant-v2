@@ -185,13 +185,18 @@ export const ContextReport: React.FC<{ context: TabContext; content: string }> =
 }) => {
   const doc = useMemo(() => parseContextDoc(content), [content])
   // Custom Markdown: el contenido útil está en notes; auto es stub materialize.
+  // El `|| doc.auto` no es defensivo de más: un .md de notas sin los marcadores
+  // `iaterminal:notes` deja `doc.notes` vacío y sin él la vista decía «vacío»
+  // teniendo el texto delante.
   const notesKind = context.kind === 'notes'
-  const body = notesKind ? doc.notes : doc.auto
+  const notesAsBody = notesKind && Boolean(doc.notes)
+  const body = notesAsBody ? doc.notes : doc.auto
 
   return (
     <div className="context-report">
       <ContextBody kind={context.kind} auto={body} />
-      <ContextNotes doc={doc} hideNotesText={notesKind} />
+      {/* Solo se oculta si el cuerpo ES ese texto; si no, se perdería. */}
+      <ContextNotes doc={doc} hideNotesText={notesAsBody} />
     </div>
   )
 }

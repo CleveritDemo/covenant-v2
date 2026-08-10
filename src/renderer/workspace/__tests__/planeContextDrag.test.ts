@@ -52,7 +52,8 @@ describe('planeContextDrag', () => {
 
     expect(hasPlaneContextDrag(dt)).toBe(false)
     setPlaneContextDragData(dt, 'iaterminal:result:qa')
-    expect(dt.effectAllowed).toBe('copy')
+    // `copyMove` y no `copy`: la papelera del pool necesita el move (v0.32.0).
+    expect(dt.effectAllowed).toBe('copyMove')
     expect(hasPlaneContextDrag(dt)).toBe(true)
     expect(Array.from(dt.types)).toContain(PLANE_CONTEXT_DRAG_MIME)
     expect(readPlaneContextDragData(dt)).toBe('iaterminal:result:qa')

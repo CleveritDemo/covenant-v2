@@ -5,6 +5,7 @@ import type {
   OrgWorkspaceCloneRepo,
   OrgWorkspaceCloneResult,
 } from '../src/shared/orgWorkspaceClone'
+import { diagnoseCloneError } from '../src/shared/orgWorkspaceCloneError'
 
 export type {
   OrgWorkspaceCloneRepo,
@@ -43,6 +44,19 @@ export function buildWorkspaceDir(baseDir: string, orgSlug: string, workspaceSlu
 function redactSecret(text: string, token: string): string {
   if (!token) return text
   return text.split(token).join('***')
+}
+
+function failResult(
+  error: string,
+  opts?: { workspaceDir?: string; repoFullName?: string; diagnoseRaw?: string },
+): OrgWorkspaceCloneResult {
+  const diagnoseRaw = opts?.diagnoseRaw ?? error
+  return {
+    ok: false,
+    error,
+    ...(opts?.workspaceDir !== undefined ? { workspaceDir: opts.workspaceDir } : {}),
+    failure: diagnoseCloneError(diagnoseRaw, opts?.repoFullName),
+  }
 }
 
 function authHeaderValue(token: string): string {
@@ -101,23 +115,23 @@ export async function cloneOrgWorkspace(
   params: OrgWorkspaceCloneParams,
 ): Promise<OrgWorkspaceCloneResult> {
   const orgSlug = sanitizeSlug(params.orgSlug)
-  if (!orgSlug) return { ok: false, error: 'invalid-org-slug' }
+  if (!orgSlug) return failResult('invalid-org-slug')
   const workspaceSlug = sanitizeSlug(params.workspaceSlug)
-  if (!workspaceSlug) return { ok: false, error: 'invalid-workspace-slug' }
+  if (!workspaceSlug) return failResult('invalid-workspace-slug')
 
   const token = params.token.trim()
-  if (!token) return { ok: false, error: 'missing-token' }
+  if (!token) return failResult('missing-token')
 
   const overrideDir = params.workspaceDir?.trim() ?? ''
   const baseDir = params.baseDir.trim()
-  if (!overrideDir && !baseDir) return { ok: false, error: 'missing-default-dir' }
+  if (!overrideDir && !baseDir) return failResult('missing-default-dir')
 
   const workspaceDir = overrideDir || buildWorkspaceDir(baseDir, orgSlug, workspaceSlug)
   try {
     await fs.mkdir(workspaceDir, { recursive: true })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, error: redactSecret(msg, token), workspaceDir }
+    const msg = redactSecret(e instanceof Error ? e.message : String(e), token)
+    return failResult(msg, { workspaceDir, diagnoseRaw: msg })
   }
 
   const cloned: string[] = []
@@ -127,15 +141,16 @@ export async function cloneOrgWorkspace(
     const fullName = repo.repoFullName.trim()
     const cloneUrl = repo.cloneUrl.trim()
     if (!fullName || !cloneUrl) {
-      return {
-        ok: false,
-        error: `invalid repo entry: ${fullName || '(empty)'}`,
+      const error = `invalid repo entry: ${fullName || '(empty)'}`
+      return failResult(error, {
         workspaceDir,
-      }
+        ...(fullName ? { repoFullName: fullName } : {}),
+      })
     }
     const destName = lastPathSegment(fullName)
     if (!destName || destName === '.' || destName === '..' || destName.includes('/') || destName.includes('\\')) {
-      return { ok: false, error: `invalid repo name: ${fullName}`, workspaceDir }
+      const error = `invalid repo name: ${fullName}`
+      return failResult(error, { workspaceDir, repoFullName: fullName })
     }
     const dest = join(workspaceDir, destName)
     if (existsSync(join(dest, '.git'))) {
@@ -146,11 +161,11 @@ export async function cloneOrgWorkspace(
     const result = await runGitClone(cloneUrl, dest, token)
     if (result.exitCode !== 0) {
       const detail = redactSecret(result.stderr.trim() || `exit ${result.exitCode}`, token)
-      return {
-        ok: false,
-        error: `clone failed for ${fullName}: ${detail}`,
+      return failResult(`clone failed for ${fullName}: ${detail}`, {
         workspaceDir,
-      }
+        repoFullName: fullName,
+        diagnoseRaw: detail,
+      })
     }
     cloned.push(fullName)
   }

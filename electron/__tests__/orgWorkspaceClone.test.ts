@@ -135,6 +135,10 @@ describe('cloneOrgWorkspace', () => {
     expect(result.error).toContain('owner/x')
     expect(result.error).not.toContain('secret-token')
     expect(result.error).toContain('***')
+    expect(result.failure?.kind).toBeTruthy()
+    expect(result.failure?.raw).toContain('***')
+    expect(result.failure?.raw).not.toContain('secret-token')
+    expect(result.failure?.repoFullName).toBe('owner/x')
   })
 
   it('rechaza orgSlug inseguro antes de mkdir', async () => {
@@ -146,7 +150,10 @@ describe('cloneOrgWorkspace', () => {
       token: 't',
       repos: [],
     })
-    expect(result).toEqual({ ok: false, error: 'invalid-org-slug' })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toBe('invalid-org-slug')
+    expect(result.failure).toEqual({ kind: 'invalid-config', raw: 'invalid-org-slug' })
     expect(spawnMock).not.toHaveBeenCalled()
   })
 

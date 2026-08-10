@@ -48,6 +48,24 @@
   color: var(--text-muted);
 }
 
+.ai-md__h--4 {
+  font-size: 0.88em;
+  color: var(--text-muted);
+}
+
+.ai-md__h--5 {
+  font-size: 0.84em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ai-md__h--6 {
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
 .ai-md__p {
   margin: 0.7em 0;
 }
@@ -90,6 +108,41 @@
 
 .ai-md__ul li::marker {
   color: var(--accent);
+}
+
+.ai-md__ul .ai-md__ul,
+.ai-md__ul .ai-md__ol,
+.ai-md__ol .ai-md__ul,
+.ai-md__ol .ai-md__ol {
+  margin: 0.15em 0 0.25em;
+}
+
+.ai-md__task {
+  list-style: none;
+  margin-left: -1.15em;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35em 0.45em;
+}
+
+.ai-md__task-check {
+  margin: 0.2em 0 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  pointer-events: none;
+}
+
+.ai-md__task .ai-md__ul,
+.ai-md__task .ai-md__ol {
+  flex-basis: 100%;
+  margin-left: 1.15em;
+}
+
+.ai-md del {
+  text-decoration: line-through;
+  color: var(--text-muted);
 }
 
 .ai-md__quote {

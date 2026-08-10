@@ -191,7 +191,10 @@ import {
   sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
 } from '../shared/orgWorkspaceContent'
-import { OrgWorkspaceRequirementModal } from './components/OrgWorkspaceRequirementModal'
+import {
+  OrgWorkspaceRequirementModal,
+  type OrgWorkspaceRequirementState,
+} from './components/OrgWorkspaceRequirementModal'
 import {
   removePaneFromLoopChains,
   activeLoopChainPaneIds,
@@ -339,16 +342,8 @@ export const App: React.FC = () => {
   const orgWorkspaceCatalogRef = useRef<OrgWorkspaceCatalog | null>(null)
   const orgWorkspaceCatalogLoadingRef = useRef(false)
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
-  const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] = useState<{
-    missingFolder?: boolean
-    missingToken?: boolean
-    cloneError?: string
-    cloning?: boolean
-    syncing?: boolean
-    agentDeleteError?: string
-    agentUpdateError?: string
-    workspaceRenameError?: string
-  } | null>(null)
+  const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
+    useState<OrgWorkspaceRequirementState | null>(null)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -1242,6 +1237,7 @@ export const App: React.FC = () => {
             && typeof covenant.cloneOrgWorkspace === 'function'
           ) {
             let firstCloneError: string | null = null
+            let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
             await Promise.all([...reposByWorkspace.values()].map(async ws => {
               try {
                 const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
@@ -1259,7 +1255,10 @@ export const App: React.FC = () => {
                 })
                 if (!res.ok) {
                   console.warn('[boot] org workspace repo clone falló', ws.slug, ws.workspaceId, res.error)
-                  if (!firstCloneError) firstCloneError = res.error
+                  if (!firstCloneError) {
+                    firstCloneError = res.error
+                    firstCloneFailure = res.failure
+                  }
                 }
               } catch (err) {
                 console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
@@ -1268,12 +1267,12 @@ export const App: React.FC = () => {
             }))
             if (firstCloneError) {
               const cloneErr = firstCloneError as string
-              const requirement =
+              const requirement: OrgWorkspaceRequirementState =
                 cloneErr === 'missing-default-dir'
                   ? { missingFolder: true }
                   : cloneErr === 'missing-token'
                     ? { missingToken: true }
-                    : { cloneError: cloneErr }
+                    : { cloneError: cloneErr, cloneFailure: firstCloneFailure }
               // Updater funcional: consulta el estado VIVO (prev), no el closure stale
               // del boot. Si otro flujo ya abrió un modal (prev !== null), no lo pisa.
               setOrgWorkspaceRequirement(prev => (prev === null ? requirement : prev))
@@ -1855,6 +1854,7 @@ export const App: React.FC = () => {
       : Promise.resolve({
           ok: false as const,
           error: 'clone unavailable',
+          failure: undefined,
         }))
     if (!res.ok) {
       if (res.error === 'missing-default-dir') {
@@ -1862,7 +1862,7 @@ export const App: React.FC = () => {
       } else if (res.error === 'missing-token') {
         setOrgWorkspaceRequirement({ missingToken: true })
       } else {
-        setOrgWorkspaceRequirement({ cloneError: res.error })
+        setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
       }
       return
     }
@@ -2216,6 +2216,7 @@ export const App: React.FC = () => {
         : Promise.resolve({
             ok: false as const,
             error: 'clone unavailable',
+            failure: undefined,
           }))
       if (!res.ok) {
         if (res.error === 'missing-default-dir') {
@@ -2223,7 +2224,7 @@ export const App: React.FC = () => {
         } else if (res.error === 'missing-token') {
           setOrgWorkspaceRequirement({ missingToken: true })
         } else {
-          setOrgWorkspaceRequirement({ cloneError: res.error })
+          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
         }
         return null
       }
@@ -5622,6 +5623,7 @@ export const App: React.FC = () => {
         missingFolder={orgWorkspaceRequirement?.missingFolder}
         missingToken={orgWorkspaceRequirement?.missingToken}
         cloneError={orgWorkspaceRequirement?.cloneError}
+        cloneFailure={orgWorkspaceRequirement?.cloneFailure}
         cloning={orgWorkspaceRequirement?.cloning}
         syncing={orgWorkspaceRequirement?.syncing}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}

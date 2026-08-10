@@ -5,3 +5,103 @@
   width: 100%;
   min-width: 0;
 }
+
+.agent-chat-bubbles--plane {
+  min-width: 0;
+}
+
+.agent-chat-bubbles--plane .agent-pane__bubble {
+  max-width: 82%;
+  min-width: 0;
+}
+
+.agent-chat-bubbles--plane .agent-pane__bubble--assistant {
+  max-width: 94%;
+}
+
+.agent-pane__bubble-body {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.agent-pane__bubble-body--collapsed {
+  position: relative;
+  max-height: calc(var(--agent-chat-font-size, 13px) * 1.6 * 10);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+
+.agent-pane__bubble-more {
+  display: inline-flex;
+  align-items: center;
+  margin: 6px 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.92em;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.agent-pane__bubble-more:hover {
+  color: var(--text);
+}
+
+.agent-pane__bubble-more:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Markdown / código legibles sobre el fondo propio de la burbuja user. */
+.agent-pane__bubble--user {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.agent-pane__bubble--user .ai-md__code {
+  background: color-mix(in srgb, var(--text) 8%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--text);
+}
+
+.agent-pane__bubble--user .ai-md__quote {
+  background: color-mix(in srgb, var(--text) 5%, var(--bg-secondary));
+  border-left-color: color-mix(in srgb, var(--text-muted) 55%, var(--border));
+  color: var(--text-muted);
+}
+
+.agent-pane__bubble--user .ai-md__table th {
+  background: color-mix(in srgb, var(--text) 6%, var(--bg-secondary));
+}
+
+.agent-pane__bubble--user .ai-md__table-wrap,
+.agent-pane__bubble--user .ai-code-block {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.agent-pane__bubble--user .ai-code-block {
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.agent-pane__bubble--user .ai-code-chrome,
+.agent-pane__bubble--user .ai-code-pre {
+  background: color-mix(in srgb, var(--text) 6%, var(--bg));
+}
+
+.agent-pane__bubble--user .ai-code-pre {
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.agent-pane__bubble--user .ai-md__link {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

@@ -150,6 +150,7 @@ import {
   type OrgWorkspaceCloneRepo,
   type OrgWorkspaceCloneResult,
 } from './orgWorkspaceClone'
+import { diagnoseCloneError } from '../src/shared/orgWorkspaceCloneError'
 import {
   addAssignee as covenantAddAssignee,
   addMember as covenantAddMember,
@@ -1245,9 +1246,13 @@ function registerIpc(): void {
       const workspaceDir =
         typeof p.workspaceDir === 'string' ? p.workspaceDir.trim() : ''
       const baseDir = config.defaultWorkspacesDir?.trim() ?? ''
-      if (!workspaceDir && !baseDir) return { ok: false, error: 'missing-default-dir' }
+      if (!workspaceDir && !baseDir) {
+        return { ok: false, error: 'missing-default-dir', failure: diagnoseCloneError('missing-default-dir') }
+      }
       const token = await resolveGithubToken(config)
-      if (!token) return { ok: false, error: 'missing-token' }
+      if (!token) {
+        return { ok: false, error: 'missing-token', failure: diagnoseCloneError('missing-token') }
+      }
       const reposRaw = Array.isArray(p.repos) ? p.repos : []
       const repos: OrgWorkspaceCloneRepo[] = reposRaw.map((item: unknown) => {
         const r = (item && typeof item === 'object' ? item : {}) as {

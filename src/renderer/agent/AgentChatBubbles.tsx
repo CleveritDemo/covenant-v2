@@ -10,19 +10,41 @@ import React, {
 } from 'react'
 import { flushSync } from 'react-dom'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { AiCodeBlock } from '../components/AiCodeBlock'
-import { splitAssistantBody } from '../components/ai/assistantBodySegments'
+import {
+  splitAssistantBody,
+  stripAgentControlFences,
+} from '../components/ai/assistantBodySegments'
 import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
 const CHAT_BATCH_SIZE = 10
 /** px desde el tope para pedir el lote anterior. */
 const LOAD_EARLIER_TOP_PX = 80
+/** Colapsar si el texto supera este tamaño (caracteres). */
+const BUBBLE_COLLAPSE_CHARS = 1200
+/** Colapsar si el texto supera este número de líneas. */
+const BUBBLE_COLLAPSE_LINES = 24
 
-const AssistantBody: React.FC<{ content: string; live: boolean }> = ({ content, live }) => {
-  const segments = splitAssistantBody(content)
+function isLongBubbleContent(content: string): boolean {
+  if (content.length > BUBBLE_COLLAPSE_CHARS) return true
+  let lines = 1
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) === 10) lines++
+  }
+  return lines > BUBBLE_COLLAPSE_LINES
+}
+
+const BubbleBody: React.FC<{
+  content: string
+  live: boolean
+  role: 'user' | 'assistant'
+}> = ({ content, live, role }) => {
+  const raw = role === 'assistant' ? stripAgentControlFences(content) : content
+  const segments = splitAssistantBody(raw)
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
       {segments.map((segment, index) =>
@@ -69,6 +91,9 @@ interface AgentChatBubbleRowProps {
   enteringIds: ReadonlySet<string>
   materializingIds: ReadonlySet<string>
   settlingId: string | null
+  expanded: boolean
+  onToggleExpand: (id: string) => void
+  scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
   onEnteringAnimationEnd?: (id: string) => void
   onMaterializingAnimationEnd?: (id: string) => void
 }
@@ -80,9 +105,13 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   enteringIds,
   materializingIds,
   settlingId,
+  expanded,
+  onToggleExpand,
+  scrollRef,
   onEnteringAnimationEnd,
   onMaterializingAnimationEnd,
 }) => {
+  const { t } = useT()
   const live = busy &&
     message.role === 'assistant' &&
     message.id === activeAssistantId
@@ -90,6 +119,11 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   const entering = enteringIds.has(message.id)
   const materializing = materializingIds.has(message.id)
   const gravityOnly = live && !message.content
+  const canCollapse = !live &&
+    Boolean(message.content) &&
+    isLongBubbleContent(message.content)
+  const collapsed = canCollapse && !expanded
+  const pinBottomAfterExpandRef = useRef(false)
 
   // Sin animación de zoom: liberar flags al montar (animationEnd ya no corre).
   useEffect(() => {
@@ -101,6 +135,21 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
     if (!materializing) return
     onMaterializingAnimationEnd?.(message.id)
   }, [materializing, message.id, onMaterializingAnimationEnd])
+
+  useLayoutEffect(() => {
+    if (!pinBottomAfterExpandRef.current) return
+    pinBottomAfterExpandRef.current = false
+    const el = scrollRef?.current
+    if (el) scrollAiMessagesToBottom(el, true)
+  }, [expanded, scrollRef])
+
+  const handleToggleExpand = (): void => {
+    const el = scrollRef?.current
+    if (!expanded && el && isAiMessagesNearBottom(el)) {
+      pinBottomAfterExpandRef.current = true
+    }
+    onToggleExpand(message.id)
+  }
 
   return (
     <div
@@ -135,14 +184,29 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
         )}
         {message.content
           ? (
-              message.role === 'assistant'
-                ? <AssistantBody content={message.content} live={live} />
-                : (
-                    <span className={live ? 'agent-pane__stream' : undefined}>
-                      {message.content}
-                      {live && <span className="agent-pane__caret" aria-hidden="true" />}
-                    </span>
-                  )
+              <>
+                <div
+                  className={[
+                    'agent-pane__bubble-body',
+                    collapsed ? 'agent-pane__bubble-body--collapsed' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <BubbleBody
+                    content={message.content}
+                    live={live}
+                    role={message.role === 'user' ? 'user' : 'assistant'}
+                  />
+                </div>
+                {canCollapse && (
+                  <button
+                    type="button"
+                    className="agent-pane__bubble-more"
+                    onClick={handleToggleExpand}
+                  >
+                    {expanded ? t('agentPane.showLess') : t('agentPane.showMore')}
+                  </button>
+                )}
+              </>
             )
           : live
             ? (
@@ -199,6 +263,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
 
   /** Cuántos mensajes desde el final están montados. */
   const [visibleCount, setVisibleCount] = useState(() => Math.min(CHAT_BATCH_SIZE, rows.length))
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => EMPTY_IDS)
   const rowsLengthRef = useRef(rows.length)
   const visibleCountRef = useRef(visibleCount)
   const loadingEarlierRef = useRef(false)
@@ -316,12 +381,23 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
 
   useImperativeHandle(ref, () => ({ scrollToEnd }), [scrollToEnd])
 
+  const onToggleExpand = useCallback((id: string): void => {
+    setExpandedIds(current => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
   const rowProps = {
     busy,
     activeAssistantId,
     enteringIds,
     materializingIds,
     settlingId,
+    scrollRef,
+    onToggleExpand,
     onEnteringAnimationEnd,
     onMaterializingAnimationEnd,
   }
@@ -334,7 +410,12 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   return (
     <div className={rootClass}>
       {visibleRows.map(message => (
-        <AgentChatBubbleRow key={message.id} message={message} {...rowProps} />
+        <AgentChatBubbleRow
+          key={message.id}
+          message={message}
+          expanded={expandedIds.has(message.id)}
+          {...rowProps}
+        />
       ))}
     </div>
   )

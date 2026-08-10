@@ -1,5 +1,9 @@
 /** Tipos del IPC de clonado de workspaces org (renderer ↔ preload). */
 
+import type { OrgWorkspaceCloneFailure } from './orgWorkspaceCloneError'
+
+export type { OrgWorkspaceCloneFailure, OrgWorkspaceCloneErrorKind } from './orgWorkspaceCloneError'
+
 export type OrgWorkspaceCloneRepo = {
   repoFullName: string
   cloneUrl: string
@@ -15,4 +19,4 @@ export type OrgWorkspaceCloneRequest = {
 
 export type OrgWorkspaceCloneResult =
   | { ok: true; workspaceDir: string; cloned: string[]; skipped: string[] }
-  | { ok: false; error: string; workspaceDir?: string }
+  | { ok: false; error: string; workspaceDir?: string; failure?: OrgWorkspaceCloneFailure }

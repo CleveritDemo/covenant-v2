@@ -4,6 +4,22 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.7
+
+- **Errores de clonado que se entienden**: si un repo de organización no se puede
+  clonar, el modal dice por qué — SAML SSO pendiente, token caducado, repo no
+  encontrado o sin conexión — con botón "Autorizar en GitHub" cuando aplica y los
+  detalles técnicos copiables detrás de un desplegable.
+- **Respuestas largas plegadas**: los mensajes muy largos del agente se colapsan
+  con "Ver más"; al desplegarlos el chat se mantiene pegado al final si ya lo
+  estabas.
+- **Markdown más completo**: títulos hasta seis niveles, listas anidadas, listas
+  de tareas, negrita+cursiva, tachado y código con backticks múltiples. Las
+  tablas y listas ya no se rompen si el texto trae líneas en blanco entre filas,
+  así que los contextos `.md` escritos a mano se ven como tablas de verdad.
+- **Selector Reporte/Fuente centrado**: el control ya no se lee descuadrado hacia
+  la izquierda.
+
 ## v0.39.6
 
 - **Cards de agentes más sobrias**: monogramas como texto simple y controles de

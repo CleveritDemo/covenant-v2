@@ -4,6 +4,53 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.23
+
+- **Separador titlebar–tabs menos visible**: la línea entre la barra de título y las pestañas queda transparente, con menos ruido visual.
+
+## v0.39.22
+
+- **Refinamiento visual del plano**: mini-cards, terminales y badges más tenues; el acento marca solo lo activo, sin ruido.
+
+## v0.39.21
+
+- **Mini-card de agente sin bordes**: la face del plano queda limpia (sin anillo en la card ni en el status); el chat activo se marca solo con box-shadow accent.
+
+## v0.39.20
+
+- **Separación más limpia en la face del plano**: entre contextos y resultados de agentes hay un espacio claro, sin línea divisoria.
+
+## v0.39.19
+
+- **Contextos y resultados de agentes separados**: en la lista de contextos del agente, los contextos normales van primero y los resultados debajo, con un separador visual sutil entre ambos grupos.
+
+## v0.39.18
+
+- **Carpeta de repo al instante tras editar**: al guardar el nombre de carpeta local en Organizaciones, la fila se actualiza de inmediato (sin esperar el refresco) y la meta solo se muestra si hay nombre real (no espacios).
+
+## v0.39.17
+
+- **El chat del agente sobrevive al sync**: el historial se guarda por agente y workspace (no por paneId); al sincronizar o realinear el catálogo no se pierde el transcript. Migra automáticamente los archivos antiguos ligados al pane.
+
+## v0.39.16
+
+- **Editar carpeta de repos del workspace**: en Organizaciones, los gestores
+  pueden cambiar o limpiar el nombre de carpeta local de un repo ya vinculado
+  (sin quitarlo), y el cambio se guarda en el servidor.
+
+## v0.39.15
+
+- **Sincronizar workspace sin borrar extras locales**: el botón (antes «Actualizar»)
+  usa `wipeLocal: false`; trae agentes/contextos del servidor y no elimina los
+  locales adicionales. Copy ES/EN: «Sincronizar workspace» / «Sync workspace» y
+  detalle de confirmación alineado.
+- **Resultados de agente solo en la máquina**: asignaciones `iaterminal:result:*`
+  se conservan al sincronizar/materializar y se excluyen al publicar al org.
+- **Publicar cambios**: copy «Publicar cambios» / «Publish changes» (antes
+  Subir/Upload).
+- **Dot de actividad junto al nombre**: en el badge del plano el indicador busy
+  va inline tras el nombre (ya no en esquina).
+
 ## v0.39.14
 
 - **El nuevo agente ya no ofrece CLIs que no tienes**: la ventana de "Nuevo

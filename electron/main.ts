@@ -186,6 +186,7 @@ import {
   upsertWorkspaceContext as covenantUpsertWorkspaceContext,
   renameWorkspaceContext as covenantRenameWorkspaceContext,
   addWorkspaceRepo as covenantAddWorkspaceRepo,
+  updateWorkspaceRepo as covenantUpdateWorkspaceRepo,
   deleteWorkspaceRepo as covenantDeleteWorkspaceRepo,
   initCovenantSession,
 } from './covenantApi'
@@ -1222,6 +1223,19 @@ function registerIpc(): void {
   )
 
   ipcMain.handle(
+    IPC.COVENANT_WORKSPACE_REPO_UPDATE,
+    async (_e, slug: unknown, workspaceId: unknown, repoId: unknown, payload: unknown) =>
+      covenantInvoke(() =>
+        covenantUpdateWorkspaceRepo(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(repoId ?? ''),
+          payload as Parameters<typeof covenantUpdateWorkspaceRepo>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPO_DELETE,
     async (_e, slug: unknown, workspaceId: unknown, repoId: unknown) =>
       covenantInvoke(async () => {
@@ -1586,14 +1600,14 @@ function registerIpc(): void {
     deleteInteractionsLog(paneId)
   })
 
-  ipcMain.handle(IPC.AGENT_CHAT_LOAD, (_e, paneId: string, threadId: string) => (
-    loadAgentChat(paneId, threadId)
+  ipcMain.handle(IPC.AGENT_CHAT_LOAD, (_e, ref: unknown, threadId: string) => (
+    loadAgentChat(ref as Parameters<typeof loadAgentChat>[0], threadId)
   ))
-  ipcMain.on(IPC.AGENT_CHAT_SAVE, (_e, paneId: string, threadId: string, entries: unknown) => {
-    saveAgentChat(paneId, threadId, entries as AgentChatEntry[])
+  ipcMain.on(IPC.AGENT_CHAT_SAVE, (_e, ref: unknown, threadId: string, entries: unknown) => {
+    saveAgentChat(ref as Parameters<typeof saveAgentChat>[0], threadId, entries as AgentChatEntry[])
   })
-  ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, paneId: string, threadId?: string) => {
-    deleteAgentChat(paneId, threadId)
+  ipcMain.on(IPC.AGENT_CHAT_DELETE, (_e, ref: unknown, threadId?: string) => {
+    deleteAgentChat(ref as Parameters<typeof deleteAgentChat>[0], threadId)
   })
   ipcMain.on(IPC.AGENT_CONTEXT_DELIVERY_CLEAR, (_e, payload: unknown) => {
     if (!payload || typeof payload !== 'object') return

@@ -20,6 +20,21 @@ export interface PlaneAgentContextNodesProps {
   onOpenAgent: () => void
 }
 
+function renderContextItem(ctx: PlaneAgentContextChip, onOpenAgent: () => void) {
+  return (
+    <li key={ctx.id} className="plane-agent-context-nodes__item" role="listitem">
+      <PlaneContextCard
+        name={ctx.name}
+        icon={ctx.icon}
+        color={ctx.color}
+        shared={ctx.shared}
+        showName
+        onOpen={onOpenAgent}
+      />
+    </li>
+  )
+}
+
 /** Contextos del agente en lista vertical con nombre. */
 export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
   contexts,
@@ -27,20 +42,17 @@ export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
 }) => {
   if (contexts.length === 0) return null
 
+  const normal = contexts.filter(ctx => ctx.kind !== 'agentResult')
+  const results = contexts.filter(ctx => ctx.kind === 'agentResult')
+  const showSeparator = normal.length > 0 && results.length > 0
+
   return (
     <ul className="plane-agent-context-nodes" role="list">
-      {contexts.map(ctx => (
-        <li key={ctx.id} className="plane-agent-context-nodes__item" role="listitem">
-          <PlaneContextCard
-            name={ctx.name}
-            icon={ctx.icon}
-            color={ctx.color}
-            shared={ctx.shared}
-            showName
-            onOpen={onOpenAgent}
-          />
-        </li>
-      ))}
+      {normal.map(ctx => renderContextItem(ctx, onOpenAgent))}
+      {showSeparator ? (
+        <li className="plane-agent-context-nodes__sep" aria-hidden="true" />
+      ) : null}
+      {results.map(ctx => renderContextItem(ctx, onOpenAgent))}
     </ul>
   )
 }

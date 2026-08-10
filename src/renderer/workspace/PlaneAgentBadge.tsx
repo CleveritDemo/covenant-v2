@@ -28,8 +28,7 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
     aria-pressed={selected}
     onClick={onSelect}
   >
-    {/* inline y no corner: en un chip la esquina se come el nombre. */}
-    {busy ? <PlaneBusyDot /> : null}
     <span className="plane-agent-badge__name">{name}</span>
+    {busy ? <PlaneBusyDot /> : null}
   </button>
 )

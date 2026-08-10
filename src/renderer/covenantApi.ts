@@ -7,6 +7,7 @@ import type {
   CovenantWorkspaceContextRecord,
   CovenantWorkspaceRepoPayload,
   CovenantWorkspaceRepoRecord,
+  CovenantWorkspaceRepoUpdatePayload,
 } from '../shared/covenantTypes'
 import type { ProjectAgentDefinition } from '../shared/projectAgentCatalog'
 import type {
@@ -21,6 +22,7 @@ export type {
   CovenantWorkspaceContextRecord,
   CovenantWorkspaceRepoPayload,
   CovenantWorkspaceRepoRecord,
+  CovenantWorkspaceRepoUpdatePayload,
 } from '../shared/covenantTypes'
 /** @deprecated Alias temporal. */
 export type { CovenantProject } from '../shared/covenantTypes'
@@ -145,6 +147,12 @@ export interface CovenantApi {
     workspaceId: string,
     payload: CovenantWorkspaceRepoPayload,
   ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>>
+  workspaceRepoUpdate(
+    slug: string,
+    workspaceId: string,
+    repoId: string,
+    payload: CovenantWorkspaceRepoUpdatePayload,
+  ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>>
   workspaceRepoDelete(
     slug: string,
     workspaceId: string,
@@ -209,6 +217,7 @@ export function hasCovenantWorkspaceReposApi(api: CovenantApi | undefined): bool
     !!api &&
     typeof api.workspaceReposList === 'function' &&
     typeof api.workspaceRepoAdd === 'function' &&
+    typeof api.workspaceRepoUpdate === 'function' &&
     typeof api.workspaceRepoDelete === 'function'
   )
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent } from 'react'
 import type {
   AgentCliProvider,
@@ -85,6 +85,8 @@ import { decideParentDelegationNotify } from './parentDelegationNotify'
 import {
   workspaceContextBody,
 } from '@shared/orgWorkspaceContent'
+import { filterContextIdsAfterDiscover } from '@shared/orgWorkspaceLocalSync'
+import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
@@ -483,6 +485,20 @@ export const AgentPane: React.FC<Props> = ({
    */
   const orgWorkspaceRef = useRef<string | null>(null)
   orgWorkspaceRef.current = pulseWorkspaceTag(orgWorkspace)
+  /** Transcript local por agentId+scope (sobrevive sync aunque cambie paneId). */
+  const chatRef = useMemo(
+    () => agentChatRefFor(
+      {
+        projectFolder: cwd,
+        ...(orgWorkspace?.slug && orgWorkspace?.workspaceId
+          ? { orgWorkspace: { slug: orgWorkspace.slug, workspaceId: orgWorkspace.workspaceId } }
+          : {}),
+      },
+      meta.id,
+      paneId,
+    ),
+    [cwd, meta.id, orgWorkspace?.slug, orgWorkspace?.workspaceId, paneId],
+  )
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
   /** ¿El turno en curso se queda con el `cliSessionId` que emita su CLI? */
@@ -598,12 +614,17 @@ export const AgentPane: React.FC<Props> = ({
         discoveryHydratedRef.current = true
         nextIds = previous.contextIds == null
           ? defaultAssignedContextIds(discovered)
-          : previous.contextIds.map(mapId).filter(id => discoveredIds.has(id))
+          // Conserva results asignados aunque aún no estén en discoveredIds.
+          : filterContextIdsAfterDiscover(
+            previous.contextIds.map(mapId),
+            discoveredIds,
+          )
       } else {
         // Conserva results asignados aunque este discover aún no los liste.
-        nextIds = (previous.contextIds ?? []).map(mapId).filter(id => (
-          discoveredIds.has(id) || id.startsWith('iaterminal:result:')
-        ))
+        nextIds = filterContextIdsAfterDiscover(
+          (previous.contextIds ?? []).map(mapId),
+          discoveredIds,
+        )
       }
       const seen = new Set<string>()
       nextIds = nextIds.filter(id => {
@@ -675,7 +696,7 @@ export const AgentPane: React.FC<Props> = ({
     lastAssistantIdRef.current = null
     turnClosedRef.current = false
     void Promise.all([
-      window.api.loadAgentChat(paneId, activeThreadId),
+      window.api.loadAgentChat(chatRef, activeThreadId),
       window.api.isAgentTurnActive(paneId).catch(() => false),
     ]).then(([entries, turnActive]) => {
       if (cancelled) return
@@ -710,15 +731,15 @@ export const AgentPane: React.FC<Props> = ({
       }
     })
     return () => { cancelled = true }
-  }, [activeThreadId, clearLoopTimer, paneId])
+  }, [activeThreadId, chatRef, clearLoopTimer, paneId])
 
   useEffect(() => {
     // `loadedRef` (síncrono) y no solo `loaded` (estado): al cambiar de thread
     // este effect corre en el mismo commit que el de carga, con los mensajes
     // del thread anterior. Sin el ref los guardaría bajo el thread nuevo.
     if (!loaded || !loadedRef.current) return
-    window.api.saveAgentChat(paneId, activeThreadId, messages)
-  }, [activeThreadId, loaded, messages, paneId])
+    window.api.saveAgentChat(chatRef, activeThreadId, messages)
+  }, [activeThreadId, chatRef, loaded, messages])
 
   useLayoutEffect(() => {
     if (!loaded) return
@@ -2102,8 +2123,8 @@ export const AgentPane: React.FC<Props> = ({
       )
       return { ...previous, ...threadPatch(state) }
     })
-    window.api.deleteAgentChat(paneId, removedId)
-  }, [onMetaChange, paneId, resetLiveState])
+    window.api.deleteAgentChat(chatRef, removedId)
+  }, [chatRef, onMetaChange, resetLiveState])
 
   useEffect(() => {
     if (!preferNewThread) return

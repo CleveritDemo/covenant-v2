@@ -211,6 +211,8 @@ export const IPC = {
   COVENANT_WORKSPACE_REPOS_LIST: 'covenant:workspace:repos:list',
   /** Renderer → main (invoke): agregar repo a workspace org */
   COVENANT_WORKSPACE_REPO_ADD: 'covenant:workspace:repo:add',
+  /** Renderer → main (invoke): actualizar repo de workspace org (folderName) */
+  COVENANT_WORKSPACE_REPO_UPDATE: 'covenant:workspace:repo:update',
   /** Renderer → main (invoke): quitar repo de workspace org */
   COVENANT_WORKSPACE_REPO_DELETE: 'covenant:workspace:repo:delete',
   /** Renderer → main (invoke): clonar repos de un workspace org en disco local */

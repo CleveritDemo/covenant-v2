@@ -5,6 +5,10 @@ import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
 import type { AgentChatEntry } from '../src/shared/agentCliTypes'
 import { DEFAULT_THREAD_ID } from '../src/shared/agentThreads'
+import {
+  normalizeAgentChatRef,
+  type AgentChatRef,
+} from '../src/shared/agentChatPersistence'
 import { migratePersistedSessionAgents } from './projectAgentCatalogOps'
 
 const USER_DATA = (): string => app.getPath('userData')
@@ -229,25 +233,32 @@ export function deleteScrollback(paneId: string): void {
 }
 
 // ─── Agent CLI chat history ─────────────────────────────────────────────────
+// Archivos bajo agent-chats/: clave estable (agentId+scope) o legacy paneId.json.
 
 const agentChatDir = (): string => join(USER_DATA(), 'agent-chats')
 
 /**
- * `paneId` y `threadId` vienen del renderer y arman un path: nada de
- * separadores ni `..`. Los callers ya envuelven en try/catch, así que el
- * throw degrada a "sin historial" en vez de escribir fuera de la carpeta.
+ * Las claves vienen del renderer y arman un path: nada de separadores ni `..`.
+ * Los callers ya envuelven en try/catch, así que el throw degrada a "sin
+ * historial" en vez de escribir fuera de la carpeta.
  */
 function safeId(value: string): string {
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error(`id inválido: ${value}`)
+  if (!/^[A-Za-z0-9._-]{1,160}$/.test(value) || value.includes('..')) {
+    throw new Error(`id inválido: ${value}`)
+  }
   return value
 }
 
-const agentChatPaneDir = (paneId: string): string => join(agentChatDir(), safeId(paneId))
-const agentChatFile = (paneId: string, threadId: string): string =>
-  join(agentChatPaneDir(paneId), `${safeId(threadId)}.json`)
-/** Transcript plano pre-threads: un archivo por pane. */
-const legacyAgentChatFile = (paneId: string): string =>
-  join(agentChatDir(), `${safeId(paneId)}.json`)
+/**
+ * Una carpeta por agente (clave estable agentId+scope) y un archivo por
+ * conversación dentro. Las dos claves son ortogonales: la de la carpeta
+ * sobrevive a un cambio de `paneId`, la del archivo distingue los hilos.
+ */
+const agentChatKeyDir = (storageKey: string): string => join(agentChatDir(), safeId(storageKey))
+const agentChatFile = (storageKey: string, threadId: string): string =>
+  join(agentChatKeyDir(storageKey), `${safeId(threadId)}.json`)
+/** Transcript plano pre-threads: un solo archivo por clave (o por paneId). */
+const flatAgentChatFile = (key: string): string => join(agentChatDir(), `${safeId(key)}.json`)
 
 function isAgentChatImage(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
@@ -267,17 +278,8 @@ function isAgentChatEntry(value: unknown): value is AgentChatEntry {
   )
 }
 
-export function loadAgentChat(paneId: string, threadId: string): AgentChatEntry[] {
+function readAgentChatFile(path: string): AgentChatEntry[] {
   try {
-    const path = agentChatFile(paneId, threadId)
-    // El transcript plano del pane se adopta como su thread inicial.
-    if (!existsSync(path) && threadId === DEFAULT_THREAD_ID) {
-      const legacy = legacyAgentChatFile(paneId)
-      if (existsSync(legacy)) {
-        ensureDir(agentChatPaneDir(paneId))
-        renameSync(legacy, path)
-      }
-    }
     if (!existsSync(path)) return []
     const data = JSON.parse(readFileSync(path, 'utf-8')) as unknown
     return Array.isArray(data) ? data.filter(isAgentChatEntry) : []
@@ -286,27 +288,68 @@ export function loadAgentChat(paneId: string, threadId: string): AgentChatEntry[
   }
 }
 
+/**
+ * Adopta el transcript plano pre-threads como primer hilo. Se prueba la clave
+ * estable y después el `paneId` viejo: son las dos formas en que pudo quedar
+ * escrito antes de que un agente tuviera varias conversaciones.
+ */
+function adoptFlatTranscript(
+  storageKey: string,
+  legacyPaneId: string | undefined,
+  target: string,
+): void {
+  for (const key of [storageKey, legacyPaneId]) {
+    if (!key) continue
+    const flat = flatAgentChatFile(key)
+    if (!existsSync(flat)) continue
+    ensureDir(agentChatKeyDir(storageKey))
+    renameSync(flat, target)
+    return
+  }
+}
+
+export function loadAgentChat(
+  ref: AgentChatRef | string,
+  threadId: string,
+): AgentChatEntry[] {
+  try {
+    const { storageKey, legacyPaneId } = normalizeAgentChatRef(ref)
+    const path = agentChatFile(storageKey, threadId)
+    if (!existsSync(path) && threadId === DEFAULT_THREAD_ID) {
+      adoptFlatTranscript(storageKey, legacyPaneId, path)
+    }
+    return readAgentChatFile(path)
+  } catch {
+    return []
+  }
+}
+
 export function saveAgentChat(
-  paneId: string,
+  ref: AgentChatRef | string,
   threadId: string,
   entries: AgentChatEntry[],
 ): void {
   try {
-    ensureDir(agentChatPaneDir(paneId))
-    writeFileSync(agentChatFile(paneId, threadId), JSON.stringify(entries), 'utf-8')
+    const { storageKey } = normalizeAgentChatRef(ref)
+    ensureDir(agentChatKeyDir(storageKey))
+    writeFileSync(agentChatFile(storageKey, threadId), JSON.stringify(entries), 'utf-8')
   } catch { /* ignore */ }
 }
 
-/** Sin `threadId` borra el pane entero (al cerrarlo); con él, una conversación. */
-export function deleteAgentChat(paneId: string, threadId?: string): void {
+/** Sin `threadId` borra el agente entero (al cerrar el pane); con él, un hilo. */
+export function deleteAgentChat(ref: AgentChatRef | string, threadId?: string): void {
   try {
+    const { storageKey, legacyPaneId } = normalizeAgentChatRef(ref)
     if (threadId) {
-      const path = agentChatFile(paneId, threadId)
+      const path = agentChatFile(storageKey, threadId)
       if (existsSync(path)) unlinkSync(path)
       return
     }
-    rmSync(agentChatPaneDir(paneId), { recursive: true, force: true })
-    const legacy = legacyAgentChatFile(paneId)
-    if (existsSync(legacy)) unlinkSync(legacy)
+    rmSync(agentChatKeyDir(storageKey), { recursive: true, force: true })
+    for (const key of [storageKey, legacyPaneId]) {
+      if (!key) continue
+      const flat = flatAgentChatFile(key)
+      if (existsSync(flat)) unlinkSync(flat)
+    }
   } catch { /* ignore */ }
 }

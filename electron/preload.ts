@@ -47,6 +47,7 @@ import type {
   CovenantWorkspaceContextRecord,
   CovenantWorkspaceRepoPayload,
   CovenantWorkspaceRepoRecord,
+  CovenantWorkspaceRepoUpdatePayload,
   CovenantResult,
   CovenantStatus,
 } from '../src/shared/covenantTypes'
@@ -65,6 +66,7 @@ import type {
   AgentCliUiEvent,
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
+import type { AgentChatRef } from '../src/shared/agentChatPersistence'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
@@ -211,15 +213,15 @@ const api = {
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)
   },
-  loadAgentChat(paneId: string, threadId: string): Promise<AgentChatEntry[]> {
-    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, paneId, threadId)
+  loadAgentChat(ref: AgentChatRef | string, threadId: string): Promise<AgentChatEntry[]> {
+    return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, ref, threadId)
   },
-  saveAgentChat(paneId: string, threadId: string, entries: AgentChatEntry[]): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, paneId, threadId, entries)
+  saveAgentChat(ref: AgentChatRef | string, threadId: string, entries: AgentChatEntry[]): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_SAVE, ref, threadId, entries)
   },
-  /** Sin `threadId` borra todas las conversaciones del pane (al cerrarlo). */
-  deleteAgentChat(paneId: string, threadId?: string): void {
-    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, paneId, threadId)
+  /** Sin `threadId` borra todas las conversaciones del agente (al cerrar el pane). */
+  deleteAgentChat(ref: AgentChatRef | string, threadId?: string): void {
+    ipcRenderer.send(IPC.AGENT_CHAT_DELETE, ref, threadId)
   },
   clearAgentContextDelivery(payload: {
     provider: AgentCliProvider
@@ -680,6 +682,20 @@ const api = {
       payload: CovenantWorkspaceRepoPayload,
     ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
       return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_ADD, slug, workspaceId, payload)
+    },
+    workspaceRepoUpdate(
+      slug: string,
+      workspaceId: string,
+      repoId: string,
+      payload: CovenantWorkspaceRepoUpdatePayload,
+    ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WORKSPACE_REPO_UPDATE,
+        slug,
+        workspaceId,
+        repoId,
+        payload,
+      )
     },
     workspaceRepoDelete(
       slug: string,

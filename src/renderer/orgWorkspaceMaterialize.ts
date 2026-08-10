@@ -19,8 +19,11 @@ import {
   filterSyncableOrgWorkspaceAgents,
   filterSyncableOrgWorkspaceContexts,
   localContextsToWipeOnOrgResync,
+  mergeRemoteAgentPreservingLocalResultContextIds,
   orgWorkspaceRemoteIdsToDelete,
+  pickLocalAgentResultContextIds,
   stampProjectAgentsPlaneOrder,
+  stripAgentResultContextIdsForUpload,
 } from '@shared/orgWorkspaceLocalSync'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
@@ -73,7 +76,8 @@ export type OrgWorkspaceMaterializeDeps = {
 }
 
 /**
- * Lista remoto → (opcional wipe local syncable) → escribe `.gravity` → listos para discover.
+ * Lista remoto → (opcional wipeLocal: borra syncables locales) → upsert remoto en `.gravity`.
+ * Con wipeLocal: false (sync del botón) solo upserta y conserva extras locales.
  * Orden: `definition.order` si existe; si no, `preferredAgentIds` (plano local) y luego id.
  */
 export async function downloadOrgWorkspaceToLocal(
@@ -94,13 +98,22 @@ export async function downloadOrgWorkspaceToLocal(
     deps.listRemoteContexts(),
   ])
 
+  // Snapshot result assignments before wipe/upsert (machine-local, like agentResult files).
+  const localAgentsSnapshot = await deps.listLocalAgents(root)
+  const localResultContextIdsByAgentId = new Map<string, string[]>()
+  for (const agent of localAgentsSnapshot) {
+    const resultIds = pickLocalAgentResultContextIds(agent.contextIds)
+    if (resultIds.length > 0) {
+      localResultContextIdsByAgentId.set(agent.id, resultIds)
+    }
+  }
+
   let preferredAgentIds = options.preferredAgentIds
   if (options.wipeLocal) {
-    const localAgents = await deps.listLocalAgents(root)
     if (!preferredAgentIds?.length) {
-      preferredAgentIds = localAgents.map(agent => agent.id)
+      preferredAgentIds = localAgentsSnapshot.map(agent => agent.id)
     }
-    for (const agent of localAgents) {
+    for (const agent of localAgentsSnapshot) {
       await deps.deleteLocalAgent(root, agent.id)
     }
     const discovered = await deps.discoverLocalContexts(root)
@@ -122,7 +135,12 @@ export async function downloadOrgWorkspaceToLocal(
       preferredAgentIds,
     )
     for (const definition of agents) {
-      const written = await deps.upsertLocalAgent(root, definition)
+      const localResultIds = localResultContextIdsByAgentId.get(definition.id)
+      const merged = mergeRemoteAgentPreservingLocalResultContextIds(
+        definition,
+        localResultIds ? { contextIds: localResultIds } : undefined,
+      )
+      const written = await deps.upsertLocalAgent(root, merged)
       if (!written.ok) {
         agentsOk = false
         agentsError = written.error ?? 'agent upsert failed'
@@ -210,7 +228,8 @@ export async function uploadOrgWorkspaceFromLocal(
 
   for (const agent of agentsToUpload) {
     const { localOnly: _drop, ...payload } = agent
-    const upserted = await deps.upsertRemoteAgent(agent.id, payload as ProjectAgentDefinition)
+    const forRemote = stripAgentResultContextIdsForUpload(payload as ProjectAgentDefinition)
+    const upserted = await deps.upsertRemoteAgent(agent.id, forRemote)
     if (!upserted.ok) {
       return { ok: false, error: upserted.error || `agent upsert failed: ${agent.id}` }
     }

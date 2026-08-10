@@ -168,7 +168,9 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </div>
     </div>
     <div className="plane-mini-face__body">
-      <span className="plane-mini-face__status">{statusLabel}</span>
+      <div className="plane-mini-face__status-surface">
+        <span className="plane-mini-face__status">{statusLabel}</span>
+      </div>
     </div>
     {children ? (
       <div className="plane-mini-face__nodes">

@@ -16,9 +16,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   backdrop-filter: blur(8px);
-  box-shadow:
-    var(--plane-shadow-soft),
-    0 4px 12px color-mix(in srgb, #000 18%, transparent);
+  box-shadow: none;
   pointer-events: none;
   user-select: none;
 }

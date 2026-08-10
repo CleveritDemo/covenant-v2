@@ -82,6 +82,11 @@ export interface CovenantWorkspaceRepoPayload {
   position?: number
 }
 
+/** Cuerpo PATCH de repo de workspace org (vacío limpia folderName). */
+export interface CovenantWorkspaceRepoUpdatePayload {
+  folderName?: string
+}
+
 /** Respuesta GET/POST de repo de workspace org. */
 export interface CovenantWorkspaceRepoRecord {
   id: string

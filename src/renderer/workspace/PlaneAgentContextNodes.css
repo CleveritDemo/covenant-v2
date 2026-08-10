@@ -18,3 +18,13 @@
   width: 100%;
   line-height: 1.15;
 }
+
+/* Spacer entre contextos normales y resultados (misma medida que status → nodos). */
+.plane-agent-context-nodes__sep {
+  flex: 0 0 auto;
+  height: var(--plane-mini-face-section-gap, 6px);
+  margin: 0;
+  border: 0;
+  list-style: none;
+  pointer-events: none;
+}

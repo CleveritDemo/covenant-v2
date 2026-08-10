@@ -351,6 +351,15 @@
   gap: 1px;
 }
 
+.orgs-list__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .orgs-list__title {
   margin: 0;
   font-size: 12px;

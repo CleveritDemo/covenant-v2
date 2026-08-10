@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.35.1
+
+- **Tooltips del modal Git y del Stop por fila** usan el componente de la app
+  (sin `title` nativo).
+- **Ajustes de tipado** en la ronda de orquestación y el estilo de trabajo del
+  composer.
+
 ## v0.35.0
 
 - **El modal Git pone el diff junto a la lista de archivos**; la columna derecha

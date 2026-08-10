@@ -22,6 +22,8 @@ export interface PlaneQuickChatProps {
   settlingId?: string | null
   /** true solo mientras hay burbujas visibles en el plano. */
   onShowingChange?: (showing: boolean) => void
+  /** Stop por fila en Waiting (solo esa delegación). */
+  onAbortDelegation?: (delegationId: string) => void
 }
 
 /** Conversación user/assistant del plano (sin system). */
@@ -45,6 +47,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   materializingIds = [],
   settlingId = null,
   onShowingChange,
+  onAbortDelegation,
 }) => {
   const { t } = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -137,6 +140,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                       : t('agentPane.awaitingStatusRunning'),
                     ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
                   }))}
+                  stopItemLabel={t('agentPane.awaitingStopSpecialist')}
+                  onStopItem={onAbortDelegation}
                 />
               ) : (busy || activityText !== '') ? (
                 <div

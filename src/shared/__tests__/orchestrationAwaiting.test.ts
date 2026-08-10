@@ -85,4 +85,16 @@ describe('buildOrchestrationAwaitingView', () => {
       worktreeHint: 't1/d2',
     })
   })
+
+  it('propagates toPaneId for Stop-per-row wiring', () => {
+    const view = buildOrchestrationAwaitingView([
+      {
+        delegationId: 'd1',
+        toAgentId: 'frontend',
+        toPaneId: 'pane-fe',
+        status: 'running',
+      },
+    ])
+    expect(view?.items[0]?.toPaneId).toBe('pane-fe')
+  })
 })

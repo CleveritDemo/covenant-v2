@@ -345,6 +345,7 @@ const es = {
     awaitingReplicaBadge: 'réplica',
     awaitingStatusRunning: 'en curso',
     awaitingStatusDone: 'listo',
+    awaitingStopSpecialist: 'Detener este especialista',
     awaitingWaveSublabel: 'Especialistas en worktrees aislados',
     delegationEmptySummary: '(sin respuesta)',
     delegationAbortedSummary: 'Delegación cancelada',

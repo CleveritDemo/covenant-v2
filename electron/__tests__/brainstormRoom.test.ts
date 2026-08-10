@@ -240,7 +240,8 @@ describe('startBrainstormRoom resume', () => {
     expect(turns).toBeGreaterThanOrEqual(1)
     expect(speakers[0]).toBe('beta')
     expect(prompts[0]).toContain('Prior alpha point')
-    expect(prompts[0]).toContain('### Alpha (round 0)')
+    expect(prompts[0]).toContain('Alpha (round 0): Prior alpha point')
+    expect(prompts[0]).toMatch(/2–4 short sentences|80–120 words/i)
   })
 
   it('reuses prior cliSessions for the same roomId on resume', async () => {

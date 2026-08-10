@@ -46,3 +46,15 @@ export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
     && delegationHoldOk
     && !state.systemFollowUpsPending
 }
+
+/**
+ * Stop rojo del composer: solo turno propio (busy / loop).
+ * awaitingDelegations NO cuenta — cada especialista se cancela en Waiting.
+ */
+export function shouldShowComposerStop(state: {
+  loopActive: boolean
+  busy: boolean
+  awaitingDelegations?: boolean
+}): boolean {
+  return Boolean(state.loopActive || state.busy)
+}

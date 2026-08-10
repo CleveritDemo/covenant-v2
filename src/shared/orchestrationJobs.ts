@@ -152,6 +152,11 @@ export function flattenAwaitingItemsFromJobs(
         ...item,
         toAgentId: live?.toAgentId ?? item.toAgentId,
         baseAgentId: live?.baseAgentId ?? item.baseAgentId,
+        ...(live?.toPaneId
+          ? { toPaneId: live.toPaneId }
+          : item.toPaneId
+            ? { toPaneId: item.toPaneId }
+            : {}),
         status: stillActive ? 'running' : 'done',
       })
     }
@@ -160,6 +165,7 @@ export function flattenAwaitingItemsFromJobs(
       out.push({
         delegationId,
         toAgentId: meta.toAgentId,
+        toPaneId: meta.toPaneId,
         ...(meta.baseAgentId ? { baseAgentId: meta.baseAgentId } : {}),
         status: 'running',
       })
@@ -169,6 +175,7 @@ export function flattenAwaitingItemsFromJobs(
       out.push({
         delegationId: deferred.delegation.id,
         toAgentId: deferred.toAgentId,
+        toPaneId: deferred.toPaneId,
         status: 'running',
       })
     }
@@ -218,4 +225,72 @@ export function pendingOrchestratorIdsFromJobs(
     }
   }
   return out
+}
+
+export interface AbortOneDelegationResult {
+  ok: boolean
+  toPaneId?: string
+  toAgentId?: string
+  baseAgentId?: string
+  wasPending: boolean
+  wasDeferred: boolean
+  remainingPending: number
+  remainingDeferred: number
+}
+
+/**
+ * Quita una delegación de pending/deferred/waveItems del job.
+ * App se encarga de stop del pane, réplica, worktree y follow-up.
+ */
+export function abortOneDelegationInJob(
+  job: OrchestrationJob,
+  delegationId: string,
+): AbortOneDelegationResult {
+  const id = delegationId.trim()
+  if (!id) {
+    return {
+      ok: false,
+      wasPending: false,
+      wasDeferred: false,
+      remainingPending: job.pending.size,
+      remainingDeferred: job.deferred.length,
+    }
+  }
+
+  const pendingMeta = job.pending.get(id)
+  const deferredIdx = job.deferred.findIndex(item => item.delegation.id === id)
+  const deferred = deferredIdx >= 0 ? job.deferred[deferredIdx] : undefined
+  if (!pendingMeta && !deferred) {
+    const hadWave = job.waveItems.some(item => item.delegationId === id)
+    if (hadWave) {
+      job.waveItems = job.waveItems.filter(item => item.delegationId !== id)
+    }
+    return {
+      ok: hadWave,
+      wasPending: false,
+      wasDeferred: false,
+      remainingPending: job.pending.size,
+      remainingDeferred: job.deferred.length,
+    }
+  }
+
+  if (pendingMeta) job.pending.delete(id)
+  if (deferredIdx >= 0) job.deferred.splice(deferredIdx, 1)
+  job.waveItems = job.waveItems.filter(item => item.delegationId !== id)
+  job.pendingMerges = job.pendingMerges.filter(item => item.delegationId !== id)
+
+  const toPaneId = pendingMeta?.toPaneId ?? deferred?.toPaneId
+  const toAgentId = pendingMeta?.toAgentId ?? deferred?.toAgentId
+  const baseAgentId = pendingMeta?.baseAgentId
+
+  return {
+    ok: true,
+    ...(toPaneId ? { toPaneId } : {}),
+    ...(toAgentId ? { toAgentId } : {}),
+    ...(baseAgentId ? { baseAgentId } : {}),
+    wasPending: Boolean(pendingMeta),
+    wasDeferred: Boolean(deferred),
+    remainingPending: job.pending.size,
+    remainingDeferred: job.deferred.length,
+  }
 }

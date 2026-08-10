@@ -111,6 +111,8 @@ export interface TabAgenticPlaneProps {
   ) => void
   /** Detiene el turno activo del agente desde el composer del plano. */
   onStopChat: (paneId: string) => void
+  /** Stop por fila en Waiting: cancela solo esa delegación del orquestador. */
+  onAbortDelegation?: (fromPaneId: string, delegationId: string) => void
   /** Pide limpiar la conversación del agente (confirmación en AgentPane). */
   onClearConversation: (paneId: string) => void
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
@@ -271,6 +273,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onOpenResultsPreview,
   onSendChat,
   onStopChat,
+  onAbortDelegation,
   onClearConversation,
   openChatAgentId,
   onOpenChatAgentChange,
@@ -755,6 +758,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               settlingId={quickChatStatus?.settlingId ?? null}
               fontSize={chatFontSize}
               onShowingChange={setQuickChatShowing}
+              onAbortDelegation={
+                onAbortDelegation
+                  ? (delegationId => onAbortDelegation(openChatAgentId, delegationId))
+                  : undefined
+              }
             />
           ) : null}
           composer={(

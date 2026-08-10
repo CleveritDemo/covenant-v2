@@ -43,6 +43,8 @@ export interface AgentPaneMessagesProps {
   onEditQueuedTurn: (id: string) => void
   onMergeQueuedTurns: () => void
   onScrollToBottom: () => void
+  /** Stop por fila en Waiting (solo esa delegación). */
+  onAbortDelegation?: (delegationId: string) => void
 }
 
 export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
@@ -68,6 +70,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onEditQueuedTurn,
   onMergeQueuedTurns,
   onScrollToBottom,
+  onAbortDelegation,
 }) => {
   const { t } = useT()
   const waveLabel = orchestrationAwaiting
@@ -120,6 +123,8 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                 : t('agentPane.awaitingStatusRunning'),
               ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
             }))}
+            stopItemLabel={t('agentPane.awaitingStopSpecialist')}
+            onStopItem={onAbortDelegation}
           />
         ) : (busy || activity !== '') && (() => {
           const activityText = activity

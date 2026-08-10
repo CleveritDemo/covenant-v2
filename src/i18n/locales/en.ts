@@ -343,6 +343,7 @@ const en = {
     awaitingReplicaBadge: 'replica',
     awaitingStatusRunning: 'running',
     awaitingStatusDone: 'done',
+    awaitingStopSpecialist: 'Stop this specialist',
     awaitingWaveSublabel: 'Specialists working in isolated worktrees',
     delegationEmptySummary: '(empty response)',
     delegationAbortedSummary: 'Delegation cancelled',

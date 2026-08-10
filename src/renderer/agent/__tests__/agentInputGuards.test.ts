@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canDrainAgentQueue, isAgentHumanInputBlocked } from '../agentInputGuards'
+import { canDrainAgentQueue, isAgentHumanInputBlocked, shouldShowComposerStop } from '../agentInputGuards'
 
 const idleBase = {
   loaded: true,
@@ -96,5 +96,20 @@ describe('agent input anti-collision guards', () => {
       delegationWorkActive: true,
       headIsDelegation: true,
     })).toBe(false)
+  })
+})
+
+describe('shouldShowComposerStop', () => {
+  it('ignores awaitingDelegations for the red Composer Stop', () => {
+    expect(shouldShowComposerStop({
+      loopActive: false,
+      busy: false,
+      awaitingDelegations: true,
+    })).toBe(false)
+  })
+
+  it('shows Stop for own busy or local loop', () => {
+    expect(shouldShowComposerStop({ loopActive: false, busy: true })).toBe(true)
+    expect(shouldShowComposerStop({ loopActive: true, busy: false })).toBe(true)
   })
 })

@@ -4,6 +4,16 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.34.0
+
+- **Stop del composer solo en turno propio** (busy / loop): ya no aparece rojo
+  solo por esperar delegaciones.
+- **En Waiting, cada especialista tiene su Stop**: cancela solo esa delegación;
+  el resto de la ola sigue.
+- **Brainstorm en chat con burbujas**, turnos cortos (2–4 frases) y sin
+  tools/contextos/skills en el CLI.
+- **Sonido al arrancar el dictado** push-to-talk.
+
 ## v0.33.0
 
 - **El modal de Ajustes tiene altura fija**: al cambiar de sección ya no crece

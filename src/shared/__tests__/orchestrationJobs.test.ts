@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   awaitingOrchestratorPaneIds,
+  abortOneDelegationInJob,
   createOrchestrationJob,
   findJobByDelegation,
   flattenAwaitingItemsFromJobs,
@@ -112,6 +113,7 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
     const items = flattenAwaitingItemsFromJobs([j1, j2])
     expect(items.map(item => item.delegationId)).toEqual(['d1', 'd2'])
     expect(items.every(item => item.status === 'running')).toBe(true)
+    expect(items.map(item => item.toPaneId)).toEqual(['pane-a', 'pane-b'])
   })
 
   it('tracks awaiting and pending orchestrator panes', () => {
@@ -127,5 +129,46 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
 
     expect([...awaitingOrchestratorPaneIds(byPane)]).toEqual(['orch-1'])
     expect([...pendingOrchestratorIdsFromJobs(byPane)]).toEqual(['orch-1'])
+  })
+})
+
+describe('abortOneDelegationInJob', () => {
+  it('removes one pending item and leaves the other', () => {
+    const job = jobWithPending('orch', 'd1', 'pane-a')
+    job.pending.set('d2', { toPaneId: 'pane-b', toAgentId: 'backend' })
+    job.waveItems.push({
+      delegationId: 'd2',
+      toAgentId: 'backend',
+      status: 'running',
+    })
+    const result = abortOneDelegationInJob(job, 'd1')
+    expect(result).toMatchObject({
+      ok: true,
+      wasPending: true,
+      toPaneId: 'pane-a',
+      remainingPending: 1,
+    })
+    expect(job.pending.has('d1')).toBe(false)
+    expect(job.pending.has('d2')).toBe(true)
+    expect(job.waveItems.map(item => item.delegationId)).toEqual(['d2'])
+  })
+
+  it('removes deferred-only delegation without touching other pending', () => {
+    const job = jobWithPending('orch', 'd1', 'pane-a')
+    job.deferred.push({
+      tabId: 't',
+      delegation: { id: 'd3', toAgentId: 'qa', objective: 'x' },
+      toPaneId: 'pane-qa',
+      toAgentId: 'qa',
+    })
+    const result = abortOneDelegationInJob(job, 'd3')
+    expect(result).toMatchObject({
+      ok: true,
+      wasDeferred: true,
+      toPaneId: 'pane-qa',
+      remainingPending: 1,
+      remainingDeferred: 0,
+    })
+    expect(job.pending.has('d1')).toBe(true)
   })
 })

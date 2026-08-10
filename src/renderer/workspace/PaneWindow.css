@@ -164,6 +164,8 @@
   position: absolute;
   min-width: 320px;
   min-height: 200px;
+  /* Borde neutro tenue en reposo; accent al enfocar. */
+  border-color: color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: var(--plane-radius-sm);
   box-shadow:
     var(--plane-shadow),
@@ -171,6 +173,7 @@
 }
 
 .pane-window--full.pane-window--focused {
+  border-color: var(--accent);
   box-shadow:
     var(--plane-shadow),
     0 0 0 0.5px color-mix(in srgb, #000 18%, transparent),
@@ -197,7 +200,7 @@
   min-width: 0;
   min-height: 0;
   border-radius: var(--plane-radius-sm);
-  border-color: var(--plane-border);
+  border-color: transparent;
   background: var(--plane-node-solid);
   box-shadow: var(--plane-shadow-soft), inset 0 0 0 1px var(--plane-highlight);
   cursor: pointer;
@@ -272,7 +275,8 @@
 
 .pane-window--agent-card.pane-window--mini {
   border-radius: var(--plane-radius-sm);
-  border: none;
+  /* Huella 1px real; borde neutro tenue (accent al activar). */
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   background: var(--plane-glass-strong);
   /* Sin anillo inset del .pane-window base: la card se lee sin borde. */
   box-shadow: none;
@@ -283,11 +287,13 @@
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.16s,
     box-shadow 0.16s,
     filter 0.16s;
 }
 
 .pane-window--agent-card.pane-window--mini:hover {
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
   box-shadow: none;
 }
 
@@ -320,11 +326,12 @@
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.16s,
     box-shadow 0.16s,
     filter 0.16s;
 }
 
-/* Chat activo: anillo accent vía box-shadow (.plane-chat-active, ver PlaneChatActive.css). */
+/* Activo mini terminal: sin borde accent (ver PlaneChatActive.css). */
 
 /* Terminal mini sin chrome (legacy bare). Con titlebar macOS usa el marco normal. */
 .pane-window--mini-bare:not(.pane-window--agent-card) {
@@ -349,7 +356,7 @@
 
 /* Terminal mini con titlebar: mismo footprint que la card de agente. */
 .pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare) {
-  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+  border-color: color-mix(in srgb, var(--border) 32%, transparent);
   background: var(--plane-glass-strong);
   box-shadow:
     var(--plane-shadow-soft),
@@ -359,21 +366,21 @@
   position: absolute;
 }
 
-.pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare):hover {
-  border-color: color-mix(in srgb, var(--border) 72%, var(--text-muted));
+.pane-window--mini.pane-window--mini-preview:not(.pane-window--mini-bare):hover:not(.plane-chat-active) {
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
   filter: brightness(1.04);
 }
 
 /* Terminal mini: mismo lenguaje neutro elevado (legacy; preferir mini-preview). */
 .pane-window--mini:not(.pane-window--agent-card):not(.pane-window--mini-preview):not(.pane-window--mini-bare) {
-  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+  border-color: color-mix(in srgb, var(--border) 32%, transparent);
   box-shadow:
     var(--plane-shadow-soft),
     inset 0 0 0 1px var(--plane-highlight);
 }
 
-.pane-window--mini:not(.pane-window--agent-card):not(.pane-window--mini-preview):not(.pane-window--mini-bare):hover {
-  border-color: color-mix(in srgb, var(--border) 72%, var(--text-muted));
+.pane-window--mini:not(.pane-window--agent-card):not(.pane-window--mini-preview):not(.pane-window--mini-bare):hover:not(.plane-chat-active) {
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
   filter: brightness(1.04);
 }
 
@@ -427,8 +434,8 @@
   filter: brightness(1.08);
 }
 
+/* Focused genérico: no pinta borde; full abierta activa usa --accent arriba. */
 .pane-window--focused {
-  border-color: color-mix(in srgb, var(--border) 80%, transparent);
   box-shadow:
     var(--plane-shadow),
     0 0 0 0.5px color-mix(in srgb, #000 25%, transparent),
@@ -624,7 +631,7 @@
 }
 
 .pane-window--mini-bare {
-  border-color: var(--plane-border);
+  border-color: transparent;
   box-shadow: var(--plane-shadow-soft), inset 0 0 0 1px var(--plane-highlight);
 }
 

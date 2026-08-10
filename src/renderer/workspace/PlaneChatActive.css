@@ -1,15 +1,22 @@
 /*
- * Chat activo: borde sólido de un color del tema.
+ * Activo mini / chat: borde sólido accent del tema.
  * Ortogonal al PlaneBusyDot multicolor.
+ * Terminales: accent solo en full abierta (.pane-window--focused); mini no.
  */
 .plane-chat-active {
   border-color: var(--accent);
 }
 
-/* Cards: ganan a .pane-window--agent-card.pane-window--mini (sin border). */
+/* Cards de agente: borde accent real (huella 1px transparente en reposo). */
 .pane-window--agent-card.pane-window--mini.plane-chat-active,
 .pane-window--agent-card.pane-window--mini.plane-chat-active:hover {
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--accent);
+}
+
+/* Consolas mini activas (cerradas): sin borde accent; ganan a .plane-chat-active. */
+.pane-window--mini-preview.pane-window--mini-active.plane-chat-active,
+.pane-window--mini-preview.pane-window--mini-active.plane-chat-active:hover {
+  border-color: transparent;
 }
 
 /* Loop cards: ganan a hover selectable. */

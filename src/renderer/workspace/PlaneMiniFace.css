@@ -185,13 +185,19 @@
   flex: 0 0 auto;
 }
 
-/* Superficie interna del estado/stream: limpia, sin borde. */
+/* Cápsula del estado: superficie sutil theme-aware. */
 .plane-mini-face__status-surface {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
-  border: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
   outline: none;
   box-shadow: none;
-  background: transparent;
 }
 
 .plane-mini-face__name {
@@ -217,7 +223,7 @@
   min-width: 0;
   font-family: var(--font-ui);
   font-size: 10px;
-  line-height: 1.3;
+  line-height: 1.25;
   color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
 }
 
@@ -254,6 +260,10 @@
 
 .plane-mini-face--compact .plane-mini-face__monogram {
   font-size: 10.5px;
+}
+
+.plane-mini-face--compact .plane-mini-face__status-surface {
+  padding: 1px 6px;
 }
 
 .plane-mini-face--compact .plane-mini-face__status {

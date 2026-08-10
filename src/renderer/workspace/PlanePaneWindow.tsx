@@ -155,6 +155,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         focused={paneId === activePaneId && isExpanded}
         busy={busy}
         chatActive={isAgent && chatActive}
+        miniActive={!isAgent && paneId === activePaneId && !isExpanded}
         maximizeLabel={maximizeLabel}
         restoreLabel={restoreLabel}
         closeLabel={closeWindowLabel}

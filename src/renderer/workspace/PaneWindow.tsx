@@ -228,6 +228,8 @@ export interface PaneWindowProps {
   busy?: boolean
   /** Mini agente: chat abierto en el plano (selección estática, ortogonal a busy). */
   chatActive?: boolean
+  /** Mini consola/terminal seleccionada o activa (no es chat). */
+  miniActive?: boolean
   maximizeLabel: string
   restoreLabel: string
   closeLabel: string
@@ -279,6 +281,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   focused = false,
   busy = false,
   chatActive = false,
+  miniActive = false,
   maximizeLabel,
   restoreLabel,
   closeLabel,
@@ -700,6 +703,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         focused ? 'pane-window--focused' : '',
         busy ? 'pane-window--busy' : '',
         showAsMini && miniAgentCard && chatActive ? 'pane-window--chat-active plane-chat-active' : '',
+        showAsMini && miniActive ? 'pane-window--mini-active plane-chat-active' : '',
         contextDropActive ? 'pane-window--context-drop' : '',
         showAsMini && reorderState === 'jiggle' ? 'pane-window--reorder-jiggle' : '',
         showAsMini && reorderState === 'dragging' ? 'pane-window--reorder-dragging' : '',

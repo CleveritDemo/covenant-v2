@@ -19,13 +19,12 @@
   line-height: 1.15;
 }
 
-/* Separador sutil entre contextos normales y resultados. */
+/* Spacer entre contextos normales y resultados (misma medida que status → nodos). */
 .plane-agent-context-nodes__sep {
   flex: 0 0 auto;
-  height: 0;
-  margin: 5px 8px;
+  height: var(--plane-mini-face-section-gap, 6px);
+  margin: 0;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--plane-border, var(--border)) 50%, transparent);
   list-style: none;
   pointer-events: none;
 }

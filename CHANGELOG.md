@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.28.0
+
+- **El dictado push-to-talk cierra bien al soltar**: el helper macOS espera el
+  resultado final en vez de cancelar a medias, y si no hubo voz avisa en lugar
+  de no hacer nada.
+
 ## v0.27.0
 
 - **El dictado del composer usa el reconocimiento de voz de macOS**

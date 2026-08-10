@@ -167,6 +167,33 @@ describe('DictationRuntime', () => {
     runtime.dispose()
   })
 
+  it('uses lastPartial when final text is empty', async () => {
+    const { proc, stdout } = mockHelperProcess()
+    // Override STOP to emit empty final after a partial.
+    proc.stdin.write = (chunk: string) => {
+      const line = chunk.trim()
+      if (line.startsWith('START')) {
+        stdout.emit('data', `${JSON.stringify({ type: 'started' })}\n`)
+        stdout.emit('data', `${JSON.stringify({ type: 'partial', text: 'desde partial' })}\n`)
+      } else if (line === 'STOP') {
+        stdout.emit('data', `${JSON.stringify({ type: 'final', text: '' })}\n`)
+        stdout.emit('data', `${JSON.stringify({ type: 'stopped' })}\n`)
+      }
+      return true
+    }
+    const runtime = new DictationRuntime({
+      platform: 'darwin',
+      resolveHelperPath: () => '/tmp/gravity-mac-dictation',
+      askMicrophoneAccess: async () => true,
+      spawnHelper: () => proc as never,
+    })
+    await runtime.start('es-ES')
+    const stopped = await runtime.stop()
+    expect(stopped.ok).toBe(true)
+    expect(stopped.text).toBe('desde partial')
+    runtime.dispose()
+  })
+
   it('maps mic denial to permission-denied', async () => {
     const runtime = new DictationRuntime({
       platform: 'darwin',

@@ -140,6 +140,7 @@ const es = {
     dictationUnsupported: 'Dictado no disponible en esta plataforma',
     dictationPermissionDenied: 'Permiso de micrófono denegado',
     dictationUnavailableElectron: 'El dictado no está disponible en Electron',
+    dictationNoSpeech: 'No se detectó voz; mantén pulsado e inténtalo',
     dictationError: 'El dictado falló; inténtalo de nuevo',
     removeImage: 'Quitar imagen',
     imagesAttached: '{{n}} imagen(es) adjunta(s)',

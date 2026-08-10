@@ -231,12 +231,13 @@ export class DictationRuntime {
         this.sessionActive = false
         this.clearStopWaiters()
         resolve({ ok: true, text })
-      }, 8_000)
+      }, 2_500)
 
       this.stopWaiters.push(text => {
         clearTimeout(timer)
         this.sessionActive = false
-        resolve({ ok: true, text })
+        const finalText = (text.trim() || this.lastPartial).trim()
+        resolve({ ok: true, text: finalText })
       })
       this.writeCommand('STOP')
     })
@@ -303,11 +304,13 @@ export class DictationRuntime {
         this.lastPartial = event.text
         this.emit(IPC.DICTATION_PARTIAL, event.text)
         break
-      case 'final':
-        this.lastPartial = event.text
-        this.resolveStopWaiters(event.text.trim())
-        this.emit(IPC.DICTATION_RESULT, event.text.trim())
+      case 'final': {
+        const text = (event.text.trim() || this.lastPartial).trim()
+        this.lastPartial = text
+        this.resolveStopWaiters(text)
+        this.emit(IPC.DICTATION_RESULT, text)
         break
+      }
       case 'stopped':
         if (this.stopWaiters.length) {
           this.resolveStopWaiters(this.lastPartial.trim())

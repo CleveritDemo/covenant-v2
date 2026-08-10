@@ -291,6 +291,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
     if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
     if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
+    if (kind === 'noSpeech') return t('agentPane.dictationNoSpeech')
     return t('agentPane.dictationError')
   }, [t])
 

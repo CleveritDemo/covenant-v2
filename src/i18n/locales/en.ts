@@ -138,6 +138,7 @@ const en = {
     dictationUnsupported: 'Dictation is not available on this platform',
     dictationPermissionDenied: 'Microphone permission denied',
     dictationUnavailableElectron: 'Dictation is not available in Electron',
+    dictationNoSpeech: 'No speech detected; hold and try again',
     dictationError: 'Dictation failed; try again',
     removeImage: 'Remove image',
     imagesAttached: '{{n}} attached image(s)',

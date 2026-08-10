@@ -61,6 +61,24 @@ export function usePushToTalkSpeech(
     onErrorRef.current?.(code)
   }, [])
 
+  const deliverStopResult = useCallback((stopResult: {
+    ok?: boolean
+    text?: string
+    error?: string
+  } | null | undefined) => {
+    setListening(false)
+    if (!stopResult?.ok) {
+      if (stopResult?.error) reportError(stopResult.error)
+      return
+    }
+    const text = stopResult.text?.replace(/\s+/g, ' ').trim() ?? ''
+    if (text) {
+      onTranscriptRef.current(text)
+      return
+    }
+    reportError('no-speech')
+  }, [reportError])
+
   useEffect(() => {
     let cancelled = false
     const api = window.api
@@ -104,15 +122,7 @@ export function usePushToTalkSpeech(
       startingRef.current = false
       if (!wantListenRef.current) {
         // Soltó antes de que arrancara: parar ya.
-        void window.api.dictationStop().then(stopResult => {
-          setListening(false)
-          if (!stopResult?.ok) {
-            if (stopResult?.error) reportError(stopResult.error)
-            return
-          }
-          const text = stopResult.text?.replace(/\s+/g, ' ').trim() ?? ''
-          if (text) onTranscriptRef.current(text)
-        }).catch(() => setListening(false))
+        void window.api.dictationStop().then(deliverStopResult).catch(() => setListening(false))
         return
       }
       if (!result?.ok) {
@@ -126,7 +136,7 @@ export function usePushToTalkSpeech(
       setListening(false)
       reportError('start-failed')
     })
-  }, [lang, reportError])
+  }, [deliverStopResult, lang, reportError])
 
   const stop = useCallback(() => {
     if (!wantListenRef.current && !startingRef.current) return
@@ -135,19 +145,11 @@ export function usePushToTalkSpeech(
       // start() en vuelo: él hará stop al resolver.
       return
     }
-    void window.api.dictationStop().then(result => {
-      setListening(false)
-      if (!result?.ok) {
-        if (result?.error) reportError(result.error)
-        return
-      }
-      const text = result.text?.replace(/\s+/g, ' ').trim() ?? ''
-      if (text) onTranscriptRef.current(text)
-    }).catch(() => {
+    void window.api.dictationStop().then(deliverStopResult).catch(() => {
       setListening(false)
       reportError('error')
     })
-  }, [reportError])
+  }, [deliverStopResult, reportError])
 
   return { supported, listening, start, stop }
 }

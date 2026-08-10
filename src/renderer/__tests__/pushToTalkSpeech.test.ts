@@ -55,8 +55,8 @@ describe('classifyDictationError', () => {
     expect(classifyDictationError('not-allowed')).toBe('permission')
   })
 
-  it('maps helper-missing to unsupported', () => {
-    expect(classifyDictationError('helper-missing')).toBe('unsupported')
+  it('maps no-speech to noSpeech', () => {
+    expect(classifyDictationError('no-speech')).toBe('noSpeech')
   })
 })
 
@@ -118,10 +118,11 @@ describe('usePushToTalkSpeech', () => {
     })
   })
 
-  it('stop() without speech does not call onTranscript', async () => {
+  it('stop() without speech calls onError no-speech', async () => {
     const api = installDictationApi()
     const onTranscript = vi.fn()
-    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript }))
+    const onError = vi.fn()
+    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript, onError }))
 
     act(() => {
       result.current.start()
@@ -137,8 +138,39 @@ describe('usePushToTalkSpeech', () => {
 
     await waitFor(() => {
       expect(result.current.listening).toBe(false)
+      expect(onError).toHaveBeenCalledWith('no-speech')
     })
     expect(onTranscript).not.toHaveBeenCalled()
+  })
+
+  it('stop() with transcript still calls onTranscript (not no-speech)', async () => {
+    const api = installDictationApi({
+      dictationStop: vi.fn(async () => ({
+        ok: true,
+        text: 'hola',
+      })),
+    })
+    const onTranscript = vi.fn()
+    const onError = vi.fn()
+    const { result } = renderHook(() => usePushToTalkSpeech({ onTranscript, onError }))
+
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(api.dictationStart).toHaveBeenCalled())
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    act(() => {
+      result.current.stop()
+    })
+
+    await waitFor(() => {
+      expect(onTranscript).toHaveBeenCalledWith('hola')
+      expect(result.current.listening).toBe(false)
+    })
+    expect(onError).not.toHaveBeenCalled()
   })
 
   it('unsupported start() reports onError without crashing', () => {

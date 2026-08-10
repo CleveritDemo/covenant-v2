@@ -7,12 +7,14 @@ export type DictationUiErrorKind =
   | 'unsupported'
   | 'permission'
   | 'electronUnavailable'
+  | 'noSpeech'
   | 'generic'
 
 /** Clasifica códigos IPC/legacy (p. ej. `network` de Web Speech) para i18n. */
 export function classifyDictationError(code: string): DictationUiErrorKind {
   const normalized = code.trim().toLowerCase()
   if (normalized === 'network') return 'electronUnavailable'
+  if (normalized === 'no-speech') return 'noSpeech'
   if (
     normalized === 'unsupported'
     || normalized === 'start-failed'
@@ -33,9 +35,5 @@ export function classifyDictationError(code: string): DictationUiErrorKind {
 
 export function isIgnorableDictationError(code: string): boolean {
   const normalized = code.trim().toLowerCase()
-  return (
-    normalized === 'aborted'
-    || normalized === 'no-speech'
-    || normalized === 'not-running'
-  )
+  return normalized === 'aborted' || normalized === 'not-running'
 }

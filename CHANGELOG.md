@@ -4,6 +4,29 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.25.0
+
+- **Las hojas de cálculo entran como contexto.** Si tu PO entrega las historias
+  de usuario en XLSX (o CSV), ahora se elige como tipo de contexto y llega al
+  agente como una tabla por hoja, sin convertir nada a mano. Se cortan las hojas
+  muy largas y se avisa cuántas filas quedaron fuera.
+- **El panel de MCP de cada agente ya se explica solo.** Dice de qué archivo sale
+  la lista, avisa cuando tu proyecto declara servidores que ese CLI no lee y a
+  dónde hay que copiarlos, aclara que no marcar nada significa *sin acotar* (más
+  acceso, no menos) y explica qué hace marcar en cada CLI.
+- **Botón para crear el archivo de MCP que falta**, con las carpetas y un
+  `mcpServers` vacío, en vez de mandarte a un archivo que no existe. Nunca
+  sobrescribe uno que ya está.
+- **Los contextos MCP recuperan su ícono propio** en lugar del de terminal.
+- **Buscador en Ajustes.** Escribe y salta a la sección: ignora acentos y
+  encuentra por etiquetas que no se ven («fuente» lleva a Tipografía, «rich
+  presence» a Discord).
+- **El modal de Ajustes ya no cambia de alto** al cambiar de sección.
+- **El texto del chrome deja de quedarse resaltado** al arrastrar ventanas del
+  plano o pulsar chips.
+- **Más aire en «New context»**: los títulos de sección se separan de su
+  contenido, y la lista de servidores MCP ya no va apelmazada.
+
 ## v0.24.0
 
 - **El indicador de ola del orquestador (Waiting X/Y) es más compacto**: título

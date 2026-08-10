@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useCallback, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
+import { usePushToTalkSpeech } from '../pushToTalkSpeech'
 import { AgentPaneAttachmentRemove } from './AgentPaneAttachmentRemove'
 import { AgentPaneSendButton } from './AgentPaneSendButton'
 
@@ -30,6 +31,8 @@ export interface AgentPaneFooterProps {
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onRemovePendingImage: (id: string) => void
   onSendClick: () => void
+  /** Envía texto dictado (mismo path que send). */
+  onDictateSend: (text: string) => void
 }
 
 export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
@@ -51,14 +54,22 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   onComposerKeyDown,
   onRemovePendingImage,
   onSendClick,
+  onDictateSend,
 }) => {
-  const { t } = useT()
-  const sendMode = showStop ? 'stop' : showPlay ? 'play' : 'send'
+  const { t, i18n } = useT()
+  const [dictationError, setDictationError] = useState('')
+  const sendMode = showStop
+    ? 'stop'
+    : showPlay
+      ? 'play'
+      : (!input.trim() && pendingImages.length === 0 ? 'mic' : 'send')
   const sendLabel = showStop
     ? t('agentPane.stop')
     : showPlay
       ? t('agentPane.loopStart')
-      : t('agentPane.send')
+      : sendMode === 'mic'
+        ? t('agentPane.dictationHold')
+        : t('agentPane.send')
   const turboAwaitingOpen = orchestrationWorkStyle === 'turbo'
     && awaitingDelegations
     && !busy
@@ -69,6 +80,28 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
       : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
         ? t('agentPane.queuePlaceholder')
         : t('agentPane.placeholder')
+
+  const mapDictationError = useCallback((code: string): string => {
+    if (code === 'unsupported' || code === 'start-failed') {
+      return t('agentPane.dictationUnsupported')
+    }
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      return t('agentPane.dictationPermissionDenied')
+    }
+    return t('agentPane.dictationError')
+  }, [t])
+
+  const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
+  const { listening, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
+    lang: speechLang,
+    onTranscript: onDictateSend,
+    onError: code => {
+      setDictationError(mapDictationError(code))
+      window.setTimeout(() => setDictationError(''), 4000)
+    },
+  })
+
+  const micLabel = listening ? t('agentPane.dictationListening') : sendLabel
 
   return (
     <div className="agent-pane__footer agent-pane__footer--chat-only">
@@ -101,11 +134,17 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
         />
         <AgentPaneSendButton
           mode={sendMode}
-          label={sendLabel}
+          label={sendMode === 'mic' ? micLabel : sendLabel}
+          listening={listening}
           disabled={composerDisabled && !showStop && !showPlay}
           onClick={onSendClick}
+          onMicStart={startDictation}
+          onMicStop={stopDictation}
         />
       </div>
+      {dictationError ? (
+        <p className="agent-pane__dictation-error" role="status">{dictationError}</p>
+      ) : null}
     </div>
   )
 }

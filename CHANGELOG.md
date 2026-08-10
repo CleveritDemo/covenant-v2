@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.26.0
+
+- **Dictado por voz en el composer (push-to-talk).** Si no hay texto, el botón
+  de enviar es un micrófono: mantén pulsado para capturar con el reconocimiento
+  de voz del sistema y, al soltar, se envía lo que dijiste.
+
 ## v0.25.0
 
 - **Las hojas de cálculo entran como contexto.** Si tu PO entrega las historias

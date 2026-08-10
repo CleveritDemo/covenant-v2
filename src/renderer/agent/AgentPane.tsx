@@ -1596,8 +1596,8 @@ export const AgentPane: React.FC<Props> = ({
   }, [dispatchMessage, finishLoop])
   runLoopIterationRef.current = runLoopIteration
 
-  const send = useCallback((): void => {
-    const prompt = input.trim()
+  const send = useCallback((overrideText?: string): void => {
+    const prompt = (overrideText ?? input).trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
     if (!canStartHumanTurnNow && queuedTurns.length >= MAX_QUEUED_TURNS) return
     onRequestPaneFocus()
@@ -2167,8 +2167,12 @@ export const AgentPane: React.FC<Props> = ({
     if (buttonIsStop) stop()
     else if (showPlay) startLoop()
     else if (hasComposerPayload) send()
-    else send()
   }, [buttonIsStop, hasComposerPayload, send, showPlay, startLoop, stop])
+
+  const handleDictateSend = useCallback((text: string): void => {
+    if (buttonIsStop || showPlay) return
+    send(text)
+  }, [buttonIsStop, send, showPlay])
 
   return (
     <div
@@ -2230,6 +2234,7 @@ export const AgentPane: React.FC<Props> = ({
             onComposerKeyDown={handleComposerKeyDown}
             onRemovePendingImage={removePendingImage}
             onSendClick={handleSendClick}
+            onDictateSend={handleDictateSend}
           />
         </>
       ) : null}

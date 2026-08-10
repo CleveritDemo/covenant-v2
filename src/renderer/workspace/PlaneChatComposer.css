@@ -537,6 +537,29 @@ html[data-reduce-motion="true"] {
   box-shadow: 0 2px 10px rgba(229, 72, 77, 0.35);
 }
 
+.plane-chat-composer__send--mic {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--plane-composer-accent) 75%, var(--surface)),
+    color-mix(in srgb, var(--plane-composer-accent) 45%, #5b8def)
+  );
+}
+
+.plane-chat-composer__send--listening {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--plane-composer-accent) 35%, transparent),
+    0 2px 12px color-mix(in srgb, var(--plane-composer-accent) 40%, transparent);
+}
+
+.plane-chat-composer__dictation-error {
+  margin: 6px 0 0;
+  padding: 0 4px;
+  color: var(--danger, #e5484d);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-align: center;
+}
+
 .plane-chat-composer__repos {
   display: flex;
   flex-wrap: wrap;

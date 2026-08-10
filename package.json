@@ -1,6 +1,6 @@
 {
   "name": "gravity",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Terminal como orquestador de agentes de IA",
   "author": "karluiz <karluiz@karluiz.com>",
   "main": "out/main/main.js",
@@ -91,6 +91,10 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Gravity necesita el micrófono para el dictado por voz (push-to-talk) en el composer de agentes.",
+        "NSSpeechRecognitionUsageDescription": "Gravity usa el reconocimiento de voz del sistema para convertir tu dictado en texto en el composer."
+      },
       "artifactName": "Covenant-Gravity-${version}-${arch}-mac.${ext}",
       "target": [
         {

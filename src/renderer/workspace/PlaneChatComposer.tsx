@@ -25,6 +25,7 @@ import { PlaneChatSendButton } from './PlaneChatSendButton'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
+import { usePushToTalkSpeech } from '../pushToTalkSpeech'
 import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
@@ -112,9 +113,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   onOpenRepoGit,
   onRefreshRepos,
 }) => {
-  const { t } = useT()
+  const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
+  const [dictationError, setDictationError] = useState('')
   /**
    * Contextos adjuntos a ESTE turno. No tocan el catálogo del agente: se envían
    * con el mensaje y se limpian, igual que las imágenes pegadas.
@@ -263,8 +265,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     ))
   }, [contexts])
 
-  const submit = (): void => {
-    const text = draft.trim()
+  const submit = useCallback((overrideText?: string): void => {
+    const text = (overrideText ?? draft).trim()
     if (!selected || composerLocked || (!text && pendingImages.length === 0)) return
     const imagesSnapshot = pendingImages
     const contextIdsSnapshot = pendingContextIds
@@ -275,7 +277,37 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
       onSend(selected.paneId, text, attachments, contextIdsSnapshot)
     })
-  }
+  }, [
+    composerLocked,
+    draft,
+    onSend,
+    pendingContextIds,
+    pendingImages,
+    selected,
+  ])
+
+  const mapDictationError = useCallback((code: string): string => {
+    if (code === 'unsupported' || code === 'start-failed') {
+      return t('agentPane.dictationUnsupported')
+    }
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      return t('agentPane.dictationPermissionDenied')
+    }
+    return t('agentPane.dictationError')
+  }, [t])
+
+  const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
+  const { listening, start: startDictation, stop: stopDictation } =
+    usePushToTalkSpeech({
+      lang: speechLang,
+      onTranscript: text => {
+        submit(text)
+      },
+      onError: code => {
+        setDictationError(mapDictationError(code))
+        window.setTimeout(() => setDictationError(''), 4000)
+      },
+    })
 
   const handleSendClick = (): void => {
     if (buttonIsStop && selected) {
@@ -284,6 +316,14 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     }
     if (canSend) submit()
   }
+
+  const micMode = Boolean(
+    selected
+    && !buttonIsStop
+    && !composerLocked
+    && !draft.trim()
+    && pendingImages.length === 0,
+  )
 
   return (
     <>
@@ -454,11 +494,26 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             }}
           />
           <PlaneChatSendButton
-            mode={buttonIsStop ? 'stop' : 'send'}
-            label={buttonIsStop ? t('agentPane.stop') : sendLabel}
-            disabled={!buttonIsStop && !canSend}
+            mode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
+            label={
+              buttonIsStop
+                ? t('agentPane.stop')
+                : micMode
+                  ? (listening ? t('agentPane.dictationListening') : t('agentPane.dictationHold'))
+                  : sendLabel
+            }
+            listening={listening}
+            disabled={!buttonIsStop && !micMode && !canSend}
             onClick={handleSendClick}
-          />        </div>
+            onMicStart={startDictation}
+            onMicStop={stopDictation}
+          />
+        </div>
+        {dictationError ? (
+          <p className="plane-chat-composer__dictation-error" role="status">
+            {dictationError}
+          </p>
+        ) : null}
 
         {gitRepos.length > 0 && (
           <div className="plane-chat-composer__repos">

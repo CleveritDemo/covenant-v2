@@ -16,6 +16,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  session,
   shell,
 } from 'electron'
 import { config as loadDotenv } from 'dotenv'
@@ -1922,6 +1923,8 @@ function createWindow(): BrowserWindow {
     })
   })
 
+  // Mic/media: registerRendererMediaPermissions() en defaultSession (solo ventanas app).
+
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return
     if (win.webContents.isDevToolsFocused()) return
@@ -2019,11 +2022,40 @@ app.on('child-process-gone', (_e, details) => {
   }, 1000)
 })
 
+/** Mic / Web Speech en el composer: solo ventanas propias de la app. */
+function isAppRendererMediaPermission(
+  webContents: Electron.WebContents | null | undefined,
+  permission: string,
+): boolean {
+  if (permission !== 'media' && permission !== 'microphone') return false
+  if (!webContents || webContents.isDestroyed()) return false
+  return BrowserWindow.fromWebContents(webContents) != null
+}
+
+function registerRendererMediaPermissions(): void {
+  const ses = session.defaultSession
+  ses.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone') {
+      callback(isAppRendererMediaPermission(webContents, permission))
+      return
+    }
+    // Resto: criterio permisivo previo (sin handler global restrictivo).
+    callback(true)
+  })
+  ses.setPermissionCheckHandler((webContents, permission) => {
+    if (permission === 'media' || permission === 'microphone') {
+      return isAppRendererMediaPermission(webContents, permission)
+    }
+    return true
+  })
+}
+
 app.whenReady().then(() => {
   // Dock/Finder/Explorer no heredan el PATH del shell; sin esto spawn(CLI) → ENOENT/-4058.
   applyLoginShellPath()
   applyAppBranding()
   initCovenantSession()
+  registerRendererMediaPermissions()
   // Los eventos LSP se emiten a TODAS las ventanas: el mux del preload filtra
   // por serverId, así que una ventana sin ese server simplemente los ignora.
   initLspEngine({

@@ -1048,6 +1048,28 @@ html[data-reduce-motion="true"] {
   box-shadow: 0 2px 10px rgba(229, 72, 77, .35);
 }
 
+.agent-pane__send--mic {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 80%, var(--surface)),
+    color-mix(in srgb, var(--accent) 50%, #5b8def)
+  );
+}
+
+.agent-pane__send--listening {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 2px 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.agent-pane__dictation-error {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  color: var(--danger, #e5484d);
+  font-size: 11px;
+}
+
 .agent-pane__composer--loop textarea {
   border-color: color-mix(in srgb, var(--border) 55%, var(--text-muted));
 }

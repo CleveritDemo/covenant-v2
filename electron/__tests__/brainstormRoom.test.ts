@@ -5,6 +5,7 @@ import { join } from 'path'
 import type { ProjectAgentDefinition } from '../../src/shared/projectAgentCatalog'
 import {
   clearBrainstormRoomsForTests,
+  injectBrainstormHumanMessage,
   pauseBrainstormRoom,
   runBrainstormSequence,
   startBrainstormRoom,
@@ -115,6 +116,37 @@ describe('runBrainstormSequence', () => {
     expect(final.messages).toHaveLength(0)
     expect(events.some(e => e.type === 'speaker_final')).toBe(false)
     expect(events.some(e => e.type === 'status' && e.status === 'stopped')).toBe(false)
+  })
+
+  it('flushes pending human messages after speaker_final before next turn', async () => {
+    const room = createBrainstormRoom('Theme', ['alpha', 'beta'], 1)!
+    const agents = new Map([
+      ['alpha', agent('alpha', 'Alpha')],
+      ['beta', agent('beta', 'Beta')],
+    ])
+    const events: BrainstormEvent[] = []
+    const pending: string[] = []
+    const prompts: string[] = []
+
+    const final = await runBrainstormSequence(room, {
+      roomId: room.id,
+      isStale: () => false,
+      resolveAgent: id => agents.get(id) ?? null,
+      emit: event => events.push(event),
+      drainPendingHumanMessages: () => pending.splice(0),
+      runSpeakerTurn: async input => {
+        if (input.agent.id === 'alpha') pending.push('Human nudge')
+        prompts.push(input.prompt)
+        return { ok: true, text: `${input.agent.id} ok` }
+      },
+    })
+
+    expect(final.messages.map(m => m.agentId)).toEqual(['alpha', 'human', 'beta'])
+    expect(events.filter(e => e.type === 'human_message')).toEqual([
+      { type: 'human_message', text: 'Human nudge', round: 0 },
+    ])
+    expect(prompts[0]).not.toContain('Human nudge')
+    expect(prompts[1]).toContain('Human (human): Human nudge')
   })
 })
 
@@ -241,7 +273,7 @@ describe('startBrainstormRoom resume', () => {
     expect(speakers[0]).toBe('beta')
     expect(prompts[0]).toContain('Prior alpha point')
     expect(prompts[0]).toContain('Alpha (round 0): Prior alpha point')
-    expect(prompts[0]).toMatch(/2–4 short sentences|80–120 words/i)
+    expect(prompts[0]).toMatch(/≤50 words|<=50 words/i)
   })
 
   it('reuses prior cliSessions for the same roomId on resume', async () => {
@@ -342,5 +374,161 @@ describe('startBrainstormRoom resume', () => {
       },
     )
     expect(result).toEqual({ ok: false, error: 'No se pudo reanudar la sala' })
+  })
+})
+
+describe('injectBrainstormHumanMessage', () => {
+  it('queues while running and appends after speaker_final', async () => {
+    const win = fakeWindow(10)
+    const events: BrainstormEvent[] = []
+    win.webContents.send = ((_channel: string, _roomId: string, event: BrainstormEvent) => {
+      events.push(event)
+    }) as typeof win.webContents.send
+
+    let release: ((result: BrainstormSpeakerTurnResult) => void) | null = null
+    const started = startBrainstormRoom(
+      win,
+      {
+        roomId: 'human-run',
+        topic: 'Latency',
+        participantAgentIds: ['alpha', 'beta'],
+        maxRounds: 1,
+        cwd: '/tmp/project',
+      },
+      baseConfig,
+      '/tmp',
+      {
+        listAgents: () => [agent('alpha', 'Alpha'), agent('beta', 'Beta')],
+        runSpeakerTurn: () => new Promise(resolve => {
+          release = resolve
+        }),
+      },
+    )
+    expect(started.ok).toBe(true)
+
+    await new Promise<void>(resolve => {
+      const tick = (): void => {
+        if (release) resolve()
+        else setTimeout(tick, 0)
+      }
+      tick()
+    })
+
+    expect(injectBrainstormHumanMessage('human-run', 'Pivot to cost', { win })).toEqual({ ok: true })
+    // Feedback live inmediato; el commit al transcript espera speaker_final.
+    expect(events.some(e => e.type === 'human_message' && e.text === 'Pivot to cost')).toBe(true)
+
+    release?.({ ok: true, text: 'alpha first' })
+    await new Promise(r => setTimeout(r, 30))
+
+    const humanEvents = events.filter(e => e.type === 'human_message' && e.text === 'Pivot to cost')
+    expect(humanEvents.length).toBeGreaterThanOrEqual(1)
+    stopBrainstormRoom('human-run')
+  })
+
+  it('persists immediately when paused and waits for resume', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-brainstorm-human-'))
+    const win = fakeWindow(11)
+    const events: BrainstormEvent[] = []
+    win.webContents.send = ((_channel: string, _roomId: string, event: BrainstormEvent) => {
+      events.push(event)
+    }) as typeof win.webContents.send
+
+    let release: ((result: BrainstormSpeakerTurnResult) => void) | null = null
+    startBrainstormRoom(
+      win,
+      {
+        roomId: 'human-pause',
+        topic: 'Cost',
+        participantAgentIds: ['alpha', 'beta'],
+        maxRounds: 2,
+        cwd,
+      },
+      baseConfig,
+      '/tmp',
+      {
+        listAgents: () => [agent('alpha', 'Alpha'), agent('beta', 'Beta')],
+        runSpeakerTurn: () => new Promise(resolve => {
+          release = resolve
+        }),
+      },
+    )
+
+    await new Promise<void>(resolve => {
+      const tick = (): void => {
+        if (release) resolve()
+        else setTimeout(tick, 0)
+      }
+      tick()
+    })
+
+    pauseBrainstormRoom('human-pause', { win, notify: true })
+    release?.({ ok: true, text: 'ignored' })
+    await new Promise(r => setTimeout(r, 20))
+
+    expect(injectBrainstormHumanMessage('human-pause', 'Hold the API', { win })).toEqual({ ok: true })
+    expect(events.some(e => e.type === 'human_message' && e.text === 'Hold the API')).toBe(true)
+
+    const { listBrainstormRooms } = await import('../brainstormCatalogOps')
+    const saved = listBrainstormRooms(cwd).find(r => r.id === 'human-pause')
+    expect(saved?.status).toBe('paused')
+    expect(saved?.messages.some(m => m.agentId === 'human' && m.text === 'Hold the API')).toBe(true)
+
+    rmSync(cwd, { recursive: true, force: true })
+  })
+
+  it('commits queued human text into transcript on stop', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-brainstorm-stop-human-'))
+    const win = fakeWindow(12)
+    const events: BrainstormEvent[] = []
+    win.webContents.send = ((_channel: string, _roomId: string, event: BrainstormEvent) => {
+      events.push(event)
+    }) as typeof win.webContents.send
+
+    let release: ((result: BrainstormSpeakerTurnResult) => void) | null = null
+    startBrainstormRoom(
+      win,
+      {
+        roomId: 'human-stop',
+        topic: 'Stop queue',
+        participantAgentIds: ['alpha', 'beta'],
+        maxRounds: 2,
+        cwd,
+      },
+      baseConfig,
+      '/tmp',
+      {
+        listAgents: () => [agent('alpha', 'Alpha'), agent('beta', 'Beta')],
+        runSpeakerTurn: () => new Promise(resolve => {
+          release = resolve
+        }),
+      },
+    )
+
+    await new Promise<void>(resolve => {
+      const tick = (): void => {
+        if (release) resolve()
+        else setTimeout(tick, 0)
+      }
+      tick()
+    })
+
+    expect(injectBrainstormHumanMessage('human-stop', 'Keep this on stop', { win })).toEqual({
+      ok: true,
+    })
+
+    stopBrainstormRoom('human-stop', { win, notify: true })
+    release?.({ ok: true, text: 'late' })
+    await new Promise(r => setTimeout(r, 20))
+
+    const { listBrainstormRooms } = await import('../brainstormCatalogOps')
+    const saved = listBrainstormRooms(cwd).find(r => r.id === 'human-stop')
+    expect(saved?.status).toBe('stopped')
+    expect(saved?.messages.some(m => m.agentId === 'human' && m.text === 'Keep this on stop')).toBe(
+      true,
+    )
+    expect(events.some(e => e.type === 'status' && e.status === 'stopped')).toBe(true)
+
+    rmSync(cwd, { recursive: true, force: true })
   })
 })

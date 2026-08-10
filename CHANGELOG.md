@@ -4,6 +4,20 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.0
+
+- **Brainstorm acepta voz humana en cualquier momento**: el mensaje entra al
+  hilo y los siguientes agentes reaccionan; al pausar o parar no se pierde lo
+  que estaba en cola.
+- **Turnos cortos del brainstorm** (hasta ~50 palabras en el prompt); si el
+  modelo se pasa, se muestra tal cual.
+- **Icono de brainstorm más claro** (burbujas de mensajes) en la barra del plano.
+- **Orquestador lineal**: espera a que cierren todas las delegaciones antes de
+  tomar el siguiente mensaje humano.
+- **Orquestador turbo**: puede tomar la cola mientras los especialistas siguen
+  trabajando; las olas previas no se abortan y cada job recibe sus propios
+  resultados.
+
 ## v0.38.0
 
 - **En workspaces org, los customs (notes) ya no se espejan en `.gravity`**:

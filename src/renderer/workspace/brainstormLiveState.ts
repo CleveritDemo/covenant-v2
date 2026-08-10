@@ -4,6 +4,11 @@ import type {
   BrainstormRoom,
   BrainstormStatus,
 } from '@shared/brainstormRoom'
+import {
+  BRAINSTORM_HUMAN_AGENT_ID,
+  BRAINSTORM_HUMAN_AGENT_NAME,
+  isBrainstormHumanMessage,
+} from '@shared/brainstormRoom'
 
 /** Estado vivo de la sala en el renderer (acumula deltas → final). */
 export interface BrainstormLiveState {
@@ -24,6 +29,18 @@ export function createInitialBrainstormLiveState(
     status: room?.status ?? 'running',
     lastError: null,
   }
+}
+
+function hasHumanMessage(
+  messages: readonly BrainstormMessage[],
+  text: string,
+  round: number,
+): boolean {
+  return messages.some(message => (
+    isBrainstormHumanMessage(message)
+    && message.text === text
+    && message.round === round
+  ))
 }
 
 /** Aplica un evento de brainstorm al estado de la vista. */
@@ -58,6 +75,22 @@ export function reduceBrainstormLiveEvent(
         ...state,
         messages: [...state.messages, message],
         streaming: null,
+      }
+    }
+    case 'human_message': {
+      if (hasHumanMessage(state.messages, event.text, event.round)) {
+        return state
+      }
+      const message: BrainstormMessage = {
+        agentId: BRAINSTORM_HUMAN_AGENT_ID,
+        agentName: BRAINSTORM_HUMAN_AGENT_NAME,
+        round: event.round,
+        text: event.text,
+        role: 'human',
+      }
+      return {
+        ...state,
+        messages: [...state.messages, message],
       }
     }
     case 'round':

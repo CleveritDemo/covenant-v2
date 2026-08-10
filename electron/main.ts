@@ -91,6 +91,7 @@ import {
   startBrainstormRoom,
   stopBrainstormRoom,
   pauseBrainstormRoom,
+  injectBrainstormHumanMessage,
   stopAllBrainstormRooms,
   stopBrainstormRoomsForWindow,
 } from './brainstormRoom'
@@ -1821,6 +1822,17 @@ function registerIpc(): void {
     if (typeof roomId !== 'string') return
     const win = BrowserWindow.fromWebContents(event.sender)
     pauseBrainstormRoom(roomId, win ? { win, notify: true } : {})
+  })
+  ipcMain.on(IPC.BRAINSTORM_INJECT_HUMAN, (event, roomId: string, text: string) => {
+    if (typeof roomId !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = injectBrainstormHumanMessage(roomId, text, win ? { win } : {})
+    if (!result.ok && win) {
+      win.webContents.send(IPC.BRAINSTORM_EVENT, roomId, {
+        type: 'error',
+        message: result.error,
+      })
+    }
   })
 
   ipcMain.on(IPC.PTY_CREATE, (event, sessionId: string, cwd?: string) => {

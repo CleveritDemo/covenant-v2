@@ -12,7 +12,9 @@ import {
   resolveOrchestrationWorkStyle,
   sanitizeOrchestrationWorkStyle,
   shouldAbortOnHumanTurn,
+  shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
+  supersedeOrchestrationJobsForHumanTurn,
   type OrchestrationJob,
 } from '../orchestrationJobs'
 import { ORCHESTRATION_UNLIMITED_ROUNDS } from '../agentOrchestration'
@@ -44,6 +46,7 @@ describe('orchestrationWorkStyle helpers', () => {
   it('aborts on human turn only in linear', () => {
     expect(shouldAbortOnHumanTurn('linear')).toBe(true)
     expect(shouldAbortOnHumanTurn('turbo')).toBe(false)
+    expect(shouldAbortOnHumanTurn()).toBe(true)
   })
 })
 
@@ -186,5 +189,41 @@ describe('abortOneDelegationInJob', () => {
       remainingDeferred: 0,
     })
     expect(job.pending.has('d1')).toBe(true)
+  })
+})
+
+describe('linear cleanup vs turbo parallel human jobs', () => {
+  it('linear supersede blocks prior job follow-up after cleanup', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const oldJob = jobWithPending('orch', 'd-old', 'pane-a')
+    oldJob.jobId = 'job-linear-old'
+    jobs.set(oldJob.jobId, oldJob)
+
+    supersedeOrchestrationJobsForHumanTurn(jobs)
+    expect(oldJob.superseded).toBe(true)
+    expect(shouldDeliverOrchestrationJobFollowUp(jobs, oldJob)).toBe(false)
+
+    jobs.clear()
+    const newJob = createOrchestrationJob('orch', 'job-linear-new')
+    jobs.set(newJob.jobId, newJob)
+    expect(shouldDeliverOrchestrationJobFollowUp(jobs, oldJob)).toBe(false)
+    expect(shouldDeliverOrchestrationJobFollowUp(jobs, newJob)).toBe(true)
+  })
+
+  it('turbo human turn keeps prior job deliverable alongside the new job', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const prior = jobWithPending('orch', 'd-old', 'pane-a')
+    prior.jobId = 'd8e89d1b'
+    jobs.set(prior.jobId, prior)
+
+    // Turbo: no supersede/abort — solo añade el job del nuevo mensaje humano.
+    expect(shouldAbortOnHumanTurn('turbo')).toBe(false)
+    const next = createOrchestrationJob('orch', 'job-new')
+    next.pending.set('d-new', { toPaneId: 'pane-b', toAgentId: 'frontend' })
+    jobs.set(next.jobId, next)
+
+    expect(shouldDeliverOrchestrationJobFollowUp(jobs, prior)).toBe(true)
+    expect(shouldDeliverOrchestrationJobFollowUp(jobs, next)).toBe(true)
+    expect(prior.superseded).toBeFalsy()
   })
 })

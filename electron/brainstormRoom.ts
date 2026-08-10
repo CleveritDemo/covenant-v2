@@ -4,6 +4,7 @@ import type { AgentCliStartRequest, AgentCliUiEvent } from '../src/shared/agentC
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import {
   advanceBrainstormCursor,
+  appendBrainstormHumanMessage,
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
   isBrainstormComplete,
@@ -61,6 +62,8 @@ interface RoomRunState {
   cwd: string
   cliSessions: Map<string, string>
   activePaneId: string | null
+  /** Mensajes humanos en cola hasta el próximo speaker_final (status running). */
+  pendingHumanMessages: string[]
 }
 
 const roomRuns = new Map<string, RoomRunState>()
@@ -178,6 +181,8 @@ export async function runBrainstormSequence(
     onRoomChange?: (room: BrainstormRoom) => void
     isStale: () => boolean
     roomId: string
+    /** Drena y limpia la cola de voz humana pendiente (tras speaker_final / entre turnos). */
+    drainPendingHumanMessages?: () => string[]
   },
 ): Promise<BrainstormRoom> {
   let room: BrainstormRoom = {
@@ -191,11 +196,38 @@ export async function runBrainstormSequence(
     deps.onRoomChange?.(room)
   }
 
+  const flushPendingHumans = (): void => {
+    const pending = deps.drainPendingHumanMessages?.() ?? []
+    for (const text of pending) {
+      const trimmed = text.trim()
+      if (!trimmed) continue
+      const already = room.messages.some(message => (
+        (message.role === 'human' || message.agentId === 'human')
+        && message.text === trimmed
+        && message.round === room.round
+      ))
+      if (already) continue
+      const next = appendBrainstormHumanMessage(room, trimmed)
+      if (!next) continue
+      commit(next)
+      // Emit solo si aún no se avisó al encolar (p. ej. tests sin inject).
+      const msg = next.messages[next.messages.length - 1]!
+      deps.emit({
+        type: 'human_message',
+        text: msg.text,
+        round: msg.round,
+      })
+    }
+  }
+
   commit(room)
   deps.emit({ type: 'status', status: 'running' })
   deps.emit({ type: 'round', round: room.round })
 
   while (!deps.isStale() && !isBrainstormComplete(room)) {
+    flushPendingHumans()
+    if (deps.isStale()) return room
+
     const agentId = nextSpeakerAgentId(room)
     if (!agentId) {
       deps.emit({ type: 'error', message: 'No hay orador disponible.' })
@@ -281,6 +313,9 @@ export async function runBrainstormSequence(
       round: speakRound,
       text,
     })
+
+    flushPendingHumans()
+    if (deps.isStale()) return room
 
     const prevRound = room.round
     commit(advanceBrainstormCursor(room))
@@ -411,7 +446,9 @@ export function startBrainstormRoom(
     stopBrainstormRoom(roomId)
   }
 
-  const previousSessions = resume ? roomRuns.get(roomId)?.cliSessions : undefined
+  const previous = resume ? roomRuns.get(roomId) : undefined
+  const previousSessions = previous?.cliSessions
+  const previousPending = previous?.pendingHumanMessages ?? []
   const generation = nextRoomGeneration++
   const state: RoomRunState = {
     generation,
@@ -420,6 +457,7 @@ export function startBrainstormRoom(
     cwd,
     cliSessions: previousSessions ? new Map(previousSessions) : new Map(),
     activePaneId: null,
+    pendingHumanMessages: [...previousPending],
   }
   roomRuns.set(roomId, state)
 
@@ -440,6 +478,11 @@ export function startBrainstormRoom(
       resolveAgent: id => byId.get(id) ?? null,
       emit: event => emitBrainstorm(win, roomId, event),
       onRoomChange: persistRoom,
+      drainPendingHumanMessages: () => {
+        const run = roomRuns.get(roomId)
+        if (!run || run.generation !== generation) return []
+        return run.pendingHumanMessages.splice(0)
+      },
       runSpeakerTurn: async input => {
         if (isStale()) return { ok: false, aborted: true }
         const paneId = input.paneId
@@ -484,6 +527,31 @@ export function startBrainstormRoom(
   return { ok: true }
 }
 
+function commitPendingHumansToRoom(
+  run: RoomRunState,
+  roomId: string,
+  win?: BrowserWindow,
+): void {
+  if (!run.pendingHumanMessages.length) return
+  const pending = run.pendingHumanMessages.splice(0)
+  let room = run.room
+  for (const text of pending) {
+    const next = appendBrainstormHumanMessage(room, text)
+    if (!next) continue
+    room = next
+    const msg = next.messages[next.messages.length - 1]!
+    if (win) {
+      emitBrainstorm(win, roomId, {
+        type: 'human_message',
+        text: msg.text,
+        round: msg.round,
+      })
+    }
+  }
+  run.room = room
+  upsertBrainstormRoom(run.cwd, room)
+}
+
 export function pauseBrainstormRoom(
   roomId: string,
   options?: { win?: BrowserWindow; notify?: boolean },
@@ -494,6 +562,7 @@ export function pauseBrainstormRoom(
   if (!run) return
   if (run.room.status !== 'running' && run.room.status !== 'idle') return
 
+  commitPendingHumansToRoom(run, id, options?.win)
   const pausedRoom: BrainstormRoom = { ...run.room, status: 'paused' }
   run.room = pausedRoom
   upsertBrainstormRoom(run.cwd, pausedRoom)
@@ -501,6 +570,56 @@ export function pauseBrainstormRoom(
   if (options?.notify && options.win) {
     emitBrainstorm(options.win, id, { type: 'status', status: 'paused' })
   }
+}
+
+/**
+ * Inyecta voz humana en el transcript.
+ * - `running`: encola hasta el próximo `speaker_final`, luego continúa.
+ * - `paused`: persiste ya y espera resume.
+ */
+export function injectBrainstormHumanMessage(
+  roomId: string,
+  text: string,
+  options?: { win?: BrowserWindow },
+): { ok: true } | { ok: false; error: string } {
+  const id = typeof roomId === 'string' ? roomId.trim() : ''
+  const trimmed = typeof text === 'string' ? text.trim() : ''
+  if (!id) return { ok: false, error: 'roomId inválido' }
+  if (!trimmed) return { ok: false, error: 'mensaje vacío' }
+
+  const run = roomRuns.get(id)
+  if (!run) return { ok: false, error: 'sala no activa' }
+
+  if (run.room.status === 'paused') {
+    const next = appendBrainstormHumanMessage(run.room, trimmed)
+    if (!next) return { ok: false, error: 'mensaje vacío' }
+    run.room = next
+    upsertBrainstormRoom(run.cwd, next)
+    const msg = next.messages[next.messages.length - 1]!
+    if (options?.win) {
+      emitBrainstorm(options.win, id, {
+        type: 'human_message',
+        text: msg.text,
+        round: msg.round,
+      })
+    }
+    return { ok: true }
+  }
+
+  if (run.room.status === 'running' || run.room.status === 'idle') {
+    run.pendingHumanMessages.push(trimmed)
+    // Preview live; el transcript se confirma tras speaker_final (reduce dedupea re-emit).
+    if (options?.win) {
+      emitBrainstorm(options.win, id, {
+        type: 'human_message',
+        text: trimmed,
+        round: run.room.round,
+      })
+    }
+    return { ok: true }
+  }
+
+  return { ok: false, error: `no se puede inyectar en status ${run.room.status}` }
 }
 
 export function stopBrainstormRoom(
@@ -511,6 +630,7 @@ export function stopBrainstormRoom(
   if (!id) return
   const run = roomRuns.get(id)
   if (!run) return
+  commitPendingHumansToRoom(run, id, options?.win)
   const stoppedRoom: BrainstormRoom = { ...run.room, status: 'stopped' }
   run.room = stoppedRoom
   upsertBrainstormRoom(run.cwd, stoppedRoom)

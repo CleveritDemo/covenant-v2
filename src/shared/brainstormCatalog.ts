@@ -47,11 +47,18 @@ function sanitizeMessages(raw: unknown): BrainstormMessage[] {
     if (!agentId) continue
     const agentNameRaw = typeof data.agentName === 'string' ? data.agentName.trim() : ''
     const text = typeof data.text === 'string' ? data.text : ''
+    const role: BrainstormMessage['role'] | undefined =
+      data.role === 'human' || data.role === 'agent'
+        ? data.role
+        : agentId === 'human'
+          ? 'human'
+          : undefined
     out.push({
       agentId,
       agentName: agentNameRaw || agentId,
       round: sanitizeNonNegativeInt(data.round),
       text,
+      ...(role ? { role } : {}),
     })
   }
   return out

@@ -51,4 +51,28 @@ describe('BrainstormRoomView live state', () => {
     expect(state.round).toBe(1)
     expect(state.status).toBe('done')
   })
+
+  it('appends human_message to transcript', () => {
+    let state = createInitialBrainstormLiveState()
+    state = reduceBrainstormLiveEvent(state, {
+      type: 'human_message',
+      text: 'Steer left',
+      round: 0,
+    })
+    expect(state.messages).toEqual([
+      {
+        agentId: 'human',
+        agentName: 'Human',
+        round: 0,
+        text: 'Steer left',
+        role: 'human',
+      },
+    ])
+    state = reduceBrainstormLiveEvent(state, {
+      type: 'human_message',
+      text: 'Steer left',
+      round: 0,
+    })
+    expect(state.messages).toHaveLength(1)
+  })
 })

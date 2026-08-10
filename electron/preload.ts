@@ -195,6 +195,9 @@ const api = {
   pauseBrainstorm(roomId: string): void {
     ipcRenderer.send(IPC.BRAINSTORM_PAUSE, roomId)
   },
+  injectBrainstormHumanMessage(roomId: string, text: string): void {
+    ipcRenderer.send(IPC.BRAINSTORM_INJECT_HUMAN, roomId, text)
+  },
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)
   },

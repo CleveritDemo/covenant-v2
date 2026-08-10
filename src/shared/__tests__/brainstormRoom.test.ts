@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
+  BRAINSTORM_HUMAN_AGENT_ID,
+  BRAINSTORM_HUMAN_AGENT_NAME,
   BRAINSTORM_MAX_ROUNDS_CAP,
   advanceBrainstormCursor,
+  appendBrainstormHumanMessage,
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
   isBrainstormComplete,
@@ -76,13 +79,36 @@ describe('buildBrainstormTurnPrompt', () => {
     expect(prompt).toContain('QA (round 0): Measure p95 first.')
     expect(prompt).not.toContain('### QA')
     expect(prompt).toContain('Your role: UI craft')
-    expect(prompt).toMatch(/2–4 short sentences|80–120 words/i)
-    expect(prompt).toContain('no headings')
+    expect(prompt).toMatch(/≤50 words|<=50 words/i)
+    expect(prompt).toContain('never truncate or retry')
+    expect(prompt).toContain('No headings')
     expect(prompt).toContain('code fences')
     expect(prompt).toContain('Do not delegate')
     expect(prompt).toContain('call tools')
     expect(prompt).toContain('One idea only')
     expect(prompt).toContain('Output only your spoken contribution')
+    expect(prompt).not.toMatch(/80–120 words|80-120 words/i)
     expect(prompt).not.toMatch(/^## /m)
+  })
+})
+
+describe('appendBrainstormHumanMessage', () => {
+  it('appends human voice without advancing cursor', () => {
+    const room = createBrainstormRoom('t', ['a', 'b'], 2)!
+    expect(appendBrainstormHumanMessage(room, '  ')).toBeNull()
+    const next = appendBrainstormHumanMessage(room, '  Steer toward latency  ')
+    expect(next).toMatchObject({
+      cursor: 0,
+      round: 0,
+      messages: [{
+        agentId: BRAINSTORM_HUMAN_AGENT_ID,
+        agentName: BRAINSTORM_HUMAN_AGENT_NAME,
+        round: 0,
+        text: 'Steer toward latency',
+        role: 'human',
+      }],
+    })
+    const prompt = buildBrainstormTurnPrompt(next!, 'a', 'A')
+    expect(prompt).toContain('Human (human): Steer toward latency')
   })
 })

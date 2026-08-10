@@ -7,6 +7,8 @@ export interface BrainstormMessage {
   agentName: string
   round: number
   text: string
+  /** Usuario interrumpe; omitido o `agent` = orador del círculo. */
+  role?: 'agent' | 'human'
 }
 
 export interface BrainstormRoom {
@@ -25,12 +27,22 @@ export interface BrainstormRoom {
 export type BrainstormEvent =
   | { type: 'speaker_delta'; agentId: string; round: number; text: string }
   | { type: 'speaker_final'; agentId: string; agentName: string; round: number; text: string }
+  | { type: 'human_message'; text: string; round: number }
   | { type: 'round'; round: number }
   | { type: 'status'; status: BrainstormStatus }
   | { type: 'error'; agentId?: string; message: string }
 
 export const BRAINSTORM_MAX_ROUNDS_CAP = 10
 export const BRAINSTORM_DEFAULT_ROUNDS = 3
+/** Id fijo en transcript para voz humana (no es participante round-robin). */
+export const BRAINSTORM_HUMAN_AGENT_ID = 'human'
+export const BRAINSTORM_HUMAN_AGENT_NAME = 'Human'
+
+export function isBrainstormHumanMessage(
+  message: Pick<BrainstormMessage, 'role' | 'agentId'>,
+): boolean {
+  return message.role === 'human' || message.agentId === BRAINSTORM_HUMAN_AGENT_ID
+}
 
 export function sanitizeBrainstormMaxRounds(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return BRAINSTORM_DEFAULT_ROUNDS
@@ -109,6 +121,31 @@ export function advanceBrainstormCursor(room: BrainstormRoom): BrainstormRoom {
   }
 }
 
+/**
+ * Añade una intervención humana al transcript (no avanza cursor).
+ * Usa `room.round` actual como etiqueta de ronda.
+ */
+export function appendBrainstormHumanMessage(
+  room: BrainstormRoom,
+  text: string,
+): BrainstormRoom | null {
+  const trimmed = typeof text === 'string' ? text.trim() : ''
+  if (!trimmed) return null
+  return {
+    ...room,
+    messages: [
+      ...room.messages,
+      {
+        agentId: BRAINSTORM_HUMAN_AGENT_ID,
+        agentName: BRAINSTORM_HUMAN_AGENT_NAME,
+        round: room.round,
+        text: trimmed,
+        role: 'human',
+      },
+    ],
+  }
+}
+
 export function buildBrainstormTurnPrompt(
   room: BrainstormRoom,
   speakerAgentId: string,
@@ -121,7 +158,12 @@ export function buildBrainstormTurnPrompt(
     : ''
   const transcript = room.messages.length
     ? room.messages
-      .map(msg => `${msg.agentName} (round ${msg.round}): ${msg.text}`)
+      .map(msg => {
+        const who = msg.role === 'human' || msg.agentId === 'human'
+          ? `${msg.agentName || 'You'} (human)`
+          : `${msg.agentName} (round ${msg.round})`
+        return `${who}: ${msg.text}`
+      })
       .join('\n')
     : '(No prior messages yet.)'
 
@@ -135,9 +177,9 @@ export function buildBrainstormTurnPrompt(
     'Transcript so far:',
     transcript,
     '',
-    'Your turn (hard limits):',
-    '- Reply in 2–4 short sentences (~80–120 words max). One idea only.',
-    '- Plain language only: no headings, bullets, numbered lists, or code fences.',
+    'Your turn (soft target — never truncate or retry if over):',
+    '- Aim for ≤50 words. One idea only. Plain language.',
+    '- No headings, bullets, numbered lists, or code fences.',
     '- React to the latest points; stay on topic; no preamble or recap.',
     '- Do not delegate, call tools, ask for approval, or wait for the user.',
     '- Output only your spoken contribution — nothing else.',

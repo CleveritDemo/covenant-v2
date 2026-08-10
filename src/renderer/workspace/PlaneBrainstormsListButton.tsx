@@ -34,7 +34,7 @@ export const PlaneBrainstormsListButton: React.FC<PlaneBrainstormsListButtonProp
         disabled={disabled}
         onClick={onClick}
       >
-        <Icon name="brain" size={12} />
+        <Icon name="messages" size={12} />
       </button>
     </Tooltip>
   )

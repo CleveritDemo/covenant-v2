@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
+import { isBrainstormHumanMessage } from '@shared/brainstormRoom'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -15,6 +16,7 @@ import {
   isBrainstormStoppable,
   stopBrainstormIfActive,
 } from './brainstormViewClose'
+import { BrainstormHumanComposer } from './BrainstormHumanComposer'
 import './BrainstormRoomView.css'
 
 export interface BrainstormRoomViewProps {
@@ -71,6 +73,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       if (!seen.includes(id)) seen.push(id)
     }
     for (const message of live.messages) {
+      if (isBrainstormHumanMessage(message)) continue
       if (!seen.includes(message.agentId)) seen.push(message.agentId)
     }
     if (live.streaming && !seen.includes(live.streaming.agentId)) {
@@ -128,6 +131,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const showPause = canPauseBrainstorm(live.status)
   const showPlay = canResumeBrainstorm(live.status)
   const showStop = isBrainstormStoppable(live.status) || live.status === 'paused'
+  const showComposer = live.status === 'running' || live.status === 'paused'
   const displayRound = Math.max(live.round, 0) + (live.status === 'running' ? 1 : 0)
 
   const handleStop = (): void => {
@@ -175,6 +179,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     if (didStop) stoppedRef.current = true
     onClose()
   }
+
+  const handleHumanSend = useCallback((text: string): void => {
+    setLive(previous => reduceBrainstormLiveEvent(previous, {
+      type: 'human_message',
+      text,
+      round: previous.round,
+    }))
+    window.api.injectBrainstormHumanMessage(room.id, text)
+  }, [room.id])
 
   return (
     <TerminalModal
@@ -236,8 +249,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           aria-live="polite"
         >
           {live.messages.map((message, index) => {
-            const color = paletteColorForSeed(message.agentId)
-            const lane = speakerLane(message.agentId, speakerOrder) % 2 === 1 ? 'end' : 'start'
+            const human = isBrainstormHumanMessage(message)
+            const color = human
+              ? 'var(--accent)'
+              : paletteColorForSeed(message.agentId)
+            const lane = human
+              ? 'human'
+              : speakerLane(message.agentId, speakerOrder) % 2 === 1
+                ? 'end'
+                : 'start'
             return (
               <article
                 key={`${message.agentId}-${message.round}-${index}`}
@@ -248,12 +268,19 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 style={{ '--brainstorm-speaker': color } as React.CSSProperties}
               >
                 <span className="brainstorm-room-view__speaker">
-                  {t('tabs.brainstormSpeakerLabel', {
-                    name: message.agentName,
-                    round: message.round + 1,
-                  })}
+                  {human
+                    ? t('tabs.brainstormHumanLabel')
+                    : t('tabs.brainstormSpeakerLabel', {
+                        name: message.agentName,
+                        round: message.round + 1,
+                      })}
                 </span>
-                <div className="brainstorm-room-view__bubble">
+                <div
+                  className={[
+                    'brainstorm-room-view__bubble',
+                    human ? 'brainstorm-room-view__bubble--human' : '',
+                  ].filter(Boolean).join(' ')}
+                >
                   <AiMarkdown content={message.text} />
                 </div>
               </article>
@@ -288,6 +315,14 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
         {live.lastError ? (
           <p className="brainstorm-room-view__error">{live.lastError}</p>
+        ) : null}
+
+        {showComposer ? (
+          <BrainstormHumanComposer
+            placeholder={t('tabs.brainstormHumanPlaceholder')}
+            sendLabel={t('tabs.brainstormHumanSend')}
+            onSend={handleHumanSend}
+          />
         ) : null}
       </div>
     </TerminalModal>

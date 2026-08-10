@@ -241,6 +241,7 @@ describe('turbo work style prompt', () => {
     expect(text).toContain('Work style: turbo')
     expect(text).toContain('job-1')
     expect(text).toContain('per job/user message')
+    expect(text).toContain('without waiting for prior specialist waves')
     expect(text).toContain('working tree')
   })
 

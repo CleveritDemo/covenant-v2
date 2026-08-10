@@ -85,7 +85,9 @@ import {
   occupiedPaneIdsAcrossJobs,
   occupiedTargetPaneIdsAcrossAllJobs,
   pendingOrchestratorIdsFromJobs,
+  shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
+  supersedeOrchestrationJobsForHumanTurn,
   type OrchestrationJob,
 } from '@shared/orchestrationJobs'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
@@ -3150,6 +3152,15 @@ export const App: React.FC = () => {
       }
     },
   ) => {
+    // Follow-ups de jobs superseded/missing no deben llegar a preferSend.
+    if (payload.orchestrationFollowUp === true) {
+      const jobId = payload.orchestrationJobId?.trim()
+      if (jobId) {
+        const jobsMap = orchestrationJobsByPaneRef.current.get(paneId)
+        const job = jobsMap?.get(jobId)
+        if (!job || job.superseded) return
+      }
+    }
     const queue = orchestrationFifoByPaneRef.current.get(paneId) ?? []
     queue.push({
       text: payload.text,
@@ -3209,6 +3220,9 @@ export const App: React.FC = () => {
   const beginOrchestrationUserTurn = useCallback((fromPaneId: string) => {
     const workStyle = orchestrationWorkStyleForPane(fromPaneId)
     if (shouldAbortOnHumanTurn(workStyle)) {
+      // Linear: awaiting bloquea humanos hasta cerrar la ola; esto es cleanup seguro.
+      const priorJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
+      if (priorJobs) supersedeOrchestrationJobsForHumanTurn(priorJobs)
       abortOrchestrationRunRef.current?.(fromPaneId)
     }
     const jobs = getOrCreateJobsMap(fromPaneId)
@@ -3928,6 +3942,10 @@ export const App: React.FC = () => {
 
     await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
 
+    // Job superseded / eliminado por un turno humano nuevo: no encolar resultados viejos.
+    const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
+    if (!shouldDeliverOrchestrationJobFollowUp(liveJobs, job)) return
+
     const batchResults = job.completedResults.splice(0, job.completedResults.length)
     const round = job.round || 1
     const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
@@ -4132,6 +4150,9 @@ export const App: React.FC = () => {
     }
 
     await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
+
+    const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
+    if (!shouldDeliverOrchestrationJobFollowUp(liveJobs, job)) return
 
     const batchResults = job.completedResults.splice(0, job.completedResults.length)
     if (batchResults.length === 0) return

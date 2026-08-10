@@ -2,7 +2,7 @@
 
 export type AgentCoordination = 'none' | 'orchestrator' | 'productOwner'
 
-/** Solo orchestrator. Omitido / 'linear' = ciclo actual (abort al nuevo turno humano). */
+/** Solo orchestrator. Omitido / 'linear' = espera ola; turbo = jobs humanos en paralelo. */
 export type OrchestrationWorkStyle = 'linear' | 'turbo'
 
 export const MAX_DELEGATIONS_PER_TURN = 5
@@ -66,8 +66,11 @@ export function resolveOrchestrationWorkStyle(
   return sanitizeOrchestrationWorkStyle(coordinationOrRaw)
 }
 
-/** Linear aborta la ola al nuevo turno humano; turbo no. */
-export function shouldAbortOnHumanTurn(workStyle: OrchestrationWorkStyle): boolean {
+/**
+ * Linear: abort/cleanup al empezar un turno humano (la ola ya cerró; awaiting bloquea).
+ * Turbo: false — jobs previos siguen vivos en paralelo.
+ */
+export function shouldAbortOnHumanTurn(workStyle?: OrchestrationWorkStyle): boolean {
   return resolveOrchestrationWorkStyle(workStyle) !== 'turbo'
 }
 
@@ -556,7 +559,7 @@ export function buildBatchedDelegationFollowUp(
 }
 
 /**
- * Instrucciones extra del modo turbo (hilos/jobs concurrentes).
+ * Instrucciones extra del modo turbo (hilos/jobs concurrentes entre mensajes humanos).
  * Vacío en linear. Réplicas se asumen on en la práctica.
  */
 export function buildOrchestratorTurboWorkStyleBlock(options?: {

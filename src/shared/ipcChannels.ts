@@ -25,6 +25,8 @@ export const IPC = {
   BRAINSTORM_STOP: 'brainstorm:stop',
   /** Renderer → main: pausar sala de brainstorm (conserva run + archivo). */
   BRAINSTORM_PAUSE: 'brainstorm:pause',
+  /** Renderer → main: inyectar voz humana en el transcript de la sala. */
+  BRAINSTORM_INJECT_HUMAN: 'brainstorm:injectHuman',
   /** Main → renderer: eventos de sala de brainstorm. */
   BRAINSTORM_EVENT: 'brainstorm:event',
   /** Renderer → main (invoke): listar salas en `.gravity/brainstorms/`. */

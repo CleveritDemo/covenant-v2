@@ -1,5 +1,6 @@
 /**
- * Estado puro de jobs de orquestación (lineal ≤1 job; turbo N jobs concurrentes).
+ * Estado puro de jobs de orquestación (lineal ≤1 job vivo tras cleanup;
+ * turbo N jobs concurrentes entre mensajes humanos).
  * App.tsx posee los refs; este módulo no toca React/electron.
  */
 
@@ -60,6 +61,11 @@ export interface OrchestrationJob {
   completedResults: DelegateResult[]
   pendingMerges: OrchestrationPendingMerge[]
   hasDelegated: boolean
+  /**
+   * Marcado al empezar un nuevo turno humano (antes de abort/clear).
+   * Completions tardías no deben encolar follow-up de Delegation.
+   */
+  superseded?: boolean
 }
 
 function newJobId(): string {
@@ -83,6 +89,30 @@ export function createOrchestrationJob(
     pendingMerges: [],
     hasDelegated: false,
   }
+}
+
+/**
+ * Linear (cleanup al nuevo turno humano, ola ya cerrada): marca jobs como superseded.
+ * No usar en turbo — los jobs previos deben seguir entregando follow-ups.
+ */
+export function supersedeOrchestrationJobsForHumanTurn(
+  jobs: Map<string, OrchestrationJob>,
+): void {
+  for (const job of jobs.values()) {
+    job.superseded = true
+  }
+}
+
+/**
+ * True solo si el job sigue vivo en el mapa y no está superseded.
+ * Usar antes de encolar formatDelegationResultFollowUp / batch wake.
+ */
+export function shouldDeliverOrchestrationJobFollowUp(
+  jobsMap: ReadonlyMap<string, OrchestrationJob> | undefined,
+  job: OrchestrationJob,
+): boolean {
+  if (job.superseded) return false
+  return jobsMap?.get(job.jobId) === job
 }
 
 export function findJobByDelegation(

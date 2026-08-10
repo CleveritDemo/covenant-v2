@@ -79,6 +79,25 @@
   border-radius: 14px 14px 4px 14px;
 }
 
+.brainstorm-room-view__row--human {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: min(86%, 520px);
+}
+
+.brainstorm-room-view__row--human .brainstorm-room-view__bubble {
+  border-radius: 14px 14px 4px 14px;
+}
+
+.brainstorm-room-view__bubble--human {
+  background: color-mix(
+    in srgb,
+    var(--accent) 22%,
+    color-mix(in srgb, var(--bg) 78%, var(--surface))
+  );
+  color: var(--text);
+}
+
 .brainstorm-room-view__speaker {
   font-family: var(--font-ui);
   font-size: 10.5px;

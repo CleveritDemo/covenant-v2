@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.23
+
+- **Separador titlebar–tabs menos visible**: la línea entre la barra de título y las pestañas queda transparente, con menos ruido visual.
+
 ## v0.39.22
 
 - **Refinamiento visual del plano**: mini-cards, terminales y badges más tenues; el acento marca solo lo activo, sin ruido.

@@ -4,6 +4,7 @@ import { agentMonogram } from '@shared/tabContextAppearance'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui/Button'
+import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
 import { ContextPreviewBody } from './ContextContentPreviewModal'
 import type { PlaneContextPoolAgent, PlaneContextPoolItem } from './PlaneContextPool'
@@ -98,12 +99,13 @@ export const PlaneContextAssignModal: React.FC<PlaneContextAssignModalProps> = (
                 {agents.map(agent => {
                   const checked = agent.contextIds.includes(context.id)
                   return (
+                    // El nombre ya se ve completo abajo; el tooltip cubre el
+                    // truncado en nombres largos, con el tema de la app.
+                    <Tooltip key={agent.paneId} content={agent.title}>
                     <button
-                      key={agent.paneId}
                       type="button"
                       role="option"
                       aria-selected={checked}
-                      title={agent.title}
                       className={[
                         'plane-context-assign-modal__agent',
                         checked ? 'plane-context-assign-modal__agent--on' : '',
@@ -115,6 +117,7 @@ export const PlaneContextAssignModal: React.FC<PlaneContextAssignModalProps> = (
                       </span>
                       <span className="plane-context-assign-modal__agent-name">{agent.title}</span>
                     </button>
+                    </Tooltip>
                   )
                 })}
               </div>

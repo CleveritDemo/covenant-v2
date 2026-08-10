@@ -1747,13 +1747,15 @@ html[data-reduce-motion="true"] {
 .tab-contexts__kind-groups {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
 }
 
+/* El título tiene que respirar antes de su contenido: pegado a las cards se lee
+   como parte de la primera, no como encabezado del grupo. */
 .tab-contexts__kind-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 9px;
 }
 
 .tab-contexts__kind-group-label {
@@ -1922,18 +1924,30 @@ html[data-reduce-motion="true"] {
  * fieldset conservaba su propio borde y padding, dibujando una caja dentro
  * de la caja del <details>.
  */
+/*
+ * El `<legend>` no está en el flujo normal: vive en el área del borde superior
+ * del fieldset. Por eso el `padding-top` NO separa el título de lo de arriba
+ * —separa el título de su propia grilla— y el aire acaba todo del lado
+ * equivocado. El espacio de antes del título va como `margin-top` del fieldset,
+ * y el de después como `margin-bottom` del legend. Nada de padding-top.
+ */
 .tab-contexts__appearance-fold > .tab-contexts__appearance {
   border: 0;
   border-radius: 0;
-  padding: 8px 10px 0;
+  padding: 0 12px;
+  margin-top: 18px;
+}
+
+.tab-contexts__appearance-fold > .tab-contexts__appearance:first-of-type {
+  margin-top: 12px;
 }
 
 .tab-contexts__appearance-fold > .tab-contexts__appearance:last-child {
-  padding-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 .tab-contexts__appearance legend {
-  margin-bottom: 6px;
+  margin-bottom: 7px;
   font-size: 11px;
   font-weight: 650;
   color: var(--text-muted);
@@ -1943,7 +1957,7 @@ html[data-reduce-motion="true"] {
 .tab-contexts__color-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .tab-contexts__icon-swatch {

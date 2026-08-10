@@ -124,6 +124,33 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Chrome no seleccionable. Arrastrar una ventana del plano o un chip dejaba el
+ * texto de la etiqueta resaltado, que es la marca de «esto es una página web»
+ * en una app de escritorio. Se apaga solo en lo que se arrastra o se pulsa —el
+ * contenido (chat, terminal, editor, markdown, inputs) sigue copiable.
+ */
+button,
+summary,
+label,
+[role='button'],
+[role='radio'],
+[role='tab'],
+[draggable='true'],
+.terminal-modal-titlebar,
+.pane-window__titlebar {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Los controles de texto no heredan el bloqueo: ahí escribir implica seleccionar. */
+input,
+textarea,
+[contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 7px;

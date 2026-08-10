@@ -4,6 +4,48 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.35.1
+
+- **Tooltips del modal Git y del Stop por fila** usan el componente de la app
+  (sin `title` nativo).
+- **Ajustes de tipado** en la ronda de orquestación y el estilo de trabajo del
+  composer.
+
+## v0.35.0
+
+- **El modal Git pone el diff junto a la lista de archivos**; la columna derecha
+  muestra solo GitHub Actions (sin pestañas Diff | Actions).
+- **La ruta del repo se acorta** a los dos últimos niveles (tooltip con la
+  completa).
+- **El cuadro de diff aparece solo al seleccionar un archivo** y se oculta al
+  deseleccionarlo.
+
+## v0.34.0
+
+- **Stop del composer solo en turno propio** (busy / loop): ya no aparece rojo
+  solo por esperar delegaciones.
+- **En Waiting, cada especialista tiene su Stop**: cancela solo esa delegación;
+  el resto de la ola sigue.
+- **Brainstorm en chat con burbujas**, turnos cortos (2–4 frases) y sin
+  tools/contextos/skills en el CLI.
+- **Sonido al arrancar el dictado** push-to-talk.
+
+## v0.33.0
+
+- **El modal de Ajustes tiene altura fija**: al cambiar de sección ya no crece
+  ni se encoge; el panel derecho hace scroll.
+- **Más aire bajo el buscador de Ajustes**, separado de la lista de secciones.
+
+## v0.32.0
+
+- **Eliminar contexto pide confirmación** (modal) desde assign, listado y al
+  soltar un chip en la papelera.
+- **Al arrastrar un contexto** aparece una papelera a la izquierda de los chips;
+  soltar ahí abre el mismo confirm y borra.
+- **Preview de Custom** muestra cuerpos org o texto plano sin marcadores
+  `iaterminal:*` (ya no queda «sin contenido» con texto real).
+- **Botón Eliminar** en el modal de asignación del plano.
+
 ## v0.31.0
 
 - **Renombrar un contexto en un workspace org ya no crea un gemelo**: se

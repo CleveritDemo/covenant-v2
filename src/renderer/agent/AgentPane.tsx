@@ -51,8 +51,11 @@ import { AgentPaneMessages } from './AgentPaneMessages'
 import { AgentPaneFooter } from './AgentPaneFooter'
 import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
-import { canDrainAgentQueue, isAgentHumanInputBlocked } from './agentInputGuards'
-import { filterQueuedTurnsAfterOrchestrationAbort } from '../orchestrationAbort'
+import { canDrainAgentQueue, isAgentHumanInputBlocked, shouldShowComposerStop } from './agentInputGuards'
+import {
+  filterQueuedTurnsAfterOrchestrationAbort,
+  filterQueuedTurnsAfterSingleDelegationAbort,
+} from '../orchestrationAbort'
 import {
   attachmentsToPendingImages,
   blobToBase64,
@@ -179,6 +182,8 @@ interface Props {
   onOrchestratorDelegations?: (delegations: DelegateRequest[]) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
   onOrchestratorStop?: () => void
+  /** Stop por fila en Waiting: cancela solo esa delegación. */
+  onAbortDelegation?: (delegationId: string) => void
   /** Un turno delegado en este pane terminó. */
   onDelegationTurnComplete?: (result: DelegateResult) => void
   /** Pedido humano nuevo: reinicia el contador de oleadas de orquestación. */
@@ -285,6 +290,8 @@ export interface AgentPlaneQueueControls {
   merge: () => void
   /** Quita subtareas del orquestador y follow-ups locales de ese pane. */
   cancelDelegationsFrom: (fromPaneId: string) => void
+  /** Quita la subtarea con este delegationId (Stop por fila). */
+  cancelDelegation: (delegationId: string) => void
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -316,6 +323,7 @@ export const AgentPane: React.FC<Props> = ({
   orgWorkspace,
   onOrchestratorDelegations,
   onOrchestratorStop,
+  onAbortDelegation,
   onDelegationTurnComplete,
   onOrchestrationUserTurn,
   getOrchestrationRound,
@@ -463,6 +471,8 @@ export const AgentPane: React.FC<Props> = ({
   onOrchestratorDelegationsRef.current = onOrchestratorDelegations
   const onOrchestratorStopRef = useRef(onOrchestratorStop)
   onOrchestratorStopRef.current = onOrchestratorStop
+  const onAbortDelegationRef = useRef(onAbortDelegation)
+  onAbortDelegationRef.current = onAbortDelegation
   const onDelegationTurnCompleteRef = useRef(onDelegationTurnComplete)
   onDelegationTurnCompleteRef.current = onDelegationTurnComplete
   const onOrchestrationUserTurnRef = useRef(onOrchestrationUserTurn)
@@ -1737,6 +1747,19 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [paneId])
 
+  const cancelDelegation = useCallback((delegationId: string): void => {
+    setQueuedTurns(previous => {
+      const { kept, removed } = filterQueuedTurnsAfterSingleDelegationAbort(
+        previous,
+        delegationId,
+      )
+      for (const item of removed) {
+        item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+      }
+      return kept
+    })
+  }, [])
+
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
     onPlaneQueueControlsReady({
@@ -1744,9 +1767,11 @@ export const AgentPane: React.FC<Props> = ({
       update: updateQueuedTurn,
       merge: handleMergeQueuedTurns,
       cancelDelegationsFrom,
+      cancelDelegation,
     })
     return () => onPlaneQueueControlsReady(null)
   }, [
+    cancelDelegation,
     cancelDelegationsFrom,
     handleMergeQueuedTurns,
     onPlaneQueueControlsReady,
@@ -2127,7 +2152,11 @@ export const AgentPane: React.FC<Props> = ({
   const effectiveLoopActive = loopActive || chainLoopActive
   const selectedContextIds = meta.contextIds ?? []
   // Solo el loop bloquea teclear; busy/delegaciones encolan.
-  const showStop = effectiveLoopActive || busy || awaitingDelegations
+  const showStop = shouldShowComposerStop({
+    loopActive: effectiveLoopActive,
+    busy,
+    awaitingDelegations,
+  })
   const showPlay = loopMode && !effectiveLoopActive && !busy
   const composerDisabled = effectiveLoopActive
 
@@ -2213,6 +2242,7 @@ export const AgentPane: React.FC<Props> = ({
             onEditQueuedTurn={id => setEditingQueuedId(id)}
             onMergeQueuedTurns={handleMergeQueuedTurns}
             onScrollToBottom={scrollChatToBottom}
+            onAbortDelegation={id => onAbortDelegationRef.current?.(id)}
           />
 
           <AgentPaneFooter

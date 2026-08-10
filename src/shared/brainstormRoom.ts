@@ -121,23 +121,25 @@ export function buildBrainstormTurnPrompt(
     : ''
   const transcript = room.messages.length
     ? room.messages
-      .map(msg => `### ${msg.agentName} (round ${msg.round})\n${msg.text}`)
-      .join('\n\n')
-    : '(No prior messages in this room yet.)'
+      .map(msg => `${msg.agentName} (round ${msg.round}): ${msg.text}`)
+      .join('\n')
+    : '(No prior messages yet.)'
 
   return [
-    '## Brainstorm room',
+    'Brainstorm room — reply fast and short.',
     `Topic: ${room.topic}`,
-    `You are speaking now as ${name} (agentId: ${speakerAgentId}).`,
+    `You speak now as ${name} (agentId: ${speakerAgentId}).`,
     ...(roleLine ? [roleLine] : []),
-    `Round ${room.round + 1} of ${room.maxRounds} (0-based room.round=${room.round}).`,
+    `Round ${room.round + 1} of ${room.maxRounds}.`,
     '',
-    '## Transcript so far',
+    'Transcript so far:',
     transcript,
     '',
-    '## Your turn',
-    'Contribute your concise point of view on the topic, reacting to what others said.',
-    'Do not delegate. Do not ask for approval. Do not wait for the user.',
-    'Stay on topic; one clear contribution is enough.',
+    'Your turn (hard limits):',
+    '- Reply in 2–4 short sentences (~80–120 words max). One idea only.',
+    '- Plain language only: no headings, bullets, numbered lists, or code fences.',
+    '- React to the latest points; stay on topic; no preamble or recap.',
+    '- Do not delegate, call tools, ask for approval, or wait for the user.',
+    '- Output only your spoken contribution — nothing else.',
   ].join('\n')
 }

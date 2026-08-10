@@ -1,12 +1,16 @@
 .git-panel-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   min-width: 0;
 }
 
-/* Columna derecha: diff del archivo elegido y, si el remoto es de GitHub, Actions */
+.git-panel-layout--with-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+}
+
+/* Columna derecha: solo GitHub Actions (se colapsa si el remoto no es GitHub) */
 .git-panel-side {
   display: flex;
   flex-direction: column;
@@ -16,41 +20,7 @@
   background: color-mix(in srgb, var(--surface) 18%, var(--bg));
 }
 
-.git-panel-side__tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  min-width: 0;
-}
-
-.git-panel-side__tabs > .segmented-control {
-  flex-shrink: 0;
-}
-
-.git-panel-side__path {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-  text-align: left;
-  min-width: 0;
-}
-
-.git-panel-side__pane {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-/* `hidden` tiene que ganar al display:flex de arriba */
-.git-panel-side__pane[hidden] {
+.git-panel-side--collapsed {
   display: none;
 }
 
@@ -73,8 +43,107 @@
   box-sizing: border-box;
 }
 
+/* Lista + diff en el mismo cuadro de selección de archivos */
+.git-panel-changes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: min(42vh, 360px);
+  max-height: min(62vh, 560px);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: calc(var(--radius) / 2);
+  background: color-mix(in srgb, var(--bg) 78%, var(--surface));
+  overflow: hidden;
+}
+
+.git-panel-changes--with-diff {
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+}
+
+.git-panel-changes__files {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.git-panel-changes--with-diff .git-panel-changes__files {
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.git-panel-changes__diff {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 70%, var(--surface));
+}
+
+.git-panel-changes__diff-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+}
+
+.git-panel-changes__diff-path {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  min-width: 0;
+}
+
+.git-panel-changes__diff-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-panel-changes__diff-body > .git-diff-pane__body,
+.git-panel-changes__diff-body > .git-diff-pane__hint,
+.git-panel-changes__diff-body > .git-diff-pane__loading {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Lista embebida: el marco lo pone .git-panel-changes */
+.git-panel-changes .git-file-list {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  max-height: none;
+  min-height: 0;
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .git-panel-changes--with-diff {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(140px, 38%) minmax(0, 1fr);
+    max-height: min(70vh, 640px);
+  }
+
+  .git-panel-changes--with-diff .git-panel-changes__files {
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+}
+
 @media (max-width: 720px) {
-  .git-panel-layout {
+  .git-panel-layout--with-actions {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) auto;
   }
@@ -89,6 +158,10 @@
 /* Evita que ítems flex encoger por debajo de su contenido (recorte vertical del bloque rama, etc.) */
 .git-panel-scroll > * {
   flex-shrink: 0;
+}
+
+.git-panel-scroll > .git-panel-changes {
+  flex-shrink: 1;
 }
 
 .git-panel-footer-hint {
@@ -129,6 +202,12 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.git-panel-top-bar__lead > .ui-tooltip:has(.git-panel-top-bar__cwd) {
+  display: flex;
   flex: 1;
   min-width: 0;
 }

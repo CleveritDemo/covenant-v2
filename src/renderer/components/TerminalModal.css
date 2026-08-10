@@ -70,6 +70,17 @@
   width: min(640px, 96vw);
 }
 
+/* Settings: caja fija (misma idea que --xxl); otras `lg` siguen al contenido. */
+.terminal-modal-panel--lg:has(.settings-layout) {
+  height: min(80vh, 680px);
+  max-height: min(80vh, 680px);
+}
+
+.terminal-modal-panel--lg:has(.settings-layout) .terminal-modal-footer {
+  flex-wrap: nowrap;
+  min-height: 44px;
+}
+
 .terminal-modal-panel--xl {
   width: min(900px, 98vw);
 }

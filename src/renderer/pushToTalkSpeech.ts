@@ -4,6 +4,7 @@ import {
   isIgnorableDictationError,
   type DictationUiErrorKind,
 } from '../shared/dictation'
+import { playVoiceMessageSound } from './uiSounds'
 
 export type { DictationUiErrorKind }
 export { classifyDictationError }
@@ -143,6 +144,7 @@ export function usePushToTalkSpeech(
       reportError('unsupported')
       return
     }
+    playVoiceMessageSound()
     wantListenRef.current = true
     startingRef.current = true
     setInterim('')

@@ -75,6 +75,7 @@ import {
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
   awaitingOrchestratorPaneIds,
+  abortOneDelegationInJob,
   createOrchestrationJob,
   findJobByDelegation,
   flattenAwaitingItemsFromJobs,
@@ -107,6 +108,7 @@ import {
 } from '@shared/orchestrationAwaiting'
 import {
   clearPlaneSendsForOrchestrationAbort,
+  clearPlaneSendsForSingleDelegationAbort,
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
@@ -174,6 +176,7 @@ import {
 } from './covenantApi'
 import { retryCovenantResult } from '../shared/covenantRetry'
 import {
+  forgetWorkspaceContextBody,
   projectAgentsFromWorkspaceAgents,
   sanitizeSlugSegment,
   tabContextsFromWorkspaceContexts,
@@ -2780,6 +2783,44 @@ export const App: React.FC = () => {
     setPlaneContextsFocusId(contextId)
   }, [])
 
+  const handleDeleteContextFromPlane = useCallback(async (tabId: string, contextId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const contexts = tabContextsByTabRef.current[tabId] ?? []
+    const context = contexts.find(item => item.id === contextId)
+    if (!context) return
+
+    const org = tab.orgWorkspace
+    const isOrgBacked = Boolean(org?.slug?.trim() && org?.workspaceId?.trim())
+    if (isOrgBacked && org) {
+      const covenant = getCovenantApi()
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
+      const result = await covenant.workspaceContextDelete(
+        org.slug.trim(),
+        org.workspaceId.trim(),
+        contextId,
+      )
+      if (!result.ok) return
+      forgetWorkspaceContextBody(contextId)
+    } else {
+      const cwd = tab.projectFolder?.trim() || ''
+      if (!cwd) return
+      const result = await window.api.deleteTabContext({ context, cwd })
+      if (!result.ok) return
+    }
+
+    const agentPaneIds = (tab.paneIds ?? []).filter(id => tab.paneKinds?.[id] === 'agent')
+    for (const paneId of agentPaneIds) {
+      handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+        const nextIds = (previous.contextIds ?? []).filter(id => id !== contextId)
+        if (nextIds.length === (previous.contextIds ?? []).length) return previous
+        return { ...previous, contextIds: nextIds }
+      })
+    }
+
+    await refreshTabContexts(tabId)
+  }, [refreshTabContexts])
+
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
     setAgentPlaneStatus(prev => {
       const previous = prev[paneId]
@@ -3943,6 +3984,141 @@ export const App: React.FC = () => {
   }, [cleanupWorktreesForPane, handleClosePane, requestPlaneStop, syncAwaitingFromPending])
   abortOrchestrationRunRef.current = abortOrchestrationRun
 
+  /**
+   * Stop por fila en Waiting: cancela solo esa delegación (no el Stop rojo del composer).
+   */
+  const abortSingleDelegation = useCallback(async (
+    fromPaneId: string,
+    delegationId: string,
+  ) => {
+    const id = delegationId.trim()
+    if (!id) return
+    const jobsMap = orchestrationJobsByPaneRef.current.get(fromPaneId)
+    if (!jobsMap?.size) return
+    const job = findJobByDelegation(jobsMap.values(), id)
+    if (!job) return
+
+    const abort = abortOneDelegationInJob(job, id)
+    if (!abort.ok) return
+
+    for (const [paneId, queue] of [...orchestrationFifoByPaneRef.current.entries()]) {
+      const next = queue.filter(item => item.delegation?.id !== id)
+      if (next.length) orchestrationFifoByPaneRef.current.set(paneId, next)
+      else orchestrationFifoByPaneRef.current.delete(paneId)
+    }
+    setPlaneSendByPane(prev => clearPlaneSendsForSingleDelegationAbort(prev, id))
+    for (const controls of planeQueueControlsByPaneRef.current.values()) {
+      controls.cancelDelegation(id)
+    }
+
+    const toPaneId = abort.toPaneId
+    if (abort.wasPending && toPaneId) {
+      requestPlaneStop(toPaneId)
+    }
+
+    const worktreeInfo = worktreesByDelegationRef.current.get(id)
+    if (worktreeInfo) {
+      try {
+        clearPaneCwdOverride(worktreeInfo.toPaneId)
+        await window.api.gitWorktreeRemove({ path: worktreeInfo.baseCwd }, {
+          worktreePath: worktreeInfo.worktreePath,
+          branch: worktreeInfo.branch,
+          force: true,
+        })
+      } catch (err) {
+        console.warn(`[worktree] cleanup falló al abortar delegación ${id}:`, err)
+      } finally {
+        worktreesByDelegationRef.current.delete(id)
+      }
+    }
+
+    if (
+      toPaneId
+      && shouldDisposeReplicaOnComplete({
+        toAgentId: abort.toAgentId ?? '',
+        ...(abort.baseAgentId ? { baseAgentId: abort.baseAgentId } : {}),
+      })
+    ) {
+      const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
+      if (replicaTab) handleClosePane(replicaTab.id, toPaneId)
+    }
+
+    if (abort.wasPending) {
+      job.completedResults.push({
+        id,
+        status: 'aborted',
+        summary: i18next.t('agentPane.delegationAbortedSummary'),
+        ...(abort.toAgentId ? { toAgentId: abort.toAgentId } : {}),
+        ...(toPaneId ? { toPaneId } : {}),
+      })
+    }
+
+    setOrchestrationFifoTick(n => n + 1)
+    syncAwaitingFromPending()
+
+    if (abort.wasPending && toPaneId) {
+      const deferredForFreed = job.deferred.some(item => item.toPaneId === toPaneId)
+      if (deferredForFreed) {
+        await startNextDeferredForPane(fromPaneId, toPaneId)
+      }
+    }
+
+    const remaining = job.pending.size
+    const deferredLeft = job.deferred.length
+    if (!shouldWakeJob(remaining, deferredLeft)) return
+    if (!shouldWakeOrchestratorOnDelegationComplete(remaining)) return
+
+    const mergeBatch = job.pendingMerges.splice(0, job.pendingMerges.length)
+    const mergeOrder = planWorktreeMergeOrder(
+      mergeBatch.map(item => ({
+        delegationId: item.delegationId,
+        completedAt: item.completedAt,
+      })),
+    )
+    for (const mergeId of mergeOrder) {
+      const item = mergeBatch.find(entry => entry.delegationId === mergeId)
+      if (!item) continue
+      void finalizeDelegationWorktree(fromPaneId, item.result, item.info)
+    }
+
+    await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
+
+    const batchResults = job.completedResults.splice(0, job.completedResults.length)
+    if (batchResults.length === 0) return
+    const round = job.round || 1
+    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
+    const atCap = orchestrationRoundsAtCap(round, maxRounds)
+    const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+    const fromMeta = tab
+      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+      : undefined
+    const workStyle = orchestrationWorkStyleForPane(fromPaneId)
+    activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
+    enqueueOrchestrationSend(fromPaneId, {
+      text: buildBatchedDelegationFollowUp(batchResults, {
+        round,
+        maxRounds,
+        continuousProductOwner: fromMeta?.coordination === 'productOwner',
+        orchestrationJobId: job.jobId,
+        workStyle,
+      }),
+      focusPane: false,
+      orchestrationFollowUp: true,
+      orchestrationJobId: job.jobId,
+      allowDelegations: !atCap,
+    })
+  }, [
+    clearPaneCwdOverride,
+    enqueueOrchestrationSend,
+    finalizeDelegationWorktree,
+    handleClosePane,
+    orchestrationMaxRoundsForPane,
+    orchestrationWorkStyleForPane,
+    requestPlaneStop,
+    startNextDeferredForPane,
+    syncAwaitingFromPending,
+  ])
+
   const handleOrchestratorStop = useCallback((fromPaneId: string) => {
     abortOrchestrationRun(fromPaneId)
   }, [abortOrchestrationRun])
@@ -4596,12 +4772,15 @@ export const App: React.FC = () => {
             handleOrchestratorDelegations(paneId, tab.id, delegations)
           }}
           onOrchestratorStop={() => handleOrchestratorStop(paneId)}
+          onAbortDelegation={delegationId => {
+            void abortSingleDelegation(paneId, delegationId)
+          }}
           onDelegationTurnComplete={handleDelegationTurnComplete}
           onOrchestrationUserTurn={() => beginOrchestrationUserTurn(paneId)}
           getOrchestrationRound={() => {
             const activeId = activeOrchestrationJobByPaneRef.current.get(paneId)
             const jobs = orchestrationJobsByPaneRef.current.get(paneId)
-            const job = activeId && jobs?.get(activeId)
+            const job = activeId ? jobs?.get(activeId) : undefined
             const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
             return {
               round: job?.round ?? 0,
@@ -4866,6 +5045,12 @@ export const App: React.FC = () => {
                     t('tabs.planeContextPoolAssigned', { count })
                   )}
                   contextPoolEditLabel={t('tabContexts.edit')}
+                  contextPoolDeleteLabel={t('tabs.planeDeletePane')}
+                  contextPoolDeleteConfirmMessage={(name: string) => (
+                    t('tabs.planeConfirmDeleteContextMessage', { name })
+                  )}
+                  contextPoolDeleteConfirmDetail={t('tabs.planeConfirmDeleteContextDetail')}
+                  contextPoolTrashDropLabel={t('tabs.planeContextPoolTrashDrop')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -4907,6 +5092,9 @@ export const App: React.FC = () => {
                   onCreateContext={() => handleCreateContextFromPlane(tab.id)}
                   onOpenContext={contextId => {
                     handleOpenContextFromPlane(tab.id, contextId)
+                  }}
+                  onDeleteContext={contextId => {
+                    void handleDeleteContextFromPlane(tab.id, contextId)
                   }}
                   onAssignContext={(paneId, contextId) => {
                     handleAssignContextToAgent(tab.id, paneId, contextId)
@@ -4952,6 +5140,9 @@ export const App: React.FC = () => {
                   onStopChat={paneId => {
                     requestPlaneStop(paneId)
                     stopChainsForPane(tab.id, paneId)
+                  }}
+                  onAbortDelegation={(fromPaneId, delegationId) => {
+                    void abortSingleDelegation(fromPaneId, delegationId)
                   }}
                   onClearConversation={paneId => {
                     setPlaneClearPaneId(paneId)

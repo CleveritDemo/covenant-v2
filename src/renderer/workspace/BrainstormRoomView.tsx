@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
+import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
-import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
+import { AiMarkdown } from '../components/AiMarkdown'
 import {
   createInitialBrainstormLiveState,
   reduceBrainstormLiveEvent,
@@ -40,7 +41,14 @@ function statusLabelKey(
   return 'tabs.brainstormStatusIdle'
 }
 
-/** Vista en vivo: eventos + play/pausa/stop; cierre detiene solo si running/idle. */
+/** Índice estable del hablante para alinear burbujas (impar → derecha). */
+function speakerLane(agentId: string, order: readonly string[]): number {
+  const at = order.indexOf(agentId)
+  if (at >= 0) return at
+  return order.length
+}
+
+/** Vista en vivo: chat multi-agente + play/pausa/stop; cierre detiene si running/idle. */
 export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   open,
   active = true,
@@ -54,7 +62,22 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const liveStatusRef = useRef(live.status)
   const stoppedRef = useRef(false)
   const pendingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   liveStatusRef.current = live.status
+
+  const speakerOrder = useMemo(() => {
+    const seen: string[] = []
+    for (const id of room.participantAgentIds) {
+      if (!seen.includes(id)) seen.push(id)
+    }
+    for (const message of live.messages) {
+      if (!seen.includes(message.agentId)) seen.push(message.agentId)
+    }
+    if (live.streaming && !seen.includes(live.streaming.agentId)) {
+      seen.push(live.streaming.agentId)
+    }
+    return seen
+  }, [room.participantAgentIds, live.messages, live.streaming])
 
   useEffect(() => {
     if (!open) return
@@ -89,6 +112,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       }, 0)
     }
   }, [open, room.id])
+
+  // Auto-scroll al último mensaje / burbuja en vivo.
+  useEffect(() => {
+    if (!open) return
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+  }, [open, live.messages.length, live.streaming?.text, live.streaming?.agentId])
 
   const streamingName = useMemo(() => {
     if (!live.streaming) return ''
@@ -155,6 +184,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       title={t('tabs.brainstormViewTitle')}
       size="lg"
       zIndex={855}
+      bodyLayout="flush"
       footer={(
         <div className="brainstorm-room-view__footer">
           {showPause ? (
@@ -179,55 +209,81 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       )}
     >
       <div className="brainstorm-room-view">
-        <p className="brainstorm-room-view__topic">{room.topic}</p>
-        <div className="brainstorm-room-view__meta">
-          <span>
-            {t('tabs.brainstormRoundLabel')}
-            {' '}
-            <strong>
-              {t('tabs.brainstormRoundValue', {
-                current: Math.min(displayRound || 1, room.maxRounds),
-                max: room.maxRounds,
-              })}
-            </strong>
-          </span>
-          <span>
-            {t('tabs.brainstormStatusLabel')}
-            {' '}
-            <strong>{t(statusLabelKey(live.status))}</strong>
-          </span>
-        </div>
-
-        <div className="brainstorm-room-view__messages" role="log" aria-live="polite">
-          {live.messages.map((message, index) => (
-            <article
-              key={`${message.agentId}-${message.round}-${index}`}
-              className="brainstorm-room-view__message"
-            >
-              <span className="brainstorm-room-view__speaker">
-                {t('tabs.brainstormSpeakerLabel', {
-                  name: message.agentName,
-                  round: message.round + 1,
+        <header className="brainstorm-room-view__head">
+          <p className="brainstorm-room-view__topic">{room.topic}</p>
+          <div className="brainstorm-room-view__meta">
+            <span>
+              {t('tabs.brainstormRoundLabel')}
+              {' '}
+              <strong>
+                {t('tabs.brainstormRoundValue', {
+                  current: Math.min(displayRound || 1, room.maxRounds),
+                  max: room.maxRounds,
                 })}
-              </span>
-              <div className="brainstorm-room-view__body">
-                <AssistantFormattedBody content={message.text} />
-              </div>
-            </article>
-          ))}
+              </strong>
+            </span>
+            <span>
+              {t('tabs.brainstormStatusLabel')}
+              {' '}
+              <strong>{t(statusLabelKey(live.status))}</strong>
+            </span>
+          </div>
+        </header>
+
+        <div
+          className="brainstorm-room-view__messages"
+          role="log"
+          aria-live="polite"
+        >
+          {live.messages.map((message, index) => {
+            const color = paletteColorForSeed(message.agentId)
+            const lane = speakerLane(message.agentId, speakerOrder) % 2 === 1 ? 'end' : 'start'
+            return (
+              <article
+                key={`${message.agentId}-${message.round}-${index}`}
+                className={[
+                  'brainstorm-room-view__row',
+                  `brainstorm-room-view__row--${lane}`,
+                ].join(' ')}
+                style={{ '--brainstorm-speaker': color } as React.CSSProperties}
+              >
+                <span className="brainstorm-room-view__speaker">
+                  {t('tabs.brainstormSpeakerLabel', {
+                    name: message.agentName,
+                    round: message.round + 1,
+                  })}
+                </span>
+                <div className="brainstorm-room-view__bubble">
+                  <AiMarkdown content={message.text} />
+                </div>
+              </article>
+            )
+          })}
           {live.streaming ? (
-            <article className="brainstorm-room-view__message brainstorm-room-view__message--streaming">
+            <article
+              className={[
+                'brainstorm-room-view__row',
+                'brainstorm-room-view__row--live',
+                `brainstorm-room-view__row--${
+                  speakerLane(live.streaming.agentId, speakerOrder) % 2 === 1 ? 'end' : 'start'
+                }`,
+              ].join(' ')}
+              style={{
+                '--brainstorm-speaker': paletteColorForSeed(live.streaming.agentId),
+              } as React.CSSProperties}
+            >
               <span className="brainstorm-room-view__speaker">
                 {t('tabs.brainstormSpeakerLabel', {
                   name: streamingName,
                   round: live.streaming.round + 1,
                 })}
               </span>
-              <div className="brainstorm-room-view__body">
-                <AssistantFormattedBody content={live.streaming.text} live />
+              <div className="brainstorm-room-view__bubble brainstorm-room-view__bubble--live">
+                <AiMarkdown content={live.streaming.text} showCursor />
               </div>
             </article>
           ) : null}
+          <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
         </div>
 
         {live.lastError ? (

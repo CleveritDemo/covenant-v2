@@ -54,6 +54,31 @@
   background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
 }
 
+/* Papelera solo mientras se arrastra un chip; a la izquierda de los iconos. */
+.plane-context-pool__trash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin: 0 2px 0 0;
+  padding: 0;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  border: 1px dashed color-mix(in srgb, var(--danger, #c44) 55%, var(--plane-border));
+  background: color-mix(in srgb, var(--danger, #c44) 12%, transparent);
+  color: color-mix(in srgb, var(--danger, #c44) 85%, var(--text));
+  transition: color 0.12s, border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.plane-context-pool__trash--hot {
+  border-style: solid;
+  background: color-mix(in srgb, var(--danger, #c44) 28%, transparent);
+  color: var(--danger, #c44);
+  transform: scale(1.08);
+}
+
 /*
  * ponytail: scroll horizontal como tope del desborde. El upgrade es el chip
  * `+N` con buscador (fase 2), que evita tener que scrollear a ciegas.

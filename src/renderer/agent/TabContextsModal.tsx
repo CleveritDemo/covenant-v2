@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
+import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TabContextFormModal, type TabContextFormMode } from './TabContextFormModal'
 import { TabContextsList } from './TabContextsList'
 import { TabContextsListPreview } from './TabContextsListPreview'
@@ -47,6 +49,7 @@ export const TabContextsModal: React.FC<Props> = ({
   const [formSession, setFormSession] = useState<FormSession | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listError, setListError] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<TabContext | null>(null)
   /** true si el form se abrió por focusContextId (plano); false si desde el listado. */
   const formOpenedFromFocusRef = useRef(false)
 
@@ -55,6 +58,7 @@ export const TabContextsModal: React.FC<Props> = ({
       setFormSession(null)
       setSelectedId(null)
       setListError('')
+      setPendingDelete(null)
       formOpenedFromFocusRef.current = false
     }
   }, [open])
@@ -177,7 +181,7 @@ export const TabContextsModal: React.FC<Props> = ({
               setSelectedId(context.id)
               setFormSession({ mode: 'edit', context })
             }}
-            onDelete={removeContext}
+            onDelete={setPendingDelete}
           />
           <TabContextsListPreview context={selectedContext} cwd={resolveCwd()} />
           {listError && (
@@ -185,6 +189,20 @@ export const TabContextsModal: React.FC<Props> = ({
           )}
         </div>
       </TerminalModal>
+      <ConfirmTerminalModal
+        open={Boolean(pendingDelete)}
+        zIndex={APP_OVERLAY_MODAL_Z + 40}
+        message={t('tabs.planeConfirmDeleteContextMessage', {
+          name: pendingDelete?.name ?? '',
+        })}
+        detail={t('tabs.planeConfirmDeleteContextDetail')}
+        onConfirm={() => {
+          const target = pendingDelete
+          setPendingDelete(null)
+          if (target) void removeContext(target)
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
       <TabContextFormModal
         open={open && formSession !== null}
         mode={formMode}

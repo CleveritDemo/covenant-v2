@@ -87,4 +87,27 @@ describe('ContextReport kind notes', () => {
     expect(screen.getByText('tabContexts.reportEmpty')).toBeTruthy()
     expect(screen.queryByText('(manual notes context)')).toBeNull()
   })
+
+  it('texto plano sin marcadores iaterminal aparece en el reporte', () => {
+    render(
+      <ContextReport
+        context={notesContext}
+        content="Production new version\n\nShip notes for the release."
+      />,
+    )
+
+    expect(screen.getByText(/Ship notes for the release/)).toBeTruthy()
+    expect(screen.queryByText('tabContexts.reportEmpty')).toBeNull()
+  })
+
+  it('cuerpo org (plano) se muestra igual que notas locales sin markers', () => {
+    render(
+      <ContextReport
+        context={notesContext}
+        content={'# Production new version\n\nBody from workspaceContextBody.'}
+      />,
+    )
+
+    expect(screen.getByText(/Body from workspaceContextBody/)).toBeTruthy()
+  })
 })

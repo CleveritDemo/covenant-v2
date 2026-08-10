@@ -11,11 +11,19 @@ import {
   hasGitStagedChanges,
   hasGitUnstagedChanges,
   isGitEntryFullyStaged,
+  shortPathTail,
   splitGitFilesByArea,
   type GitStatusKind,
 } from '../gitPathUtils'
 
 describe('gitPathUtils', () => {
+  it('shortPathTail keeps the last two segments', () => {
+    expect(shortPathTail('/Users/rodrigoanti/Documents/covenant/rodrigoanti/covenant/covenant-v2'))
+      .toBe('covenant/covenant-v2')
+    expect(shortPathTail('C:\\Users\\me\\proj\\app')).toBe('proj/app')
+    expect(shortPathTail('solo')).toBe('solo')
+    expect(shortPathTail('')).toBe('')
+  })
   it('gitWorktreePath uses destination on rename', () => {
     expect(gitWorktreePath({ status: 'R ', path: 'old.ts -> new.ts' })).toBe('new.ts')
   })

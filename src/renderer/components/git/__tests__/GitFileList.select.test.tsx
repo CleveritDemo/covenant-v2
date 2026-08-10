@@ -69,6 +69,29 @@ describe('GitFileList selection', () => {
     fireEvent.click(nameButtons[0]!)
     expect(screen.getByTestId('sel').textContent).toBe('staged:src/a.ts')
   })
+
+  it('toggles selection off when clicking the selected file again', () => {
+    const onSelect = vi.fn()
+    render(
+      <GitFileList
+        files={[{ path: 'src/a.ts', status: 'M ' }]}
+        unstagedNumStat=""
+        stagedNumStat={'src/a.ts\t1\t0'}
+        idle
+        onStageFile={() => {}}
+        onUnstageFile={() => {}}
+        onStageAll={() => {}}
+        onUnstageAll={() => {}}
+        selection={{ path: 'src/a.ts', area: 'staged' }}
+        onSelect={onSelect}
+        onDiscardFile={() => {}}
+      />,
+    )
+    const nameButtons = screen.getAllByRole('button')
+      .filter(btn => btn.classList.contains('git-file-list__name'))
+    fireEvent.click(nameButtons[0]!)
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
 })
 
 describe('GitDiffPane', () => {

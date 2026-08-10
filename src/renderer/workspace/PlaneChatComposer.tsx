@@ -27,6 +27,7 @@ import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
+import { shouldShowComposerStop } from '../agent/agentInputGuards'
 import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
@@ -144,7 +145,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const canSend = Boolean(
     selected && !composerLocked && (draft.trim() || pendingImages.length > 0),
   )
-  const showStop = Boolean(selected && (loopActive || busy || awaitingDelegations))
+  const showStop = Boolean(selected && shouldShowComposerStop({
+    loopActive,
+    busy,
+    awaitingDelegations,
+  }))
   const buttonIsStop = Boolean(showStop && (loopActive || !canSend))
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')

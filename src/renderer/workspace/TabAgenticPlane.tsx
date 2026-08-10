@@ -8,7 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
-import { PlaneChatComposer } from './PlaneChatComposer'
+import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
@@ -58,6 +58,10 @@ export interface TabAgenticPlaneProps {
   /** Aria del contador del chip; recibe el nº de agentes. */
   contextPoolAssignedCountLabel: (count: number) => string
   contextPoolEditLabel: string
+  contextPoolDeleteLabel: string
+  contextPoolDeleteConfirmMessage: (name: string) => string
+  contextPoolDeleteConfirmDetail: string
+  contextPoolTrashDropLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -93,6 +97,8 @@ export interface TabAgenticPlaneProps {
   onCreateContext: () => void
   /** Clic en chip del pool → editar ese contexto (sin DnD). */
   onOpenContext?: (contextId: string) => void
+  /** Elimina un contexto del catálogo (org o local). */
+  onDeleteContext?: (contextId: string) => void
   /** Asigna un contexto arrastrado del pool a un agente. */
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
@@ -105,6 +111,8 @@ export interface TabAgenticPlaneProps {
   ) => void
   /** Detiene el turno activo del agente desde el composer del plano. */
   onStopChat: (paneId: string) => void
+  /** Stop por fila en Waiting: cancela solo esa delegación del orquestador. */
+  onAbortDelegation?: (fromPaneId: string, delegationId: string) => void
   /** Pide limpiar la conversación del agente (confirmación en AgentPane). */
   onClearConversation: (paneId: string) => void
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
@@ -225,6 +233,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolAssignEmptyHint,
   contextPoolAssignedCountLabel,
   contextPoolEditLabel,
+  contextPoolDeleteLabel,
+  contextPoolDeleteConfirmMessage,
+  contextPoolDeleteConfirmDetail,
+  contextPoolTrashDropLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -256,10 +268,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onConfigureContexts,
   onCreateContext,
   onOpenContext,
+  onDeleteContext,
   onAssignContext,
   onOpenResultsPreview,
   onSendChat,
   onStopChat,
+  onAbortDelegation,
   onClearConversation,
   openChatAgentId,
   onOpenChatAgentChange,
@@ -378,11 +392,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     return () => observer.disconnect()
   }, [])
 
-  const agents = useMemo(
-    () => entities
+  const agents = useMemo((): PlaneChatAgentOption[] => (
+    entities
       .filter(entity => entity.kind === 'agent')
       .map(entity => {
         const status = agentStatuses[entity.paneId]
+        const workStyle = status?.orchestrationWorkStyle
         return {
           paneId: entity.paneId,
           title: entity.title,
@@ -391,11 +406,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           awaitingDelegations: Boolean(status?.awaitingDelegations),
           delegationWorkActive: Boolean(status?.delegationWorkActive),
           orchestratorBusy: Boolean(status?.orchestratorBusy),
-          orchestrationWorkStyle: status?.orchestrationWorkStyle === 'turbo' ? 'turbo' : 'linear',
+          orchestrationWorkStyle: workStyle === 'turbo' ? 'turbo' : 'linear',
         }
-      }),
-    [agentStatuses, entities],
-  )
+      })
+  ), [agentStatuses, entities])
 
   const loopAgents = useMemo<PlaneLoopsAgent[]>(
     () => entities
@@ -698,6 +712,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           assignEmptyHint={contextPoolAssignEmptyHint}
           assignedCountLabel={contextPoolAssignedCountLabel}
           editLabel={contextPoolEditLabel}
+          deleteLabel={contextPoolDeleteLabel}
+          deleteConfirmMessage={contextPoolDeleteConfirmMessage}
+          deleteConfirmDetail={contextPoolDeleteConfirmDetail}
+          trashDropLabel={contextPoolTrashDropLabel}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -705,6 +723,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onConfigure={onConfigureContexts}
           onCreate={onCreateContext}
           onOpenContext={onOpenContext}
+          onDeleteContext={onDeleteContext}
           onToggleAssign={onToggleAgentContext}
         />
       )}
@@ -739,6 +758,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               settlingId={quickChatStatus?.settlingId ?? null}
               fontSize={chatFontSize}
               onShowingChange={setQuickChatShowing}
+              onAbortDelegation={
+                onAbortDelegation
+                  ? (delegationId => onAbortDelegation(openChatAgentId, delegationId))
+                  : undefined
+              }
             />
           ) : null}
           composer={(

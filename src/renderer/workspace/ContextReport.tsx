@@ -184,13 +184,12 @@ export const ContextReport: React.FC<{ context: TabContext; content: string }> =
   content,
 }) => {
   const doc = useMemo(() => parseContextDoc(content), [content])
-  // Custom Markdown: el contenido útil está en notes; auto es stub materialize.
-  // El `|| doc.auto` no es defensivo de más: un .md de notas sin los marcadores
-  // `iaterminal:notes` deja `doc.notes` vacío y sin él la vista decía «vacío»
-  // teniendo el texto delante.
+  // Custom Markdown: cuerpo útil en notes; auto es stub de materialize. Sin
+  // marcadores iaterminal, parseContextDoc deja el texto en `auto` — usarlo.
+  // Solo-stub (placeholders) sigue vacío vía `clean` en el parser.
   const notesKind = context.kind === 'notes'
   const notesAsBody = notesKind && Boolean(doc.notes)
-  const body = notesAsBody ? doc.notes : doc.auto
+  const body = notesKind ? (doc.notes || doc.auto) : doc.auto
 
   return (
     <div className="context-report">

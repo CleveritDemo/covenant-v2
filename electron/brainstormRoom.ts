@@ -105,7 +105,8 @@ export function defaultRunBrainstormSpeakerTurn(
     const request: AgentCliStartRequest = {
       paneId: input.paneId,
       provider: input.agent.provider,
-      permissionMode: input.agent.permissionMode,
+      // Brainstorm: auto (no plan) — camino más corto; sin tools/contexto/delegación.
+      permissionMode: 'auto',
       prompt: input.prompt,
       cwd: input.cwd,
       name: input.agent.name,
@@ -119,6 +120,9 @@ export function defaultRunBrainstormSpeakerTurn(
       allowDelegations: false,
       emitResults: false,
       autoImproveContexts: false,
+      nativeSkills: undefined,
+      mcpsAllowed: [],
+      contexts: [],
     }
 
     runAgentCliSpawn(request, config, home, {

@@ -9,6 +9,10 @@ import {
   usePushToTalkSpeech,
 } from '../pushToTalkSpeech'
 
+vi.mock('../uiSounds', () => ({
+  playVoiceMessageSound: vi.fn(),
+}))
+
 type DictationMock = {
   dictationAvailable: ReturnType<typeof vi.fn>
   dictationStart: ReturnType<typeof vi.fn>
@@ -91,6 +95,7 @@ describe('isPushToTalkSpeechSupported', () => {
 
 describe('usePushToTalkSpeech', () => {
   it('start() sets listening and calls dictationStart(lang)', async () => {
+    const { playVoiceMessageSound } = await import('../uiSounds')
     const api = installDictationApi()
     const onTranscript = vi.fn()
     const { result } = renderHook(() =>
@@ -101,6 +106,7 @@ describe('usePushToTalkSpeech', () => {
       result.current.start()
     })
 
+    expect(playVoiceMessageSound).toHaveBeenCalled()
     expect(result.current.listening).toBe(true)
     await waitFor(() => {
       expect(api.dictationStart).toHaveBeenCalledWith('es-ES')

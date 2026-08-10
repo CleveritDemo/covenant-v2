@@ -38,6 +38,44 @@ function clean(value: string): string {
   return PLACEHOLDERS.has(trimmed) ? '' : trimmed
 }
 
+/** Quita solo la línea de metadata `iaterminal:context`; deja el cuerpo plano. */
+export function stripContextMetadataComment(raw: string): string {
+  return raw
+    .replace(/\r\n/g, '\n')
+    .replace(/^<!--\s*iaterminal:context\b[\s\S]*?-->\s*/m, '')
+    .trim()
+}
+
+/**
+ * Contenido útil para preview de kind `notes`.
+ * Prefiere el cuerpo org en memoria, luego `notesContent` del IPC, luego regiones
+ * parseadas; si no hay marcadores iaterminal, el texto plano (sin la línea meta).
+ * Documentos solo-stub (markers + placeholders) → cadena vacía.
+ */
+export function resolveNotesPreviewContent(args: {
+  cachedBody?: string
+  notesContent?: string
+  content?: string
+}): string {
+  const cached = (args.cachedBody ?? '').trim()
+  if (cached) return cached
+
+  const notesContent = (args.notesContent ?? '').trim()
+  if (notesContent && !PLACEHOLDERS.has(notesContent)) return notesContent
+
+  const content = (args.content ?? '').replace(/\r\n/g, '\n')
+  const hasMarkers = AUTO_RE.test(content) || NOTES_RE.test(content)
+  const parsed = parseContextDoc(content)
+  if (parsed.notes.trim()) return parsed.notes
+  if (parsed.auto.trim()) return parsed.auto
+
+  if (!hasMarkers) {
+    const stripped = stripContextMetadataComment(content)
+    if (stripped && !PLACEHOLDERS.has(stripped)) return stripped
+  }
+  return ''
+}
+
 export function parseContextDoc(raw: string): ContextDoc {
   const source = raw.replace(/\r\n/g, '\n')
   const notesRegion = source.match(NOTES_RE)?.[1] ?? ''

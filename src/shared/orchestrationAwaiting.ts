@@ -8,6 +8,8 @@ export type OrchestrationAwaitingItemStatus = 'running' | 'done'
 export interface OrchestrationAwaitingItemInput {
   delegationId: string
   toAgentId: string
+  /** Pane especialista en vuelo (para Stop por fila). */
+  toPaneId?: string
   /** Si la ruta usó un experto base distinto (réplica spawn). */
   baseAgentId?: string
   status: OrchestrationAwaitingItemStatus
@@ -19,6 +21,8 @@ export interface OrchestrationAwaitingItemView {
   agentLabel: string
   isReplica: boolean
   status: OrchestrationAwaitingItemStatus
+  /** Pane destino si la ola lo conoce (Stop por fila). */
+  toPaneId?: string
   /** Último segmento útil del worktree (barato, sin IPC). */
   worktreeHint?: string
 }
@@ -75,6 +79,7 @@ export function buildOrchestrationAwaitingView(
     agentLabel: item.toAgentId.trim() || item.delegationId,
     isReplica: isReplicaAgentId(item.toAgentId, item.baseAgentId),
     status: item.status,
+    ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),
     ...(shortWorktreeHint(item.worktreePath)
       ? { worktreeHint: shortWorktreeHint(item.worktreePath) }
       : {}),

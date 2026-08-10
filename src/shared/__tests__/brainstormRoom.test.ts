@@ -63,7 +63,7 @@ describe('nextSpeaker / complete / advance', () => {
 })
 
 describe('buildBrainstormTurnPrompt', () => {
-  it('includes topic, speaker labels, and no-delegate instruction', () => {
+  it('includes topic, speaker labels, and brief plain-reply constraints', () => {
     const room = createBrainstormRoom('Latency budget', ['qa', 'fe'], 3)!
     room.messages.push({
       agentId: 'qa',
@@ -73,10 +73,16 @@ describe('buildBrainstormTurnPrompt', () => {
     })
     const prompt = buildBrainstormTurnPrompt(room, 'fe', 'Frontend', 'UI craft')
     expect(prompt).toContain('Topic: Latency budget')
-    expect(prompt).toContain('### QA (round 0)')
-    expect(prompt).toContain('Measure p95 first.')
+    expect(prompt).toContain('QA (round 0): Measure p95 first.')
+    expect(prompt).not.toContain('### QA')
     expect(prompt).toContain('Your role: UI craft')
+    expect(prompt).toMatch(/2–4 short sentences|80–120 words/i)
+    expect(prompt).toContain('no headings')
+    expect(prompt).toContain('code fences')
     expect(prompt).toContain('Do not delegate')
-    expect(prompt).toContain('Do not ask for approval')
+    expect(prompt).toContain('call tools')
+    expect(prompt).toContain('One idea only')
+    expect(prompt).toContain('Output only your spoken contribution')
+    expect(prompt).not.toMatch(/^## /m)
   })
 })

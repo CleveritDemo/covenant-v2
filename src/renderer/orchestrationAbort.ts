@@ -3,6 +3,7 @@
 export interface OrchestrationPlaneSendLike {
   orchestrationFollowUp?: boolean
   delegation?: {
+    id?: string
     fromPaneId: string
   }
 }
@@ -61,4 +62,35 @@ export function filterQueuedTurnsAfterOrchestrationAbort<T extends Orchestration
     else kept.push(item)
   }
   return { kept, removed }
+}
+
+/**
+ * Quita de la cola local la subtarea con este delegationId (Stop por fila).
+ */
+export function filterQueuedTurnsAfterSingleDelegationAbort<T extends OrchestrationQueuedTurnLike>(
+  queue: readonly T[],
+  delegationId: string,
+): { kept: T[]; removed: T[] } {
+  const id = delegationId.trim()
+  const kept: T[] = []
+  const removed: T[] = []
+  for (const item of queue) {
+    if (id && item.delegation?.id === id) removed.push(item)
+    else kept.push(item)
+  }
+  return { kept, removed }
+}
+
+/** Quita preferSend ya ofrecido para una sola subtarea (Stop por fila). */
+export function clearPlaneSendsForSingleDelegationAbort<T extends OrchestrationPlaneSendLike>(
+  prev: Record<string, T>,
+  delegationId: string,
+): Record<string, T> {
+  const id = delegationId.trim()
+  if (!id) return prev
+  const next = { ...prev }
+  for (const [paneId, payload] of Object.entries(next)) {
+    if (payload?.delegation?.id === id) delete next[paneId]
+  }
+  return next
 }

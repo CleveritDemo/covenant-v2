@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.5
+
+- **Cards de agentes más estables**: altura mínima y espaciado para que el dot
+  de trabajo y el botón de resultados queden bien posicionados.
+- **Documentación de orquestación**: se agrega la diferencia entre modo lineal y
+  turbo, incluyendo cuándo turbo encola si el orquestador está ocupado.
+
 ## v0.39.4
 
 - **Monogramas en cards de agentes**: las iniciales aparecen a la izquierda del

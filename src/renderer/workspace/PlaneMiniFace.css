@@ -6,9 +6,9 @@
   flex: 0 0 auto;
   gap: 0;
   width: 100%;
-  min-height: 0;
+  min-height: 82px;
   height: auto;
-  padding: 6px 8px 5px;
+  padding: 8px 44px 8px 10px;
   box-sizing: border-box;
   overflow: hidden;
   user-select: none;
@@ -57,7 +57,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .plane-mini-face__identity {
@@ -162,8 +162,8 @@
 
 .plane-mini-face__results-drag {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 10px;
+  bottom: 10px;
   z-index: 3;
   opacity: 1;
   cursor: grab;
@@ -223,6 +223,7 @@
 }
 
 .plane-mini-face--compact {
+  min-height: 76px;
   padding: 7px 9px 8px;
   gap: 0;
 }

@@ -146,7 +146,7 @@ describe('runBrainstormSequence', () => {
       { type: 'human_message', text: 'Human nudge', round: 0 },
     ])
     expect(prompts[0]).not.toContain('Human nudge')
-    expect(prompts[1]).toContain('Human (human): Human nudge')
+    expect(prompts[1]).toContain('Human (human, to the room): Human nudge')
   })
 })
 

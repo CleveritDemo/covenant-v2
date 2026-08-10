@@ -534,12 +534,20 @@ export function buildBrainstormTurnPrompt(
   const hasWorkingSet = Boolean(workingSet?.labels?.some(label => label.trim()))
   const addressedToSpeaker = room.messages.some(msg =>
     isBrainstormHumanMessage(msg) && msg.targetAgentId === speakerAgentId)
+  const addressedToOthers = room.messages.some(msg =>
+    isBrainstormHumanMessage(msg)
+    && Boolean(msg.targetAgentId)
+    && msg.targetAgentId !== speakerAgentId)
   const transcript = room.messages.length
     ? room.messages
       .map(msg => {
         if (isBrainstormHumanMessage(msg)) {
-          const to = msg.targetAgentId ? ` → ${msg.targetAgentId}` : ''
-          return `${msg.agentName || 'You'} (human${to}): ${msg.text}`
+          const who = msg.agentName || 'You'
+          if (!msg.targetAgentId) return `${who} (human, to the room): ${msg.text}`
+          // Al no destinatario se le dice explícito: es contexto, no su instrucción.
+          return msg.targetAgentId === speakerAgentId
+            ? `${who} (human, to you): ${msg.text}`
+            : `${who} (human, to ${msg.targetAgentId} — not to you): ${msg.text}`
         }
         return `${msg.agentName} (round ${msg.round}): ${msg.text}`
       })
@@ -566,6 +574,9 @@ export function buildBrainstormTurnPrompt(
       : []),
     ...(addressedToSpeaker
       ? ['- The user addressed you directly in the transcript: answer that first.']
+      : []),
+    ...(addressedToOthers
+      ? ['- A note marked "not to you" is context about another agent, never an instruction you follow.']
       : []),
     ...(isFinalBrainstormTurn(room)
       ? [

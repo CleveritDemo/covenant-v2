@@ -265,20 +265,26 @@ describe('nota humana dirigida', () => {
       .toBeUndefined()
   })
 
-  it('el prompt marca el destino y avisa solo al destinatario', () => {
+  it('al destinatario le dice que conteste; al resto, que es contexto', () => {
     const withNote = appendBrainstormHumanMessage(room, 'priorizad el coste', 'qa')!
-    const toQa = buildBrainstormTurnPrompt(withNote, 'qa', 'QA')
-    expect(toQa).toContain('(human → qa): priorizad el coste')
-    expect(toQa).toContain('The user addressed you directly')
 
+    const toQa = buildBrainstormTurnPrompt(withNote, 'qa', 'QA')
+    expect(toQa).toContain('(human, to you): priorizad el coste')
+    expect(toQa).toContain('The user addressed you directly')
+    expect(toQa).not.toContain('never an instruction you follow')
+
+    // El no destinatario ve la nota, pero marcada como ajena.
     const toBackend = buildBrainstormTurnPrompt(withNote, 'backend', 'Backend')
-    expect(toBackend).toContain('(human → qa): priorizad el coste')
+    expect(toBackend).toContain('(human, to qa — not to you): priorizad el coste')
+    expect(toBackend).toContain('never an instruction you follow')
     expect(toBackend).not.toContain('The user addressed you directly')
   })
 
-  it('sin destino el transcript no inventa flecha', () => {
+  it('sin destino la nota es para la sala', () => {
     const toRoom = appendBrainstormHumanMessage(room, 'a todos')!
-    expect(buildBrainstormTurnPrompt(toRoom, 'qa', 'QA')).toContain('(human): a todos')
+    const prompt = buildBrainstormTurnPrompt(toRoom, 'qa', 'QA')
+    expect(prompt).toContain('(human, to the room): a todos')
+    expect(prompt).not.toContain('not to you')
   })
 })
 
@@ -429,6 +435,6 @@ describe('appendBrainstormHumanMessage', () => {
       }],
     })
     const prompt = buildBrainstormTurnPrompt(next!, 'a', 'A')
-    expect(prompt).toContain('Human (human): Steer toward latency')
+    expect(prompt).toContain('Human (human, to the room): Steer toward latency')
   })
 })

@@ -1,4 +1,4 @@
-/* Chat multi-agente: una composición, burbujas sin cards. */
+/* Acta multi-agente: una columna, rondas separadas, carril por hablante. */
 
 .brainstorm-room-view {
   display: flex;
@@ -49,7 +49,7 @@
 .brainstorm-room-view__messages {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -57,45 +57,54 @@
   scroll-behavior: smooth;
 }
 
-.brainstorm-room-view__row {
+.brainstorm-room-view__round-sep {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: min(86%, 520px);
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 2px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-room-view__round-sep::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.brainstorm-room-view__round-sep:first-child {
+  margin-top: 0;
+}
+
+/* Acta en una columna: el carril de color identifica al hablante. */
+.brainstorm-room-view__row {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
   animation: brainstorm-bubble-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.brainstorm-room-view__row--start {
-  align-self: flex-start;
-  align-items: flex-start;
+.brainstorm-room-view__lane {
+  border-radius: 2px;
+  background: var(--brainstorm-speaker, var(--border));
 }
 
-.brainstorm-room-view__row--end {
-  align-self: flex-end;
-  align-items: flex-end;
+.brainstorm-room-view__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.brainstorm-room-view__row--end .brainstorm-room-view__bubble {
-  border-radius: 14px 14px 4px 14px;
-}
-
-.brainstorm-room-view__row--human {
-  align-self: flex-end;
-  align-items: flex-end;
-  max-width: min(86%, 520px);
-}
-
-.brainstorm-room-view__row--human .brainstorm-room-view__bubble {
-  border-radius: 14px 14px 4px 14px;
-}
-
-.brainstorm-room-view__bubble--human {
-  background: color-mix(
-    in srgb,
-    var(--accent) 22%,
-    color-mix(in srgb, var(--bg) 78%, var(--surface))
-  );
-  color: var(--text);
+.brainstorm-room-view__row--human .brainstorm-room-view__entry {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* Humano: texto literal (sin Markdown). */
@@ -107,28 +116,18 @@
 
 .brainstorm-room-view__speaker {
   font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 550;
+  font-size: 11px;
+  font-weight: 650;
   letter-spacing: 0.01em;
-  color: color-mix(in srgb, var(--brainstorm-speaker, var(--text-muted)) 72%, var(--text-muted));
-  padding: 0 4px;
+  color: var(--brainstorm-speaker, var(--text-muted));
 }
 
 .brainstorm-room-view__bubble {
-  max-width: 100%;
-  padding: 9px 13px;
+  max-width: 72ch;
   font-family: var(--font-ui);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text);
-  background: color-mix(
-    in srgb,
-    var(--brainstorm-speaker, var(--surface)) 14%,
-    color-mix(in srgb, var(--bg) 78%, var(--surface))
-  );
-  border: none;
-  border-radius: 14px 14px 14px 4px;
-  box-shadow: none;
   overflow-wrap: anywhere;
 }
 
@@ -145,12 +144,7 @@
 }
 
 .brainstorm-room-view__bubble--live {
-  background: color-mix(
-    in srgb,
-    var(--brainstorm-speaker, var(--accent)) 18%,
-    color-mix(in srgb, var(--bg) 82%, var(--surface))
-  );
-  animation: brainstorm-live-breathe 2.8s ease-in-out infinite;
+  color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
 }
 
 .brainstorm-room-view__anchor {
@@ -186,17 +180,7 @@
   }
 }
 
-@keyframes brainstorm-live-breathe {
-  0%, 100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.04);
-  }
-}
-
-:root[data-reduce-motion='true'] .brainstorm-room-view__row,
-:root[data-reduce-motion='true'] .brainstorm-room-view__bubble--live {
+:root[data-reduce-motion='true'] .brainstorm-room-view__row {
   animation: none;
 }
 

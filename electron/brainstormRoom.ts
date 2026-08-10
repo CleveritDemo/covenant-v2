@@ -17,6 +17,7 @@ import {
   sanitizeBrainstormOutcome,
   sanitizeBrainstormWorkingSet,
   shouldSendWorkingSetBodies,
+  stripBrainstormProtocolFences,
   type BrainstormEvent,
   type BrainstormMessage,
   type BrainstormRoom,
@@ -369,7 +370,7 @@ export async function runBrainstormSequence(
       return room
     }
 
-    const text = result.text.trim()
+    const text = stripBrainstormProtocolFences(result.text.trim())
     const withMessage: BrainstormRoom = {
       ...room,
       messages: [

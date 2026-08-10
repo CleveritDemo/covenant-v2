@@ -50,8 +50,9 @@ html[data-reduce-motion="true"] {
 }
 
 /* Hueco para el PlaneBusyDot en esquina; el dot ya no ocupa el flujo. */
+/* El punto va en flujo antes del nombre; el gap del chip ya lo separa. */
 .plane-agent-badge--busy {
-  padding-right: 16px;
+  padding-left: 9px;
 }
 
 .plane-agent-badge__name {

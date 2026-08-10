@@ -22,6 +22,7 @@ import {
   sanitizeBrainstormMaxRounds,
   sanitizeBrainstormWorkingSet,
   shouldSendWorkingSetBodies,
+  stripBrainstormProtocolFences,
 } from '../brainstormRoom'
 import type { ProjectAgentDefinition } from '../projectAgentCatalog'
 
@@ -243,6 +244,33 @@ describe('buildBrainstormTurnPrompt', () => {
     const final = { ...room, round: 1, cursor: 1 }
     expect(isFinalBrainstormTurn(final)).toBe(true)
     expect(buildBrainstormTurnPrompt(final, 'fe', 'Frontend')).toContain('Final turn')
+  })
+})
+
+describe('stripBrainstormProtocolFences', () => {
+  it('quita las cercas de protocolo y deja la prosa', () => {
+    const text = [
+      'Decision: keep it.',
+      '',
+      '```ia-terminal-results',
+      '{"summary":"x"}',
+      '```',
+      '',
+      'Trade-off: tokens.',
+    ].join('\n')
+    const out = stripBrainstormProtocolFences(text)
+    expect(out).toBe('Decision: keep it.\n\nTrade-off: tokens.')
+  })
+
+  it('recorta la cerca a medio llegar durante el streaming', () => {
+    expect(stripBrainstormProtocolFences('Listo.\n```ia-terminal-results\n{"sum'))
+      .toBe('Listo.')
+  })
+
+  it('no toca texto sin cercas ni bloques de código normales', () => {
+    expect(stripBrainstormProtocolFences('Sin cercas')).toBe('Sin cercas')
+    const code = 'Mira:\n```ts\nconst a = 1\n```'
+    expect(stripBrainstormProtocolFences(code)).toBe(code)
   })
 })
 

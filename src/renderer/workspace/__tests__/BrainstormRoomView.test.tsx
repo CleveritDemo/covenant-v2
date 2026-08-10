@@ -13,6 +13,12 @@ vi.mock('@i18n/useT', () => ({
       if (key === 'tabs.brainstormSpeakerLabel') {
         return `${opts?.name} · round ${opts?.round}`
       }
+      if (key === 'tabs.brainstormSpeakerWriting') {
+        return `${opts?.name} · writing…`
+      }
+      if (key === 'tabs.brainstormRoundSeparator') {
+        return `Round ${opts?.round}`
+      }
       if (key === 'tabs.brainstormRoundValue') {
         return `${opts?.current} / ${opts?.max}`
       }
@@ -84,13 +90,18 @@ describe('BrainstormRoomView chat bubbles', () => {
     )
 
     expect(screen.getByText('Ship the chat UI')).toBeTruthy()
-    expect(screen.getByText('Atlas · round 1')).toBeTruthy()
+    expect(screen.getByText('Atlas')).toBeTruthy()
+    expect(screen.getByText('Round 1')).toBeTruthy()
     expect(screen.getByText('First take from Atlas.')).toBeTruthy()
     expect(document.querySelectorAll('.brainstorm-room-view__bubble').length).toBe(2)
     expect(document.querySelector('.brainstorm-room-view__message')).toBeNull()
+    // Acta en una columna: sin lados, un carril de color por hablante.
     const rows = document.querySelectorAll('.brainstorm-room-view__row')
-    expect(rows[0].className).toContain('brainstorm-room-view__row--start')
-    expect(rows[1].className).toContain('brainstorm-room-view__row--end')
+    expect(rows.length).toBe(2)
+    expect(document.querySelectorAll('.brainstorm-room-view__lane').length).toBe(2)
+    expect(rows[0].getAttribute('style')).toContain('--brainstorm-speaker')
+    expect(document.querySelector('.brainstorm-room-view__row--start')).toBeNull()
+    expect(document.querySelector('.brainstorm-room-view__row--end')).toBeNull()
   })
 
   it('envía interrupción humana y pinta burbuja distinta', () => {
@@ -122,7 +133,6 @@ describe('BrainstormRoomView chat bubbles', () => {
     expect(inject).toHaveBeenCalledWith('room-1', 'Focus on the composer first.')
     expect(screen.getByText('You')).toBeTruthy()
     expect(screen.getByText('Focus on the composer first.')).toBeTruthy()
-    expect(document.querySelector('.brainstorm-room-view__bubble--human')).toBeTruthy()
     expect(document.querySelector('.brainstorm-room-view__row--human')).toBeTruthy()
   })
 
@@ -245,11 +255,11 @@ describe('BrainstormRoomView chat bubbles', () => {
       />,
     )
 
-    expect(screen.getByText('David · round 1')).toBeTruthy()
-    expect(screen.getByText('Unknown participant (frontend) · round 1')).toBeTruthy()
+    expect(screen.getByText('David')).toBeTruthy()
+    expect(screen.getByText('Unknown participant (frontend)')).toBeTruthy()
     expect(screen.getByText(
       'Saved participants missing from the catalog (skipped): frontend',
     )).toBeTruthy()
-    expect(screen.queryByText(/^frontend · round/)).toBeNull()
+    expect(screen.queryByText(/^frontend$/)).toBeNull()
   })
 })

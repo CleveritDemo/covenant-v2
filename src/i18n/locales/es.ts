@@ -557,6 +557,8 @@ const es = {
     brainstormStatusDone: 'Terminada',
     brainstormStatusStopped: 'Detenida',
     brainstormSpeakerLabel: '{{name}} · ronda {{round}}',
+    brainstormSpeakerWriting: '{{name}} · escribiendo…',
+    brainstormRoundSeparator: 'Ronda {{round}}',
     brainstormUnknownParticipant: 'Participante desconocido ({{id}})',
     brainstormOrphanParticipants: 'Participantes guardados ausentes del catálogo (omitidos): {{ids}}',
     brainstormPause: 'Pausa',

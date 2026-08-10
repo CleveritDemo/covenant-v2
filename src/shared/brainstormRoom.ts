@@ -261,6 +261,23 @@ export function sanitizeBrainstormInviteIds(
   return resolveBrainstormParticipantIds(participantAgentIds, agents).resolvedIds
 }
 
+/**
+ * Cercas de protocolo que el modelo escribe a veces aunque el turno las prohíba.
+ * En la sala nadie las parsea (los turnos van sin results ni delegación), así que
+ * solo son ruido en el acta. `(?:```|$)` recorta también la cerca a medio llegar
+ * durante el streaming.
+ */
+const BRAINSTORM_PROTOCOL_FENCE =
+  /```ia-terminal-(?:results|changelog|delegate|context)[\s\S]*?(?:```|$)/g
+
+export function stripBrainstormProtocolFences(text: string): string {
+  if (typeof text !== 'string' || !text.includes('```ia-terminal-')) return text
+  return text
+    .replace(BRAINSTORM_PROTOCOL_FENCE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /** Working set: strings limpios, sin duplicados y con tope. */
 export function sanitizeBrainstormWorkingSet(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []

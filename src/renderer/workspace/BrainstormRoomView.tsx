@@ -5,6 +5,7 @@ import {
   isBrainstormHumanMessage,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
+  stripBrainstormProtocolFences,
   type BrainstormCatalogAgent,
 } from '@shared/brainstormRoom'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
@@ -54,13 +55,6 @@ function statusLabelKey(
   return 'tabs.brainstormStatusIdle'
 }
 
-/** Índice estable del hablante para alinear burbujas (impar → derecha). */
-function speakerLane(agentId: string, order: readonly string[]): number {
-  const at = order.indexOf(agentId)
-  if (at >= 0) return at
-  return order.length
-}
-
 /** Vista en vivo: chat multi-agente + play/pausa/stop; cierre detiene si running/idle. */
 export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   open,
@@ -102,24 +96,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     if (stored && stored !== agentId) return stored
     return t('tabs.brainstormUnknownParticipant', { id: agentId })
   }, [agentNamesById, agents, t])
-
-  const speakerOrder = useMemo(() => {
-    const seen: string[] = []
-    const push = (id: string): void => {
-      const display = agents.length > 0
-        ? resolveBrainstormParticipantDisplay(id, agents)
-        : { agentId: id, known: true, label: id }
-      const key = display.known ? display.agentId : id
-      if (!seen.includes(key)) seen.push(key)
-    }
-    for (const id of participantResolution.resolvedIds) push(id)
-    for (const message of live.messages) {
-      if (isBrainstormHumanMessage(message)) continue
-      push(message.agentId)
-    }
-    if (live.streaming) push(live.streaming.agentId)
-    return seen
-  }, [agents, live.messages, live.streaming, participantResolution.resolvedIds])
 
   useEffect(() => {
     if (!open) return
@@ -308,58 +284,44 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             const color = human
               ? 'var(--accent)'
               : paletteColorForSeed(laneAgentId)
-            const lane = human
-              ? 'human'
-              : speakerLane(laneAgentId, speakerOrder) % 2 === 1
-                ? 'end'
-                : 'start'
+            const previous = live.messages[index - 1]
+            const opensRound = !previous || previous.round !== message.round
             return (
-              <article
-                key={`${message.agentId}-${message.round}-${index}`}
-                className={[
-                  'brainstorm-room-view__row',
-                  `brainstorm-room-view__row--${lane}`,
-                ].join(' ')}
-                style={{ '--brainstorm-speaker': color } as React.CSSProperties}
-              >
-                <span className="brainstorm-room-view__speaker">
-                  {human
-                    ? t('tabs.brainstormHumanLabel')
-                    : t('tabs.brainstormSpeakerLabel', {
-                        name: speakerLabel(message.agentId, message.agentName),
-                        round: message.round + 1,
-                      })}
-                </span>
-                <div
+              <React.Fragment key={`${message.agentId}-${message.round}-${index}`}>
+                {opensRound ? (
+                  <p className="brainstorm-room-view__round-sep">
+                    {t('tabs.brainstormRoundSeparator', { round: message.round + 1 })}
+                  </p>
+                ) : null}
+                <article
                   className={[
-                    'brainstorm-room-view__bubble',
-                    human ? 'brainstorm-room-view__bubble--human' : '',
+                    'brainstorm-room-view__row',
+                    human ? 'brainstorm-room-view__row--human' : '',
                   ].filter(Boolean).join(' ')}
+                  style={{ '--brainstorm-speaker': color } as React.CSSProperties}
                 >
-                  {human ? (
-                    <div className="brainstorm-room-view__plain">{message.text}</div>
-                  ) : (
-                    <AiMarkdown content={message.text} />
-                  )}
-                </div>
-              </article>
+                  <span className="brainstorm-room-view__lane" aria-hidden />
+                  <div className="brainstorm-room-view__entry">
+                    <span className="brainstorm-room-view__speaker">
+                      {human
+                        ? t('tabs.brainstormHumanLabel')
+                        : speakerLabel(message.agentId, message.agentName)}
+                    </span>
+                    <div className="brainstorm-room-view__bubble">
+                      {human ? (
+                        <div className="brainstorm-room-view__plain">{message.text}</div>
+                      ) : (
+                        <AiMarkdown content={stripBrainstormProtocolFences(message.text)} />
+                      )}
+                    </div>
+                  </div>
+                </article>
+              </React.Fragment>
             )
           })}
           {live.streaming ? (
             <article
-              className={[
-                'brainstorm-room-view__row',
-                'brainstorm-room-view__row--live',
-                `brainstorm-room-view__row--${
-                  speakerLane(
-                    resolveBrainstormParticipantDisplay(
-                      live.streaming.agentId,
-                      agents,
-                    ).agentId,
-                    speakerOrder,
-                  ) % 2 === 1 ? 'end' : 'start'
-                }`,
-              ].join(' ')}
+              className="brainstorm-room-view__row brainstorm-room-view__row--live"
               style={{
                 '--brainstorm-speaker': paletteColorForSeed(
                   resolveBrainstormParticipantDisplay(
@@ -369,14 +331,17 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 ),
               } as React.CSSProperties}
             >
-              <span className="brainstorm-room-view__speaker">
-                {t('tabs.brainstormSpeakerLabel', {
-                  name: streamingName,
-                  round: live.streaming.round + 1,
-                })}
-              </span>
-              <div className="brainstorm-room-view__bubble brainstorm-room-view__bubble--live">
-                <AiMarkdown content={live.streaming.text} showCursor />
+              <span className="brainstorm-room-view__lane" aria-hidden />
+              <div className="brainstorm-room-view__entry">
+                <span className="brainstorm-room-view__speaker">
+                  {t('tabs.brainstormSpeakerWriting', { name: streamingName })}
+                </span>
+                <div className="brainstorm-room-view__bubble brainstorm-room-view__bubble--live">
+                  <AiMarkdown
+                    content={stripBrainstormProtocolFences(live.streaming.text)}
+                    showCursor
+                  />
+                </div>
               </div>
             </article>
           ) : null}

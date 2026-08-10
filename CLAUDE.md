@@ -92,9 +92,27 @@ This is the part that requires reading several files to understand.
 **Agents live on disk, in the user's project — not in this repo's state.** For a pane whose cwd is
 `<project>`, the catalog is `<project>/.gravity/agents/<id>.json` (`ProjectAgentDefinition`:
 provider, permissionMode, identity, `contextIds`, `coordination`, `delegateTo`). `session.json` in Electron
-userData only stores a thin `AgentPaneBinding` (`agentId` + `cliSessionId`) per pane, so agent definitions are
-shareable/committable while local session state is not. `electron/projectAgentCatalogOps.ts` owns read/write
-plus migration of older inline pane configs.
+userData only stores a thin `AgentPaneBinding` (`agentId` + `threads` + `activeThreadId`) per pane, so agent
+definitions are shareable/committable while local session state is not. `electron/projectAgentCatalogOps.ts`
+owns read/write plus migration of older inline pane configs.
+
+**Threads** are the pane's conversations (`src/shared/agentThreads.ts`, pure + tested). Gravity never stored
+the model's memory — the CLI does, and `--resume <cliSessionId>` recovers it; a thread is just a *local* id
+that owns one transcript and remembers which CLI session goes with it. The local id exists because the first
+turn has no `cliSessionId` yet (the CLI emits one with its first response), and because the thread must
+survive a `--resume` that fails. Five of the nine providers take a resume flag (see
+`agentCliProviders.ts`); the rest keep the transcript and start the CLI cold.
+
+- On disk: `agent-chats/<paneId>/<threadId>.json` in userData. A pre-threads flat `agent-chats/<paneId>.json`
+  is adopted as thread `t1` on first read (`electron/persistence.ts`); ids are validated before they reach a
+  path.
+- `AgentPaneMeta.cliSessionId` is a **projection of the active thread**, which is why the whole turn runtime
+  is unaware threads exist: `resolveAgentPaneMeta` reads it out, `agentBindingFromMeta` writes it back into
+  the active thread. Anything that switches threads must project the new thread's session (`threadPatch`),
+  never carry the old meta value over.
+- A delegated subtask runs on a fresh CLI **and does not adopt** the session it emits
+  (`shouldResumeCliSessionForTurn` gates both ends) — otherwise the specialist's own conversation would be
+  replaced by the orchestrator's job.
 
 The folder name is resolved by `projectDirName()` (`electron/projectDir.ts`), never hardcoded: `.gravity`,
 unless the project still has the pre-rebrand `.iaterminal` and no `.gravity` — then it keeps using the old one.

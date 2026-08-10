@@ -1,9 +1,10 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameSync, rmSync } from 'fs'
 import { app } from 'electron'
 import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
 import type { AgentChatEntry } from '../src/shared/agentCliTypes'
+import { DEFAULT_THREAD_ID } from '../src/shared/agentThreads'
 import { migratePersistedSessionAgents } from './projectAgentCatalogOps'
 
 const USER_DATA = (): string => app.getPath('userData')
@@ -230,7 +231,23 @@ export function deleteScrollback(paneId: string): void {
 // ─── Agent CLI chat history ─────────────────────────────────────────────────
 
 const agentChatDir = (): string => join(USER_DATA(), 'agent-chats')
-const agentChatFile = (paneId: string): string => join(agentChatDir(), `${paneId}.json`)
+
+/**
+ * `paneId` y `threadId` vienen del renderer y arman un path: nada de
+ * separadores ni `..`. Los callers ya envuelven en try/catch, así que el
+ * throw degrada a "sin historial" en vez de escribir fuera de la carpeta.
+ */
+function safeId(value: string): string {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error(`id inválido: ${value}`)
+  return value
+}
+
+const agentChatPaneDir = (paneId: string): string => join(agentChatDir(), safeId(paneId))
+const agentChatFile = (paneId: string, threadId: string): string =>
+  join(agentChatPaneDir(paneId), `${safeId(threadId)}.json`)
+/** Transcript plano pre-threads: un archivo por pane. */
+const legacyAgentChatFile = (paneId: string): string =>
+  join(agentChatDir(), `${safeId(paneId)}.json`)
 
 function isAgentChatImage(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
@@ -250,9 +267,17 @@ function isAgentChatEntry(value: unknown): value is AgentChatEntry {
   )
 }
 
-export function loadAgentChat(paneId: string): AgentChatEntry[] {
+export function loadAgentChat(paneId: string, threadId: string): AgentChatEntry[] {
   try {
-    const path = agentChatFile(paneId)
+    const path = agentChatFile(paneId, threadId)
+    // El transcript plano del pane se adopta como su thread inicial.
+    if (!existsSync(path) && threadId === DEFAULT_THREAD_ID) {
+      const legacy = legacyAgentChatFile(paneId)
+      if (existsSync(legacy)) {
+        ensureDir(agentChatPaneDir(paneId))
+        renameSync(legacy, path)
+      }
+    }
     if (!existsSync(path)) return []
     const data = JSON.parse(readFileSync(path, 'utf-8')) as unknown
     return Array.isArray(data) ? data.filter(isAgentChatEntry) : []
@@ -261,16 +286,27 @@ export function loadAgentChat(paneId: string): AgentChatEntry[] {
   }
 }
 
-export function saveAgentChat(paneId: string, entries: AgentChatEntry[]): void {
+export function saveAgentChat(
+  paneId: string,
+  threadId: string,
+  entries: AgentChatEntry[],
+): void {
   try {
-    ensureDir(agentChatDir())
-    writeFileSync(agentChatFile(paneId), JSON.stringify(entries), 'utf-8')
+    ensureDir(agentChatPaneDir(paneId))
+    writeFileSync(agentChatFile(paneId, threadId), JSON.stringify(entries), 'utf-8')
   } catch { /* ignore */ }
 }
 
-export function deleteAgentChat(paneId: string): void {
+/** Sin `threadId` borra el pane entero (al cerrarlo); con él, una conversación. */
+export function deleteAgentChat(paneId: string, threadId?: string): void {
   try {
-    const path = agentChatFile(paneId)
-    if (existsSync(path)) unlinkSync(path)
+    if (threadId) {
+      const path = agentChatFile(paneId, threadId)
+      if (existsSync(path)) unlinkSync(path)
+      return
+    }
+    rmSync(agentChatPaneDir(paneId), { recursive: true, force: true })
+    const legacy = legacyAgentChatFile(paneId)
+    if (existsSync(legacy)) unlinkSync(legacy)
   } catch { /* ignore */ }
 }

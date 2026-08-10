@@ -19,6 +19,14 @@ import {
 } from './agentOrchestration'
 import { normalizeContextFileName, type TabContext } from './tabContext'
 import {
+  activeThreadOf,
+  sanitizeThreadState,
+  setActiveThreadSession,
+  stripThreadSessions,
+  type AgentThread,
+  type AgentThreadState,
+} from './agentThreads'
+import {
   isAgentCliProvider,
   type AgentCliProvider,
   type AgentPermissionMode,
@@ -91,17 +99,41 @@ export interface ProjectAgentDefinition {
   order?: number
 }
 
-/** Enlace local pane → catálogo (+ sesión CLI). Vive en session.json. */
+/** Enlace local pane → catálogo (+ conversaciones). Vive en session.json. */
 export interface AgentPaneBinding {
   agentId: string
+  /** @deprecated migrado a `threads`; se sigue leyendo de sesiones viejas. */
   cliSessionId?: string
+  /** Conversaciones del pane. Siempre ≥1 tras `parseAgentPaneBinding`. */
+  threads?: AgentThread[]
+  activeThreadId?: string
   /** Pane asociado a una réplica efímera local, no al catálogo remoto. */
   localOnly?: boolean
 }
 
-/** Vista runtime: catálogo + sesión CLI local. */
+/**
+ * Vista runtime: catálogo + conversaciones locales.
+ * `cliSessionId` es la proyección del thread activo — lo que lee el runtime
+ * del turno, y lo que `agentBindingFromMeta` vuelve a guardar en ese thread.
+ */
 export type AgentPaneMeta = ProjectAgentDefinition & {
   cliSessionId?: string
+  threads?: AgentThread[]
+  activeThreadId?: string
+}
+
+/** Estado de threads del binding, migrando el `cliSessionId` suelto legacy. */
+export function threadStateOf(binding: AgentPaneBinding): AgentThreadState {
+  return sanitizeThreadState(binding.threads, binding.activeThreadId, binding.cliSessionId)
+}
+
+/** Workspaces org: no persistir sesiones CLI (son locales al usuario). */
+export function stripBindingCliSessions(binding: AgentPaneBinding): AgentPaneBinding {
+  const needsStrip = Boolean(binding.cliSessionId)
+    || Boolean(binding.threads?.some(thread => thread.cliSessionId))
+  if (!needsStrip) return binding
+  const { cliSessionId: _dropped, ...rest } = binding
+  return binding.threads ? { ...rest, threads: stripThreadSessions(binding.threads) } : rest
 }
 
 export const PROJECT_AGENTS_DIR = 'agents'
@@ -576,10 +608,10 @@ export function parseAgentPaneBinding(raw: unknown): AgentPaneBinding | null {
   if (typeof data.agentId !== 'string' || !data.agentId.trim()) return null
   const agentId = normalizeAgentSlug(data.agentId)
   if (!agentId) return null
-  const binding: AgentPaneBinding = { agentId }
-  if (typeof data.cliSessionId === 'string' && data.cliSessionId.trim()) {
-    binding.cliSessionId = data.cliSessionId.trim()
-  }
+  const legacySession = typeof data.cliSessionId === 'string' ? data.cliSessionId.trim() : ''
+  // Sesión pre-threads: el `cliSessionId` suelto pasa a ser el thread inicial.
+  const state = sanitizeThreadState(data.threads, data.activeThreadId, legacySession)
+  const binding: AgentPaneBinding = { agentId, ...state }
   if (data.localOnly === true) binding.localOnly = true
   return binding
 }
@@ -621,11 +653,15 @@ export function resolveAgentPaneMeta(
         provider: 'claude',
         permissionMode: 'auto',
       }
+  const state = threadStateOf(binding)
+  const session = activeThreadOf(state)?.cliSessionId
   return {
     ...base,
     id: resolvedId,
     emitResults: true,
-    ...(binding.cliSessionId ? { cliSessionId: binding.cliSessionId } : {}),
+    threads: state.threads,
+    activeThreadId: state.activeThreadId,
+    ...(session ? { cliSessionId: session } : {}),
   }
 }
 
@@ -669,12 +705,20 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
 }
 
 export function agentBindingFromMeta(meta: AgentPaneMeta): AgentPaneBinding {
+  const session = typeof meta.cliSessionId === 'string' && meta.cliSessionId.trim()
+    ? meta.cliSessionId.trim()
+    : undefined
+  // El pane escribe (o borra) `meta.cliSessionId`; eso manda sobre el thread
+  // activo, así el runtime del turno no necesita saber que existen threads.
+  const state = setActiveThreadSession(
+    sanitizeThreadState(meta.threads, meta.activeThreadId),
+    session,
+  )
   return {
     agentId: normalizeAgentSlug(meta.id, 'agent'),
     ...(meta.localOnly === true ? { localOnly: true } : {}),
-    ...(typeof meta.cliSessionId === 'string' && meta.cliSessionId.trim()
-      ? { cliSessionId: meta.cliSessionId.trim() }
-      : {}),
+    threads: state.threads,
+    activeThreadId: state.activeThreadId,
   }
 }
 

@@ -186,7 +186,8 @@ describe('sanitizePersistedSession', () => {
     expect(slim?.tabs[0]?.paneKinds).toEqual({ agent: 'agent' })
     expect(slim?.tabs[0]?.agentByPane?.agent).toEqual({
       agentId: 'cursor-bot',
-      cliSessionId: 'chat-123',
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0, cliSessionId: 'chat-123' }],
     })
     expect(slim?.pendingAgentMigrations).toEqual([])
 
@@ -281,7 +282,8 @@ describe('sanitizePersistedSession', () => {
     })
     expect(again?.tabs[0]?.agentByPane?.agent).toEqual({
       agentId: 'deploy-bot',
-      cliSessionId: 'sess-1',
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0, cliSessionId: 'sess-1' }],
     })
     expect(again?.pendingAgentMigrations).toEqual([])
   })
@@ -310,6 +312,8 @@ describe('sanitizePersistedSession', () => {
     expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
       agentId: 'frontend-2',
       localOnly: true,
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0 }],
     })
     expect(result?.tabs[0]?.agentByPane?.agent).not.toHaveProperty('cliSessionId')
   })
@@ -336,7 +340,8 @@ describe('sanitizePersistedSession', () => {
     })
     expect(result?.tabs[0]?.agentByPane?.agent).toEqual({
       agentId: 'qa',
-      cliSessionId: 'sess-local',
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0, cliSessionId: 'sess-local' }],
     })
   })
 

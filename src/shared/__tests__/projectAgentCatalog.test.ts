@@ -330,10 +330,34 @@ describe('projectAgentCatalog', () => {
       name: 'QA',
       contextIds: ['ctx'],
     })
+    // El `cliSessionId` suelto de una sesión vieja se convierte en el thread inicial.
     expect(parseAgentPaneBinding({ agentId: 'qa', cliSessionId: ' sess ' })).toEqual({
       agentId: 'qa',
-      cliSessionId: 'sess',
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0, cliSessionId: 'sess' }],
     })
+  })
+
+  it('proyecta el cliSessionId del thread activo en ambos sentidos', () => {
+    const binding = parseAgentPaneBinding({
+      agentId: 'qa',
+      activeThreadId: 'a',
+      threads: [
+        { id: 'a', title: 'vieja', updatedAt: 1, cliSessionId: 'sess-a' },
+        { id: 'b', title: 'nueva', updatedAt: 2, cliSessionId: 'sess-b' },
+      ],
+    })!
+    expect(resolveAgentPaneMeta(binding, undefined).cliSessionId).toBe('sess-a')
+
+    // Cambiar de thread reanuda la sesión de ese thread, no la anterior.
+    const switched = resolveAgentPaneMeta({ ...binding, activeThreadId: 'b' }, undefined)
+    expect(switched.cliSessionId).toBe('sess-b')
+
+    // Lo que el pane escriba en meta manda sobre el thread activo…
+    const written = agentBindingFromMeta({ ...switched, cliSessionId: 'sess-b2' })
+    expect(written.threads?.find(thread => thread.id === 'b')?.cliSessionId).toBe('sess-b2')
+    // …y no toca la sesión de los demás.
+    expect(written.threads?.find(thread => thread.id === 'a')?.cliSessionId).toBe('sess-a')
   })
 
   it('resolves runtime meta and round-trips definition/binding', () => {
@@ -362,7 +386,8 @@ describe('projectAgentCatalog', () => {
     expect(agentDefinitionFromMeta(meta)).toEqual(definition)
     expect(agentBindingFromMeta(meta)).toEqual({
       agentId: 'qa',
-      cliSessionId: 'cli-1',
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: '', updatedAt: 0, cliSessionId: 'cli-1' }],
     })
     expect(cloneProjectAgentDefinition(definition, ' (copy)').name).toBe('qa (copy)')
     expect(cloneProjectAgentDefinition({

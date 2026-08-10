@@ -26,6 +26,14 @@ import {
   normalizeAgentRules,
 } from '@shared/agentIdentity'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
+import {
+  DEFAULT_THREAD_ID,
+  deleteThread,
+  newThread,
+  sanitizeThreadState,
+  threadPatch,
+  touchActiveThread,
+} from '@shared/agentThreads'
 import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
@@ -232,9 +240,12 @@ interface Props {
   /** Pedido externo: abrir el modal de crear/iniciar loop. */
   preferCreateLoop?: boolean
   onPreferCreateLoopConsumed?: () => void
-  /** Pedido externo: pedir confirmación para limpiar la conversación. */
+  /** Pedido externo: pedir confirmación para borrar la conversación activa. */
   preferClearConversation?: boolean
   onPreferClearConversationConsumed?: () => void
+  /** Pedido externo: abrir una conversación nueva (no borra la actual). */
+  preferNewThread?: boolean
+  onPreferNewThreadConsumed?: () => void
   /**
    * El pane participa en una cadena Loops running/waiting:
    * el botón de loop del chat debe verse encendido (mismo estado visual).
@@ -358,6 +369,8 @@ export const AgentPane: React.FC<Props> = ({
   onPreferCreateLoopConsumed,
   preferClearConversation = false,
   onPreferClearConversationConsumed,
+  preferNewThread = false,
+  onPreferNewThreadConsumed,
   chainLoopActive = false,
   awaitingDelegations = false,
   orchestrationAwaiting = null,
@@ -472,6 +485,8 @@ export const AgentPane: React.FC<Props> = ({
   orgWorkspaceRef.current = pulseWorkspaceTag(orgWorkspace)
   /** Tras resetear la sesión CLI por cambio de modo, el próximo turno lleva historial. */
   const pendingModeHandoffRef = useRef(false)
+  /** ¿El turno en curso se queda con el `cliSessionId` que emita su CLI? */
+  const adoptsCliSessionRef = useRef(true)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
   /** Delegación en vuelo (especialista / orch ejecutando subtarea del padre). */
@@ -499,6 +514,8 @@ export const AgentPane: React.FC<Props> = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<AgentChatBubblesHandle>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
+  /** Conversación viva del pane: fija de qué archivo se lee y a cuál se escribe. */
+  const activeThreadId = meta.activeThreadId ?? DEFAULT_THREAD_ID
   messagesRef.current = messages
   metaRef.current = meta
   diskContextsRef.current = diskContexts
@@ -658,7 +675,7 @@ export const AgentPane: React.FC<Props> = ({
     lastAssistantIdRef.current = null
     turnClosedRef.current = false
     void Promise.all([
-      window.api.loadAgentChat(paneId),
+      window.api.loadAgentChat(paneId, activeThreadId),
       window.api.isAgentTurnActive(paneId).catch(() => false),
     ]).then(([entries, turnActive]) => {
       if (cancelled) return
@@ -693,12 +710,15 @@ export const AgentPane: React.FC<Props> = ({
       }
     })
     return () => { cancelled = true }
-  }, [clearLoopTimer, paneId])
+  }, [activeThreadId, clearLoopTimer, paneId])
 
   useEffect(() => {
-    if (!loaded) return
-    window.api.saveAgentChat(paneId, messages)
-  }, [loaded, messages, paneId])
+    // `loadedRef` (síncrono) y no solo `loaded` (estado): al cambiar de thread
+    // este effect corre en el mismo commit que el de carga, con los mensajes
+    // del thread anterior. Sin el ref los guardaría bajo el thread nuevo.
+    if (!loaded || !loadedRef.current) return
+    window.api.saveAgentChat(paneId, activeThreadId, messages)
+  }, [activeThreadId, loaded, messages, paneId])
 
   useLayoutEffect(() => {
     if (!loaded) return
@@ -911,7 +931,10 @@ export const AgentPane: React.FC<Props> = ({
         || Boolean(meta.cliSessionId)
         || busy
         || loopActive
-        || chainLoopActive,
+        || chainLoopActive
+        // Un hilo nuevo y vacío no tiene nada que limpiar, pero sí hay que
+        // poder descartarlo mientras quede otro al que volver.
+        || (meta.threads?.length ?? 0) > 1,
     }
     // busy/loops/activity: inmediato. Solo messages/snippet: throttle (~150ms).
     const controlKey = [
@@ -936,6 +959,7 @@ export const AgentPane: React.FC<Props> = ({
       String(materializingIds.size),
       String(pendingImages.length),
       meta.cliSessionId ?? '',
+      String(meta.threads?.length ?? 0),
       (meta.contextIds ?? []).join(','),
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({
@@ -960,6 +984,7 @@ export const AgentPane: React.FC<Props> = ({
     messages,
     meta.cliSessionId,
     meta.contextIds,
+    meta.threads,
     onPlaneStatusChange,
     orchestrationWorkStyle,
     orchestratorBusy,
@@ -1038,6 +1063,16 @@ export const AgentPane: React.FC<Props> = ({
       content: userContent,
       ...(options.displayImages?.length ? { images: options.displayImages } : {}),
     }
+    // El thread se titula solo con el primer mensaje y marca actividad en cada
+    // turno: es lo que ordena y etiqueta el selector de conversaciones.
+    onMetaChange(previous => ({
+      ...previous,
+      ...touchActiveThread(
+        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        options.displayUser,
+        Date.now(),
+      ),
+    }))
     activeAssistantIdRef.current = assistant.id
     lastAssistantIdRef.current = assistant.id
     setActiveAssistantId(assistant.id)
@@ -1153,24 +1188,9 @@ export const AgentPane: React.FC<Props> = ({
     const resumeCliSession = shouldResumeCliSessionForTurn({
       delegation: options.delegation,
     })
-    if (!resumeCliSession) {
-      const staleSessionId = currentMeta.cliSessionId?.trim()
-      if (staleSessionId) {
-        window.api.clearAgentContextDelivery({
-          provider: currentMeta.provider,
-          cliSessionId: staleSessionId,
-        })
-      }
-      onMetaChange(previous => {
-        if (!previous.cliSessionId) return previous
-        const { cliSessionId: _dropped, ...rest } = previous
-        return rest
-      })
-      if (metaRef.current.cliSessionId) {
-        const { cliSessionId: _dropped, ...rest } = metaRef.current
-        metaRef.current = rest
-      }
-    }
+    // El request ya omite el `--resume` cuando no corresponde; esto decide la
+    // otra punta: si el `cliSessionId` que emita este CLI se queda en el hilo.
+    adoptsCliSessionRef.current = resumeCliSession
     const request: AgentCliStartRequest = {
       paneId,
       provider: currentMeta.provider,
@@ -1421,7 +1441,11 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'session') {
-      onMetaChange(previous => ({ ...previous, cliSessionId: event.cliSessionId }))
+      // Subtarea del orquestador: su CLI es de usar y tirar. El hilo conserva
+      // la sesión con la que venía, así el próximo turno humano la reanuda.
+      if (adoptsCliSessionRef.current) {
+        onMetaChange(previous => ({ ...previous, cliSessionId: event.cliSessionId }))
+      }
       return
     }
     // done/EXIT tardíos de un proceso anterior no deben reabrir el turno ni
@@ -1973,7 +1997,11 @@ export const AgentPane: React.FC<Props> = ({
     stop()
   }, [onPreferStopConsumed, preferStop, stop])
 
-  const clearConversation = useCallback((): void => {
+  /**
+   * Deja el pane sin turno, sin loop y sin cola: lo que hace falta antes de
+   * cambiar de conversación. No toca disco ni el catálogo de threads.
+   */
+  const resetLiveState = useCallback((): void => {
     clearLoopTimer()
     const wasLoop = loopActiveRef.current
     const wasRunning = busyRef.current || wasLoop
@@ -2031,6 +2059,30 @@ export const AgentPane: React.FC<Props> = ({
     setEditingQueuedId(null)
     setInput('')
     setMessages([])
+  }, [beginLiveSettle, clearLoopTimer, paneId, t])
+
+  /**
+   * Abre una conversación nueva. No borra nada: el thread anterior conserva su
+   * transcript y su `cliSessionId`, y se puede reanudar desde el selector.
+   */
+  const startNewThread = useCallback((): void => {
+    resetLiveState()
+    const id = crypto.randomUUID()
+    onMetaChange(previous => {
+      const state = newThread(
+        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        id,
+        Date.now(),
+      )
+      // El thread nuevo no tiene sesión: el turno siguiente arranca un CLI
+      // limpio y adopta la que ese CLI emita.
+      return { ...previous, ...threadPatch(state) }
+    })
+  }, [onMetaChange, resetLiveState])
+
+  /** Borra la conversación activa (transcript incluido) y salta a otra. */
+  const deleteActiveThread = useCallback((): void => {
+    resetLiveState()
     const currentMeta = metaRef.current
     const sessionId = currentMeta.cliSessionId?.trim()
     if (sessionId) {
@@ -2039,17 +2091,25 @@ export const AgentPane: React.FC<Props> = ({
         cliSessionId: sessionId,
       })
     }
+    const removedId = currentMeta.activeThreadId ?? DEFAULT_THREAD_ID
+    const fallbackId = crypto.randomUUID()
     onMetaChange(previous => {
-      if (!previous.cliSessionId) return previous
-      const { cliSessionId: _dropped, ...rest } = previous
-      return rest
+      const state = deleteThread(
+        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        removedId,
+        fallbackId,
+        Date.now(),
+      )
+      return { ...previous, ...threadPatch(state) }
     })
-    window.api.deleteAgentChat(paneId)
-  }, [beginLiveSettle, clearLoopTimer, onMetaChange, paneId, t])
+    window.api.deleteAgentChat(paneId, removedId)
+  }, [onMetaChange, paneId, resetLiveState])
 
-  const requestClearConversation = useCallback((): void => {
-    setConfirmClear(true)
-  }, [])
+  useEffect(() => {
+    if (!preferNewThread) return
+    onPreferNewThreadConsumed?.()
+    startNewThread()
+  }, [onPreferNewThreadConsumed, preferNewThread, startNewThread])
 
   useEffect(() => {
     if (!preferClearConversation) return
@@ -2498,7 +2558,7 @@ export const AgentPane: React.FC<Props> = ({
         zIndex={900}
         onConfirm={() => {
           setConfirmClear(false)
-          clearConversation()
+          deleteActiveThread()
         }}
         onCancel={() => setConfirmClear(false)}
       />

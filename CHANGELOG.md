@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.15
+
+- **Sincronizar workspace sin borrar extras locales**: el botón (antes «Actualizar»)
+  usa `wipeLocal: false`; trae agentes/contextos del servidor y no elimina los
+  locales adicionales. Copy ES/EN: «Sincronizar workspace» / «Sync workspace» y
+  detalle de confirmación alineado.
+- **Resultados de agente solo en la máquina**: asignaciones `iaterminal:result:*`
+  se conservan al sincronizar/materializar y se excluyen al publicar al org.
+- **Publicar cambios**: copy «Publicar cambios» / «Publish changes» (antes
+  Subir/Upload).
+- **Dot de actividad junto al nombre**: en el badge del plano el indicador busy
+  va inline tras el nombre (ya no en esquina).
+
 ## v0.39.14
 
 - **El nuevo agente ya no ofrece CLIs que no tienes**: la ventana de "Nuevo

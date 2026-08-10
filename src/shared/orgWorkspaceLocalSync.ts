@@ -36,8 +36,8 @@ export function filterSyncableOrgWorkspaceContexts<
 }
 
 /**
- * Contextos locales a borrar en “Actualizar workspace”.
- * Conserva agentResult (resultados locales).
+ * Contextos locales a borrar solo si download usa wipeLocal: true.
+ * Conserva agentResult (resultados locales). La sync del botón no usa wipe.
  */
 export function localContextsToWipeOnOrgResync<
   T extends Pick<TabContext, 'kind'>,
@@ -136,9 +136,84 @@ export function stampProjectAgentsPlaneOrder(
   })
 }
 
-/** ¿El catálogo de org permite “Subir cambios”? (manager/admin vía canRename). */
+/** ¿El catálogo de org permite “Publicar cambios”? (manager/admin vía canRename). */
 export function canUploadOrgWorkspaceChanges(
   canRename: boolean | undefined,
 ): boolean {
   return canRename === true
+}
+
+/** Asignaciones de resultados de agente: machine-local, no se publican. */
+export function isAgentResultContextId(id: string): boolean {
+  return id.startsWith('iaterminal:result:')
+}
+
+/** Solo ids `iaterminal:result:*` (únicos, orden de aparición). */
+export function pickLocalAgentResultContextIds(
+  contextIds: readonly string[] | undefined | null,
+): string[] {
+  if (!contextIds?.length) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of contextIds) {
+    const id = typeof raw === 'string' ? raw.trim() : ''
+    if (!id || !isAgentResultContextId(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/**
+ * Tras resync: definition remota + result ids locales que no están en remote.
+ * Orden: contextIds remotos primero; luego result ids solo-locales.
+ * Sin result ids que fusionar → `remote` sin cambios.
+ */
+export function mergeRemoteAgentPreservingLocalResultContextIds(
+  remote: ProjectAgentDefinition,
+  local: Pick<ProjectAgentDefinition, 'contextIds'> | null | undefined,
+): ProjectAgentDefinition {
+  const localResultIds = pickLocalAgentResultContextIds(local?.contextIds)
+  if (localResultIds.length === 0) return remote
+
+  const remoteIds = remote.contextIds ?? []
+  const seen = new Set(remoteIds)
+  const appended: string[] = []
+  for (const id of localResultIds) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    appended.push(id)
+  }
+  if (appended.length === 0) return remote
+  return { ...remote, contextIds: [...remoteIds, ...appended] }
+}
+
+/**
+ * Clone para upload: sin `iaterminal:result:*` en contextIds.
+ * Omite el campo si queda vacío.
+ */
+export function stripAgentResultContextIdsForUpload(
+  agent: ProjectAgentDefinition,
+): ProjectAgentDefinition {
+  const contextIds = agent.contextIds
+  if (!contextIds?.length) return agent
+  const kept = contextIds.filter(id => !isAgentResultContextId(id))
+  if (kept.length === contextIds.length) return agent
+  if (kept.length === 0) {
+    const { contextIds: _drop, ...rest } = agent
+    return rest
+  }
+  return { ...agent, contextIds: kept }
+}
+
+/**
+ * Tras discover: conserva asignaciones presentes o result ids locales.
+ */
+export function filterContextIdsAfterDiscover(
+  contextIds: readonly string[],
+  discoveredIds: ReadonlySet<string>,
+): string[] {
+  return contextIds.filter(
+    id => discoveredIds.has(id) || isAgentResultContextId(id),
+  )
 }

@@ -77,6 +77,7 @@ import { decideParentDelegationNotify } from './parentDelegationNotify'
 import {
   workspaceContextBody,
 } from '@shared/orgWorkspaceContent'
+import { filterContextIdsAfterDiscover } from '@shared/orgWorkspaceLocalSync'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
@@ -581,12 +582,17 @@ export const AgentPane: React.FC<Props> = ({
         discoveryHydratedRef.current = true
         nextIds = previous.contextIds == null
           ? defaultAssignedContextIds(discovered)
-          : previous.contextIds.map(mapId).filter(id => discoveredIds.has(id))
+          // Conserva results asignados aunque aún no estén en discoveredIds.
+          : filterContextIdsAfterDiscover(
+            previous.contextIds.map(mapId),
+            discoveredIds,
+          )
       } else {
         // Conserva results asignados aunque este discover aún no los liste.
-        nextIds = (previous.contextIds ?? []).map(mapId).filter(id => (
-          discoveredIds.has(id) || id.startsWith('iaterminal:result:')
-        ))
+        nextIds = filterContextIdsAfterDiscover(
+          (previous.contextIds ?? []).map(mapId),
+          discoveredIds,
+        )
       }
       const seen = new Set<string>()
       nextIds = nextIds.filter(id => {

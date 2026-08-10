@@ -92,6 +92,96 @@ describe('downloadOrgWorkspaceToLocal', () => {
     expect(deletedAgents.sort()).toEqual(['fe-2', 'old'])
     expect(deletedContexts).toEqual(['stale'])
   })
+
+  it('wipeLocal false upserts remote and keeps local extras', async () => {
+    const deletedAgents: string[] = []
+    const deletedContexts: string[] = []
+    const upsertedAgents: string[] = []
+    const materializedContexts: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{ agentId: 'qa', definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' } }],
+      }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      listLocalAgents: async () => [
+        agent('old'),
+        agent('localOnly', { localOnly: true }),
+      ],
+      deleteLocalAgent: async (_cwd, id) => {
+        deletedAgents.push(id)
+        return { ok: true }
+      },
+      upsertLocalAgent: async (_cwd, definition) => {
+        upsertedAgents.push(definition.id)
+        return { ok: true, agent: definition }
+      },
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [
+          context('stale', 'notes'),
+          context('iaterminal:result:qa', 'agentResult'),
+        ],
+      }),
+      deleteLocalContext: async (ctx) => {
+        deletedContexts.push(ctx.id)
+        return { ok: true }
+      },
+      materializeLocalContext: async ({ context: ctx }) => {
+        materializedContexts.push(ctx.id)
+        return { ok: true, notesContent: '' }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, { wipeLocal: false })
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+    expect(deletedAgents).toEqual([])
+    expect(deletedContexts).toEqual([])
+    expect(upsertedAgents).toEqual(['qa'])
+    expect(materializedContexts).toEqual(['about'])
+  })
+
+  it('wipeLocal download merges local iaterminal:result:* onto remote agents', async () => {
+    const upserted: ProjectAgentDefinition[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{
+          agentId: 'tech-lead',
+          definition: {
+            id: 'tech-lead',
+            provider: 'cursor',
+            permissionMode: 'auto',
+            contextIds: ['iaterminal:notes:Front-Rules'],
+          },
+        }],
+      }),
+      listLocalAgents: async () => [
+        agent('tech-lead', {
+          contextIds: [
+            'iaterminal:notes:Front-Rules',
+            'iaterminal:result:fullstack',
+          ],
+        }),
+      ],
+      upsertLocalAgent: async (_cwd, definition) => {
+        upserted.push(definition)
+        return { ok: true, agent: definition }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, { wipeLocal: true })
+    expect(result.agentsOk).toBe(true)
+    expect(upserted).toHaveLength(1)
+    expect(upserted[0]?.contextIds).toEqual([
+      'iaterminal:notes:Front-Rules',
+      'iaterminal:result:fullstack',
+    ])
+  })
 })
 
 describe('uploadOrgWorkspaceFromLocal', () => {
@@ -177,6 +267,38 @@ describe('uploadOrgWorkspaceFromLocal', () => {
       { id: 'backend', order: 2, contextIds: ['rules'] },
       { id: 'qa', order: 0, contextIds: ['about', 'tree'] },
       { id: 'frontend', order: 1, contextIds: undefined },
+    ])
+  })
+
+  it('strips iaterminal:result:* from remote agent upsert payloads', async () => {
+    const payloads: ProjectAgentDefinition[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({ ok: true, data: [] }),
+      listRemoteContexts: async () => ({ ok: true, data: [] }),
+      listLocalAgents: async () => [
+        agent('tech-lead', {
+          contextIds: [
+            'iaterminal:notes:Front-Rules',
+            'iaterminal:result:fullstack',
+            'rules',
+          ],
+        }),
+        agent('qa', { contextIds: ['iaterminal:result:qa'] }),
+      ],
+      upsertRemoteAgent: async (_id, definition) => {
+        payloads.push(definition)
+        return { ok: true, data: { agentId: definition.id, definition: { ...definition } } }
+      },
+    })
+
+    const result = await uploadOrgWorkspaceFromLocal('/ws', deps)
+    expect(result.ok).toBe(true)
+    expect(payloads.map(p => ({ id: p.id, contextIds: p.contextIds }))).toEqual([
+      {
+        id: 'tech-lead',
+        contextIds: ['iaterminal:notes:Front-Rules', 'rules'],
+      },
+      { id: 'qa', contextIds: undefined },
     ])
   })
 

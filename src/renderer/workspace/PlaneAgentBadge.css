@@ -49,9 +49,9 @@ html[data-reduce-motion="true"] {
   font-weight: 650;
 }
 
-/* Hueco para el PlaneBusyDot en esquina; el dot ya no ocupa el flujo. */
+/* Espacio horizontal nombre↔dot cuando busy (dot en flujo inline). */
 .plane-agent-badge--busy {
-  padding-right: 16px;
+  gap: 9px;
 }
 
 .plane-agent-badge__name {

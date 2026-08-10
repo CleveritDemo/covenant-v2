@@ -1972,7 +1972,7 @@ export const App: React.FC = () => {
       }
 
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: true })
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false })
       } catch (err) {
         console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
         setOrgWorkspaceRequirement(prev => prev ?? {

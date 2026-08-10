@@ -3,15 +3,20 @@ import type { ProjectAgentDefinition } from '../projectAgentCatalog'
 import type { TabContext } from '../tabContext'
 import {
   canUploadOrgWorkspaceChanges,
+  filterContextIdsAfterDiscover,
   filterSyncableOrgWorkspaceAgents,
   filterSyncableOrgWorkspaceContexts,
+  isAgentResultContextId,
   isSyncableOrgWorkspaceAgent,
   isSyncableOrgWorkspaceContext,
   localContextsToWipeOnOrgResync,
+  mergeRemoteAgentPreservingLocalResultContextIds,
   orderedAgentIdsFromTab,
   orgWorkspaceLocalIdsToUpsert,
   orgWorkspaceRemoteIdsToDelete,
+  pickLocalAgentResultContextIds,
   stampProjectAgentsPlaneOrder,
+  stripAgentResultContextIdsForUpload,
 } from '../orgWorkspaceLocalSync'
 
 function agent(
@@ -93,6 +98,75 @@ describe('canUploadOrgWorkspaceChanges', () => {
     expect(canUploadOrgWorkspaceChanges(true)).toBe(true)
     expect(canUploadOrgWorkspaceChanges(false)).toBe(false)
     expect(canUploadOrgWorkspaceChanges(undefined)).toBe(false)
+  })
+})
+
+describe('agentResult contextId helpers', () => {
+  it('isAgentResultContextId / pickLocalAgentResultContextIds', () => {
+    expect(isAgentResultContextId('iaterminal:result:qa')).toBe(true)
+    expect(isAgentResultContextId('iaterminal:notes:x')).toBe(false)
+    expect(pickLocalAgentResultContextIds([
+      'rules',
+      'iaterminal:result:fullstack',
+      'iaterminal:result:fullstack',
+      'iaterminal:notes:x',
+      ' iaterminal:result:qa ',
+    ])).toEqual(['iaterminal:result:fullstack', 'iaterminal:result:qa'])
+    expect(pickLocalAgentResultContextIds(undefined)).toEqual([])
+  })
+
+  it('mergeRemoteAgentPreservingLocalResultContextIds keeps remote order then local-only results', () => {
+    const remote = agent('tech-lead', {
+      contextIds: ['rules', 'iaterminal:notes:Front-Rules'],
+      name: 'Tech Lead',
+    })
+    const local = agent('tech-lead', {
+      contextIds: [
+        'iaterminal:result:fullstack',
+        'rules',
+        'iaterminal:result:qa',
+      ],
+    })
+    expect(mergeRemoteAgentPreservingLocalResultContextIds(remote, local)).toEqual({
+      ...remote,
+      contextIds: [
+        'rules',
+        'iaterminal:notes:Front-Rules',
+        'iaterminal:result:fullstack',
+        'iaterminal:result:qa',
+      ],
+    })
+  })
+
+  it('merge returns remote unchanged when nothing to append', () => {
+    const remote = agent('qa', { contextIds: ['iaterminal:result:qa', 'rules'] })
+    expect(mergeRemoteAgentPreservingLocalResultContextIds(remote, undefined)).toBe(remote)
+    expect(mergeRemoteAgentPreservingLocalResultContextIds(
+      remote,
+      agent('qa', { contextIds: ['iaterminal:result:qa'] }),
+    )).toBe(remote)
+    expect(mergeRemoteAgentPreservingLocalResultContextIds(
+      remote,
+      agent('qa', { contextIds: ['rules'] }),
+    )).toBe(remote)
+  })
+
+  it('stripAgentResultContextIdsForUpload omits result ids (and field if empty)', () => {
+    expect(stripAgentResultContextIdsForUpload(
+      agent('tl', { contextIds: ['rules', 'iaterminal:result:fullstack'] }),
+    ).contextIds).toEqual(['rules'])
+    expect(stripAgentResultContextIdsForUpload(
+      agent('tl', { contextIds: ['iaterminal:result:fullstack'] }),
+    ).contextIds).toBeUndefined()
+    const clean = agent('tl', { contextIds: ['rules'] })
+    expect(stripAgentResultContextIdsForUpload(clean)).toBe(clean)
+  })
+
+  it('filterContextIdsAfterDiscover keeps result ids not yet discovered', () => {
+    expect(filterContextIdsAfterDiscover(
+      ['rules', 'iaterminal:result:fullstack', 'gone'],
+      new Set(['rules']),
+    )).toEqual(['rules', 'iaterminal:result:fullstack'])
   })
 })
 

@@ -5,8 +5,8 @@ import { agentCliSpec, providerCapabilities } from '@shared/agentCliProviders'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
-import type { McpServerSummary } from '@shared/mcpContext'
-import { mcpConfigLabelFor } from '@shared/mcpContext'
+import type { McpServersListResult } from '@shared/mcpContext'
+import { mcpConfigLabelFor, mcpScopeModeFor } from '@shared/mcpContext'
 import { modelsForProvider } from '@shared/agentCliModels'
 import {
   ORCHESTRATION_MAX_ROUNDS_CAP,
@@ -134,17 +134,27 @@ const McpAllowlistField: React.FC<{
   onChange: (mcpsAllowed: string[]) => void
 }> = ({ provider, cwd, value, disabled, onChange }) => {
   const { t } = useT()
-  const [servers, setServers] = useState<McpServerSummary[] | null>(null)
+  const [result, setResult] = useState<McpServersListResult | null>(null)
 
   useEffect(() => {
     let alive = true
-    setServers(null)
+    setResult(null)
     window.api.listMcpServers({ provider, cwd })
-      .then(list => { if (alive) setServers(list) })
-      .catch(() => { if (alive) setServers([]) })
+      .then(next => { if (alive) setResult(next) })
+      .catch(() => {
+        if (alive) {
+          setResult({
+            servers: [],
+            file: mcpConfigLabelFor(provider),
+            fileExists: false,
+            unreadProjectServers: [],
+          })
+        }
+      })
     return () => { alive = false }
   }, [provider, cwd])
 
+  const servers = result?.servers ?? null
   const options = useMemo(() => {
     const found = servers ?? []
     const known = new Set(found.map(server => server.name))
@@ -159,30 +169,75 @@ const McpAllowlistField: React.FC<{
     value.includes(name) ? value.filter(item => item !== name) : [...value, name],
   )
 
+  /** Crear solo si falta: nunca se pisa un archivo que ya existe. */
+  const openConfigFile = (): void => {
+    const create = result?.fileExists === false
+    void window.api.revealMcpConfig({ provider, cwd, create }).then(res => {
+      if (!res.ok || !create) return
+      // Recién creado: la lista vuelve a leerse para que deje de decir «no hay».
+      window.api.listMcpServers({ provider, cwd })
+        .then(setResult)
+        .catch(() => {})
+    })
+  }
+
   return (
-    <div className="agent-config-settings__field">
+    <div className="agent-config-settings__field agent-config-settings__field--mcp">
       <span className="agent-config-settings__label">{t('agentPane.mcpsAllowedLabel')}</span>
-      {servers === null ? (
+      {result === null ? (
         <p className="agent-config-settings__hint">{t('agentPane.mcpsLoading')}</p>
-      ) : options.length === 0 ? (
-        <p className="agent-config-settings__hint">
-          {t('agentPane.mcpsEmpty', { file: mcpConfigLabelFor(provider) })}
-        </p>
       ) : (
-        <div role="listbox" aria-label={t('agentPane.mcpsAllowedLabel')}>
-          {options.map(server => (
-            <ContextCheckOption
-              key={server.name}
-              name={server.name}
-              kindLabel={server.transport}
-              checked={value.includes(server.name)}
-              disabled={disabled}
-              onChange={() => toggle(server.name)}
-            />
-          ))}
-        </div>
+        <>
+          {/* De dónde sale la lista, siempre: sin esto, «vacío» se lee como
+              «este agente no puede usar MCP», que es falso. */}
+          <p className="agent-config-settings__hint agent-config-settings__mcp-source">
+            <span>{t('agentPane.mcpsSource', { file: result.file })}</span>
+            <Button variant="ghost" size="sm" onClick={openConfigFile}>
+              {t(result.fileExists ? 'agentPane.mcpsOpenFile' : 'agentPane.mcpsCreateFile')}
+            </Button>
+          </p>
+
+          {options.length === 0 ? (
+            <p className="agent-config-settings__hint">
+              {t('agentPane.mcpsEmpty', { file: result.file })}
+            </p>
+          ) : (
+            <div
+              className="agent-config-settings__cards"
+              role="listbox"
+              aria-label={t('agentPane.mcpsAllowedLabel')}
+            >
+              {options.map(server => (
+                <ContextCheckOption
+                  key={server.name}
+                  name={server.name}
+                  kindLabel={server.transport}
+                  checked={value.includes(server.name)}
+                  disabled={disabled}
+                  onChange={() => toggle(server.name)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Lo que el proyecto declara y este CLI no va a leer. Es la pregunta
+              que se hace todo el mundo al ver la lista vacía. */}
+          {result.unreadProjectServers.length > 0 && (
+            <p className="agent-config-settings__hint agent-config-settings__hint--warn">
+              {t('agentPane.mcpsUnreadProject', {
+                names: result.unreadProjectServers.join(', '),
+                file: result.file,
+              })}
+            </p>
+          )}
+
+          <p className="agent-config-settings__hint">
+            {t(value.length === 0
+              ? 'agentPane.mcpsAllowedHint'
+              : `agentPane.mcpsScope_${mcpScopeModeFor(provider)}`)}
+          </p>
+        </>
       )}
-      <p className="agent-config-settings__hint">{t('agentPane.mcpsAllowedHint')}</p>
     </div>
   )
 }

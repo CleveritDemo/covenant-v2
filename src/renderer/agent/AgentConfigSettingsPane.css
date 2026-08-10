@@ -65,3 +65,16 @@
 .agent-config-settings__error > span {
   min-width: 0;
 }
+
+/* Bloque de MCP: el listado y las explicaciones necesitan separarse entre sí, o
+   las cuatro frases y las casillas se leen como un párrafo apelmazado. */
+.agent-config-settings__field--mcp {
+  gap: 10px;
+}
+
+.agent-config-settings__mcp-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}

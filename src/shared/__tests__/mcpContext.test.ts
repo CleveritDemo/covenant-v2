@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { formatMcpServers } from '../mcpContext'
+import {
+  formatMcpServers,
+  mcpScopeModeFor,
+  providerUsesProjectMcpConfig,
+} from '../mcpContext'
 import { markdownSections } from '../contextSections'
 
 describe('formatMcpServers', () => {
@@ -42,5 +46,20 @@ describe('formatMcpServers', () => {
     for (const source of [null, undefined, 'nope', {}, { mcpServers: {} }, { mcpServers: [] }]) {
       expect(formatMcpServers(source)).toBe('(no MCP servers configured in .mcp.json)')
     }
+  })
+})
+
+describe('quién lee qué config', () => {
+  it('solo copilot y gemini ignoran el .mcp.json del proyecto', () => {
+    expect(providerUsesProjectMcpConfig('claude')).toBe(true)
+    expect(providerUsesProjectMcpConfig('cursor')).toBe(true)
+    expect(providerUsesProjectMcpConfig('copilot')).toBe(false)
+    expect(providerUsesProjectMcpConfig('gemini')).toBe(false)
+  })
+
+  it('el modo de acotado cambia con el CLI', () => {
+    expect(mcpScopeModeFor('claude')).toBe('allowlist')
+    expect(mcpScopeModeFor('copilot')).toBe('denylist')
+    expect(mcpScopeModeFor('gemini')).toBe('names')
   })
 })

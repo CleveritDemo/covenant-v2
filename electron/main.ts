@@ -58,8 +58,19 @@ import {
 } from './brainstormCatalogOps'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { isAgentCliProvider, type AgentCliResolution } from '../src/shared/agentCliProviders'
-import { mcpServerSummaries, type McpServersListRequest } from '../src/shared/mcpContext'
-import { readMcpConfigFor } from './mcpConfigFile'
+import {
+  mcpConfigLabelFor,
+  mcpServerSummaries,
+  providerUsesProjectMcpConfig,
+  type McpServersListRequest,
+} from '../src/shared/mcpContext'
+import {
+  ensureMcpConfigFile,
+  mcpConfigPathFor,
+  mcpServerNames,
+  readMcpConfigFor,
+  readProjectMcpConfig,
+} from './mcpConfigFile'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -1531,10 +1542,49 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.CONTEXT_METRICS_GET, () => getContextDeliveryMetrics())
   ipcMain.handle(IPC.AGENT_MCP_SERVERS_LIST, (_event, request: McpServersListRequest) => {
-    if (!request || !isAgentCliProvider(request.provider)) return []
-    return mcpServerSummaries(
-      readMcpConfigFor(request.provider, request.cwd ?? '', app.getPath('home')),
-    )
+    const empty = { servers: [], file: '.mcp.json', fileExists: false, unreadProjectServers: [] }
+    if (!request || !isAgentCliProvider(request.provider)) return empty
+    const { provider } = request
+    const cwd = request.cwd ?? ''
+    const home = app.getPath('home')
+    const servers = mcpServerSummaries(readMcpConfigFor(provider, cwd, home))
+    // Si el CLI no lee el `.mcp.json` del proyecto, los que haya ahí le son
+    // invisibles: el panel necesita poder nombrarlos para explicar por qué.
+    const unreadProjectServers = providerUsesProjectMcpConfig(provider) || !cwd
+      ? []
+      : mcpServerNames(readProjectMcpConfig(cwd))
+    return {
+      servers,
+      file: mcpConfigLabelFor(provider),
+      fileExists: existsSync(mcpConfigPathFor(provider, cwd, home)),
+      unreadProjectServers,
+    }
+  })
+  /**
+   * Abre el archivo de config MCP del CLI en el Finder. Con `create`, lo crea
+   * antes con un `mcpServers` vacío: sin eso, el panel te manda a un archivo que
+   * no existe y ahí se termina la ayuda. La ruta la resuelve el main —el
+   * renderer solo manda el provider— y nunca se pisa uno existente.
+   */
+  ipcMain.handle(IPC.AGENT_MCP_CONFIG_REVEAL, (
+    _event,
+    request: { provider?: unknown; cwd?: unknown; create?: unknown },
+  ) => {
+    if (!request || !isAgentCliProvider(request.provider)) {
+      return { ok: false, error: 'proveedor inválido' }
+    }
+    const cwd = typeof request.cwd === 'string' ? request.cwd : ''
+    const path = mcpConfigPathFor(request.provider, cwd, app.getPath('home'))
+    try {
+      const { created } = request.create === true
+        ? ensureMcpConfigFile(path)
+        : { created: false }
+      if (!existsSync(path)) return { ok: false, error: 'el archivo no existe' }
+      shell.showItemInFolder(path)
+      return { ok: true, created }
+    } catch (error) {
+      return { ok: false, error: (error as Error).message }
+    }
   })
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname, join } from 'path'
 import type { AgentCliProvider } from '../src/shared/agentCliProviders'
 
 /**
@@ -60,9 +60,34 @@ export function readMcpConfigFor(
   cwd: string,
   home: string,
 ): unknown {
-  if (provider === 'copilot') return readCopilotMcpConfig(home)
-  if (provider === 'gemini') return readMcpConfigFile(join(home, '.gemini', 'settings.json'))
-  return readProjectMcpConfig(cwd)
+  return readMcpConfigFile(mcpConfigPathFor(provider, cwd, home))
+}
+
+/**
+ * Ruta absoluta del archivo del que sale la config de cada CLI. Única fuente de
+ * verdad: la usan la lectura, el «existe / no existe» del panel y el botón que
+ * lo crea, así que no pueden apuntar a sitios distintos.
+ */
+export function mcpConfigPathFor(
+  provider: AgentCliProvider,
+  cwd: string,
+  home: string,
+): string {
+  if (provider === 'copilot') return join(home, '.copilot', 'mcp-config.json')
+  if (provider === 'gemini') return join(home, '.gemini', 'settings.json')
+  return join(cwd, '.mcp.json')
+}
+
+/**
+ * Crea el archivo con un `mcpServers` vacío si no está, y devuelve su ruta.
+ * Nunca toca uno existente: la gracia del botón es salir del callejón «el
+ * archivo no existe», no reescribir la configuración de nadie.
+ */
+export function ensureMcpConfigFile(path: string): { created: boolean } {
+  if (existsSync(path)) return { created: false }
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify({ mcpServers: {} }, null, 2)}\n`, 'utf-8')
+  return { created: true }
 }
 
 function readMcpConfigFile(path: string): unknown {

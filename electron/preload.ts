@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
 import type { AppConfig } from '../src/shared/configSchema'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
-import type { McpServerSummary, McpServersListRequest } from '../src/shared/mcpContext'
+import type { McpServersListRequest, McpServersListResult } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { SpotifyPlaybackState } from './spotifyNative'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
@@ -218,7 +218,15 @@ const api = {
     return ipcRenderer.invoke(IPC.CONTEXT_METRICS_GET)
   },
   /** Servidores MCP que ese CLI ve, para marcar la allowlist en vez de escribirla. */
-  listMcpServers(request: McpServersListRequest): Promise<McpServerSummary[]> {
+  /** Revela el archivo de config MCP del CLI; `create` lo crea si falta. */
+  revealMcpConfig(request: {
+    provider: string
+    cwd?: string
+    create?: boolean
+  }): Promise<{ ok: boolean; created?: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_REVEAL, request)
+  },
+  listMcpServers(request: McpServersListRequest): Promise<McpServersListResult> {
     return ipcRenderer.invoke(IPC.AGENT_MCP_SERVERS_LIST, request)
   },
   previewTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {

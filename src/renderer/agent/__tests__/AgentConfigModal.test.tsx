@@ -88,10 +88,14 @@ beforeAll(() => {
     configurable: true,
     value: {
       listAgentCliModels: vi.fn().mockResolvedValue({ models: [] }),
-      listMcpServers: vi.fn().mockResolvedValue([
-        { name: 'jira', transport: 'stdio' },
-        { name: 'context7', transport: 'http' },
-      ]),
+      listMcpServers: vi.fn().mockResolvedValue({
+        servers: [
+          { name: 'jira', transport: 'stdio' },
+          { name: 'context7', transport: 'http' },
+        ],
+        file: '.mcp.json',
+        unreadProjectServers: [],
+      }),
       resolveAgentCli: vi.fn().mockImplementation((provider: string) => Promise.resolve(
         provider === 'gemini'
           ? { provider, command: 'gemini', path: null, version: null }

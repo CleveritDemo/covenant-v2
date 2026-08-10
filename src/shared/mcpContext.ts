@@ -84,11 +84,44 @@ export interface McpServersListRequest {
 }
 
 /**
- * Archivo del que sale la lista, para poder decirlo cuando está vacía. Vive
- * aquí y no en `electron/` porque lo enseña el modal.
+ * Archivo del que sale la lista, para poder decirlo siempre y no solo cuando
+ * está vacía. Vive aquí y no en `electron/` porque lo enseña el modal.
  */
 export function mcpConfigLabelFor(provider: AgentCliProvider): string {
   if (provider === 'copilot') return '~/.copilot/mcp-config.json'
   if (provider === 'gemini') return '~/.gemini/settings.json'
   return '.mcp.json'
+}
+
+/**
+ * Si el CLI lee el `.mcp.json` del proyecto. Copilot y Gemini no: usan su propia
+ * config de usuario, así que los servidores del repo les son invisibles. Esa
+ * asimetría hay que decirla en la UI o se lee como «este agente no puede usar
+ * MCP», que es falso.
+ */
+export function providerUsesProjectMcpConfig(provider: AgentCliProvider): boolean {
+  return provider !== 'copilot' && provider !== 'gemini'
+}
+
+/**
+ * Cómo acota cada CLI, que cambia lo que significa marcar casillas:
+ * - `allowlist`: solo existe lo marcado (claude, cursor).
+ * - `names`: se pasan los permitidos por nombre (gemini).
+ * - `denylist`: se apaga lo no marcado, incluidos los integrados (copilot). No
+ *   es un sandbox: lo que aparezca en la config después no queda cubierto.
+ */
+export function mcpScopeModeFor(provider: AgentCliProvider): 'allowlist' | 'denylist' | 'names' {
+  if (provider === 'copilot') return 'denylist'
+  if (provider === 'gemini') return 'names'
+  return 'allowlist'
+}
+
+export interface McpServersListResult {
+  servers: McpServerSummary[]
+  /** Archivo del que salió la lista. */
+  file: string
+  /** Si ese archivo existe: cambia «ábrelo» por «créalo». */
+  fileExists: boolean
+  /** Nombres del `.mcp.json` del proyecto que este CLI no va a leer. */
+  unreadProjectServers: string[]
 }

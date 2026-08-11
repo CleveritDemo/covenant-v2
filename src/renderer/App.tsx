@@ -539,10 +539,24 @@ export const App: React.FC = () => {
       const status = agentPlaneStatusRef.current[toPaneId]
       if (!status || status.busy || status.awaitingDelegations || status.localLoopActive) continue
       const pending = findPendingDelegationByToPane(byPane, toPaneId)
-      if (!pending || !canReconcileIdlePending(pending.sawBusy)) continue
+      if (!pending || !canReconcileIdlePending(pending.sawBusy, {
+        startedAt: pending.startedAt,
+        nowMs: Date.now(),
+      })) continue
       reconcileIdleDelegationTargetRef.current(toPaneId, status.lastSnippet)
     }
   }, [])
+  /**
+   * La salida por antigüedad de `canReconcileIdlePending` solo sirve si algo la
+   * vuelve a mirar: un especialista parado no publica estado, así que sin este
+   * latido el pending envejecido no se revisaría nunca.
+   */
+  useEffect(() => {
+    if (awaitingDelegationPaneIds.size === 0) return
+    const timer = window.setInterval(() => { syncAwaitingFromPending() }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [awaitingDelegationPaneIds, syncAwaitingFromPending])
+
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
   const [planeContextsCreate, setPlaneContextsCreate] = useState(false)
@@ -3014,7 +3028,10 @@ export const App: React.FC = () => {
           orchestrationJobsByPaneRef.current,
           paneId,
         )
-        if (pending && canReconcileIdlePending(pending.sawBusy)) {
+        if (pending && canReconcileIdlePending(pending.sawBusy, {
+          startedAt: pending.startedAt,
+          nowMs: Date.now(),
+        })) {
           reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
         }
       }
@@ -3629,6 +3646,7 @@ export const App: React.FC = () => {
         toPaneId,
         toAgentId: routedAgentId,
         ...(baseAgentId ? { baseAgentId } : {}),
+        startedAt: Date.now(),
       })
       occupiedPaneIds.add(toPaneId)
       upsertOrchestrationWaveItem(job, {
@@ -3768,6 +3786,7 @@ export const App: React.FC = () => {
       toPaneId: next.toPaneId,
       toAgentId: next.toAgentId,
       ...(next.baseAgentId ? { baseAgentId: next.baseAgentId } : {}),
+      startedAt: Date.now(),
     })
     upsertOrchestrationWaveItem(job, {
       delegationId: next.delegation.id,
@@ -3931,6 +3950,7 @@ export const App: React.FC = () => {
             toPaneId: info.toPaneId,
             toAgentId: result.toAgentId ?? '',
             ...(info.baseAgentId ? { baseAgentId: info.baseAgentId } : {}),
+            startedAt: Date.now(),
           })
         }
         syncAwaitingFromPending()
@@ -3976,7 +3996,16 @@ export const App: React.FC = () => {
         break
       }
     }
-    if (!fromPaneId || !job) return
+    if (!fromPaneId || !job) {
+      // Un resultado sin pending es un aviso que llega tarde o dos veces (ya lo
+      // cerró el reconciliador). Descartarlo es correcto; hacerlo en silencio
+      // no: era la mitad de las filas que se quedaban colgadas sin rastro.
+      console.warn(
+        `[orchestration] resultado sin delegación pendiente: ${result.id}`,
+        { toAgentId: result.toAgentId, status: result.status },
+      )
+      return
+    }
     const completedMeta = job.pending.get(result.id)
     const freedPaneId = completedMeta?.toPaneId
     const disposeReplica = Boolean(
@@ -4091,7 +4120,10 @@ export const App: React.FC = () => {
     const found = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
     if (!found) return
     // No cerrar con snippet viejo antes de que el especialista arranque el turno nuevo.
-    if (!canReconcileIdlePending(found.sawBusy)) return
+    if (!canReconcileIdlePending(found.sawBusy, {
+      startedAt: found.startedAt,
+      nowMs: Date.now(),
+    })) return
     // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
     if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
     reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
@@ -4099,7 +4131,10 @@ export const App: React.FC = () => {
       if (turnActive) return
       const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
       if (!still || still.delegationId !== found.delegationId) return
-      if (!canReconcileIdlePending(still.sawBusy)) return
+      if (!canReconcileIdlePending(still.sawBusy, {
+        startedAt: still.startedAt,
+        nowMs: Date.now(),
+      })) return
       if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
       void handleDelegationTurnComplete({
         id: found.delegationId,

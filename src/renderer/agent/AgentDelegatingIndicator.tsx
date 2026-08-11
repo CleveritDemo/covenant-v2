@@ -8,9 +8,10 @@ export interface AgentDelegatingListItem {
   label: string
   /** Texto ya traducido, p. ej. "réplica". */
   replicaBadge?: string
-  /** Texto ya traducido: running | done. */
+  /** Texto ya traducido: running | queued | done. */
   statusLabel: string
-  status: 'running' | 'done'
+  /** `deferred` = aceptada pero sin arrancar; el punto no debe pulsar. */
+  status: 'running' | 'deferred' | 'done'
   worktreeHint?: string
 }
 
@@ -55,9 +56,7 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
               <span
                 className={[
                   'agent-delegating__item',
-                  item.status === 'done'
-                    ? 'agent-delegating__item--done'
-                    : 'agent-delegating__item--running',
+                  `agent-delegating__item--${item.status}`,
                 ].join(' ')}
               >
                 <span className="agent-delegating__dot" aria-hidden="true" />

@@ -6,6 +6,7 @@ import {
   createOrchestrationJob,
   findJobByDelegation,
   findPendingDelegationByToPane,
+  IDLE_PENDING_GRACE_MS,
   flattenAwaitingItemsFromJobs,
   jobRoundsAtCap,
   markPendingSawBusyForPane,
@@ -139,7 +140,7 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
         toAgentId: 'frontend-2',
         toPaneId: 'pane-replica',
         baseAgentId: 'frontend',
-        status: 'running',
+        status: 'deferred',
       },
     ])
   })
@@ -219,6 +220,27 @@ describe('pending sawBusy / idle reconcile gate', () => {
     const armed = findPendingDelegationByToPane(byPane, 'pane-be')
     expect(armed?.sawBusy).toBe(true)
     expect(canReconcileIdlePending(armed?.sawBusy)).toBe(true)
+  })
+
+  // `sawBusy` era una puerta de una sola dirección: si el turno nunca se vio
+  // ocupado, la fila quedaba en "running" para siempre con el pane parado.
+  it('un pending viejo se puede reconciliar aunque nunca se lo viera ocupado', () => {
+    const startedAt = 1_000_000
+    expect(canReconcileIdlePending(false, { startedAt, nowMs: startedAt })).toBe(false)
+    expect(canReconcileIdlePending(false, {
+      startedAt,
+      nowMs: startedAt + IDLE_PENDING_GRACE_MS - 1,
+    })).toBe(false)
+    expect(canReconcileIdlePending(false, {
+      startedAt,
+      nowMs: startedAt + IDLE_PENDING_GRACE_MS,
+    })).toBe(true)
+  })
+
+  it('sin startedAt sigue mandando sawBusy: nada se cierra por accidente', () => {
+    expect(canReconcileIdlePending(false, { nowMs: 9_999_999 })).toBe(false)
+    expect(canReconcileIdlePending(undefined)).toBe(false)
+    expect(canReconcileIdlePending(true)).toBe(true)
   })
 })
 

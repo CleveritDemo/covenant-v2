@@ -3,7 +3,12 @@
  * Sin React/electron: App arma inputs desde refs; UI solo renderiza la vista.
  */
 
-export type OrchestrationAwaitingItemStatus = 'running' | 'done'
+/**
+ * `deferred` es una delegación aceptada que todavía no arrancó (el pane destino
+ * estaba ocupado y no se permitió réplica). Se separó de `running` porque
+ * pintarlas igual hacía leer como "trabajando" a un especialista parado.
+ */
+export type OrchestrationAwaitingItemStatus = 'running' | 'deferred' | 'done'
 
 export interface OrchestrationAwaitingItemInput {
   delegationId: string

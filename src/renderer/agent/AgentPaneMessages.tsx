@@ -120,7 +120,9 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
               status: item.status,
               statusLabel: item.status === 'done'
                 ? t('agentPane.awaitingStatusDone')
-                : t('agentPane.awaitingStatusRunning'),
+                : item.status === 'deferred'
+                  ? t('agentPane.awaitingStatusDeferred')
+                  : t('agentPane.awaitingStatusRunning'),
               ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
             }))}
             stopItemLabel={t('agentPane.awaitingStopSpecialist')}

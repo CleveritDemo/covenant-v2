@@ -137,6 +137,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     status: item.status,
                     statusLabel: item.status === 'done'
                       ? t('agentPane.awaitingStatusDone')
+                      : item.status === 'deferred'
+                        ? t('agentPane.awaitingStatusDeferred')
                       : t('agentPane.awaitingStatusRunning'),
                     ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
                   }))}

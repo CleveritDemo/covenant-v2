@@ -350,6 +350,7 @@ const en = {
     turboAwaitingPlaceholder: 'You can keep sending while delegations come back…',
     awaitingWaveProgress: 'Waiting {{done}}/{{total}}',
     awaitingReplicaBadge: 'replica',
+    awaitingStatusDeferred: 'queued',
     awaitingStatusRunning: 'running',
     awaitingStatusDone: 'done',
     awaitingStopSpecialist: 'Stop this specialist',

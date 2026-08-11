@@ -32,6 +32,8 @@ export interface OrchestrationJobPendingMeta {
    * chat snippet before the specialist starts the new objective.
    */
   sawBusy?: boolean
+  /** epoch ms del alta del pending; habilita la salida por antigüedad. */
+  startedAt?: number
 }
 
 export interface OrchestrationDeferredItem {
@@ -198,7 +200,6 @@ export function flattenAwaitingItemsFromJobs(
     const deferredIds = new Set(job.deferred.map(item => item.delegation.id))
     for (const item of job.waveItems) {
       const live = job.pending.get(item.delegationId)
-      const stillActive = pendingIds.has(item.delegationId) || deferredIds.has(item.delegationId)
       out.push({
         ...item,
         toAgentId: live?.toAgentId ?? item.toAgentId,
@@ -208,7 +209,11 @@ export function flattenAwaitingItemsFromJobs(
           : item.toPaneId
             ? { toPaneId: item.toPaneId }
             : {}),
-        status: stillActive ? 'running' : 'done',
+        status: pendingIds.has(item.delegationId)
+          ? 'running'
+          : deferredIds.has(item.delegationId)
+            ? 'deferred'
+            : 'done',
       })
     }
     for (const [delegationId, meta] of job.pending.entries()) {
@@ -228,7 +233,7 @@ export function flattenAwaitingItemsFromJobs(
         toAgentId: deferred.toAgentId,
         toPaneId: deferred.toPaneId,
         ...(deferred.baseAgentId ? { baseAgentId: deferred.baseAgentId } : {}),
-        status: 'running',
+        status: 'deferred',
       })
     }
   }
@@ -311,6 +316,7 @@ export function findPendingDelegationByToPane(
   delegationId: string
   toAgentId: string
   sawBusy: boolean
+  startedAt?: number
 } | null {
   const wanted = toPaneId.trim()
   if (!wanted) return null
@@ -324,6 +330,7 @@ export function findPendingDelegationByToPane(
             delegationId,
             toAgentId: meta.toAgentId,
             sawBusy: meta.sawBusy === true,
+            ...(typeof meta.startedAt === 'number' ? { startedAt: meta.startedAt } : {}),
           }
         }
       }
@@ -348,9 +355,30 @@ export function markPendingSawBusyForPane(
   }
 }
 
-/** Solo reconciliar idle si el target ya corrió un turno con este pending. */
-export function canReconcileIdlePending(sawBusy: boolean | undefined): boolean {
-  return sawBusy === true
+/**
+ * Cuánto se espera antes de cerrar un pending que nunca se vio ocupado.
+ * Holgado a propósito: el precio de equivocarse por abajo es cerrar una
+ * subtarea que estaba por arrancar.
+ */
+export const IDLE_PENDING_GRACE_MS = 60_000
+
+/**
+ * Reconciliar idle pide haber visto al target ocupado con este pending: cerrar
+ * antes usaría el snippet del turno anterior.
+ *
+ * La salida por antigüedad existe porque `sawBusy` era una puerta de una sola
+ * dirección: si el turno nunca llegó a verse ocupado —no arrancó, o empezó y
+ * terminó entre dos publicaciones de estado— la fila se quedaba en "running"
+ * para siempre con el especialista parado, sin más salida que el Stop.
+ */
+export function canReconcileIdlePending(
+  sawBusy: boolean | undefined,
+  age?: { startedAt?: number; nowMs: number },
+): boolean {
+  if (sawBusy === true) return true
+  const startedAt = age?.startedAt
+  if (typeof startedAt !== 'number' || !age) return false
+  return age.nowMs - startedAt >= IDLE_PENDING_GRACE_MS
 }
 
 export interface AbortOneDelegationResult {

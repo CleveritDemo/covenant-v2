@@ -352,6 +352,7 @@ const es = {
     turboAwaitingPlaceholder: 'Puedes seguir enviando mientras llegan las delegaciones…',
     awaitingWaveProgress: 'Esperando {{done}}/{{total}}',
     awaitingReplicaBadge: 'réplica',
+    awaitingStatusDeferred: 'en cola',
     awaitingStatusRunning: 'en curso',
     awaitingStatusDone: 'listo',
     awaitingStopSpecialist: 'Detener este especialista',

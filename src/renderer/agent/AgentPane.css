@@ -2050,6 +2050,15 @@ html[data-reduce-motion="true"] {
   font-weight: 600;
 }
 
+/* La etiqueta de Files lleva el botón de importar a la derecha: la acción
+   pertenece al campo, no a la botonera del modal. */
+.tab-contexts__paths-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .tab-contexts__root-row {
   display: flex;
   flex-wrap: wrap;

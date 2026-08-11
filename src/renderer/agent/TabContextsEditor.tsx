@@ -94,6 +94,39 @@ export const TabContextsEditor: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [previewView, setPreviewView] = useState<'rendered' | 'source'>('rendered')
+
+  /**
+   * Copia los archivos elegidos dentro del proyecto y agrega sus rutas. Los
+   * contextos viajan con el repo: referenciar `~/Downloads` daría uno que solo
+   * funciona en esta máquina, así que se importa en vez de apuntar afuera.
+   */
+  const importFiles = async (): Promise<void> => {
+    onActionError?.('')
+    const cwd = projectCwd.trim()
+    if (!cwd) {
+      onActionError?.(t('tabContexts.missingCwd'))
+      return
+    }
+    const result = await window.api.importContextFiles({
+      cwd,
+      ...(draft.rootPath?.trim() ? { rootPath: draft.rootPath.trim() } : {}),
+      title: t('tabContexts.importFilesTitle'),
+    })
+    if (!result.ok) {
+      if (result.cancelled) return
+      onActionError?.(
+        result.error === 'file too large'
+          ? t('tabContexts.importTooLarge')
+          : result.error === 'root outside import folder'
+            ? t('tabContexts.importRootConflict')
+            : (result.error ?? t('tabContexts.previewError')),
+      )
+      return
+    }
+    const existing = (draft.paths ?? []).map(path => path.trim()).filter(Boolean)
+    const merged = [...existing, ...result.paths.filter(path => !existing.includes(path))]
+    onUpdate({ paths: merged })
+  }
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
   // Un contexto "guardado" es uno que ya está en el catálogo vivo del padre —
   // la vista previa (TAB_CONTEXT_PREVIEW) no escribe a disco, así que
@@ -152,7 +185,17 @@ export const TabContextsEditor: React.FC<Props> = ({
 
         {(draft.kind === 'files' || draft.kind === 'symbols' || draft.kind === 'spreadsheet') && (
           <label>
-            <span>{t('tabContexts.paths')}</span>
+            <span className="tab-contexts__paths-label">
+              {t('tabContexts.paths')}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!projectCwd.trim()}
+                onClick={() => { void importFiles() }}
+              >
+                {t('tabContexts.importFiles')}
+              </Button>
+            </span>
             <TextArea
               rows={5}
               value={(draft.paths ?? []).join('\n')}

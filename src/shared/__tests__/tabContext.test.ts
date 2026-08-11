@@ -10,6 +10,7 @@ import {
   isCanonicalContextId,
   normalizeAnnotation,
   suggestSymbolsIdentity,
+  isProjectRelativePath,
 } from '../tabContext'
 
 describe('canonical context identity', () => {
@@ -288,5 +289,21 @@ describe('extractTabContextUpdates', () => {
     }])
 
     expect(extractTabContextUpdates(filtered).updates).toEqual([])
+  })
+})
+
+describe('isProjectRelativePath', () => {
+  it('acepta rutas relativas que se quedan adentro', () => {
+    expect(isProjectRelativePath('')).toBe(true)
+    expect(isProjectRelativePath('docs')).toBe(true)
+    expect(isProjectRelativePath('docs/sheets/user-stories.xlsx')).toBe(true)
+    expect(isProjectRelativePath('./docs')).toBe(true)
+  })
+
+  it('rechaza absolutas y escapes', () => {
+    expect(isProjectRelativePath('/Users/x/Downloads')).toBe(false)
+    expect(isProjectRelativePath('C:\\Users\\x')).toBe(false)
+    expect(isProjectRelativePath('../fuera')).toBe(false)
+    expect(isProjectRelativePath('docs/../../fuera')).toBe(false)
   })
 })

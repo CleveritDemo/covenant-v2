@@ -86,6 +86,7 @@ export const IPC = {
   OPEN_FOLDER: 'shell:openFolder',
   /** Renderer → main (invoke): diálogo nativo para elegir carpeta de proyecto */
   SELECT_DIRECTORY: 'shell:selectDirectory',
+  CONTEXT_IMPORT_FILES: 'tabContext:importFiles',
   /** Renderer → main (invoke): abrir URL externa (http(s) / spotify:); playlists web → app si hay cliente */
   OPEN_EXTERNAL_URL: 'shell:openExternalUrl',
   /** Renderer → main (invoke): ¿cliente Spotify de escritorio instalado? */

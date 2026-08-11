@@ -9,8 +9,10 @@ import {
   constants,
   statSync,
   renameSync,
+  copyFileSync,
 } from 'fs'
-import { join, normalize, resolve, relative, isAbsolute, dirname } from 'path'
+import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
+import { projectDirName } from './projectDir'
 import {
   app,
   BrowserWindow,
@@ -678,6 +680,82 @@ function registerIpc(): void {
       return { ok: true, path: selected }
     },
   )
+
+  /** Tope del import de contextos: un adjunto, no un backup. */
+  const MAX_CONTEXT_IMPORT_BYTES = 25 * 1024 * 1024
+
+  /** `hoja.xlsx` → `hoja-2.xlsx` si ya existe; no pisa lo que hay. */
+  const uniqueImportTarget = (dir: string, fileName: string): string => {
+    const ext = extname(fileName)
+    const stem = fileName.slice(0, fileName.length - ext.length) || 'file'
+    let candidate = join(dir, fileName)
+    for (let n = 2; existsSync(candidate) && n < 1000; n += 1) {
+      candidate = join(dir, `${stem}-${n}${ext}`)
+    }
+    return candidate
+  }
+
+  /**
+   * Copia archivos de cualquier parte del disco al proyecto y devuelve sus
+   * rutas relativas. Los contextos viven en el repo y se comparten con él, así
+   * que apuntar a `~/Downloads` daría un contexto que solo funciona en una
+   * máquina; importar en vez de referenciar mantiene esa promesa.
+   */
+  ipcMain.handle(IPC.CONTEXT_IMPORT_FILES, async (event, raw: unknown) => {
+    const options = (raw ?? {}) as { cwd?: unknown; rootPath?: unknown; title?: unknown }
+    const cwdRaw = typeof options.cwd === 'string' ? options.cwd.trim() : ''
+    if (!cwdRaw) return { ok: false as const, error: 'missing cwd' }
+    const cwd = resolve(cwdRaw)
+
+    // Mismo recorte que `safeRoot` en tabContextBuild: si no coinciden, el
+    // import escribiría donde la materialización después no va a mirar.
+    const requested = typeof options.rootPath === 'string' ? options.rootPath.trim() : ''
+    const candidate = resolve(cwd, requested || '.')
+    const relToCwd = relative(cwd, candidate)
+    const root = relToCwd === '' || (!relToCwd.startsWith('..') && !isAbsolute(relToCwd))
+      ? candidate
+      : cwd
+
+    const destDir = join(cwd, projectDirName(cwd), 'files')
+    const relFromRoot = relative(root, destDir)
+    if (relFromRoot.startsWith('..') || isAbsolute(relFromRoot)) {
+      return { ok: false as const, error: 'root outside import folder' }
+    }
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const dialogOpts: Electron.OpenDialogOptions = {
+      title: typeof options.title === 'string' && options.title.trim()
+        ? options.title.trim()
+        : undefined,
+      properties: ['openFile', 'multiSelections'],
+    }
+    const picked = win
+      ? await dialog.showOpenDialog(win, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts)
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false as const, cancelled: true }
+    }
+
+    try {
+      mkdirSync(destDir, { recursive: true })
+      const paths: string[] = []
+      for (const source of picked.filePaths) {
+        const stat = statSync(source)
+        if (!stat.isFile()) continue
+        if (stat.size > MAX_CONTEXT_IMPORT_BYTES) {
+          return { ok: false as const, error: 'file too large' }
+        }
+        const target = uniqueImportTarget(destDir, basename(source))
+        copyFileSync(source, target)
+        paths.push(relative(root, target).split('\\').join('/'))
+      }
+      return paths.length > 0
+        ? { ok: true as const, paths }
+        : { ok: false as const, error: 'nothing copied' }
+    } catch (error) {
+      return { ok: false as const, error: (error as Error).message }
+    }
+  })
 
   ipcMain.handle(IPC.OPEN_EXTERNAL_URL, async (_e, urlStr: unknown) => {
     if (typeof urlStr !== 'string' || !urlStr.trim()) {

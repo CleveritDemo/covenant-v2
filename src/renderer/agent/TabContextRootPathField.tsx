@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button } from '../components/ui/Button'
 import { useT } from '@i18n/useT'
+import { isProjectRelativePath } from '@shared/tabContext'
 
 interface Props {
   value: string
@@ -55,6 +56,9 @@ export const TabContextRootPathField: React.FC<Props> = ({
           placeholder={t('tabContexts.rootPlaceholder')}
           onChange={event => {
             const next = event.target.value.trim()
+            // El host recorta la raíz que se escapa sin decir nada y el contexto
+            // sale vacío; avisar acá es la única señal que llega al usuario.
+            onPickError?.(isProjectRelativePath(next) ? '' : t('tabContexts.rootOutsideProject'))
             onChange(next || undefined)
           }}
         />

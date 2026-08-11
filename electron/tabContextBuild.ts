@@ -152,6 +152,18 @@ function safeFile(root: string, path: string): string | null {
   }
 }
 
+/**
+ * Por qué no se pudo leer. `(unavailable)` a secas hacía que un archivo fuera
+ * del proyecto se leyera como un bug del host y no como la regla que es.
+ */
+function unavailableReason(root: string, path: string): string {
+  const candidate = resolve(root, path)
+  const rel = relative(root, candidate)
+  return rel.startsWith('..') || isAbsolute(rel)
+    ? '(outside the project folder — import the file into the project first)'
+    : '(not found)'
+}
+
 function readTextFile(path: string): string | null {
   if (!TEXT_EXTENSIONS.has(extname(path).toLowerCase()) && extname(path)) return null
   try {
@@ -168,7 +180,7 @@ function buildFiles(context: TabContext, root: string): string {
   for (const relPath of context.paths ?? []) {
     const path = safeFile(root, relPath)
     if (!path) {
-      sections.push(`### ${relPath}\n(unavailable)`)
+      sections.push(`### ${relPath}\n${unavailableReason(root, relPath)}`)
       continue
     }
     const content = readTextFile(path)
@@ -200,7 +212,7 @@ function buildSpreadsheet(context: TabContext, root: string): string {
   for (const relPath of requested) {
     const path = safeFile(root, relPath)
     if (!path) {
-      sections.push(`### ${relPath}\n(unavailable)`)
+      sections.push(`### ${relPath}\n${unavailableReason(root, relPath)}`)
       continue
     }
     try {

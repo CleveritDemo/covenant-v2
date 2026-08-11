@@ -329,6 +329,17 @@ const api = {
     ipcRenderer.send(IPC.OPEN_FOLDER, folderPath)
   },
 
+  /** Copia archivos elegidos por el usuario al proyecto; devuelve rutas relativas. */
+  importContextFiles(options: {
+    cwd: string
+    rootPath?: string
+    title?: string
+  }): Promise<
+    | { ok: true; paths: string[] }
+    | { ok: false; cancelled?: boolean; error?: string }
+  > {
+    return ipcRenderer.invoke(IPC.CONTEXT_IMPORT_FILES, options)
+  },
   selectDirectory(options?: {
     title?: string
     defaultPath?: string

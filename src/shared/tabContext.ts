@@ -552,3 +552,15 @@ export function suggestSymbolsIdentity(rootPath: string | undefined): {
     fileStem: `classes-${stem}`,
   }
 }
+
+/**
+ * ¿La ruta se queda dentro del proyecto? El host recorta en silencio cualquier
+ * raíz que se escape (`safeRoot` en tabContextBuild), así que la UI necesita
+ * poder avisarlo antes de guardar en vez de dejar que el contexto salga vacío.
+ */
+export function isProjectRelativePath(value: string): boolean {
+  const path = value.trim()
+  if (!path) return true
+  if (path.startsWith('/') || path.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(path)) return false
+  return !path.split(/[\\/]+/).includes('..')
+}

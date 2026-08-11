@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.31
+
+- **Las réplicas del turbo ya se distinguen entre sí**: cuando el orquestador
+  clona a un experto ocupado, la copia conserva su nombre —Frontend sigue
+  siendo Frontend— y se marca con el número que ya lleva por dentro: **R2**,
+  **R3**, en ámbar de "esto es temporal". El experto original muestra **+2**
+  mientras haya copias suyas trabajando. Antes todas se llamaban "Frontend
+  (replica)" y no había forma de saber cuál era cuál, ni en las tarjetas del
+  plano, ni en los chips del chat, ni en la lista de espera.
+- **El confirm de borrar un contexto vuelve a verse**: quedaba por debajo del
+  listado "Contextos de este workspace", así que la papelera parecía no hacer
+  nada.
+
 ## v0.39.30
 
 - **Lo que escribes en un agente sigue ahí al volver**: si preparas un mensaje

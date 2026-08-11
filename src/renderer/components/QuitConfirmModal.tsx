@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { Gravity } from '../agent/Gravity'
 import { TerminalModal } from './TerminalModal'
@@ -43,7 +44,7 @@ export const QuitConfirmModal: React.FC<Props> = ({
       open={open}
       onClose={onCancel}
       size="sm"
-      zIndex={900}
+      zIndex={QUIT_CONFIRM_Z}
       closeOnEscape
       headerContent={
         <div className="quit-confirm__hero">

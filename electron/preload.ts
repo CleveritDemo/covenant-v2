@@ -233,7 +233,18 @@ const api = {
   getContextDeliveryMetrics(): Promise<ContextDeliveryMetrics> {
     return ipcRenderer.invoke(IPC.CONTEXT_METRICS_GET)
   },
-  /** Servidores MCP que ese CLI ve, para marcar la allowlist en vez de escribirla. */
+  /** Texto crudo del archivo de config MCP del CLI (o vacío si aún no existe). */
+  readMcpConfig(request: { provider: string; cwd: string }): Promise<
+    { ok: true; path: string; exists: boolean; text: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_READ, request)
+  },
+  /** Sobrescribe ese archivo solo si el JSON pasa la validación del main. */
+  writeMcpConfig(request: { provider: string; cwd: string; text: string }): Promise<
+    { ok: true; path: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_WRITE, request)
+  },
   /** Revela el archivo de config MCP del CLI; `create` lo crea si falta. */
   revealMcpConfig(request: {
     provider: string
@@ -242,6 +253,7 @@ const api = {
   }): Promise<{ ok: boolean; created?: boolean; error?: string }> {
     return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_REVEAL, request)
   },
+  /** Servidores MCP que ese CLI ve, para marcar la allowlist en vez de escribirla. */
   listMcpServers(request: McpServersListRequest): Promise<McpServersListResult> {
     return ipcRenderer.invoke(IPC.AGENT_MCP_SERVERS_LIST, request)
   },
@@ -871,7 +883,9 @@ const api = {
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.PROJECT_AGENTS_DELETE, cwd, agentId)
   },
-  listBrainstorms(cwd: string): Promise<import('../src/shared/brainstormRoom').BrainstormRoom[]> {
+  listBrainstorms(
+    cwd: string,
+  ): Promise<import('../src/shared/brainstormListing').BrainstormRoomListing[]> {
     return ipcRenderer.invoke(IPC.BRAINSTORM_LIST, cwd)
   },
   saveBrainstorm(

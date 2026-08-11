@@ -120,3 +120,14 @@ export function parseBrainstormRoomDefinition(
     outcome: sanitizeBrainstormOutcome(data.outcome),
   }
 }
+
+/** Transcript legible de la sala: un bloque por intervención. */
+export function buildBrainstormMarkdown(room: BrainstormRoom): string {
+  const lines: string[] = [`# ${room.topic}`, '']
+  for (const message of room.messages) {
+    lines.push(`### ${message.agentName} (ronda ${message.round + 1})`)
+    lines.push(message.text)
+    lines.push('')
+  }
+  return `${lines.join('\n').trimEnd()}\n`
+}

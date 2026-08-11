@@ -274,7 +274,9 @@ function isAgentChatEntry(value: unknown): value is AgentChatEntry {
     (entry.role === 'user' || entry.role === 'assistant' || entry.role === 'system') &&
     typeof entry.content === 'string' &&
     (entry.images === undefined ||
-      (Array.isArray(entry.images) && entry.images.every(isAgentChatImage)))
+      (Array.isArray(entry.images) && entry.images.every(isAgentChatImage))) &&
+    // Historial anterior no la trae; la UI cae a detectar el encabezado.
+    (entry.presentation === undefined || entry.presentation === 'delegationResult')
   )
 }
 

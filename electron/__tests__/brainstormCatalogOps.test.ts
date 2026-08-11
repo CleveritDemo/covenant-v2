@@ -67,6 +67,8 @@ describe('brainstormCatalogOps', () => {
         { agentId: 'qa', agentName: 'QA', round: 0, text: 'Measure first' },
       ],
     })
+    expect(typeof listed[0]?.updatedAt).toBe('number')
+    expect(listed[0]!.updatedAt!).toBeGreaterThan(0)
 
     const disk = JSON.parse(
       readFileSync(join(cwd, PROJECT_DIR, 'brainstorms', 'ship-ideas.json'), 'utf-8'),

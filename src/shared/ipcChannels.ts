@@ -52,6 +52,10 @@ export const IPC = {
   AGENT_MCP_SERVERS_LIST: 'agentMcpServers:list',
   /** Renderer → main (invoke): revela el archivo de config MCP del CLI, creándolo si falta */
   AGENT_MCP_CONFIG_REVEAL: 'agentMcpServers:revealConfig',
+  /** Renderer → main (invoke): texto crudo del archivo de config MCP del CLI. */
+  AGENT_MCP_CONFIG_READ: 'agentMcpServers:readConfig',
+  /** Renderer → main (invoke): sobrescribe ese archivo si el JSON es válido. */
+  AGENT_MCP_CONFIG_WRITE: 'agentMcpServers:writeConfig',
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
   TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',

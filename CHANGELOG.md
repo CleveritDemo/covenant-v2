@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.37
+
+- **La mesa de brainstorm ya se ve, se cierra y acepta los agentes**: salió
+  coja en la v0.39.34. Quedaba por debajo del chat del plano —el texto del chat
+  se leía encima y el cierre no recibía el clic— y arrastrar un agente no hacía
+  nada, porque agarrarlo por el asa movía su tarjeta por la columna en vez de
+  llevarla a la mesa. Ahora la mesa va por delante, la tarjeta entera se
+  arrastra (mientras la mesa está abierta el asa desaparece y el cursor lo
+  anuncia), y la ventana lleva la barra de título de siempre, con su botón rojo
+  y Esc para cerrar.
+
 ## v0.39.36
 
 - **Delegaciones del chat y del plano más claras**: el indicador y el placeholder quedan centrados, sin burbuja sólida, para que se lean como estado y no como mensaje.

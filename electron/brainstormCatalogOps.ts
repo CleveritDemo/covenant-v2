@@ -3,11 +3,13 @@ import { basename, join } from 'path'
 import {
   BRAINSTORM_DIR,
   brainstormFileName,
+  buildBrainstormMarkdown,
   normalizeBrainstormSlug,
   parseBrainstormRoomDefinition,
   serializeBrainstormRoom,
 } from '../src/shared/brainstormCatalog'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
+import type { BrainstormRoomListing } from '../src/shared/brainstormListing'
 import { projectDirPath } from './projectDir'
 
 function brainstormsDir(cwd: string): string {
@@ -24,7 +26,7 @@ function roomPath(cwd: string, id: string): string {
   return join(brainstormsDir(cwd), brainstormFileName(id))
 }
 
-export function listBrainstormRooms(cwd: string): BrainstormRoom[] {
+export function listBrainstormRooms(cwd: string): BrainstormRoomListing[] {
   const root = typeof cwd === 'string' ? cwd.trim() : ''
   if (!root) return []
   const dir = brainstormsDir(root)
@@ -35,13 +37,21 @@ export function listBrainstormRooms(cwd: string): BrainstormRoom[] {
   } catch {
     return []
   }
-  const out: BrainstormRoom[] = []
+  const out: BrainstormRoomListing[] = []
   for (const name of names.sort()) {
     try {
-      const raw = JSON.parse(readFileSync(join(dir, name), 'utf-8')) as unknown
+      const path = join(dir, name)
+      const raw = JSON.parse(readFileSync(path, 'utf-8')) as unknown
       const hint = basename(name, '.json')
       const parsed = parseBrainstormRoomDefinition(raw, hint)
-      if (parsed) out.push(parsed)
+      if (!parsed) continue
+      // El mtime es la única fecha que hay: la sala no persiste timestamps y
+      // añadirlos obligaría a migrar los .json ya escritos.
+      let updatedAt: number | undefined
+      try {
+        updatedAt = statSync(path).mtimeMs
+      } catch { /* sin fecha: el agrupado la trata como reciente */ }
+      out.push(updatedAt === undefined ? parsed : { ...parsed, updatedAt })
     } catch { /* skip corrupt */ }
   }
   return out
@@ -136,16 +146,6 @@ export function pruneBrainstormRooms(
     } catch { /* skip corrupt / race */ }
   }
   return { ok: true, removed }
-}
-
-function buildBrainstormMarkdown(room: BrainstormRoom): string {
-  const lines: string[] = [`# ${room.topic}`, '']
-  for (const message of room.messages) {
-    lines.push(`### ${message.agentName} (ronda ${message.round + 1})`)
-    lines.push(message.text)
-    lines.push('')
-  }
-  return `${lines.join('\n').trimEnd()}\n`
 }
 
 /** Escribe `<slug>.md` junto al JSON de la sala (escritura atómica). */

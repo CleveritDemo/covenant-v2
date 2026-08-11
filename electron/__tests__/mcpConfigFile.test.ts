@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { ensureMcpConfigFile, mcpConfigPathFor, writeScopedMcpConfig } from '../mcpConfigFile'
+import {
+  ensureMcpConfigFile,
+  mcpConfigPathFor,
+  readMcpConfigText,
+  writeMcpConfigText,
+  writeScopedMcpConfig,
+} from '../mcpConfigFile'
+import { MCP_CONFIG_MAX_BYTES } from '../../src/shared/mcpConfigText'
 
 const source = {
   mcpServers: {
@@ -74,5 +81,39 @@ describe('ensureMcpConfigFile', () => {
 
     expect(ensureMcpConfigFile(path)).toEqual({ created: false })
     expect(JSON.parse(readFileSync(path, 'utf8')).mcpServers.jira.command).toBe('jira-mcp')
+  })
+})
+
+describe('readMcpConfigText / writeMcpConfigText', () => {
+  it('lee vacío cuando el archivo no existe', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    expect(readMcpConfigText(join(dir, 'missing.json'))).toEqual({ text: '', exists: false })
+  })
+
+  it('escribe atómicamente preservando el texto y exige newline final', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, 'nested', '.mcp.json')
+    const body = '{\n  "mcpServers": {\n    "jira": {}\n  }\n}'
+
+    writeMcpConfigText(path, body)
+    expect(readMcpConfigText(path)).toEqual({ text: `${body}\n`, exists: true })
+    expect(existsSync(`${path}.tmp`)).toBe(false)
+  })
+
+  it('rechaza JSON inválido antes de tocar el disco', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, '.mcp.json')
+    writeFileSync(path, '{"mcpServers":{"ok":{}}}\n', 'utf8')
+
+    expect(() => writeMcpConfigText(path, '{"mcpServers":')).toThrow('invalid-json')
+    expect(readFileSync(path, 'utf8')).toBe('{"mcpServers":{"ok":{}}}\n')
+  })
+
+  it('rechaza payloads demasiado grandes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, '.mcp.json')
+    const huge = `{"mcpServers":{"x":{"n":"${'a'.repeat(MCP_CONFIG_MAX_BYTES)}"}}}`
+    expect(() => writeMcpConfigText(path, huge)).toThrow('too-large')
+    expect(existsSync(path)).toBe(false)
   })
 })

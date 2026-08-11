@@ -128,6 +128,12 @@ export interface AgentChatEntry {
   content: string
   /** Previews de imágenes adjuntas al mensaje del usuario. */
   images?: AgentChatImage[]
+  /**
+   * Cómo pintar la entrada. `delegationResult`: follow-up de orquestación
+   * inyectado por el host; se muestra como tarjeta, no como mensaje humano.
+   * `content` sigue siendo el texto íntegro que recibió el CLI.
+   */
+  presentation?: 'delegationResult'
 }
 
 

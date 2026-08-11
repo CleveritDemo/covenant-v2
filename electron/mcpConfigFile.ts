@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import type { AgentCliProvider } from '../src/shared/agentCliProviders'
+import { MCP_CONFIG_MAX_BYTES, validateMcpConfigText } from '../src/shared/mcpConfigText'
 
 /**
  * `mcp.json` efímero con solo los servidores permitidos para un agente.
@@ -118,4 +119,33 @@ export function mcpServersToDisable(
   if (!allowed.length) return []
   const keep = new Set(allowed)
   return configured.filter(name => !keep.has(name))
+}
+
+/** Texto crudo del archivo, o cadena vacía si todavía no existe. */
+export function readMcpConfigText(path: string): { text: string; exists: boolean } {
+  if (!existsSync(path)) return { text: '', exists: false }
+  try {
+    return { text: readFileSync(path, 'utf8'), exists: true }
+  } catch {
+    return { text: '', exists: false }
+  }
+}
+
+/**
+ * Escritura atómica del archivo tal cual lo escribió la persona: se conserva su
+ * formato (comentarios no, es JSON, pero sí el orden y la indentación) en vez
+ * de reserializar. Valida aquí también: el handler ya filtra, pero esta es la
+ * frontera real de disco y no debe confiar en el caller.
+ */
+export function writeMcpConfigText(path: string, text: string): void {
+  if (Buffer.byteLength(text, 'utf8') > MCP_CONFIG_MAX_BYTES) {
+    throw new Error('too-large')
+  }
+  const check = validateMcpConfigText(text)
+  if (!check.ok) throw new Error(check.reason)
+
+  mkdirSync(dirname(path), { recursive: true })
+  const tmp = `${path}.tmp`
+  writeFileSync(tmp, text.endsWith('\n') ? text : `${text}\n`, 'utf-8')
+  renameSync(tmp, path)
 }

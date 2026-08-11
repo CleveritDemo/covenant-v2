@@ -70,6 +70,8 @@ import {
 import {
   ensureMcpConfigFile,
   mcpConfigPathFor,
+  readMcpConfigText,
+  writeMcpConfigText,
   mcpServerNames,
   readMcpConfigFor,
   readProjectMcpConfig,
@@ -154,6 +156,7 @@ import {
   type OrgWorkspaceCloneResult,
 } from './orgWorkspaceClone'
 import { diagnoseCloneError } from '../src/shared/orgWorkspaceCloneError'
+import { validateMcpConfigText, MCP_CONFIG_MAX_BYTES } from '../src/shared/mcpConfigText'
 import {
   addAssignee as covenantAddAssignee,
   addMember as covenantAddMember,
@@ -1720,6 +1723,52 @@ function registerIpc(): void {
    * no existe y ahí se termina la ayuda. La ruta la resuelve el main —el
    * renderer solo manda el provider— y nunca se pisa uno existente.
    */
+  ipcMain.handle(IPC.AGENT_MCP_CONFIG_READ, (
+    _event,
+    request: { provider?: unknown; cwd?: unknown },
+  ) => {
+    if (!request || !isAgentCliProvider(request.provider)) {
+      return { ok: false, error: 'proveedor inválido' }
+    }
+    const cwd = typeof request.cwd === 'string' ? request.cwd : ''
+    const path = mcpConfigPathFor(request.provider, cwd, app.getPath('home'))
+    try {
+      const { text, exists } = readMcpConfigText(path)
+      return { ok: true, path, exists, text }
+    } catch (error) {
+      return { ok: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC.AGENT_MCP_CONFIG_WRITE, (
+    _event,
+    request: { provider?: unknown; cwd?: unknown; text?: unknown },
+  ) => {
+    if (!request || !isAgentCliProvider(request.provider)) {
+      return { ok: false, error: 'proveedor inválido' }
+    }
+    const text = typeof request.text === 'string' ? request.text : ''
+    if (Buffer.byteLength(text, 'utf8') > MCP_CONFIG_MAX_BYTES) {
+      return { ok: false, error: 'too-large' }
+    }
+    // El renderer ya avisa mientras se escribe, pero la frontera manda: nunca
+    // se escribe un archivo que dejaría al CLI sin servidores.
+    const check = validateMcpConfigText(text)
+    if (!check.ok) return { ok: false, error: check.reason }
+    const cwd = typeof request.cwd === 'string' ? request.cwd.trim() : ''
+    // Sin cwd, `mcpConfigPathFor` caería en un `.mcp.json` relativo al proceso.
+    if (providerUsesProjectMcpConfig(request.provider) && !cwd) {
+      return { ok: false, error: 'cwd requerido' }
+    }
+    const path = mcpConfigPathFor(request.provider, cwd, app.getPath('home'))
+    try {
+      writeMcpConfigText(path, text)
+      return { ok: true, path }
+    } catch (error) {
+      return { ok: false, error: (error as Error).message }
+    }
+  })
+
   ipcMain.handle(IPC.AGENT_MCP_CONFIG_REVEAL, (
     _event,
     request: { provider?: unknown; cwd?: unknown; create?: unknown },

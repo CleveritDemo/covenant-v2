@@ -29,6 +29,19 @@
   letter-spacing: 0.42em;
   text-indent: 0.42em;
   color: var(--text-muted, #7878a8);
+  transform-origin: center center;
+  /* Mismo gesto de entrada que `.gravity` (Gravity.css → gravity-enter). */
+  animation: gravity-enter 2.4s cubic-bezier(0.22, 0.82, 0.18, 1) both;
+}
+
+html[data-reduce-motion="true"] .gravity-hero-canvas__brand {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gravity-hero-canvas__brand {
+    animation: none;
+  }
 }
 
 .gravity-hero-canvas--enter-fade {

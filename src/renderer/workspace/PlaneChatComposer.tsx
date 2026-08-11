@@ -424,32 +424,26 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const composerWorking = Boolean(busy || loopActive || awaitingDelegations || delegationWorkActive)
 
   return (
-    <>
+    <div
+      className={[
+        'plane-chat-composer',
+        composerWorking
+          ? 'plane-chat-composer--working'
+          : '',
+        dropActive ? 'plane-chat-composer--drop' : '',
+      ].filter(Boolean).join(' ')}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Aurora dentro del composer: mismo stacking que el input para que
+          backdrop-filter muestre las partículas bajo el glass. */}
       <div
-        className={[
-          'plane-chat-composer-aurora-host',
-          composerWorking
-            ? 'plane-chat-composer--working'
-            : '',
-        ].filter(Boolean).join(' ')}
+        className="plane-chat-composer-aurora-host"
         aria-hidden="true"
       >
-        <PlaneComposerAurora
-          active={composerWorking}
-        />
+        <PlaneComposerAurora active={composerWorking} />
       </div>
-      <div
-        className={[
-          'plane-chat-composer',
-          composerWorking
-            ? 'plane-chat-composer--working'
-            : '',
-          dropActive ? 'plane-chat-composer--drop' : '',
-        ].filter(Boolean).join(' ')}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
       <div className="plane-chat-composer__body">
         <DictationListeningOverlay
           active={listening}
@@ -695,6 +689,5 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         }}
       />
       </div>
-    </>
   )
 }

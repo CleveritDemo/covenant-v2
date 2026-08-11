@@ -1,9 +1,12 @@
-/* Aurora bajo el chat; sobre el mapa base si aplica. */
+/* Aurora detrás del body: mismo stacking que el input para backdrop-filter. */
 .plane-chat-composer-aurora-host {
   --plane-composer-accent: var(--accent);
   position: absolute;
-  inset: 0;
-  z-index: 17;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--plane-aurora-field-height, 160px);
+  z-index: 0;
   pointer-events: none;
   overflow: visible;
 }
@@ -466,7 +469,7 @@
   scrollbar-width: none;
   padding: 10px 14px;
   color: var(--text);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg));
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 14px;
   outline: none;
@@ -474,9 +477,18 @@
   font-size: 13px;
   line-height: 1.4;
   box-shadow: none;
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease,
+    backdrop-filter 0.25s ease;
+}
+
+/* Working: glass suave — blur ligero + relleno bajo para que las partículas
+   se lean bajo el input (aurora anidada en el mismo stacking). */
+.plane-chat-composer--working .plane-chat-composer__input {
+  background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
+  backdrop-filter: blur(5px) saturate(1.12);
+  -webkit-backdrop-filter: blur(5px) saturate(1.12);
 }
 
 html[data-reduce-motion="true"] {

@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.40
+
+- **Aurora del composer bajo el glass**: el campo de partículas vive dentro del composer (mismo stacking) y el input usa blur suave; en working se transparenta para leer el campo sin pelear con el texto.
+- **Fade del chat sin comer el hilo**: el gap de la última burbuja pasa al scroll; el velo inferior solo cubre clearance + solape corto, sin sumar aire extra al shell.
+- **Brand del hero solo en splash**: GravityHeroCanvas deja el wordmark apagado por defecto (animación de entrada con reduce-motion), y los confirms/busy no lo muestran.
+
 ## v0.39.39
 
 - **Chip de update con etapas**: el badge de la titlebar muestra available / downloading / restart con motion discreto, y en Developer puedes previsualizarlo sin tocar el updater.

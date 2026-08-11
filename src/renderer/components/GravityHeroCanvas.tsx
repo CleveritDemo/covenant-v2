@@ -6,7 +6,7 @@ export type GravityHeroCanvasEnter = 'none' | 'fade'
 
 export interface GravityHeroCanvasProps {
   children?: React.ReactNode
-  /** Wordmark bajo Gravity. Default true. */
+  /** Wordmark bajo Gravity. Solo splash de arranque; default false. */
   brand?: boolean
   brandLabel?: string
   gravitySize?: GravitySize
@@ -31,7 +31,7 @@ export const GravityHeroCanvas = forwardRef<HTMLDivElement, GravityHeroCanvasPro
   function GravityHeroCanvas(
     {
       children,
-      brand = true,
+      brand = false,
       brandLabel = 'COVENANT GRAVITY',
       gravitySize = 'hero',
       enter = 'none',

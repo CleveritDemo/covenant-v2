@@ -42,6 +42,6 @@
 }
 
 .plane-chat-dock__composer-shell {
-  /* Hijos participan del stacking del plano: aurora bajo chat, body arriba. */
+  /* contents: el composer (z18) participa en el stacking del plano. */
   display: contents;
 }

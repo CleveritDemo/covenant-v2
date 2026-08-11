@@ -18,9 +18,11 @@ type Particle = {
 }
 
 const COLOR_VARS = ['--accent', '--theme-cyan', '--theme-magenta', '--theme-blue'] as const
-const FIELD_HEIGHT = 140
-const MAX_PARTICLES = 28
-const SPAWN_INTERVAL_MS = 90
+const FIELD_HEIGHT = 160
+const MAX_PARTICLES = 42
+const SPAWN_INTERVAL_MS = 55
+/** Pico de opacidad: legible bajo el glass suave, sin competir con el texto. */
+const ALPHA_PEAK = 0.9
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => isReduceMotionActive())
@@ -56,15 +58,15 @@ function readThemeColors(el: Element): string[] {
 }
 
 function spawnParticle(width: number, height: number, colors: string[]): Particle {
-  const maxLife = 1.8 + Math.random() * 1.6
+  const maxLife = 2.2 + Math.random() * 1.8
   return {
     x: Math.random() * width,
     y: height - 1 - Math.random() * 2,
-    vx: (Math.random() - 0.5) * 18,
-    vy: -(12 + Math.random() * 28),
+    vx: (Math.random() - 0.5) * 22,
+    vy: -(16 + Math.random() * 36),
     life: maxLife,
     maxLife,
-    size: 1.2 + Math.random() * 2.4,
+    size: 2.4 + Math.random() * 3.8,
     color: colors[Math.floor(Math.random() * colors.length)]!,
   }
 }
@@ -75,21 +77,17 @@ function drawParticle(
 ): void {
   const t = 1 - p.life / p.maxLife
   const fade = Math.sin(Math.min(1, p.life / p.maxLife) * Math.PI)
-  const alpha = Math.max(0, fade * 0.55 * (1 - t * 0.35))
-  if (alpha < 0.01) return
+  const alpha = Math.max(0, fade * ALPHA_PEAK * (1 - t * 0.18))
+  if (alpha < 0.02) return
 
-  const radius = p.size * (1 - t * 0.65)
-  if (radius < 0.15) return
+  const radius = p.size * (1 - t * 0.45)
+  if (radius < 0.2) return
 
-  const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius * 2.4)
-  gradient.addColorStop(0, p.color)
-  gradient.addColorStop(0.45, p.color)
-  gradient.addColorStop(1, 'transparent')
-
+  // Punto sólido, sin halo ni bloom.
   ctx.globalAlpha = alpha
-  ctx.fillStyle = gradient
+  ctx.fillStyle = p.color
   ctx.beginPath()
-  ctx.arc(p.x, p.y, radius * 2.4, 0, Math.PI * 2)
+  ctx.arc(p.x, p.y, Math.max(0.7, radius * 0.55), 0, Math.PI * 2)
   ctx.fill()
 }
 
@@ -124,9 +122,14 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
     const resize = (): void => {
       const parent = canvas.parentElement
       const cssWidth = parent?.clientWidth ?? canvas.clientWidth
+      // Preferir la altura real del host (campo 160px), no la de la cinta.
+      const cssHeight = Math.max(
+        1,
+        parent?.clientHeight ?? canvas.clientHeight ?? FIELD_HEIGHT,
+      )
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = Math.max(1, Math.floor(cssWidth))
-      const h = FIELD_HEIGHT
+      const h = Math.max(1, Math.floor(cssHeight))
       canvas.width = Math.floor(w * dpr)
       canvas.height = Math.floor(h * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -147,7 +150,7 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
       lastTs = ts
 
       const width = canvas.clientWidth || 1
-      const height = FIELD_HEIGHT
+      const height = canvas.clientHeight || FIELD_HEIGHT
 
       spawnAcc += dt * 1000
       while (spawnAcc >= SPAWN_INTERVAL_MS && particles.length < MAX_PARTICLES) {
@@ -157,7 +160,7 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
       if (particles.length >= MAX_PARTICLES) spawnAcc = 0
 
       ctx.clearRect(0, 0, width, height)
-      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalCompositeOperation = 'source-over'
 
       for (let i = particles.length - 1; i >= 0; i -= 1) {
         const p = particles[i]!

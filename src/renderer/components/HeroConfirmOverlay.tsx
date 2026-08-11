@@ -90,6 +90,7 @@ export const HeroConfirmOverlay: React.FC<Props> = (props) => {
   return createPortal(
     <GravityHeroCanvas
       ref={rootRef}
+      brand={false}
       enter="fade"
       zIndex={zIndex}
       role="dialog"

@@ -1,11 +1,7 @@
 import React, { useState } from 'react'
 import type { BrainstormClosing } from '@shared/brainstormRoom'
 import { formatBrainstormClosing } from '@shared/brainstormRoom'
-import {
-  canonicalContextFileName,
-  canonicalContextId,
-  type TabContext,
-} from '@shared/tabContext'
+import { brainstormRoomContext } from '@shared/brainstormListing'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import './BrainstormClosingCard.css'
@@ -16,6 +12,8 @@ export interface BrainstormClosingCardProps {
   cwd: string
   closing: BrainstormClosing
   speakerLabel: string
+  /** El contexto ya está en disco; el llamador refresca la lista de la pestaña. */
+  onContextSaved?: () => void
 }
 
 type Feedback = { kind: 'ok' | 'error'; text: string } | null
@@ -27,6 +25,7 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
   cwd,
   closing,
   speakerLabel,
+  onContextSaved,
 }) => {
   const { t } = useT()
   const [feedback, setFeedback] = useState<Feedback>(null)
@@ -50,20 +49,17 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
   }
 
   const handleSaveContext = async (): Promise<void> => {
-    const name = t('tabs.brainstormClosingContextName', { topic })
-    const context: TabContext = {
-      id: canonicalContextId('notes', { name }),
-      name,
-      fileName: canonicalContextFileName('notes', { name }),
-      kind: 'notes',
-    }
+    // Un contexto por sala (`brainstorm-<slug>.md`): reguardar el cierre lo
+    // reescribe en vez de sembrar un archivo nuevo por cada cambio de asunto.
+    const context = brainstormRoomContext({ id: roomId, topic })
     const result = await window.api.materializeTabContext({
       context,
       cwd: cwd.trim(),
       content: markdown,
     })
+    if (result.ok) onContextSaved?.()
     setFeedback(result.ok
-      ? { kind: 'ok', text: t('tabs.brainstormClosingSaved', { name }) }
+      ? { kind: 'ok', text: t('tabs.brainstormClosingSaved', { name: context.name }) }
       : { kind: 'error', text: result.error ?? t('tabs.brainstormClosingSaveError') })
   }
 

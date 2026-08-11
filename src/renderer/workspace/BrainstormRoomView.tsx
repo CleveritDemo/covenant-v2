@@ -45,6 +45,8 @@ export interface BrainstormRoomViewProps {
    */
   agentNamesById?: Record<string, string>
   onClose: () => void
+  /** El cierre se guardó como contexto en `.gravity`: refrescar la lista de la pestaña. */
+  onContextSaved?: () => void
 }
 
 function statusLabelKey(
@@ -90,6 +92,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   agents = [],
   agentNamesById = {},
   onClose,
+  onContextSaved,
 }) => {
   const { t } = useT()
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
@@ -417,6 +420,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                     cwd={cwd}
                     closing={closing}
                     speakerLabel={speakerLabel(message.agentId, message.agentName)}
+                    onContextSaved={onContextSaved}
                   />
                 </React.Fragment>
               )

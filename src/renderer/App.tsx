@@ -5500,6 +5500,9 @@ export const App: React.FC = () => {
                   open={Boolean(brainstormListOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
                   active={activeTabId === tab.id}
                   cwd={tab.projectFolder ?? ''}
+                  agents={filterBrainstormInvitableAgents(
+                    projectAgentsByCwd[agentCatalogKey] ?? [],
+                  )}
                   onClose={() => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
@@ -5539,6 +5542,7 @@ export const App: React.FC = () => {
                     onClose={() => {
                       setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
                     }}
+                    onContextSaved={() => { void refreshTabContexts(tab.id) }}
                   />
                 ) : null}
                       </div>

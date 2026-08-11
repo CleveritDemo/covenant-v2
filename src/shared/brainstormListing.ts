@@ -121,7 +121,7 @@ export function brainstormContextFileName(room: BrainstormRoom): string {
  * Contexto `notes` equivalente a la sala. El id lleva el prefijo que ya usa el
  * host para notes, así el discover de `.gravity` lo reconoce sin caso especial.
  */
-export function brainstormRoomContext(room: BrainstormRoom): TabContext {
+export function brainstormRoomContext(room: Pick<BrainstormRoom, 'id' | 'topic'>): TabContext {
   const stem = `brainstorm-${normalizeBrainstormSlug(room.id)}`
   return {
     id: `iaterminal:notes:${stem}`,

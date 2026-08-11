@@ -6,6 +6,28 @@
   color: var(--text-muted);
 }
 
+.brainstorm-list-modal__filter {
+  margin: 0 0 10px;
+}
+
+.brainstorm-list-modal__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(48vh, 420px);
+  overflow: auto;
+}
+
+.brainstorm-list-modal__group-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .brainstorm-list-modal__list {
   list-style: none;
   margin: 0;
@@ -13,8 +35,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: min(48vh, 420px);
-  overflow: auto;
 }
 
 .brainstorm-list-modal__item {
@@ -24,7 +44,20 @@
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.28));
+  border-left-width: 3px;
   border-radius: 8px;
+}
+
+.brainstorm-list-modal__item--run {
+  border-left-color: var(--accent);
+}
+
+.brainstorm-list-modal__item--done {
+  border-left-color: var(--accent-dim);
+}
+
+.brainstorm-list-modal__item--idle {
+  border-left-color: var(--border-subtle, rgba(127, 127, 127, 0.28));
 }
 
 .brainstorm-list-modal__meta {

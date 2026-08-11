@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
 
 vi.mock('@i18n/useT', () => ({
@@ -62,6 +62,13 @@ function room(partial: Partial<BrainstormRoom>): BrainstormRoom {
   }
 }
 
+/** La fila de una sala; el orden lo decide el agrupado, no el índice del array. */
+function rowOf(topic: string): HTMLElement {
+  const row = screen.getByText(topic).closest('li')
+  if (!row) throw new Error(`sin fila para «${topic}»`)
+  return row as HTMLElement
+}
+
 describe('BrainstormListModal edit/export wiring', () => {
   const listBrainstorms = vi.fn()
   const exportBrainstormMarkdown = vi.fn()
@@ -107,11 +114,13 @@ describe('BrainstormListModal edit/export wiring', () => {
       expect(screen.getByText('Paused room')).toBeTruthy()
     })
 
-    const editButtons = screen.getAllByRole('button', { name: 'tabs.brainstormsEdit' })
-    expect(editButtons).toHaveLength(2)
-    expect((editButtons[1] as HTMLButtonElement).disabled).toBe(true)
+    const editRunning = within(rowOf('Running room'))
+      .getByRole('button', { name: 'tabs.brainstormsEdit' }) as HTMLButtonElement
+    expect(editRunning.disabled).toBe(true)
 
-    fireEvent.click(editButtons[0])
+    const editPaused = within(rowOf('Paused room'))
+      .getByRole('button', { name: 'tabs.brainstormsEdit' })
+    fireEvent.click(editPaused)
     expect(screen.getByTestId('edit-modal').textContent).toBe('paused-1:Paused room')
   })
 
@@ -130,11 +139,37 @@ describe('BrainstormListModal edit/export wiring', () => {
       expect(screen.getByText('Paused room')).toBeTruthy()
     })
 
-    const exportButtons = screen.getAllByRole('button', { name: 'tabs.brainstormsExportMd' })
-    fireEvent.click(exportButtons[0])
+    fireEvent.click(
+      within(rowOf('Paused room')).getByRole('button', { name: 'tabs.brainstormsExportMd' }),
+    )
 
     await waitFor(() => {
       expect(exportBrainstormMarkdown).toHaveBeenCalledWith('/tmp/project', 'paused-1')
     })
+  })
+
+  it('groups the running room first and offers the action its status implies', async () => {
+    render(
+      <BrainstormListModal
+        open
+        cwd="/tmp/project"
+        onClose={() => undefined}
+        onCreate={() => undefined}
+        onOpenRoom={() => undefined}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Paused room')).toBeTruthy()
+    })
+
+    const topics = screen.getAllByText(/room$/).map(node => node.textContent)
+    expect(topics).toEqual(['Running room', 'Paused room'])
+    expect(
+      within(rowOf('Running room')).getByRole('button', { name: 'tabs.brainstormsLive' }),
+    ).toBeTruthy()
+    expect(
+      within(rowOf('Paused room')).getByRole('button', { name: 'tabs.brainstormsResume' }),
+    ).toBeTruthy()
   })
 })

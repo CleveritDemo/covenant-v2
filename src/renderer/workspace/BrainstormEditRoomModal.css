@@ -1,3 +1,11 @@
+.brainstorm-edit-room-modal__hint {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .brainstorm-edit-room-modal__field {
   display: flex;
   flex-direction: column;

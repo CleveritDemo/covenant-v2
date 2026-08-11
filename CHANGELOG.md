@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.34
+
+- **Los invitados de un brainstorm se sientan en una mesa, no en una rejilla de
+  casillas**: al crear una sala aparece una mesa en el plano, junto a la columna
+  de agentes, y arrastras a quien quieras dentro. El número del asiento es el
+  orden de habla, así que ya no hay que recordar en qué orden hiciste clic: se
+  reordena arrastrando, con ⌘ y las flechas, o sentando desde los chips de
+  "Disponibles". El modal queda en un solo paso —tema, rondas y resultado
+  esperado— y las réplicas del turbo no se sientan, que es lo que la sala hacía
+  por su cuenta al arrancar mientras el contador decía otra cosa.
+
 ## v0.39.33
 
 - **Mientras el orquestador arma una delegación ya no ves JSON crudo**: en el stream aparece un indicador “Armando delegación…” (órbita) en cuanto empieza el fence `ia-terminal-delegate`; al terminar el turno el fence sigue oculto como siempre.

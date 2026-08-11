@@ -36,6 +36,9 @@ const es = {
     quitModalLabel: 'Confirmación de salida',
     quitModalHint: 'Muestra el diálogo; nunca cierra la app.',
     quitModalPreview: 'Ver diálogo',
+    updateBannerLabel: 'Chip de actualización',
+    updateBannerHint: 'Cicla el badge de la titlebar por estados de mentira; no descarga ni instala.',
+    updateBannerPreview: 'Ver chip de update',
     aboutVersion: 'Covenant Gravity v{{version}}',
     autoUpdatesTitle: 'Actualizaciones automáticas',
     autoUpdatesDescription: 'Busca versiones nuevas al arrancar y aproximadamente cada hora. Apágalo si solo quieres actualizar a mano.',
@@ -897,6 +900,9 @@ const es = {
     gotIt: 'Entendido',
     later: 'Luego',
     dismiss: 'Descartar',
+    stageAvailable: 'disponible',
+    stageDownloading: 'descargando',
+    stageReady: 'reiniciar',
   },
 
   git: {

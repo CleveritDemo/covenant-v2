@@ -17,6 +17,9 @@ build/release-notes.md
 # Worktrees de agentes (estado local)
 .covenant/
 
+# Mockups del visual companion (brainstorming)
+.superpowers/
+
 # Worktrees de git creados por la orquestación de agentes (Fase 1 git worktree)
 /.gravity/worktrees/
 

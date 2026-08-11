@@ -3,7 +3,7 @@ import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
-import { AgentPaneAttachmentRemove } from './AgentPaneAttachmentRemove'
+import { PendingImageThumb } from '../components/PendingImageThumb'
 import { AgentPaneSendButton } from './AgentPaneSendButton'
 
 export interface AgentPanePendingImage {
@@ -124,14 +124,13 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
       {pendingImages.length > 0 && (
         <div className="agent-pane__attachments" aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}>
           {pendingImages.map(image => (
-            <div key={image.id} className="agent-pane__attachment">
-              <img src={image.previewUrl} alt={image.name} />
-              <AgentPaneAttachmentRemove
-                label={t('agentPane.removeImage')}
-                disabled={composerDisabled}
-                onClick={() => onRemovePendingImage(image.id)}
-              />
-            </div>
+            <PendingImageThumb
+              key={image.id}
+              src={image.previewUrl}
+              name={image.name}
+              removeDisabled={composerDisabled}
+              onRemove={() => onRemovePendingImage(image.id)}
+            />
           ))}
         </div>
       )}

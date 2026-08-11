@@ -1,0 +1,101 @@
+.pending-thumb {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+/* 36px y no 28: a 28 una captura no se distingue de otra, y el objetivo de
+   clic quedaba por debajo de lo cómodo. */
+.pending-thumb__open {
+  display: block;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 30%, transparent);
+  cursor: zoom-in;
+  transition: border-color 0.14s ease, transform 0.14s ease;
+}
+
+.pending-thumb__open img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pending-thumb__open:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  transform: translateY(-1px);
+}
+
+.pending-thumb__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* La × solo cuando hace falta: al pasar el mouse por la miniatura o al
+   enfocarla con el teclado. Antes vivía encima de la imagen, tapando la
+   esquina justo de lo que uno quiere mirar. */
+.pending-thumb__remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--bg);
+  border-radius: 50%;
+  color: var(--bg);
+  background: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease;
+  pointer-events: none;
+}
+
+.pending-thumb:hover .pending-thumb__remove,
+.pending-thumb__remove:focus-visible,
+.pending-thumb__open:focus-visible + .pending-thumb__remove {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.pending-thumb__remove:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.pending-thumb__remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pending-thumb__remove:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Vista previa: la imagen manda; el modal se adapta a ella sin recortarla. */
+.pending-thumb__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.pending-thumb__preview img {
+  display: block;
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  object-fit: contain;
+  border-radius: 6px;
+}

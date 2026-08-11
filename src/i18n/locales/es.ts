@@ -155,6 +155,7 @@ const es = {
     dictationTooShort: 'Mantén pulsado el botón mientras hablas — la grabación fue demasiado corta para captar nada',
     dictationLive: 'Te escucho…',
     dictationError: 'El dictado falló; inténtalo de nuevo',
+    imagePreviewOpen: 'Ver {{name}} en grande',
     removeImage: 'Quitar imagen',
     imagesAttached: '{{n}} imagen(es) adjunta(s)',
     imageOnlyMessage: '(imagen adjunta)',

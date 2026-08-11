@@ -931,52 +931,6 @@ html[data-reduce-motion="true"] {
   padding: 6px 10px 0;
 }
 
-.agent-pane__attachment {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--bg) 35%, transparent);
-}
-
-.agent-pane__attachment img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.agent-pane__attachment-remove {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  color: #fff;
-  background: color-mix(in srgb, #111 72%, transparent);
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.agent-pane__attachment-remove:hover:not(:disabled) {
-  background: color-mix(in srgb, #111 88%, transparent);
-}
-
-.agent-pane__attachment-remove:disabled {
-  opacity: .45;
-  cursor: default;
-}
 
 .agent-pane__composer textarea {
   flex: 1;

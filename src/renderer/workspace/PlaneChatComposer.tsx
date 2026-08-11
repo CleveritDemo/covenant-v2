@@ -21,6 +21,7 @@ import { PlaneAgentBadge } from './PlaneAgentBadge'
 import { PlaneChatCloseButton } from './PlaneChatCloseButton'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
+import { PendingImageThumb } from '../components/PendingImageThumb'
 import { PlaneChatSendButton } from './PlaneChatSendButton'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
@@ -521,14 +522,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
           >
             {pendingImages.map(image => (
-              <div key={image.id} className="plane-chat-composer__attachment">
-                <img src={image.previewUrl} alt={image.name} />
-                <PlaneChatRemoveChipButton
-                  appearance="attachment"
-                  label={t('agentPane.removeImage')}
-                  onClick={() => removePendingImage(image.id)}
-                />
-              </div>
+              <PendingImageThumb
+                key={image.id}
+                src={image.previewUrl}
+                name={image.name}
+                onRemove={() => removePendingImage(image.id)}
+              />
             ))}          </div>
         )}
 

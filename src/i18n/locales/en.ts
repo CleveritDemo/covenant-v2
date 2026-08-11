@@ -153,6 +153,7 @@ const en = {
     dictationTooShort: 'Hold the button while you speak — the recording was too short to pick anything up',
     dictationLive: 'Hearing you…',
     dictationError: 'Dictation failed; try again',
+    imagePreviewOpen: 'View {{name}} larger',
     removeImage: 'Remove image',
     imagesAttached: '{{n}} attached image(s)',
     imageOnlyMessage: '(attached image)',

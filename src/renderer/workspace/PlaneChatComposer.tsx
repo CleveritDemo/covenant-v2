@@ -456,56 +456,64 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           level={level}
           text={interim.trim() || t('agentPane.dictationLive')}
         />
-        {queuedTurns.length > 0 && selectedAgentId && (
-          <div
-            className="plane-chat-composer__queue"
-            aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
-          >
-            {onMergeQueuedTurns
-              && queuedTurns.filter(item => (
-                !item.delegation && !item.orchestrationFollowUp
-              )).length >= 2 && (
-              <button
-                type="button"
-                className="plane-chat-composer__queue-merge"
-                aria-label={t('agentPane.queueMerge')}
-                onClick={() => onMergeQueuedTurns(selectedAgentId)}
+        {(queuedTurns.length > 0 || pendingImages.length > 0) && (
+          <div className="plane-chat-composer__pending-row">
+            {pendingImages.length > 0 && (
+              <div
+                className="plane-chat-composer__attachments"
+                aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
               >
-                {t('agentPane.queueMerge')}
-              </button>
-            )}
-            {queuedTurns.map((item, index) => (
-              <div key={item.id} className="plane-chat-composer__queue-bubble">
-                <PlaneChatQueueEditButton
-                  position={index + 1}
-                  text={item.text}
-                  emptyText={t('agentPane.imageOnlyMessage')}
-                  images={item.images}
-                  title={t('agentPane.queueEditHint')}
-                  onClick={() => setEditingQueuedId(item.id)}
-                />
-                <PlaneChatRemoveChipButton
-                  appearance="queue"
-                  label={t('agentPane.queueRemove')}
-                  onClick={() => onRemoveQueuedTurn?.(selectedAgentId, item.id)}
-                />
+                {pendingImages.map(image => (
+                  <PendingImageThumb
+                    key={image.id}
+                    src={image.previewUrl}
+                    name={image.name}
+                    onRemove={() => removePendingImage(image.id)}
+                  />
+                ))}
               </div>
-            ))}          </div>
-        )}
-
-        {pendingImages.length > 0 && (
-          <div
-            className="plane-chat-composer__attachments"
-            aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
-          >
-            {pendingImages.map(image => (
-              <PendingImageThumb
-                key={image.id}
-                src={image.previewUrl}
-                name={image.name}
-                onRemove={() => removePendingImage(image.id)}
-              />
-            ))}          </div>
+            )}
+            {queuedTurns.length > 0 && (
+              <div
+                className="plane-chat-composer__queue"
+                aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
+              >
+                {onMergeQueuedTurns
+                  && selectedAgentId
+                  && queuedTurns.filter(item => (
+                    !item.delegation && !item.orchestrationFollowUp
+                  )).length >= 2 && (
+                  <button
+                    type="button"
+                    className="plane-chat-composer__queue-merge"
+                    aria-label={t('agentPane.queueMerge')}
+                    onClick={() => onMergeQueuedTurns(selectedAgentId)}
+                  >
+                    {t('agentPane.queueMerge')}
+                  </button>
+                )}
+                {queuedTurns.map((item, index) => (
+                  <div key={item.id} className="plane-chat-composer__queue-bubble">
+                    <PlaneChatQueueEditButton
+                      position={index + 1}
+                      text={item.text}
+                      emptyText={t('agentPane.imageOnlyMessage')}
+                      images={item.images}
+                      title={t('agentPane.queueEditHint')}
+                      onClick={() => setEditingQueuedId(item.id)}
+                    />
+                    {selectedAgentId ? (
+                      <PlaneChatRemoveChipButton
+                        appearance="queue"
+                        label={t('agentPane.queueRemove')}
+                        onClick={() => onRemoveQueuedTurn?.(selectedAgentId, item.id)}
+                      />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <div className="plane-chat-composer__agents" role="listbox" aria-label={sendLabel}>

@@ -531,7 +531,7 @@ function DefaultsSection({
                     </div>
                     {canDelete ? (
                       <Button
-                        variant="danger"
+                        variant="secondary"
                         size="xs"
                         disabled={busy}
                         onClick={() => onUnset(item.kind, item.name)}

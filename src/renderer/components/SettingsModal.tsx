@@ -19,7 +19,8 @@ import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
 import { GitHubTokenField } from './GitHubTokenField'
 import { AiMarkdown } from './AiMarkdown'
-import { QuitConfirmModal } from './QuitConfirmModal'
+import { HeroConfirmOverlay } from './HeroConfirmOverlay'
+import { QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import { replaySplash } from '../splash'
 import { changelogRecentModifications } from '@shared/changelog'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
@@ -688,10 +689,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {/* Portal propio: se pinta sobre Ajustes y no cierra la app. */}
-          <QuitConfirmModal
+          <HeroConfirmOverlay
             open={quitPreview}
-            terminals={2}
-            agents={1}
+            meta={t('quit.terminalsOpen', { count: 2 })}
+            title={t('quit.title')}
+            hint={t('quit.hint')}
+            zIndex={QUIT_CONFIRM_Z}
             onCancel={() => setQuitPreview(false)}
             onConfirm={() => setQuitPreview(false)}
           />

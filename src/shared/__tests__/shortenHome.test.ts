@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shortenHome } from '../AgentConfigSettingsPane'
+import { shortenHome } from '../shortenHome'
 
 describe('shortenHome', () => {
   it('sustituye el home por ~ en macOS, Linux y Windows', () => {

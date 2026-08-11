@@ -42,7 +42,9 @@
 /* Fantasma: misma gramática que los chips de la barra del composer — sin caja
    hasta el hover, tipografía del chip y alto fijo para alinear con ellos. */
 .select--ghost {
-  width: auto;
+  /* Sin `width: auto`: el 100% de `.select` es lo que deja que el contenedor
+     imponga su ancho máximo y que `.select__value` recorte con ellipsis. Con
+     auto el botón crecía con el texto y se montaba sobre los controles vecinos. */
   height: 24px;
   padding: 0 8px;
   gap: 6px;

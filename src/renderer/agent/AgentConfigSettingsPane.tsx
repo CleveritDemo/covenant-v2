@@ -1,3 +1,4 @@
+import { shortenHome } from '@shared/shortenHome'
 import React, { useEffect, useMemo, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
@@ -76,14 +77,6 @@ export interface AgentConfigSettingsPaneProps {
 function folderLabel(cwd: string): string {
   const normalized = cwd.replace(/[\\/]+$/, '')
   return normalized.split(/[\\/]/).pop() || cwd || '—'
-}
-
-/** `/Users/x/Sources/app` → `~/Sources/app`; el home completo no aporta nada. */
-export function shortenHome(cwd: string): string {
-  const path = cwd.trim().replace(/[\\/]+$/, '')
-  if (!path) return ''
-  const home = path.match(/^(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)[^\\/]+/)
-  return home ? `~${path.slice(home[0].length)}` : path
 }
 
 /**

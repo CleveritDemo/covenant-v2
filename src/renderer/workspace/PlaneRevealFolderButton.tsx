@@ -1,6 +1,7 @@
 import React from 'react'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
+import { shortenHome } from '@shared/shortenHome'
 import './PlaneLoopsButton.css'
 
 export interface PlaneRevealFolderButtonProps {
@@ -16,12 +17,15 @@ export const PlaneRevealFolderButton: React.FC<PlaneRevealFolderButtonProps> = (
   onReveal,
 }) => {
   const path = folderPath.trim()
+  // `~/...` en vez del home entero: la ruta completa no aporta y ensancha tanto
+  // la burbuja que se despega del ícono al recortarse contra el borde.
+  const shortPath = shortenHome(path)
   return (
-    <Tooltip content={label} hint={path || undefined}>
+    <Tooltip content={label} hint={shortPath || undefined}>
       <button
         type="button"
         className="plane-loops-button plane-loops-button--icon-only"
-        aria-label={path || label}
+        aria-label={shortPath || label}
         onClick={onReveal}
       >
         <Icon name="folder" size={12} />

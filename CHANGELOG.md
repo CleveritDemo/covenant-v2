@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.32
+
+- **Mientras el orquestador arma una delegación ya no ves JSON crudo**: en el stream aparece un indicador “Armando delegación…” (órbita) en cuanto empieza el fence `ia-terminal-delegate`; al terminar el turno el fence sigue oculto como siempre.
+- **Las capturas del chat se abren nítidas**: el preview guardado pasa de ~96px a ~1280px (WebP), y el modal de la miniatura usa tamaño `xl` a pantalla completa. Las miniaturas del hilo siguen pequeñas; los mensajes viejos con thumb 96px no cambian solos.
+- **Las tablas del markdown del agente se leen sin romperse**: el wrap scrollea en horizontal, anchos por contenido, headers y código en `nowrap`, celdas sin heredar cortes raros.
+- **La cinta del composer del plano cobra vida al trabajar**: partículas aurora cuando hay busy / loop / delegaciones en curso; idle más sobrio.
+- **Burbujas del asistente y tarjetas de delegación sin marco**: se quita el filo izquierdo; el estado de la tarjeta de resultado vive en el label, no en un borde.
+
 ## v0.39.31
 
 - **Las réplicas del turbo ya se distinguen entre sí**: cuando el orquestador

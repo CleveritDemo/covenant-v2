@@ -1,0 +1,124 @@
+/* Shell reutilizable de burbujas de chat (pane, plano, brainstorm). */
+
+.chat-bubble {
+  max-width: 82%;
+  padding: 10px 14px;
+  font-size: var(--agent-chat-font-size, 13px);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  box-shadow: none;
+}
+
+.chat-bubble .ai-md,
+.chat-bubble .ai-code-block {
+  font-size: 1em;
+}
+
+.chat-bubble .ai-md > :first-child {
+  margin-top: 0;
+}
+
+.chat-bubble .ai-md > :last-child {
+  margin-bottom: 0;
+}
+
+/* Usuario: sin caja — contexto a la derecha. */
+.chat-bubble--user {
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: right;
+}
+
+/* Asistente / stream: sin caja; tipografía chica usa --solid. */
+.chat-bubble--assistant {
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Caja surface solo con prop solid (delegación / tipografía chica). */
+.chat-bubble--solid {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: none;
+  border-radius: var(--agent-radius, var(--radius));
+  box-shadow: none;
+}
+
+.chat-bubble--wide {
+  width: 100%;
+  max-width: 94%;
+}
+
+/* Live: levitación breve si no es Gravity; fondo solo con --solid. */
+.chat-bubble--live:not(.chat-bubble--gravity) {
+  position: relative;
+  z-index: 2;
+  border: none;
+  box-shadow: none;
+  will-change: transform;
+  animation: chat-bubble-levitate 3s ease-in-out infinite;
+}
+
+.chat-bubble--live.chat-bubble--solid:not(.chat-bubble--gravity) {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.chat-bubble--live.chat-bubble--gravity {
+  position: relative;
+  z-index: 2;
+}
+
+.chat-bubble--materialize {
+  animation: none;
+}
+
+.chat-bubble--landing {
+  position: relative;
+  z-index: 1;
+  animation: chat-bubble-land 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Solo el indicador Gravity: sin caja sólida. */
+.chat-bubble--gravity {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 16px 10px 24px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+@keyframes chat-bubble-levitate {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes chat-bubble-land {
+  from {
+    transform: translateY(-3px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble--live:not(.chat-bubble--gravity),
+  .chat-bubble--materialize,
+  .chat-bubble--landing {
+    animation: none;
+    will-change: auto;
+  }
+}

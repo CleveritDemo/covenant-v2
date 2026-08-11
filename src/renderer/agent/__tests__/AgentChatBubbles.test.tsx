@@ -62,6 +62,28 @@ describe('AgentChatBubbles markdown + collapse', () => {
     ])
     expect(document.querySelector('strong')?.textContent).toBe('hola')
     expect(document.querySelector('.agent-pane__bubble-plain')).toBeNull()
+    expect(document.querySelector('.chat-bubble--assistant')).not.toBeNull()
+    expect(document.querySelector('.chat-bubble--solid')).toBeNull()
+  })
+
+  it('wraps delegation result follow-up cards in solid ChatBubble', () => {
+    renderBubbles([
+      {
+        id: 'u-del',
+        role: 'user',
+        content: [
+          '## Delegation result',
+          'id: d1',
+          'status: ok',
+          'summary: Login form validated.',
+          'toAgentId: frontend',
+        ].join('\n'),
+      },
+    ])
+    expect(document.querySelector('.delegation-card')).not.toBeNull()
+    const solid = document.querySelectorAll('.chat-bubble--solid')
+    expect(solid.length).toBeGreaterThan(0)
+    expect(solid[0]?.classList.contains('chat-bubble--assistant')).toBe(true)
   })
 
   it('keeps user sentence punctuation in one plain block (no AiMarkdown split)', () => {

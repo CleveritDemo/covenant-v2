@@ -278,29 +278,9 @@
   color: var(--brainstorm-speaker, var(--text-muted));
 }
 
-.brainstorm-room-view__bubble {
+/* Lectura en acta: límite de medida; el shell lo da ChatBubble. */
+.brainstorm-room-view__entry .chat-bubble {
   max-width: 72ch;
-  font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.brainstorm-room-view__bubble .ai-md {
-  font-size: 1em;
-}
-
-.brainstorm-room-view__bubble .ai-md > :first-child {
-  margin-top: 0;
-}
-
-.brainstorm-room-view__bubble .ai-md > :last-child {
-  margin-bottom: 0;
-}
-
-.brainstorm-room-view__bubble--live {
-  color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
 }
 
 .brainstorm-room-view__anchor {

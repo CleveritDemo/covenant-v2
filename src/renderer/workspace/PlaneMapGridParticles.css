@@ -1,0 +1,17 @@
+/*
+ * Partículas ambientales sobre la cuadrícula del PlaneMap.
+ * Encima de la grid, debajo del stage. Solo visibles con reduce-motion off.
+ */
+.plane-map-grid-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  display: block;
+}
+
+html[data-reduce-motion="true"] .plane-map-grid-particles {
+  display: none;
+}

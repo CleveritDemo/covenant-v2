@@ -32,6 +32,7 @@ describe('AssistantFormattedBody delegate fences', () => {
     expect(screen.queryByText(/"agentId"/)).toBeNull()
     expect(screen.getByRole('status')).toBeTruthy()
     expect(screen.getByText('Armando delegación…')).toBeTruthy()
+    expect(document.querySelector('.chat-bubble--solid')).not.toBeNull()
   })
 
   it('hides ia-terminal-delegate when not live', () => {

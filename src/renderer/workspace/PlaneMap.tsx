@@ -15,6 +15,7 @@ import {
 } from '@shared/paneWindows'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
+import { PlaneMapGridParticles } from './PlaneMapGridParticles'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
 import './PlaneMap.css'
@@ -631,6 +632,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     >
       <div className="plane-map__atmosphere" aria-hidden="true" />
       <div className="plane-map__grid" aria-hidden="true" />
+      <PlaneMapGridParticles />
       {entities.length === 0 ? (
         <div className="plane-map__empty" aria-hidden="true" />
       ) : (

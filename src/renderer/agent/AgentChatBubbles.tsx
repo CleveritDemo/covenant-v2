@@ -19,6 +19,7 @@ import { PendingImageThumb } from '../components/PendingImageThumb'
 import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
+import { ChatBubble } from '../components/ai/ChatBubble'
 import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
@@ -54,7 +55,9 @@ const BubbleBody: React.FC<{
         return (
           <div className="agent-pane__bubble-cards">
             {cards.map((card, index) => (
-              <DelegationResultCard key={card.id || `card-${index}`} data={card} />
+              <ChatBubble key={card.id || `card-${index}`} variant="assistant" solid>
+                <DelegationResultCard data={card} />
+              </ChatBubble>
             ))}
           </div>
         )
@@ -165,14 +168,12 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
         landing ? 'agent-pane__row--landing' : '',
       ].filter(Boolean).join(' ')}
     >
-      <div
-        className={[
-          `agent-pane__bubble agent-pane__bubble--${message.role}`,
-          live ? 'agent-pane__bubble--live' : '',
-          landing ? 'agent-pane__bubble--landing' : '',
-          gravityOnly ? 'agent-pane__bubble--gravity' : '',
-          materializing ? 'agent-pane__bubble--materialize' : '',
-        ].filter(Boolean).join(' ')}
+      <ChatBubble
+        variant={message.role === 'user' ? 'user' : 'assistant'}
+        live={live}
+        landing={landing}
+        gravity={gravityOnly}
+        materialize={materializing}
       >
         {message.role === 'user' && message.images && message.images.length > 0 && (
           <div className="agent-pane__bubble-images">
@@ -218,7 +219,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
                 </span>
               )
             : ''}
-      </div>
+      </ChatBubble>
     </div>
   )
 }

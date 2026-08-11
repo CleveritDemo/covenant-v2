@@ -478,10 +478,7 @@ html[data-reduce-motion="true"] {
 }
 
 
-/* Centrada y extendida: ocupa el ancho del panel con radios simétricos
-   (ya no está anclada a la izquierda). */
-/* La respuesta es el contenido: color pleno, alineada a la izquierda y sin
-   caja ni borde lateral — texto plano, sin hilo de acento. */
+/* Centrada y extendida: stream sin caja; surface solo con --solid. */
 .agent-pane__bubble--assistant {
   width: 100%;
   max-width: 94%;
@@ -489,9 +486,17 @@ html[data-reduce-motion="true"] {
   background: transparent;
   border: none;
   border-radius: 0;
+  box-shadow: none;
 }
 
-/* ── Respuesta en vivo: texto en el aire, sin caja ───────────────────── */
+.agent-pane__bubble--solid {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: none;
+  border-radius: var(--agent-radius, var(--radius));
+  box-shadow: none;
+}
+
+/* ── Respuesta en vivo: levitación; fondo solo con --solid ───────────── */
 
 .agent-pane__row--live {
   justify-content: center;
@@ -500,12 +505,14 @@ html[data-reduce-motion="true"] {
 .agent-pane__bubble--live:not(.agent-pane__bubble--gravity) {
   position: relative;
   z-index: 2;
-  background: transparent;
-  border-color: transparent;
   border: none;
   box-shadow: none;
   will-change: transform;
   animation: agent-pane-levitate 3s ease-in-out infinite;
+}
+
+.agent-pane__bubble--live.agent-pane__bubble--solid:not(.agent-pane__bubble--gravity) {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 
 .agent-pane__bubble--live.agent-pane__bubble--gravity {

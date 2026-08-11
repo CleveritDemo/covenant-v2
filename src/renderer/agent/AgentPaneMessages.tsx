@@ -3,6 +3,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
+import { ChatBubble } from '../components/ai/ChatBubble'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
 import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
 import { Gravity } from './Gravity'
@@ -104,28 +105,30 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           scrollRef={scrollRef}
         />
         {awaitingDelegations ? (
-          <AgentDelegatingIndicator
-            label={waveLabel}
-            sublabel={
-              orchestrationAwaiting
-                ? t('agentPane.awaitingWaveSublabel')
-                : t('agentPane.delegatingSubtitle')
-            }
-            items={(orchestrationAwaiting?.items ?? []).map(item => ({
-              id: item.delegationId,
-              label: item.agentLabel,
-              ...(item.instanceTag ? { instanceTag: item.instanceTag } : {}),
-              status: item.status,
-              statusLabel: item.status === 'done'
-                ? t('agentPane.awaitingStatusDone')
-                : item.status === 'deferred'
-                  ? t('agentPane.awaitingStatusDeferred')
-                  : t('agentPane.awaitingStatusRunning'),
-              ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
-            }))}
-            stopItemLabel={t('agentPane.awaitingStopSpecialist')}
-            onStopItem={onAbortDelegation}
-          />
+          <ChatBubble variant="assistant" solid>
+            <AgentDelegatingIndicator
+              label={waveLabel}
+              sublabel={
+                orchestrationAwaiting
+                  ? t('agentPane.awaitingWaveSublabel')
+                  : t('agentPane.delegatingSubtitle')
+              }
+              items={(orchestrationAwaiting?.items ?? []).map(item => ({
+                id: item.delegationId,
+                label: item.agentLabel,
+                ...(item.instanceTag ? { instanceTag: item.instanceTag } : {}),
+                status: item.status,
+                statusLabel: item.status === 'done'
+                  ? t('agentPane.awaitingStatusDone')
+                  : item.status === 'deferred'
+                    ? t('agentPane.awaitingStatusDeferred')
+                    : t('agentPane.awaitingStatusRunning'),
+                ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
+              }))}
+              stopItemLabel={t('agentPane.awaitingStopSpecialist')}
+              onStopItem={onAbortDelegation}
+            />
+          </ChatBubble>
         ) : (busy || activity !== '') && (() => {
           const activityText = activity
             ? (loopActive

@@ -139,7 +139,8 @@ describe('BrainstormRoomView chat bubbles', () => {
     expect(screen.getAllByText('Atlas').length).toBeGreaterThan(0)
     expect(screen.getByText('Round 1')).toBeTruthy()
     expect(screen.getByText('First take from Atlas.')).toBeTruthy()
-    expect(document.querySelectorAll('.brainstorm-room-view__bubble').length).toBe(2)
+    expect(document.querySelectorAll('.chat-bubble').length).toBe(2)
+    expect(document.querySelector('.chat-bubble--solid')).toBeNull()
     expect(document.querySelector('.brainstorm-room-view__message')).toBeNull()
     // Acta en una columna: sin lados, un carril de color por hablante.
     const rows = document.querySelectorAll('.brainstorm-room-view__row')
@@ -216,9 +217,9 @@ describe('BrainstormRoomView chat bubbles', () => {
     const plain = document.querySelector('.brainstorm-room-view__plain')
     expect(plain).not.toBeNull()
     expect(plain?.textContent).toBe('**hola**\n```js\nconst x = 1\n```')
-    expect(document.querySelector('.brainstorm-room-view__bubble--human strong')).toBeNull()
-    expect(document.querySelector('.brainstorm-room-view__bubble--human .ai-code-block')).toBeNull()
-    expect(document.querySelector('.brainstorm-room-view__bubble:not(.brainstorm-room-view__bubble--human) strong')?.textContent).toBe('agente')
+    expect(document.querySelector('.chat-bubble--user strong')).toBeNull()
+    expect(document.querySelector('.chat-bubble--user .ai-code-block')).toBeNull()
+    expect(document.querySelector('.chat-bubble--assistant strong')?.textContent).toBe('agente')
   })
 
   it('muestra el composer cuando la sala está pausada', () => {

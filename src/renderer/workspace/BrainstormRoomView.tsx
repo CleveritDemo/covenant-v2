@@ -18,6 +18,7 @@ import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button, Tooltip } from '../components/ui'
 import { AiMarkdown } from '../components/AiMarkdown'
+import { ChatBubble } from '../components/ai/ChatBubble'
 import {
   createInitialBrainstormLiveState,
   reduceBrainstormLiveEvent,
@@ -445,13 +446,13 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                             : t('tabs.brainstormHumanLabel'))
                         : speakerLabel(message.agentId, message.agentName)}
                     </span>
-                    <div className="brainstorm-room-view__bubble">
+                    <ChatBubble variant={human ? 'user' : 'assistant'}>
                       {human ? (
                         <div className="brainstorm-room-view__plain">{message.text}</div>
                       ) : (
                         <AiMarkdown content={stripBrainstormProtocolFences(message.text)} />
                       )}
-                    </div>
+                    </ChatBubble>
                   </div>
                 </article>
               </React.Fragment>
@@ -474,12 +475,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 <span className="brainstorm-room-view__speaker">
                   {t('tabs.brainstormSpeakerWriting', { name: streamingName })}
                 </span>
-                <div className="brainstorm-room-view__bubble brainstorm-room-view__bubble--live">
+                <ChatBubble variant="assistant" live>
                   <AiMarkdown
                     content={stripBrainstormProtocolFences(live.streaming.text)}
                     showCursor
                   />
-                </div>
+                </ChatBubble>
               </div>
             </article>
           ) : null}

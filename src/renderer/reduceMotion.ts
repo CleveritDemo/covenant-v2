@@ -5,13 +5,15 @@ export function isReduceMotionActive(): boolean {
     return true
   }
   return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /** Aplica o quita data-reduce-motion según preferencia de app u OS. */
 export function syncReduceMotionDomFlag(appReduceMotion: boolean): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return
-  const osReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const osReduce = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const reduce = appReduceMotion || osReduce
   if (reduce) {
     document.documentElement.setAttribute('data-reduce-motion', 'true')

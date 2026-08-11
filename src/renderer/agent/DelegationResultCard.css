@@ -1,21 +1,14 @@
 /* Tarjeta del resultado de una delegación en el chat del orquestador.
-   Sobria a propósito: es una nota del host, no un turno del agente. */
+   Sin marco ni filo: el estado vive en el color del label de status. */
 .delegation-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  /* El estado vive en el filo izquierdo: se distingue de un vistazo sin
-     teñir la tarjeta entera ni competir con el texto. */
-  border-left: 2px solid var(--text-muted);
+  border: none;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
 }
-
-.delegation-card--ok { border-left-color: var(--accent); }
-.delegation-card--fail { border-left-color: var(--danger); }
-.delegation-card--aborted { border-left-color: var(--text-muted); }
 
 .delegation-card__head {
   display: flex;

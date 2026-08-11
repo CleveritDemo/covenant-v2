@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  MAX_CHAT_PREVIEW_EDGE,
   MAX_MODEL_IMAGE_EDGE,
+  blobToThumbnailDataUrl,
   optimizeImageForModel,
   SKIP_OPTIMIZE_UNDER_BYTES,
 } from '../composerImages'
@@ -56,5 +58,39 @@ describe('optimizeImageForModel', () => {
     expect(result.mimeType).toBe('image/webp')
     expect(result.name).toBe('huge-screenshot.webp')
     expect(result.blob).toBe(optimizedBlob)
+  })
+})
+
+describe('blobToThumbnailDataUrl', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('scales chat preview to the readable edge, not a tiny thumb', async () => {
+    const source = new Blob([new Uint8Array(8_000)], { type: 'image/png' })
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => mockBitmap(2560, 1440)))
+
+    const context = {
+      drawImage: vi.fn(),
+      imageSmoothingEnabled: false,
+      imageSmoothingQuality: 'low' as ImageSmoothingQuality,
+    }
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => context),
+      toDataURL: vi.fn(() => 'data:image/webp;base64,AAA'),
+    }
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => canvas),
+    })
+
+    const result = await blobToThumbnailDataUrl(source)
+
+    expect(canvas.width).toBe(MAX_CHAT_PREVIEW_EDGE)
+    expect(canvas.height).toBe(720)
+    expect(context.imageSmoothingQuality).toBe('high')
+    expect(result).toBe('data:image/webp;base64,AAA')
   })
 })

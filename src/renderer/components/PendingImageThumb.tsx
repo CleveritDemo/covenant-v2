@@ -16,10 +16,8 @@ export interface PendingImageThumbProps {
  * Miniatura de imagen: adjunta al composer (con ×) o ya enviada en un mensaje
  * (sin ×). En los dos casos se abre en grande al clickearla.
  *
- * A 28px no se distingue una captura de otra, así que la miniatura abre la
- * imagen completa al clickearla. Y la × dejó de estar siempre encima: aparece
- * al pasar el mouse o al enfocar, que es cuando hace falta — antes tapaba
- * justo la esquina de lo que uno quería ver.
+ * La pastilla del hilo es 36px; el modal usa el mismo `src` (preview ~1280px
+ * en mensajes enviados, blob URL completo en pendientes del composer).
  */
 export const PendingImageThumb: React.FC<PendingImageThumbProps> = ({
   src,
@@ -58,12 +56,13 @@ export const PendingImageThumb: React.FC<PendingImageThumbProps> = ({
         open={preview}
         onClose={() => setPreview(false)}
         title={name}
-        size="lg"
+        size="xl"
+        bodyLayout="flush"
         zIndex={700}
         closeOnBackdrop
       >
         <div className="pending-thumb__preview">
-          <img src={src} alt={name} />
+          <img src={src} alt={name} decoding="async" />
         </div>
       </TerminalModal>
     </>

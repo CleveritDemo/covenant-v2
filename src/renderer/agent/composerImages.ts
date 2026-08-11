@@ -114,12 +114,19 @@ export async function optimizeImageForModel(
   }
 }
 
-/** Miniatura pequeña (máx. 96px) en data URL para persistir junto al mensaje. */
+/**
+ * Preview del chat (data URL): suficiente para el lightbox, no la original.
+ * Antes era 96px y al abrirla quedaba pixelada; 1280 deja leer UI/código.
+ * La miniatura del hilo sigue a 36px vía CSS (`object-fit: cover`).
+ */
+export const MAX_CHAT_PREVIEW_EDGE = 1280
+/** Nitidez de texto en capturas sin inflar demasiado el historial. */
+export const CHAT_PREVIEW_QUALITY = 0.85
+
 export async function blobToThumbnailDataUrl(blob: Blob): Promise<string | null> {
-  const MAX_THUMB_DIM = 96
   try {
     const bitmap = await createImageBitmap(blob)
-    const scale = Math.min(1, MAX_THUMB_DIM / Math.max(bitmap.width, bitmap.height))
+    const scale = Math.min(1, MAX_CHAT_PREVIEW_EDGE / Math.max(bitmap.width, bitmap.height))
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
     const canvas = document.createElement('canvas')
@@ -130,9 +137,11 @@ export async function blobToThumbnailDataUrl(blob: Blob): Promise<string | null>
       bitmap.close()
       return null
     }
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
     context.drawImage(bitmap, 0, 0, width, height)
     bitmap.close()
-    return canvas.toDataURL('image/webp', 0.75)
+    return canvas.toDataURL('image/webp', CHAT_PREVIEW_QUALITY)
   } catch {
     return null
   }

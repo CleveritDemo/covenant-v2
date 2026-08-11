@@ -115,10 +115,13 @@ export type AgentCliUiEvent =
   /** Cierre ordenado del turno en el mismo canal que el stream (evita carreras con EXIT). */
   | { type: 'done'; code: number }
 
-/** Miniatura de un adjunto enviado; solo para mostrar en el historial del chat. */
+/** Preview de un adjunto enviado; historial del chat y lightbox al ampliar. */
 export interface AgentChatImage {
   name: string
-  /** Data URL pequeña (miniatura), no la imagen original. */
+  /**
+   * Data URL de preview (lado largo ≤ ~1280px), no la original.
+   * Sirve de miniatura en el hilo (CSS) y de vista ampliada.
+   */
   dataUrl: string
 }
 

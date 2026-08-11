@@ -1,0 +1,144 @@
+/* Armado de delegación en stream: flush, sin card; hermano visual de agent-delegating. */
+
+.delegation-assembling {
+  display: flex;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 10px;
+  max-width: min(100%, 28rem);
+  margin: 2px 0 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.delegation-assembling__orbit {
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.delegation-assembling__ring {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  animation: delegation-assembling-ring-pulse 2.2s ease-in-out infinite;
+}
+
+.delegation-assembling__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.delegation-assembling__sat {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.5px;
+  height: 2.5px;
+  margin: -1.25px 0 0 -1.25px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 80%, var(--text));
+  transform-origin: center;
+  animation: delegation-assembling-orbit 2.6s linear infinite;
+}
+
+.delegation-assembling__sat--a {
+  animation-delay: 0s;
+  opacity: 0.95;
+}
+
+.delegation-assembling__sat--b {
+  animation-delay: -0.87s;
+  opacity: 0.7;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+}
+
+.delegation-assembling__sat--c {
+  animation-delay: -1.73s;
+  opacity: 0.5;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+}
+
+.delegation-assembling__label {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-ui, inherit);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+@keyframes delegation-assembling-orbit {
+  from {
+    transform: rotate(0deg) translateX(6.5px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(6.5px) rotate(-360deg);
+  }
+}
+
+@keyframes delegation-assembling-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.05);
+  }
+}
+
+html[data-reduce-motion="true"] {
+  .delegation-assembling__ring,
+  .delegation-assembling__sat {
+    animation: none;
+  }
+
+  .delegation-assembling__sat--a {
+    transform: rotate(20deg) translateX(6.5px);
+  }
+
+  .delegation-assembling__sat--b {
+    transform: rotate(140deg) translateX(6.5px);
+  }
+
+  .delegation-assembling__sat--c {
+    transform: rotate(260deg) translateX(6.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delegation-assembling__ring,
+  .delegation-assembling__sat {
+    animation: none;
+  }
+
+  .delegation-assembling__sat--a {
+    transform: rotate(20deg) translateX(6.5px);
+  }
+
+  .delegation-assembling__sat--b {
+    transform: rotate(140deg) translateX(6.5px);
+  }
+
+  .delegation-assembling__sat--c {
+    transform: rotate(260deg) translateX(6.5px);
+  }
+}

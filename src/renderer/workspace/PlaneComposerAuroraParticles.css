@@ -1,0 +1,19 @@
+/*
+ * Campo de partículas sobre la cinta aurora.
+ * Solo visible cuando el host está working y reduce-motion está off.
+ */
+.plane-composer-aurora-particles {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 140px;
+  z-index: 1;
+  pointer-events: none;
+  display: block;
+}
+
+html[data-reduce-motion="true"] .plane-composer-aurora-particles {
+  display: none;
+}

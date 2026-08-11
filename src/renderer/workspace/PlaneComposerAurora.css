@@ -22,6 +22,7 @@
 
 /* Periodo cromático ×2 → background-position 0→100% con size 200% es seamless. */
 .plane-composer-aurora__line {
+  z-index: 2;
   --plane-aurora-ribbon: linear-gradient(
     90deg,
     var(--accent-dim) 0%,

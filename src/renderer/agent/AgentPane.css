@@ -481,15 +481,13 @@ html[data-reduce-motion="true"] {
 /* Centrada y extendida: ocupa el ancho del panel con radios simétricos
    (ya no está anclada a la izquierda). */
 /* La respuesta es el contenido: color pleno, alineada a la izquierda y sin
-   caja. El acento va en el filo izquierdo —un hilo, no un marco— para marcar
-   de quién es sin encerrar el texto. */
+   caja ni borde lateral — texto plano, sin hilo de acento. */
 .agent-pane__bubble--assistant {
   width: 100%;
   max-width: 94%;
   color: var(--text);
   background: transparent;
   border: none;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   border-radius: 0;
 }
 

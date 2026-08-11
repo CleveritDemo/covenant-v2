@@ -168,11 +168,14 @@
 .ai-md__table-wrap {
   margin: 0.6em 0;
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .ai-md__table {
   border-collapse: collapse;
   font-size: 0.95em;
+  width: max-content;
+  max-width: none;
 }
 
 .ai-md__table th,
@@ -181,11 +184,19 @@
   border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   text-align: left;
   vertical-align: top;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .ai-md__table th {
   font-weight: 650;
   background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  white-space: nowrap;
+}
+
+.ai-md__table .ai-md__code {
+  white-space: nowrap;
 }
 
 .ai-md__code {
@@ -241,7 +252,7 @@
   letter-spacing: 0.04em;
   text-transform: none;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface) 30%, var(--ai-panel-base));
+  background: color-mix(in srgb, var(--surface) 45%, var(--ai-panel-base));
   border-bottom: 1px solid var(--border);
 }
 
@@ -297,7 +308,7 @@
   color: var(--text);
   margin: 0;
   padding: 5px 8px 6px;
-  background: color-mix(in srgb, var(--surface) 22%, var(--ai-panel-base));
+  background: color-mix(in srgb, var(--surface) 38%, var(--ai-panel-base));
 }
 
 .ai-insert-btn {
@@ -311,7 +322,7 @@
   font-size: 0.8125em;
   font-weight: 500;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface) 18%, var(--ai-panel-base));
+  background: color-mix(in srgb, var(--surface) 32%, var(--ai-panel-base));
   border: none;
   border-top: 1px solid var(--border);
   cursor: pointer;

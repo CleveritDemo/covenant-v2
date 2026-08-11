@@ -6,11 +6,26 @@ export type AssistantBodySegment =
 const CONTROL_FENCE_RE =
   /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-delegate|ia-terminal-context|ia-terminal-need-sections)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
 
+/** Igual que CONTROL_FENCE_RE pero sin ia-terminal-delegate (visible en streaming). */
+const CONTROL_FENCE_EXCEPT_DELEGATE_RE =
+  /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-context|ia-terminal-need-sections)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
+
+export type StripAgentControlFencesOptions = {
+  /** Si true, conserva fences ```ia-terminal-delegate (abiertos o cerrados). */
+  keepDelegateFences?: boolean
+}
+
 /** Quita fences de control del agente (results/changelog/delegate/context/need-sections). */
-export function stripAgentControlFences(text: string): string {
+export function stripAgentControlFences(
+  text: string,
+  options?: StripAgentControlFencesOptions,
+): string {
   if (!text) return ''
+  const re = options?.keepDelegateFences
+    ? CONTROL_FENCE_EXCEPT_DELEGATE_RE
+    : CONTROL_FENCE_RE
   return text
-    .replace(CONTROL_FENCE_RE, '')
+    .replace(re, '')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]+\n/g, '\n')
     .trimEnd()

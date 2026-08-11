@@ -421,23 +421,27 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     && pendingImages.length === 0,
   )
 
+  const composerWorking = Boolean(busy || loopActive || awaitingDelegations || delegationWorkActive)
+
   return (
     <>
       <div
         className={[
           'plane-chat-composer-aurora-host',
-          busy || loopActive || awaitingDelegations || delegationWorkActive
+          composerWorking
             ? 'plane-chat-composer--working'
             : '',
         ].filter(Boolean).join(' ')}
         aria-hidden="true"
       >
-        <PlaneComposerAurora />
+        <PlaneComposerAurora
+          active={composerWorking}
+        />
       </div>
       <div
         className={[
           'plane-chat-composer',
-          busy || loopActive || awaitingDelegations || delegationWorkActive
+          composerWorking
             ? 'plane-chat-composer--working'
             : '',
           dropActive ? 'plane-chat-composer--drop' : '',

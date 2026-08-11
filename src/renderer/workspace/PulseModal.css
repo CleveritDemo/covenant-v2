@@ -284,6 +284,51 @@
   overflow: hidden;
 }
 
+/* Chip de abanico: la copia paralela no es del mismo orden que el proveedor,
+   así que no comparte su color de acento. */
+.pulse-agent__chip--fan {
+  font-family: var(--font-mono);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* Réplicas que gastaron turno sin producir tokens: lo único que hay que mirar. */
+.pulse-agent--waste {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+/* Las instancias cruzan el detalle entero: es una tabla, no una columna más. */
+.pulse-agent__kv--instances {
+  grid-column: 1 / -1;
+}
+
+.pulse-agent__instances {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px 18px;
+  font-size: 12px;
+}
+
+.pulse-agent__instances > span:nth-child(3n + 2),
+.pulse-agent__instances > span:nth-child(3n) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse-agent__instances-head {
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pulse-agent__instance-tag {
+  margin-left: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 .pulse-agent--open {
   border-color: color-mix(in srgb, var(--accent-solid, var(--accent)) 40%, var(--border));
 }

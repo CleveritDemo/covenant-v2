@@ -7,6 +7,8 @@ import {
   levelFor,
   shiftDay,
   PERSONAL_SCOPE,
+  foldAgentReplicas,
+  type PulseAgentRow,
   type PulseAgentStat,
   type PulseSnapshot,
 } from '@shared/pulseEvents'
@@ -118,7 +120,7 @@ const Sparkline: React.FC<{ series: number[]; label: string }> = ({ series, labe
   )
 }
 
-const AgentRow: React.FC<{ agent: PulseAgentStat; nowMs: number; defaultOpen: boolean }> = ({
+const AgentRow: React.FC<{ agent: PulseAgentRow; nowMs: number; defaultOpen: boolean }> = ({
   agent,
   nowMs,
   defaultOpen,
@@ -129,7 +131,14 @@ const AgentRow: React.FC<{ agent: PulseAgentStat; nowMs: number; defaultOpen: bo
   const perDay = agent.activeDays > 0 ? agent.turns / agent.activeDays : 0
 
   return (
-    <div className={open ? 'pulse-agent pulse-agent--open' : 'pulse-agent'}>
+    <div
+      className={[
+        'pulse-agent',
+        open ? 'pulse-agent--open' : '',
+        // Único acento nuevo de la lista: señala capacidad abierta al pedo.
+        agent.emptyReplicas > 0 ? 'pulse-agent--waste' : '',
+      ].filter(Boolean).join(' ')}
+    >
       <button
         type="button"
         className="pulse-agent__row"
@@ -140,6 +149,14 @@ const AgentRow: React.FC<{ agent: PulseAgentStat; nowMs: number; defaultOpen: bo
           <span className="pulse-agent__name">
             {agent.name || agent.agentId}
             {agent.provider ? <span className="pulse-agent__chip">{agent.provider}</span> : null}
+            {agent.fanOut > 1 ? (
+              <span
+                className="pulse-agent__chip pulse-agent__chip--fan"
+                aria-label={t('pulse.agent_fanOut', { n: agent.fanOut })}
+              >
+                ×{agent.fanOut}
+              </span>
+            ) : null}
           </span>
           <span className="pulse-agent__meta">
             {[agent.name ? agent.agentId : '', agent.lastTs > 0 ? relativeTime(agent.lastTs, nowMs) : '']
@@ -236,6 +253,30 @@ const AgentRow: React.FC<{ agent: PulseAgentStat; nowMs: number; defaultOpen: bo
               <dd>{formatNumber(agent.results)}</dd>
             </dl>
           </div>
+          {agent.instances.length > 1 ? (
+            <div className="pulse-agent__kv pulse-agent__kv--instances">
+              <span className="pulse-agent__kv-title">{t('pulse.agent_instances')}</span>
+              <div className="pulse-agent__instances">
+                <span className="pulse-agent__instances-head">{t('pulse.agent_instance')}</span>
+                <span className="pulse-agent__instances-head">{t('pulse.agent_turns')}</span>
+                <span className="pulse-agent__instances-head">{t('pulse.agent_tokens')}</span>
+                {agent.instances.map((instance, index) => (
+                  <React.Fragment key={instance.agentId}>
+                    <span>
+                      {instance.agentId}
+                      <span className="pulse-agent__instance-tag">
+                        {index === 0
+                          ? t('pulse.agent_instanceBase')
+                          : t('pulse.agent_instanceReplica')}
+                      </span>
+                    </span>
+                    <span>{formatStat(instance.turns)}</span>
+                    <span>{formatStat(instance.tokens)}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="pulse-agent__kv">
             <span className="pulse-agent__kv-title">{t('pulse.agent_repos')}</span>
             <dl className="pulse-agent__list">
@@ -337,6 +378,10 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
   const empty = snapshot !== null && snapshot.totalPrompts === 0 && snapshot.totalCommits === 0
   const nowMs = Date.now()
 
+  // Las réplicas son capacidad de un experto, no agentes: el roster y el
+  // contador de flota tienen que mirar la misma lista plegada.
+  const rows = useMemo(() => foldAgentReplicas(snapshot?.agents ?? []), [snapshot])
+
   // Agregados de flota derivados de las filas: un solo recorrido, sin campos nuevos.
   const fleet = useMemo(() => {
     const agents = snapshot?.agents ?? []
@@ -350,12 +395,13 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
       delegations += a.delegationsOut
     }
     return {
-      agents: agents.length,
+      // Cuenta expertos, no copias: si no, cada oleada turbo infla la plantilla.
+      agents: rows.length,
       delegations,
       autoShare: attributed > 0 ? Math.round((auto / attributed) * 100) : 0,
       tokensPerTurn: snapshot && snapshot.totalPrompts > 0 ? snapshot.totalTokens / snapshot.totalPrompts : 0,
     }
-  }, [snapshot])
+  }, [rows, snapshot])
 
   return (
     <TerminalModal
@@ -562,7 +608,7 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
               <p className="pulse__empty">{t('pulse.roster_empty')}</p>
             ) : (
               <div className="pulse__roster">
-                {snapshot.agents.map((agent, i) => (
+                {rows.map((agent, i) => (
                   <AgentRow key={agent.agentId} agent={agent} nowMs={nowMs} defaultOpen={i === 0} />
                 ))}
               </div>

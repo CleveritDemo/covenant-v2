@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aggregateAgents,
+  foldAgentReplicas,
   aggregatePulse,
   filterPulseEvents,
   PERSONAL_SCOPE,
@@ -375,5 +376,70 @@ describe('turnos de loop', () => {
   it('un turno de loop sigue contando como prompt del calendario', () => {
     const stats = aggregatePulse([prompt('2026-08-09', { agentId: 'dev', viaLoop: true })], now)
     expect(stats.totalPrompts).toBe(1)
+  })
+})
+
+describe('foldAgentReplicas', () => {
+  const now = noon('2026-08-10')
+  const agents = (...events: PulseEvent[]) => aggregateAgents(events, now)
+
+  it('pliega las réplicas bajo su experto y suma los números', () => {
+    const rows = foldAgentReplicas(agents(
+      prompt('2026-08-10', { agentId: 'backend', tokensOut: 265_811 }),
+      prompt('2026-08-10', { agentId: 'backend-2' }),
+      prompt('2026-08-10', { agentId: 'backend-3' }),
+    ))
+    expect(rows).toHaveLength(1)
+    const [row] = rows
+    expect(row!.agentId).toBe('backend')
+    expect(row!.turns).toBe(3)
+    expect(row!.tokens).toBe(265_811)
+    expect(row!.fanOut).toBe(3)
+    expect(row!.instances.map(i => i.agentId)).toEqual(['backend', 'backend-2', 'backend-3'])
+  })
+
+  it('un experto sin réplicas queda igual, con fanOut 1', () => {
+    const [row] = foldAgentReplicas(agents(prompt('2026-08-10', { agentId: 'product-owner' })))
+    expect(row!.fanOut).toBe(1)
+    expect(row!.instances).toHaveLength(1)
+    expect(row!.emptyReplicas).toBe(0)
+  })
+
+  // La cláusula: sin base en el roster, `sprint-2` es un agente que alguien
+  // llamó así, no la copia de un `sprint` inexistente.
+  it('no pliega si la base no está en el roster', () => {
+    const rows = foldAgentReplicas(agents(
+      prompt('2026-08-10', { agentId: 'sprint-2' }),
+      prompt('2026-08-10', { agentId: 'qa' }),
+    ))
+    expect(rows.map(r => r.agentId).sort()).toEqual(['qa', 'sprint-2'])
+    expect(rows.every(r => r.fanOut === 1)).toBe(true)
+  })
+
+  it('cuenta las réplicas que gastaron turno y cerraron con cero tokens', () => {
+    const [row] = foldAgentReplicas(agents(
+      prompt('2026-08-10', { agentId: 'backend', tokensOut: 500 }),
+      prompt('2026-08-10', { agentId: 'backend-2' }),
+      prompt('2026-08-10', { agentId: 'backend-3', tokensOut: 120 }),
+    ))
+    expect(row!.emptyReplicas).toBe(1)
+  })
+
+  it('no suma días activos: una réplica vive dentro de una jornada del experto', () => {
+    const [row] = foldAgentReplicas(agents(
+      prompt('2026-08-09', { agentId: 'backend' }),
+      prompt('2026-08-10', { agentId: 'backend' }),
+      prompt('2026-08-10', { agentId: 'backend-2' }),
+    ))
+    expect(row!.activeDays).toBe(2)
+    expect(row!.turns).toBe(3)
+  })
+
+  it('la serie diaria se suma posición a posición', () => {
+    const [row] = foldAgentReplicas(agents(
+      prompt('2026-08-10', { agentId: 'backend' }),
+      prompt('2026-08-10', { agentId: 'backend-2' }),
+    ))
+    expect(row!.series[row!.series.length - 1]).toBe(2)
   })
 })

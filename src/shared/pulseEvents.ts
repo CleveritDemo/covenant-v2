@@ -6,6 +6,8 @@
  * sin Electron ni disco, igual que el resto de las máquinas de estado del app.
  */
 
+import { parseExpertReplicaRequest } from './expertReplicas'
+
 /**
  * `delegate` y `result` son consecuencias de un turno, no actividad propia: solo
  * alimentan el corte por agente. Ver `aggregatePulse`.
@@ -145,6 +147,110 @@ export interface PulseAgentStat {
   series: number[]
   /** Repos tocados, de más a menos turnos. */
   repos: Array<{ repo: string; turns: number }>
+}
+
+/**
+ * Fila del roster: un experto con sus réplicas plegadas dentro.
+ * `aggregateAgents` sigue midiendo por instancia —que es la verdad del log—;
+ * esto es una vista, no un cambio de datos.
+ */
+export interface PulseAgentRow extends PulseAgentStat {
+  /** Instancias plegadas acá, la base primero. Longitud 1 = experto sin copias. */
+  instances: PulseAgentStat[]
+  /**
+   * Copias en paralelo que llegó a tener el experto, base incluida.
+   * `allocateAgentSlug` reutiliza siempre el hueco libre más bajo y las réplicas
+   * son efímeras, así que el sufijo más alto de la bitácora es el pico de la
+   * oleada más ancha, no un acumulado histórico.
+   */
+  fanOut: number
+  /** Réplicas que gastaron turno y cerraron con cero tokens: spawn desperdiciado. */
+  emptyReplicas: number
+}
+
+function mergeAgentStats(
+  base: PulseAgentStat,
+  replicas: readonly PulseAgentStat[],
+): PulseAgentStat {
+  if (replicas.length === 0) return base
+  const all = [base, ...replicas]
+  const sum = (pick: (s: PulseAgentStat) => number): number =>
+    all.reduce((total, s) => total + pick(s), 0)
+
+  const repoTurns = new Map<string, number>()
+  for (const stat of all) {
+    for (const { repo, turns } of stat.repos) {
+      repoTurns.set(repo, (repoTurns.get(repo) ?? 0) + turns)
+    }
+  }
+  const timed = all.filter(s => s.avgDurationMs > 0 && s.turns > 0)
+  const timedTurns = timed.reduce((total, s) => total + s.turns, 0)
+
+  return {
+    ...base,
+    turns: sum(s => s.turns),
+    commits: sum(s => s.commits),
+    delegationsOut: sum(s => s.delegationsOut),
+    delegationsIn: sum(s => s.delegationsIn),
+    results: sum(s => s.results),
+    loopTurns: sum(s => s.loopTurns),
+    tokens: sum(s => s.tokens),
+    // Los días activos no se suman: una réplica nace dentro de una jornada del
+    // experto, así que sumarlas contaría el mismo día dos veces y hundiría
+    // turnos/día. El máximo es la cota honesta con lo que guarda el stat.
+    activeDays: Math.max(...all.map(s => s.activeDays)),
+    avgDurationMs: timedTurns > 0
+      ? timed.reduce((total, s) => total + s.avgDurationMs * s.turns, 0) / timedTurns
+      : 0,
+    lastTs: Math.max(...all.map(s => s.lastTs)),
+    modes: {
+      ask: sum(s => s.modes.ask),
+      plan: sum(s => s.modes.plan),
+      auto: sum(s => s.modes.auto),
+      other: sum(s => s.modes.other),
+    },
+    series: base.series.map((_, i) => sum(s => s.series[i] ?? 0)),
+    repos: [...repoTurns.entries()]
+      .map(([repo, turns]) => ({ repo, turns }))
+      .sort((a, b) => b.turns - a.turns),
+  }
+}
+
+/**
+ * Pliega `backend-2` / `backend-3` dentro de `backend`: una réplica no es un
+ * agente, es capacidad de un experto.
+ *
+ * La cláusula de seguridad: solo se pliega si la base está en el roster. Sin
+ * ella, un agente legítimamente llamado `sprint-2` desaparecería dentro de un
+ * `sprint` que no existe.
+ */
+export function foldAgentReplicas(agents: readonly PulseAgentStat[]): PulseAgentRow[] {
+  const roster = new Set(agents.map(agent => agent.agentId))
+  const replicasOf = new Map<string, PulseAgentStat[]>()
+  const folded = new Set<string>()
+
+  for (const agent of agents) {
+    const { baseId, explicitReplica } = parseExpertReplicaRequest(agent.agentId)
+    if (!explicitReplica || baseId === agent.agentId || !roster.has(baseId)) continue
+    const list = replicasOf.get(baseId)
+    if (list) list.push(agent)
+    else replicasOf.set(baseId, [agent])
+    folded.add(agent.agentId)
+  }
+
+  return agents
+    .filter(agent => !folded.has(agent.agentId))
+    .map(agent => {
+      const replicas = (replicasOf.get(agent.agentId) ?? [])
+        .sort((a, b) => a.agentId.localeCompare(b.agentId))
+      return {
+        ...mergeAgentStats(agent, replicas),
+        instances: [agent, ...replicas],
+        fanOut: 1 + replicas.length,
+        emptyReplicas: replicas.filter(r => r.turns > 0 && r.tokens === 0).length,
+      }
+    })
+    .sort((a, b) => b.turns - a.turns || a.agentId.localeCompare(b.agentId))
 }
 
 export function filterPulseEvents(events: PulseEvent[], scope: PulseScope = {}): PulseEvent[] {

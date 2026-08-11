@@ -148,10 +148,10 @@
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+      "artifactName": "Covenant-Gravity-${version}-setup-${arch}.${ext}"
     },
     "nsis": {
-      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+      "artifactName": "Covenant-Gravity-${version}-setup-${arch}.${ext}"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable-${arch}.${ext}"

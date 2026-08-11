@@ -34,6 +34,13 @@ import './PlaneChatComposer.css'
 
 const MAX_COMPOSER_ROWS = 8
 
+/** Lo que el composer guarda por agente al cambiar de chip. */
+interface ComposerDraft {
+  text: string
+  images: ComposerPendingImage[]
+  contextIds: string[]
+}
+
 function resizeComposerTextarea(el: HTMLTextAreaElement): void {
   el.style.height = 'auto'
   const styles = getComputedStyle(el)
@@ -140,6 +147,14 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const historyRef = useRef<string[]>([])
   const stashRef = useRef('')
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
+  /**
+   * Borradores por agente (texto + imágenes + contextos del turno): cambiar de
+   * chip y volver no debe perder lo preparado. Solo en memoria; si hace falta
+   * que sobreviva al reinicio, va a session.json.
+   */
+  const draftsRef = useRef<Record<string, ComposerDraft>>({})
+  const draftRef = useRef<ComposerDraft>({ text: draft, images: pendingImages, contextIds: pendingContextIds })
+  draftRef.current = { text: draft, images: pendingImages, contextIds: pendingContextIds }
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const busy = Boolean(selected?.busy)
@@ -166,19 +181,22 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
 
+  // Al desmontar se van los objectURL: los del chat abierto y los guardados.
   useEffect(() => {
     return () => {
-      pendingImagesRef.current.forEach(image => URL.revokeObjectURL(image.previewUrl))
+      const stashed = Object.values(draftsRef.current).flatMap(entry => entry.images)
+      const all = [...pendingImagesRef.current, ...stashed]
+      all.forEach(image => URL.revokeObjectURL(image.previewUrl))
     }
   }, [])
 
-  // Al cambiar o salir del chat, el input no debe arrastrar el borrador anterior.
+  // Al cambiar o salir del chat, el input recupera el borrador de ESE agente.
   useEffect(() => {
-    setDraft('')
-    setPendingImages(previous => {
-      previous.forEach(image => URL.revokeObjectURL(image.previewUrl))
-      return []
-    })
+    const agentId = selectedAgentId
+    const saved = agentId ? draftsRef.current[agentId] : undefined
+    setDraft(saved?.text ?? '')
+    setPendingImages(saved?.images ?? [])
+    setPendingContextIds(saved?.contextIds ?? [])
     setEditingQueuedId(null)
     setSketchOpen(false)
     historyRef.current = []
@@ -188,6 +206,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     if (el) {
       el.style.height = 'auto'
     }
+    // El cleanup corre antes del próximo efecto: guarda con el id que salía.
+    return () => {
+      if (agentId) draftsRef.current[agentId] = draftRef.current
+    }
+    // ponytail: los borradores de un agente eliminado quedan hasta desmontar el
+    // plane (unos strings y sus objectURL); purgar contra `agents` obligaría a
+    // meter la lista en las deps y el efecto se comería el borrador en cada cambio.
   }, [selectedAgentId])
 
   useEffect(() => {

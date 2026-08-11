@@ -7,11 +7,10 @@ import {
   levelFor,
   shiftDay,
   PERSONAL_SCOPE,
-  foldAgentReplicas,
-  type PulseAgentRow,
   type PulseAgentStat,
   type PulseSnapshot,
 } from '@shared/pulseEvents'
+import { foldPulseReplicas, type PulseAgentGroup } from '@shared/pulseReplicas'
 import { TerminalModal } from '../components/TerminalModal'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
@@ -120,13 +119,14 @@ const Sparkline: React.FC<{ series: number[]; label: string }> = ({ series, labe
   )
 }
 
-const AgentRow: React.FC<{ agent: PulseAgentRow; nowMs: number; defaultOpen: boolean }> = ({
-  agent,
+const AgentRow: React.FC<{ group: PulseAgentGroup; nowMs: number; defaultOpen: boolean }> = ({
+  group,
   nowMs,
   defaultOpen,
 }) => {
   const { t } = useT()
   const [open, setOpen] = useState(defaultOpen)
+  const { base: agent, instances, peakSameDay, emptyReplicas } = group
   const shares = modeShares(agent.modes)
   const perDay = agent.activeDays > 0 ? agent.turns / agent.activeDays : 0
 
@@ -136,7 +136,7 @@ const AgentRow: React.FC<{ agent: PulseAgentRow; nowMs: number; defaultOpen: boo
         'pulse-agent',
         open ? 'pulse-agent--open' : '',
         // Único acento nuevo de la lista: señala capacidad abierta al pedo.
-        agent.emptyReplicas > 0 ? 'pulse-agent--waste' : '',
+        emptyReplicas > 0 ? 'pulse-agent--waste' : '',
       ].filter(Boolean).join(' ')}
     >
       <button
@@ -149,12 +149,12 @@ const AgentRow: React.FC<{ agent: PulseAgentRow; nowMs: number; defaultOpen: boo
           <span className="pulse-agent__name">
             {agent.name || agent.agentId}
             {agent.provider ? <span className="pulse-agent__chip">{agent.provider}</span> : null}
-            {agent.fanOut > 1 ? (
+            {peakSameDay > 1 ? (
               <span
                 className="pulse-agent__chip pulse-agent__chip--fan"
-                aria-label={t('pulse.agent_fanOut', { n: agent.fanOut })}
+                aria-label={t('pulse.agent_fanOut', { n: peakSameDay })}
               >
-                ×{agent.fanOut}
+                ×{peakSameDay}
               </span>
             ) : null}
           </span>
@@ -253,14 +253,14 @@ const AgentRow: React.FC<{ agent: PulseAgentRow; nowMs: number; defaultOpen: boo
               <dd>{formatNumber(agent.results)}</dd>
             </dl>
           </div>
-          {agent.instances.length > 1 ? (
+          {instances.length > 1 ? (
             <div className="pulse-agent__kv pulse-agent__kv--instances">
               <span className="pulse-agent__kv-title">{t('pulse.agent_instances')}</span>
               <div className="pulse-agent__instances">
                 <span className="pulse-agent__instances-head">{t('pulse.agent_instance')}</span>
                 <span className="pulse-agent__instances-head">{t('pulse.agent_turns')}</span>
                 <span className="pulse-agent__instances-head">{t('pulse.agent_tokens')}</span>
-                {agent.instances.map((instance, index) => (
+                {instances.map((instance, index) => (
                   <React.Fragment key={instance.agentId}>
                     <span>
                       {instance.agentId}
@@ -380,7 +380,7 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
 
   // Las réplicas son capacidad de un experto, no agentes: el roster y el
   // contador de flota tienen que mirar la misma lista plegada.
-  const rows = useMemo(() => foldAgentReplicas(snapshot?.agents ?? []), [snapshot])
+  const rows = useMemo(() => foldPulseReplicas(snapshot?.agents ?? []), [snapshot])
 
   // Agregados de flota derivados de las filas: un solo recorrido, sin campos nuevos.
   const fleet = useMemo(() => {
@@ -608,8 +608,13 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
               <p className="pulse__empty">{t('pulse.roster_empty')}</p>
             ) : (
               <div className="pulse__roster">
-                {rows.map((agent, i) => (
-                  <AgentRow key={agent.agentId} agent={agent} nowMs={nowMs} defaultOpen={i === 0} />
+                {rows.map((group, i) => (
+                  <AgentRow
+                    key={group.base.agentId}
+                    group={group}
+                    nowMs={nowMs}
+                    defaultOpen={i === 0}
+                  />
                 ))}
               </div>
             )}

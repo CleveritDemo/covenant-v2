@@ -29,7 +29,7 @@
 }
 
 .agent-config-settings__hint--warn {
-  color: color-mix(in srgb, var(--danger) 78%, var(--text-muted));
+  color: color-mix(in srgb, var(--caution) 78%, var(--text-muted));
 }
 
 .agent-config-settings__cards {

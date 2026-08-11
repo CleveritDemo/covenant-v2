@@ -94,9 +94,9 @@
 }
 
 .agent-config-rail__badge--warn {
-  border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
+  border-color: color-mix(in srgb, var(--caution) 52%, var(--border));
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  color: var(--caution);
 }
 
 /* Ancho estrecho: el índice pasa a tira horizontal sobre el panel. */

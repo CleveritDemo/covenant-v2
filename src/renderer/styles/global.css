@@ -43,6 +43,8 @@
   --accent-border-soft: rgba(124, 106, 247, 0.24);
   --accent-border-strong: rgba(124, 106, 247, 0.52);
   --danger: #f87171;
+  /** Opción con consecuencias (permisos Auto), no un error: ámbar, no rojo. */
+  --caution: #e5a94a;
   --tab-active-bg: #1a1a28;
   --tab-inactive-bg: #0d0d14;
   --scrollbar: #2a2a42;
@@ -95,6 +97,8 @@
 
 /* Temas claros: elevación sutil (poca opacidad y alcance); oscuro intacto. */
 :root[data-theme-appearance='light'] {
+  /* El ámbar claro no contrasta sobre fondo claro. */
+  --caution: #9a6212;
   --plane-shadow: 0 10px 28px color-mix(in srgb, #000 14%, transparent);
   --plane-shadow-soft: 0 6px 18px color-mix(in srgb, #000 10%, transparent);
   --plane-mini-card-shadow:

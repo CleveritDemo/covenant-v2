@@ -1,7 +1,9 @@
 /* Estilos específicos del theme picker manejados por variantes de TerminalModal */
 
 .theme-picker-scroll {
-  flex: 0 1 auto;
+  /* Crece hasta el tope del panel: sin esto la lista empuja hacia abajo y los
+     últimos grupos quedan fuera de la ventana, sin forma de alcanzarlos. */
+  flex: 1 1 auto;
   min-height: 0;
   overflow: visible;
   display: flex;
@@ -19,7 +21,10 @@
 }
 
 .theme-picker-sticky-stack {
-  flex-shrink: 0;
+  /* Flexible y no fijo: la etiqueta y el filtro se quedan quietos arriba y la
+     grilla se queda con el alto que sobra, que es la que scrollea. */
+  flex: 1 1 auto;
+  min-height: 0;
   position: relative;
   padding: 10px 14px 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
@@ -263,7 +268,10 @@ html[data-reduce-motion="true"] {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 5px 6px;
-  overflow: visible;
+  /* La única zona que scrollea. El preview, el filtro y el pie quedan fijos. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .theme-picker-grid-break {

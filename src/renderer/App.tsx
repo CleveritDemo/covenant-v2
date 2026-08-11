@@ -44,6 +44,8 @@ import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
+import type { BrainstormLiveSummary } from './workspace/brainstormLiveState'
+import { isBrainstormLive } from './workspace/brainstormViewClose'
 import {
   filterBrainstormInvitableAgents,
   type BrainstormRoom,
@@ -443,6 +445,10 @@ export const App: React.FC = () => {
   const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
+  /** Sala minimizada: sigue montada y corriendo, solo oculta. */
+  const [brainstormMinimizedByTab, setBrainstormMinimizedByTab] = useState<Record<string, boolean>>({})
+  const [brainstormDockOpenByTab, setBrainstormDockOpenByTab] = useState<Record<string, boolean>>({})
+  const [brainstormLiveByTab, setBrainstormLiveByTab] = useState<Record<string, BrainstormLiveSummary | null>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   /** Override efímero de cwd por-pane (paneId → worktree absoluto); Fase 3, no persistido. */
@@ -5148,18 +5154,39 @@ export const App: React.FC = () => {
                   contextUsage,
                   contextKind => t(`tabContexts.kind_${contextKind}`),
                 )
+                // El turno corre en un pane sintético de la sala: sin esto la
+                // tarjeta seguiría diciendo "Standing by" mientras el agente habla.
+                const brainstormLive = brainstormRoomByTab[tab.id]
+                  ? brainstormLiveByTab[tab.id]
+                  : null
+                const inBrainstorm = Boolean(
+                  brainstormLive
+                  && meta?.id
+                  && isBrainstormLive(brainstormLive.status)
+                  && brainstormLive.participantAgentIds.includes(meta.id),
+                )
+                const brainstormSnippet = inBrainstorm && brainstormLive
+                  ? t(
+                    brainstormLive.speakingAgentId === meta?.id
+                      ? 'tabs.brainstormAgentSpeaking'
+                      : 'tabs.brainstormAgentInRoom',
+                    // ponytail: el tema recortado alcanza para reconocer la sala.
+                    { topic: brainstormLive.topic.slice(0, 32) },
+                  )
+                  : ''
                 return {
                   paneId,
                   kind,
                   title,
                   monogram: meta?.monogram,
-                  busy: visuallyBusy,
+                  busy: visuallyBusy || inBrainstorm,
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'
                     || meta?.coordination === 'productOwner'
                     ? meta.coordination
                     : 'none') as 'none' | 'orchestrator' | 'productOwner',
-                  snippet: status?.activity?.trim()
+                  snippet: brainstormSnippet
+                    || status?.activity?.trim()
                     || (delegationWorkActive ? t('agentPane.awaitingStatusRunning') : '')
                     || status?.lastSnippet
                     || '',
@@ -5426,6 +5453,24 @@ export const App: React.FC = () => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
+                  brainstormLive={brainstormRoomByTab[tab.id]
+                    ? brainstormLiveByTab[tab.id] ?? null
+                    : null}
+                  brainstormDockOpen={Boolean(brainstormDockOpenByTab[tab.id])}
+                  onBrainstormDockOpenChange={open => {
+                    setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  }}
+                  onRestoreBrainstorm={() => {
+                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                  }}
+                  onStopBrainstorm={() => {
+                    const roomId = brainstormRoomByTab[tab.id]?.id
+                    if (roomId) window.api.stopBrainstorm(roomId)
+                  }}
+                  onDiscardBrainstorm={() => {
+                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
+                    setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
+                  }}
                   loopsTitle={t('tabs.loopsTitle')}
                   loopsSubtitle={t('tabs.loopsSubtitle')}
                   loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
@@ -5509,6 +5554,7 @@ export const App: React.FC = () => {
                   }}
                   onOpenRoom={room => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
                   }}
                 />
@@ -5524,12 +5570,14 @@ export const App: React.FC = () => {
                   }}
                   onStarted={room => {
                     setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
                   }}
                 />
+                {/* Montada mientras exista la sala: minimizar solo oculta el modal. */}
                 {brainstormRoomByTab[tab.id] ? (
                   <BrainstormRoomView
-                    open
+                    open={!brainstormMinimizedByTab[tab.id]}
                     active={activeTabId === tab.id}
                     room={brainstormRoomByTab[tab.id]!}
                     cwd={tab.projectFolder ?? ''}
@@ -5537,7 +5585,10 @@ export const App: React.FC = () => {
                       projectAgentsByCwd[agentCatalogKey] ?? [],
                     )}
                     onClose={() => {
-                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
+                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: true }))
+                    }}
+                    onLive={summary => {
+                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: summary }))
                     }}
                   />
                 ) : null}

@@ -10,6 +10,21 @@ import {
   isBrainstormHumanMessage,
 } from '@shared/brainstormRoom'
 
+/** Resumen que la sala publica al plano: indicador de agentes + flyout minimizado. */
+export interface BrainstormLiveSummary {
+  roomId: string
+  topic: string
+  status: BrainstormStatus
+  /** Ronda 1-based ya lista para mostrar. */
+  round: number
+  maxRounds: number
+  turnsDone: number
+  totalTurns: number
+  speakingAgentId: string | null
+  speakerName: string
+  participantAgentIds: string[]
+}
+
 /** Estado vivo de la sala en el renderer (acumula deltas → final). */
 export interface BrainstormLiveState {
   messages: BrainstormMessage[]

@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
+  isBrainstormLive,
   isBrainstormStoppable,
-  stopBrainstormIfActive,
 } from '../brainstormViewClose'
 
 describe('brainstormViewClose', () => {
@@ -12,55 +12,11 @@ describe('brainstormViewClose', () => {
     expect(isBrainstormStoppable('stopped')).toBe(false)
   })
 
-  it('calls stopBrainstorm when closing while running', () => {
-    const stop = vi.fn()
-    const didStop = stopBrainstormIfActive({
-      status: 'running',
-      roomId: 'room-1',
-      alreadyStopped: false,
-      stop,
-    })
-    expect(didStop).toBe(true)
-    expect(stop).toHaveBeenCalledTimes(1)
-    expect(stop).toHaveBeenCalledWith('room-1')
-  })
-
-  it('calls stopBrainstorm when closing while idle', () => {
-    const stop = vi.fn()
-    expect(stopBrainstormIfActive({
-      status: 'idle',
-      roomId: 'room-2',
-      alreadyStopped: false,
-      stop,
-    })).toBe(true)
-    expect(stop).toHaveBeenCalledWith('room-2')
-  })
-
-  it('does not call stopBrainstorm when status is done or stopped', () => {
-    const stop = vi.fn()
-    expect(stopBrainstormIfActive({
-      status: 'done',
-      roomId: 'room-3',
-      alreadyStopped: false,
-      stop,
-    })).toBe(false)
-    expect(stopBrainstormIfActive({
-      status: 'stopped',
-      roomId: 'room-3',
-      alreadyStopped: false,
-      stop,
-    })).toBe(false)
-    expect(stop).not.toHaveBeenCalled()
-  })
-
-  it('skips redundant stop when alreadyStopped', () => {
-    const stop = vi.fn()
-    expect(stopBrainstormIfActive({
-      status: 'running',
-      roomId: 'room-4',
-      alreadyStopped: true,
-      stop,
-    })).toBe(true)
-    expect(stop).not.toHaveBeenCalled()
+  it('treats paused as live: minimizada sigue mereciendo indicador', () => {
+    expect(isBrainstormLive('running')).toBe(true)
+    expect(isBrainstormLive('idle')).toBe(true)
+    expect(isBrainstormLive('paused')).toBe(true)
+    expect(isBrainstormLive('done')).toBe(false)
+    expect(isBrainstormLive('stopped')).toBe(false)
   })
 })

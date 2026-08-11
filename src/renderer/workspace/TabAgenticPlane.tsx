@@ -20,6 +20,9 @@ import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
+import { PlaneBrainstormDock } from './PlaneBrainstormDock'
+import type { BrainstormLiveSummary } from './brainstormLiveState'
+import { isBrainstormLive } from './brainstormViewClose'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlanePulseButton } from './PlanePulseButton'
@@ -166,6 +169,13 @@ export interface TabAgenticPlaneProps {
   brainstormsListOpen?: boolean
   onBrainstormsListOpenChange?: (open: boolean) => void
   brainstormsListButtonLabel?: string
+  /** Sala minimizada que sigue viva: punto en el botón + flyout anclado. */
+  brainstormLive?: BrainstormLiveSummary | null
+  brainstormDockOpen?: boolean
+  onBrainstormDockOpenChange?: (open: boolean) => void
+  onRestoreBrainstorm?: () => void
+  onStopBrainstorm?: () => void
+  onDiscardBrainstorm?: () => void
   loopsTitle: string
   loopsSubtitle: string
   loopsEmptyTitle: string
@@ -328,6 +338,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   loopsButtonLabel,
   brainstormNeedFolderHint,
   canOpenBrainstorm = false,
+  brainstormLive = null,
+  brainstormDockOpen = false,
+  onBrainstormDockOpenChange,
+  onRestoreBrainstorm,
+  onStopBrainstorm,
+  onDiscardBrainstorm,
   brainstormsListOpen = false,
   onBrainstormsListOpenChange,
   brainstormsListButtonLabel = 'Brainstorms',
@@ -625,13 +641,44 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             onClick={() => setPulseOpen(open => !open)}
           />
           {onBrainstormsListOpenChange ? (
-            <PlaneBrainstormsListButton
-              label={brainstormsListButtonLabel}
-              pressed={brainstormsListOpen}
-              disabled={!canOpenBrainstorm}
-              disabledTitle={brainstormNeedFolderHint}
-              onClick={() => onBrainstormsListOpenChange(!brainstormsListOpen)}
-            />
+            <span className="plane-brainstorm-anchor">
+              <PlaneBrainstormsListButton
+                label={brainstormsListButtonLabel}
+                pressed={brainstormLive ? brainstormDockOpen : brainstormsListOpen}
+                disabled={!canOpenBrainstorm}
+                disabledTitle={brainstormNeedFolderHint}
+                onClick={() => {
+                  // Con sala minimizada el botón devuelve la sala; sin ella, lista.
+                  if (brainstormLive) onBrainstormDockOpenChange?.(!brainstormDockOpen)
+                  else onBrainstormsListOpenChange(!brainstormsListOpen)
+                }}
+              />
+              {brainstormLive && isBrainstormLive(brainstormLive.status) ? (
+                <span
+                  className={[
+                    'plane-brainstorm-anchor__badge',
+                    brainstormLive.status === 'running'
+                      ? 'plane-brainstorm-anchor__badge--pulse'
+                      : '',
+                  ].filter(Boolean).join(' ')}
+                  aria-hidden
+                />
+              ) : null}
+              {brainstormLive && brainstormDockOpen ? (
+                <PlaneBrainstormDock
+                  live={brainstormLive}
+                  onOpen={() => {
+                    onBrainstormDockOpenChange?.(false)
+                    onRestoreBrainstorm?.()
+                  }}
+                  onStop={() => onStopBrainstorm?.()}
+                  onDiscard={() => {
+                    onBrainstormDockOpenChange?.(false)
+                    onDiscardBrainstorm?.()
+                  }}
+                />
+              ) : null}
+            </span>
           ) : null}
           {projectFolder.trim() && onRevealProjectFolder ? (
             <PlaneRevealFolderButton

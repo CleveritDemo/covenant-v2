@@ -77,6 +77,51 @@ beforeEach(() => {
   })
 })
 
+describe('BrainstormRoomView minimizada', () => {
+  it('cerrar no detiene el runner y sigue acumulando turnos oculta', () => {
+    const bus: { emit: ((event: Record<string, unknown>) => void) | null } = { emit: null }
+    const stopBrainstorm = vi.fn()
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn((_id: string, cb: (event: Record<string, unknown>) => void) => {
+          bus.emit = cb
+          return () => {}
+        }),
+        stopBrainstorm,
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    const onClose = vi.fn()
+    const onLive = vi.fn()
+
+    const { rerender } = render(
+      <BrainstormRoomView open room={room} cwd="/tmp/project" onClose={onClose} onLive={onLive} />,
+    )
+    fireEvent.click(screen.getByText('tabs.brainstormClose'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(stopBrainstorm).not.toHaveBeenCalled()
+
+    // Minimizada: sigue suscrita y publicando quién habla.
+    rerender(
+      <BrainstormRoomView open={false} room={room} cwd="/tmp/project" onClose={onClose} onLive={onLive} />,
+    )
+    const before = onLive.mock.calls.length
+    bus.emit?.({ type: 'speaker_start', agentId: 'forge', round: 1 })
+    rerender(
+      <BrainstormRoomView open={false} room={room} cwd="/tmp/project" onClose={onClose} onLive={onLive} />,
+    )
+    expect(onLive.mock.calls.length).toBeGreaterThan(before)
+    expect(onLive.mock.calls.at(-1)?.[0]).toMatchObject({
+      roomId: 'room-1',
+      status: 'running',
+      speakingAgentId: 'forge',
+      round: 2,
+    })
+  })
+})
+
 describe('BrainstormRoomView chat bubbles', () => {
   it('renderiza mensajes como burbujas, no cards con borde', () => {
     render(

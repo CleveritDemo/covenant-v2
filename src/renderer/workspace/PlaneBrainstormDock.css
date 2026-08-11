@@ -1,0 +1,106 @@
+.plane-brainstorm-dock {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
+  border-radius: 999px;
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-ui);
+}
+
+.plane-brainstorm-dock__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning, #b0741a);
+}
+
+.plane-brainstorm-dock__dot--pulse {
+  animation: plane-brainstorm-dock-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes plane-brainstorm-dock-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.plane-brainstorm-dock__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.plane-brainstorm-dock__topic {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-brainstorm-dock__meta {
+  color: var(--text-dim, var(--text));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.plane-brainstorm-dock__action {
+  flex: none;
+  height: 20px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.plane-brainstorm-dock__action:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+/* Punto vivo sobre el botón de la toolbar: indicador global de sala corriendo. */
+.plane-brainstorm-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.plane-brainstorm-anchor__badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning, #b0741a);
+  pointer-events: none;
+}
+
+.plane-brainstorm-anchor__badge--pulse {
+  animation: plane-brainstorm-dock-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-brainstorm-dock__dot--pulse,
+  .plane-brainstorm-anchor__badge--pulse {
+    animation: none;
+  }
+}

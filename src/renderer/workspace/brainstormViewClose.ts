@@ -13,18 +13,7 @@ export function canResumeBrainstorm(status: BrainstormStatus): boolean {
   return status === 'paused' || status === 'idle' || status === 'stopped'
 }
 
-/**
- * Al cerrar/desmontar la vista: detiene el runner si sigue activo.
- * `alreadyStopped` evita doble-stop cuando cierre + cleanup corren seguidos.
- */
-export function stopBrainstormIfActive(options: {
-  status: BrainstormStatus
-  roomId: string
-  alreadyStopped: boolean
-  stop: (roomId: string) => void
-}): boolean {
-  if (options.alreadyStopped) return true
-  if (!isBrainstormStoppable(options.status)) return false
-  options.stop(options.roomId)
-  return true
+/** La sala sigue viva al minimizar: el indicador del plano se muestra con esto. */
+export function isBrainstormLive(status: BrainstormStatus): boolean {
+  return status === 'running' || status === 'idle' || status === 'paused'
 }

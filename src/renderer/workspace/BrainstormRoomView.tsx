@@ -21,18 +21,19 @@ import { AiMarkdown } from '../components/AiMarkdown'
 import {
   createInitialBrainstormLiveState,
   reduceBrainstormLiveEvent,
+  type BrainstormLiveSummary,
 } from './brainstormLiveState'
 import {
   canPauseBrainstorm,
   canResumeBrainstorm,
   isBrainstormStoppable,
-  stopBrainstormIfActive,
 } from './brainstormViewClose'
 import { BrainstormClosingCard } from './BrainstormClosingCard'
 import { BrainstormHumanComposer } from './BrainstormHumanComposer'
 import './BrainstormRoomView.css'
 
 export interface BrainstormRoomViewProps {
+  /** Solo visibilidad: la sala sigue montada y viva cuando está minimizada. */
   open: boolean
   active?: boolean
   room: BrainstormRoom
@@ -44,7 +45,10 @@ export interface BrainstormRoomViewProps {
    * Nombres de catálogo para el streaming (antes de speaker_final).
    */
   agentNamesById?: Record<string, string>
+  /** Cerrar = minimizar: el runner sigue corriendo en main. */
   onClose: () => void
+  /** Estado vivo hacia el plano (indicador en agentes + flyout). */
+  onLive?: (summary: BrainstormLiveSummary) => void
 }
 
 function statusLabelKey(
@@ -90,13 +94,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   agents = [],
   agentNamesById = {},
   onClose,
+  onLive,
 }) => {
   const { t } = useT()
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
   const liveStatusRef = useRef(live.status)
   const stoppedRef = useRef(false)
-  const pendingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onLiveRef = useRef(onLive)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  onLiveRef.current = onLive
   /** Working set tras añadir en caliente (la sala en disco la actualiza main). */
   const [hotWorkingSet, setHotWorkingSet] = useState<{
     contextIds: string[]
@@ -130,40 +136,19 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   }, [agentNamesById, agents, t])
 
   useEffect(() => {
-    if (!open) return
     setLive(createInitialBrainstormLiveState(room))
     setHotWorkingSet(null)
     setWorkingSetError(null)
     stoppedRef.current = false
-  }, [open, room.id])
+  }, [room.id])
 
+  // Suscripción atada al montaje, no a `open`: minimizada sigue acumulando turnos.
   useEffect(() => {
-    if (pendingStopTimerRef.current != null) {
-      clearTimeout(pendingStopTimerRef.current)
-      pendingStopTimerRef.current = null
-    }
-    if (!open) return
-
     const unsubscribe = window.api.onBrainstormEvent(room.id, event => {
       setLive(previous => reduceBrainstormLiveEvent(previous, event))
     })
-
-    return () => {
-      unsubscribe()
-      // Deferred: StrictMode remount cancela el timer; unmount real sí detiene.
-      // Pausa NO se dispara aquí — solo stop si running/idle.
-      pendingStopTimerRef.current = setTimeout(() => {
-        pendingStopTimerRef.current = null
-        const didStop = stopBrainstormIfActive({
-          status: liveStatusRef.current,
-          roomId: room.id,
-          alreadyStopped: stoppedRef.current,
-          stop: id => window.api.stopBrainstorm(id),
-        })
-        if (didStop) stoppedRef.current = true
-      }, 0)
-    }
-  }, [open, room.id])
+    return unsubscribe
+  }, [room.id])
 
   // Auto-scroll al último mensaje / burbuja en vivo.
   useEffect(() => {
@@ -232,11 +217,32 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     })
     : null
 
+  // Publica al plano solo cuando cambia algo observable: `onLive` puede ser una
+  // lambda nueva en cada render y volverlo a llamar dispararía setState en bucle.
+  const liveKey = [
+    live.status,
+    displayRound,
+    turnsDone,
+    live.speakingAgentId ?? '',
+    participantResolution.resolvedIds.join(','),
+  ].join('|')
+
+  useEffect(() => {
+    onLiveRef.current?.({
+      roomId: room.id,
+      topic: room.topic,
+      status: live.status,
+      round: Math.min(displayRound || 1, room.maxRounds),
+      maxRounds: room.maxRounds,
+      turnsDone: Math.min(turnsDone + (live.speakingAgentId ? 1 : 0), totalTurns),
+      totalTurns,
+      speakingAgentId: live.speakingAgentId,
+      speakerName: live.speakingAgentId ? speakerLabel(live.speakingAgentId) : '',
+      participantAgentIds: participantResolution.resolvedIds,
+    })
+  }, [liveKey, room.id])
+
   const handleStop = (): void => {
-    if (pendingStopTimerRef.current != null) {
-      clearTimeout(pendingStopTimerRef.current)
-      pendingStopTimerRef.current = null
-    }
     if (stoppedRef.current) return
     const status = liveStatusRef.current
     if (status !== 'running' && status !== 'idle' && status !== 'paused') return
@@ -266,19 +272,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     })
   }
 
+  // Cerrar = minimizar: el runner vive en main y sigue emitiendo. Detener es Stop.
   const handleClose = (): void => {
-    // Solo stop si running/idle — paused se conserva en disco.
-    if (pendingStopTimerRef.current != null) {
-      clearTimeout(pendingStopTimerRef.current)
-      pendingStopTimerRef.current = null
-    }
-    const didStop = stopBrainstormIfActive({
-      status: liveStatusRef.current,
-      roomId: room.id,
-      alreadyStopped: stoppedRef.current,
-      stop: id => window.api.stopBrainstorm(id),
-    })
-    if (didStop) stoppedRef.current = true
     onClose()
   }
 

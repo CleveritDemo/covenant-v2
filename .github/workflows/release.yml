@@ -6,27 +6,21 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# Los tres jobs corren en paralelo y compiten por crear el release draft: todos
-# menos uno reciben 422 "already exists", que es el camino esperado, no un fallo.
-# El release solo se hace público cuando macos, linux y windows terminan OK
-# (job publish-release), así no hay ventana sin latest-mac.yml.
+# Las tres plataformas construyen en paralelo y suben artifacts de workflow.
+# Un único job final crea/actualiza el release de GitHub, sube todos los assets
+# con `gh release upload --clobber` y lo publica. Así no hay drafts duplicados
+# (GitHub permite varios drafts por el mismo tag si electron-builder publica en
+# paralelo con releaseType=draft).
 #
-# Las sube electron-builder (`-p always`), no `gh release upload`: además de los
-# binarios escribe latest-mac.yml / latest.yml / latest-linux.yml, que son el
-# manifiesto que consulta el auto-updater. Cada plataforma tiene el suyo.
-# En CI se fuerza publish.releaseType=draft para subir al draft sin publicarlo.
-env:
-  # En workflow_dispatch (sin tag) se construye pero no se publica.
-  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+# electron-builder sigue generando latest-mac.yml / latest.yml / latest-linux.yml
+# en dist/ con -p never; el job publish-release los sube junto a los binarios.
+# El cask solo corre cuando el release público ya tiene el DMG.
 
 jobs:
-  # Solo arm64: es lo que ya producían `dist`/`dist:dmg`. Añadir x64 obliga a
-  # cross-compilar node-pty desde el runner Apple Silicon — hacerlo cuando alguien
-  # lo pida, no antes.
   macos:
     runs-on: macos-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -48,14 +42,12 @@ jobs:
           echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
 
-      - name: Prepare release (notes + GitHub draft)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare release notes
         run: bash scripts/prepare-release.sh
 
-      # Publica dmg (instalación manual) + zip (el que consume Squirrel.Mac para
-      # auto-actualizar; sin él el updater no tiene de dónde tirar) + latest-mac.yml.
-      - name: Build + sign + notarize + publish
+      # Publica dmg (instalación manual) + zip (Squirrel.Mac / auto-update) +
+      # latest-mac.yml en dist/. No publica a GitHub (-p never).
+      - name: Build + sign + notarize
         env:
           # CSC_LINK acepta el .p12 en base64 directo, sin fichero intermedio.
           CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
@@ -67,8 +59,7 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:mac-release -- -p "$PUBLISH" -c.publish.releaseType=draft
+        run: npm run dist:mac-release -- -p never
 
       - name: Verify signature and notarization
         run: |
@@ -78,12 +69,24 @@ jobs:
           # Falla si el ticket de notarización no está grapado en el bundle.
           spctl --assess --type execute --verbose=4 "$APP"
 
+      - name: Upload macOS release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            dist/Covenant-Gravity-*-arm64.dmg
+            dist/Covenant-Gravity-*-arm64.dmg.blockmap
+            dist/Covenant-Gravity-*-arm64-mac.zip
+            dist/Covenant-Gravity-*-arm64-mac.zip.blockmap
+            dist/latest-mac.yml
+          if-no-files-found: error
+
   # Electron trae su propio runtime: a diferencia de Tauri no hacen falta
   # webkit2gtk ni ninguna dependencia de sistema. Linux no se firma.
   linux:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -95,17 +98,22 @@ jobs:
 
       - run: npm ci
 
-      - name: Prepare release (notes + GitHub draft)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare release notes
         run: bash scripts/prepare-release.sh
 
-      # El AppImage se auto-actualiza; el .deb no (lo actualiza apt). Los dos se
-      # publican igual, el updater solo mira el AppImage vía latest-linux.yml.
-      - name: Build + publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:linux -- -p "$PUBLISH" -c.publish.releaseType=draft
+      # AppImage (auto-update vía latest-linux.yml) + deb. No publica a GitHub.
+      - name: Build
+        run: npm run dist:linux -- -p never
+
+      - name: Upload Linux release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            dist/Covenant-Gravity-*.AppImage
+            dist/Covenant-Gravity-*.deb
+            dist/latest-linux.yml
+          if-no-files-found: error
 
   # Sin firmar por ahora: el cert de code signing de SSL.com todavía no existe,
   # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
@@ -117,7 +125,7 @@ jobs:
     # sí lo reconoce. Revisar al subir electron/electron-rebuild.
     runs-on: windows-2022
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -132,22 +140,26 @@ jobs:
       # muertas).
       - run: npm ci
 
-      - name: Prepare release (notes + GitHub draft)
+      - name: Prepare release notes
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/prepare-release.sh
 
-      # NSIS, no portable: el portable no se puede auto-actualizar (no hay
-      # instalador que ejecutar). Sale sin firmar hasta que exista el cert, así
-      # que SmartScreen seguirá avisando en la primera instalación.
-      - name: Build + publish
+      # NSIS + latest.yml. No publica a GitHub.
+      - name: Build
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:win -- -p "$PUBLISH" -c.publish.releaseType=draft
+        run: npm run dist:win -- -p never
 
-  # Publica el draft solo cuando las tres plataformas subieron assets OK.
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            dist/Covenant-Gravity-*-setup-*.exe
+            dist/Covenant-Gravity-*-setup-*.exe.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+
+  # Un solo release: crea/actualiza el draft, sube todos los assets y publica.
   publish-release:
     needs: [macos, linux, windows]
     if: startsWith(github.ref, 'refs/tags/v')
@@ -155,15 +167,36 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Publish GitHub release
+      - uses: actions/checkout@v4
+
+      - name: Prepare release notes + GitHub draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest=true
+          CREATE_GITHUB_RELEASE: '1'
+        run: bash scripts/prepare-release.sh
+
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Upload assets and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          ls -la release-assets
+          # Sube todo lo generado por las tres plataformas (binarios + latest*.yml).
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber release-assets/*
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=true
 
   # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
   # que no hay que crearlo a mano: el primer tag lo genera.
   cask:
-    needs: [macos, publish-release]
+    needs: [publish-release]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

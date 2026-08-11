@@ -477,14 +477,6 @@ html[data-reduce-motion="true"] {
   margin-bottom: 6px;
 }
 
-.agent-pane__bubble-image {
-  display: block;
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
 
 /* Centrada y extendida: ocupa el ancho del panel con radios simétricos
    (ya no está anclada a la izquierda). */

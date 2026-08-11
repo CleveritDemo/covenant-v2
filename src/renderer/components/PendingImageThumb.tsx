@@ -8,11 +8,13 @@ export interface PendingImageThumbProps {
   src: string
   name: string
   removeDisabled?: boolean
-  onRemove: () => void
+  /** Sin esto la miniatura es solo de lectura: los adjuntos ya enviados. */
+  onRemove?: () => void
 }
 
 /**
- * Miniatura de una imagen adjunta al composer, en el pane y en el plano.
+ * Miniatura de imagen: adjunta al composer (con ×) o ya enviada en un mensaje
+ * (sin ×). En los dos casos se abre en grande al clickearla.
  *
  * A 28px no se distingue una captura de otra, así que la miniatura abre la
  * imagen completa al clickearla. Y la × dejó de estar siempre encima: aparece
@@ -39,15 +41,17 @@ export const PendingImageThumb: React.FC<PendingImageThumbProps> = ({
         >
           <img src={src} alt={name} />
         </button>
-        <button
-          type="button"
-          className="pending-thumb__remove"
-          aria-label={t('agentPane.removeImage')}
-          disabled={removeDisabled}
-          onClick={onRemove}
-        >
-          <Icon name="close" size={10} />
-        </button>
+        {onRemove ? (
+          <button
+            type="button"
+            className="pending-thumb__remove"
+            aria-label={t('agentPane.removeImage')}
+            disabled={removeDisabled}
+            onClick={onRemove}
+          >
+            <Icon name="close" size={10} />
+          </button>
+        ) : null}
       </span>
 
       <TerminalModal

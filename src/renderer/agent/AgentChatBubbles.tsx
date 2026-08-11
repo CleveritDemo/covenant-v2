@@ -15,6 +15,7 @@ import {
   parseDelegationResultCards,
 } from '@shared/delegationResultCards'
 import { DelegationResultCard } from './DelegationResultCard'
+import { PendingImageThumb } from '../components/PendingImageThumb'
 import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
@@ -176,11 +177,10 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
         {message.role === 'user' && message.images && message.images.length > 0 && (
           <div className="agent-pane__bubble-images">
             {message.images.map((image, index) => (
-              <img
+              <PendingImageThumb
                 key={`${message.id}-img-${index}`}
-                className="agent-pane__bubble-image"
                 src={image.dataUrl}
-                alt={image.name}
+                name={image.name}
               />
             ))}
           </div>

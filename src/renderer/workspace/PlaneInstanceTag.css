@@ -1,0 +1,25 @@
+/* Tag de instancia: ámbar = temporal (se cierra al terminar), no error. */
+.plane-instance-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 3px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--caution) 42%, transparent);
+  background: color-mix(in srgb, var(--caution) 15%, transparent);
+  color: var(--caution);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Contador en el experto base: presencia, no alarma. */
+.plane-instance-tag--count {
+  border-color: color-mix(in srgb, var(--text-muted) 34%, transparent);
+  background: transparent;
+  color: var(--text-muted);
+}

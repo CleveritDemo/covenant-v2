@@ -69,6 +69,12 @@
   flex: 1 1 auto;
 }
 
+/* El tag de instancia pertenece al nombre: pegado a él, sin robarle ancho. */
+.plane-mini-face__identity .plane-instance-tag {
+  margin-left: -3px;
+  margin-right: -3px;
+}
+
 .plane-mini-face__provider {
   display: inline-flex;
   align-items: center;

@@ -29,6 +29,10 @@ export interface PlaneMapEntity {
   paneId: string
   kind: PaneKind
   title: string
+  /** Réplica temporal del experto: `R2`, `R3`… (del id `frontend-2`). */
+  instanceTag?: string
+  /** Experto base: réplicas suyas vivas ahora mismo. */
+  replicaCount?: number
   monogram?: string
   busy: boolean
   /** Trabajo reservado/activo por una delegación del orquestador. */
@@ -552,6 +556,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           paneId={entity.paneId}
           kind={entity.kind}
           title={entity.title}
+          instanceTag={entity.instanceTag}
+          replicaCount={entity.replicaCount}
           monogram={entity.monogram}
           busy={entity.busy}
           provider={entity.provider}

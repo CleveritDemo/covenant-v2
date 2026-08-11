@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentInstanceTag,
   buildExpertReplicaDefinition,
+  resolveAgentInstanceBadges,
   hasSingleActiveWorktreePerPane,
   parseExpertReplicaRequest,
   resolveExpertDelegationTarget,
@@ -161,8 +163,33 @@ describe('buildExpertReplicaDefinition', () => {
     expect(replica.coordination).toBeUndefined()
     expect(replica.allowExpertReplicas).toBeUndefined()
     expect(replica.acceptDelegations).toBeUndefined()
-    expect(replica.name).toContain('Frontend')
+    // El nombre no se decora: la UI la distingue con el tag del id.
+    expect(replica.name).toBe('Frontend')
     expect(replica.role).toBe('frontend engineer')
+  })
+})
+
+describe('agentInstanceTag', () => {
+  it('reads the instance number from the id', () => {
+    expect(agentInstanceTag('frontend-2')).toBe('R2')
+    expect(agentInstanceTag('frontend-12')).toBe('R12')
+    expect(agentInstanceTag('frontend')).toBeNull()
+    // `-1` no es réplica: el experto original ya es la instancia 1.
+    expect(agentInstanceTag('frontend-1')).toBeNull()
+  })
+})
+
+describe('resolveAgentInstanceBadges', () => {
+  it('tags replicas and counts them on the base expert', () => {
+    const badges = resolveAgentInstanceBadges(['frontend', 'frontend-2', 'frontend-3', 'qa'])
+    expect(badges['frontend-2']).toEqual({ instanceTag: 'R2' })
+    expect(badges['frontend-3']).toEqual({ instanceTag: 'R3' })
+    expect(badges.frontend).toEqual({ replicaCount: 2 })
+    expect(badges.qa).toBeUndefined()
+  })
+
+  it('leaves a numbered agent alone when its base is not there', () => {
+    expect(resolveAgentInstanceBadges(['sprint-2', 'qa'])).toEqual({})
   })
 })
 

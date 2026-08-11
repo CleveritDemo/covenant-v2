@@ -446,6 +446,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         return {
           paneId: entity.paneId,
           title: entity.title,
+          ...(entity.instanceTag ? { instanceTag: entity.instanceTag } : {}),
+          ...(entity.replicaCount ? { replicaCount: entity.replicaCount } : {}),
           monogram: entity.monogram,
           busy: Boolean(status?.busy ?? entity.busy),
           loopActive: Boolean(status?.loopActive),

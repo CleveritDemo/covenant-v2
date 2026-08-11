@@ -17,6 +17,10 @@ export interface PlanePaneWindowProps {
   paneId: string
   kind: PaneKind
   title: string
+  /** Réplica temporal del experto: `R2`, `R3`… */
+  instanceTag?: string
+  /** Experto base: réplicas suyas vivas ahora mismo. */
+  replicaCount?: number
   monogram?: string
   busy?: boolean
   provider?: AgentCliProvider
@@ -76,6 +80,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   paneId,
   kind,
   title,
+  instanceTag,
+  replicaCount,
   monogram,
   busy = false,
   provider,
@@ -176,6 +182,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         miniFace={isAgent ? (
           <PlaneMiniFace
             name={title}
+            instanceTag={instanceTag}
+            replicaCount={replicaCount}
             monogram={monogram}
             busy={busy}
             provider={provider}

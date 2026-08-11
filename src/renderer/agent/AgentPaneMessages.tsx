@@ -114,9 +114,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
             items={(orchestrationAwaiting?.items ?? []).map(item => ({
               id: item.delegationId,
               label: item.agentLabel,
-              ...(item.isReplica
-                ? { replicaBadge: t('agentPane.awaitingReplicaBadge') }
-                : {}),
+              ...(item.instanceTag ? { instanceTag: item.instanceTag } : {}),
               status: item.status,
               statusLabel: item.status === 'done'
                 ? t('agentPane.awaitingStatusDone')

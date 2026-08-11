@@ -1,13 +1,14 @@
 import React from 'react'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
+import { PlaneInstanceTag } from '../workspace/PlaneInstanceTag'
 import './AgentDelegatingIndicator.css'
 
 export interface AgentDelegatingListItem {
   id: string
   label: string
-  /** Texto ya traducido, p. ej. "réplica". */
-  replicaBadge?: string
+  /** Tag de instancia de la réplica: `R2`, `R3`… */
+  instanceTag?: string
   /** Texto ya traducido: running | queued | done. */
   statusLabel: string
   /** `deferred` = aceptada pero sin arrancar; el punto no debe pulsar. */
@@ -61,8 +62,8 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
               >
                 <span className="agent-delegating__dot" aria-hidden="true" />
                 <span className="agent-delegating__agent">{item.label}</span>
-                {item.replicaBadge ? (
-                  <span className="agent-delegating__badge">{item.replicaBadge}</span>
+                {item.instanceTag ? (
+                  <PlaneInstanceTag text={item.instanceTag} />
                 ) : null}
                 <span className="agent-delegating__status">{item.statusLabel}</span>
               </span>

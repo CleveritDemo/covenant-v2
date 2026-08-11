@@ -52,6 +52,48 @@ export function parseExpertReplicaRequest(toAgentId: string): {
   }
 }
 
+/**
+ * Nomenclatura de instancias: `frontend-2` → `R2`. El número sale del id que
+ * `allocateAgentSlug` ya reservó (empieza en 2 porque el experto original es la
+ * instancia 1), así que la tarjeta, el log y el worktree dicen lo mismo.
+ */
+export function agentInstanceTag(agentId: string): string | null {
+  const parsed = parseExpertReplicaRequest(agentId)
+  if (!parsed.explicitReplica) return null
+  const n = parsed.requestedId.match(/(\d+)$/)?.[1]
+  return n ? `R${n}` : null
+}
+
+export interface AgentInstanceBadge {
+  /** Réplica: `R2`, `R3`… */
+  instanceTag?: string
+  /** Experto base: cuántas réplicas suyas siguen vivas. */
+  replicaCount?: number
+}
+
+/**
+ * Badges de instancia para un conjunto de agentes vivos (los panes del plano).
+ * Solo etiqueta como réplica al id cuyo base está presente: un agente que se
+ * llame `sprint-2` por su cuenta se queda sin tag.
+ */
+export function resolveAgentInstanceBadges(
+  agentIds: readonly string[],
+): Record<string, AgentInstanceBadge> {
+  const ids = agentIds.map(id => String(id ?? '').trim()).filter(Boolean)
+  const present = new Set(ids)
+  const badges: Record<string, AgentInstanceBadge> = {}
+  for (const id of ids) {
+    const parsed = parseExpertReplicaRequest(id)
+    if (!parsed.explicitReplica || !present.has(parsed.baseId)) continue
+    const tag = agentInstanceTag(id)
+    if (!tag) continue
+    badges[id] = { instanceTag: tag }
+    const base = badges[parsed.baseId]
+    badges[parsed.baseId] = { replicaCount: (base?.replicaCount ?? 0) + 1 }
+  }
+  return badges
+}
+
 export type ExpertDelegationDecision =
   | { kind: 'reuse'; paneId: string; agentId: string }
   | {
@@ -171,13 +213,16 @@ export function hasSingleActiveWorktreePerPane(
 /**
  * Definición de réplica temporal: clon del experto base, acceptDelegations on,
  * nunca orquestador. El catálogo base no se borra.
+ *
+ * El nombre NO se decora: una réplica de Frontend se llama Frontend, y la UI la
+ * distingue con el tag de instancia (`R2`) que sale de su id. Un sufijo en el
+ * nombre daba dos copias llamadas igual y perdía el número que el id ya tiene.
  */
 export function buildExpertReplicaDefinition(
   base: ProjectAgentDefinition,
   newId: string,
-  nameSuffix = ' (replica)',
 ): ProjectAgentDefinition {
-  const cloned = cloneProjectAgentDefinition(base, nameSuffix)
+  const cloned = cloneProjectAgentDefinition(base)
   const parsed = parseProjectAgentDefinition({
     ...cloned,
     id: newId,

@@ -3,6 +3,8 @@
  * Sin React/electron: App arma inputs desde refs; UI solo renderiza la vista.
  */
 
+import { agentInstanceTag, parseExpertReplicaRequest } from './expertReplicas'
+
 /**
  * `deferred` es una delegación aceptada que todavía no arrancó (el pane destino
  * estaba ocupado y no se permitió réplica). Se separó de `running` porque
@@ -23,8 +25,10 @@ export interface OrchestrationAwaitingItemInput {
 
 export interface OrchestrationAwaitingItemView {
   delegationId: string
+  /** Nombre del experto: en una réplica, el del base (`frontend`, no `frontend-2`). */
   agentLabel: string
-  isReplica: boolean
+  /** Tag de instancia de la réplica (`R2`); ausente en el experto base. */
+  instanceTag?: string
   status: OrchestrationAwaitingItemStatus
   /** Pane destino si la ola lo conoce (Stop por fila). */
   toPaneId?: string
@@ -79,16 +83,23 @@ export function buildOrchestrationAwaitingView(
   items: readonly OrchestrationAwaitingItemInput[],
 ): OrchestrationAwaitingView | null {
   if (!items.length) return null
-  const views: OrchestrationAwaitingItemView[] = items.map(item => ({
-    delegationId: item.delegationId,
-    agentLabel: item.toAgentId.trim() || item.delegationId,
-    isReplica: isReplicaAgentId(item.toAgentId, item.baseAgentId),
-    status: item.status,
-    ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),
-    ...(shortWorktreeHint(item.worktreePath)
-      ? { worktreeHint: shortWorktreeHint(item.worktreePath) }
-      : {}),
-  }))
+  const views: OrchestrationAwaitingItemView[] = items.map(item => {
+    const to = item.toAgentId.trim()
+    const replica = isReplicaAgentId(to, item.baseAgentId)
+    const tag = replica ? agentInstanceTag(to) : null
+    return {
+      delegationId: item.delegationId,
+      // Con tag, el nombre visible es el del experto: "frontend R2", no "frontend-2 R2".
+      agentLabel: (tag ? (item.baseAgentId?.trim() || parseExpertReplicaRequest(to).baseId) : to)
+        || item.delegationId,
+      ...(tag ? { instanceTag: tag } : {}),
+      status: item.status,
+      ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),
+      ...(shortWorktreeHint(item.worktreePath)
+        ? { worktreeHint: shortWorktreeHint(item.worktreePath) }
+        : {}),
+    }
+  })
   const done = views.filter(item => item.status === 'done').length
   return {
     done,

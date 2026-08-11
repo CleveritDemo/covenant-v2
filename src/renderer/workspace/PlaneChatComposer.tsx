@@ -53,6 +53,10 @@ function resizeComposerTextarea(el: HTMLTextAreaElement): void {
 export interface PlaneChatAgentOption {
   paneId: string
   title: string
+  /** Réplica temporal del experto: `R2`, `R3`… */
+  instanceTag?: string
+  /** Experto base: réplicas suyas vivas ahora mismo. */
+  replicaCount?: number
   busy: boolean
   /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
   loopActive?: boolean
@@ -494,6 +498,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 <PlaneAgentBadge
                   key={agent.paneId}
                   name={agent.title}
+                  instanceTag={agent.instanceTag}
+                  replicaCount={agent.replicaCount}
                   selected={agent.paneId === selectedAgentId}
                   busy={agent.busy}
                   onSelect={() => onSelectAgent(agent.paneId)}

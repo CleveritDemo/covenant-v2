@@ -85,7 +85,8 @@ function mergeInstances(baseId: string, instances: readonly PulseAgentStat[]): P
     }
   }
 
-  // El nombre lo pone siempre la base: la réplica trae " (replica)" pegado.
+  // El nombre lo pone la base: las réplicas comparten su nombre y solo
+  // se distinguen por el número del id (`backend-2` → tag R2 en el plano).
   const base = instances.find(item => item.agentId === baseId)
   if (base?.name) merged.name = base.name
   if (base?.provider) merged.provider = base.provider

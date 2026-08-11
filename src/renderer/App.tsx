@@ -114,6 +114,7 @@ import {
 } from '@shared/worktreeDelegation'
 import {
   buildExpertReplicaDefinition,
+  resolveAgentInstanceBadges,
   resolveExpertDelegationTarget,
   shouldFinalizeWorktreeFromOrchestrator,
 } from '@shared/expertReplicas'
@@ -5215,6 +5216,16 @@ export const App: React.FC = () => {
               }
             })
 
+            // Réplicas del turbo: el tag (`R2`) y el contador del experto base
+            // salen de los ids vivos, no del nombre guardado en el catálogo.
+            const instanceBadges = resolveAgentInstanceBadges(
+              entities.map(entity => entity.agentId ?? ''),
+            )
+            const planeEntities = entities.map(entity => {
+              const badge = entity.agentId ? instanceBadges[entity.agentId] : undefined
+              return badge ? { ...entity, ...badge } : entity
+            })
+
             return (
               <div
                 key={tab.id}
@@ -5304,7 +5315,7 @@ export const App: React.FC = () => {
                   canBootstrapAgents={canBootstrapAgents}
                   onBootstrapAgents={() => { void bootstrapProjectAgents(tab.id) }}
                   activePaneId={tab.activePaneId}
-                  entities={entities}
+                  entities={planeEntities}
                   onAddAgent={() => {
                     requestAddAgent(tab.id, tab.activePaneId || undefined)
                   }}

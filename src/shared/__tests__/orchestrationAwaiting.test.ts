@@ -74,13 +74,14 @@ describe('buildOrchestrationAwaitingView', () => {
     expect(view).toMatchObject({ done: 1, total: 2 })
     expect(view?.items[0]).toMatchObject({
       agentLabel: 'frontend',
-      isReplica: false,
       status: 'done',
       worktreeHint: 't1/d1',
     })
+    expect(view?.items[0]?.instanceTag).toBeUndefined()
+    // La réplica se muestra como el experto + su tag, no como el id crudo.
     expect(view?.items[1]).toMatchObject({
-      agentLabel: 'frontend-2',
-      isReplica: true,
+      agentLabel: 'frontend',
+      instanceTag: 'R2',
       status: 'running',
       worktreeHint: 't1/d2',
     })

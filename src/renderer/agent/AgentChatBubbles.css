@@ -63,6 +63,19 @@
 }
 
 /* Usuario: texto literal (sin Markdown). */
+/* El follow-up de delegación viaja como mensaje de usuario, así que heredaba
+   su alineación a la derecha. Una tarjeta no es una réplica tuya: ocupa el
+   ancho y se lee desde la izquierda como la respuesta del agente. */
+.agent-pane__row:has(.agent-pane__bubble-cards) {
+  justify-content: flex-start;
+}
+
+.agent-pane__bubble--user:has(.agent-pane__bubble-cards) {
+  width: 100%;
+  max-width: 94%;
+  text-align: left;
+}
+
 /* Varias delegaciones vuelven en un solo follow-up: una tarjeta por cada una. */
 .agent-pane__bubble-cards {
   display: flex;

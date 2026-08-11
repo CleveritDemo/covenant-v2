@@ -157,17 +157,17 @@
   box-shadow: none;
 }
 
+/* El plano hereda el mismo texto plano del pane; acá solo se anulan las cajas
+   que este chat agregaba por su cuenta. */
 .plane-quick-chat .agent-pane__bubble--user {
-  background: color-mix(in srgb, var(--bg) 72%, var(--bg-secondary));
+  background: transparent;
   border: none;
   border-color: transparent;
   box-shadow: none;
 }
 
 .plane-quick-chat .agent-pane__bubble--assistant:not(.agent-pane__bubble--gravity) {
-  background: color-mix(in srgb, var(--bg) 78%, var(--surface));
-  border: none;
-  border-color: transparent;
+  background: transparent;
   box-shadow: none;
 }
 

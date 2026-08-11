@@ -415,8 +415,8 @@ html[data-reduce-motion="true"] {
    necesita reposicionar nada. El margen superior es fijo (idéntico en
    live y reposo) para que el aterrizaje tampoco desplace en vertical. */
 .agent-pane__row--assistant {
-  justify-content: center;
-  transform-origin: center center;
+  justify-content: flex-start;
+  transform-origin: left center;
   margin-top: 14px;
 }
 
@@ -454,12 +454,16 @@ html[data-reduce-motion="true"] {
   margin-bottom: 0;
 }
 
+/* Texto plano y apagado, contra la derecha: lo que dijiste vos es contexto de
+   lo que sigue, no el contenido. Sin caja — dos cajas seguidas convertían la
+   conversación en una lista de globos donde nada resalta. */
 .agent-pane__bubble--user {
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg) 74%, var(--bg-secondary));
+  color: var(--text-muted);
+  background: transparent;
   border: none;
-  border-radius: var(--agent-radius) var(--agent-radius) 4px var(--agent-radius);
+  border-radius: 0;
   box-shadow: none;
+  text-align: right;
 }
 
 /* Miniaturas de imágenes enviadas: mismo tamaño que en el composer. */
@@ -484,13 +488,17 @@ html[data-reduce-motion="true"] {
 
 /* Centrada y extendida: ocupa el ancho del panel con radios simétricos
    (ya no está anclada a la izquierda). */
+/* La respuesta es el contenido: color pleno, alineada a la izquierda y sin
+   caja. El acento va en el filo izquierdo —un hilo, no un marco— para marcar
+   de quién es sin encerrar el texto. */
 .agent-pane__bubble--assistant {
   width: 100%;
   max-width: 94%;
   color: var(--text);
-  background: color-mix(in srgb, var(--bg) 80%, var(--surface));
+  background: transparent;
   border: none;
-  border-radius: var(--agent-radius);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 0;
 }
 
 /* ── Respuesta en vivo: texto en el aire, sin caja ───────────────────── */

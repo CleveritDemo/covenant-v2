@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react'
-import type { BrainstormRoom } from '@shared/brainstormRoom'
+import React, { useEffect, useMemo, useState } from 'react'
+import type { BrainstormOutcome, BrainstormRoom } from '@shared/brainstormRoom'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
-  BRAINSTORM_MAX_ROUNDS_CAP,
+  isBrainstormInvitableAgent,
+  sanitizeBrainstormInviteIds,
   sanitizeBrainstormMaxRounds,
+  sanitizeBrainstormOutcome,
   sanitizeBrainstormWorkingSet,
 } from '@shared/brainstormRoom'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button, Select, TextArea } from '../components/ui'
-import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
+import { Button } from '../components/ui'
+import { BrainstormBriefFields } from './BrainstormBriefFields'
+import { BrainstormInviteGrid } from './BrainstormInviteGrid'
 import './BrainstormEditRoomModal.css'
 
 export interface BrainstormEditRoomModalProps {
@@ -17,16 +21,24 @@ export interface BrainstormEditRoomModalProps {
   active?: boolean
   cwd: string
   room: BrainstormRoom | null
+  /** Catálogo del proyecto; solo hace falta para reinvitar en salas `idle`. */
+  agents?: ProjectAgentDefinition[]
   onClose: () => void
   onSaved: (room: BrainstormRoom) => void
 }
 
-/** Edita solo topic + maxRounds de una sala no-running. */
+/**
+ * Edita el brief de una sala no-running con los mismos campos que al crearla.
+ * Los participantes solo se tocan si la sala está `idle` (nunca arrancó): en
+ * cuanto hay mensajes, `cursor` y el acta ya referencian esos ids y reordenarlos
+ * rompería el turno.
+ */
 export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = ({
   open,
   active = true,
   cwd,
   room,
+  agents = [],
   onClose,
   onSaved,
 }) => {
@@ -35,7 +47,11 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
   const [maxRounds, setMaxRounds] = useState(BRAINSTORM_DEFAULT_ROUNDS)
   const [contextIds, setContextIds] = useState<string[]>([])
   const [filePaths, setFilePaths] = useState<string[]>([])
+  const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
+  const [participantIds, setParticipantIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+
+  const canEditParticipants = room?.status === 'idle'
 
   useEffect(() => {
     if (!open || !room) return
@@ -43,15 +59,34 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
     setMaxRounds(sanitizeBrainstormMaxRounds(room.maxRounds))
     setContextIds(sanitizeBrainstormWorkingSet(room.contextIds))
     setFilePaths(sanitizeBrainstormWorkingSet(room.filePaths))
+    setOutcome(sanitizeBrainstormOutcome(room.outcome) ?? 'ideas')
+    setParticipantIds([...room.participantAgentIds])
     setSaving(false)
   }, [open, room])
 
-  const canSave = Boolean(topic.trim()) && !saving && room != null && room.status !== 'running'
-
-  const roundOptions = Array.from(
-    { length: BRAINSTORM_MAX_ROUNDS_CAP },
-    (_, index) => index + 1,
+  // Sin catálogo cargado no se sanea: dejaría la sala sin invitados por una
+  // carrera de arranque, no por una decisión del usuario.
+  const safeParticipantIds = useMemo(
+    () => (agents.length ? sanitizeBrainstormInviteIds(participantIds, agents) : participantIds),
+    [participantIds, agents],
   )
+
+  const toggleAgent = (agentId: string): void => {
+    const agent = agents.find(item => item.id === agentId)
+    if (!agent || !isBrainstormInvitableAgent(agent)) return
+    setParticipantIds(previous => {
+      const cleaned = sanitizeBrainstormInviteIds(previous, agents)
+      return cleaned.includes(agentId)
+        ? cleaned.filter(id => id !== agentId)
+        : [...cleaned, agentId]
+    })
+  }
+
+  const canSave = Boolean(topic.trim())
+    && !saving
+    && room != null
+    && room.status !== 'running'
+    && safeParticipantIds.length >= 2
 
   const handleSave = async (): Promise<void> => {
     if (!room || !canSave) return
@@ -65,6 +100,8 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
         maxRounds: sanitizeBrainstormMaxRounds(maxRounds),
         contextIds,
         filePaths,
+        outcome,
+        ...(canEditParticipants ? { participantAgentIds: safeParticipantIds } : {}),
       }
       const result = await window.api.saveBrainstorm(root, next)
       if (result.ok) onSaved(result.room)
@@ -79,7 +116,7 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
       active={active}
       onClose={onClose}
       title={t('tabs.brainstormEditTitle')}
-      size="sm"
+      size="md"
       zIndex={861}
       footer={(
         <div className="brainstorm-edit-room-modal__footer">
@@ -97,40 +134,40 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
         </div>
       )}
     >
-      <label className="brainstorm-edit-room-modal__field">
-        <span className="brainstorm-edit-room-modal__label">{t('tabs.brainstormTopicLabel')}</span>
-        <TextArea
-          value={topic}
-          autoFocus
-          rows={3}
-          onChange={event => setTopic(event.target.value)}
-        />
-      </label>
-      <div className="brainstorm-edit-room-modal__field">
-        <span className="brainstorm-edit-room-modal__label">
-          {t('tabs.brainstormWorkingSetLabel')}
-        </span>
-        <BrainstormWorkingSetField
-          cwd={cwd}
-          contextIds={contextIds}
-          filePaths={filePaths}
-          onChange={next => {
-            setContextIds(next.contextIds)
-            setFilePaths(next.filePaths)
-          }}
-        />
-      </div>
-      <label className="brainstorm-edit-room-modal__field">
-        <span className="brainstorm-edit-room-modal__label">{t('tabs.brainstormRoundsLabel')}</span>
-        <Select
-          size="sm"
-          value={String(maxRounds)}
-          onChange={next => {
-            setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))
-          }}
-          options={roundOptions.map(value => ({ value: String(value), label: String(value) }))}
-        />
-      </label>
+      <p className="brainstorm-edit-room-modal__hint">
+        {canEditParticipants
+          ? t('tabs.brainstormEditHintIdle')
+          : t('tabs.brainstormEditHint', { count: String(safeParticipantIds.length) })}
+      </p>
+      {canEditParticipants ? (
+        <div className="brainstorm-edit-room-modal__field">
+          <span className="brainstorm-edit-room-modal__label">
+            {t('tabs.brainstormParticipantsLabel')}
+          </span>
+          <BrainstormInviteGrid
+            agents={agents}
+            selectedIds={safeParticipantIds}
+            onToggle={toggleAgent}
+          />
+        </div>
+      ) : null}
+      <BrainstormBriefFields
+        cwd={cwd}
+        topic={topic}
+        onTopicChange={setTopic}
+        contextIds={contextIds}
+        filePaths={filePaths}
+        onWorkingSetChange={next => {
+          setContextIds(next.contextIds)
+          setFilePaths(next.filePaths)
+        }}
+        outcome={outcome}
+        onOutcomeChange={setOutcome}
+        maxRounds={maxRounds}
+        onMaxRoundsChange={setMaxRounds}
+        participantCount={safeParticipantIds.length}
+        autoFocus
+      />
     </TerminalModal>
   )
 }

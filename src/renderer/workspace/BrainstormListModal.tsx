@@ -1,11 +1,22 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom, BrainstormStatus } from '@shared/brainstormRoom'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import {
+  brainstormAge,
+  brainstormPrimaryAction,
+  brainstormRoundsDone,
+  brainstormTone,
+  filterBrainstormRooms,
+  groupBrainstormRooms,
+  type BrainstormGroupKey,
+  type BrainstormRoomListing,
+} from '@shared/brainstormListing'
 import { BRAINSTORM_DIR, brainstormFileName } from '@shared/brainstormCatalog'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
-import { Button } from '../components/ui'
+import { Button, Input } from '../components/ui'
 import { BrainstormEditRoomModal } from './BrainstormEditRoomModal'
 import './BrainstormListModal.css'
 
@@ -13,6 +24,8 @@ export interface BrainstormListModalProps {
   open: boolean
   active?: boolean
   cwd: string
+  /** Catálogo del proyecto; solo lo usa el edit para reinvitar en salas `idle`. */
+  agents?: ProjectAgentDefinition[]
   onClose: () => void
   onCreate: () => void
   onOpenRoom: (room: BrainstormRoom) => void
@@ -32,21 +45,34 @@ function statusLabelKey(
   return 'tabs.brainstormStatusIdle'
 }
 
+function groupLabelKey(
+  key: BrainstormGroupKey,
+): 'tabs.brainstormsGroupLive' | 'tabs.brainstormsGroupRecent' | 'tabs.brainstormsGroupOlder' {
+  if (key === 'live') return 'tabs.brainstormsGroupLive'
+  if (key === 'recent') return 'tabs.brainstormsGroupRecent'
+  return 'tabs.brainstormsGroupOlder'
+}
+
 const COPY_FEEDBACK_MS = 1500
 const LIVE_REFRESH_MS = 2000
 const PRUNE_FEEDBACK_MS = 2500
+/** A partir de aquí el filtro deja de estorbar y empieza a servir. */
+const FILTER_MIN_ROOMS = 4
 
-/** Lista salas persistidas: abrir, eliminar, crear nuevo. */
+/** Lista salas persistidas: abrir/reanudar, editar, eliminar, crear nuevo. */
 export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
   open,
   active = true,
   cwd,
+  agents = [],
   onClose,
   onCreate,
   onOpenRoom,
 }) => {
   const { t } = useT()
-  const [rooms, setRooms] = useState<BrainstormRoom[]>([])
+  const [rooms, setRooms] = useState<BrainstormRoomListing[]>([])
+  const [now, setNow] = useState(() => Date.now())
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<BrainstormRoom | null>(null)
   const [editingRoom, setEditingRoom] = useState<BrainstormRoom | null>(null)
@@ -70,6 +96,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
     try {
       const listed = await window.api.listBrainstorms(root)
       setRooms(listed)
+      setNow(Date.now())
     } catch {
       setRooms([])
     } finally {
@@ -80,6 +107,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
 
   useEffect(() => {
     if (!open) return
+    setQuery('')
     void refresh()
     const timer = window.setInterval(() => {
       void refresh({ silent: true })
@@ -98,6 +126,24 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
     exportTimersRef.current.clear()
     if (pruneTimerRef.current != null) window.clearTimeout(pruneTimerRef.current)
   }, [])
+
+  const groups = useMemo(
+    () => groupBrainstormRooms(filterBrainstormRooms(rooms, query), now),
+    [rooms, query, now],
+  )
+
+  const ageLabel = useCallback((room: BrainstormRoomListing): string => {
+    const age = brainstormAge(room.updatedAt, now)
+    if (!age) {
+      return typeof room.updatedAt === 'number'
+        ? new Date(room.updatedAt).toLocaleDateString()
+        : ''
+    }
+    if (age.unit === 'now') return t('tabs.brainstormsAgeNow')
+    if (age.unit === 'minutes') return t('tabs.brainstormsAgeMinutes', { count: age.count })
+    if (age.unit === 'hours') return t('tabs.brainstormsAgeHours', { count: age.count })
+    return t('tabs.brainstormsAgeDays', { count: age.count })
+  }, [now, t])
 
   const handleCopyPath = useCallback((room: BrainstormRoom): void => {
     const root = cwd.trim()
@@ -143,6 +189,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
       /* ignore export failures */
     }
   }, [cwd])
+
   const confirmDelete = useCallback(async (): Promise<void> => {
     const room = pendingDelete
     setPendingDelete(null)
@@ -166,6 +213,13 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
     }, PRUNE_FEEDBACK_MS)
     await refresh({ silent: true })
   }, [cwd, refresh, t])
+
+  const primaryLabel = (status: BrainstormStatus): string => {
+    const action = brainstormPrimaryAction(status)
+    if (action === 'live') return t('tabs.brainstormsLive')
+    if (action === 'resume') return t('tabs.brainstormsResume')
+    return t('tabs.brainstormsOpen')
+  }
 
   return (
     <>
@@ -205,6 +259,17 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
         )}
       >
         <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsListHint')}</p>
+        {rooms.length >= FILTER_MIN_ROOMS ? (
+          <div className="brainstorm-list-modal__filter">
+            <Input
+              size="sm"
+              value={query}
+              placeholder={t('tabs.brainstormsFilterPlaceholder')}
+              aria-label={t('tabs.brainstormsFilterPlaceholder')}
+              onChange={event => setQuery(event.target.value)}
+            />
+          </div>
+        ) : null}
         {pruneFeedback ? (
           <p className="brainstorm-list-modal__feedback">{pruneFeedback}</p>
         ) : null}
@@ -212,72 +277,91 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
           <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsListLoading')}</p>
         ) : rooms.length === 0 ? (
           <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsListEmpty')}</p>
+        ) : groups.length === 0 ? (
+          <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsFilterEmpty')}</p>
         ) : (
-          <ul className="brainstorm-list-modal__list">
-            {rooms.map(room => (
-              <li key={room.id} className="brainstorm-list-modal__item">
-                <div className="brainstorm-list-modal__meta">
-                  <span className="brainstorm-list-modal__topic">{room.topic}</span>
-                  <span className="brainstorm-list-modal__sub">
-                    {t(statusLabelKey(room.status))}
-                    {' · '}
-                    {t('tabs.brainstormRoundValue', {
-                      current: Math.min(room.round + (room.status === 'running' ? 1 : 0) || 1, room.maxRounds),
-                      max: room.maxRounds,
-                    })}
-                  </span>
-                </div>
-                <div className="brainstorm-list-modal__actions">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {
-                      onOpenRoom(room)
-                      onClose()
-                    }}
-                  >
-                    {t('tabs.brainstormsOpen')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={room.status === 'running'}
-                    onClick={() => {
-                      if (room.status === 'running') return
-                      setEditingRoom(room)
-                    }}
-                  >
-                    {t('tabs.brainstormsEdit')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleCopyPath(room)}
-                  >
-                    {copiedById[room.id]
-                      ? t('tabs.brainstormsCopyPathDone')
-                      : t('tabs.brainstormsCopyPath')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => { void handleExportMd(room) }}
-                  >
-                    {exportedById[room.id]
-                      ? t('tabs.brainstormsExportMdDone')
-                      : t('tabs.brainstormsExportMd')}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => setPendingDelete(room)}
-                  >
-                    {t('tabs.brainstormsDelete')}
-                  </Button>
-                </div>
-              </li>
+          <div className="brainstorm-list-modal__groups">
+            {groups.map(group => (
+              <section key={group.key} className="brainstorm-list-modal__group">
+                <h3 className="brainstorm-list-modal__group-title">
+                  {t(groupLabelKey(group.key))}
+                </h3>
+                <ul className="brainstorm-list-modal__list">
+                  {group.rooms.map(room => {
+                    const tone = brainstormTone(room.status)
+                    const age = ageLabel(room)
+                    return (
+                      <li
+                        key={room.id}
+                        className={`brainstorm-list-modal__item brainstorm-list-modal__item--${tone}`}
+                      >
+                        <div className="brainstorm-list-modal__meta">
+                          <span className="brainstorm-list-modal__topic">{room.topic}</span>
+                          <span className="brainstorm-list-modal__sub">
+                            {t(statusLabelKey(room.status))}
+                            {' · '}
+                            {t('tabs.brainstormRoundValue', {
+                              current: brainstormRoundsDone(room),
+                              max: room.maxRounds,
+                            })}
+                            {age ? ` · ${age}` : ''}
+                          </span>
+                        </div>
+                        <div className="brainstorm-list-modal__actions">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              onOpenRoom(room)
+                              onClose()
+                            }}
+                          >
+                            {primaryLabel(room.status)}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={room.status === 'running'}
+                            onClick={() => {
+                              if (room.status === 'running') return
+                              setEditingRoom(room)
+                            }}
+                          >
+                            {t('tabs.brainstormsEdit')}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleCopyPath(room)}
+                          >
+                            {copiedById[room.id]
+                              ? t('tabs.brainstormsCopyPathDone')
+                              : t('tabs.brainstormsCopyPath')}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => { void handleExportMd(room) }}
+                          >
+                            {exportedById[room.id]
+                              ? t('tabs.brainstormsExportMdDone')
+                              : t('tabs.brainstormsExportMd')}
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => setPendingDelete(room)}
+                          >
+                            {t('tabs.brainstormsDelete')}
+                          </Button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </TerminalModal>
       <ConfirmTerminalModal
@@ -296,6 +380,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
         active={active}
         cwd={cwd}
         room={editingRoom}
+        agents={agents}
         onClose={() => setEditingRoom(null)}
         onSaved={() => {
           setEditingRoom(null)

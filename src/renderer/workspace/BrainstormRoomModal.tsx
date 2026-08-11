@@ -2,29 +2,21 @@ import React, { useEffect, useMemo, useState } from 'react'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_DEFAULT_ROUNDS,
-  BRAINSTORM_MAX_ROUNDS_CAP,
-  BRAINSTORM_OUTCOMES,
-  brainstormCatalogAgentLabel,
-  brainstormTurnCount,
-  filterBrainstormInvitableAgents,
   isBrainstormInvitableAgent,
   sanitizeBrainstormInviteIds,
-  sanitizeBrainstormMaxRounds,
   type BrainstormOutcome,
   type BrainstormRoom,
 } from '@shared/brainstormRoom'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
-import { Button, ChoiceCard, SegmentedControl, Select, TextArea } from '../components/ui'
-import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
+import { Button } from '../components/ui'
+import { BrainstormBriefFields } from './BrainstormBriefFields'
+import { BrainstormInviteGrid } from './BrainstormInviteGrid'
 import {
   canAdvanceBrainstormInviteStep,
   tryCreateBrainstormSession,
 } from './brainstormUiGuards'
 import './BrainstormRoomModal.css'
-
-/** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
-const MINUTES_PER_TURN = 0.4
 
 export type BrainstormModalStep = 'invite' | 'topic'
 
@@ -55,11 +47,6 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
 
-  const invitableAgents = useMemo(
-    () => filterBrainstormInvitableAgents(agents),
-    [agents],
-  )
-
   const safeSelectedIds = useMemo(
     () => sanitizeBrainstormInviteIds(selectedIds, agents),
     [selectedIds, agents],
@@ -80,25 +67,11 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     setSelectedIds(previous => sanitizeBrainstormInviteIds(previous, agents))
   }, [agents])
 
-  const selectedIndex = useMemo(() => {
-    const map = new Map<string, number>()
-    safeSelectedIds.forEach((id, index) => map.set(id, index + 1))
-    return map
-  }, [safeSelectedIds])
-
-  const outcomeLabels: Record<BrainstormOutcome, string> = {
-    ideas: t('tabs.brainstormOutcomeIdeas'),
-    decision: t('tabs.brainstormOutcomeDecision'),
-    plan: t('tabs.brainstormOutcomePlan'),
-    critique: t('tabs.brainstormOutcomeCritique'),
-  }
-
   const brief = { contextIds, filePaths, outcome }
   const canNext = canAdvanceBrainstormInviteStep(safeSelectedIds, agents)
   const canStart = Boolean(
     tryCreateBrainstormSession(topic, safeSelectedIds, maxRounds, agents, brief),
   )
-  const turns = brainstormTurnCount({ participantAgentIds: safeSelectedIds, maxRounds })
 
   const toggleAgent = (agentId: string): void => {
     const agent = agents.find(item => item.id === agentId)
@@ -133,23 +106,6 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     })
     onStarted(room)
   }
-
-  const roundOptions = Array.from(
-    { length: BRAINSTORM_MAX_ROUNDS_CAP },
-    (_, index) => index + 1,
-  ).map(value => {
-    const meaning = value === 1
-      ? t('tabs.brainstormRoundsQuick')
-      : value === 3
-        ? t('tabs.brainstormRoundsBalanced')
-        : value >= 6
-          ? t('tabs.brainstormRoundsDeep')
-          : ''
-    return {
-      value: String(value),
-      label: meaning ? `${value} — ${meaning}` : String(value),
-    }
-  })
 
   const title = step === 'invite'
     ? t('tabs.brainstormInviteTitle')
@@ -199,34 +155,11 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       {step === 'invite' ? (
         <>
           <p className="brainstorm-room-modal__hint">{t('tabs.brainstormInviteHint')}</p>
-          {invitableAgents.length === 0 ? (
-            <p className="brainstorm-room-modal__hint">{t('tabs.brainstormEmptyCatalog')}</p>
-          ) : (
-            <div className="brainstorm-room-modal__list" role="list">
-              {invitableAgents.map(agent => {
-                const selected = selectedIndex.has(agent.id)
-                const role = agent.role?.trim()
-                return (
-                  <ChoiceCard
-                    key={agent.id}
-                    role="listitem"
-                    selected={selected}
-                    aria-checked={selected}
-                    onClick={() => toggleAgent(agent.id)}
-                  >
-                    <span className="brainstorm-room-modal__agent-row">
-                      <span className="brainstorm-room-modal__agent-name">
-                        {brainstormCatalogAgentLabel(agent)}
-                      </span>
-                      {role ? (
-                        <span className="brainstorm-room-modal__agent-role">{role}</span>
-                      ) : null}
-                    </span>
-                  </ChoiceCard>
-                )
-              })}
-            </div>
-          )}
+          <BrainstormInviteGrid
+            agents={agents}
+            selectedIds={safeSelectedIds}
+            onToggle={toggleAgent}
+          />
         </>
       ) : (
         <div
@@ -238,69 +171,23 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
           }}
         >
           <p className="brainstorm-room-modal__hint">{t('tabs.brainstormTopicHint')}</p>
-          <label className="brainstorm-room-modal__field">
-            <span className="brainstorm-room-modal__label">{t('tabs.brainstormTopicLabel')}</span>
-            <TextArea
-              value={topic}
-              autoFocus
-              rows={3}
-              placeholder={t('tabs.brainstormTopicPlaceholder')}
-              onChange={event => setTopic(event.target.value)}
-            />
-            <span className="brainstorm-room-modal__hint">
-              {t('tabs.brainstormTopicFieldHint')}
-            </span>
-          </label>
-          <div className="brainstorm-room-modal__field">
-            <span className="brainstorm-room-modal__label">
-              {t('tabs.brainstormWorkingSetLabel')}
-            </span>
-            <BrainstormWorkingSetField
-              cwd={cwd}
-              contextIds={contextIds}
-              filePaths={filePaths}
-              onChange={next => {
-                setContextIds(next.contextIds)
-                setFilePaths(next.filePaths)
-              }}
-            />
-            <span className="brainstorm-room-modal__hint">
-              {t('tabs.brainstormWorkingSetHint')}
-            </span>
-          </div>
-          <div className="brainstorm-room-modal__field">
-            <span className="brainstorm-room-modal__label">
-              {t('tabs.brainstormOutcomeLabel')}
-            </span>
-            <SegmentedControl
-              size="sm"
-              label={t('tabs.brainstormOutcomeLabel')}
-              value={outcome}
-              onChange={setOutcome}
-              options={BRAINSTORM_OUTCOMES.map(value => ({
-                value,
-                label: outcomeLabels[value],
-              }))}
-            />
-          </div>
-          <label className="brainstorm-room-modal__field">
-            <span className="brainstorm-room-modal__label">{t('tabs.brainstormRoundsLabel')}</span>
-            <Select
-              size="sm"
-              value={String(maxRounds)}
-              onChange={next => {
-                setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))
-              }}
-              options={roundOptions}
-            />
-          </label>
-          <p className="brainstorm-room-modal__summary">
-            {t('tabs.brainstormRunSummary', {
-              turns: String(turns),
-              contexts: String(contextIds.length + filePaths.length),
-              minutes: String(Math.max(1, Math.round(turns * MINUTES_PER_TURN))),
-            })}
-          </p>
+          <BrainstormBriefFields
+            cwd={cwd}
+            topic={topic}
+            onTopicChange={setTopic}
+            contextIds={contextIds}
+            filePaths={filePaths}
+            onWorkingSetChange={next => {
+              setContextIds(next.contextIds)
+              setFilePaths(next.filePaths)
+            }}
+            outcome={outcome}
+            onOutcomeChange={setOutcome}
+            maxRounds={maxRounds}
+            onMaxRoundsChange={setMaxRounds}
+            participantCount={safeSelectedIds.length}
+            autoFocus
+          />
         </div>
       )}
     </TerminalModal>

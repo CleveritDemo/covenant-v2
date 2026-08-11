@@ -4,6 +4,23 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.29
+
+- **La cara de un contexto se elige entre 53 iconos, no 19**: los nuevos cubren
+  lo que faltaba —base de datos, nube, bug, test, candado, clave, gráfico,
+  calendario, etiqueta, cohete, Datadog— y están agrupados por el trabajo que
+  describen: Código, Documentos, Datos, Equipo e IA, Herramientas. Los iconos de
+  antes siguen ahí, así que ningún contexto guardado cambia de cara.
+- **Buscador de iconos**: escribe "rama", "sql", "gráfico" o "apm" y la rejilla
+  se queda con lo que corresponde. Entiende sinónimos en español e inglés y no
+  distingue tildes ni mayúsculas. La rejilla scrollea sola, así que el nombre y
+  el archivo del contexto ya no quedan fuera de la vista.
+- **El bloque "Aspecto" plegado dice lo que elegiste**: muestra el icono sobre
+  su color y el nombre del contexto, en vez de un icono suelto.
+- **La confirmación de salida ya no se esconde detrás de otro modal**: si
+  cierras la app con el formulario de contextos abierto, la pregunta se ve —y
+  responde al Enter y al Esc— en vez de quedar por debajo.
+
 ## v0.39.28
 
 - **La lista de salas de brainstorm se lee de un vistazo**: el asunto ocupa dos

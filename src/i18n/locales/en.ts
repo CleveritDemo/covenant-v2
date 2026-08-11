@@ -96,6 +96,14 @@ const en = {
     clearFolder: 'Clear',
   },
 
+  delegationCard: {
+    status_ok: 'done',
+    status_fail: 'failed',
+    status_aborted: 'aborted',
+    agentUnknown: 'Specialist',
+    round: 'wave {{round}}',
+    pending: '{{n}} pending',
+  },
   agentPane: {
     pickerTitle: 'New agent window',
     pickerDescription: 'Choose the CLI provider for this chat.',

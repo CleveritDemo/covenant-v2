@@ -10,6 +10,11 @@ import React, {
 } from 'react'
 import { flushSync } from 'react-dom'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import {
+  looksLikeDelegationResultFollowUp,
+  parseDelegationResultCards,
+} from '@shared/delegationResultCards'
+import { DelegationResultCard } from './DelegationResultCard'
 import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
@@ -40,6 +45,20 @@ const BubbleBody: React.FC<{
 }> = ({ content, live, role }) => {
   // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
+    // Salvo el follow-up de una delegación: ese no lo escribió una persona, lo
+    // arma el host, y en crudo se lee como un volcado con los pipes a la vista.
+    if (looksLikeDelegationResultFollowUp(content)) {
+      const cards = parseDelegationResultCards(content)
+      if (cards.length > 0) {
+        return (
+          <div className="agent-pane__bubble-cards">
+            {cards.map((card, index) => (
+              <DelegationResultCard key={card.id || `card-${index}`} data={card} />
+            ))}
+          </div>
+        )
+      }
+    }
     return <div className="agent-pane__bubble-plain">{content}</div>
   }
   return (

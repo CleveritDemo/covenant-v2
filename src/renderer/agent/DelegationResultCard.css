@@ -1,0 +1,75 @@
+/* Tarjeta del resultado de una delegación en el chat del orquestador.
+   Sobria a propósito: es una nota del host, no un turno del agente. */
+.delegation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  /* El estado vive en el filo izquierdo: se distingue de un vistazo sin
+     teñir la tarjeta entera ni competir con el texto. */
+  border-left: 2px solid var(--text-muted);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.delegation-card--ok { border-left-color: var(--accent); }
+.delegation-card--fail { border-left-color: var(--danger); }
+.delegation-card--aborted { border-left-color: var(--text-muted); }
+
+.delegation-card__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.delegation-card__agent {
+  font: 600 12px var(--font-ui);
+  color: var(--text);
+}
+
+.delegation-card__status {
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.delegation-card--ok .delegation-card__status { color: var(--accent); }
+.delegation-card--fail .delegation-card__status { color: var(--danger); }
+
+.delegation-card__meta {
+  font: 400 10.5px var(--font-mono);
+  color: var(--text-muted);
+}
+
+.delegation-card__summary {
+  font-size: 13px;
+  color: var(--text);
+  /* Un SHA o una ruta no se parten a la mitad: la tabla scrollea dentro de la
+     tarjeta antes que romper el token (y su fondo de código) en dos líneas. */
+  overflow-x: auto;
+}
+
+.delegation-card__summary code {
+  white-space: nowrap;
+}
+
+/* Los archivos tocados: lista densa y monoespaciada, para escanear rutas. */
+.delegation-card__changelog {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  list-style: none;
+  font: 400 11.5px var(--font-mono);
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+
+.delegation-card__changelog li {
+  white-space: nowrap;
+}

@@ -63,6 +63,13 @@
 }
 
 /* Usuario: texto literal (sin Markdown). */
+/* Varias delegaciones vuelven en un solo follow-up: una tarjeta por cada una. */
+.agent-pane__bubble-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .agent-pane__bubble-plain {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

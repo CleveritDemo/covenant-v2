@@ -98,6 +98,14 @@ const es = {
     clearFolder: 'Limpiar',
   },
 
+  delegationCard: {
+    status_ok: 'listo',
+    status_fail: 'falló',
+    status_aborted: 'cancelada',
+    agentUnknown: 'Especialista',
+    round: 'ola {{round}}',
+    pending: 'faltan {{n}}',
+  },
   agentPane: {
     pickerTitle: 'Nueva ventana de agente',
     pickerDescription: 'Elige el proveedor CLI para este chat.',

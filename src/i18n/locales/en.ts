@@ -751,6 +751,7 @@ const en = {
     leaveOrg: 'Leave organization',
     leaveConfirm: 'Leave {{name}}?',
     leaveConfirmDetail: 'You will lose access to this organization.',
+    leaveErrorForbidden: 'Owners cannot leave their organization. Transfer ownership first.',
     openOrg: 'Open',
     detailTabsLabel: 'Organization sections',
     detailTabWorkspaces: 'Workspaces',

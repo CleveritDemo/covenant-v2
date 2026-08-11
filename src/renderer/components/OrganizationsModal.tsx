@@ -1922,7 +1922,13 @@ export const OrganizationsModal: React.FC<Props> = ({
     const result = await covenant.memberRemove(slug, currentLogin)
     setLeaveBusy(false)
     if (!result.ok) {
-      setLeaveError(result.error)
+      // Red de seguridad: el backend es la autoridad sobre quién puede salir
+      // (hoy el owner, mañana quizá el último admin).
+      setLeaveError(
+        isForbiddenError(result.error)
+          ? t('organizations.leaveErrorForbidden')
+          : result.error,
+      )
       return
     }
     setLeaveOpen(false)
@@ -2063,7 +2069,10 @@ export const OrganizationsModal: React.FC<Props> = ({
                       org={detailOrg}
                       signedIn={signedIn}
                       isOrgAdmin={isOrgAdmin}
-                      canLeave={!!currentLogin}
+                      // El backend responde 403 al owner: no se sale de la
+                      // propia organización, se transfiere. Ofrecer el botón
+                      // era prometer algo que la API no iba a cumplir.
+                      canLeave={!!currentLogin && !isOwner}
                       leaveError={leaveError}
                       leaveBusy={leaveBusy}
                       activeTab={detailTab}

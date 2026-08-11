@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.39
+
+- **Chip de update con etapas**: el badge de la titlebar muestra available / downloading / restart con motion discreto, y en Developer puedes previsualizarlo sin tocar el updater.
+- **Herramientas MCP como estantería**: en Capabilities cada servidor es una fila con estado y acción (añadir al CLI, acotar herramientas), en vez de un muro de texto/JSON.
+- **Instalador de Windows en el release**: el setup NSIS vuelve a publicarse con el nombre correcto y el job comprueba que cada `latest*.yml` tenga sus binarios antes de subir.
+
 ## v0.39.38
 
 - **Splash espera el plano estable**: el overlay no se va hasta el primer layout listo (con tope y settle breve); al cambiar de tab durante el boot ya no se cuelga.

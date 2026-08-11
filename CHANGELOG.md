@@ -4,6 +4,29 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.28
+
+- **La lista de salas de brainstorm se lee de un vistazo**: el asunto ocupa dos
+  líneas antes de recortarse —era lo único que distinguía una sala y perdía el
+  espacio contra cinco botones iguales— y debajo va su ficha: estado, rondas
+  gastadas como medidor, quiénes hablaron y cuándo. Las salas se agrupan en "En
+  curso / Esta semana / Antes", con buscador por asunto o agente.
+- **Un botón que dice lo que va a pasar**: "En vivo" si la sala corre,
+  "Reanudar" si está en pausa, "Abrir" si ya cerró. Editar, copiar ruta y
+  eliminar se van al menú `⋯`, con eliminar aparte y en rojo.
+- **"Al contexto"**: una sala cerrada se registra como contexto del proyecto de
+  un clic —el cierre si lo hay, el acta completa si no—, así lo que se discutió
+  queda disponible para los agentes sin copiar nada a mano. "Guardar como
+  contexto" en la tarjeta de cierre escribe ese mismo archivo, y ahora el
+  contexto aparece de inmediato en la pestaña en vez de solo en disco.
+- **Editar una sala vuelve a ser lo mismo que crearla**: el formulario recupera
+  el resultado esperado (ideas / decisión / plan / crítica), que antes se
+  perdía al guardar, las rondas con su significado y el resumen de la tirada. Si
+  la sala nunca arrancó, también se puede cambiar quién está en ella.
+- **Cerrar la sala la minimiza en vez de matarla**: el runner vive fuera de la
+  ventana, así que cerrarla ya no detiene la conversación. El botón de
+  Brainstorms muestra un punto ámbar y un flyout con tema, ronda y quién habla.
+
 ## v0.39.27
 
 - **Salir de una organización deja de prometer lo que no puede cumplir**: al

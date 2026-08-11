@@ -254,6 +254,13 @@ const api = {
     return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_REVEAL, request)
   },
   /** Servidores MCP que ese CLI ve, para marcar la allowlist en vez de escribirla. */
+  importProjectMcpServer(request: {
+    provider: string
+    cwd: string
+    name: string
+  }): Promise<{ ok: boolean; path?: string; added?: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.AGENT_MCP_IMPORT_PROJECT, request)
+  },
   listMcpServers(request: McpServersListRequest): Promise<McpServersListResult> {
     return ipcRenderer.invoke(IPC.AGENT_MCP_SERVERS_LIST, request)
   },

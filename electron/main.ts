@@ -63,8 +63,10 @@ import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { isAgentCliProvider, type AgentCliResolution } from '../src/shared/agentCliProviders'
 import {
   mcpConfigLabelFor,
+  mcpServerDefinition,
   mcpServerSummaries,
   providerUsesProjectMcpConfig,
+  withMcpServer,
   type McpServersListRequest,
 } from '../src/shared/mcpContext'
 import {
@@ -1764,6 +1766,39 @@ function registerIpc(): void {
     try {
       writeMcpConfigText(path, text)
       return { ok: true, path }
+    } catch (error) {
+      return { ok: false, error: (error as Error).message }
+    }
+  })
+
+  /**
+   * Copia un servidor del `.mcp.json` del proyecto a la config propia del CLI.
+   * Solo tiene sentido para los CLIs que no leen ese archivo (Copilot, Gemini):
+   * para el resto ya está disponible y copiarlo solo duplicaría.
+   */
+  ipcMain.handle(IPC.AGENT_MCP_IMPORT_PROJECT, (
+    _event,
+    request: { provider?: unknown; cwd?: unknown; name?: unknown },
+  ) => {
+    if (!request || !isAgentCliProvider(request.provider)) {
+      return { ok: false, error: 'proveedor inválido' }
+    }
+    if (providerUsesProjectMcpConfig(request.provider)) {
+      return { ok: false, error: 'este CLI ya lee el .mcp.json del proyecto' }
+    }
+    const cwd = typeof request.cwd === 'string' ? request.cwd.trim() : ''
+    const name = typeof request.name === 'string' ? request.name.trim() : ''
+    if (!cwd || !name) return { ok: false, error: 'faltan cwd o nombre' }
+
+    const definition = mcpServerDefinition(readProjectMcpConfig(cwd), name)
+    if (definition === null) return { ok: false, error: 'no está en .mcp.json' }
+
+    const path = mcpConfigPathFor(request.provider, cwd, app.getPath('home'))
+    try {
+      const { config, added } = withMcpServer(readMcpConfigFor(request.provider, cwd, app.getPath('home')), name, definition)
+      // `writeMcpConfigText` valida en la frontera de disco y escribe atómico.
+      if (added) writeMcpConfigText(path, `${JSON.stringify(config, null, 2)}\n`)
+      return { ok: true, path, added }
     } catch (error) {
       return { ok: false, error: (error as Error).message }
     }

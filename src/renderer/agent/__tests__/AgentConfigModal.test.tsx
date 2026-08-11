@@ -133,7 +133,7 @@ describe('AgentConfigModal', () => {
     expect(screen.queryByText('agentPane.nameLabel')).toBeNull()
   })
 
-  it('un proveedor sin capacidades muestra los controles bloqueados con el motivo', () => {
+  it('un proveedor sin capacidades muestra los controles bloqueados con el motivo', async () => {
     // `cursor`: ninguno de los dos flags está verificado, así que la UI no
     // promete un acotado que no se aplicaría.
     renderModal()
@@ -142,25 +142,33 @@ describe('AgentConfigModal', () => {
     const reasons = [...document.querySelectorAll('.agent-config-settings__hint--warn')]
       .map(node => node.textContent).join(' ')
     expect(reasons).toContain('nativeSkillsUnsupported')
-    expect(reasons).toContain('mcpsUnsupported')
+    // El motivo de MCP vive pegado a su control, no suelto entre párrafos.
+    await waitFor(() => {
+      expect(document.querySelector('.mcp-shelf__why')?.textContent).toContain('mcpUnsupported')
+    })
+    expect(document.querySelector('.mcp-shelf__mode-opt')?.hasAttribute('disabled')).toBe(true)
   })
 
   it('claude admite las dos: sin motivos y con las casillas de MCP activas', async () => {
     renderModal({ provider: 'claude' })
     fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
     expect(document.querySelector('.agent-config-settings__hint--warn')).toBeNull()
-    // Las casillas salen de la config real del CLI, no de escribir el nombre.
-    const options = await screen.findAllByRole('option')
-    expect(options.map(node => node.getAttribute('disabled'))).toEqual([null, null])
-    expect(screen.getByText('jira')).toBeTruthy()
+    // Las filas salen de la config real del CLI, no de escribir el nombre.
+    expect(await screen.findByText('jira')).toBeTruthy()
     expect(screen.getByText('context7')).toBeTruthy()
+    // Modo «solo estas» → aparecen las casillas, activas.
+    fireEvent.click(screen.getByRole('radio', { name: /mcpModePick/ }))
+    const boxes = await screen.findAllByRole('checkbox')
+    expect(boxes.map(node => node.getAttribute('disabled'))).toEqual([null, null])
   })
 
-  it('un proveedor sin la capacidad enseña las casillas deshabilitadas', async () => {
+  it('un proveedor sin la capacidad no ofrece elegir, pero dice qué usará', async () => {
     renderModal()
     fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
-    const options = await screen.findAllByRole('option')
-    expect(options.every(node => node.hasAttribute('disabled'))).toBe(true)
+    const modes = await screen.findAllByRole('radio')
+    expect(modes.every(node => node.hasAttribute('disabled'))).toBe(true)
+    // Sin acotado no hay casillas que marcar: las filas son informativas.
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
   })
 
   it('cuenta reglas y contextos seleccionados en el índice', () => {

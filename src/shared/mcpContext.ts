@@ -125,3 +125,75 @@ export interface McpServersListResult {
   /** Nombres del `.mcp.json` del proyecto que este CLI no va a leer. */
   unreadProjectServers: string[]
 }
+
+/** Definición cruda de un servidor dentro de un `mcpServers`, o null si no está. */
+export function mcpServerDefinition(source: unknown, name: string): unknown {
+  const servers = asRecord(asRecord(source)?.mcpServers)
+  const key = name.trim()
+  if (!servers || !key || !(key in servers)) return null
+  return servers[key]
+}
+
+/**
+ * Copia un servidor a otra config. Conserva el resto tal cual y **nunca pisa**
+ * uno con el mismo nombre: la config del CLI es del usuario, y una entrada que
+ * ya está puede tener credenciales o argumentos suyos.
+ */
+export function withMcpServer(
+  target: unknown,
+  name: string,
+  definition: unknown,
+): { config: { mcpServers: Record<string, unknown> }; added: boolean } {
+  const key = name.trim()
+  const servers = { ...(asRecord(asRecord(target)?.mcpServers) ?? {}) }
+  const rest = { ...(asRecord(target) ?? {}) }
+  delete rest.mcpServers
+  if (!key || definition === null || definition === undefined || key in servers) {
+    return { config: { ...rest, mcpServers: servers }, added: false }
+  }
+  servers[key] = definition
+  return { config: { ...rest, mcpServers: servers }, added: true }
+}
+
+/**
+ * Qué se puede hacer con un servidor desde el panel de herramientas:
+ * - `ready`: está en la config que este CLI lee.
+ * - `project`: lo declara el `.mcp.json` del proyecto y este CLI no lo lee.
+ * - `missing`: el agente lo tiene permitido pero ya no está en ninguna config.
+ */
+export type McpToolState = 'ready' | 'project' | 'missing'
+
+export interface McpToolRow {
+  name: string
+  transport: string
+  state: McpToolState
+}
+
+/**
+ * La estantería que ve el usuario: lo que el CLI conoce, más lo que el proyecto
+ * declara y ese CLI ignora, más lo permitido que ya no existe. Sin duplicados y
+ * en orden estable — configurados primero, que son los que puede marcar.
+ */
+export function buildMcpToolRows(input: {
+  servers: readonly McpServerSummary[]
+  unreadProjectServers: readonly string[]
+  allowed: readonly string[]
+}): McpToolRow[] {
+  const rows: McpToolRow[] = input.servers.map(server => ({
+    name: server.name,
+    transport: server.transport,
+    state: 'ready',
+  }))
+  const seen = new Set(rows.map(row => row.name))
+  for (const name of input.unreadProjectServers) {
+    if (seen.has(name)) continue
+    seen.add(name)
+    rows.push({ name, transport: '', state: 'project' })
+  }
+  for (const name of input.allowed) {
+    if (seen.has(name)) continue
+    seen.add(name)
+    rows.push({ name, transport: '', state: 'missing' })
+  }
+  return rows
+}

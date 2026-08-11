@@ -55,6 +55,12 @@ export const IPC = {
   /** Renderer → main (invoke): texto crudo del archivo de config MCP del CLI. */
   AGENT_MCP_CONFIG_READ: 'agentMcpServers:readConfig',
   /** Renderer → main (invoke): sobrescribe ese archivo si el JSON es válido. */
+  /**
+   * Renderer → main (invoke): copia un servidor del `.mcp.json` del proyecto a
+   * la config propia del CLI. Es la salida del callejón «este CLI no lee ese
+   * archivo»: antes había que editarlo a mano fuera de la app.
+   */
+  AGENT_MCP_IMPORT_PROJECT: 'agentMcpServers:importProject',
   AGENT_MCP_CONFIG_WRITE: 'agentMcpServers:writeConfig',
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',

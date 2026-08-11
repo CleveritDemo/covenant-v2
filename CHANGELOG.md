@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.27
+
+- **Salir de una organización deja de prometer lo que no puede cumplir**: al
+  owner ya no se le ofrece el botón, porque el servidor nunca lo deja irse — de
+  una organización propia no se sale, se transfiere la propiedad. Antes el
+  botón estaba activo, el modal preguntaba, y recién al confirmar aparecía un
+  "forbidden" crudo. Si aun así el servidor rechaza la salida, el aviso ahora
+  explica qué hacer.
+
 ## v0.39.26
 
 - **Una réplica ya no cuenta como un agente más**: en Pulse, `backend-2` y

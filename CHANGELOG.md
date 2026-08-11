@@ -4,6 +4,18 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.30
+
+- **Lo que escribes en un agente sigue ahí al volver**: si preparas un mensaje
+  en el composer del plano —texto, imágenes pegadas o dibujadas y contextos
+  arrastrados—, cambias a otro agente y vuelves, lo encuentras tal cual lo
+  dejaste. Antes el borrador se borraba al cambiar de chip. Cada agente guarda
+  el suyo, así que los contextos que sueltas para uno ya no aparecen en el
+  siguiente.
+- **El permiso Auto se avisa en ámbar, no en rojo de error**: elegir Auto tiene
+  consecuencias, pero no es un fallo; la tarjeta seleccionada ahora se tiñe de
+  ámbar (y de un ámbar más oscuro en los temas claros, para que se lea).
+
 ## v0.39.29
 
 - **La cara de un contexto se elige entre 53 iconos, no 19**: los nuevos cubren

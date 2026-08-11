@@ -3,7 +3,7 @@ import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/t
 import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS, HOST_CONTEXT_KINDS } from '@shared/tabContext'
 import {
   TAB_CONTEXT_COLORS,
-  TAB_CONTEXT_ICON_NAMES,
+  filterContextIconGroups,
   resolveContextColor,
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
@@ -94,6 +94,8 @@ export const TabContextsEditor: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [previewView, setPreviewView] = useState<'rendered' | 'source'>('rendered')
+  const [iconQuery, setIconQuery] = useState('')
+  const iconGroups = filterContextIconGroups(iconQuery)
 
   /**
    * Copia los archivos elegidos dentro del proyecto y agrega sus rutas. Los
@@ -296,30 +298,68 @@ export const TabContextsEditor: React.FC<Props> = ({
 
         {!hostOwnedReadOnly && (
           <details className="tab-contexts__appearance-fold">
+            {/* El resumen lleva la cara real del contexto (icono sobre su
+                color, con el nombre): plegado sigue diciendo qué se eligió,
+                que es justo lo que el usuario viene a comprobar. */}
             <summary>
-              <Icon name={appearanceIconName(resolveContextIcon(draft))} size={14} />
-              {t('tabContexts.appearance')}
+              <span
+                className="tab-contexts__appearance-chip"
+                style={{ '--chip-color': resolveContextColor(draft) } as React.CSSProperties}
+              >
+                <Icon name={appearanceIconName(resolveContextIcon(draft))} size={15} />
+              </span>
+              <span className="tab-contexts__appearance-title">{t('tabContexts.appearance')}</span>
+              <small className="tab-contexts__appearance-value">
+                {draft.name?.trim() || t(`tabContexts.kind_${draft.kind}`)}
+              </small>
             </summary>
             <fieldset className="tab-contexts__appearance">
-              <legend>{t('tabContexts.icon')}</legend>
-              <div className="tab-contexts__icon-grid" role="radiogroup" aria-label={t('tabContexts.icon')}>
-                {TAB_CONTEXT_ICON_NAMES.map(icon => {
-                  const active = resolveContextIcon(draft) === icon
-                  return (
-                    <TabContextIconSwatch
-                      key={icon}
-                      icon={appearanceIconName(icon)}
-                      color={resolveContextColor(draft)}
-                      title={icon}
-                      selected={active}
-                      onSelect={() => onUpdate({ icon })}
-                    />
-                  )
-                })}
+              <legend>
+                <span>{t('tabContexts.icon')}</span>
+                <span className="tab-contexts__icon-search">
+                  <Icon name="search" size={12} />
+                  <input
+                    type="search"
+                    value={iconQuery}
+                    placeholder={t('tabContexts.iconSearch')}
+                    aria-label={t('tabContexts.iconSearch')}
+                    onChange={event => setIconQuery(event.target.value)}
+                  />
+                </span>
+              </legend>
+              <div
+                className="tab-contexts__icon-scroll"
+                role="radiogroup"
+                aria-label={t('tabContexts.icon')}
+              >
+                {iconGroups.map(group => (
+                  <div className="tab-contexts__icon-group" key={group.id}>
+                    <span className="tab-contexts__icon-group-label">
+                      {t(`tabContexts.iconGroup_${group.id}`)}
+                    </span>
+                    <div className="tab-contexts__icon-grid">
+                      {group.icons.map(icon => (
+                        <TabContextIconSwatch
+                          key={icon}
+                          icon={appearanceIconName(icon)}
+                          color={resolveContextColor(draft)}
+                          title={icon}
+                          selected={resolveContextIcon(draft) === icon}
+                          onSelect={() => onUpdate({ icon })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {iconGroups.length === 0 && (
+                  <p className="tab-contexts__icon-empty">
+                    {t('tabContexts.iconNoResults', { query: iconQuery.trim() })}
+                  </p>
+                )}
               </div>
             </fieldset>
             <fieldset className="tab-contexts__appearance">
-              <legend>{t('tabContexts.color')}</legend>
+              <legend><span>{t('tabContexts.color')}</span></legend>
               <div className="tab-contexts__color-grid" role="radiogroup" aria-label={t('tabContexts.color')}>
                 {TAB_CONTEXT_COLORS.map(color => {
                   const active = resolveContextColor(draft).toLowerCase() === color.toLowerCase()

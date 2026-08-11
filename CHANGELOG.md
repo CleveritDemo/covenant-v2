@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.25
+
+- **Un `.mcp.json` roto ya no deja al CLI sin servidores**: la escritura de la
+  config MCP pasa por una validación en el main antes de tocar el disco. Si el
+  JSON no parsea, no es un objeto o `mcpServers` viene mal formado, el archivo
+  se queda como estaba en vez de guardarse a medias; los archivos
+  desproporcionados también se rechazan. Release de plomería: no hay pantalla
+  nueva todavía, la validación queda lista para la UI que la va a usar.
+
 ## v0.39.24
 
 - **Varias conversaciones con el mismo agente**: el tacho deja de ser la única

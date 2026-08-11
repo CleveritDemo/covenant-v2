@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -158,9 +157,11 @@ export const TabContextsModal: React.FC<Props> = ({
           )}
         </div>
       </TerminalModal>
+      {/* zIndex 920: encima del listado (900), como el form. Con 710 el
+          confirm quedaba tapado y la papelera parecía no hacer nada. */}
       <ConfirmTerminalModal
         open={Boolean(pendingDelete)}
-        zIndex={APP_OVERLAY_MODAL_Z + 40}
+        zIndex={920}
         message={t('tabs.planeConfirmDeleteContextMessage', {
           name: pendingDelete?.name ?? '',
         })}

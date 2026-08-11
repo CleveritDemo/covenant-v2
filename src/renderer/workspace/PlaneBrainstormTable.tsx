@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   canStartBrainstormTable,
@@ -56,6 +56,17 @@ export const PlaneBrainstormTable: React.FC<PlaneBrainstormTableProps> = ({
     (agentId: string) => agents.find(agent => agent.agentId === agentId),
     [agents],
   )
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   /** FLIP: cada asiento viaja desde donde estaba hasta donde queda. */
   useLayoutEffect(() => {
@@ -147,18 +158,21 @@ export const PlaneBrainstormTable: React.FC<PlaneBrainstormTableProps> = ({
 
   return (
     <section className="plane-bs-table" aria-label={t('tabs.brainstormTableTitle')}>
-      <header className="plane-bs-table__head">
+      <header className="plane-bs-table__bar">
+        <div className="plane-bs-table__traffic" role="group" aria-label={t('common.cancel')}>
+          <button
+            type="button"
+            className="plane-bs-table__light plane-bs-table__light--close"
+            aria-label={t('common.cancel')}
+            onClick={onClose}
+          />
+          <span className="plane-bs-table__light plane-bs-table__light--min" aria-hidden="true" />
+          <span className="plane-bs-table__light plane-bs-table__light--zoom" aria-hidden="true" />
+        </div>
         <h2 className="plane-bs-table__title">{t('tabs.brainstormTableTitle')}</h2>
-        <span className="plane-bs-table__hint">{t('tabs.brainstormTableHint')}</span>
-        <button
-          type="button"
-          className="plane-bs-table__close"
-          aria-label={t('common.cancel')}
-          onClick={onClose}
-        >
-          <Icon name="close" size={12} />
-        </button>
       </header>
+      <div className="plane-bs-table__body">
+      <p className="plane-bs-table__hint">{t('tabs.brainstormTableHint')}</p>
 
       <div
         ref={tableRef}
@@ -244,6 +258,7 @@ export const PlaneBrainstormTable: React.FC<PlaneBrainstormTableProps> = ({
           {t('tabs.brainstormTableContinue')}
         </Button>
       </footer>
+      </div>
     </section>
   )
 }

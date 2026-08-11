@@ -178,13 +178,17 @@
   color: #f7f7fc;
 }
 
-/* Ancla de la mesa de brainstorm: centrada arriba, sin tapar la columna de agentes. */
+/*
+ * Ancla de la mesa de brainstorm: centrada arriba, sin tapar la columna de
+ * agentes. Va por encima del chat del plano (dock 14, mapa 60) — antes quedaba
+ * debajo y el chat se leía sobre la mesa y se comía el clic del cierre.
+ */
 .plane-bs-table-anchor {
   position: absolute;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  z-index: 150;
   display: flex;
   justify-content: center;
   width: min(560px, calc(100% - 420px));

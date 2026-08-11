@@ -294,7 +294,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   // Solo terminales abren PaneWindow; agentes usan chat (onOpenChat).
   const terminalOpen = terminalsInOrder.some(entity => entity.window.open)
   const anyWindowOpen = terminalOpen
-  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
+  // Con la mesa abierta la card de agente es un token que se arrastra a ella:
+  // el reorder por handle movería la card de verdad (y pasaría bajo la mesa).
+  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen && !seatDragEnabled
 
   const baselineLayout = useMemo(
     () => buildSlotOrigins(

@@ -161,6 +161,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
           width: origin.width,
           height: origin.height,
         }}
+        seatDragEnabled={isAgent && seatDragEnabled}
         focused={paneId === activePaneId && isExpanded}
         busy={busy}
         chatActive={isAgent && chatActive}

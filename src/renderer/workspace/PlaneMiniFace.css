@@ -279,3 +279,12 @@
 html[data-reduce-motion="true"] {
   /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
 }
+
+/* Con la mesa abierta la card se arrastra a ella: que se note al pasar por encima. */
+.plane-mini-face--seat-draggable {
+  cursor: grab;
+}
+
+.plane-mini-face--seat-draggable:active {
+  cursor: grabbing;
+}

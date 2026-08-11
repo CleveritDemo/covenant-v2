@@ -69,24 +69,55 @@ function rowOf(topic: string): HTMLElement {
   return row as HTMLElement
 }
 
-describe('BrainstormListModal edit/export wiring', () => {
+/** Abre el `⋯` de una fila; el menú va en portal, así que se busca en screen. */
+function openMenu(topic: string): void {
+  fireEvent.click(
+    within(rowOf(topic)).getByRole('button', { name: 'tabs.brainstormsMoreActions' }),
+  )
+}
+
+function renderModal(extra: Partial<React.ComponentProps<typeof BrainstormListModal>> = {}) {
+  return render(
+    <BrainstormListModal
+      open
+      cwd="/tmp/project"
+      onClose={() => undefined}
+      onCreate={() => undefined}
+      onOpenRoom={() => undefined}
+      {...extra}
+    />,
+  )
+}
+
+describe('BrainstormListModal', () => {
   const listBrainstorms = vi.fn()
   const exportBrainstormMarkdown = vi.fn()
+  const materializeTabContext = vi.fn()
 
   beforeEach(() => {
     listBrainstorms.mockReset()
     exportBrainstormMarkdown.mockReset()
+    materializeTabContext.mockReset()
     listBrainstorms.mockResolvedValue([
       room({ id: 'paused-1', topic: 'Paused room', status: 'paused' }),
       room({ id: 'running-1', topic: 'Running room', status: 'running' }),
+      room({
+        id: 'done-1',
+        topic: 'Closed room',
+        status: 'done',
+        round: 3,
+        messages: [{ agentId: 'a', agentName: 'A', round: 2, text: 'Decision: fixture primero' }],
+      }),
     ])
     exportBrainstormMarkdown.mockResolvedValue({
       ok: true,
       path: `/tmp/project/${PROJECT_DIR}/brainstorms/paused-1.md`,
     })
+    materializeTabContext.mockResolvedValue({ ok: true })
     ;(window as unknown as { api: Record<string, unknown> }).api = {
       listBrainstorms,
       exportBrainstormMarkdown,
+      materializeTabContext,
       deleteBrainstorm: vi.fn(),
       pruneBrainstorms: vi.fn(),
       openFolder: vi.fn(),
@@ -99,77 +130,90 @@ describe('BrainstormListModal edit/export wiring', () => {
     vi.restoreAllMocks()
   })
 
-  it('disables Edit when status is running and opens edit modal for paused room', async () => {
-    render(
-      <BrainstormListModal
-        open
-        cwd="/tmp/project"
-        onClose={() => undefined}
-        onCreate={() => undefined}
-        onOpenRoom={() => undefined}
-      />,
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('Paused room')).toBeTruthy()
-    })
-
-    const editRunning = within(rowOf('Running room'))
-      .getByRole('button', { name: 'tabs.brainstormsEdit' }) as HTMLButtonElement
-    expect(editRunning.disabled).toBe(true)
-
-    const editPaused = within(rowOf('Paused room'))
-      .getByRole('button', { name: 'tabs.brainstormsEdit' })
-    fireEvent.click(editPaused)
-    expect(screen.getByTestId('edit-modal').textContent).toBe('paused-1:Paused room')
-  })
-
-  it('calls exportBrainstormMarkdown with cwd and room id', async () => {
-    render(
-      <BrainstormListModal
-        open
-        cwd="/tmp/project"
-        onClose={() => undefined}
-        onCreate={() => undefined}
-        onOpenRoom={() => undefined}
-      />,
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('Paused room')).toBeTruthy()
-    })
-
-    fireEvent.click(
-      within(rowOf('Paused room')).getByRole('button', { name: 'tabs.brainstormsExportMd' }),
-    )
-
-    await waitFor(() => {
-      expect(exportBrainstormMarkdown).toHaveBeenCalledWith('/tmp/project', 'paused-1')
-    })
-  })
-
   it('groups the running room first and offers the action its status implies', async () => {
-    render(
-      <BrainstormListModal
-        open
-        cwd="/tmp/project"
-        onClose={() => undefined}
-        onCreate={() => undefined}
-        onOpenRoom={() => undefined}
-      />,
-    )
-
+    renderModal()
     await waitFor(() => {
       expect(screen.getByText('Paused room')).toBeTruthy()
     })
 
     const topics = screen.getAllByText(/room$/).map(node => node.textContent)
-    expect(topics).toEqual(['Running room', 'Paused room'])
+    expect(topics).toEqual(['Running room', 'Paused room', 'Closed room'])
     expect(
       within(rowOf('Running room')).getByRole('button', { name: 'tabs.brainstormsLive' }),
     ).toBeTruthy()
     expect(
       within(rowOf('Paused room')).getByRole('button', { name: 'tabs.brainstormsResume' }),
     ).toBeTruthy()
+    expect(
+      within(rowOf('Closed room')).getByRole('button', { name: 'tabs.brainstormsOpen' }),
+    ).toBeTruthy()
+  })
+
+  it('surfaces «to context» and export only on a closed room', async () => {
+    renderModal()
+    await waitFor(() => {
+      expect(screen.getByText('Closed room')).toBeTruthy()
+    })
+
+    expect(
+      within(rowOf('Closed room')).getByRole('button', { name: 'tabs.brainstormsToContext' }),
+    ).toBeTruthy()
+    expect(
+      within(rowOf('Paused room')).queryByRole('button', { name: 'tabs.brainstormsToContext' }),
+    ).toBeNull()
+    expect(
+      within(rowOf('Paused room')).queryByRole('button', { name: 'tabs.brainstormsExportMd' }),
+    ).toBeNull()
+  })
+
+  it('writes the room context with its closing and asks for a refresh', async () => {
+    const onContextSaved = vi.fn()
+    renderModal({ onContextSaved })
+    await waitFor(() => {
+      expect(screen.getByText('Closed room')).toBeTruthy()
+    })
+
+    fireEvent.click(
+      within(rowOf('Closed room')).getByRole('button', { name: 'tabs.brainstormsToContext' }),
+    )
+
+    await waitFor(() => {
+      expect(materializeTabContext).toHaveBeenCalledTimes(1)
+    })
+    const request = materializeTabContext.mock.calls[0][0]
+    expect(request.context.id).toBe('iaterminal:notes:brainstorm-done-1')
+    expect(request.content).toContain('fixture primero')
+    await waitFor(() => {
+      expect(onContextSaved).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('keeps edit out of the menu while the room runs', async () => {
+    renderModal()
+    await waitFor(() => {
+      expect(screen.getByText('Running room')).toBeTruthy()
+    })
+
+    openMenu('Running room')
+    expect(screen.queryByRole('menuitem', { name: 'tabs.brainstormsEdit' })).toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    openMenu('Paused room')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'tabs.brainstormsEdit' }))
+    expect(screen.getByTestId('edit-modal').textContent).toBe('paused-1:Paused room')
+  })
+
+  it('exports from the menu with cwd and room id', async () => {
+    renderModal()
+    await waitFor(() => {
+      expect(screen.getByText('Paused room')).toBeTruthy()
+    })
+
+    openMenu('Paused room')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'tabs.brainstormsExportMd' }))
+
+    await waitFor(() => {
+      expect(exportBrainstormMarkdown).toHaveBeenCalledWith('/tmp/project', 'paused-1')
+    })
   })
 })

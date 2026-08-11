@@ -5560,6 +5560,7 @@ export const App: React.FC = () => {
                     setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
                   }}
+                  onContextSaved={() => { void refreshTabContexts(tab.id) }}
                 />
                 <BrainstormRoomModal
                   open={Boolean(brainstormSetupOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}

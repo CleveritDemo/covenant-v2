@@ -30,6 +30,8 @@ export type IconName =
   | 'check'
   | 'refresh'
   | 'upload'
+  | 'download'
+  | 'more'
   | 'bot'
   | 'workspace'
   | 'users'
@@ -257,6 +259,20 @@ const ICONS: Record<IconName, IconRenderer> = {
       <path d="M12 16V5" />
       <path d="M8 8l4-4 4 4" />
       <path d="M4 19h16" />
+    </svg>
+  ),
+  download: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v11" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M5 19h14" />
+    </svg>
+  ),
+  more: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
     </svg>
   ),
   bot: size => (

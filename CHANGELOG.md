@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.38
+
+- **Splash espera el plano estable**: el overlay no se va hasta el primer layout listo (con tope y settle breve); al cambiar de tab durante el boot ya no se cuelga.
+- **Overlays hero unificados**: salida y estados busy del workspace org usan HeroConfirmOverlay (confirm|busy) sobre GravityHeroCanvas; se elimina QuitConfirmModal.
+- **Chat del plano sin tapar el hilo**: clearance del composer medido con ResizeObserver + MutationObserver; fade inferior con overlap clamp; cola visible sin agente y wrap libre en pending-row.
+- **Confirmaciones y peligro más claros**: botón danger sólido; quitar default de org pasa a secondary; modal de salida tipográfico con recuento de terminales.
+- **Boot más rápido a la UI**: contextos de tab antes de pintar; GC de worktrees y clone de repos org ya no bloquean el splash.
+
 ## v0.39.37
 
 - **La mesa de brainstorm ya se ve, se cierra y acepta los agentes**: salió

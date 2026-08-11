@@ -41,10 +41,10 @@
   background: color-mix(in srgb, var(--accent-solid, var(--accent)) 88%, #0c0c0e);
 }
 
-/* ponytail: borde en --text-muted (no --border): --border queda a ~1.4:1 del
-   fondo del footer en todos los temas y el botón desaparece en los light. */
+/* Outline: fondo transparente + borde legible (--text-muted, no --border:
+   --border queda a ~1.4:1 del footer en light y el control desaparece). */
 .btn--secondary {
-  background: var(--surface);
+  background: transparent;
   color: var(--text);
   border: 1px solid var(--text-muted);
   padding: 5px 12px;
@@ -66,17 +66,18 @@
   color: var(--text);
 }
 
+/* Relleno de peligro: misma caja que primary, color destructivo. */
 .btn--danger {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--text-muted);
-  padding: 3px 7px;
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid transparent;
+  padding: 5px 12px;
 }
 
 .btn--danger:hover:not(:disabled) {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 88%, #0c0c0e);
+  color: #fff;
+  border-color: transparent;
 }
 
 /* icon: botón sólo-icono, sin texto */
@@ -129,6 +130,7 @@
 /* Size overrides for variants that define their own padding */
 .btn--primary.btn--xs { padding: 2px 8px; }
 .btn--secondary.btn--xs { padding: 2px 8px; }
-.btn--danger.btn--xs { padding: 2px 6px; }
+.btn--danger.btn--xs { padding: 2px 8px; }
 .btn--primary.btn--sm { padding: 4px 10px; }
 .btn--secondary.btn--sm { padding: 4px 10px; }
+.btn--danger.btn--sm { padding: 4px 10px; }

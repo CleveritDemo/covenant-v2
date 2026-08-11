@@ -254,6 +254,12 @@ export interface TabAgenticPlaneProps {
   onOpenRepoGit: (path: string) => void
   /** Revalida la lista de repos contra el disco. */
   onRefreshRepos?: () => void
+  /**
+   * Primer layout estable del plano activo (libera el splash de arranque).
+   */
+  onFirstLayoutReady?: () => void
+  /** Sin transición de ranura durante el settle de arranque. */
+  deferPositionMotion?: boolean
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -424,6 +430,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   gitRepos,
   onOpenRepoGit,
   onRefreshRepos,
+  onFirstLayoutReady,
+  deferPositionMotion = false,
 }) => {
   const { t } = useT()
   const planeRef = useRef<HTMLDivElement>(null)
@@ -782,6 +790,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onOpenResultsPreview={onOpenResultsPreview}
         onReorderPanes={onReorderPanes}
         reorderAriaLabel={reorderAriaLabel}
+        onFirstLayoutReady={onFirstLayoutReady}
+        deferPositionMotion={deferPositionMotion}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (

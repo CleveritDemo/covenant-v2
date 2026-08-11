@@ -18,7 +18,7 @@ describe('QUIT_CONFIRM_Z', () => {
     // un z-index más alto la escondería y nadie lo notaría hasta cerrar la app.
     const offenders: string[] = []
     for (const file of tsxFiles(join(process.cwd(), 'src', 'renderer'))) {
-      if (file.endsWith('QuitConfirmModal.tsx')) continue
+      if (file.endsWith('HeroConfirmOverlay.tsx')) continue
       const source = readFileSync(file, 'utf8')
       for (const match of source.matchAll(/zIndex=\{(\d+)\}/g)) {
         if (Number(match[1]) >= QUIT_CONFIRM_Z) offenders.push(`${file}: ${match[1]}`)

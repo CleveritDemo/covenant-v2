@@ -33,21 +33,36 @@
   pointer-events: auto;
 }
 
-/* Cola en el dock inferior: compacta, con tope, sin invadir el chat central. */
+/* Thumbs a la izquierda + queue a la derecha, misma fila visual.
+   Wrap resiliente: en anchos estrechos los chips no se pierden por scroll-x. */
+.plane-chat-composer__pending-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-height: none;
+  padding: 2px 10px 0;
+  pointer-events: auto;
+}
+
+/* Cola en el dock inferior: compacta, a la derecha de los thumbs. */
 .plane-chat-composer__queue {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  align-content: flex-start;
+  align-content: center;
   gap: 5px;
-  max-height: 52px;
-  overflow-x: auto;
-  overflow-y: auto;
-  padding: 2px 10px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
   pointer-events: auto;
-  scrollbar-width: thin;
 }
 
 .plane-chat-composer__agents {
@@ -408,10 +423,16 @@
 
 .plane-chat-composer__attachments {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
   gap: 5px;
-  padding: 2px 10px 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-height: 52px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
 }
 
 /* Composer: textarea + send */

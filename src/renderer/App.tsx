@@ -23,7 +23,7 @@ import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
-import { QuitConfirmModal } from './components/QuitConfirmModal'
+import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
@@ -41,6 +41,7 @@ import {
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
+import { markSplashUiReady } from './splash'
 import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
@@ -62,7 +63,7 @@ import {
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
 } from '@shared/paneWindows'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import { collectBusyTabIds } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
@@ -344,6 +345,9 @@ export const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(CONFIG_DEFAULTS)
   const [configReady, setConfigReady] = useState(false)
   const [sessionReady, setSessionReady] = useState<SessionReady>({ loaded: false })
+  /** Splash: sin animar ranuras hasta el primer layout estable del plano. */
+  const splashLayoutPendingRef = useRef(true)
+  const [splashLayoutPending, setSplashLayoutPending] = useState(true)
   const [explorerByTab, setExplorerByTab] = useState<Record<string, FileExplorerPersistedState>>({})
   /** UI Git del plano por tab: menú de repos + modal. */
   const [gitUiByTab, setGitUiByTab] = useState<Record<string, {
@@ -1280,7 +1284,7 @@ export const App: React.FC = () => {
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
-        // Agentes solo desde `.gravity/agents` (no resucitar rich meta de session).
+        // Agentes + contextos antes de pintar el plano (evita re-apilar tras el splash).
         void (async () => {
           const folders = [...new Set(
             layoutTabs
@@ -1293,100 +1297,120 @@ export const App: React.FC = () => {
             console.warn('[boot] refreshAndSyncProjectAgents falló:', err)
           }
 
-          // QA fix (Fase 4): boot GC de worktrees huérfanos (crash/kill de sesiones previas).
-          await Promise.all(folders.map(async folder => {
+          await Promise.all(layoutTabs.map(async tab => {
+            const cwd = tab.projectFolder?.trim() || ''
+            if (!cwd) {
+              setTabContextsByTab(prev => ({ ...prev, [tab.id]: [] }))
+              return
+            }
             try {
-              const worktreePrefix = `${folder.replace(/\/+$/, '')}/${WORKTREES_DIR_SEGMENT}/`
-              const list = await window.api.gitWorktreeList({ path: folder })
-              const orphans = list.filter(entry => entry.path.startsWith(worktreePrefix))
-              for (const entry of orphans) {
-                try {
-                  await window.api.gitWorktreeRemove({ path: folder }, {
-                    worktreePath: entry.path,
-                    branch: entry.branch,
-                    force: true,
-                  })
-                } catch (err) {
-                  console.warn(`[worktree] boot GC falló removiendo ${entry.path}:`, err)
-                }
+              const result = await window.api.discoverTabContexts({ cwd })
+              if (result.ok) {
+                setTabContextsByTab(prev => ({ ...prev, [tab.id]: result.contexts }))
+              } else {
+                setTabContextsByTab(prev => ({ ...prev, [tab.id]: [] }))
               }
             } catch (err) {
-              console.warn(`[worktree] boot GC falló listando worktrees de ${folder}:`, err)
+              console.warn('[boot] discoverTabContexts falló:', err)
+              setTabContextsByTab(prev => ({ ...prev, [tab.id]: [] }))
             }
           }))
 
-          const covenant = getCovenantApi()
+          setSessionReady({ loaded: true })
 
-          // Repos org: clona faltantes (p. ej. añadidos por admin) sin UI bloqueante.
-          const reposByWorkspace = new Map<string, {
-            slug: string
-            workspaceId: string
-            localDir: string
-          }>()
-          for (const tab of layoutTabs) {
-            const org = tab.orgWorkspace
-            if (!org?.slug?.trim() || !org.workspaceId?.trim()) continue
-            const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
-            if (!localDir) continue
-            const key = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
-            if (reposByWorkspace.has(key)) continue
-            reposByWorkspace.set(key, {
-              slug: org.slug.trim(),
-              workspaceId: org.workspaceId.trim(),
-              localDir,
-            })
-          }
-          if (
-            covenant
-            && hasCovenantWorkspaceReposApi(covenant)
-            && typeof covenant.cloneOrgWorkspace === 'function'
-          ) {
-            let firstCloneError: string | null = null
-            let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
-            await Promise.all([...reposByWorkspace.values()].map(async ws => {
+          // GC / clone de org: no bloquean el splash (pueden tardar mucho).
+          void (async () => {
+            await Promise.all(folders.map(async folder => {
               try {
-                const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
-                if (!reposResult.ok) return
-                const repos = reposResult.data.map(r => ({
-                  repoFullName: r.repoFullName,
-                  cloneUrl: r.cloneUrl,
-                  ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-                }))
-                if (!repos.length) return
-                const res = await covenant.cloneOrgWorkspace({
-                  orgSlug: ws.slug,
-                  workspaceSlug: sanitizeSlugSegment(ws.workspaceId),
-                  repos,
-                  workspaceDir: ws.localDir,
-                })
-                if (!res.ok) {
-                  console.warn('[boot] org workspace repo clone falló', ws.slug, ws.workspaceId, res.error)
-                  if (!firstCloneError) {
-                    firstCloneError = res.error
-                    firstCloneFailure = res.failure
+                const worktreePrefix = `${folder.replace(/\/+$/, '')}/${WORKTREES_DIR_SEGMENT}/`
+                const list = await window.api.gitWorktreeList({ path: folder })
+                const orphans = list.filter(entry => entry.path.startsWith(worktreePrefix))
+                for (const entry of orphans) {
+                  try {
+                    await window.api.gitWorktreeRemove({ path: folder }, {
+                      worktreePath: entry.path,
+                      branch: entry.branch,
+                      force: true,
+                    })
+                  } catch (err) {
+                    console.warn(`[worktree] boot GC falló removiendo ${entry.path}:`, err)
                   }
                 }
               } catch (err) {
-                console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
-                if (!firstCloneError) firstCloneError = String(err)
+                console.warn(`[worktree] boot GC falló listando worktrees de ${folder}:`, err)
               }
             }))
-            if (firstCloneError) {
-              const cloneErr = firstCloneError as string
-              const requirement: OrgWorkspaceRequirementState =
-                cloneErr === 'missing-default-dir'
-                  ? { missingFolder: true }
-                  : cloneErr === 'missing-token'
-                    ? { missingToken: true }
-                    : { cloneError: cloneErr, cloneFailure: firstCloneFailure }
-              // Updater funcional: consulta el estado VIVO (prev), no el closure stale
-              // del boot. Si otro flujo ya abrió un modal (prev !== null), no lo pisa.
-              setOrgWorkspaceRequirement(prev => (prev === null ? requirement : prev))
-            }
-          }
 
-          const snapshot = buildSessionSnapshot()
-          if (snapshot) await window.api.saveSession(snapshot)
+            const covenant = getCovenantApi()
+
+            const reposByWorkspace = new Map<string, {
+              slug: string
+              workspaceId: string
+              localDir: string
+            }>()
+            for (const tab of layoutTabs) {
+              const org = tab.orgWorkspace
+              if (!org?.slug?.trim() || !org.workspaceId?.trim()) continue
+              const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
+              if (!localDir) continue
+              const key = covenantWorkspaceCatalogKey(org.slug, org.workspaceId)
+              if (reposByWorkspace.has(key)) continue
+              reposByWorkspace.set(key, {
+                slug: org.slug.trim(),
+                workspaceId: org.workspaceId.trim(),
+                localDir,
+              })
+            }
+            if (
+              covenant
+              && hasCovenantWorkspaceReposApi(covenant)
+              && typeof covenant.cloneOrgWorkspace === 'function'
+            ) {
+              let firstCloneError: string | null = null
+              let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
+              await Promise.all([...reposByWorkspace.values()].map(async ws => {
+                try {
+                  const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
+                  if (!reposResult.ok) return
+                  const repos = reposResult.data.map(r => ({
+                    repoFullName: r.repoFullName,
+                    cloneUrl: r.cloneUrl,
+                    ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+                  }))
+                  if (!repos.length) return
+                  const res = await covenant.cloneOrgWorkspace({
+                    orgSlug: ws.slug,
+                    workspaceSlug: sanitizeSlugSegment(ws.workspaceId),
+                    repos,
+                    workspaceDir: ws.localDir,
+                  })
+                  if (!res.ok) {
+                    console.warn('[boot] org workspace repo clone falló', ws.slug, ws.workspaceId, res.error)
+                    if (!firstCloneError) {
+                      firstCloneError = res.error
+                      firstCloneFailure = res.failure
+                    }
+                  }
+                } catch (err) {
+                  console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
+                  if (!firstCloneError) firstCloneError = String(err)
+                }
+              }))
+              if (firstCloneError) {
+                const cloneErr = firstCloneError as string
+                const requirement: OrgWorkspaceRequirementState =
+                  cloneErr === 'missing-default-dir'
+                    ? { missingFolder: true }
+                    : cloneErr === 'missing-token'
+                      ? { missingToken: true }
+                      : { cloneError: cloneErr, cloneFailure: firstCloneFailure }
+                setOrgWorkspaceRequirement(prev => (prev === null ? requirement : prev))
+              }
+            }
+
+            const snapshot = buildSessionSnapshot()
+            if (snapshot) await window.api.saveSession(snapshot)
+          })()
         })()
         // Persistir layout migrado (paneWindows / plane nodes) de inmediato.
         void window.api.saveSession({
@@ -1408,8 +1432,8 @@ export const App: React.FC = () => {
         const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
         setTabs([tab])
         setActiveTabId(tab.id)
+        setSessionReady({ loaded: true })
       }
-      setSessionReady({ loaded: true })
     }).catch(() => {
       const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
       setTabs([tab])
@@ -1418,6 +1442,17 @@ export const App: React.FC = () => {
     })
     // Solo al montar: sync via closures actuales (no re-cargar session).
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Splash boot: cualquier plano con tabActive puede marcar ready (callback
+  // siempre montado). Si el usuario cambia activeTabId durante boot, el tab
+  // nuevo reengancha el effect en PlaneMap; el tope sigue siendo
+  // SPLASH_READY_TIMEOUT_MS vía race en dismissSplash.
+  const handlePlaneFirstLayoutReady = useCallback(() => {
+    if (!splashLayoutPendingRef.current) return
+    splashLayoutPendingRef.current = false
+    setSplashLayoutPending(false)
+    markSplashUiReady()
   }, [])
 
   // Guardar sesión cuando cambia tabs o activeTabId (solo después de que se cargó la sesión)
@@ -5264,6 +5299,11 @@ export const App: React.FC = () => {
                   emptyTitle={t('tabs.planeEmptyTitle')}
                   emptyHint={t('tabs.planeEmptyHint')}
                   tabActive={tab.id === activeTabId}
+                  // Siempre el mismo callback: PlaneMap filtra con tabActive.
+                  // Así al cambiar de tab en boot el effect se reengancha sin
+                  // depender de undefined→fn (evita splash colgado 12s).
+                  onFirstLayoutReady={handlePlaneFirstLayoutReady}
+                  deferPositionMotion={splashLayoutPending}
                   agentFabTitle={
                     projectCwd || orgBacked
                       ? t('tabs.fabAgent')
@@ -5796,10 +5836,16 @@ export const App: React.FC = () => {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <QuitConfirmModal
+      <HeroConfirmOverlay
         open={quitConfirmOpen}
-        terminals={termRefs.current.size}
-        agents={busyPanes.size}
+        meta={
+          termRefs.current.size > 0
+            ? t('quit.terminalsOpen', { count: termRefs.current.size })
+            : undefined
+        }
+        title={t('quit.title')}
+        hint={t('quit.hint')}
+        zIndex={QUIT_CONFIRM_Z}
         onCancel={() => setQuitConfirmOpen(false)}
         onConfirm={() => {
           setQuitConfirmOpen(false)

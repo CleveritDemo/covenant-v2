@@ -1,7 +1,8 @@
 .plane-chat-dock {
-  /* Espacio para el composer (agentes + input). */
-  /* Queue + adjuntos + badges + input; margen estable sin solape. */
-  --plane-composer-clearance: 176px;
+  /* Fallback pre-medida únicamente. PlaneChatDock.tsx debe removeProperty
+     (--plane-composer-clearance) cuando no hay .plane-chat-composer montado,
+     para no dejar padding fantasma de 112px. */
+  --plane-composer-clearance: 112px;
   position: absolute;
   inset: 0;
   /* Fade/chat bajo el mapa (16); composer/aurora van por display:contents encima. */

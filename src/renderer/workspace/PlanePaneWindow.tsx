@@ -68,6 +68,8 @@ export interface PlanePaneWindowProps {
   reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
   reorderJiggleDelayMs?: number
   slotMotion?: boolean
+  /** Sin transición de ranura durante el settle de arranque. */
+  deferPositionMotion?: boolean
   dragPosition?: { x: number; y: number } | null
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Handle de agentes: reorder inmediato (sin long-press). */
@@ -120,6 +122,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   reorderState = 'idle',
   reorderJiggleDelayMs = 0,
   slotMotion = false,
+  deferPositionMotion = false,
   dragPosition = null,
   onReorderPointerDown,
   onReorderHandlePointerDown,
@@ -235,6 +238,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         reorderState={isExpanded ? 'idle' : reorderState}
         reorderJiggleDelayMs={reorderJiggleDelayMs}
         slotMotion={slotMotion && !isExpanded}
+        deferPositionMotion={deferPositionMotion}
         onReorderPointerDown={
           !isAgent && reorderEnabled && !isExpanded ? onReorderPointerDown : undefined
         }

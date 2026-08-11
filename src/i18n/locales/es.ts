@@ -878,6 +878,8 @@ const es = {
     reqAgentDeleteFailed: 'No se pudo eliminar el agente en el servidor: {{error}}. Puede reaparecer al actualizar (quizá no tienes permisos de manager).',
     reqAgentUpdateFailed: 'No se pudo guardar el agente en el servidor: {{error}}. Se revirtió el cambio local (quizá no tienes permisos de manager).',
     reqWorkspaceRenameFailed: 'No se pudo renombrar el workspace: {{error}}. Solo owners y admins del workspace pueden cambiarlo.',
+    reqBusyTitle: 'Sincronizando…',
+    reqCloning: 'Clonando repositorios del workspace…',
     reqSyncing: 'Sincronizando agentes y contextos del workspace desde el servidor…',
     reqUploading: 'Subiendo agentes y contextos locales…',
     reqUploadFailed: 'No se pudieron subir los cambios del workspace: {{error}}.',
@@ -1020,12 +1022,9 @@ const es = {
   },
 
   quit: {
-    title: '¿Salir de Covenant Gravity?',
-    detail: 'Se detendrán las terminales y los turnos de agente en curso. La sesión, las pestañas y los scrollbacks se guardan antes de salir.',
-    runningTerminals: 'terminales: {{count}}',
-    runningAgents: 'agentes: {{count}}',
-    cancel: 'Quedarme',
-    confirm: 'Salir',
+    title: '¿Seguro que quieres salir de Covenant Gravity?',
+    terminalsOpen: '{{count}} terminales abiertas',
+    hint: 'Enter salir · Esc quedarme',
   },
 
   ui: {

@@ -236,9 +236,11 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
             </div>
           ) : null}
         </header>
-        <div className={bodyClass}>
-          {children}
-        </div>
+        {children != null && children !== false ? (
+          <div className={bodyClass}>
+            {children}
+          </div>
+        ) : null}
         {footer != null && footer !== false && (
           <footer className="terminal-modal-footer">
             {footer}

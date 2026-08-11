@@ -6,6 +6,14 @@
   --agent-beam: var(--accent);
   /* Espacio bajo la toolbar (Context / self-improve); el fade sigue desde top:0. */
   --plane-chat-toolbar-clearance: 44px;
+  /* Aire breve bajo la última burbuja; el clearance lo mide el dock. */
+  --plane-chat-last-bubble-gap: 12px;
+  /* Solape del fade inferior sobre el stream (proporcional al gap, no fijo). */
+  --plane-chat-fade-overlap: clamp(
+    24px,
+    calc(var(--plane-chat-last-bubble-gap) * 2.5),
+    48px
+  );
   position: relative;
   flex: 1 1 auto;
   /* Ancho completo: los fades (::before/::after) cruzan todo el plano. */
@@ -17,7 +25,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: stretch;
-  padding: var(--plane-chat-toolbar-clearance) 0 calc(var(--plane-composer-clearance, 120px) + 16px);
+  padding: var(--plane-chat-toolbar-clearance) 0 calc(var(--plane-composer-clearance, 112px) + var(--plane-chat-last-bubble-gap));
   pointer-events: none;
   font-family: var(--agent-font);
   color: var(--text);
@@ -61,11 +69,37 @@
   overflow: visible;
 }
 
-/* Sin fade inferior (el superior sigue en ::before). */
+/* Velo inferior: pegado al composer (bottom:0). Altura = clearance + gap +
+   solape sobre el stream para que el texto entre en el fade. El aire de la
+   última burbuja viene del padding-bottom del contenedor. */
 .plane-quick-chat.agent-pane::after {
-  content: none;
-  display: none;
+  content: '';
+  position: absolute;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(
+    var(--plane-composer-clearance, 112px)
+      + var(--plane-chat-last-bubble-gap, 12px)
+      + var(--plane-chat-fade-overlap)
+  );
+  z-index: 4;
+  pointer-events: none;
   border: none;
+  opacity: 1;
+  /* Sólido en el composer; se disuelve hacia arriba sobre el stream. */
+  background: linear-gradient(
+    to top,
+    var(--bg) 0%,
+    var(--bg) 22%,
+    color-mix(in srgb, var(--bg) 72%, transparent) 48%,
+    color-mix(in srgb, var(--bg) 28%, transparent) 74%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 100% 100%;
 }
 
 .plane-quick-chat__enter {
@@ -113,7 +147,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-top: 8px;
-  padding-bottom: 40px;
+  padding-bottom: 0;
   box-sizing: border-box;
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;

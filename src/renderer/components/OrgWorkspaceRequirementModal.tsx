@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useT } from '@i18n/useT'
 import type { OrgWorkspaceCloneFailure } from '../../shared/orgWorkspaceCloneError'
+import { HeroConfirmOverlay } from './HeroConfirmOverlay'
 import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
-import { Spinner } from './ui/Spinner'
 import './OrgWorkspaceRequirementModal.css'
+
+/** Por debajo de QUIT_CONFIRM_Z (990); mismo techo que el modal de requisitos. */
+const ORG_WORKSPACE_BUSY_Z = 780
 
 export type OrgWorkspaceRequirementState = {
   missingFolder?: boolean
@@ -158,7 +161,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     ? t('organizations.reqUploading')
     : syncing
       ? t('organizations.reqSyncing')
-      : t('organizations.loading')
+      : t('organizations.reqCloning')
   const legacyCloneRaw = !cloneFailure && cloneError?.trim() ? cloneError.trim() : null
   const agentErr = agentDeleteError?.trim()
     ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
@@ -192,71 +195,74 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     })
   }
 
+  if (busy) {
+    return (
+      <HeroConfirmOverlay
+        variant="busy"
+        open={open}
+        meta={statusLabel}
+        title={t('organizations.reqBusyTitle')}
+        zIndex={ORG_WORKSPACE_BUSY_Z}
+      />
+    )
+  }
+
   return (
     <TerminalModal
       open={open}
       onClose={onClose}
       title={t('organizations.reqTitle')}
       size="sm"
-      zIndex={780}
+      zIndex={ORG_WORKSPACE_BUSY_Z}
       bodyLayout="spacious"
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
+      closeOnBackdrop
+      closeOnEscape
       footer={
-        busy ? undefined : (
-          <>
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              {t('common.cancel')}
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          {showAuthorize ? (
+            <Button variant="primary" size="sm" onClick={handleAuthorize}>
+              {t('organizations.reqCloneAuthorizeGithub')}
             </Button>
-            {showAuthorize ? (
-              <Button variant="primary" size="sm" onClick={handleAuthorize}>
-                {t('organizations.reqCloneAuthorizeGithub')}
-              </Button>
-            ) : null}
-            {showSettings && !showAuthorize ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  onClose()
-                  onOpenSettings()
-                }}
-              >
-                {t('organizations.openSettings')}
-              </Button>
-            ) : null}
-          </>
-        )
+          ) : null}
+          {showSettings && !showAuthorize ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                onClose()
+                onOpenSettings()
+              }}
+            >
+              {t('organizations.openSettings')}
+            </Button>
+          ) : null}
+        </>
       }
     >
-      {busy ? (
-        <div className="org-ws-req__status">
-          <Spinner aria-label={statusLabel} />
-          <span>{statusLabel}</span>
-        </div>
-      ) : (
-        <div className="org-ws-req__body">
-          {missingFolder ? (
-            <p className="org-ws-req__line">{t('organizations.reqMissingFolder')}</p>
-          ) : null}
-          {missingToken ? (
-            <p className="org-ws-req__line">{t('organizations.reqMissingToken')}</p>
-          ) : null}
-          {cloneFailure ? (
-            <CloneFailureView
-              failure={cloneFailure}
-              ssoUrlFallback={ssoOpenFailedUrl}
-            />
-          ) : legacyCloneRaw ? (
-            <pre className="org-ws-req__raw">
-              {t('organizations.reqCloneFailed', { error: legacyCloneRaw })}
-            </pre>
-          ) : null}
-          {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
-          {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
-          {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
-        </div>
-      )}
+      <div className="org-ws-req__body">
+        {missingFolder ? (
+          <p className="org-ws-req__line">{t('organizations.reqMissingFolder')}</p>
+        ) : null}
+        {missingToken ? (
+          <p className="org-ws-req__line">{t('organizations.reqMissingToken')}</p>
+        ) : null}
+        {cloneFailure ? (
+          <CloneFailureView
+            failure={cloneFailure}
+            ssoUrlFallback={ssoOpenFailedUrl}
+          />
+        ) : legacyCloneRaw ? (
+          <pre className="org-ws-req__raw">
+            {t('organizations.reqCloneFailed', { error: legacyCloneRaw })}
+          </pre>
+        ) : null}
+        {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
+        {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
+        {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
+      </div>
     </TerminalModal>
   )
 }

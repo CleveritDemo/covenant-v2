@@ -88,6 +88,13 @@ export interface PlaneMapProps {
   onOpenResultsPreview?: (contextId: string) => void
   /** Persiste el nuevo orden de una columna (kind). */
   onReorderPanes?: (kind: PaneReorderKind, orderedPaneIds: string[]) => void
+  /**
+   * Primer layout estable del plano (viewport + alturas de agentes).
+   * Solo dispara una vez; pensado para liberar el splash de arranque.
+   */
+  onFirstLayoutReady?: () => void
+  /** Sin transición de ranura hasta que el splash pueda fundirse. */
+  deferPositionMotion?: boolean
 }
 
 export interface PlaneColumnScrollOffsets {
@@ -216,6 +223,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onAssignContext,
   onOpenResultsPreview,
   onReorderPanes,
+  onFirstLayoutReady,
+  deferPositionMotion = false,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -223,6 +232,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const [scrollOffsets, setScrollOffsets] = useState<PlaneColumnScrollOffsets>(ZERO_SCROLL_OFFSETS)
   const [wheelScrolling, setWheelScrolling] = useState(false)
   const wheelScrollingTimeoutRef = useRef<number | null>(null)
+  const firstLayoutReadyRef = useRef(false)
   const reducedMotion = usePrefersReducedMotion()
 
   const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
@@ -262,6 +272,34 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       return changed ? next : prev
     })
   }, [entities])
+
+  // Viewport medido + alturas reales de agentes → primer layout estable (splash).
+  useLayoutEffect(() => {
+    if (!onFirstLayoutReady || !tabActive || firstLayoutReadyRef.current) return
+    if (viewport.width <= 0 || viewport.height <= 0) return
+    const agents = entities.filter(entity => entity.kind === 'agent')
+    if (agents.some(entity => !(agentHeights[entity.paneId] > 0))) return
+
+    let cancelled = false
+    let raf1 = 0
+    let raf2 = 0
+    const timer = window.setTimeout(() => {
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => {
+          if (cancelled || firstLayoutReadyRef.current) return
+          firstLayoutReadyRef.current = true
+          onFirstLayoutReady()
+        })
+      })
+    }, 64)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      if (raf1) window.cancelAnimationFrame(raf1)
+      if (raf2) window.cancelAnimationFrame(raf2)
+    }
+  }, [agentHeights, entities, onFirstLayoutReady, tabActive, viewport.height, viewport.width])
 
   const openGeometry = useMemo(
     () => computeStandardPaneWindowGeometry(
@@ -565,6 +603,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           kind={entity.kind}
           title={entity.title}
           seatDragEnabled={seatDragEnabled && !entity.localOnly && !entity.instanceTag}
+          deferPositionMotion={deferPositionMotion}
           instanceTag={entity.instanceTag}
           replicaCount={entity.replicaCount}
           monogram={entity.monogram}

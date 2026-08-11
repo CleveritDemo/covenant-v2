@@ -272,6 +272,11 @@ export interface PaneWindowProps {
   reorderJiggleDelayMs?: number
   /** Anima left/top al cambiar de ranura (p. ej. preview de reorder). */
   slotMotion?: boolean
+  /**
+   * Arranque bajo splash: sin transición de ranura hasta que el layout esté
+   * medido (evita ver el apilado animarse al fundir el overlay).
+   */
+  deferPositionMotion?: boolean
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Clases extra en el root (p. ej. entrada del explorer). */
   className?: string
@@ -314,6 +319,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   reorderState = 'idle',
   reorderJiggleDelayMs = 0,
   slotMotion = false,
+  deferPositionMotion = false,
   onReorderPointerDown,
   className,
   style: styleProp,
@@ -388,9 +394,13 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
 
   const [motionReady, setMotionReady] = useState(false)
   useLayoutEffect(() => {
+    if (deferPositionMotion) {
+      setMotionReady(false)
+      return
+    }
     const id = window.requestAnimationFrame(() => setMotionReady(true))
     return () => window.cancelAnimationFrame(id)
-  }, [])
+  }, [deferPositionMotion])
 
   // Mini agente: reportar altura real del contenido (height:auto) para el apilado.
   const lastReportedHeightRef = useRef(0)

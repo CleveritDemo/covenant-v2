@@ -17,9 +17,13 @@
   flex-shrink: 0;
 }
 
+.update-banner--enter {
+  animation: update-banner-enter 400ms ease-out both;
+}
+
 .update-banner--downloading {
   /* Ancho estable: el % no reflowea el chip en cada tick. */
-  min-width: 168px;
+  min-width: 200px;
   padding-right: 8px;
 }
 
@@ -34,7 +38,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: update-banner-pulse 2.2s ease-out infinite;
+  animation: update-banner-pulse 1.8s ease-in-out infinite;
 }
 
 .update-banner__pulse--error {
@@ -42,10 +46,20 @@
   animation: none;
 }
 
+@keyframes update-banner-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-50% - 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes update-banner-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
-  70% { box-shadow: 0 0 0 6px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 .update-banner__version {
@@ -65,6 +79,33 @@
   cursor: default;
   opacity: 1;
   color: var(--text);
+}
+
+.update-banner__stage {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  line-height: 1.3;
+  animation: update-banner-stage 2.4s ease-in-out infinite;
+}
+
+/* CTA del kit (xs) sigue midiendo ~22px; en el chip de 24px se come el aire. */
+.update-banner .btn--primary.btn--xs {
+  min-height: 16px;
+  padding: 1px 7px;
+  font-size: 9px;
+  border-radius: 999px;
+}
+
+@keyframes update-banner-stage {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
 }
 
 .update-banner__error {
@@ -121,7 +162,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .update-banner--enter { animation: none; }
   .update-banner__pulse { animation: none; }
+  .update-banner__stage { animation: none; }
   .update-banner__fill { transition: none; }
   .update-banner__fill::after { animation: none; }
 }
@@ -169,7 +212,7 @@
 /* Titlebar estrecha: versión + acción (o barra) bastan. */
 @media (max-width: 900px) {
   .update-banner__error { max-width: 96px; }
-  .update-banner--downloading { min-width: 140px; }
+  .update-banner--downloading { min-width: 160px; }
 }
 
 /* Ya no cabe centrada sin taparse con los controles: vuelve al flujo, pegada a
@@ -180,5 +223,20 @@
     transform: none;
     margin-right: 3px;
     max-width: none;
+  }
+
+  .update-banner--enter {
+    animation-name: update-banner-enter-flow;
+  }
+}
+
+@keyframes update-banner-enter-flow {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }

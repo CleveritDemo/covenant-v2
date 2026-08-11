@@ -34,6 +34,9 @@ const en = {
     quitModalLabel: 'Quit confirmation',
     quitModalHint: 'Previews the dialog; it never closes the app.',
     quitModalPreview: 'Preview dialog',
+    updateBannerLabel: 'Update chip',
+    updateBannerHint: 'Cycles the title-bar update badge through fake states; never downloads or installs.',
+    updateBannerPreview: 'Preview update chip',
     aboutVersion: 'Covenant Gravity v{{version}}',
     autoUpdatesTitle: 'Automatic updates',
     autoUpdatesDescription: 'Check for new versions on launch and about once an hour. Turn off to only update when you ask.',
@@ -895,6 +898,9 @@ const en = {
     gotIt: 'Got it',
     later: 'Later',
     dismiss: 'Dismiss',
+    stageAvailable: 'available',
+    stageDownloading: 'downloading',
+    stageReady: 'restart',
   },
 
   git: {

@@ -7,6 +7,12 @@ import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
+import {
+  clearUpdateBannerPreview,
+  getUpdateBannerPreviewState,
+  isUpdateBannerPreviewActive,
+  subscribeUpdateBannerPreview,
+} from '../updateBannerPreview'
 // El CHANGELOG viaja dentro del bundle: tras actualizar es la única fuente local.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './UpdateBanner.css'
@@ -19,20 +25,30 @@ const releaseUrl = (version: string): string =>
 type NotesView = { version: string; notes: string | null; installed: boolean }
 
 /**
- * Chip compacto en la titlebar: punto + versión + acción (o barra al descargar).
- * El estado vive en main (electron/selfUpdate.ts); aquí solo se pinta.
+ * Chip compacto en la titlebar: punto + versión + badge de etapa + acción (o barra).
+ * El estado vive en main (electron/selfUpdate.ts); el preview de Developer puede
+ * sobreescribirlo solo en renderer.
  *
  * Además abre «Novedades» sola en el primer arranque tras subir de versión,
  * con la sección del CHANGELOG empaquetado.
  */
 export const UpdateBanner: React.FC = () => {
   const { t } = useT()
-  const [state, setState] = useState<UpdateState>({ kind: 'idle' })
+  const [ipcState, setIpcState] = useState<UpdateState>({ kind: 'idle' })
+  const [previewState, setPreviewState] = useState<UpdateState | null>(
+    () => getUpdateBannerPreviewState(),
+  )
   const [view, setView] = useState<NotesView | null>(null)
 
   useEffect(() => {
-    void window.api.getUpdateState().then(setState)
-    return window.api.onUpdateState(setState)
+    void window.api.getUpdateState().then(setIpcState)
+    return window.api.onUpdateState(setIpcState)
+  }, [])
+
+  useEffect(() => {
+    return subscribeUpdateBannerPreview(() => {
+      setPreviewState(getUpdateBannerPreviewState())
+    })
   }, [])
 
   useEffect(() => {
@@ -49,13 +65,26 @@ export const UpdateBanner: React.FC = () => {
     })
   }, [])
 
-  const notes = state.kind === 'available' || state.kind === 'ready' ? state.notes : null
+  const state = previewState ?? ipcState
+  const previewing = isUpdateBannerPreviewActive()
   const canInstall = state.kind === 'available' || state.kind === 'ready'
   const install = (): void => {
+    if (previewing) {
+      clearUpdateBannerPreview()
+      return
+    }
     setView(null)
     window.api.installUpdate()
   }
+  const dismiss = (): void => {
+    if (previewing) {
+      clearUpdateBannerPreview()
+      return
+    }
+    window.api.dismissUpdate()
+  }
   const openPending = (): void => {
+    if (previewing) return
     if (state.kind !== 'available' && state.kind !== 'ready') return
     setView({ version: state.version, notes: state.notes, installed: false })
   }
@@ -63,6 +92,15 @@ export const UpdateBanner: React.FC = () => {
   const percent = state.kind === 'downloading'
     ? Math.max(0, Math.min(100, Math.round(state.percent)))
     : 0
+
+  const stageLabel =
+    state.kind === 'available'
+      ? t('update.stageAvailable')
+      : state.kind === 'downloading'
+        ? t('update.stageDownloading')
+        : state.kind === 'ready'
+          ? t('update.stageReady')
+          : null
 
   const chipAria =
     state.kind === 'downloading'
@@ -81,6 +119,7 @@ export const UpdateBanner: React.FC = () => {
         <div
           className={[
             'update-banner',
+            'update-banner--enter',
             state.kind === 'downloading' ? 'update-banner--downloading' : '',
             state.kind === 'error' ? 'update-banner--error' : '',
           ].filter(Boolean).join(' ')}
@@ -105,10 +144,14 @@ export const UpdateBanner: React.FC = () => {
               className="update-banner__version"
               aria-label={t('update.notesTitle')}
               onClick={openPending}
-              disabled={state.kind === 'downloading'}
+              disabled={state.kind === 'downloading' || previewing}
             >
               v{state.version}
             </button>
+          )}
+
+          {stageLabel && (
+            <span className="update-banner__stage">{stageLabel}</span>
           )}
 
           {state.kind === 'downloading' && (
@@ -137,7 +180,7 @@ export const UpdateBanner: React.FC = () => {
             <Button
               variant="icon"
               tabIndex={-1}
-              onClick={() => window.api.dismissUpdate()}
+              onClick={dismiss}
               aria-label={t('update.dismiss')}
             >
               <Icon name="close" size={13} />

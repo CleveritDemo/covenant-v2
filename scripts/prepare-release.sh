@@ -5,10 +5,10 @@
 #      electron-builder recoge ese fichero por nombre (está en buildResources) y
 #      lo mete en latest*.yml como `releaseNotes`; electron-updater se lo entrega
 #      al banner de la app, que es lo que se ve en "Novedades".
-#   2. Crea el release en GitHub con esas mismas notas, para que la página del
-#      release y la app digan lo mismo. Los tres jobs de plataforma corren esto
-#      en paralelo: el 422 "already exists" de los dos perdedores es el camino
-#      esperado.
+#   2. Crea el release en GitHub como draft con esas mismas notas. Solo se
+#      publica cuando los tres jobs de plataforma han subido sus assets (job
+#      publish-release). Los tres jobs corren esto en paralelo: el 422
+#      "already exists" de los dos perdedores es el camino esperado.
 set -euo pipefail
 
 TAG="${GITHUB_REF_NAME:-}"
@@ -35,9 +35,9 @@ cat "$OUT"
 case "${GITHUB_REF:-}" in
   refs/tags/v*)
     if [ -n "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
-      gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" || true
+      gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" --draft || true
     else
-      gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes || true
+      gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes --draft || true
     fi
     ;;
   *)

@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.35
+
+- **Scrollbar más fino y discreto**: la barra de desplazamiento global queda más sutil (2px, sin radio), con menos ruido visual.
+- **Publicación segura del release**: el release de GitHub solo se publica cuando los assets de macOS, Linux y Windows están listos.
+
 ## v0.39.34
 
 - **Los invitados de un brainstorm se sientan en una mesa, no en una rejilla de

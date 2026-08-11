@@ -6,14 +6,15 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# Los tres jobs corren en paralelo y compiten por crear el release: todos menos
-# uno reciben 422 "already exists", que es el camino esperado, no un fallo. Las
-# subidas posteriores son la verdadera comprobación y sí fallan ruidosamente.
+# Los tres jobs corren en paralelo y compiten por crear el release draft: todos
+# menos uno reciben 422 "already exists", que es el camino esperado, no un fallo.
+# El release solo se hace público cuando macos, linux y windows terminan OK
+# (job publish-release), así no hay ventana sin latest-mac.yml.
 #
 # Las sube electron-builder (`-p always`), no `gh release upload`: además de los
 # binarios escribe latest-mac.yml / latest.yml / latest-linux.yml, que son el
-# manifiesto que consulta el auto-updater. Cada plataforma tiene el suyo, así que
-# un job caído no deja un manifiesto a medias — no hace falta gatear nada.
+# manifiesto que consulta el auto-updater. Cada plataforma tiene el suyo.
+# En CI se fuerza publish.releaseType=draft para subir al draft sin publicarlo.
 env:
   # En workflow_dispatch (sin tag) se construye pero no se publica.
   PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
@@ -47,7 +48,7 @@ jobs:
           echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
 
-      - name: Prepare release (notes + GitHub release)
+      - name: Prepare release (notes + GitHub draft)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/prepare-release.sh
@@ -67,7 +68,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:mac-release -- -p "$PUBLISH"
+        run: npm run dist:mac-release -- -p "$PUBLISH" -c.publish.releaseType=draft
 
       - name: Verify signature and notarization
         run: |
@@ -94,7 +95,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Prepare release (notes + GitHub release)
+      - name: Prepare release (notes + GitHub draft)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/prepare-release.sh
@@ -104,7 +105,7 @@ jobs:
       - name: Build + publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:linux -- -p "$PUBLISH"
+        run: npm run dist:linux -- -p "$PUBLISH" -c.publish.releaseType=draft
 
   # Sin firmar por ahora: el cert de code signing de SSL.com todavía no existe,
   # así que Windows mostrará el aviso de SmartScreen. Cuando llegue, se añade el
@@ -131,7 +132,7 @@ jobs:
       # muertas).
       - run: npm ci
 
-      - name: Prepare release (notes + GitHub release)
+      - name: Prepare release (notes + GitHub draft)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -144,12 +145,25 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:win -- -p "$PUBLISH"
+        run: npm run dist:win -- -p "$PUBLISH" -c.publish.releaseType=draft
+
+  # Publica el draft solo cuando las tres plataformas subieron assets OK.
+  publish-release:
+    needs: [macos, linux, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest=true
 
   # Reusa el tap de Covenant. El cask se reescribe entero en cada release, así
   # que no hay que crearlo a mano: el primer tag lo genera.
   cask:
-    needs: macos
+    needs: [macos, publish-release]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

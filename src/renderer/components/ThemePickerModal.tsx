@@ -35,11 +35,17 @@ export const ThemePickerModal: React.FC<Props> = ({
   )
 
   const groupedThemes = useMemo(() => {
-    const cinematicDark = filteredThemes.filter(theme => theme.appearance !== 'light')
-    const cinematicLight = filteredThemes.filter(theme => theme.appearance === 'light')
+    // Familia × apariencia. `family` sin valor es `cinematic`, que es el grueso
+    // del catálogo; las marcas se listan aparte para no diluirse entre ellas.
+    const pick = (family: 'cinematic' | 'credicorp', light: boolean) =>
+      filteredThemes.filter(theme =>
+        (theme.family ?? 'cinematic') === family
+        && (theme.appearance === 'light') === light)
     return [
-      { key: 'cinematic-dark', title: 'Cinematic — dark', themes: cinematicDark },
-      { key: 'cinematic-light', title: 'Cinematic — light', themes: cinematicLight },
+      { key: 'cinematic-dark', title: 'Cinematic — dark', themes: pick('cinematic', false) },
+      { key: 'cinematic-light', title: 'Cinematic — light', themes: pick('cinematic', true) },
+      { key: 'credicorp-dark', title: 'Credicorp — dark', themes: pick('credicorp', false) },
+      { key: 'credicorp-light', title: 'Credicorp — light', themes: pick('credicorp', true) },
     ].filter(group => group.themes.length > 0)
   }, [filteredThemes])
 

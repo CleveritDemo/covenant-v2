@@ -89,11 +89,12 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
         {showThreads ? (
           <>
             <div className="plane-chat-composer__bar-sep" aria-hidden="true" />
-            {/* El Select y el Input del kit ocupan el 100%; aquí son un chip más. */}
+            {/* El Input del kit ocupa el 100%; el Select en ghost se auto-ajusta. */}
             <div className="plane-chat-composer__threads">
               {draftTitle === null ? (
                 <Select
                   size="sm"
+                  variant="ghost"
                   value={activeThreadId}
                   disabled={threadsLocked}
                   aria-label={t('agentPane.threadsLabel')}

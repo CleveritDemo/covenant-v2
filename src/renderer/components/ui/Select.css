@@ -39,6 +39,34 @@
   cursor: default;
 }
 
+/* Fantasma: misma gramática que los chips de la barra del composer — sin caja
+   hasta el hover, tipografía del chip y alto fijo para alinear con ellos. */
+.select--ghost {
+  width: auto;
+  height: 24px;
+  padding: 0 8px;
+  gap: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  font: 500 11px var(--font-ui);
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.select--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.select--ghost:focus-visible,
+.select--ghost[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: transparent;
+  color: var(--text);
+}
+
 .select__value {
   flex: 1;
   min-width: 0;

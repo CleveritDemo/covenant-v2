@@ -3,6 +3,11 @@ import { Icon } from './Icon'
 import './Select.css'
 
 export type SelectSize = 'sm' | 'md'
+/**
+ * `ghost` es para barras de acciones donde todo es fantasma hasta encenderse:
+ * ahí una caja con borde es el único elemento que rompe la gramática.
+ */
+export type SelectVariant = 'default' | 'ghost'
 
 export interface SelectOption {
   value: string
@@ -16,6 +21,7 @@ export interface SelectProps {
   options: SelectOption[]
   onChange: (value: string) => void
   size?: SelectSize
+  variant?: SelectVariant
   disabled?: boolean
   /** Se muestra cuando `value` no corresponde a ninguna opción. */
   placeholder?: string
@@ -48,6 +54,7 @@ export const Select: React.FC<SelectProps> = ({
   options,
   onChange,
   size = 'md',
+  variant = 'default',
   disabled = false,
   placeholder,
   id,
@@ -148,7 +155,7 @@ export const Select: React.FC<SelectProps> = ({
         ref={triggerRef}
         id={id}
         type="button"
-        className={`select select--${size}`}
+        className={`select select--${size} select--${variant}`}
         disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -158,7 +165,7 @@ export const Select: React.FC<SelectProps> = ({
         <span className="select__value" data-placeholder={selected ? undefined : true}>
           {selected?.label ?? placeholder ?? value}
         </span>
-        <Icon name="chevron-down" size={14} aria-hidden />
+        <Icon name="chevron-down" size={variant === 'ghost' ? 12 : 14} aria-hidden />
       </button>
 
       <div

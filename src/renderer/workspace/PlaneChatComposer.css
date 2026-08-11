@@ -91,10 +91,12 @@
 }
 
 /* Selector de conversaciones: se encoge antes que el resto de la barra. */
+/* Sin caja el texto truncado no se lee como un campo cortado, así que el chip
+   puede encogerse más que un select con borde. */
 .plane-chat-composer__threads {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 190px;
+  max-width: 160px;
 }
 
 /* Chip: una sola gramática para los tres controles (menú, toggle, toggle).

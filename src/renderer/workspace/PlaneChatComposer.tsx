@@ -493,6 +493,21 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             ))}          </div>
         )}
 
+        {pendingImages.length > 0 && (
+          <div
+            className="plane-chat-composer__attachments"
+            aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
+          >
+            {pendingImages.map(image => (
+              <PendingImageThumb
+                key={image.id}
+                src={image.previewUrl}
+                name={image.name}
+                onRemove={() => removePendingImage(image.id)}
+              />
+            ))}          </div>
+        )}
+
         <div className="plane-chat-composer__agents" role="listbox" aria-label={sendLabel}>
           {agents.length === 0 ? (
             <span className="plane-chat-composer__empty">{emptyAgentsHint}</span>
@@ -549,21 +564,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
               </span>
             ) : null}
           </div>
-        )}
-
-        {pendingImages.length > 0 && (
-          <div
-            className="plane-chat-composer__attachments"
-            aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
-          >
-            {pendingImages.map(image => (
-              <PendingImageThumb
-                key={image.id}
-                src={image.previewUrl}
-                name={image.name}
-                onRemove={() => removePendingImage(image.id)}
-              />
-            ))}          </div>
         )}
 
         <div className="plane-chat-composer__row">

@@ -1,32 +1,50 @@
-/* Waiting / delegación: flush en el stream, sin marco tipo card. */
+/* Waiting / delegación: centrado en el stream, sin marco tipo card. */
 
 .agent-delegating {
   display: flex;
-  align-items: flex-start;
-  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   gap: 10px;
+  width: fit-content;
   max-width: min(100%, 28rem);
-  margin: 2px 0 4px;
+  margin: 4px auto;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
+  text-align: center;
 }
 
 .agent-delegating__orbit {
   position: relative;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
+  width: 22px;
+  height: 22px;
+}
+
+.agent-delegating__orbit::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  filter: blur(5px);
+  opacity: 0.65;
+  animation: agent-delegating-halo 3.2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .agent-delegating__ring {
   position: absolute;
-  inset: 1px;
+  inset: 2px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  animation: agent-delegating-ring-pulse 2.2s ease-in-out infinite;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: agent-delegating-ring-pulse 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 .agent-delegating__core {
@@ -38,6 +56,7 @@
   margin: -2px 0 0 -2px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .agent-delegating__sat {
@@ -50,7 +69,7 @@
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 80%, var(--text));
   transform-origin: center;
-  animation: agent-delegating-orbit 2.6s linear infinite;
+  animation: agent-delegating-orbit 3.2s cubic-bezier(0.4, 0.1, 0.3, 1) infinite;
 }
 
 .agent-delegating__sat--a {
@@ -59,7 +78,7 @@
 }
 
 .agent-delegating__sat--b {
-  animation-delay: -0.87s;
+  animation-delay: -1.07s;
   opacity: 0.7;
   width: 2px;
   height: 2px;
@@ -67,7 +86,7 @@
 }
 
 .agent-delegating__sat--c {
-  animation-delay: -1.73s;
+  animation-delay: -2.13s;
   opacity: 0.5;
   width: 2px;
   height: 2px;
@@ -77,9 +96,10 @@
 .agent-delegating__copy {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 3px;
   min-width: 0;
-  flex: 1;
+  width: 100%;
 }
 
 .agent-delegating__label {
@@ -90,6 +110,7 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.25;
+  text-align: center;
 }
 
 .agent-delegating__sublabel {
@@ -97,6 +118,7 @@
   color: var(--text-muted);
   font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
   line-height: 1.35;
+  text-align: center;
   overflow-wrap: anywhere;
   word-break: normal;
   hyphens: auto;
@@ -104,18 +126,21 @@
 
 .agent-delegating__list {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
   flex-wrap: nowrap;
   gap: 4px;
   min-width: 0;
+  width: 100%;
 }
 
 .agent-delegating__row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   max-width: 100%;
   min-width: 0;
@@ -124,6 +149,8 @@
 .agent-delegating__item {
   display: inline-flex;
   align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 5px;
   max-width: 100%;
   min-width: 0;
@@ -171,7 +198,7 @@
 
 .agent-delegating__item--running .agent-delegating__dot {
   background: var(--accent);
-  animation: agent-delegating-dot-pulse 1.6s ease-in-out infinite;
+  animation: agent-delegating-dot-pulse 1.8s ease-in-out infinite;
 }
 
 /* En cola: aceptada pero sin arrancar. Punto quieto y apagado — el pulso es
@@ -214,23 +241,44 @@
 }
 
 @keyframes agent-delegating-orbit {
-  from {
-    transform: rotate(0deg) translateX(6.5px) rotate(0deg);
+  0% {
+    transform: rotate(0deg) translateX(7px) rotate(0deg) scale(1);
   }
-  to {
-    transform: rotate(360deg) translateX(6.5px) rotate(-360deg);
+  50% {
+    transform: rotate(180deg) translateX(7px) rotate(-180deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(360deg) translateX(7px) rotate(-360deg) scale(1);
   }
 }
 
 @keyframes agent-delegating-ring-pulse {
   0%,
   100% {
-    opacity: 0.45;
+    opacity: 0.4;
     transform: scale(1);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent),
+      0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
   }
   50% {
-    opacity: 0.95;
-    transform: scale(1.05);
+    opacity: 0.9;
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 0 14px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+}
+
+@keyframes agent-delegating-halo {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
   }
 }
 
@@ -242,46 +290,58 @@
   }
   50% {
     opacity: 1;
-    transform: scale(1.25);
+    transform: scale(1.22);
   }
 }
 
 html[data-reduce-motion="true"] {
+  .agent-delegating__orbit::before,
   .agent-delegating__ring,
   .agent-delegating__sat,
   .agent-delegating__item--running .agent-delegating__dot {
     animation: none;
   }
 
+  .agent-delegating__orbit::before {
+    opacity: 0.4;
+    transform: none;
+  }
+
   .agent-delegating__sat--a {
-    transform: rotate(20deg) translateX(6.5px);
+    transform: rotate(20deg) translateX(7px);
   }
 
   .agent-delegating__sat--b {
-    transform: rotate(140deg) translateX(6.5px);
+    transform: rotate(140deg) translateX(7px);
   }
 
   .agent-delegating__sat--c {
-    transform: rotate(260deg) translateX(6.5px);
+    transform: rotate(260deg) translateX(7px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .agent-delegating__orbit::before,
   .agent-delegating__ring,
   .agent-delegating__sat,
   .agent-delegating__item--running .agent-delegating__dot {
     animation: none;
   }
 
+  .agent-delegating__orbit::before {
+    opacity: 0.4;
+    transform: none;
+  }
+
   .agent-delegating__sat--a {
-    transform: rotate(20deg) translateX(6.5px);
+    transform: rotate(20deg) translateX(7px);
   }
 
   .agent-delegating__sat--b {
-    transform: rotate(140deg) translateX(6.5px);
+    transform: rotate(140deg) translateX(7px);
   }
 
   .agent-delegating__sat--c {
-    transform: rotate(260deg) translateX(6.5px);
+    transform: rotate(260deg) translateX(7px);
   }
 }

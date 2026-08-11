@@ -3,7 +3,6 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
-import { ChatBubble } from '../components/ai/ChatBubble'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
 import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
 import '../agent/AgentPane.css'
@@ -122,7 +121,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 scrollRef={scrollRef}
               />
               {awaitingDelegations ? (
-                <ChatBubble variant="assistant" solid>
+                <div className="plane-quick-chat__delegating">
                   <AgentDelegatingIndicator
                     label={waveLabel}
                     sublabel={
@@ -145,7 +144,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     stopItemLabel={t('agentPane.awaitingStopSpecialist')}
                     onStopItem={onAbortDelegation}
                   />
-                </ChatBubble>
+                </div>
               ) : (busy || activityText !== '') ? (
                 <div
                   className={[

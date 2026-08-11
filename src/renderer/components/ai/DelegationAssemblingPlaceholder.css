@@ -1,32 +1,50 @@
-/* Armado de delegación en stream: flush, sin card; hermano visual de agent-delegating. */
+/* Armado de delegación: centrado, sin card; hermano visual de agent-delegating. */
 
 .delegation-assembling {
   display: flex;
-  align-items: flex-start;
-  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   gap: 10px;
+  width: fit-content;
   max-width: min(100%, 28rem);
-  margin: 2px 0 4px;
+  margin: 4px auto;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
+  text-align: center;
 }
 
 .delegation-assembling__orbit {
   position: relative;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
+  width: 22px;
+  height: 22px;
+}
+
+.delegation-assembling__orbit::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  filter: blur(5px);
+  opacity: 0.65;
+  animation: delegation-assembling-halo 3.2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .delegation-assembling__ring {
   position: absolute;
-  inset: 1px;
+  inset: 2px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  animation: delegation-assembling-ring-pulse 2.2s ease-in-out infinite;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: delegation-assembling-ring-pulse 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 .delegation-assembling__core {
@@ -38,6 +56,7 @@
   margin: -2px 0 0 -2px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .delegation-assembling__sat {
@@ -50,7 +69,7 @@
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 80%, var(--text));
   transform-origin: center;
-  animation: delegation-assembling-orbit 2.6s linear infinite;
+  animation: delegation-assembling-orbit 3.2s cubic-bezier(0.4, 0.1, 0.3, 1) infinite;
 }
 
 .delegation-assembling__sat--a {
@@ -59,7 +78,7 @@
 }
 
 .delegation-assembling__sat--b {
-  animation-delay: -0.87s;
+  animation-delay: -1.07s;
   opacity: 0.7;
   width: 2px;
   height: 2px;
@@ -67,7 +86,7 @@
 }
 
 .delegation-assembling__sat--c {
-  animation-delay: -1.73s;
+  animation-delay: -2.13s;
   opacity: 0.5;
   width: 2px;
   height: 2px;
@@ -82,63 +101,97 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.25;
+  text-align: center;
 }
 
 @keyframes delegation-assembling-orbit {
-  from {
-    transform: rotate(0deg) translateX(6.5px) rotate(0deg);
+  0% {
+    transform: rotate(0deg) translateX(7px) rotate(0deg) scale(1);
   }
-  to {
-    transform: rotate(360deg) translateX(6.5px) rotate(-360deg);
+  50% {
+    transform: rotate(180deg) translateX(7px) rotate(-180deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(360deg) translateX(7px) rotate(-360deg) scale(1);
   }
 }
 
 @keyframes delegation-assembling-ring-pulse {
   0%,
   100% {
-    opacity: 0.45;
+    opacity: 0.4;
     transform: scale(1);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent),
+      0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
   }
   50% {
-    opacity: 0.95;
-    transform: scale(1.05);
+    opacity: 0.9;
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 0 14px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+}
+
+@keyframes delegation-assembling-halo {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
   }
 }
 
 html[data-reduce-motion="true"] {
+  .delegation-assembling__orbit::before,
   .delegation-assembling__ring,
   .delegation-assembling__sat {
     animation: none;
   }
 
+  .delegation-assembling__orbit::before {
+    opacity: 0.4;
+    transform: none;
+  }
+
   .delegation-assembling__sat--a {
-    transform: rotate(20deg) translateX(6.5px);
+    transform: rotate(20deg) translateX(7px);
   }
 
   .delegation-assembling__sat--b {
-    transform: rotate(140deg) translateX(6.5px);
+    transform: rotate(140deg) translateX(7px);
   }
 
   .delegation-assembling__sat--c {
-    transform: rotate(260deg) translateX(6.5px);
+    transform: rotate(260deg) translateX(7px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .delegation-assembling__orbit::before,
   .delegation-assembling__ring,
   .delegation-assembling__sat {
     animation: none;
   }
 
+  .delegation-assembling__orbit::before {
+    opacity: 0.4;
+    transform: none;
+  }
+
   .delegation-assembling__sat--a {
-    transform: rotate(20deg) translateX(6.5px);
+    transform: rotate(20deg) translateX(7px);
   }
 
   .delegation-assembling__sat--b {
-    transform: rotate(140deg) translateX(6.5px);
+    transform: rotate(140deg) translateX(7px);
   }
 
   .delegation-assembling__sat--c {
-    transform: rotate(260deg) translateX(6.5px);
+    transform: rotate(260deg) translateX(7px);
   }
 }

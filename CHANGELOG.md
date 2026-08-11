@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.36
+
+- **Delegaciones del chat y del plano más claras**: el indicador y el placeholder quedan centrados, sin burbuja sólida, para que se lean como estado y no como mensaje.
+- **Adjuntos por encima de agentes y más aire bajo el hilo**: las miniaturas van antes de los badges de agentes, y el dock/quick chat dejan más espacio para que no tapen el composer.
+- **Cola y estado visual más discretos**: la cola pendiente y los estados en curso pesan menos, sin competir con lo que escribes.
+
 ## v0.39.35
 
 - **Scrollbar más fino y discreto**: la barra de desplazamiento global queda más sutil (2px, sin radio), con menos ruido visual.

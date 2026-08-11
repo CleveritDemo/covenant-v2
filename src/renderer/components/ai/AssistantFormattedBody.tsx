@@ -2,7 +2,6 @@ import React, { useMemo } from 'react'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../AiMarkdown'
 import { AiCodeBlock } from '../AiCodeBlock'
-import { ChatBubble } from './ChatBubble'
 import { DelegationAssemblingPlaceholder } from './DelegationAssemblingPlaceholder'
 import { splitAssistantBody, stripAgentControlFences } from './assistantBodySegments'
 
@@ -28,11 +27,10 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
         if (segment.type === 'code') {
           if (live && segment.lang === 'ia-terminal-delegate') {
             return (
-              <ChatBubble key={index} variant="assistant" solid>
-                <DelegationAssemblingPlaceholder
-                  label={t('agentPane.assemblingDelegation')}
-                />
-              </ChatBubble>
+              <DelegationAssemblingPlaceholder
+                key={index}
+                label={t('agentPane.assemblingDelegation')}
+              />
             )
           }
           return (

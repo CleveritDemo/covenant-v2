@@ -1,6 +1,7 @@
 .plane-chat-dock {
   /* Espacio para el composer (agentes + input). */
-  --plane-composer-clearance: 132px;
+  /* Queue + adjuntos + badges + input; margen estable sin solape. */
+  --plane-composer-clearance: 176px;
   position: absolute;
   inset: 0;
   /* Fade/chat bajo el mapa (16); composer/aurora van por display:contents encima. */

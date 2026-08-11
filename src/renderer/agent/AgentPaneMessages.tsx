@@ -3,7 +3,6 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
-import { ChatBubble } from '../components/ai/ChatBubble'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
 import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
 import { Gravity } from './Gravity'
@@ -105,7 +104,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           scrollRef={scrollRef}
         />
         {awaitingDelegations ? (
-          <ChatBubble variant="assistant" solid>
+          <div className="agent-pane__delegating">
             <AgentDelegatingIndicator
               label={waveLabel}
               sublabel={
@@ -128,7 +127,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
               stopItemLabel={t('agentPane.awaitingStopSpecialist')}
               onStopItem={onAbortDelegation}
             />
-          </ChatBubble>
+          </div>
         ) : (busy || activity !== '') && (() => {
           const activityText = activity
             ? (loopActive

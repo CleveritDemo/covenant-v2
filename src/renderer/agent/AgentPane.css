@@ -727,6 +727,20 @@ html[data-reduce-motion="true"] {
   transition: opacity .4s ease;
 }
 
+/* Delegación en curso: centrada, sin shell de burbuja. */
+.agent-pane__delegating {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 12px auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 .agent-pane__activity--idle {
   opacity: 0;
 }
@@ -796,13 +810,13 @@ html[data-reduce-motion="true"] {
   gap: 4px;
   max-width: min(70%, 340px);
   padding: 2px 4px 2px 2px;
-  border: 1px dashed color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--border) 55%, transparent);
   border-radius: 14px 14px 4px 14px;
-  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 10%, transparent);
-  color: var(--terminal-modal-text, #e6e6e6);
+  background: color-mix(in srgb, var(--bg-secondary, transparent) 35%, transparent);
+  color: color-mix(in srgb, var(--terminal-modal-text, #e6e6e6) 78%, transparent);
   font-size: calc(var(--agent-chat-font-size) * 0.82);
   line-height: 1.4;
-  opacity: 0.85;
+  opacity: 0.62;
   animation: agent-pane-queue-chip-in 180ms ease-out;
 }
 
@@ -830,9 +844,10 @@ html[data-reduce-motion="true"] {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 30%, transparent);
+  background: color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 22%, transparent);
   font-size: 9px;
   font-weight: 700;
+  opacity: 0.85;
 }
 
 .agent-pane__queue-text {
@@ -849,11 +864,12 @@ html[data-reduce-motion="true"] {
 
 .agent-pane__queue-image {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   object-fit: cover;
   border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--terminal-modal-accent, #7aa2ff) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  opacity: 0.7;
 }
 
 .agent-pane__queue-remove {

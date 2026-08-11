@@ -4,6 +4,34 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.26
+
+- **Una réplica ya no cuenta como un agente más**: en Pulse, `backend-2` y
+  `backend-3` se pliegan bajo su experto con los números sumados y un chip `×n`
+  con el pico de copias en paralelo. Al desplegar la fila se ve qué hizo cada
+  instancia, y las copias que gastaron un turno sin producir nada quedan
+  marcadas. El contador de flota cuenta expertos, no copias.
+- **Adjuntar un archivo que no está en el repo**: el campo de contextos gana
+  "Importar archivos…", que copia lo que elijas dentro del proyecto y deja
+  puesta la ruta relativa. Y cuando una ruta queda fuera del proyecto, ahora lo
+  dice en vez de dejar el contexto vacío en silencio.
+- **Delegaciones que se quedaban en "running" con el especialista parado**: las
+  que están esperando turno dicen "en cola" y su punto no parpadea, y una
+  subtarea que nunca llegó a arrancar deja de colgarse para siempre — se
+  destraba sola al minuto.
+- **El resultado de una delegación se lee como tarjeta**: quién contestó y cómo
+  le fue arriba, el resumen con sus tablas renderizadas de verdad, y los
+  archivos tocados abajo. Antes era un volcado con los pipes del markdown a la
+  vista.
+- **El chat distingue quién habla**: tu mensaje va apagado contra la derecha y
+  la respuesta del agente a la izquierda con un acento en el filo, sin cajas.
+- **Imágenes que se pueden mirar**: la miniatura de un adjunto —pegado o ya
+  enviado— se abre en grande al clickearla, y el botón de quitar deja de taparla:
+  aparece al pasar el mouse, fuera del borde.
+- **Temas Credicorp**: ocho, en su propia sección del picker, con los colores del
+  manual de marca. Y la lista del picker ahora scrollea, que con 32 temas ya
+  hacía falta.
+
 ## v0.39.25
 
 - **Un `.mcp.json` roto ya no deja al CLI sin servidores**: la escritura de la

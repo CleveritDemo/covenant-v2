@@ -43,6 +43,8 @@ export interface PlaneMapEntity {
   snippet?: string
   /** Slug del agente en catálogo (drag de results). */
   agentId?: string
+  /** Réplica temporal del turbo: no se sienta en una sala de brainstorm. */
+  localOnly?: boolean
   /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
   contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
@@ -62,6 +64,8 @@ export interface PlaneMapProps {
   chatActiveAgentId?: string | null
   /** Tab activa: oculta modales portaled del plano. */
   tabActive?: boolean
+  /** Mesa de brainstorm abierta: las cards de agente se arrastran a ella. */
+  seatDragEnabled?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -193,6 +197,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   activePaneId,
   chatActiveAgentId = null,
   tabActive = true,
+  seatDragEnabled = false,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -557,6 +562,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           paneId={entity.paneId}
           kind={entity.kind}
           title={entity.title}
+          seatDragEnabled={seatDragEnabled && !entity.localOnly && !entity.instanceTag}
           instanceTag={entity.instanceTag}
           replicaCount={entity.replicaCount}
           monogram={entity.monogram}

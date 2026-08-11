@@ -444,6 +444,9 @@ export const App: React.FC = () => {
   const [planeNewThreadPaneId, setPlaneNewThreadPaneId] = useState<string | null>(null)
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
+  /** Mesa del plano: invitados sentados (orden = habla) antes de abrir el modal. */
+  const [brainstormTableOpenByTab, setBrainstormTableOpenByTab] = useState<Record<string, boolean>>({})
+  const [brainstormSeatedByTab, setBrainstormSeatedByTab] = useState<Record<string, string[]>>({})
   const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
   /** Sala minimizada: sigue montada y corriendo, solo oculta. */
@@ -5192,6 +5195,7 @@ export const App: React.FC = () => {
                     || status?.lastSnippet
                     || '',
                   agentId: meta?.id,
+                  localOnly: meta?.localOnly === true,
                   delegationWorkActive,
                   contextIds: assignedIds,
                   contexts: assignedContexts,
@@ -5457,6 +5461,21 @@ export const App: React.FC = () => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   loopsButtonLabel={t('tabs.loopsButton')}
+                  brainstormTableOpen={
+                    Boolean(brainstormTableOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]
+                  }
+                  brainstormSeated={brainstormSeatedByTab[tab.id] ?? []}
+                  onBrainstormSeatedChange={next => {
+                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: next }))
+                  }}
+                  onBrainstormTableClose={() => {
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
+                  }}
+                  onBrainstormTableContinue={() => {
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                  }}
                   brainstormNeedFolderHint={t('tabs.brainstormNeedFolder')}
                   canOpenBrainstorm={Boolean(tab.projectFolder?.trim())}
                   brainstormsListOpen={Boolean(brainstormListOpenByTab[tab.id])}
@@ -5564,7 +5583,8 @@ export const App: React.FC = () => {
                   }}
                   onCreate={() => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
                   }}
                   onOpenRoom={room => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
@@ -5580,11 +5600,16 @@ export const App: React.FC = () => {
                   agents={filterBrainstormInvitableAgents(
                     projectAgentsByCwd[agentCatalogKey] ?? [],
                   )}
+                  participantAgentIds={brainstormSeatedByTab[tab.id] ?? []}
                   onClose={() => {
+                    // Volver a la mesa: los asientos siguen puestos.
                     setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
                   }}
                   onStarted={room => {
                     setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
                     setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
                   }}

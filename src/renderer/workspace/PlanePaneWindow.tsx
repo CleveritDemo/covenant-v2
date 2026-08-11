@@ -17,6 +17,8 @@ export interface PlanePaneWindowProps {
   paneId: string
   kind: PaneKind
   title: string
+  /** Mesa de brainstorm abierta: la card se arrastra a ella. */
+  seatDragEnabled?: boolean
   /** Réplica temporal del experto: `R2`, `R3`… */
   instanceTag?: string
   /** Experto base: réplicas suyas vivas ahora mismo. */
@@ -80,6 +82,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   paneId,
   kind,
   title,
+  seatDragEnabled = false,
   instanceTag,
   replicaCount,
   monogram,
@@ -182,6 +185,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         miniFace={isAgent ? (
           <PlaneMiniFace
             name={title}
+            seatDragEnabled={seatDragEnabled}
             instanceTag={instanceTag}
             replicaCount={replicaCount}
             monogram={monogram}

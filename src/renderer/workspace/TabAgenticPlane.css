@@ -177,3 +177,16 @@
 :root[data-theme-appearance='light'] .plane-fab--terminal {
   color: #f7f7fc;
 }
+
+/* Ancla de la mesa de brainstorm: centrada arriba, sin tapar la columna de agentes. */
+.plane-bs-table-anchor {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  width: min(560px, calc(100% - 420px));
+  pointer-events: auto;
+}

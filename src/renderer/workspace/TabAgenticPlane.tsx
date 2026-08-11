@@ -3,6 +3,7 @@ import { useT } from '@i18n/useT'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
+import { filterSeatableAgents } from '@shared/brainstormTable'
 import {
   computePlaneChatColumnWidth,
   PLANE_CHAT_BASE_WIDTH,
@@ -14,6 +15,7 @@ import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
+import { PlaneBrainstormTable } from './PlaneBrainstormTable'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
@@ -164,6 +166,13 @@ export interface TabAgenticPlaneProps {
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
+  /** Mesa de invitados abierta en el lienzo (paso previo al modal de tema). */
+  brainstormTableOpen?: boolean
+  /** Ids sentados, en orden de habla. */
+  brainstormSeated?: readonly string[]
+  onBrainstormSeatedChange?: (next: string[]) => void
+  onBrainstormTableClose?: () => void
+  onBrainstormTableContinue?: () => void
   brainstormNeedFolderHint?: string
   canOpenBrainstorm?: boolean
   brainstormsListOpen?: boolean
@@ -336,6 +345,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
+  brainstormTableOpen = false,
+  brainstormSeated = [],
+  onBrainstormSeatedChange,
+  onBrainstormTableClose,
+  onBrainstormTableContinue,
   brainstormNeedFolderHint,
   canOpenBrainstorm = false,
   brainstormLive = null,
@@ -458,6 +472,16 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         }
       })
   ), [agentStatuses, entities])
+
+  const tableAgents = useMemo(
+    () => filterSeatableAgents(entities.filter(entity => entity.kind === 'agent'))
+      .map(entity => ({
+        agentId: entity.agentId!,
+        name: entity.title,
+        ...(entity.monogram ? { monogram: entity.monogram } : {}),
+      })),
+    [entities],
+  )
 
   const loopAgents = useMemo<PlaneLoopsAgent[]>(
     () => entities
@@ -739,6 +763,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
         tabActive={tabActive}
+        seatDragEnabled={brainstormTableOpen}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}
@@ -774,6 +799,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           zIndex={explorerZIndex}
           tabActive={tabActive}
         />
+      ) : null}
+
+      {brainstormTableOpen && onBrainstormSeatedChange ? (
+        <div className="plane-bs-table-anchor">
+          <PlaneBrainstormTable
+            agents={tableAgents}
+            seated={brainstormSeated}
+            onSeatedChange={onBrainstormSeatedChange}
+            onClose={() => onBrainstormTableClose?.()}
+            onContinue={() => onBrainstormTableContinue?.()}
+          />
+        </div>
       ) : null}
 
       {showIdleGravity && (

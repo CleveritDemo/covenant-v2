@@ -5,7 +5,16 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
+import { resolveThemeMusic } from '@shared/themeMusic'
 import { TitlebarMusicControls } from '../TitlebarMusicControls'
+
+/**
+ * Id que el registro de música nunca va a tener. Antes esto era `credicorp`, un
+ * tema real, y el test se rompió en cuanto v0.39.64 le dio track a esa familia
+ * —hoy los 38 temas tienen música, así que no queda ninguno real que sirva—.
+ * Ejercita el mismo contrato: «solo match explícito, sin fallback».
+ */
+const THEME_WITHOUT_TRACK = 'tema-sin-musica'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({
@@ -64,8 +73,12 @@ afterEach(() => {
 
 describe('TitlebarMusicControls', () => {
   it('no renderiza controles si el tema no tiene track', () => {
+    // La premisa primero: si falla aquí, es el fixture y no el componente.
+    expect(resolveThemeMusic(THEME_WITHOUT_TRACK)).toBeNull()
     const { container } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'credicorp', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: THEME_WITHOUT_TRACK, musicEnabled: true }}
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

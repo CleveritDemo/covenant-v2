@@ -9,6 +9,7 @@ import {
   PLANE_MINI_TITLEBAR_HEIGHT,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
+  readPlaneMiniAgentLayoutHeight,
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
 import { MAX_PANE_TITLE_LENGTH } from '@shared/tabSession'
@@ -402,22 +403,30 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     return () => window.cancelAnimationFrame(id)
   }, [deferPositionMotion])
 
-  // Mini agente: reportar altura real del contenido (height:auto) para el apilado.
+  // Mini agente: reportar altura de layout local (no AABB 3D) para el apilado.
   const lastReportedHeightRef = useRef(0)
+  useLayoutEffect(() => {
+    lastReportedHeightRef.current = 0
+  }, [paneId])
   useLayoutEffect(() => {
     if (!showAsMini || !miniAgentCard || !onMiniContentHeightChange || !paneId) return
     const el = rootRef.current
     if (!el) return
-    const report = (): void => {
-      const next = Math.ceil(el.getBoundingClientRect().height)
+    const report = (entry?: ResizeObserverEntry): void => {
+      const box = entry?.borderBoxSize
+      const first = Array.isArray(box) ? box[0] : box
+      const block = first && typeof (first as ResizeObserverSize).blockSize === 'number'
+        ? Math.round((first as ResizeObserverSize).blockSize)
+        : 0
+      const next = block > 0 ? block : readPlaneMiniAgentLayoutHeight(el)
       if (next <= 0) return
-      if (Math.abs(next - lastReportedHeightRef.current) <= 1) return
+      if (next === lastReportedHeightRef.current) return
       lastReportedHeightRef.current = next
       onMiniContentHeightChange(paneId, next)
     }
     report()
     if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(report)
+    const observer = new ResizeObserver(entries => report(entries[0]))
     observer.observe(el)
     return () => observer.disconnect()
   }, [showAsMini, miniAgentCard, onMiniContentHeightChange, paneId])

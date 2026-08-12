@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.45
+
+- **El espacio entre agentes del plano queda parejo**: cards cortas y largas dejan el mismo aire; la perspectiva 3D ya no deforma los huecos.
+
 ## v0.39.44
 
 - **Tus conversaciones no se pisan con las delegaciones**: si estás en un hilo de un especialista, el trabajo del orquestador va a una réplica; el + sigue disponible salvo que ese pane esté en stream.

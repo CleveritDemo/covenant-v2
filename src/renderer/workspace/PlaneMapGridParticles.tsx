@@ -58,8 +58,18 @@ const SIZE_BAND_JITTER = 0.12
 /** Halo base / expansión suave con beat visual. */
 const HALO_SCALE_BASE = 2.2
 const HALO_SCALE_BEAT = 0.28
-/** Drift máximo en CSS px/s (lento). */
+/** Drift máximo base en CSS px/s (lento). */
 const DRIFT_MAX = 6
+/** BPM que mapea a velocidad de drift 1×. */
+const DRIFT_BPM_SLOW = 60
+/** BPM que mapea a velocidad de drift máxima. */
+const DRIFT_BPM_FAST = 180
+/** Multiplicador de recorrido a BPM lento / sin tempo. */
+const DRIFT_SPEED_AT_SLOW = 1
+/** Multiplicador de recorrido a BPM rápido (más contraste vs lento). */
+const DRIFT_SPEED_AT_FAST = 4.8
+/** Suavizado del BPM visual (más bajo = más inercia). */
+const BPM_SMOOTH = 0.12
 /** Grilla responsive fija sobre todo el canvas. */
 export const PARTICLE_GRID_COLS = 6
 export const PARTICLE_GRID_ROWS = 6
@@ -87,6 +97,19 @@ export function baseSizeForFrequencyBand(band: number): number {
 export function easeVisualBeatPulse(raw: number): number {
   const t = Math.min(1, Math.max(0, raw))
   return t * t * (3 - 2 * t)
+}
+
+/**
+ * Multiplicador del drift según BPM estimado.
+ * null / inválido → 1× (recorrido base); 60→1× … 180→DRIFT_SPEED_AT_FAST.
+ */
+export function driftSpeedForBpm(bpm: number | null): number {
+  if (bpm == null || !Number.isFinite(bpm) || bpm <= 0) return DRIFT_SPEED_AT_SLOW
+  const t = Math.min(
+    1,
+    Math.max(0, (bpm - DRIFT_BPM_SLOW) / (DRIFT_BPM_FAST - DRIFT_BPM_SLOW)),
+  )
+  return DRIFT_SPEED_AT_SLOW + (DRIFT_SPEED_AT_FAST - DRIFT_SPEED_AT_SLOW) * t
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -296,9 +319,11 @@ export const PlaneMapGridParticles: React.FC = () => {
 
     let rafId = 0
     let running = true
-    let lastTs = 0
+    let lastTs = -1
     /** Pulso visual suavizado (independiente del beat técnico). */
     let visualBeatPulse = 0
+    /** BPM suavizado para escalar el drift (0 = sin tempo / idle). */
+    let visualBpm = 0
     const particles: Particle[] = []
     let colors = readThemeColors(canvas)
     let cssW = 1
@@ -352,7 +377,7 @@ export const PlaneMapGridParticles: React.FC = () => {
 
     const tick = (ts: number): void => {
       if (!running) return
-      if (!lastTs) lastTs = ts
+      if (lastTs < 0) lastTs = ts
       const dt = Math.min(0.05, (ts - lastTs) / 1000)
       lastTs = ts
 
@@ -371,12 +396,19 @@ export const PlaneMapGridParticles: React.FC = () => {
       const blend = 1 - Math.pow(1 - rate, dt * 60)
       visualBeatPulse += (target - visualBeatPulse) * blend
       const drawBeat = easeVisualBeatPulse(visualBeatPulse)
+      const targetBpm = beat.bpm != null && Number.isFinite(beat.bpm) && beat.bpm > 0
+        ? beat.bpm
+        : 0
+      const bpmBlend = 1 - Math.pow(1 - BPM_SMOOTH, dt * 60)
+      visualBpm += (targetBpm - visualBpm) * bpmBlend
+      const speedMul = driftSpeedForBpm(visualBpm > 1 ? visualBpm : null)
 
       for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i]!
         p.life -= dt
-        p.x += p.vx * dt
-        p.y += p.vy * dt
+        // El tempo escala el recorrido; vx/vy siguen siendo el drift base.
+        p.x += p.vx * dt * speedMul
+        p.y += p.vy * dt * speedMul
         // Drift suave: micro-variación sin aceleración fuerte.
         p.vx += (Math.random() - 0.5) * 1.2 * dt
         p.vy += (Math.random() - 0.5) * 1.2 * dt

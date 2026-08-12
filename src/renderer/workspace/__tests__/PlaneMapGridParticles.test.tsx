@@ -9,6 +9,7 @@ import {
   assignRandomGridSlot,
   baseSizeForFrequencyBand,
   colorForFrequencyBand,
+  driftSpeedForBpm,
   easeVisualBeatPulse,
   particleGridDims,
   PARTICLE_GRID_CELL_COUNT,
@@ -173,6 +174,16 @@ describe('PlaneMapGridParticles', () => {
     expect(getThemeMusicBeat).toHaveBeenCalledTimes(2)
   })
 
+  it('driftSpeedForBpm escala el recorrido con el tempo', () => {
+    expect(driftSpeedForBpm(null)).toBe(1)
+    expect(driftSpeedForBpm(0)).toBe(1)
+    expect(driftSpeedForBpm(60)).toBeCloseTo(1, 5)
+    expect(driftSpeedForBpm(120)).toBeGreaterThan(driftSpeedForBpm(60))
+    expect(driftSpeedForBpm(180)).toBeGreaterThan(driftSpeedForBpm(120))
+    expect(driftSpeedForBpm(180)).toBeCloseTo(4.8, 5)
+    expect(driftSpeedForBpm(300)).toBeCloseTo(4.8, 5)
+  })
+
   it('easeVisualBeatPulse usa smoothstep (no lineal)', () => {
     expect(easeVisualBeatPulse(0)).toBe(0)
     expect(easeVisualBeatPulse(1)).toBe(1)
@@ -226,7 +237,7 @@ describe('PlaneMapGridParticles', () => {
     expect(band3High).toBeLessThan(band3Alphas.length)
   })
 
-  it('beat alto aumenta radio/alpha; al bajar el beat cae suave sin ir a idle de golpe', () => {
+  it('beat alto aumenta radio/alpha/halo; al bajar el beat cae suave sin ir a idle de golpe', () => {
     const alphas = attachAlphaCapture(ctx)
     const radii: number[] = []
     ctx.arc = vi.fn((_x: number, _y: number, r: number) => {
@@ -284,6 +295,68 @@ describe('PlaneMapGridParticles', () => {
     expect(alphaAfterRelease).toBeLessThan(alphaWithBeat)
     expect(alphaAfterRelease).toBeGreaterThan(alphaWithoutBeat)
     expect(alphaAfterRelease).toBeLessThan(1)
+  })
+
+  it('BPM alto desplaza más que BPM null en el mismo dt (hasta ~4.8×)', () => {
+    const xs: number[] = []
+    ctx.arc = vi.fn((x: number) => {
+      xs.push(x)
+    }) as unknown as typeof ctx.arc
+
+    // 0.7 → life con fade alto y vx/vy ≠ 0 ((0.7-0.5)*DRIFT).
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.7)
+
+    const meanAbsDelta = (a: number[], b: number[]): number => {
+      const n = Math.min(a.length, b.length)
+      if (n === 0) return 0
+      let sum = 0
+      for (let i = 0; i < n; i += 1) sum += Math.abs(b[i]! - a[i]!)
+      return sum / n
+    }
+
+    try {
+      render(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles />
+        </div>,
+      )
+      expect(rafCallback).toBeTruthy()
+
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+      xs.length = 0
+      rafCallback!(16)
+      const slowBefore = [...xs]
+      expect(slowBefore.length).toBeGreaterThan(0)
+      xs.length = 0
+      rafCallback!(1016)
+      const slowDelta = meanAbsDelta(slowBefore, xs)
+
+      cleanup()
+      render(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles />
+        </div>,
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: 180 })
+      for (let t = 16; t <= 1516; t += 16) rafCallback!(t)
+      xs.length = 0
+      rafCallback!(1516)
+      const fastBefore = [...xs]
+      xs.length = 0
+      rafCallback!(2516)
+      const fastDelta = meanAbsDelta(fastBefore, xs)
+
+      expect(slowDelta).toBeGreaterThan(0)
+      expect(fastDelta).toBeGreaterThan(slowDelta * 1.5)
+      // Tope teórico 4.8×; con suavizado BPM exigimos al menos ~2.5× de recorrido.
+      expect(fastDelta / slowDelta).toBeGreaterThan(2.5)
+      expect(driftSpeedForBpm(180) / driftSpeedForBpm(60)).toBeCloseTo(4.8, 5)
+    } finally {
+      randomSpy.mockRestore()
+    }
   })
 
   it('con bands=0 y beat=1, radio y alpha suben sobre idle sin llegar a 1', () => {

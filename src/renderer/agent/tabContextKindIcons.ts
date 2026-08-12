@@ -19,6 +19,7 @@ export const KIND_ICONS: Record<TabContextKind, IconName> = {
   spreadsheet: 'table',
   agentResult: 'bot',
   skill: 'sparkles',
+  jira: 'jira',
 }
 
 export function contextIconName(

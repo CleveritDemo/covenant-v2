@@ -11,10 +11,12 @@ export type TabContextKind =
   | 'spreadsheet'
   | 'agentResult'
   | 'skill'
+  | 'jira'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
+  'jira',
 ] as const
 
 /** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
@@ -23,13 +25,13 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'skill',
+  'skill', 'jira',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'agentResult', 'skill',
+  'agentResult', 'skill', 'jira',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -69,6 +71,8 @@ export interface CanonicalContextOptions {
   /** agentId estable del catálogo (no display name). */
   agentId?: string
   name?: string
+  /** Clave de la issue (`GRAV-412`) para el kind `jira`. */
+  issueKey?: string
 }
 
 function isCreatableContextKind(kind: TabContextKind): boolean {
@@ -102,6 +106,8 @@ function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOpt
       return 'notes'
     case 'skill':
       return 'skill'
+    case 'jira':
+      return (options.issueKey ?? '').trim().toLowerCase() || 'issue'
     default:
       return kind
   }
@@ -143,6 +149,10 @@ export function canonicalContextFileName(
     const agentId = (options.agentId ?? '').trim() || 'agent'
     return `results/${agentId}.md`
   }
+  if (kind === 'jira') {
+    const issueKey = (options.issueKey ?? '').trim().toUpperCase()
+    return `jira/${normalizeContextFileName(issueKey, 'issue')}`
+  }
   if (isCreatableContextKind(kind)) {
     return normalizeContextFileName(
       creatableContextStem(kind, options),
@@ -182,6 +192,8 @@ export function canonicalContextName(
       return (options.name ?? '').trim() || 'Skill'
     case 'agentResult':
       return (options.name ?? '').trim() || (options.agentId ?? 'agent')
+    case 'jira':
+      return (options.issueKey ?? '').trim().toUpperCase() || 'Jira issue'
     default:
       return kind
   }
@@ -214,17 +226,20 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
     : undefined
   // Name vacío → stem desde fileStem/default (no desde el display name canónico).
   const identityName = context.name.trim() || undefined
+  const issueKey = context.issueKey
   const id = canonicalContextId(context.kind, {
     rootPath,
     fileStem,
     agentId,
     name: identityName,
+    issueKey,
   })
   const fileName = canonicalContextFileName(context.kind, {
     rootPath,
     fileStem,
     agentId,
     name: identityName,
+    issueKey,
   })
   const resolvedName = context.name.trim()
     || canonicalContextName(context.kind, { rootPath, name: context.name, agentId })
@@ -274,6 +289,10 @@ export interface TabContext {
   rootPath?: string
   paths?: string[]
   symbolKinds?: TabContextSymbolKind[]
+  /** Clave de la issue para el kind `jira`; la usa el refresco. */
+  issueKey?: string
+  /** Override por contexto del refresco de `jira.json`; 0 lo desactiva. */
+  refreshSeconds?: number
 }
 
 export function isProjectContext(context: Pick<TabContext, 'kind'>): boolean {

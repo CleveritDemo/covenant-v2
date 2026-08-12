@@ -552,6 +552,7 @@ const es = {
     pathsPlaceholderSpreadsheet: 'docs/historias-de-usuario.xlsx\nbacklog/sprint-4.csv',
     kind_mcp: 'Servidores MCP',
     kind_skill: 'Skill',
+    kind_jira: 'Issue de Jira',
     group_host: 'Del repositorio · los genera el host',
     group_manual: 'Escrito a mano',
     groupProject: 'Contextos del proyecto',

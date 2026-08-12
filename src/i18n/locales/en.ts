@@ -550,6 +550,7 @@ const en = {
     pathsPlaceholderSpreadsheet: 'docs/user-stories.xlsx\nbacklog/sprint-4.csv',
     kind_mcp: 'MCP servers',
     kind_skill: 'Skill',
+    kind_jira: 'Jira issue',
     group_host: 'From the repository · host-generated',
     group_manual: 'Hand-written',
     groupProject: 'Project contexts',

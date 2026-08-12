@@ -132,6 +132,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   spreadsheet: 'Sheet/column meaning only; max 10 words; never restate rows.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
   skill: 'Host-installed skill; do not rewrite via annotations.',
+  jira: 'Host-owned Jira snapshot; do not rewrite via annotations.',
 }
 
 function safeRoot(cwd: string, requested?: string): string {
@@ -538,6 +539,12 @@ function contextFilePath(context: TabContext, cwd: string): string {
     )
     return join(dir, 'results', baseName)
   }
+  if (context.kind === 'jira') {
+    const issueKey = (context.issueKey || basename(context.fileName || context.name, '.md'))
+      .trim()
+      .toUpperCase()
+    return join(dir, 'jira', normalizeContextFileName(issueKey, 'issue'))
+  }
   return join(dir, normalizeContextFileName(context.fileName || context.name, context.id))
 }
 
@@ -885,6 +892,16 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
       }
     }
 
+    const jiraDir = join(dir, 'jira')
+    if (existsSync(jiraDir) && statSync(jiraDir).isDirectory()) {
+      for (const entry of readdirSync(jiraDir, { withFileTypes: true })
+        .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        const relativeFileName = `jira/${normalizeContextFileName(entry.name)}`
+        ingestFile(join(jiraDir, entry.name), relativeFileName)
+      }
+    }
+
     // Remap result ids con stem no normalizado en contextIds de agentes.
     for (const agent of listProjectAgents(cwd)) {
       for (const id of agent.contextIds ?? []) {
@@ -1168,6 +1185,25 @@ export function materializeTabContext(
       }
     }
 
+    // jira: solo lectura del snapshot que escribe `refreshStaleJiraContexts` antes
+    // del turno (Task 6). materializeTabContext debe seguir siendo síncrono, así
+    // que aquí nunca se llama a la API de Jira; sin snapshot, ok:false.
+    if (contextToWrite.kind === 'jira') {
+      if (!existsSync(filePath)) {
+        return {
+          ok: false,
+          content: '',
+          error: `Sin snapshot de ${contextToWrite.issueKey ?? 'la issue'}.`,
+        }
+      }
+      return {
+        ok: true,
+        content: readFileSync(filePath, 'utf8'),
+        notesContent: readExistingNotes(filePath),
+        filePath,
+      }
+    }
+
     const existingNotes = readExistingNotes(filePath)
     const auto = buildAutoContent(contextToWrite, cwd, options, filePath)
     let notes: string
@@ -1367,6 +1403,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
       return [contextFilePath(context, cwd)]
     case 'skill':
       return [skillSourcePath(context, root)]
+    case 'jira':
+      return [contextFilePath(context, cwd)]
     // Git and folder trees are cheap enough to rebuild and difficult to
     // fingerprint exactly without repeating their traversal/commands.
     case 'git':

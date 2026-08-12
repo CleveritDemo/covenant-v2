@@ -3,6 +3,7 @@ import type { AppConfig } from '@shared/configSchema'
 import { getTheme } from '@themes/presets'
 import { useT } from '@i18n/useT'
 import { TitlebarMusicControls } from './TitlebarMusicControls'
+import { TitlebarClock } from './TitlebarClock'
 import { FontSizeControl } from './FontSizeControl'
 import { ThemePickerTrigger } from './ThemePickerTrigger'
 import { UpdateBanner } from './UpdateBanner'
@@ -21,7 +22,6 @@ interface TitlebarProps {
   onOpenThemePicker: () => void
   onOpenOrganizations: () => void
   onOpenSettings: () => void
-  onConfigPatch?: (partial: Partial<AppConfig>) => void | Promise<void>
 }
 
 export const Titlebar: React.FC<TitlebarProps> = ({
@@ -35,7 +35,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   onOpenThemePicker,
   onOpenOrganizations,
   onOpenSettings,
-  onConfigPatch,
 }) => {
   const { t } = useT()
   const theme = getTheme(config.themeId)
@@ -46,10 +45,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({
       <div className="titlebar__wordmark" aria-hidden="true">Covenant</div>
       <UpdateBanner />
       <div className="titlebar-actions">
-        {config.musicEnabled && (
-          <TitlebarMusicControls config={config} onOpenSettings={onOpenSettings} onConfigPatch={onConfigPatch} />
-        )}
-
         <FontSizeControl
           fontSize={fontSize}
           min={fontSizeMin}
@@ -58,6 +53,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           onDecrease={onFontDecrease}
         />
 
+        <TitlebarMusicControls config={config} />
+
         <ThemePickerTrigger
           themeId={config.themeId}
           themeName={theme.name}
@@ -65,8 +62,11 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           onClick={onOpenThemePicker}
         />
 
+        <TitlebarClock />
+
         <Button
           variant="icon"
+          size="sm"
           tabIndex={-1}
           onClick={onOpenOrganizations}
           aria-label={t('titlebar.organizationsAriaLabel')}
@@ -76,6 +76,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
 
         <Button
           variant="icon"
+          size="sm"
           tabIndex={-1}
           onClick={onOpenSettings}
           aria-label={t('titlebar.settingsAriaLabel')}

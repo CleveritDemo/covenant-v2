@@ -4,6 +4,38 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.56
+
+- **Rail de adjuntos más discreto**: sin separador vertical, thumbs más chicas (28px) con borde sutil y menos padding para que no agranden el campo.
+
+## v0.39.55
+
+- **Adjuntos del composer más compactos**: los thumbnails van a la derecha del texto, con scroll horizontal y sin subir el dock.
+
+## v0.39.54
+
+- **Theme picker visual**: preview mini Covenant, cards por mood/color y audio compacto dentro del modal.
+- **Toolbar/titlebar**: play/pausa integrado en ondas, botones org/settings cuadrados, trigger de temas con Button del kit, reloj entre temas y organizaciones.
+- **Composer del plano**: thumbnails de capturas dentro del campo, bajo el texto y centrados.
+
+## v0.39.53
+
+- **Delegaciones en curso se actualizan fila por fila**: la QuickChat del plano ya marca cada agente como terminado sin esperar a toda la ola.
+- **Dragon Ball Z ya tiene música**: el tema oscuro y Light usan el nuevo `dragonballz.mp3`.
+- **Audio de tema más simple**: la titlebar queda solo con play/pausa; volumen y switch de audio viven en Apariencia.
+- **Spotify legacy fuera del schema activo**: se limpian moods/playlists antiguos y sus tests se migran al audio interno.
+
+## v0.39.51
+
+- **Cambiar de tema arranca su música**: si Música está activada, el nuevo tema empieza a sonar aunque el anterior estuviera pausado; al abrir la app no hay autoplay.
+
+## v0.39.50
+
+- **Brainstorm se minimiza sin apagarse**: click fuera lo manda al dock, el botón lo reabre y puedes continuar otra ronda con guía humana.
+- **Música interna por tema**: salen Spotify y moods; la titlebar reproduce MP3 locales según el tema y Settings guarda volumen/estado.
+- **Más temas y reloj local**: entran Vikings, Ragnarok Online, Metroid, Pokémon, Dragon Ball Z y Saint Seiya con variantes Light; Zelda queda más corto y la titlebar muestra la hora.
+- **Sonido al terminar un agente**: `finish.mp3` suena una vez cuando un turno cierra correctamente, sin sonar en abortos ni retries.
+
 ## v0.39.49
 
 - **Los agentes de una sala de brainstorm sí pueden usar sus MCP**: el turno heredaba una config vacía, así que decían no tener acceso a Jira.

@@ -48,13 +48,11 @@ const en = {
     checkUpdatesNone: 'You are on the latest version.',
     checkUpdatesFound: 'v{{version}} available — use Update now or the title-bar badge.',
     checkUpdatesError: 'Could not check: {{message}}',
-    spotifySection: 'Spotify (title bar)',
-    musicEnabledTitle: 'Show music controls',
-    musicEnabledDescription: 'Shows the mood name and the play button in the title bar. When off, nothing is shown.',
-    spotifyHint: 'Playlist IDs (22 characters from open.spotify.com/playlist/…). Requires the Spotify desktop app. The mood name advances when clicked and playback pauses; press play to start the playlist for the current mood.',
-    spotifyPlaceholder: 'e.g. 37i9dQZF1DX4sWSpwq3LiO',
-    spotifyInputHint: 'You can paste the 22-character ID or the full playlist link; only the ID is saved.',
-    spotifyError: '«{{label}}»: enter a 22-character ID or an open.spotify.com/playlist/… link',
+    musicSection: 'Music',
+    musicEnabledTitle: 'Enable theme audio',
+    musicEnabledDescription: 'When off, theme audio does not play and the title-bar control is hidden.',
+    musicHint: 'Audio follows the active theme. Themes without a track hide the title-bar control.',
+    musicVolumeLabel: 'Volume',
     configSection: 'Configuration file',
     configHint: 'Settings are saved in config.json inside the application data folder. You can edit it directly with any text editor.',
     revealConfig: 'Reveal configuration folder in Finder',
@@ -658,6 +656,8 @@ const en = {
     brainstormOrphanParticipants: 'Saved participants missing from the catalog (skipped): {{ids}}',
     brainstormPause: 'Pause',
     brainstormResume: 'Resume',
+    brainstormContinueRound: 'Continue one more round',
+    brainstormContinueRoundHint: 'Adds one round (max {{max}}).',
     brainstormsListButton: 'Brainstorm rooms',
     brainstormHumanLabel: 'You',
     brainstormTargetRoom: 'to the room',
@@ -784,6 +784,7 @@ const en = {
   titlebar: {
     organizationsAriaLabel: 'Organizations',
     settingsAriaLabel: 'Settings',
+    clockAriaLabel: 'Current time {{time}}',
   },
 
   organizations: {
@@ -1026,26 +1027,25 @@ const en = {
 
   music: {
     pause: 'Pause',
-    playPlaylist: 'Play playlist ({{mood}})',
-    configurePlaylist: 'Configure the «{{mood}}» playlist in Settings',
-    nextMoodTitle: 'Next mood. Music pauses; press play for the selected mood playlist.',
-    moods: {
-      focus: 'Focus',
-      chill: 'Chill',
-      energy: 'Energy',
-      ambient: 'Ambient',
-    },
+    play: 'Play',
+    stop: 'Stop',
+    volume: 'Volume',
   },
 
   themePicker: {
     title: 'theme',
     footerHint: 'filter by name · click or [enter] · ← → · esc close',
-    previewLabel: 'title · tabs · terminal · AI bar',
+    previewLabel: 'title · tabs · workspace · AI',
     filterPlaceholder: 'filter theme… (e.g. interstellar)',
     filterAriaLabel: 'Filter theme list',
     listAriaLabel: 'Choose theme',
     emptyState: 'no theme matches "{{filter}}"',
     triggerTitle: 'Choose theme',
+    inUse: 'In use',
+    audioToggle: 'Theme audio',
+    audioToggleHint: 'When off, theme audio does not play and the title-bar control is hidden.',
+    audioVolume: 'Volume',
+    audioHint: 'Audio follows the active theme.',
   },
 
   quit: {

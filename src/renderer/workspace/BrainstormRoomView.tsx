@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
 import {
+  BRAINSTORM_MAX_ROUNDS_CAP,
   brainstormSeats,
   brainstormTurnCount,
   brainstormTurnsDone,
@@ -9,6 +10,7 @@ import {
   parseBrainstormClosing,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
+  sanitizeBrainstormMaxRounds,
   stripBrainstormProtocolFences,
   type BrainstormCatalogAgent,
   type BrainstormSeatState,
@@ -102,6 +104,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 }) => {
   const { t } = useT()
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
+  const [maxRounds, setMaxRounds] = useState(() => sanitizeBrainstormMaxRounds(room.maxRounds))
   const liveStatusRef = useRef(live.status)
   const stoppedRef = useRef(false)
   const onLiveRef = useRef(onLive)
@@ -141,6 +144,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
   useEffect(() => {
     setLive(createInitialBrainstormLiveState(room))
+    setMaxRounds(sanitizeBrainstormMaxRounds(room.maxRounds))
     setHotWorkingSet(null)
     setWorkingSetError(null)
     stoppedRef.current = false
@@ -170,7 +174,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     messages: live.messages,
     // Al terminar, `round` ya apunta fuera: los asientos miran la última ronda.
     round: live.status === 'done'
-      ? Math.max(0, Math.min(live.round, room.maxRounds - 1))
+      ? Math.max(0, Math.min(live.round, maxRounds - 1))
       : live.round,
     speakingAgentId: live.speakingAgentId,
   }), [
@@ -179,13 +183,13 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     live.speakingAgentId,
     live.status,
     participantResolution.resolvedIds,
-    room.maxRounds,
+    maxRounds,
   ])
 
   const turnsDone = brainstormTurnsDone(live.messages)
   const totalTurns = brainstormTurnCount({
     participantAgentIds: participantResolution.resolvedIds,
-    maxRounds: room.maxRounds,
+    maxRounds,
   })
 
   // El cierre es la última entrada, no una pantalla nueva: solo si el turno
@@ -211,10 +215,12 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     && participantResolution.resolvedIds.length >= 2
   const showStop = isBrainstormStoppable(live.status) || live.status === 'paused'
   const showComposer = live.status === 'running' || live.status === 'paused'
+  const showContinueRound = live.status === 'done' && maxRounds < BRAINSTORM_MAX_ROUNDS_CAP
+    && participantResolution.resolvedIds.length >= 2
   // `round` es índice de ronda en curso: la ronda humana es +1, salvo al terminar.
   const displayRound = live.status === 'done'
-    ? room.maxRounds
-    : Math.min(Math.max(live.round, 0) + 1, room.maxRounds)
+    ? maxRounds
+    : Math.min(Math.max(live.round, 0) + 1, maxRounds)
   const orphanWarning = participantResolution.orphanIds.length > 0
     ? t('tabs.brainstormOrphanParticipants', {
       ids: participantResolution.orphanIds.join(', '),
@@ -226,6 +232,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const liveKey = [
     live.status,
     displayRound,
+    maxRounds,
     turnsDone,
     live.speakingAgentId ?? '',
     participantResolution.resolvedIds.join(','),
@@ -236,8 +243,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       roomId: room.id,
       topic: room.topic,
       status: live.status,
-      round: Math.min(displayRound || 1, room.maxRounds),
-      maxRounds: room.maxRounds,
+      round: Math.min(displayRound || 1, maxRounds),
+      maxRounds,
       turnsDone: Math.min(turnsDone + (live.speakingAgentId ? 1 : 0), totalTurns),
       totalTurns,
       speakingAgentId: live.speakingAgentId,
@@ -267,7 +274,27 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       roomId: room.id,
       topic: room.topic,
       participantAgentIds: participantResolution.resolvedIds,
-      maxRounds: room.maxRounds,
+      maxRounds,
+      contextIds: room.contextIds,
+      filePaths: room.filePaths,
+      outcome: room.outcome,
+      cwd: cwd.trim(),
+      resume: true,
+    })
+  }
+
+  const handleContinueRound = (): void => {
+    if (liveStatusRef.current !== 'done') return
+    if (participantResolution.resolvedIds.length < 2) return
+    const next = sanitizeBrainstormMaxRounds(maxRounds + 1)
+    if (next <= maxRounds) return
+    setMaxRounds(next)
+    stoppedRef.current = false
+    window.api.startBrainstorm({
+      roomId: room.id,
+      topic: room.topic,
+      participantAgentIds: participantResolution.resolvedIds,
+      maxRounds: next,
       contextIds: room.contextIds,
       filePaths: room.filePaths,
       outcome: room.outcome,
@@ -312,6 +339,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       size="lg"
       zIndex={855}
       bodyLayout="flush"
+      closeOnBackdrop
       footer={(
         <div className="brainstorm-room-view__footer">
           {showPause ? (
@@ -323,6 +351,13 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             <Button variant="primary" size="sm" onClick={handlePlay}>
               {t('tabs.brainstormResume')}
             </Button>
+          ) : null}
+          {showContinueRound ? (
+            <Tooltip content={t('tabs.brainstormContinueRoundHint', { max: BRAINSTORM_MAX_ROUNDS_CAP })}>
+              <Button variant="primary" size="sm" onClick={handleContinueRound}>
+                {t('tabs.brainstormContinueRound')}
+              </Button>
+            </Tooltip>
           ) : null}
           {showStop ? (
             <Button variant="danger" size="sm" onClick={handleStop}>
@@ -340,7 +375,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           <p className="brainstorm-room-view__topic">{room.topic}</p>
           <div className="brainstorm-room-view__meta">
             <span className="brainstorm-room-view__pips" aria-hidden>
-              {Array.from({ length: room.maxRounds }, (_, index) => (
+              {Array.from({ length: maxRounds }, (_, index) => (
                 <i
                   key={index}
                   className={[
@@ -358,8 +393,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
               {' '}
               <strong>
                 {t('tabs.brainstormRoundValue', {
-                  current: Math.min(displayRound || 1, room.maxRounds),
-                  max: room.maxRounds,
+                  current: Math.min(displayRound || 1, maxRounds),
+                  max: maxRounds,
                 })}
               </strong>
             </span>

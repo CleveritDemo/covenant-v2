@@ -282,6 +282,9 @@ describe('nota humana dirigida', () => {
     const prompt = buildBrainstormTurnPrompt(toRoom, 'qa', 'QA')
     expect(prompt).toContain('(human, to the room): a todos')
     expect(prompt).not.toContain('not to you')
+    expect(prompt).toContain(
+      'Human notes to the room are standing guidance for this and following turns',
+    )
   })
 })
 

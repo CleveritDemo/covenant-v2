@@ -36,7 +36,10 @@ import {
 } from '@shared/agentThreads'
 import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
-import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
+import {
+  orchestrationAwaitingSignature,
+  type OrchestrationAwaitingView,
+} from '@shared/orchestrationAwaiting'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -50,6 +53,7 @@ import {
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
+import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
@@ -985,9 +989,7 @@ export const AgentPane: React.FC<Props> = ({
       busy ? (activeAssistantId ?? '') : '',
       settlingId ?? '',
       awaitingDelegations ? '1' : '0',
-      orchestrationAwaiting
-        ? `${orchestrationAwaiting.done}/${orchestrationAwaiting.total}:${orchestrationAwaiting.items.map(item => `${item.delegationId}:${item.status}`).join(',')}`
-        : '',
+      orchestrationAwaitingSignature(orchestrationAwaiting),
       delegationWorkActive ? '1' : '0',
       orchestratorBusy ? '1' : '0',
       orchestrationWorkStyle,
@@ -1465,6 +1467,7 @@ export const AgentPane: React.FC<Props> = ({
       beginLiveSettle(id)
       // Vacío tras reintentos: el turno cerró; no tumbar la cadena entera.
       setTurnCloseReason('completed')
+      playAgentFinishSound()
       setBusy(false)
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)

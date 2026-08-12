@@ -1,6 +1,8 @@
 import React from 'react'
 import { useT } from '@i18n/useT'
 import { getTheme } from '@themes/presets'
+import { Button } from './ui/Button'
+import './ThemePickerTrigger.css'
 
 interface ThemePickerTriggerProps {
   themeId: string
@@ -22,21 +24,23 @@ export const ThemePickerTrigger: React.FC<ThemePickerTriggerProps> = ({
   const accent = theme.vars['--accent'] ?? theme.xterm.cursor
 
   return (
-    <button
-      type="button"
-      tabIndex={-1}
-      className="theme-picker-trigger"
-      style={{ '--swatch-bg': bg, '--swatch-accent': accent } as React.CSSProperties}
-      onClick={onClick}
-      aria-label={t('themePicker.triggerTitle')}
-      aria-haspopup="dialog"
-      aria-expanded={isOpen}
-    >
-      <span className="theme-picker-trigger-palette" aria-hidden="true">
-        <span className="theme-picker-trigger-swatch-bg" />
-        <span className="theme-picker-trigger-swatch-accent" />
-      </span>
-      <span className="theme-picker-trigger-label">{themeName}</span>
-    </button>
+    <span className="theme-picker-trigger">
+      <Button
+        variant="ghost"
+        size="sm"
+        tabIndex={-1}
+        style={{ '--swatch-bg': bg, '--swatch-accent': accent } as React.CSSProperties}
+        onClick={onClick}
+        aria-label={t('themePicker.triggerTitle')}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+      >
+        <span className="theme-picker-trigger-palette" aria-hidden="true">
+          <span className="theme-picker-trigger-swatch-bg" />
+          <span className="theme-picker-trigger-swatch-accent" />
+        </span>
+        <span className="theme-picker-trigger-label">{themeName}</span>
+      </Button>
+    </span>
   )
 }

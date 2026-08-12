@@ -97,16 +97,8 @@ export const IPC = {
   /** Renderer → main (invoke): diálogo nativo para elegir carpeta de proyecto */
   SELECT_DIRECTORY: 'shell:selectDirectory',
   CONTEXT_IMPORT_FILES: 'tabContext:importFiles',
-  /** Renderer → main (invoke): abrir URL externa (http(s) / spotify:); playlists web → app si hay cliente */
+  /** Renderer → main (invoke): abrir URL externa (http(s)) */
   OPEN_EXTERNAL_URL: 'shell:openExternalUrl',
-  /** Renderer → main (invoke): ¿cliente Spotify de escritorio instalado? */
-  SPOTIFY_DESKTOP_INSTALLED: 'spotify:desktopInstalled',
-  /** Renderer → main (invoke): reproducir playlist por ID (22 chars) */
-  SPOTIFY_PLAY_PLAYLIST: 'spotify:playPlaylist',
-  SPOTIFY_PAUSE: 'spotify:pause',
-  SPOTIFY_PLAY: 'spotify:play',
-  /** Renderer → main (invoke): estado aproximado de reproducción */
-  SPOTIFY_GET_STATE: 'spotify:getState',
   /** Renderer → main: listado del cwd de la sesión + package.json (contexto IA) */
   PROJECT_AI_CONTEXT_GET: 'project:aiContext',
   /** Renderer → main (invoke): lee `.ai-terminal/agent.md` del cwd de la sesión; null si no existe */

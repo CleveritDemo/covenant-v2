@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildOrchestrationAwaitingView,
   isReplicaAgentId,
+  orchestrationAwaitingSignature,
   shortWorktreeHint,
   shouldDisposeReplicaOnComplete,
 } from '../orchestrationAwaiting'
@@ -97,5 +98,26 @@ describe('buildOrchestrationAwaitingView', () => {
       },
     ])
     expect(view?.items[0]?.toPaneId).toBe('pane-fe')
+  })
+})
+
+describe('orchestrationAwaitingSignature', () => {
+  it('cambia cuando solo un item pasa a done (awaitingDelegations seguiría true)', () => {
+    const a = buildOrchestrationAwaitingView([
+      { delegationId: 'd1', toAgentId: 'frontend', status: 'running' },
+      { delegationId: 'd2', toAgentId: 'backend', status: 'running' },
+    ])
+    const b = buildOrchestrationAwaitingView([
+      { delegationId: 'd1', toAgentId: 'frontend', status: 'done' },
+      { delegationId: 'd2', toAgentId: 'backend', status: 'running' },
+    ])
+    expect(orchestrationAwaitingSignature(a)).not.toBe(orchestrationAwaitingSignature(b))
+    expect(orchestrationAwaitingSignature(a)).toBe('0/2:d1:running,d2:running')
+    expect(orchestrationAwaitingSignature(b)).toBe('1/2:d1:done,d2:running')
+  })
+
+  it('null y vacío son la misma firma', () => {
+    expect(orchestrationAwaitingSignature(null)).toBe('')
+    expect(orchestrationAwaitingSignature(undefined)).toBe('')
   })
 })

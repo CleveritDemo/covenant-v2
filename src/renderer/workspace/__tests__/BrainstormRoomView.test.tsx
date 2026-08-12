@@ -78,6 +78,32 @@ beforeEach(() => {
 })
 
 describe('BrainstormRoomView minimizada', () => {
+  it('clic en scrim minimiza vía onClose y no detiene el runner', () => {
+    const stopBrainstorm = vi.fn()
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn(() => () => {}),
+        stopBrainstorm,
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    const onClose = vi.fn()
+
+    render(
+      <BrainstormRoomView open room={room} cwd="/tmp/project" onClose={onClose} />,
+    )
+    const scrim = document.querySelector('.terminal-modal-scrim')
+    expect(scrim).not.toBeNull()
+    expect(scrim?.getAttribute('data-close-on-backdrop')).toBe('true')
+    // jsdom/createEvent no fija button en PointerEvent; TerminalModal exige button === 0.
+    const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })
+    scrim!.dispatchEvent(down)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(stopBrainstorm).not.toHaveBeenCalled()
+  })
+
   it('cerrar no detiene el runner y sigue acumulando turnos oculta', () => {
     const bus: { emit: ((event: Record<string, unknown>) => void) | null } = { emit: null }
     const stopBrainstorm = vi.fn()

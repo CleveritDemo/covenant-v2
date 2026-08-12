@@ -37,8 +37,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function gotoMusic(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.spotifySection' }))
+function gotoAppearance(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
 }
 
 describe('guardado al cambiar', () => {
@@ -50,21 +50,21 @@ describe('guardado al cambiar', () => {
     expect(screen.getByText('settings.savesOnChange')).toBeTruthy()
   })
 
-  it('una ráfaga de tecleo produce una sola escritura', async () => {
+  it('una ráfaga en el volumen produce una sola escritura', async () => {
     vi.useFakeTimers()
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearance()
 
-    const input = document.getElementById('settings-pl-focus') as HTMLInputElement
-    for (const value of ['3', '37', '37i9dQZF1DX4sWSpwq3LiO']) {
-      fireEvent.change(input, { target: { value } })
+    const slider = document.getElementById('settings-music-volume') as HTMLInputElement
+    for (const value of ['20', '40', '55']) {
+      fireEvent.change(slider, { target: { value } })
       await vi.advanceTimersByTimeAsync(100)
     }
-    expect(setConfig).not.toHaveBeenCalled() // el debounce aún no venció
+    expect(setConfig).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(700)
     expect(setConfig).toHaveBeenCalledTimes(1)
-    expect(setConfig.mock.calls[0][0].musicPlaylistIdsByMood.focus).toBe('37i9dQZF1DX4sWSpwq3LiO')
+    expect(setConfig.mock.calls[0][0].musicVolume).toBe(0.55)
   })
 
   it('cerrar vacía el cambio pendiente en vez de perderlo', async () => {
@@ -74,7 +74,7 @@ describe('guardado al cambiar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
     fireEvent.click(screen.getByRole('button', { name: /settings.reduceMotionTitle/ }))
-    await vi.advanceTimersByTimeAsync(50) // muy por debajo del debounce
+    await vi.advanceTimersByTimeAsync(50)
 
     fireEvent.click(screen.getByText('common.done'))
 
@@ -85,22 +85,22 @@ describe('guardado al cambiar', () => {
 
   it('«Descartar cambios» vuelve al estado de apertura y lo persiste', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearance()
 
-    const input = document.getElementById('settings-pl-focus') as HTMLInputElement
-    fireEvent.change(input, { target: { value: '37i9dQZF1DX4sWSpwq3LiO' } })
+    const slider = document.getElementById('settings-music-volume') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '80' } })
     await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByText('settings.discard'))
 
     await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(2))
-    expect(setConfig.mock.calls[1][0].musicPlaylistIdsByMood.focus).toBeUndefined()
-    expect((document.getElementById('settings-pl-focus') as HTMLInputElement).value).toBe('')
+    expect(setConfig.mock.calls[1][0].musicVolume).toBe(CONFIG_DEFAULTS.musicVolume)
+    expect((document.getElementById('settings-music-volume') as HTMLInputElement).value).toBe(
+      String(Math.round(CONFIG_DEFAULTS.musicVolume * 100)),
+    )
     expect(screen.getByText('settings.discarded')).toBeTruthy()
   })
 
-  // El commit arma el AppConfig campo a campo: un ajuste que no esté listado ahí
-  // se pierde en el primer autosave de cualquier otro control.
   it('conserva la tipografía elegida al guardar otro ajuste', async () => {
     render(
       <SettingsModal

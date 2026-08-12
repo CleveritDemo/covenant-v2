@@ -7,6 +7,8 @@ import type {
 import {
   BRAINSTORM_HUMAN_AGENT_ID,
   BRAINSTORM_HUMAN_AGENT_NAME,
+  brainstormTurnCount,
+  brainstormTurnsDone,
   isBrainstormHumanMessage,
 } from '@shared/brainstormRoom'
 
@@ -46,6 +48,29 @@ export function createInitialBrainstormLiveState(
     round: room?.round ?? 0,
     status: room?.status ?? 'running',
     lastError: null,
+  }
+}
+
+/**
+ * Summary desde la sala cuando aún no hay live publicado (p. ej. minimizada
+ * antes del primer onLive): el botón/dock no quedan mudos.
+ */
+export function createBrainstormLiveSummary(room: BrainstormRoom): BrainstormLiveSummary {
+  const maxRounds = room.maxRounds
+  const round = room.status === 'done'
+    ? maxRounds
+    : Math.min(Math.max(room.round, 0) + 1, maxRounds)
+  return {
+    roomId: room.id,
+    topic: room.topic,
+    status: room.status,
+    round: Math.max(1, round),
+    maxRounds,
+    turnsDone: brainstormTurnsDone(room.messages),
+    totalTurns: brainstormTurnCount(room),
+    speakingAgentId: null,
+    speakerName: '',
+    participantAgentIds: [...room.participantAgentIds],
   }
 }
 

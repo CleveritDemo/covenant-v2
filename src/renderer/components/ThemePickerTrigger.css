@@ -1,0 +1,43 @@
+/* Wrapper + hijos del trigger (Button solo vía props; altura alineada a icon sm). */
+
+.theme-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+}
+
+.theme-picker-trigger > .btn {
+  min-height: 28px;
+  max-width: 100%;
+  gap: 6px;
+}
+
+.theme-picker-trigger-palette {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  width: 18px;
+  height: 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.theme-picker-trigger-swatch-bg {
+  flex: 1;
+  min-width: 0;
+  background: var(--swatch-bg, transparent);
+}
+
+.theme-picker-trigger-swatch-accent {
+  flex: 1;
+  min-width: 0;
+  background: var(--swatch-accent, transparent);
+}
+
+.theme-picker-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}

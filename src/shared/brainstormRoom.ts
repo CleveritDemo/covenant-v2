@@ -538,6 +538,8 @@ export function buildBrainstormTurnPrompt(
     isBrainstormHumanMessage(msg)
     && Boolean(msg.targetAgentId)
     && msg.targetAgentId !== speakerAgentId)
+  const hasRoomHumanGuide = room.messages.some(msg =>
+    isBrainstormHumanMessage(msg) && !msg.targetAgentId)
   const transcript = room.messages.length
     ? room.messages
       .map(msg => {
@@ -570,6 +572,11 @@ export function buildBrainstormTurnPrompt(
     '- As long as it needs to be, no longer. Plain language.',
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
+      : []),
+    ...(hasRoomHumanGuide
+      ? [
+          '- Human notes to the room are standing guidance for this and following turns; prioritize the latest relevant human guidance before reacting to other agents.',
+        ]
       : []),
     ...(addressedToSpeaker
       ? ['- The user addressed you directly in the transcript: answer that first.']

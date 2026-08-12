@@ -45,7 +45,10 @@ import { markSplashUiReady } from './splash'
 import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
-import type { BrainstormLiveSummary } from './workspace/brainstormLiveState'
+import {
+  createBrainstormLiveSummary,
+  type BrainstormLiveSummary,
+} from './workspace/brainstormLiveState'
 import { isBrainstormLive } from './workspace/brainstormViewClose'
 import {
   filterBrainstormInvitableAgents,
@@ -122,6 +125,7 @@ import {
 } from '@shared/expertReplicas'
 import {
   buildOrchestrationAwaitingView,
+  orchestrationAwaitingSignature,
   shouldDisposeReplicaOnComplete,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
@@ -3036,6 +3040,8 @@ export const App: React.FC = () => {
         && previous.lastSnippet === status.lastSnippet
         && previous.activeAssistantId === status.activeAssistantId
         && previous.awaitingDelegations === status.awaitingDelegations
+        && orchestrationAwaitingSignature(previous.orchestrationAwaiting)
+          === orchestrationAwaitingSignature(status.orchestrationAwaiting)
         && previous.delegationWorkActive === status.delegationWorkActive
         && previous.orchestratorBusy === status.orchestratorBusy
         && previous.orchestrationWorkStyle === status.orchestrationWorkStyle
@@ -4779,14 +4785,6 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const patchConfig = useCallback(async (partial: Partial<AppConfig>) => {
-    const r = await window.api.setConfig(partial)
-    if (r.ok) {
-      const cfg = await window.api.getConfig()
-      setConfig(cfg)
-    }
-  }, [])
-
   const MIN_FONT = 9
   const MAX_FONT = 24
 
@@ -5136,7 +5134,6 @@ export const App: React.FC = () => {
         onOpenThemePicker={() => setThemePickerOpen(true)}
         onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        onConfigPatch={patchConfig}
       />
 
       {/* ── Tab bar ── */}
@@ -5540,14 +5537,18 @@ export const App: React.FC = () => {
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
                   brainstormLive={brainstormRoomByTab[tab.id]
-                    ? brainstormLiveByTab[tab.id] ?? null
+                    ? brainstormLiveByTab[tab.id]
+                      ?? createBrainstormLiveSummary(brainstormRoomByTab[tab.id]!)
                     : null}
+                  brainstormHasRoom={Boolean(brainstormRoomByTab[tab.id])}
+                  brainstormMinimized={Boolean(brainstormMinimizedByTab[tab.id])}
                   brainstormDockOpen={Boolean(brainstormDockOpenByTab[tab.id])}
                   onBrainstormDockOpenChange={open => {
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   onRestoreBrainstorm={() => {
                     setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
                   onStopBrainstorm={() => {
                     const roomId = brainstormRoomByTab[tab.id]?.id

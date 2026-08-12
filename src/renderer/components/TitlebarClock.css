@@ -1,0 +1,13 @@
+.titlebar-clock {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 4px;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-muted);
+}

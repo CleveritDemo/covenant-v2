@@ -50,13 +50,11 @@ const es = {
     checkUpdatesNone: 'Estás en la última versión.',
     checkUpdatesFound: 'v{{version}} disponible — usa Forzar actualización o el badge de la titlebar.',
     checkUpdatesError: 'No se pudo comprobar: {{message}}',
-    spotifySection: 'Spotify (barra de título)',
-    musicEnabledTitle: 'Mostrar controles de música',
-    musicEnabledDescription: 'Muestra el mood y el botón de play en la barra de título. Si está apagado, no aparece nada.',
-    spotifyHint: 'IDs de playlist (22 caracteres de open.spotify.com/playlist/…). Requiere Spotify de escritorio. El nombre del mood avanza al pulsarlo y la reproducción se pausa; pulsa play para reproducir la playlist del mood mostrado.',
-    spotifyPlaceholder: 'p. ej. 37i9dQZF1DX4sWSpwq3LiO',
-    spotifyInputHint: 'Puedes pegar el ID de 22 caracteres o el enlace completo; al guardar se guarda solo el ID.',
-    spotifyError: '«{{label}}»: introduce un ID de 22 caracteres o un enlace open.spotify.com/playlist/…',
+    musicSection: 'Música',
+    musicEnabledTitle: 'Activar audio del tema',
+    musicEnabledDescription: 'Si está desactivado, el audio no suena y el control desaparece de la barra de título.',
+    musicHint: 'El audio sigue el tema activo. Sin track no hay control en la barra.',
+    musicVolumeLabel: 'Volumen',
     configSection: 'Archivo de configuración',
     configHint: 'Los ajustes se guardan en config.json dentro de la carpeta de datos de la aplicación. Puedes editarlo directamente con cualquier editor de texto.',
     revealConfig: 'Revelar carpeta de configuración en Finder',
@@ -660,6 +658,8 @@ const es = {
     brainstormOrphanParticipants: 'Participantes guardados ausentes del catálogo (omitidos): {{ids}}',
     brainstormPause: 'Pausa',
     brainstormResume: 'Reanudar',
+    brainstormContinueRound: 'Continuar una ronda más',
+    brainstormContinueRoundHint: 'Añade una ronda (máx. {{max}}).',
     brainstormsListButton: 'Salas de brainstorm',
     brainstormHumanLabel: 'Tú',
     brainstormTargetRoom: 'a la sala',
@@ -786,6 +786,7 @@ const es = {
   titlebar: {
     organizationsAriaLabel: 'Organizaciones',
     settingsAriaLabel: 'Ajustes',
+    clockAriaLabel: 'Hora actual {{time}}',
   },
 
   organizations: {
@@ -1028,26 +1029,25 @@ const es = {
 
   music: {
     pause: 'Pausar',
-    playPlaylist: 'Reproducir playlist ({{mood}})',
-    configurePlaylist: 'Configura la playlist de «{{mood}}» en Ajustes',
-    nextMoodTitle: 'Siguiente estado de ánimo. Se pausa la música; pulsa play para la playlist del mood seleccionado.',
-    moods: {
-      focus: 'Focus',
-      chill: 'Chill',
-      energy: 'Energy',
-      ambient: 'Ambient',
-    },
+    play: 'Reproducir',
+    stop: 'Detener',
+    volume: 'Volumen',
   },
 
   themePicker: {
     title: 'tema',
     footerHint: 'filtro por nombre · clic o [enter] · ← → · esc cerrar',
-    previewLabel: 'título · pestañas · terminal · barra IA',
+    previewLabel: 'título · pestañas · workspace · IA',
     filterPlaceholder: 'filtrar tema… (p. ej. interstellar)',
     filterAriaLabel: 'Filtrar lista de temas',
     listAriaLabel: 'Elegir tema',
     emptyState: 'ningún tema coincide con «{{filter}}»',
     triggerTitle: 'Elegir tema',
+    inUse: 'En uso',
+    audioToggle: 'Audio del tema',
+    audioToggleHint: 'Si está desactivado, el audio no suena y el control desaparece de la barra de título.',
+    audioVolume: 'Volumen',
+    audioHint: 'El audio sigue el tema activo.',
   },
 
   quit: {

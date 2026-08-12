@@ -180,6 +180,9 @@ export interface TabAgenticPlaneProps {
   brainstormsListButtonLabel?: string
   /** Sala minimizada que sigue viva: punto en el botón + flyout anclado. */
   brainstormLive?: BrainstormLiveSummary | null
+  /** Hay room montada (minimizada o no), aunque live aún no haya llegado. */
+  brainstormHasRoom?: boolean
+  brainstormMinimized?: boolean
   brainstormDockOpen?: boolean
   onBrainstormDockOpenChange?: (open: boolean) => void
   onRestoreBrainstorm?: () => void
@@ -359,6 +362,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   brainstormNeedFolderHint,
   canOpenBrainstorm = false,
   brainstormLive = null,
+  brainstormHasRoom = false,
+  brainstormMinimized = false,
   brainstormDockOpen = false,
   onBrainstormDockOpenChange,
   onRestoreBrainstorm,
@@ -686,12 +691,22 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             <span className="plane-brainstorm-anchor">
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
-                pressed={brainstormLive ? brainstormDockOpen : brainstormsListOpen}
+                pressed={
+                  brainstormHasRoom || Boolean(brainstormLive)
+                    ? brainstormDockOpen
+                    : brainstormsListOpen
+                }
                 disabled={!canOpenBrainstorm}
                 disabledTitle={brainstormNeedFolderHint}
                 onClick={() => {
-                  // Con sala minimizada el botón devuelve la sala; sin ella, lista.
-                  if (brainstormLive) onBrainstormDockOpenChange?.(!brainstormDockOpen)
+                  const hasRoom = brainstormHasRoom || Boolean(brainstormLive)
+                  // Room minimizada: reabrir modal; no caer en la lista (App la oculta si hay room).
+                  if (hasRoom && brainstormMinimized) {
+                    if (brainstormDockOpen) onBrainstormDockOpenChange?.(false)
+                    onRestoreBrainstorm?.()
+                    return
+                  }
+                  if (hasRoom) onBrainstormDockOpenChange?.(!brainstormDockOpen)
                   else onBrainstormsListOpenChange(!brainstormsListOpen)
                 }}
               />

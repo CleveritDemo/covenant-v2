@@ -372,31 +372,66 @@
   color: var(--text);
 }
 
-/* Spotify (IDs de playlist en ajustes) */
-.settings-spotify-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
+/* Volumen de música interna */
+.settings-music-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
 }
 
-.settings-spotify-row .settings-label--compact {
-  gap: 4px;
+.settings-music-volume__slider {
+  flex: 1;
+  height: 18px;
   margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
 }
 
-.settings-spotify-row .settings-label--compact input {
+.settings-music-volume__slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--border) 80%, var(--text-muted));
+}
+
+.settings-music-volume__slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text-muted);
+}
+
+.settings-music-volume__slider:hover::-webkit-slider-thumb {
+  background: var(--text);
+}
+
+.settings-music-volume__slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--border) 80%, var(--text-muted));
+}
+
+.settings-music-volume__slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.settings-music-volume__value {
+  flex-shrink: 0;
+  min-width: 3ch;
   font-family: var(--font-ui);
   font-size: 12px;
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.settings-spotify-row .settings-label--compact input:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--border) 30%, var(--text-muted));
+  color: var(--text-muted);
+  text-align: right;
 }
 
 .settings-folder-row {

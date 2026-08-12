@@ -289,14 +289,6 @@ import {
   isExistingDirectory,
   patchEnvForCwdReporting,
 } from './shellCwdSync'
-import {
-  getPlaybackState,
-  isSpotifyDesktopInstalled,
-  pausePlayback,
-  playPlaylist,
-  resumePlayback,
-  tryResolveSpotifyPlaylistUriFromHttpUrl,
-} from './spotifyNative'
 
 function preloadPath(): string {
   return join(__dirname, '../preload/preload.js')
@@ -771,16 +763,8 @@ function registerIpc(): void {
     try {
       const u = new URL(raw)
       const isHttp = u.protocol === 'http:' || u.protocol === 'https:'
-      const isSpotifyScheme = u.protocol === 'spotify:'
-      if (!isHttp && !isSpotifyScheme) {
-        return { ok: false as const, error: 'Solo se permiten http(s) y spotify:' }
-      }
-      if (isHttp) {
-        const spotifyUri = tryResolveSpotifyPlaylistUriFromHttpUrl(raw)
-        if (spotifyUri && (await isSpotifyDesktopInstalled())) {
-          await shell.openExternal(spotifyUri)
-          return { ok: true as const }
-        }
+      if (!isHttp) {
+        return { ok: false as const, error: 'Solo se permiten http(s)' }
       }
       await shell.openExternal(raw)
       return { ok: true as const }
@@ -789,38 +773,6 @@ function registerIpc(): void {
       return { ok: false as const, error: msg }
     }
   })
-
-  ipcMain.handle(IPC.SPOTIFY_DESKTOP_INSTALLED, () => isSpotifyDesktopInstalled())
-
-  ipcMain.handle(IPC.SPOTIFY_PLAY_PLAYLIST, async (_e, id: unknown) => {
-    if (typeof id !== 'string') return { ok: false as const, error: 'ID inválido' }
-    try {
-      await playPlaylist(id)
-      return { ok: true as const }
-    } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
-    }
-  })
-
-  ipcMain.handle(IPC.SPOTIFY_PAUSE, async () => {
-    try {
-      await pausePlayback()
-      return { ok: true as const }
-    } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
-    }
-  })
-
-  ipcMain.handle(IPC.SPOTIFY_PLAY, async () => {
-    try {
-      await resumePlayback()
-      return { ok: true as const }
-    } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
-    }
-  })
-
-  ipcMain.handle(IPC.SPOTIFY_GET_STATE, () => getPlaybackState())
 
   ipcMain.handle(IPC.PROJECT_AI_CONTEXT_GET, (_e, sessionId: string) => {
     return gatherProjectAiContextForCwd(projectRootForSession(sessionId))

@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.49
+
+- **Los agentes de una sala de brainstorm sí pueden usar sus MCP**: el turno heredaba una config vacía, así que decían no tener acceso a Jira.
+- **La sala deja de atarles las manos**: se acabaron el tope de 50 palabras y la prohibición de llamar tools; si el turno necesita datos reales, los va a buscar.
+- **La mesa tiene más sitio donde soltar**: el dropzone es bastante más alto y arrastrar un agente ya no pide puntería.
+
 ## v0.39.48
 
 - **Un MCP remoto ya no dice «lista» si pide login**: si Atlassian (u otro OAuth) responde 401, ves «hay que conectar» y pasos para autenticar en Copilot.

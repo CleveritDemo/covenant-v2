@@ -7,6 +7,7 @@ import {
   canonicalContextFileName,
   canonicalContextId,
   canonicalContextName,
+  contextDefinitionKey,
   type TabContext,
 } from '../tabContext'
 import { defaultIconForKind } from '../tabContextAppearance'
@@ -74,5 +75,36 @@ describe('kind jira', () => {
     const normalized = applyCanonicalContextIdentity(discovered)
     expect(normalized.issueKey).toBe('GRAV-412')
     expect(normalized.fileName).toBe('jira/GRAV-412.md')
+  })
+
+  it('el dedup mira issueKey, no el nombre visible: renombrar no cambia con qué archivo se compara', () => {
+    // Hallazgo arrastrado de la tarea 5: el campo Nombre del formulario es
+    // libre para cualquier kind, incluido jira, así que un usuario puede
+    // renombrar "GRAV-412" a "Bug de login" sin tocar la clave. El dedup no
+    // puede seguir ese nombre o dos contextos jira con nombres distintos y la
+    // misma clave dejarían de detectarse como el mismo archivo.
+    const renamed: TabContext = {
+      id: 'iaterminal:jira:grav-412',
+      name: 'Bug de login',
+      fileName: 'jira/GRAV-412.md',
+      kind: 'jira',
+      issueKey: 'GRAV-412',
+    }
+    const sameIssueDifferentId: TabContext = {
+      id: 'iaterminal:jira:grav-412',
+      name: 'GRAV-412',
+      fileName: 'jira/GRAV-412.md',
+      kind: 'jira',
+      issueKey: 'GRAV-412',
+    }
+    const otherIssue: TabContext = {
+      id: 'iaterminal:jira:grav-500',
+      name: 'GRAV-500',
+      fileName: 'jira/GRAV-500.md',
+      kind: 'jira',
+      issueKey: 'GRAV-500',
+    }
+    expect(contextDefinitionKey(renamed)).toBe(contextDefinitionKey(sameIssueDifferentId))
+    expect(contextDefinitionKey(renamed)).not.toBe(contextDefinitionKey(otherIssue))
   })
 })

@@ -214,11 +214,25 @@ export function canonicalContextName(
 }
 
 /** Firma de definición para deduplicar creatables por kind+stem (mismo archivo). */
-export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id'>): string | null {
+export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id' | 'issueKey'>): string | null {
   if (context.kind === 'agentResult') {
     const agentId = context.id.replace(/^iaterminal:result:/, '')
       || context.fileName.replace(/^results\//, '').replace(/\.md$/i, '')
     return JSON.stringify({ kind: 'agentResult', agentId })
+  }
+  if (context.kind === 'jira') {
+    // Igual que agentResult: el archivo real vive en `jira/<KEY>.md`, así que
+    // el dedup tiene que mirar la clave, no el nombre visible. Si se derivara
+    // de `creatableContextStem` (como el resto de kinds), renombrar el
+    // contexto (el campo Nombre es libre para cualquier kind, incluido jira)
+    // cambiaría la firma de dedup sin cambiar el archivo que ocupa, dejando
+    // colar dos contextos apuntando al mismo `.md`.
+    const issueKey = (
+      context.issueKey?.trim()
+      || (context.id.startsWith('iaterminal:jira:') ? context.id.slice('iaterminal:jira:'.length) : '')
+      || context.fileName.replace(/^jira\//, '').replace(/\.md$/i, '')
+    ).toLowerCase() || 'issue'
+    return JSON.stringify({ kind: 'jira', issueKey })
   }
   if (!isCreatableContextKind(context.kind)) return null
   const stem = creatableContextStem(context.kind, {

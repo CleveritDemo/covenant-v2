@@ -1,6 +1,11 @@
 import React, { useState } from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
-import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS, HOST_CONTEXT_KINDS } from '@shared/tabContext'
+import {
+  canonicalContextFileName,
+  normalizeContextFileName,
+  CREATABLE_CONTEXT_KINDS,
+  HOST_CONTEXT_KINDS,
+} from '@shared/tabContext'
 import {
   TAB_CONTEXT_COLORS,
   filterContextIconGroups,
@@ -54,6 +59,8 @@ interface Props {
   contexts: TabContext[]
   preview: PreviewState
   notesContent: string
+  /** Texto crudo del campo de clave `jira` (ver `TabContextFormModal.updateJiraKeyDraft`). */
+  jiraKeyDraft: string
   resolvedCwdLabel: string
   projectCwd: string
   duplicateMessage: string
@@ -64,6 +71,7 @@ interface Props {
   onUpdate: (patch: Partial<TabContext>) => void
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
+  onJiraKeyDraftChange: (raw: string) => void
   onPreviewReset: () => void
   /**
    * Canal de error de las acciones del panel izquierdo: carpeta raíz inválida
@@ -80,6 +88,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   contexts,
   preview,
   notesContent,
+  jiraKeyDraft,
   resolvedCwdLabel,
   projectCwd,
   duplicateMessage,
@@ -89,6 +98,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   onUpdate,
   onSelectKind,
   onNotesContentChange,
+  onJiraKeyDraftChange,
   onPreviewReset,
   onActionError,
 }) => {
@@ -176,7 +186,7 @@ export const TabContextsEditor: React.FC<Props> = ({
           </div>
         )}
 
-        {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
+        {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' ? (
           <TabContextRootPathField
             value={draft.rootPath ?? ''}
             projectCwd={projectCwd}
@@ -249,6 +259,18 @@ export const TabContextsEditor: React.FC<Props> = ({
           </label>
         )}
 
+        {draft.kind === 'jira' && (
+          <label>
+            <span>{t('tabContexts.jiraKeyLabel')}</span>
+            <Input
+              value={jiraKeyDraft}
+              placeholder="GRAV-412"
+              onChange={event => onJiraKeyDraftChange(event.target.value)}
+            />
+            <small>{t('tabContexts.jiraKeyHint')}</small>
+          </label>
+        )}
+
         {/* Nombre, archivo y aspecto van después de la configuración del tipo:
             elegir "Classes and methods" y tener que pasar por el nombre y los
             catorce iconos antes de indicar qué carpeta indexar es el
@@ -272,10 +294,20 @@ export const TabContextsEditor: React.FC<Props> = ({
           )}
         </label>
         <div className="tab-contexts__file-row">
-          <span>{`${PROJECT_DIR}/${normalizeContextFileName(
-            draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-            draft.kind === 'changelog' ? 'changelog' : 'context',
-          )}`}</span>
+          {/* `jira` vive bajo `jira/<CLAVE>.md`. El resto de kinds recompone
+              el archivo desde `name` porque su Input de Nombre lo mantiene en
+              sincro; para `jira` ese mismo Input sobrescribiría
+              `draft.fileName` perdiendo el subdirectorio (Nombre es libre,
+              como para cualquier otro kind — issue Bug de login). Se muestra
+              directo desde `issueKey`, que ese campo no toca, así que
+              coincide con lo que `applyCanonicalContextIdentity` va a
+              escribir de verdad al guardar. */}
+          <span>{draft.kind === 'jira'
+            ? `${PROJECT_DIR}/${canonicalContextFileName('jira', { issueKey: draft.issueKey })}`
+            : `${PROJECT_DIR}/${normalizeContextFileName(
+                draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+                draft.kind === 'changelog' ? 'changelog' : 'context',
+              )}`}</span>
           <Button
             variant="secondary"
             size="sm"

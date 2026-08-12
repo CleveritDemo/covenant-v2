@@ -551,6 +551,8 @@ const en = {
     kind_mcp: 'MCP servers',
     kind_skill: 'Skill',
     kind_jira: 'Jira issue',
+    jiraKeyLabel: 'Issue key',
+    jiraKeyHint: 'For example GRAV-412. The snapshot refreshes before each turn.',
     group_host: 'From the repository · host-generated',
     group_manual: 'Hand-written',
     groupProject: 'Project contexts',

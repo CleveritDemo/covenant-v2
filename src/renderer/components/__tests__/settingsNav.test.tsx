@@ -28,6 +28,10 @@ vi.mock('../GitHubTokenField', () => ({
 }))
 
 const setConfig = vi.fn()
+const getUpdateState = vi.fn()
+const onUpdateState = vi.fn()
+const checkForUpdates = vi.fn()
+const installUpdate = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true }
 
 function nav(name: string): HTMLElement {
@@ -37,13 +41,22 @@ function nav(name: string): HTMLElement {
 beforeEach(() => {
   setConfig.mockReset()
   setConfig.mockResolvedValue({ ok: true })
+  getUpdateState.mockReset()
+  getUpdateState.mockResolvedValue({ kind: 'idle' })
+  onUpdateState.mockReset()
+  onUpdateState.mockReturnValue(() => {})
+  checkForUpdates.mockReset()
+  checkForUpdates.mockResolvedValue({ kind: 'idle' })
+  installUpdate.mockReset()
   vi.stubGlobal('window', Object.assign(window, {
     api: {
       setConfig,
       openConfigFolder: vi.fn(),
       getAppVersion: vi.fn().mockResolvedValue('0.0.0'),
-      checkForUpdates: vi.fn().mockResolvedValue({ kind: 'idle' }),
-      installUpdate: vi.fn(),
+      getUpdateState,
+      onUpdateState,
+      checkForUpdates,
+      installUpdate,
     },
   }))
 })
@@ -99,6 +112,27 @@ describe('riel de categorías', () => {
     expect(screen.getByText('settings.autoUpdatesTitle')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'settings.checkUpdates' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'settings.forceUpdate' })).toBeTruthy()
+  })
+
+  it('Actualizaciones muestra reinicio cuando la descarga está lista', async () => {
+    getUpdateState.mockResolvedValue({ kind: 'ready', version: '1.2.3' })
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+
+    fireEvent.click(nav('settings.updatesSection'))
+
+    expect(await screen.findByRole('button', { name: 'settings.restartToUpdate' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'settings.forceUpdate' })).toBeNull()
+  })
+
+  it('Forzar actualización no reinicia si la descarga ya está lista', async () => {
+    checkForUpdates.mockResolvedValue({ kind: 'ready', version: '1.2.3' })
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+    fireEvent.click(nav('settings.updatesSection'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.forceUpdate' }))
+
+    expect(await screen.findByText('settings.checkUpdatesReady:1.2.3')).toBeTruthy()
+    expect(installUpdate).not.toHaveBeenCalled()
   })
 
   it('volumen en Sonido persiste musicVolume', async () => {

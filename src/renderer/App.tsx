@@ -125,6 +125,7 @@ import {
 } from '@shared/expertReplicas'
 import {
   buildOrchestrationAwaitingView,
+  orchestrationAwaitingSignature,
   shouldDisposeReplicaOnComplete,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
@@ -3039,6 +3040,8 @@ export const App: React.FC = () => {
         && previous.lastSnippet === status.lastSnippet
         && previous.activeAssistantId === status.activeAssistantId
         && previous.awaitingDelegations === status.awaitingDelegations
+        && orchestrationAwaitingSignature(previous.orchestrationAwaiting)
+          === orchestrationAwaitingSignature(status.orchestrationAwaiting)
         && previous.delegationWorkActive === status.delegationWorkActive
         && previous.orchestratorBusy === status.orchestratorBusy
         && previous.orchestrationWorkStyle === status.orchestrationWorkStyle
@@ -4782,14 +4785,6 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const patchConfig = useCallback(async (partial: Partial<AppConfig>) => {
-    const r = await window.api.setConfig(partial)
-    if (r.ok) {
-      const cfg = await window.api.getConfig()
-      setConfig(cfg)
-    }
-  }, [])
-
   const MIN_FONT = 9
   const MAX_FONT = 24
 
@@ -5139,7 +5134,6 @@ export const App: React.FC = () => {
         onOpenThemePicker={() => setThemePickerOpen(true)}
         onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        onConfigPatch={patchConfig}
       />
 
       {/* ── Tab bar ── */}

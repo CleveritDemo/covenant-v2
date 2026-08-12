@@ -36,7 +36,10 @@ import {
 } from '@shared/agentThreads'
 import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
-import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
+import {
+  orchestrationAwaitingSignature,
+  type OrchestrationAwaitingView,
+} from '@shared/orchestrationAwaiting'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -986,9 +989,7 @@ export const AgentPane: React.FC<Props> = ({
       busy ? (activeAssistantId ?? '') : '',
       settlingId ?? '',
       awaitingDelegations ? '1' : '0',
-      orchestrationAwaiting
-        ? `${orchestrationAwaiting.done}/${orchestrationAwaiting.total}:${orchestrationAwaiting.items.map(item => `${item.delegationId}:${item.status}`).join(',')}`
-        : '',
+      orchestrationAwaitingSignature(orchestrationAwaiting),
       delegationWorkActive ? '1' : '0',
       orchestratorBusy ? '1' : '0',
       orchestrationWorkStyle,

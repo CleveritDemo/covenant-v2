@@ -52,7 +52,7 @@ afterEach(() => {
 describe('TitlebarMusicControls', () => {
   it('no renderiza controles si el tema no tiene track', () => {
     const { container } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'dragonBallZ', musicEnabled: true }} />,
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'credicorp', musicEnabled: true }} />,
     )
     expect(container.firstChild).toBeNull()
   })
@@ -64,25 +64,20 @@ describe('TitlebarMusicControls', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('muestra play, stop y volumen cuando hay track', () => {
+  it('muestra solo play/pausa cuando hay track', () => {
     render(
       <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
     )
     expect(screen.getByLabelText('music.play')).toBeTruthy()
-    expect(screen.getByLabelText('music.stop')).toBeTruthy()
-    expect(screen.getByLabelText('music.volume')).toBeTruthy()
+    expect(screen.queryByLabelText('music.stop')).toBeNull()
+    expect(screen.queryByLabelText('music.volume')).toBeNull()
   })
 
-  it('persiste el volumen al mover el slider', () => {
-    const onConfigPatch = vi.fn()
+  it('Dragon Ball Z tiene track y muestra play', () => {
     render(
-      <TitlebarMusicControls
-        config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true, musicVolume: 0.35 }}
-        onConfigPatch={onConfigPatch}
-      />,
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'dragonBallZ', musicEnabled: true }} />,
     )
-    fireEvent.change(screen.getByLabelText('music.volume'), { target: { value: '50' } })
-    expect(onConfigPatch).toHaveBeenCalledWith({ musicVolume: 0.5 })
+    expect(screen.getByLabelText('music.play')).toBeTruthy()
   })
 
   it('render inicial con track no llama play automáticamente', () => {
@@ -121,5 +116,14 @@ describe('TitlebarMusicControls', () => {
     )
     expect(audio.play).not.toHaveBeenCalled()
     expect(container.firstChild).toBeNull()
+  })
+
+  it('play/pausa alterna el audio', () => {
+    render(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+    )
+    const audio = audioInstances[0]
+    fireEvent.click(screen.getByLabelText('music.play'))
+    expect(audio.play).toHaveBeenCalled()
   })
 })

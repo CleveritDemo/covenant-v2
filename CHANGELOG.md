@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.53
+
+- **Delegaciones en curso se actualizan fila por fila**: la QuickChat del plano ya marca cada agente como terminado sin esperar a toda la ola.
+- **Dragon Ball Z ya tiene música**: el tema oscuro y Light usan el nuevo `dragonballz.mp3`.
+- **Audio de tema más simple**: la titlebar queda solo con play/pausa; volumen y switch de audio viven en Apariencia.
+- **Spotify legacy fuera del schema activo**: se limpian moods/playlists antiguos y sus tests se migran al audio interno.
+
 ## v0.39.51
 
 - **Cambiar de tema arranca su música**: si Música está activada, el nuevo tema empieza a sonar aunque el anterior estuviera pausado; al abrir la app no hay autoplay.

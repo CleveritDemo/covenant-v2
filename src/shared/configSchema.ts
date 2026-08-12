@@ -63,15 +63,10 @@ export interface AppConfig {
    * Solo tiene efecto en modelos que lo soportan.
    */
   thinkingMode: boolean
-  /** Muestra los controles de música en la barra de título (si el tema tiene track). */
+  /** Activa el audio del tema (play/pausa en titlebar si hay track). */
   musicEnabled: boolean
   /** Volumen del reproductor interno (0..1). */
   musicVolume: number
-  /**
-   * Legacy Spotify: IDs de playlist por mood. Se conservan al leer configs viejas;
-   * ya no se validan ni se usan en la UI.
-   */
-  musicPlaylistIdsByMood?: Record<string, string>
   /** Idioma de la interfaz. */
   language: Language
   /**
@@ -96,8 +91,6 @@ export interface AppConfig {
    * Entrada vacía o ausente = comando por defecto de `AGENT_CLI_PROVIDERS`.
    */
   agentCliCommands: Partial<Record<AgentCliProvider, string>>
-  /** Legacy Spotify: mood activo en titlebar. Ya no se usa. */
-  musicMood?: string
   /**
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
@@ -199,6 +192,8 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     defaultWorkspacesDir,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
+  delete merged.musicMood
+  delete merged.musicPlaylistIdsByMood
   if (catalogKeyPresent) {
     if (orgWorkspaceCatalogCache) merged.orgWorkspaceCatalogCache = orgWorkspaceCatalogCache
     else delete merged.orgWorkspaceCatalogCache

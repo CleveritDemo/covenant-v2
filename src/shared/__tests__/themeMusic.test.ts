@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../renderer/assets/music/avatar.mp3?url', () => ({ default: 'avatar.mp3' }))
 vi.mock('../../renderer/assets/music/cyberpunk.mp3?url', () => ({ default: 'cyberpunk.mp3' }))
+vi.mock('../../renderer/assets/music/dragonballz.mp3?url', () => ({ default: 'dragonballz.mp3' }))
 vi.mock('../../renderer/assets/music/interstellar.mp3?url', () => ({ default: 'interstellar.mp3' }))
 vi.mock('../../renderer/assets/music/matrix.mp3?url', () => ({ default: 'matrix.mp3' }))
 vi.mock('../../renderer/assets/music/metroid.mp3?url', () => ({ default: 'metroid.mp3' }))
@@ -31,6 +32,7 @@ const PAIRED_THEMES: Array<[string, string, string]> = [
   ['ragnarokOnline', 'ragnarokOnlineLight', 'ragnarokonline.mp3'],
   ['metroid', 'metroidLight', 'metroid.mp3'],
   ['pokemon', 'pokemonLight', 'pokemon.mp3'],
+  ['dragonBallZ', 'dragonBallZLight', 'dragonballz.mp3'],
   ['saintSeiya', 'saintSeiyaLight', 'saintseiya.mp3'],
 ]
 
@@ -48,9 +50,8 @@ describe('resolveThemeMusic', () => {
     }
   })
 
-  it('sin archivo (Dragon Ball Z) o sin match retorna null', () => {
-    expect(resolveThemeMusic('dragonBallZ')).toBeNull()
-    expect(resolveThemeMusic('dragonBallZLight')).toBeNull()
+  it('sin match o tema sin música (credicorp) retorna null', () => {
+    expect(resolveThemeMusic('credicorp')).toBeNull()
     expect(resolveThemeMusic('')).toBeNull()
   })
 

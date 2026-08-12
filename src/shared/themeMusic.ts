@@ -1,5 +1,6 @@
 import avatarUrl from '../renderer/assets/music/avatar.mp3?url'
 import cyberpunkUrl from '../renderer/assets/music/cyberpunk.mp3?url'
+import dragonballzUrl from '../renderer/assets/music/dragonballz.mp3?url'
 import interstellarUrl from '../renderer/assets/music/interstellar.mp3?url'
 import matrixUrl from '../renderer/assets/music/matrix.mp3?url'
 import metroidUrl from '../renderer/assets/music/metroid.mp3?url'
@@ -38,6 +39,7 @@ const vikings = track('vikings', 'Vikings', vikingsUrl)
 const ragnarokOnline = track('ragnarokonline', 'Ragnarok Online', ragnarokonlineUrl)
 const metroid = track('metroid', 'Metroid', metroidUrl)
 const pokemon = track('pokemon', 'Pokémon', pokemonUrl)
+const dragonBallZ = track('dragonBallZ', 'Dragon Ball Z', dragonballzUrl)
 const saintSeiya = track('saintseiya', 'Saint Seiya', saintseiyaUrl)
 
 /**
@@ -72,6 +74,8 @@ export const THEME_MUSIC_BY_THEME_ID: Partial<Record<string, ThemeMusicTrack>> =
   metroidLight: metroid,
   pokemon,
   pokemonLight: pokemon,
+  dragonBallZ,
+  dragonBallZLight: dragonBallZ,
   saintSeiya,
   saintSeiyaLight: saintSeiya,
 }

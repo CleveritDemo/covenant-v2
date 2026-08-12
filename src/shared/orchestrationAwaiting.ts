@@ -42,6 +42,17 @@ export interface OrchestrationAwaitingView {
   items: OrchestrationAwaitingItemView[]
 }
 
+/**
+ * Firma corta para igualdad / throttle: done/total + id:status por fila.
+ * Detecta cambios de status aunque awaitingDelegations siga true.
+ */
+export function orchestrationAwaitingSignature(
+  view: OrchestrationAwaitingView | null | undefined,
+): string {
+  if (!view) return ''
+  return `${view.done}/${view.total}:${view.items.map(item => `${item.delegationId}:${item.status}`).join(',')}`
+}
+
 /** Heurística: `frontend-2` es réplica de `frontend` si no hay base explícita. */
 export function isReplicaAgentId(toAgentId: string, baseAgentId?: string): boolean {
   const to = toAgentId.trim().toLowerCase()

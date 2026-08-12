@@ -9,10 +9,9 @@ import './TitlebarMusicControls.css'
 
 interface Props {
   config: AppConfig
-  onConfigPatch?: (partial: Partial<AppConfig>) => void | Promise<void>
 }
 
-export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }) => {
+export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
   const { t } = useT()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
@@ -22,7 +21,6 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
 
   const track = config.musicEnabled ? resolveThemeMusic(config.themeId) : null
   const volume = sanitizeMusicVolume(config.musicVolume)
-  const volumePercent = Math.round(volume * 100)
 
   useEffect(() => {
     const audio = new Audio()
@@ -131,23 +129,6 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
     })
   }, [setPlayingState, track])
 
-  const onStop = useCallback((): void => {
-    const audio = audioRef.current
-    if (!audio) return
-    try {
-      audio.pause()
-      audio.currentTime = 0
-    } catch {
-      // ignore
-    }
-    setPlayingState(false)
-  }, [setPlayingState])
-
-  const onVolumeChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
-    const next = sanitizeMusicVolume(Number(event.target.value) / 100)
-    void onConfigPatch?.({ musicVolume: next })
-  }, [onConfigPatch])
-
   if (!track) return null
 
   const playPauseLabel = playing ? t('music.pause') : t('music.play')
@@ -166,33 +147,6 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
           <Icon name={playing ? 'pause' : 'play'} size={14} />
         </button>
       </Tooltip>
-      <Tooltip content={t('music.stop')}>
-        <button
-          type="button"
-          tabIndex={-1}
-          className="titlebar-music-btn"
-          aria-label={t('music.stop')}
-          onClick={onStop}
-        >
-          <Icon name="stop" size={14} />
-        </button>
-      </Tooltip>
-      <label className="titlebar-music-volume">
-        <span className="titlebar-music-volume__sr">{t('music.volume')}</span>
-        <input
-          type="range"
-          className="titlebar-music-volume__slider"
-          min={0}
-          max={100}
-          step={1}
-          value={volumePercent}
-          aria-label={t('music.volume')}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={volumePercent}
-          onChange={onVolumeChange}
-        />
-      </label>
     </div>
   )
 }

@@ -44,7 +44,6 @@ const CATEGORIES = [
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
-  { id: 'music', icon: 'play', labelKey: 'settings.musicSection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
@@ -69,7 +68,7 @@ const SEARCH_INDEX = [
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
-  { category: 'music', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
+  { category: 'appearance', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
   { category: 'advanced', anchor: 'settings-discord', titleKey: 'settings.discordSection', termKeys: ['settings.discordPresenceTitle'] },
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
@@ -461,43 +460,41 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   description={t('settings.reduceMotionDescription')}
                 />
               </SettingsSection>
-            </>
-          )}
 
-          {category === 'music' && (
-            <SettingsSection title={t('settings.musicSection')} anchor="settings-music">
-              <SettingToggle
-                checked={form.musicEnabled}
-                onChange={checked => update('musicEnabled', checked)}
-                title={t('settings.musicEnabledTitle')}
-                description={t('settings.musicEnabledDescription')}
-              />
-              <p className="settings-hint settings-hint--block">{t('settings.musicHint')}</p>
-              <SettingsField
-                label={t('settings.musicVolumeLabel')}
-                htmlFor="settings-music-volume"
-              >
-                <div className="settings-music-volume">
-                  <input
-                    id="settings-music-volume"
-                    type="range"
-                    className="settings-music-volume__slider"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
-                    aria-label={t('settings.musicVolumeLabel')}
-                    onChange={e => update('musicVolume', sanitizeMusicVolume(Number(e.target.value) / 100))}
-                  />
-                  <span className="settings-music-volume__value" aria-hidden>
-                    {Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}%
-                  </span>
-                </div>
-              </SettingsField>
-            </SettingsSection>
+              <SettingsSection title={t('settings.musicSection')} anchor="settings-music">
+                <SettingToggle
+                  checked={form.musicEnabled}
+                  onChange={checked => update('musicEnabled', checked)}
+                  title={t('settings.musicEnabledTitle')}
+                  description={t('settings.musicEnabledDescription')}
+                />
+                <p className="settings-hint settings-hint--block">{t('settings.musicHint')}</p>
+                <SettingsField
+                  label={t('settings.musicVolumeLabel')}
+                  htmlFor="settings-music-volume"
+                >
+                  <div className="settings-music-volume">
+                    <input
+                      id="settings-music-volume"
+                      type="range"
+                      className="settings-music-volume__slider"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
+                      aria-label={t('settings.musicVolumeLabel')}
+                      onChange={e => update('musicVolume', sanitizeMusicVolume(Number(e.target.value) / 100))}
+                    />
+                    <span className="settings-music-volume__value" aria-hidden>
+                      {Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}%
+                    </span>
+                  </div>
+                </SettingsField>
+              </SettingsSection>
+            </>
           )}
 
           {category === 'advanced' && (

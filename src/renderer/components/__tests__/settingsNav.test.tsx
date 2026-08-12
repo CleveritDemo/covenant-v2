@@ -70,13 +70,15 @@ describe('riel de categorías', () => {
     expect(nav('settings.agentCliSection').getAttribute('aria-current')).toBeNull()
   })
 
-  it('Apariencia agrupa idioma y movimiento en un solo panel', () => {
+  it('Apariencia agrupa idioma, movimiento y audio', () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
     fireEvent.click(nav('settings.appearanceSection'))
 
     expect(screen.getByText('settings.languageLabel')).toBeTruthy()
     expect(screen.getByText('settings.reduceMotionTitle')).toBeTruthy()
+    expect(screen.getByText('settings.musicEnabledTitle')).toBeTruthy()
+    expect(screen.getByLabelText('settings.musicVolumeLabel')).toBeTruthy()
   })
 
   it('Actualizaciones muestra toggle y acciones de update', () => {
@@ -89,13 +91,11 @@ describe('riel de categorías', () => {
     expect(screen.getByRole('button', { name: 'settings.forceUpdate' })).toBeTruthy()
   })
 
-  it('Música muestra toggle y volumen', async () => {
+  it('volumen en Apariencia persiste musicVolume', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
-    fireEvent.click(nav('settings.musicSection'))
+    fireEvent.click(nav('settings.appearanceSection'))
 
-    expect(screen.getByText('settings.musicEnabledTitle')).toBeTruthy()
-    expect(screen.getByLabelText('settings.musicVolumeLabel')).toBeTruthy()
     fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
       target: { value: '42' },
     })

@@ -37,8 +37,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function gotoMusic(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.musicSection' }))
+function gotoAppearance(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
 }
 
 describe('guardado al cambiar', () => {
@@ -53,7 +53,7 @@ describe('guardado al cambiar', () => {
   it('una ráfaga en el volumen produce una sola escritura', async () => {
     vi.useFakeTimers()
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearance()
 
     const slider = document.getElementById('settings-music-volume') as HTMLInputElement
     for (const value of ['20', '40', '55']) {
@@ -85,7 +85,7 @@ describe('guardado al cambiar', () => {
 
   it('«Descartar cambios» vuelve al estado de apertura y lo persiste', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearance()
 
     const slider = document.getElementById('settings-music-volume') as HTMLInputElement
     fireEvent.change(slider, { target: { value: '80' } })

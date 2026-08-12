@@ -26,8 +26,8 @@ vi.mock('../GitHubTokenField', () => ({ GitHubTokenField: () => null }))
 const setConfig = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true }
 
-function gotoMusic(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.musicSection' }))
+function gotoAppearanceMusic(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
 }
 
 beforeEach(() => {
@@ -38,7 +38,7 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-describe('volumen de música', () => {
+describe('audio del tema en Apariencia', () => {
   it('sanitizeMusicVolume clampea a 0..1 sin interpretar 35 como 35%', () => {
     expect(sanitizeMusicVolume(0.35)).toBe(0.35)
     expect(sanitizeMusicVolume(35)).toBe(1)
@@ -48,7 +48,7 @@ describe('volumen de música', () => {
 
   it('el slider persiste musicVolume en escala 0..1', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearanceMusic()
 
     fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
       target: { value: '70' },
@@ -58,9 +58,9 @@ describe('volumen de música', () => {
     expect(setConfig.mock.calls[0][0].musicVolume).toBe(0.7)
   })
 
-  it('el toggle musicEnabled se guarda', async () => {
+  it('el toggle musicEnabled se guarda (desactivar audio)', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
+    gotoAppearanceMusic()
 
     fireEvent.click(screen.getByRole('button', { name: /settings.musicEnabledTitle/ }))
 

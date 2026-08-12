@@ -136,13 +136,23 @@ export function readMcpConfigText(path: string): { text: string; exists: boolean
  * formato (comentarios no, es JSON, pero sí el orden y la indentación) en vez
  * de reserializar. Valida aquí también: el handler ya filtra, pero esta es la
  * frontera real de disco y no debe confiar en el caller.
+ *
+ * `expected` es el texto que el editor leyó al abrir. Si el disco ya no
+ * coincide, alguien escribió por otro lado mientras tanto y esto se niega a
+ * pisarlo: ahí puede haber un token que no vuelve. Sin `expected` se escribe
+ * igual — es la vía de «sobrescribir» tras avisar.
  */
-export function writeMcpConfigText(path: string, text: string): void {
+export function writeMcpConfigText(path: string, text: string, expected?: string): void {
   if (Buffer.byteLength(text, 'utf8') > MCP_CONFIG_MAX_BYTES) {
     throw new Error('too-large')
   }
   const check = validateMcpConfigText(text)
   if (!check.ok) throw new Error(check.reason)
+
+  if (expected !== undefined) {
+    const current = readMcpConfigText(path)
+    if (current.exists && current.text !== expected) throw new Error('changed-outside')
+  }
 
   mkdirSync(dirname(path), { recursive: true })
   const tmp = `${path}.tmp`

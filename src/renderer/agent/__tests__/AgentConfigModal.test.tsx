@@ -14,6 +14,22 @@ vi.mock('@i18n/useT', () => ({
   }),
 }))
 
+// CodeMirror gira en su bucle de medición bajo jsdom (no hay layout). Lo que
+// aquí se prueba es el cableado del cajón —leer, sembrar, guardar, recargar—,
+// no el editor, que ya se usa en producción en el explorador.
+vi.mock('../../terminal/explorer/FileCodeEditor', () => ({
+  FileCodeEditor: ({ content, onChange }: {
+    content: string
+    onChange: (text: string) => void
+  }) => (
+    <textarea
+      aria-label="mcp-config"
+      value={content}
+      onChange={event => onChange(event.target.value)}
+    />
+  ),
+}))
+
 vi.mock('../../components/TerminalModal', () => ({
   TerminalModal: ({
     open,
@@ -96,6 +112,14 @@ beforeAll(() => {
         file: '.mcp.json',
         unreadProjectServers: [],
       }),
+      getConfig: vi.fn().mockResolvedValue({ themeId: 'tokyoNight' }),
+      readMcpConfig: vi.fn().mockResolvedValue({
+        ok: true,
+        path: '/tmp/gravity-test/.mcp.json',
+        exists: false,
+        text: '',
+      }),
+      writeMcpConfig: vi.fn().mockResolvedValue({ ok: true, path: '/tmp/gravity-test/.mcp.json' }),
       resolveAgentCli: vi.fn().mockImplementation((provider: string) => Promise.resolve(
         provider === 'gemini'
           ? { provider, command: 'gemini', path: null, version: null }
@@ -169,6 +193,30 @@ describe('AgentConfigModal', () => {
     expect(modes.every(node => node.hasAttribute('disabled'))).toBe(true)
     // Sin acotado no hay casillas que marcar: las filas son informativas.
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('el archivo de MCP se edita y se guarda sin salir de la app', async () => {
+    renderModal({ provider: 'claude' })
+    fireEvent.click(screen.getByRole('button', { name: /configTabCapabilities/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /mcpEditAction/ }))
+
+    // Sin archivo en disco arranca con el esqueleto, ya válido y ya sucio.
+    const editor = await screen.findByLabelText('mcp-config')
+    expect((editor as HTMLTextAreaElement).value).toContain('mcpServers')
+    expect(document.querySelector('.mcp-editor__status')?.textContent).toContain('mcpEditValid')
+
+    const listsBefore = (window.api.listMcpServers as ReturnType<typeof vi.fn>).mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: /mcpEditSave/ }))
+    await waitFor(() => {
+      expect(window.api.writeMcpConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'claude', expected: '' }),
+      )
+    })
+    // Guardar recarga las filas: la lista y el archivo no pueden divergir.
+    await waitFor(() => {
+      const calls = (window.api.listMcpServers as ReturnType<typeof vi.fn>).mock.calls.length
+      expect(calls).toBe(listsBefore + 1)
+    })
   })
 
   it('cuenta reglas y contextos seleccionados en el índice', () => {

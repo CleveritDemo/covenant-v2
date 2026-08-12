@@ -23,6 +23,7 @@ import {
   type BrainstormRoom,
   type BrainstormWorkingSet,
 } from '../src/shared/brainstormRoom'
+import { sanitizeCeremonyId } from '../src/shared/agileCeremonies'
 import { IPC } from '../src/shared/ipcChannels'
 import { listProjectAgents } from './projectAgentCatalogOps'
 import { listBrainstormRooms, upsertBrainstormRoom } from './brainstormCatalogOps'
@@ -51,6 +52,8 @@ export interface BrainstormStartConfig {
   /** Working set: rutas relativas al cwd. */
   filePaths?: string[]
   outcome?: string
+  /** Ceremonia ágil; ausente = `free`. */
+  ceremony?: string
   /** Reanudar desde estado persistido / snapshot (no resetea round/cursor/messages). */
   resume?: boolean
   round?: number
@@ -445,11 +448,13 @@ function briefFromConfig(config: BrainstormStartConfig): {
   contextIds: string[]
   filePaths: string[]
   outcome: BrainstormRoom['outcome']
+  ceremony: BrainstormRoom['ceremony']
 } {
   return {
     contextIds: sanitizeBrainstormWorkingSet(config.contextIds),
     filePaths: sanitizeBrainstormWorkingSet(config.filePaths),
     outcome: sanitizeBrainstormOutcome(config.outcome),
+    ceremony: sanitizeCeremonyId(config.ceremony),
   }
 }
 
@@ -473,6 +478,7 @@ function resolveResumeRoom(
       contextIds: config.contextIds ? brief.contextIds : base.contextIds,
       filePaths: config.filePaths ? brief.filePaths : base.filePaths,
       outcome: config.outcome ? brief.outcome : base.outcome,
+      ceremony: config.ceremony ? brief.ceremony : base.ceremony,
       participantAgentIds: participants.length >= 2 ? participants : base.participantAgentIds,
       maxRounds: sanitizeBrainstormMaxRounds(config.maxRounds ?? base.maxRounds),
       round: typeof config.round === 'number' ? Math.max(0, Math.floor(config.round)) : base.round,

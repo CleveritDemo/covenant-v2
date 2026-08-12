@@ -6,6 +6,12 @@ import {
   type BrainstormOutcome,
   type BrainstormRoom,
 } from '@shared/brainstormRoom'
+import {
+  ceremonyById,
+  ceremonyUsesFreeOutcome,
+  DEFAULT_CEREMONY_ID,
+  type CeremonyId,
+} from '@shared/agileCeremonies'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
@@ -22,11 +28,14 @@ export interface BrainstormRoomModalProps {
   participantAgentIds: readonly string[]
   onClose: () => void
   onStarted: (room: BrainstormRoom) => void
+  /** Ceremonia elegida en el paso 1; ausente = `free`. */
+  ceremony?: CeremonyId
 }
 
 /**
- * Modal de setup: solo tema + rondas + brief. Los invitados y su orden se
- * eligen antes, en la mesa del plano.
+ * Paso 3: el brief (tema + rondas + working set) de una sala cuya ceremonia e
+ * invitados ya están elegidos. La ceremonia llega hecha desde el paso 1 y aquí
+ * solo se muestra: objetivo, entregables, gate y cobertura de roles.
  */
 export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   open,
@@ -36,6 +45,7 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
   participantAgentIds,
   onClose,
   onStarted,
+  ceremony = DEFAULT_CEREMONY_ID,
 }) => {
   const { t } = useT()
   const [topic, setTopic] = useState('')
@@ -49,16 +59,25 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
     [participantAgentIds, agents],
   )
 
+  /** Los que ya están sentados, en orden de habla: contra ellos se casan los roles. */
+  const seatedAgents = useMemo(
+    () => safeSelectedIds
+      .map(id => agents.find(agent => agent.id === id))
+      .filter((agent): agent is ProjectAgentDefinition => Boolean(agent)),
+    [safeSelectedIds, agents],
+  )
+
+  // Las rondas arrancan en las sugeridas por la ceremonia; el brief las cambia.
   useEffect(() => {
     if (!open) return
     setTopic('')
-    setMaxRounds(BRAINSTORM_DEFAULT_ROUNDS)
+    setMaxRounds(ceremonyById(ceremony).rounds)
     setContextIds([])
     setFilePaths([])
     setOutcome('ideas')
-  }, [open])
+  }, [open, ceremony])
 
-  const brief = { contextIds, filePaths, outcome }
+  const brief = { contextIds, filePaths, outcome, ceremony }
   const canStart = Boolean(
     tryCreateBrainstormSession(topic, safeSelectedIds, maxRounds, agents, brief),
   )
@@ -80,12 +99,14 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       contextIds: room.contextIds,
       filePaths: room.filePaths,
       outcome: room.outcome,
+      ceremony: room.ceremony,
       cwd: cwd.trim(),
     })
     onStarted(room)
   }
 
-  const title = t('tabs.brainstormTopicTitle')
+  const ceremonyName = ceremonyById(ceremony).name
+  const title = `${t('tabs.brainstormTopicTitle')} · ${ceremonyName}`
 
   return (
     <TerminalModal
@@ -93,10 +114,11 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
       active={active}
       onClose={onClose}
       title={title}
-      size="md"
+      size="xl"
       zIndex={850}
       footer={(
         <div className="brainstorm-room-modal__footer">
+          <span className="brainstorm-room-modal__step">{t('tabs.ceremonySetupBadge')}</span>
           <Button variant="secondary" size="sm" onClick={onClose}>
             {t('tabs.brainstormBack')}
           </Button>
@@ -120,9 +142,16 @@ export const BrainstormRoomModal: React.FC<BrainstormRoomModalProps> = ({
             }
           }}
         >
-          <p className="brainstorm-room-modal__hint">{t('tabs.brainstormTopicHint')}</p>
+          {/* Con ceremonia la salida no se elige: la fija ella. */}
+          <p className="brainstorm-room-modal__hint">
+            {ceremonyUsesFreeOutcome(ceremony)
+              ? t('tabs.brainstormTopicHint')
+              : t('tabs.ceremonyBriefHint')}
+          </p>
           <BrainstormBriefFields
             cwd={cwd}
+            ceremony={ceremony}
+            seatedAgents={seatedAgents}
             topic={topic}
             onTopicChange={setTopic}
             contextIds={contextIds}

@@ -7,6 +7,7 @@ import {
   type BrainstormRoom,
   type BrainstormStatus,
 } from './brainstormRoom'
+import { sanitizeCeremonyId } from './agileCeremonies'
 
 export const BRAINSTORM_DIR = 'brainstorms'
 
@@ -118,6 +119,7 @@ export function parseBrainstormRoomDefinition(
     contextIds: sanitizeBrainstormWorkingSet(data.contextIds),
     filePaths: sanitizeBrainstormWorkingSet(data.filePaths),
     outcome: sanitizeBrainstormOutcome(data.outcome),
+    ceremony: sanitizeCeremonyId(data.ceremony),
   }
 }
 

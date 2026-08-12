@@ -1,9 +1,13 @@
+import type { CeremonyRoleId } from './agileCeremonies'
+
 /** Identidad persistida del agente; se inyecta en cada turno del CLI. */
 export interface AgentIdentity {
   name?: string
   /** Cara visual, no va al prompt: 2 caracteres derivados del name si falta. */
   monogram?: string
   role?: string
+  /** Rol de ceremonias, de lista cerrada. No va al prompt: es para sentar. */
+  ceremonyRole?: CeremonyRoleId
   objective?: string
   /** Reglas de comportamiento; se envían en cada turno (no cada 10 como los contextos). */
   rules?: string[]
@@ -60,6 +64,8 @@ export interface AgentIdentityDraft {
   name: string
   monogram: string
   role: string
+  /** Vacío/ausente = sin rol de ceremonia. */
+  ceremonyRole?: CeremonyRoleId
   objective: string
   rules: string[]
 }
@@ -79,6 +85,7 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
     name: _name,
     monogram: _monogram,
     role: _role,
+    ceremonyRole: _ceremonyRole,
     objective: _objective,
     rules: _rules,
     ...rest
@@ -88,6 +95,7 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
     ...rest,
     ...(name ? { name } : {}),
     ...(monogram ? { monogram } : {}),
+    ...(draft.ceremonyRole ? { ceremonyRole: draft.ceremonyRole } : {}),
     ...(role ? { role } : {}),
     ...(objective ? { objective } : {}),
     ...(rules.length ? { rules } : {}),

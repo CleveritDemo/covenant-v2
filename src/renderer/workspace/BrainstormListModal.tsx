@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrainstormRoom, BrainstormStatus } from '@shared/brainstormRoom'
 import {
   formatBrainstormClosing,
+  formatCeremonyClosing,
   parseBrainstormClosing,
+  parseCeremonyClosing,
   resolveBrainstormParticipantDisplay,
 } from '@shared/brainstormRoom'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
@@ -74,7 +76,10 @@ function isClosedRoom(status: BrainstormStatus): boolean {
  */
 function roomContextMarkdown(room: BrainstormRoom): string {
   const last = room.messages[room.messages.length - 1]
-  const closing = last ? parseBrainstormClosing(last.text) : null
+  if (!last) return buildBrainstormMarkdown(room)
+  const ceremonyClosing = parseCeremonyClosing(last.text, room.ceremony)
+  if (ceremonyClosing) return formatCeremonyClosing(room.topic, ceremonyClosing)
+  const closing = parseBrainstormClosing(last.text)
   return closing ? formatBrainstormClosing(room.topic, closing) : buildBrainstormMarkdown(room)
 }
 

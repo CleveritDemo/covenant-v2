@@ -1,16 +1,27 @@
 import React, { useState } from 'react'
-import type { BrainstormClosing } from '@shared/brainstormRoom'
-import { formatBrainstormClosing } from '@shared/brainstormRoom'
+import type { BrainstormClosing, CeremonyClosingResult } from '@shared/brainstormRoom'
+import { formatBrainstormClosing, formatCeremonyClosing } from '@shared/brainstormRoom'
+import {
+  aiReadyChecklist,
+  ceremonyBlocksAiReady,
+  ceremonyById,
+  ceremonyGateState,
+  parseAiReadyGaps,
+} from '@shared/agileCeremonies'
 import { brainstormRoomContext } from '@shared/brainstormListing'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
+import { AI_READY_FIELD_KEY } from './ceremonyLabels'
 import './BrainstormClosingCard.css'
 
 export interface BrainstormClosingCardProps {
   roomId: string
   topic: string
   cwd: string
-  closing: BrainstormClosing
+  /** Cierre genérico (salas `free`). Excluyente con `ceremonyClosing`. */
+  closing?: BrainstormClosing
+  /** Cierre estructurado de una ceremonia, con su gate. */
+  ceremonyClosing?: CeremonyClosingResult
   speakerLabel: string
   /** El contexto ya está en disco; el llamador refresca la lista de la pestaña. */
   onContextSaved?: () => void
@@ -24,13 +35,18 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
   topic,
   cwd,
   closing,
+  ceremonyClosing,
   speakerLabel,
   onContextSaved,
 }) => {
   const { t } = useT()
   const [feedback, setFeedback] = useState<Feedback>(null)
 
-  const markdown = formatBrainstormClosing(topic, closing)
+  const markdown = ceremonyClosing
+    ? formatCeremonyClosing(topic, ceremonyClosing)
+    : closing
+      ? formatBrainstormClosing(topic, closing)
+      : ''
 
   const handleCopy = async (): Promise<void> => {
     try {
@@ -63,19 +79,37 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
       : { kind: 'error', text: result.error ?? t('tabs.brainstormClosingSaveError') })
   }
 
-  const blocks: Array<[string, string | undefined]> = [
-    [t('tabs.brainstormClosingDecision'), closing.decision],
-    [t('tabs.brainstormClosingWhy'), closing.why],
-    [t('tabs.brainstormClosingAgreed'), closing.agreed],
-    [t('tabs.brainstormClosingOpen'), closing.open],
-    [t('tabs.brainstormClosingNext'), closing.next],
-  ]
+  const blocks: Array<[string, string | undefined]> = ceremonyClosing
+    ? ceremonyClosing.entries.map(entry => [entry.label, entry.value])
+    : [
+        [t('tabs.brainstormClosingDecision'), closing?.decision],
+        [t('tabs.brainstormClosingWhy'), closing?.why],
+        [t('tabs.brainstormClosingAgreed'), closing?.agreed],
+        [t('tabs.brainstormClosingOpen'), closing?.open],
+        [t('tabs.brainstormClosingNext'), closing?.next],
+      ]
+
+  const ceremony = ceremonyClosing ? ceremonyById(ceremonyClosing.ceremony) : null
+  const gateState = ceremonyClosing
+    ? ceremonyGateState(ceremonyClosing.ceremony, ceremonyClosing.fields)
+    : 'unknown'
+  const blocked = ceremonyClosing
+    ? ceremonyBlocksAiReady(ceremonyClosing.ceremony, ceremonyClosing.fields)
+    : false
+  // El checklist solo existe donde la ceremonia lo pide (Specification Workshop).
+  const gaps = ceremonyClosing && 'ai-ready-gaps' in ceremonyClosing.fields
+    ? parseAiReadyGaps(ceremonyClosing.fields['ai-ready-gaps'])
+    : null
+  const checklist = gaps ? aiReadyChecklist(gaps) : null
 
   return (
     <section className="brainstorm-closing" aria-label={t('tabs.brainstormClosingTitle')}>
       <header className="brainstorm-closing__head">
         <span className="brainstorm-closing__title">
           {t('tabs.brainstormClosingBy', { name: speakerLabel })}
+          {ceremony ? (
+            <span className="brainstorm-closing__ceremony">{ceremony.name}</span>
+          ) : null}
         </span>
         <span className="brainstorm-closing__actions">
           <Button variant="secondary" size="sm" onClick={() => { void handleCopy() }}>
@@ -98,6 +132,47 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
           </p>
         ) : null))}
       </div>
+
+      {checklist ? (
+        <div className="brainstorm-closing__ready">
+          <span className="brainstorm-closing__ready-title">
+            {t('tabs.ceremonyAiReadyTitle')}
+          </span>
+          <ul className="brainstorm-closing__ready-list">
+            {checklist.map(item => (
+              <li
+                key={item.field}
+                className={item.ok
+                  ? 'brainstorm-closing__ready-row'
+                  : 'brainstorm-closing__ready-row brainstorm-closing__ready-row--missing'}
+              >
+                <span className="brainstorm-closing__ready-mark" aria-hidden>
+                  {item.ok ? '✓' : '✕'}
+                </span>
+                <span>{t(AI_READY_FIELD_KEY[item.field])}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="brainstorm-closing__ready-verdict">
+            {gaps && gaps.length
+              ? t('tabs.ceremonyAiReadyBlocked', { count: String(gaps.length) })
+              : t('tabs.ceremonyAiReadyOk')}
+          </p>
+        </div>
+      ) : null}
+
+      {ceremony && gateState !== 'unknown' ? (
+        <p
+          className={blocked
+            ? 'brainstorm-closing__gate brainstorm-closing__gate--blocked'
+            : 'brainstorm-closing__gate'}
+          role="status"
+        >
+          {gateState === 'open'
+            ? t('tabs.ceremonyGateOpenBanner', { field: ceremony.gate?.field ?? '' })
+            : t('tabs.ceremonyGatePassed')}
+        </p>
+      ) : null}
 
       {feedback ? (
         <p

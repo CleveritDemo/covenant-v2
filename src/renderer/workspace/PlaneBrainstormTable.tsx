@@ -244,6 +244,7 @@ export const PlaneBrainstormTable: React.FC<PlaneBrainstormTableProps> = ({
       ) : null}
 
       <footer className="plane-bs-table__foot">
+        <span className="plane-bs-table__step">{t('tabs.ceremonySeatsBadge')}</span>
         <span
           className={[
             'plane-bs-table__counter',

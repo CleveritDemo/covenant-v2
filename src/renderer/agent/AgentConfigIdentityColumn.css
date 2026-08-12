@@ -84,6 +84,18 @@
 }
 
 /* El monograma son 2 caracteres: no merece una columna igual que name/role. */
+/* El campo ocupa el ancho para que la pista respire; el select se queda
+   estrecho, que con 9 opciones cortas no necesita más. */
+.agent-config-identity__field--ceremony .agent-config-identity__control {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+}
+
+.agent-config-identity__field--ceremony .agent-config-identity__hint {
+  max-width: 52ch;
+}
+
 .agent-config-identity__row--identity {
   grid-template-columns: 68px 1fr 1fr;
 }

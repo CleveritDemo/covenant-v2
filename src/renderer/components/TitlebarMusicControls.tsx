@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { type AppConfig, sanitizeMusicVolume } from '@shared/configSchema'
 import { resolveThemeMusic } from '@shared/themeMusic'
 import { useT } from '@i18n/useT'
+import {
+  attachThemeMusicAnalyser,
+  detachThemeMusicAnalyser,
+  resumeThemeMusicEnergyContext,
+} from '../themeMusicEnergy'
 import { MusicSpectrum } from './MusicSpectrum'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
@@ -25,6 +30,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
   useEffect(() => {
     const audio = new Audio()
     audioRef.current = audio
+    attachThemeMusicAnalyser(audio)
     const onEnded = (): void => {
       if (!audio.loop) {
         playingRef.current = false
@@ -40,6 +46,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
     return () => {
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
+      detachThemeMusicAnalyser(audio)
       try {
         audio.pause()
         audio.removeAttribute('src')
@@ -92,12 +99,14 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
     }
 
     if (shouldAutoplayOnTrackChange || playingRef.current) {
-      void audio.play().then(() => {
-        playingRef.current = true
-        setPlaying(true)
-      }).catch(() => {
-        playingRef.current = false
-        setPlaying(false)
+      void Promise.resolve(resumeThemeMusicEnergyContext()).finally(() => {
+        void audio.play().then(() => {
+          playingRef.current = true
+          setPlaying(true)
+        }).catch(() => {
+          playingRef.current = false
+          setPlaying(false)
+        })
       })
     } else {
       try { audio.pause() } catch { /* ignore */ }
@@ -122,10 +131,12 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
       setPlayingState(false)
       return
     }
-    void audio.play().then(() => {
-      setPlayingState(true)
-    }).catch(() => {
-      setPlayingState(false)
+    void Promise.resolve(resumeThemeMusicEnergyContext()).finally(() => {
+      void audio.play().then(() => {
+        setPlayingState(true)
+      }).catch(() => {
+        setPlayingState(false)
+      })
     })
   }, [setPlayingState, track])
 

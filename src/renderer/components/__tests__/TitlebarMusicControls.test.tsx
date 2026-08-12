@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
 import { TitlebarMusicControls } from '../TitlebarMusicControls'
 
@@ -11,6 +11,16 @@ vi.mock('@i18n/useT', () => ({
   useT: () => ({
     t: (key: string) => key,
   }),
+}))
+
+const attachThemeMusicAnalyser = vi.fn()
+const detachThemeMusicAnalyser = vi.fn()
+const resumeThemeMusicEnergyContext = vi.fn(() => Promise.resolve())
+
+vi.mock('../../themeMusicEnergy', () => ({
+  attachThemeMusicAnalyser: (...args: unknown[]) => attachThemeMusicAnalyser(...args),
+  detachThemeMusicAnalyser: (...args: unknown[]) => detachThemeMusicAnalyser(...args),
+  resumeThemeMusicEnergyContext: (...args: unknown[]) => resumeThemeMusicEnergyContext(...args),
 }))
 
 type FakeAudioInstance = {
@@ -23,6 +33,9 @@ const audioInstances: FakeAudioInstance[] = []
 
 beforeEach(() => {
   audioInstances.length = 0
+  attachThemeMusicAnalyser.mockClear()
+  detachThemeMusicAnalyser.mockClear()
+  resumeThemeMusicEnergyContext.mockClear()
   class FakeAudio {
     src = ''
     volume = 1
@@ -94,7 +107,18 @@ describe('TitlebarMusicControls', () => {
     expect(audio.play).not.toHaveBeenCalled()
   })
 
-  it('cambiar themeId de un tema con track a otro llama play aunque estuviera pausado', () => {
+  it('attach al montar y detach al desmontar', () => {
+    const { unmount } = render(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+    )
+    const audio = audioInstances[0]
+    expect(attachThemeMusicAnalyser).toHaveBeenCalledTimes(1)
+    expect(attachThemeMusicAnalyser).toHaveBeenCalledWith(audio)
+    unmount()
+    expect(detachThemeMusicAnalyser).toHaveBeenCalledWith(audio)
+  })
+
+  it('cambiar themeId de un tema con track a otro llama play aunque estuviera pausado', async () => {
     const { rerender } = render(
       <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
     )
@@ -105,7 +129,8 @@ describe('TitlebarMusicControls', () => {
     rerender(
       <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true }} />,
     )
-    expect(audio.play).toHaveBeenCalled()
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+    expect(resumeThemeMusicEnergyContext).toHaveBeenCalled()
   })
 
   it('con musicEnabled=false, cambiar themeId no llama play y oculta controles', () => {
@@ -123,12 +148,13 @@ describe('TitlebarMusicControls', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('play/pausa alterna el audio', () => {
+  it('play/pausa alterna el audio y resume el context antes de play', async () => {
     render(
       <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
     )
     const audio = audioInstances[0]
     fireEvent.click(screen.getByLabelText('music.play'))
-    expect(audio.play).toHaveBeenCalled()
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+    expect(resumeThemeMusicEnergyContext).toHaveBeenCalled()
   })
 })

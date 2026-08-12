@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.47
+
+- **La config de MCP se edita dentro de Covenant**, sin salir a buscar el JSON.
+- **Las salas de brainstorm usan un solo icono** (las dos burbujas) en el toolbar, el modal y la context bar.
+- **Arrastrar una card a la mesa de brainstorm se ve como se debe**: la card conserva el asa y llega con las esquinas redondeadas.
+
 ## v0.39.46
 
 - **El menú del selector se queda pegado al disparador**: al abrir hacia arriba o hacia abajo ya no se va al techo.

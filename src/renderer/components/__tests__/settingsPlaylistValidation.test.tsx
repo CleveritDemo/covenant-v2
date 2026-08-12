@@ -4,7 +4,7 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { CONFIG_DEFAULTS } from '@shared/configSchema'
+import { CONFIG_DEFAULTS, sanitizeMusicVolume } from '@shared/configSchema'
 import { SettingsModal } from '../SettingsModal'
 
 vi.mock('@i18n/useT', () => ({
@@ -26,14 +26,8 @@ vi.mock('../GitHubTokenField', () => ({ GitHubTokenField: () => null }))
 const setConfig = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true }
 
-/** El input compacto del mood, por su htmlFor conocido. */
-function moodInput(id: string): HTMLInputElement {
-  return document.getElementById(`settings-pl-${id}`) as HTMLInputElement
-}
-
-/** Los campos de playlist viven tras el riel de categorías. */
 function gotoMusic(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.spotifySection' }))
+  fireEvent.click(screen.getByRole('button', { name: 'settings.musicSection' }))
 }
 
 beforeEach(() => {
@@ -44,52 +38,33 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-describe('validación inline de playlists', () => {
-  it('no marca error mientras se escribe; sólo al salir del campo', () => {
-    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
-
-    fireEvent.change(moodInput('focus'), { target: { value: 'no-es-una-playlist' } })
-    expect(screen.queryByText(/spotifyError/)).toBeNull()
-
-    fireEvent.blur(moodInput('focus'))
-    expect(screen.getByText('settings.spotifyError:Focus')).toBeTruthy()
-    expect(moodInput('focus').getAttribute('aria-invalid')).toBe('true')
+describe('volumen de música', () => {
+  it('sanitizeMusicVolume clampea a 0..1 sin interpretar 35 como 35%', () => {
+    expect(sanitizeMusicVolume(0.35)).toBe(0.35)
+    expect(sanitizeMusicVolume(35)).toBe(1)
+    expect(sanitizeMusicVolume(-2)).toBe(0)
+    expect(sanitizeMusicVolume('nope')).toBe(CONFIG_DEFAULTS.musicVolume)
   })
 
-  it('el error desaparece en cuanto el valor pasa a ser válido', () => {
+  it('el slider persiste musicVolume en escala 0..1', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     gotoMusic()
 
-    fireEvent.change(moodInput('chill'), { target: { value: 'malo' } })
-    fireEvent.blur(moodInput('chill'))
-    expect(screen.getByText('settings.spotifyError:Chill')).toBeTruthy()
-
-    fireEvent.change(moodInput('chill'), { target: { value: '37i9dQZF1DX4sWSpwq3LiO' } })
-    expect(screen.queryByText('settings.spotifyError:Chill')).toBeNull()
-  })
-
-  it('un ID inválido no se persiste, pero no bloquea el resto de los ajustes', async () => {
-    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
-
-    fireEvent.change(moodInput('energy'), { target: { value: 'basura' } })
-
-    await waitFor(() => expect(setConfig).toHaveBeenCalled())
-    const written = setConfig.mock.calls.at(-1)?.[0]
-    expect(written.musicPlaylistIdsByMood.energy).toBeUndefined()
-    expect(screen.getByText('settings.notSavedInvalid:settings.spotifySection')).toBeTruthy()
-  })
-
-  it('guarda canonicalizando un enlace completo al ID de 22 caracteres', async () => {
-    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoMusic()
-
-    fireEvent.change(moodInput('focus'), {
-      target: { value: 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO?si=abc' },
+    fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
+      target: { value: '70' },
     })
 
     await waitFor(() => expect(setConfig).toHaveBeenCalledTimes(1))
-    expect(setConfig.mock.calls[0][0].musicPlaylistIdsByMood.focus).toBe('37i9dQZF1DX4sWSpwq3LiO')
+    expect(setConfig.mock.calls[0][0].musicVolume).toBe(0.7)
+  })
+
+  it('el toggle musicEnabled se guarda', async () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+    gotoMusic()
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.musicEnabledTitle/ }))
+
+    await waitFor(() => expect(setConfig).toHaveBeenCalled())
+    expect(setConfig.mock.calls.at(-1)?.[0].musicEnabled).toBe(false)
   })
 })

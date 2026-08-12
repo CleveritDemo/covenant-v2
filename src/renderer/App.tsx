@@ -45,7 +45,10 @@ import { markSplashUiReady } from './splash'
 import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
-import type { BrainstormLiveSummary } from './workspace/brainstormLiveState'
+import {
+  createBrainstormLiveSummary,
+  type BrainstormLiveSummary,
+} from './workspace/brainstormLiveState'
 import { isBrainstormLive } from './workspace/brainstormViewClose'
 import {
   filterBrainstormInvitableAgents,
@@ -5540,14 +5543,18 @@ export const App: React.FC = () => {
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
                   brainstormLive={brainstormRoomByTab[tab.id]
-                    ? brainstormLiveByTab[tab.id] ?? null
+                    ? brainstormLiveByTab[tab.id]
+                      ?? createBrainstormLiveSummary(brainstormRoomByTab[tab.id]!)
                     : null}
+                  brainstormHasRoom={Boolean(brainstormRoomByTab[tab.id])}
+                  brainstormMinimized={Boolean(brainstormMinimizedByTab[tab.id])}
                   brainstormDockOpen={Boolean(brainstormDockOpenByTab[tab.id])}
                   onBrainstormDockOpenChange={open => {
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   onRestoreBrainstorm={() => {
                     setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
                   onStopBrainstorm={() => {
                     const roomId = brainstormRoomByTab[tab.id]?.id

@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.50
+
+- **Brainstorm se minimiza sin apagarse**: click fuera lo manda al dock, el botón lo reabre y puedes continuar otra ronda con guía humana.
+- **Música interna por tema**: salen Spotify y moods; la titlebar reproduce MP3 locales según el tema y Settings guarda volumen/estado.
+- **Más temas y reloj local**: entran Vikings, Ragnarok Online, Metroid, Pokémon, Dragon Ball Z y Saint Seiya con variantes Light; Zelda queda más corto y la titlebar muestra la hora.
+- **Sonido al terminar un agente**: `finish.mp3` suena una vez cuando un turno cierra correctamente, sin sonar en abortos ni retries.
+
 ## v0.39.49
 
 - **Los agentes de una sala de brainstorm sí pueden usar sus MCP**: el turno heredaba una config vacía, así que decían no tener acceso a Jira.

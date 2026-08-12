@@ -4,7 +4,6 @@ import type { AppConfig } from '../src/shared/configSchema'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServersListRequest, McpServersListResult } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
-import type { SpotifyPlaybackState } from './spotifyNative'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type {
   LspDownloadProgress,
@@ -379,28 +378,6 @@ const api = {
 
   openExternalUrl(url: string): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.OPEN_EXTERNAL_URL, url)
-  },
-
-  spotifyDesktopInstalled(): Promise<boolean> {
-    return ipcRenderer.invoke(IPC.SPOTIFY_DESKTOP_INSTALLED)
-  },
-
-  spotifyPlayPlaylist(
-    playlistId: string,
-  ): Promise<{ ok: true } | { ok: false; error: string }> {
-    return ipcRenderer.invoke(IPC.SPOTIFY_PLAY_PLAYLIST, playlistId)
-  },
-
-  spotifyPause(): Promise<{ ok: true } | { ok: false; error: string }> {
-    return ipcRenderer.invoke(IPC.SPOTIFY_PAUSE)
-  },
-
-  spotifyPlay(): Promise<{ ok: true } | { ok: false; error: string }> {
-    return ipcRenderer.invoke(IPC.SPOTIFY_PLAY)
-  },
-
-  spotifyGetState(): Promise<SpotifyPlaybackState> {
-    return ipcRenderer.invoke(IPC.SPOTIFY_GET_STATE)
   },
 
   getProjectAiContext(sessionId: string): Promise<ProjectAiContextForAi | null> {

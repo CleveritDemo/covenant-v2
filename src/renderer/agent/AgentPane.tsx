@@ -50,6 +50,7 @@ import {
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
+import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
@@ -1465,6 +1466,7 @@ export const AgentPane: React.FC<Props> = ({
       beginLiveSettle(id)
       // Vacío tras reintentos: el turno cerró; no tumbar la cadena entera.
       setTurnCloseReason('completed')
+      playAgentFinishSound()
       setBusy(false)
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)

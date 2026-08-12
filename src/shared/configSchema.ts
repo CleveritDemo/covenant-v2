@@ -11,35 +11,16 @@ export type AiProvider = 'ollama' | 'anthropic' | 'openai'
 /** Idioma de la interfaz. */
 export type Language = 'en' | 'es'
 
-const SPOTIFY_PLAYLIST_ID_RE = /^[a-zA-Z0-9]{22}$/
+const DEFAULT_MUSIC_VOLUME = 0.35
 
 /**
- * Obtiene el ID de playlist de Spotify (22 caracteres) desde un ID crudo o desde enlaces habituales.
- * Devuelve `null` si la cadena no está vacía pero no se reconoce.
+ * Volumen de música interna: escala 0..1.
+ * Valores fuera de rango se clampean; p. ej. 35 → 1 (no se interpreta como 35%).
  */
-export function parseSpotifyPlaylistId(raw: string): string | null {
-  const s = raw.trim()
-  if (!s) return null
-  if (SPOTIFY_PLAYLIST_ID_RE.test(s)) return s
-  const fromUrl = s.match(
-    /open\.spotify\.com\/(?:[^/]+\/)*playlist\/([a-zA-Z0-9]{22})(?:\?|#|$|\/)/i,
-  )
-  if (fromUrl) return fromUrl[1]
-  const fromUri = s.match(/^spotify:playlist:([a-zA-Z0-9]{22})$/i)
-  if (fromUri) return fromUri[1]
-  return null
-}
-
-/** Convierte enlaces reconocibles a ID de 22 caracteres; deja sin cambio entradas no vacías no reconocidas (para que falle la validación). */
-export function canonicalizeMusicPlaylistIdsByMood(byMood: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(byMood)) {
-    const t = (v ?? '').trim()
-    if (!t) continue
-    const id = parseSpotifyPlaylistId(t)
-    out[k] = id ?? t
-  }
-  return out
+export function sanitizeMusicVolume(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return DEFAULT_MUSIC_VOLUME
+  return Math.min(1, Math.max(0, n))
 }
 
 export interface AppConfig {
@@ -82,11 +63,13 @@ export interface AppConfig {
    * Solo tiene efecto en modelos que lo soportan.
    */
   thinkingMode: boolean
-  /** Muestra los controles de música en la barra de título. */
+  /** Muestra los controles de música en la barra de título (si el tema tiene track). */
   musicEnabled: boolean
+  /** Volumen del reproductor interno (0..1). */
+  musicVolume: number
   /**
-   * IDs de playlist de Spotify (22 caracteres) por clave de estado de ánimo (`musicMoods`).
-   * Solo se usan entradas no vacías.
+   * Legacy Spotify: IDs de playlist por mood. Se conservan al leer configs viejas;
+   * ya no se validan ni se usan en la UI.
    */
   musicPlaylistIdsByMood?: Record<string, string>
   /** Idioma de la interfaz. */
@@ -113,7 +96,7 @@ export interface AppConfig {
    * Entrada vacía o ausente = comando por defecto de `AGENT_CLI_PROVIDERS`.
    */
   agentCliCommands: Partial<Record<AgentCliProvider, string>>
-  /** Mood de música activo en la barra de título. */
+  /** Legacy Spotify: mood activo en titlebar. Ya no se usa. */
   musicMood?: string
   /**
    * Snapshot de workspaces org para Cmd+T sin red.
@@ -146,14 +129,13 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentShellPolicy: 'off',
   thinkingMode: false,
   musicEnabled: true,
-  musicPlaylistIdsByMood: {},
+  musicVolume: DEFAULT_MUSIC_VOLUME,
   language: 'en',
   reduceMotion: false,
   autoRestartShell: true,
   discordPresenceEnabled: false,
   autoUpdatesEnabled: true,
   agentCliCommands: {},
-  musicMood: 'focus',
 }
 
 /** Claves previas a `agentCliCommands` (una por proveedor). */
@@ -183,17 +165,15 @@ export function migrateAgentCliCommands(
 }
 
 export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
-  const rawMoods = {
-    ...CONFIG_DEFAULTS.musicPlaylistIdsByMood,
-    ...(partial.musicPlaylistIdsByMood ?? {}),
-  }
-  const moods = canonicalizeMusicPlaylistIdsByMood(rawMoods)
   const reduceMotion = typeof partial.reduceMotion === 'boolean'
     ? partial.reduceMotion
     : CONFIG_DEFAULTS.reduceMotion
   const autoUpdatesEnabled = typeof partial.autoUpdatesEnabled === 'boolean'
     ? partial.autoUpdatesEnabled
     : CONFIG_DEFAULTS.autoUpdatesEnabled
+  const musicVolume = Object.prototype.hasOwnProperty.call(partial, 'musicVolume')
+    ? sanitizeMusicVolume(partial.musicVolume)
+    : CONFIG_DEFAULTS.musicVolume
   const agentCliCommands = migrateAgentCliCommands(partial)
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
@@ -212,7 +192,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
-    musicPlaylistIdsByMood: moods,
+    musicVolume,
     reduceMotion,
     autoUpdatesEnabled,
     agentCliCommands,
@@ -276,16 +256,10 @@ export function validateConfig(config: AppConfig): string[] {
   if (pol !== 'off' && pol !== 'ask' && pol !== 'always') {
     errors.push('agentShellPolicy debe ser off, ask o always')
   }
-  const byMood = config.musicPlaylistIdsByMood ?? {}
-  for (const [k, v] of Object.entries(byMood)) {
-    const t = (v ?? '').trim()
-    if (!t) continue
-    const id = parseSpotifyPlaylistId(t)
-    if (!id) {
-      errors.push(
-        `musicPlaylistIdsByMood["${k}"] debe ser un ID de 22 caracteres o un enlace open.spotify.com/playlist/…`,
-      )
-    }
+  if (typeof config.musicVolume !== 'number' || !Number.isFinite(config.musicVolume)) {
+    errors.push('musicVolume debe ser un número')
+  } else if (config.musicVolume < 0 || config.musicVolume > 1) {
+    errors.push('musicVolume debe estar entre 0 y 1')
   }
   return errors
 }

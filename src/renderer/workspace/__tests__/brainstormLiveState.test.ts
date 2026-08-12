@@ -1,10 +1,51 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createBrainstormLiveSummary,
   createInitialBrainstormLiveState,
   reduceBrainstormLiveEvent,
 } from '../brainstormLiveState'
 
 describe('BrainstormRoomView live state', () => {
+  it('createBrainstormLiveSummary deriva summary 1-based desde la sala', () => {
+    const summary = createBrainstormLiveSummary({
+      id: 'r1',
+      topic: 'Tenancy',
+      participantAgentIds: ['a', 'b'],
+      maxRounds: 3,
+      round: 1,
+      cursor: 0,
+      status: 'paused',
+      messages: [
+        { agentId: 'a', agentName: 'A', round: 0, text: 'one' },
+        { agentId: 'b', agentName: 'B', round: 0, text: 'two' },
+      ],
+    })
+    expect(summary).toMatchObject({
+      roomId: 'r1',
+      topic: 'Tenancy',
+      status: 'paused',
+      round: 2,
+      maxRounds: 3,
+      turnsDone: 2,
+      totalTurns: 6,
+      speakingAgentId: null,
+      speakerName: '',
+      participantAgentIds: ['a', 'b'],
+    })
+    expect(createBrainstormLiveSummary({
+      id: 'r2',
+      topic: 'Done',
+      participantAgentIds: ['a', 'b'],
+      maxRounds: 2,
+      round: 2,
+      cursor: 0,
+      status: 'done',
+      messages: [],
+    }).round).toBe(2)
+  })
+})
+
+describe('BrainstormRoomView live reduce', () => {
   it('accumulates speaker_delta then commits speaker_final', () => {
     let state = createInitialBrainstormLiveState()
     state = reduceBrainstormLiveEvent(state, {

@@ -3,6 +3,7 @@ import type { AppConfig } from '@shared/configSchema'
 import { getTheme } from '@themes/presets'
 import { useT } from '@i18n/useT'
 import { TitlebarMusicControls } from './TitlebarMusicControls'
+import { TitlebarClock } from './TitlebarClock'
 import { FontSizeControl } from './FontSizeControl'
 import { ThemePickerTrigger } from './ThemePickerTrigger'
 import { UpdateBanner } from './UpdateBanner'
@@ -46,10 +47,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({
       <div className="titlebar__wordmark" aria-hidden="true">Covenant</div>
       <UpdateBanner />
       <div className="titlebar-actions">
-        {config.musicEnabled && (
-          <TitlebarMusicControls config={config} onOpenSettings={onOpenSettings} onConfigPatch={onConfigPatch} />
-        )}
-
         <FontSizeControl
           fontSize={fontSize}
           min={fontSizeMin}
@@ -57,6 +54,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           onIncrease={onFontIncrease}
           onDecrease={onFontDecrease}
         />
+
+        <TitlebarMusicControls config={config} onConfigPatch={onConfigPatch} />
 
         <ThemePickerTrigger
           themeId={config.themeId}
@@ -82,6 +81,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({
         >
           <Icon name="settings" size={15} />
         </Button>
+
+        <TitlebarClock />
       </div>
     </div>
   )

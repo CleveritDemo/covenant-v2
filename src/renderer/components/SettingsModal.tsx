@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
-import { validateConfig, mergeWithDefaults, parseSpotifyPlaylistId } from '@shared/configSchema'
-import { MUSIC_MOODS } from '@shared/musicMoods'
+import { validateConfig, mergeWithDefaults, sanitizeMusicVolume } from '@shared/configSchema'
 import { filterSettingsEntries } from '@shared/settingsSearch'
 import { UI_FONTS, MONO_FONTS } from '@shared/fontStacks'
 import { availableFonts, isFontInstalled, isMonospaced } from '@renderer/fontAvailability'
@@ -45,7 +44,7 @@ const CATEGORIES = [
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
-  { id: 'music', icon: 'play', labelKey: 'settings.spotifySection' },
+  { id: 'music', icon: 'play', labelKey: 'settings.musicSection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
@@ -70,7 +69,7 @@ const SEARCH_INDEX = [
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
-  { category: 'music', anchor: 'settings-spotify', titleKey: 'settings.spotifySection', termKeys: ['settings.musicEnabledTitle', 'settings.spotifyHint'] },
+  { category: 'music', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
   { category: 'advanced', anchor: 'settings-discord', titleKey: 'settings.discordSection', termKeys: ['settings.discordPresenceTitle'] },
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
@@ -92,13 +91,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     language: config.language,
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
+    musicVolume: sanitizeMusicVolume(config.musicVolume),
     discordPresenceEnabled: config.discordPresenceEnabled,
     autoUpdatesEnabled: config.autoUpdatesEnabled !== false,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     fontUi: config.fontUi ?? '',
     fontMono: config.fontMono ?? '',
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
-    musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) } as Record<string, string>,
   })
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
@@ -136,10 +135,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [checking, setChecking] = useState(false)
   const [forcing, setForcing] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
-  /** Moods ya visitados: no se marca en rojo un ID a medio escribir. */
   /** Preview del confirm de salida (no cierra la app). */
   const [quitPreview, setQuitPreview] = useState(false)
-  const [touchedMoods, setTouchedMoods] = useState<string[]>([])
   /**
    * Snapshot al abrir (copia profunda de mapas). No se reescribe tras autosave:
    * «Descartar» vuelve siempre a este estado de apertura.
@@ -147,7 +144,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const baseline = useRef(mergeWithDefaults({
     ...config,
     agentCliCommands: { ...(config.agentCliCommands ?? {}) },
-    musicPlaylistIdsByMood: { ...(config.musicPlaylistIdsByMood ?? {}) },
   }))
   /** Cambio pendiente de escribir; el cierre lo vacía sin esperar al debounce. */
   const pending = useRef<AppConfig | null>(null)
@@ -178,12 +174,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     if (!isFontInstalled(name)) return t('settings.fontNotInstalled')
     if (kind === 'mono' && !isMonospaced(name)) return t('settings.fontNotMonospaced')
     return undefined
-  }
-
-  /** Un ID no vacío que no se reconoce; derivado, sin estado que sincronizar. */
-  function moodError(moodId: string): boolean {
-    const raw = (form.musicPlaylistIdsByMood[moodId] ?? '').trim()
-    return Boolean(raw) && parseSpotifyPlaylistId(raw) === null
   }
 
   /**
@@ -252,35 +242,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     setErrors([])
   }
 
-  function updatePlaylistMood(moodId: string, value: string): void {
-    setFooterHint('idle')
-    setForm(prev => ({
-      ...prev,
-      musicPlaylistIdsByMood: { ...prev.musicPlaylistIdsByMood, [moodId]: value },
-    }))
-    setErrors([])
-  }
-
-  /**
-   * Config a persistir. Los moods inválidos se omiten en vez de abortar el guardado
-   * entero: una playlist mal pegada no debe impedir que se guarde el resto.
-   */
+  /** Config a persistir. */
   function buildConfig(): AppConfig {
-    const musicPlaylistIdsByMood: Record<string, string> = {}
-    for (const m of MUSIC_MOODS) {
-      const raw = (form.musicPlaylistIdsByMood[m.id] ?? '').trim()
-      if (!raw) continue
-      const id = parseSpotifyPlaylistId(raw)
-      if (!id) continue // el error ya se ve en la tarjeta del mood
-      musicPlaylistIdsByMood[m.id] = id
-    }
-
     return mergeWithDefaults({
       ...config,
       githubToken: form.githubToken.trim(),
       language: form.language,
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
+      musicVolume: sanitizeMusicVolume(form.musicVolume),
       discordPresenceEnabled: form.discordPresenceEnabled,
       autoUpdatesEnabled: form.autoUpdatesEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
@@ -288,7 +258,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       fontMono: form.fontMono,
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
-      musicPlaylistIdsByMood,
     })
   }
 
@@ -331,8 +300,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     void window.api.getAppVersion().then(setAppVersion)
   }, [])
 
-  const invalidMoods = MUSIC_MOODS.some(m => moodError(m.id))
-
   /**
    * Vuelve al snapshot de apertura, persiste ya (sin debounce) y da feedback.
    * El status del token se remonta para no dejar identidad obsoleta.
@@ -346,15 +313,14 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       language: original.language,
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
+      musicVolume: sanitizeMusicVolume(original.musicVolume),
       discordPresenceEnabled: original.discordPresenceEnabled,
       autoUpdatesEnabled: original.autoUpdatesEnabled !== false,
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       fontUi: original.fontUi ?? '',
       fontMono: original.fontMono ?? '',
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
-      musicPlaylistIdsByMood: { ...(original.musicPlaylistIdsByMood ?? {}) },
     })
-    setTouchedMoods([])
     setErrors([])
     setTokenFieldEpoch(n => n + 1)
     setFooterHint('discarded')
@@ -372,14 +338,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       closeOnBackdrop
       footer={
         <>
-          <span className="settings-status" data-state={invalidMoods ? 'warn' : undefined}>
-            {invalidMoods
-              ? t('settings.notSavedInvalid', { section: t('settings.spotifySection') })
-              : footerHint === 'discarded'
-                ? t('settings.discarded')
-                : savedAt
-                  ? t('settings.savedAt', { time: savedAt.toLocaleTimeString() })
-                  : t('settings.savesOnChange')}
+          <span className="settings-status">
+            {footerHint === 'discarded'
+              ? t('settings.discarded')
+              : savedAt
+                ? t('settings.savedAt', { time: savedAt.toLocaleTimeString() })
+                : t('settings.savesOnChange')}
           </span>
           <Button variant="secondary" size="sm" onClick={handleDiscard}>
             {t('settings.discard')}
@@ -501,48 +465,38 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
           )}
 
           {category === 'music' && (
-            <SettingsSection title={t('settings.spotifySection')} anchor="settings-spotify">
+            <SettingsSection title={t('settings.musicSection')} anchor="settings-music">
               <SettingToggle
                 checked={form.musicEnabled}
                 onChange={checked => update('musicEnabled', checked)}
                 title={t('settings.musicEnabledTitle')}
                 description={t('settings.musicEnabledDescription')}
               />
-              {form.musicEnabled && (
-                <>
-                  <p className="settings-hint settings-hint--block">{t('settings.spotifyHint')}</p>
-                  <div className="settings-spotify-grid">
-                    {MUSIC_MOODS.map(m => {
-                      const invalid = touchedMoods.includes(m.id) && moodError(m.id)
-                      return (
-                        <div key={m.id} className="settings-spotify-row">
-                          <SettingsField
-                            label={m.label}
-                            htmlFor={`settings-pl-${m.id}`}
-                            error={invalid ? t('settings.spotifyError', { label: m.label }) : undefined}
-                            compact
-                          >
-                            <Input
-                              id={`settings-pl-${m.id}`}
-                              type="text"
-                              placeholder={t('settings.spotifyPlaceholder')}
-                              autoComplete="off"
-                              spellCheck={false}
-                              aria-invalid={invalid || undefined}
-                              value={form.musicPlaylistIdsByMood[m.id] ?? ''}
-                              onChange={e => updatePlaylistMood(m.id, e.target.value)}
-                              onBlur={() => setTouchedMoods(prev =>
-                                prev.includes(m.id) ? prev : [...prev, m.id],
-                              )}
-                            />
-                          </SettingsField>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <span className="settings-hint">{t('settings.spotifyInputHint')}</span>
-                </>
-              )}
+              <p className="settings-hint settings-hint--block">{t('settings.musicHint')}</p>
+              <SettingsField
+                label={t('settings.musicVolumeLabel')}
+                htmlFor="settings-music-volume"
+              >
+                <div className="settings-music-volume">
+                  <input
+                    id="settings-music-volume"
+                    type="range"
+                    className="settings-music-volume__slider"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}
+                    aria-label={t('settings.musicVolumeLabel')}
+                    onChange={e => update('musicVolume', sanitizeMusicVolume(Number(e.target.value) / 100))}
+                  />
+                  <span className="settings-music-volume__value" aria-hidden>
+                    {Math.round(sanitizeMusicVolume(form.musicVolume) * 100)}%
+                  </span>
+                </div>
+              </SettingsField>
             </SettingsSection>
           )}
 

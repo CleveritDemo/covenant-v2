@@ -89,18 +89,17 @@ describe('riel de categorías', () => {
     expect(screen.getByRole('button', { name: 'settings.forceUpdate' })).toBeTruthy()
   })
 
-  it('el pie avisa del campo inválido aunque estés en otra categoría', async () => {
+  it('Música muestra toggle y volumen', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
-    fireEvent.click(nav('settings.spotifySection'))
-    fireEvent.change(document.getElementById('settings-pl-focus') as HTMLInputElement, {
-      target: { value: 'basura' },
-    })
-    fireEvent.click(nav('settings.advancedSection'))
-    expect(document.getElementById('settings-pl-focus')).toBeNull()
+    fireEvent.click(nav('settings.musicSection'))
 
-    // El error de campo ya no se ve, pero el pie sigue diciendo dónde está.
-    await waitFor(() =>
-      expect(screen.getByText('settings.notSavedInvalid:settings.spotifySection')).toBeTruthy())
+    expect(screen.getByText('settings.musicEnabledTitle')).toBeTruthy()
+    expect(screen.getByLabelText('settings.musicVolumeLabel')).toBeTruthy()
+    fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
+      target: { value: '42' },
+    })
+    await waitFor(() => expect(setConfig).toHaveBeenCalled())
+    expect(setConfig.mock.calls.at(-1)?.[0].musicVolume).toBe(0.42)
   })
 })

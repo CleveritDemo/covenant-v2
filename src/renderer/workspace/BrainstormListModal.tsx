@@ -354,17 +354,8 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
           <div className="brainstorm-list-modal__empty">
             <Icon name="messages" size={30} aria-hidden />
             <h3 className="brainstorm-list-modal__empty-title">{t('tabs.brainstormsListEmpty')}</h3>
+            {/* El CTA vive solo en el footer: repetirlo aquí duplicaba el botón. */}
             <p className="brainstorm-list-modal__empty-body">{t('tabs.brainstormsEmptyBody')}</p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                onClose()
-                onCreate()
-              }}
-            >
-              {t('tabs.brainstormsCreateNew')}
-            </Button>
           </div>
         ) : groups.length === 0 ? (
           <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsFilterEmpty')}</p>

@@ -121,6 +121,13 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           >
             <Icon name="drag-handle" size={11} />
           </button>
+        ) : seatDraggable ? (
+          <span
+            className="plane-mini-face__action plane-mini-face__drag-hint"
+            aria-hidden="true"
+          >
+            <Icon name="drag-handle" size={11} />
+          </span>
         ) : null}
         <span className="plane-mini-face__monogram" aria-hidden>
           {displayMonogram}

@@ -30,7 +30,6 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof ThemePicker
       open
       currentThemeId={CONFIG_DEFAULTS.themeId}
       musicEnabled
-      musicVolume={CONFIG_DEFAULTS.musicVolume}
       onSelectTheme={onSelectTheme}
       onAudioConfigChange={onAudioConfigChange}
       onClose={() => {}}
@@ -81,16 +80,6 @@ describe('ThemePickerModal cards', () => {
 })
 
 describe('ThemePickerModal audio', () => {
-  it('el slider llama onAudioConfigChange con musicVolume 0..1', () => {
-    const { onAudioConfigChange } = renderPicker()
-
-    fireEvent.change(document.getElementById('theme-picker-music-volume') as HTMLInputElement, {
-      target: { value: '70' },
-    })
-
-    expect(onAudioConfigChange).toHaveBeenCalledWith({ musicVolume: 0.7 })
-  })
-
   it('el toggle llama onAudioConfigChange con musicEnabled', () => {
     const { onAudioConfigChange } = renderPicker()
 
@@ -99,28 +88,19 @@ describe('ThemePickerModal audio', () => {
     expect(onAudioConfigChange).toHaveBeenCalledWith({ musicEnabled: false })
   })
 
-  it('muestra el porcentaje de volumen actual', () => {
-    renderPicker({ musicVolume: 0.42 })
-
-    expect(screen.getByText('42%')).toBeTruthy()
-    expect((document.getElementById('theme-picker-music-volume') as HTMLInputElement).value).toBe('42')
-  })
-
-  it('el slider sigue usable con audio off', () => {
-    const { onAudioConfigChange } = renderPicker({ musicEnabled: false })
-    const slider = document.getElementById('theme-picker-music-volume') as HTMLInputElement
-    expect(slider.disabled).toBe(false)
-
-    fireEvent.change(slider, { target: { value: '55' } })
-    expect(onAudioConfigChange).toHaveBeenCalledWith({ musicVolume: 0.55 })
+  it('no muestra slider ni porcentaje de volumen', () => {
+    renderPicker()
+    expect(document.getElementById('theme-picker-music-volume')).toBeNull()
+    expect(document.querySelector('.theme-picker-audio__slider')).toBeNull()
+    expect(document.querySelector('.theme-picker-audio__value')).toBeNull()
   })
 })
 
 describe('ThemePickerModal keyboard guards', () => {
-  it('Enter desde el slider no selecciona tema', () => {
+  it('Enter desde el toggle de audio no selecciona tema', () => {
     const { onSelectTheme } = renderPicker()
-    const slider = document.getElementById('theme-picker-music-volume') as HTMLInputElement
-    fireEvent.keyDown(slider, { key: 'Enter', bubbles: true })
+    const toggle = screen.getByRole('switch', { name: 'themePicker.audioToggle' })
+    fireEvent.keyDown(toggle, { key: 'Enter', bubbles: true })
     expect(onSelectTheme).not.toHaveBeenCalled()
   })
 

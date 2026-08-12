@@ -107,6 +107,8 @@ export interface PlaneChatComposerProps {
   onOpenRepoGit?: (path: string) => void
   /** Revalida la lista contra el disco (repos borrados/clonados fuera de la app). */
   onRefreshRepos?: () => void
+  /** Sonido de inicio de dictado; default true. */
+  systemSoundsEnabled?: boolean
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -127,6 +129,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   gitRepos = [],
   onOpenRepoGit,
   onRefreshRepos,
+  systemSoundsEnabled = true,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -355,6 +358,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const { listening, interim, level, start: startDictation, stop: stopDictation } =
     usePushToTalkSpeech({
       lang: speechLang,
+      systemSoundsEnabled,
       onTranscript: text => {
         submit(text)
       },

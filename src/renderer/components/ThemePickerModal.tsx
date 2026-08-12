@@ -25,7 +25,6 @@ interface Props {
   open: boolean
   currentThemeId: string
   musicEnabled: boolean
-  musicVolume: number
   onSelectTheme: (themeId: string) => void
   onAudioConfigChange: (partial: ThemePickerAudioPartial) => void
   onClose: () => void
@@ -35,7 +34,6 @@ export const ThemePickerModal: React.FC<Props> = ({
   open,
   currentThemeId,
   musicEnabled,
-  musicVolume,
   onSelectTheme,
   onAudioConfigChange,
   onClose,
@@ -127,7 +125,6 @@ export const ThemePickerModal: React.FC<Props> = ({
         </div>
         <ThemePickerAudioControls
           musicEnabled={musicEnabled}
-          musicVolume={musicVolume}
           onAudioConfigChange={onAudioConfigChange}
         />
         <div className="theme-picker-spacer" aria-hidden="true" />

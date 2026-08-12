@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react'
-import { mergeWithDefaults, sanitizeMusicVolume, type AppConfig } from '@shared/configSchema'
+import { mergeWithDefaults, type AppConfig } from '@shared/configSchema'
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
 import type { AgentCliProvider } from '../../shared/tabSession'
 import {
@@ -69,9 +69,6 @@ export const AppModals: React.FC<Props> = ({
     onConfigSaved(mergeWithDefaults({
       ...config,
       ...partial,
-      musicVolume: partial.musicVolume !== undefined
-        ? sanitizeMusicVolume(partial.musicVolume)
-        : sanitizeMusicVolume(config.musicVolume),
     }))
   }, [config, onConfigSaved])
 
@@ -117,7 +114,6 @@ export const AppModals: React.FC<Props> = ({
         open={themePickerOpen}
         currentThemeId={config.themeId}
         musicEnabled={config.musicEnabled}
-        musicVolume={config.musicVolume}
         onSelectTheme={onThemeChange}
         onAudioConfigChange={handleThemeAudioConfigChange}
         onClose={onCloseThemePicker}

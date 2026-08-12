@@ -65,10 +65,19 @@ export interface AppConfig {
   thinkingMode: boolean
   /** Activa el audio del tema (play/pausa en titlebar si hay track). */
   musicEnabled: boolean
+  /**
+   * Si true, el usuario pausó la música del tema; no autoplay al arrancar ni al cambiar de tema.
+   * Independiente de `musicEnabled`: al desactivar audio se conserva para al reactivar respetar la pausa.
+   */
+  musicPaused: boolean
   /** Volumen del reproductor interno (0..1). */
   musicVolume: number
-  /** SFX de la UI (fin de turno de agente, push-to-talk). Independiente del audio del tema. */
-  soundFeedbackEnabled: boolean
+  /**
+   * Sonidos del sistema (dictado/micrófono y fin de agente).
+   * Independiente de la música del tema.
+   * Migra desde `soundFeedbackEnabled` (v0.39.59).
+   */
+  systemSoundsEnabled: boolean
   /** Idioma de la interfaz. */
   language: Language
   /**
@@ -124,8 +133,9 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentShellPolicy: 'off',
   thinkingMode: false,
   musicEnabled: true,
+  musicPaused: false,
   musicVolume: DEFAULT_MUSIC_VOLUME,
-  soundFeedbackEnabled: true,
+  systemSoundsEnabled: true,
   language: 'en',
   reduceMotion: false,
   autoRestartShell: true,
@@ -170,9 +180,16 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const musicVolume = Object.prototype.hasOwnProperty.call(partial, 'musicVolume')
     ? sanitizeMusicVolume(partial.musicVolume)
     : CONFIG_DEFAULTS.musicVolume
-  const soundFeedbackEnabled = typeof partial.soundFeedbackEnabled === 'boolean'
-    ? partial.soundFeedbackEnabled
-    : CONFIG_DEFAULTS.soundFeedbackEnabled
+  const musicPaused = typeof partial.musicPaused === 'boolean'
+    ? partial.musicPaused
+    : CONFIG_DEFAULTS.musicPaused
+  const rawPartial = partial as Record<string, unknown>
+  // systemSoundsEnabled (aprobado) migra soundFeedbackEnabled de v0.39.59.
+  const systemSoundsEnabled = typeof partial.systemSoundsEnabled === 'boolean'
+    ? partial.systemSoundsEnabled
+    : typeof rawPartial.soundFeedbackEnabled === 'boolean'
+      ? (rawPartial.soundFeedbackEnabled as boolean)
+      : CONFIG_DEFAULTS.systemSoundsEnabled
   const agentCliCommands = migrateAgentCliCommands(partial)
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
@@ -192,13 +209,15 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ...CONFIG_DEFAULTS,
     ...partial,
     musicVolume,
-    soundFeedbackEnabled,
+    musicPaused,
+    systemSoundsEnabled,
     reduceMotion,
     autoUpdatesEnabled,
     agentCliCommands,
     defaultWorkspacesDir,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
+  delete merged.soundFeedbackEnabled
   delete merged.musicMood
   delete merged.musicPlaylistIdsByMood
   if (catalogKeyPresent) {
@@ -262,6 +281,12 @@ export function validateConfig(config: AppConfig): string[] {
     errors.push('musicVolume debe ser un número')
   } else if (config.musicVolume < 0 || config.musicVolume > 1) {
     errors.push('musicVolume debe estar entre 0 y 1')
+  }
+  if (typeof config.musicPaused !== 'boolean') {
+    errors.push('musicPaused debe ser boolean')
+  }
+  if (typeof config.systemSoundsEnabled !== 'boolean') {
+    errors.push('systemSoundsEnabled debe ser boolean')
   }
   return errors
 }

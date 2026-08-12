@@ -135,7 +135,6 @@ import {
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
-import { setSoundFeedbackEnabled } from './uiSounds'
 import {
   contextIdsEqual,
   resolveAssignedContextChips,
@@ -1238,12 +1237,6 @@ export const App: React.FC = () => {
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [configReady, config.reduceMotion])
-
-  // Ajustes → SFX de la UI (fin de turno, push-to-talk).
-  useEffect(() => {
-    if (!configReady) return
-    setSoundFeedbackEnabled(config.soundFeedbackEnabled !== false)
-  }, [configReady, config.soundFeedbackEnabled])
 
   // Load persisted session on mount
   useEffect(() => {
@@ -4804,6 +4797,14 @@ export const App: React.FC = () => {
     })
   }, [])
 
+  const handleMusicPausedChange = useCallback((paused: boolean) => {
+    setConfig(prev => {
+      if (prev.musicPaused === paused) return prev
+      window.api.setConfig({ musicPaused: paused })
+      return { ...prev, musicPaused: paused }
+    })
+  }, [])
+
   // Atajos de teclado globales (captura en fase de bajada para que funcionen con foco en xterm)
   useEffect(() => {
     const isFocusInFileExplorer = (): boolean => {
@@ -5076,6 +5077,7 @@ export const App: React.FC = () => {
           }}
           registerShortcutCloseInterceptor={registerClose}
           fontSize={config.fontSize ?? 13}
+          systemSoundsEnabled={config.systemSoundsEnabled !== false}
         />
       )
     }
@@ -5132,6 +5134,7 @@ export const App: React.FC = () => {
       {/* ── Title bar (macOS traffic lights live here) ── */}
       <Titlebar
         config={config}
+        configReady={configReady}
         fontSize={config.fontSize ?? 13}
         fontSizeMin={MIN_FONT}
         fontSizeMax={MAX_FONT}
@@ -5141,6 +5144,7 @@ export const App: React.FC = () => {
         onOpenThemePicker={() => setThemePickerOpen(true)}
         onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onMusicPausedChange={handleMusicPausedChange}
       />
 
       {/* ── Tab bar ── */}
@@ -5486,6 +5490,7 @@ export const App: React.FC = () => {
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   agentStatuses={agentPlaneStatus}
                   chatFontSize={config.fontSize ?? 13}
+                  systemSoundsEnabled={config.systemSoundsEnabled !== false}
                   configLabel={t('agentPane.openConfig')}
                   deleteLabel={t('tabs.planeDeletePane')}
                   maximizeLabel={t('tabs.planeMaximize')}

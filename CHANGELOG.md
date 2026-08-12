@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.60
+
+- **Partículas más orgánicas**: aparecen en una grilla 6×6 responsive, con posición aleatoria y sin perder bandas ni beat.
+- **Sonido centraliza audio**: música de temas y sonidos del sistema (dictado y fin de agente) viven juntos en Ajustes › Sonido.
+- **Picker de temas más simple**: solo enciende o apaga el audio del tema; el volumen queda en Sonido.
+
 ## v0.39.59
 
 - **Los sonidos de la interfaz se pueden apagar**: nuevo interruptor en Ajustes › Apariencia › Sonidos de la interfaz que silencia el aviso de fin de turno de agente y el del dictado, sin tocar el audio del tema.

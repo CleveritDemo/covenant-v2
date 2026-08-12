@@ -141,6 +141,8 @@ export interface TabAgenticPlaneProps {
   /** Estados de chat por agente (para el chat centrado del plano). */
   agentStatuses?: Record<string, AgentPlaneStatus>
   chatFontSize?: number
+  /** Sonidos del sistema para dictado del composer. */
+  systemSoundsEnabled?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -331,6 +333,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onOpenChatAgentChange,
   agentStatuses = {},
   chatFontSize = 13,
+  systemSoundsEnabled = true,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -953,6 +956,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               gitRepos={gitRepos}
               onOpenRepoGit={onOpenRepoGit}
               onRefreshRepos={onRefreshRepos}
+              systemSoundsEnabled={systemSoundsEnabled}
             />
           )}
         />

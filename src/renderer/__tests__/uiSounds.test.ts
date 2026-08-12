@@ -4,7 +4,6 @@ import {
   playVoiceMessageSound,
   resetAgentFinishSoundForTests,
   resetVoiceMessageSoundForTests,
-  setSoundFeedbackEnabled,
 } from '../uiSounds'
 
 vi.mock('../assets/sounds/voice-message.mp3?url', () => ({
@@ -40,6 +39,13 @@ describe('playVoiceMessageSound', () => {
     expect(audio.currentTime).toBe(0)
     expect(play).toHaveBeenCalledTimes(2)
   })
+
+  it('enabled=false no crea Audio ni reproduce', () => {
+    const AudioMock = vi.fn()
+    vi.stubGlobal('Audio', AudioMock)
+    playVoiceMessageSound(false)
+    expect(AudioMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('playAgentFinishSound', () => {
@@ -67,27 +73,11 @@ describe('playAgentFinishSound', () => {
     expect(audio.currentTime).toBe(0)
     expect(play).toHaveBeenCalledTimes(2)
   })
-})
 
-describe('setSoundFeedbackEnabled', () => {
-  afterEach(() => {
-    setSoundFeedbackEnabled(true)
-    resetVoiceMessageSoundForTests()
-    resetAgentFinishSoundForTests()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
-
-  it('con el ajuste desactivado no suena nada', () => {
-    const AudioMock = vi.fn(function Audio() {
-      return { currentTime: 0, play: vi.fn(async () => {}) }
-    })
+  it('enabled=false no crea Audio ni reproduce', () => {
+    const AudioMock = vi.fn()
     vi.stubGlobal('Audio', AudioMock)
-    setSoundFeedbackEnabled(false)
-
-    playVoiceMessageSound()
-    playAgentFinishSound()
-
+    playAgentFinishSound(false)
     expect(AudioMock).not.toHaveBeenCalled()
   })
 })

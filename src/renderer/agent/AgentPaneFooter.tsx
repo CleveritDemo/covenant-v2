@@ -34,6 +34,8 @@ export interface AgentPaneFooterProps {
   onSendClick: () => void
   /** Envía texto dictado (mismo path que send). */
   onDictateSend: (text: string) => void
+  /** Sonido de inicio de dictado; default true. */
+  systemSoundsEnabled?: boolean
 }
 
 export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
@@ -56,6 +58,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   onRemovePendingImage,
   onSendClick,
   onDictateSend,
+  systemSoundsEnabled = true,
 }) => {
   const { t, i18n } = useT()
   const [dictationError, setDictationError] = useState('')
@@ -98,6 +101,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
   const { listening, interim, level, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
     lang: speechLang,
+    systemSoundsEnabled,
     onTranscript: onDictateSend,
     onError: code => {
       setDictationError(mapDictationError(code))

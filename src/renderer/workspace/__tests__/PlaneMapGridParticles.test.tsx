@@ -6,12 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { THEME_MUSIC_BAND_COUNT } from '../../themeMusicEnergy'
 import {
-  assignParticleSlot,
+  assignRandomGridSlot,
   baseSizeForFrequencyBand,
   colorForFrequencyBand,
   easeVisualBeatPulse,
   particleGridDims,
+  PARTICLE_GRID_CELL_COUNT,
+  PARTICLE_GRID_COLS,
+  PARTICLE_GRID_ROWS,
   PlaneMapGridParticles,
+  positionInGridCell,
+  randomGridCell,
 } from '../PlaneMapGridParticles'
 
 const getThemeMusicBands = vi.fn(() =>
@@ -374,60 +379,60 @@ describe('PlaneMapGridParticles', () => {
     expect(unique.size).toBe(THEME_MUSIC_BAND_COUNT)
   })
 
-  it('cada banda se reparte en múltiples cuadrantes; total entre 24 y 36', () => {
+  it('grilla fija 6×6; celdas random distintas al excluir; total entre 24 y 36', () => {
     const width = 400
     const height = 300
     const count = 24
-    const slots = Array.from({ length: count }, (_, i) =>
-      assignParticleSlot(i, count, width, height),
-    )
+    const dims = particleGridDims(count, width, height)
+    expect(dims).toEqual({ cols: PARTICLE_GRID_COLS, rows: PARTICLE_GRID_ROWS })
+    expect(PARTICLE_GRID_CELL_COUNT).toBe(36)
 
-    expect(slots).toHaveLength(count)
+    // randomGridCell evita la celda excluida.
+    for (let exclude = 0; exclude < PARTICLE_GRID_CELL_COUNT; exclude += 1) {
+      let seq = 0
+      const next = assignRandomGridSlot(
+        width,
+        height,
+        exclude % THEME_MUSIC_BAND_COUNT,
+        exclude,
+        () => {
+          const t = (seq % 10) / 10
+          seq += 1
+          return t
+        },
+      )
+      expect(next.cell).not.toBe(exclude)
+      expect(next.cell).toBeGreaterThanOrEqual(0)
+      expect(next.cell).toBeLessThan(PARTICLE_GRID_CELL_COUNT)
+    }
+
+    // Posición dentro de la celda pedida.
+    const cell = 14
+    const pos = positionInGridCell(cell, width, height, () => 0.5)
+    const col = cell % PARTICLE_GRID_COLS
+    const row = Math.floor(cell / PARTICLE_GRID_COLS)
+    const cellW = width / PARTICLE_GRID_COLS
+    const cellH = height / PARTICLE_GRID_ROWS
+    expect(pos.x).toBeGreaterThan(col * cellW)
+    expect(pos.x).toBeLessThan((col + 1) * cellW)
+    expect(pos.y).toBeGreaterThan(row * cellH)
+    expect(pos.y).toBeLessThan((row + 1) * cellH)
+
+    // randomGridCell sin exclude cubre el rango.
+    const cells = new Set(
+      Array.from({ length: 80 }, (_, i) => randomGridCell(undefined, () => (i % 36) / 36)),
+    )
+    expect(cells.size).toBeGreaterThan(10)
+
+    // Spawn no determinista por índice: dos llamadas con RNG distinto → distinta celda.
+    const a = assignRandomGridSlot(width, height, 0, undefined, () => 0.1)
+    const b = assignRandomGridSlot(width, height, 0, undefined, () => 0.9)
+    expect(a.cell).not.toBe(b.cell)
+
     expect(count).toBeGreaterThanOrEqual(24)
     expect(count).toBeLessThanOrEqual(36)
 
-    const quads = [0, 0, 0, 0]
-    for (const s of slots) {
-      const qx = s.x < width / 2 ? 0 : 1
-      const qy = s.y < height / 2 ? 0 : 1
-      quads[qy * 2 + qx]! += 1
-    }
-    // Cada cuadrante tiene al menos una partícula (cobertura homogénea).
-    expect(quads.every((n) => n >= 1)).toBe(true)
-
-    // Cobertura de extremos: no todo amontonado al centro.
-    const xs = slots.map((s) => s.x)
-    const ys = slots.map((s) => s.y)
-    expect(Math.min(...xs)).toBeLessThan(width * 0.3)
-    expect(Math.max(...xs)).toBeGreaterThan(width * 0.7)
-    expect(Math.min(...ys)).toBeLessThan(height * 0.3)
-    expect(Math.max(...ys)).toBeGreaterThan(height * 0.7)
-
-    const bandsUsed = new Set(slots.map((s) => s.frequencyBand))
-    expect(bandsUsed.size).toBe(THEME_MUSIC_BAND_COUNT)
-
-    // Celdas distintas: sin colisiones de posición exacta.
-    const posKeys = new Set(slots.map((s) => `${s.x.toFixed(2)}:${s.y.toFixed(2)}`))
-    expect(posKeys.size).toBe(count)
-
-    // Cada banda aparece en varios cuadrantes (reparto espacial homogéneo).
-    for (let b = 0; b < THEME_MUSIC_BAND_COUNT; b += 1) {
-      const ofBand = slots.filter((s) => s.frequencyBand === b)
-      expect(ofBand.length).toBeGreaterThanOrEqual(4)
-      const bandQuads = new Set(
-        ofBand.map((s) => {
-          const qx = s.x < width / 2 ? 0 : 1
-          const qy = s.y < height / 2 ? 0 : 1
-          return qy * 2 + qx
-        }),
-      )
-      expect(bandQuads.size).toBe(4)
-    }
-
-    const { cols, rows } = particleGridDims(count, width, height)
-    expect(cols * rows).toBeGreaterThanOrEqual(count)
-
-    // Render live: posiciones dibujadas cubren el área.
+    // Render live: posiciones dibujadas cubren el área y usan las 6 bandas.
     const positions: Array<{ x: number; y: number }> = []
     ctx.arc = vi.fn((x: number, y: number) => {
       positions.push({ x, y })
@@ -447,12 +452,21 @@ describe('PlaneMapGridParticles', () => {
     expect(positions.length).toBeGreaterThanOrEqual(24)
     expect(positions.length).toBeLessThanOrEqual(36)
 
-    const liveQuads = [0, 0, 0, 0]
-    for (const p of positions) {
-      const qx = p.x < width / 2 ? 0 : 1
-      const qy = p.y < height / 2 ? 0 : 1
-      liveQuads[qy * 2 + qx]! += 1
-    }
-    expect(liveQuads.filter((n) => n > 0).length).toBe(4)
+    const xs = positions.map((p) => p.x)
+    const ys = positions.map((p) => p.y)
+    expect(Math.min(...xs)).toBeLessThan(width * 0.35)
+    expect(Math.max(...xs)).toBeGreaterThan(width * 0.65)
+    expect(Math.min(...ys)).toBeLessThan(height * 0.35)
+    expect(Math.max(...ys)).toBeGreaterThan(height * 0.65)
+
+    // Cobertura de varias celdas de la grilla 6×6 (no todo en una).
+    const liveCells = new Set(
+      positions.map((p) => {
+        const c = Math.min(PARTICLE_GRID_COLS - 1, Math.floor(p.x / (width / PARTICLE_GRID_COLS)))
+        const r = Math.min(PARTICLE_GRID_ROWS - 1, Math.floor(p.y / (height / PARTICLE_GRID_ROWS)))
+        return r * PARTICLE_GRID_COLS + c
+      }),
+    )
+    expect(liveCells.size).toBeGreaterThan(6)
   })
 })

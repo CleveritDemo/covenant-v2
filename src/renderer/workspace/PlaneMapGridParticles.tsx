@@ -16,8 +16,10 @@ type Particle = {
   maxLife: number
   size: number
   color: string
-  /** Banda de frecuencia asociada (estable por slot). */
+  /** Banda de frecuencia asociada (estable por índice de partícula). */
   frequencyBand: number
+  /** Celda 6×6 actual (0..35); al renacer se elige otra si es posible. */
+  gridCell: number
   /** Variación leve 0.85–1 sobre la intensidad de banda. */
   sparkleBias: number
   /** Jitter pequeño 0–0.08; no debe dominar la banda. */
@@ -34,7 +36,6 @@ const BAND_COLOR_VARS = [
   '--caution',
 ] as const
 
-/** 6 bandas × 4 cuadrantes para presencia espacial homogénea. */
 const MIN_PARTICLES = 24
 const MAX_PARTICLES = 36
 /** Opacidad base sin energía de banda (rango original pre-ensanche). */
@@ -59,10 +60,12 @@ const HALO_SCALE_BASE = 2.2
 const HALO_SCALE_BEAT = 0.28
 /** Drift máximo en CSS px/s (lento). */
 const DRIFT_MAX = 6
-/** Cuadrantes espaciales para repartir cada banda. */
-const QUADRANT_COLS = 2
-const QUADRANT_ROWS = 2
-const QUADRANT_COUNT = QUADRANT_COLS * QUADRANT_ROWS
+/** Grilla responsive fija sobre todo el canvas. */
+export const PARTICLE_GRID_COLS = 6
+export const PARTICLE_GRID_ROWS = 6
+export const PARTICLE_GRID_CELL_COUNT = PARTICLE_GRID_COLS * PARTICLE_GRID_ROWS
+/** Inset relativo dentro de cada celda (evita bordes duros). */
+const CELL_INSET = 0.15
 /** Ataque del pulso visual (moderado, por frame a 60fps). */
 const VISUAL_BEAT_ATTACK = 0.42
 /** Release del pulso visual (más lento que el ataque). */
@@ -128,54 +131,74 @@ export function colorForFrequencyBand(
   return safe[idx]!
 }
 
-/** Dimensiones de grilla lógica para cubrir el canvas (al menos `count` celdas). */
+/** Dimensiones de grilla fija 6×6 sobre el canvas. */
 export function particleGridDims(
-  count: number,
-  width: number,
-  height: number,
+  _count?: number,
+  _width?: number,
+  _height?: number,
 ): { cols: number; rows: number } {
-  const safeCount = Math.max(1, count)
-  const aspect = Math.max(0.25, Math.min(4, width / Math.max(1, height)))
-  let cols = Math.max(1, Math.round(Math.sqrt(safeCount * aspect)))
-  let rows = Math.max(1, Math.ceil(safeCount / cols))
-  while (cols * rows < safeCount) {
-    if (cols / rows < aspect) cols += 1
-    else rows += 1
-  }
-  return { cols, rows }
+  return { cols: PARTICLE_GRID_COLS, rows: PARTICLE_GRID_ROWS }
 }
 
 /**
- * Slot espacial por banda: cada frecuencia se reparte en cuadrantes del viewport.
- * Con ≥24 partículas (6×4) cada banda cubre los 4 cuadrantes.
+ * Índice de celda random (0..35). Si `excludeCell` es válido y hay >1 celda,
+ * garantiza una distinta.
  */
-export function assignParticleSlot(
-  index: number,
-  _count: number,
+export function randomGridCell(
+  excludeCell?: number,
+  random: () => number = Math.random,
+): number {
+  const total = PARTICLE_GRID_CELL_COUNT
+  if (
+    excludeCell === undefined
+    || excludeCell < 0
+    || excludeCell >= total
+    || total <= 1
+  ) {
+    return Math.floor(random() * total)
+  }
+  const r = Math.floor(random() * (total - 1))
+  return r >= excludeCell ? r + 1 : r
+}
+
+/** Posición random dentro de una celda de la grilla 6×6. */
+export function positionInGridCell(
+  cell: number,
   width: number,
   height: number,
-): { x: number; y: number; frequencyBand: number } {
-  const frequencyBand = index % THEME_MUSIC_BAND_COUNT
-  const instanceOfBand = Math.floor(index / THEME_MUSIC_BAND_COUNT)
-  const quadrant = instanceOfBand % QUADRANT_COUNT
-  const qx = quadrant % QUADRANT_COLS
-  const qy = Math.floor(quadrant / QUADRANT_COLS)
-  const qW = width / QUADRANT_COLS
-  const qH = height / QUADRANT_ROWS
-
-  // Varias instancias de la misma banda+cuadrante se desfasán dentro del cuadrante.
-  const sub = Math.floor(instanceOfBand / QUADRANT_COUNT)
-  const hashX = ((index * 47) + sub * 19) % 1000 / 1000
-  const hashY = ((index * 91) + sub * 37) % 1000 / 1000
-  const bandPhaseX = ((frequencyBand * 13) % 7) / 7 * 0.1
-  const bandPhaseY = ((frequencyBand * 19) % 5) / 5 * 0.1
-  const jitterX = Math.min(0.88, 0.12 + 0.7 * hashX + bandPhaseX)
-  const jitterY = Math.min(0.88, 0.12 + 0.7 * hashY + bandPhaseY)
-
+  random: () => number = Math.random,
+): { x: number; y: number } {
+  const safe = ((cell % PARTICLE_GRID_CELL_COUNT) + PARTICLE_GRID_CELL_COUNT)
+    % PARTICLE_GRID_CELL_COUNT
+  const col = safe % PARTICLE_GRID_COLS
+  const row = Math.floor(safe / PARTICLE_GRID_COLS)
+  const cellW = Math.max(1, width) / PARTICLE_GRID_COLS
+  const cellH = Math.max(1, height) / PARTICLE_GRID_ROWS
+  const inset = CELL_INSET
   return {
-    x: qx * qW + qW * jitterX,
-    y: qy * qH + qH * jitterY,
+    x: col * cellW + cellW * (inset + random() * (1 - 2 * inset)),
+    y: row * cellH + cellH * (inset + random() * (1 - 2 * inset)),
+  }
+}
+
+/**
+ * Slot orgánico: celda random de la grilla 6×6 + offset dentro de la celda.
+ * `frequencyBand` lo aporta el caller (estable por partícula).
+ */
+export function assignRandomGridSlot(
+  width: number,
+  height: number,
+  frequencyBand: number,
+  excludeCell?: number,
+  random: () => number = Math.random,
+): { x: number; y: number; frequencyBand: number; cell: number } {
+  const cell = randomGridCell(excludeCell, random)
+  const pos = positionInGridCell(cell, width, height, random)
+  return {
+    x: pos.x,
+    y: pos.y,
     frequencyBand,
+    cell,
   }
 }
 
@@ -191,11 +214,12 @@ function spawnParticle(
   height: number,
   colors: string[],
   index: number,
-  count: number,
+  previousCell?: number,
 ): Particle {
   const maxLife = 4 + Math.random() * 6
-  const slot = assignParticleSlot(index, count, width, height)
-  const bandSize = baseSizeForFrequencyBand(slot.frequencyBand)
+  const frequencyBand = index % THEME_MUSIC_BAND_COUNT
+  const slot = assignRandomGridSlot(width, height, frequencyBand, previousCell)
+  const bandSize = baseSizeForFrequencyBand(frequencyBand)
   const sizeJitter = (((index * 19) % 21) / 20 - 0.5) * 2 * SIZE_BAND_JITTER
   return {
     x: slot.x,
@@ -205,8 +229,9 @@ function spawnParticle(
     life: Math.random() * maxLife,
     maxLife,
     size: Math.max(0.35, bandSize + sizeJitter),
-    color: colorForFrequencyBand(colors, slot.frequencyBand),
-    frequencyBand: slot.frequencyBand,
+    color: colorForFrequencyBand(colors, frequencyBand),
+    frequencyBand,
+    gridCell: slot.cell,
     sparkleBias: 0.85 + ((index * 13) % 16) / 100,
     pulseJitter: ((index * 17) % 9) / 100,
   }
@@ -280,17 +305,14 @@ export const PlaneMapGridParticles: React.FC = () => {
     let cssH = 1
 
     const relocateParticles = (w: number, h: number): void => {
-      const n = particles.length
-      for (let i = 0; i < n; i += 1) {
+      for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i]!
-        const slot = assignParticleSlot(i, n, w, h)
-        p.x = slot.x
-        p.y = slot.y
-        p.frequencyBand = slot.frequencyBand
-        p.color = colorForFrequencyBand(colors, slot.frequencyBand)
-        const bandSize = baseSizeForFrequencyBand(slot.frequencyBand)
-        const sizeJitter = (((i * 19) % 21) / 20 - 0.5) * 2 * SIZE_BAND_JITTER
-        p.size = Math.max(0.35, bandSize + sizeJitter)
+        const cell = ((p.gridCell % PARTICLE_GRID_CELL_COUNT) + PARTICLE_GRID_CELL_COUNT)
+          % PARTICLE_GRID_CELL_COUNT
+        const pos = positionInGridCell(cell, w, h)
+        p.x = pos.x
+        p.y = pos.y
+        p.gridCell = cell
       }
     }
 
@@ -306,7 +328,7 @@ export const PlaneMapGridParticles: React.FC = () => {
       cssW = w
       cssH = h
       colors = readThemeColors(canvas)
-      // Reparte de nuevo al cambiar el viewport (evita cluster del tamaño inicial).
+      // Reubica en celdas válidas del nuevo tamaño (misma celda, nuevo offset).
       if (sizeChanged && particles.length > 0) {
         relocateParticles(w, h)
       }
@@ -317,7 +339,7 @@ export const PlaneMapGridParticles: React.FC = () => {
     const count = MIN_PARTICLES
       + Math.floor(Math.random() * (MAX_PARTICLES - MIN_PARTICLES + 1))
     for (let i = 0; i < count; i += 1) {
-      particles.push(spawnParticle(cssW, cssH, colors, i, count))
+      particles.push(spawnParticle(cssW, cssH, colors, i))
     }
     // Por si el primer layout aún no tenía tamaño real.
     relocateParticles(cssW, cssH)
@@ -367,8 +389,8 @@ export const PlaneMapGridParticles: React.FC = () => {
         else if (p.y > height + 4) p.y = -4
 
         if (p.life <= 0) {
-          // Conserva índice → misma banda y celda homogénea.
-          particles[i] = spawnParticle(width, height, colors, i, particles.length)
+          // Misma banda (índice); celda distinta a la anterior si es posible.
+          particles[i] = spawnParticle(width, height, colors, i, p.gridCell)
           continue
         }
 

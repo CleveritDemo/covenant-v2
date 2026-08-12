@@ -3,21 +3,15 @@ import finishUrl from './assets/sounds/finish.mp3?url'
 
 let voiceMessageAudio: HTMLAudioElement | null = null
 let agentFinishAudio: HTMLAudioElement | null = null
-// ponytail: flag de módulo en vez de pasar config por los llamadores (App.tsx lo sincroniza).
-let soundFeedbackEnabled = true
-
-/** Ajustes → SFX de la UI on/off. */
-export function setSoundFeedbackEnabled(enabled: boolean): void {
-  soundFeedbackEnabled = enabled
-}
 
 /**
  * SFX al iniciar push-to-talk (botón de micrófono).
  * Best-effort: fallos de autoplay/Audio se ignoran.
+ * `enabled=false` no crea Audio ni reproduce.
  */
-export function playVoiceMessageSound(): void {
+export function playVoiceMessageSound(enabled = true): void {
+  if (!enabled) return
   try {
-    if (!soundFeedbackEnabled) return
     if (typeof Audio === 'undefined') return
     if (!voiceMessageAudio) {
       voiceMessageAudio = new Audio(voiceMessageUrl)
@@ -37,10 +31,11 @@ export function resetVoiceMessageSoundForTests(): void {
 /**
  * SFX al completar un turno de agente con éxito.
  * Best-effort: fallos de autoplay/Audio se ignoran.
+ * `enabled=false` no crea Audio ni reproduce.
  */
-export function playAgentFinishSound(): void {
+export function playAgentFinishSound(enabled = true): void {
+  if (!enabled) return
   try {
-    if (!soundFeedbackEnabled) return
     if (typeof Audio === 'undefined') return
     if (!agentFinishAudio) {
       agentFinishAudio = new Audio(finishUrl)

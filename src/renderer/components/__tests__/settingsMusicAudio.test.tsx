@@ -26,8 +26,8 @@ vi.mock('../GitHubTokenField', () => ({ GitHubTokenField: () => null }))
 const setConfig = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true }
 
-function gotoAppearanceMusic(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
+function gotoSoundMusic(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'settings.soundSection' }))
 }
 
 beforeEach(() => {
@@ -38,7 +38,7 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-describe('audio del tema en Apariencia', () => {
+describe('audio del tema en Sonido', () => {
   it('sanitizeMusicVolume clampea a 0..1 sin interpretar 35 como 35%', () => {
     expect(sanitizeMusicVolume(0.35)).toBe(0.35)
     expect(sanitizeMusicVolume(35)).toBe(1)
@@ -48,7 +48,7 @@ describe('audio del tema en Apariencia', () => {
 
   it('el slider persiste musicVolume en escala 0..1', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoAppearanceMusic()
+    gotoSoundMusic()
 
     fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
       target: { value: '70' },
@@ -60,11 +60,21 @@ describe('audio del tema en Apariencia', () => {
 
   it('el toggle musicEnabled se guarda (desactivar audio)', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
-    gotoAppearanceMusic()
+    gotoSoundMusic()
 
     fireEvent.click(screen.getByRole('button', { name: /settings.musicEnabledTitle/ }))
 
     await waitFor(() => expect(setConfig).toHaveBeenCalled())
     expect(setConfig.mock.calls.at(-1)?.[0].musicEnabled).toBe(false)
+  })
+
+  it('el toggle systemSoundsEnabled se guarda', async () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+    gotoSoundMusic()
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.systemSoundsEnabledTitle/ }))
+
+    await waitFor(() => expect(setConfig).toHaveBeenCalled())
+    expect(setConfig.mock.calls.at(-1)?.[0].systemSoundsEnabled).toBe(false)
   })
 })

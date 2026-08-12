@@ -183,6 +183,8 @@ interface Props {
   windowOpen?: boolean
   /** Mismo tamaño tipográfico que las terminales (`config.fontSize`). */
   fontSize: number
+  /** Sonidos del sistema (fin de agente / dictado). */
+  systemSoundsEnabled?: boolean
   onMetaChange: (
     meta: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
   ) => void | Promise<boolean>
@@ -345,6 +347,7 @@ export const AgentPane: React.FC<Props> = ({
   isActivePane,
   windowOpen = true,
   fontSize,
+  systemSoundsEnabled = true,
   onMetaChange,
   onRequestPaneFocus,
   onClosePane,
@@ -1467,7 +1470,7 @@ export const AgentPane: React.FC<Props> = ({
       beginLiveSettle(id)
       // Vacío tras reintentos: el turno cerró; no tumbar la cadena entera.
       setTurnCloseReason('completed')
-      playAgentFinishSound()
+      playAgentFinishSound(systemSoundsEnabled)
       setBusy(false)
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
@@ -1509,7 +1512,7 @@ export const AgentPane: React.FC<Props> = ({
       emptyResponseRetriesRef.current = 0
       finishSideEffects()
     }, 0)
-  }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, t])
+  }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, systemSoundsEnabled, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
@@ -2532,6 +2535,7 @@ export const AgentPane: React.FC<Props> = ({
             onRemovePendingImage={removePendingImage}
             onSendClick={handleSendClick}
             onDictateSend={handleDictateSend}
+            systemSoundsEnabled={systemSoundsEnabled}
           />
         </>
       ) : null}

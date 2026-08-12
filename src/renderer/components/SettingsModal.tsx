@@ -44,6 +44,7 @@ const CATEGORIES = [
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
+  { id: 'sound', icon: 'pulse', labelKey: 'settings.soundSection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
@@ -68,8 +69,8 @@ const SEARCH_INDEX = [
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
-  { category: 'appearance', anchor: 'settings-sound', titleKey: 'settings.soundSection', termKeys: ['settings.soundFeedbackTitle', 'settings.soundFeedbackDescription'] },
-  { category: 'appearance', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
+  { category: 'sound', anchor: 'settings-system-sounds', titleKey: 'settings.systemSoundsSection', termKeys: ['settings.systemSoundsEnabledTitle', 'settings.systemSoundsEnabledDescription'] },
+  { category: 'sound', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
   { category: 'advanced', anchor: 'settings-discord', titleKey: 'settings.discordSection', termKeys: ['settings.discordPresenceTitle'] },
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
@@ -92,7 +93,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
     musicVolume: sanitizeMusicVolume(config.musicVolume),
-    soundFeedbackEnabled: config.soundFeedbackEnabled !== false,
+    systemSoundsEnabled: config.systemSoundsEnabled !== false,
     discordPresenceEnabled: config.discordPresenceEnabled,
     autoUpdatesEnabled: config.autoUpdatesEnabled !== false,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
@@ -252,7 +253,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
       musicVolume: sanitizeMusicVolume(form.musicVolume),
-      soundFeedbackEnabled: form.soundFeedbackEnabled,
+      systemSoundsEnabled: form.systemSoundsEnabled,
       discordPresenceEnabled: form.discordPresenceEnabled,
       autoUpdatesEnabled: form.autoUpdatesEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
@@ -316,7 +317,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
       musicVolume: sanitizeMusicVolume(original.musicVolume),
-      soundFeedbackEnabled: original.soundFeedbackEnabled !== false,
+      systemSoundsEnabled: original.systemSoundsEnabled !== false,
       discordPresenceEnabled: original.discordPresenceEnabled,
       autoUpdatesEnabled: original.autoUpdatesEnabled !== false,
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
@@ -464,13 +465,17 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   description={t('settings.reduceMotionDescription')}
                 />
               </SettingsSection>
+            </>
+          )}
 
-              <SettingsSection title={t('settings.soundSection')} anchor="settings-sound">
+          {category === 'sound' && (
+            <>
+              <SettingsSection title={t('settings.systemSoundsSection')} anchor="settings-system-sounds">
                 <SettingToggle
-                  checked={form.soundFeedbackEnabled}
-                  onChange={checked => update('soundFeedbackEnabled', checked)}
-                  title={t('settings.soundFeedbackTitle')}
-                  description={t('settings.soundFeedbackDescription')}
+                  checked={form.systemSoundsEnabled}
+                  onChange={checked => update('systemSoundsEnabled', checked)}
+                  title={t('settings.systemSoundsEnabledTitle')}
+                  description={t('settings.systemSoundsEnabledDescription')}
                 />
               </SettingsSection>
 

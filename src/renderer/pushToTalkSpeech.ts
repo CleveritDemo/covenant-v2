@@ -42,6 +42,8 @@ export interface UsePushToTalkSpeechOptions {
    * `detail.peak` es el pico medido por el helper (0–1), útil solo en `no-audio`.
    */
   onError?: (message: string, detail?: { peak?: number }) => void
+  /** Sonido de inicio de dictado; default true. */
+  systemSoundsEnabled?: boolean
 }
 
 export interface UsePushToTalkSpeechResult {
@@ -62,7 +64,12 @@ export interface UsePushToTalkSpeechResult {
 export function usePushToTalkSpeech(
   options: UsePushToTalkSpeechOptions,
 ): UsePushToTalkSpeechResult {
-  const { lang = 'en-US', onTranscript, onError } = options
+  const {
+    lang = 'en-US',
+    onTranscript,
+    onError,
+    systemSoundsEnabled = true,
+  } = options
   const [listening, setListening] = useState(false)
   const [supported, setSupported] = useState(() => hasNativeDictationApi())
   const [interim, setInterim] = useState('')
@@ -71,8 +78,10 @@ export function usePushToTalkSpeech(
   const startingRef = useRef(false)
   const onTranscriptRef = useRef(onTranscript)
   const onErrorRef = useRef(onError)
+  const systemSoundsEnabledRef = useRef(systemSoundsEnabled)
   onTranscriptRef.current = onTranscript
   onErrorRef.current = onError
+  systemSoundsEnabledRef.current = systemSoundsEnabled
 
   const reportError = useCallback((code: string, detail?: { peak: number }) => {
     if (isIgnorableDictationError(code)) return
@@ -180,7 +189,7 @@ export function usePushToTalkSpeech(
         reportError(permission?.error || 'permission-denied')
         return null
       }
-      playVoiceMessageSound()
+      playVoiceMessageSound(systemSoundsEnabledRef.current)
       setListening(true)
       startedAtRef.current = Date.now()
       return window.api.dictationStart(lang)

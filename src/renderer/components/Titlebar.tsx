@@ -13,6 +13,7 @@ import './Titlebar.css'
 
 interface TitlebarProps {
   config: AppConfig
+  configReady?: boolean
   fontSize: number
   fontSizeMin: number
   fontSizeMax: number
@@ -22,10 +23,12 @@ interface TitlebarProps {
   onOpenThemePicker: () => void
   onOpenOrganizations: () => void
   onOpenSettings: () => void
+  onMusicPausedChange?: (paused: boolean) => void
 }
 
 export const Titlebar: React.FC<TitlebarProps> = ({
   config,
+  configReady = true,
   fontSize,
   fontSizeMin,
   fontSizeMax,
@@ -35,6 +38,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   onOpenThemePicker,
   onOpenOrganizations,
   onOpenSettings,
+  onMusicPausedChange,
 }) => {
   const { t } = useT()
   const theme = getTheme(config.themeId)
@@ -53,7 +57,11 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           onDecrease={onFontDecrease}
         />
 
-        <TitlebarMusicControls config={config} />
+        <TitlebarMusicControls
+          config={config}
+          configReady={configReady}
+          onMusicPausedChange={onMusicPausedChange}
+        />
 
         <ThemePickerTrigger
           themeId={config.themeId}

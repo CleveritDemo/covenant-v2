@@ -70,13 +70,23 @@ describe('riel de categorías', () => {
     expect(nav('settings.agentCliSection').getAttribute('aria-current')).toBeNull()
   })
 
-  it('Apariencia agrupa idioma, movimiento y audio', () => {
+  it('Apariencia agrupa idioma y movimiento sin audio', () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
     fireEvent.click(nav('settings.appearanceSection'))
 
     expect(screen.getByText('settings.languageLabel')).toBeTruthy()
     expect(screen.getByText('settings.reduceMotionTitle')).toBeTruthy()
+    expect(screen.queryByText('settings.musicEnabledTitle')).toBeNull()
+    expect(screen.queryByLabelText('settings.musicVolumeLabel')).toBeNull()
+  })
+
+  it('Sonido agrupa sonidos del sistema y música de temas', () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+
+    fireEvent.click(nav('settings.soundSection'))
+
+    expect(screen.getByText('settings.systemSoundsEnabledTitle')).toBeTruthy()
     expect(screen.getByText('settings.musicEnabledTitle')).toBeTruthy()
     expect(screen.getByLabelText('settings.musicVolumeLabel')).toBeTruthy()
   })
@@ -91,10 +101,10 @@ describe('riel de categorías', () => {
     expect(screen.getByRole('button', { name: 'settings.forceUpdate' })).toBeTruthy()
   })
 
-  it('volumen en Apariencia persiste musicVolume', async () => {
+  it('volumen en Sonido persiste musicVolume', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
-    fireEvent.click(nav('settings.appearanceSection'))
+    fireEvent.click(nav('settings.soundSection'))
 
     fireEvent.change(document.getElementById('settings-music-volume') as HTMLInputElement, {
       target: { value: '42' },

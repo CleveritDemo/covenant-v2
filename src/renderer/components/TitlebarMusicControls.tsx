@@ -14,18 +14,26 @@ import './TitlebarMusicControls.css'
 
 interface Props {
   config: AppConfig
+  /** Tras hidratar config.json; sin esto no autoplay con defaults previos. */
+  configReady?: boolean
+  /** Persiste pausa/reproducción en App → config.json (`musicPaused`). */
+  onMusicPausedChange?: (paused: boolean) => void
 }
 
-export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
+export const TitlebarMusicControls: React.FC<Props> = ({
+  config,
+  configReady = true,
+  onMusicPausedChange,
+}) => {
   const { t } = useT()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
-  const isInitialTrackSyncRef = useRef(true)
-  const prevTrackKeyRef = useRef<string | null>(null)
   const [playing, setPlaying] = useState(false)
 
   const track = config.musicEnabled ? resolveThemeMusic(config.themeId) : null
   const volume = sanitizeMusicVolume(config.musicVolume)
+  // musicPaused se conserva al apagar musicEnabled; solo manda playback con track activo.
+  const wantPlaying = Boolean(track) && configReady && !config.musicPaused
 
   useEffect(() => {
     const audio = new Audio()
@@ -78,14 +86,8 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
       }
       playingRef.current = false
       setPlaying(false)
-      prevTrackKeyRef.current = null
-      isInitialTrackSyncRef.current = false
       return
     }
-
-    const trackKey = `${track.id}\0${track.src}`
-    const shouldAutoplayOnTrackChange =
-      !isInitialTrackSyncRef.current && prevTrackKeyRef.current !== trackKey
 
     audio.loop = track.loop !== false
     try {
@@ -98,7 +100,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
       audio.src = track.src
     }
 
-    if (shouldAutoplayOnTrackChange || playingRef.current) {
+    if (wantPlaying) {
       void Promise.resolve(resumeThemeMusicEnergyContext()).finally(() => {
         void audio.play().then(() => {
           playingRef.current = true
@@ -113,10 +115,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
       playingRef.current = false
       setPlaying(false)
     }
-
-    prevTrackKeyRef.current = trackKey
-    isInitialTrackSyncRef.current = false
-  }, [track?.id, track?.src, track?.loop])
+  }, [track?.id, track?.src, track?.loop, wantPlaying])
 
   const setPlayingState = useCallback((next: boolean): void => {
     playingRef.current = next
@@ -129,16 +128,18 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
     if (playingRef.current) {
       try { audio.pause() } catch { /* ignore */ }
       setPlayingState(false)
+      onMusicPausedChange?.(true)
       return
     }
     void Promise.resolve(resumeThemeMusicEnergyContext()).finally(() => {
       void audio.play().then(() => {
         setPlayingState(true)
+        onMusicPausedChange?.(false)
       }).catch(() => {
         setPlayingState(false)
       })
     })
-  }, [setPlayingState, track])
+  }, [onMusicPausedChange, setPlayingState, track])
 
   if (!track) return null
 

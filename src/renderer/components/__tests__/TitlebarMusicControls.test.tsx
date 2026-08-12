@@ -79,7 +79,9 @@ describe('TitlebarMusicControls', () => {
 
   it('muestra solo play/pausa integrado en el spectrum cuando hay track', () => {
     const { container } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: true }}
+      />,
     )
     const wave = container.querySelector('.titlebar-music-wave')
     const btn = screen.getByLabelText('music.play')
@@ -93,23 +95,55 @@ describe('TitlebarMusicControls', () => {
 
   it('Dragon Ball Z tiene track y muestra play', () => {
     render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'dragonBallZ', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'dragonBallZ', musicEnabled: true, musicPaused: true }}
+      />,
     )
     expect(screen.getByLabelText('music.play')).toBeTruthy()
   })
 
-  it('render inicial con track no llama play automáticamente', () => {
+  it('arranque con musicPaused=false reproduce tras configReady', async () => {
     render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: false }}
+        configReady
+      />,
     )
     const audio = audioInstances[0]
     expect(audio).toBeTruthy()
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+    expect(resumeThemeMusicEnergyContext).toHaveBeenCalled()
+  })
+
+  it('arranque con musicPaused=true no reproduce', () => {
+    render(
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: true }}
+        configReady
+      />,
+    )
+    const audio = audioInstances[0]
+    expect(audio).toBeTruthy()
+    expect(audio.play).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('music.play')).toBeTruthy()
+  })
+
+  it('sin configReady no autoplay aunque musicPaused=false', () => {
+    render(
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: false }}
+        configReady={false}
+      />,
+    )
+    const audio = audioInstances[0]
     expect(audio.play).not.toHaveBeenCalled()
   })
 
   it('attach al montar y detach al desmontar', () => {
     const { unmount } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: true }}
+      />,
     )
     const audio = audioInstances[0]
     expect(attachThemeMusicAnalyser).toHaveBeenCalledTimes(1)
@@ -118,43 +152,95 @@ describe('TitlebarMusicControls', () => {
     expect(detachThemeMusicAnalyser).toHaveBeenCalledWith(audio)
   })
 
-  it('cambiar themeId de un tema con track a otro llama play aunque estuviera pausado', async () => {
+  it('cambiar themeId con musicPaused=false autoplay del nuevo track', async () => {
     const { rerender } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: false }}
+        configReady
+      />,
     )
     const audio = audioInstances[0]
-    expect(audio).toBeTruthy()
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+    audio.play.mockClear()
+
+    rerender(
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true, musicPaused: false }}
+        configReady
+      />,
+    )
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+  })
+
+  it('cambiar themeId con musicPaused=true no autoplay', () => {
+    const { rerender } = render(
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: true }}
+        configReady
+      />,
+    )
+    const audio = audioInstances[0]
     expect(audio.play).not.toHaveBeenCalled()
 
     rerender(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true, musicPaused: true }}
+        configReady
+      />,
     )
-    await waitFor(() => expect(audio.play).toHaveBeenCalled())
-    expect(resumeThemeMusicEnergyContext).toHaveBeenCalled()
+    expect(audio.play).not.toHaveBeenCalled()
   })
 
   it('con musicEnabled=false, cambiar themeId no llama play y oculta controles', () => {
     const { container, rerender } = render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: false }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: false }}
+      />,
     )
     expect(container.firstChild).toBeNull()
     const audio = audioInstances[0]
     expect(audio).toBeTruthy()
 
     rerender(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: false }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: false }}
+      />,
     )
     expect(audio.play).not.toHaveBeenCalled()
     expect(container.firstChild).toBeNull()
   })
 
-  it('play/pausa alterna el audio y resume el context antes de play', async () => {
+  it('click pausa persiste musicPaused true', async () => {
+    const onMusicPausedChange = vi.fn()
     render(
-      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: false }}
+        configReady
+        onMusicPausedChange={onMusicPausedChange}
+      />,
+    )
+    const audio = audioInstances[0]
+    await waitFor(() => expect(audio.play).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByLabelText('music.pause')).toBeTruthy())
+
+    fireEvent.click(screen.getByLabelText('music.pause'))
+    expect(audio.pause).toHaveBeenCalled()
+    expect(onMusicPausedChange).toHaveBeenCalledWith(true)
+  })
+
+  it('click play persiste musicPaused false', async () => {
+    const onMusicPausedChange = vi.fn()
+    render(
+      <TitlebarMusicControls
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true, musicPaused: true }}
+        configReady
+        onMusicPausedChange={onMusicPausedChange}
+      />,
     )
     const audio = audioInstances[0]
     fireEvent.click(screen.getByLabelText('music.play'))
     await waitFor(() => expect(audio.play).toHaveBeenCalled())
     expect(resumeThemeMusicEnergyContext).toHaveBeenCalled()
+    expect(onMusicPausedChange).toHaveBeenCalledWith(false)
   })
 })

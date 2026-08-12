@@ -23,6 +23,7 @@ import { QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import { replaySplash } from '../splash'
 import { previewUpdateBanner } from '../updateBannerPreview'
 import { changelogRecentModifications } from '@shared/changelog'
+import type { UpdateState } from '@shared/updateState'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './SettingsModal.css'
@@ -75,7 +76,7 @@ const SEARCH_INDEX = [
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
   { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
   { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel'] },
-  { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates'] },
+  { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates', 'settings.restartToUpdate'] },
   { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
   // `as const` no es decoración: sin literales, `t()` rechaza las claves.
 ] as const
@@ -136,6 +137,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   const [checking, setChecking] = useState(false)
   const [forcing, setForcing] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
+  const [updateState, setUpdateState] = useState<UpdateState>({ kind: 'idle' })
   /** Preview del confirm de salida (no cierra la app). */
   const [quitPreview, setQuitPreview] = useState(false)
   /**
@@ -193,14 +195,16 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
             ? t('settings.checkUpdatesNone')
             : state.kind === 'downloading'
               ? t('settings.forceUpdateBusy')
-              : t('settings.checkUpdatesFound', { version: state.version }),
+              : state.kind === 'ready'
+                ? t('settings.checkUpdatesReady', { version: state.version })
+                : t('settings.checkUpdatesFound', { version: state.version }),
       )
     } finally {
       setChecking(false)
     }
   }
 
-  /** Busca y, si hay versión nueva, dispara descarga+instalación (mismo path que el badge). */
+  /** Busca y, si hay versión nueva, dispara la descarga (mismo path que el badge). */
   async function forceUpdate(): Promise<void> {
     setForcing(true)
     setCheckMsg('')
@@ -216,6 +220,11 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       }
       if (state.kind === 'downloading') {
         setCheckMsg(t('settings.forceUpdateBusy'))
+        return
+      }
+      if (state.kind === 'ready') {
+        setCheckMsg(t('settings.checkUpdatesReady', { version: state.version }))
+        window.api.installUpdate()
         return
       }
       setCheckMsg(t('settings.forceUpdateStarting', { version: state.version }))
@@ -300,6 +309,11 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   /** Hay texto que no se está guardando: el pie tiene que decirlo, no callar. */
   useEffect(() => {
     void window.api.getAppVersion().then(setAppVersion)
+  }, [])
+
+  useEffect(() => {
+    void window.api.getUpdateState().then(setUpdateState)
+    return window.api.onUpdateState(setUpdateState)
   }, [])
 
   /**
@@ -638,14 +652,25 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   <Icon name="refresh" size={12} />
                   {checking ? t('settings.checkUpdatesRunning') : t('settings.checkUpdates')}
                 </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={checking || forcing}
-                  onClick={() => void forceUpdate()}
-                >
-                  {forcing ? t('settings.checkUpdatesRunning') : t('settings.forceUpdate')}
-                </Button>
+                {updateState.kind === 'ready' ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={checking || forcing}
+                    onClick={() => window.api.installUpdate()}
+                  >
+                    {t('settings.restartToUpdate')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={checking || forcing}
+                    onClick={() => void forceUpdate()}
+                  >
+                    {forcing ? t('settings.checkUpdatesRunning') : t('settings.forceUpdate')}
+                  </Button>
+                )}
                 {checkMsg && <span className="settings-hint">{checkMsg}</span>}
               </div>
             </SettingsSection>

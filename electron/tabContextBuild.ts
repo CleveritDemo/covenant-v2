@@ -20,6 +20,7 @@ import {
   applyCanonicalContextIdentity,
   isCanonicalContextId,
 } from '../src/shared/tabContext'
+import { jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
 import {
   defaultColorForKind,
   defaultIconForKind,
@@ -1200,11 +1201,29 @@ export function materializeTabContext(
       }
     }
 
-    // jira: solo lectura del snapshot que escribe `refreshStaleJiraContexts` antes
-    // del turno (Task 6). materializeTabContext debe seguir siendo síncrono, así
-    // que aquí nunca se llama a la API de Jira; sin snapshot, ok:false.
+    // jira: el contenido real lo trae `refreshStaleJiraContexts` antes del turno
+    // (Task 6); materializeTabContext sigue sin llamar nunca a la API de Jira,
+    // así que aquí solo lee. Pero si todavía no hay snapshot Y se pidió escribir
+    // (alta desde el gestor, Task 9), sí crea el archivo — vacío, con la misma
+    // forma que escribe el refresher — para que el contexto sea descubrible
+    // (`discoverTabContexts` solo lista lo que ya está en `jira/*.md`) y el
+    // refresher, que solo mira contextos ya adjuntos a un turno, tenga algo que
+    // rellenar en la siguiente pasada. Sin esto, un contexto jira recién creado
+    // nunca llega a existir en disco y nunca se refresca.
     if (contextToWrite.kind === 'jira') {
       if (!existsSync(filePath)) {
+        if (options.write && contextToWrite.issueKey) {
+          const metadataLine = jiraContextMetadataLine(contextToWrite.issueKey)
+          const placeholder = withJiraAutoBlock('', metadataLine, '')
+          mkdirSync(projectDirPath(cwd, 'jira'), { recursive: true })
+          writeFileSync(filePath, placeholder, 'utf8')
+          return {
+            ok: true,
+            content: placeholder,
+            notesContent: readExistingNotes(filePath),
+            filePath,
+          }
+        }
         return {
           ok: false,
           content: '',

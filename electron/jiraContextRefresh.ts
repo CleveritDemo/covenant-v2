@@ -11,8 +11,8 @@
 import { basename, dirname } from 'path'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { isSnapshotStale } from '../src/shared/jiraIssue'
-import { issueAutoMarkdown, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
-import { canonicalContextId, normalizeContextFileName, type TabContext } from '../src/shared/tabContext'
+import { issueAutoMarkdown, jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
+import { normalizeContextFileName, type TabContext } from '../src/shared/tabContext'
 import { readJiraConfig, readJiraCredentials } from './jiraConfig'
 import { jiraGetIssue } from './jiraClient'
 import { projectDirPath } from './projectDir'
@@ -62,11 +62,7 @@ export async function refreshStaleJiraContexts(
       if (!isSnapshotStale(mtimeMs, refreshSeconds, now)) continue
 
       const issue = await fetchIssue(credentials, issueKey, config.maxComments)
-      const metadataLine = `<!-- iaterminal:context ${JSON.stringify({
-        id: canonicalContextId('jira', { issueKey }),
-        kind: 'jira',
-        icon: 'jira',
-      })} -->`
+      const metadataLine = jiraContextMetadataLine(issueKey)
       const previous = mtimeMs ? readFileSync(filePath, 'utf8') : ''
       const next = withJiraAutoBlock(
         previous,

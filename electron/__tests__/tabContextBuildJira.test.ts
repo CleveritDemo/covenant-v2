@@ -1,9 +1,25 @@
-import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs'
+import { describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { discoverTabContexts, materializeTabContext } from '../tabContextBuild'
 import type { TabContext } from '../../src/shared/tabContext'
+import type { JiraIssueSnapshot } from '../../src/shared/jiraIssue'
+
+// Solo el bloque "alta sin snapshot" necesita jiraConfig/jiraContextRefresh
+// (que sí tocan `electron.safeStorage`); el resto de los tests de este
+// archivo nunca llama a la red y no necesitan el mock.
+vi.mock('electron', () => ({
+  app: { getPath: () => tmpdir() },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (buffer: Buffer) => buffer.toString(),
+  },
+}))
+
+const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
+const { refreshStaleJiraContexts } = await import('../jiraContextRefresh')
 
 const context: TabContext = {
   id: 'iaterminal:jira:grav-412',
@@ -67,5 +83,88 @@ describe('materializeTabContext con kind jira', () => {
     expect(result.ok).toBe(true)
     expect(result.content).toContain('## Resumen')
     expect(result.filePath).toBe(join(dir, '.gravity', 'jira', 'GRAV-412.md'))
+  })
+})
+
+const snapshot: JiraIssueSnapshot = {
+  key: 'GRAV-412',
+  summary: 'nuevo título',
+  status: 'Done',
+  issueType: 'Bug',
+  assignee: 'Rodrigo',
+  priority: null,
+  sprint: null,
+  updated: '2026-08-12T09:40:00.000Z',
+  url: 'https://x.atlassian.net/browse/GRAV-412',
+  description: 'cuerpo nuevo',
+  acceptanceCriteria: null,
+  comments: [],
+  subtasks: [],
+  links: [],
+}
+
+/** Proyecto con Jira conectado, para que `refreshStaleJiraContexts` no salga temprano. */
+function configuredProject(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+  writeJiraConfig(dir, {
+    site: 'https://x.atlassian.net',
+    projectKeys: ['GRAV'],
+    defaultJql: 'project = GRAV',
+    refreshSeconds: 900,
+    maxComments: 10,
+  })
+  writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@b.c', apiToken: 'tok' })
+  return dir
+}
+
+const issuePath = (dir: string): string => join(dir, '.gravity', 'jira', 'GRAV-412.md')
+
+// El hueco que cerró la revisión: sin esto, "conectar Jira → crear el
+// contexto con la clave → Guardar" se quedaba en "No snapshot yet." para
+// siempre, porque nada más escribe ese archivo antes de que exista un turno
+// que lo adjunte.
+describe('materializeTabContext con kind jira — alta desde el gestor (write:true)', () => {
+  it('sin snapshot y write:true crea un placeholder en la ruta que resuelve contextFilePath', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+    const result = materializeTabContext(context, dir, { write: true })
+    expect(result.ok).toBe(true)
+    expect(result.filePath).toBe(issuePath(dir))
+    expect(existsSync(issuePath(dir))).toBe(true)
+    expect(result.content).toContain('<!-- iaterminal:auto -->')
+    expect(result.content).toContain('<!-- iaterminal:notes -->')
+  })
+
+  it('con snapshot ya existente, write:true no lo pisa (comportamiento sin cambios)', () => {
+    const dir = projectWithIssue('<!-- iaterminal:auto -->\n## Resumen\nGRAV-412\n<!-- /iaterminal:auto -->')
+    const result = materializeTabContext(context, dir, { write: true })
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('## Resumen')
+  })
+
+  it('el placeholder creado se descubre por discoverTabContexts (jira/*.md)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+    materializeTabContext(context, dir, { write: true })
+
+    const discovered = discoverTabContexts(dir)
+    expect(discovered.ok).toBe(true)
+    const jiraContext = discovered.contexts.find(c => c.kind === 'jira')
+    expect(jiraContext?.issueKey).toBe('GRAV-412')
+    expect(jiraContext?.fileName).toBe('jira/GRAV-412.md')
+  })
+
+  it('un refresh posterior rellena la región auto sin recrear el archivo', async () => {
+    const dir = configuredProject()
+    const created = materializeTabContext(context, dir, { write: true })
+    expect(created.ok).toBe(true)
+    // El placeholder recién creado no está "vencido": se retrocede su mtime,
+    // igual que hace `jiraContextRefresh.test.ts` para forzar el refresco.
+    const old = new Date(Date.now() - 3_600_000)
+    utimesSync(issuePath(dir), old, old)
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+
+    const body = materializeTabContext(context, dir).content
+    expect(body).toContain('nuevo título')
+    expect(body).toContain('<!-- iaterminal:notes -->')
   })
 })

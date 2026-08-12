@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { TabContext } from '@shared/tabContext'
 import { jiraDraftFromKey, TabContextFormModal } from '../TabContextFormModal'
 
@@ -71,11 +71,15 @@ describe('TabContextFormModal — alta de jira', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_jira' }))
     const saveButton = screen.getByRole('button', { name: 'tabContexts.saveContext' }) as HTMLButtonElement
     expect(saveButton.disabled).toBe(true)
+    // Sin clave todavía, la línea de ruta no debe mostrar un archivo fantasma
+    // (`.gravity/jira/issue.md`, o un stem que arrastre el nombre sugerido).
+    expect(screen.queryByText(/\.gravity\/jira\//)).toBeNull()
 
     fireEvent.change(screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }), {
       target: { value: 'grav-412' },
     })
     expect(saveButton.disabled).toBe(false)
+    expect(screen.getByText('.gravity/jira/GRAV-412.md')).toBeTruthy()
   })
 
   it('al editar: volver a escribir una clave inválida bloquea Guardar aunque el draft ya tuviera una clave válida', () => {
@@ -131,5 +135,52 @@ describe('TabContextFormModal — alta de jira', () => {
 
     fireEvent.change(screen.getByLabelText('tabContexts.name'), { target: { value: 'Bug de login' } })
     expect(screen.getByText(/\.gravity\/jira\/GRAV-1\.md$/)).toBeTruthy()
+    // El botón Revelar depende de `isSaved`, que compara contra `draft.fileName`
+    // para el resto de kinds — ese mismo campo que el Input de Nombre acaba de
+    // reescribir sin el subdirectorio `jira/`. Si `isSaved` no lo excluyera para
+    // `jira`, este botón se apagaría tras el renombrado aunque el .md siga ahí.
+    expect((screen.getByRole('button', { name: 'tabContexts.reveal' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  // Sin este test, el botón podía quedar habilitado por el helper puro y el
+  // camino real de Guardar (materializeTabContext, cerrar, refrescar) podía
+  // seguir roto sin que ningún test lo notara — que es justo lo que pasó:
+  // `materializeTabContext` para `jira` era de solo lectura y devolvía
+  // `ok:false` incluso con clave válida (ver el fix en `tabContextBuild.ts`).
+  it('con clave válida, Guardar llama a materializeTabContext y cierra el modal', async () => {
+    const materializeTabContext = vi.fn().mockResolvedValue({ ok: true, content: '' })
+    ;(window as unknown as { api: Record<string, unknown> }).api = {
+      previewTabContext,
+      materializeTabContext,
+    }
+    const onRefresh = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <TabContextFormModal
+        open
+        mode="create"
+        context={null}
+        contexts={[]}
+        cwd="/repo"
+        onRefresh={onRefresh}
+        onClose={onClose}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_jira' }))
+    fireEvent.change(screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }), {
+      target: { value: 'GRAV-412' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'tabContexts.saveContext' }))
+
+    await waitFor(() => expect(materializeTabContext).toHaveBeenCalledTimes(1))
+    const [{ context, cwd }] = materializeTabContext.mock.calls[0] as [{ context: TabContext; cwd: string }]
+    expect(context.kind).toBe('jira')
+    expect(context.issueKey).toBe('GRAV-412')
+    expect(context.fileName).toBe('jira/GRAV-412.md')
+    expect(cwd).toBe('/repo')
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(onRefresh).toHaveBeenCalledTimes(1)
   })
 })

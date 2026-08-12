@@ -107,4 +107,27 @@ describe('kind jira', () => {
     expect(contextDefinitionKey(renamed)).toBe(contextDefinitionKey(sameIssueDifferentId))
     expect(contextDefinitionKey(renamed)).not.toBe(contextDefinitionKey(otherIssue))
   })
+
+  it('un issueKey con espacios/símbolos (solo alcanzable a mano) dedupea igual que el archivo que de verdad ocupa', () => {
+    // `contextFilePath` sanea con `normalizeContextFileName(issueKey.toUpperCase(), 'issue')`
+    // antes de escribir a disco, así que un `issueKey: 'GRAV 412'` hand-edited
+    // todavía termina en `jira/GRAV-412.md`. El dedup tiene que llegar a la
+    // misma clave o dos contextos "distintos" (uno con espacio, otro con
+    // guion) apuntarían de hecho al mismo archivo sin que nada lo detecte.
+    const withSpace: TabContext = {
+      id: 'iaterminal:jira:grav 412',
+      name: 'GRAV 412',
+      fileName: 'jira/GRAV-412.md',
+      kind: 'jira',
+      issueKey: 'GRAV 412',
+    }
+    const canonical: TabContext = {
+      id: 'iaterminal:jira:grav-412',
+      name: 'GRAV-412',
+      fileName: 'jira/GRAV-412.md',
+      kind: 'jira',
+      issueKey: 'GRAV-412',
+    }
+    expect(contextDefinitionKey(withSpace)).toBe(contextDefinitionKey(canonical))
+  })
 })

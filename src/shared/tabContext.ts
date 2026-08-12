@@ -227,11 +227,14 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
     // contexto (el campo Nombre es libre para cualquier kind, incluido jira)
     // cambiaría la firma de dedup sin cambiar el archivo que ocupa, dejando
     // colar dos contextos apuntando al mismo `.md`.
-    const issueKey = (
-      context.issueKey?.trim()
+    const rawIssueKey = context.issueKey?.trim()
       || (context.id.startsWith('iaterminal:jira:') ? context.id.slice('iaterminal:jira:'.length) : '')
       || context.fileName.replace(/^jira\//, '').replace(/\.md$/i, '')
-    ).toLowerCase() || 'issue'
+    // `normalizeContextFileName` sanea igual que `contextFilePath`
+    // (electron/tabContextBuild.ts): un `issueKey` con espacios/símbolos —
+    // solo alcanzable editando la metadata a mano — no debe dedupear en una
+    // clave distinta de la que de verdad ocupa el archivo en disco.
+    const issueKey = normalizeContextFileName(rawIssueKey, 'issue').replace(/\.md$/i, '').toLowerCase()
     return JSON.stringify({ kind: 'jira', issueKey })
   }
   if (!isCreatableContextKind(context.kind)) return null

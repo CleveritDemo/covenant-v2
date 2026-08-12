@@ -9,8 +9,35 @@
 
 import { AUTO_END, AUTO_START, NOTES_END, NOTES_START } from './contextSections'
 import type { JiraIssueSnapshot } from './jiraIssue'
+import { canonicalContextId, canonicalContextName } from './tabContext'
 
 const NOTES_PLACEHOLDER = '(no annotations yet)'
+
+/**
+ * La línea `<!-- iaterminal:context ... -->` de un `.md` de jira. Un único
+ * punto de construcción para el refresher (`jiraContextRefresh.ts`) y para el
+ * alta sin snapshot (`tabContextBuild.ts`): si cada uno armara su propio JSON
+ * a mano, bastaría un campo que se les olvidara a uno de los dos (p. ej.
+ * `name`, que `contextFromMetadata` exige — sin él el archivo existe pero
+ * `discoverTabContexts` lo ignora en silencio) para que el documento que cada
+ * lado produce dejara de ser el mismo.
+ */
+export function jiraContextMetadataLine(issueKey: string): string {
+  const name = canonicalContextName('jira', { issueKey })
+  return `<!-- iaterminal:context ${JSON.stringify({
+    id: canonicalContextId('jira', { issueKey }),
+    name,
+    kind: 'jira',
+    icon: 'jira',
+    // `id` canónico siempre queda en minúsculas: sin este campo,
+    // `contextFromMetadata` + `applyCanonicalContextIdentity` reconstruirían
+    // `issueKey` a partir de ese `id` (única fuente disponible si faltara) y
+    // lo dejarían en minúsculas también. `issueKey` explícito evita esa
+    // reconstrucción y conserva la forma real de la clave (`name` ya la
+    // trae en mayúsculas — mismo valor, campo distinto).
+    issueKey: name,
+  })} -->`
+}
 
 /**
  * Escapa caracteres especiales de regex para usarlos en nuevas expresiones regulares.

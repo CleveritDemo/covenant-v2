@@ -6,6 +6,7 @@ import {
   CREATABLE_CONTEXT_KINDS,
   HOST_CONTEXT_KINDS,
 } from '@shared/tabContext'
+import { normalizeIssueKey } from '@shared/jiraIssue'
 import {
   TAB_CONTEXT_COLORS,
   filterContextIconGroups,
@@ -148,7 +149,16 @@ export const TabContextsEditor: React.FC<Props> = ({
   // con solo el `id` el botón quedaba habilitado apuntando a un .md que
   // todavía no existe.
   const savedContext = contexts.find(item => item.id === draft.id)
-  const isSaved = Boolean(savedContext && savedContext.fileName === draft.fileName)
+  // `jira` aparte: el Input de Nombre (más abajo) reescribe `draft.fileName`
+  // en cada tecla para todos los kinds, y para `jira` eso le hace perder el
+  // subdirectorio `jira/` — el archivo real no cambia con el nombre, así que
+  // comparar contra `draft.fileName` apagaría Revelar tras cualquier
+  // renombrado aunque el .md siga exactamente donde estaba.
+  const isSaved = Boolean(savedContext && (
+    draft.kind === 'jira'
+      ? savedContext.fileName === canonicalContextFileName('jira', { issueKey: draft.issueKey })
+      : savedContext.fileName === draft.fileName
+  ))
 
   return (
     <div className="tab-contexts__panes">
@@ -264,7 +274,7 @@ export const TabContextsEditor: React.FC<Props> = ({
             <span>{t('tabContexts.jiraKeyLabel')}</span>
             <Input
               value={jiraKeyDraft}
-              placeholder="GRAV-412"
+              placeholder={t('tabContexts.jiraKeyPlaceholder')}
               onChange={event => onJiraKeyDraftChange(event.target.value)}
             />
             <small>{t('tabContexts.jiraKeyHint')}</small>
@@ -299,11 +309,15 @@ export const TabContextsEditor: React.FC<Props> = ({
               sincro; para `jira` ese mismo Input sobrescribiría
               `draft.fileName` perdiendo el subdirectorio (Nombre es libre,
               como para cualquier otro kind — issue Bug de login). Se muestra
-              directo desde `issueKey`, que ese campo no toca, así que
-              coincide con lo que `applyCanonicalContextIdentity` va a
-              escribir de verdad al guardar. */}
+              directo desde el texto actual del campo de clave, no desde
+              `draft.issueKey`: ese campo puede quedarse con la última
+              derivación válida mientras el texto ya no deriva nada (ver
+              `updateJiraKeyDraft`), y aquí no hay razón para mostrar un
+              archivo fantasma (`jira/issue.md`) que Guardar tiene bloqueado. */}
           <span>{draft.kind === 'jira'
-            ? `${PROJECT_DIR}/${canonicalContextFileName('jira', { issueKey: draft.issueKey })}`
+            ? (normalizeIssueKey(jiraKeyDraft)
+                ? `${PROJECT_DIR}/${canonicalContextFileName('jira', { issueKey: normalizeIssueKey(jiraKeyDraft) })}`
+                : '—')
             : `${PROJECT_DIR}/${normalizeContextFileName(
                 draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
                 draft.kind === 'changelog' ? 'changelog' : 'context',

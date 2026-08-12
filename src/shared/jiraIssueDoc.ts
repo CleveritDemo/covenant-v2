@@ -1,0 +1,116 @@
+/**
+ * El `.md` de una issue: cómo se escribe y cómo se refresca sin pisar las notas.
+ *
+ * Dos regiones, igual que `results/<agent>.md`: `iaterminal:auto` la regenera el
+ * host desde Jira, `iaterminal:notes` la escriben la persona o el agente. Este
+ * módulo es el espejo de `withAgentResultsNotes()`: allá sobrevive `auto`, acá
+ * sobrevive `notes`.
+ */
+
+import { AUTO_END, AUTO_START, NOTES_END, NOTES_START } from './contextSections'
+import type { JiraIssueSnapshot } from './jiraIssue'
+
+const AUTO_RE = /<!--\s*iaterminal:auto\s*-->[\s\S]*?<!--\s*\/iaterminal:auto\s*-->/
+const NOTES_PLACEHOLDER = '(no annotations yet)'
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+
+/**
+ * ADF (Atlassian Document Format) → texto. La API v3 devuelve `description` y
+ * los comentarios como árbol JSON; sin esto el `.md` acabaría con `[object Object]`.
+ * Solo se aplanan los nodos que aparecen en un ticket normal.
+ */
+export function adfToText(node: unknown): string {
+  if (typeof node === 'string') return node
+  const record = asRecord(node)
+  if (!record) return ''
+
+  const children = Array.isArray(record.content) ? record.content : []
+  const join = (separator: string): string =>
+    children.map(child => adfToText(child)).filter(Boolean).join(separator)
+
+  switch (record.type) {
+    case 'text':
+      return typeof record.text === 'string' ? record.text : ''
+    case 'hardBreak':
+      return '\n'
+    case 'paragraph':
+    case 'heading':
+      return join('')
+    case 'listItem':
+      return `- ${join(' ')}`
+    case 'bulletList':
+    case 'orderedList':
+      return join('\n')
+    case 'codeBlock':
+      return `\`\`\`\n${join('')}\n\`\`\``
+    default:
+      return join('\n\n')
+  }
+}
+
+function commentBlock(issue: JiraIssueSnapshot, maxComments: number): string {
+  // Los más recientes: Jira los devuelve en orden ascendente.
+  const recent = maxComments > 0 ? issue.comments.slice(-maxComments) : issue.comments
+  if (!recent.length) return ''
+  const body = recent
+    .map(comment => `**${comment.author}** · ${comment.created}\n${comment.body.trim()}`)
+    .join('\n\n')
+  return `## Comentarios\n${body}`
+}
+
+function linksBlock(issue: JiraIssueSnapshot): string {
+  const lines = [
+    ...issue.subtasks.map(sub => `- Subtarea \`${sub.key}\` · ${sub.summary} · ${sub.status}`),
+    ...issue.links.map(link => `- ${link.type} \`${link.key}\` · ${link.summary}`),
+    `- Jira: ${issue.url}`,
+  ]
+  return `## Enlaces y subtareas\n${lines.join('\n')}`
+}
+
+/**
+ * El cuerpo de `iaterminal:auto`. Cada `##` es una clave de sección pedible por
+ * `need-sections`, así que el corte por bloques es la unidad de presupuesto.
+ */
+export function issueAutoMarkdown(issue: JiraIssueSnapshot, maxComments: number): string {
+  const meta = [
+    `Estado: ${issue.status}`,
+    `Tipo: ${issue.issueType}`,
+    ...(issue.priority ? [`Prioridad: ${issue.priority}`] : []),
+  ].join(' · ')
+  const people = [
+    `Asignada a: ${issue.assignee ?? 'sin asignar'}`,
+    ...(issue.sprint ? [`Sprint: ${issue.sprint}`] : []),
+    `Actualizada: ${issue.updated}`,
+  ].join(' · ')
+
+  const blocks = [
+    `## Resumen\n${issue.key} · ${issue.summary}\n${meta}\n${people}`,
+    `## Descripción\n${issue.description.trim() || '(sin descripción)'}`,
+    ...(issue.acceptanceCriteria?.trim()
+      ? [`## Criterios de aceptación\n${issue.acceptanceCriteria.trim()}`]
+      : []),
+    commentBlock(issue, maxComments),
+    linksBlock(issue),
+  ]
+  return blocks.filter(Boolean).join('\n\n')
+}
+
+/**
+ * Reemplaza SOLO la región `auto`. Si el archivo no existe todavía, escribe el
+ * documento completo con una región `notes` vacía lista para anotar.
+ */
+export function withJiraAutoBlock(raw: string, metadataLine: string, auto: string): string {
+  const region = `${AUTO_START}\n${auto.trim()}\n${AUTO_END}`
+  if (raw.trim() && AUTO_RE.test(raw)) return raw.replace(AUTO_RE, region)
+  return [
+    metadataLine,
+    region,
+    '',
+    `${NOTES_START}\n${NOTES_PLACEHOLDER}\n${NOTES_END}`,
+    '',
+  ].join('\n')
+}

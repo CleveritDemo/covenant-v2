@@ -154,7 +154,7 @@ const es = {
     dictationPermissionDenied: 'Permiso de micrófono denegado',
     dictationUnavailableElectron: 'El dictado no está disponible en Electron',
     dictationNoSpeech: 'No se detectó voz; mantén pulsado e inténtalo',
-    dictationNoAudio: 'Sin señal de micrófono (pico {{peak}}); revisa el dispositivo de entrada y Privacidad de macOS → Micrófono para Covenant Gravity',
+    dictationNoAudio: 'No llegó sonido al micrófono; revisa el dispositivo de entrada y el permiso en Privacidad de macOS',
     dictationTooShort: 'Mantén pulsado el botón mientras hablas — la grabación fue demasiado corta para captar nada',
     dictationLive: 'Te escucho…',
     dictationError: 'El dictado falló; inténtalo de nuevo',

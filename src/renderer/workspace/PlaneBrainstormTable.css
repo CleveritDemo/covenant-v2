@@ -97,8 +97,9 @@
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 8px;
-  min-height: 84px;
-  padding: 10px;
+  /* Blanco de drop generoso: soltar un agente no debe pedir puntería. */
+  min-height: 190px;
+  padding: 14px;
   border-radius: 12px;
   border: 1px dashed color-mix(in srgb, var(--accent) 38%, transparent);
   background: color-mix(in srgb, var(--accent) 5%, transparent);

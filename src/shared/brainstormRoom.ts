@@ -555,7 +555,7 @@ export function buildBrainstormTurnPrompt(
     : '(No prior messages yet.)'
 
   return [
-    'Brainstorm room — reply fast and short.',
+    'Brainstorm room — one speaking turn.',
     `Objective: ${room.topic}`,
     ...(outcomeLine ? [outcomeLine] : []),
     `You speak now as ${name} (agentId: ${speakerAgentId}).`,
@@ -566,9 +566,8 @@ export function buildBrainstormTurnPrompt(
     'Transcript so far:',
     transcript,
     '',
-    'Your turn (soft target — never truncate or retry if over):',
-    '- Aim for ≤50 words. One idea only. Plain language.',
-    '- No headings, bullets, numbered lists, or code fences.',
+    'Your turn:',
+    '- As long as it needs to be, no longer. Plain language.',
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),
@@ -590,7 +589,8 @@ export function buildBrainstormTurnPrompt(
         ]
       : []),
     '- React to the latest points; stay on topic; no preamble or recap.',
-    '- Do not delegate, call tools, ask for approval, or wait for the user.',
+    '- Use your tools (MCP included) when the turn needs real data instead of a guess.',
+    '- Do not delegate, ask for approval, or wait for the user.',
     '- Output only your spoken contribution — nothing else.',
   ].join('\n')
 }

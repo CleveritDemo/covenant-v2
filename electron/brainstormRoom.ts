@@ -149,8 +149,11 @@ export function defaultRunBrainstormSpeakerTurn(
       allowDelegations: false,
       emitResults: false,
       autoImproveContexts: false,
-      nativeSkills: undefined,
-      mcpsAllowed: [],
+      // La sala hereda skills y MCP del agente: sin esto el turno arranca sin
+      // su `.mcp.json` acotado y sin el preámbulo, y el modelo dice que no
+      // tiene Jira.
+      nativeSkills: input.agent.nativeSkills,
+      mcpsAllowed: input.agent.mcpsAllowed ?? [],
       contexts: input.contexts ?? [],
     }
 

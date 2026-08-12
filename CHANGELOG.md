@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.61
+
+- **Aspecto de contextos en popup**: icono y color se eligen en un panel flotante bajo el trigger, sin empujar el formulario; Escape cierra solo el popup.
+
 ## v0.39.60
 
 - **Partículas más orgánicas**: aparecen en una grilla 6×6 responsive, con posición aleatoria y sin perder bandas ni beat.

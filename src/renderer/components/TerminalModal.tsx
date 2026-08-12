@@ -114,6 +114,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
       if (e.key !== 'Escape') return
       const root = rootRef.current
       if (!root || !isTopmostModalRoot(root)) return
+      // Capas anidadas (p. ej. popup Aspecto) se registran después en capture;
+      // si ya hay una abierta, no cerramos el modal — ellas consumen Escape.
+      if (root.querySelector('[data-escape-layer]')) return
       e.preventDefault()
       e.stopPropagation()
       onClose()

@@ -51,8 +51,8 @@ const ALPHA_BEAT_BOOST = 0.14
 /** Tope de alpha tras idle + banda + beat. */
 const ALPHA_CAP = 0.88
 /** Radio base: graves (banda 0) grandes → agudos (última) chicos. */
-const SIZE_BAND_LOW = 2.15
-const SIZE_BAND_HIGH = 0.55
+const SIZE_BAND_LOW = 1.5
+const SIZE_BAND_HIGH = 0.38
 /** Jitter leve sobre el tamaño de banda (±). */
 const SIZE_BAND_JITTER = 0.12
 /** Halo base / expansión suave con beat visual. */

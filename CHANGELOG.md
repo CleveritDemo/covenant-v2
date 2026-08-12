@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.69
+
+- **Partículas del plano más discretas**: radios base más pequeños para que el campo moleste menos sin perder bandas ni beat.
+
 ## v0.39.68
 
 - **Los modelos de Gemini, Opencode y Pi vuelven a listarse**: el selector decía "Proveedor no válido" en esos tres CLIs y encima ofrecía los modelos de Claude. Ahora Opencode y Pi listan los suyos preguntándole al propio CLI, y Gemini trae su catálogo. Codex, Kimi y Hermes se quedan en "Predeterminado", pero ya sin marcar error.

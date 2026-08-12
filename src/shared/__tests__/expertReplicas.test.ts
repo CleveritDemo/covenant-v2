@@ -81,12 +81,10 @@ describe('resolveExpertDelegationTarget', () => {
     }
   })
 
-  it('spawns when a user-guarded pane (chatOpen / extra threads) is marked occupied', () => {
+  it('spawns when a user-guarded pane (busy) is marked occupied', () => {
     const occupied = new Set<string>()
     const guarded = isPaneGuardedFromDelegationReuse({
-      chatOpen: true,
-      threadCount: 2,
-      busy: false,
+      busy: true,
       loopActive: false,
       newThreadPending: false,
     })
@@ -183,23 +181,61 @@ describe('resolveExpertDelegationTarget', () => {
 
 describe('isPaneGuardedFromDelegationReuse', () => {
   const idle = {
-    chatOpen: false,
-    threadCount: 1,
     busy: false,
     loopActive: false,
     newThreadPending: false,
   }
 
-  it('is true when any guard flag is set', () => {
-    expect(isPaneGuardedFromDelegationReuse({ ...idle, chatOpen: true })).toBe(true)
-    expect(isPaneGuardedFromDelegationReuse({ ...idle, threadCount: 2 })).toBe(true)
+  it('is true when busy, loop, or pending + is set', () => {
     expect(isPaneGuardedFromDelegationReuse({ ...idle, busy: true })).toBe(true)
     expect(isPaneGuardedFromDelegationReuse({ ...idle, loopActive: true })).toBe(true)
     expect(isPaneGuardedFromDelegationReuse({ ...idle, newThreadPending: true })).toBe(true)
   })
 
-  it('is false when the pane is idle with a single thread', () => {
+  it('is false when the pane is idle', () => {
     expect(isPaneGuardedFromDelegationReuse(idle)).toBe(false)
+  })
+})
+
+describe('sequential idle reuse across delegations', () => {
+  const targets = [
+    { agentId: 'frontend', paneId: 'pane-fe', name: 'Frontend' },
+    { agentId: 'backend', paneId: 'pane-be', name: 'Backend' },
+  ]
+
+  it('reuses an idle pane on a later delegation after history (not occupied)', () => {
+    const occupied = new Set<string>()
+    const first = resolveExpertDelegationTarget({
+      toAgentId: 'frontend',
+      allowExpertReplicas: true,
+      targets,
+      occupiedPaneIds: occupied,
+      existingAgentIds: new Set(['frontend', 'backend']),
+    })
+    expect(first).toEqual({ kind: 'reuse', paneId: 'pane-fe', agentId: 'frontend' })
+    if (first.kind === 'reuse') occupied.add(first.paneId)
+
+    const second = resolveExpertDelegationTarget({
+      toAgentId: 'frontend',
+      allowExpertReplicas: true,
+      targets,
+      occupiedPaneIds: occupied,
+      existingAgentIds: new Set(['frontend', 'backend']),
+    })
+    expect(second.kind).toBe('spawn')
+    if (second.kind === 'spawn') {
+      expect(second.baseAgentId).toBe('frontend')
+    }
+
+    occupied.delete('pane-fe')
+    const third = resolveExpertDelegationTarget({
+      toAgentId: 'frontend',
+      allowExpertReplicas: true,
+      targets,
+      occupiedPaneIds: occupied,
+      existingAgentIds: new Set(['frontend', 'backend']),
+    })
+    expect(third).toEqual({ kind: 'reuse', paneId: 'pane-fe', agentId: 'frontend' })
   })
 })
 

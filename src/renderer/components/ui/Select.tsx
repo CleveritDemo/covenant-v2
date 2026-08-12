@@ -30,15 +30,25 @@ export interface SelectProps {
   'aria-label'?: string
 }
 
-/** Dónde cabe el panel: debajo salvo que el disparador esté pegado al borde inferior. */
-function panelPlacement(trigger: DOMRect): { top?: number; bottom?: number; maxHeight: number } {
+/** Dónde cabe el panel: debajo salvo que el disparador esté pegado al borde inferior.
+ *  `top`/`bottom` siempre van explícitos: el UA de [popover] deja inset:0 y, si
+ *  omitimos top al abrir hacia arriba, el panel se clava al techo del viewport. */
+function panelPlacement(trigger: DOMRect): {
+  top: number | 'auto'
+  bottom: number | 'auto'
+  maxHeight: number
+} {
   const GAP = 4
   const below = window.innerHeight - trigger.bottom - GAP * 2
   const above = trigger.top - GAP * 2
   if (below < 180 && above > below) {
-    return { bottom: window.innerHeight - trigger.top + GAP, maxHeight: Math.min(above, 320) }
+    return {
+      top: 'auto',
+      bottom: window.innerHeight - trigger.top + GAP,
+      maxHeight: Math.min(above, 320),
+    }
   }
-  return { top: trigger.bottom + GAP, maxHeight: Math.min(below, 320) }
+  return { top: trigger.bottom + GAP, bottom: 'auto', maxHeight: Math.min(below, 320) }
 }
 
 /**
@@ -91,6 +101,7 @@ export const Select: React.FC<SelectProps> = ({
           top,
           bottom,
           left: trigger.left,
+          right: 'auto',
           minWidth: trigger.width,
           maxWidth: Math.max(trigger.width, Math.min(460, window.innerWidth - trigger.left - 8)),
           maxHeight,

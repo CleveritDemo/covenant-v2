@@ -3486,16 +3486,8 @@ export const App: React.FC = () => {
       for (const paneId of currentTab.paneIds ?? []) {
         if (currentTab.paneKinds?.[paneId] !== 'agent') continue
         if (isPaneGuardedFromDelegationReuse({
-          chatOpen: currentTab.planeOpenChatAgentId === paneId,
-          threadCount: threadStateOf(
-            agentBindingFromMeta(
-              resolveTabAgentMeta(currentTab, paneId, projectAgentsByCwdRef.current),
-            ),
-          ).threads.length,
           busy: busy.has(paneId) || Boolean(statusByPane[paneId]?.busy),
-          loopActive: Boolean(
-            statusByPane[paneId]?.loopActive || statusByPane[paneId]?.localLoopActive,
-          ),
+          loopActive: Boolean(statusByPane[paneId]?.loopActive || statusByPane[paneId]?.localLoopActive),
           newThreadPending: pendingNewThread === paneId,
         })) {
           occupiedPaneIds.add(paneId)

@@ -19,18 +19,13 @@ export function isDelegationTargetOccupied(
   return occupiedPaneIds.has(paneId)
 }
 
-/**
- * Un pane con chat abierto, varios hilos, turno/loop vivo o un + pendiente
- * no se reusa para una delegación: el hilo del usuario tiene que quedarse.
- */
+/** Un pane con turno/loop vivo o un + pendiente no se reusa. Chat abierto o hilos extra no cuentan: la delegación ya abre su propio thread. */
 export function isPaneGuardedFromDelegationReuse(input: {
-  chatOpen: boolean
-  threadCount: number
   busy: boolean
   loopActive: boolean
   newThreadPending: boolean
 }): boolean {
-  return input.chatOpen || input.threadCount > 1 || input.busy || input.loopActive || input.newThreadPending
+  return input.busy || input.loopActive || input.newThreadPending
 }
 
 /**

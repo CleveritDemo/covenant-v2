@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.46
+
+- **El menú del selector se queda pegado al disparador**: al abrir hacia arriba o hacia abajo ya no se va al techo.
+- **Un especialista idle se reusa**: aunque tenga chat abierto o hilos extra; spawn solo si está ocupado, en loop, con + pendiente o si pides réplica.
+
 ## v0.39.45
 
 - **El espacio entre agentes del plano queda parejo**: cards cortas y largas dejan el mismo aire; la perspectiva 3D ya no deforma los huecos.

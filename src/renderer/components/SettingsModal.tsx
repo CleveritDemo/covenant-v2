@@ -224,7 +224,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       }
       if (state.kind === 'ready') {
         setCheckMsg(t('settings.checkUpdatesReady', { version: state.version }))
-        window.api.installUpdate()
         return
       }
       setCheckMsg(t('settings.forceUpdateStarting', { version: state.version }))

@@ -129,6 +129,12 @@ describe('descarga lista sin reinicio automático', () => {
     closedWindows.length = 0
     windows = [fakeWindow('a')]
     registerSelfUpdate()
+    // El módulo conserva estado entre tests; una versión imposible limpia ready/stash.
+    makeAvailable('__test-reset__')
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
+    for (const win of windows) {
+      (win.webContents.send as ReturnType<typeof vi.fn>).mockClear()
+    }
   })
 
   it('tras Instalar + update-downloaded no llama quitAndInstall y queda ready', () => {
@@ -196,6 +202,14 @@ describe('descarga lista sin reinicio automático', () => {
     ipcOn.get(IPC.UPDATE_DISMISS)?.()
 
     makeAvailable('0.4.0')
+    expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
+  })
+
+  it('update-available de la misma versión conserva el estado ready visible', () => {
+    makeReady()
+
+    makeAvailable('0.4.0')
+
     expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
   })
 })

@@ -136,6 +136,7 @@ function wireUpdaterEvents(): void {
   autoUpdater.on('update-available', info => {
     log(`disponible ${info.version}`)
     const notes = formatReleaseNotes(info.releaseNotes)
+    if (state.kind === 'ready' && state.version === info.version) return
     if (deferredReady && deferredReady.version === info.version) {
       setState({ kind: 'ready', version: info.version, notes: deferredReady.notes ?? notes })
       return

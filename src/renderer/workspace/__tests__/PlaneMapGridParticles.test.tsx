@@ -4,7 +4,31 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
-import { PlaneMapGridParticles } from '../PlaneMapGridParticles'
+import { THEME_MUSIC_BAND_COUNT } from '../../themeMusicEnergy'
+import {
+  assignParticleSlot,
+  baseSizeForFrequencyBand,
+  colorForFrequencyBand,
+  easeVisualBeatPulse,
+  particleGridDims,
+  PlaneMapGridParticles,
+} from '../PlaneMapGridParticles'
+
+const getThemeMusicBands = vi.fn(() =>
+  Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+)
+const getThemeMusicBeat = vi.fn(() => ({ pulse: 0, bpm: null as number | null }))
+
+vi.mock('../../themeMusicEnergy', async () => {
+  const actual = await vi.importActual<typeof import('../../themeMusicEnergy')>(
+    '../../themeMusicEnergy',
+  )
+  return {
+    ...actual,
+    getThemeMusicBands: (...args: unknown[]) => getThemeMusicBands(...args),
+    getThemeMusicBeat: (...args: unknown[]) => getThemeMusicBeat(...args),
+  }
+})
 
 function mockCanvas2d(): CanvasRenderingContext2D {
   return {
@@ -22,13 +46,42 @@ function mockCanvas2d(): CanvasRenderingContext2D {
   } as unknown as CanvasRenderingContext2D
 }
 
+function attachAlphaCapture(ctx: CanvasRenderingContext2D): number[] {
+  const alphas: number[] = []
+  Object.defineProperty(ctx, 'globalAlpha', {
+    configurable: true,
+    set(value: number) {
+      alphas.push(value)
+    },
+    get() {
+      return alphas[alphas.length - 1] ?? 1
+    },
+  })
+  return alphas
+}
+
+function bandsWith(activeBand: number, level: number): number[] {
+  return Array.from({ length: THEME_MUSIC_BAND_COUNT }, (_, i) =>
+    i === activeBand ? level : 0,
+  )
+}
+
 describe('PlaneMapGridParticles', () => {
   let rafSpy: ReturnType<typeof vi.spyOn>
   let cancelRafSpy: ReturnType<typeof vi.spyOn>
   let getContextSpy: ReturnType<typeof vi.spyOn>
+  let rafCallback: FrameRequestCallback | null
+  let ctx: CanvasRenderingContext2D
 
   beforeEach(() => {
     document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBands.mockClear()
+    getThemeMusicBands.mockReturnValue(
+      Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+    )
+    getThemeMusicBeat.mockClear()
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    rafCallback = null
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: false,
       media: query,
@@ -36,11 +89,11 @@ describe('PlaneMapGridParticles', () => {
       removeEventListener: vi.fn(),
       addListener: vi.fn(),
       removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
       onchange: null,
+      dispatchEvent: vi.fn(),
     }))
 
-    const ctx = mockCanvas2d()
+    ctx = mockCanvas2d()
     getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx)
 
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
@@ -52,7 +105,10 @@ describe('PlaneMapGridParticles', () => {
       get: () => 300,
     })
 
-    rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1)
+    rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCallback = cb
+      return 1
+    })
     cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
   })
 
@@ -95,5 +151,308 @@ describe('PlaneMapGridParticles', () => {
 
     expect(rafSpy).not.toHaveBeenCalled()
     expect(clearRect).toHaveBeenCalled()
+  })
+
+  it('en cada tick lee getThemeMusicBands y getThemeMusicBeat una vez', () => {
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+    rafCallback!(16)
+    expect(getThemeMusicBands).toHaveBeenCalledTimes(1)
+    expect(getThemeMusicBeat).toHaveBeenCalledTimes(1)
+    rafCallback!(32)
+    expect(getThemeMusicBands).toHaveBeenCalledTimes(2)
+    expect(getThemeMusicBeat).toHaveBeenCalledTimes(2)
+  })
+
+  it('easeVisualBeatPulse usa smoothstep (no lineal)', () => {
+    expect(easeVisualBeatPulse(0)).toBe(0)
+    expect(easeVisualBeatPulse(1)).toBe(1)
+    expect(easeVisualBeatPulse(0.5)).toBeCloseTo(0.5, 5)
+    // En 0.25 el smoothstep queda por debajo de la recta.
+    expect(easeVisualBeatPulse(0.25)).toBeLessThan(0.25)
+    expect(easeVisualBeatPulse(0.75)).toBeGreaterThan(0.75)
+  })
+
+  it('al activar una banda solo suben partículas de esa banda; el resto queda cerca de idle', () => {
+    const alphas = attachAlphaCapture(ctx)
+
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+
+    getThemeMusicBands.mockReturnValue(
+      Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+    )
+    alphas.length = 0
+    rafCallback!(0)
+    const idleMax = Math.max(0, ...alphas)
+    expect(ctx.globalCompositeOperation).toBe('lighter')
+
+    getThemeMusicBands.mockReturnValue(bandsWith(0, 0.9))
+    alphas.length = 0
+    rafCallback!(16)
+    const band0Alphas = [...alphas]
+    const band0High = band0Alphas.filter((a) => a > idleMax * 1.8).length
+    const band0Low = band0Alphas.filter((a) => a <= idleMax * 1.35).length
+
+    expect(Math.max(0, ...band0Alphas)).toBeGreaterThan(idleMax * 2)
+    expect(Math.max(0, ...band0Alphas)).toBeLessThan(1)
+    expect(band0High).toBeGreaterThan(0)
+    expect(band0Low).toBeGreaterThan(0)
+    expect(band0High).toBeLessThan(band0Alphas.length)
+
+    getThemeMusicBands.mockReturnValue(bandsWith(3, 0.9))
+    alphas.length = 0
+    rafCallback!(32)
+    const band3Alphas = [...alphas]
+    const band3High = band3Alphas.filter((a) => a > idleMax * 1.8).length
+    const band3Low = band3Alphas.filter((a) => a <= idleMax * 1.35).length
+
+    expect(Math.max(0, ...band3Alphas)).toBeGreaterThan(idleMax * 2)
+    expect(band3High).toBeGreaterThan(0)
+    expect(band3Low).toBeGreaterThan(0)
+    expect(band3High).toBeLessThan(band3Alphas.length)
+  })
+
+  it('beat alto aumenta radio/alpha; al bajar el beat cae suave sin ir a idle de golpe', () => {
+    const alphas = attachAlphaCapture(ctx)
+    const radii: number[] = []
+    ctx.arc = vi.fn((_x: number, _y: number, r: number) => {
+      radii.push(r)
+    }) as unknown as typeof ctx.arc
+
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+
+    getThemeMusicBands.mockReturnValue(bandsWith(0, 0.7))
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    alphas.length = 0
+    radii.length = 0
+    rafCallback!(0)
+    rafCallback!(16)
+    const alphaWithoutBeat = Math.max(0, ...alphas)
+    const radiusWithoutBeat = Math.max(0, ...radii)
+
+    // Varios frames con beat alto para que el pulso visual suba.
+    getThemeMusicBands.mockReturnValue(bandsWith(0, 0.7))
+    getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
+    for (let t = 32; t <= 200; t += 16) {
+      alphas.length = 0
+      radii.length = 0
+      rafCallback!(t)
+    }
+    const alphasWithBeat = [...alphas]
+    const alphaWithBeat = Math.max(0, ...alphasWithBeat)
+    const radiusWithBeat = Math.max(0, ...radii)
+
+    expect(radiusWithBeat).toBeGreaterThan(radiusWithoutBeat * 1.12)
+    expect(alphaWithBeat).toBeGreaterThan(alphaWithoutBeat)
+    expect(alphaWithBeat).toBeLessThan(1)
+
+    // Con beat alto, partículas de banda activa aún brillan más que idle.
+    const sorted = [...alphasWithBeat].sort((a, b) => b - a)
+    const activePeak = sorted[0]!
+    const idleLike = sorted[sorted.length - 1]!
+    expect(activePeak).toBeGreaterThan(idleLike * 1.15)
+
+    // Al cortar el beat técnico, el visual cae suave (sigue elevado un frame).
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    alphas.length = 0
+    radii.length = 0
+    rafCallback!(216)
+    const alphaAfterRelease = Math.max(0, ...alphas)
+    const radiusAfterRelease = Math.max(0, ...radii)
+
+    expect(radiusAfterRelease).toBeLessThan(radiusWithBeat)
+    expect(radiusAfterRelease).toBeGreaterThan(radiusWithoutBeat * 1.02)
+    expect(alphaAfterRelease).toBeLessThan(alphaWithBeat)
+    expect(alphaAfterRelease).toBeGreaterThan(alphaWithoutBeat)
+    expect(alphaAfterRelease).toBeLessThan(1)
+  })
+
+  it('con bands=0 y beat=1, radio y alpha suben sobre idle sin llegar a 1', () => {
+    const alphas = attachAlphaCapture(ctx)
+    const radii: number[] = []
+    ctx.arc = vi.fn((_x: number, _y: number, r: number) => {
+      radii.push(r)
+    }) as unknown as typeof ctx.arc
+
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+
+    getThemeMusicBands.mockReturnValue(
+      Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+    )
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    alphas.length = 0
+    radii.length = 0
+    rafCallback!(0)
+    rafCallback!(16)
+    const idleAlpha = Math.max(0, ...alphas)
+    const idleRadius = Math.max(0, ...radii)
+
+    getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 100 })
+    for (let t = 32; t <= 200; t += 16) {
+      alphas.length = 0
+      radii.length = 0
+      rafCallback!(t)
+    }
+    const beatAlpha = Math.max(0, ...alphas)
+    const beatRadius = Math.max(0, ...radii)
+
+    expect(beatRadius).toBeGreaterThan(idleRadius)
+    expect(beatAlpha).toBeGreaterThan(idleAlpha)
+    expect(beatAlpha).toBeLessThan(1)
+  })
+
+  it('tamaño base baja con la banda: graves más grandes que agudos', () => {
+    const sizes = Array.from({ length: THEME_MUSIC_BAND_COUNT }, (_, b) =>
+      baseSizeForFrequencyBand(b),
+    )
+    for (let b = 1; b < THEME_MUSIC_BAND_COUNT; b += 1) {
+      expect(sizes[b]!).toBeLessThan(sizes[b - 1]!)
+    }
+    expect(sizes[0]!).toBeGreaterThan(sizes[THEME_MUSIC_BAND_COUNT - 1]! * 1.5)
+
+    // En canvas: banda 0 dibuja radio mayor que última banda a misma intensidad.
+    const radii: number[] = []
+    ctx.arc = vi.fn((_x: number, _y: number, r: number) => {
+      radii.push(r)
+    }) as unknown as typeof ctx.arc
+
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+
+    getThemeMusicBands.mockReturnValue(bandsWith(0, 0.9))
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    radii.length = 0
+    rafCallback!(16)
+    const bassMax = Math.max(0, ...radii)
+
+    getThemeMusicBands.mockReturnValue(
+      bandsWith(THEME_MUSIC_BAND_COUNT - 1, 0.9),
+    )
+    radii.length = 0
+    rafCallback!(32)
+    const trebleMax = Math.max(0, ...radii)
+
+    expect(bassMax).toBeGreaterThan(trebleMax * 1.25)
+  })
+
+  it('un color por banda de frecuencia', () => {
+    const palette = ['bass', 'low', 'mid', 'high', 'pres', 'air']
+    for (let b = 0; b < THEME_MUSIC_BAND_COUNT; b += 1) {
+      expect(colorForFrequencyBand(palette, b)).toBe(palette[b])
+      expect(colorForFrequencyBand(palette, b + THEME_MUSIC_BAND_COUNT)).toBe(
+        palette[b],
+      )
+    }
+    const unique = new Set(
+      Array.from({ length: THEME_MUSIC_BAND_COUNT }, (_, b) =>
+        colorForFrequencyBand(palette, b),
+      ),
+    )
+    expect(unique.size).toBe(THEME_MUSIC_BAND_COUNT)
+  })
+
+  it('cada banda se reparte en múltiples cuadrantes; total entre 24 y 36', () => {
+    const width = 400
+    const height = 300
+    const count = 24
+    const slots = Array.from({ length: count }, (_, i) =>
+      assignParticleSlot(i, count, width, height),
+    )
+
+    expect(slots).toHaveLength(count)
+    expect(count).toBeGreaterThanOrEqual(24)
+    expect(count).toBeLessThanOrEqual(36)
+
+    const quads = [0, 0, 0, 0]
+    for (const s of slots) {
+      const qx = s.x < width / 2 ? 0 : 1
+      const qy = s.y < height / 2 ? 0 : 1
+      quads[qy * 2 + qx]! += 1
+    }
+    // Cada cuadrante tiene al menos una partícula (cobertura homogénea).
+    expect(quads.every((n) => n >= 1)).toBe(true)
+
+    // Cobertura de extremos: no todo amontonado al centro.
+    const xs = slots.map((s) => s.x)
+    const ys = slots.map((s) => s.y)
+    expect(Math.min(...xs)).toBeLessThan(width * 0.3)
+    expect(Math.max(...xs)).toBeGreaterThan(width * 0.7)
+    expect(Math.min(...ys)).toBeLessThan(height * 0.3)
+    expect(Math.max(...ys)).toBeGreaterThan(height * 0.7)
+
+    const bandsUsed = new Set(slots.map((s) => s.frequencyBand))
+    expect(bandsUsed.size).toBe(THEME_MUSIC_BAND_COUNT)
+
+    // Celdas distintas: sin colisiones de posición exacta.
+    const posKeys = new Set(slots.map((s) => `${s.x.toFixed(2)}:${s.y.toFixed(2)}`))
+    expect(posKeys.size).toBe(count)
+
+    // Cada banda aparece en varios cuadrantes (reparto espacial homogéneo).
+    for (let b = 0; b < THEME_MUSIC_BAND_COUNT; b += 1) {
+      const ofBand = slots.filter((s) => s.frequencyBand === b)
+      expect(ofBand.length).toBeGreaterThanOrEqual(4)
+      const bandQuads = new Set(
+        ofBand.map((s) => {
+          const qx = s.x < width / 2 ? 0 : 1
+          const qy = s.y < height / 2 ? 0 : 1
+          return qy * 2 + qx
+        }),
+      )
+      expect(bandQuads.size).toBe(4)
+    }
+
+    const { cols, rows } = particleGridDims(count, width, height)
+    expect(cols * rows).toBeGreaterThanOrEqual(count)
+
+    // Render live: posiciones dibujadas cubren el área.
+    const positions: Array<{ x: number; y: number }> = []
+    ctx.arc = vi.fn((x: number, y: number) => {
+      positions.push({ x, y })
+    }) as unknown as typeof ctx.arc
+
+    render(
+      <div style={{ width, height }}>
+        <PlaneMapGridParticles />
+      </div>,
+    )
+    expect(rafCallback).toBeTruthy()
+    getThemeMusicBands.mockReturnValue(
+      Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0.5),
+    )
+    rafCallback!(16)
+
+    expect(positions.length).toBeGreaterThanOrEqual(24)
+    expect(positions.length).toBeLessThanOrEqual(36)
+
+    const liveQuads = [0, 0, 0, 0]
+    for (const p of positions) {
+      const qx = p.x < width / 2 ? 0 : 1
+      const qy = p.y < height / 2 ? 0 : 1
+      liveQuads[qy * 2 + qx]! += 1
+    }
+    expect(liveQuads.filter((n) => n > 0).length).toBe(4)
   })
 })

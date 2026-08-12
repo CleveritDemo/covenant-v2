@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.58
+
+- **Partículas musicales más elegantes**: el beat pulsa con envelope suave y las bandas de frecuencia se reparten por toda la pantalla.
+
 ## v0.39.57
 
 - **Los agentes ven las variables de entorno del sistema**: abrir Gravity desde el Dock ya no les esconde lo que exportas en tu `~/.zshrc` (claves de API, proxies, ajustes de cada CLI); hasta ahora solo heredaban el PATH y las terminales eran las únicas con el entorno completo.

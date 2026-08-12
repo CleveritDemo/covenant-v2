@@ -3,7 +3,9 @@ import type { AgentCliProvider } from '@shared/agentCliProviders'
 import { agentCliSpec } from '@shared/agentCliProviders'
 import {
   buildMcpToolRows,
+  mcpConfigLabelFor,
   mcpScopeModeFor,
+  providerSupportsMcp,
   type McpServersListResult,
   type McpToolRow,
 } from '@shared/mcpContext'
@@ -58,12 +60,15 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   const [pickIntent, setPickIntent] = useState(false)
 
   const providerLabel = agentCliSpec(provider).label
+  const supportsMcp = providerSupportsMcp(provider)
   const mode: 'all' | 'pick' = !canScope
     ? 'all'
     : (value.length > 0 || pickIntent ? 'pick' : 'all')
 
   const load = useCallback(() => {
     let alive = true
+    // Un CLI sin MCP no tiene nada que listar ni que sondear: ni IPC ni probe.
+    if (!providerSupportsMcp(provider)) return () => { alive = false }
     window.api.listMcpServers({ provider, cwd })
       .then(next => { if (alive) setResult(next) })
       .catch(() => { if (alive) setResult(null) })
@@ -111,13 +116,16 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   const connectServer = (row: McpToolRow): void => {
     setError('')
     setNotice('')
+    const command = agentCliSpec(provider).command
     const hint = mcpConnectHint({
       provider: providerLabel,
+      command,
+      configFile: mcpConfigLabelFor(provider),
       serverName: row.name,
       url: row.url,
     })
     void navigator.clipboard.writeText(hint).then(
-      () => setNotice(t('agentPane.mcpConnectCopied')),
+      () => setNotice(t('agentPane.mcpConnectCopied', { cli: command })),
       () => setError(t('agentPane.mcpConnectCopyFailed')),
     )
   }
@@ -127,6 +135,22 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
     void window.api.revealMcpConfig({ provider, cwd, create }).then(res => {
       if (res.ok && create) load()
     })
+  }
+
+  // Sin MCP en el CLI no hay estantería que enseñar: lo que ayuda es decir que
+  // no existe y por dónde se sale, no una lista de servidores inalcanzables.
+  if (!supportsMcp) {
+    return (
+      <div className="mcp-shelf">
+        <span className="mcp-shelf__label">{t('agentPane.mcpToolsLabel')}</span>
+        <p className="mcp-shelf__note">
+          {t('agentPane.mcpNoMcp', { provider: providerLabel, file: mcpConfigLabelFor(provider) })}
+        </p>
+        <p className="mcp-shelf__note">
+          {t('agentPane.mcpNoMcpFix', { provider: providerLabel })}
+        </p>
+      </div>
+    )
   }
 
   if (result === null) {

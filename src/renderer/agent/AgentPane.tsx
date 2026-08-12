@@ -95,7 +95,7 @@ import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
-import { mcpsNeedingAuth } from '@shared/mcpContext'
+import { mcpConfigLabelFor, mcpsNeedingAuth } from '@shared/mcpContext'
 import { mcpConnectHint } from '@shared/mcpProbe'
 import { agentCliSpec } from '@shared/agentCliProviders'
 import { Button } from '../components/ui'
@@ -2463,13 +2463,16 @@ export const AgentPane: React.FC<Props> = ({
                 onClick={() => {
                   const first = mcpAuthNeeded[0]
                   if (!first) return
+                  const command = agentCliSpec(meta.provider).command
                   const hint = mcpConnectHint({
                     provider: agentCliSpec(meta.provider).label,
+                    command,
+                    configFile: mcpConfigLabelFor(meta.provider),
                     serverName: first.name,
                     url: first.url,
                   })
                   void navigator.clipboard.writeText(hint).then(
-                    () => setMcpAuthNotice(t('agentPane.mcpConnectCopied')),
+                    () => setMcpAuthNotice(t('agentPane.mcpConnectCopied', { cli: command })),
                     () => setMcpAuthNotice(t('agentPane.mcpConnectCopyFailed')),
                   )
                 }}

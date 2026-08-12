@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatMcpServers,
   mcpScopeModeFor,
+  providerSupportsMcp,
   providerUsesProjectMcpConfig,
 } from '../mcpContext'
 import { markdownSections } from '../contextSections'
@@ -55,6 +56,12 @@ describe('quién lee qué config', () => {
     expect(providerUsesProjectMcpConfig('cursor')).toBe(true)
     expect(providerUsesProjectMcpConfig('copilot')).toBe(false)
     expect(providerUsesProjectMcpConfig('gemini')).toBe(false)
+  })
+
+  it('pi no habla MCP y el resto sí', () => {
+    expect(providerSupportsMcp('pi')).toBe(false)
+    expect(providerSupportsMcp('claude')).toBe(true)
+    expect(providerSupportsMcp('copilot')).toBe(true)
   })
 
   it('el modo de acotado cambia con el CLI', () => {

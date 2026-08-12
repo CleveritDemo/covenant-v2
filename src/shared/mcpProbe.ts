@@ -66,23 +66,30 @@ export function classifyMcpHttpProbe(input: {
 }
 
 /**
- * Texto que el usuario puede pegar en una sesión interactiva de Copilot para
+ * Texto que el usuario puede pegar en una sesión interactiva del CLI para
  * conectar un MCP remoto que pide OAuth.
+ *
+ * `command` y `configFile` los pone el caller desde el proveedor: escribir
+ * `copilot` fijo aquí hacía que el panel diera el paso equivocado a los demás.
  */
 export function mcpConnectHint(input: {
   provider: string
+  /** Ejecutable con el que se abre la sesión interactiva de ese CLI. */
+  command: string
+  /** Archivo de config del que ese CLI lee sus servidores. */
+  configFile: string
   serverName: string
   url?: string | null
 }): string {
   const lines = [
     `Connect MCP "${input.serverName}" for ${input.provider}.`,
-    '1. In a terminal, start an interactive session: copilot',
+    `1. In a terminal, start an interactive session: ${input.command}`,
     '2. When the CLI prompts for authentication, complete the browser OAuth flow.',
     '3. Ask once about a Jira issue to confirm the tools loaded, then return here.',
   ]
   if (input.url && isLegacyAtlassianMcpUrl(input.url)) {
     lines.push(
-      `4. Optional: in ~/.copilot/mcp-config.json change the URL from the legacy SSE`,
+      `4. Optional: in ${input.configFile} change the URL from the legacy SSE`,
       `   (${input.url}) to ${ATLASSIAN_MCP_AUTH_URL} with "type": "http".`,
     )
   }

@@ -118,6 +118,18 @@ export function providerUsesProjectMcpConfig(provider: AgentCliProvider): boolea
 }
 
 /**
+ * Si el CLI habla MCP siquiera. `pi` no: su `--help` (0.82) no tiene un solo
+ * flag de MCP y su documentación lo dice explícitamente — «It intentionally
+ * does not include built-in MCP» (docs/usage.md), «No MCP. […] build an
+ * extension that adds MCP support» (README). Enseñarle la lista del `.mcp.json`
+ * es prometer herramientas que su proceso no va a cargar nunca: el panel tiene
+ * que decir eso y hacia dónde ir, no pintar filas con estados.
+ */
+export function providerSupportsMcp(provider: AgentCliProvider): boolean {
+  return provider !== 'pi'
+}
+
+/**
  * Cómo acota cada CLI, que cambia lo que significa marcar casillas:
  * - `allowlist`: solo existe lo marcado (claude, cursor).
  * - `names`: se pasan los permitidos por nombre (gemini).

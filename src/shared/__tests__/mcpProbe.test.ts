@@ -57,11 +57,26 @@ describe('mcpConnectHint', () => {
   it('incluye migración cuando la URL es el SSE legacy', () => {
     const hint = mcpConnectHint({
       provider: 'GitHub Copilot',
+      command: 'copilot',
+      configFile: '~/.copilot/mcp-config.json',
       serverName: 'jira',
       url: 'https://mcp.atlassian.com/v1/sse',
     })
     expect(hint).toContain('copilot')
     expect(hint).toContain(ATLASSIAN_MCP_AUTH_URL)
     expect(hint).toContain('jira')
+  })
+
+  it('manda al CLI del proveedor, no a copilot', () => {
+    const hint = mcpConnectHint({
+      provider: 'Gemini',
+      command: 'gemini',
+      configFile: '~/.gemini/settings.json',
+      serverName: 'jira',
+      url: 'https://mcp.atlassian.com/v1/sse',
+    })
+    expect(hint).toContain('session: gemini')
+    expect(hint).toContain('~/.gemini/settings.json')
+    expect(hint).not.toContain('copilot')
   })
 })

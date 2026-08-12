@@ -11,7 +11,11 @@ import type {
   AgentModelOption,
 } from '../src/shared/agentCliModels'
 import { modelsForProvider } from '../src/shared/agentCliModels'
-import { agentCliCommand, type AgentCliProvider } from '../src/shared/agentCliProviders'
+import {
+  agentCliCommand,
+  isAgentCliProvider,
+  type AgentCliProvider,
+} from '../src/shared/agentCliProviders'
 import { resolveCliExecutable, resolveCommandAbsolutePath } from './shellPathEnv'
 
 const LIST_TIMEOUT_MS = 12_000
@@ -143,26 +147,53 @@ export function parseCopilotModelsStdout(stdout: string): AgentModelOption[] {
   return dedupeModels(models)
 }
 
+/** OpenCode: `opencode models` — una línea `provider/model` (el modelo puede llevar `/`). */
+export function parseOpencodeModelsStdout(stdout: string): AgentModelOption[] {
+  const models: AgentModelOption[] = []
+  for (const raw of stdout.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._\/-]+$/.test(line)) continue
+    const slash = line.indexOf('/')
+    const rest = line.slice(slash + 1)
+    models.push({ id: line, label: humanizeModelId(rest) })
+  }
+  return dedupeModels(models)
+}
+
+/** Pi: `pi --list-models` — tabla de ancho fijo `provider model …`. */
+export function parsePiModelsStdout(stdout: string): AgentModelOption[] {
+  const models: AgentModelOption[] = []
+  const header = 'provider           model                       context  max-out  thinking  images'
+  for (const raw of stdout.split(/\r?\n/)) {
+    const line = raw.trimEnd()
+    if (!line.trim() || line === header) continue
+    const tokens = line.trim().split(/\s+/)
+    if (tokens.length < 2) continue
+    if (tokens[0] === 'provider' && tokens[1] === 'model') continue
+    models.push({
+      id: `${tokens[0]}/${tokens[1]}`,
+      label: humanizeModelId(tokens[1]),
+    })
+  }
+  return dedupeModels(models)
+}
+
+const LIST_SPECS: Partial<Record<AgentCliProvider, {
+  args: string[]
+  parse: (o: string) => AgentModelOption[]
+}>> = {
+  claude: { args: ['--help'], parse: parseClaudeModelsStdout },
+  cursor: { args: ['--list-models'], parse: parseCursorModelsStdout },
+  copilot: { args: ['help'], parse: parseCopilotModelsStdout },
+  opencode: { args: ['models'], parse: parseOpencodeModelsStdout },
+  pi: { args: ['--list-models'], parse: parsePiModelsStdout },
+}
+
 export function parseModelsStdout(
   provider: AgentCliProvider,
   stdout: string,
 ): AgentModelOption[] {
-  if (provider === 'claude') return parseClaudeModelsStdout(stdout)
-  if (provider === 'copilot') return parseCopilotModelsStdout(stdout)
-  return parseCursorModelsStdout(stdout)
-}
-
-function commandAndListArgs(
-  provider: AgentCliProvider,
-  config: AppConfig,
-): { command: string; args: string[] } {
-  const command = agentCliCommand(config.agentCliCommands, provider)
-  // `claude models` es un selector interactivo: sin TTY se cuelga y no imprime nada.
-  // La ayuda documenta los alias (`'fable'`, `'opus'`, …) y sale al instante.
-  if (provider === 'claude') return { command, args: ['--help'] }
-  // Copilot no tiene `--list-models`; la ayuda documenta `--model` (y a veces IDs).
-  if (provider === 'copilot') return { command, args: ['help'] }
-  return { command, args: ['--list-models'] }
+  return LIST_SPECS[provider]?.parse(stdout) ?? []
 }
 
 export function runCliCapture(
@@ -344,16 +375,21 @@ export async function listAgentCliModels(
   provider: AgentCliProvider,
   config: AppConfig,
 ): Promise<AgentCliModelsResult> {
-  if (provider !== 'claude' && provider !== 'cursor' && provider !== 'copilot') {
-    return fallbackResult('claude', 'Proveedor no válido.')
+  if (!isAgentCliProvider(provider)) {
+    return { models: [], source: 'fallback', error: 'Proveedor no válido.' }
   }
 
-  const { command, args } = commandAndListArgs(provider, config)
+  const spec = LIST_SPECS[provider]
+  if (!spec) {
+    return { models: modelsForProvider(provider), source: 'fallback' }
+  }
+
+  const command = agentCliCommand(config.agentCliCommands, provider)
   if (!command) {
     return fallbackResult(provider, 'Comando CLI no configurado.')
   }
 
-  const result = await runCliCapture(command, args, LIST_TIMEOUT_MS)
+  const result = await runCliCapture(command, spec.args, LIST_TIMEOUT_MS)
   const combined = [result.stdout, result.stderr].filter(Boolean).join('\n')
   let models = parseModelsStdout(provider, combined)
 

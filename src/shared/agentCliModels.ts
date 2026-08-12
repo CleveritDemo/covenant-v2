@@ -67,11 +67,26 @@ export const COPILOT_AGENT_MODELS: AgentModelOption[] = [
   { id: 'gpt-5.1-codex', label: 'GPT-5.1 Codex' },
 ]
 
+/**
+ * Catálogo estático de Gemini: el CLI no expone comando de listado.
+ * IDs verificados en el bundle `@google/gemini-cli` instalado.
+ */
+export const GEMINI_AGENT_MODELS: AgentModelOption[] = [
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
+  { id: 'gemini-3-pro-preview', label: 'Gemini 3 Pro' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+  { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+]
+
 /** Fallback estático por provider (solo si el CLI no responde). */
 export function modelsForProvider(provider: AgentCliProvider): AgentModelOption[] {
   if (provider === 'claude') return CLAUDE_AGENT_MODELS
   if (provider === 'copilot') return COPILOT_AGENT_MODELS
   if (provider === 'cursor') return CURSOR_AGENT_MODELS
+  if (provider === 'gemini') return GEMINI_AGENT_MODELS
   // Resto de CLIs: sin catálogo propio; se usa el modelo por defecto del CLI.
   return []
 }

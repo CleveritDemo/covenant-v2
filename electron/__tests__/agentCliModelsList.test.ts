@@ -2,13 +2,17 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
+import type { AppConfig } from '../../src/shared/configSchema'
 import { modelsForProvider } from '../../src/shared/agentCliModels'
 import {
   extractCopilotModelsFromPackage,
+  listAgentCliModels,
   parseClaudeModelsStdout,
   parseCopilotModelsStdout,
   parseCursorModelsStdout,
   parseModelsStdout,
+  parseOpencodeModelsStdout,
+  parsePiModelsStdout,
 } from '../agentCliModelsList'
 
 describe('parseCursorModelsStdout', () => {
@@ -88,6 +92,35 @@ describe('parseCopilotModelsStdout', () => {
   })
 })
 
+describe('parseOpencodeModelsStdout', () => {
+  it('parses provider/model lines including nested model slash', () => {
+    const stdout = [
+      'Some banner text',
+      '',
+      'opencode/big-pickle',
+      'github-copilot/claude-opus-5',
+      'cf-gateway-clever/dynamic/balanced',
+    ].join('\n')
+    expect(parseOpencodeModelsStdout(stdout)).toEqual([
+      { id: 'opencode/big-pickle', label: 'Big Pickle' },
+      { id: 'github-copilot/claude-opus-5', label: 'Claude Opus 5' },
+      { id: 'cf-gateway-clever/dynamic/balanced', label: 'Dynamic/Balanced' },
+    ])
+  })
+})
+
+describe('parsePiModelsStdout', () => {
+  it('parses fixed-width table and skips header', () => {
+    const stdout = [
+      'provider           model                       context  max-out  thinking  images',
+      'anthropic          claude-opus-5              1M       128K     yes       yes',
+    ].join('\n')
+    expect(parsePiModelsStdout(stdout)).toEqual([
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
+    ])
+  })
+})
+
 describe('parseModelsStdout + fallback', () => {
   it('routes by provider', () => {
     expect(parseModelsStdout('cursor', 'auto - Auto')).toEqual([
@@ -99,6 +132,31 @@ describe('parseModelsStdout + fallback', () => {
     expect(modelsForProvider('claude').length).toBeGreaterThan(0)
     expect(modelsForProvider('cursor').length).toBeGreaterThan(0)
     expect(modelsForProvider('copilot').length).toBeGreaterThan(0)
+  })
+})
+
+describe('listAgentCliModels static providers', () => {
+  const baseConfig = { agentCliCommands: {} } as AppConfig
+
+  it('returns gemini static catalog without error', async () => {
+    const result = await listAgentCliModels('gemini', baseConfig)
+    expect(result.source).toBe('fallback')
+    expect(result.error).toBeUndefined()
+    expect(result.models).toHaveLength(7)
+    expect(result.models.map(m => m.id)).toEqual([
+      'gemini-3.1-pro-preview',
+      'gemini-3-pro-preview',
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+    ])
+  })
+
+  it('returns hermes empty models without error', async () => {
+    const result = await listAgentCliModels('hermes', baseConfig)
+    expect(result).toEqual({ models: [], source: 'fallback' })
   })
 })
 

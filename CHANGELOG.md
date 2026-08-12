@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.68
+
+- **Los modelos de Gemini, Opencode y Pi vuelven a listarse**: el selector decía "Proveedor no válido" en esos tres CLIs y encima ofrecía los modelos de Claude. Ahora Opencode y Pi listan los suyos preguntándole al propio CLI, y Gemini trae su catálogo. Codex, Kimi y Hermes se quedan en "Predeterminado", pero ya sin marcar error.
+
 ## v0.39.67
 
 - **Tarjetas de ceremonia sin caja**: las once dejan de leerse como parches sobre el panel; ahora solo las separa su banda de etapa, y la elegida se tiñe del acento.

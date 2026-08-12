@@ -10,6 +10,7 @@
 
 import { basename, dirname } from 'path'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { AUTO_END, AUTO_START, extractSection } from '../src/shared/contextSections'
 import { isSnapshotStale } from '../src/shared/jiraIssue'
 import { issueAutoMarkdown, jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
 import { normalizeContextFileName, type TabContext } from '../src/shared/tabContext'
@@ -29,6 +30,24 @@ interface RefreshDeps {
  */
 function issueKeyFor(context: TabContext): string {
   return (context.issueKey || basename(context.fileName || context.name, '.md')).trim().toUpperCase()
+}
+
+/**
+ * Un snapshot con la región `auto` vacía o ausente no tiene contenido real de
+ * Jira, así que no puede tratarse como "fresco" solo porque su mtime sea
+ * reciente. Dos caminos producen justo esto: el placeholder que
+ * `materializeTabContext` escribe al alta (Task 9, `write:true` sin
+ * snapshot) y un fetch que falló *después* de que este mismo refresher ya
+ * hubiera creado el archivo en una pasada anterior (no puede pasar hoy —
+ * `withJiraAutoBlock` siempre escribe algo en `auto` cuando `fetchIssue`
+ * resuelve — pero cierra el caso simétrico sin depender de cuál de los dos
+ * caminos fue). Sin este chequeo, el mtime fresco del placeholder bloquea el
+ * único mecanismo (`isSnapshotStale`) que podría rellenarlo, y el turno recibe
+ * un contexto vacío indistinguible de una issue sin contenido durante hasta
+ * `refreshSeconds`.
+ */
+function hasEmptyAutoRegion(raw: string): boolean {
+  return !extractSection(raw, AUTO_START, AUTO_END).trim()
 }
 
 export async function refreshStaleJiraContexts(
@@ -55,17 +74,22 @@ export async function refreshStaleJiraContexts(
       // el mismo hueco de sanitización que ya cerraba el lado lector (un
       // issueKey `../../evil` no puede escribir fuera de `.gravity/jira/`).
       const filePath = projectDirPath(cwd, 'jira', normalizeContextFileName(issueKey, 'issue'))
-      // `statSync` dentro del try: si el snapshot se borra entre este chequeo y
-      // la lectura (TOCTOU), no debe tumbar el resto de los contexts pendientes.
+      // `statSync`/lectura dentro del try: si el snapshot se borra entre este
+      // chequeo y la escritura (TOCTOU), no debe tumbar el resto de los
+      // contexts pendientes.
       const mtimeMs = existsSync(filePath) ? statSync(filePath).mtimeMs : 0
+      const currentContent = mtimeMs ? readFileSync(filePath, 'utf8') : ''
       const refreshSeconds = context.refreshSeconds ?? config.refreshSeconds
-      if (!isSnapshotStale(mtimeMs, refreshSeconds, now)) continue
+      // El chequeo de contenido va antes del de mtime, no después: un
+      // placeholder recién escrito tiene mtime "ahora" (nunca vencido por
+      // tiempo) pero cero contenido real de Jira, así que la sola comprobación
+      // de mtime jamás dispararía el fetch que lo rellena.
+      if (!hasEmptyAutoRegion(currentContent) && !isSnapshotStale(mtimeMs, refreshSeconds, now)) continue
 
       const issue = await fetchIssue(credentials, issueKey, config.maxComments)
       const metadataLine = jiraContextMetadataLine(issueKey)
-      const previous = mtimeMs ? readFileSync(filePath, 'utf8') : ''
       const next = withJiraAutoBlock(
-        previous,
+        currentContent,
         metadataLine,
         issueAutoMarkdown(issue, config.maxComments),
       )

@@ -328,7 +328,15 @@ export const TabContextsEditor: React.FC<Props> = ({
             disabled={!isSaved}
             onClick={() => {
               onActionError?.('')
-              void window.api.revealTabContext(projectCwd, draft.fileName)
+              // Mismo motivo que `isSaved` arriba: `draft.fileName` puede
+              // llevar el subdirectorio `jira/` perdido tras un renombrado
+              // por el Input de Nombre. Usar el archivo canónico real evita
+              // que Revelar, ya habilitado por `isSaved`, apunte a un
+              // `.gravity/<nombre>.md` que nunca existió.
+              const fileName = draft.kind === 'jira'
+                ? canonicalContextFileName('jira', { issueKey: draft.issueKey })
+                : draft.fileName
+              void window.api.revealTabContext(projectCwd, fileName)
                 .then(result => {
                   if (!result.ok) onActionError?.(result.error ?? t('tabContexts.revealError'))
                 })

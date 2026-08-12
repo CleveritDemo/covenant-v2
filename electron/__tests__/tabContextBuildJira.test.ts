@@ -6,11 +6,19 @@ import { discoverTabContexts, materializeTabContext } from '../tabContextBuild'
 import type { TabContext } from '../../src/shared/tabContext'
 import type { JiraIssueSnapshot } from '../../src/shared/jiraIssue'
 
+// Estado mutable compartido con el factory de vi.mock (que se hoistea por
+// encima de los imports) — mismo patrón que `electron/__tests__/jiraConfig.test.ts`.
+// Sin esto, `app.getPath` apuntaría siempre a `tmpdir()` (el `/tmp` real, no
+// un subdirectorio de test), y `writeJiraCredentials` escribiría
+// `jira-credentials.json` sin cifrar en una ruta fija fuera de cualquier
+// `mkdtempSync`, sobreviviendo entre corridas de la suite.
+const mockState = vi.hoisted(() => ({ userDataDir: '' }))
+
 // Solo el bloque "alta sin snapshot" necesita jiraConfig/jiraContextRefresh
 // (que sí tocan `electron.safeStorage`); el resto de los tests de este
 // archivo nunca llama a la red y no necesitan el mock.
 vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir() },
+  app: { getPath: () => mockState.userDataDir },
   safeStorage: {
     isEncryptionAvailable: () => false,
     encryptString: (value: string) => Buffer.from(value),
@@ -106,6 +114,9 @@ const snapshot: JiraIssueSnapshot = {
 /** Proyecto con Jira conectado, para que `refreshStaleJiraContexts` no salga temprano. */
 function configuredProject(): string {
   const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+  // Credenciales en su propio temp dir, no en el `dir` del proyecto (que es
+  // `.gravity/`, no userData) ni en el `tmpdir()` real compartido entre tests.
+  mockState.userDataDir = mkdtempSync(join(tmpdir(), 'gravity-jira-userdata-'))
   writeJiraConfig(dir, {
     site: 'https://x.atlassian.net',
     projectKeys: ['GRAV'],
@@ -152,12 +163,31 @@ describe('materializeTabContext con kind jira — alta desde el gestor (write:tr
     expect(jiraContext?.fileName).toBe('jira/GRAV-412.md')
   })
 
-  it('un refresh posterior rellena la región auto sin recrear el archivo', async () => {
+  // El camino real de usuario: conectar Jira, crear el contexto, adjuntarlo y
+  // mandar un turno un minuto después (mtime del placeholder fresco, muy por
+  // debajo de refreshSeconds). Antes del fix del round 2, esto NO refrescaba
+  // — `isSnapshotStale` por mtime lo daba por vigente — y el turno recibía la
+  // región auto vacía del placeholder, indistinguible de una issue sin
+  // contenido, durante hasta refreshSeconds (15 min por defecto). Sin
+  // back-datear el mtime a propósito, para probar justo eso.
+  it('un refresh inmediato (mtime fresco) rellena el placeholder: el contenido vacío manda sobre el mtime', async () => {
     const dir = configuredProject()
     const created = materializeTabContext(context, dir, { write: true })
     expect(created.ok).toBe(true)
-    // El placeholder recién creado no está "vencido": se retrocede su mtime,
-    // igual que hace `jiraContextRefresh.test.ts` para forzar el refresco.
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+
+    const body = materializeTabContext(context, dir).content
+    expect(body).toContain('nuevo título')
+    expect(body).toContain('<!-- iaterminal:notes -->')
+  })
+
+  it('un refresh posterior (mtime vencido) también rellena la región auto sin recrear el archivo', async () => {
+    const dir = configuredProject()
+    const created = materializeTabContext(context, dir, { write: true })
+    expect(created.ok).toBe(true)
+    // Camino alternativo al de arriba: mtime vencido por tiempo, no por
+    // contenido vacío. Ambas rutas deben converger en el mismo refresco.
     const old = new Date(Date.now() - 3_600_000)
     utimesSync(issuePath(dir), old, old)
 
@@ -166,5 +196,24 @@ describe('materializeTabContext con kind jira — alta desde el gestor (write:tr
     const body = materializeTabContext(context, dir).content
     expect(body).toContain('nuevo título')
     expect(body).toContain('<!-- iaterminal:notes -->')
+  })
+
+  it('un fetch fallido tras el placeholder no deja el mtime fresco bloqueando el próximo intento', async () => {
+    const dir = configuredProject()
+    materializeTabContext(context, dir, { write: true })
+
+    // Primer intento: Jira caído. El snapshot en disco sigue siendo el
+    // placeholder vacío (no se escribe nada si fetchIssue lanza).
+    await refreshStaleJiraContexts([context], dir, {
+      fetchIssue: async () => { throw new Error('502') },
+    })
+    expect(materializeTabContext(context, dir).content).toContain('(no annotations yet)')
+
+    // Segundo intento, inmediatamente después (mismo mtime fresco del
+    // placeholder original): antes del fix del round 2 este turno también se
+    // habría saltado el fetch por mtime, agravando la ventana de silencio de
+    // una falla transitoria a los refreshSeconds completos.
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+    expect(materializeTabContext(context, dir).content).toContain('nuevo título')
   })
 })

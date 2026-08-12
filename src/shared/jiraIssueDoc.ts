@@ -23,19 +23,28 @@ const NOTES_PLACEHOLDER = '(no annotations yet)'
  * lado produce dejara de ser el mismo.
  */
 export function jiraContextMetadataLine(issueKey: string): string {
-  const name = canonicalContextName('jira', { issueKey })
+  // `issueKey` normalizado directo, no vía `canonicalContextName`: esa
+  // función cae a `'Jira issue'` para una clave vacía (pensada para mostrar
+  // *algo* en la UI cuando todavía no hay clave), y persistir eso como
+  // `issueKey` en un `.md` produciría un documento autoinconsistente —
+  // `applyCanonicalContextIdentity` recompondría `fileName` como
+  // `jira/Jira-issue.md`, que no es la ruta donde este archivo vive. Ningún
+  // llamador de hoy pasa clave vacía (`materializeTabContext` la exige antes
+  // de llamar; `issueKeyFor` siempre resuelve una clave real, del context o
+  // del nombre de archivo), pero esta función no debe depender de que sigan
+  // sin hacerlo.
+  const normalized = issueKey.trim().toUpperCase()
   return `<!-- iaterminal:context ${JSON.stringify({
-    id: canonicalContextId('jira', { issueKey }),
-    name,
+    id: canonicalContextId('jira', { issueKey: normalized }),
+    name: canonicalContextName('jira', { issueKey: normalized }),
     kind: 'jira',
     icon: 'jira',
     // `id` canónico siempre queda en minúsculas: sin este campo,
     // `contextFromMetadata` + `applyCanonicalContextIdentity` reconstruirían
     // `issueKey` a partir de ese `id` (única fuente disponible si faltara) y
     // lo dejarían en minúsculas también. `issueKey` explícito evita esa
-    // reconstrucción y conserva la forma real de la clave (`name` ya la
-    // trae en mayúsculas — mismo valor, campo distinto).
-    issueKey: name,
+    // reconstrucción y conserva la forma real de la clave.
+    issueKey: normalized,
   })} -->`
 }
 

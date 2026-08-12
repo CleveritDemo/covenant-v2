@@ -113,13 +113,18 @@ describe('TabContextFormModal — alta de jira', () => {
     expect(saveButton.disabled).toBe(false)
   })
 
-  it('renombrar el contexto (campo Nombre, libre para cualquier kind) no le hace perder el subdirectorio jira/ a la ruta mostrada', () => {
+  it('renombrar el contexto (campo Nombre, libre para cualquier kind) no le hace perder el subdirectorio jira/ a la ruta mostrada ni a Revelar', async () => {
     const existing: TabContext = {
       id: 'iaterminal:jira:grav-1',
       name: 'GRAV-1',
       fileName: 'jira/GRAV-1.md',
       kind: 'jira',
       issueKey: 'GRAV-1',
+    }
+    const revealTabContext = vi.fn().mockResolvedValue({ ok: true })
+    ;(window as unknown as { api: Record<string, unknown> }).api = {
+      previewTabContext,
+      revealTabContext,
     }
     render(
       <TabContextFormModal
@@ -139,7 +144,15 @@ describe('TabContextFormModal — alta de jira', () => {
     // para el resto de kinds — ese mismo campo que el Input de Nombre acaba de
     // reescribir sin el subdirectorio `jira/`. Si `isSaved` no lo excluyera para
     // `jira`, este botón se apagaría tras el renombrado aunque el .md siga ahí.
-    expect((screen.getByRole('button', { name: 'tabContexts.reveal' }) as HTMLButtonElement).disabled).toBe(false)
+    const revealButton = screen.getByRole('button', { name: 'tabContexts.reveal' }) as HTMLButtonElement
+    expect(revealButton.disabled).toBe(false)
+
+    // No basta con que el botón esté habilitado: si el `onClick` sigue
+    // pasando `draft.fileName` (reescrito por el rename a `Bug-de-login.md`),
+    // `revealTabContext` recibe una ruta que nunca existió y el usuario ve
+    // "el archivo no existe todavía" en un botón que parecía funcionar.
+    fireEvent.click(revealButton)
+    await waitFor(() => expect(revealTabContext).toHaveBeenCalledWith('/repo', 'jira/GRAV-1.md'))
   })
 
   // Sin este test, el botón podía quedar habilitado por el helper puro y el

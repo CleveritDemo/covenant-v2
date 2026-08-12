@@ -71,7 +71,7 @@
   padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -90,7 +90,7 @@
 }
 
 .brainstorm-closing__ready-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.13em;
@@ -130,7 +130,7 @@
   border-radius: 50%;
   background: var(--accent);
   color: var(--bg);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9px;
   font-weight: 700;
 }

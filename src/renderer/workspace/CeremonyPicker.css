@@ -43,7 +43,7 @@
 
 .ceremony-picker__stage {
   margin: 0 0 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.13em;
@@ -66,23 +66,9 @@
   grid-column: 1 / -1;
 }
 
-/* La banda de etapa vive en el `li`: el kit no acepta className. */
+/* El `li` solo porta el color de etapa: el kit no acepta className. */
 .ceremony-picker__item {
-  position: relative;
   min-width: 0;
-}
-
-.ceremony-picker__item::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--stage, var(--border));
-  z-index: 1;
-  pointer-events: none;
 }
 
 .ceremony-picker__item--free { --stage: var(--text-muted); }
@@ -91,15 +77,46 @@
 .ceremony-picker__item--spec { --stage: var(--accent); }
 .ceremony-picker__item--deliver { --stage: var(--accent-dim); }
 
+/*
+ * Sin caja: once tarjetas con borde y fondo propios se leían como parches
+ * sobre el panel. Aquí el fondo es el del modal y lo único que separa una
+ * ceremonia de otra es su banda de etapa y el aire entre ellas.
+ *
+ * La banda va como sombra interior, no como pseudo-elemento del `li`: así
+ * queda dentro del radio de la tarjeta en vez de flotar a su izquierda.
+ */
 .ceremony-picker__item .choice-card {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 10px 12px 11px 16px;
+  padding: 10px 12px 11px 15px;
   justify-content: flex-start;
   align-items: flex-start;
   text-align: left;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 9px;
+  box-shadow: inset 3px 0 0 var(--stage, var(--border));
+}
+
+.ceremony-picker__item .choice-card:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  border-color: transparent;
+}
+
+/* Elegida: se tiñe del acento y la banda se enciende. Sin borde, que era lo
+   que hacía saltar la tarjeta seleccionada respecto a las demás. */
+.ceremony-picker__item .choice-card[aria-checked="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ceremony-picker__item .choice-card:focus-visible {
+  border-color: transparent;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .ceremony-picker__item .choice-card .choice-card__content {
@@ -138,7 +155,7 @@
 }
 
 .ceremony-picker__gate {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.07em;

@@ -8,7 +8,7 @@
 
 .brainstorm-ceremony-modal__step {
   margin-right: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;

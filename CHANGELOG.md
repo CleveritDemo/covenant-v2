@@ -4,7 +4,7 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
-## v0.39.65
+## v0.39.66
 
 - **Las salas corren ceremonias ágiles**: al crear una sala eliges primero la ceremonia —Three Amigos, Example Mapping, Specification Workshop y siete más— y de ahí salen su objetivo, sus entregables y el gate que decide si la historia queda lista. Brainstorming sigue estando, como conversación abierta.
 - **Rol de ceremonia en cada agente**: se elige de una lista, y la sala sienta a quien toca en cada ceremonia. Si un agente no lo tiene puesto, se deduce de su rol escrito y la sala avisa de que lo dedujo.

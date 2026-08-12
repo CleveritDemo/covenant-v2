@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.48
+
+- **Un MCP remoto ya no dice «lista» si pide login**: si Atlassian (u otro OAuth) responde 401, ves «hay que conectar» y pasos para autenticar en Copilot.
+- **El agente con MCP marcados sabe que debe usarlos**: el turno le dice que busque en Jira por esas tools y que no invente que no tiene acceso.
+- **Si falta conectar, el chat del agente lo avisa** arriba, sin tener que abrir Capacidades.
+
 ## v0.39.47
 
 - **La config de MCP se edita dentro de Covenant**, sin salir a buscar el JSON.

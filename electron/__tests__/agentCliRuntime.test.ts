@@ -203,6 +203,9 @@ describe('composePrompt identity', () => {
     expect(prompt).toContain('"changes"')
     expect(prompt).toContain('"summary"')
     expect(prompt).toContain('ia-terminal-results')
+    expect(prompt).toContain('telling a teammate')
+    expect(prompt).not.toContain('detailed summary')
+    expect(prompt).not.toContain('brief summary')
   })
 
   it('injects recent tab agent results before the user request', () => {

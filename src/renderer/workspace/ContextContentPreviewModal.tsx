@@ -174,6 +174,18 @@ const AgentResultsReport: React.FC<{
           ) : null}
         </h3>
         <p>{doc.summary ?? t('tabContexts.resultsNoSummary')}</p>
+        {doc.request ? (
+          <p className="results-report__request">
+            {t('tabContexts.resultsRequest')} {doc.request}
+          </p>
+        ) : null}
+        {doc.changes.length ? (
+          <ul className="results-report__changes" aria-label={t('tabContexts.resultsChanges')}>
+            {doc.changes.map(change => (
+              <li key={change}>{change}</li>
+            ))}
+          </ul>
+        ) : null}
         {consumers.length ? (
           <p className="results-report__consumers">
             <span>{t('tabContexts.resultsConsumers')}</span>

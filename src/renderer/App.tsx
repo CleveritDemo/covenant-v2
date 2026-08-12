@@ -115,6 +115,7 @@ import {
 } from '@shared/worktreeDelegation'
 import {
   buildExpertReplicaDefinition,
+  isPaneGuardedFromDelegationReuse,
   resolveAgentInstanceBadges,
   resolveExpertDelegationTarget,
   shouldFinalizeWorktreeFromOrchestrator,
@@ -361,6 +362,8 @@ export const App: React.FC = () => {
   const [gitReposByTab, setGitReposByTab] = useState<Record<string, GitListedRepo[]>>({})
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
+  const busyPanesRef = useRef(busyPanes)
+  busyPanesRef.current = busyPanes
   const [settingsOpen, setSettingsOpen] = useState(false)
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
@@ -445,6 +448,8 @@ export const App: React.FC = () => {
   const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeNewThreadPaneId, setPlaneNewThreadPaneId] = useState<string | null>(null)
+  const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
+  planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
   /** Mesa del plano: invitados sentados (orden = habla) antes de abrir el modal. */
@@ -3474,6 +3479,22 @@ export const App: React.FC = () => {
     const allowExpertReplicas = fromMeta.allowExpertReplicas === true || workStyle === 'turbo'
     const pending = job.pending
     const occupiedPaneIds = occupiedPaneIdsAcrossJobs(getOrCreateJobsMap(fromPaneId).values())
+    const occupyGuardedExpertPanes = (currentTab: TabSession): void => {
+      const busy = busyPanesRef.current
+      const statusByPane = agentPlaneStatusRef.current
+      const pendingNewThread = planeNewThreadPaneIdRef.current
+      for (const paneId of currentTab.paneIds ?? []) {
+        if (currentTab.paneKinds?.[paneId] !== 'agent') continue
+        if (isPaneGuardedFromDelegationReuse({
+          busy: busy.has(paneId) || Boolean(statusByPane[paneId]?.busy),
+          loopActive: Boolean(statusByPane[paneId]?.loopActive || statusByPane[paneId]?.localLoopActive),
+          newThreadPending: pendingNewThread === paneId,
+        })) {
+          occupiedPaneIds.add(paneId)
+        }
+      }
+    }
+    occupyGuardedExpertPanes(tab)
     const waveItems = job.waveItems
     const catalogKey = tabAgentCatalogKey(tab)
     const orgWorkspace = tab.orgWorkspace
@@ -3484,6 +3505,7 @@ export const App: React.FC = () => {
       tab = tabsRef.current.find(item => item.id === tabId)
       if (!tab) break
       const currentTab = tab
+      occupyGuardedExpertPanes(currentTab)
 
       const panes = (currentTab.paneIds ?? [])
         .filter(id => currentTab.paneKinds?.[id] === 'agent')
@@ -4485,23 +4507,22 @@ export const App: React.FC = () => {
     }
 
     const applyBindings = (fromId: string, toId: string, paneBinding: typeof binding): void => {
-      setTabs(prev => {
-        const base = catalogKey && fromId !== toId
-          ? remapAgentBindingsInTabs(prev, catalogKey, fromId, toId)
-          : prev
-        const nextTabs = base.map(item => {
-          if (item.id !== tabId) return item
-          return {
-            ...item,
-            agentByPane: {
-              ...(item.agentByPane ?? {}),
-              [paneId]: { ...paneBinding, agentId: toId },
-            },
-          }
-        })
-        tabsRef.current = nextTabs
-        return nextTabs
+      const prev = tabsRef.current
+      const base = catalogKey && fromId !== toId
+        ? remapAgentBindingsInTabs(prev, catalogKey, fromId, toId)
+        : prev
+      const nextTabs = base.map(item => {
+        if (item.id !== tabId) return item
+        return {
+          ...item,
+          agentByPane: {
+            ...(item.agentByPane ?? {}),
+            [paneId]: { ...paneBinding, agentId: toId },
+          },
+        }
       })
+      tabsRef.current = nextTabs
+      setTabs(nextTabs)
     }
 
     const applyResultContextRemapInUi = (fromSlug: string, toSlug: string): void => {

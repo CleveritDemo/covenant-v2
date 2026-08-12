@@ -159,4 +159,43 @@ describe('Select', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(trigger.getAttribute('aria-haspopup')).toBe('listbox')
   })
+
+  it('abre debajo del disparador cuando hay espacio', () => {
+    render(<Select value="" options={OPTIONS} onChange={() => {}} />)
+    mockTriggerBox({ top: 100, bottom: 132, left: 80, width: 240 })
+    const panel = openPanel()
+    expect(panel.style.top).toBe('136px')
+    expect(panel.style.bottom).toBe('auto')
+    expect(panel.style.left).toBe('80px')
+    expect(panel.style.right).toBe('auto')
+  })
+
+  it('abre encima anclado al disparador, no al techo del viewport', () => {
+    render(<Select value="" options={OPTIONS} onChange={() => {}} />)
+    mockTriggerBox({ top: 700, bottom: 732, left: 80, width: 240 })
+    const panel = openPanel()
+    // below = 800-732-8 = 60 < 180 → abre hacia arriba; bottom = 800-700+4
+    expect(panel.style.bottom).toBe('104px')
+    expect(panel.style.top).toBe('auto')
+    expect(panel.style.left).toBe('80px')
+  })
 })
+
+const VIEWPORT = { innerHeight: 800, innerWidth: 1200 }
+
+function mockTriggerBox(box: { top: number; bottom: number; left: number; width: number }): void {
+  Object.defineProperty(window, 'innerHeight', { value: VIEWPORT.innerHeight, configurable: true })
+  Object.defineProperty(window, 'innerWidth', { value: VIEWPORT.innerWidth, configurable: true })
+  const trigger = screen.getByRole('button')
+  vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+    top: box.top,
+    bottom: box.bottom,
+    left: box.left,
+    right: box.left + box.width,
+    width: box.width,
+    height: box.bottom - box.top,
+    x: box.left,
+    y: box.top,
+    toJSON: () => ({}),
+  })
+}

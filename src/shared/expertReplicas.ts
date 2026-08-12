@@ -19,6 +19,15 @@ export function isDelegationTargetOccupied(
   return occupiedPaneIds.has(paneId)
 }
 
+/** Un pane con turno/loop vivo o un + pendiente no se reusa. Chat abierto o hilos extra no cuentan: la delegación ya abre su propio thread. */
+export function isPaneGuardedFromDelegationReuse(input: {
+  busy: boolean
+  loopActive: boolean
+  newThreadPending: boolean
+}): boolean {
+  return input.busy || input.loopActive || input.newThreadPending
+}
+
 /**
  * Interpreta toAgentId: `frontend`, `frontend#2`, `frontend-2`.
  * `#n` / `-n` (n≥2) marcan réplica explícita; el base es el prefijo.

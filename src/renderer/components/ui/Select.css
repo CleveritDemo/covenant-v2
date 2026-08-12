@@ -82,9 +82,12 @@
 }
 
 /* El panel vive en el top layer: `position: fixed` con las coordenadas medidas
-   del disparador, sin heredar el apilamiento ni el overflow del modal. */
+   del disparador, sin heredar el apilamiento ni el overflow del modal.
+   El UA de [popover] pone inset:0 + margin:auto (centrado en el viewport);
+   hay que anular ambos o, al abrir hacia arriba, top:0 clava el panel al techo. */
 .select-panel {
   position: fixed;
+  inset: auto;
   margin: 0;
   padding: 4px;
   box-sizing: border-box;

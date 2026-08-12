@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, expect, it } from 'vitest'
 import {
   clampPlaneColumnScroll,
@@ -8,6 +11,7 @@ import {
   computeStandardPaneWindowGeometry,
   createPaneWindowState,
   ensurePaneWindows,
+  estimatePlaneAgentMiniHeight,
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
   PANE_WINDOW_VIEWPORT_RATIO,
@@ -19,6 +23,7 @@ import {
   PLANE_MINI_SLOT_PAD_X_MAX,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
+  readPlaneMiniAgentLayoutHeight,
   sanitizePaneWindowState,
 } from '../paneWindows'
 
@@ -144,6 +149,37 @@ describe('paneWindows', () => {
       contentHeight + PLANE_MINI_BOTTOM_CLEARANCE - viewportHeight,
     )
     expect(clampPlaneColumnScroll(37, 10_000)).toBe(0)
+  })
+
+  it('estimates mini agent height from CSS chrome, not AABB', () => {
+    expect(estimatePlaneAgentMiniHeight(0)).toBe(84)
+    expect(estimatePlaneAgentMiniHeight(1)).toBe(87)
+    expect(estimatePlaneAgentMiniHeight(3)).toBe(2 + 8 + 22 + 6 + 17 + 6 + 54 + 8)
+  })
+
+  it('readPlaneMiniAgentLayoutHeight uses offsetHeight, not getBoundingClientRect', () => {
+    const el = document.createElement('div')
+    el.style.boxSizing = 'content-box'
+    el.style.height = '120px'
+    el.style.border = '1px solid'
+    document.body.appendChild(el)
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 122 })
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => ({
+        height: 999,
+        width: 0,
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    })
+    expect(readPlaneMiniAgentLayoutHeight(el)).toBe(el.offsetHeight)
+    expect(readPlaneMiniAgentLayoutHeight(el)).toBe(122)
+    el.remove()
   })
 
   it('minimizes every other open window', () => {

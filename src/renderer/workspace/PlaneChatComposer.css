@@ -1,16 +1,3 @@
-/* Aurora detrás del body: mismo stacking que el input para backdrop-filter. */
-.plane-chat-composer-aurora-host {
-  --plane-composer-accent: var(--accent);
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: var(--plane-aurora-field-height, 160px);
-  z-index: 0;
-  pointer-events: none;
-  overflow: visible;
-}
-
 .plane-chat-composer {
   --plane-composer-accent: var(--accent);
   position: absolute;
@@ -483,8 +470,8 @@
     backdrop-filter 0.25s ease;
 }
 
-/* Working: glass suave — blur ligero + relleno bajo para que las partículas
-   se lean bajo el input (aurora anidada en el mismo stacking). */
+/* Working: glass suave — blur ligero + relleno bajo para leer las partículas
+   del piso del mapa a través del input. */
 .plane-chat-composer--working .plane-chat-composer__input {
   background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
   backdrop-filter: blur(5px) saturate(1.12);

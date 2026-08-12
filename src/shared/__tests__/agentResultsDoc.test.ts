@@ -47,6 +47,8 @@ describe('parseAgentResultsDoc', () => {
     const doc = parseAgentResultsDoc(filled)
     expect(doc.summary).toBe('Tres historias aceptadas, una devuelta a refinamiento.')
     expect(doc.notes).toBe('No cerrar GRV-121 sin revisar con @fullstack.')
+    expect(doc.request).toBeNull()
+    expect(doc.changes).toEqual([])
     expect(doc.entries).toEqual([
       { timestamp: '2026-08-06T14:22:10Z', text: 'Acepté GRV-118.' },
       { timestamp: '2026-08-06T13:40:02Z', text: 'Prioricé el spike de results/.' },
@@ -55,9 +57,30 @@ describe('parseAgentResultsDoc', () => {
     expect(isAgentResultsDocEmpty(doc)).toBe(false)
   })
 
+  it('extracts summary/request/changes from a labeled Latest in any order', () => {
+    const labeled = filled.replace(
+      'Tres historias aceptadas, una devuelta a refinamiento.',
+      [
+        '**Request:** Aceptar las historias del sprint',
+        '**Changes:**',
+        '- board.ts: GRV-118 → done',
+        '- backlog.ts: GRV-121 → refine',
+        '**Summary:** Tres historias aceptadas, una devuelta a refinamiento.',
+      ].join('\n'),
+    )
+    const doc = parseAgentResultsDoc(labeled)
+    expect(doc.summary).toBe('Tres historias aceptadas, una devuelta a refinamiento.')
+    expect(doc.summary).not.toContain('**')
+    expect(doc.request).toBe('Aceptar las historias del sprint')
+    expect(doc.changes).toEqual([
+      'board.ts: GRV-118 → done',
+      'backlog.ts: GRV-121 → refine',
+    ])
+  })
+
   it('treats host placeholders as empty', () => {
     const doc = parseAgentResultsDoc(fresh)
-    expect(doc).toEqual({ summary: null, entries: [], notes: null })
+    expect(doc).toEqual({ summary: null, request: null, changes: [], entries: [], notes: null })
     expect(isAgentResultsDocEmpty(doc)).toBe(true)
   })
 

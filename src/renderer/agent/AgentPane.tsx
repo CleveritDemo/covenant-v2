@@ -505,6 +505,11 @@ export const AgentPane: React.FC<Props> = ({
   const adoptsCliSessionRef = useRef(true)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
+  /**
+   * Delegación abre un hilo nuevo en el mismo tick que el turno: no recargar
+   * el chat ni tumbar busy/messages del stream que acaba de arrancar.
+   */
+  const retainLiveThreadIdRef = useRef<string | null>(null)
   /** Delegación en vuelo (especialista / orch ejecutando subtarea del padre). */
   const activeDelegationRef = useRef<{
     id: string
@@ -667,6 +672,13 @@ export const AgentPane: React.FC<Props> = ({
   }, [applyDiscoveredContexts, prepareContextDiscovery, resolveWorkingCwd])
 
   useEffect(() => {
+    if (retainLiveThreadIdRef.current === activeThreadId) {
+      retainLiveThreadIdRef.current = null
+      loadedRef.current = true
+      setLoaded(true)
+      return
+    }
+    retainLiveThreadIdRef.current = null
     let cancelled = false
     loadedRef.current = false
     pendingCliEventsRef.current = []
@@ -1060,6 +1072,20 @@ export const AgentPane: React.FC<Props> = ({
     resolveWorkingCwd,
   ])
 
+  /** Catálogo de threads: abre uno nuevo y lo deja activo, sin tocar el live. */
+  const commitNewThreadCatalog = useCallback((): string => {
+    const id = crypto.randomUUID()
+    onMetaChange(previous => {
+      const state = newThread(
+        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        id,
+        Date.now(),
+      )
+      return { ...previous, ...threadPatch(state) }
+    })
+    return id
+  }, [onMetaChange])
+
   const startTurn = useCallback(async (options: {
     prompt: string
     displayUser: string
@@ -1085,6 +1111,11 @@ export const AgentPane: React.FC<Props> = ({
       role: 'user',
       content: userContent,
       ...(options.displayImages?.length ? { images: options.displayImages } : {}),
+    }
+    // Delegación: hilo propio en el catálogo. El del usuario permanece.
+    // Sin resetLiveState: no aborta CLI ni borra messages de ese hilo.
+    if (options.delegation) {
+      retainLiveThreadIdRef.current = commitNewThreadCatalog()
     }
     // El thread se titula solo con el primer mensaje y marca actividad en cada
     // turno: es lo que ordena y etiqueta el selector de conversaciones.
@@ -1287,7 +1318,7 @@ export const AgentPane: React.FC<Props> = ({
     lastTurnRequestRef.current = request
     window.api.startAgentTurn(request)
     return true
-  }, [forceFollow, onMetaChange, paneId, resolveTurnCwd, resolveWorkingCwd, t])
+  }, [commitNewThreadCatalog, forceFollow, onMetaChange, paneId, resolveTurnCwd, resolveWorkingCwd, t])
 
   const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
     clearLoopTimer()
@@ -1742,6 +1773,12 @@ export const AgentPane: React.FC<Props> = ({
       handledPreferSendRef.current = null
       return
     }
+    // El + tiene que crear el hilo antes de consumir el send; si no, startTurn
+    // retitula el activo y startNewThread aborta la delegación al resetear.
+    if (preferNewThread) {
+      handledPreferSendRef.current = null
+      return
+    }
     // Evitar doble envío: startTurn pone busy y re-ejecuta el effect con el
     // mismo preferSend antes de que el padre lo limpie.
     if (handledPreferSendRef.current === preferSend) return
@@ -1808,6 +1845,7 @@ export const AgentPane: React.FC<Props> = ({
     loopActive,
     onPreferSendConsumed,
     onRequestPaneFocus,
+    preferNewThread,
     preferSend,
   ])
 
@@ -2098,18 +2136,10 @@ export const AgentPane: React.FC<Props> = ({
    */
   const startNewThread = useCallback((): void => {
     resetLiveState()
-    const id = crypto.randomUUID()
-    onMetaChange(previous => {
-      const state = newThread(
-        sanitizeThreadState(previous.threads, previous.activeThreadId),
-        id,
-        Date.now(),
-      )
-      // El thread nuevo no tiene sesión: el turno siguiente arranca un CLI
-      // limpio y adopta la que ese CLI emita.
-      return { ...previous, ...threadPatch(state) }
-    })
-  }, [onMetaChange, resetLiveState])
+    // El thread nuevo no tiene sesión: el turno siguiente arranca un CLI
+    // limpio y adopta la que ese CLI emita.
+    commitNewThreadCatalog()
+  }, [commitNewThreadCatalog, resetLiveState])
 
   /** Borra la conversación activa (transcript incluido) y salta a otra. */
   const deleteActiveThread = useCallback((): void => {

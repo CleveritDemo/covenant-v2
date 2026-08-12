@@ -125,21 +125,30 @@ export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
 export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT
 export const PLANE_MINI_TITLEBAR_HEIGHT = 26
 
-/** Altura base de la card mini de agente (sin contextos). */
-export const PLANE_MINI_AGENT_BASE_HEIGHT = 64
-/** Altura de cada fila de contexto (ícono + nombre). */
-export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = 14
-/** Chrome de la sección de contextos (borde + padding). */
-export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 7
+/** Altura base de la card mini de agente (face min-height 82 + border 2). */
+export const PLANE_MINI_AGENT_BASE_HEIGHT = 84
+/** Altura de cada fila de contexto (ícono 18px). */
+export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = 18
+/** .plane-mini-face__nodes margin-top. */
+export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 6
 
-/** Altura de mini agente según cantidad de contextos asignados. */
+/** offsetHeight = border-box local; no usar getBoundingClientRect (tilt 3D de la columna). */
+export function readPlaneMiniAgentLayoutHeight(el: HTMLElement): number {
+  return Math.max(0, el.offsetHeight)
+}
+
+/** Altura de mini agente según contextos (primer frame, antes del ResizeObserver). */
 export function estimatePlaneAgentMiniHeight(contextCount: number): number {
   const n = Math.max(0, Math.floor(contextCount))
   if (n === 0) return PLANE_MINI_AGENT_BASE_HEIGHT
-  return (
-    PLANE_MINI_AGENT_BASE_HEIGHT
-    + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
+  // padding-y 8+8, header drag 22 + margin 6, status ~17, nodes margin 6, padding-bottom 8, +2 border.
+  // No modela el separator notes/results (6px): el RO lo corrige.
+  const content = 8 + 22 + 6 + 17 + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
     + n * PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT
+    + 8
+  return Math.max(
+    PLANE_MINI_AGENT_BASE_HEIGHT,
+    2 + Math.max(82, content),
   )
 }
 

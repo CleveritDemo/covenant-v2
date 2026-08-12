@@ -1,10 +1,19 @@
 .plane-map {
+  --plane-aurora-field-height: 160px;
   position: absolute;
   inset: 0;
   /* visible: la perspectiva 3D de las columnas no debe recortarse */
   overflow: visible;
   /* Sobre el fade del chat (dock 14); bajo composer/FABs/pool. */
   z-index: 16;
+  pointer-events: none;
+}
+
+/* Piso: grilla + partículas al fondo del mapa, debajo del stage. */
+.plane-map-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
 }
 
@@ -20,6 +29,7 @@
 .plane-map__atmosphere {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background: transparent;
 }
@@ -27,6 +37,7 @@
 .plane-map__grid {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   opacity: var(--plane-grid-opacity);
   background-image:

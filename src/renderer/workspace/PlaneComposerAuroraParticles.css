@@ -1,8 +1,7 @@
 /*
- * Campo de partículas sobre la cinta aurora.
- * Solo visible cuando el host está working y reduce-motion está off.
- * Llena el host (.plane-composer-aurora), no una cinta de 2px.
- * Aurora anidada bajo el body: se leen a través del glass (backdrop-filter).
+ * Partículas busy en el piso del plano: mismo stacking que la grilla.
+ * Encima de la grid, debajo del stage y del composer.
+ * Solo visibles con working y reduce-motion off.
  */
 .plane-composer-aurora-particles {
   position: absolute;

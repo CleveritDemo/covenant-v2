@@ -76,6 +76,24 @@ describe('buildSlotOrigins virtual scroll', () => {
     )
   })
 
+  it('keeps PLANE_MINI_SLOT_GAP between agent cards of different heights', () => {
+    const agents: PlaneMapEntity[] = [
+      makeEntity('a1', 'agent'),
+      makeEntity('a2', 'agent'),
+      makeEntity('a3', 'agent'),
+    ]
+    const heights = { a1: 100, a2: 80, a3: 120 }
+    const layout = buildSlotOrigins(agents, VIEWPORT, heights)
+    const ids = ['a1', 'a2', 'a3'] as const
+    for (let i = 0; i < ids.length - 1; i += 1) {
+      const current = layout.origins[ids[i]]
+      const next = layout.origins[ids[i + 1]]
+      expect(next.y - (current.y + current.height)).toBe(PLANE_MINI_SLOT_GAP)
+      expect(current.height).toBe(heights[ids[i]])
+    }
+    expect(layout.origins.a3.height).toBe(120)
+  })
+
   it('default offsets keep the previous coordinates', () => {
     const implicit = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS)
     const explicitZero = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS, {

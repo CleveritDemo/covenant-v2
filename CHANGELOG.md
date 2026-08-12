@@ -4,6 +4,21 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.46
+
+- **El menú del selector se queda pegado al disparador**: al abrir hacia arriba o hacia abajo ya no se va al techo.
+- **Un especialista idle se reusa**: aunque tenga chat abierto o hilos extra; spawn solo si está ocupado, en loop, con + pendiente o si pides réplica.
+
+## v0.39.45
+
+- **El espacio entre agentes del plano queda parejo**: cards cortas y largas dejan el mismo aire; la perspectiva 3D ya no deforma los huecos.
+
+## v0.39.44
+
+- **Tus conversaciones no se pisan con las delegaciones**: si estás en un hilo de un especialista, el trabajo del orquestador va a una réplica; el + sigue disponible salvo que ese pane esté en stream.
+- **El reporte de resultados se lee como una nota**: desenlace corto, qué pediste y los cambios en lista; el historial ya no es un bloque técnico.
+- **Las partículas busy viven en el piso del plano**: misma capa que la grilla, detrás del composer y los paneles.
+
 ## v0.39.43
 
 - **El instalador de Windows se publica aunque GitHub TLS falle al re-descargar Electron** (v0.39.42 no llegó a salir por eso).

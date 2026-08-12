@@ -112,4 +112,126 @@ describe('jiraGetIssue', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) } as unknown as Response)))
     await expect(jiraGetIssue(cred, 'GRAV-999', 10)).rejects.toThrow(/GRAV-999/)
   })
+
+  it('sin prioridad no inventa una', async () => {
+    stubFetch(() => ({ ...issuePayload, fields: { ...issuePayload.fields, priority: null } }))
+    expect((await jiraGetIssue(cred, 'GRAV-412', 10)).priority).toBeNull()
+  })
+
+  it('mapea subtasks e issuelinks poblados', async () => {
+    stubFetch(() => ({
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        subtasks: [{
+          key: 'GRAV-413',
+          fields: { summary: 'Subtarea', status: { name: 'To Do' }, issuetype: { name: 'Task' }, assignee: null },
+        }],
+        issuelinks: [{
+          type: { name: 'blocks' },
+          outwardIssue: { key: 'GRAV-500', fields: { summary: 'Bloqueada' } },
+        }],
+      },
+    }))
+    const issue = await jiraGetIssue(cred, 'GRAV-412', 10)
+    expect(issue.subtasks).toEqual([{
+      key: 'GRAV-413',
+      summary: 'Subtarea',
+      status: 'To Do',
+      issueType: 'Task',
+      assignee: null,
+    }])
+    expect(issue.links).toEqual([{ type: 'blocks', key: 'GRAV-500', summary: 'Bloqueada' }])
+  })
+
+  it('recorta a los últimos maxComments cuando hay más comentarios que el límite', async () => {
+    const manyComments = {
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        comment: {
+          comments: [
+            { author: { displayName: 'Ana' }, created: '2026-08-09T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'uno' }] }] } },
+            { author: { displayName: 'Beto' }, created: '2026-08-10T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'dos' }] }] } },
+            { author: { displayName: 'Cami' }, created: '2026-08-11T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'tres' }] }] } },
+          ],
+        },
+      },
+    }
+    stubFetch(() => manyComments)
+    const issue = await jiraGetIssue(cred, 'GRAV-412', 2)
+    expect(issue.comments.map(c => c.body)).toEqual(['dos', 'tres'])
+  })
+
+  it('dos llamadas con distinto maxComments dentro del TTL devuelven cada una su propio recorte, con un solo GET', async () => {
+    const manyComments = {
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        comment: {
+          comments: [
+            { author: { displayName: 'Ana' }, created: '2026-08-09T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'uno' }] }] } },
+            { author: { displayName: 'Beto' }, created: '2026-08-10T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'dos' }] }] } },
+            { author: { displayName: 'Cami' }, created: '2026-08-11T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'tres' }] }] } },
+          ],
+        },
+      },
+    }
+    const fetchMock = stubFetch(() => manyComments)
+    const first = await jiraGetIssue(cred, 'GRAV-412', 10)
+    const second = await jiraGetIssue(cred, 'GRAV-412', 1)
+    expect(first.comments.map(c => c.body)).toEqual(['uno', 'dos', 'tres'])
+    expect(second.comments.map(c => c.body)).toEqual(['tres'])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('jiraGetIssue sprint', () => {
+  it('reconoce un campo de sprint agile real por su forma (state/boardId)', async () => {
+    stubFetch(() => ({
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        customfield_10020: [{ id: 1, name: 'Sprint 5', state: 'active', boardId: 3 }],
+      },
+    }))
+    expect((await jiraGetIssue(cred, 'GRAV-412', 10)).sprint).toBe('Sprint 5')
+  })
+
+  it('fixVersions y components sin campo de sprint no devuelven una versión como sprint', async () => {
+    stubFetch(() => ({
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        fixVersions: [{ id: '1', name: 'v1.0' }],
+        components: [{ id: '2', name: 'Backend' }],
+      },
+    }))
+    expect((await jiraGetIssue(cred, 'GRAV-412', 10)).sprint).toBeNull()
+  })
+
+  it('con fixVersions/components y sprint presentes, el sprint gana sin importar el orden de los campos', async () => {
+    stubFetch(() => ({
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        fixVersions: [{ id: '1', name: 'v1.0' }],
+        customfield_10020: [{ id: 1, name: 'Sprint 5', state: 'active', boardId: 3 }],
+        components: [{ id: '2', name: 'Backend' }],
+      },
+    }))
+    expect((await jiraGetIssue(cred, 'GRAV-412', 10)).sprint).toBe('Sprint 5')
+
+    clearJiraCache()
+    stubFetch(() => ({
+      ...issuePayload,
+      fields: {
+        ...issuePayload.fields,
+        customfield_10020: [{ id: 1, name: 'Sprint 5', state: 'active', boardId: 3 }],
+        fixVersions: [{ id: '1', name: 'v1.0' }],
+        components: [{ id: '2', name: 'Backend' }],
+      },
+    }))
+    expect((await jiraGetIssue(cred, 'GRAV-412', 10)).sprint).toBe('Sprint 5')
+  })
 })

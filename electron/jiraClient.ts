@@ -77,15 +77,25 @@ export async function jiraSearch(
 }
 
 function sprintNameFrom(fields: Record<string, any>): string | null {
-  // El sprint es un campo custom cuyo id varía por instancia; se busca el que
-  // traiga objetos con `name` y `state`, que es la forma estable del agile field.
+  // El sprint es un campo custom cuyo id varía por instancia, así que se busca por
+  // forma: un elemento de sprint agile trae `state` (activo/cerrado/futuro), algo
+  // que `fixVersions`/`components` —también arrays de `{ name }`— nunca tienen.
+  // Sin exigir `state` se podría devolver una fix version o un componente como si
+  // fuera el sprint, dependiendo del orden de las claves del payload.
   for (const value of Object.values(fields)) {
     if (!Array.isArray(value)) continue
-    const active = value.find(entry => asRecord(entry).state === 'active')
-    const name = asRecord(active ?? value[value.length - 1]).name
+    const sprintLike = value.filter(entry => typeof asRecord(entry).state === 'string')
+    if (!sprintLike.length) continue
+    const active = sprintLike.find(entry => asRecord(entry).state === 'active')
+    const name = asRecord(active ?? sprintLike[sprintLike.length - 1]).name
     if (typeof name === 'string' && name) return name
   }
   return null
+}
+
+/** Recorta al final (más recientes) o devuelve todo si `maxComments` es 0/negativo. */
+function sliceComments(comments: JiraComment[], maxComments: number): JiraComment[] {
+  return maxComments > 0 ? comments.slice(-maxComments) : comments
 }
 
 export async function jiraGetIssue(
@@ -95,7 +105,12 @@ export async function jiraGetIssue(
 ): Promise<JiraIssueSnapshot> {
   const cacheKey = `${cred.site}:${key}`
   const hit = cache.get(cacheKey)
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.issue
+  // La caché guarda los comentarios completos, sin recortar: `maxComments` es un
+  // argumento por llamada, no una propiedad de la issue, así que dos llamadas con
+  // valores distintos dentro del TTL deben poder pedir cada una su propio recorte.
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    return { ...hit.issue, comments: sliceComments(hit.issue.comments, maxComments) }
+  }
 
   let payload: Record<string, any>
   try {
@@ -125,7 +140,8 @@ export async function jiraGetIssue(
     url: `${cred.site}/browse/${key}`,
     description: adfToText(fields.description),
     acceptanceCriteria: null,
-    comments: maxComments > 0 ? comments.slice(-maxComments) : comments,
+    // Sin recortar: el recorte por `maxComments` se aplica al leer, no al cachear.
+    comments,
     subtasks: (Array.isArray(fields.subtasks) ? fields.subtasks : []).map(refFrom),
     links: (Array.isArray(fields.issuelinks) ? fields.issuelinks : []).map(raw => {
       const link = asRecord(raw)
@@ -139,5 +155,5 @@ export async function jiraGetIssue(
   }
 
   cache.set(cacheKey, { at: Date.now(), issue })
-  return issue
+  return { ...issue, comments: sliceComments(issue.comments, maxComments) }
 }

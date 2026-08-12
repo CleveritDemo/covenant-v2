@@ -14,7 +14,7 @@ import type {
 import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
-import { buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
+import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
@@ -677,7 +677,7 @@ export function normalizeCodexEvent(value: unknown): AgentCliUiEvent[] {
   return out
 }
 
-function resolveWorkingDirectory(requested: string, fallback: string): string {
+export function resolveWorkingDirectory(requested: string, fallback: string): string {
   try {
     const dir = resolve(requested || fallback)
     return statSync(dir).isDirectory() ? dir : fallback
@@ -703,6 +703,11 @@ export function composePrompt(
     rules: request.rules,
   })
   const mcpCapabilityPrompt = buildMcpCapabilityPrompt(request.mcpsAllowed ?? [])
+  const jiraAttachedPrompt = buildJiraAttachedPrompt(
+    (Array.isArray(request.contexts) ? request.contexts : [])
+      .filter(context => context.kind === 'jira' && context.issueKey)
+      .map(context => context.issueKey as string),
+  )
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()
     || (imagePaths.length
@@ -763,6 +768,7 @@ export function composePrompt(
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(mcpCapabilityPrompt ? [mcpCapabilityPrompt, ''] : []),
+    ...(jiraAttachedPrompt ? [jiraAttachedPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(orchestrationBlock ? [orchestrationBlock, ''] : []),
     ...(delegationFollowUps.length ? [...delegationFollowUps, ''] : []),

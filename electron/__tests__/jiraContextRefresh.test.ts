@@ -1,0 +1,141 @@
+import { describe, expect, it, vi } from 'vitest'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, utimesSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import type { TabContext } from '../../src/shared/tabContext'
+import type { JiraIssueSnapshot } from '../../src/shared/jiraIssue'
+
+vi.mock('electron', () => ({
+  app: { getPath: () => tmpdir() },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (buffer: Buffer) => buffer.toString(),
+  },
+}))
+
+const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
+const { refreshStaleJiraContexts } = await import('../jiraContextRefresh')
+
+const snapshot: JiraIssueSnapshot = {
+  key: 'GRAV-412',
+  summary: 'nuevo título',
+  status: 'Done',
+  issueType: 'Bug',
+  assignee: 'Rodrigo',
+  priority: null,
+  sprint: null,
+  updated: '2026-08-12T09:40:00.000Z',
+  url: 'https://x.atlassian.net/browse/GRAV-412',
+  description: 'cuerpo nuevo',
+  acceptanceCriteria: null,
+  comments: [],
+  subtasks: [],
+  links: [],
+}
+
+const context: TabContext = {
+  id: 'iaterminal:jira:grav-412',
+  name: 'GRAV-412',
+  fileName: 'jira/GRAV-412.md',
+  kind: 'jira',
+  issueKey: 'GRAV-412',
+}
+
+function project(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-refresh-'))
+  mkdirSync(join(dir, '.gravity', 'jira'), { recursive: true })
+  writeJiraConfig(dir, {
+    site: 'https://x.atlassian.net',
+    projectKeys: ['GRAV'],
+    defaultJql: 'project = GRAV',
+    refreshSeconds: 900,
+    maxComments: 10,
+  })
+  writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@b.c', apiToken: 'tok' })
+  return dir
+}
+
+const issuePath = (dir: string): string => join(dir, '.gravity', 'jira', 'GRAV-412.md')
+
+describe('refreshStaleJiraContexts', () => {
+  it('sin snapshot previo lo crea', async () => {
+    const dir = project()
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('nuevo título')
+  })
+
+  it('un snapshot fresco no se vuelve a pedir', async () => {
+    const dir = project()
+    writeFileSync(issuePath(dir), '<!-- iaterminal:auto -->\n## Resumen\nviejo\n<!-- /iaterminal:auto -->', 'utf8')
+    const fetchIssue = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+    expect(fetchIssue).not.toHaveBeenCalled()
+  })
+
+  it('un snapshot vencido se refresca y conserva las notas', async () => {
+    const dir = project()
+    writeFileSync(
+      issuePath(dir),
+      [
+        '<!-- iaterminal:auto -->',
+        '## Resumen',
+        'viejo',
+        '<!-- /iaterminal:auto -->',
+        '',
+        '<!-- iaterminal:notes -->',
+        'la carrera está en loopChainFifo',
+        '<!-- /iaterminal:notes -->',
+      ].join('\n'),
+      'utf8',
+    )
+    const old = new Date(Date.now() - 3_600_000)
+    utimesSync(issuePath(dir), old, old)
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+
+    const body = readFileSync(issuePath(dir), 'utf8')
+    expect(body).toContain('nuevo título')
+    expect(body).toContain('la carrera está en loopChainFifo')
+    expect(body).not.toContain('viejo')
+  })
+
+  it('si Jira falla, el snapshot anterior queda intacto y no se lanza', async () => {
+    const dir = project()
+    writeFileSync(issuePath(dir), '<!-- iaterminal:auto -->\n## Resumen\nviejo\n<!-- /iaterminal:auto -->', 'utf8')
+    const old = new Date(Date.now() - 3_600_000)
+    utimesSync(issuePath(dir), old, old)
+
+    await refreshStaleJiraContexts([context], dir, {
+      fetchIssue: async () => { throw new Error('502') },
+    })
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('viejo')
+  })
+
+  it('sin credenciales no hace nada y no lanza', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-refresh-'))
+    const fetchIssue = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+    expect(fetchIssue).not.toHaveBeenCalled()
+  })
+
+  it('ignora los contextos que no son jira', async () => {
+    const dir = project()
+    const fetchIssue = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts(
+      [{ id: 'x', name: 'Git', fileName: 'git.md', kind: 'git' }],
+      dir,
+      { fetchIssue },
+    )
+    expect(fetchIssue).not.toHaveBeenCalled()
+  })
+
+  it('un issueKey en minúsculas resuelve la misma ruta y clave que contextFilePath', async () => {
+    const dir = project()
+    const fetchIssue = vi.fn(async () => snapshot)
+    const lowercaseContext: TabContext = { ...context, issueKey: 'grav-412' }
+    await refreshStaleJiraContexts([lowercaseContext], dir, { fetchIssue })
+    expect(fetchIssue).toHaveBeenCalledWith(expect.anything(), 'GRAV-412', 10)
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('nuevo título')
+  })
+})

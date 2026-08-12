@@ -87,6 +87,7 @@ import { resolveAgentCli } from './agentCliResolve'
 import {
   startAgentTurn,
   isAgentRunActive,
+  resolveWorkingDirectory,
   stopAgentRun,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
@@ -94,6 +95,7 @@ import {
   clearAgentContextDeliveryState,
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
+import { refreshStaleJiraContexts } from './jiraContextRefresh'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -1919,7 +1921,16 @@ function registerIpc(): void {
         }
       }
     }
-    startAgentTurn(win, request, readConfig(), app.getPath('home'))
+    // Matar el turno anterior ANTES del await: si no, sigue vivo durante el
+    // refresco. `startAgentTurn` vuelve a llamarlo y es idempotente.
+    stopAgentRun(request.paneId)
+    const home = app.getPath('home')
+    const cwd = resolveWorkingDirectory(request.cwd ?? '', home)
+    void refreshStaleJiraContexts(request.contexts ?? [], cwd)
+      .finally(() => {
+        if (win.isDestroyed()) return
+        startAgentTurn(win, request, readConfig(), home)
+      })
   })
   ipcMain.on(IPC.AGENT_CLI_STOP, (event, paneId: string) => {
     if (typeof paneId !== 'string') return

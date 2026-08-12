@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMcpCapabilityPrompt } from '../mcpCapabilityPrompt'
+import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../mcpCapabilityPrompt'
 
 describe('buildMcpCapabilityPrompt', () => {
   it('vacío sin allowlist', () => {
@@ -14,5 +14,18 @@ describe('buildMcpCapabilityPrompt', () => {
     expect(prompt).toContain('- `context7`')
     expect(prompt).toContain('Do not claim you lack integrated Jira/Atlassian access')
     expect(prompt).toContain('web_fetch')
+  })
+})
+
+describe('buildJiraAttachedPrompt', () => {
+  it('nombra las issues adjuntas y prohíbe volver a buscarlas', () => {
+    const prompt = buildJiraAttachedPrompt(['GRAV-412', 'COV-7'])
+    expect(prompt).toContain('GRAV-412')
+    expect(prompt).toContain('COV-7')
+    expect(prompt).toMatch(/do not/i)
+  })
+
+  it('sin issues adjuntas no añade nada al turno', () => {
+    expect(buildJiraAttachedPrompt([])).toBe('')
   })
 })

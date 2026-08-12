@@ -128,7 +128,7 @@ export function brainstormRoomContext(room: Pick<BrainstormRoom, 'id' | 'topic'>
     name: room.topic,
     fileName: `${stem}.md`,
     kind: 'notes',
-    icon: 'brain',
+    icon: 'messages',
     // De la paleta de contextos; fuera de ella el host lo descarta al normalizar.
     color: '#c084fc',
   }

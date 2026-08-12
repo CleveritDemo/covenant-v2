@@ -352,7 +352,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
           <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsListLoading')}</p>
         ) : rooms.length === 0 ? (
           <div className="brainstorm-list-modal__empty">
-            <Icon name="brain" size={30} aria-hidden />
+            <Icon name="messages" size={30} aria-hidden />
             <h3 className="brainstorm-list-modal__empty-title">{t('tabs.brainstormsListEmpty')}</h3>
             <p className="brainstorm-list-modal__empty-body">{t('tabs.brainstormsEmptyBody')}</p>
             <Button

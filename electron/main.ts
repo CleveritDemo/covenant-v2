@@ -78,6 +78,7 @@ import {
   readMcpConfigFor,
   readProjectMcpConfig,
 } from './mcpConfigFile'
+import { withMcpServerLiveness } from './mcpProbe'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
@@ -1700,13 +1701,18 @@ function registerIpc(): void {
     clearAgentContextDeliveryForSession(provider, cliSessionId)
   })
   ipcMain.handle(IPC.CONTEXT_METRICS_GET, () => getContextDeliveryMetrics())
-  ipcMain.handle(IPC.AGENT_MCP_SERVERS_LIST, (_event, request: McpServersListRequest) => {
+  ipcMain.handle(IPC.AGENT_MCP_SERVERS_LIST, async (_event, request: McpServersListRequest) => {
     const empty = { servers: [], file: '.mcp.json', fileExists: false, unreadProjectServers: [] }
     if (!request || !isAgentCliProvider(request.provider)) return empty
     const { provider } = request
     const cwd = request.cwd ?? ''
     const home = app.getPath('home')
-    const servers = mcpServerSummaries(readMcpConfigFor(provider, cwd, home))
+    const source = readMcpConfigFor(provider, cwd, home)
+    const servers = await withMcpServerLiveness(
+      mcpServerSummaries(source),
+      source,
+      home,
+    )
     // Si el CLI no lee el `.mcp.json` del proyecto, los que haya ahí le son
     // invisibles: el panel necesita poder nombrarlos para explicar por qué.
     const unreadProjectServers = providerUsesProjectMcpConfig(provider) || !cwd

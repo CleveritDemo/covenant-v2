@@ -177,6 +177,18 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.mcp-shelf__chip--needs-auth {
+  color: var(--caution);
+  border-color: color-mix(in srgb, var(--caution) 38%, transparent);
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+}
+
+.mcp-shelf__chip--unreachable {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
 .mcp-shelf__chip--project {
   color: var(--caution);
   border-color: color-mix(in srgb, var(--caution) 38%, transparent);

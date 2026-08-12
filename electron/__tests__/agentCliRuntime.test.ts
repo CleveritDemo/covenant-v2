@@ -185,6 +185,44 @@ describe('composePrompt identity', () => {
     expect(prompt).not.toContain('## Agent identity')
   })
 
+  it('inserts MCP capability block after identity when mcpsAllowed is set', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'copilot',
+        permissionMode: 'auto',
+        name: 'PO',
+        mcpsAllowed: ['jira'],
+        prompt: 'revisa CT-130',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).toContain('## MCP tools available')
+    expect(prompt).toContain('- `jira`')
+    expect(prompt).toContain('Do not claim you lack integrated Jira/Atlassian access')
+    const identityIdx = prompt.indexOf('## Agent identity')
+    const mcpIdx = prompt.indexOf('## MCP tools available')
+    const userIdx = prompt.indexOf('## User request')
+    expect(identityIdx).toBeGreaterThan(-1)
+    expect(mcpIdx).toBeGreaterThan(identityIdx)
+    expect(userIdx).toBeGreaterThan(mcpIdx)
+  })
+
+  it('omits MCP capability block without allowlist', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'copilot',
+        permissionMode: 'auto',
+        prompt: 'hola',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).not.toContain('## MCP tools available')
+  })
+
   it('includes agent results registry on every turn', () => {
     const prompt = composePrompt(
       request({

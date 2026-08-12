@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildMcpToolRows,
   mcpServerDefinition,
+  mcpsNeedingAuth,
   withMcpServer,
 } from '../mcpContext'
 
@@ -60,5 +61,39 @@ describe('buildMcpToolRows', () => {
       { name: 'jira', transport: '', state: 'project' },
       { name: 'viejo', transport: '', state: 'missing' },
     ])
+  })
+
+  it('propaga needsAuth / unreachable del probe y la url', () => {
+    const rows = buildMcpToolRows({
+      servers: [
+        { name: 'jira', transport: 'sse', url: 'https://mcp.atlassian.com/v1/sse', liveness: 'needsAuth' },
+        { name: 'down', transport: 'http', liveness: 'unreachable' },
+      ],
+      unreadProjectServers: [],
+      allowed: ['jira'],
+    })
+    expect(rows).toEqual([
+      {
+        name: 'jira',
+        transport: 'sse',
+        state: 'needsAuth',
+        url: 'https://mcp.atlassian.com/v1/sse',
+      },
+      { name: 'down', transport: 'http', state: 'unreachable' },
+    ])
+  })
+})
+
+describe('mcpsNeedingAuth', () => {
+  it('solo devuelve permitidos con liveness needsAuth', () => {
+    expect(mcpsNeedingAuth(
+      [
+        { name: 'jira', transport: 'sse', liveness: 'needsAuth' },
+        { name: 'ok', transport: 'stdio', liveness: 'ok' },
+        { name: 'other', transport: 'http', liveness: 'needsAuth' },
+      ],
+      ['jira', 'ok'],
+    )).toEqual(['jira'])
+    expect(mcpsNeedingAuth([], ['jira'])).toEqual([])
   })
 })

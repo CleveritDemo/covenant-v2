@@ -170,6 +170,34 @@ html[data-reduce-motion="true"] {
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 
+.agent-pane__mcp-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin: 8px 10px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--caution) 40%, var(--border));
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  font-family: var(--font-ui);
+}
+
+.agent-pane__mcp-banner-text {
+  margin: 0;
+  flex: 1 1 12rem;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.agent-pane__mcp-banner-note {
+  flex: 1 1 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .agent-pane__footer--chat-only {
   gap: 8px;
   overflow: visible;

@@ -14,6 +14,7 @@ import type {
 import { IPC } from '../src/shared/ipcChannels'
 import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
+import { buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
@@ -701,6 +702,7 @@ export function composePrompt(
     objective: request.objective,
     rules: request.rules,
   })
+  const mcpCapabilityPrompt = buildMcpCapabilityPrompt(request.mcpsAllowed ?? [])
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()
     || (imagePaths.length
@@ -760,6 +762,7 @@ export function composePrompt(
     : ''
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
+    ...(mcpCapabilityPrompt ? [mcpCapabilityPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(orchestrationBlock ? [orchestrationBlock, ''] : []),
     ...(delegationFollowUps.length ? [...delegationFollowUps, ''] : []),

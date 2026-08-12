@@ -91,6 +91,10 @@ import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
+import { mcpsNeedingAuth } from '@shared/mcpContext'
+import { mcpConnectHint } from '@shared/mcpProbe'
+import { agentCliSpec } from '@shared/agentCliProviders'
+import { Button } from '../components/ui'
 import './AgentPane.css'
 
 const MAX_QUEUED_TURNS = 10
@@ -422,6 +426,9 @@ export const AgentPane: React.FC<Props> = ({
    * Personal y org local-first: discover de `.gravity/*.md`.
    */
   const [diskContexts, setDiskContexts] = useState<TabContext[]>([])
+  /** MCPs permitidos que el probe marca como needsAuth (banner del pane). */
+  const [mcpAuthNeeded, setMcpAuthNeeded] = useState<{ name: string; url?: string }[]>([])
+  const [mcpAuthNotice, setMcpAuthNotice] = useState('')
   /** IDs que deben hacer pop-in; solo mensajes nuevos tras hidratar el chat. */
   const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
   /** Zoom de la burbuja de IA al materializar el primer token (no al crearla vacía). */
@@ -1071,6 +1078,34 @@ export const AgentPane: React.FC<Props> = ({
     prepareContextDiscovery,
     resolveWorkingCwd,
   ])
+
+  // Probe MCP: si el allowlist incluye servidores que aún piden OAuth, avisar arriba.
+  useEffect(() => {
+    const allowed = meta.mcpsAllowed ?? []
+    if (!allowed.length) {
+      setMcpAuthNeeded([])
+      setMcpAuthNotice('')
+      return
+    }
+    let alive = true
+    void window.api.listMcpServers({ provider: meta.provider, cwd })
+      .then(result => {
+        if (!alive) return
+        const names = new Set(mcpsNeedingAuth(result.servers, allowed))
+        setMcpAuthNeeded(
+          result.servers
+            .filter(server => names.has(server.name))
+            .map(server => ({ name: server.name, url: server.url })),
+        )
+        if (!names.size) setMcpAuthNotice('')
+      })
+      .catch(() => {
+        if (!alive) return
+        setMcpAuthNeeded([])
+        setMcpAuthNotice('')
+      })
+    return () => { alive = false }
+  }, [cwd, meta.mcpsAllowed, meta.provider])
 
   /** Catálogo de threads: abre uno nuevo y lo deja activo, sin tocar el live. */
   const commitNewThreadCatalog = useCallback((): string => {
@@ -2412,6 +2447,37 @@ export const AgentPane: React.FC<Props> = ({
       {/* Chat UI solo con ventana abierta; en mini el plano usa PlaneQuickChat. */}
       {windowOpen ? (
         <>
+          {mcpAuthNeeded.length > 0 ? (
+            <div className="agent-pane__mcp-banner" role="status">
+              <p className="agent-pane__mcp-banner-text">
+                {t('agentPane.mcpAuthBanner', {
+                  names: mcpAuthNeeded.map(item => item.name).join(', '),
+                })}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const first = mcpAuthNeeded[0]
+                  if (!first) return
+                  const hint = mcpConnectHint({
+                    provider: agentCliSpec(meta.provider).label,
+                    serverName: first.name,
+                    url: first.url,
+                  })
+                  void navigator.clipboard.writeText(hint).then(
+                    () => setMcpAuthNotice(t('agentPane.mcpConnectCopied')),
+                    () => setMcpAuthNotice(t('agentPane.mcpConnectCopyFailed')),
+                  )
+                }}
+              >
+                {t('agentPane.mcpAuthBannerAction')}
+              </Button>
+              {mcpAuthNotice ? (
+                <span className="agent-pane__mcp-banner-note">{mcpAuthNotice}</span>
+              ) : null}
+            </div>
+          ) : null}
           <AgentPaneMessages
             scrollRef={scrollRef}
             bubblesRef={bubblesRef}

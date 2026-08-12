@@ -7,6 +7,7 @@ import {
   type McpServersListResult,
   type McpToolRow,
 } from '@shared/mcpContext'
+import { mcpConnectHint } from '@shared/mcpProbe'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
@@ -45,6 +46,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   const [result, setResult] = useState<McpServersListResult | null>(null)
   const [busyName, setBusyName] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [editing, setEditing] = useState(false)
   /**
    * Elegir «Solo estas» con nada marcado todavía. El modo real se deriva de la
@@ -71,6 +73,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   useEffect(() => {
     setResult(null)
     setError('')
+    setNotice('')
     return load()
   }, [load])
 
@@ -80,6 +83,9 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
     allowed: value,
   }), [result, value])
 
+  const configuredCount = rows.filter(row =>
+    row.state === 'ready' || row.state === 'needsAuth' || row.state === 'unreachable',
+  ).length
   const readyCount = rows.filter(row => row.state === 'ready').length
 
   const toggle = (name: string): void => {
@@ -92,6 +98,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   const importServer = (name: string): void => {
     setBusyName(name)
     setError('')
+    setNotice('')
     void window.api.importProjectMcpServer({ provider, cwd, name })
       .then(res => {
         if (!res.ok) setError(res.error ?? t('agentPane.mcpImportFailed'))
@@ -99,6 +106,20 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
       })
       .catch(() => setError(t('agentPane.mcpImportFailed')))
       .finally(() => setBusyName(''))
+  }
+
+  const connectServer = (row: McpToolRow): void => {
+    setError('')
+    setNotice('')
+    const hint = mcpConnectHint({
+      provider: providerLabel,
+      serverName: row.name,
+      url: row.url,
+    })
+    void navigator.clipboard.writeText(hint).then(
+      () => setNotice(t('agentPane.mcpConnectCopied')),
+      () => setError(t('agentPane.mcpConnectCopyFailed')),
+    )
   }
 
   const openConfigFile = (): void => {
@@ -163,6 +184,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
         <ul className="mcp-shelf__rows">
           {rows.map(row => {
             const checked = value.includes(row.name)
+            const canCheck = mode === 'pick' && row.state !== 'project'
             return (
               <li
                 key={row.name}
@@ -171,7 +193,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
                   row.state === 'project' ? 'mcp-shelf__row--project' : '',
                 ].filter(Boolean).join(' ')}
               >
-                {mode === 'pick' && row.state !== 'project' ? (
+                {canCheck ? (
                   <button
                     type="button"
                     className="mcp-shelf__check"
@@ -192,6 +214,26 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
                 {row.state === 'ready' ? (
                   <span className="mcp-shelf__chip mcp-shelf__chip--ready">
                     {t('agentPane.mcpStateReady')}
+                  </span>
+                ) : null}
+                {row.state === 'needsAuth' ? (
+                  <>
+                    <span className="mcp-shelf__chip mcp-shelf__chip--needs-auth">
+                      {t('agentPane.mcpStateNeedsAuth')}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={locked || busyName === row.name}
+                      onClick={() => connectServer(row)}
+                    >
+                      {t('agentPane.mcpConnectAction')}
+                    </Button>
+                  </>
+                ) : null}
+                {row.state === 'unreachable' ? (
+                  <span className="mcp-shelf__chip mcp-shelf__chip--unreachable">
+                    {t('agentPane.mcpStateUnreachable')}
                   </span>
                 ) : null}
                 {row.state === 'missing' ? (
@@ -221,6 +263,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
       )}
 
       {error ? <p className="mcp-shelf__error">{error}</p> : null}
+      {notice ? <p className="mcp-shelf__note">{notice}</p> : null}
 
       <div className="mcp-shelf__foot">
         <span className="mcp-shelf__source">
@@ -241,7 +284,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
         <span className="mcp-shelf__spacer" />
         <span className="mcp-shelf__count">
           {mode === 'pick'
-            ? t('agentPane.mcpCountPicked', { n: value.length, total: readyCount })
+            ? t('agentPane.mcpCountPicked', { n: value.length, total: configuredCount })
             : t('agentPane.mcpCountAvailable', { n: readyCount })}
         </span>
       </div>

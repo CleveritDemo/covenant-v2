@@ -12,6 +12,8 @@
  */
 
 import type { AgentCliProvider } from './agentCliProviders'
+import type { McpProbeStatus } from './mcpProbe'
+import { mcpServerRemoteUrl } from './mcpProbe'
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -32,6 +34,13 @@ export interface McpServerSummary {
   name: string
   /** `stdio` | `http` | lo que declare el archivo; `unknown` si no se deduce. */
   transport: string
+  /** URL remota si la hay; el panel la usa para el CTA de conexión. */
+  url?: string
+  /**
+   * Resultado del probe HTTP del main. Ausente en stdio (siempre listo) o
+   * cuando aún no se ha sondeado.
+   */
+  liveness?: McpProbeStatus
 }
 
 /**
@@ -42,10 +51,15 @@ export interface McpServerSummary {
 export function mcpServerSummaries(source: unknown): McpServerSummary[] {
   const servers = asRecord(asRecord(source)?.mcpServers)
   if (!servers) return []
-  return Object.keys(servers).map(name => ({
-    name,
-    transport: transportOf(asRecord(servers[name]) ?? {}),
-  }))
+  return Object.keys(servers).map(name => {
+    const definition = servers[name]
+    const url = mcpServerRemoteUrl(definition) ?? undefined
+    return {
+      name,
+      transport: transportOf(asRecord(definition) ?? {}),
+      ...(url ? { url } : {}),
+    }
+  })
 }
 
 function serverSection(name: string, raw: unknown): string {
@@ -157,16 +171,25 @@ export function withMcpServer(
 
 /**
  * Qué se puede hacer con un servidor desde el panel de herramientas:
- * - `ready`: está en la config que este CLI lee.
+ * - `ready`: está en la config que este CLI lee y el probe no pide auth.
+ * - `needsAuth`: remoto que responde 401/403 (hay que conectar OAuth).
+ * - `unreachable`: el probe no pudo hablar con el host.
  * - `project`: lo declara el `.mcp.json` del proyecto y este CLI no lo lee.
  * - `missing`: el agente lo tiene permitido pero ya no está en ninguna config.
  */
-export type McpToolState = 'ready' | 'project' | 'missing'
+export type McpToolState = 'ready' | 'needsAuth' | 'unreachable' | 'project' | 'missing'
 
 export interface McpToolRow {
   name: string
   transport: string
   state: McpToolState
+  url?: string
+}
+
+function stateFromLiveness(liveness: McpProbeStatus | undefined): McpToolState {
+  if (liveness === 'needsAuth') return 'needsAuth'
+  if (liveness === 'unreachable') return 'unreachable'
+  return 'ready'
 }
 
 /**
@@ -182,7 +205,8 @@ export function buildMcpToolRows(input: {
   const rows: McpToolRow[] = input.servers.map(server => ({
     name: server.name,
     transport: server.transport,
-    state: 'ready',
+    state: stateFromLiveness(server.liveness),
+    ...(server.url ? { url: server.url } : {}),
   }))
   const seen = new Set(rows.map(row => row.name))
   for (const name of input.unreadProjectServers) {
@@ -196,4 +220,16 @@ export function buildMcpToolRows(input: {
     rows.push({ name, transport: '', state: 'missing' })
   }
   return rows
+}
+
+/** Nombres permitidos cuyo probe sigue pidiendo auth. */
+export function mcpsNeedingAuth(
+  servers: readonly McpServerSummary[],
+  allowed: readonly string[],
+): string[] {
+  if (!allowed.length) return []
+  const allow = new Set(allowed)
+  return servers
+    .filter(server => allow.has(server.name) && server.liveness === 'needsAuth')
+    .map(server => server.name)
 }

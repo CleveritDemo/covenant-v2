@@ -1455,6 +1455,20 @@ const es = {
       install: 'Instalar',
     },
   },
+
+  jira: {
+    section: 'Jira',
+    siteLabel: 'Sitio',
+    siteHint: 'La URL de tu Atlassian Cloud, p. ej. https://acme.atlassian.net',
+    emailLabel: 'Email de la cuenta',
+    tokenLabel: 'API token',
+    tokenHint: 'Se crea en id.atlassian.com. Se guarda cifrado en este equipo, nunca en el repo.',
+    projectKeysLabel: 'Claves de proyecto',
+    projectKeysHint: 'Separadas por coma, p. ej. GRAV, COV. Solo esos prefijos se leen como claves.',
+    connectAction: 'Conectar',
+    connectedAs: 'Conectado como {{name}}',
+    disconnectedHint: 'Sin conectar. Todavía no se pueden adjuntar issues como contexto.',
+  },
 } satisfies AppTranslations
 
 export default es

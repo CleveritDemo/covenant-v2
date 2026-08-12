@@ -17,6 +17,7 @@ import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
 import { GitHubTokenField } from './GitHubTokenField'
+import { JiraConnectionField } from './JiraConnectionField'
 import { AiMarkdown } from './AiMarkdown'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
 import { QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
@@ -33,6 +34,8 @@ interface Props {
   config: AppConfig
   onSave: (config: AppConfig) => void
   onClose: () => void
+  /** cwd de la pestaña activa: `jira.json` es por proyecto, no de la app. */
+  cwd?: string
 }
 
 const LANGUAGES: { value: Language; label: string }[] = [
@@ -43,6 +46,7 @@ const LANGUAGES: { value: Language; label: string }[] = [
 const CATEGORIES = [
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
+  { id: 'jira', icon: 'jira', labelKey: 'jira.section' },
   { id: 'appearance', icon: 'sparkles', labelKey: 'settings.appearanceSection' },
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
@@ -65,6 +69,7 @@ type CategoryId = (typeof CATEGORIES)[number]['id']
 const SEARCH_INDEX = [
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
   { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
+  { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
@@ -83,7 +88,7 @@ const SEARCH_INDEX = [
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
 
-export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
+export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '' }) => {
   const { t } = useT()
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
@@ -418,6 +423,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                 value={form.githubToken}
                 onChange={token => update('githubToken', token)}
               />
+            </SettingsSection>
+          )}
+
+          {category === 'jira' && (
+            <SettingsSection title={t('jira.section')} anchor="settings-jira">
+              <JiraConnectionField cwd={cwd} />
             </SettingsSection>
           )}
 

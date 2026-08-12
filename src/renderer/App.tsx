@@ -5775,6 +5775,11 @@ export const App: React.FC = () => {
 
       <AppModals
         config={config}
+        settingsCwd={
+          tabs.find(t => t.id === activeTabId)?.projectFolder?.trim()
+          || tabs.find(t => t.id === activeTabId)?.orgWorkspace?.localDir?.trim()
+          || ''
+        }
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}

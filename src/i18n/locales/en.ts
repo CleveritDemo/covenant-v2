@@ -1453,6 +1453,20 @@ const en = {
       install: 'Install',
     },
   },
+
+  jira: {
+    section: 'Jira',
+    siteLabel: 'Site',
+    siteHint: 'Your Atlassian Cloud URL, e.g. https://acme.atlassian.net',
+    emailLabel: 'Account email',
+    tokenLabel: 'API token',
+    tokenHint: 'Created at id.atlassian.com. Stored encrypted on this machine, never in the repo.',
+    projectKeysLabel: 'Project keys',
+    projectKeysHint: 'Comma-separated, e.g. GRAV, COV. Only these prefixes are read as issue keys.',
+    connectAction: 'Connect',
+    connectedAs: 'Connected as {{name}}',
+    disconnectedHint: 'Not connected. Issues cannot be attached as context yet.',
+  },
 }
 
 export default en

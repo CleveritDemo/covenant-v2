@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useId, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import {
   TAB_CONTEXT_COLORS,
@@ -7,11 +7,15 @@ import {
   resolveContextIcon,
 } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
+import { TerminalModal } from '../components/TerminalModal'
 import { Icon } from '../components/ui/Icon'
 import { appearanceIconName } from './tabContextKindIcons'
 import { TabContextColorSwatch } from './TabContextColorSwatch'
 import { TabContextIconSwatch } from './TabContextIconSwatch'
 import './TabContextAppearancePopup.css'
+
+/** Por encima del formulario de contexto (z=920). */
+const APPEARANCE_MODAL_Z = 940
 
 export interface TabContextAppearancePopupProps {
   draft: Pick<TabContext, 'name' | 'kind' | 'icon' | 'color'>
@@ -19,8 +23,8 @@ export interface TabContextAppearancePopupProps {
 }
 
 /**
- * Selector de aspecto (icono + color) como popup bajo el trigger.
- * No empuja el formulario: flota con sombra de modal y cierra con Escape / clic fuera.
+ * Selector de aspecto (icono + color) como modal anidado delante de todo.
+ * El trigger vive en el formulario; el panel sale por portal con scrim propio.
  */
 export const TabContextAppearancePopup: React.FC<TabContextAppearancePopupProps> = ({
   draft,
@@ -29,45 +33,20 @@ export const TabContextAppearancePopup: React.FC<TabContextAppearancePopupProps>
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [iconQuery, setIconQuery] = useState('')
-  const rootRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
-  const panelId = useId()
   const iconGroups = filterContextIconGroups(iconQuery)
   const chipColor = resolveContextColor(draft)
   const valueLabel = draft.name?.trim() || t(`tabContexts.kind_${draft.kind}`)
 
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      // TerminalModal también escucha Escape en window capture y se registra
-      // antes: stopPropagation no lo frena. Marcamos defaultPrevented aquí y
-      // el modal respeta data-escape-layer (ver panel) para no cerrarse.
-      event.preventDefault()
-      event.stopPropagation()
-      setOpen(false)
-    }
-    const onPointerDown = (event: MouseEvent): void => {
-      if (rootRef.current?.contains(event.target as Node)) return
-      setOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    window.addEventListener('mousedown', onPointerDown, true)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown, true)
-      window.removeEventListener('mousedown', onPointerDown, true)
-    }
-  }, [open])
-
   return (
-    <div className="tab-context-appearance-popup" ref={rootRef}>
+    <div className="tab-context-appearance-popup">
       <button
         type="button"
         className="tab-context-appearance-popup__trigger"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen(prev => !prev)}
+        aria-controls={open ? titleId : undefined}
+        onClick={() => setOpen(true)}
       >
         <span
           className="tab-contexts__appearance-chip"
@@ -75,20 +54,24 @@ export const TabContextAppearancePopup: React.FC<TabContextAppearancePopupProps>
         >
           <Icon name={appearanceIconName(resolveContextIcon(draft))} size={15} />
         </span>
-        <span className="tab-contexts__appearance-title" id={titleId}>
+        <span className="tab-contexts__appearance-title">
           {t('tabContexts.appearance')}
         </span>
         <small className="tab-contexts__appearance-value">{valueLabel}</small>
       </button>
 
-      {open ? (
-        <div
-          id={panelId}
-          className="tab-context-appearance-popup__panel"
-          role="dialog"
-          aria-labelledby={titleId}
-          data-escape-layer=""
-        >
+      <TerminalModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('tabContexts.appearance')}
+        titleId={titleId}
+        size="md"
+        zIndex={APPEARANCE_MODAL_Z}
+        closeOnEscape
+        closeOnBackdrop
+        bodyLayout="spacious"
+      >
+        <div className="tab-context-appearance-popup__body">
           <fieldset className="tab-contexts__appearance">
             <legend>
               <span>{t('tabContexts.icon')}</span>
@@ -151,7 +134,7 @@ export const TabContextAppearancePopup: React.FC<TabContextAppearancePopupProps>
             </div>
           </fieldset>
         </div>
-      ) : null}
+      </TerminalModal>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import React, { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { TabContext } from '@shared/tabContext'
+import { TerminalModal } from '../../components/TerminalModal'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({
@@ -39,7 +40,7 @@ function Harness({
 afterEach(cleanup)
 
 describe('TabContextAppearancePopup', () => {
-  it('abre el popup, filtra iconos y conserva selección de icono y color', () => {
+  it('abre el modal en portal, filtra iconos y conserva selección de icono y color', () => {
     render(<Harness />)
 
     const trigger = screen.getByRole('button', { name: /tabContexts\.appearance/i })
@@ -51,6 +52,8 @@ describe('TabContextAppearancePopup', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     const dialog = screen.getByRole('dialog')
     expect(dialog).toBeTruthy()
+    expect(dialog.closest('.terminal-modal-root')).toBeTruthy()
+    expect(document.body.contains(dialog)).toBe(true)
 
     const search = within(dialog).getByLabelText('tabContexts.iconSearch')
     fireEvent.change(search, { target: { value: 'bug' } })
@@ -62,57 +65,39 @@ describe('TabContextAppearancePopup', () => {
 
     fireEvent.click(within(dialog).getByRole('radio', { name: '#fb7185' }))
     expect(within(dialog).getByRole('radio', { name: '#fb7185' }).getAttribute('aria-checked')).toBe('true')
-    // Sigue abierto tras elegir icono/color.
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
-  it('cierra con Escape y con clic fuera', () => {
-    render(
-      <div>
-        <Harness />
-        <button type="button">outside</button>
-      </div>,
-    )
+  it('cierra con Escape y con el traffic de cierre', () => {
+    render(<Harness />)
 
     fireEvent.click(screen.getByRole('button', { name: /tabContexts\.appearance/i }))
     expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByRole('dialog').hasAttribute('data-escape-layer')).toBe(true)
+    expect(screen.getByRole('dialog').closest('.terminal-modal-root')).toBeTruthy()
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /tabContexts\.appearance/i }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
-
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'outside' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ui.closeAriaLabel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('con el popup abierto, Escape no cierra un modal padre que respeta data-escape-layer', () => {
-    const onModalClose = vi.fn()
+  it('Escape cierra solo el modal de Aspecto, no el formulario padre', () => {
+    const onParentClose = vi.fn()
     render(
-      <div data-testid="modal-root">
+      <TerminalModal open onClose={onParentClose} title="Parent" zIndex={920}>
         <Harness />
-      </div>,
+      </TerminalModal>,
     )
 
-    // TerminalModal se registra al montar el modal (antes que el popup).
-    const modalRoot = screen.getByTestId('modal-root')
-    const onModalKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      if (modalRoot.querySelector('[data-escape-layer]')) return
-      onModalClose()
-    }
-    window.addEventListener('keydown', onModalKey, true)
-    try {
-      fireEvent.click(screen.getByRole('button', { name: /tabContexts\.appearance/i }))
-      expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Parent' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /tabContexts\.appearance/i }))
+    expect(screen.getByRole('dialog', { name: 'tabContexts.appearance' })).toBeTruthy()
 
-      fireEvent.keyDown(window, { key: 'Escape' })
-      expect(onModalClose).not.toHaveBeenCalled()
-      expect(screen.queryByRole('dialog')).toBeNull()
-    } finally {
-      window.removeEventListener('keydown', onModalKey, true)
-    }
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'tabContexts.appearance' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Parent' })).toBeTruthy()
+    expect(onParentClose).not.toHaveBeenCalled()
   })
 })

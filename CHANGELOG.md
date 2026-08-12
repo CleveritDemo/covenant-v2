@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.62
+
+- **Aspecto abre como modal**: icono y color salen delante de todo con scrim propio, no embebidos en la columna del formulario.
+
 ## v0.39.61
 
 - **Aspecto de contextos en popup**: icono y color se eligen en un panel flotante bajo el trigger, sin empujar el formulario; Escape cierra solo el popup.

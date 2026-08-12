@@ -71,22 +71,53 @@ export function defaultExtraBinDirs(home = homedir()): string[] {
     : defaultExtraBinDirsUnix(home)
 }
 
-function readLoginShellPath(): string | undefined {
-  if (process.platform === 'win32') return undefined
+/** Variables propias de la sesión de shell: importarlas rompería al proceso host. */
+const SHELL_ENV_SKIP = new Set(['PATH', 'Path', 'PWD', 'OLDPWD', 'SHLVL', 'TERM', 'TMPDIR', '_'])
+
+/**
+ * Env completo del shell de login (incluye `PATH`). Una app GUI arranca sin él,
+ * así que los CLIs de agente no verían las claves exportadas en `~/.zshrc`.
+ */
+export function readLoginShellEnv(): Record<string, string> {
+  if (process.platform === 'win32') return {}
   const shell = process.env.SHELL?.trim() || '/bin/zsh'
   try {
-    const stdout = execFileSync(shell, ['-ilc', 'printf %s "$PATH"'], {
+    const stdout = execFileSync(shell, ['-ilc', 'env -0 2>/dev/null || env'], {
       encoding: 'utf8',
       timeout: 8000,
+      maxBuffer: 4 * 1024 * 1024,
       env: {
         ...process.env,
         TERM: 'dumb',
       },
     })
-    const trimmed = String(stdout).replace(/\r?\n/g, '').trim()
-    return trimmed || undefined
+    return parseShellEnv(String(stdout))
   } catch {
-    return undefined
+    return {}
+  }
+}
+
+/** ponytail: sin `env -0` partimos por líneas; un valor multilínea se trunca. */
+export function parseShellEnv(stdout: string): Record<string, string> {
+  const entries = stdout.includes('\0') ? stdout.split('\0') : stdout.split('\n')
+  const out: Record<string, string> = {}
+  for (const entry of entries) {
+    const eq = entry.indexOf('=')
+    if (eq <= 0) continue
+    const key = entry.slice(0, eq)
+    // Descarta ruido del rc interactivo y exports raros (`BASH_FUNC_x%%`).
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue
+    out[key] = entry.slice(eq + 1).replace(/\r?\n$/, '')
+  }
+  return out
+}
+
+/** Copia las variables del shell que el proceso host no trae. Lo ya definido manda. */
+export function mergeShellEnv(env: NodeJS.ProcessEnv, shellEnv: Record<string, string>): void {
+  for (const [key, value] of Object.entries(shellEnv)) {
+    if (SHELL_ENV_SKIP.has(key)) continue
+    if (env[key] !== undefined) continue
+    env[key] = value
   }
 }
 
@@ -116,8 +147,10 @@ export function readWindowsPersistentPath(): string | undefined {
 }
 
 /**
- * Amplía `PATH` del proceso con el del shell/usuario y directorios comunes.
- * Necesario cuando Electron arranca desde el explorador/Dock sin el PATH de la terminal.
+ * Amplía `PATH` y el resto del entorno con los del shell/usuario.
+ * Necesario cuando Electron arranca desde el explorador/Dock: sin esto los CLIs
+ * de agente (`env: process.env`) no ven ni el PATH ni las claves del `~/.zshrc`.
+ * En Windows el proceso ya hereda el env de usuario del registro; solo falta PATH.
  */
 export function applyLoginShellPath(env: NodeJS.ProcessEnv = process.env): void {
   const current = splitPath(env.PATH ?? env.Path ?? '')
@@ -127,7 +160,9 @@ export function applyLoginShellPath(env: NodeJS.ProcessEnv = process.env): void 
     env.PATH = mergePathEntries(fromUser, extras, current)
     return
   }
-  const fromShell = splitPath(readLoginShellPath() ?? '')
+  const shellEnv = readLoginShellEnv()
+  mergeShellEnv(env, shellEnv)
+  const fromShell = splitPath(shellEnv.PATH ?? '')
   const extras = defaultExtraBinDirs()
   env.PATH = mergePathEntries(fromShell, extras, current)
 }

@@ -12,9 +12,12 @@ Covenant Gravity se actualiza solo desde GitHub Releases con
    `latest-linux.yml`.
 3. Si la versión del manifiesto es mayor que la empaquetada, el renderer pinta
    la píldora en la titlebar (`UpdateBanner.tsx`) con la versión y las notas.
-4. Al pulsar *Instalar* se descarga el artefacto y, al terminar, se cierran las
-   ventanas por la vía normal (el renderer alcanza a guardar los scrollbacks) y
-   se instala y relanza.
+4. Al pulsar *Instalar* se descarga el artefacto. Al terminar, el chip pasa a
+   *ready* con *Restart*; la app **no** se reinicia sola. *Restart* (o
+   *Reiniciar para actualizar* en Ajustes) cierra las ventanas por la vía
+   normal, guarda scrollbacks e instala. Si se cierra el chip con la X en
+   *ready*, la descarga se conserva y se puede aplicar desde Ajustes →
+   Actualizaciones.
 
 En desarrollo no corre: sin `app-update.yml` empaquetado el chequeo solo hace
 ruido, así que `registerSelfUpdate()` sale temprano si `!app.isPackaged`.

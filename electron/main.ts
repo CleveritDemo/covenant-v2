@@ -87,7 +87,9 @@ import { resolveAgentCli } from './agentCliResolve'
 import {
   startAgentTurn,
   isAgentRunActive,
-  resolveWorkingDirectory,
+  isAgentRunReservationCurrent,
+  reserveAgentRun,
+  resolveProjectCwd,
   stopAgentRun,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
@@ -1921,15 +1923,24 @@ function registerIpc(): void {
         }
       }
     }
-    // Matar el turno anterior ANTES del await: si no, sigue vivo durante el
-    // refresco. `startAgentTurn` vuelve a llamarlo y es idempotente.
-    stopAgentRun(request.paneId)
+    // Reserva el pane ANTES del await: si solo matáramos el turno anterior
+    // (`stopAgentRun`), el pane queda sin entrada en `agentRuns` durante todo
+    // el refresco y un Stop/close/quit no encuentra nada que matar — el spawn
+    // llega igual cuando el refresco termina. Reservar deja un slot con la
+    // generación nueva para que Stop lo invalide de verdad.
     const home = app.getPath('home')
-    const cwd = resolveWorkingDirectory(request.cwd ?? '', home)
-    void refreshStaleJiraContexts(request.contexts ?? [], cwd)
+    const generation = reserveAgentRun(request.paneId, win)
+    // `.gravity` vive en el proyecto, nunca en el worktree: el refresco necesita
+    // el cwd del proyecto (`projectCwd`), no el cwd del spawn del turno (`cwd`).
+    const projectCwd = resolveProjectCwd(request, home)
+    void refreshStaleJiraContexts(request.contexts ?? [], projectCwd)
+      .catch(() => { /* refreshStaleJiraContexts no debería rechazar, pero el turno no depende de ello */ })
       .finally(() => {
         if (win.isDestroyed()) return
-        startAgentTurn(win, request, readConfig(), home)
+        // Si Stop (u otro turno para el mismo pane) invalidó la reserva mientras
+        // esperábamos Jira, no arrancar un turno que la UI ya muestra como parado.
+        if (!isAgentRunReservationCurrent(request.paneId, generation)) return
+        startAgentTurn(win, request, readConfig(), home, generation)
       })
   })
   ipcMain.on(IPC.AGENT_CLI_STOP, (event, paneId: string) => {

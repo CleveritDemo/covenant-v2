@@ -25,6 +25,7 @@ import {
   buildContextPromptDelivery,
   buildRequestedContextSections,
   extractContextSectionRequest,
+  materializeTabContext,
   type ContextDeliverySnapshot,
   type ContextPromptDelivery,
 } from './tabContextBuild'
@@ -677,7 +678,7 @@ export function normalizeCodexEvent(value: unknown): AgentCliUiEvent[] {
   return out
 }
 
-export function resolveWorkingDirectory(requested: string, fallback: string): string {
+function resolveWorkingDirectory(requested: string, fallback: string): string {
   try {
     const dir = resolve(requested || fallback)
     return statSync(dir).isDirectory() ? dir : fallback
@@ -703,9 +704,17 @@ export function composePrompt(
     rules: request.rules,
   })
   const mcpCapabilityPrompt = buildMcpCapabilityPrompt(request.mcpsAllowed ?? [])
+  // `.gravity` vive en el proyecto, nunca en el worktree del turno (cwd) — el
+  // chequeo de snapshot usa el mismo cwd que el resto de operaciones de contexto.
+  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
   const jiraAttachedPrompt = buildJiraAttachedPrompt(
     (Array.isArray(request.contexts) ? request.contexts : [])
       .filter(context => context.kind === 'jira' && context.issueKey)
+      // Sin esto, un context.kind==='jira' sin snapshot todavía en disco (sin
+      // credenciales configuradas, o Jira caído en el primer fetch) haría que el
+      // preámbulo afirmara "fresh snapshot" y prohibiera el único MCP que sí
+      // tiene el dato — contradice el bloque de capacidades dos líneas arriba.
+      .filter(context => materializeTabContext(context, resultsCwd, { write: false }).ok)
       .map(context => context.issueKey as string),
   )
   const imageSection = buildImageAttachmentSection(imagePaths)
@@ -714,7 +723,6 @@ export function composePrompt(
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
   const resultsInstruction = buildAiAgentResultsInstruction(request.name)
-  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
   const recentResultsPrompt = Array.isArray(request.tabAgentIds) && request.tabAgentIds.length
     ? buildRecentAgentResultsPrompt(resultsCwd, request.tabAgentIds)
     : ''
@@ -942,9 +950,7 @@ export function runAgentCliSpawn(
   handlers: AgentCliSpawnHandlers,
   promptOverride?: string,
 ): void {
-  stopAgentRun(request.paneId)
-  const generation = nextAgentRunGeneration++
-  agentRuns.set(request.paneId, { proc: null, windowId: -1, generation })
+  const generation = reserveAgentRun(request.paneId, null)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const prompt = promptOverride ?? composePrompt(request, cwd)
   let latestSessionId = request.cliSessionId
@@ -1065,12 +1071,15 @@ export function startAgentTurn(
   request: AgentCliStartRequest,
   config: AppConfig,
   home: string,
+  /**
+   * Generación ya reservada por el caller (p. ej. el handler de
+   * `AGENT_CLI_START`, antes de su refresco async de Jira). Si falta, se
+   * reserva aquí mismo — mismo camino que antes, ahora factorizado en
+   * `reserveAgentRun` para no tener dos implementaciones de la reserva.
+   */
+  reservedGeneration?: number,
 ): void {
-  stopAgentRun(request.paneId)
-  // Reserva el paneId ya: el close del proceso anterior no debe emitir EXIT
-  // mientras arrancamos el turno nuevo (p. ej. durante await de cwd en el renderer).
-  const generation = nextAgentRunGeneration++
-  agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
+  const generation = reservedGeneration ?? reserveAgentRun(request.paneId, win)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const projectCwd = resolveProjectCwd(request, home)
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
@@ -1390,6 +1399,31 @@ export function startAgentTurn(
 
 export function isAgentRunActive(paneId: string): boolean {
   return agentRuns.has(paneId)
+}
+
+/**
+ * Reserva el paneId para un turno nuevo: mata cualquier turno anterior (síncrono,
+ * sin `await` de por medio) y aparta el slot con una generación fresca.
+ * `startAgentTurn` la usa cuando no recibe una generación ya reservada; el
+ * handler de `AGENT_CLI_START` la llama directamente para reservar el pane ANTES
+ * del refresco async de Jira — así Stop/close/quit encuentran algo que matar
+ * mientras el turno todavía no arrancó, en vez de que `stopAgentRun` salga en
+ * `if (!run) return` y el spawn llegue de todas formas cuando el refresco termine.
+ */
+export function reserveAgentRun(paneId: string, win: BrowserWindow | null): number {
+  stopAgentRun(paneId)
+  const generation = nextAgentRunGeneration++
+  agentRuns.set(paneId, { proc: null, windowId: win?.id ?? -1, generation })
+  return generation
+}
+
+/**
+ * ¿La reserva sigue siendo la misma generación? El handler la comprueba tras el
+ * `await` del refresco para decidir si el turno diferido todavía debe arrancar,
+ * o si Stop / un turno más nuevo para el mismo pane la invalidó mientras tanto.
+ */
+export function isAgentRunReservationCurrent(paneId: string, generation: number): boolean {
+  return agentRuns.get(paneId)?.generation === generation
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, utimesSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, utimesSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { TabContext } from '../../src/shared/tabContext'
@@ -16,6 +16,7 @@ vi.mock('electron', () => ({
 
 const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
 const { refreshStaleJiraContexts } = await import('../jiraContextRefresh')
+const { materializeTabContext } = await import('../tabContextBuild')
 
 const snapshot: JiraIssueSnapshot = {
   key: 'GRAV-412',
@@ -136,6 +137,41 @@ describe('refreshStaleJiraContexts', () => {
     const lowercaseContext: TabContext = { ...context, issueKey: 'grav-412' }
     await refreshStaleJiraContexts([lowercaseContext], dir, { fetchIssue })
     expect(fetchIssue).toHaveBeenCalledWith(expect.anything(), 'GRAV-412', 10)
+    // No basta con comparar contra `issuePath()` (un literal que este test
+    // escribió): hay que pasar por el lector real para pinsar escritor↔lector
+    // de punta a punta, que es justo lo que este test existe para verificar.
+    const materialized = materializeTabContext(lowercaseContext, dir)
+    expect(materialized.ok).toBe(true)
+    expect(materialized.content).toContain('nuevo título')
+  })
+
+  it('un context jira sin issueKey explícito cae al nombre de archivo, igual que contextFilePath', async () => {
+    const dir = project()
+    const fetchIssue = vi.fn(async () => snapshot)
+    const noKeyContext: TabContext = {
+      id: 'iaterminal:jira:grav-412',
+      name: 'GRAV-412',
+      fileName: 'jira/GRAV-412.md',
+      kind: 'jira',
+    }
+    await refreshStaleJiraContexts([noKeyContext], dir, { fetchIssue })
+    expect(fetchIssue).toHaveBeenCalledWith(expect.anything(), 'GRAV-412', 10)
     expect(readFileSync(issuePath(dir), 'utf8')).toContain('nuevo título')
+  })
+
+  it('un issueKey hostil no escribe fuera de la carpeta del proyecto', async () => {
+    const dir = project()
+    const fetchIssue = vi.fn(async () => snapshot)
+    const hostileContext: TabContext = { ...context, issueKey: '../../evil' }
+    await refreshStaleJiraContexts([hostileContext], dir, { fetchIssue })
+
+    const jiraDir = join(dir, '.gravity', 'jira')
+    for (const name of readdirSync(jiraDir)) {
+      expect(name.includes('..')).toBe(false)
+      expect(name.includes('/')).toBe(false)
+    }
+    expect(existsSync(join(tmpdir(), 'evil.md'))).toBe(false)
+    expect(existsSync(join(dir, '..', 'evil.md'))).toBe(false)
+    expect(existsSync(join(dir, 'evil.md'))).toBe(false)
   })
 })

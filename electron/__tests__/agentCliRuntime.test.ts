@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { AppConfig } from '../../src/shared/configSchema'
@@ -10,11 +10,14 @@ import {
   commandAndArgs,
   composePrompt,
   CONTEXT_FULL_REFRESH_INTERVAL_TURNS,
+  isAgentRunActive,
+  isAgentRunReservationCurrent,
   materializeClipboardImages,
   normalizeClaudeEvent,
   normalizeCursorEvent,
   normalizeCopilotEvent,
   closeAgentCliStdin,
+  reserveAgentRun,
   resolveProjectCwd,
   shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
@@ -130,6 +133,59 @@ describe('stopAgentRun', () => {
   })
 })
 
+describe('reserveAgentRun / isAgentRunReservationCurrent', () => {
+  // Cubre el hueco de la Tarea 6, fix round 1: el handler de AGENT_CLI_START
+  // reserva el pane con `reserveAgentRun` ANTES del refresco async de Jira, y
+  // usa `isAgentRunReservationCurrent` tras el await para decidir si el turno
+  // diferido todavía debe arrancar. Sin la reserva, un Stop durante la ventana
+  // del refresco no encontraba nada que matar (`stopAgentRun` salía en
+  // `if (!run) return`) y el spawn llegaba igual cuando el refresco terminaba.
+  it('reservar marca el pane activo y la reserva como vigente', () => {
+    const paneId = 'pane-reserve-active'
+    const generation = reserveAgentRun(paneId, null)
+    try {
+      expect(isAgentRunActive(paneId)).toBe(true)
+      expect(isAgentRunReservationCurrent(paneId, generation)).toBe(true)
+    } finally {
+      stopAgentRun(paneId)
+    }
+  })
+
+  it('Stop durante la ventana del refresco invalida la reserva: el turno diferido no debe arrancar', () => {
+    const paneId = 'pane-reserve-stopped'
+    const generation = reserveAgentRun(paneId, null)
+
+    // Simula el Stop del usuario mientras `refreshStaleJiraContexts` está en vuelo.
+    stopAgentRun(paneId)
+
+    expect(isAgentRunActive(paneId)).toBe(false)
+    expect(isAgentRunReservationCurrent(paneId, generation)).toBe(false)
+  })
+
+  it('sin Stop, la reserva sigue vigente cuando el refresco termina: el turno normal debe arrancar', () => {
+    const paneId = 'pane-reserve-normal'
+    const generation = reserveAgentRun(paneId, null)
+    try {
+      // Nada invalidó la reserva durante el "await" simulado del refresco.
+      expect(isAgentRunReservationCurrent(paneId, generation)).toBe(true)
+    } finally {
+      stopAgentRun(paneId)
+    }
+  })
+
+  it('una reserva más nueva para el mismo pane invalida la anterior', () => {
+    const paneId = 'pane-reserve-superseded'
+    const first = reserveAgentRun(paneId, null)
+    const second = reserveAgentRun(paneId, null)
+    try {
+      expect(isAgentRunReservationCurrent(paneId, first)).toBe(false)
+      expect(isAgentRunReservationCurrent(paneId, second)).toBe(true)
+    } finally {
+      stopAgentRun(paneId)
+    }
+  })
+})
+
 describe('composePrompt identity', () => {
   it('prepends agent identity when name, role or objective are set', () => {
     const prompt = composePrompt(
@@ -221,6 +277,73 @@ describe('composePrompt identity', () => {
       '',
     )
     expect(prompt).not.toContain('## MCP tools available')
+  })
+
+  it('omits jira issues from the attached-issues prompt when no snapshot exists on disk', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-jira-attached-'))
+    try {
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'revisa esto',
+          contexts: [
+            {
+              id: 'iaterminal:jira:grav-412',
+              name: 'GRAV-412',
+              fileName: 'jira/GRAV-412.md',
+              kind: 'jira',
+              issueKey: 'GRAV-412',
+            },
+          ],
+        }),
+        cwd,
+        [],
+        '',
+      )
+      // Sin snapshot en disco, materializeTabContext devuelve ok:false ("No
+      // snapshot for GRAV-412 yet."). Declarar la issue como adjunta y a la vez
+      // prohibir el MCP dejaría al agente sin ninguna vía hacia el dato.
+      expect(prompt).not.toContain('## Jira issues attached')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('includes jira issues in the attached-issues prompt once a snapshot is materialized', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-jira-attached-'))
+    try {
+      mkdirSync(join(cwd, PROJECT_DIR, 'jira'), { recursive: true })
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'jira', 'GRAV-412.md'),
+        '<!-- iaterminal:auto -->\n## Resumen\nGRAV-412 · algo\n<!-- /iaterminal:auto -->',
+        'utf8',
+      )
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'revisa esto',
+          contexts: [
+            {
+              id: 'iaterminal:jira:grav-412',
+              name: 'GRAV-412',
+              fileName: 'jira/GRAV-412.md',
+              kind: 'jira',
+              issueKey: 'GRAV-412',
+            },
+          ],
+        }),
+        cwd,
+        [],
+        '',
+      )
+      expect(prompt).toContain('## Jira issues attached')
+      expect(prompt).toContain('GRAV-412')
+      expect(prompt).toMatch(/do not/i)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
   })
 
   it('includes agent results registry on every turn', () => {

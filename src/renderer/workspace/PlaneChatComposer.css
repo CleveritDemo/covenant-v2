@@ -422,13 +422,22 @@
   max-width: 40%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 8px 10px 8px 6px;
-  border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  /* Padding vertical bajo: el alto del shell lo marca el textarea, no las thumbs. */
+  padding: 0 10px 0 6px;
+  border-left: 0;
   scrollbar-width: thin;
 }
 
 .plane-chat-composer__attachments:has(.pending-thumb:only-child) {
   justify-content: center;
+}
+
+/* Thumbs del composer más chicas y con borde sutil; no pisa el tamaño global. */
+.plane-chat-composer__attachments .pending-thumb__open {
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  box-shadow: none;
 }
 
 /* Composer: textarea + send */

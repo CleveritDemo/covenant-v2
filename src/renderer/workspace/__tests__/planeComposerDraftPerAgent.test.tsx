@@ -154,7 +154,6 @@ describe('PlaneChatComposer drafts por agente', () => {
 
   it('el rail de adjuntos va a la derecha en fila sin wrap vertical', () => {
     const composerCss = readFileSync(join(here, '../PlaneChatComposer.css'), 'utf8')
-    const thumbCss = readFileSync(join(here, '../../components/PendingImageThumb.css'), 'utf8')
 
     expect(composerCss).toMatch(
       /\.plane-chat-composer__input-shell\s*\{[^}]*flex-direction:\s*row/s,
@@ -162,6 +161,17 @@ describe('PlaneChatComposer drafts por agente', () => {
     expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*max-width:\s*40%/s)
     expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*overflow-x:\s*auto/s)
     expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*flex-wrap:\s*nowrap/s)
-    expect(thumbCss).toMatch(/\.pending-thumb__open\s*\{[^}]*border:\s*none/s)
+    expect(composerCss).toMatch(
+      /\.plane-chat-composer__attachments\s*\{[^}]*border-left:\s*0/s,
+    )
+    expect(composerCss).toMatch(
+      /\.plane-chat-composer__attachments\s+\.pending-thumb__open\s*\{[^}]*width:\s*28px/s,
+    )
+    expect(composerCss).toMatch(
+      /\.plane-chat-composer__attachments\s+\.pending-thumb__open\s*\{[^}]*height:\s*28px/s,
+    )
+    expect(composerCss).toMatch(
+      /\.plane-chat-composer__attachments\s+\.pending-thumb__open\s*\{[^}]*border:\s*1px\s+solid/s,
+    )
   })
 })

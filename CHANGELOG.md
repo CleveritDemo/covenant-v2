@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.67
+
+- **Tarjetas de ceremonia sin caja**: las once dejan de leerse como parches sobre el panel; ahora solo las separa su banda de etapa, y la elegida se tiñe del acento.
+- **Las etiquetas de las salas usan la fuente de la interfaz**: el chrome de las salas y de su lista heredaba la fuente que tengas puesta en el terminal, así que con una fuente manuscrita salía manuscrito.
+
 ## v0.39.66
 
 - **Las salas corren ceremonias ágiles**: al crear una sala eliges primero la ceremonia —Three Amigos, Example Mapping, Specification Workshop y siete más— y de ahí salen su objetivo, sus entregables y el gate que decide si la historia queda lista. Brainstorming sigue estando, como conversación abierta.

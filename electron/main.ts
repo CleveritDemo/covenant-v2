@@ -98,6 +98,7 @@ import {
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import { refreshStaleJiraContexts } from './jiraContextRefresh'
+import { jiraStatusFor, connectJira, searchJiraQuick } from './jiraIpcOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -870,6 +871,35 @@ function registerIpc(): void {
       repo: pick('repo'),
       sinceDay: pick('sinceDay'),
     })
+  })
+
+  // ─── Jira ───────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.JIRA_STATUS, (_e, cwd: unknown) => {
+    if (typeof cwd !== 'string') return { configured: false, site: '', projectKeys: [], connected: false }
+    return jiraStatusFor(cwd)
+  })
+
+  ipcMain.handle(IPC.JIRA_CONNECT, async (_e, cwd: unknown, input: unknown) => {
+    if (typeof cwd !== 'string' || !input || typeof input !== 'object') {
+      return { ok: false, error: 'Solicitud de conexión inválida.' }
+    }
+    const { site, email, apiToken, projectKeys } = input as Record<string, unknown>
+    if (typeof site !== 'string' || typeof email !== 'string' || typeof apiToken !== 'string') {
+      return { ok: false, error: 'Solicitud de conexión inválida.' }
+    }
+    return connectJira(cwd, {
+      site,
+      email,
+      apiToken,
+      projectKeys: Array.isArray(projectKeys)
+        ? projectKeys.filter((key): key is string => typeof key === 'string')
+        : [],
+    })
+  })
+
+  ipcMain.handle(IPC.JIRA_SEARCH, async (_e, cwd: unknown, query: unknown) => {
+    if (typeof cwd !== 'string' || typeof query !== 'string') return []
+    return searchJiraQuick(cwd, query)
   })
 
   // ─── LSP ────────────────────────────────────────────────────────────────

@@ -328,6 +328,14 @@ export const IPC = {
   /** Renderer → main (invoke): agregado de la bitácora local de Pulse */
   PULSE_SNAPSHOT: 'pulse:snapshot',
 
+  // ─── Jira ───────────────────────────────────────────────────────────────────
+  /** Renderer → main (invoke): configuración + estado de conexión de Jira para el cwd */
+  JIRA_STATUS: 'jira:status',
+  /** Renderer → main (invoke): probar credenciales y persistir sitio + config si el probe ok */
+  JIRA_CONNECT: 'jira:connect',
+  /** Renderer → main (invoke): buscar issues (clave exacta o texto libre) para el picker */
+  JIRA_SEARCH: 'jira:search',
+
   // ─── Motor LSP (code intelligence) ─────────────────────────────────────────
   /** Renderer → main (invoke): estado de instalación + runtime de un lenguaje */
   LSP_SERVER_STATUS: 'lsp:serverStatus',

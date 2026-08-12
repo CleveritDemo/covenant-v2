@@ -5,6 +5,7 @@ import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServersListRequest, McpServersListResult } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
+import type { JiraIssueRef } from '../src/shared/jiraIssue'
 import type {
   LspDownloadProgress,
   LspFileReadResult,
@@ -988,6 +989,19 @@ const api = {
   pulseSnapshot(scope?: PulseScope): Promise<PulseSnapshot> {
     return ipcRenderer.invoke(IPC.PULSE_SNAPSHOT, scope)
   },
+
+  // ─── Jira ───────────────────────────────────────────────────────────────────
+  jiraStatus: (
+    cwd: string,
+  ): Promise<{ configured: boolean; site: string; projectKeys: string[]; connected: boolean }> =>
+    ipcRenderer.invoke(IPC.JIRA_STATUS, cwd),
+  jiraConnect: (
+    cwd: string,
+    input: { site: string; email: string; apiToken: string; projectKeys: string[] },
+  ): Promise<{ ok: boolean; displayName?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC.JIRA_CONNECT, cwd, input),
+  jiraSearch: (cwd: string, query: string): Promise<JiraIssueRef[]> =>
+    ipcRenderer.invoke(IPC.JIRA_SEARCH, cwd, query),
 
   // ─── LSP (code intelligence) ───────────────────────────────────────────────
   lspServerStatus(language: string): Promise<LspServerStatus | { error: string }> {

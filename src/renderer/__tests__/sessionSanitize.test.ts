@@ -362,13 +362,22 @@ describe('sanitizePersistedSession', () => {
       paneKinds: { a: 'agent' },
       orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },
       agentByPane: {
-        a: { agentId: 'qa', cliSessionId: 'drop', localOnly: true },
+        a: {
+          agentId: 'qa',
+          localOnly: true,
+          activeThreadId: 't1',
+          threads: [{ id: 't1', title: 'chat', updatedAt: 10, cliSessionId: 'drop' }],
+        },
       },
     }
     expect(stripOrgTabAgentCliSessionIds(local)).toBe(local)
+    // Persist/load: quita la sesión del thread; el binding en vivo la conserva
+    // para --resume (ver handleAgentMetaChange).
     expect(stripOrgTabAgentCliSessionIds(org).agentByPane?.a).toEqual({
       agentId: 'qa',
       localOnly: true,
+      activeThreadId: 't1',
+      threads: [{ id: 't1', title: 'chat', updatedAt: 10 }],
     })
   })
 

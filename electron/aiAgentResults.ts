@@ -17,11 +17,33 @@ export const AGENT_RESULTS_DIR = 'results'
 const RESULTS_FENCE_RE = /```ia-terminal-results\s*\n([\s\S]*?)\n```/g
 const LOG_ENTRY_RE = /^-\s+`([^`]+)`\s+—\s+(.+)$/gm
 const CONTEXT_META_RE = /<!--\s*iaterminal:context\s+(\{[^\n]*\})\s*-->/
+const LATEST_RE = /##\s+Latest\s*\n([\s\S]*?)(?=\n##\s|\n<!--\s*\/iaterminal:auto|$)/i
 const MAX_LOG_ENTRIES = 30
-const MAX_WORDS = 40
+/** Tope por agente al inyectar results recientes en el prompt del turno. */
+export const RECENT_RESULTS_PER_AGENT = 5
+const MAX_SUMMARY_WORDS = 80
+const MAX_REQUEST_WORDS = 80
+const MAX_CHANGE_WORDS = 40
+const MAX_CHANGES = 8
+/** Línea compacta del Log (Request · Changes · Summary). */
+const MAX_LOG_LINE_WORDS = 160
+const LATEST_PLACEHOLDERS = new Set([
+  '(empty)',
+  '(no results yet)',
+  '(no entries yet)',
+  '(no annotations yet)',
+])
 
 export interface AiAgentResultPayload {
   summary: string
+  /** Qué pidió el usuario en el turno. */
+  request?: string
+  /** Cambios de código más relevantes (archivo / qué). */
+  changes?: string[]
+  /**
+   * @deprecated shape legacy `{ summary, entries }`.
+   * Si no hay `request`/`changes`, se trata como lista de cambios.
+   */
   entries: string[]
 }
 
@@ -30,7 +52,13 @@ export interface AiAgentResultLogEntry {
   text: string
 }
 
-function normalizeText(value: unknown, maxWords = MAX_WORDS): string | null {
+export interface RecentAgentResultsGroup {
+  agentId: string
+  agentName: string
+  entries: AiAgentResultLogEntry[]
+}
+
+function normalizeText(value: unknown, maxWords: number): string | null {
   if (typeof value !== 'string') return null
   const words = value
     .replace(/\s+/g, ' ')
@@ -39,6 +67,12 @@ function normalizeText(value: unknown, maxWords = MAX_WORDS): string | null {
     .filter(Boolean)
     .slice(0, maxWords)
   return words.length ? words.join(' ') : null
+}
+
+function cleanLatest(value: string | undefined): string | null {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed || LATEST_PLACEHOLDERS.has(trimmed)) return null
+  return trimmed
 }
 
 function normalizeAgentId(agentId: string): string {
@@ -93,19 +127,63 @@ export function extractAiAgentResults(text: string): {
     if (payload) return ''
     try {
       const value = JSON.parse(json) as Record<string, unknown>
-      const summary = normalizeText(value.summary)
+      const summary = normalizeText(value.summary, MAX_SUMMARY_WORDS)
       if (!summary) return ''
+      const request = normalizeText(value.request, MAX_REQUEST_WORDS) ?? undefined
+      const changes = Array.isArray(value.changes)
+        ? value.changes
+          .map(item => normalizeText(item, MAX_CHANGE_WORDS))
+          .filter((item): item is string => item !== null)
+          .slice(0, MAX_CHANGES)
+        : []
       const entries = Array.isArray(value.entries)
         ? value.entries
-          .map(item => normalizeText(item))
+          .map(item => normalizeText(item, MAX_CHANGE_WORDS))
           .filter((item): item is string => item !== null)
-          .slice(0, 5)
+          .slice(0, MAX_CHANGES)
         : []
-      payload = { summary, entries }
+      payload = {
+        summary,
+        entries,
+        ...(request ? { request } : {}),
+        ...(changes.length ? { changes } : {}),
+      }
     } catch { /* bloque inválido: se oculta y no se persiste */ }
     return ''
   }).trimEnd()
   return { visibleText, payload }
+}
+
+/** Cuerpo de ## Latest: Request / Changes / Summary (o solo summary legacy). */
+export function formatLatestBody(payload: AiAgentResultPayload): string {
+  const changeLines = payload.changes?.length
+    ? payload.changes
+    : payload.entries
+  const hasStructured = Boolean(payload.request) || changeLines.length > 0
+  if (!hasStructured) return payload.summary.trim() || '(empty)'
+
+  const lines: string[] = []
+  if (payload.request?.trim()) {
+    lines.push(`**Request:** ${payload.request.trim()}`)
+  }
+  if (changeLines.length) {
+    lines.push('**Changes:**')
+    for (const change of changeLines) lines.push(`- ${change}`)
+  }
+  lines.push(`**Summary:** ${payload.summary.trim()}`)
+  return lines.join('\n')
+}
+
+/** Una línea de Log compacta, parseable por LOG_ENTRY_RE. */
+export function formatCompactResultLogLine(payload: AiAgentResultPayload): string {
+  const parts: string[] = []
+  if (payload.request?.trim()) parts.push(`Request: ${payload.request.trim()}`)
+  const changes = payload.changes?.length
+    ? payload.changes
+    : payload.entries
+  if (changes.length) parts.push(`Changes: ${changes.join('; ')}`)
+  if (payload.summary.trim()) parts.push(`Summary: ${payload.summary.trim()}`)
+  return normalizeText(parts.join(' · '), MAX_LOG_LINE_WORDS) ?? payload.summary.trim()
 }
 
 function parseLog(raw: string): AiAgentResultLogEntry[] {
@@ -113,10 +191,26 @@ function parseLog(raw: string): AiAgentResultLogEntry[] {
   return [...logSection.matchAll(LOG_ENTRY_RE)]
     .map(match => ({
       timestamp: match[1],
-      text: normalizeText(match[2]) ?? '',
+      text: normalizeText(match[2], MAX_LOG_LINE_WORDS) ?? '',
     }))
-    .filter(entry => entry.text)
+    .filter(entry => entry.text && !LATEST_PLACEHOLDERS.has(entry.text))
     .slice(0, MAX_LOG_ENTRIES)
+}
+
+function parseLatestBody(raw: string): string | null {
+  return cleanLatest(raw.match(LATEST_RE)?.[1])
+}
+
+function readResultsDisplayName(raw: string, fallback: string): string {
+  const match = CONTEXT_META_RE.exec(raw)
+  if (!match) return fallback
+  try {
+    const meta = JSON.parse(match[1]) as { name?: string }
+    const name = typeof meta.name === 'string' ? meta.name.trim() : ''
+    return name || fallback
+  } catch {
+    return fallback
+  }
 }
 
 const NOTES_START = '<!-- iaterminal:notes -->'
@@ -132,7 +226,8 @@ function extractNotesBody(raw: string): string {
 export function formatAiAgentResultsDocument(options: {
   agentId: string
   agentName: string
-  summary: string
+  /** Cuerpo ya formateado de ## Latest. */
+  latest: string
   entries: AiAgentResultLogEntry[]
   notes?: string
 }): string {
@@ -147,7 +242,7 @@ export function formatAiAgentResultsDocument(options: {
     icon: 'bot',
     color: '#94a3b8',
   }
-  const summary = options.summary.trim() || '(empty)'
+  const latest = options.latest.trim() || '(empty)'
   const logLines = options.entries.length
     ? options.entries.map(entry => `- \`${entry.timestamp}\` — ${entry.text}`)
     : ['- (no entries yet)']
@@ -158,7 +253,7 @@ export function formatAiAgentResultsDocument(options: {
     '',
     '<!-- iaterminal:auto -->',
     '## Latest',
-    summary,
+    latest,
     '',
     '## Log',
     ...logLines,
@@ -440,7 +535,7 @@ export function ensureAiAgentResults(
       formatAiAgentResultsDocument({
         agentId: id,
         agentName: display,
-        summary: '(no results yet)',
+        latest: '(no results yet)',
         entries: [],
       }),
       { encoding: 'utf8', flag: 'wx' },
@@ -494,13 +589,13 @@ export function upsertAiAgentResults(
   const previousRaw = existsSync(filePath) ? readFileSync(filePath, 'utf8') : ''
   const previousLog = previousRaw ? parseLog(previousRaw) : []
   const previousNotes = previousRaw ? extractNotesBody(previousRaw) : ''
-  const freshEntries = (payload.entries.length ? payload.entries : [payload.summary])
-    .map(text => ({ timestamp, text }))
+  const logLine = formatCompactResultLogLine(payload)
+  const freshEntries = [{ timestamp, text: logLine }]
   const entries = [...freshEntries, ...previousLog].slice(0, MAX_LOG_ENTRIES)
   const content = formatAiAgentResultsDocument({
     agentId: id,
     agentName: display,
-    summary: payload.summary,
+    latest: formatLatestBody(payload),
     entries,
     notes: previousNotes && previousNotes !== '(no annotations yet)' ? previousNotes : undefined,
   })
@@ -511,18 +606,89 @@ export function upsertAiAgentResults(
   return filePath
 }
 
+/**
+ * Últimas entradas publicadas por cada agente del tab (tope por agente).
+ * Omite agentes sin results o solo con placeholders.
+ */
+export function collectRecentAgentResults(
+  cwd: string,
+  agentIds: readonly string[],
+  limitPerAgent = RECENT_RESULTS_PER_AGENT,
+): RecentAgentResultsGroup[] {
+  const limit = Math.max(1, Math.floor(limitPerAgent))
+  const seen = new Set<string>()
+  const groups: RecentAgentResultsGroup[] = []
+  const catalog = listProjectAgents(cwd)
+
+  for (const rawId of agentIds) {
+    const id = normalizeAgentId(rawId)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    const filePath = resolveAiAgentResultsPath(cwd, id)
+    if (!existsSync(filePath)) continue
+    let raw = ''
+    try {
+      raw = readFileSync(filePath, 'utf8')
+    } catch {
+      continue
+    }
+    const matched = catalog.find(agent => normalizeAgentId(agent.id) === id)
+    const agentName = readResultsDisplayName(raw, matched?.name?.trim() || id)
+    let entries = parseLog(raw).slice(0, limit)
+    if (!entries.length) {
+      const latest = parseLatestBody(raw)
+      if (!latest) continue
+      // Una sola línea sintética: el Latest existe pero el Log aún no.
+      const flat = latest.replace(/\s+/g, ' ').trim()
+      entries = [{ timestamp: '', text: flat }]
+    }
+    groups.push({ agentId: id, agentName, entries })
+  }
+  return groups
+}
+
+/** Bloque de prompt con results recientes del tab; vacío si no hay nada que mostrar. */
+export function buildRecentAgentResultsPrompt(
+  cwd: string,
+  agentIds: readonly string[],
+  limitPerAgent = RECENT_RESULTS_PER_AGENT,
+): string {
+  const root = cwd.trim()
+  if (!root || !agentIds.length) return ''
+  const groups = collectRecentAgentResults(root, agentIds, limitPerAgent)
+  if (!groups.length) return ''
+  const lines = [
+    '## Recent agent results',
+    'Latest published results from agents in this tab (most recent first per agent). Use them as prior work context; do not repeat unchanged work.',
+    '',
+  ]
+  for (const group of groups) {
+    lines.push(`### ${group.agentName} (\`${group.agentId}\`)`)
+    for (const entry of group.entries) {
+      if (entry.timestamp) {
+        lines.push(`- \`${entry.timestamp}\` — ${entry.text}`)
+      } else {
+        lines.push(`- ${entry.text}`)
+      }
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trimEnd()
+}
+
 export function buildAiAgentResultsInstruction(agentName: string | undefined): string {
   const name = agentName?.trim()
   if (!name) return ''
   return [
     '## Agent results registry',
     `You MUST append the results block on every turn for this agent ("${name}").`,
-    'Other agents read this registry. Do not omit the block while emit results is enabled.',
-    'Keep it short: one current summary and optional brief log lines.',
-    'Use at most 40 words per string. If nothing durable changed, still emit a brief status summary.',
+    'Other agents in the tab read this registry on later turns. Do not omit the block while emit results is enabled.',
+    'Include: what was requested, the most relevant code changes (file + what changed), and a brief summary.',
+    `Use at most ${MAX_REQUEST_WORDS} words for request/summary and ${MAX_CHANGE_WORDS} words per change (max ${MAX_CHANGES} changes).`,
+    'If nothing durable changed, still emit request + summary with an empty changes array.',
     'Append this exact machine-readable block after your normal answer:',
     '```ia-terminal-results',
-    '{"summary":"Current status or outcome","entries":["Optional short log line"]}',
+    '{"request":"What the user asked this turn","changes":["path/file: relevant change"],"summary":"Brief outcome"}',
     '```',
   ].join('\n')
 }

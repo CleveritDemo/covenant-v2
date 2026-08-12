@@ -505,7 +505,7 @@ const es = {
     autoImproveHint: 'Al terminar, actualiza solo lo que cambió en los contextos seleccionados',
     autoImproveNeedsContext: 'Selecciona al menos un contexto para autoactualizarlo',
     emitResults: 'emitir resultados',
-    emitResultsHint: 'Obligatorio en cada turno si está activo: registra un resumen corto en .gravity/results para otros agentes',
+    emitResultsHint: 'Obligatorio en cada turno: registra qué se pidió, los cambios de código relevantes y un resumen breve en .gravity/results',
     emitResultsNeedsProject: 'Elige una carpeta de proyecto para crear el archivo de resultados.',
     emitResultsNeedsName: 'Falta el slug del agente para crear el archivo de resultados.',
     emitResultsReady: 'Archivo de resultados listo en .gravity/results.',

@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.41
+
+- **Los agentes del mismo tab se enteran del trabajo reciente**: cada turno inyecta hasta 5 resultados recientes de los compañeros (qué se pidió, qué cambió, resumen), para no repetir trabajo.
+- **El registro de resultados es más concreto**: request + cambios de código + summary; el hint de "emitir resultados" lo deja claro.
+- **Resume de CLI también en workspaces org**: la sesión Cursor/Claude se conserva en memoria entre turnos; al guardar session.json se quita para no viajar en el snapshot compartido.
+
 ## v0.39.40
 
 - **Aurora del composer bajo el glass**: el campo de partículas vive dentro del composer (mismo stacking) y el input usa blur suave; en working se transparenta para leer el campo sin pelear con el texto.

@@ -186,7 +186,6 @@ import {
   remapAgentResultContextIds,
   remapAgentResultIdsInCatalog,
   remapAgentResultTabContexts,
-  stripBindingCliSessions,
   threadStateOf,
   type ProjectAgentDefinition,
 } from '../shared/projectAgentCatalog'
@@ -739,15 +738,13 @@ export const App: React.FC = () => {
   ): void => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
-    const isOrgBacked = Boolean(
-      current.orgWorkspace?.slug?.trim() && current.orgWorkspace?.workspaceId?.trim(),
-    )
     const synced = syncTabAgentsFromCatalog(current, agents, {
       maxPanes: MAX_PANES_PER_TAB,
       createPaneId: () => crypto.randomUUID(),
       createWindow: (paneWindows, open) => createPaneWindowState(paneWindows, open),
-      // Org: sesiones CLI son locales al usuario; no reutilizar ni sincronizar.
-      ...(isOrgBacked ? { preserveCliSessionIds: false } : {}),
+      // Las sesiones CLI viven en memoria (también en org) para --resume entre
+      // turnos. Al persistir/cargar session.json, stripOrgTabAgentCliSessionIds
+      // las quita para que no viajen en el snapshot compartido.
     })
     if (!synced.changed) return
     if (synced.removedPaneIds.length) {
@@ -4453,9 +4450,10 @@ export const App: React.FC = () => {
     const previousId = normalizeAgentSlug(previous.id, 'agent')
     const nextId = normalizeAgentSlug(next.id, previousId) || previousId
     const idChanged = previousId !== nextId
-    const bindingRaw = agentBindingFromMeta({ ...next, id: nextId })
-    // Org: no persistir sesiones CLI en agentByPane (son locales al usuario).
-    const binding = isOrgBacked ? stripBindingCliSessions(bindingRaw) : bindingRaw
+    // Mantener cliSessionId en vivo (local y org): sin él Cursor/Claude no
+    // hacen --resume y cada turno arranca en frío. Org solo se limpia al
+    // persistir (buildSessionSnapshot → stripOrgTabAgentCliSessionIds).
+    const binding = agentBindingFromMeta({ ...next, id: nextId })
     const previousDefinition = agentDefinitionFromMeta({ ...previous, id: previousId })
     const nextWithRemappedResults: AgentPaneMeta = {
       ...next,
@@ -4541,10 +4539,7 @@ export const App: React.FC = () => {
       && JSON.stringify(previousDefinition) === JSON.stringify(definition)
 
     const revertOptimistic = (): void => {
-      const previousBindingRaw = agentBindingFromMeta({ ...previous, id: previousId })
-      const previousBinding = isOrgBacked
-        ? stripBindingCliSessions(previousBindingRaw)
-        : previousBindingRaw
+      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
       applyBindings(nextId, previousId, previousBinding)
       if (idChanged) {
         replaceCatalogAfterSlugChange(nextId, previousDefinition, nextId, previousId)

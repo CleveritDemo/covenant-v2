@@ -128,6 +128,36 @@ describe('syncTabAgentsFromCatalog', () => {
     })
   })
 
+  it('preserves thread cliSessionId on catalog sync by default (org resume in memory)', () => {
+    const result = syncTabAgentsFromCatalog(
+      baseTab({
+        paneIds: ['a-qa'],
+        activePaneId: 'a-qa',
+        paneKinds: { 'a-qa': 'agent' },
+        orgWorkspace: { slug: 'acme', workspaceId: 'ws-1' },
+        agentByPane: {
+          'a-qa': {
+            agentId: 'qa',
+            activeThreadId: 't1',
+            threads: [{ id: 't1', title: 'panel', updatedAt: 5, cliSessionId: 'cursor-sess' }],
+          },
+        },
+        paneWindows: {
+          'a-qa': { open: true, fullscreen: false, zIndex: 3 },
+        },
+      }),
+      [{ id: 'qa', provider: 'cursor', permissionMode: 'auto' }],
+      {
+        maxPanes: 10,
+        createPaneId: () => 'should-not-run',
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+
+    expect(result.changed).toBe(false)
+    expect(result.tab.agentByPane?.['a-qa']?.threads?.[0]?.cliSessionId).toBe('cursor-sess')
+  })
+
   it('drops cliSessionId when preserveCliSessionIds is false and marks changed', () => {
     const result = syncTabAgentsFromCatalog(
       baseTab({

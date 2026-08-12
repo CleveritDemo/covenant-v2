@@ -503,7 +503,7 @@ const en = {
     autoImproveHint: 'After each turn, update only what changed in selected contexts',
     autoImproveNeedsContext: 'Select at least one context to keep it updated',
     emitResults: 'emit results',
-    emitResultsHint: 'Required each turn while enabled: register a short summary under .gravity/results for other agents',
+    emitResultsHint: 'Required each turn: record what was asked, the relevant code changes, and a brief summary under .gravity/results',
     emitResultsNeedsProject: 'Choose a project folder to create the results file.',
     emitResultsNeedsName: 'The agent slug is required to create the results file.',
     emitResultsReady: 'Results file ready under .gravity/results.',

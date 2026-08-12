@@ -66,6 +66,11 @@ export interface AgentCliStartRequest {
   autoImproveContexts?: boolean
   /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
   emitResults?: boolean
+  /**
+   * Ids de agentes vivos en el mismo tab/plano. El host inyecta hasta 5 results
+   * recientes de cada uno (si existen) en el prompt del turno.
+   */
+  tabAgentIds?: string[]
   /** Tras migración de ids de contexto, forzar refresh completo del snapshot. */
   forceContextFullRefresh?: boolean
   /** Orquestador / product owner: prompt de delegación + parse del fence. */

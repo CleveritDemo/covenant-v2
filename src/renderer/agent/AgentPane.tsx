@@ -544,6 +544,8 @@ export const AgentPane: React.FC<Props> = ({
   loopIterationRef.current = loopIteration
   const projectAgentsRef = useRef(projectAgents)
   projectAgentsRef.current = projectAgents
+  const peerAgentsRef = useRef(peerAgents)
+  peerAgentsRef.current = peerAgents
 
   /** Catálogo UI = contextos base + agentResult de cada agente vivo. */
   const commitContextsCatalog = useCallback((contexts: TabContext[]): TabContext[] => {
@@ -1231,6 +1233,14 @@ export const AgentPane: React.FC<Props> = ({
       discoveredContexts: diskContextsRef.current,
       autoImproveContexts: currentMeta.autoImproveContexts === true,
       emitResults: true,
+      ...(() => {
+        const ids = [
+          normalizeAgentSlug(currentMeta.id),
+          ...peerAgentsRef.current.map(peer => normalizeAgentSlug(peer.id)),
+        ].filter(Boolean)
+        const tabAgentIds = [...new Set(ids)]
+        return tabAgentIds.length ? { tabAgentIds } : {}
+      })(),
       ...(forceContextFullRefreshRef.current
         ? { forceContextFullRefresh: true }
         : {}),

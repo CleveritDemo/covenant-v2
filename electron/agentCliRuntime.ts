@@ -34,6 +34,7 @@ import {
 } from './aiChangelog'
 import {
   buildAiAgentResultsInstruction,
+  buildRecentAgentResultsPrompt,
   extractAiAgentResults,
   resolveResultsAgentId,
   upsertAiAgentResults,
@@ -706,6 +707,10 @@ export function composePrompt(
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
   const resultsInstruction = buildAiAgentResultsInstruction(request.name)
+  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
+  const recentResultsPrompt = Array.isArray(request.tabAgentIds) && request.tabAgentIds.length
+    ? buildRecentAgentResultsPrompt(resultsCwd, request.tabAgentIds)
+    : ''
   const canDelegate = coordinationCanDelegate(request.coordination)
   const allowDelegations = request.allowDelegations !== false
   const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
@@ -758,6 +763,7 @@ export function composePrompt(
     ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(orchestrationBlock ? [orchestrationBlock, ''] : []),
     ...(delegationFollowUps.length ? [...delegationFollowUps, ''] : []),
+    ...(recentResultsPrompt ? [recentResultsPrompt, ''] : []),
     ...(imageSection ? [imageSection] : []),
     '## User request',
     userPrompt,

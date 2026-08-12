@@ -199,7 +199,51 @@ describe('composePrompt identity', () => {
     )
     expect(prompt).toContain('## Agent results registry')
     expect(prompt).toContain('You MUST append the results block on every turn')
+    expect(prompt).toContain('"request"')
+    expect(prompt).toContain('"changes"')
+    expect(prompt).toContain('"summary"')
     expect(prompt).toContain('ia-terminal-results')
+  })
+
+  it('injects recent tab agent results before the user request', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-recent-results-'))
+    try {
+      upsertProjectAgent(cwd, {
+        id: 'qa',
+        name: 'QA',
+        provider: 'cursor',
+        permissionMode: 'auto',
+      })
+      upsertAiAgentResults(cwd, 'qa', {
+        request: 'Correr tests',
+        changes: ['auth.test.ts: edge case'],
+        summary: 'Suite verde',
+        entries: [],
+      }, { agentName: 'QA', timestamp: '2026-03-01T00:00:00.000Z' })
+
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          name: 'Scout',
+          prompt: 'sigue',
+          projectCwd: cwd,
+          tabAgentIds: ['qa'],
+        }),
+        cwd,
+        [],
+        '',
+      )
+      expect(prompt).toContain('## Recent agent results')
+      expect(prompt).toContain('### QA (`qa`)')
+      expect(prompt).toContain('Suite verde')
+      const recentIdx = prompt.indexOf('## Recent agent results')
+      const userIdx = prompt.indexOf('## User request')
+      expect(recentIdx).toBeGreaterThan(-1)
+      expect(userIdx).toBeGreaterThan(recentIdx)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
   })
 
   it('includes orchestration protocol and agents only for orchestrators', () => {

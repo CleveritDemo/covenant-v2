@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   agentResultContextId,
   agentResultFileName,
+  buildRecentAgentResultsPrompt,
+  collectRecentAgentResults,
   ensureAiAgentResults,
   extractAiAgentResults,
   migrateLegacyAgentResults,
@@ -36,6 +38,27 @@ describe('AI agent results', () => {
     expect(result.payload).toEqual({
       summary: 'API lista',
       entries: ['Añadí el endpoint /health'],
+    })
+  })
+
+  it('extracts request/changes/summary payload', () => {
+    const result = extractAiAgentResults([
+      'Hecho.',
+      '```ia-terminal-results',
+      JSON.stringify({
+        request: 'Añadir toggle de tema',
+        changes: ['src/Settings.tsx: ThemeToggle', 'src/theme.css: dark vars'],
+        summary: 'Toggle de tema listo',
+      }),
+      '```',
+    ].join('\n'))
+
+    expect(result.visibleText).toBe('Hecho.')
+    expect(result.payload).toEqual({
+      request: 'Añadir toggle de tema',
+      changes: ['src/Settings.tsx: ThemeToggle', 'src/theme.css: dark vars'],
+      summary: 'Toggle de tema listo',
+      entries: [],
     })
   })
 
@@ -71,7 +94,7 @@ describe('AI agent results', () => {
     expect(writeAiAgentResultsNotes(tempCwd(), 'nadie', 'x').ok).toBe(false)
   })
 
-  it('writes Latest and prepends Log entries under results/<agentId>.md', () => {
+  it('writes structured Latest and compact Log under results/<agentId>.md', () => {
     const cwd = tempCwd()
     seedAgent(cwd, 'ops-bot', 'Ops Bot')
     upsertAiAgentResults(cwd, 'ops-bot', {
@@ -79,8 +102,10 @@ describe('AI agent results', () => {
       entries: ['Creé el scaffold'],
     }, { agentName: 'Ops Bot', timestamp: '2026-01-01T00:00:00.000Z' })
     upsertAiAgentResults(cwd, 'ops-bot', {
+      request: 'Ajustar tests',
+      changes: ['ops.test.ts: coverage'],
       summary: 'Segunda entrega',
-      entries: ['Ajusté tests'],
+      entries: [],
     }, { agentName: 'Ops Bot', timestamp: '2026-01-02T00:00:00.000Z' })
 
     const filePath = resolveAiAgentResultsPath(cwd, 'ops-bot')
@@ -88,9 +113,12 @@ describe('AI agent results', () => {
     expect(existsSync(filePath)).toBe(true)
     const raw = readFileSync(filePath, 'utf8')
     expect(raw).toContain('## Latest')
-    expect(raw).toContain('Segunda entrega')
-    expect(raw).toContain('`2026-01-02T00:00:00.000Z` — Ajusté tests')
-    expect(raw).toContain('`2026-01-01T00:00:00.000Z` — Creé el scaffold')
+    expect(raw).toContain('**Request:** Ajustar tests')
+    expect(raw).toContain('**Changes:**')
+    expect(raw).toContain('- ops.test.ts: coverage')
+    expect(raw).toContain('**Summary:** Segunda entrega')
+    expect(raw).toContain('`2026-01-02T00:00:00.000Z` — Request: Ajustar tests · Changes: ops.test.ts: coverage · Summary: Segunda entrega')
+    expect(raw).toContain('`2026-01-01T00:00:00.000Z` — Changes: Creé el scaffold · Summary: Primera entrega')
     expect(raw).toContain(`"fileName":"${agentResultFileName('ops-bot')}"`)
     expect(raw).toContain(`"id":"${agentResultContextId('ops-bot')}"`)
     expect(raw).toContain('"name":"Ops Bot"')
@@ -118,7 +146,7 @@ describe('AI agent results', () => {
     ensureAiAgentResults(cwd, 'qa', 'QA')
     const afterEnsure = readFileSync(created, 'utf8')
     expect(afterEnsure).toContain('Suite verde')
-    expect(afterEnsure).toContain('`2026-01-03T00:00:00.000Z` — Corrí vitest')
+    expect(afterEnsure).toContain('`2026-01-03T00:00:00.000Z` — Changes: Corrí vitest · Summary: Suite verde')
     expect(afterEnsure).not.toContain('(no results yet)')
   })
 
@@ -321,5 +349,37 @@ describe('AI agent results', () => {
     const raw = readFileSync(filePath, 'utf8')
     expect(raw).toContain('Segunda')
     expect(raw).toContain('Brújula: agente anclado a terminal.')
+  })
+
+  it('collects up to 5 recent log entries per tab agent', () => {
+    const cwd = tempCwd()
+    seedAgent(cwd, 'qa', 'QA')
+    seedAgent(cwd, 'frontend', 'Frontend')
+    for (let i = 1; i <= 6; i += 1) {
+      upsertAiAgentResults(cwd, 'qa', {
+        summary: `QA ${i}`,
+        entries: [],
+      }, { agentName: 'QA', timestamp: `2026-01-0${i}T00:00:00.000Z` })
+    }
+    upsertAiAgentResults(cwd, 'frontend', {
+      request: 'Botón primario',
+      changes: ['Button.tsx: variant'],
+      summary: 'UI lista',
+      entries: [],
+    }, { agentName: 'Frontend', timestamp: '2026-02-01T00:00:00.000Z' })
+
+    const groups = collectRecentAgentResults(cwd, ['qa', 'frontend', 'missing'], 5)
+    expect(groups.map(group => group.agentId)).toEqual(['qa', 'frontend'])
+    expect(groups[0]!.entries).toHaveLength(5)
+    expect(groups[0]!.entries[0]!.text).toContain('Summary: QA 6')
+    expect(groups[0]!.entries[4]!.text).toContain('Summary: QA 2')
+    expect(groups[1]!.entries[0]!.text).toContain('Request: Botón primario')
+
+    const prompt = buildRecentAgentResultsPrompt(cwd, ['qa', 'frontend'])
+    expect(prompt).toContain('## Recent agent results')
+    expect(prompt).toContain('### QA (`qa`)')
+    expect(prompt).toContain('### Frontend (`frontend`)')
+    expect(prompt).toContain('Summary: QA 6')
+    expect(buildRecentAgentResultsPrompt(cwd, ['ghost'])).toBe('')
   })
 })

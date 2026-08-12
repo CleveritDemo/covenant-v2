@@ -127,7 +127,10 @@ export function threadStateOf(binding: AgentPaneBinding): AgentThreadState {
   return sanitizeThreadState(binding.threads, binding.activeThreadId, binding.cliSessionId)
 }
 
-/** Workspaces org: no persistir sesiones CLI (son locales al usuario). */
+/**
+ * Quita punteros de sesión CLI del binding. Usar al persistir/cargar session
+ * de workspaces org; no en el estado en vivo (ahí hace falta para --resume).
+ */
 export function stripBindingCliSessions(binding: AgentPaneBinding): AgentPaneBinding {
   const needsStrip = Boolean(binding.cliSessionId)
     || Boolean(binding.threads?.some(thread => thread.cliSessionId))

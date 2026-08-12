@@ -77,9 +77,10 @@ export interface SyncTabAgentsFromCatalogOptions {
     open: boolean,
   ) => PaneWindowState
   /**
-   * Si es `false`, no reutiliza `cliSessionId` del binding existente
-   * (workspaces org: la sesión CLI es local al usuario, no se sincroniza).
-   * Default: `true` (workspaces locales reanudan sesión).
+   * Si es `false`, descarta `cliSessionId`/sesiones de threads del binding
+   * existente al realinear panes con el catálogo. Default: `true` para no
+   * romper --resume en memoria (local y org). El strip al persistir org va
+   * por `stripOrgTabAgentCliSessionIds`, no por este flag.
    */
   preserveCliSessionIds?: boolean
 }

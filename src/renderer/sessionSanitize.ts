@@ -47,8 +47,9 @@ export interface SanitizedSession {
 }
 
 /**
- * Workspaces org no deben persistir/reutilizar `cliSessionId`:
- * la sesión CLI es local al usuario.
+ * Quita `cliSessionId` de tabs org al persistir o al rehidratar session.json.
+ * En memoria (React) la sesión se conserva para --resume entre turnos; no debe
+ * viajar en el snapshot compartido porque es local al usuario/CLI.
  */
 export function stripOrgTabAgentCliSessionIds(tab: TabSession): TabSession {
   const org = tab.orgWorkspace
@@ -99,7 +100,8 @@ function sanitizeTab(tab: TabSession): {
     const binding = parseAgentPaneBinding(raw)
     if (binding) {
       paneKinds[paneId] = 'agent'
-      // Org: no rehidratar cliSessionId desde session compartida/local contaminada.
+      // Org: no rehidratar sesión CLI desde snapshot (puede ser de otro usuario
+      // o máquina). El resume en vivo lo vuelve a adoptar el primer turno.
       agentByPane[paneId] = orgWorkspace ? stripBindingCliSessions(binding) : binding
       continue
     }

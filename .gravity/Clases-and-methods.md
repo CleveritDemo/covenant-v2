@@ -839,6 +839,9 @@
 - buildSlotOrigins
 - PlaneMap
 
+### src/renderer/workspace/PlaneMapBackdrop.tsx
+- PlaneMapBackdrop
+
 ### src/renderer/workspace/PlaneMiniActions.tsx
 - PlaneMiniActions
 

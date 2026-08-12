@@ -3,6 +3,7 @@ import { IPC } from '../../src/shared/ipcChannels'
 
 /** Handlers registrados por registerSelfUpdate, para dispararlos desde el test. */
 const ipcOn = new Map<string, (...args: unknown[]) => void>()
+const ipcHandle = new Map<string, (...args: unknown[]) => unknown>()
 const appOnce = new Map<string, () => void>()
 const updaterOn = new Map<string, (...args: unknown[]) => void>()
 const quitAndInstall = vi.fn()
@@ -28,8 +29,12 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: { getAllWindows: () => windows },
   ipcMain: {
-    handle: vi.fn(),
-    on: (channel: string, cb: (...args: unknown[]) => void) => { ipcOn.set(channel, cb) },
+    handle: (channel: string, cb: (...args: unknown[]) => unknown) => {
+      ipcHandle.set(channel, cb)
+    },
+    on: (channel: string, cb: (...args: unknown[]) => void) => {
+      ipcOn.set(channel, cb)
+    },
   },
 }))
 
@@ -101,5 +106,85 @@ describe('quitAndInstall no deja que main mate el proceso antes de tiempo', () =
 
     updaterOn.get('error')?.(new Error('falló la copia'))
     expect(isInstallingUpdate()).toBe(false)
+  })
+})
+
+function lastSentState(): unknown {
+  const sends = windows.flatMap(w =>
+    (w.webContents.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter(c => c[0] === IPC.UPDATE_STATE)
+      .map(c => c[1]),
+  )
+  return sends.at(-1)
+}
+
+function makeAvailable(version = '0.4.0'): void {
+  updaterOn.get('update-available')?.({ version, releaseNotes: 'notes' })
+}
+
+describe('descarga lista sin reinicio automático', () => {
+  beforeEach(() => {
+    ipcOn.clear(); ipcHandle.clear(); appOnce.clear(); updaterOn.clear()
+    quitAndInstall.mockClear()
+    closedWindows.length = 0
+    windows = [fakeWindow('a')]
+    registerSelfUpdate()
+  })
+
+  it('tras Instalar + update-downloaded no llama quitAndInstall y queda ready', () => {
+    makeAvailable('0.4.0')
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    expect(lastSentState()).toMatchObject({ kind: 'downloading', version: '0.4.0' })
+
+    updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: 'notes' })
+
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
+    expect(isInstallingUpdate()).toBe(false)
+  })
+
+  it('dismiss en ready pasa a idle; INSTALL desde stash aplica quitAndInstall', () => {
+    makeAvailable('0.4.0')
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: 'notes' })
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
+    expect(lastSentState()).toMatchObject({ kind: 'idle' })
+
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    expect(closedWindows).toEqual(['a'])
+    appOnce.get('window-all-closed')?.()
+    expect(quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('STATE_GET con stash restaura ready', async () => {
+    makeAvailable('0.4.0')
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: 'hi' })
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
+
+    const got = await ipcHandle.get(IPC.UPDATE_STATE_GET)?.()
+    expect(got).toMatchObject({ kind: 'ready', version: '0.4.0' })
+    expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
+  })
+
+  it('update-available de otra versión limpia el stash', async () => {
+    makeAvailable('0.4.0')
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: '' })
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
+
+    makeAvailable('0.5.0')
+    const got = await ipcHandle.get(IPC.UPDATE_STATE_GET)?.()
+    expect(got).toMatchObject({ kind: 'available', version: '0.5.0' })
+  })
+
+  it('update-available de la misma versión que el stash vuelve a ready', async () => {
+    makeAvailable('0.4.0')
+    ipcOn.get(IPC.UPDATE_INSTALL)?.()
+    updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: '' })
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
+
+    makeAvailable('0.4.0')
+    expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
   })
 })

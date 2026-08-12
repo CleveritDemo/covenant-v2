@@ -4,11 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.59
+
+- **Los sonidos de la interfaz se pueden apagar**: nuevo interruptor en Ajustes › Apariencia › Sonidos de la interfaz que silencia el aviso de fin de turno de agente y el del dictado, sin tocar el audio del tema.
+- **Aviso claro cuando un CLI no habla MCP**: en vez de ofrecer herramientas que nunca llegarán, el panel dice qué pasa y qué alternativas hay.
+
 ## v0.39.58
 
 - **Partículas musicales más elegantes**: el beat pulsa con envelope suave y las bandas de frecuencia se reparten por toda la pantalla.
-- **Los sonidos de la interfaz se pueden apagar**: nuevo interruptor en Ajustes › Apariencia › Sonidos de la interfaz que silencia el aviso de fin de turno de agente y el del dictado, sin tocar el audio del tema.
-- **Aviso claro cuando un CLI no habla MCP**: en vez de ofrecer herramientas que nunca llegarán, el panel dice qué pasa y qué alternativas hay.
 
 ## v0.39.57
 

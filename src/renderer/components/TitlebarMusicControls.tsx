@@ -16,6 +16,8 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
   const { t } = useT()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
+  const isInitialTrackSyncRef = useRef(true)
+  const prevTrackKeyRef = useRef<string | null>(null)
   const [playing, setPlaying] = useState(false)
 
   const track = config.musicEnabled ? resolveThemeMusic(config.themeId) : null
@@ -71,10 +73,15 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
       }
       playingRef.current = false
       setPlaying(false)
+      prevTrackKeyRef.current = null
+      isInitialTrackSyncRef.current = false
       return
     }
 
-    const shouldResume = playingRef.current
+    const trackKey = `${track.id}\0${track.src}`
+    const shouldAutoplayOnTrackChange =
+      !isInitialTrackSyncRef.current && prevTrackKeyRef.current !== trackKey
+
     audio.loop = track.loop !== false
     try {
       const absolute = new URL(track.src, window.location.href).href
@@ -86,7 +93,7 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
       audio.src = track.src
     }
 
-    if (shouldResume) {
+    if (shouldAutoplayOnTrackChange || playingRef.current) {
       void audio.play().then(() => {
         playingRef.current = true
         setPlaying(true)
@@ -99,6 +106,9 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config, onConfigPatch }
       playingRef.current = false
       setPlaying(false)
     }
+
+    prevTrackKeyRef.current = trackKey
+    isInitialTrackSyncRef.current = false
   }, [track?.id, track?.src, track?.loop])
 
   const setPlayingState = useCallback((next: boolean): void => {

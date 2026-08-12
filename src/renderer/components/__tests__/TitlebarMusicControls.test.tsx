@@ -13,7 +13,16 @@ vi.mock('@i18n/useT', () => ({
   }),
 }))
 
+type FakeAudioInstance = {
+  src: string
+  play: ReturnType<typeof vi.fn>
+  pause: ReturnType<typeof vi.fn>
+}
+
+const audioInstances: FakeAudioInstance[] = []
+
 beforeEach(() => {
+  audioInstances.length = 0
   class FakeAudio {
     src = ''
     volume = 1
@@ -27,6 +36,9 @@ beforeEach(() => {
     removeAttribute = vi.fn((name: string) => {
       if (name === 'src') this.src = ''
     })
+    constructor() {
+      audioInstances.push(this as unknown as FakeAudioInstance)
+    }
   }
   vi.stubGlobal('Audio', FakeAudio)
 })
@@ -71,5 +83,43 @@ describe('TitlebarMusicControls', () => {
     )
     fireEvent.change(screen.getByLabelText('music.volume'), { target: { value: '50' } })
     expect(onConfigPatch).toHaveBeenCalledWith({ musicVolume: 0.5 })
+  })
+
+  it('render inicial con track no llama play automáticamente', () => {
+    render(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+    )
+    const audio = audioInstances[0]
+    expect(audio).toBeTruthy()
+    expect(audio.play).not.toHaveBeenCalled()
+  })
+
+  it('cambiar themeId de un tema con track a otro llama play aunque estuviera pausado', () => {
+    const { rerender } = render(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
+    )
+    const audio = audioInstances[0]
+    expect(audio).toBeTruthy()
+    expect(audio.play).not.toHaveBeenCalled()
+
+    rerender(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: true }} />,
+    )
+    expect(audio.play).toHaveBeenCalled()
+  })
+
+  it('con musicEnabled=false, cambiar themeId no llama play y oculta controles', () => {
+    const { container, rerender } = render(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: false }} />,
+    )
+    expect(container.firstChild).toBeNull()
+    const audio = audioInstances[0]
+    expect(audio).toBeTruthy()
+
+    rerender(
+      <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'interstellar', musicEnabled: false }} />,
+    )
+    expect(audio.play).not.toHaveBeenCalled()
+    expect(container.firstChild).toBeNull()
   })
 })

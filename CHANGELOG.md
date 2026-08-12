@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.51
+
+- **Cambiar de tema arranca su música**: si Música está activada, el nuevo tema empieza a sonar aunque el anterior estuviera pausado; al abrir la app no hay autoplay.
+
 ## v0.39.50
 
 - **Brainstorm se minimiza sin apagarse**: click fuera lo manda al dock, el botón lo reabre y puedes continuar otra ronda con guía humana.

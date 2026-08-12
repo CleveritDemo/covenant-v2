@@ -287,7 +287,9 @@
 /* Chip de abanico: la copia paralela no es del mismo orden que el proveedor,
    así que no comparte su color de acento. */
 .pulse-agent__chip--fan {
-  font-family: var(--font-mono);
+  /* Misma cara que el chip base: `claude` en fuente de UI y `×3` en la del
+     terminal era la misma fila con dos tipografías. */
+  font-family: var(--font-ui);
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
@@ -324,7 +326,8 @@
 
 .pulse-agent__instance-tag {
   margin-left: 7px;
-  font-family: var(--font-mono);
+  /* «base» / «réplica»: copy traducido, no un dato. */
+  font-family: var(--font-ui);
   font-size: 10px;
   color: var(--text-muted);
 }

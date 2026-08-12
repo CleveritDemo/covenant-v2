@@ -8,7 +8,9 @@
   border: 1px solid color-mix(in srgb, var(--caution) 42%, transparent);
   background: color-mix(in srgb, var(--caution) 15%, transparent);
   color: var(--caution);
-  font-family: var(--font-mono);
+  /* Badge de UI (`R2`, `+2`), no un fragmento de código: la fuente del
+     terminal la elige el usuario y a 9px bold puede salir cualquier cosa. */
+  font-family: var(--font-ui);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0;

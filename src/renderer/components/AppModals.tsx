@@ -1,5 +1,5 @@
-import React from 'react'
-import type { AppConfig } from '@shared/configSchema'
+import React, { useCallback } from 'react'
+import { mergeWithDefaults, sanitizeMusicVolume, type AppConfig } from '@shared/configSchema'
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
 import type { AgentCliProvider } from '../../shared/tabSession'
 import {
@@ -14,6 +14,7 @@ import {
   type OrgWorkspaceSelection,
 } from './OrgWorkspaceTabPickerModal'
 import { ThemePickerModal } from './ThemePickerModal'
+import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
 
 interface Props {
   config: AppConfig
@@ -63,49 +64,64 @@ export const AppModals: React.FC<Props> = ({
   onAgentProviderSelect,
   onAgentCloneSelect,
   onAgentCreateConfirm,
-}) => (
-  <>
-    <AgentProviderPickerModal
-      open={agentPicker !== null}
-      cloneSources={agentCloneSources}
-      onClose={onCloseAgentPicker}
-      onSelect={onAgentProviderSelect}
-      onClone={onAgentCloneSelect}
-    />
+}) => {
+  const handleThemeAudioConfigChange = useCallback((partial: ThemePickerAudioPartial) => {
+    onConfigSaved(mergeWithDefaults({
+      ...config,
+      ...partial,
+      musicVolume: partial.musicVolume !== undefined
+        ? sanitizeMusicVolume(partial.musicVolume)
+        : sanitizeMusicVolume(config.musicVolume),
+    }))
+  }, [config, onConfigSaved])
 
-    <AgentCreateNameModal
-      open={agentCreate !== null}
-      onClose={onCloseAgentCreate}
-      onConfirm={onAgentCreateConfirm}
-    />
-
-    {settingsOpen && (
-      <SettingsModal
-        config={config}
-        onSave={onConfigSaved}
-        onClose={onCloseSettings}
+  return (
+    <>
+      <AgentProviderPickerModal
+        open={agentPicker !== null}
+        cloneSources={agentCloneSources}
+        onClose={onCloseAgentPicker}
+        onSelect={onAgentProviderSelect}
+        onClone={onAgentCloneSelect}
       />
-    )}
 
-    {orgModalOpen && (
-      <OrganizationsModal
-        onClose={onCloseOrganizations}
-        onOrgWorkspacesMutated={onOrgWorkspacesMutated}
+      <AgentCreateNameModal
+        open={agentCreate !== null}
+        onClose={onCloseAgentCreate}
+        onConfirm={onAgentCreateConfirm}
       />
-    )}
 
-    <OrgWorkspaceTabPickerModal
-      open={orgWorkspacePickerOpen}
-      onClose={onCloseOrgWorkspacePicker}
-      onConfirm={onConfirmOrgWorkspacePicker}
-      catalog={orgWorkspaceCatalogEntries}
-    />
+      {settingsOpen && (
+        <SettingsModal
+          config={config}
+          onSave={onConfigSaved}
+          onClose={onCloseSettings}
+        />
+      )}
 
-    <ThemePickerModal
-      open={themePickerOpen}
-      currentThemeId={config.themeId}
-      onSelectTheme={onThemeChange}
-      onClose={onCloseThemePicker}
-    />
-  </>
-)
+      {orgModalOpen && (
+        <OrganizationsModal
+          onClose={onCloseOrganizations}
+          onOrgWorkspacesMutated={onOrgWorkspacesMutated}
+        />
+      )}
+
+      <OrgWorkspaceTabPickerModal
+        open={orgWorkspacePickerOpen}
+        onClose={onCloseOrgWorkspacePicker}
+        onConfirm={onConfirmOrgWorkspacePicker}
+        catalog={orgWorkspaceCatalogEntries}
+      />
+
+      <ThemePickerModal
+        open={themePickerOpen}
+        currentThemeId={config.themeId}
+        musicEnabled={config.musicEnabled}
+        musicVolume={config.musicVolume}
+        onSelectTheme={onThemeChange}
+        onAudioConfigChange={handleThemeAudioConfigChange}
+        onClose={onCloseThemePicker}
+      />
+    </>
+  )
+}

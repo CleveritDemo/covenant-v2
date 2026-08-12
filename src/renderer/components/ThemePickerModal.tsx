@@ -4,6 +4,7 @@ import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { ThemePreview } from './ThemePreview'
 import { ThemeChip } from './ThemeChip'
+import { ThemePickerAudioControls, type ThemePickerAudioPartial } from './ThemePickerAudioControls'
 import { Input } from './ui/Input'
 import './ThemePickerModal.css'
 
@@ -13,17 +14,30 @@ function themeMatchesQuery(theme: { name: string; id: string }, q: string): bool
   return theme.name.toLowerCase().includes(s) || theme.id.toLowerCase().includes(s)
 }
 
+function isThemePickerNavBlockedTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  if (el.closest('[data-theme-picker-audio]')) return true
+  if (el.closest('input[type="search"]')) return true
+  return false
+}
+
 interface Props {
   open: boolean
   currentThemeId: string
+  musicEnabled: boolean
+  musicVolume: number
   onSelectTheme: (themeId: string) => void
+  onAudioConfigChange: (partial: ThemePickerAudioPartial) => void
   onClose: () => void
 }
 
 export const ThemePickerModal: React.FC<Props> = ({
   open,
   currentThemeId,
+  musicEnabled,
+  musicVolume,
   onSelectTheme,
+  onAudioConfigChange,
   onClose,
 }) => {
   const { t } = useT()
@@ -69,8 +83,7 @@ export const ThemePickerModal: React.FC<Props> = ({
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {
-      const el = e.target
-      if (el instanceof HTMLElement && el.closest('input[type="search"]')) return
+      if (isThemePickerNavBlockedTarget(e.target)) return
       if (e.key === 'Enter' && focusedId && filteredThemes.length > 0) {
         e.preventDefault(); e.stopPropagation(); applyThemeId(focusedId); return
       }
@@ -112,6 +125,11 @@ export const ThemePickerModal: React.FC<Props> = ({
         <div className="theme-picker-preview-wrap">
           <ThemePreview theme={focusedTheme} currentThemeId={currentThemeId} />
         </div>
+        <ThemePickerAudioControls
+          musicEnabled={musicEnabled}
+          musicVolume={musicVolume}
+          onAudioConfigChange={onAudioConfigChange}
+        />
         <div className="theme-picker-spacer" aria-hidden="true" />
         <div className="theme-picker-sticky-stack">
           <div className="theme-picker-rail-label theme-picker-rail-label--path">

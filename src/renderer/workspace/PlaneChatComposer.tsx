@@ -443,63 +443,46 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           level={level}
           text={interim.trim() || t('agentPane.dictationLive')}
         />
-        {(queuedTurns.length > 0 || pendingImages.length > 0) && (
+        {queuedTurns.length > 0 && (
           <div className="plane-chat-composer__pending-row">
-            {pendingImages.length > 0 && (
-              <div
-                className="plane-chat-composer__attachments"
-                aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
-              >
-                {pendingImages.map(image => (
-                  <PendingImageThumb
-                    key={image.id}
-                    src={image.previewUrl}
-                    name={image.name}
-                    onRemove={() => removePendingImage(image.id)}
+            <div
+              className="plane-chat-composer__queue"
+              aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
+            >
+              {onMergeQueuedTurns
+                && selectedAgentId
+                && queuedTurns.filter(item => (
+                  !item.delegation && !item.orchestrationFollowUp
+                )).length >= 2 && (
+                <button
+                  type="button"
+                  className="plane-chat-composer__queue-merge"
+                  aria-label={t('agentPane.queueMerge')}
+                  onClick={() => onMergeQueuedTurns(selectedAgentId)}
+                >
+                  {t('agentPane.queueMerge')}
+                </button>
+              )}
+              {queuedTurns.map((item, index) => (
+                <div key={item.id} className="plane-chat-composer__queue-bubble">
+                  <PlaneChatQueueEditButton
+                    position={index + 1}
+                    text={item.text}
+                    emptyText={t('agentPane.imageOnlyMessage')}
+                    images={item.images}
+                    title={t('agentPane.queueEditHint')}
+                    onClick={() => setEditingQueuedId(item.id)}
                   />
-                ))}
-              </div>
-            )}
-            {queuedTurns.length > 0 && (
-              <div
-                className="plane-chat-composer__queue"
-                aria-label={t('agentPane.queueLabel', { n: queuedTurns.length })}
-              >
-                {onMergeQueuedTurns
-                  && selectedAgentId
-                  && queuedTurns.filter(item => (
-                    !item.delegation && !item.orchestrationFollowUp
-                  )).length >= 2 && (
-                  <button
-                    type="button"
-                    className="plane-chat-composer__queue-merge"
-                    aria-label={t('agentPane.queueMerge')}
-                    onClick={() => onMergeQueuedTurns(selectedAgentId)}
-                  >
-                    {t('agentPane.queueMerge')}
-                  </button>
-                )}
-                {queuedTurns.map((item, index) => (
-                  <div key={item.id} className="plane-chat-composer__queue-bubble">
-                    <PlaneChatQueueEditButton
-                      position={index + 1}
-                      text={item.text}
-                      emptyText={t('agentPane.imageOnlyMessage')}
-                      images={item.images}
-                      title={t('agentPane.queueEditHint')}
-                      onClick={() => setEditingQueuedId(item.id)}
+                  {selectedAgentId ? (
+                    <PlaneChatRemoveChipButton
+                      appearance="queue"
+                      label={t('agentPane.queueRemove')}
+                      onClick={() => onRemoveQueuedTurn?.(selectedAgentId, item.id)}
                     />
-                    {selectedAgentId ? (
-                      <PlaneChatRemoveChipButton
-                        appearance="queue"
-                        label={t('agentPane.queueRemove')}
-                        onClick={() => onRemoveQueuedTurn?.(selectedAgentId, item.id)}
-                      />
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -568,50 +551,72 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             onClick={() => setSketchOpen(true)}
           />
           <span className="plane-chat-composer__field">
-          <textarea
-            ref={composerInputRef}
-            className={`plane-chat-composer__input${historyIndex !== null ? ' plane-chat-composer__input--recalling' : ''}`}
-            value={draft}
-            disabled={agents.length === 0 || composerLocked}
-            placeholder={
-              agents.length === 0
-                ? emptyAgentsHint
-                : loopActive
-                  ? t('agentPane.loopPlaceholder')
-                  : turboAwaitingOpen
-                    ? t('agentPane.turboAwaitingPlaceholder')
-                    : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                      ? t('agentPane.queuePlaceholder')
-                      : placeholder
-            }
-            rows={1}
-            onChange={event => {
-              setDraft(event.target.value)
-              // Editar el texto recuperado es tomar posesión: vuelve a idle.
-              if (historyIndex !== null) setHistoryIndex(null)
-            }}
-            onPaste={handlePaste}
-            onKeyDown={event => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                handleSendClick()
-                return
-              }
-              handleHistoryKey(event)
-            }}
-          />
-          {historyIndex !== null ? (
-            <span
-              className="plane-chat-composer__history-badge"
-              role="status"
-              aria-label={t('agentPane.historyPosition', {
-                n: historyIndex + 1,
-                total: historyRef.current.length,
-              })}
+            <div
+              className={[
+                'plane-chat-composer__input-shell',
+                historyIndex !== null ? 'plane-chat-composer__input-shell--recalling' : '',
+              ].filter(Boolean).join(' ')}
             >
-              {historyIndex + 1} / {historyRef.current.length}
-            </span>
-          ) : null}
+              <textarea
+                ref={composerInputRef}
+                className={`plane-chat-composer__input${historyIndex !== null ? ' plane-chat-composer__input--recalling' : ''}`}
+                value={draft}
+                disabled={agents.length === 0 || composerLocked}
+                placeholder={
+                  agents.length === 0
+                    ? emptyAgentsHint
+                    : loopActive
+                      ? t('agentPane.loopPlaceholder')
+                      : turboAwaitingOpen
+                        ? t('agentPane.turboAwaitingPlaceholder')
+                        : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                          ? t('agentPane.queuePlaceholder')
+                          : placeholder
+                }
+                rows={1}
+                onChange={event => {
+                  setDraft(event.target.value)
+                  // Editar el texto recuperado es tomar posesión: vuelve a idle.
+                  if (historyIndex !== null) setHistoryIndex(null)
+                }}
+                onPaste={handlePaste}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    handleSendClick()
+                    return
+                  }
+                  handleHistoryKey(event)
+                }}
+              />
+              {pendingImages.length > 0 ? (
+                <div
+                  className="plane-chat-composer__attachments"
+                  aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
+                >
+                  {pendingImages.map(image => (
+                    <PendingImageThumb
+                      key={image.id}
+                      src={image.previewUrl}
+                      name={image.name}
+                      onRemove={() => removePendingImage(image.id)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {historyIndex !== null ? (
+              <span
+                className="plane-chat-composer__history-badge"
+                role="status"
+                aria-label={t('agentPane.historyPosition', {
+                  n: historyIndex + 1,
+                  total: historyRef.current.length,
+                })}
+              >
+                {historyIndex + 1} / {historyRef.current.length}
+              </span>
+            ) : null}
           </span>
           <PlaneChatSendButton
             mode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}

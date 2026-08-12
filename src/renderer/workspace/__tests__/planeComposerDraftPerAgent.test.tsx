@@ -83,6 +83,9 @@ describe('PlaneChatComposer drafts por agente', () => {
     const input = () => container.querySelector('textarea') as HTMLTextAreaElement
     const chips = () => container.querySelectorAll('.plane-chat-composer__context')
     const thumbs = () => container.querySelectorAll('.pending-thumb')
+    const thumbsInShell = () =>
+      container.querySelectorAll('.plane-chat-composer__input-shell .pending-thumb')
+    const pendingRow = () => container.querySelector('.plane-chat-composer__pending-row')
 
     fireEvent.change(input(), { target: { value: 'para tech lead' } })
     fireEvent.drop(
@@ -94,6 +97,11 @@ describe('PlaneChatComposer drafts por agente', () => {
     })
     expect(chips()).toHaveLength(1)
     expect(thumbs()).toHaveLength(1)
+    expect(thumbsInShell()).toHaveLength(1)
+    expect(pendingRow()).toBeNull()
+    expect(
+      container.querySelector('.plane-chat-composer__pending-row .pending-thumb'),
+    ).toBeNull()
 
     rerender(view('b'))
     expect(input().value).toBe('')
@@ -105,10 +113,25 @@ describe('PlaneChatComposer drafts por agente', () => {
     expect(input().value).toBe('para tech lead')
     expect(chips()).toHaveLength(1)
     expect(thumbs()).toHaveLength(1)
+    expect(thumbsInShell()).toHaveLength(1)
+    expect(pendingRow()).toBeNull()
 
     rerender(view('b'))
     expect(input().value).toBe('para frontend')
     expect(chips()).toHaveLength(0)
     expect(thumbs()).toHaveLength(0)
+  })
+
+  it('con solo imagen pendiente no monta la fila externa de cola', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { revokeObjectURL: vi.fn() }))
+    const { container } = render(view('a'))
+    const input = container.querySelector('textarea') as HTMLTextAreaElement
+
+    await act(async () => {
+      fireEvent.paste(input, { clipboardData: { items: [], files: [] } })
+    })
+
+    expect(container.querySelectorAll('.plane-chat-composer__field .pending-thumb')).toHaveLength(1)
+    expect(container.querySelector('.plane-chat-composer__pending-row')).toBeNull()
   })
 })

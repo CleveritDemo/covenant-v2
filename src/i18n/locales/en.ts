@@ -1035,12 +1035,17 @@ const en = {
   themePicker: {
     title: 'theme',
     footerHint: 'filter by name · click or [enter] · ← → · esc close',
-    previewLabel: 'title · tabs · terminal · AI bar',
+    previewLabel: 'title · tabs · workspace · AI',
     filterPlaceholder: 'filter theme… (e.g. interstellar)',
     filterAriaLabel: 'Filter theme list',
     listAriaLabel: 'Choose theme',
     emptyState: 'no theme matches "{{filter}}"',
     triggerTitle: 'Choose theme',
+    inUse: 'In use',
+    audioToggle: 'Theme audio',
+    audioToggleHint: 'When off, theme audio does not play and the title-bar control is hidden.',
+    audioVolume: 'Volume',
+    audioHint: 'Audio follows the active theme.',
   },
 
   quit: {

@@ -23,8 +23,7 @@
   pointer-events: auto;
 }
 
-/* Thumbs a la izquierda + queue a la derecha, misma fila visual.
-   Wrap resiliente: en anchos estrechos los chips no se pierden por scroll-x. */
+/* Cola arriba del composer, alineada a la derecha. Sin thumbs aquí. */
 .plane-chat-composer__pending-row {
   display: flex;
   flex-direction: row;
@@ -37,7 +36,7 @@
   pointer-events: auto;
 }
 
-/* Cola en el dock inferior: compacta, a la derecha de los thumbs. */
+/* Cola en el dock inferior: compacta, a la derecha. */
 .plane-chat-composer__queue {
   display: flex;
   flex-direction: row;
@@ -407,22 +406,22 @@
   outline-offset: 6px;
 }
 
-.plane-chat-composer--drop .plane-chat-composer__input {
+.plane-chat-composer--drop .plane-chat-composer__input-shell {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
+/* Capturas dentro del shell: debajo del texto, centradas, wrap sin romper ancho. */
 .plane-chat-composer__attachments {
   display: flex;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 5px;
-  flex: 0 1 auto;
+  gap: 6px;
+  width: 100%;
   min-width: 0;
-  max-height: 52px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0;
+  max-height: none;
+  overflow: visible;
+  padding: 0 10px 10px;
 }
 
 /* Composer: textarea + send */
@@ -438,12 +437,28 @@
   box-shadow: none;
 }
 
-/* Envuelve el textarea solo para anclar el contador del historial. */
+/* Envuelve el shell para anclar el contador del historial. */
 .plane-chat-composer__field {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+}
+
+/* Superficie del campo: fondo/borde/blur viven aquí; el textarea queda limpio. */
+.plane-chat-composer__input-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 14px;
+  box-shadow: none;
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease,
+    backdrop-filter 0.25s ease;
 }
 
 .plane-chat-composer__input {
@@ -456,30 +471,26 @@
   scrollbar-width: none;
   padding: 10px 14px;
   color: var(--text);
-  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   outline: none;
   font-family: var(--font-ui);
   font-size: 13px;
   line-height: 1.4;
   box-shadow: none;
-  backdrop-filter: blur(8px) saturate(1.2);
-  -webkit-backdrop-filter: blur(8px) saturate(1.2);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease,
-    backdrop-filter 0.25s ease;
 }
 
 /* Working: glass suave — blur ligero + relleno bajo para leer las partículas
    del piso del mapa a través del input. */
-.plane-chat-composer--working .plane-chat-composer__input {
+.plane-chat-composer--working .plane-chat-composer__input-shell {
   background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
   backdrop-filter: blur(5px) saturate(1.12);
   -webkit-backdrop-filter: blur(5px) saturate(1.12);
 }
 
 html[data-reduce-motion="true"] {
-  .plane-chat-composer__input {
+  .plane-chat-composer__input-shell {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -490,21 +501,28 @@ html[data-reduce-motion="true"] {
   height: 0;
 }
 
+.plane-chat-composer__input-shell:has(.plane-chat-composer__input:focus),
+.plane-chat-composer__input-shell:has(.plane-chat-composer__input:focus-visible) {
+  border-color: color-mix(in srgb, var(--border) 85%, transparent);
+  box-shadow: none;
+}
+
 .plane-chat-composer__input:focus,
 .plane-chat-composer__input:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--border) 85%, transparent);
-  box-shadow: none;
 }
 
 .plane-chat-composer__input::placeholder {
   color: var(--text-muted);
 }
 
-.plane-chat-composer__input:disabled {
+.plane-chat-composer__input-shell:has(.plane-chat-composer__input:disabled) {
   opacity: 0.45;
   background: color-mix(in srgb, var(--bg-secondary) 55%, var(--bg));
   border-color: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.plane-chat-composer__input:disabled {
   cursor: default;
 }
 
@@ -513,7 +531,7 @@ html[data-reduce-motion="true"] {
  * Va después de :focus y con la misma especificidad (dos clases) para ganarle
  * por orden: recuperando, el borde manda sobre el de foco.
  */
-.plane-chat-composer__field .plane-chat-composer__input--recalling {
+.plane-chat-composer__input-shell--recalling {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
 }

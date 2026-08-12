@@ -62,8 +62,11 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           onClick={onOpenThemePicker}
         />
 
+        <TitlebarClock />
+
         <Button
           variant="icon"
+          size="sm"
           tabIndex={-1}
           onClick={onOpenOrganizations}
           aria-label={t('titlebar.organizationsAriaLabel')}
@@ -73,14 +76,13 @@ export const Titlebar: React.FC<TitlebarProps> = ({
 
         <Button
           variant="icon"
+          size="sm"
           tabIndex={-1}
           onClick={onOpenSettings}
           aria-label={t('titlebar.settingsAriaLabel')}
         >
           <Icon name="settings" size={15} />
         </Button>
-
-        <TitlebarClock />
       </div>
     </div>
   )

@@ -135,18 +135,20 @@ export const TitlebarMusicControls: React.FC<Props> = ({ config }) => {
 
   return (
     <div className="titlebar-music">
-      <MusicSpectrum animating={playing} />
-      <Tooltip content={playPauseLabel}>
-        <button
-          type="button"
-          tabIndex={-1}
-          className="titlebar-music-btn"
-          aria-label={playPauseLabel}
-          onClick={onPlayPause}
-        >
-          <Icon name={playing ? 'pause' : 'play'} size={14} />
-        </button>
-      </Tooltip>
+      <div className="titlebar-music-wave">
+        <MusicSpectrum animating={playing} />
+        <Tooltip content={playPauseLabel}>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="titlebar-music-btn"
+            aria-label={playPauseLabel}
+            onClick={onPlayPause}
+          >
+            <Icon name={playing ? 'pause' : 'play'} size={12} />
+          </button>
+        </Tooltip>
+      </div>
     </div>
   )
 }

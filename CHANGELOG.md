@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.54
+
+- **Theme picker visual**: preview mini Covenant, cards por mood/color y audio compacto dentro del modal.
+- **Toolbar/titlebar**: play/pausa integrado en ondas, botones org/settings cuadrados, trigger de temas con Button del kit, reloj entre temas y organizaciones.
+- **Composer del plano**: thumbnails de capturas dentro del campo, bajo el texto y centrados.
+
 ## v0.39.53
 
 - **Delegaciones en curso se actualizan fila por fila**: la QuickChat del plano ya marca cada agente como terminado sin esperar a toda la ola.

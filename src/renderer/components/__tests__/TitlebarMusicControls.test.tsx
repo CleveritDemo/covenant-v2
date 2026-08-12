@@ -64,11 +64,16 @@ describe('TitlebarMusicControls', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('muestra solo play/pausa cuando hay track', () => {
-    render(
+  it('muestra solo play/pausa integrado en el spectrum cuando hay track', () => {
+    const { container } = render(
       <TitlebarMusicControls config={{ ...CONFIG_DEFAULTS, themeId: 'matrix', musicEnabled: true }} />,
     )
-    expect(screen.getByLabelText('music.play')).toBeTruthy()
+    const wave = container.querySelector('.titlebar-music-wave')
+    const btn = screen.getByLabelText('music.play')
+    expect(wave).toBeTruthy()
+    expect(wave?.contains(btn)).toBe(true)
+    expect(wave?.querySelector('.titlebar-music-spectrum')).toBeTruthy()
+    expect(container.querySelectorAll('button')).toHaveLength(1)
     expect(screen.queryByLabelText('music.stop')).toBeNull()
     expect(screen.queryByLabelText('music.volume')).toBeNull()
   })

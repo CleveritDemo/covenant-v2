@@ -1037,12 +1037,17 @@ const es = {
   themePicker: {
     title: 'tema',
     footerHint: 'filtro por nombre · clic o [enter] · ← → · esc cerrar',
-    previewLabel: 'título · pestañas · terminal · barra IA',
+    previewLabel: 'título · pestañas · workspace · IA',
     filterPlaceholder: 'filtrar tema… (p. ej. interstellar)',
     filterAriaLabel: 'Filtrar lista de temas',
     listAriaLabel: 'Elegir tema',
     emptyState: 'ningún tema coincide con «{{filter}}»',
     triggerTitle: 'Elegir tema',
+    inUse: 'En uso',
+    audioToggle: 'Audio del tema',
+    audioToggleHint: 'Si está desactivado, el audio no suena y el control desaparece de la barra de título.',
+    audioVolume: 'Volumen',
+    audioHint: 'El audio sigue el tema activo.',
   },
 
   quit: {

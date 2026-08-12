@@ -2,10 +2,15 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { PlaneChatComposer } from '../PlaneChatComposer'
 import { PLANE_CONTEXT_DRAG_MIME } from '../planeContextDrag'
+
+const here = dirname(fileURLToPath(import.meta.url))
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key, i18n: { language: 'es' } }),
@@ -102,6 +107,13 @@ describe('PlaneChatComposer drafts por agente', () => {
     expect(
       container.querySelector('.plane-chat-composer__pending-row .pending-thumb'),
     ).toBeNull()
+    const shell = container.querySelector('.plane-chat-composer__input-shell') as HTMLElement
+    const attachments = shell.querySelector('.plane-chat-composer__attachments') as HTMLElement
+    expect(attachments).not.toBeNull()
+    expect(
+      attachments.compareDocumentPosition(shell.querySelector('textarea') as Node) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy()
 
     rerender(view('b'))
     expect(input().value).toBe('')
@@ -131,7 +143,25 @@ describe('PlaneChatComposer drafts por agente', () => {
       fireEvent.paste(input, { clipboardData: { items: [], files: [] } })
     })
 
-    expect(container.querySelectorAll('.plane-chat-composer__field .pending-thumb')).toHaveLength(1)
+    const shell = container.querySelector('.plane-chat-composer__input-shell') as HTMLElement
+    const attachments = shell.querySelector('.plane-chat-composer__attachments') as HTMLElement
+    expect(shell.querySelectorAll('.pending-thumb')).toHaveLength(1)
+    expect(attachments).not.toBeNull()
+    expect(attachments.compareDocumentPosition(shell.querySelector('textarea') as Node) &
+      Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     expect(container.querySelector('.plane-chat-composer__pending-row')).toBeNull()
+  })
+
+  it('el rail de adjuntos va a la derecha en fila sin wrap vertical', () => {
+    const composerCss = readFileSync(join(here, '../PlaneChatComposer.css'), 'utf8')
+    const thumbCss = readFileSync(join(here, '../../components/PendingImageThumb.css'), 'utf8')
+
+    expect(composerCss).toMatch(
+      /\.plane-chat-composer__input-shell\s*\{[^}]*flex-direction:\s*row/s,
+    )
+    expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*max-width:\s*40%/s)
+    expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*overflow-x:\s*auto/s)
+    expect(composerCss).toMatch(/\.plane-chat-composer__attachments\s*\{[^}]*flex-wrap:\s*nowrap/s)
+    expect(thumbCss).toMatch(/\.pending-thumb__open\s*\{[^}]*border:\s*none/s)
   })
 })

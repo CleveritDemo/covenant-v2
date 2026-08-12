@@ -13,11 +13,11 @@
   padding: 0;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border: none;
   background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 30%, transparent);
+  box-shadow: none;
   cursor: zoom-in;
-  transition: border-color 0.14s ease, transform 0.14s ease;
+  transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
 .pending-thumb__open img {
@@ -28,7 +28,7 @@
 }
 
 .pending-thumb__open:hover {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  opacity: 0.92;
   transform: translateY(-1px);
 }
 

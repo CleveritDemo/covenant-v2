@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.55
+
+- **Adjuntos del composer más compactos**: los thumbnails van a la derecha del texto, con scroll horizontal y sin subir el dock.
+
 ## v0.39.54
 
 - **Theme picker visual**: preview mini Covenant, cards por mood/color y audio compacto dentro del modal.

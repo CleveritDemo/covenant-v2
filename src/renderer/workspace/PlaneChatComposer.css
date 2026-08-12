@@ -410,18 +410,25 @@
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
-/* Capturas dentro del shell: debajo del texto, centradas, wrap sin romper ancho. */
+/* Capturas dentro del shell: rail a la derecha del texto, scroll-x sin crecer alto. */
 .plane-chat-composer__attachments {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
   align-items: center;
   gap: 6px;
-  width: 100%;
   min-width: 0;
-  max-height: none;
-  overflow: visible;
-  padding: 0 10px 10px;
+  max-width: 40%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 10px 8px 6px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  scrollbar-width: thin;
+}
+
+.plane-chat-composer__attachments:has(.pending-thumb:only-child) {
+  justify-content: center;
 }
 
 /* Composer: textarea + send */
@@ -448,7 +455,8 @@
 /* Superficie del campo: fondo/borde/blur viven aquí; el textarea queda limpio. */
 .plane-chat-composer__input-shell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   flex: 1 1 auto;
   min-width: 0;
   background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);

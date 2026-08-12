@@ -7,6 +7,7 @@ import {
   dedupeAgentIdsPreservingOrder,
   isBrainstormHumanMessage,
   parseBrainstormClosing,
+  parseCeremonyClosing,
   resolveBrainstormParticipantDisplay,
   resolveBrainstormParticipantIds,
   stripBrainstormProtocolFences,
@@ -190,12 +191,17 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
   // El cierre es la última entrada, no una pantalla nueva: solo si el turno
   // final trajo las etiquetas y la sala ya terminó.
+  // Con ceremonia el cierre trae sus propias etiquetas; sin ella, las genéricas.
   const closingOfLastMessage = useMemo(() => {
     if (live.status !== 'done' || live.streaming) return null
     const last = live.messages[live.messages.length - 1]
     if (!last || isBrainstormHumanMessage(last)) return null
-    return parseBrainstormClosing(stripBrainstormProtocolFences(last.text))
-  }, [live.messages, live.status, live.streaming])
+    const text = stripBrainstormProtocolFences(last.text)
+    const ceremonyClosing = parseCeremonyClosing(text, room.ceremony)
+    if (ceremonyClosing) return { ceremonyClosing }
+    const closing = parseBrainstormClosing(text)
+    return closing ? { closing } : null
+  }, [live.messages, live.status, live.streaming, room.ceremony])
 
   const workingSetLabels = useMemo(() => {
     const contextIds = hotWorkingSet?.contextIds ?? room.contextIds ?? []
@@ -414,7 +420,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                     roomId={room.id}
                     topic={room.topic}
                     cwd={cwd}
-                    closing={closing}
+                    closing={closing.closing}
+                    ceremonyClosing={closing.ceremonyClosing}
                     speakerLabel={speakerLabel(message.agentId, message.agentName)}
                     onContextSaved={onContextSaved}
                   />

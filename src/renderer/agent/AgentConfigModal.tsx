@@ -42,6 +42,7 @@ function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
     name: meta.name ?? '',
     monogram: meta.monogram ?? '',
     role: meta.role ?? '',
+    ceremonyRole: meta.ceremonyRole,
     objective: meta.objective ?? '',
     rules: meta.rules ?? [],
   }
@@ -171,11 +172,12 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   }, [open, meta.provider, modelsReload])
 
   const updateDraft = useCallback((patch: Partial<AgentIdentityDraft>) => {
-    setDraft(previous => {
-      const next = { ...previous, ...patch }
-      draftRef.current = next
-      return next
-    })
+    // La ref se actualiza ya, no dentro del updater: `commitIdentity` la lee de
+    // forma síncrona, y un control que cambia y guarda en el mismo gesto (un
+    // Select, sin blur de por medio) guardaba el valor anterior.
+    const next = { ...draftRef.current, ...patch }
+    draftRef.current = next
+    setDraft(next)
   }, [])
 
   const commitIdentity = useCallback(async (): Promise<boolean> => {
@@ -241,7 +243,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
   // Estado de guardado: flash al persistir cualquier campo del agente.
   const savedSnapshot = JSON.stringify([
-    meta.id, meta.name, meta.role, meta.objective, meta.rules,
+    meta.id, meta.name, meta.role, meta.ceremonyRole, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
     meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
     meta.acceptDelegations, meta.allowExpertReplicas, meta.autoImproveContexts,
@@ -278,6 +280,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
   const identityDirty = draft.name !== (meta.name ?? '')
     || draft.role !== (meta.role ?? '')
+    || draft.ceremonyRole !== meta.ceremonyRole
     || draft.id !== (meta.id ?? '')
   const objectiveDirty = draft.objective !== (meta.objective ?? '')
   const rulesDirty = draft.rules.join('\0') !== rulesKey

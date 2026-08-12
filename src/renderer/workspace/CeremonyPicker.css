@@ -1,0 +1,155 @@
+.ceremony-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ceremony-picker__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.ceremony-picker__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 1.2);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.ceremony-picker__search .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ceremony-picker__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(52vh, 440px);
+  overflow-y: auto;
+  /* El encabezado de etapa no se corta contra el borde del scroll. */
+  padding: 2px 2px 4px;
+  scroll-padding-block: 8px;
+  /* La tarjeta cortada abajo se desvanece: se lee «hay más», no «está roto». */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+
+.ceremony-picker__stage {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ceremony-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Brainstorming es la única de su etapa: a fila completa en vez de dejar hueco. */
+.ceremony-picker__item--free {
+  grid-column: 1 / -1;
+}
+
+/* La banda de etapa vive en el `li`: el kit no acepta className. */
+.ceremony-picker__item {
+  position: relative;
+  min-width: 0;
+}
+
+.ceremony-picker__item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--stage, var(--border));
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ceremony-picker__item--free { --stage: var(--text-muted); }
+.ceremony-picker__item--discovery { --stage: var(--accent-dim); }
+.ceremony-picker__item--align { --stage: var(--accent); }
+.ceremony-picker__item--spec { --stage: var(--accent); }
+.ceremony-picker__item--deliver { --stage: var(--accent-dim); }
+
+.ceremony-picker__item .choice-card {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px 11px 16px;
+  justify-content: flex-start;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.ceremony-picker__item .choice-card .choice-card__content {
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+}
+
+.ceremony-picker__card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.ceremony-picker__name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.ceremony-picker__goal {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 450;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.ceremony-picker__gate {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.ceremony-picker__empty {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}

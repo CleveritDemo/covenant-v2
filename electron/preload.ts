@@ -188,6 +188,7 @@ const api = {
     contextIds?: string[]
     filePaths?: string[]
     outcome?: string
+    ceremony?: string
     resume?: boolean
     round?: number
     cursor?: number

@@ -7,6 +7,7 @@ import {
   sanitizeAgentRulesDraft,
   sanitizeAgentTextDraft,
 } from './agentIdentity'
+import { sanitizeCeremonyRoleId, type CeremonyRoleId } from './agileCeremonies'
 import {
   sanitizeAgentCoordination,
   sanitizeOrchestrationMaxRounds,
@@ -57,6 +58,12 @@ export interface ProjectAgentDefinition {
   /** 2 caracteres para la cara del agente; si falta, se derivan del name. */
   monogram?: string
   role?: string
+  /**
+   * Rol para ceremonias, de lista cerrada (`CeremonyRoleId`). Es lo que usan
+   * las salas para sentar a quien toca; `role` es texto libre y solo sirve de
+   * respaldo cuando esto falta.
+   */
+  ceremonyRole?: CeremonyRoleId
   objective?: string
   rules?: string[]
   model?: string
@@ -476,6 +483,8 @@ export function parseProjectAgentDefinition(
     AGENT_ROLE_MAX_LENGTH,
   )
   if (role) def.role = role
+  const ceremonyRole = sanitizeCeremonyRoleId(data.ceremonyRole)
+  if (ceremonyRole) def.ceremonyRole = ceremonyRole
   const objective = sanitizeAgentTextDraft(
     typeof data.objective === 'string' ? data.objective : undefined,
     AGENT_OBJECTIVE_MAX_LENGTH,
@@ -540,6 +549,7 @@ export function cloneProjectAgentDefinition(
     ...(name ? { name } : {}),
     ...(source.monogram ? { monogram: source.monogram } : {}),
     ...(source.role ? { role: source.role } : {}),
+    ...(source.ceremonyRole ? { ceremonyRole: source.ceremonyRole } : {}),
     ...(source.objective ? { objective: source.objective } : {}),
     ...(source.rules?.length ? { rules: [...source.rules] } : {}),
     ...(source.model ? { model: source.model } : {}),
@@ -676,6 +686,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     name: meta.name,
     monogram: meta.monogram,
     role: meta.role,
+    ceremonyRole: meta.ceremonyRole,
     objective: meta.objective,
     rules: normalizeAgentRules(meta.rules),
     model: meta.model,

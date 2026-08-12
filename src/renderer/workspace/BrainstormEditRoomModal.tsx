@@ -9,6 +9,7 @@ import {
   sanitizeBrainstormWorkingSet,
 } from '@shared/brainstormRoom'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { sanitizeCeremonyId } from '@shared/agileCeremonies'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
@@ -69,6 +70,13 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
   const safeParticipantIds = useMemo(
     () => (agents.length ? sanitizeBrainstormInviteIds(participantIds, agents) : participantIds),
     [participantIds, agents],
+  )
+
+  const seatedAgents = useMemo(
+    () => safeParticipantIds
+      .map(id => agents.find(agent => agent.id === id))
+      .filter((agent): agent is ProjectAgentDefinition => Boolean(agent)),
+    [safeParticipantIds, agents],
   )
 
   const toggleAgent = (agentId: string): void => {
@@ -153,6 +161,9 @@ export const BrainstormEditRoomModal: React.FC<BrainstormEditRoomModalProps> = (
       ) : null}
       <BrainstormBriefFields
         cwd={cwd}
+        /* La ceremonia no se cambia al editar: el acta ya se escribió con ella. */
+        ceremony={sanitizeCeremonyId(room?.ceremony)}
+        seatedAgents={seatedAgents}
         topic={topic}
         onTopicChange={setTopic}
         contextIds={contextIds}

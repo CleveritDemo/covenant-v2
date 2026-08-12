@@ -1,3 +1,11 @@
+/* El formulario se lee en columna estrecha aunque el modal sea xl (900px);
+   el panel de ceremonia sí usa todo el ancho, que sus chips y asientos lo
+   aprovechan. */
+.brainstorm-brief__field,
+.brainstorm-brief__summary {
+  max-width: 640px;
+}
+
 .brainstorm-brief__field {
   display: flex;
   flex-direction: column;
@@ -19,6 +27,96 @@
   color: var(--text-muted);
 }
 
+.brainstorm-brief__ceremony {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 1.4);
+  background: var(--bg-secondary);
+}
+
+.brainstorm-brief__goal {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.brainstorm-brief__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.brainstorm-brief__chip {
+  padding: 3px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.brainstorm-brief__gate {
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.brainstorm-brief__gate--blocking {
+  color: var(--danger);
+}
+
+.brainstorm-brief__seats {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.brainstorm-brief__seat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.brainstorm-brief__seat--missing {
+  border-style: dashed;
+}
+
+.brainstorm-brief__seat-role {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-brief__seat-agent {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.brainstorm-brief__seat--missing .brainstorm-brief__seat-agent {
+  font-weight: 450;
+  color: var(--text-muted);
+}
+
 .brainstorm-brief__summary {
   display: flex;
   flex-wrap: wrap;
@@ -31,5 +129,18 @@
   font-family: var(--font-ui);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.brainstorm-brief__seat--guess {
+  border-style: dashed;
+}
+
+/* Rol deducido del texto libre: se avisa para que se pueda etiquetar. */
+.brainstorm-brief__seat-guess {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }

@@ -7,9 +7,11 @@ import {
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
 import { agentMonogram } from '@shared/tabContextAppearance'
+import { CEREMONY_ROLE_IDS, sanitizeCeremonyRoleId } from '@shared/agileCeremonies'
 import { AGENT_IDENTITY_TEMPLATES } from '@shared/agentIdentityTemplates'
 import { useT } from '@i18n/useT'
-import { Input, TextArea } from '../components/ui'
+import { Input, Select, TextArea } from '../components/ui'
+import { CEREMONY_ROLE_KEY } from '../workspace/ceremonyLabels'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentConfigSlugField } from './AgentConfigSlugField'
 import './AgentConfigIdentityColumn.css'
@@ -143,7 +145,35 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
             onBlur={onCommit}
           />
         </label>
+
       </div>
+
+      {/* Fuera de la fila de identidad: esa rejilla es de 3 columnas (68px 1fr
+          1fr) y un cuarto campo caía en la de 68px, estrujado. */}
+      <label className="agent-config-identity__field agent-config-identity__field--ceremony">
+        <span className="agent-config-identity__label">
+          {t('agentPane.ceremonyRoleLabel')}
+        </span>
+        <span className="agent-config-identity__control">
+          <Select
+            value={draft.ceremonyRole ?? ''}
+            onChange={next => {
+              onChange({ ceremonyRole: sanitizeCeremonyRoleId(next) })
+              onCommit()
+            }}
+            options={[
+              { value: '', label: t('agentPane.ceremonyRoleNone') },
+              ...CEREMONY_ROLE_IDS.map(id => ({
+                value: id,
+                label: t(CEREMONY_ROLE_KEY[id]),
+              })),
+            ]}
+          />
+        </span>
+        <span className="agent-config-identity__hint">
+          {t('agentPane.ceremonyRoleHint')}
+        </span>
+      </label>
 
       <AgentConfigSlugField
         value={draft.id}

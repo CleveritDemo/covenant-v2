@@ -1,6 +1,6 @@
 // Auto-updater contra GitHub Releases (electron-updater). Chequeo silencioso al
-// arrancar y cada hora cuando `autoUpdatesEnabled`; el usuario decide cuándo
-// instalar desde el banner o Ajustes → Actualizaciones.
+// arrancar y cada hora cuando `autoUpdatesEnabled`. Tras la descarga el usuario
+// decide cuándo reiniciar (Instalar → Restart); no hay salida automática.
 //
 // No hay llaves de firma propias: la confianza viene de la firma de plataforma
 // (Developer ID + notarización en macOS). En dev no corre — sin `app-update.yml`
@@ -18,8 +18,9 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000
 const FIRST_CHECK_DELAY_MS = 5_000
 
 let state: UpdateState = { kind: 'idle' }
-/** El usuario pulsó Instalar: al terminar la descarga se sale y se instala. */
-let installWhenReady = false
+type DeferredReady = { version: string; notes: string | null }
+/** Descarga lista ocultada con dismiss; sobrevive hasta reinicio o versión nueva. */
+let deferredReady: DeferredReady | null = null
 /** Entre el cierre de ventanas y el relevo a Squirrel nadie más puede llamar a `app.quit()`. */
 let installing = false
 /** Timers del chequeo silencioso (null = parado). */
@@ -53,6 +54,13 @@ function setState(next: UpdateState): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send(IPC.UPDATE_STATE, state)
   }
+}
+
+function hydrateReadyFromStash(): UpdateState {
+  if (state.kind === 'idle' && deferredReady) {
+    setState({ kind: 'ready', version: deferredReady.version, notes: deferredReady.notes })
+  }
+  return state
 }
 
 /**
@@ -127,7 +135,13 @@ function wireUpdaterEvents(): void {
   log(`versión actual ${app.getVersion()}`)
   autoUpdater.on('update-available', info => {
     log(`disponible ${info.version}`)
-    setState({ kind: 'available', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
+    const notes = formatReleaseNotes(info.releaseNotes)
+    if (deferredReady && deferredReady.version === info.version) {
+      setState({ kind: 'ready', version: info.version, notes: deferredReady.notes ?? notes })
+      return
+    }
+    deferredReady = null
+    setState({ kind: 'available', version: info.version, notes })
   })
   autoUpdater.on('update-not-available', () => log('sin actualizaciones'))
   autoUpdater.on('download-progress', progress => {
@@ -136,8 +150,9 @@ function wireUpdaterEvents(): void {
   })
   autoUpdater.on('update-downloaded', info => {
     log(`descargada ${info.version}`)
-    setState({ kind: 'ready', version: info.version, notes: formatReleaseNotes(info.releaseNotes) })
-    if (installWhenReady) quitAndInstall()
+    const notes = formatReleaseNotes(info.releaseNotes)
+    deferredReady = null // el estado visible ya es la fuente de verdad
+    setState({ kind: 'ready', version: info.version, notes })
   })
   autoUpdater.on('error', err => {
     log(`error: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
@@ -149,21 +164,26 @@ function wireUpdaterEvents(): void {
 }
 
 export function registerSelfUpdate(autoUpdatesEnabled = true): void {
-  ipcMain.handle(IPC.UPDATE_STATE_GET, () => state)
+  ipcMain.handle(IPC.UPDATE_STATE_GET, () => hydrateReadyFromStash())
   ipcMain.on(IPC.UPDATE_INSTALL, () => {
-    if (state.kind === 'ready') {
+    if (state.kind === 'ready' || (state.kind === 'idle' && deferredReady)) {
+      deferredReady = null
       quitAndInstall()
       return
     }
     if (state.kind !== 'available') return
-    installWhenReady = true
+    deferredReady = null
     setState({ kind: 'downloading', version: state.version, percent: 0 })
     void autoUpdater.downloadUpdate().catch((err: unknown) => {
-      installWhenReady = false
       setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
     })
   })
-  ipcMain.on(IPC.UPDATE_DISMISS, () => setState({ kind: 'idle' }))
+  ipcMain.on(IPC.UPDATE_DISMISS, () => {
+    if (state.kind === 'ready') {
+      deferredReady = { version: state.version, notes: state.notes }
+    }
+    setState({ kind: 'idle' })
+  })
   // Chequeo manual: el fallo se devuelve al que preguntó en vez de pintarse en el
   // banner — un botón que responde «no pude» no debe dejar rastro en la titlebar.
   ipcMain.handle(IPC.UPDATE_CHECK, async (): Promise<UpdateState> => {
@@ -172,7 +192,7 @@ export function registerSelfUpdate(autoUpdatesEnabled = true): void {
     } catch (err) {
       return { kind: 'error', message: err instanceof Error ? err.message : String(err) }
     }
-    return state
+    return hydrateReadyFromStash()
   })
 
   // El banner solo existe con una release real detrás; con esto se puede mirar

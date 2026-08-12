@@ -653,7 +653,14 @@ function serializeContextMetadata(context: TabContext): string {
         (context.fileName || context.name).replace(/^results[/\\]/i, ''),
         context.id.replace(/^iaterminal:result:/, '') || 'agent',
       )}`)
-    : normalizeContextFileName(context.fileName || context.name, context.id)
+    : context.kind === 'jira'
+      ? (context.fileName.replace(/\\/g, '/').startsWith('jira/')
+        ? context.fileName.replace(/\\/g, '/')
+        : `jira/${normalizeContextFileName(
+          (context.issueKey || context.fileName || context.name).replace(/^jira[/\\]/i, ''),
+          'issue',
+        )}`)
+      : normalizeContextFileName(context.fileName || context.name, context.id)
   const metadata = JSON.stringify({
     version: 1,
     id: context.id,
@@ -665,6 +672,8 @@ function serializeContextMetadata(context: TabContext): string {
     ...(context.rootPath ? { rootPath: context.rootPath } : {}),
     ...(context.paths ? { paths: context.paths } : {}),
     ...(context.symbolKinds ? { symbolKinds: context.symbolKinds } : {}),
+    ...(context.issueKey ? { issueKey: context.issueKey } : {}),
+    ...(context.refreshSeconds !== undefined ? { refreshSeconds: context.refreshSeconds } : {}),
   })
     // Evita que datos proporcionados por el usuario puedan cerrar el comentario.
     .replace(/</g, '\\u003c')
@@ -770,6 +779,12 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
         : {}),
       ...(paths ? { paths } : {}),
       ...(symbolKinds ? { symbolKinds } : {}),
+      ...(typeof value.issueKey === 'string' && value.issueKey.trim()
+        ? { issueKey: value.issueKey.trim().slice(0, 60) }
+        : {}),
+      ...(typeof value.refreshSeconds === 'number' && Number.isFinite(value.refreshSeconds)
+        ? { refreshSeconds: value.refreshSeconds }
+        : {}),
     }
   } catch {
     return null
@@ -1193,7 +1208,7 @@ export function materializeTabContext(
         return {
           ok: false,
           content: '',
-          error: `Sin snapshot de ${contextToWrite.issueKey ?? 'la issue'}.`,
+          error: `No snapshot for ${contextToWrite.issueKey ?? 'this issue'} yet.`,
         }
       }
       return {

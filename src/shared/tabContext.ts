@@ -134,6 +134,20 @@ export function canonicalContextId(
     const agentId = (options.agentId ?? '').trim() || 'agent'
     return `iaterminal:result:${agentId}`
   }
+  if (kind === 'jira') {
+    // Bypassa creatableContextStem a propósito: ese camino prefiere `name`
+    // (que para jira es la clave en MAYÚSCULAS), y produciría un id
+    // case-sensitive distinto cada vez que el name esté presente. El id
+    // canónico siempre se deriva de la clave en minúsculas, con fileStem/name
+    // como red de seguridad para contextos sin issueKey explícito todavía.
+    const fromFileStem = (options.fileStem ?? '').trim().replace(/^jira\//i, '')
+    const issueKey = (
+      (options.issueKey ?? '').trim()
+      || (options.name ?? '').trim()
+      || fromFileStem
+    ).toLowerCase() || 'issue'
+    return `iaterminal:jira:${issueKey}`
+  }
   if (isCreatableContextKind(kind)) {
     return `iaterminal:${kind}:${creatableContextStem(kind, options)}`
   }
@@ -226,7 +240,18 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
     : undefined
   // Name vacío → stem desde fileStem/default (no desde el display name canónico).
   const identityName = context.name.trim() || undefined
-  const issueKey = context.issueKey
+  // Igual que agentId arriba: si el contexto no trae issueKey explícito (por
+  // ejemplo, uno recién descubierto de disco antes de que la metadata lo
+  // persista), se reconstruye desde el id canónico y, si tampoco está, desde
+  // el nombre de archivo real (`jira/GRAV-412.md` → `GRAV-412`).
+  const issueKey = context.kind === 'jira'
+    ? (context.issueKey
+        || (context.id.startsWith('iaterminal:jira:')
+              ? context.id.slice('iaterminal:jira:'.length)
+              : undefined)
+        || context.fileName?.replace(/^jira\//, '').replace(/\.md$/i, '')
+        || undefined)
+    : undefined
   const id = canonicalContextId(context.kind, {
     rootPath,
     fileStem,
@@ -242,12 +267,13 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
     issueKey,
   })
   const resolvedName = context.name.trim()
-    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId })
+    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId, issueKey })
   return {
     ...context,
     id,
     fileName,
     name: resolvedName,
+    ...(issueKey ? { issueKey } : {}),
     ...(rootPath !== undefined
       ? { rootPath: normalizeContextRootPath(rootPath) === '.' ? undefined : normalizeContextRootPath(rootPath) }
       : {}),

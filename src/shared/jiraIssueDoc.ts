@@ -10,8 +10,21 @@
 import { AUTO_END, AUTO_START, NOTES_END, NOTES_START } from './contextSections'
 import type { JiraIssueSnapshot } from './jiraIssue'
 
-const AUTO_RE = /<!--\s*iaterminal:auto\s*-->[\s\S]*?<!--\s*\/iaterminal:auto\s*-->/
 const NOTES_PLACEHOLDER = '(no annotations yet)'
+
+/**
+ * Escapa caracteres especiales de regex para usarlos en nuevas expresiones regulares.
+ * Solo es necesario aquí para derivar AUTO_RE de los marcadores importados.
+ */
+const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Construida dinámicamente desde los marcadores importados para asegurar sincronía:
+ * si AUTO_START o AUTO_END cambian, la búsqueda se ajusta automáticamente.
+ */
+const AUTO_RE = new RegExp(
+  `${escapeRegExp(AUTO_START)}[\\s\\S]*?${escapeRegExp(AUTO_END)}`
+)
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -101,11 +114,14 @@ export function issueAutoMarkdown(issue: JiraIssueSnapshot, maxComments: number)
 
 /**
  * Reemplaza SOLO la región `auto`. Si el archivo no existe todavía, escribe el
- * documento completo con una región `notes` vacía lista para anotar.
+ * documento completo con una región `notes` vacía lista para anotar. Si existe
+ * pero la región auto está corrupta/ausente, preserva el contenido existente (que
+ * puede contener anotaciones valiosas) e inserta la nueva región al final.
  */
 export function withJiraAutoBlock(raw: string, metadataLine: string, auto: string): string {
   const region = `${AUTO_START}\n${auto.trim()}\n${AUTO_END}`
-  if (raw.trim() && AUTO_RE.test(raw)) return raw.replace(AUTO_RE, region)
+  if (AUTO_RE.test(raw)) return raw.replace(AUTO_RE, region)
+  if (raw.trim()) return `${raw.replace(/\s*$/, '')}\n\n${region}\n`
   return [
     metadataLine,
     region,

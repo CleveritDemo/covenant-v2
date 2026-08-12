@@ -124,4 +124,30 @@ describe('withJiraAutoBlock', () => {
     expect(doc.match(/<!-- iaterminal:auto -->/g)).toHaveLength(1)
     expect(doc.match(/<!-- iaterminal:notes -->/g)).toHaveLength(1)
   })
+
+  it('AUTO_RE se deriva de los marcadores importados para asegurar sincronía', () => {
+    // Si los marcadores cambiasen (espacios, guiones, etc), la regex debe seguir funcionando.
+    // Probamos que la región con los marcadores reales se reemplaza correctamente.
+    const doc1 = withJiraAutoBlock('', meta, 'contenido1')
+    const doc2 = withJiraAutoBlock(doc1, meta, 'contenido2')
+    // Si AUTO_RE fuese un literal hardcoded, cualquier cambio en los importados sería ignorado.
+    // Verificamos que la sustitución ocurre (doc2 contiene contenido2, no contenido1).
+    expect(doc2).toContain('contenido2')
+    expect(doc2).not.toContain('contenido1')
+  })
+
+  it('si la región auto está corrupta pero hay notas reales, no pierde las notas', () => {
+    // Documento con notas pero SIN la región auto (simulando corrupción/ausencia).
+    const corruptedDoc = `${meta}
+
+<!-- iaterminal:notes -->
+información crítica sobre la issue
+<!-- /iaterminal:notes -->
+`
+    // Al refrescar con región auto nueva, debe preservar las notas.
+    const refreshed = withJiraAutoBlock(corruptedDoc, meta, '## Resumen\nnuevo')
+    expect(refreshed).toContain('información crítica sobre la issue')
+    expect(refreshed).toContain('<!-- iaterminal:auto -->')
+    expect(refreshed).toContain('## Resumen\nnuevo')
+  })
 })

@@ -10,6 +10,7 @@ import {
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
+import { McpConfigEditor } from './McpConfigEditor'
 import './McpToolShelf.css'
 
 export interface McpToolShelfProps {
@@ -44,6 +45,7 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
   const [result, setResult] = useState<McpServersListResult | null>(null)
   const [busyName, setBusyName] = useState('')
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
   /**
    * Elegir «Solo estas» con nada marcado todavía. El modo real se deriva de la
    * lista (vacía = todas), así que sin esto no habría forma de enseñar las
@@ -225,6 +227,14 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
           <Icon name="files" size={11} aria-hidden />
           {t('agentPane.mcpSource', { file: result.file })}
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          pressed={editing}
+          onClick={() => setEditing(open => !open)}
+        >
+          {t('agentPane.mcpEditAction')}
+        </Button>
         <Button variant="ghost" size="sm" onClick={openConfigFile}>
           {t(result.fileExists ? 'agentPane.mcpsOpenFile' : 'agentPane.mcpsCreateFile')}
         </Button>
@@ -235,6 +245,8 @@ export const McpToolShelf: React.FC<McpToolShelfProps> = ({
             : t('agentPane.mcpCountAvailable', { n: readyCount })}
         </span>
       </div>
+
+      {editing && <McpConfigEditor provider={provider} cwd={cwd} onSaved={load} />}
     </div>
   )
 }

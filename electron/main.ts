@@ -1744,7 +1744,7 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.AGENT_MCP_CONFIG_WRITE, (
     _event,
-    request: { provider?: unknown; cwd?: unknown; text?: unknown },
+    request: { provider?: unknown; cwd?: unknown; text?: unknown; expected?: unknown },
   ) => {
     if (!request || !isAgentCliProvider(request.provider)) {
       return { ok: false, error: 'proveedor inválido' }
@@ -1764,7 +1764,11 @@ function registerIpc(): void {
     }
     const path = mcpConfigPathFor(request.provider, cwd, app.getPath('home'))
     try {
-      writeMcpConfigText(path, text)
+      writeMcpConfigText(
+        path,
+        text,
+        typeof request.expected === 'string' ? request.expected : undefined,
+      )
       return { ok: true, path }
     } catch (error) {
       return { ok: false, error: (error as Error).message }

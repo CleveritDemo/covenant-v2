@@ -116,4 +116,38 @@ describe('readMcpConfigText / writeMcpConfigText', () => {
     expect(() => writeMcpConfigText(path, huge)).toThrow('too-large')
     expect(existsSync(path)).toBe(false)
   })
+
+  it('no pisa el archivo si cambió fuera desde que se leyó', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, '.mcp.json')
+    const abierto = '{"mcpServers":{"jira":{}}}\n'
+    writeFileSync(path, abierto, 'utf8')
+    // Alguien escribe por fuera: ahí puede estar el token que no vuelve.
+    const deOtro = '{"mcpServers":{"jira":{"token":"x"}}}\n'
+    writeFileSync(path, deOtro, 'utf8')
+
+    expect(() => writeMcpConfigText(path, '{"mcpServers":{}}', abierto))
+      .toThrow('changed-outside')
+    expect(readFileSync(path, 'utf8')).toBe(deOtro)
+  })
+
+  it('escribe cuando el disco coincide, y también sin expected (sobrescribir)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, '.mcp.json')
+    const disco = '{"mcpServers":{"jira":{}}}\n'
+    writeFileSync(path, disco, 'utf8')
+
+    writeMcpConfigText(path, '{"mcpServers":{"a":{}}}', disco)
+    expect(readFileSync(path, 'utf8')).toBe('{"mcpServers":{"a":{}}}\n')
+
+    writeMcpConfigText(path, '{"mcpServers":{"b":{}}}')
+    expect(readFileSync(path, 'utf8')).toBe('{"mcpServers":{"b":{}}}\n')
+  })
+
+  it('con expected vacío escribe si el archivo sigue sin existir', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-mcp-text-'))
+    const path = join(dir, '.mcp.json')
+    writeMcpConfigText(path, '{"mcpServers":{}}', '')
+    expect(existsSync(path)).toBe(true)
+  })
 })

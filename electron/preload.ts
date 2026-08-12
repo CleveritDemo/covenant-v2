@@ -240,7 +240,13 @@ const api = {
     return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_READ, request)
   },
   /** Sobrescribe ese archivo solo si el JSON pasa la validación del main. */
-  writeMcpConfig(request: { provider: string; cwd: string; text: string }): Promise<
+  /** `expected`: texto leído al abrir; sin él se sobrescribe sin preguntar. */
+  writeMcpConfig(request: {
+    provider: string
+    cwd: string
+    text: string
+    expected?: string
+  }): Promise<
     { ok: true; path: string } | { ok: false; error: string }
   > {
     return ipcRenderer.invoke(IPC.AGENT_MCP_CONFIG_WRITE, request)

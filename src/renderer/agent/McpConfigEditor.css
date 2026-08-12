@@ -1,0 +1,72 @@
+/* Cajón con el archivo de config MCP, dentro de la estantería. */
+.mcp-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  font-family: var(--font-ui);
+}
+
+/* `.file-code-editor` es `flex: 1; min-height: 0`, así que necesita altura. */
+.mcp-editor__code {
+  display: flex;
+  height: 260px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.mcp-editor__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.mcp-editor__error {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--danger);
+}
+
+.mcp-editor__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-editor__spacer {
+  flex: 1;
+}
+
+.mcp-editor__status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.mcp-editor__status--bad {
+  color: var(--caution);
+}
+
+.mcp-editor__saved {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* Alguien escribió el archivo por fuera mientras esto estaba abierto. */
+.mcp-editor__conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--caution) 38%, transparent);
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  font-size: 11.5px;
+  color: var(--text);
+}

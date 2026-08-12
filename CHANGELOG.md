@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.43
+
+- **El instalador de Windows se publica aunque GitHub TLS falle al re-descargar Electron** (v0.39.42 no llegó a salir por eso).
+- **Cada turno inyecta hasta 3 resultados recientes** de los agentes del tab (qué se pidió, qué cambió, resumen), para no saturar el prompt.
+
 ## v0.39.42
 
 - **Cada turno inyecta hasta 3 resultados recientes** de los agentes del tab (qué se pidió, qué cambió, resumen), para no saturar el prompt.

@@ -20,7 +20,7 @@ const CONTEXT_META_RE = /<!--\s*iaterminal:context\s+(\{[^\n]*\})\s*-->/
 const LATEST_RE = /##\s+Latest\s*\n([\s\S]*?)(?=\n##\s|\n<!--\s*\/iaterminal:auto|$)/i
 const MAX_LOG_ENTRIES = 30
 /** Tope por agente al inyectar results recientes en el prompt del turno. */
-export const RECENT_RESULTS_PER_AGENT = 5
+export const RECENT_RESULTS_PER_AGENT = 3
 const MAX_SUMMARY_WORDS = 80
 const MAX_REQUEST_WORDS = 80
 const MAX_CHANGE_WORDS = 40

@@ -7,6 +7,7 @@ import {
   agentResultFileName,
   buildRecentAgentResultsPrompt,
   collectRecentAgentResults,
+  RECENT_RESULTS_PER_AGENT,
   ensureAiAgentResults,
   extractAiAgentResults,
   migrateLegacyAgentResults,
@@ -351,7 +352,8 @@ describe('AI agent results', () => {
     expect(raw).toContain('Brújula: agente anclado a terminal.')
   })
 
-  it('collects up to 5 recent log entries per tab agent', () => {
+  it('collects up to 3 recent log entries per tab agent', () => {
+    expect(RECENT_RESULTS_PER_AGENT).toBe(3)
     const cwd = tempCwd()
     seedAgent(cwd, 'qa', 'QA')
     seedAgent(cwd, 'frontend', 'Frontend')
@@ -368,11 +370,11 @@ describe('AI agent results', () => {
       entries: [],
     }, { agentName: 'Frontend', timestamp: '2026-02-01T00:00:00.000Z' })
 
-    const groups = collectRecentAgentResults(cwd, ['qa', 'frontend', 'missing'], 5)
+    const groups = collectRecentAgentResults(cwd, ['qa', 'frontend', 'missing'])
     expect(groups.map(group => group.agentId)).toEqual(['qa', 'frontend'])
-    expect(groups[0]!.entries).toHaveLength(5)
+    expect(groups[0]!.entries).toHaveLength(3)
     expect(groups[0]!.entries[0]!.text).toContain('Summary: QA 6')
-    expect(groups[0]!.entries[4]!.text).toContain('Summary: QA 2')
+    expect(groups[0]!.entries[2]!.text).toContain('Summary: QA 4')
     expect(groups[1]!.entries[0]!.text).toContain('Request: Botón primario')
 
     const prompt = buildRecentAgentResultsPrompt(cwd, ['qa', 'frontend'])
@@ -380,6 +382,11 @@ describe('AI agent results', () => {
     expect(prompt).toContain('### QA (`qa`)')
     expect(prompt).toContain('### Frontend (`frontend`)')
     expect(prompt).toContain('Summary: QA 6')
+    expect(prompt).toContain('Summary: QA 5')
+    expect(prompt).toContain('Summary: QA 4')
+    expect(prompt).not.toContain('Summary: QA 3')
+    expect(prompt).not.toContain('Summary: QA 2')
+    expect(prompt).not.toContain('Summary: QA 1')
     expect(buildRecentAgentResultsPrompt(cwd, ['ghost'])).toBe('')
   })
 })

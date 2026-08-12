@@ -1,5 +1,6 @@
 import avatarUrl from '../renderer/assets/music/avatar.mp3?url'
 import cyberpunkUrl from '../renderer/assets/music/cyberpunk.mp3?url'
+import defaultUrl from '../renderer/assets/music/default.mp3?url'
 import dragonballzUrl from '../renderer/assets/music/dragonballz.mp3?url'
 import interstellarUrl from '../renderer/assets/music/interstellar.mp3?url'
 import matrixUrl from '../renderer/assets/music/matrix.mp3?url'
@@ -41,11 +42,12 @@ const metroid = track('metroid', 'Metroid', metroidUrl)
 const pokemon = track('pokemon', 'Pokémon', pokemonUrl)
 const dragonBallZ = track('dragonBallZ', 'Dragon Ball Z', dragonballzUrl)
 const saintSeiya = track('saintseiya', 'Saint Seiya', saintseiyaUrl)
+const defaultTheme = track('default', 'Default', defaultUrl)
 
 /**
  * Registro declarativo themeId → track.
  * Sin fallback: solo los ids listados tienen música.
- * Light/dark del mismo tema comparten el mismo src.
+ * Light/dark del mismo tema (y la familia Credicorp) comparten el mismo src.
  */
 export const THEME_MUSIC_BY_THEME_ID: Partial<Record<string, ThemeMusicTrack>> = {
   tokyoNight: tokyo,
@@ -78,6 +80,14 @@ export const THEME_MUSIC_BY_THEME_ID: Partial<Record<string, ThemeMusicTrack>> =
   dragonBallZLight: dragonBallZ,
   saintSeiya,
   saintSeiyaLight: saintSeiya,
+  credicorp: defaultTheme,
+  credicorpVerde: defaultTheme,
+  credicorpNaranja: defaultTheme,
+  credicorpMono: defaultTheme,
+  credicorpLight: defaultTheme,
+  credicorpVerdeLight: defaultTheme,
+  credicorpNaranjaLight: defaultTheme,
+  credicorpMonoLight: defaultTheme,
 }
 
 /** Solo match explícito; sin fallback a otro tema. */

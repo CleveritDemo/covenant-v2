@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.64
+
+- **Música en temas Credicorp**: los ocho temas Credicorp usan ahora `default.mp3`.
+
 ## v0.39.63
 
 - **Partículas al ritmo del BPM**: se mueven más rápido con tempos altos y mantienen el pulso visual de tamaño y brillo.

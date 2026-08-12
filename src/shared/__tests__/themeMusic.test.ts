@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../renderer/assets/music/avatar.mp3?url', () => ({ default: 'avatar.mp3' }))
 vi.mock('../../renderer/assets/music/cyberpunk.mp3?url', () => ({ default: 'cyberpunk.mp3' }))
+vi.mock('../../renderer/assets/music/default.mp3?url', () => ({ default: 'default.mp3' }))
 vi.mock('../../renderer/assets/music/dragonballz.mp3?url', () => ({ default: 'dragonballz.mp3' }))
 vi.mock('../../renderer/assets/music/interstellar.mp3?url', () => ({ default: 'interstellar.mp3' }))
 vi.mock('../../renderer/assets/music/matrix.mp3?url', () => ({ default: 'matrix.mp3' }))
@@ -36,6 +37,17 @@ const PAIRED_THEMES: Array<[string, string, string]> = [
   ['saintSeiya', 'saintSeiyaLight', 'saintseiya.mp3'],
 ]
 
+const CREDICORP_THEME_IDS = [
+  'credicorp',
+  'credicorpVerde',
+  'credicorpNaranja',
+  'credicorpMono',
+  'credicorpLight',
+  'credicorpVerdeLight',
+  'credicorpNaranjaLight',
+  'credicorpMonoLight',
+] as const
+
 describe('resolveThemeMusic', () => {
   it('devuelve track por themeId con src del archivo', () => {
     for (const [darkId, lightId, file] of PAIRED_THEMES) {
@@ -50,14 +62,22 @@ describe('resolveThemeMusic', () => {
     }
   })
 
-  it('sin match o tema sin música (credicorp) retorna null', () => {
-    expect(resolveThemeMusic('credicorp')).toBeNull()
-    expect(resolveThemeMusic('')).toBeNull()
+  it('temas Credicorp resuelven a default.mp3 y comparten src', () => {
+    const sources = CREDICORP_THEME_IDS.map((id) => resolveThemeMusic(id)?.src)
+    for (const src of sources) {
+      expect(src).toMatch(/default\.mp3$/)
+    }
+    expect(new Set(sources).size).toBe(1)
   })
 
-  it('el registro declara light y dark de cada tema con mp3', () => {
+  it('sin match retorna null; ids desconocidos no tienen fallback', () => {
+    expect(resolveThemeMusic('')).toBeNull()
+    expect(resolveThemeMusic('unknown-theme')).toBeNull()
+  })
+
+  it('el registro declara light y dark de cada tema con mp3, más Credicorp', () => {
     expect(Object.keys(THEME_MUSIC_BY_THEME_ID).sort()).toEqual(
-      PAIRED_THEMES.flatMap(([dark, light]) => [dark, light]).sort(),
+      [...PAIRED_THEMES.flatMap(([dark, light]) => [dark, light]), ...CREDICORP_THEME_IDS].sort(),
     )
   })
 })

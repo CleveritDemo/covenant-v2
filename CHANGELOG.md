@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.57
+
+- **Los agentes ven las variables de entorno del sistema**: abrir Gravity desde el Dock ya no les esconde lo que exportas en tu `~/.zshrc` (claves de API, proxies, ajustes de cada CLI); hasta ahora solo heredaban el PATH y las terminales eran las únicas con el entorno completo.
+- **El aviso de dictado deja de repetir el nombre de la app** y la mesa usa la tipografía de la interfaz.
+
 ## v0.39.56
 
 - **Rail de adjuntos más discreto**: sin separador vertical, thumbs más chicas (28px) con borde sutil y menos padding para que no agranden el campo.

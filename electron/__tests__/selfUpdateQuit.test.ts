@@ -147,6 +147,13 @@ describe('descarga lista sin reinicio automático', () => {
     makeAvailable('0.4.0')
     ipcOn.get(IPC.UPDATE_INSTALL)?.()
     updaterOn.get('update-downloaded')?.({ version: '0.4.0', releaseNotes: 'notes' })
+
+    // La descarga no debe disparar instalación; el stash queda en ready.
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(closedWindows).toEqual([])
+    expect(isInstallingUpdate()).toBe(false)
+    expect(lastSentState()).toMatchObject({ kind: 'ready', version: '0.4.0' })
+
     ipcOn.get(IPC.UPDATE_DISMISS)?.()
     expect(lastSentState()).toMatchObject({ kind: 'idle' })
 
@@ -174,8 +181,12 @@ describe('descarga lista sin reinicio automático', () => {
     ipcOn.get(IPC.UPDATE_DISMISS)?.()
 
     makeAvailable('0.5.0')
+    expect(lastSentState()).toMatchObject({ kind: 'available', version: '0.5.0' })
+
+    ipcOn.get(IPC.UPDATE_DISMISS)?.()
     const got = await ipcHandle.get(IPC.UPDATE_STATE_GET)?.()
-    expect(got).toMatchObject({ kind: 'available', version: '0.5.0' })
+    expect(got).toMatchObject({ kind: 'idle' })
+    expect(got).not.toMatchObject({ kind: 'ready', version: '0.4.0' })
   })
 
   it('update-available de la misma versión que el stash vuelve a ready', async () => {

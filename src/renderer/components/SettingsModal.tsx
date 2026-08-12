@@ -68,6 +68,7 @@ const SEARCH_INDEX = [
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
+  { category: 'appearance', anchor: 'settings-sound', titleKey: 'settings.soundSection', termKeys: ['settings.soundFeedbackTitle', 'settings.soundFeedbackDescription'] },
   { category: 'appearance', anchor: 'settings-music', titleKey: 'settings.musicSection', termKeys: ['settings.musicEnabledTitle', 'settings.musicVolumeLabel', 'settings.musicHint'] },
   { category: 'advanced', anchor: 'settings-discord', titleKey: 'settings.discordSection', termKeys: ['settings.discordPresenceTitle'] },
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
@@ -91,6 +92,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
     reduceMotion: config.reduceMotion,
     musicEnabled: config.musicEnabled,
     musicVolume: sanitizeMusicVolume(config.musicVolume),
+    soundFeedbackEnabled: config.soundFeedbackEnabled !== false,
     discordPresenceEnabled: config.discordPresenceEnabled,
     autoUpdatesEnabled: config.autoUpdatesEnabled !== false,
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
@@ -250,6 +252,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: form.reduceMotion,
       musicEnabled: form.musicEnabled,
       musicVolume: sanitizeMusicVolume(form.musicVolume),
+      soundFeedbackEnabled: form.soundFeedbackEnabled,
       discordPresenceEnabled: form.discordPresenceEnabled,
       autoUpdatesEnabled: form.autoUpdatesEnabled,
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
@@ -313,6 +316,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
       reduceMotion: original.reduceMotion,
       musicEnabled: original.musicEnabled,
       musicVolume: sanitizeMusicVolume(original.musicVolume),
+      soundFeedbackEnabled: original.soundFeedbackEnabled !== false,
       discordPresenceEnabled: original.discordPresenceEnabled,
       autoUpdatesEnabled: original.autoUpdatesEnabled !== false,
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
@@ -458,6 +462,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   onChange={checked => update('reduceMotion', checked)}
                   title={t('settings.reduceMotionTitle')}
                   description={t('settings.reduceMotionDescription')}
+                />
+              </SettingsSection>
+
+              <SettingsSection title={t('settings.soundSection')} anchor="settings-sound">
+                <SettingToggle
+                  checked={form.soundFeedbackEnabled}
+                  onChange={checked => update('soundFeedbackEnabled', checked)}
+                  title={t('settings.soundFeedbackTitle')}
+                  description={t('settings.soundFeedbackDescription')}
                 />
               </SettingsSection>
 

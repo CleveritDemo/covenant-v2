@@ -135,6 +135,7 @@ import {
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
+import { setSoundFeedbackEnabled } from './uiSounds'
 import {
   contextIdsEqual,
   resolveAssignedContextChips,
@@ -1237,6 +1238,12 @@ export const App: React.FC = () => {
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [configReady, config.reduceMotion])
+
+  // Ajustes → SFX de la UI (fin de turno, push-to-talk).
+  useEffect(() => {
+    if (!configReady) return
+    setSoundFeedbackEnabled(config.soundFeedbackEnabled !== false)
+  }, [configReady, config.soundFeedbackEnabled])
 
   // Load persisted session on mount
   useEffect(() => {

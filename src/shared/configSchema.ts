@@ -67,6 +67,8 @@ export interface AppConfig {
   musicEnabled: boolean
   /** Volumen del reproductor interno (0..1). */
   musicVolume: number
+  /** SFX de la UI (fin de turno de agente, push-to-talk). Independiente del audio del tema. */
+  soundFeedbackEnabled: boolean
   /** Idioma de la interfaz. */
   language: Language
   /**
@@ -123,6 +125,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   thinkingMode: false,
   musicEnabled: true,
   musicVolume: DEFAULT_MUSIC_VOLUME,
+  soundFeedbackEnabled: true,
   language: 'en',
   reduceMotion: false,
   autoRestartShell: true,
@@ -167,6 +170,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const musicVolume = Object.prototype.hasOwnProperty.call(partial, 'musicVolume')
     ? sanitizeMusicVolume(partial.musicVolume)
     : CONFIG_DEFAULTS.musicVolume
+  const soundFeedbackEnabled = typeof partial.soundFeedbackEnabled === 'boolean'
+    ? partial.soundFeedbackEnabled
+    : CONFIG_DEFAULTS.soundFeedbackEnabled
   const agentCliCommands = migrateAgentCliCommands(partial)
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
@@ -186,6 +192,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ...CONFIG_DEFAULTS,
     ...partial,
     musicVolume,
+    soundFeedbackEnabled,
     reduceMotion,
     autoUpdatesEnabled,
     agentCliCommands,

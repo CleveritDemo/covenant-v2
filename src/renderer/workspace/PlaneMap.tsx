@@ -15,7 +15,7 @@ import {
 } from '@shared/paneWindows'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
-import { PlaneMapGridParticles } from './PlaneMapGridParticles'
+import { PlaneMapBackdrop } from './PlaneMapBackdrop'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
 import './PlaneMap.css'
@@ -95,6 +95,8 @@ export interface PlaneMapProps {
   onFirstLayoutReady?: () => void
   /** Sin transición de ranura hasta que el splash pueda fundirse. */
   deferPositionMotion?: boolean
+  /** Agente seleccionado en curso: partículas busy en el piso del mapa. */
+  working?: boolean
 }
 
 export interface PlaneColumnScrollOffsets {
@@ -225,6 +227,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onReorderPanes,
   onFirstLayoutReady,
   deferPositionMotion = false,
+  working = false,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -677,9 +680,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
-      <div className="plane-map__atmosphere" aria-hidden="true" />
-      <div className="plane-map__grid" aria-hidden="true" />
-      <PlaneMapGridParticles />
+      <PlaneMapBackdrop working={working} />
       {entities.length === 0 ? (
         <div className="plane-map__empty" aria-hidden="true" />
       ) : (

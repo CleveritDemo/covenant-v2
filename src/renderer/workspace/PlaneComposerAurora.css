@@ -1,17 +1,14 @@
 /*
- * Campo inferior del plano: partículas + cinta cromática.
- * Idle: cinta estática. Working: espectro en movimiento (sin bloom hacia afuera).
- * El host mide el campo de partículas (no la cinta de 2px) para que el canvas
- * no quede recortado cuando la cinta entra en capa de composición.
+ * Cinta cromática del composer. Idle: estática. Working: espectro en movimiento.
+ * Las partículas busy viven en el piso del mapa (PlaneMapBackdrop), no aquí.
  */
 .plane-composer-aurora {
-  --plane-aurora-field-height: 160px;
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: var(--plane-aurora-field-height);
-  z-index: 2;
+  height: 2.5px;
+  z-index: 0;
   pointer-events: none;
   overflow: visible;
   opacity: 0.92;

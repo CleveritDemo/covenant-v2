@@ -436,14 +436,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Aurora dentro del composer: mismo stacking que el input para que
-          backdrop-filter muestre las partículas bajo el glass. */}
-      <div
-        className="plane-chat-composer-aurora-host"
-        aria-hidden="true"
-      >
-        <PlaneComposerAurora active={composerWorking} />
-      </div>
+      <PlaneComposerAurora />
       <div className="plane-chat-composer__body">
         <DictationListeningOverlay
           active={listening}

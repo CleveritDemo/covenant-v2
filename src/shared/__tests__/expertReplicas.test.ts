@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   agentInstanceTag,
   buildExpertReplicaDefinition,
+  isPaneGuardedFromDelegationReuse,
   resolveAgentInstanceBadges,
   hasSingleActiveWorktreePerPane,
   parseExpertReplicaRequest,
@@ -80,6 +81,30 @@ describe('resolveExpertDelegationTarget', () => {
     }
   })
 
+  it('spawns when a user-guarded pane (chatOpen / extra threads) is marked occupied', () => {
+    const occupied = new Set<string>()
+    const guarded = isPaneGuardedFromDelegationReuse({
+      chatOpen: true,
+      threadCount: 2,
+      busy: false,
+      loopActive: false,
+      newThreadPending: false,
+    })
+    expect(guarded).toBe(true)
+    if (guarded) occupied.add('pane-fe')
+    const decision = resolveExpertDelegationTarget({
+      toAgentId: 'frontend',
+      allowExpertReplicas: true,
+      targets,
+      occupiedPaneIds: occupied,
+      existingAgentIds: new Set(['frontend', 'backend']),
+    })
+    expect(decision.kind).toBe('spawn')
+    if (decision.kind === 'spawn') {
+      expect(decision.baseAgentId).toBe('frontend')
+    }
+  })
+
   it('defers when expert is occupied and flag is off (no parallel reuse)', () => {
     const decision = resolveExpertDelegationTarget({
       toAgentId: 'frontend',
@@ -153,6 +178,28 @@ describe('resolveExpertDelegationTarget', () => {
     if (decision.kind === 'spawn') {
       expect(decision.baseAgentId).toBe('frontend')
     }
+  })
+})
+
+describe('isPaneGuardedFromDelegationReuse', () => {
+  const idle = {
+    chatOpen: false,
+    threadCount: 1,
+    busy: false,
+    loopActive: false,
+    newThreadPending: false,
+  }
+
+  it('is true when any guard flag is set', () => {
+    expect(isPaneGuardedFromDelegationReuse({ ...idle, chatOpen: true })).toBe(true)
+    expect(isPaneGuardedFromDelegationReuse({ ...idle, threadCount: 2 })).toBe(true)
+    expect(isPaneGuardedFromDelegationReuse({ ...idle, busy: true })).toBe(true)
+    expect(isPaneGuardedFromDelegationReuse({ ...idle, loopActive: true })).toBe(true)
+    expect(isPaneGuardedFromDelegationReuse({ ...idle, newThreadPending: true })).toBe(true)
+  })
+
+  it('is false when the pane is idle with a single thread', () => {
+    expect(isPaneGuardedFromDelegationReuse(idle)).toBe(false)
   })
 })
 

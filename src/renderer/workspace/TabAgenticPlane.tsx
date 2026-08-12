@@ -587,6 +587,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const anyWindowOpen = entities.some(entity => entity.window.open)
     || Boolean(explorerState?.open)
 
+  const selectedAgent = agents.find(agent => agent.paneId === openChatAgentId)
+  const planeWorking = Boolean(
+    selectedAgent?.busy
+    || selectedAgent?.loopActive
+    || selectedAgent?.awaitingDelegations
+    || selectedAgent?.delegationWorkActive,
+  )
+
   const showIdleGravity = !anyFullscreen && !quickChatShowing
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
 
@@ -792,6 +800,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         reorderAriaLabel={reorderAriaLabel}
         onFirstLayoutReady={onFirstLayoutReady}
         deferPositionMotion={deferPositionMotion}
+        working={planeWorking}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (
@@ -873,11 +882,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
               // Cambiar de conversación con un turno o un loop vivo dejaría el
-              // stream escribiendo en el transcript equivocado.
+              // stream escribiendo en el transcript equivocado. Una ola del
+              // orquestador no bloquea el + ni el selector.
               threadsLocked={Boolean(
                 quickChatStatus?.busy
-                || quickChatStatus?.loopActive
-                || quickChatStatus?.awaitingDelegations,
+                || quickChatStatus?.loopActive,
               )}
               onAutoImproveChange={enabled => {
                 onAutoImproveChange(openChatAgentId, enabled)

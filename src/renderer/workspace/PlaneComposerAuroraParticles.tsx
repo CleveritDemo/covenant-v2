@@ -91,7 +91,7 @@ function drawParticle(
   ctx.fill()
 }
 
-/** Partículas que suben y se disuelven desde la cinta aurora (solo working + motion). */
+/** Partículas que suben desde el piso del plano (solo working + motion). */
 export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticlesProps> = ({
   active,
 }) => {
@@ -120,13 +120,8 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
     let colors = readThemeColors(canvas)
 
     const resize = (): void => {
-      const parent = canvas.parentElement
-      const cssWidth = parent?.clientWidth ?? canvas.clientWidth
-      // Preferir la altura real del host (campo 160px), no la de la cinta.
-      const cssHeight = Math.max(
-        1,
-        parent?.clientHeight ?? canvas.clientHeight ?? FIELD_HEIGHT,
-      )
+      const cssWidth = canvas.clientWidth
+      const cssHeight = Math.max(1, canvas.clientHeight || FIELD_HEIGHT)
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = Math.max(1, Math.floor(cssWidth))
       const h = Math.max(1, Math.floor(cssHeight))
@@ -140,7 +135,7 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(resize)
       : null
-    if (ro && canvas.parentElement) ro.observe(canvas.parentElement)
+    ro?.observe(canvas)
     window.addEventListener('resize', resize)
 
     const tick = (ts: number): void => {

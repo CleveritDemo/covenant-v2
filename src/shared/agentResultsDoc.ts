@@ -9,8 +9,12 @@ export interface AgentResultsLogEntry {
 }
 
 export interface AgentResultsDoc {
-  /** `## Latest` sin placeholder, o null si el agente aún no publicó nada. */
+  /** Prosa de `**Summary:**`, o el cuerpo entero de Latest si no hay labels. */
   summary: string | null
+  /** Texto de `**Request:**`, o null. */
+  request: string | null
+  /** Ítems `- ` bajo `**Changes:**`. */
+  changes: string[]
   /** `## Log`, más recientes primero (tal como los escribe el runtime). */
   entries: AgentResultsLogEntry[]
   /** Región `iaterminal:notes`, sin placeholder. */
@@ -32,10 +36,61 @@ function clean(value: string | undefined): string | null {
   return trimmed
 }
 
+const LATEST_LABEL_RE = /\*\*(Summary|Request|Changes):\*\*/gi
+
+/** Extrae Summary / Request / Changes de Latest; robusto al orden de bloques. */
+function parseLatestFields(body: string): {
+  summary: string | null
+  request: string | null
+  changes: string[]
+} {
+  const cleaned = clean(body)
+  if (!cleaned) return { summary: null, request: null, changes: [] }
+
+  const labels: Array<{ kind: 'summary' | 'request' | 'changes'; valueStart: number; start: number }> = []
+  const re = new RegExp(LATEST_LABEL_RE.source, LATEST_LABEL_RE.flags)
+  let match: RegExpExecArray | null
+  while ((match = re.exec(cleaned))) {
+    labels.push({
+      kind: match[1].toLowerCase() as 'summary' | 'request' | 'changes',
+      start: match.index,
+      valueStart: match.index + match[0].length,
+    })
+  }
+
+  if (!labels.length) {
+    return { summary: cleaned, request: null, changes: [] }
+  }
+
+  const section = (kind: 'summary' | 'request' | 'changes'): string => {
+    const idx = labels.findIndex(label => label.kind === kind)
+    if (idx < 0) return ''
+    const end = idx + 1 < labels.length ? labels[idx + 1].start : cleaned.length
+    return cleaned.slice(labels[idx].valueStart, end).trim()
+  }
+
+  const changesRaw = section('changes')
+  const changes = changesRaw
+    ? changesRaw
+      .split('\n')
+      .map(line => line.replace(/^\s*-\s+/, '').trim())
+      .filter(line => line && !PLACEHOLDERS.has(line))
+    : []
+
+  return {
+    summary: clean(section('summary')),
+    request: clean(section('request')),
+    changes,
+  }
+}
+
 export function parseAgentResultsDoc(raw: string): AgentResultsDoc {
   const log = raw.match(LOG_RE)?.[1] ?? ''
+  const latest = parseLatestFields(raw.match(LATEST_RE)?.[1] ?? '')
   return {
-    summary: clean(raw.match(LATEST_RE)?.[1]),
+    summary: latest.summary,
+    request: latest.request,
+    changes: latest.changes,
     entries: [...log.matchAll(LOG_ENTRY_RE)]
       .map(match => ({ timestamp: match[1].trim(), text: match[2].trim() }))
       .filter(entry => clean(entry.text) !== null),

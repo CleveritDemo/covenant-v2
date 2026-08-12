@@ -21,12 +21,12 @@ const LATEST_RE = /##\s+Latest\s*\n([\s\S]*?)(?=\n##\s|\n<!--\s*\/iaterminal:aut
 const MAX_LOG_ENTRIES = 30
 /** Tope por agente al inyectar results recientes en el prompt del turno. */
 export const RECENT_RESULTS_PER_AGENT = 3
-const MAX_SUMMARY_WORDS = 80
-const MAX_REQUEST_WORDS = 80
-const MAX_CHANGE_WORDS = 40
-const MAX_CHANGES = 8
-/** Línea compacta del Log (Request · Changes · Summary). */
-const MAX_LOG_LINE_WORDS = 160
+const MAX_SUMMARY_WORDS = 70
+const MAX_REQUEST_WORDS = 36
+const MAX_CHANGE_WORDS = 28
+const MAX_CHANGES = 5
+/** Línea compacta del Log: solo el summary (prosa). */
+const MAX_LOG_LINE_WORDS = 70
 const LATEST_PLACEHOLDERS = new Set([
   '(empty)',
   '(no results yet)',
@@ -154,7 +154,7 @@ export function extractAiAgentResults(text: string): {
   return { visibleText, payload }
 }
 
-/** Cuerpo de ## Latest: Request / Changes / Summary (o solo summary legacy). */
+/** Cuerpo de ## Latest: Summary → Request → Changes (o solo summary legacy). */
 export function formatLatestBody(payload: AiAgentResultPayload): string {
   const changeLines = payload.changes?.length
     ? payload.changes
@@ -162,7 +162,7 @@ export function formatLatestBody(payload: AiAgentResultPayload): string {
   const hasStructured = Boolean(payload.request) || changeLines.length > 0
   if (!hasStructured) return payload.summary.trim() || '(empty)'
 
-  const lines: string[] = []
+  const lines: string[] = [`**Summary:** ${payload.summary.trim()}`]
   if (payload.request?.trim()) {
     lines.push(`**Request:** ${payload.request.trim()}`)
   }
@@ -170,20 +170,15 @@ export function formatLatestBody(payload: AiAgentResultPayload): string {
     lines.push('**Changes:**')
     for (const change of changeLines) lines.push(`- ${change}`)
   }
-  lines.push(`**Summary:** ${payload.summary.trim()}`)
   return lines.join('\n')
 }
 
-/** Una línea de Log compacta, parseable por LOG_ENTRY_RE. */
+/** Una línea de Log: solo el summary; si falta, el primer change. */
 export function formatCompactResultLogLine(payload: AiAgentResultPayload): string {
-  const parts: string[] = []
-  if (payload.request?.trim()) parts.push(`Request: ${payload.request.trim()}`)
-  const changes = payload.changes?.length
-    ? payload.changes
-    : payload.entries
-  if (changes.length) parts.push(`Changes: ${changes.join('; ')}`)
-  if (payload.summary.trim()) parts.push(`Summary: ${payload.summary.trim()}`)
-  return normalizeText(parts.join(' · '), MAX_LOG_LINE_WORDS) ?? payload.summary.trim()
+  const summary = payload.summary.trim()
+  if (summary) return normalizeText(summary, MAX_LOG_LINE_WORDS) ?? summary
+  const first = (payload.changes?.length ? payload.changes : payload.entries)[0]
+  return (first ? normalizeText(first, MAX_LOG_LINE_WORDS) : null) ?? ''
 }
 
 function parseLog(raw: string): AiAgentResultLogEntry[] {
@@ -683,12 +678,15 @@ export function buildAiAgentResultsInstruction(agentName: string | undefined): s
     '## Agent results registry',
     `You MUST append the results block on every turn for this agent ("${name}").`,
     'Other agents in the tab read this registry on later turns. Do not omit the block while emit results is enabled.',
-    'Include: what was requested, the most relevant code changes (file + what changed), and a brief summary.',
-    `Use at most ${MAX_REQUEST_WORDS} words for request/summary and ${MAX_CHANGE_WORDS} words per change (max ${MAX_CHANGES} changes).`,
+    'Write results as if telling a teammate: short, human, ordered. No slogans, no status-only lines (tests passed, ping OK).',
+    `Use at most ${MAX_REQUEST_WORDS} words for request, ${MAX_SUMMARY_WORDS} for summary, ${MAX_CHANGE_WORDS} per change (max ${MAX_CHANGES}).`,
+    'request: one natural sentence of what was asked.',
+    'changes: path + what changed in plain words (e.g. PlaneChatComposer.css: working blur 16→8px).',
+    'summary: two or three sentences — what they wanted, what landed, what stayed. Prose, not a formula.',
     'If nothing durable changed, still emit request + summary with an empty changes array.',
     'Append this exact machine-readable block after your normal answer:',
     '```ia-terminal-results',
-    '{"request":"What the user asked this turn","changes":["path/file: relevant change"],"summary":"Brief outcome"}',
+    '{"request":"Bajar el blur del composer en working","changes":["PlaneChatComposer.css: working blur 16→8px"],"summary":"Pediste menos blur al trabajar. El glass working queda en 8px; el input y el layout no se tocaron."}',
     '```',
   ].join('\n')
 }

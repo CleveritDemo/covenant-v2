@@ -10,6 +10,9 @@ import {
   RECENT_RESULTS_PER_AGENT,
   ensureAiAgentResults,
   extractAiAgentResults,
+  formatCompactResultLogLine,
+  formatLatestBody,
+  buildAiAgentResultsInstruction,
   migrateLegacyAgentResults,
   resolveAiAgentResultsPath,
   upsertAiAgentResults,
@@ -114,12 +117,16 @@ describe('AI agent results', () => {
     expect(existsSync(filePath)).toBe(true)
     const raw = readFileSync(filePath, 'utf8')
     expect(raw).toContain('## Latest')
+    expect(raw).toContain('**Summary:** Segunda entrega')
     expect(raw).toContain('**Request:** Ajustar tests')
     expect(raw).toContain('**Changes:**')
     expect(raw).toContain('- ops.test.ts: coverage')
-    expect(raw).toContain('**Summary:** Segunda entrega')
-    expect(raw).toContain('`2026-01-02T00:00:00.000Z` — Request: Ajustar tests · Changes: ops.test.ts: coverage · Summary: Segunda entrega')
-    expect(raw).toContain('`2026-01-01T00:00:00.000Z` — Changes: Creé el scaffold · Summary: Primera entrega')
+    expect(raw.indexOf('**Summary:**')).toBeLessThan(raw.indexOf('**Request:**'))
+    expect(raw.indexOf('**Request:**')).toBeLessThan(raw.indexOf('**Changes:**'))
+    expect(raw).toContain('`2026-01-02T00:00:00.000Z` — Segunda entrega')
+    expect(raw).toContain('`2026-01-01T00:00:00.000Z` — Primera entrega')
+    expect(raw).not.toContain(' — Request:')
+    expect(raw).not.toContain(' · Changes:')
     expect(raw).toContain(`"fileName":"${agentResultFileName('ops-bot')}"`)
     expect(raw).toContain(`"id":"${agentResultContextId('ops-bot')}"`)
     expect(raw).toContain('"name":"Ops Bot"')
@@ -147,7 +154,7 @@ describe('AI agent results', () => {
     ensureAiAgentResults(cwd, 'qa', 'QA')
     const afterEnsure = readFileSync(created, 'utf8')
     expect(afterEnsure).toContain('Suite verde')
-    expect(afterEnsure).toContain('`2026-01-03T00:00:00.000Z` — Changes: Corrí vitest · Summary: Suite verde')
+    expect(afterEnsure).toContain('`2026-01-03T00:00:00.000Z` — Suite verde')
     expect(afterEnsure).not.toContain('(no results yet)')
   })
 
@@ -373,20 +380,98 @@ describe('AI agent results', () => {
     const groups = collectRecentAgentResults(cwd, ['qa', 'frontend', 'missing'])
     expect(groups.map(group => group.agentId)).toEqual(['qa', 'frontend'])
     expect(groups[0]!.entries).toHaveLength(3)
-    expect(groups[0]!.entries[0]!.text).toContain('Summary: QA 6')
-    expect(groups[0]!.entries[2]!.text).toContain('Summary: QA 4')
-    expect(groups[1]!.entries[0]!.text).toContain('Request: Botón primario')
+    expect(groups[0]!.entries[0]!.text).toBe('QA 6')
+    expect(groups[0]!.entries[2]!.text).toBe('QA 4')
+    expect(groups[1]!.entries[0]!.text).toBe('UI lista')
 
     const prompt = buildRecentAgentResultsPrompt(cwd, ['qa', 'frontend'])
     expect(prompt).toContain('## Recent agent results')
     expect(prompt).toContain('### QA (`qa`)')
     expect(prompt).toContain('### Frontend (`frontend`)')
-    expect(prompt).toContain('Summary: QA 6')
-    expect(prompt).toContain('Summary: QA 5')
-    expect(prompt).toContain('Summary: QA 4')
-    expect(prompt).not.toContain('Summary: QA 3')
-    expect(prompt).not.toContain('Summary: QA 2')
-    expect(prompt).not.toContain('Summary: QA 1')
+    expect(prompt).toContain('QA 6')
+    expect(prompt).toContain('QA 5')
+    expect(prompt).toContain('QA 4')
+    expect(prompt).not.toContain('QA 3')
+    expect(prompt).not.toContain('QA 2')
+    expect(prompt).not.toContain('QA 1')
+    expect(prompt).not.toContain('Request:')
     expect(buildRecentAgentResultsPrompt(cwd, ['ghost'])).toBe('')
+  })
+
+  const nWords = (n: number) => Array.from({ length: n }, (_, i) => `w${i + 1}`).join(' ')
+
+  it('keeps a 28-word change and truncates a 29-word change to 28', () => {
+    const kept = extractAiAgentResults([
+      'ok',
+      '```ia-terminal-results',
+      JSON.stringify({ request: 'req', changes: [nWords(28)], summary: 'ok' }),
+      '```',
+    ].join('\n'))
+    expect(kept.payload?.changes).toEqual([nWords(28)])
+
+    const truncated = extractAiAgentResults([
+      'ok',
+      '```ia-terminal-results',
+      JSON.stringify({ request: 'req', changes: [nWords(29)], summary: 'ok' }),
+      '```',
+    ].join('\n'))
+    expect(truncated.payload?.changes).toEqual([nWords(28)])
+  })
+
+  it('keeps a 70-word summary and truncates a 71-word summary to 70', () => {
+    const kept = extractAiAgentResults([
+      'ok',
+      '```ia-terminal-results',
+      JSON.stringify({ request: 'req', changes: [], summary: nWords(70) }),
+      '```',
+    ].join('\n'))
+    expect(kept.payload?.summary).toBe(nWords(70))
+
+    const truncated = extractAiAgentResults([
+      'ok',
+      '```ia-terminal-results',
+      JSON.stringify({ request: 'req', changes: [], summary: nWords(71) }),
+      '```',
+    ].join('\n'))
+    expect(truncated.payload?.summary).toBe(nWords(70))
+  })
+
+  it('formats the compact log line as summary only', () => {
+    const summary = nWords(40)
+    const line = formatCompactResultLogLine({
+      request: nWords(20),
+      changes: [nWords(10), nWords(10), nWords(10)],
+      summary,
+      entries: [],
+    })
+    expect(line).toBe(summary)
+    expect(line.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(70)
+    expect(line).not.toContain('Request:')
+  })
+
+  it('formats Latest as Summary then Request then Changes', () => {
+    const body = formatLatestBody({
+      request: 'Bajar el blur del composer en working',
+      changes: ['PlaneChatComposer.css: working blur 16→8px'],
+      summary: 'Pediste menos blur al trabajar. El glass working queda en 8px.',
+      entries: [],
+    })
+    expect(body.startsWith('**Summary:**')).toBe(true)
+    expect(body.indexOf('**Summary:**')).toBeLessThan(body.indexOf('**Request:**'))
+    expect(body.indexOf('**Request:**')).toBeLessThan(body.indexOf('**Changes:**'))
+    expect(body).toContain('- PlaneChatComposer.css: working blur 16→8px')
+  })
+
+  it('builds a short human results instruction', () => {
+    const prompt = buildAiAgentResultsInstruction('Scout')
+    expect(prompt).toContain('telling a teammate')
+    expect(prompt).toContain('36')
+    expect(prompt).toContain('70')
+    expect(prompt).toContain('28 per change')
+    expect(prompt).toContain('(max 5)')
+    expect(prompt).not.toContain('detailed summary')
+    expect(prompt).not.toContain('Brief outcome')
+    expect(prompt).not.toContain('every durable code change')
+    expect(prompt).not.toContain('Do not write a one-line slogan')
   })
 })

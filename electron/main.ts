@@ -98,7 +98,7 @@ import {
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import { refreshStaleJiraContexts } from './jiraContextRefresh'
-import { jiraStatusFor, connectJira, searchJiraQuick } from './jiraIpcOps'
+import { jiraStatusFor, connectJira, searchJiraQuick, DISCONNECTED as JIRA_DISCONNECTED } from './jiraIpcOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -875,7 +875,7 @@ function registerIpc(): void {
 
   // ─── Jira ───────────────────────────────────────────────────────────────
   ipcMain.handle(IPC.JIRA_STATUS, (_e, cwd: unknown) => {
-    if (typeof cwd !== 'string') return { configured: false, site: '', projectKeys: [], connected: false }
+    if (typeof cwd !== 'string') return JIRA_DISCONNECTED
     return jiraStatusFor(cwd)
   })
 

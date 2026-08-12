@@ -13,7 +13,11 @@ describe('canales de Jira', () => {
   it('el preload los expone: sin esto el renderer no los alcanza', () => {
     const preload = readFileSync(join(__dirname, '..', 'preload.ts'), 'utf8')
     for (const method of ['jiraStatus', 'jiraConnect', 'jiraSearch']) {
-      expect(preload).toContain(`${method}:`)
+      // El nombre puede definirse como propiedad-flecha (`método: (...) =>`) o
+      // como method-shorthand (`método(...) {`) — este archivo usa shorthand en
+      // todos los demás métodos; el test no debe pinnear un estilo, solo que el
+      // método exista.
+      expect(preload).toMatch(new RegExp(`${method}\\s*[:(]`))
     }
   })
 

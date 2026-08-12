@@ -991,17 +991,20 @@ const api = {
   },
 
   // ─── Jira ───────────────────────────────────────────────────────────────────
-  jiraStatus: (
+  jiraStatus(
     cwd: string,
-  ): Promise<{ configured: boolean; site: string; projectKeys: string[]; connected: boolean }> =>
-    ipcRenderer.invoke(IPC.JIRA_STATUS, cwd),
-  jiraConnect: (
+  ): Promise<{ configured: boolean; site: string; projectKeys: string[]; connected: boolean }> {
+    return ipcRenderer.invoke(IPC.JIRA_STATUS, cwd)
+  },
+  jiraConnect(
     cwd: string,
     input: { site: string; email: string; apiToken: string; projectKeys: string[] },
-  ): Promise<{ ok: boolean; displayName?: string; error?: string }> =>
-    ipcRenderer.invoke(IPC.JIRA_CONNECT, cwd, input),
-  jiraSearch: (cwd: string, query: string): Promise<JiraIssueRef[]> =>
-    ipcRenderer.invoke(IPC.JIRA_SEARCH, cwd, query),
+  ): Promise<{ ok: boolean; displayName?: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_CONNECT, cwd, input)
+  },
+  jiraSearch(cwd: string, query: string): Promise<JiraIssueRef[]> {
+    return ipcRenderer.invoke(IPC.JIRA_SEARCH, cwd, query)
+  },
 
   // ─── LSP (code intelligence) ───────────────────────────────────────────────
   lspServerStatus(language: string): Promise<LspServerStatus | { error: string }> {

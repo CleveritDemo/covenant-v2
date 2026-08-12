@@ -23,7 +23,9 @@ export interface JiraStatus {
   connected: boolean
 }
 
-const DISCONNECTED: JiraStatus = { configured: false, site: '', projectKeys: [], connected: false }
+/** Estado «sin Jira»: sin `jira.json`, sin credenciales. Exportado para que
+ * `main.ts` lo reutilice en la validación de borde en vez de duplicar el literal. */
+export const DISCONNECTED: JiraStatus = { configured: false, site: '', projectKeys: [], connected: false }
 
 export function jiraStatusFor(cwd: string): JiraStatus {
   const config = readJiraConfig(cwd)
@@ -60,6 +62,11 @@ export async function connectJira(cwd: string, input: JiraConnectInput): Promise
   // Solo se persiste lo que ya se probó: nada de credenciales muertas en disco.
   // Un fallo de escritura (EACCES, ENOSPC, checkout read-only) no puede tumbar
   // el handler: se reporta como `ok:false`, nunca como invoke rechazado.
+  // Nota: si `writeJiraConfig` falla después de que `writeJiraCredentials` ya
+  // escribió, la credencial queda huérfana en disco (no es atómico, y cambiar
+  // el orden tampoco lo haría). Es inofensivo: `jiraStatusFor` solo reporta
+  // `connected` cuando también existe `jira.json`, y un connect posterior que
+  // sí complete sobrescribe la credencial igual.
   try {
     writeJiraCredentials(credentials)
     writeJiraConfig(cwd, config)

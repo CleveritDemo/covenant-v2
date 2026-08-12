@@ -5127,6 +5127,10 @@ export const App: React.FC = () => {
       })
   }, [agentPicker, projectAgentsByCwd, tabs])
 
+  /** cwd de Ajustes: la misma búsqueda que ya usa el resto del archivo para "el cwd de esta pestaña". */
+  const activeTab = tabs.find(t => t.id === activeTabId)
+  const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
+
   return (
     <div className="app-root">
       {/* ── Title bar (macOS traffic lights live here) ── */}
@@ -5775,11 +5779,7 @@ export const App: React.FC = () => {
 
       <AppModals
         config={config}
-        settingsCwd={
-          tabs.find(t => t.id === activeTabId)?.projectFolder?.trim()
-          || tabs.find(t => t.id === activeTabId)?.orgWorkspace?.localDir?.trim()
-          || ''
-        }
+        settingsCwd={settingsCwd}
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}

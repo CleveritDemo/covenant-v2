@@ -61,39 +61,33 @@ export const JiraConnectionField: React.FC<JiraConnectionFieldProps> = ({ cwd })
 
   return (
     <div className="jira-connection">
-      {/*
-        El hint va como párrafo aparte, no como prop `hint` de `SettingsField`:
-        ese prop lo mete dentro del mismo <label> que envuelve el input, y el
-        nombre accesible del campo terminaría siendo «etiqueta + hint» en vez
-        de sólo la etiqueta.
-      */}
-      <SettingsField label={t('jira.siteLabel')} htmlFor="jira-site">
+      <SettingsField label={t('jira.siteLabel')} hint={t('jira.siteHint')} htmlFor="jira-site">
         <Input id="jira-site" value={site} onChange={event => setSite(event.target.value)} />
       </SettingsField>
-      <p className="jira-connection__field-hint">{t('jira.siteHint')}</p>
 
       <SettingsField label={t('jira.emailLabel')} htmlFor="jira-email">
         <Input id="jira-email" value={email} onChange={event => setEmail(event.target.value)} />
       </SettingsField>
 
-      <SettingsField label={t('jira.tokenLabel')} htmlFor="jira-token">
+      <SettingsField label={t('jira.tokenLabel')} hint={t('jira.tokenHint')} htmlFor="jira-token">
         <Input
           id="jira-token"
           type="password"
           value={apiToken}
           onChange={event => setApiToken(event.target.value)}
+          autoComplete="off"
+          spellCheck={false}
         />
       </SettingsField>
-      <p className="jira-connection__field-hint">{t('jira.tokenHint')}</p>
 
-      <SettingsField label={t('jira.projectKeysLabel')} htmlFor="jira-projects">
+      <SettingsField label={t('jira.projectKeysLabel')} hint={t('jira.projectKeysHint')} htmlFor="jira-projects">
         <Input
           id="jira-projects"
           value={projectKeys}
           onChange={event => setProjectKeys(event.target.value)}
         />
       </SettingsField>
-      <p className="jira-connection__field-hint">{t('jira.projectKeysHint')}</p>
+
       <div className="jira-connection__actions">
         <Button onClick={() => void connect()} disabled={busy || !site.trim()}>
           {t('jira.connectAction')}

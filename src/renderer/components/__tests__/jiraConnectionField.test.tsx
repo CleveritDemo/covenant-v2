@@ -27,23 +27,28 @@ beforeEach(() => {
 // que el auto-cleanup de @testing-library/react no se activa por sí solo.
 afterEach(cleanup)
 
+// `SettingsField` mete el `hint` dentro del mismo <label> que envuelve el
+// input (por diseño: el hint es parte de la descripción accesible del campo),
+// así que el nombre accesible real es «etiqueta + hint» para site/token/
+// projectKeys. `exact: false` empareja por subcadena en vez de igualdad
+// estricta — sigue siendo la etiqueta real la que ancla la búsqueda.
 describe('JiraConnectionField', () => {
   it('sin conectar pide sitio, email y token', async () => {
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalledWith('/repo'))
-    expect(screen.getByLabelText('jira.siteLabel')).toBeTruthy()
+    expect(screen.getByLabelText('jira.siteLabel', { exact: false })).toBeTruthy()
     expect(screen.getByLabelText('jira.emailLabel')).toBeTruthy()
-    expect(screen.getByLabelText('jira.tokenLabel')).toBeTruthy()
+    expect(screen.getByLabelText('jira.tokenLabel', { exact: false })).toBeTruthy()
   })
 
   it('conectar manda los cuatro campos y muestra a quién autenticó', async () => {
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText('jira.siteLabel'), { target: { value: 'https://x.atlassian.net' } })
+    fireEvent.change(screen.getByLabelText('jira.siteLabel', { exact: false }), { target: { value: 'https://x.atlassian.net' } })
     fireEvent.change(screen.getByLabelText('jira.emailLabel'), { target: { value: 'a@b.c' } })
-    fireEvent.change(screen.getByLabelText('jira.tokenLabel'), { target: { value: 'tok' } })
-    fireEvent.change(screen.getByLabelText('jira.projectKeysLabel'), { target: { value: 'GRAV, COV' } })
+    fireEvent.change(screen.getByLabelText('jira.tokenLabel', { exact: false }), { target: { value: 'tok' } })
+    fireEvent.change(screen.getByLabelText('jira.projectKeysLabel', { exact: false }), { target: { value: 'GRAV, COV' } })
     fireEvent.click(screen.getByText('jira.connectAction'))
 
     await waitFor(() => expect(jiraConnect).toHaveBeenCalledWith('/repo', {
@@ -59,7 +64,7 @@ describe('JiraConnectionField', () => {
     jiraConnect.mockResolvedValue({ ok: false, error: 'Jira 401' })
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
-    fireEvent.change(screen.getByLabelText('jira.siteLabel'), { target: { value: 'https://x.atlassian.net' } })
+    fireEvent.change(screen.getByLabelText('jira.siteLabel', { exact: false }), { target: { value: 'https://x.atlassian.net' } })
     fireEvent.click(screen.getByText('jira.connectAction'))
     await screen.findByText(/401/)
   })
@@ -67,6 +72,6 @@ describe('JiraConnectionField', () => {
   it('el input del token no expone el valor en claro', async () => {
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
-    expect(screen.getByLabelText('jira.tokenLabel').getAttribute('type')).toBe('password')
+    expect(screen.getByLabelText('jira.tokenLabel', { exact: false }).getAttribute('type')).toBe('password')
   })
 })

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.6
+
+- **El catálogo +N scrollea de verdad**: rueda sobre la lista de contextos ya no mueve las cards de agentes de detrás; el plano le cede el wheel a ese popover.
+
 ## v0.40.5
 
 - **Sin techo de agentes y terminales por pestaña**: crear un agente o un terminal ya no se corta a los diez paneles. Los botones del plano solo se bloquean si falta carpeta de proyecto, el arranque de equipo crea todos los agentes del catálogo y al recargar la sesión no se recorta ningún panel.

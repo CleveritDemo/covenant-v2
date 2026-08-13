@@ -492,31 +492,48 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const [wikiNodeSlugs, setWikiNodeSlugs] = useState<string[]>([])
   // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
   const [wikiGraphData, setWikiGraphData] = useState<WikiGraphData | null>(null)
+  const [wikiGraphError, setWikiGraphError] = useState<string | null>(null)
   // Incrementar relanza el fetch del grafo sin cerrar el mapa (CTA 'Crear wiki').
   const [wikiGraphRefreshToken, setWikiGraphRefreshToken] = useState(0)
   // Refetch suave (ingest del curador aplicado): swap de data sin cerrar modales.
   const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
+  // Tras bootstrap wiki desde el CTA: auto-/init del curador.
+  const [wikiBootstrapInitToken, setWikiBootstrapInitToken] = useState(0)
 
-  const loadWikiGraph = useCallback(async (): Promise<WikiGraphData> => {
+  const loadWikiGraph = useCallback(async (): Promise<{
+    data: WikiGraphData | null
+    error: string | null
+  }> => {
     const cwd = projectFolder.trim()
-    if (!cwd) return { nodes: [], edges: [] }
+    if (!cwd) return { data: { nodes: [], edges: [] }, error: null }
     try {
       const result = await window.api.getWikiGraph(cwd)
-      return result.ok && result.data ? result.data : { nodes: [], edges: [] }
+      if (!result.ok) {
+        return { data: null, error: result.error ?? '' }
+      }
+      return { data: result.data ?? { nodes: [], edges: [] }, error: null }
     } catch {
-      return { nodes: [], edges: [] }
+      return { data: null, error: '' }
     }
   }, [projectFolder])
 
   // Pages reales vía IPC, refetch en cada apertura: la wiki puede haber
-  // cambiado entre una y otra. ok:false o error → grafo vacío (empty state).
+  // cambiado entre una y otra. ok:false o error → overlay de error.
   useEffect(() => {
     if (!wikiMapOpen) return
     let cancelled = false
     setWikiGraphData(null)
+    setWikiGraphError(null)
     setWikiNodeSlugs([])
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled) return
+      if (error !== null) {
+        setWikiGraphError(error)
+        setWikiGraphData(null)
+      } else {
+        setWikiGraphData(data)
+        setWikiGraphError(null)
+      }
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphRefreshToken])
@@ -526,8 +543,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   useEffect(() => {
     if (!wikiMapOpen || wikiGraphSoftToken === 0) return
     let cancelled = false
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled || error || !data) return
+      setWikiGraphData(data)
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
@@ -890,6 +908,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         wikiOverlay={wikiMapOpen ? (
           <WikiGraphView
             data={wikiGraphData}
+            error={wikiGraphError}
+            onRetry={() => setWikiGraphRefreshToken(token => token + 1)}
             cwd={projectFolder.trim()}
             active={tabActive}
             onClose={() => setWikiMapOpen(false)}
@@ -898,11 +918,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               setWikiGraphRefreshToken(token => token + 1)
               const cwd = projectFolder.trim()
               if (cwd) onWikiMutated?.(cwd)
+              setWikiBootstrapInitToken(token => token + 1)
             }}
             curator={projectFolder.trim() ? (
               <WikiCuratorComposer
                 cwd={projectFolder.trim()}
                 systemSoundsEnabled={systemSoundsEnabled}
+                bootstrapInitToken={wikiBootstrapInitToken}
                 onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
                 onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
               />

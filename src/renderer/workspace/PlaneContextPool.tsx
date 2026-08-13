@@ -27,9 +27,9 @@ export type { PlaneContextPoolAgent, PlaneContextPoolItem } from './planeContext
 
 /**
  * Chromium rasteriza el fantasma del arrastre sobre un fondo opaco cuando el
- * elemento cuelga de un contenedor con `backdrop-filter` (la barra es glass):
- * salen esquinas rectas blancas. Se arrastra un clon colgado del `body`, fuera
- * de ese contexto, para que respete el radio y la transparencia.
+ * chip cuelga de la barra glass del pool: salen esquinas rectas blancas. Se
+ * arrastra un clon colgado del `body`, fuera de ese contexto, para que respete
+ * el radio y la transparencia.
  */
 function setChipDragImage(event: React.DragEvent<HTMLButtonElement>): void {
   const ghost = event.currentTarget.cloneNode(true) as HTMLElement

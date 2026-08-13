@@ -20,7 +20,6 @@
   border-radius: var(--plane-top-bar-radius, 8px);
   border: 1px solid var(--plane-top-bar-edge);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   transform: none;
   /* El mapa padre usa pointer-events: none; el pool debe recibir clics. */
   pointer-events: auto;

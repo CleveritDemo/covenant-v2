@@ -4,6 +4,7 @@ import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import type { AppConfig } from '../../src/shared/configSchema'
+import { projectDirPath } from '../projectDir'
 import { applyWikiIngest, ensureWikiWithSeed } from '../wikiStore'
 import {
   clearWikiCuratorForTests,
@@ -242,5 +243,44 @@ describe('startWikiCuratorTurn provider', () => {
       { runner },
     )).toEqual({ ok: true })
     expect(requests[0]!.prompt).not.toContain('## Init mode')
+  })
+
+  it('/init incluye contextos wiki y folderTree del discover', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-ctx-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+    writeFileSync(
+      join(projectDirPath(cwd), 'folders.md'),
+      '<!-- iaterminal:context {"version":1,"id":"iaterminal:folderTree","name":"folders","fileName":"folders.md","kind":"folderTree"} -->\n',
+      'utf8',
+    )
+
+    const chatRequests: AgentCliStartRequest[] = []
+    const initRequests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      if (request.prompt.includes('## Init mode')) initRequests.push(request)
+      else chatRequests.push(request)
+      handlers.onDone(0)
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(chatRequests[0]!.contexts.every(c => c.kind === 'wiki')).toBe(true)
+    expect(chatRequests[0]!.contexts.some(c => c.kind === 'folderTree')).toBe(false)
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: '/init' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    const initKinds = initRequests[0]!.contexts.map(c => c.kind).sort()
+    expect(initKinds).toEqual(['folderTree', 'wiki'])
   })
 })

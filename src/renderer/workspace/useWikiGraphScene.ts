@@ -673,16 +673,25 @@ export function useWikiGraphScene(
       attributeFilter: ['data-theme', 'style'],
     })
 
+    let fitApplied = false
     const resize = (): void => {
       const width = Math.max(1, container.clientWidth)
       const height = Math.max(1, container.clientHeight)
       renderer.setSize(width, height)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
+      if (
+        !fitApplied
+        && container.clientWidth >= 64
+        && container.clientHeight >= 64
+        && sceneNodes.length > 0
+      ) {
+        fitCameraToGraph()
+        fitApplied = true
+      }
       render()
     }
     resize()
-    fitCameraToGraph()
     render()
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(resize)

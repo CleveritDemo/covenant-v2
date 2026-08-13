@@ -20,6 +20,7 @@ import {
   isWikiCuratorInitCommand,
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
+  WIKI_CURATOR_INIT_COMMAND,
   type WikiCuratorConfig,
   type WikiCuratorEvent,
 } from '../src/shared/wikiCurator'
@@ -164,8 +165,12 @@ export function startWikiCuratorTurn(
   if (!cwd) return { ok: false, error: 'cwd inválido' }
   if (!message && images.length === 0) return { ok: false, error: 'mensaje vacío' }
 
-  // Solo consume la wiki: sin contexto kind 'wiki' el curador no tiene material.
-  const contexts = discoverTabContexts(cwd).contexts.filter(item => item.kind === 'wiki')
+  const discovered = discoverTabContexts(cwd).contexts
+  const init = isWikiCuratorInitCommand(message)
+  // Chat: solo wiki. Init: wiki + folderTree para explorar el proyecto read-only.
+  const contexts = init
+    ? discovered.filter(item => item.kind === 'wiki' || item.kind === 'folderTree')
+    : discovered.filter(item => item.kind === 'wiki')
   if (!contexts.length) {
     const error = 'El proyecto no tiene wiki (.gravity/wiki).'
     emitCurator(win, cwd, { type: 'error', message: error })
@@ -186,7 +191,6 @@ export function startWikiCuratorTurn(
     ? config.cliSessionId.trim()
     : undefined
 
-  const init = isWikiCuratorInitCommand(message)
   const request: AgentCliStartRequest = {
     paneId,
     provider: curatorConfig.provider ?? 'claude',

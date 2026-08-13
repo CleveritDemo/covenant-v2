@@ -4,6 +4,7 @@
 import React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { WIKI_CURATOR_INIT_COMMAND } from '@shared/wikiCurator'
 import { wikiCuratorHistoryStorageKey } from '@shared/wikiCuratorHistory'
 import { WikiCuratorComposer } from '../WikiCuratorComposer'
 
@@ -360,6 +361,33 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
       expect(screen.queryByText('otro fallo')).toBeNull()
       expect(screen.queryByText(errorMessage)).toBeNull()
       expect(localStorage.getItem(HISTORY_KEY)).toBeNull()
+    })
+  })
+
+  it('bootstrapInitToken dispara /init automático cuando no está thinking', async () => {
+    const { rerender } = render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={0}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    rerender(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={1}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(startWikiCuratorTurn).toHaveBeenCalledWith({
+        cwd: CWD,
+        message: WIKI_CURATOR_INIT_COMMAND,
+      })
     })
   })
 

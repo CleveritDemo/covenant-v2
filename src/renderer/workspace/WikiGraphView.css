@@ -63,7 +63,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 11px;
@@ -82,7 +81,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 10px;
@@ -117,7 +115,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text);
   cursor: pointer;
   pointer-events: auto;
@@ -141,7 +138,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 40%, transparent);
   border-radius: 8px;
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   pointer-events: none;
   font-family: var(--font-ui);
 }
@@ -162,6 +158,41 @@
 .wiki-graph-view__tooltip-type--decision { color: var(--theme-magenta, #ff79c6); }
 .wiki-graph-view__tooltip-type--flow { color: var(--theme-cyan, #22d3ee); }
 .wiki-graph-view__tooltip-type--reference { color: var(--theme-blue, #60a5fa); }
+
+/* Carga del grafo o creación de wiki desde el CTA. */
+.wiki-graph-view__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Error de IPC al cargar el grafo. */
+.wiki-graph-view__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+  font-family: var(--font-ui);
+  pointer-events: none;
+}
+
+.wiki-graph-view__error-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.wiki-graph-view__error-cta {
+  pointer-events: auto;
+}
 
 /* Empty state: wiki sin pages — mensaje centrado, sin escena. */
 .wiki-graph-view__empty {

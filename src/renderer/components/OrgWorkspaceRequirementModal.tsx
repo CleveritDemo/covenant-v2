@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useT } from '@i18n/useT'
+import type { OrgWorkspaceSyncPhase } from '../orgWorkspaceMaterialize'
 import type { OrgWorkspaceCloneFailure } from '../../shared/orgWorkspaceCloneError'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
 import { TerminalModal } from './TerminalModal'
@@ -16,6 +17,7 @@ export type OrgWorkspaceRequirementState = {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  syncPhase?: OrgWorkspaceSyncPhase
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
@@ -32,6 +34,7 @@ interface Props {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  syncPhase?: OrgWorkspaceSyncPhase
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
@@ -45,6 +48,21 @@ interface Props {
 }
 
 type T = ReturnType<typeof useT>['t']
+
+function syncingPhaseLabel(phase: OrgWorkspaceSyncPhase | undefined, t: T): string {
+  switch (phase) {
+    case 'repos':
+      return t('organizations.reqSyncingRepos')
+    case 'agents':
+      return t('organizations.reqSyncingAgents')
+    case 'contexts':
+      return t('organizations.reqSyncingContexts')
+    case 'wiki':
+      return t('organizations.reqSyncingWiki')
+    default:
+      return t('organizations.reqSyncing')
+  }
+}
 
 function cloneHeadline(failure: OrgWorkspaceCloneFailure, t: T): string {
   const org = failure.orgName?.trim() || t('organizations.reqCloneOrgFallback')
@@ -150,6 +168,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloneFailure,
   cloning = false,
   syncing = false,
+  syncPhase,
   uploading = false,
   agentDeleteError,
   agentUpdateError,
@@ -166,7 +185,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   const statusLabel = uploading
     ? t('organizations.reqUploading')
     : syncing
-      ? t('organizations.reqSyncing')
+      ? syncingPhaseLabel(syncPhase, t)
       : t('organizations.reqCloning')
   const legacyCloneRaw = !cloneFailure && cloneError?.trim() ? cloneError.trim() : null
   const agentErr = agentDeleteError?.trim()

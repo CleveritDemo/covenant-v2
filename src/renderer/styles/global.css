@@ -60,7 +60,6 @@
   /* Plano 2D — capa HUD/cristal (derivada del tema; applyTheme ajusta glow) */
   --plane-radius: 14px;
   --plane-radius-sm: 10px;
-  --plane-blur: 16px;
   --plane-grid-size: 44px;
   --plane-grid-opacity: 0.1;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
@@ -224,10 +223,8 @@ textarea:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Reduce motion: sin entradas animadas y sin blur de cristal (coste GPU continuo). */
+/* Reduce motion: sin entradas animadas. */
 html[data-reduce-motion="true"] {
-  --plane-blur: 0px;
-
   .fade-in {
     animation: none;
   }

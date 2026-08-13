@@ -243,6 +243,7 @@ import {
   downloadOrgWorkspaceToLocal,
   uploadOrgWorkspaceFromLocal,
   type OrgWorkspaceMaterializeDeps,
+  type OrgWorkspaceSyncPhase,
 } from './orgWorkspaceMaterialize'
 import {
   OrgWorkspaceRequirementModal,
@@ -333,6 +334,12 @@ export const App: React.FC = () => {
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
     useState<OrgWorkspaceRequirementState | null>(null)
+
+  const reportOrgSyncPhase = useCallback((phase: OrgWorkspaceSyncPhase) => {
+    setOrgWorkspaceRequirement(prev => (
+      prev?.syncing ? { ...prev, syncPhase: phase } : prev
+    ))
+  }, [])
   /** Invalida sync/upload en curso al cancelar con Espacio. */
   const orgWorkspaceSyncUploadGenRef = useRef(0)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
@@ -777,7 +784,11 @@ export const App: React.FC = () => {
     slug: string,
     workspaceId: string,
     tabIds: string[],
-    options: { wipeLocal?: boolean; cancelGen?: number } = {},
+    options: {
+      wipeLocal?: boolean
+      cancelGen?: number
+      onPhase?: (phase: OrgWorkspaceSyncPhase) => void
+    } = {},
   ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
@@ -886,6 +897,7 @@ export const App: React.FC = () => {
           workspaceId,
           localDir: cwd,
         },
+        ...(options.onPhase ? { onPhase: options.onPhase } : {}),
       })
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
@@ -2135,9 +2147,13 @@ export const App: React.FC = () => {
 
     if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
       const opGen = ++orgWorkspaceSyncUploadGenRef.current
-      setOrgWorkspaceRequirement({ syncing: true })
+      setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'agents' })
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false, cancelGen: opGen })
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+          wipeLocal: false,
+          cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
+        })
       } finally {
         if (opGen === orgWorkspaceSyncUploadGenRef.current) {
           setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
@@ -2161,7 +2177,7 @@ export const App: React.FC = () => {
         queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
       }
     }
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
     orgWorkspaceSyncUploadGenRef.current += 1
@@ -2185,7 +2201,7 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
-    setOrgWorkspaceRequirement({ syncing: true })
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
     try {
       try {
         if (
@@ -2220,6 +2236,7 @@ export const App: React.FC = () => {
         await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
           wipeLocal: false,
           cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
         })
       } catch (err) {
         if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
@@ -2238,7 +2255,7 @@ export const App: React.FC = () => {
         return next
       })
     }
-  }, [syncOrgWorkspaceContent])
+  }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   const handleUploadOrgWorkspace = useCallback(async (tab: TabSession) => {
@@ -2662,9 +2679,13 @@ export const App: React.FC = () => {
 
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
         const opGen = ++orgWorkspaceSyncUploadGenRef.current
-        setOrgWorkspaceRequirement({ syncing: true })
+        setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'agents' })
         try {
-          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], { wipeLocal: false, cancelGen: opGen })
+          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], {
+            wipeLocal: false,
+            cancelGen: opGen,
+            onPhase: reportOrgSyncPhase,
+          })
         } finally {
           if (opGen === orgWorkspaceSyncUploadGenRef.current) {
             setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
@@ -2704,7 +2725,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -6430,6 +6451,7 @@ export const App: React.FC = () => {
         cloneFailure={orgWorkspaceRequirement?.cloneFailure}
         cloning={orgWorkspaceRequirement?.cloning}
         syncing={orgWorkspaceRequirement?.syncing}
+        syncPhase={orgWorkspaceRequirement?.syncPhase}
         uploading={orgWorkspaceRequirement?.uploading}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}

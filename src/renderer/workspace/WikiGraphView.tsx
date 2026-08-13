@@ -8,9 +8,15 @@ import { useWikiGraphScene, type WikiGraphHover } from './useWikiGraphScene'
 import type { WikiGraphData, WikiGraphNodeType } from './wikiGraph'
 import './WikiGraphView.css'
 
+export type WikiGraphPhase = 'loading' | 'empty' | 'ready' | 'error'
+
 export interface WikiGraphViewProps {
   /** null = cargando (aún sin respuesta del IPC); nodes vacíos = wiki sin pages. */
   data: WikiGraphData | null
+  /** Mensaje de error del fetch del grafo; prioridad sobre loading/empty. */
+  error?: string | null
+  /** Relanza el fetch del grafo (overlay de error). */
+  onRetry?: () => void
   /** cwd del proyecto; el CTA 'Crear wiki' lo pasa a ensureWiki. */
   cwd: string
   onClose: () => void
@@ -51,6 +57,8 @@ const LEGEND_TYPES: WikiGraphNodeType[] = ['concept', 'decision', 'flow', 'refer
  */
 export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   data,
+  error = null,
+  onRetry,
   cwd,
   onClose,
   onOpenNode,
@@ -63,13 +71,30 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   const [hover, setHover] = useState<WikiGraphHover | null>(null)
   const [creatingWiki, setCreatingWiki] = useState(false)
   const [createWikiFailed, setCreateWikiFailed] = useState(false)
+  const awaitingCreateLoadRef = useRef(false)
   const graphData = data ?? EMPTY_GRAPH
-  // Empty solo con respuesta ya cargada: mientras data es null no hay veredicto.
-  const isEmpty = data !== null && data.nodes.length === 0
+
+  const phase: WikiGraphPhase = error != null
+    ? 'error'
+    : data === null
+      ? 'loading'
+      : data.nodes.length === 0
+        ? 'empty'
+        : 'ready'
+
+  const showLoadingOverlay = phase === 'loading' || creatingWiki
+
   const { webglAvailable } = useWikiGraphScene(containerRef, graphData, {
     onHover: setHover,
     onPick: onOpenNode,
   }, active)
+
+  // Tras ensureWiki ok el padre refetchea (data=null); mantener spinner hasta que llegue data.
+  useEffect(() => {
+    if (!awaitingCreateLoadRef.current || data === null) return
+    awaitingCreateLoadRef.current = false
+    setCreatingWiki(false)
+  }, [data])
 
   // Escape cierra la vista — salvo que haya un modal portaled encima
   // (el placeholder de nodo u otro): ese Escape es del modal.
@@ -99,7 +124,28 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       aria-label={t('tabs.wikiMapTitle')}
     >
       <div ref={containerRef} className="wiki-graph-view__canvas" />
-      {isEmpty ? (
+      {showLoadingOverlay ? (
+        <div className="wiki-graph-view__loading" role="status">
+          <Spinner
+            aria-label={creatingWiki ? t('tabs.wikiMapCreating') : t('tabs.wikiMapLoading')}
+          />
+        </div>
+      ) : null}
+      {phase === 'error' ? (
+        <div className="wiki-graph-view__error" role="alert">
+          <p className="wiki-graph-view__error-text">
+            {error?.trim() || t('tabs.wikiMapError')}
+          </p>
+          {onRetry ? (
+            <div className="wiki-graph-view__error-cta">
+              <Button variant="secondary" size="sm" onClick={onRetry}>
+                {t('tabs.wikiMapRetry')}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {phase === 'empty' && !creatingWiki ? (
         <div className="wiki-graph-view__empty" role="status">
           <p className="wiki-graph-view__empty-title">{t('tabs.wikiMapEmpty')}</p>
           <p className="wiki-graph-view__empty-hint">{t('tabs.wikiMapEmptyHint')}</p>
@@ -116,13 +162,16 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
                   try {
                     ok = (await window.api.ensureWiki(cwd)).ok
                   } catch { /* ok queda en false */ }
-                  setCreatingWiki(false)
-                  if (ok) onRefetchGraph()
-                  else setCreateWikiFailed(true)
+                  if (ok) {
+                    awaitingCreateLoadRef.current = true
+                    onRefetchGraph()
+                  } else {
+                    setCreatingWiki(false)
+                    setCreateWikiFailed(true)
+                  }
                 })()
               }}
             >
-              {creatingWiki ? <Spinner aria-label={t('tabs.wikiMapCreating')} /> : null}
               {t('tabs.wikiMapCreate')}
             </Button>
           </div>
@@ -132,7 +181,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
             </p>
           ) : null}
         </div>
-      ) : !webglAvailable ? (
+      ) : phase === 'ready' && !webglAvailable ? (
         <p className="wiki-graph-view__fallback">{t('tabs.wikiMapNoWebgl')}</p>
       ) : null}
       <header className="wiki-graph-view__bar">

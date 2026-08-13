@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.50.0
+
+- **Menos lag al enviar un turno**: el runtime ya no escanea todo el repo con SHA antes del spawn; el changelog se valida con git diff al cerrar el turno.
+- **Explorador más liviano mientras corre un agente**: el file watcher se pausa durante el turno y refresca al terminar; Stop libera la pausa sin dejar el watcher colgado.
+- **Crear wiki con feedback claro**: spinner mientras carga o crea, overlay de error con reintentar, encuadre automático de cámara al abrir y auto-/init del curador tras el bootstrap.
+- **Plano con cristal opaco**: barras, FABs y contextos usan glass sin blur; solo el input del composer mantiene el efecto de cristal.
+- **Resync org con fases visibles**: al bajar un workspace org el overlay indica si está clonando repos, agentes, contextos o wiki.
+
 ## v0.49.0
 
 - **Rayos del mapa wiki siempre brillantes**: opacidad y luces al máximo en cada disparo; sin atenuación por música ni flicker ambiental.

@@ -8,7 +8,7 @@ import {
   type AgentCliProvider,
 } from '@shared/agentCliProviders'
 import { modelsForProvider, type AgentModelOption } from '@shared/agentCliModels'
-import type { WikiCuratorConfig } from '@shared/wikiCurator'
+import { WIKI_CURATOR_INIT_COMMAND, type WikiCuratorConfig } from '@shared/wikiCurator'
 import {
   appendWikiCuratorHistoryEntry,
   parseWikiCuratorHistory,
@@ -43,6 +43,8 @@ export interface WikiCuratorComposerProps {
   onWikiChanged: () => void
   /** Sonido de inicio de dictado; default true. */
   systemSoundsEnabled?: boolean
+  /** Incrementar tras bootstrap wiki dispara /init automático (guard thinking). */
+  bootstrapInitToken?: number
 }
 
 /** CLI por defecto del curador cuando `curator.json` no trae provider. */
@@ -61,6 +63,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   onViewSlugs,
   onWikiChanged,
   systemSoundsEnabled = true,
+  bootstrapInitToken = 0,
 }) => {
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -296,6 +299,17 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       })
     })
   }, [appendHistoryEntry, cwd, draft, pendingImages, thinking])
+
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const lastBootstrapInitTokenRef = useRef(0)
+
+  useEffect(() => {
+    if (bootstrapInitToken === 0 || bootstrapInitToken === lastBootstrapInitTokenRef.current) return
+    lastBootstrapInitTokenRef.current = bootstrapInitToken
+    if (thinking) return
+    sendRef.current(WIKI_CURATOR_INIT_COMMAND)
+  }, [bootstrapInitToken, thinking])
 
   const stop = (): void => {
     const key = cwd.trim()

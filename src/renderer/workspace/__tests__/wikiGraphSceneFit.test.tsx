@@ -477,6 +477,22 @@ describe('useWikiGraphScene: fit de cámara', () => {
     expect(camera.aspect).toBe(aspect)
   })
 
+  it('con canvas 0×0 el fit se aplica en el primer resize ≥64px', () => {
+    resetGlobals()
+    render(<Harness width={0} height={0} />)
+    const camera = getCameras().at(-1)!
+    expect(camera.position.z).toBe(36)
+
+    const el = document.querySelector('.wiki-graph-view__canvas') as HTMLDivElement
+    setContainerSize(el, 800, 600)
+    resizeCallbacks.forEach(cb => cb())
+
+    const controls = getControls().at(-1)!
+    const sphere = expectedSphereCenter(DATA)
+    expect(controls.target.x).toBeCloseTo(sphere.x, 5)
+    expect(camera.position.z).not.toBe(36)
+  })
+
   it('un segundo resize NO reposiciona la cámara', () => {
     resetGlobals()
     render(<Harness width={800} height={600} />)

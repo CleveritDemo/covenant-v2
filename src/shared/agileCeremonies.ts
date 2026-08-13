@@ -53,6 +53,32 @@ export function sanitizeCeremonyRoleId(raw: unknown): CeremonyRoleId | undefined
   return isCeremonyRoleId(raw) ? raw : undefined
 }
 
+/**
+ * Los roles de un agente: lista cerrada, sin duplicados y en el orden del
+ * catálogo, que es el que decide qué sombrero se le nombra primero.
+ * El tope es la propia lista: nadie declara más roles de los que existen.
+ */
+export function sanitizeCeremonyRoleIds(raw: unknown): CeremonyRoleId[] {
+  if (!Array.isArray(raw)) return []
+  const declared = new Set(raw.filter(isCeremonyRoleId))
+  return CEREMONY_ROLE_IDS.filter(role => declared.has(role))
+}
+
+/**
+ * Nombre en inglés de cada rol: va al prompt del turno, que está en inglés.
+ * Lo que lee el humano sale de i18n (`agentPane.ceremonyRole*`).
+ */
+export const CEREMONY_ROLE_PROMPT_LABEL: Readonly<Record<CeremonyRoleId, string>> = {
+  productOwner: 'Product Owner',
+  domainExpert: 'Domain expert',
+  architect: 'Architect / Tech Lead',
+  dev: 'Developer',
+  qa: 'QA / QE',
+  ux: 'UX',
+  stakeholder: 'Stakeholder',
+  scrumMaster: 'Scrum Master',
+}
+
 /** Etapa del pipeline; ordena el picker y agrupa el filtro. */
 export const CEREMONY_STAGES = ['free', 'discovery', 'align', 'spec', 'deliver'] as const
 export type CeremonyStage = typeof CEREMONY_STAGES[number]
@@ -392,7 +418,14 @@ function termMatches(term: string, hayWords: readonly string[], hayJoined: strin
   const termWords = words(term)
   const needle = termWords.join('')
   if (!needle || !hayJoined) return false
-  if (hayWords.some(word => termWords.includes(word))) return true
+  if (termWords.length === 1) {
+    if (hayWords.includes(needle)) return true
+  } else if (termWords.every(word => hayWords.includes(word))) {
+    // Multi-palabra: hacen falta todas. Bastaba una y «quality engineer»
+    // casaba con cualquier «… engineer», así que un «backend engineer»
+    // se sentaba en el asiento de QA.
+    return true
+  }
   if (needle.length <= 2) return false
   return hayJoined.includes(needle)
 }
@@ -404,10 +437,11 @@ export interface CeremonyRoleSeat {
   agentId: string | null
   /**
    * Cómo se resolvió: `tag` es el rol declarado del agente; `guess` viene de
-   * leerle el texto y puede equivocarse. La UI lo distingue para que se sepa
-   * cuándo hace falta etiquetar.
+   * leerle el texto y puede equivocarse; `double` es un segundo sombrero, un
+   * agente que ya tenía asiento y tapa además este hueco. La UI los distingue
+   * para que se sepa cuándo hace falta etiquetar o sentar a alguien más.
    */
-  via: 'tag' | 'guess' | null
+  via: 'tag' | 'guess' | 'double' | null
 }
 
 export type CeremonyRoleCandidate = {
@@ -415,8 +449,23 @@ export type CeremonyRoleCandidate = {
   name?: string
   /** Texto libre de la ficha del agente; solo respaldo. */
   role?: string
-  /** Tag explícito del agente: lo que manda. */
+  /** Roles declarados del agente: lo que manda. */
+  ceremonyRoles?: readonly CeremonyRoleId[]
+  /** @deprecated Forma anterior de un solo rol; se lee para no romper fichas viejas. */
   ceremonyRole?: CeremonyRoleId
+}
+
+/**
+ * Roles declarados de un agente, tolerando la ficha antigua de un solo rol.
+ * Un agente sin tag devuelve lista vacía: ahí entra el respaldo por texto.
+ */
+export function candidateCeremonyRoles(
+  agent: Pick<CeremonyRoleCandidate, 'ceremonyRoles' | 'ceremonyRole'>,
+): CeremonyRoleId[] {
+  const many = sanitizeCeremonyRoleIds(agent.ceremonyRoles)
+  if (many.length) return many
+  const one = sanitizeCeremonyRoleId(agent.ceremonyRole)
+  return one ? [one] : []
 }
 
 /** Respaldo para agentes sin tag: leerles el texto y adivinar. */
@@ -432,42 +481,149 @@ function guessesRole(agent: CeremonyRoleCandidate, role: CeremonyRoleId): boolea
 
 /**
  * Cruza los roles de la ceremonia con los agentes ya sentados en la mesa.
- * Cada agente ocupa un asiento como máximo y los asientos se llenan en el
- * orden del catálogo.
  *
- * Dos pasadas, y el orden importa: primero los que traen `ceremonyRole`
- * declarado —cruce exacto, sin adivinar— y solo después se rellenan los
- * asientos vacíos leyendo el texto libre de los que no lo traen. Así etiquetar
- * un agente siempre gana, y los catálogos que ya existen siguen funcionando
- * sin tocarlos.
+ * Tres pasadas, y el orden es la regla de negocio: **repartir antes que
+ * doblar**. Un equipo de tres no debería poner dos sombreros a la misma
+ * persona solo porque los declara.
+ *
+ * 1. Tag exacto, un asiento por agente. Etiquetar siempre gana.
+ * 2. Respaldo por texto libre para los que no traen tag, también un asiento
+ *    por agente. Los catálogos que ya existen siguen funcionando sin tocarlos.
+ * 3. Huecos que quedan: un agente que **declara** ese rol y ya tiene asiento
+ *    lo cubre como segundo sombrero (`via: 'double'`). Solo declarado: doblar
+ *    a alguien por una corazonada del texto libre sería inventarse cobertura.
  */
+/**
+ * Emparejamiento máximo asiento↔agente (caminos aumentantes, Kuhn).
+ * Devuelve, por asiento, el índice del agente que lo ocupa o null.
+ *
+ * Recorrer la lista y quedarse con el primero que encaja NO sirve: con
+ * `[TechLead(architect,dev,qa), PO, Dev, QA]` el Tech Lead pasa antes y se
+ * queda el asiento de QA, dejando fuera a la QA de verdad. El emparejamiento
+ * exacto reparte y además garantiza la cobertura máxima, que es justo lo que
+ * la UI afirma con «3 de 3». Los tamaños son minúsculos —8 roles como mucho—,
+ * así que el coste no es un tema.
+ */
+function matchSeatsToAgents(
+  seatRoles: readonly CeremonyRoleId[],
+  agents: readonly CeremonyRoleCandidate[],
+  eligible: (agent: CeremonyRoleCandidate, role: CeremonyRoleId) => boolean,
+): Array<number | null> {
+  const seatAgent: Array<number | null> = seatRoles.map(() => null)
+  const agentSeat = new Map<number, number>()
+
+  /**
+   * Índices de agente, del más específico al más generalista. Entre dos
+   * repartos igual de completos queremos el que sienta al que solo hace ese
+   * rol: con [TechLead(architect,dev,qa), PO, Dev, QA] el asiento de dev es
+   * de David, no del Tech Lead.
+   */
+  const order = agents
+    .map((agent, index) => ({
+      index,
+      breadth: candidateCeremonyRoles(agent).length || Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) => a.breadth - b.breadth || a.index - b.index)
+    .map(entry => entry.index)
+
+  const assign = (seatIndex: number, visited: Set<number>): boolean => {
+    const role = seatRoles[seatIndex]
+    if (!role) return false
+    for (const a of order) {
+      const agent = agents[a]
+      if (!agent || visited.has(a) || !eligible(agent, role)) continue
+      visited.add(a)
+      const held = agentSeat.get(a)
+      // Libre, o su ocupante actual puede reacomodarse en otro asiento.
+      if (held === undefined || assign(held, visited)) {
+        agentSeat.set(a, seatIndex)
+        seatAgent[seatIndex] = a
+        return true
+      }
+    }
+    return false
+  }
+
+  for (let seat = 0; seat < seatRoles.length; seat += 1) {
+    assign(seat, new Set<number>())
+  }
+  return seatAgent
+}
+
 export function ceremonyRoleCoverage(
   ceremonyId: unknown,
   agents: readonly CeremonyRoleCandidate[],
 ): CeremonyRoleSeat[] {
   const ceremony = ceremonyById(ceremonyId)
-  const taken = new Set<string>()
-  const seats: CeremonyRoleSeat[] = ceremony.roles.map(role => {
-    const tagged = agents.find(agent => (
-      !taken.has(agent.id) && sanitizeCeremonyRoleId(agent.ceremonyRole) === role
-    ))
-    if (tagged) taken.add(tagged.id)
-    return { role, agentId: tagged?.id ?? null, via: tagged ? 'tag' : null }
-  })
 
+  // 1. Tag declarado. Emparejamiento exacto: reparte y cubre lo máximo posible.
+  const tagged = matchSeatsToAgents(
+    ceremony.roles,
+    agents,
+    (agent, role) => candidateCeremonyRoles(agent).includes(role),
+  )
+  const seats: CeremonyRoleSeat[] = ceremony.roles.map((role, index) => {
+    const at = tagged[index]
+    const agent = at === null || at === undefined ? undefined : agents[at]
+    return { role, agentId: agent?.id ?? null, via: agent ? 'tag' : null }
+  })
+  const taken = new Set(seats.map(seat => seat.agentId).filter((id): id is string => Boolean(id)))
+
+  // 2. Respaldo por texto libre, solo para quienes no traen tag.
+  const openIndexes = seats
+    .map((seat, index) => (seat.agentId ? -1 : index))
+    .filter(index => index >= 0)
+  if (openIndexes.length) {
+    const untagged = agents.filter(agent => (
+      !taken.has(agent.id) && !candidateCeremonyRoles(agent).length
+    ))
+    const guessed = matchSeatsToAgents(
+      openIndexes.map(index => seats[index]!.role),
+      untagged,
+      guessesRole,
+    )
+    openIndexes.forEach((seatIndex, slot) => {
+      const at = guessed[slot]
+      const agent = at === null || at === undefined ? undefined : untagged[at]
+      if (!agent) return
+      seats[seatIndex]!.agentId = agent.id
+      seats[seatIndex]!.via = 'guess'
+      taken.add(agent.id)
+    })
+  }
+
+  // 3. Segundo sombrero: los huecos que quedan los tapa alguien ya sentado que
+  //    DECLARA el rol. Se elige al que menos asientos lleva, para no apilar
+  //    tres sombreros en uno cuando dos pueden repartírselos.
   for (const seat of seats) {
     if (seat.agentId) continue
-    const guess = agents.find(agent => (
-      !taken.has(agent.id)
-      && !sanitizeCeremonyRoleId(agent.ceremonyRole)
-      && guessesRole(agent, seat.role)
-    ))
-    if (!guess) continue
-    taken.add(guess.id)
-    seat.agentId = guess.id
-    seat.via = 'guess'
+    const seatCount = (id: string): number =>
+      seats.filter(other => other.agentId === id).length
+    const second = agents
+      .filter(agent => taken.has(agent.id) && candidateCeremonyRoles(agent).includes(seat.role))
+      .sort((a, b) => seatCount(a.id) - seatCount(b.id))[0]
+    if (!second) continue
+    seat.agentId = second.id
+    seat.via = 'double'
   }
   return seats
+}
+
+/**
+ * Los asientos que un agente ocupa en esta ceremonia, en orden de catálogo.
+ * Con dos o más, el turno tiene que decírselo: si no, la sala afirma que el
+ * rol está cubierto y nadie habla por él.
+ */
+export function ceremonyRolesForAgent(
+  ceremonyId: unknown,
+  agents: readonly CeremonyRoleCandidate[],
+  agentId: string,
+): CeremonyRoleId[] {
+  const id = agentId.trim()
+  if (!id) return []
+  return ceremonyRoleCoverage(ceremonyId, agents)
+    .filter(seat => seat.agentId === id)
+    .map(seat => seat.role)
 }
 
 const NONE_VALUE = /^(?:none|no|nope|nada|ninguna|ninguno|n\/a|0|-|—)\.?$/i

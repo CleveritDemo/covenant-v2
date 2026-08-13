@@ -1,4 +1,4 @@
-import type { CeremonyRoleId } from './agileCeremonies'
+import { sanitizeCeremonyRoleIds, type CeremonyRoleId } from './agileCeremonies'
 
 /** Identidad persistida del agente; se inyecta en cada turno del CLI. */
 export interface AgentIdentity {
@@ -6,7 +6,13 @@ export interface AgentIdentity {
   /** Cara visual, no va al prompt: 2 caracteres derivados del name si falta. */
   monogram?: string
   role?: string
-  /** Rol de ceremonias, de lista cerrada. No va al prompt: es para sentar. */
+  /**
+   * Roles de ceremonias, de lista cerrada. Sirven para sentar al agente; solo
+   * llegan al prompt cuando cubre más de un asiento en la misma sala.
+   * Varios porque en un equipo real una persona lleva más de un sombrero.
+   */
+  ceremonyRoles?: CeremonyRoleId[]
+  /** @deprecated Espejo del primero, para fichas y lectores antiguos. */
   ceremonyRole?: CeremonyRoleId
   objective?: string
   /** Reglas de comportamiento; se envían en cada turno (no cada 10 como los contextos). */
@@ -65,7 +71,7 @@ export interface AgentIdentityDraft {
   monogram: string
   role: string
   /** Vacío/ausente = sin rol de ceremonia. */
-  ceremonyRole?: CeremonyRoleId
+  ceremonyRoles?: CeremonyRoleId[]
   objective: string
   rules: string[]
 }
@@ -80,11 +86,13 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
   const role = sanitizeAgentTextDraft(draft.role.trim(), AGENT_ROLE_MAX_LENGTH)
   const objective = sanitizeAgentTextDraft(draft.objective.trim(), AGENT_OBJECTIVE_MAX_LENGTH)
   const rules = normalizeAgentRules(draft.rules)
+  const ceremonyRoles = sanitizeCeremonyRoleIds(draft.ceremonyRoles)
 
   const {
     name: _name,
     monogram: _monogram,
     role: _role,
+    ceremonyRoles: _ceremonyRoles,
     ceremonyRole: _ceremonyRole,
     objective: _objective,
     rules: _rules,
@@ -95,7 +103,11 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
     ...rest,
     ...(name ? { name } : {}),
     ...(monogram ? { monogram } : {}),
-    ...(draft.ceremonyRole ? { ceremonyRole: draft.ceremonyRole } : {}),
+    ...(ceremonyRoles.length
+      // El singular se sigue escribiendo como espejo del primero: la ficha
+      // vive en el repo del equipo y un Gravity anterior aún la lee.
+      ? { ceremonyRoles, ceremonyRole: ceremonyRoles[0] }
+      : {}),
     ...(role ? { role } : {}),
     ...(objective ? { objective } : {}),
     ...(rules.length ? { rules } : {}),

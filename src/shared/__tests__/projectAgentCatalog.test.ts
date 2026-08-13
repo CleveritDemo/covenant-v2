@@ -621,3 +621,51 @@ describe('projectAgentCatalog', () => {
     })
   })
 })
+
+describe('ceremonyRoles — varios sombreros en la ficha', () => {
+  it('la ficha antigua de un solo rol se adopta como lista de uno', () => {
+    const def = parseProjectAgentDefinition({
+      id: 'qa', provider: 'claude', permissionMode: 'plan', ceremonyRole: 'qa',
+    })
+    expect(def?.ceremonyRoles).toEqual(['qa'])
+  })
+
+  it('la lista manda cuando vienen las dos formas', () => {
+    const def = parseProjectAgentDefinition({
+      id: 'tl',
+      provider: 'claude',
+      permissionMode: 'plan',
+      ceremonyRole: 'qa',
+      ceremonyRoles: ['architect', 'dev'],
+    })
+    expect(def?.ceremonyRoles).toEqual(['architect', 'dev'])
+  })
+
+  it('escribe el singular como espejo del primero, para lectores anteriores', () => {
+    const def = parseProjectAgentDefinition({
+      id: 'tl',
+      provider: 'claude',
+      permissionMode: 'plan',
+      ceremonyRoles: ['architect', 'dev', 'qa'],
+    })
+    expect(def?.ceremonyRole).toBe('architect')
+  })
+
+  it('roles inventados se descartan sin tumbar la ficha', () => {
+    const def = parseProjectAgentDefinition({
+      id: 'x',
+      provider: 'claude',
+      permissionMode: 'plan',
+      ceremonyRoles: ['qa', 'presidente', 42],
+    })
+    expect(def?.ceremonyRoles).toEqual(['qa'])
+  })
+
+  it('sin roles no se inventa el campo', () => {
+    const def = parseProjectAgentDefinition({
+      id: 'x', provider: 'claude', permissionMode: 'plan',
+    })
+    expect(def?.ceremonyRoles).toBeUndefined()
+    expect(def?.ceremonyRole).toBeUndefined()
+  })
+})

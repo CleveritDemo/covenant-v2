@@ -3,10 +3,13 @@
 import type { ProjectAgentDefinition } from './projectAgentCatalog'
 import { normalizeAgentSlug } from './projectAgentCatalog'
 import {
+  CEREMONY_ROLE_PROMPT_LABEL,
   ceremonyById,
+  isCeremonyRoleId,
   ceremonyUsesFreeOutcome,
   sanitizeCeremonyId,
   type CeremonyId,
+  type CeremonyRoleId,
 } from './agileCeremonies'
 
 export type BrainstormStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'done'
@@ -603,11 +606,30 @@ export function buildBrainstormTurnPrompt(
   speakerName: string,
   speakerRole?: string,
   workingSet?: BrainstormWorkingSet,
+  /** Asientos que este agente ocupa en la ceremonia (`ceremonyRolesForAgent`). */
+  speakerCeremonyRoles?: readonly CeremonyRoleId[],
 ): string {
   const name = speakerName.trim() || speakerAgentId
   const roleLine = speakerRole?.trim()
     ? `Your role: ${speakerRole.trim()}.`
     : ''
+  /**
+   * Dos o más asientos: hay que decírselo. La sala afirma que esos roles están
+   * cubiertos, y si el agente no sabe que lleva los dos sombreros nadie habla
+   * por el segundo y la cobertura sería mentira.
+   */
+  // Sin reordenar: llegan en orden de asiento de la ceremonia, que es el que
+  // tiene sentido nombrar. `sanitizeCeremonyRoleIds` los pondría en orden de
+  // catálogo global y se perdería esa lectura.
+  const hats = (speakerCeremonyRoles ?? []).filter(isCeremonyRoleId)
+  const hatsLines = hats.length > 1
+    ? [
+        `In this session you cover ${hats.length} roles: ${
+          hats.map(role => CEREMONY_ROLE_PROMPT_LABEL[role]).join(' and ')
+        }.`,
+        'Speak for all of them and say which role each point comes from.',
+      ]
+    : []
   const ceremony = ceremonyById(room.ceremony)
   // La salida a mano solo manda en `free`; con ceremonia el entregable ya está fijado.
   const outcomeLine = ceremonyUsesFreeOutcome(room.ceremony) && room.outcome
@@ -653,6 +675,7 @@ export function buildBrainstormTurnPrompt(
     ...(outcomeLine ? [outcomeLine] : []),
     `You speak now as ${name} (agentId: ${speakerAgentId}).`,
     ...(roleLine ? [roleLine] : []),
+    ...hatsLines,
     `Round ${room.round + 1} of ${room.maxRounds}.`,
     ...workingSetLines(workingSet),
     '',

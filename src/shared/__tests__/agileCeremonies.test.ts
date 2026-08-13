@@ -7,9 +7,11 @@ import {
   ceremonyBlocksAiReady,
   ceremonyGateState,
   ceremonyRoleCoverage,
+  ceremonyRolesForAgent,
   ceremonyUsesFreeOutcome,
   parseAiReadyGaps,
   sanitizeCeremonyId,
+  sanitizeCeremonyRoleIds,
 } from '../agileCeremonies'
 import {
   buildBrainstormTurnPrompt,
@@ -247,5 +249,121 @@ describe('buildBrainstormTurnPrompt con ceremonia', () => {
   it('el turno final de free sigue pidiendo Decision', () => {
     const room = { ...roomFor('free'), cursor: 1 }
     expect(buildBrainstormTurnPrompt(room, 'b', 'Nico')).toContain('Decision: <')
+  })
+})
+
+describe('ceremonyRoleCoverage — un agente con varios sombreros', () => {
+  const po = { id: 'maria', name: 'Maria', ceremonyRoles: ['productOwner' as const] }
+  const dev = { id: 'david', name: 'David', ceremonyRoles: ['dev' as const] }
+  const qa = { id: 'vanesa', name: 'Vanesa', ceremonyRoles: ['qa' as const] }
+  /** Tech Lead real: arquitecto, pero también programa y prueba. */
+  const techLead = {
+    id: 'techlead',
+    name: 'Tech Lead',
+    ceremonyRoles: ['architect' as const, 'dev' as const, 'qa' as const],
+  }
+
+  it('reparte antes que doblar: con gente de sobra nadie lleva dos sombreros', () => {
+    const seats = ceremonyRoleCoverage('threeAmigos', [techLead, po, dev, qa])
+    const byRole = Object.fromEntries(seats.map(seat => [seat.role, seat]))
+    expect(byRole.productOwner?.agentId).toBe('maria')
+    expect(byRole.dev?.agentId).toBe('david')
+    expect(byRole.qa?.agentId).toBe('vanesa')
+    // Nadie repetido: tres asientos, tres agentes distintos.
+    expect(new Set(seats.map(seat => seat.agentId)).size).toBe(3)
+    expect(seats.every(seat => seat.via === 'tag')).toBe(true)
+  })
+
+  it('dobla solo para tapar el hueco que nadie más cubre', () => {
+    const seats = ceremonyRoleCoverage('threeAmigos', [techLead, po])
+    const byRole = Object.fromEntries(seats.map(seat => [seat.role, seat]))
+    expect(byRole.productOwner?.agentId).toBe('maria')
+    // El Tech Lead cubre los otros dos: uno por tag y el otro como 2º sombrero.
+    expect(byRole.dev?.agentId).toBe('techlead')
+    expect(byRole.qa?.agentId).toBe('techlead')
+    expect(seats.filter(seat => seat.via === 'double')).toHaveLength(1)
+    expect(seats.every(seat => seat.agentId)).toBe(true)
+  })
+
+  it('el segundo sombrero exige declararlo: no se dobla por corazonada del texto', () => {
+    // «backend engineer» adivinaría `dev`, pero sin tag no se le dobla a QA.
+    const guessed = { id: 'cristian', name: 'Cristian', role: 'backend engineer' }
+    const seats = ceremonyRoleCoverage('threeAmigos', [guessed, po])
+    const byRole = Object.fromEntries(seats.map(seat => [seat.role, seat]))
+    expect(byRole.dev?.agentId).toBe('cristian')
+    expect(byRole.dev?.via).toBe('guess')
+    expect(byRole.qa?.agentId).toBeNull()
+  })
+
+  it('la ficha antigua de un solo rol sigue sentando igual', () => {
+    const legacy = { id: 'ana', name: 'Ana', ceremonyRole: 'qa' as const }
+    const seats = ceremonyRoleCoverage('threeAmigos', [legacy, po, dev])
+    const byRole = Object.fromEntries(seats.map(seat => [seat.role, seat]))
+    expect(byRole.qa?.agentId).toBe('ana')
+    expect(byRole.qa?.via).toBe('tag')
+  })
+})
+
+describe('ceremonyRolesForAgent', () => {
+  const techLead = {
+    id: 'techlead',
+    name: 'Tech Lead',
+    ceremonyRoles: ['architect' as const, 'dev' as const, 'qa' as const],
+  }
+  const po = { id: 'maria', ceremonyRoles: ['productOwner' as const] }
+
+  it('devuelve los asientos que ocupa, en orden de la ceremonia', () => {
+    expect(ceremonyRolesForAgent('threeAmigos', [techLead, po], 'techlead'))
+      .toEqual(['qa', 'dev'])
+  })
+
+  it('un solo asiento devuelve un solo rol', () => {
+    expect(ceremonyRolesForAgent('threeAmigos', [techLead, po], 'maria'))
+      .toEqual(['productOwner'])
+  })
+
+  it('quien no se sienta no ocupa nada', () => {
+    expect(ceremonyRolesForAgent('threeAmigos', [techLead, po], 'nadie')).toEqual([])
+  })
+})
+
+describe('sanitizeCeremonyRoleIds', () => {
+  it('descarta lo que no es rol, deduplica y ordena por catálogo', () => {
+    expect(sanitizeCeremonyRoleIds(['qa', 'productOwner', 'qa', 'inventado', 7]))
+      .toEqual(['productOwner', 'qa'])
+  })
+
+  it('lo que no es lista da lista vacía', () => {
+    expect(sanitizeCeremonyRoleIds('qa')).toEqual([])
+    expect(sanitizeCeremonyRoleIds(undefined)).toEqual([])
+  })
+})
+
+describe('buildBrainstormTurnPrompt — sombreros del orador', () => {
+  const room = createBrainstormRoom(
+    'CT-89 lista para desarrollo',
+    ['techlead', 'maria'],
+    2,
+    { ceremony: 'threeAmigos' },
+  ) as BrainstormRoom
+
+  it('con dos asientos se lo declara y le pide hablar por los dos', () => {
+    const prompt = buildBrainstormTurnPrompt(
+      room, 'techlead', 'Tech Lead', 'technical leader', undefined, ['qa', 'dev'],
+    )
+    expect(prompt).toContain('you cover 2 roles: QA / QE and Developer')
+    expect(prompt).toContain('Speak for all of them')
+  })
+
+  it('con un solo asiento no ensucia el turno', () => {
+    const prompt = buildBrainstormTurnPrompt(
+      room, 'maria', 'Maria', 'product owner', undefined, ['productOwner'],
+    )
+    expect(prompt).not.toContain('you cover')
+  })
+
+  it('sin ceremonia ni asientos el prompt es el de siempre', () => {
+    const prompt = buildBrainstormTurnPrompt(room, 'maria', 'Maria', 'product owner')
+    expect(prompt).not.toContain('you cover')
   })
 })

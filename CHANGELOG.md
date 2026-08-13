@@ -4,10 +4,7 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
-## Sin publicar
-
-Cambios que ya están en `main` y que ningún release ha empaquetado todavía. Al
-cortar la próxima versión, renombra esta sección a `## vX.Y.Z`.
+## v0.45.0
 
 - **La sala de brainstorming ocupa la pantalla**: convocar una sala, seguirla y releer su acta abrían modales uno encima de otro. Ahora las salas guardadas, el alta y la sala en marcha son tres vistas del mismo sitio, sobre el plano, y la barra de la esquina —carpeta, explorador, git, wiki— sigue a mano en todas.
 - **Varias salas a la vez**: puedes convocar una sala mientras otra corre. El botón lleva la cuenta de las que siguen vivas y su desplegable dice en qué ronda va cada una y quién habla. Cerrar la vista ya no detiene nada: la sala sigue y al volver está el acta entera.

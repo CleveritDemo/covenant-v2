@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.48.0
+
+- **Menos presión al streamear respuestas**: los deltas del asistente se acumulan ~200 ms antes de actualizar el chat; el texto sigue llegando en tiempo real con menos re-renders.
+- **Plano más tranquilo mientras escribe un agente**: el estado publicado al plano se throttlea cada 500 ms en vez de ~150 ms; busy, loops y delegación siguen publicándose al instante.
+
 ## v0.47.0
 
 - **Nodos del mapa wiki más volumétricos**: esferas con sombreado real y luces cuando reduce motion está desactivado; con reduce motion el look plano se conserva.

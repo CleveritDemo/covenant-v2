@@ -1,5 +1,5 @@
 /** Intervalo por defecto: ~6–7 updates/s al streamear mensajes al plano. */
-export const PLANE_STATUS_THROTTLE_MS = 150
+export const PLANE_STATUS_THROTTLE_MS = 500
 
 export interface PlaneStatusThrottleOptions<T> {
   /** Señal de control: si cambia, publica al instante (busy, loops, etc.). */

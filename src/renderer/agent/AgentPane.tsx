@@ -62,6 +62,7 @@ import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
 import { resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
+import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { turnFailedAfter } from './turnFailureState'
@@ -494,6 +495,16 @@ export const AgentPane: React.FC<Props> = ({
   const liveSettleTimerRef = useRef<number | null>(null)
   const chatSaveScheduleRef = useRef(createAgentChatSaveSchedule())
   const planeStatusThrottlerRef = useRef(createPlaneStatusThrottler<AgentPlaneStatus>())
+  const assistantDeltaThrottlerRef = useRef(createAssistantDeltaThrottler((assistantId, text) => {
+    setMessages(prev => {
+      const next = prev.map(message => {
+        if (message.id !== assistantId) return message
+        return { ...message, content: message.content + text }
+      })
+      messagesRef.current = next
+      return next
+    })
+  }))
   const tabActivePrevRef = useRef(tabActive)
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
@@ -806,6 +817,7 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     retainLiveThreadIdRef.current = null
+    assistantDeltaThrottlerRef.current.flush()
     let cancelled = false
     loadedRef.current = false
     pendingCliEventsRef.current = []
@@ -1177,8 +1189,12 @@ export const AgentPane: React.FC<Props> = ({
   ])
 
   useEffect(() => {
-    const throttler = planeStatusThrottlerRef.current
-    return () => throttler.dispose()
+    const planeThrottler = planeStatusThrottlerRef.current
+    const deltaThrottler = assistantDeltaThrottlerRef.current
+    return () => {
+      deltaThrottler.dispose()
+      planeThrottler.dispose()
+    }
   }, [])
 
   // Si cambia el catálogo de agentes, re-mezclar results (altas/bajas/renombres).
@@ -1529,6 +1545,7 @@ export const AgentPane: React.FC<Props> = ({
   const completeTurn = useCallback((expectedGen?: number): void => {
     if (expectedGen != null && expectedGen !== turnGenRef.current) return
     if (turnClosedRef.current) return
+    assistantDeltaThrottlerRef.current.flush()
     turnClosedRef.current = true
     const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
     const closedGen = turnGenRef.current
@@ -1758,6 +1775,7 @@ export const AgentPane: React.FC<Props> = ({
       if (event.status === 'loading') {
         const id = activeAssistantIdRef.current
         if (id) {
+          assistantDeltaThrottlerRef.current.flush()
           // El primer proceso pudo emitir el bloque interno durante streaming.
           // Se limpia antes de continuar con la respuesta real.
           setMessages(prev => prev.map(message =>
@@ -1782,6 +1800,7 @@ export const AgentPane: React.FC<Props> = ({
       lastAssistantIdRef.current = assistantId
       setActiveAssistantId(assistantId)
       setBusy(true)
+      assistantDeltaThrottlerRef.current.flush()
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
         const existing = prev.findIndex(message => message.id === assistantId)
@@ -1805,6 +1824,7 @@ export const AgentPane: React.FC<Props> = ({
       setBusy(true)
     }
     if (event.type === 'assistant_final') {
+      assistantDeltaThrottlerRef.current.flush()
       // Solo limpia el fence ia-terminal-context del texto visible; nunca se aplica.
       let { visibleText } = extractTabContextUpdates(event.text)
       if (loopActiveRef.current) {
@@ -1820,10 +1840,9 @@ export const AgentPane: React.FC<Props> = ({
       }))
       return
     }
-    setMessages(prev => prev.map(message => {
-      if (message.id !== assistantId) return message
-      return { ...message, content: message.content + event.text }
-    }))
+    if (event.type === 'assistant_delta') {
+      assistantDeltaThrottlerRef.current.append(assistantId, event.text)
+    }
   }, [completeTurn, onMetaChange, t])
 
   applyCliEventRef.current = applyCliEvent
@@ -2312,6 +2331,7 @@ export const AgentPane: React.FC<Props> = ({
    * cambiar de conversación. No toca disco ni el catálogo de threads.
    */
   const resetLiveState = useCallback((): void => {
+    assistantDeltaThrottlerRef.current.flush()
     clearLoopTimer()
     const wasLoop = loopActiveRef.current
     const wasRunning = busyRef.current || wasLoop

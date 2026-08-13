@@ -35,8 +35,10 @@ const BACKGROUND_VAR = '--bg'
 const BACKGROUND_FALLBACK = '#0b0e14'
 const EDGE_VAR = '--text-muted'
 const EDGE_FALLBACK = '#8b93a7'
-/** Cableado base muy tenue: red visible sin robar foco al rayo. */
-const EDGE_OPACITY = 0.2
+/** Red base con reduce motion ON: única representación de conexiones. */
+const EDGE_OPACITY_STATIC = 0.55
+/** Red base con reduce motion OFF: legible bajo los rayos sin competir. */
+const EDGE_OPACITY_LIVE = 0.45
 const IDLE_ROTATE_SPEED = 0.55
 /** Tras soltar la cámara, la rotación idle vuelve pasado este lapso. */
 const IDLE_RESUME_MS = 3000
@@ -269,7 +271,7 @@ export function useWikiGraphScene(
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: themeColor(container, EDGE_VAR, EDGE_FALLBACK),
       transparent: true,
-      opacity: EDGE_OPACITY,
+      opacity: reducedMotion ? EDGE_OPACITY_STATIC : EDGE_OPACITY_LIVE,
       depthWrite: false,
     })
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial)

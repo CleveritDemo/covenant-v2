@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.2
+
+- **Líneas del mapa wiki más visibles**: las conexiones entre nodos se leen claro en ambos modos — 0.55 con reduce motion (única capa de conexiones) y 0.45 sin él, siempre debajo de los rayos eléctricos.
+
 ## v0.40.1
 
 - **Wiki de org totalmente sincronizada**: el log se descarga al sincronizar, crear o abrir workspaces de org; el curador, el upload manual del workspace y el CTA del mapa suben cambios al backend; tras reinicio con caché fría se propagan deletes y la entrada nueva del turno sin duplicar (matching multiset con reglas de truncación).

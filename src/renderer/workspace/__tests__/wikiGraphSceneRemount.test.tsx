@@ -50,8 +50,22 @@ vi.mock('three', () => {
   }
   class Float32BufferAttribute {}
   class BufferAttribute {}
-  class LineBasicMaterial { color = new Color(); opacity = 0; dispose(): void {} }
-  class LineSegments { __kind = 'LineSegments' as const }
+  const edgeOpacities: number[] = []
+  ;(globalThis as { __wikiEdgeOpacities?: number[] }).__wikiEdgeOpacities = edgeOpacities
+  class LineBasicMaterial {
+    color = new Color()
+    opacity = 0
+    constructor(opts?: { opacity?: number }) {
+      if (opts?.opacity != null) this.opacity = opts.opacity
+    }
+    dispose(): void {}
+  }
+  class LineSegments {
+    __kind = 'LineSegments' as const
+    constructor(_geometry: unknown, material: LineBasicMaterial) {
+      edgeOpacities.push(material.opacity)
+    }
+  }
   class Line { frustumCulled = false; __kind = 'Line' as const }
   class SphereGeometry { dispose(): void {} }
   class MeshBasicMaterial { color = new Color(); dispose(): void {} }
@@ -157,9 +171,14 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
   const getSceneAdds = (): string[][] => {
     return (globalThis as { __wikiSceneAdds?: string[][] }).__wikiSceneAdds ?? []
   }
+  const getEdgeOpacities = (): number[] => {
+    return (globalThis as { __wikiEdgeOpacities?: number[] }).__wikiEdgeOpacities ?? []
+  }
   const resetSceneAdds = (): void => {
     const adds = getSceneAdds()
     adds.length = 0
+    const opacities = getEdgeOpacities()
+    opacities.length = 0
   }
 
   it('active=true → false → true reappenda un canvas al contenedor nuevo', () => {
@@ -206,6 +225,8 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
       expect(last).toContain('LineSegments')
       expect(last).not.toContain('Line')
       expect(last).not.toContain('Sprite')
+      // Única capa de conexiones: opacidad estática legible (EDGE_OPACITY_STATIC).
+      expect(getEdgeOpacities().at(-1)).toBe(0.55)
     } finally {
       document.documentElement.removeAttribute('data-reduce-motion')
     }
@@ -218,8 +239,9 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
     const adds = getSceneAdds()
     expect(adds.length).toBeGreaterThan(0)
     const last = adds[adds.length - 1]!
-    // Red base tenue sigue viva.
+    // Red base visible debajo de los rayos (EDGE_OPACITY_LIVE).
     expect(last).toContain('LineSegments')
+    expect(getEdgeOpacities().at(-1)).toBe(0.45)
     // Cada arista aporta 3 Line (core + halo + glow) y 2 Sprite endpoint;
     // con 1 arista: 3 Line, 2 Sprite de flash + halo de nodos por nodo.
     const lineCount = last.filter(k => k === 'Line').length

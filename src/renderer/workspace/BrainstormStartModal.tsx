@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_OUTCOMES,
+  brainstormCatalogAgentLabel,
+  filterBrainstormInvitableAgents,
   isBrainstormInvitableAgent,
   sanitizeBrainstormInviteIds,
   sanitizeBrainstormMaxRounds,
@@ -9,23 +11,31 @@ import {
   type BrainstormRoom,
 } from '@shared/brainstormRoom'
 import {
+  candidateCeremonyRoles,
+  ceremoniesByStage,
   ceremonyById,
   ceremonyRoleCoverage,
   ceremonyUsesFreeOutcome,
+  CEREMONY_STAGES,
   DEFAULT_CEREMONY_ID,
   type CeremonyId,
 } from '@shared/agileCeremonies'
-import { paletteColorForSeed } from '@shared/tabContextAppearance'
+import { agentMonogram, paletteColorForSeed } from '@shared/tabContextAppearance'
+import { brainstormContextLabel } from '@shared/brainstormContextLabel'
 import { useT } from '@i18n/useT'
-import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
-import { TerminalModal } from '../components/TerminalModal'
+import {
+  CEREMONY_GOAL_KEY,
+  CEREMONY_ROLE_KEY,
+  CEREMONY_STAGE_KEY,
+} from './ceremonyLabels'
 import type { JiraIssueRef } from '@shared/jiraIssue'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
 import { useJiraMention } from './useJiraMention'
 import { Button, SegmentedControl, Select, TextArea } from '../components/ui'
-import { BrainstormInviteGrid } from './BrainstormInviteGrid'
+import { BrainstormOverlay } from './BrainstormOverlay'
+import { BrainstormModuleTabs } from './BrainstormModuleTabs'
+import { BrainstormInviteSeatCard } from './BrainstormSeatCard'
 import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
-import { CeremonyPicker } from './CeremonyPicker'
 import { MINUTES_PER_TURN, brainstormRoundOptions } from './BrainstormBriefFields'
 import { tryCreateBrainstormSession } from './brainstormUiGuards'
 import './BrainstormStartModal.css'
@@ -36,31 +46,36 @@ export interface BrainstormStartModalProps {
   cwd: string
   agents: ProjectAgentDefinition[]
   /**
-   * Invitados que ya vienen sentados de la mesa del plano, si se pasó por ella.
-   * Vacío en el camino normal: aquí se eligen.
+   * Agentes que ya tienen asiento en otra sala viva, por id → temas de esas
+   * salas. Se puede sentar al mismo agente en varias: los contextos son
+   * independientes, así que la tarjeta lo avisa antes de sentarlo.
    */
-  initialParticipantIds?: readonly string[]
+  agentsInLiveRooms?: Readonly<Record<string, readonly string[]>>
+  /** Actas guardadas: el número va en la pestaña de la biblioteca. */
+  savedRoomsCount?: number
   onClose: () => void
-  /** Salas guardadas del proyecto; el botón del plano ya no las abre. */
+  /** Volver a la biblioteca, que es la otra pestaña del módulo. */
   onOpenRooms?: () => void
   onStarted: (room: BrainstormRoom) => void
 }
 
 /**
- * Arranque de una sala en una sola pantalla: objetivo, quiénes participan y un
- * desplegable con formato, material y duración.
+ * Alta de una sala sobre el plano entero, no en un modal: el objetivo se lleva
+ * el centro, los invitados van en la columna de la derecha —donde el plano ya
+ * pone a los agentes— y lo que antes vivía detrás del desplegable «Formato y
+ * ajustes» se queda abierto en la columna de la izquierda. Con la pantalla
+ * completa no hacía falta esconderlo.
  *
- * Sustituye al recorrido de tres superficies (ceremonia → mesa → brief). El
- * orden importa: el objetivo va primero porque es lo único que el usuario sabe
- * de entrada y lo único sin un valor por defecto razonable. El formato —que
- * antes era el paso 1— cae a `free` y se cambia solo si hace falta.
+ * El orden importa: el objetivo va primero porque es lo único sin un valor por
+ * defecto razonable. El formato cae a `free` y se cambia solo si hace falta.
  */
 export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   open,
   active = true,
   cwd,
   agents,
-  initialParticipantIds = [],
+  agentsInLiveRooms = {},
+  savedRoomsCount = 0,
   onClose,
   onOpenRooms,
   onStarted,
@@ -74,37 +89,22 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   const topicRef = useRef<HTMLTextAreaElement>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
-  /** Cuántas salas guardadas hay: sin el número, el botón no invita a mirar. */
-  const [savedCount, setSavedCount] = useState(0)
-  /**
-   * Los ajustes desplegados ensanchan el modal en vez de estirarlo hacia abajo:
-   * a lo alto obligaban a scrollear el formulario entero para volver a Empezar.
-   */
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setTopic('')
-    setParticipantIds([...initialParticipantIds])
+    setParticipantIds([])
     setCeremony(DEFAULT_CEREMONY_ID)
     setMaxRounds(ceremonyById(DEFAULT_CEREMONY_ID).rounds)
     setContextIds([])
     setFilePaths([])
     setOutcome('ideas')
-    setAdvancedOpen(false)
-    // `initialParticipantIds` es un array nuevo en cada render del padre: si
-    // entrara en las deps, el formulario se reiniciaría mientras se escribe.
   }, [open])
 
-  useEffect(() => {
-    const root = cwd.trim()
-    if (!open || !root || !onOpenRooms) return
-    let cancelled = false
-    void window.api.listBrainstorms(root)
-      .then(rooms => { if (!cancelled) setSavedCount(rooms.length) })
-      .catch(() => { if (!cancelled) setSavedCount(0) })
-    return () => { cancelled = true }
-  }, [open, cwd, onOpenRooms])
+  const invitableAgents = useMemo(
+    () => filterBrainstormInvitableAgents(agents),
+    [agents],
+  )
 
   const safeParticipantIds = useMemo(
     () => sanitizeBrainstormInviteIds(participantIds, agents),
@@ -126,6 +126,24 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
       return cleaned.includes(agentId)
         ? cleaned.filter(id => id !== agentId)
         : [...cleaned, agentId]
+    })
+  }
+
+  /**
+   * Reordenar el orden de habla arrastrando, como se reordenan los agentes del
+   * plano. El orden aquí no es cosmético: es el turno en que habla cada uno.
+   */
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+
+  const moveSeat = (from: number, to: number): void => {
+    if (from === to) return
+    setParticipantIds(previous => {
+      const cleaned = sanitizeBrainstormInviteIds(previous, agents)
+      if (from < 0 || from >= cleaned.length || to < 0 || to >= cleaned.length) return cleaned
+      const next = [...cleaned]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
     })
   }
 
@@ -205,60 +223,187 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
     onStarted(room)
   }
 
-  const digest = [
-    ceremonyDef.name,
-    t('tabs.brainstormRoundsDigest', { count: String(maxRounds) }),
-    materialCount
-      ? t('tabs.brainstormMaterialSome', { count: String(materialCount) })
-      : t('tabs.brainstormMaterialNone'),
-  ].join(' · ')
+  /** Rol con el que se sienta: los de ceremonia mandan, el libre es respaldo. */
+  const roleLabelOf = (agent: ProjectAgentDefinition): string => {
+    const ceremonyRoles = candidateCeremonyRoles(agent)
+    if (ceremonyRoles.length) {
+      return ceremonyRoles.map(id => t(CEREMONY_ROLE_KEY[id])).join(' · ')
+    }
+    return agent.role?.trim() ?? ''
+  }
+
+  if (!open) return null
 
   return (
-    <TerminalModal
-      open={open}
+    <BrainstormOverlay
       active={active}
+      variant="setup"
+      ariaLabel={t('tabs.brainstormStartTitle')}
+      closeLabel={t('common.cancel')}
       onClose={onClose}
-      title={t('tabs.brainstormStartTitle')}
-      size={advancedOpen ? 'xl' : 'lg'}
-      zIndex={850}
-      footer={(
-        <div className="brainstorm-start__footer">
-          {/* `ghost` lo dejaba indistinguible del texto de estado de al lado:
-              parecía una etiqueta y las salas guardadas se daban por perdidas. */}
-          {onOpenRooms ? (
-            <Button variant="secondary" size="sm" onClick={onOpenRooms}>
-              {savedCount > 0
-                ? t('tabs.brainstormsSavedCount', { count: String(savedCount) })
-                : t('tabs.brainstormsSaved')}
-            </Button>
+      seatCount={invitableAgents.length}
+      chrome={(
+        <BrainstormModuleTabs
+          tab="new"
+          roomsCount={savedRoomsCount}
+          onRooms={() => onOpenRooms?.()}
+          onNew={() => {}}
+        />
+      )}
+      left={(
+        <>
+          {/* Formato: las once ceremonias a la vista, agrupadas por etapa del
+              pipeline, que es lo que decide la elección. Antes vivían tras un
+              desplegable porque el modal no daba para más. */}
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormFormatLabel')}
+            </span>
+            <div className="brainstorm-format-list">
+              {CEREMONY_STAGES.map(stage => (
+                <React.Fragment key={stage}>
+                  <span className="brainstorm-format-list__stage">
+                    {t(CEREMONY_STAGE_KEY[stage])}
+                  </span>
+                  {ceremoniesByStage(stage).map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={[
+                        'brainstorm-format-list__item',
+                        item.id === ceremony ? 'brainstorm-format-list__item--on' : '',
+                      ].filter(Boolean).join(' ')}
+                      aria-pressed={item.id === ceremony}
+                      onClick={() => handleCeremonyChange(item.id)}
+                    >
+                      <span className="brainstorm-format-list__name">{item.name}</span>
+                      <span className="brainstorm-format-list__rounds">
+                        {t('tabs.brainstormRoundsDigest', { count: String(item.rounds) })}
+                      </span>
+                    </button>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+            <span className="brainstorm-panel__hint">
+              {t(CEREMONY_GOAL_KEY[ceremonyDef.id])}
+            </span>
+          </section>
+
+          {/* Con formato la salida ya está fijada: elegirla a mano sobraría. */}
+          {isFree ? (
+            <section className="brainstorm-panel">
+              <span className="brainstorm-panel__title">
+                {t('tabs.brainstormOutcomeLabel')}
+              </span>
+              <SegmentedControl
+                size="sm"
+                label={t('tabs.brainstormOutcomeLabel')}
+                value={outcome}
+                onChange={setOutcome}
+                options={BRAINSTORM_OUTCOMES.map(value => ({
+                  value,
+                  label: outcomeLabels[value],
+                }))}
+              />
+            </section>
           ) : null}
-          <span className="brainstorm-start__summary">
-            {safeParticipantIds.length < 2
-              ? t('tabs.brainstormStartNeedTwo')
-              : t('tabs.brainstormRunSummary', {
-                turns: String(turns),
-                contexts: String(materialCount),
-                minutes: String(Math.max(1, Math.round(turns * MINUTES_PER_TURN))),
-              })}
-          </span>
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!canStart}
-            onClick={handleStart}
-          >
-            {t('tabs.brainstormStart')}
-          </Button>
-        </div>
+
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormDurationLabel')}
+            </span>
+            <Select
+              size="sm"
+              value={String(maxRounds)}
+              onChange={next => setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))}
+              options={brainstormRoundOptions(t)}
+            />
+            <span className="brainstorm-panel__hint">
+              {t('tabs.brainstormDurationHint')}
+            </span>
+          </section>
+
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormMaterialLabel')}
+            </span>
+            <BrainstormWorkingSetField
+              cwd={cwd}
+              contextIds={contextIds}
+              filePaths={filePaths}
+              onChange={next => {
+                setContextIds(next.contextIds)
+                setFilePaths(next.filePaths)
+              }}
+            />
+            <span className="brainstorm-panel__hint">
+              {t('tabs.brainstormMaterialHint')}
+            </span>
+          </section>
+
+          {/* Lo que va a costar, antes de arrancar: el pie solo lo decía en una
+              frase y se leía como relleno. */}
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormEstimateLabel')}
+            </span>
+            <div className="brainstorm-estimate">
+              <span className="brainstorm-estimate__cell">
+                <b>{turns}</b>
+                <span>{t('tabs.brainstormEstimateTurns')}</span>
+              </span>
+              <span className="brainstorm-estimate__cell">
+                <b>{Math.max(1, Math.round(turns * MINUTES_PER_TURN))}</b>
+                <span>{t('tabs.brainstormEstimateMinutes')}</span>
+              </span>
+              <span className="brainstorm-estimate__cell">
+                <b>{materialCount}</b>
+                <span>{t('tabs.brainstormEstimateMaterial')}</span>
+              </span>
+            </div>
+          </section>
+        </>
+      )}
+      right={(
+        <>
+          <div className="brainstorm-overlay__col-head">
+            <span className="brainstorm-overlay__col-title">
+              {t('tabs.brainstormParticipantsLabel')}
+            </span>
+            <span className="brainstorm-overlay__col-count">
+              {safeParticipantIds.length}
+              /
+              {invitableAgents.length}
+            </span>
+          </div>
+          {invitableAgents.length === 0 ? (
+            <p className="brainstorm-panel__hint">{t('tabs.brainstormEmptyCatalog')}</p>
+          ) : invitableAgents.map(agent => {
+            const at = safeParticipantIds.indexOf(agent.id)
+            return (
+              <BrainstormInviteSeatCard
+                key={agent.id}
+                agentId={agent.id}
+                name={brainstormCatalogAgentLabel(agent)}
+                role={roleLabelOf(agent)}
+                monogram={agent.monogram?.trim()
+                  || agentMonogram(brainstormCatalogAgentLabel(agent))}
+                order={at >= 0 ? at + 1 : null}
+                /* Los ids crudos (`iaterminal:notes:Front-Rules`) no dicen nada:
+                   la mini del plano muestra el nombre y aquí igual. */
+                contexts={(agent.contextIds ?? [])
+                  .map(id => brainstormContextLabel(id).label)}
+                alsoInRooms={agentsInLiveRooms[agent.id] ?? []}
+                onToggle={() => toggleAgent(agent.id)}
+              />
+            )
+          })}
+        </>
       )}
     >
       <div
-        className={advancedOpen
-          ? 'brainstorm-start brainstorm-start--expanded'
-          : 'brainstorm-start'}
+        className="brainstorm-start"
         onKeyDown={event => {
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && canStart) {
             event.preventDefault()
@@ -278,7 +423,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
               ref={topicRef}
               value={topic}
               autoFocus
-              rows={3}
+              rows={2}
               placeholder={t('tabs.brainstormTopicPlaceholder')}
               onChange={event => {
                 setTopic(event.target.value)
@@ -291,15 +436,49 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
           <span className="brainstorm-start__hint">{t('tabs.brainstormTopicFieldHint')}</span>
         </label>
 
-        <div className="brainstorm-start__field">
+        <div className="brainstorm-start__body">
           <span className="brainstorm-start__label">
-            {t('tabs.brainstormParticipantsLabel')}
+            {t('tabs.brainstormOrderDragHint')}
           </span>
-          <BrainstormInviteGrid
-            agents={agents}
-            selectedIds={safeParticipantIds}
-            onToggle={toggleAgent}
-          />
+          {/* El orden de las tarjetas es el orden de habla: aquí se lee sin
+              tener que recorrer la columna contando números. */}
+          <ol className="brainstorm-start__order">
+            {seatedAgents.map((agent, index) => (
+              <li
+                key={agent.id}
+                className={[
+                  'brainstorm-start__order-item',
+                  dragFrom === index ? 'brainstorm-start__order-item--dragging' : '',
+                ].filter(Boolean).join(' ')}
+                style={{
+                  '--brainstorm-seat-color': paletteColorForSeed(agent.id),
+                } as React.CSSProperties}
+                draggable
+                onDragStart={() => setDragFrom(index)}
+                onDragEnd={() => setDragFrom(null)}
+                onDragOver={event => {
+                  // Sin `preventDefault` el navegador no acepta la soltada.
+                  if (dragFrom === null) return
+                  event.preventDefault()
+                }}
+                onDrop={event => {
+                  if (dragFrom === null) return
+                  event.preventDefault()
+                  moveSeat(dragFrom, index)
+                  setDragFrom(null)
+                }}
+              >
+                <span className="brainstorm-start__order-index">{index + 1}</span>
+                {brainstormCatalogAgentLabel(agent)}
+              </li>
+            ))}
+            {seatedAgents.length === 0 ? (
+              <li className="brainstorm-start__hint">
+                {t('tabs.brainstormStartNeedTwo')}
+              </li>
+            ) : null}
+          </ol>
+
           {/* Los roles que pide la ceremonia, con su hueco a la vista: el
               conteo solo decía cuántos faltaban, no cuáles. */}
           {isFree || !seats.length ? null : (
@@ -344,10 +523,9 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
               })}
             </ul>
           )}
-          <span className="brainstorm-start__hint">
-            {isFree || !seats.length
-              ? t('tabs.brainstormParticipantsOrderHint')
-              : coveredSeats === seats.length
+          {isFree || !seats.length ? null : (
+            <span className="brainstorm-start__hint">
+              {coveredSeats === seats.length
                 ? t('tabs.ceremonyRolesCovered', {
                   covered: String(coveredSeats),
                   total: String(seats.length),
@@ -356,90 +534,33 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
                   covered: String(coveredSeats),
                   total: String(seats.length),
                 })}
-          </span>
+            </span>
+          )}
         </div>
 
-        {/* Plegado por defecto: en el camino normal nadie lo abre.
-            No es un `<details>`: Chromium mete su contenido en un bloque anónimo,
-            así que el panel no es hijo flex del desplegable y no puede heredar
-            el alto para que scrollen solo las tarjetas. */}
-        <div className="brainstorm-start__more">
-          <button
-            type="button"
-            className="brainstorm-start__more-head"
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen(previous => !previous)}
+        <div className="brainstorm-start__footer">
+          <span className="brainstorm-start__summary">
+            {safeParticipantIds.length < 2
+              ? t('tabs.brainstormStartNeedTwo')
+              : t('tabs.brainstormRunSummary', {
+                turns: String(turns),
+                contexts: String(materialCount),
+                minutes: String(Math.max(1, Math.round(turns * MINUTES_PER_TURN))),
+              })}
+          </span>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!canStart}
+            onClick={handleStart}
           >
-            <span className="brainstorm-start__more-title">
-              {t('tabs.brainstormAdvancedLabel')}
-            </span>
-            <span className="brainstorm-start__more-digest">{digest}</span>
-          </button>
-          {advancedOpen ? (
-          <div className="brainstorm-start__more-body">
-            <div className="brainstorm-start__field brainstorm-start__field--format">
-              <span className="brainstorm-start__label">
-                {t('tabs.brainstormFormatLabel')}
-              </span>
-              <CeremonyPicker value={ceremony} onChange={handleCeremonyChange} />
-            </div>
-            <div className="brainstorm-start__more-side">
-              {/* Con formato la salida ya está fijada: elegirla a mano sobraría. */}
-              {isFree ? (
-                <div className="brainstorm-start__field">
-                  <span className="brainstorm-start__label">
-                    {t('tabs.brainstormOutcomeLabel')}
-                  </span>
-                  <SegmentedControl
-                    size="sm"
-                    label={t('tabs.brainstormOutcomeLabel')}
-                    value={outcome}
-                    onChange={setOutcome}
-                    options={BRAINSTORM_OUTCOMES.map(value => ({
-                      value,
-                      label: outcomeLabels[value],
-                    }))}
-                  />
-                </div>
-              ) : null}
-
-              <div className="brainstorm-start__field">
-                <span className="brainstorm-start__label">
-                  {t('tabs.brainstormMaterialLabel')}
-                </span>
-                <BrainstormWorkingSetField
-                  cwd={cwd}
-                  contextIds={contextIds}
-                  filePaths={filePaths}
-                  onChange={next => {
-                    setContextIds(next.contextIds)
-                    setFilePaths(next.filePaths)
-                  }}
-                />
-                <span className="brainstorm-start__hint">
-                  {t('tabs.brainstormMaterialHint')}
-                </span>
-              </div>
-
-              <label className="brainstorm-start__field">
-                <span className="brainstorm-start__label">
-                  {t('tabs.brainstormDurationLabel')}
-                </span>
-                <Select
-                  size="sm"
-                  value={String(maxRounds)}
-                  onChange={next => setMaxRounds(sanitizeBrainstormMaxRounds(Number(next)))}
-                  options={brainstormRoundOptions(t)}
-                />
-                <span className="brainstorm-start__hint">
-                  {t('tabs.brainstormDurationHint')}
-                </span>
-              </label>
-            </div>
-          </div>
-          ) : null}
+            {t('tabs.brainstormStart')}
+          </Button>
         </div>
       </div>
-    </TerminalModal>
+    </BrainstormOverlay>
   )
 }

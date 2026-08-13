@@ -14,12 +14,19 @@ import {
   sanitizeBrainstormMaxRounds,
   stripBrainstormProtocolFences,
   type BrainstormCatalogAgent,
-  type BrainstormSeatState,
 } from '@shared/brainstormRoom'
-import { paletteColorForSeed } from '@shared/tabContextAppearance'
+import { agentMonogram, paletteColorForSeed } from '@shared/tabContextAppearance'
+import { candidateCeremonyRoles } from '@shared/agileCeremonies'
+import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
+import { brainstormSeatTail } from '@shared/brainstormSeatTail'
+import { brainstormContextLabel } from '@shared/brainstormContextLabel'
 import { useT } from '@i18n/useT'
-import { TerminalModal } from '../components/TerminalModal'
+import { isReduceMotionActive } from '../reduceMotion'
 import { Button, Tooltip } from '../components/ui'
+import { Icon } from '../components/ui/Icon'
+import { BrainstormOverlay } from './BrainstormOverlay'
+import { BrainstormLiveSeatCard } from './BrainstormSeatCard'
+import { BrainstormAgentPane } from './BrainstormAgentPane'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { ChatBubble } from '../components/ai/ChatBubble'
 import {
@@ -59,6 +66,18 @@ export interface BrainstormRoomViewProps {
   onFinish?: () => void
   /** Estado vivo hacia el plano (indicador en agentes + flyout). */
   onLive?: (summary: BrainstormLiveSummary) => void
+  /**
+   * Salas vivas del workspace, en orden, incluida esta: el chip del chrome dice
+   * en cuál estás y deja saltar a otra sin pasar por la barra del plano.
+   */
+  liveRooms?: readonly { roomId: string; topic: string }[]
+  onSwitchRoom?: (roomId: string) => void
+  /**
+   * Asientos que este agente también ocupa en otras salas vivas, por id. Se
+   * permite: cada sala corre su propio CLI con su propio contexto, así que la
+   * tarjeta lo dice en vez de dejar que compitan en silencio.
+   */
+  agentsInOtherRooms?: Readonly<Record<string, readonly string[]>>
   /** El cierre se guardó como contexto en `.gravity`: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
 }
@@ -77,26 +96,6 @@ function statusLabelKey(
   return 'tabs.brainstormStatusIdle'
 }
 
-function seatStateKey(
-  state: BrainstormSeatState,
-): 'tabs.brainstormSeatSpeaking' | 'tabs.brainstormSeatSpoke' | 'tabs.brainstormSeatWaiting' {
-  if (state === 'speaking') return 'tabs.brainstormSeatSpeaking'
-  if (state === 'spoke') return 'tabs.brainstormSeatSpoke'
-  return 'tabs.brainstormSeatWaiting'
-}
-
-/**
- * Etiqueta del working set desde el id, sin ir a disco:
- * `iaterminal:<kind>:<stem>` → kind + stem.
- * ponytail: el nombre real exigiría discoverTabContexts; el stem alcanza para reconocerlo.
- */
-function workingSetLabel(contextId: string): { tag: string; label: string } {
-  const parts = contextId.split(':')
-  const kind = parts[1] ?? 'ctx'
-  const stem = parts.slice(2).join(':').replace(/-/g, ' ')
-  return { tag: kind, label: stem || kind }
-}
-
 /** Vista en vivo: acta multi-agente + play/pausa/stop; cierre detiene si running/idle. */
 export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   open,
@@ -109,14 +108,20 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   onFinish,
   onContextSaved,
   onLive,
+  liveRooms = [],
+  onSwitchRoom,
+  agentsInOtherRooms = {},
 }) => {
   const { t } = useT()
+  /** Asiento abierto en su propio pane: solo sus turnos, al 0.7 del plano. */
+  const [paneAgentId, setPaneAgentId] = useState<string | null>(null)
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
   const [maxRounds, setMaxRounds] = useState(() => sanitizeBrainstormMaxRounds(room.maxRounds))
   const liveStatusRef = useRef(live.status)
   const stoppedRef = useRef(false)
   const onLiveRef = useRef(onLive)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
   onLiveRef.current = onLive
   /** Working set tras añadir en caliente (la sala en disco la actualiza main). */
   const [hotWorkingSet, setHotWorkingSet] = useState<{
@@ -166,11 +171,31 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return unsubscribe
   }, [room.id])
 
-  // Auto-scroll al último mensaje / burbuja en vivo.
+  /**
+   * Al abrir hay que *estar* al final, no viajar hasta él: con nueve turnos, el
+   * scroll suave era un paseo por un acta que el usuario no pidió releer. La
+   * animación se guarda para lo que llega mientras miras, que ahí sí dice «esto
+   * es nuevo».
+   */
+  const anchoredRef = useRef(false)
+  useEffect(() => { anchoredRef.current = false }, [open, room.id])
+
   useEffect(() => {
     if (!open) return
-    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
-  }, [open, live.messages.length, live.streaming?.text, live.streaming?.agentId])
+    if (!anchoredRef.current) {
+      // Salto directo sobre el contenedor: `behavior: 'auto'` delega en el CSS,
+      // y el acta pide `scroll-behavior: smooth`, así que el «salto» acababa
+      // siendo el mismo paseo animado.
+      const list = messagesRef.current
+      if (list) list.scrollTop = list.scrollHeight
+      anchoredRef.current = true
+      return
+    }
+    messagesEndRef.current?.scrollIntoView({
+      block: 'end',
+      behavior: isReduceMotionActive() ? 'auto' : 'smooth',
+    })
+  }, [open, room.id, live.messages.length, live.streaming?.text, live.streaming?.agentId])
 
   /**
    * Quién ocupa el turno ahora mismo. `speaker_start` llega bastante antes que
@@ -201,6 +226,102 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     maxRounds,
   ])
 
+  /**
+   * Turnos y última línea por asiento: es lo que muestra su tarjeta. La línea
+   * sale del acta que ya está en memoria, no de un campo nuevo del protocolo.
+   */
+  const seatDetail = useMemo(() => {
+    const detail = new Map<string, { turns: number; tail: string }>()
+    live.messages.forEach(message => {
+      if (isBrainstormHumanMessage(message)) return
+      const id = resolveBrainstormParticipantDisplay(
+        message.agentId,
+        agents,
+        message.agentName,
+      ).agentId
+      const previous = detail.get(id)
+      detail.set(id, {
+        turns: (previous?.turns ?? 0) + 1,
+        tail: brainstormSeatTail(message.text),
+      })
+    })
+    return detail
+  }, [agents, live.messages])
+
+  /**
+   * Puesto en la cola de quien espera. Los turnos se toman de uno en uno —como
+   * ya los toma el runner—, así que el asiento puede decir cuántos van antes.
+   */
+  const queuePositions = useMemo(() => {
+    const positions = new Map<string, number>()
+    let next = 1
+    seats.forEach(seat => {
+      if (seat.state !== 'waiting') return
+      positions.set(seat.agentId, next)
+      next += 1
+    })
+    return positions
+  }, [seats])
+
+  /**
+   * Turnos del asiento abierto en su pane, numerados como van en la sala: el
+   * pane filtra la lectura, así que hay que poder situar cada intervención.
+   */
+  const paneTurns = useMemo(() => {
+    if (!paneAgentId) return []
+    const own: { round: number; turn: number; text: string; live?: boolean }[] = []
+    let turn = 0
+    live.messages.forEach(message => {
+      if (isBrainstormHumanMessage(message)) return
+      turn += 1
+      const id = resolveBrainstormParticipantDisplay(
+        message.agentId,
+        agents,
+        message.agentName,
+      ).agentId
+      if (id !== paneAgentId) return
+      own.push({
+        round: message.round,
+        turn,
+        text: stripBrainstormProtocolFences(message.text),
+      })
+    })
+    if (live.streaming?.agentId === paneAgentId) {
+      own.push({
+        round: live.round,
+        turn: turn + 1,
+        text: stripBrainstormProtocolFences(live.streaming.text),
+        live: true,
+      })
+    }
+    return own
+  }, [agents, live.messages, live.round, live.streaming, paneAgentId])
+
+  /**
+   * Con qué rol se sienta cada uno y su monograma. Los roles de ceremonia
+   * mandan sobre el texto libre, igual que en la invitación: es el rol que le
+   * dio el asiento.
+   */
+  const identityOf = useCallback((agentId: string): { role: string; monogram: string } => {
+    const agent = agents.find(item => item.id === agentId)
+    const ceremonyRoles = agent ? candidateCeremonyRoles(agent) : []
+    const role = ceremonyRoles.length
+      ? ceremonyRoles.map(id => t(CEREMONY_ROLE_KEY[id])).join(' · ')
+      : agent?.role?.trim() ?? ''
+    return {
+      role,
+      monogram: agent?.monogram?.trim() || agentMonogram(speakerLabel(agentId)),
+    }
+  }, [agents, speakerLabel, t])
+
+  /** Quién de esta sala también tiene asiento en otra: se avisa, no se bloquea. */
+  const sharedSeatNames = useMemo(
+    () => seats
+      .filter(seat => (agentsInOtherRooms[seat.agentId]?.length ?? 0) > 0)
+      .map(seat => speakerLabel(seat.agentId)),
+    [agentsInOtherRooms, seats, speakerLabel],
+  )
+
   const turnsDone = brainstormTurnsDone(live.messages)
   const totalTurns = brainstormTurnCount({
     participantAgentIds: participantResolution.resolvedIds,
@@ -225,7 +346,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     const contextIds = hotWorkingSet?.contextIds ?? room.contextIds ?? []
     const filePaths = hotWorkingSet?.filePaths ?? room.filePaths ?? []
     return [
-      ...contextIds.map(id => ({ key: id, ...workingSetLabel(id) })),
+      ...contextIds.map(id => ({ key: id, ...brainstormContextLabel(id) })),
       ...filePaths.map(path => ({ key: path, tag: 'file', label: path })),
     ]
   }, [hotWorkingSet, room.contextIds, room.filePaths])
@@ -364,103 +485,239 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       })
   }, [cwd, room.id])
 
+  if (!open) return null
+
   return (
-    <TerminalModal
-      open={open}
+    <BrainstormOverlay
       active={active}
+      ariaLabel={t('tabs.brainstormViewTitle')}
+      /* ✕ cierra la vista, no la sala: el runner sigue en main y al volver está
+         el acta entera. Terminada sí se suelta —su cierre queda guardado. */
+      closeLabel={canFinish
+        ? t('tabs.brainstormFinishHint')
+        : t('tabs.brainstormCloseView')}
       onClose={handleClose}
-      title={t('tabs.brainstormViewTitle')}
-      size="lg"
-      zIndex={855}
-      bodyLayout="flush"
-      closeOnBackdrop
-      footer={(
-        <div className="brainstorm-room-view__footer">
+      seatCount={seats.length}
+      chrome={(
+        <>
+          {/* Con más de una sala viva, en cuál estás y cómo saltar a la otra. */}
+          {liveRooms.length > 1 && onSwitchRoom ? (
+            <button
+              type="button"
+              className="brainstorm-overlay__chip brainstorm-overlay__chip--button"
+              onClick={() => {
+                const index = liveRooms.findIndex(item => item.roomId === room.id)
+                const next = liveRooms[(index + 1) % liveRooms.length]
+                if (next && next.roomId !== room.id) onSwitchRoom(next.roomId)
+              }}
+            >
+              <span className="brainstorm-overlay__chip-index">
+                {t('tabs.brainstormRoomSwitch', {
+                  current: String(
+                    Math.max(0, liveRooms.findIndex(item => item.roomId === room.id)) + 1,
+                  ),
+                  total: String(liveRooms.length),
+                })}
+              </span>
+            </button>
+          ) : null}
+          <span
+            className={[
+              'brainstorm-overlay__chip',
+              live.status === 'running' ? 'brainstorm-overlay__chip--live' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {live.status === 'running' ? (
+              <i className="brainstorm-overlay__chip-dot" aria-hidden />
+            ) : null}
+            {live.speakingAgentId
+              ? t('tabs.brainstormSpeakingNow', { name: speakerLabel(live.speakingAgentId) })
+              : t(statusLabelKey(live.status))}
+          </span>
+          <span className="brainstorm-overlay__chip brainstorm-overlay__chip--dim">
+            {t('tabs.brainstormRoundValue', {
+              current: Math.min(displayRound || 1, maxRounds),
+              max: maxRounds,
+            })}
+            {' · '}
+            {t('tabs.brainstormTurnProgress', {
+              current: Math.min(turnsDone + (live.speakingAgentId ? 1 : 0), totalTurns),
+              total: totalTurns,
+            })}
+          </span>
           {showPause ? (
-            <Button variant="secondary" size="sm" onClick={handlePause}>
-              {t('tabs.brainstormPause')}
-            </Button>
+            <Tooltip content={t('tabs.brainstormPause')}>
+              <button
+                type="button"
+                className="brainstorm-overlay__icon"
+                aria-label={t('tabs.brainstormPause')}
+                onClick={handlePause}
+              >
+                <Icon name="pause" size={12} />
+              </button>
+            </Tooltip>
           ) : null}
           {showPlay ? (
-            <Button variant="primary" size="sm" onClick={handlePlay}>
-              {t('tabs.brainstormResume')}
-            </Button>
-          ) : null}
-          {showContinueRound ? (
-            <Tooltip content={t('tabs.brainstormContinueRoundHint', { max: BRAINSTORM_MAX_ROUNDS_CAP })}>
-              <Button variant="secondary" size="sm" onClick={handleContinueRound}>
-                {t('tabs.brainstormContinueRound')}
-              </Button>
-            </Tooltip>
-          ) : null}
-          {showStop ? (
-            <Button variant="danger" size="sm" onClick={handleStop}>
-              {t('tabs.brainstormStop')}
-            </Button>
-          ) : null}
-          {canFinish && onFinish ? (
-            <Tooltip content={t('tabs.brainstormFinishHint')}>
-              <Button
-                variant={finishIsPrimary ? 'primary' : 'secondary'}
-                size="sm"
-                onClick={onFinish}
+            <Tooltip content={t('tabs.brainstormResume')}>
+              <button
+                type="button"
+                className="brainstorm-overlay__icon"
+                aria-label={t('tabs.brainstormResume')}
+                onClick={handlePlay}
               >
-                {t('tabs.brainstormFinish')}
-              </Button>
+                <Icon name="play" size={12} />
+              </button>
             </Tooltip>
           ) : null}
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            {t('tabs.brainstormClose')}
-          </Button>
-        </div>
+          {/* Detener es explícito y aparte de cerrar: en pantalla completa la ✕
+              se lee como «salir», y salir no puede matar la sala. */}
+          {showStop ? (
+            <Tooltip content={t('tabs.brainstormStopRun')}>
+              <button
+                type="button"
+                className="brainstorm-overlay__icon brainstorm-overlay__icon--danger"
+                aria-label={t('tabs.brainstormStopRun')}
+                onClick={handleStop}
+              >
+                <Icon name="stop" size={12} />
+              </button>
+            </Tooltip>
+          ) : null}
+        </>
+      )}
+      left={(
+        <>
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormRoundLabel')}
+            </span>
+            {/* La cronología dice «por dónde va», que es una pregunta de sala
+                viva. Terminada, la respuesta cabe en una línea. */}
+            {isBrainstormLive(live.status) ? (
+              <ol className="brainstorm-rounds">
+                {Array.from({ length: maxRounds }, (_, index) => (
+                  <li
+                    key={index}
+                    className={[
+                      'brainstorm-rounds__item',
+                      index < live.round ? 'brainstorm-rounds__item--done' : '',
+                      index === live.round && live.status === 'running'
+                        ? 'brainstorm-rounds__item--now'
+                        : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    <i className="brainstorm-rounds__pip" aria-hidden />
+                    {index + 1}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <span className="brainstorm-panel__hint">
+                {t('tabs.brainstormRoundsClosed', {
+                  rounds: String(maxRounds),
+                  turns: String(turnsDone),
+                })}
+              </span>
+            )}
+          </section>
+
+          {/* La cola, dicha en claro: los turnos van de uno en uno, así que una
+              sala de nueve asientos es larga y tiene que leerse como larga, no
+              como colgada. Terminada no hay cola que contar. */}
+          {isBrainstormLive(live.status) ? (
+          <section className="brainstorm-panel">
+            <span className="brainstorm-panel__title">
+              {t('tabs.brainstormQueueLabel')}
+            </span>
+            <span className="brainstorm-panel__hint">
+              {t('tabs.brainstormQueueLine', {
+                running: String(live.speakingAgentId ? 1 : 0),
+                queued: String(Math.max(0, totalTurns - turnsDone - (live.speakingAgentId ? 1 : 0))),
+                total: String(totalTurns),
+              })}
+            </span>
+            <span className="brainstorm-panel__hint">
+              {sharedSeatNames.length
+                ? t('tabs.brainstormQueueShared', { names: sharedSeatNames.join(', ') })
+                : t('tabs.brainstormQueueHint')}
+            </span>
+          </section>
+          ) : null}
+
+          {live.status !== 'done' ? (
+            <section className="brainstorm-panel">
+              <span className="brainstorm-panel__title">
+                {t('tabs.brainstormOutcomePending')}
+              </span>
+              <span className="brainstorm-panel__hint">
+                {t('tabs.brainstormOutcomePendingHint')}
+              </span>
+            </section>
+          ) : null}
+
+          {workingSetLabels.length ? (
+            <section className="brainstorm-panel">
+              <span className="brainstorm-panel__title">
+                {t('tabs.brainstormWorkingSetLabel')}
+              </span>
+              {workingSetLabels.map(item => (
+                <Tooltip key={item.key} content={item.label} hint={item.tag}>
+                  <span className="brainstorm-room-view__ws-chip">
+                    <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
+                    <span className="brainstorm-room-view__ws-name">{item.label}</span>
+                  </span>
+                </Tooltip>
+              ))}
+            </section>
+          ) : null}
+        </>
+      )}
+      right={(
+        <>
+          <div className="brainstorm-overlay__col-head">
+            <span className="brainstorm-overlay__col-title">
+              {t('tabs.brainstormSeatsTitle')}
+            </span>
+            <span className="brainstorm-overlay__col-count">
+              {seats.length}
+            </span>
+          </div>
+          {seats.map(seat => {
+            const detail = seatDetail.get(seat.agentId)
+            const streaming = live.streaming?.agentId === seat.agentId
+            const identity = identityOf(seat.agentId)
+            return (
+              <BrainstormLiveSeatCard
+                key={seat.agentId}
+                agentId={seat.agentId}
+                name={speakerLabel(seat.agentId)}
+                role={identity.role}
+                monogram={identity.monogram}
+                state={seat.state}
+                queuePosition={queuePositions.get(seat.agentId)}
+                turnsDone={detail?.turns ?? 0}
+                rounds={maxRounds}
+                tail={streaming
+                  ? brainstormSeatTail(live.streaming?.text ?? '')
+                  : detail?.tail}
+                live={streaming}
+                alsoInRooms={agentsInOtherRooms[seat.agentId] ?? []}
+                onOpen={() => setPaneAgentId(seat.agentId)}
+              />
+            )
+          })}
+        </>
       )}
     >
       <div className="brainstorm-room-view">
+        {/* Ronda, turno y quién habla viven en el chrome de arriba: aquí solo el
+            objetivo, que es lo que hay que tener delante al leer el acta. */}
         <header className="brainstorm-room-view__head">
-          <p className="brainstorm-room-view__topic">{room.topic}</p>
-          <div className="brainstorm-room-view__meta">
-            <span className="brainstorm-room-view__pips" aria-hidden>
-              {Array.from({ length: maxRounds }, (_, index) => (
-                <i
-                  key={index}
-                  className={[
-                    'brainstorm-room-view__pip',
-                    index < live.round ? 'brainstorm-room-view__pip--done' : '',
-                    index === live.round && live.status === 'running'
-                      ? 'brainstorm-room-view__pip--now'
-                      : '',
-                  ].filter(Boolean).join(' ')}
-                />
-              ))}
-            </span>
-            <span>
-              {t('tabs.brainstormRoundLabel')}
-              {' '}
-              <strong>
-                {t('tabs.brainstormRoundValue', {
-                  current: Math.min(displayRound || 1, maxRounds),
-                  max: maxRounds,
-                })}
-              </strong>
-            </span>
-            <span>
-              {t('tabs.brainstormTurnProgress', {
-                current: Math.min(turnsDone + (live.speakingAgentId ? 1 : 0), totalTurns),
-                total: totalTurns,
-              })}
-            </span>
-            <span>
-              {live.speakingAgentId
-                ? t('tabs.brainstormSpeakingNow', {
-                    name: speakerLabel(live.speakingAgentId),
-                  })
-                : t(statusLabelKey(live.status))}
-            </span>
-          </div>
+          <h2 className="brainstorm-room-view__topic">{room.topic}</h2>
         </header>
 
-        <div className="brainstorm-room-view__body">
         <div
+          ref={messagesRef}
           className="brainstorm-room-view__messages"
           role="log"
           aria-live="polite"
@@ -577,53 +834,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
         </div>
 
-        <aside className="brainstorm-room-view__side">
-          <section className="brainstorm-room-view__side-group">
-            <h3 className="brainstorm-room-view__side-title">
-              {t('tabs.brainstormSeatsTitle')}
-            </h3>
-            {seats.map(seat => (
-              <p
-                key={seat.agentId}
-                className={[
-                  'brainstorm-room-view__seat',
-                  seat.state === 'speaking' ? 'brainstorm-room-view__seat--speaking' : '',
-                ].filter(Boolean).join(' ')}
-                style={{
-                  '--brainstorm-speaker': paletteColorForSeed(seat.agentId),
-                } as React.CSSProperties}
-              >
-                <span className="brainstorm-room-view__seat-dot" aria-hidden />
-                <Tooltip content={speakerLabel(seat.agentId)} hint={t(seatStateKey(seat.state))}>
-                  <span className="brainstorm-room-view__seat-name">
-                    {speakerLabel(seat.agentId)}
-                  </span>
-                </Tooltip>
-                <span className="brainstorm-room-view__seat-state">
-                  {t(seatStateKey(seat.state))}
-                </span>
-              </p>
-            ))}
-          </section>
-
-          {workingSetLabels.length ? (
-            <section className="brainstorm-room-view__side-group">
-              <h3 className="brainstorm-room-view__side-title">
-                {t('tabs.brainstormWorkingSetLabel')}
-              </h3>
-              {workingSetLabels.map(item => (
-                <Tooltip key={item.key} content={item.label} hint={item.tag}>
-                  <span className="brainstorm-room-view__ws-chip">
-                    <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
-                    <span className="brainstorm-room-view__ws-name">{item.label}</span>
-                  </span>
-                </Tooltip>
-              ))}
-            </section>
-          ) : null}
-        </aside>
-        </div>
-
         {orphanWarning ? (
           <p className="brainstorm-room-view__error" role="status">
             {orphanWarning}
@@ -658,7 +868,60 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             onSend={handleHumanSend}
           />
         ) : null}
+
+        {/* Acciones de sala terminada: una ronda más o soltarla del plano. Van
+            aquí y no en el chrome porque son raras y necesitan su etiqueta. */}
+        {showContinueRound || (canFinish && onFinish) ? (
+          <div className="brainstorm-room-view__footer">
+            {showContinueRound ? (
+              <Tooltip content={t('tabs.brainstormContinueRoundHint', { max: BRAINSTORM_MAX_ROUNDS_CAP })}>
+                <Button variant="secondary" size="sm" onClick={handleContinueRound}>
+                  {t('tabs.brainstormContinueRound')}
+                </Button>
+              </Tooltip>
+            ) : null}
+            {canFinish && onFinish ? (
+              <Tooltip content={t('tabs.brainstormFinishHint')}>
+                <Button
+                  variant={finishIsPrimary ? 'primary' : 'secondary'}
+                  size="sm"
+                  onClick={onFinish}
+                >
+                  {t('tabs.brainstormFinish')}
+                </Button>
+              </Tooltip>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    </TerminalModal>
+
+      {/* Un asiento a pantalla: solo sus turnos. Filtra lo que lees; escribir
+          desde ahí publica en la sala, dirigido a él. */}
+      {paneAgentId ? (
+        <BrainstormAgentPane
+          agentId={paneAgentId}
+          name={speakerLabel(paneAgentId)}
+          role={identityOf(paneAgentId).role}
+          turns={paneTurns}
+          roomTurns={totalTurns}
+          speaking={live.streaming?.agentId === paneAgentId
+            || live.speakingAgentId === paneAgentId}
+          onClose={() => setPaneAgentId(null)}
+          composer={showComposer ? (
+            <BrainstormHumanComposer
+              placeholder={t('tabs.brainstormPaneAsk', { name: speakerLabel(paneAgentId) })}
+              sendLabel={t('tabs.brainstormHumanSend')}
+              roomLabel={t('tabs.brainstormTargetRoom')}
+              timingHint={t('tabs.brainstormHumanTiming', {
+                turn: Math.min(turnsDone + 1, totalTurns),
+              })}
+              cwd={cwd}
+              addContextLabel={t('tabs.brainstormHumanAddContext')}
+              onSend={text => handleHumanSend(text, paneAgentId)}
+            />
+          ) : undefined}
+        />
+      ) : null}
+    </BrainstormOverlay>
   )
 }

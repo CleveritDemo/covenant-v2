@@ -22,15 +22,17 @@ import {
 import { BRAINSTORM_DIR, brainstormFileName, buildBrainstormMarkdown } from '@shared/brainstormCatalog'
 import { agentMonogram } from '@shared/tabContextAppearance'
 import { PROJECT_DIR } from '@shared/projectDir'
+import { ceremonyById, type CeremonyId } from '@shared/agileCeremonies'
 import { useT } from '@i18n/useT'
-import { TerminalModal } from '../components/TerminalModal'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
+import { BrainstormOverlay } from './BrainstormOverlay'
+import { BrainstormModuleTabs } from './BrainstormModuleTabs'
 import { BrainstormEditRoomModal } from './BrainstormEditRoomModal'
 import { BrainstormRoomMenu, type BrainstormRoomMenuItem } from './BrainstormRoomMenu'
-import './BrainstormListModal.css'
+import './BrainstormRoomsView.css'
 
-export interface BrainstormListModalProps {
+export interface BrainstormRoomsViewProps {
   open: boolean
   active?: boolean
   cwd: string
@@ -38,12 +40,13 @@ export interface BrainstormListModalProps {
   agents?: ProjectAgentDefinition[]
   onClose: () => void
   onCreate: () => void
-  /** Alternativa: sentar a los invitados en la mesa del lienzo antes del brief. */
-  onCreateFromTable?: () => void
   onOpenRoom: (room: BrainstormRoom) => void
   /** Una sala se registró como contexto: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
 }
+
+/** Filtro por estado: la pregunta frecuente es «¿cuáles cerraron?». */
+type StatusFilter = 'all' | 'closed' | 'stopped'
 
 function statusLabelKey(
   status: BrainstormStatus,
@@ -91,15 +94,21 @@ const PRUNE_FEEDBACK_MS = 2500
 /** Monogramas visibles antes de resumir en «+N». */
 const MAX_MONOGRAMS = 4
 
-/** Lista salas persistidas: una acción primaria por estado y el resto detrás del `⋯`. */
-export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
+/**
+ * Biblioteca de salas sobre el plano: es el estado por el que se entra al módulo
+ * cuando ya hay actas. Antes era un modal portaleado, así que leer tu propia
+ * acta obligaba a salir del plano; ahora es la tercera vista del mismo overlay
+ * —`Rooms`, `New room` y la sala— con el mismo chrome y el mismo Escape.
+ *
+ * Una acción primaria por estado, el resto detrás del `⋯`.
+ */
+export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
   open,
   active = true,
   cwd,
   agents = [],
   onClose,
   onCreate,
-  onCreateFromTable,
   onOpenRoom,
   onContextSaved,
 }) => {
@@ -142,6 +151,8 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
   useEffect(() => {
     if (!open) return
     setQuery('')
+    setStatusFilter('all')
+    setCeremonyFilter('')
     void refresh()
     const timer = window.setInterval(() => {
       void refresh({ silent: true })
@@ -170,10 +181,39 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
     doneTimersRef.current.set(roomId, timer)
   }, [])
 
-  const groups = useMemo(
-    () => groupBrainstormRooms(filterBrainstormRooms(rooms, query), now),
-    [rooms, query, now],
-  )
+  /**
+   * Estado y formato como filtros de la columna, no como parte de la búsqueda:
+   * son las dos preguntas que no se responden escribiendo un texto.
+   */
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [ceremonyFilter, setCeremonyFilter] = useState<string>('')
+
+  const statusCounts = useMemo(() => ({
+    all: rooms.length,
+    closed: rooms.filter(room => room.status === 'done').length,
+    stopped: rooms.filter(room => room.status === 'stopped').length,
+  }), [rooms])
+
+  /** Formatos presentes, con su cuenta: filtrar por uno que no existe no sirve. */
+  const ceremonyCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    rooms.forEach(room => {
+      const id = room.ceremony ?? ''
+      if (!id) return
+      counts.set(id, (counts.get(id) ?? 0) + 1)
+    })
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  }, [rooms])
+
+  const groups = useMemo(() => {
+    const matching = rooms.filter(room => {
+      if (statusFilter === 'closed' && room.status !== 'done') return false
+      if (statusFilter === 'stopped' && room.status !== 'stopped') return false
+      if (ceremonyFilter && room.ceremony !== ceremonyFilter) return false
+      return true
+    })
+    return groupBrainstormRooms(filterBrainstormRooms(matching, query), now)
+  }, [ceremonyFilter, now, query, rooms, statusFilter])
 
   const ageLabel = useCallback((room: BrainstormRoomListing): string => {
     const age = brainstormAge(room.updatedAt, now)
@@ -294,67 +334,114 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
     },
   ]
 
+  if (!open) return null
+
   return (
     <>
-      <TerminalModal
-        open={open}
+      <BrainstormOverlay
         active={active}
+        variant="setup"
+        ariaLabel={t('tabs.brainstormsListTitle')}
+        closeLabel={t('tabs.brainstormCloseView')}
         onClose={onClose}
-        title={(
-          <span className="brainstorm-list-modal__title">
-            {t('tabs.brainstormsListTitle')}
-            {rooms.length > 0 ? (
-              <span className="brainstorm-list-modal__count">
-                {t('tabs.brainstormsCount', { count: rooms.length })}
-              </span>
-            ) : null}
-          </span>
+        chrome={(
+          <BrainstormModuleTabs
+            tab="rooms"
+            roomsCount={rooms.length}
+            onRooms={() => {}}
+            onNew={onCreate}
+          />
         )}
-        size="md"
-        zIndex={840}
-        footer={(
-          <div className="brainstorm-list-modal__footer">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { void handlePrune() }}
-              disabled={!cwd.trim()}
-            >
-              {t('tabs.brainstormsPruneOld')}
-            </Button>
-            <div className="brainstorm-list-modal__footer-end">
-              <Button variant="secondary" size="sm" onClick={onClose}>
-                {t('common.cancel')}
-              </Button>
-              {/* Camino largo: sentar arrastrando en el lienzo antes del brief. */}
-              {onCreateFromTable ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    onClose()
-                    onCreateFromTable()
-                  }}
-                >
-                  {t('tabs.brainstormsCreateFromTable')}
-                </Button>
-              ) : null}
+        left={(
+          <>
+            {/* Estado y formato: lo que el pie del modal no podía preguntar. */}
+            <section className="brainstorm-panel">
+              <span className="brainstorm-panel__title">
+                {t('tabs.brainstormsFilterStatus')}
+              </span>
+              <div className="brainstorm-rooms__filters">
+                {([
+                  ['all', t('tabs.brainstormsFilterAll'), statusCounts.all],
+                  ['closed', t('tabs.brainstormStatusDone'), statusCounts.closed],
+                  ['stopped', t('tabs.brainstormStatusStopped'), statusCounts.stopped],
+                ] as [StatusFilter, string, number][]).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={[
+                      'brainstorm-rooms__filter',
+                      statusFilter === value ? 'brainstorm-rooms__filter--on' : '',
+                    ].filter(Boolean).join(' ')}
+                    aria-pressed={statusFilter === value}
+                    onClick={() => setStatusFilter(value)}
+                  >
+                    {label}
+                    <i>{count}</i>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {ceremonyCounts.length > 1 ? (
+              <section className="brainstorm-panel">
+                <span className="brainstorm-panel__title">
+                  {t('tabs.brainstormFormatLabel')}
+                </span>
+                <div className="brainstorm-rooms__filters">
+                  <button
+                    type="button"
+                    className={[
+                      'brainstorm-rooms__filter',
+                      ceremonyFilter ? '' : 'brainstorm-rooms__filter--on',
+                    ].filter(Boolean).join(' ')}
+                    aria-pressed={!ceremonyFilter}
+                    onClick={() => setCeremonyFilter('')}
+                  >
+                    {t('tabs.brainstormsFilterAll')}
+                  </button>
+                  {ceremonyCounts.map(([id, count]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={[
+                        'brainstorm-rooms__filter',
+                        ceremonyFilter === id ? 'brainstorm-rooms__filter--on' : '',
+                      ].filter(Boolean).join(' ')}
+                      aria-pressed={ceremonyFilter === id}
+                      onClick={() => setCeremonyFilter(id)}
+                    >
+                      {ceremonyById(id as CeremonyId).name}
+                      <i>{count}</i>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Borrar actas viejas no es una acción sobre una sala: fuera del pie,
+                donde competía con el primario. */}
+            <section className="brainstorm-panel">
+              <span className="brainstorm-panel__title">
+                {t('tabs.brainstormsHousekeeping')}
+              </span>
               <Button
-                variant="primary"
+                variant="ghost"
                 size="sm"
-                onClick={() => {
-                  onClose()
-                  onCreate()
-                }}
+                onClick={() => { void handlePrune() }}
+                disabled={!cwd.trim()}
               >
-                {t('tabs.brainstormsCreateNew')}
+                {t('tabs.brainstormsPruneOld')}
               </Button>
-            </div>
-          </div>
+              {pruneFeedback ? (
+                <span className="brainstorm-panel__hint">{pruneFeedback}</span>
+              ) : null}
+            </section>
+          </>
         )}
       >
+        <div className="brainstorm-rooms">
         {rooms.length > 0 ? (
-          <div className="brainstorm-list-modal__search">
+          <div className="brainstorm-rooms__search">
             <Icon name="search" size={14} aria-hidden />
             <Input
               size="sm"
@@ -366,28 +453,29 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
             />
           </div>
         ) : null}
-        {pruneFeedback ? (
-          <p className="brainstorm-list-modal__feedback">{pruneFeedback}</p>
-        ) : null}
         {loading ? (
-          <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsListLoading')}</p>
+          <p className="brainstorm-rooms__hint">{t('tabs.brainstormsListLoading')}</p>
         ) : rooms.length === 0 ? (
-          <div className="brainstorm-list-modal__empty">
+          <div className="brainstorm-rooms__empty">
             <Icon name="messages" size={30} aria-hidden />
-            <h3 className="brainstorm-list-modal__empty-title">{t('tabs.brainstormsListEmpty')}</h3>
-            {/* El CTA vive solo en el footer: repetirlo aquí duplicaba el botón. */}
-            <p className="brainstorm-list-modal__empty-body">{t('tabs.brainstormsEmptyBody')}</p>
+            <h3 className="brainstorm-rooms__empty-title">{t('tabs.brainstormsListEmpty')}</h3>
+            <p className="brainstorm-rooms__empty-body">{t('tabs.brainstormsEmptyBody')}</p>
+            {/* Sin actas, la única salida es convocar: aquí el CTA no duplica
+                nada porque el pie del modal ya no existe. */}
+            <Button variant="primary" size="sm" onClick={onCreate}>
+              {t('tabs.brainstormsCreateNew')}
+            </Button>
           </div>
         ) : groups.length === 0 ? (
-          <p className="brainstorm-list-modal__hint">{t('tabs.brainstormsFilterEmpty')}</p>
+          <p className="brainstorm-rooms__hint">{t('tabs.brainstormsFilterEmpty')}</p>
         ) : (
-          <div className="brainstorm-list-modal__groups">
+          <div className="brainstorm-rooms__groups">
             {groups.map(group => (
-              <section key={group.key} className="brainstorm-list-modal__group">
-                <h3 className="brainstorm-list-modal__group-title">
+              <section key={group.key} className="brainstorm-rooms__group">
+                <h3 className="brainstorm-rooms__group-title">
                   {t(groupLabelKey(group.key))}
                 </h3>
-                <ul className="brainstorm-list-modal__list">
+                <ul className="brainstorm-rooms__list">
                   {group.rooms.map(room => {
                     const tone = brainstormTone(room.status)
                     const done = brainstormRoundsDone(room)
@@ -398,35 +486,46 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
                       <li
                         key={room.id}
                         className={[
-                          'brainstorm-list-modal__item',
-                          `brainstorm-list-modal__item--${tone}`,
-                          group.key === 'older' ? 'brainstorm-list-modal__item--faded' : '',
+                          'brainstorm-rooms__row',
+                          `brainstorm-rooms__row--${tone}`,
+                          group.key === 'older' ? 'brainstorm-rooms__row--faded' : '',
                         ].filter(Boolean).join(' ')}
                       >
-                        <div className="brainstorm-list-modal__meta">
-                          <span className="brainstorm-list-modal__topic">{room.topic}</span>
-                          <span className="brainstorm-list-modal__facts">
-                            <span className={`brainstorm-list-modal__chip brainstorm-list-modal__chip--${tone}`}>
-                              <i />
-                              {room.status === 'running'
-                                ? t('tabs.brainstormsChipRound', { round: done })
-                                : t(statusLabelKey(room.status))}
+                        {/*
+                          La fila entera abre el acta: con eso el botón «Abrir»
+                          sobra y las acciones dejan de competir con él. La capa
+                          va debajo de las acciones, así no hay botones anidados.
+                        */}
+                        <button
+                          type="button"
+                          className="brainstorm-rooms__hit"
+                          aria-label={`${primaryLabel(room.status)}: ${room.topic}`}
+                          onClick={() => onOpenRoom(room)}
+                        />
+                        {/* Único elemento con color: el estado. */}
+                        <i className="brainstorm-rooms__dot" aria-hidden />
+                        <div className="brainstorm-rooms__main">
+                          <span className="brainstorm-rooms__topic">{room.topic}</span>
+                          <span className="brainstorm-rooms__facts">
+                            {/* En palabras solo lo que no es normal: una lista de
+                                «Listo» repetido no dice nada; una interrumpida sí. */}
+                            {room.status === 'done' ? null : (
+                              <>
+                                <span className="brainstorm-rooms__flag">
+                                  {room.status === 'running'
+                                    ? t('tabs.brainstormsChipRound', { round: done })
+                                    : t(statusLabelKey(room.status))}
+                                </span>
+                                <span className="brainstorm-rooms__sep">·</span>
+                              </>
+                            )}
+                            <span>
+                              {t('tabs.brainstormRoundValue', { current: done, max: room.maxRounds })}
+                              {' '}
+                              {t('tabs.brainstormRoundLabel')}
                             </span>
-                            <span className="brainstorm-list-modal__rounds">
-                              <span className="brainstorm-list-modal__pips">
-                                {Array.from({ length: room.maxRounds }, (_, index) => (
-                                  <s
-                                    key={index}
-                                    className={index < done
-                                      ? 'brainstorm-list-modal__pip brainstorm-list-modal__pip--on'
-                                      : 'brainstorm-list-modal__pip'}
-                                  />
-                                ))}
-                              </span>
-                              <b>{t('tabs.brainstormRoundValue', { current: done, max: room.maxRounds })}</b>
-                            </span>
-                            <span className="brainstorm-list-modal__sep">·</span>
-                            <span className="brainstorm-list-modal__agents">
+                            <span className="brainstorm-rooms__sep">·</span>
+                            <span className="brainstorm-rooms__agents">
                               {room.participantAgentIds.slice(0, MAX_MONOGRAMS).map(agentId => (
                                 <span key={agentId}>{monogramOf(agentId)}</span>
                               ))}
@@ -434,48 +533,45 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
                                 <span>{`+${room.participantAgentIds.length - MAX_MONOGRAMS}`}</span>
                               ) : null}
                             </span>
-                            {age ? (
-                              <>
-                                <span className="brainstorm-list-modal__sep">·</span>
-                                <span>{age}</span>
-                              </>
-                            ) : null}
                           </span>
                         </div>
-                        <div className="brainstorm-list-modal__actions">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              onOpenRoom(room)
-                              onClose()
-                            }}
-                          >
-                            {primaryLabel(room.status)}
-                          </Button>
-                          {closed ? (
-                            <>
+                        <div className="brainstorm-rooms__end">
+                          {/* Aparecen al pasar por encima: en una lista larga,
+                              cuatro botones por fila son ruido. */}
+                          <div className="brainstorm-rooms__actions">
+                            {closed ? (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => { void handleToContext(room) }}
+                                >
+                                  {flash === 'context'
+                                    ? t('tabs.brainstormsToContextDone')
+                                    : t('tabs.brainstormsToContext')}
+                                </Button>
+                                <Tooltip content={t('tabs.brainstormsExportMd')}>
+                                  <Button
+                                    variant="icon"
+                                    size="sm"
+                                    aria-label={t('tabs.brainstormsExportMd')}
+                                    onClick={() => { void handleExportMd(room) }}
+                                  >
+                                    <Icon name={flash === 'export' ? 'check' : 'download'} size={14} />
+                                  </Button>
+                                </Tooltip>
+                              </>
+                            ) : (
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => { void handleToContext(room) }}
+                                onClick={() => onOpenRoom(room)}
                               >
-                                {flash === 'context'
-                                  ? t('tabs.brainstormsToContextDone')
-                                  : t('tabs.brainstormsToContext')}
+                                {primaryLabel(room.status)}
                               </Button>
-                              <Tooltip content={t('tabs.brainstormsExportMd')}>
-                                <Button
-                                  variant="icon"
-                                  size="sm"
-                                  aria-label={t('tabs.brainstormsExportMd')}
-                                  onClick={() => { void handleExportMd(room) }}
-                                >
-                                  <Icon name={flash === 'export' ? 'check' : 'download'} size={14} />
-                                </Button>
-                              </Tooltip>
-                            </>
-                          ) : null}
+                            )}
+                          </div>
+                          {age ? <span className="brainstorm-rooms__age">{age}</span> : null}
                           <Tooltip content={t('tabs.brainstormsMoreActions')}>
                             <Button
                               variant="icon"
@@ -500,7 +596,8 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
             ))}
           </div>
         )}
-      </TerminalModal>
+        </div>
+      </BrainstormOverlay>
       {menuFor ? (
         <BrainstormRoomMenu
           anchor={{ right: menuFor.right, bottom: menuFor.bottom }}

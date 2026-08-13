@@ -65,7 +65,6 @@ export interface PlaneMapProps {
   /** Tab activa: oculta modales portaled del plano. */
   tabActive?: boolean
   /** Mesa de brainstorm abierta: las cards de agente se arrastran a ella. */
-  seatDragEnabled?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -210,7 +209,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   activePaneId,
   chatActiveAgentId = null,
   tabActive = true,
-  seatDragEnabled = false,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -343,7 +341,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const anyWindowOpen = terminalOpen
   // Con la mesa abierta la card de agente es un token que se arrastra a ella:
   // el reorder por handle movería la card de verdad (y pasaría bajo la mesa).
-  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen && !seatDragEnabled
+  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
 
   const baselineLayout = useMemo(
     () => buildSlotOrigins(
@@ -617,7 +615,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           paneId={entity.paneId}
           kind={entity.kind}
           title={entity.title}
-          seatDragEnabled={seatDragEnabled && !entity.localOnly && !entity.instanceTag}
           deferPositionMotion={deferPositionMotion}
           instanceTag={entity.instanceTag}
           replicaCount={entity.replicaCount}

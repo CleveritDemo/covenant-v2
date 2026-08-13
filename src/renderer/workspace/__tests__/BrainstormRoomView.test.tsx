@@ -78,7 +78,7 @@ beforeEach(() => {
 })
 
 describe('BrainstormRoomView minimizada', () => {
-  it('clic en scrim minimiza vía onClose y no detiene el runner', () => {
+  it('Escape cierra la vista y no detiene el runner', () => {
     const stopBrainstorm = vi.fn()
     Object.assign(window, {
       api: {
@@ -94,12 +94,10 @@ describe('BrainstormRoomView minimizada', () => {
     render(
       <BrainstormRoomView open room={room} cwd="/tmp/project" onClose={onClose} />,
     )
-    const scrim = document.querySelector('.terminal-modal-scrim')
-    expect(scrim).not.toBeNull()
-    expect(scrim?.getAttribute('data-close-on-backdrop')).toBe('true')
-    // jsdom/createEvent no fija button en PointerEvent; TerminalModal exige button === 0.
-    const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })
-    scrim!.dispatchEvent(down)
+    // Sala sobre el plano, no modal: no hay scrim que cerrar.
+    expect(document.querySelector('.brainstorm-overlay')).not.toBeNull()
+    expect(document.querySelector('.terminal-modal-scrim')).toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(stopBrainstorm).not.toHaveBeenCalled()
   })
@@ -125,7 +123,7 @@ describe('BrainstormRoomView minimizada', () => {
     const { rerender } = render(
       <BrainstormRoomView open room={room} cwd="/tmp/project" onClose={onClose} onLive={onLive} />,
     )
-    fireEvent.click(screen.getByText('tabs.brainstormClose'))
+    fireEvent.click(screen.getByLabelText('tabs.brainstormCloseView'))
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(stopBrainstorm).not.toHaveBeenCalled()
 
@@ -161,10 +159,13 @@ describe('BrainstormRoomView chat bubbles', () => {
     )
 
     expect(screen.getByText('Ship the chat UI')).toBeTruthy()
-    // El nombre sale en la entrada y en el panel de asientos.
+    // El nombre sale en la entrada y en la tarjeta del asiento.
     expect(screen.getAllByText('Atlas').length).toBeGreaterThan(0)
     expect(screen.getByText('Round 1')).toBeTruthy()
-    expect(screen.getByText('First take from Atlas.')).toBeTruthy()
+    // La última línea del turno también sale en la tarjeta del asiento: el acta
+    // es la que tiene que llevarla entera.
+    const thread = document.querySelector('.brainstorm-room-view__messages')
+    expect(thread?.textContent).toContain('First take from Atlas.')
     expect(document.querySelectorAll('.chat-bubble').length).toBe(2)
     expect(document.querySelector('.chat-bubble--solid')).toBeNull()
     expect(document.querySelector('.brainstorm-room-view__message')).toBeNull()
@@ -390,7 +391,9 @@ describe('BrainstormRoomView — el turno concedido antes del primer token', () 
     emit({ type: 'speaker_delta', agentId: 'atlas', round: 0, text: 'Hola' })
     expect(screen.queryByText('tabs.brainstormSpeakerThinking')).toBeNull()
     expect(screen.getByText('Atlas · writing…')).toBeTruthy()
-    expect(screen.getByText('Hola')).toBeTruthy()
+    // «Hola» sale en el acta y, como cola del turno en curso, en su asiento.
+    const live = document.querySelector('.brainstorm-room-view__row--live')
+    expect(live?.textContent).toContain('Hola')
   })
 
   it('speaker_final cierra la fila viva y no deja el warmup de vuelta', () => {
@@ -442,35 +445,37 @@ describe('BrainstormRoomView — salir de una sala terminada', () => {
     expect(onFinish).toHaveBeenCalledTimes(1)
   })
 
-  it('viva no ofrece cerrar: minimizar es lo único que no la mata', () => {
+  it('viva no ofrece cerrar la sala: solo cerrar la vista, que no la mata', () => {
     mount('running')
     expect(screen.queryByText('tabs.brainstormFinish')).toBeNull()
-    expect(screen.getByText('tabs.brainstormClose')).toBeTruthy()
+    expect(screen.getByLabelText('tabs.brainstormCloseView')).toBeTruthy()
   })
 
-  it('el traffic light rojo suelta la sala terminada en vez de minimizarla', () => {
+  it('viva, detener es un botón aparte de cerrar la vista', () => {
+    const { onClose, onFinish } = mount('running')
+    fireEvent.click(screen.getByLabelText('tabs.brainstormStopRun'))
+    expect(window.api.stopBrainstorm).toHaveBeenCalledWith(room.id)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onFinish).not.toHaveBeenCalled()
+  })
+
+  it('terminada, cerrar la vista la suelta del plano: su acta queda guardada', () => {
     const { onFinish, onClose } = mount('done')
-    const scrim = document.querySelector('.terminal-modal-scrim')
-    scrim!.dispatchEvent(
-      new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
-    )
+    fireEvent.click(screen.getByLabelText('tabs.brainstormFinishHint'))
     expect(onFinish).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('viva, el scrim sigue minimizando y no suelta nada', () => {
+  it('viva, Escape solo cierra la vista', () => {
     const { onFinish, onClose } = mount('running')
-    const scrim = document.querySelector('.terminal-modal-scrim')
-    scrim!.dispatchEvent(
-      new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
-    )
+    fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onFinish).not.toHaveBeenCalled()
   })
 })
 
-describe('BrainstormRoomView — un solo primario en el pie', () => {
-  function footerPrimaries(status: BrainstormRoom['status']): string[] {
+describe('BrainstormRoomView — un primario en el pie, la marcha en el chrome', () => {
+  function mountStatus(status: BrainstormRoom['status']): void {
     Object.assign(window, {
       api: {
         onBrainstormEvent: vi.fn(() => () => {}),
@@ -490,24 +495,95 @@ describe('BrainstormRoomView — un solo primario en el pie', () => {
         onFinish={vi.fn()}
       />,
     )
+  }
+
+  /** Botones de marcha del chrome, por su etiqueta accesible. */
+  function chromeControls(): string[] {
+    return Array.from(document.querySelectorAll('.brainstorm-overlay__bar button'))
+      .map(node => node.getAttribute('aria-label') ?? '')
+  }
+
+  function footerPrimaries(): string[] {
     return Array.from(
       document.querySelectorAll('.brainstorm-room-view__footer .btn--primary'),
     ).map(node => node.textContent?.trim() ?? '')
   }
 
-  it('terminada: manda cerrar la sala, no alargarla', () => {
-    expect(footerPrimaries('done')).toEqual(['tabs.brainstormFinish'])
+  it('corriendo: pausar y detener arriba, ningún primario abajo', () => {
+    mountStatus('running')
+    expect(chromeControls()).toContain('tabs.brainstormPause')
+    expect(chromeControls()).toContain('tabs.brainstormStopRun')
+    expect(chromeControls()).not.toContain('tabs.brainstormResume')
+    expect(footerPrimaries()).toEqual([])
   })
 
-  it('detenida a mano: manda reanudar, y cerrar baja a secundario', () => {
-    expect(footerPrimaries('stopped')).toEqual(['tabs.brainstormResume'])
+  it('en pausa: reanudar sustituye a pausar, sin dos marchas a la vez', () => {
+    mountStatus('paused')
+    expect(chromeControls()).toContain('tabs.brainstormResume')
+    expect(chromeControls()).not.toContain('tabs.brainstormPause')
   })
 
-  it('en pausa: manda reanudar', () => {
-    expect(footerPrimaries('paused')).toEqual(['tabs.brainstormResume'])
+  it('terminada: el único primario es cerrar la sala, no alargarla', () => {
+    mountStatus('done')
+    expect(footerPrimaries()).toEqual(['tabs.brainstormFinish'])
   })
 
-  it('corriendo: ningún primario compite con Detener', () => {
-    expect(footerPrimaries('running')).toEqual([])
+  it('detenida a mano: reanudar arriba y cerrar baja a secundario', () => {
+    mountStatus('stopped')
+    expect(chromeControls()).toContain('tabs.brainstormResume')
+    expect(footerPrimaries()).toEqual([])
+  })
+})
+
+describe('BrainstormRoomView — situarse al final, no viajar hasta él', () => {
+  function mountWithScrollSpy(status: BrainstormRoom['status'] = 'running') {
+    const scrolls: (ScrollIntoViewOptions | undefined)[] = []
+    // `vitest.setup` ya stubea el de HTMLElement: hay que espiar ese mismo.
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(
+      function scrollIntoView(arg?: boolean | ScrollIntoViewOptions) {
+        scrolls.push(typeof arg === 'object' ? arg : undefined)
+      },
+    )
+    const bus: { emit: ((event: Record<string, unknown>) => void) | null } = { emit: null }
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn((_id: string, cb: (event: Record<string, unknown>) => void) => {
+          bus.emit = cb
+          return () => {}
+        }),
+        stopBrainstorm: vi.fn(),
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    render(
+      <BrainstormRoomView
+        open
+        room={{ ...room, status }}
+        cwd="/tmp/project"
+        onClose={vi.fn()}
+      />,
+    )
+    return { scrolls, bus }
+  }
+
+  it('al abrir no anima: salta el contenedor, sin scrollIntoView', () => {
+    // `behavior: 'auto'` delega en el CSS, y el acta pide `scroll-behavior:
+    // smooth`; por eso el anclaje inicial no pasa por `scrollIntoView`.
+    const { scrolls } = mountWithScrollSpy()
+    expect(scrolls.length).toBe(0)
+  })
+
+  it('un turno que llega mientras miras sí se desliza', () => {
+    const { scrolls, bus } = mountWithScrollSpy()
+    const before = scrolls.length
+    act(() => {
+      bus.emit?.({
+        type: 'speaker_final', agentId: 'atlas', agentName: 'Atlas', round: 1, text: 'Nuevo turno.',
+      })
+    })
+    expect(scrolls.length).toBeGreaterThan(before)
+    expect(scrolls[scrolls.length - 1]?.behavior).toBe('smooth')
   })
 })

@@ -141,6 +141,23 @@ describe('PlaneMapGridParticles', () => {
     expect(rafSpy).toHaveBeenCalled()
   })
 
+  it('con active=false no arranca loop rAF y limpia canvas', () => {
+    const clearRect = vi.fn()
+    getContextSpy.mockReturnValue({
+      ...mockCanvas2d(),
+      clearRect,
+    } as unknown as CanvasRenderingContext2D)
+
+    render(
+      <div style={{ width: 400, height: 300 }}>
+        <PlaneMapGridParticles active={false} />
+      </div>,
+    )
+
+    expect(rafSpy).not.toHaveBeenCalled()
+    expect(clearRect).toHaveBeenCalled()
+  })
+
   it('con data-reduce-motion=true no arranca loop rAF y limpia canvas', () => {
     document.documentElement.setAttribute('data-reduce-motion', 'true')
     const clearRect = vi.fn()

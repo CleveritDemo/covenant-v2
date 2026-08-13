@@ -685,6 +685,7 @@ export const TerminalPane: React.FC<Props> = ({
   }, [sessionId])
 
   useEffect(() => {
+    if (!tabActive) return
     let cancelled = false
     const syncPaneCwd = async (): Promise<void> => {
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
@@ -701,7 +702,7 @@ export const TerminalPane: React.FC<Props> = ({
       cancelled = true
       window.clearInterval(id)
     }
-  }, [sessionId])
+  }, [sessionId, tabActive])
 
 
   const loadCdPaths = useCallback(async (): Promise<void> => {
@@ -951,10 +952,12 @@ export const TerminalPane: React.FC<Props> = ({
       () => (termAlive && termRef.current === term ? term : null),
     )
     const scheduleTerminalCanvasRepaint = (): void => {
+      if (!tabActiveRef.current) return
       if (!termAlive || termRef.current !== term) return
       terminalRepaint.scheduleAfterWrite()
     }
     const scheduleTerminalCanvasRepaintImmediate = (): void => {
+      if (!tabActiveRef.current) return
       if (!termAlive || termRef.current !== term) return
       terminalRepaint.schedule()
     }

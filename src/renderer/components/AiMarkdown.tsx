@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef } from 'react'
 import './AiMarkdown.css'
 
 export type MdListItem = {
@@ -27,6 +27,14 @@ type RawListEntry = {
 interface AiMarkdownProps {
   content: string
   showCursor?: boolean
+  /** Si true, solo re-parsea el sufijo live (último bloque en progreso). */
+  live?: boolean
+}
+
+type MarkdownStableCache = {
+  length: number
+  content: string
+  blocks: MdBlock[]
 }
 
 let inlineKey = 0
@@ -325,6 +333,72 @@ function parseBlocks(raw: string): MdBlock[] {
   return blocks
 }
 
+/** Línea donde empieza el último bloque markdown aún en progreso (append-only). */
+function findMarkdownLiveLineStart(lines: readonly string[]): number {
+  let blockStart = 0
+  let i = 0
+
+  while (i < lines.length) {
+    blockStart = i
+    const line = lines[i]
+    if (!line.trim()) {
+      i++
+      continue
+    }
+
+    const h = headingLevel(line)
+    if (h) {
+      i++
+      continue
+    }
+
+    if (isHr(line)) {
+      i++
+      continue
+    }
+
+    const head = tableCells(line)
+    const dividerAt = head ? skipBlank(lines, i + 1) : -1
+    if (head && isTableDivider(lines[dividerAt])) {
+      i = dividerAt + 1
+      while (i < lines.length) {
+        const at = skipBlank(lines, i)
+        const cells = at < lines.length ? tableCells(lines[at]) : null
+        if (!cells) break
+        i = at + 1
+      }
+      continue
+    }
+
+    const q = isQuote(line)
+    if (q !== null) {
+      i++
+      while (i < lines.length) {
+        const nq = isQuote(lines[i])
+        if (nq === null) break
+        i++
+      }
+      continue
+    }
+
+    const listEntry = parseListLine(line)
+    if (listEntry) {
+      i++
+      while (i < lines.length) {
+        const at = skipBlank(lines, i)
+        const next = at < lines.length ? parseListLine(lines[at]) : null
+        if (!next) break
+        i = at + 1
+      }
+      continue
+    }
+
+    i++
+  }
+
+  return blockStart
+}
+
 function headingTag(level: 1 | 2 | 3 | 4 | 5 | 6): 'h3' | 'h4' | 'h5' | 'h6' {
   if (level === 1) return 'h3'
   if (level === 2) return 'h4'
@@ -433,11 +507,41 @@ export function parseAiMarkdownBlocks(raw: string): MdBlock[] {
   return parseBlocks(raw)
 }
 
-export const AiMarkdown: React.FC<AiMarkdownProps> = ({ content, showCursor }) => {
+/**
+ * Prefijo estable memoizado + sufijo live; evita re-parsear bloques ya cerrados en streaming.
+ */
+export function parseAiMarkdownBlocksIncremental(
+  raw: string,
+  cache: React.MutableRefObject<MarkdownStableCache>,
+): MdBlock[] {
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+
+  const lines = trimmed.replace(/\r\n/g, '\n').split('\n')
+  const liveLineStart = findMarkdownLiveLineStart(lines)
+  const stableText = lines.slice(0, liveLineStart).join('\n')
+  const liveText = lines.slice(liveLineStart).join('\n')
+
+  let stableBlocks: MdBlock[]
+  if (cache.current.length === stableText.length && cache.current.content === stableText) {
+    stableBlocks = cache.current.blocks
+  } else {
+    stableBlocks = stableText ? parseAiMarkdownBlocks(stableText) : []
+    cache.current = { length: stableText.length, content: stableText, blocks: stableBlocks }
+  }
+
+  const liveBlocks = liveText.trim() ? parseAiMarkdownBlocks(liveText.trim()) : []
+  return [...stableBlocks, ...liveBlocks]
+}
+
+export const AiMarkdown: React.FC<AiMarkdownProps> = ({ content, showCursor, live = false }) => {
+  const stableCacheRef = useRef<MarkdownStableCache>({ length: 0, content: '', blocks: [] })
+
   const blocks = useMemo(() => {
     inlineKey = 0
-    return parseBlocks(content.trim())
-  }, [content])
+    if (!live) return parseAiMarkdownBlocks(content.trim())
+    return parseAiMarkdownBlocksIncremental(content, stableCacheRef)
+  }, [content, live])
 
   if (blocks.length === 0) return null
 

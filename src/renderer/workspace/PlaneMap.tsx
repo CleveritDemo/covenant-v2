@@ -702,7 +702,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
-      <PlaneMapBackdrop working={working} />
+      <PlaneMapBackdrop working={working} tabActive={tabActive} />
       {wikiOverlay ? (
         <div className="plane-map__wiki-overlay">{wikiOverlay}</div>
       ) : null}

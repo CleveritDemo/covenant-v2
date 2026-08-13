@@ -5,14 +5,18 @@ import './PlaneMap.css'
 
 type PlaneMapBackdropProps = {
   working: boolean
+  tabActive?: boolean
 }
 
 /** Piso del plano: grilla y partículas detrás de stage, composer y paneles. */
-export const PlaneMapBackdrop: React.FC<PlaneMapBackdropProps> = ({ working }) => (
+export const PlaneMapBackdrop: React.FC<PlaneMapBackdropProps> = ({
+  working,
+  tabActive = true,
+}) => (
   <div className="plane-map-backdrop" aria-hidden="true">
     <div className="plane-map__atmosphere" />
     <div className="plane-map__grid" />
-    <PlaneMapGridParticles />
-    <PlaneComposerAuroraParticles active={working} />
+    <PlaneMapGridParticles active={tabActive} />
+    <PlaneComposerAuroraParticles active={working} tabActive={tabActive} />
   </div>
 )

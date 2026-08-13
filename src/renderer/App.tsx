@@ -3222,6 +3222,16 @@ export const App: React.FC = () => {
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
     setAgentPlaneStatus(prev => {
       const previous = prev[paneId]
+      const bothMessagesEmpty = (previous?.messages.length ?? 0) === 0
+        && status.messages.length === 0
+      const messagesUnchanged = bothMessagesEmpty || (
+        (previous?.messages.length ?? 0) === status.messages.length
+        && (previous?.messages ?? []).every((msg, i) =>
+          msg.id === status.messages[i]?.id
+          && msg.role === status.messages[i]?.role
+          && msg.content === status.messages[i]?.content,
+        )
+      )
       if (
         previous
         && previous.busy === status.busy
@@ -3246,12 +3256,7 @@ export const App: React.FC = () => {
           && item.text === status.queuedTurns[i]?.text
           && item.images.length === status.queuedTurns[i]?.images.length,
         )
-        && previous.messages.length === status.messages.length
-        && previous.messages.every((msg, i) =>
-          msg.id === status.messages[i]?.id
-          && msg.role === status.messages[i]?.role
-          && msg.content === status.messages[i]?.content,
-        )
+        && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
           ctx.id === status.contexts[i]?.id

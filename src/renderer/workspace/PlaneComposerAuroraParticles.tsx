@@ -4,6 +4,7 @@ import './PlaneComposerAuroraParticles.css'
 
 type PlaneComposerAuroraParticlesProps = {
   active: boolean
+  tabActive?: boolean
 }
 
 type Particle = {
@@ -94,10 +95,11 @@ function drawParticle(
 /** Partículas que suben desde el piso del plano (solo working + motion). */
 export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticlesProps> = ({
   active,
+  tabActive = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reducedMotion = usePrefersReducedMotion()
-  const shouldRun = active && !reducedMotion
+  const shouldRun = active && tabActive && !reducedMotion
 
   useEffect(() => {
     const canvas = canvasRef.current

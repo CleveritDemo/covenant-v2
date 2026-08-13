@@ -60,6 +60,8 @@ import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
+import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
+import { resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { turnFailedAfter } from './turnFailureState'
@@ -490,7 +492,9 @@ export const AgentPane: React.FC<Props> = ({
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
   const runLoopIterationRef = useRef<(iteration: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
+  const chatSaveScheduleRef = useRef(createAgentChatSaveSchedule())
   const planeStatusThrottlerRef = useRef(createPlaneStatusThrottler<AgentPlaneStatus>())
+  const tabActivePrevRef = useRef(tabActive)
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
@@ -615,6 +619,7 @@ export const AgentPane: React.FC<Props> = ({
   const [pendingJiraContextIds, setPendingJiraContextIds] = useState<string[]>([])
   /** Conversación viva del pane: fija de qué archivo se lee y a cuál se escribe. */
   const activeThreadId = meta.activeThreadId ?? DEFAULT_THREAD_ID
+  const prevThreadRef = useRef(activeThreadId)
   messagesRef.current = messages
   metaRef.current = meta
   diskContextsRef.current = diskContexts
@@ -874,8 +879,22 @@ export const AgentPane: React.FC<Props> = ({
     // este effect corre en el mismo commit que el de carga, con los mensajes
     // del thread anterior. Sin el ref los guardaría bajo el thread nuevo.
     if (!loaded || !loadedRef.current) return
-    window.api.saveAgentChat(chatRef, activeThreadId, messages)
+    const schedule = chatSaveScheduleRef.current
+    schedule.schedule(() => {
+      window.api.saveAgentChat(chatRef, activeThreadId, messages)
+    })
   }, [activeThreadId, chatRef, loaded, messages])
+
+  useEffect(() => () => {
+    chatSaveScheduleRef.current.flush()
+  }, [])
+
+  useEffect(() => {
+    if (prevThreadRef.current !== activeThreadId) {
+      chatSaveScheduleRef.current.flush()
+      prevThreadRef.current = activeThreadId
+    }
+  }, [activeThreadId])
 
   useLayoutEffect(() => {
     if (!loaded) return
@@ -1037,6 +1056,8 @@ export const AgentPane: React.FC<Props> = ({
 
   useEffect(() => {
     if (!onPlaneStatusChange) return
+    const becameActive = tabActive && !tabActivePrevRef.current
+    tabActivePrevRef.current = tabActive
     const assignedIds = new Set(meta.contextIds ?? [])
     const contexts = diskContexts
       .filter(context => assignedIds.has(context.id))
@@ -1056,11 +1077,10 @@ export const AgentPane: React.FC<Props> = ({
       lastSnippet,
       lastTurnFailed,
       contexts,
-      messages: messages
-        .filter(entry => entry.role === 'user' || entry.role === 'assistant'),
+      messages: resolvePlaneStatusMessages(tabActive, messages),
       activeAssistantId: busy ? activeAssistantId : null,
-      enteringIds: [...enteringIds],
-      materializingIds: [...materializingIds],
+      enteringIds: tabActive ? [...enteringIds] : [],
+      materializingIds: tabActive ? [...materializingIds] : [],
       settlingId,
       awaitingDelegations,
       orchestrationAwaiting: orchestrationAwaiting ?? null,
@@ -1112,8 +1132,8 @@ export const AgentPane: React.FC<Props> = ({
       lastTurnFailed ? '1' : '0',
       loopEndReason ?? '',
       String(queuedTurns.length),
-      String(enteringIds.size),
-      String(materializingIds.size),
+      tabActive ? String(enteringIds.size) : '0',
+      tabActive ? String(materializingIds.size) : '0',
       String(pendingImages.length),
       meta.cliSessionId ?? '',
       String(meta.threads?.length ?? 0),
@@ -1124,6 +1144,9 @@ export const AgentPane: React.FC<Props> = ({
       value: status,
       publish: onPlaneStatusChange,
     })
+    if (becameActive) {
+      planeStatusThrottlerRef.current.flush()
+    }
   }, [
     activeAssistantId,
     activity,
@@ -1149,6 +1172,7 @@ export const AgentPane: React.FC<Props> = ({
     pendingImages.length,
     queuedTurns,
     settlingId,
+    tabActive,
     turnCloseReason,
   ])
 
@@ -1644,6 +1668,7 @@ export const AgentPane: React.FC<Props> = ({
       // El cierre NO limpia el fallo: la reconciliación idle lee el pane ya
       // parado, y si lo limpiásemos aquí cerraría la delegación como correcta.
       setLastTurnFailed(prev => turnFailedAfter('close', prev))
+      chatSaveScheduleRef.current.flush()
       finishSideEffects()
     }, 0)
   }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, systemSoundsEnabled, t])
@@ -2672,6 +2697,7 @@ export const AgentPane: React.FC<Props> = ({
     >
       {/* Chat UI solo con ventana abierta; en mini el plano usa PlaneQuickChat. */}
       {windowOpen ? (
+        tabActive ? (
         <>
           {mcpAuthNeeded.length > 0 ? (
             <div className="agent-pane__mcp-banner" role="status">
@@ -2760,6 +2786,9 @@ export const AgentPane: React.FC<Props> = ({
             systemSoundsEnabled={systemSoundsEnabled}
           />
         </>
+        ) : (
+          <div className="agent-pane__rest" aria-hidden="true" />
+        )
       ) : null}
 
       <AgentConfigModal

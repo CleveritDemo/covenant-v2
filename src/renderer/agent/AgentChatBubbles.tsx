@@ -40,7 +40,7 @@ function isLongBubbleContent(content: string): boolean {
   return lines > BUBBLE_COLLAPSE_LINES
 }
 
-const BubbleBody: React.FC<{
+const BubbleBodyInner: React.FC<{
   content: string
   live: boolean
   role: 'user' | 'assistant'
@@ -71,6 +71,11 @@ const BubbleBody: React.FC<{
     </div>
   )
 }
+
+const BubbleBody = React.memo(BubbleBodyInner, (prev, next) => {
+  if (prev.live || next.live) return false
+  return prev.content === next.content && prev.role === next.role
+})
 
 function isRenderableChatRow(
   message: AgentChatEntry,
@@ -103,7 +108,7 @@ interface AgentChatBubbleRowProps {
   onMaterializingAnimationEnd?: (id: string) => void
 }
 
-const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
+const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   message,
   busy,
   activeAssistantId,
@@ -223,6 +228,30 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
     </div>
   )
 }
+
+const AgentChatBubbleRow = React.memo(AgentChatBubbleRowInner, (prev, next) => {
+  const prevLive = prev.busy &&
+    prev.message.role === 'assistant' &&
+    prev.message.id === prev.activeAssistantId
+  const nextLive = next.busy &&
+    next.message.role === 'assistant' &&
+    next.message.id === next.activeAssistantId
+  if (prevLive || nextLive) return false
+  if (prev.message.id !== next.message.id) return false
+  if (prev.message.content !== next.message.content) return false
+  if (prev.message.role !== next.message.role) return false
+  if (prev.expanded !== next.expanded) return false
+  if (prev.isLatestRenderable !== next.isLatestRenderable) return false
+  if (prev.settlingId !== next.settlingId &&
+    (prev.settlingId === prev.message.id || next.settlingId === next.message.id)) {
+    return false
+  }
+  if (prev.enteringIds.has(prev.message.id) !== next.enteringIds.has(next.message.id)) return false
+  if (prev.materializingIds.has(prev.message.id) !== next.materializingIds.has(next.message.id)) {
+    return false
+  }
+  return true
+})
 
 export interface AgentChatBubblesHandle {
   /** Ir al final real del scroll del chat. */

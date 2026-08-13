@@ -203,6 +203,13 @@ html[data-reduce-motion="true"] {
   overflow: visible;
 }
 
+/* Tab inactivo: shell vacío mantiene flex sin montar mensajes/composer. */
+.agent-pane__rest {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
 .agent-pane__footer--chat-only .agent-pane__composer {
   margin-top: 0;
 }

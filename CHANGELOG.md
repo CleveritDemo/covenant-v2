@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.46.0
+
+- **Guardado de chat con debounce**: el transcript se persiste cada ~500 ms durante streaming, no en cada token; flush al cerrar turno, cambiar de thread o cerrar el pane.
+- **Tabs en reposo sin perder terminales**: en tabs inactivos se pausan partículas del plano y el render del chat de agentes; los PTY siguen vivos y al volver al tab la terminal muestra la salida acumulada.
+- **Plano liviano en tabs ocultos**: el estado global del plano recibe solo snippet y flags (busy, loop, delegación), no el transcript completo; al volver al tab se re-sincroniza el quick chat.
+- **Markdown incremental en streaming**: solo se re-parsea el tramo en vivo; mensajes cerrados no se re-renderizan en cada delta.
+
 ## v0.45.0
 
 - **La sala de brainstorming ocupa la pantalla**: convocar una sala, seguirla y releer su acta abrían modales uno encima de otro. Ahora las salas guardadas, el alta y la sala en marcha son tres vistas del mismo sitio, sobre el plano, y la barra de la esquina —carpeta, explorador, git, wiki— sigue a mano en todas.

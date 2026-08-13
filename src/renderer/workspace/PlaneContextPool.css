@@ -157,3 +157,197 @@
   flex-shrink: 0;
 }
 
+
+/* Punto de "en uso": el chip asignado a algún agente se distingue del que nadie usa. */
+.plane-context-pool__chip-pin {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--plane-glass-strong) 90%, transparent);
+}
+
+/* Botón +N: abre el catálogo completo cuando no cabe en la barra. */
+.plane-context-pool__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: color-mix(in srgb, var(--plane-glass) 60%, transparent);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.plane-context-pool__more:hover,
+.plane-context-pool__more--open {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--plane-border) 60%, transparent);
+  background: color-mix(in srgb, var(--plane-glass) 90%, transparent);
+}
+
+/* Popover del catálogo. Cuelga de la barra (que ya es el bloque contenedor). */
+.plane-context-pool__overflow {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 292px;
+  max-height: min(52vh, 380px);
+  border: 1px solid var(--border);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--bg-secondary);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+  overflow: hidden;
+}
+
+.plane-context-pool__overflow-search {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.plane-context-pool__overflow-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+}
+
+.plane-context-pool__overflow-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 6px 0 2px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.plane-context-pool__overflow-group span {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.plane-context-pool__overflow-empty,
+.plane-context-pool__overflow-hint {
+  margin: 0;
+  padding: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.plane-context-pool__overflow-hint {
+  flex-shrink: 0;
+  padding: 6px 10px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+/* Fila del catálogo: mismo gesto que el chip, pero con nombre. */
+.plane-context-pool__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: grab;
+  /* Sin esto el nombre es texto seleccionable y el mousedown arranca una
+     selección en vez del drag: `dragstart` nunca llega. El chip no lo sufre
+     porque es solo ícono. Mismo motivo que en la cabecera de PaneWindow. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.plane-context-pool__row:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.plane-context-pool__row:active {
+  cursor: grabbing;
+}
+
+.plane-context-pool__row-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.plane-context-pool__row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-context-pool__row-kind {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.plane-context-pool__row-count {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Durante el arrastre el popover se aparta sin desmontarse: la fila tiene que
+   seguir en el DOM o Chromium cancela el drag, pero no debe tapar al agente. */
+.plane-context-pool__overflow--dragging {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* El fantasma de una fila se reduce al mismo chip que se arrastra desde la
+   barra: arrastrar el mismo contexto debe verse igual venga de donde venga.
+   Va después de `--ghost` a propósito — misma especificidad, y si no, el
+   `background: transparent` de la fila gana y el clon sale translúcido. */
+.plane-context-pool__row.plane-context-pool__chip--ghost {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--surface));
+}
+
+.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-name,
+.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-kind,
+.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-count {
+  display: none;
+}

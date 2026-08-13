@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneContextPool, type PlaneContextPoolProps } from '../PlaneContextPool'
 import { PLANE_CONTEXT_DRAG_MIME } from '../planeContextDrag'
 
@@ -194,5 +194,102 @@ describe('PlaneContextPool — asignación por modal', () => {
     const [ghost] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
     expect(ghost.parentElement).toBe(document.body)
     expect(ghost.classList.contains('plane-context-pool__chip--ghost')).toBe(true)
+  })
+})
+
+/** Catálogo grande: 9 contextos, ninguno asignado salvo el que se indique. */
+const bigCatalog = (assignedTo: string[] = []) => ({
+  contexts: Array.from({ length: 9 }, (_, i) => ({
+    id: `c${i}`,
+    name: `Contexto ${i}`,
+    kind: 'notes' as const,
+    kindLabel: 'Notas',
+    icon: 'note' as const,
+    color: '#0aa',
+  })),
+  contextCatalog: Array.from({ length: 9 }, (_, i) => ({
+    id: `c${i}`,
+    name: `Contexto ${i}`,
+    fileName: `c${i}.md`,
+    kind: 'notes' as const,
+  })),
+  agents: [{ paneId: 'p1', title: 'Atlas', contextIds: assignedTo }],
+})
+
+const barChips = () =>
+  Array.from(document.querySelectorAll('.plane-context-pool__chip'))
+const moreButton = () =>
+  document.querySelector<HTMLButtonElement>('.plane-context-pool__more')
+
+describe('PlaneContextPool — desbordamiento', () => {
+  it('corta la barra en 6 chips y ofrece el resto en el botón +N', () => {
+    setup(bigCatalog())
+    expect(barChips()).toHaveLength(6)
+    expect(moreButton()?.textContent).toContain('+3')
+  })
+
+  it('sube a la barra los contextos en uso', () => {
+    setup(bigCatalog(['c8']))
+    expect(barChips()[0].getAttribute('aria-label')).toContain('Contexto 8')
+    expect(barChips()[0].querySelector('.plane-context-pool__chip-pin')).toBeTruthy()
+  })
+
+  it('el botón +N abre el catálogo completo, buscable', () => {
+    setup(bigCatalog())
+    fireEvent.click(moreButton()!)
+    const pop = screen.getByTestId('plane-context-pool-overflow')
+    expect(pop.querySelectorAll('.plane-context-pool__row')).toHaveLength(9)
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'texto 7' } })
+    const rows = pop.querySelectorAll('.plane-context-pool__row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].textContent).toContain('Contexto 7')
+  })
+
+  it('la fila del popover abre el modal de asignación, como el chip', () => {
+    setup(bigCatalog())
+    fireEvent.click(moreButton()!)
+    fireEvent.click(screen.getByRole('button', { name: /Contexto 8/ }))
+    expect(screen.queryByTestId('plane-context-pool-overflow')).toBeNull()
+    expect(screen.getByRole('dialog').textContent).toContain('Contexto 8')
+  })
+
+  it('sin desbordamiento no hay botón +N', () => {
+    setup()
+    expect(moreButton()).toBeNull()
+  })
+})
+
+describe('PlaneContextPool — arrastre desde el popover', () => {
+  it('durante el dragstart el popover sigue visible: ocultarlo ahi cancela el drag en Chromium', () => {
+    vi.useFakeTimers()
+    setup(bigCatalog())
+    fireEvent.click(moreButton()!)
+    const row = screen.getByRole('button', { name: /Contexto 8/ })
+    const transfer = dragTransfer('c8')
+
+    fireEvent.dragStart(row, { dataTransfer: transfer })
+
+    const pop = screen.getByTestId('plane-context-pool-overflow')
+    expect(pop.contains(row)).toBe(true)
+    expect(transfer.setData).toHaveBeenCalledWith(PLANE_CONTEXT_DRAG_MIME, 'c8')
+    // Sincronamente NO se oculta: el origen no puede cambiar de visibilidad
+    // dentro del propio dragstart o Chromium emite dragend al instante.
+    expect(pop.className).not.toContain('plane-context-pool__overflow--dragging')
+
+    // Un tick despues si, para no tapar al agente de destino.
+    act(() => { vi.advanceTimersByTime(0) })
+    expect(screen.getByTestId('plane-context-pool-overflow').className)
+      .toContain('plane-context-pool__overflow--dragging')
+    vi.useRealTimers()
+  })
+
+  it('al soltar se cierra el popover', () => {
+    setup(bigCatalog())
+    fireEvent.click(moreButton()!)
+    const row = screen.getByRole('button', { name: /Contexto 8/ })
+    fireEvent.dragStart(row, { dataTransfer: dragTransfer('c8') })
+    fireEvent.dragEnd(row, { dataTransfer: dragTransfer('c8') })
+    expect(screen.queryByTestId('plane-context-pool-overflow')).toBeNull()
   })
 })

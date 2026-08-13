@@ -8,6 +8,7 @@ import { type AgentIdentityDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { AgentCoordination, DelegateToPolicy, OrchestrationWorkStyle } from '@shared/agentOrchestration'
+import { candidateCeremonyRoles } from '@shared/agileCeremonies'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -42,7 +43,7 @@ function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
     name: meta.name ?? '',
     monogram: meta.monogram ?? '',
     role: meta.role ?? '',
-    ceremonyRole: meta.ceremonyRole,
+    ceremonyRoles: candidateCeremonyRoles(meta),
     objective: meta.objective ?? '',
     rules: meta.rules ?? [],
   }
@@ -243,7 +244,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
   // Estado de guardado: flash al persistir cualquier campo del agente.
   const savedSnapshot = JSON.stringify([
-    meta.id, meta.name, meta.role, meta.ceremonyRole, meta.objective, meta.rules,
+    meta.id, meta.name, meta.role, meta.ceremonyRoles, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
     meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
     meta.acceptDelegations, meta.allowExpertReplicas, meta.autoImproveContexts,
@@ -280,7 +281,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
   const identityDirty = draft.name !== (meta.name ?? '')
     || draft.role !== (meta.role ?? '')
-    || draft.ceremonyRole !== meta.ceremonyRole
+    || draft.ceremonyRoles?.join(',') !== candidateCeremonyRoles(meta).join(',')
     || draft.id !== (meta.id ?? '')
   const objectiveDirty = draft.objective !== (meta.objective ?? '')
   const rulesDirty = draft.rules.join('\0') !== rulesKey

@@ -3,10 +3,13 @@
 import type { ProjectAgentDefinition } from './projectAgentCatalog'
 import { normalizeAgentSlug } from './projectAgentCatalog'
 import {
+  CEREMONY_ROLE_PROMPT_LABEL,
   ceremonyById,
+  isCeremonyRoleId,
   ceremonyUsesFreeOutcome,
   sanitizeCeremonyId,
   type CeremonyId,
+  type CeremonyRoleId,
 } from './agileCeremonies'
 
 export type BrainstormStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'done'
@@ -345,11 +348,11 @@ export interface BrainstormClosing {
 
 /** Etiquetas que se le piden al último turno (inglés: el prompt es en inglés). */
 const CLOSING_FIELDS: ReadonlyArray<[keyof BrainstormClosing, RegExp]> = [
-  ['decision', /^(?:decision|outcome|cierre)\s*:\s*(.+)$/i],
-  ['why', /^(?:why|because|por qué|porque)\s*:\s*(.+)$/i],
-  ['agreed', /^(?:agreed|acuerdo|acordado)\s*:\s*(.+)$/i],
-  ['open', /^(?:open|disagreement|sin acuerdo|abierto)\s*:\s*(.+)$/i],
-  ['next', /^(?:next|next step|siguiente paso)\s*:\s*(.+)$/i],
+  ['decision', /^(?:decision|outcome|cierre)\s*:\s*(.*)$/i],
+  ['why', /^(?:why|because|por qué|porque)\s*:\s*(.*)$/i],
+  ['agreed', /^(?:agreed|acuerdo|acordado)\s*:\s*(.*)$/i],
+  ['open', /^(?:open|disagreement|sin acuerdo|abierto)\s*:\s*(.*)$/i],
+  ['next', /^(?:next|next step|siguiente paso)\s*:\s*(.*)$/i],
 ]
 
 /**
@@ -361,22 +364,43 @@ function parseLabeledLines<K extends string>(
   text: string,
   specs: ReadonlyArray<[K, RegExp]>,
 ): Partial<Record<K, string>> {
-  const found: Partial<Record<K, string>> = {}
-  if (typeof text !== 'string' || !text.trim()) return found
+  if (typeof text !== 'string' || !text.trim()) return {}
+  const blocks = new Map<K, string[]>()
+  let current: K | null = null
+
   for (const rawLine of text.split('\n')) {
-    const line = rawLine
-      .trim()
-      .replace(/^[-*+]\s+/, '')
-      .replace(/\*\*/g, '')
-    if (!line) continue
+    const line = rawLine.trim().replace(/\*\*/g, '')
+    // La viñeta se quita solo para detectar etiqueta: en una continuación
+    // es contenido, y es lo que deja pintar el bloque como lista.
+    const asLabel = line.replace(/^[-*+]\s+/, '')
+
+    let opensBlock = false
     for (const [field, pattern] of specs) {
-      if (found[field]) continue
-      const match = pattern.exec(line)
-      if (match?.[1]) {
-        found[field] = match[1].trim()
+      const match = pattern.exec(asLabel)
+      if (!match) continue
+      opensBlock = true
+      if (blocks.has(field)) {
+        // Etiqueta repetida: cierra el bloque en curso y se ignora.
+        current = null
         break
       }
+      current = field
+      const head = match[1]?.trim() ?? ''
+      blocks.set(field, head ? [head] : [])
+      break
     }
+    if (opensBlock || !current) continue
+    // Solo otra etiqueta cierra un bloque; un hueco en blanco no. El modelo
+    // separa la lista del encabezado con una línea vacía y perderla se comía
+    // las viñetas enteras, que es justo el contenido que importa.
+    if (!line) continue
+    blocks.get(current)?.push(line)
+  }
+
+  const found: Partial<Record<K, string>> = {}
+  for (const [field, lines] of blocks) {
+    const value = lines.join('\n').trim()
+    if (value) found[field] = value
   }
   return found
 }
@@ -416,7 +440,7 @@ export function parseCeremonyClosing(
   if (!ceremony.closing.length) return null
   const specs = ceremony.closing.map(field => [
     field.key,
-    new RegExp(`^${escapeForRegExp(field.label)}\\s*:\\s*(.+)$`, 'i'),
+    new RegExp(`^${escapeForRegExp(field.label)}\\s*:\\s*(.*)$`, 'i'),
   ] as [string, RegExp])
   const found = parseLabeledLines(text, specs)
   const entries = ceremony.closing
@@ -438,9 +462,19 @@ export function formatCeremonyClosing(
   const ceremony = ceremonyById(closing.ceremony)
   const lines = [`# ${topic}`, '', `_${ceremony.name}_`]
   for (const entry of closing.entries) {
-    lines.push('', `**${entry.label}:** ${entry.value}`)
+    lines.push('', ...closingBlockLines(entry.label, entry.value))
   }
   return `${lines.join('\n')}\n`
+}
+
+/**
+ * Un bloque del cierre en Markdown. Multilínea baja a su propio renglón: si no,
+ * la primera viñeta quedaba pegada al `**Agreed:**` y rompía la lista.
+ */
+function closingBlockLines(label: string, value: string): string[] {
+  return value.includes('\n')
+    ? [`**${label}:**`, value]
+    : [`**${label}:** ${value}`]
 }
 
 /** El cierre en Markdown, para copiar / exportar / guardar como contexto. */
@@ -448,11 +482,11 @@ export function formatBrainstormClosing(
   topic: string,
   closing: BrainstormClosing,
 ): string {
-  const lines = [`# ${topic}`, '', `**Decision:** ${closing.decision}`]
-  if (closing.why) lines.push('', `**Why:** ${closing.why}`)
-  if (closing.agreed) lines.push('', `**Agreed:** ${closing.agreed}`)
-  if (closing.open) lines.push('', `**Open:** ${closing.open}`)
-  if (closing.next) lines.push('', `**Next:** ${closing.next}`)
+  const lines = [`# ${topic}`, '', ...closingBlockLines('Decision', closing.decision)]
+  if (closing.why) lines.push('', ...closingBlockLines('Why', closing.why))
+  if (closing.agreed) lines.push('', ...closingBlockLines('Agreed', closing.agreed))
+  if (closing.open) lines.push('', ...closingBlockLines('Open', closing.open))
+  if (closing.next) lines.push('', ...closingBlockLines('Next', closing.next))
   return `${lines.join('\n')}\n`
 }
 
@@ -584,6 +618,22 @@ export function isFinalBrainstormTurn(
     && room.cursor === participants - 1
 }
 
+/**
+ * Cómo se escribe el cierre. Antes decía «una línea por etiqueta, ≤20 palabras»
+ * y ese cepo era el problema: tras nueve turnos densos el modelo obedecía
+ * comprimiendo a telegrama e inventando abreviaturas («V vs U», «BB», «S/X»)
+ * que solo entiende quien leyó el acta. El acta ya existe; el cierre tiene que
+ * poder leerse solo, semanas después, sin ella.
+ */
+const CLOSING_STYLE_LINES: readonly string[] = [
+  '  A block is as long as the conversation earned: one sentence when that is the',
+  '  whole truth, or several lines / a "-" list per point when it is not.',
+  '  Spell everything out. Never use an abbreviation, initial or shorthand that',
+  '  does not already appear spelled out in the transcript — name the file, the',
+  '  option, the person and the flag in full, even if you repeat yourself.',
+  '  Someone who did not attend must be able to act on this without the transcript.',
+]
+
 function workingSetLines(workingSet?: BrainstormWorkingSet): string[] {
   const labels = workingSet?.labels?.filter(label => label.trim()) ?? []
   if (!labels.length) return []
@@ -603,11 +653,30 @@ export function buildBrainstormTurnPrompt(
   speakerName: string,
   speakerRole?: string,
   workingSet?: BrainstormWorkingSet,
+  /** Asientos que este agente ocupa en la ceremonia (`ceremonyRolesForAgent`). */
+  speakerCeremonyRoles?: readonly CeremonyRoleId[],
 ): string {
   const name = speakerName.trim() || speakerAgentId
   const roleLine = speakerRole?.trim()
     ? `Your role: ${speakerRole.trim()}.`
     : ''
+  /**
+   * Dos o más asientos: hay que decírselo. La sala afirma que esos roles están
+   * cubiertos, y si el agente no sabe que lleva los dos sombreros nadie habla
+   * por el segundo y la cobertura sería mentira.
+   */
+  // Sin reordenar: llegan en orden de asiento de la ceremonia, que es el que
+  // tiene sentido nombrar. `sanitizeCeremonyRoleIds` los pondría en orden de
+  // catálogo global y se perdería esa lectura.
+  const hats = (speakerCeremonyRoles ?? []).filter(isCeremonyRoleId)
+  const hatsLines = hats.length > 1
+    ? [
+        `In this session you cover ${hats.length} roles: ${
+          hats.map(role => CEREMONY_ROLE_PROMPT_LABEL[role]).join(' and ')
+        }.`,
+        'Speak for all of them and say which role each point comes from.',
+      ]
+    : []
   const ceremony = ceremonyById(room.ceremony)
   // La salida a mano solo manda en `free`; con ceremonia el entregable ya está fijado.
   const outcomeLine = ceremonyUsesFreeOutcome(room.ceremony) && room.outcome
@@ -653,6 +722,7 @@ export function buildBrainstormTurnPrompt(
     ...(outcomeLine ? [outcomeLine] : []),
     `You speak now as ${name} (agentId: ${speakerAgentId}).`,
     ...(roleLine ? [roleLine] : []),
+    ...hatsLines,
     `Round ${room.round + 1} of ${room.maxRounds}.`,
     ...workingSetLines(workingSet),
     '',
@@ -679,17 +749,19 @@ export function buildBrainstormTurnPrompt(
       ? ceremony.closing.length
         ? [
             `- Final turn: close the ${ceremony.name}. Instead of prose, write these labeled`,
-            '  lines, one per label, in this order (write every label, even to say "none"):',
+            '  blocks, in this order (write every label, even to say "none"):',
             ...ceremony.closing.map(field => `  ${field.label}: <${field.hint}>`),
+            ...CLOSING_STYLE_LINES,
           ]
         : [
-            '- Final turn: close the room. Instead of prose, write these labeled lines',
-            '  (one line each, ≤20 words each, skip a label if there is nothing real):',
+            '- Final turn: close the room. Instead of prose, write these labeled blocks,',
+            '  in this order. Skip a label only if there is nothing real to put under it.',
             '  Decision: <the call, or the leading option if there was no agreement>',
-            '  Why: <the reason that settled it>',
-            '  Agreed: <what everyone accepted>',
-            '  Open: <what stayed unresolved, and who objects>',
-            '  Next: <the next concrete step, with an owner if there is one>',
+            '  Why: <the reasoning that settled it, not just the conclusion>',
+            '  Agreed: <every point everyone accepted>',
+            '  Open: <what stayed unresolved, who objects, and what would settle it>',
+            '  Next: <the concrete next steps, each with an owner>',
+            ...CLOSING_STYLE_LINES,
           ]
       : []),
     '- React to the latest points; stay on topic; no preamble or recap.',

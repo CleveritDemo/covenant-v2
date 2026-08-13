@@ -42,9 +42,7 @@ import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import { markSplashUiReady } from './splash'
-import { BrainstormRoomModal } from './workspace/BrainstormRoomModal'
-import { BrainstormCeremonyModal } from './workspace/BrainstormCeremonyModal'
-import { DEFAULT_CEREMONY_ID, type CeremonyId } from '@shared/agileCeremonies'
+import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormListModal } from './workspace/BrainstormListModal'
 import {
@@ -457,12 +455,10 @@ export const App: React.FC = () => {
   const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
   planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormSetupOpenByTab, setBrainstormSetupOpenByTab] = useState<Record<string, boolean>>({})
-  /** Mesa del plano: invitados sentados (orden = habla) antes de abrir el modal. */
+  /** Arranque de una sala: objetivo, invitados y ajustes en una sola pantalla. */
+  const [brainstormStartOpenByTab, setBrainstormStartOpenByTab] = useState<Record<string, boolean>>({})
+  /** Mesa del plano: camino opcional para sentar arrastrando antes del arranque. */
   const [brainstormTableOpenByTab, setBrainstormTableOpenByTab] = useState<Record<string, boolean>>({})
-  /** Paso 1 del flujo: qué ceremonia, antes de sentar a nadie. */
-  const [brainstormCeremonyOpenByTab, setBrainstormCeremonyOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormCeremonyByTab, setBrainstormCeremonyByTab] = useState<Record<string, CeremonyId>>({})
   const [brainstormSeatedByTab, setBrainstormSeatedByTab] = useState<Record<string, string[]>>({})
   const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
   const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
@@ -5550,13 +5546,16 @@ export const App: React.FC = () => {
                   }}
                   onBrainstormTableContinue={() => {
                     setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
                   }}
                   brainstormNeedFolderHint={t('tabs.brainstormNeedFolder')}
                   canOpenBrainstorm={Boolean(tab.projectFolder?.trim())}
-                  brainstormsListOpen={Boolean(brainstormListOpenByTab[tab.id])}
-                  onBrainstormsListOpenChange={open => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  brainstormStartOpen={Boolean(brainstormStartOpenByTab[tab.id])}
+                  onBrainstormStartOpenChange={open => {
+                    // El botón abre el arranque, no la lista: crear una sala es el
+                    // caso frecuente y las guardadas están a un clic desde ahí.
+                    if (open) setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
                   brainstormLive={brainstormRoomByTab[tab.id]
@@ -5662,11 +5661,16 @@ export const App: React.FC = () => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
                   onCreate={() => {
-                    // Paso 1: la ceremonia. Los invitados vienen después, ya
-                    // sabiendo qué roles pide.
+                    // Camino normal: directo al arranque. Formato, invitados y
+                    // ajustes se eligen ahí, con valores por defecto ya puestos.
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormCeremonyOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                  }}
+                  onCreateFromTable={() => {
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
+                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
                   }}
                   onOpenRoom={room => {
                     setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
@@ -5675,36 +5679,23 @@ export const App: React.FC = () => {
                   }}
                   onContextSaved={() => { void refreshTabContexts(tab.id) }}
                 />
-                <BrainstormCeremonyModal
-                  open={
-                    Boolean(brainstormCeremonyOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]
-                  }
-                  active={activeTabId === tab.id}
-                  onClose={() => {
-                    setBrainstormCeremonyOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                  }}
-                  onContinue={ceremony => {
-                    setBrainstormCeremonyByTab(prev => ({ ...prev, [tab.id]: ceremony }))
-                    setBrainstormCeremonyOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                />
-                <BrainstormRoomModal
-                  open={Boolean(brainstormSetupOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
+                <BrainstormStartModal
+                  open={Boolean(brainstormStartOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
                   active={activeTabId === tab.id}
                   cwd={tab.projectFolder ?? ''}
-                  ceremony={brainstormCeremonyByTab[tab.id] ?? DEFAULT_CEREMONY_ID}
                   agents={filterBrainstormInvitableAgents(
                     projectAgentsByCwd[agentCatalogKey] ?? [],
                   )}
-                  participantAgentIds={brainstormSeatedByTab[tab.id] ?? []}
+                  initialParticipantIds={brainstormSeatedByTab[tab.id] ?? []}
                   onClose={() => {
-                    // Volver a la mesa: los asientos siguen puestos.
-                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                  }}
+                  onOpenRooms={() => {
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: true }))
                   }}
                   onStarted={room => {
-                    setBrainstormSetupOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                     setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
                     setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
@@ -5723,6 +5714,14 @@ export const App: React.FC = () => {
                     )}
                     onClose={() => {
                       setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: true }))
+                    }}
+                    onFinish={() => {
+                      // Soltar la sala terminada: el acta ya está en disco y el
+                      // botón del plano vuelve a abrir «Nueva sala».
+                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
+                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
+                      setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
                     }}
                     onLive={summary => {
                       setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: summary }))

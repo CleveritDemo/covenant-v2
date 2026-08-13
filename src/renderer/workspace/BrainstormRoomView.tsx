@@ -30,6 +30,7 @@ import {
 import {
   canPauseBrainstorm,
   canResumeBrainstorm,
+  isBrainstormLive,
   isBrainstormStoppable,
 } from './brainstormViewClose'
 import { BrainstormClosingCard } from './BrainstormClosingCard'
@@ -51,6 +52,11 @@ export interface BrainstormRoomViewProps {
   agentNamesById?: Record<string, string>
   /** Cerrar = minimizar: el runner sigue corriendo en main. */
   onClose: () => void
+  /**
+   * Soltar la sala del plano. Solo cuando ya terminó: el acta queda en disco y
+   * se reabre desde «Salas guardadas», así que esto no pierde nada.
+   */
+  onFinish?: () => void
   /** Estado vivo hacia el plano (indicador en agentes + flyout). */
   onLive?: (summary: BrainstormLiveSummary) => void
   /** El cierre se guardó como contexto en `.gravity`: refrescar la lista de la pestaña. */
@@ -100,8 +106,9 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   agents = [],
   agentNamesById = {},
   onClose,
-  onLive,
+  onFinish,
   onContextSaved,
+  onLive,
 }) => {
   const { t } = useT()
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
@@ -165,10 +172,17 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [open, live.messages.length, live.streaming?.text, live.streaming?.agentId])
 
-  const streamingName = useMemo(() => {
-    if (!live.streaming) return ''
-    return speakerLabel(live.streaming.agentId)
-  }, [live.streaming, speakerLabel])
+  /**
+   * Quién ocupa el turno ahora mismo. `speaker_start` llega bastante antes que
+   * el primer delta —spawn del CLI + primer token del modelo—, así que la fila
+   * viva se pinta desde el turno concedido y no desde el primer texto: si no,
+   * la cabecera anuncia un orador sobre un lienzo vacío.
+   */
+  const liveAgentId = live.streaming?.agentId ?? live.speakingAgentId ?? null
+  const liveName = useMemo(
+    () => (liveAgentId ? speakerLabel(liveAgentId) : ''),
+    [liveAgentId, speakerLabel],
+  )
 
   const seats = useMemo(() => brainstormSeats({
     participantAgentIds: participantResolution.resolvedIds,
@@ -221,6 +235,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     && participantResolution.resolvedIds.length >= 2
   const showStop = isBrainstormStoppable(live.status) || live.status === 'paused'
   const showComposer = live.status === 'running' || live.status === 'paused'
+  const canFinish = !isBrainstormLive(live.status)
+  /**
+   * Un solo primario en el pie. La sala terminada de forma natural tiene como
+   * acción por defecto salir: equivocarse ahí no cuesta nada (el acta queda
+   * guardada), mientras que pulsar «una ronda más» por inercia gasta una
+   * tirada entera de CLI. Detenida a mano manda Reanudar, que para eso se
+   * detuvo, y cerrar baja a secundario.
+   */
+  const finishIsPrimary = live.status === 'done'
   const showContinueRound = live.status === 'done' && maxRounds < BRAINSTORM_MAX_ROUNDS_CAP
     && participantResolution.resolvedIds.length >= 2
   // `round` es índice de ronda en curso: la ronda humana es +1, salvo al terminar.
@@ -309,9 +332,14 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     })
   }
 
-  // Cerrar = minimizar: el runner vive en main y sigue emitiendo. Detener es Stop.
+  /**
+   * Cerrar = minimizar mientras el runner vive en main y sigue emitiendo.
+   * Ya terminada no hay nada que mantener vivo: la suelta del plano, que si no
+   * la sala se queda pegada y el botón del plano nunca vuelve a «Nueva sala».
+   */
   const handleClose = (): void => {
-    onClose()
+    if (canFinish && onFinish) onFinish()
+    else onClose()
   }
 
   const handleHumanSend = useCallback((text: string, targetAgentId?: string): void => {
@@ -360,7 +388,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           ) : null}
           {showContinueRound ? (
             <Tooltip content={t('tabs.brainstormContinueRoundHint', { max: BRAINSTORM_MAX_ROUNDS_CAP })}>
-              <Button variant="primary" size="sm" onClick={handleContinueRound}>
+              <Button variant="secondary" size="sm" onClick={handleContinueRound}>
                 {t('tabs.brainstormContinueRound')}
               </Button>
             </Tooltip>
@@ -370,7 +398,18 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
               {t('tabs.brainstormStop')}
             </Button>
           ) : null}
-          <Button variant="secondary" size="sm" onClick={handleClose}>
+          {canFinish && onFinish ? (
+            <Tooltip content={t('tabs.brainstormFinishHint')}>
+              <Button
+                variant={finishIsPrimary ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={onFinish}
+              >
+                {t('tabs.brainstormFinish')}
+              </Button>
+            </Tooltip>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={onClose}>
             {t('tabs.brainstormClose')}
           </Button>
         </div>
@@ -500,32 +539,41 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
               </React.Fragment>
             )
           })}
-          {live.streaming ? (
+          {liveAgentId ? (
             <article
               className="brainstorm-room-view__row brainstorm-room-view__row--live"
               style={{
                 '--brainstorm-speaker': paletteColorForSeed(
-                  resolveBrainstormParticipantDisplay(
-                    live.streaming.agentId,
-                    agents,
-                  ).agentId,
+                  resolveBrainstormParticipantDisplay(liveAgentId, agents).agentId,
                 ),
               } as React.CSSProperties}
             >
               <span className="brainstorm-room-view__lane" aria-hidden />
               <div className="brainstorm-room-view__entry">
                 <span className="brainstorm-room-view__speaker">
-                  {t('tabs.brainstormSpeakerWriting', { name: streamingName })}
+                  {live.streaming
+                    ? t('tabs.brainstormSpeakerWriting', { name: liveName })
+                    : t('tabs.brainstormSpeakerThinking', { name: liveName })}
                 </span>
                 <ChatBubble variant="assistant" live>
                   <AiMarkdown
-                    content={stripBrainstormProtocolFences(live.streaming.text)}
+                    content={live.streaming
+                      ? stripBrainstormProtocolFences(live.streaming.text)
+                      : ''}
                     showCursor
                   />
                 </ChatBubble>
               </div>
             </article>
           ) : null}
+          {/* Hueco entre arrancar y conceder el primer turno: main está leyendo
+              el material de disco y armando el prompt. */}
+          {!live.messages.length && !liveAgentId
+            && (live.status === 'running' || live.status === 'idle') ? (
+              <p className="brainstorm-room-view__warmup" role="status">
+                {t('tabs.brainstormRoomWarmup')}
+              </p>
+            ) : null}
           <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
         </div>
 

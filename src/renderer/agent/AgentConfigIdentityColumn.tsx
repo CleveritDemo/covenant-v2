@@ -7,10 +7,14 @@ import {
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
 import { agentMonogram } from '@shared/tabContextAppearance'
-import { CEREMONY_ROLE_IDS, sanitizeCeremonyRoleId } from '@shared/agileCeremonies'
+import {
+  CEREMONY_ROLE_IDS,
+  candidateCeremonyRoles,
+  sanitizeCeremonyRoleIds,
+} from '@shared/agileCeremonies'
 import { AGENT_IDENTITY_TEMPLATES } from '@shared/agentIdentityTemplates'
 import { useT } from '@i18n/useT'
-import { Input, Select, TextArea } from '../components/ui'
+import { Input, TextArea } from '../components/ui'
 import { CEREMONY_ROLE_KEY } from '../workspace/ceremonyLabels'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentConfigSlugField } from './AgentConfigSlugField'
@@ -40,6 +44,8 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
   onCommit,
 }) => {
   const { t } = useT()
+  // Tolera la ficha antigua de un solo rol, que el draft aún puede traer.
+  const selectedCeremonyRoles = candidateCeremonyRoles(draft)
 
   if (section === 'objective') {
     const used = draft.objective.length
@@ -149,31 +155,54 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
       </div>
 
       {/* Fuera de la fila de identidad: esa rejilla es de 3 columnas (68px 1fr
-          1fr) y un cuarto campo caía en la de 68px, estrujado. */}
-      <label className="agent-config-identity__field agent-config-identity__field--ceremony">
+          1fr) y un cuarto campo caía en la de 68px, estrujado.
+
+          Varios roles a la vez: en un equipo real un Tech Lead también programa
+          y prueba. Se marcan los que el agente puede cubrir; la sala reparte
+          antes de doblar, así que declarar de más no le quita el sitio a nadie. */}
+      <div className="agent-config-identity__field agent-config-identity__field--ceremony">
         <span className="agent-config-identity__label">
-          {t('agentPane.ceremonyRoleLabel')}
+          {t('agentPane.ceremonyRolesLabel')}
         </span>
-        <span className="agent-config-identity__control">
-          <Select
-            value={draft.ceremonyRole ?? ''}
-            onChange={next => {
-              onChange({ ceremonyRole: sanitizeCeremonyRoleId(next) })
-              onCommit()
-            }}
-            options={[
-              { value: '', label: t('agentPane.ceremonyRoleNone') },
-              ...CEREMONY_ROLE_IDS.map(id => ({
-                value: id,
-                label: t(CEREMONY_ROLE_KEY[id]),
-              })),
-            ]}
-          />
-        </span>
+        <div
+          className="agent-config-identity__roles"
+          role="group"
+          aria-label={t('agentPane.ceremonyRolesLabel')}
+        >
+          {CEREMONY_ROLE_IDS.map(id => {
+            const on = selectedCeremonyRoles.includes(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                className={[
+                  'agent-config-identity__role',
+                  on ? 'agent-config-identity__role--on' : '',
+                ].filter(Boolean).join(' ')}
+                aria-pressed={on}
+                disabled={locked}
+                onClick={() => {
+                  onChange({
+                    ceremonyRoles: sanitizeCeremonyRoleIds(
+                      on
+                        ? selectedCeremonyRoles.filter(role => role !== id)
+                        : [...selectedCeremonyRoles, id],
+                    ),
+                  })
+                  onCommit()
+                }}
+              >
+                {t(CEREMONY_ROLE_KEY[id])}
+              </button>
+            )
+          })}
+        </div>
         <span className="agent-config-identity__hint">
-          {t('agentPane.ceremonyRoleHint')}
+          {selectedCeremonyRoles.length
+            ? t('agentPane.ceremonyRolesHint')
+            : t('agentPane.ceremonyRolesEmptyHint')}
         </span>
-      </label>
+      </div>
 
       <AgentConfigSlugField
         value={draft.id}

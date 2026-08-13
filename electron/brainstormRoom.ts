@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
 import type { AgentCliStartRequest, AgentCliUiEvent } from '../src/shared/agentCliTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
+import { ceremonyRolesForAgent } from '../src/shared/agileCeremonies'
 import type { TabContext } from '../src/shared/tabContext'
 import {
   advanceBrainstormCursor,
@@ -345,12 +346,18 @@ export async function runBrainstormSequence(
     const agentName = agent.name?.trim() || agent.id
     const speakRound = room.round
     const paneId = brainstormPaneId(deps.roomId, agent.id)
+    // Los asientos se reparten entre todos los participantes, no solo el que
+    // habla: quién cubre qué depende de con quién más está sentado.
+    const seatedAgents = room.participantAgentIds
+      .map(id => deps.resolveAgent(id))
+      .filter((item): item is ProjectAgentDefinition => Boolean(item))
     const prompt = buildBrainstormTurnPrompt(
       room,
       agent.id,
       agentName,
       agent.role,
       deps.buildWorkingSet?.(room),
+      ceremonyRolesForAgent(room.ceremony, seatedAgents, agent.id),
     )
 
     deps.emit({ type: 'speaker_start', agentId: agent.id, round: speakRound })

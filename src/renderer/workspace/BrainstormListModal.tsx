@@ -38,6 +38,8 @@ export interface BrainstormListModalProps {
   agents?: ProjectAgentDefinition[]
   onClose: () => void
   onCreate: () => void
+  /** Alternativa: sentar a los invitados en la mesa del lienzo antes del brief. */
+  onCreateFromTable?: () => void
   onOpenRoom: (room: BrainstormRoom) => void
   /** Una sala se registró como contexto: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
@@ -97,6 +99,7 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
   agents = [],
   onClose,
   onCreate,
+  onCreateFromTable,
   onOpenRoom,
   onContextSaved,
 }) => {
@@ -323,6 +326,19 @@ export const BrainstormListModal: React.FC<BrainstormListModalProps> = ({
               <Button variant="secondary" size="sm" onClick={onClose}>
                 {t('common.cancel')}
               </Button>
+              {/* Camino largo: sentar arrastrando en el lienzo antes del brief. */}
+              {onCreateFromTable ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    onClose()
+                    onCreateFromTable()
+                  }}
+                >
+                  {t('tabs.brainstormsCreateFromTable')}
+                </Button>
+              ) : null}
               <Button
                 variant="primary"
                 size="sm"

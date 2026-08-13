@@ -177,8 +177,9 @@ export interface TabAgenticPlaneProps {
   onBrainstormTableContinue?: () => void
   brainstormNeedFolderHint?: string
   canOpenBrainstorm?: boolean
-  brainstormsListOpen?: boolean
-  onBrainstormsListOpenChange?: (open: boolean) => void
+  /** Arranque de una sala nueva: es lo que abre el botón cuando no hay sala viva. */
+  brainstormStartOpen?: boolean
+  onBrainstormStartOpenChange?: (open: boolean) => void
   brainstormsListButtonLabel?: string
   /** Sala minimizada que sigue viva: punto en el botón + flyout anclado. */
   brainstormLive?: BrainstormLiveSummary | null
@@ -372,8 +373,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onRestoreBrainstorm,
   onStopBrainstorm,
   onDiscardBrainstorm,
-  brainstormsListOpen = false,
-  onBrainstormsListOpenChange,
+  brainstormStartOpen = false,
+  onBrainstormStartOpenChange,
   brainstormsListButtonLabel = 'Brainstorms',
   loopsTitle,
   loopsSubtitle,
@@ -690,14 +691,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             pressed={pulseOpen}
             onClick={() => setPulseOpen(open => !open)}
           />
-          {onBrainstormsListOpenChange ? (
+          {onBrainstormStartOpenChange ? (
             <span className="plane-brainstorm-anchor">
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
                 pressed={
                   brainstormHasRoom || Boolean(brainstormLive)
                     ? brainstormDockOpen
-                    : brainstormsListOpen
+                    : brainstormStartOpen
                 }
                 disabled={!canOpenBrainstorm}
                 disabledTitle={brainstormNeedFolderHint}
@@ -710,7 +711,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                     return
                   }
                   if (hasRoom) onBrainstormDockOpenChange?.(!brainstormDockOpen)
-                  else onBrainstormsListOpenChange(!brainstormsListOpen)
+                  else onBrainstormStartOpenChange(!brainstormStartOpen)
                 }}
               />
               {brainstormLive && isBrainstormLive(brainstormLive.status) ? (

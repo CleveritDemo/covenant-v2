@@ -84,18 +84,6 @@
 }
 
 /* El monograma son 2 caracteres: no merece una columna igual que name/role. */
-/* El campo ocupa el ancho para que la pista respire; el select se queda
-   estrecho, que con 9 opciones cortas no necesita más. */
-.agent-config-identity__field--ceremony .agent-config-identity__control {
-  display: block;
-  width: 100%;
-  max-width: 260px;
-}
-
-.agent-config-identity__field--ceremony .agent-config-identity__hint {
-  max-width: 52ch;
-}
-
 .agent-config-identity__row--identity {
   grid-template-columns: 68px 1fr 1fr;
 }
@@ -104,5 +92,54 @@
   .agent-config-identity__row,
   .agent-config-identity__row--identity {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Roles de ceremonia: se marcan varios, no es un desplegable de uno. */
+.agent-config-identity__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-config-identity__role {
+  appearance: none;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.agent-config-identity__role:hover:not(:disabled) {
+  border-color: var(--accent-dim);
+  color: var(--text);
+}
+
+.agent-config-identity__role--on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.agent-config-identity__role:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-config-identity__role:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-config-identity__role {
+    transition: none;
   }
 }

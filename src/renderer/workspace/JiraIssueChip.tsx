@@ -29,16 +29,27 @@ export const JiraIssueChip: React.FC<JiraIssueChipProps> = ({
   onOpen,
 }) => {
   const { t } = useT()
+  const staleHint = t('jira.staleHint')
   return (
-    <Tooltip content={summary} hint={stale ? t('jira.staleHint') : status}>
+    <Tooltip content={summary} hint={stale ? staleHint : status}>
       <button
         type="button"
         className={['jira-chip', stale ? 'jira-chip--stale' : ''].filter(Boolean).join(' ')}
         onClick={onOpen}
       >
-        <Icon name="jira" size={12} />
+        <Icon name="jira" size={12} aria-hidden />
         <span className="jira-chip__key">{issueKey}</span>
         {status ? <span className="jira-chip__status">{status}</span> : null}
+        {/*
+         * El borde punteado y el hint del Tooltip son solo un refuerzo: sin
+         * esto, `stale` solo era alcanzable pasando el cursor/foco (el
+         * Tooltip monta su burbuja vía `createPortal` solo si `visible`, sin
+         * `aria-describedby`). Este `<span>` queda "visible" para el cálculo
+         * del nombre accesible del botón (no usa `display:none` ni
+         * `visibility:hidden`), así que un lector de pantalla lo anuncia
+         * aunque nunca dispare el hover.
+         */}
+        {stale ? <span className="jira-chip__stale-label">{staleHint}</span> : null}
       </button>
     </Tooltip>
   )

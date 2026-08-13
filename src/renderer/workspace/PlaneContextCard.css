@@ -56,3 +56,21 @@
 .plane-context-card--shared {
   filter: none;
 }
+
+/*
+ * Fila jira: el `<span>` ancla del Tooltip (kit) queda como flex item de la
+ * lista en lugar del chip. Mismo problema/arreglo que ya usa
+ * `.git-file-list__row > .ui-tooltip` (GitPanelModal.css): sin `min-width: 0`
+ * su `auto` por defecto desborda la columna angosta y el ellipsis de
+ * `.jira-chip__status` deja de tener efecto.
+ */
+.plane-context-card__jira-wrap {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+}
+
+.plane-context-card__jira-wrap > .ui-tooltip {
+  min-width: 0;
+  width: 100%;
+}

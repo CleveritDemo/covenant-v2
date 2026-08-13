@@ -85,6 +85,7 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
       // ícono genérico de abajo ya hace, para no romper el drag/reorder del
       // mini del agente cuando el contexto es jira.
       <span
+        className="plane-context-card__jira-wrap"
         onClick={event => event.stopPropagation()}
         onPointerDown={event => event.stopPropagation()}
       >

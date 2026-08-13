@@ -88,8 +88,19 @@ export async function refreshStaleJiraContexts(
 
       const issue = await fetchIssue(credentials, issueKey, config.maxComments)
       const metadataLine = jiraContextMetadataLine(issueKey)
+      // Releer justo antes de componer, no reusar `currentContent`: ese valor
+      // solo sirve para decidir si hacía falta el fetch (arriba), pero el
+      // `await` de la línea anterior puede tardar hasta `TIMEOUT_MS` (10s,
+      // `jiraClient.ts`), y en esa ventana otro escritor —
+      // `mergeAnnotations` vía `TAB_CONTEXT_MERGE_ANNOTATIONS`, que sí toca
+      // `jira` (excluye solo changelog/notes/agentResult)— puede haber
+      // guardado anotaciones nuevas. Componer desde la copia pre-fetch las
+      // pisaría sin error: el read-modify-write deja de ser atómico en
+      // cuanto hay un `await` en medio, así que el "modify" tiene que leer
+      // lo más tarde posible.
+      const latestContent = existsSync(filePath) ? readFileSync(filePath, 'utf8') : ''
       const next = withJiraAutoBlock(
-        currentContent,
+        latestContent,
         metadataLine,
         issueAutoMarkdown(issue, config.maxComments),
       )

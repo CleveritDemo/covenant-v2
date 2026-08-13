@@ -5,8 +5,16 @@ import { join } from 'path'
 import type { TabContext } from '../../src/shared/tabContext'
 import type { JiraIssueSnapshot } from '../../src/shared/jiraIssue'
 
+// Estado mutable compartido con el factory de vi.mock (que se hoistea por
+// encima de los imports) — mismo patrón que `jiraConfig.test.ts` y
+// `tabContextBuildJira.test.ts`. Sin esto, `app.getPath` apuntaría siempre a
+// `tmpdir()` (el `/tmp` real, no un subdirectorio de test), y
+// `writeJiraCredentials` escribiría `jira-credentials.json` sin cifrar en una
+// ruta fija fuera de cualquier `mkdtempSync`, sobreviviendo entre corridas.
+const mockState = vi.hoisted(() => ({ userDataDir: '' }))
+
 vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir() },
+  app: { getPath: () => mockState.userDataDir },
   safeStorage: {
     isEncryptionAvailable: () => false,
     encryptString: (value: string) => Buffer.from(value),
@@ -46,6 +54,9 @@ const context: TabContext = {
 function project(): string {
   const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-refresh-'))
   mkdirSync(join(dir, '.gravity', 'jira'), { recursive: true })
+  // Credenciales en su propio temp dir, no en el `dir` del proyecto (que es
+  // `.gravity/`, no userData) ni en el `tmpdir()` real compartido entre tests.
+  mockState.userDataDir = mkdtempSync(join(tmpdir(), 'gravity-jira-userdata-'))
   writeJiraConfig(dir, {
     site: 'https://x.atlassian.net',
     projectKeys: ['GRAV'],
@@ -157,6 +168,61 @@ describe('refreshStaleJiraContexts', () => {
     await refreshStaleJiraContexts([noKeyContext], dir, { fetchIssue })
     expect(fetchIssue).toHaveBeenCalledWith(expect.anything(), 'GRAV-412', 10)
     expect(readFileSync(issuePath(dir), 'utf8')).toContain('nuevo título')
+  })
+
+  // Regresión del round 3: `currentContent` se leía antes del `await
+  // fetchIssue`, y el `writeFileSync` final componía desde esa copia
+  // pre-fetch. Si otro escritor (p. ej. `mergeAnnotations`, alcanzable para
+  // `jira` vía `TAB_CONTEXT_MERGE_ANNOTATIONS`) tocaba el mismo archivo
+  // mientras el fetch estaba en vuelo, sus cambios se perdían sin error al
+  // volver: el "modify" del read-modify-write leía tarde para la decisión de
+  // staleness, pero temprano para el contenido con el que componía. El fix
+  // relee justo antes de `withJiraAutoBlock`.
+  it('un escritor concurrente durante el fetch no pierde sus cambios (ventana de escritura perdida)', async () => {
+    const dir = project()
+    writeFileSync(
+      issuePath(dir),
+      [
+        '<!-- iaterminal:auto -->',
+        '## Resumen',
+        'viejo',
+        '<!-- /iaterminal:auto -->',
+        '',
+        '<!-- iaterminal:notes -->',
+        '(no annotations yet)',
+        '<!-- /iaterminal:notes -->',
+      ].join('\n'),
+      'utf8',
+    )
+    const old = new Date(Date.now() - 3_600_000)
+    utimesSync(issuePath(dir), old, old)
+
+    // Simula `mergeAnnotations` escribiendo mientras el fetch está en vuelo:
+    // el stub muta el archivo en disco (una anotación nueva en `notes`) antes
+    // de resolver, imitando la ventana real de `TIMEOUT_MS` en `jiraClient.ts`.
+    const fetchIssue = async (): Promise<JiraIssueSnapshot> => {
+      writeFileSync(
+        issuePath(dir),
+        [
+          '<!-- iaterminal:auto -->',
+          '## Resumen',
+          'viejo',
+          '<!-- /iaterminal:auto -->',
+          '',
+          '<!-- iaterminal:notes -->',
+          'anotación concurrente de mergeAnnotations',
+          '<!-- /iaterminal:notes -->',
+        ].join('\n'),
+        'utf8',
+      )
+      return snapshot
+    }
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+
+    const body = readFileSync(issuePath(dir), 'utf8')
+    expect(body).toContain('nuevo título')
+    expect(body).toContain('anotación concurrente de mergeAnnotations')
   })
 
   it('un issueKey hostil no escribe fuera de la carpeta del proyecto', async () => {

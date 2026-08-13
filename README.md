@@ -15,7 +15,9 @@ Construida con Electron, React, TypeScript, xterm.js y CodeMirror.
 - Modos de permisos Ask, Auto y Plan, selector de modelo, cancelación y
   reanudación de conversaciones.
 - Contextos reutilizables por pestaña: árbol de carpetas, archivos, símbolos,
-  notas, estado de Git, dependencias o README.
+  notas, estado de Git, dependencias, README o **issues de Jira**.
+- Integración nativa con Jira Cloud: menciona una issue en el composer y su
+  ficha viaja como contexto del turno.
 - Explorador de archivos con búsqueda, operaciones de archivos y editor
   CodeMirror integrado.
 - Panel Git para consultar cambios, hacer stage/unstage, commit, pull y push.
@@ -56,6 +58,7 @@ Abre **Ajustes** dentro de la aplicación para configurar:
 
 - los comandos de Claude Code y Cursor Agent (`claude` y `agent` por defecto);
 - el token de GitHub;
+- la conexión a Jira Cloud (ver más abajo);
 - el idioma;
 - las playlists usadas por los controles de Spotify.
 
@@ -75,6 +78,33 @@ cp .env.example .env.local
 Las credenciales de los agentes no se guardan en Covenant Gravity: cada CLI gestiona
 su propia autenticación.
 
+### Jira
+
+La sección **Jira** de Ajustes conecta el proyecto abierto en la pestaña activa
+con una instancia de Jira Cloud. Necesitas la URL del sitio
+(`https://acme.atlassian.net`), el email de tu cuenta y un API token creado en
+`id.atlassian.com`. Las claves de proyecto (`GRAV, COV`) acotan qué prefijos se
+reconocen como issues: sin ellas, `UTF-8` o `SHA-256` abrirían el buscador.
+
+Como `jira.json` vive en el proyecto, **hace falta tener una carpeta abierta en
+la pestaña**; en una pestaña de terminal sin proyecto el formulario aparece
+deshabilitado.
+
+- El sitio y las claves de proyecto se guardan en `<proyecto>/.gravity/jira.json`,
+  que se commitea. `defaultJql`, `refreshSeconds` y `maxComments` solo se
+  configuran editando ese archivo a mano, y reconectar no los pisa.
+- El email y el API token se guardan cifrados con `safeStorage`, fuera del repo,
+  en `~/Library/Application Support/Covenant Gravity/`. Si el sistema no ofrece
+  almacén seguro, Gravity se niega a guardar el token en lugar de escribirlo en
+  claro.
+- **Desconectar** olvida las credenciales de este equipo y deja intacto el
+  `jira.json` del proyecto.
+
+Al conectar, Gravity añade `.gravity/jira/` al `.gitignore` del proyecto si no
+estaba ya ignorado, y te lo dice: las fichas de las issues contienen
+descripciones y comentarios que, si no, acabarían commiteados por el primer
+`git add .`. Si tu equipo prefiere compartirlas, borra esa línea.
+
 ## Uso de agentes
 
 1. Abre una terminal en la carpeta del proyecto.
@@ -88,6 +118,14 @@ su propia autenticación.
 Los contextos se materializan desde el disco al enviarse. Así, un contexto de
 archivos, Git o dependencias refleja el estado actual del proyecto sin duplicar
 su contenido en la sesión.
+
+Con Jira conectado, escribir `GRAV-` o `@` en el composer abre un buscador de
+issues. Al elegir una, su ficha se guarda como `<proyecto>/.gravity/jira/GRAV-412.md`
+y queda disponible como cualquier otro contexto. Gravity refresca las fichas
+vencidas justo antes de componer el turno (nunca durante), así que el agente
+siempre lee de disco: si Jira está caído, sigue sirviendo la última copia. Cada
+ficha tiene una región automática que el host regenera y otra de notas que
+puedes anotar tú o el agente; el refresco nunca pisa las notas.
 
 > El modo **Auto** permite que el CLI actúe sin solicitar confirmación. Úsalo
 > solamente en carpetas de confianza.
@@ -141,6 +179,8 @@ electron/
   persistence.ts          Configuración, sesiones y conversaciones
   agentCliRuntime.ts      Procesos de Claude Code y Cursor Agent
   tabContextBuild.ts      Materialización de contextos
+  jiraClient.ts           Cliente REST de Jira Cloud
+  jiraContextRefresh.ts   Refresco de fichas vencidas antes del turno
   fileExplorer*.ts        Operaciones del explorador
   gitSessionOps.ts        Operaciones Git
 

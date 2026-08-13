@@ -5,6 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { httpFetch } from './httpFetch'
 import type { McpServerSummary } from '../src/shared/mcpContext'
 import {
   classifyMcpHttpProbe,
@@ -50,7 +51,7 @@ async function probeUrl(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
   try {
-    const response = await fetch(url, {
+    const response = await httpFetch(url, {
       method: 'GET',
       headers: {
         Accept: 'text/event-stream, application/json, */*',

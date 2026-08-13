@@ -14,6 +14,7 @@ import type {
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { renameWorkspaceContext as renameWorkspaceContextHelper } from '../src/shared/orgWorkspaceContent'
 import { clearCovenantSession, loadCovenantSession, persistCovenantSession } from './covenantSession'
+import { describeFetchError, httpFetch } from './httpFetch'
 
 const BASE_URL = process.env.COVENANT_BACKEND_URL || 'https://forge.covenant.uno'
 
@@ -53,15 +54,21 @@ async function parseCovenantError(response: Response): Promise<CovenantApiError>
 }
 
 export async function exchange(githubToken: string): Promise<ExchangeResponse> {
-  const response = await fetch(`${BASE_URL}/auth/exchange`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'User-Agent': 'covenant-client',
-    },
-    body: JSON.stringify({ github_access_token: githubToken }),
-  })
+  let response: Response
+  try {
+    response = await httpFetch(`${BASE_URL}/auth/exchange`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'covenant-client',
+      },
+      body: JSON.stringify({ github_access_token: githubToken }),
+    })
+  } catch (error) {
+    // Status 0: no hubo respuesta HTTP. El mensaje trae el `cause` (proxy, CA, DNS).
+    throw new CovenantApiError(describeFetchError(error), 0)
+  }
 
   if (!response.ok) {
     throw await parseCovenantError(response)
@@ -96,11 +103,15 @@ async function authedFetch(
     if (options.body !== undefined) {
       headers['Content-Type'] = 'application/json'
     }
-    return fetch(`${BASE_URL}${path}`, {
-      method: options.method ?? 'GET',
-      headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    })
+    try {
+      return await httpFetch(`${BASE_URL}${path}`, {
+        method: options.method ?? 'GET',
+        headers,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      })
+    } catch (error) {
+      throw new CovenantApiError(describeFetchError(error), 0)
+    }
   }
 
   if (!cachedJwt) {

@@ -1,3 +1,4 @@
+import { describeFetchError, httpFetch } from './httpFetch'
 import type { GitHubActionsRun, GitHubJob } from '../src/shared/githubActionsTypes'
 
 export class GitHubApiError extends Error {
@@ -38,13 +39,19 @@ export async function githubFetch(
   token: string,
   url: string,
 ): Promise<Response> {
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  })
+  let response: Response
+  try {
+    response = await httpFetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    })
+  } catch (error) {
+    // Status 0: no hubo respuesta HTTP. El mensaje trae el `cause` (proxy, CA, DNS).
+    throw new GitHubApiError(describeFetchError(error), 0)
+  }
 
   if (!response.ok) {
     throw await parseGitHubError(response)

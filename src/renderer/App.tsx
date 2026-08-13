@@ -5344,6 +5344,7 @@ export const App: React.FC = () => {
           tabContexts={tabContextsByTab[tab.id] ?? []}
           orgWorkspace={tab.orgWorkspace}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}
+          onProjectAgentSaved={agent => rememberProjectAgent(paneCatalogKey, agent)}
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
@@ -6141,6 +6142,7 @@ export const App: React.FC = () => {
             onFocusContextConsumed={() => setPlaneContextsFocusId(null)}
             openCreate={planeContextsCreate}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
+            onAgentSaved={agent => rememberProjectAgent(catalogKey, agent)}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               setPlaneContextsFocusId(null)

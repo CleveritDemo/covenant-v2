@@ -574,6 +574,17 @@ const en = {
     group_manual: 'Hand-written',
     groupProject: 'Project contexts',
     groupAgentResults: 'Agent results',
+    filterSearchAria: 'Search contexts',
+    filterSearchPlaceholder: 'Search context or file…',
+    filterAgentLabel: 'Applied to',
+    filterKindLabel: 'Type',
+    filterAll: 'All',
+    filterUnused: 'Unused',
+    filterNoMatch: 'No context matches this filter.',
+    usedByNone: 'unused',
+    usedByAria: 'Applied to: {{agents}}',
+    assignToAgent: 'Apply to {{agent}}',
+    unassignFromAgent: 'Remove from {{agent}}',
   },
 
   tabs: {

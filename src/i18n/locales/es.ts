@@ -576,6 +576,17 @@ const es = {
     group_manual: 'Escrito a mano',
     groupProject: 'Contextos del proyecto',
     groupAgentResults: 'Resultados de agentes',
+    filterSearchAria: 'Buscar contextos',
+    filterSearchPlaceholder: 'Buscar contexto o archivo…',
+    filterAgentLabel: 'Aplicado a',
+    filterKindLabel: 'Tipo',
+    filterAll: 'Todos',
+    filterUnused: 'Sin usar',
+    filterNoMatch: 'Ningún contexto coincide con este filtro.',
+    usedByNone: 'sin usar',
+    usedByAria: 'Aplicado a: {{agents}}',
+    assignToAgent: 'Aplicar a {{agent}}',
+    unassignFromAgent: 'Quitar de {{agent}}',
   },
 
   tabs: {

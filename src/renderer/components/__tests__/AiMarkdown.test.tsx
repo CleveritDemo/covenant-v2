@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { AiMarkdown, parseAiMarkdownBlocks, splitChatSentences } from '../AiMarkdown'
 
 afterEach(cleanup)
@@ -244,6 +244,45 @@ describe('AiMarkdown · inline', () => {
     render(<AiMarkdown content={'[x](javascript:alert(1))'} />)
     expect(screen.queryByRole('link')).toBeNull()
     expect(screen.getByText('x')).toBeTruthy()
+  })
+})
+
+describe('AiMarkdown · openExternalUrl', () => {
+  const openExternalUrl = vi.fn()
+
+  beforeEach(() => {
+    openExternalUrl.mockReset()
+    openExternalUrl.mockResolvedValue({ ok: true })
+    vi.stubGlobal('window', Object.assign(window, { api: { openExternalUrl } }))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens http links via window.api.openExternalUrl and prevents default', () => {
+    render(<AiMarkdown content={'[docs](https://example.com/path)'} />)
+    const link = screen.getByRole('link')
+    const event = createEvent.click(link)
+    fireEvent(link, event)
+    expect(openExternalUrl).toHaveBeenCalledWith('https://example.com/path')
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('opens middle-click via auxclick the same way', () => {
+    render(<AiMarkdown content={'[docs](https://example.com/path)'} />)
+    const link = screen.getByRole('link')
+    const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })
+    fireEvent(link, event)
+    expect(openExternalUrl).toHaveBeenCalledWith('https://example.com/path')
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('renders a javascript: href as a span and does not call openExternalUrl', () => {
+    render(<AiMarkdown content={'[x](javascript:alert(1))'} />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.getByText('x').tagName).toBe('SPAN')
+    expect(openExternalUrl).not.toHaveBeenCalled()
   })
 })
 

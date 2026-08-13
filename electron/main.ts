@@ -13,6 +13,7 @@ import {
 } from 'fs'
 import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
 import { projectDirName } from './projectDir'
+import { openExternalHttpUrl } from './openExternalUrl'
 import {
   app,
   BrowserWindow,
@@ -788,22 +789,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.OPEN_EXTERNAL_URL, async (_e, urlStr: unknown) => {
-    if (typeof urlStr !== 'string' || !urlStr.trim()) {
-      return { ok: false as const, error: 'URL vacía' }
-    }
-    const raw = urlStr.trim()
-    try {
-      const u = new URL(raw)
-      const isHttp = u.protocol === 'http:' || u.protocol === 'https:'
-      if (!isHttp) {
-        return { ok: false as const, error: 'Solo se permiten http(s)' }
-      }
-      await shell.openExternal(raw)
-      return { ok: true as const }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { ok: false as const, error: msg }
-    }
+    return openExternalHttpUrl(typeof urlStr === 'string' ? urlStr : '')
   })
 
   ipcMain.handle(IPC.PROJECT_AI_CONTEXT_GET, (_e, sessionId: string) => {
@@ -2417,6 +2403,23 @@ function createWindow(): BrowserWindow {
       reason: details.reason,
       exitCode: details.exitCode,
     })
+  })
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void openExternalHttpUrl(url)
+    return { action: 'deny' as const }
+  })
+
+  win.webContents.on('will-navigate', (event, url) => {
+    try {
+      const nextOrigin = new URL(url).origin
+      const currentOrigin = new URL(win.webContents.getURL()).origin
+      if (nextOrigin === currentOrigin) return
+      event.preventDefault()
+      void openExternalHttpUrl(url)
+    } catch {
+      event.preventDefault()
+    }
   })
 
   // Mic/media: registerRendererMediaPermissions() en defaultSession (solo ventanas app).

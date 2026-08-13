@@ -7,7 +7,7 @@ export type SelectSize = 'sm' | 'md'
  * `ghost` es para barras de acciones donde todo es fantasma hasta encenderse:
  * ahí una caja con borde es el único elemento que rompe la gramática.
  */
-export type SelectVariant = 'default' | 'ghost'
+export type SelectVariant = 'default' | 'ghost' | 'badge'
 
 export interface SelectOption {
   value: string
@@ -176,7 +176,7 @@ export const Select: React.FC<SelectProps> = ({
         <span className="select__value" data-placeholder={selected ? undefined : true}>
           {selected?.label ?? placeholder ?? value}
         </span>
-        <Icon name="chevron-down" size={variant === 'ghost' ? 12 : 14} aria-hidden />
+        <Icon name="chevron-down" size={variant === 'ghost' || variant === 'badge' ? 12 : 14} aria-hidden />
       </button>
 
       <div

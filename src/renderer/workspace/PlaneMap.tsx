@@ -64,6 +64,11 @@ export interface PlaneMapProps {
   chatActiveAgentId?: string | null
   /** Tab activa: oculta modales portaled del plano. */
   tabActive?: boolean
+  /** Solo fondo: oculta el stage de ventanas (sin desmontarlas) dejando
+   *  visibles atmósfera, grilla y partículas — p. ej. bajo el mapa wiki. */
+  stageHidden?: boolean
+  /** Overlay del mapa wiki: se monta sobre el backdrop y bajo el stage oculto. */
+  wikiOverlay?: React.ReactNode
   /** Mesa de brainstorm abierta: las cards de agente se arrastran a ella. */
   configLabel: string
   deleteLabel: string
@@ -209,6 +214,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   activePaneId,
   chatActiveAgentId = null,
   tabActive = true,
+  stageHidden = false,
+  wikiOverlay = null,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -691,10 +698,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         anyWindowOpen ? 'plane-map--elevated' : '',
         reorderActive ? 'plane-map--reordering' : '',
         wheelScrolling ? 'plane-map--wheel-scrolling' : '',
+        stageHidden ? 'plane-map--stage-hidden' : '',
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
       <PlaneMapBackdrop working={working} />
+      {wikiOverlay ? (
+        <div className="plane-map__wiki-overlay">{wikiOverlay}</div>
+      ) : null}
       {entities.length === 0 ? (
         <div className="plane-map__empty" aria-hidden="true" />
       ) : (

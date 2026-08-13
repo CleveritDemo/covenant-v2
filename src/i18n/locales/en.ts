@@ -815,6 +815,8 @@ const en = {
     wikiCuratorSend: 'Send to the curator',
     wikiCuratorStop: 'Stop the curator',
     wikiCuratorThinking: 'The curator is thinking…',
+    wikiCuratorHistoryLabel: 'Conversation history',
+    wikiCuratorHistoryClear: 'Clear history',
     wikiCuratorConfigOpen: 'Curator settings',
     wikiCuratorConfigTitle: 'Wiki curator',
     wikiCuratorConfigNameLabel: 'Name',

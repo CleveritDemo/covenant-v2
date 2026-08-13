@@ -212,4 +212,35 @@ describe('startWikiCuratorTurn provider', () => {
     expect(requests[0]!.images).toEqual([image])
     expect(requests[0]!.prompt).toContain('(imagen adjunta)')
   })
+
+  it('mensaje /init produce prompt con Init mode; mensaje normal no', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-init-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      handlers.onDone(0)
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: '/init' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(requests[0]!.prompt).toContain('## Init mode')
+
+    requests.length = 0
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(requests[0]!.prompt).not.toContain('## Init mode')
+  })
 })

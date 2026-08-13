@@ -220,3 +220,21 @@ html[data-reduce-motion="true"] {
     will-change: auto;
   }
 }
+
+/* Mapa wiki: encima de grilla/partículas, debajo del stage (oculto con
+   stage-hidden). Así el fondo del plano queda visible sin depender de alpha
+   WebGL a través de un overlay modal de z-index alto. */
+.plane-map__wiki-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+/* Solo fondo (mapa wiki abierto): el stage de ventanas se oculta sin
+   desmontarse — atmósfera, grilla y partículas siguen visibles debajo. */
+.plane-map--stage-hidden .plane-map__stage,
+.plane-map--stage-hidden .plane-map__empty {
+  visibility: hidden;
+}

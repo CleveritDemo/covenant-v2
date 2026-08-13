@@ -31,8 +31,6 @@ const NODE_TYPE_COLOR_VARS: Record<WikiGraphNodeType, [string, string]> = {
   reference: ['--theme-blue', '#60a5fa'],
 }
 
-const BACKGROUND_VAR = '--bg'
-const BACKGROUND_FALLBACK = '#0b0e14'
 const EDGE_VAR = '--text-muted'
 const EDGE_FALLBACK = '#8b93a7'
 /** Red base con reduce motion ON: única representación de conexiones. */
@@ -54,8 +52,9 @@ const BOLT_JITTER_RATIO = 0.045
 /** Fondo mínimo entre descargas por arista (aleatorio). */
 const BOLT_INTERVAL_MIN_MS = 1600
 const BOLT_INTERVAL_MAX_MS = 5200
-/** Núcleo blanco-cian intenso; el halo se tiñe por tipo de nodo. */
-const BOLT_CORE_HEX = '#e9fbff'
+/** El núcleo toma el color del nodo de origen, aclarado hacia blanco para
+ *  conservar el punto caliente del centro. */
+const BOLT_CORE_WHITE_MIX = 0.35
 const BOLT_CORE_OPACITY = 0.95
 const BOLT_HALO_OPACITY = 0.55
 /** Halo externo ancho: mayor jitter y opacidad baja para simular "linewidth"
@@ -66,6 +65,15 @@ const BOLT_GLOW_JITTER_MULT = 2.6
 /** Flash breve en los endpoints (sprite aditivo): enciende los nodos conectados. */
 const BOLT_ENDPOINT_OPACITY = 0.9
 const BOLT_ENDPOINT_SCALE_MULT = 2.8
+/** Luz puntual por descarga (pool compartido): ilumina de verdad los nodos
+ *  vecinos — los materiales de nodo son Lambert para recibirla. */
+const BOLT_LIGHT_POOL = 6
+const BOLT_LIGHT_INTENSITY = 45
+const BOLT_LIGHT_DISTANCE_MULT = 0.75
+/** Glow volumétrico: sprites aditivos a lo largo del rayo (no solo líneas). */
+const BOLT_RAY_GLOW_OPACITY = 0.4
+const BOLT_RAY_GLOW_STOPS = [0.3, 0.5, 0.7] as const
+const BOLT_RAY_GLOW_SCALE = [0.11, 0.16, 0.11] as const
 /** Radio máximo de nodo (linkCount alto) para margen en fit de cámara. */
 const MAX_NODE_RADIUS = 1.65
 /** Dirección de vista inicial al encuadrar el grafo. */
@@ -185,12 +193,20 @@ export function useWikiGraphScene(
 
     let renderer: THREE.WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true })
+      // alpha: el canvas es transparente para que la grilla y las partículas
+      // del plano (PlaneMap, debajo del overlay) sigan visibles tras el mapa.
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        premultipliedAlpha: false,
+      })
     } catch {
       return
     }
+    renderer.setClearColor(0x000000, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     const canvas = renderer.domElement
+    canvas.style.background = 'transparent'
     container.appendChild(canvas)
 
     const scene = new THREE.Scene()
@@ -217,7 +233,12 @@ export function useWikiGraphScene(
       }
     }
     readThemeColors()
-    scene.background = themeColor(container, BACKGROUND_VAR, BACKGROUND_FALLBACK)
+    // Sin scene.background: el fondo lo pone el CSS translúcido de la vista,
+    // dejando pasar la grilla y las partículas del plano.
+
+    // Ambiente a intensidad 1: los nodos Lambert lucen igual que con material
+    // básico en reposo, pero reciben las luces puntuales de las descargas.
+    scene.add(new THREE.AmbientLight('#ffffff', 1))
 
     const sceneNodes: SceneNode[] = []
     const pickMeshes: THREE.Mesh[] = []
@@ -227,7 +248,7 @@ export function useWikiGraphScene(
       const radius = nodeRadius(node.linkCount)
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 24, 24),
-        new THREE.MeshBasicMaterial({ color: color.clone() }),
+        new THREE.MeshLambertMaterial({ color: color.clone() }),
       )
       mesh.position.set(x, y, z)
       mesh.userData.slug = node.slug
@@ -285,6 +306,10 @@ export function useWikiGraphScene(
       glowMat: THREE.LineBasicMaterial
       flashFrom: THREE.Sprite | null
       flashTo: THREE.Sprite | null
+      /** Glow volumétrico a lo largo del rayo; vacío sin glowTexture. */
+      rayGlows: THREE.Sprite[]
+      /** Luz del pool asignada mientras dispara; null en idle o pool agotado. */
+      light: THREE.PointLight | null
       state: 'idle' | 'firing'
       startedAt: number
       nextFireAt: number
@@ -293,8 +318,23 @@ export function useWikiGraphScene(
       peak: number
     }
     const bolts: Bolt[] = []
-    const coreColor = new THREE.Color(BOLT_CORE_HEX)
+    const coreWhite = new THREE.Color('#ffffff')
+    /** Núcleo del rayo: color del nodo de origen aclarado hacia blanco. */
+    const boltCoreColor = (type: WikiGraphNodeType): THREE.Color =>
+      (nodeColors.get(type) ?? coreWhite).clone().lerp(coreWhite, BOLT_CORE_WHITE_MIX)
     const boltStartOffset = performance.now()
+    // Pool de luces puntuales: pocas luces reales compartidas entre todas las
+    // aristas (WebGL no aguanta una por arista); la descarga toma una libre.
+    const lightPool: THREE.PointLight[] = []
+    const allLights: THREE.PointLight[] = []
+    if (!reducedMotion) {
+      for (let i = 0; i < BOLT_LIGHT_POOL; i++) {
+        const light = new THREE.PointLight('#ffffff', 0, 1, 2)
+        scene.add(light)
+        lightPool.push(light)
+        allLights.push(light)
+      }
+    }
     if (!reducedMotion) {
       edgeEnds.forEach((edge, i) => {
         const dir = new THREE.Vector3().subVectors(edge.to, edge.from)
@@ -324,9 +364,11 @@ export function useWikiGraphScene(
           const t = s / BOLT_SEGMENTS
           const bell = Math.sin(t * Math.PI)
           const intensity = 0.55 + 0.45 * bell
-          coreVertexColors[s * 3] = coreColor.r * intensity
-          coreVertexColors[s * 3 + 1] = coreColor.g * intensity
-          coreVertexColors[s * 3 + 2] = coreColor.b * intensity
+          // Blanco puro: el tinte del origen lo pone el color del material
+          // (los vertex colors multiplican al material en LineBasicMaterial).
+          coreVertexColors[s * 3] = intensity
+          coreVertexColors[s * 3 + 1] = intensity
+          coreVertexColors[s * 3 + 2] = intensity
         }
         coreGeom.setAttribute('color', new THREE.BufferAttribute(coreVertexColors, 3))
         const haloGeom = new THREE.BufferGeometry()
@@ -335,7 +377,7 @@ export function useWikiGraphScene(
         glowGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
 
         const coreMat = new THREE.LineBasicMaterial({
-          color: coreColor.clone(),
+          color: boltCoreColor(edge.type),
           vertexColors: true,
           transparent: true,
           opacity: 0,
@@ -390,6 +432,32 @@ export function useWikiGraphScene(
           flashTo = makeFlash(edge.to)
         }
 
+        // Glow volumétrico: sprites aditivos repartidos a lo largo del rayo.
+        // Las líneas WebGL son de 1px y se ven planas; estos discos dan el
+        // volumen de luz que emite la descarga.
+        const rayGlows: THREE.Sprite[] = []
+        if (glowTexture) {
+          const rayColor = nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')
+          BOLT_RAY_GLOW_STOPS.forEach((stop, gi) => {
+            const s = new THREE.Sprite(new THREE.SpriteMaterial({
+              map: glowTexture,
+              color: rayColor.clone(),
+              blending: THREE.AdditiveBlending,
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+            }))
+            s.scale.setScalar(length * (BOLT_RAY_GLOW_SCALE[gi] ?? 0.16))
+            s.position.set(
+              edge.from.x + (edge.to.x - edge.from.x) * stop,
+              edge.from.y + (edge.to.y - edge.from.y) * stop,
+              edge.from.z + (edge.to.z - edge.from.z) * stop,
+            )
+            scene.add(s)
+            rayGlows.push(s)
+          })
+        }
+
         const stagger = Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
         bolts.push({
           edgeIndex: i,
@@ -408,6 +476,8 @@ export function useWikiGraphScene(
           glowMat,
           flashFrom,
           flashTo,
+          rayGlows,
+          light: null,
           state: 'idle',
           startedAt: 0,
           nextFireAt: boltStartOffset + stagger,
@@ -486,19 +556,21 @@ export function useWikiGraphScene(
 
     const applyTheme = (): void => {
       readThemeColors()
-      scene.background = themeColor(container, BACKGROUND_VAR, BACKGROUND_FALLBACK)
       edgeMaterial.color = themeColor(container, EDGE_VAR, EDGE_FALLBACK)
       for (const sceneNode of sceneNodes) {
         const color = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
-        ;(sceneNode.mesh.material as THREE.MeshBasicMaterial).color.copy(color)
+        ;(sceneNode.mesh.material as THREE.MeshLambertMaterial).color.copy(color)
       }
       for (const bolt of bolts) {
         const color = nodeColors.get(edgeEnds[bolt.edgeIndex]!.type) ?? new THREE.Color('#ffffff')
         bolt.haloMat.color.copy(color)
         bolt.glowMat.color.copy(color)
-        bolt.coreMat.color.copy(coreColor)
+        bolt.coreMat.color.copy(boltCoreColor(edgeEnds[bolt.edgeIndex]!.type))
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).color.copy(color)
         if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).color.copy(color)
+        for (const glow of bolt.rayGlows) {
+          (glow.material as THREE.SpriteMaterial).color.copy(color)
+        }
       }
       render()
     }
@@ -598,6 +670,21 @@ export function useWikiGraphScene(
             bolt.startedAt = now
             bolt.peak = 0.72 + Math.random() * 0.28
             rewriteBolt(bolt, 1)
+            // Toma una luz libre del pool: la descarga ilumina a sus vecinos.
+            const light = lightPool.pop() ?? null
+            if (light) {
+              const edge = edgeEnds[bolt.edgeIndex]!
+              light.color.copy(
+                nodeColors.get(edge.type) ?? new THREE.Color('#ffffff'),
+              )
+              light.position.set(
+                (edge.from.x + edge.to.x) / 2,
+                (edge.from.y + edge.to.y) / 2,
+                (edge.from.z + edge.to.z) / 2,
+              )
+              light.distance = bolt.length * BOLT_LIGHT_DISTANCE_MULT
+              bolt.light = light
+            }
           } else {
             continue
           }
@@ -610,6 +697,14 @@ export function useWikiGraphScene(
           bolt.glowMat.opacity = 0
           if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = 0
           if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = 0
+          for (const glow of bolt.rayGlows) {
+            (glow.material as THREE.SpriteMaterial).opacity = 0
+          }
+          if (bolt.light) {
+            bolt.light.intensity = 0
+            lightPool.push(bolt.light)
+            bolt.light = null
+          }
           const gap = BOLT_INTERVAL_MIN_MS
             + Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
           bolt.nextFireAt = now + gap
@@ -630,6 +725,14 @@ export function useWikiGraphScene(
         const flash = BOLT_ENDPOINT_OPACITY * eased * eased
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = flash
         if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = flash
+        // Glow volumétrico y luz real siguen el mismo envelope del rayo.
+        for (const glow of bolt.rayGlows) {
+          (glow.material as THREE.SpriteMaterial).opacity =
+            BOLT_RAY_GLOW_OPACITY * envelope
+        }
+        if (bolt.light) {
+          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope
+        }
         // Un pequeño re-jitter a mitad de vida da sensación de descarga viva.
         if (t > 0.45 && t < 0.55) rewriteBolt(bolt, 0.7)
       }
@@ -665,7 +768,11 @@ export function useWikiGraphScene(
         bolt.glowMat.dispose()
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.Material).dispose()
         if (bolt.flashTo) (bolt.flashTo.material as THREE.Material).dispose()
+        for (const glow of bolt.rayGlows) {
+          (glow.material as THREE.Material).dispose()
+        }
       }
+      for (const light of allLights) light.dispose()
       edgeGeometry.dispose()
       edgeMaterial.dispose()
       glowTexture?.dispose()

@@ -4,7 +4,6 @@
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { TabAgenticPlane, type TabAgenticPlaneProps } from '../TabAgenticPlane'
 
 vi.mock('@i18n/useT', () => ({
@@ -18,7 +17,9 @@ vi.mock('../useWikiGraphScene', () => ({
 
 // Hijos pesados del plano (canvas, xterm, dictado): stubs — el toggle no los necesita.
 vi.mock('../PlaneMap', () => ({
-  PlaneMap: () => <div data-testid="plane-map" />,
+  PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
+    <div data-testid="plane-map">{wikiOverlay}</div>
+  ),
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
 vi.mock('../PlaneChatDock', () => ({ PlaneChatDock: () => null }))
@@ -91,11 +92,10 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     const view = wikiView()
     expect(view).not.toBeNull()
     expect(wikiButton().getAttribute('aria-pressed')).toBe('true')
-    // Dentro del plano del workspace (no body): no tapa otros tabs; z alto
-    // frente al stacking de PlaneMap para que las PaneWindow no lo tapen.
+    // Dentro del plano del workspace (no body): montado en PlaneMap sobre el backdrop.
     expect(view!.closest('.tab-agentic-plane')).toBeTruthy()
+    expect(view!.closest('[data-testid="plane-map"]')).toBeTruthy()
     expect(view!.parentElement).not.toBe(document.body)
-    expect(view!.style.zIndex).toBe(String(APP_OVERLAY_MODAL_Z))
     // Sin WebGL (jsdom) la vista muestra el aviso en lugar del canvas.
     expect(screen.getByText('tabs.wikiMapNoWebgl')).toBeTruthy()
 
@@ -147,7 +147,7 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(view).not.toBeNull()
     const barAfterOpen = document.querySelector('.plane-top-left-bar') as HTMLElement | null
     expect(barAfterOpen).not.toBeNull()
-    // Con el mapa abierto la barra sube por encima del overlay (z 675 > 670).
+    // Con el mapa abierto la barra sigue por encima del plano (z 70 > plane-map 16).
     expect(barAfterOpen!.classList.contains('plane-top-left-bar--over-wiki')).toBe(true)
     // El chrome propio de wiki queda agrupado en un solo header y no ocupa
     // la esquina superior izquierda; título + leyenda + cerrar viven juntos.
@@ -156,7 +156,7 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(wikiBar!.querySelector('.wiki-graph-view__title')).toBeTruthy()
     expect(wikiBar!.querySelector('.wiki-graph-view__legend')).toBeTruthy()
     expect(wikiBar!.querySelector('.wiki-graph-view__close')).toBeTruthy()
-    // La barra izquierda queda fuera del overlay: son hermanos, no descendientes.
+    // La barra izquierda queda fuera del overlay wiki (hermanos en tab-agentic-plane).
     expect(view!.contains(barAfterOpen)).toBe(false)
 
     fireEvent.click(wikiButton())

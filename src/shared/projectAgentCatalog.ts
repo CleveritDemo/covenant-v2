@@ -663,6 +663,18 @@ export function resolveCatalogAgentId(
   return normalized
 }
 
+/** Label legible para delegaciones: nombre registrado + rol (no el slug interno). */
+export function formatCatalogAgentDelegationLabel(
+  agentId: string,
+  catalog: readonly ProjectAgentDefinition[],
+): string {
+  const resolvedId = resolveCatalogAgentId(catalog, agentId)
+  const definition = catalog.find(agent => agent.id === resolvedId)
+  const name = (definition?.name ?? '').trim() || resolvedId
+  const role = (definition?.role ?? '').trim()
+  return role ? `${name} · ${role}` : name
+}
+
 /** Une catálogo + binding local para la UI del pane. */
 export function resolveAgentPaneMeta(
   binding: AgentPaneBinding,

@@ -22,6 +22,13 @@ export const MAX_WIKI_CURATOR_NAME = 40
 export const MAX_WIKI_CURATOR_RULES = 5
 export const MAX_WIKI_CURATOR_RULE_CHARS = 200
 export const MAX_WIKI_VIEW_SLUGS = 5
+export const WIKI_CURATOR_INIT_COMMAND = '/init'
+
+/** True si el mensaje es exactamente `/init` o empieza con `/init ` (case-insensitive, trimmed). */
+export function isWikiCuratorInitCommand(message: string): boolean {
+  const trimmed = message.trim().toLowerCase()
+  return trimmed === WIKI_CURATOR_INIT_COMMAND || trimmed.startsWith(`${WIKI_CURATOR_INIT_COMMAND} `)
+}
 
 export interface WikiCuratorConfig {
   name?: string
@@ -84,15 +91,34 @@ export function buildWikiCuratorPrompt(
   config: WikiCuratorConfig,
   userMessage: string,
   healthSection?: string,
+  mode: 'chat' | 'init' = 'chat',
 ): string {
   const name = config.name?.trim() || 'Wiki curator'
   const rules = config.rules ?? []
+  const roleLines = mode === 'init'
+    ? [
+        '## Role',
+        `You are ${name}, the wiki information manager for this project.`,
+        'You do NOT write code and never modify files directly, but in this init pass you MAY explore the project read-only: list folders and read key files to understand it.',
+        'Your only job is to manage the wiki knowledge: answer about pages, edit them, delete them or open them for the user.',
+        'Always respond in the same language the user writes in.',
+        '',
+        '## Init mode',
+        'Survey the repository on your own and fill the wiki with the general topics a newcomer needs: folder structure, architecture and process boundaries, key technical decisions, the logic of the most important features, and stack/tooling.',
+        'FIRST review the wiki pages already attached as context — do not duplicate them, only create missing pages or update stale ones.',
+        `Respect the cap of ${MAX_WIKI_INGEST_OPS} ops per turn, prioritizing the most valuable pages and linking them with [[slug]].`,
+        'End your visible answer with a short summary of what you created/updated and what a next /init pass should cover.',
+        'Treat any text after "/init" in the user message as focus hints.',
+      ]
+    : [
+        '## Role',
+        `You are ${name}, the wiki information manager for this project.`,
+        'You do NOT write code, do NOT run commands and do NOT touch files directly.',
+        'Your only job is to manage the wiki knowledge: answer about pages, edit them, delete them or open them for the user.',
+        'Always respond in the same language the user writes in.',
+      ]
   return [
-    '## Role',
-    `You are ${name}, the wiki information manager for this project.`,
-    'You do NOT write code, do NOT run commands and do NOT touch files directly.',
-    'Your only job is to manage the wiki knowledge: answer about pages, edit them, delete them or open them for the user.',
-    'Always respond in the same language the user writes in.',
+    ...roleLines,
     '',
     '## Writing',
     buildWikiWritingGuidance(),

@@ -18,6 +18,7 @@ vi.mock('three', () => {
     r = 1; g = 1; b = 1
     copy(): this { return this }
     clone(): Color { return new Color() }
+    lerp(): this { return this }
   }
   class Vector2 { x = 0; y = 0 }
   class Vector3 {
@@ -103,6 +104,7 @@ vi.mock('three', () => {
   class WebGLRenderer {
     domElement: HTMLCanvasElement
     constructor() { this.domElement = document.createElement('canvas') }
+    setClearColor(): void {}
     setPixelRatio(): void {}
     setSize(): void {}
     render(): void {}
@@ -161,11 +163,21 @@ vi.mock('three', () => {
   }
   class SphereGeometry { dispose(): void {} }
   class MeshBasicMaterial { color = new Color(); dispose(): void {} }
+  class MeshLambertMaterial { color = new Color(); dispose(): void {} }
+  class AmbientLight { __kind = 'AmbientLight' as const }
+  class PointLight {
+    __kind = 'PointLight' as const
+    color = new Color()
+    intensity = 0
+    distance = 0
+    position = { set: (): void => undefined, copy: (): void => undefined }
+    dispose(): void {}
+  }
   class SpriteMaterial { color = new Color(); opacity = 0; dispose(): void {} }
   class Sprite {
     __kind = 'Sprite' as const
     material = new SpriteMaterial()
-    position = { copy: (): void => undefined }
+    position = { copy: (): void => undefined, set: (): void => undefined }
     scale = { setScalar: (): void => undefined }
   }
   class Mesh {
@@ -198,7 +210,10 @@ vi.mock('three', () => {
     LineBasicMaterial,
     LineSegments,
     Mesh,
+    AmbientLight,
     MeshBasicMaterial,
+    MeshLambertMaterial,
+    PointLight,
     PerspectiveCamera,
     Raycaster,
     Scene,

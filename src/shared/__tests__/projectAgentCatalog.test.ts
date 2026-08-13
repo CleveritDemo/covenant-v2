@@ -20,6 +20,7 @@ import {
   remapAgentResultTabContexts,
   resolveAgentPaneMeta,
   resolveCatalogAgentId,
+  formatCatalogAgentDelegationLabel,
   isAgentOwnResultContext,
   agentResultContextIdForSlug,
   tabContextForAgentResult,
@@ -422,6 +423,27 @@ describe('projectAgentCatalog', () => {
     expect(meta.name).toBe('fullstack')
     expect(resolveCatalogAgentId([definition], 'fullstack')).toBe('example2')
     expect(resolveCatalogAgentId([definition], 'example2')).toBe('example2')
+  })
+
+  it('formatCatalogAgentDelegationLabel usa nombre y rol del catálogo', () => {
+    const catalog = [
+      parseProjectAgentDefinition({
+        id: 'frontend',
+        provider: 'claude',
+        permissionMode: 'auto',
+        name: 'David',
+        role: 'frontend engineer',
+      })!,
+      parseProjectAgentDefinition({
+        id: 'qa',
+        provider: 'claude',
+        permissionMode: 'auto',
+        name: 'Vanesa',
+      })!,
+    ]
+    expect(formatCatalogAgentDelegationLabel('frontend', catalog)).toBe('David · frontend engineer')
+    expect(formatCatalogAgentDelegationLabel('qa', catalog)).toBe('Vanesa')
+    expect(formatCatalogAgentDelegationLabel('missing', catalog)).toBe('missing')
   })
 
   it('strips legacy rich meta without catalog writes', () => {

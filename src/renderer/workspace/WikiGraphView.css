@@ -1,14 +1,17 @@
 /*
- * Vista fullscreen del mapa neuronal de la wiki: absolute dentro del plano
- * del workspace (no body), así no tapa otros tabs. El z-index lo pone el
- * componente inline con APP_OVERLAY_MODAL_Z por encima del stacking de
- * PlaneMap. El stacking interno (tooltip) es relativo a este contenedor.
+ * Vista fullscreen del mapa neuronal de la wiki: vive en `.plane-map__wiki-overlay`
+ * (dentro de PlaneMap), sobre grilla y partículas y bajo el stage oculto.
+ * El z-index lo pone el contenedor del plano; el stacking interno (tooltip) es
+ * relativo a este contenedor.
  */
+/* Fondo transparente: el backdrop del plano (grilla + partículas) queda debajo
+   en el mismo stacking context — no hace falta alpha WebGL a través de un modal. */
 .wiki-graph-view {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: transparent;
+  pointer-events: auto;
 }
 
 .wiki-graph-view__canvas {

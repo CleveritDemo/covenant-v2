@@ -78,6 +78,10 @@ export interface PlanePaneWindowProps {
   agentId?: string
   /** Clic en icono results (sin drag) → vista previa del contexto. */
   onOpenResultsPreview?: (contextId: string) => void
+  /** Carpeta del proyecto: la usa el chip jira anidado para pedir su preview vía IPC. */
+  cwd?: string
+  /** Sube cuando los contextos se remateralizan; el chip jira relee su snapshot. */
+  contextsRevision?: number
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -128,6 +132,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onReorderHandlePointerDown,
   agentId,
   onOpenResultsPreview,
+  cwd = '',
+  contextsRevision = 0,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -212,6 +218,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
               <PlaneAgentContextNodes
                 contexts={contexts}
                 onOpenAgent={onOpenChat}
+                cwd={cwd}
+                contextsRevision={contextsRevision}
               />
             ) : null}
           </PlaneMiniFace>

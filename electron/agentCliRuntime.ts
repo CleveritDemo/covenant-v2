@@ -12,9 +12,15 @@ import type {
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
-import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
+import {
+  filterTabContextUpdatesByChangedPaths,
+  extractTabContextUpdates,
+  type TabContext,
+} from '../src/shared/tabContext'
+import { issueKeyFor } from '../src/shared/jiraIssue'
+import { jiraSnapshotHasContent } from '../src/shared/jiraIssueDoc'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
-import { buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
+import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
@@ -25,6 +31,7 @@ import {
   buildContextPromptDelivery,
   buildRequestedContextSections,
   extractContextSectionRequest,
+  materializeTabContext,
   type ContextDeliverySnapshot,
   type ContextPromptDelivery,
 } from './tabContextBuild'
@@ -686,6 +693,33 @@ function resolveWorkingDirectory(requested: string, fallback: string): string {
   }
 }
 
+/**
+ * Las claves de issue que el preámbulo puede anunciar como «adjuntas con
+ * snapshot fresco» (y, por tanto, prohibir buscar por MCP).
+ *
+ * El filtro es por CONTENIDO, no por existencia. Desde que `materializeTabContext`
+ * escribe un placeholder al alta (`write:true` sin snapshot), el `.md` existe
+ * desde el instante en que se crea el contexto, así que un gate por `.ok` deja
+ * pasar el caso exacto que ese gate existía para cerrar: Jira sin configurar,
+ * clave equivocada o red caída → el refresher no rellena nada, el documento se
+ * queda en puros marcadores, y el agente recibe «ya la tienes, no la busques»
+ * junto a cero datos. `jiraSnapshotHasContent` es la misma regla que aplica el
+ * refresher (`electron/jiraContextRefresh.ts`) para decidir si hay que ir a
+ * buscar: una sola implementación, porque ya divergieron dos veces.
+ */
+function collectAttachedJiraKeys(contexts: readonly TabContext[], resultsCwd: string): string[] {
+  const keys: string[] = []
+  for (const context of contexts) {
+    if (context.kind !== 'jira') continue
+    const key = issueKeyFor(context)
+    if (!key) continue
+    const materialized = materializeTabContext(context, resultsCwd, { write: false })
+    if (!materialized.ok || !jiraSnapshotHasContent(materialized.content)) continue
+    if (!keys.includes(key)) keys.push(key)
+  }
+  return keys
+}
+
 export function composePrompt(
   request: AgentCliStartRequest,
   cwd: string,
@@ -703,13 +737,21 @@ export function composePrompt(
     rules: request.rules,
   })
   const mcpCapabilityPrompt = buildMcpCapabilityPrompt(request.mcpsAllowed ?? [])
+  // `.gravity` vive en el proyecto, nunca en el worktree del turno (cwd) — el
+  // chequeo de snapshot usa el mismo cwd que el resto de operaciones de contexto.
+  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
+  const jiraAttachedPrompt = buildJiraAttachedPrompt(
+    collectAttachedJiraKeys(
+      Array.isArray(request.contexts) ? request.contexts : [],
+      resultsCwd,
+    ),
+  )
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
   const resultsInstruction = buildAiAgentResultsInstruction(request.name)
-  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
   const recentResultsPrompt = Array.isArray(request.tabAgentIds) && request.tabAgentIds.length
     ? buildRecentAgentResultsPrompt(resultsCwd, request.tabAgentIds)
     : ''
@@ -763,6 +805,7 @@ export function composePrompt(
   return [
     ...(identityPrompt ? [identityPrompt, ''] : []),
     ...(mcpCapabilityPrompt ? [mcpCapabilityPrompt, ''] : []),
+    ...(jiraAttachedPrompt ? [jiraAttachedPrompt, ''] : []),
     ...(contextPrompt ? [contextPrompt, ''] : []),
     ...(orchestrationBlock ? [orchestrationBlock, ''] : []),
     ...(delegationFollowUps.length ? [...delegationFollowUps, ''] : []),
@@ -936,9 +979,7 @@ export function runAgentCliSpawn(
   handlers: AgentCliSpawnHandlers,
   promptOverride?: string,
 ): void {
-  stopAgentRun(request.paneId)
-  const generation = nextAgentRunGeneration++
-  agentRuns.set(request.paneId, { proc: null, windowId: -1, generation })
+  const generation = reserveAgentRun(request.paneId, null)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const prompt = promptOverride ?? composePrompt(request, cwd)
   let latestSessionId = request.cliSessionId
@@ -1059,12 +1100,15 @@ export function startAgentTurn(
   request: AgentCliStartRequest,
   config: AppConfig,
   home: string,
+  /**
+   * Generación ya reservada por el caller (p. ej. el handler de
+   * `AGENT_CLI_START`, antes de su refresco async de Jira). Si falta, se
+   * reserva aquí mismo — mismo camino que antes, ahora factorizado en
+   * `reserveAgentRun` para no tener dos implementaciones de la reserva.
+   */
+  reservedGeneration?: number,
 ): void {
-  stopAgentRun(request.paneId)
-  // Reserva el paneId ya: el close del proceso anterior no debe emitir EXIT
-  // mientras arrancamos el turno nuevo (p. ej. durante await de cwd en el renderer).
-  const generation = nextAgentRunGeneration++
-  agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
+  const generation = reservedGeneration ?? reserveAgentRun(request.paneId, win)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const projectCwd = resolveProjectCwd(request, home)
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
@@ -1384,6 +1428,31 @@ export function startAgentTurn(
 
 export function isAgentRunActive(paneId: string): boolean {
   return agentRuns.has(paneId)
+}
+
+/**
+ * Reserva el paneId para un turno nuevo: mata cualquier turno anterior (síncrono,
+ * sin `await` de por medio) y aparta el slot con una generación fresca.
+ * `startAgentTurn` la usa cuando no recibe una generación ya reservada; el
+ * handler de `AGENT_CLI_START` la llama directamente para reservar el pane ANTES
+ * del refresco async de Jira — así Stop/close/quit encuentran algo que matar
+ * mientras el turno todavía no arrancó, en vez de que `stopAgentRun` salga en
+ * `if (!run) return` y el spawn llegue de todas formas cuando el refresco termine.
+ */
+export function reserveAgentRun(paneId: string, win: BrowserWindow | null): number {
+  stopAgentRun(paneId)
+  const generation = nextAgentRunGeneration++
+  agentRuns.set(paneId, { proc: null, windowId: win?.id ?? -1, generation })
+  return generation
+}
+
+/**
+ * ¿La reserva sigue siendo la misma generación? El handler la comprueba tras el
+ * `await` del refresco para decidir si el turno diferido todavía debe arrancar,
+ * o si Stop / un turno más nuevo para el mismo pane la invalidó mientras tanto.
+ */
+export function isAgentRunReservationCurrent(paneId: string, generation: number): boolean {
+  return agentRuns.get(paneId)?.generation === generation
 }
 
 /**

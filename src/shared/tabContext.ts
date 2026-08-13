@@ -11,10 +11,12 @@ export type TabContextKind =
   | 'spreadsheet'
   | 'agentResult'
   | 'skill'
+  | 'jira'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
+  'jira',
 ] as const
 
 /** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
@@ -23,13 +25,13 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'skill',
+  'skill', 'jira',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'agentResult', 'skill',
+  'agentResult', 'skill', 'jira',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -69,6 +71,8 @@ export interface CanonicalContextOptions {
   /** agentId estable del catálogo (no display name). */
   agentId?: string
   name?: string
+  /** Clave de la issue (`GRAV-412`) para el kind `jira`. */
+  issueKey?: string
 }
 
 function isCreatableContextKind(kind: TabContextKind): boolean {
@@ -102,6 +106,8 @@ function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOpt
       return 'notes'
     case 'skill':
       return 'skill'
+    case 'jira':
+      return (options.issueKey ?? '').trim().toLowerCase() || 'issue'
     default:
       return kind
   }
@@ -128,6 +134,20 @@ export function canonicalContextId(
     const agentId = (options.agentId ?? '').trim() || 'agent'
     return `iaterminal:result:${agentId}`
   }
+  if (kind === 'jira') {
+    // Bypassa creatableContextStem a propósito: ese camino prefiere `name`
+    // (que para jira es la clave en MAYÚSCULAS), y produciría un id
+    // case-sensitive distinto cada vez que el name esté presente. El id
+    // canónico siempre se deriva de la clave en minúsculas, con fileStem/name
+    // como red de seguridad para contextos sin issueKey explícito todavía.
+    const fromFileStem = (options.fileStem ?? '').trim().replace(/^jira\//i, '')
+    const issueKey = (
+      (options.issueKey ?? '').trim()
+      || (options.name ?? '').trim()
+      || fromFileStem
+    ).toLowerCase() || 'issue'
+    return `iaterminal:jira:${issueKey}`
+  }
   if (isCreatableContextKind(kind)) {
     return `iaterminal:${kind}:${creatableContextStem(kind, options)}`
   }
@@ -142,6 +162,10 @@ export function canonicalContextFileName(
   if (kind === 'agentResult') {
     const agentId = (options.agentId ?? '').trim() || 'agent'
     return `results/${agentId}.md`
+  }
+  if (kind === 'jira') {
+    const issueKey = (options.issueKey ?? '').trim().toUpperCase()
+    return `jira/${normalizeContextFileName(issueKey, 'issue')}`
   }
   if (isCreatableContextKind(kind)) {
     return normalizeContextFileName(
@@ -182,17 +206,36 @@ export function canonicalContextName(
       return (options.name ?? '').trim() || 'Skill'
     case 'agentResult':
       return (options.name ?? '').trim() || (options.agentId ?? 'agent')
+    case 'jira':
+      return (options.issueKey ?? '').trim().toUpperCase() || 'Jira issue'
     default:
       return kind
   }
 }
 
 /** Firma de definición para deduplicar creatables por kind+stem (mismo archivo). */
-export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id'>): string | null {
+export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id' | 'issueKey'>): string | null {
   if (context.kind === 'agentResult') {
     const agentId = context.id.replace(/^iaterminal:result:/, '')
       || context.fileName.replace(/^results\//, '').replace(/\.md$/i, '')
     return JSON.stringify({ kind: 'agentResult', agentId })
+  }
+  if (context.kind === 'jira') {
+    // Igual que agentResult: el archivo real vive en `jira/<KEY>.md`, así que
+    // el dedup tiene que mirar la clave, no el nombre visible. Si se derivara
+    // de `creatableContextStem` (como el resto de kinds), renombrar el
+    // contexto (el campo Nombre es libre para cualquier kind, incluido jira)
+    // cambiaría la firma de dedup sin cambiar el archivo que ocupa, dejando
+    // colar dos contextos apuntando al mismo `.md`.
+    const rawIssueKey = context.issueKey?.trim()
+      || (context.id.startsWith('iaterminal:jira:') ? context.id.slice('iaterminal:jira:'.length) : '')
+      || context.fileName.replace(/^jira\//, '').replace(/\.md$/i, '')
+    // `normalizeContextFileName` sanea igual que `contextFilePath`
+    // (electron/tabContextBuild.ts): un `issueKey` con espacios/símbolos —
+    // solo alcanzable editando la metadata a mano — no debe dedupear en una
+    // clave distinta de la que de verdad ocupa el archivo en disco.
+    const issueKey = normalizeContextFileName(rawIssueKey, 'issue').replace(/\.md$/i, '').toLowerCase()
+    return JSON.stringify({ kind: 'jira', issueKey })
   }
   if (!isCreatableContextKind(context.kind)) return null
   const stem = creatableContextStem(context.kind, {
@@ -214,25 +257,40 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
     : undefined
   // Name vacío → stem desde fileStem/default (no desde el display name canónico).
   const identityName = context.name.trim() || undefined
+  // Igual que agentId arriba: si el contexto no trae issueKey explícito (por
+  // ejemplo, uno recién descubierto de disco antes de que la metadata lo
+  // persista), se reconstruye desde el id canónico y, si tampoco está, desde
+  // el nombre de archivo real (`jira/GRAV-412.md` → `GRAV-412`).
+  const issueKey = context.kind === 'jira'
+    ? (context.issueKey
+        || (context.id.startsWith('iaterminal:jira:')
+              ? context.id.slice('iaterminal:jira:'.length)
+              : undefined)
+        || context.fileName?.replace(/^jira\//, '').replace(/\.md$/i, '')
+        || undefined)
+    : undefined
   const id = canonicalContextId(context.kind, {
     rootPath,
     fileStem,
     agentId,
     name: identityName,
+    issueKey,
   })
   const fileName = canonicalContextFileName(context.kind, {
     rootPath,
     fileStem,
     agentId,
     name: identityName,
+    issueKey,
   })
   const resolvedName = context.name.trim()
-    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId })
+    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId, issueKey })
   return {
     ...context,
     id,
     fileName,
     name: resolvedName,
+    ...(issueKey ? { issueKey } : {}),
     ...(rootPath !== undefined
       ? { rootPath: normalizeContextRootPath(rootPath) === '.' ? undefined : normalizeContextRootPath(rootPath) }
       : {}),
@@ -274,6 +332,10 @@ export interface TabContext {
   rootPath?: string
   paths?: string[]
   symbolKinds?: TabContextSymbolKind[]
+  /** Clave de la issue para el kind `jira`; la usa el refresco. */
+  issueKey?: string
+  /** Override por contexto del refresco de `jira.json`; 0 lo desactiva. */
+  refreshSeconds?: number
 }
 
 export function isProjectContext(context: Pick<TabContext, 'kind'>): boolean {
@@ -534,6 +596,66 @@ export function defaultAssignedContextIds(contexts: readonly TabContext[]): stri
   return contexts
     .filter(context => context.kind === 'folderTree' || context.kind === 'symbols')
     .map(context => context.id)
+}
+
+/**
+ * ¿Hay algún id en `extraContextIds` que el catálogo en memoria (`diskContexts`,
+ * lo último que ese pane leyó de disco) todavía no conoce? Si sí, hace falta
+ * releer disco antes de resolver el turno: un contexto recién materializado
+ * (p. ej. una mención de Jira elegida hace un segundo) no está ahí todavía, y
+ * sin este chequeo `resolveTurnContexts` lo descarta en silencio — el id llegó
+ * adjunto al turno, el `.md` existe, pero nadie en memoria lo había leído.
+ */
+export function needsContextRediscovery(
+  extraContextIds: readonly string[],
+  diskContexts: readonly TabContext[],
+): boolean {
+  if (!extraContextIds.length) return false
+  const known = new Set(diskContexts.map(context => context.id))
+  return extraContextIds.some(id => !known.has(id))
+}
+
+/**
+ * Contextos que viajan en el turno: el catálogo asignado al agente más los
+ * adjuntos ad-hoc de ESE turno (drop de un chip, mención de Jira…),
+ * deduplicados y resueltos contra `diskContexts`. Pura y separada de
+ * `dispatchMessage` para poder probar, sin montar `AgentPane`, que un id
+ * ausente del catálogo en memoria se cae del turno — y que tras refrescar
+ * (`needsContextRediscovery` → releer disco) aparece.
+ */
+export function resolveTurnContexts(
+  catalogContextIds: readonly string[],
+  extraContextIds: readonly string[],
+  diskContexts: readonly TabContext[],
+): TabContext[] {
+  const wanted = new Set([...catalogContextIds, ...extraContextIds])
+  return diskContexts.filter(context => wanted.has(context.id))
+}
+
+/**
+ * La guarda de `dispatchMessage`, entera y sin React: si algún id adjunto a
+ * ESTE turno no está en el catálogo en memoria, releer disco ANTES de resolver.
+ *
+ * `read()` se llama dos veces a propósito — la segunda después del `refresh()`,
+ * porque el catálogo que importa es el de después de refrescar; el pane guarda
+ * el suyo en un ref que `refresh()` reemplaza, así que capturarlo antes daría
+ * el valor viejo.
+ *
+ * Vive acá y no en el componente porque el repo no tiene harness de
+ * `AgentPane`: es la única forma de fijar que el refresco ocurre cuando un id
+ * es desconocido, y NO ocurre cuando ya se conoce (una llamada a disco por
+ * tecla en el composer sería el otro fallo).
+ */
+export async function resolveTurnContextsRefreshing(
+  catalogContextIds: readonly string[],
+  extraContextIds: readonly string[],
+  read: () => readonly TabContext[],
+  refresh: () => Promise<void>,
+): Promise<TabContext[]> {
+  if (needsContextRediscovery(extraContextIds, read())) {
+    await refresh()
+  }
+  return resolveTurnContexts(catalogContextIds, extraContextIds, read())
 }
 
 /** Sugiere nombre/archivo para un contexto symbols según la subcarpeta. */

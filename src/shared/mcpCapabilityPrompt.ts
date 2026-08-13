@@ -20,3 +20,19 @@ export function buildMcpCapabilityPrompt(mcpsAllowed: readonly string[]): string
     'If a tool call fails, report the tool error — do not pretend the MCP is missing.',
   ].join('\n')
 }
+
+/**
+ * Issues que ya vienen adjuntas como contexto. Sin esto el agente las busca por
+ * MCP igualmente: el preámbulo de capacidades le dice que tiene Jira, y no sabe
+ * que el snapshot ya está en su prompt.
+ */
+export function buildJiraAttachedPrompt(issueKeys: readonly string[]): string {
+  const keys = issueKeys.map(key => key.trim()).filter(Boolean)
+  if (!keys.length) return ''
+  return [
+    '## Jira issues attached',
+    'These issues are already attached as context, with a fresh snapshot:',
+    keys.map(key => `- \`${key}\``).join('\n'),
+    'Do not fetch them again through MCP. Request their sections if you need more detail.',
+  ].join('\n')
+}

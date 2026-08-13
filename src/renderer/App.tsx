@@ -2993,6 +2993,20 @@ export const App: React.FC = () => {
     const result = await window.api.discoverTabContexts({ cwd })
     if (!result.ok) return
     setTabContextsByTab(prev => ({ ...prev, [tabId]: result.contexts }))
+    // `contextsRevision` es el único mecanismo que hace que un `AgentPane` ya
+    // montado vuelva a leer disco (su propio discover solo depende de mount/
+    // cwd/abrir su panel — ver AgentPane.tsx:1061-1082). Sin este bump, un
+    // contexto creado ahora (p. ej. una mención de Jira) nunca entra en
+    // `diskContextsRef` de un pane que ya estaba abierto, y se cae en
+    // silencio de cualquier turno que lo adjunte antes de que el pane vuelva
+    // a abrir su panel de contextos por otra razón.
+    const catalogKey = tabAgentCatalogKey(tab)
+    if (catalogKey) {
+      setContextsRevisionByCwd(prev => ({
+        ...prev,
+        [catalogKey]: (prev[catalogKey] ?? 0) + 1,
+      }))
+    }
   }, [])
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {
@@ -5136,6 +5150,10 @@ export const App: React.FC = () => {
       })
   }, [agentPicker, projectAgentsByCwd, tabs])
 
+  /** cwd de Ajustes: la misma búsqueda que ya usa el resto del archivo para "el cwd de esta pestaña". */
+  const activeTab = tabs.find(t => t.id === activeTabId)
+  const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
+
   return (
     <div className="app-root">
       {/* ── Title bar (macOS traffic lights live here) ── */}
@@ -5370,6 +5388,7 @@ export const App: React.FC = () => {
                   onRefreshRepos={() => { void refreshPlaneGitRepos() }}
                   tabContexts={tabContextBadges}
                   contextCatalog={discoveredContexts}
+                  onContextSaved={() => { void refreshTabContexts(tab.id) }}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}
@@ -5504,6 +5523,10 @@ export const App: React.FC = () => {
                   restoreLabel={t('tabs.planeRestore')}
                   closeWindowLabel={t('tabs.planeHideWindow')}
                   projectFolder={tab.projectFolder ?? ''}
+                  // Misma señal que ya recibe cada `AgentPane`: el chip jira de
+                  // un mini relee su snapshot cuando los contextos se
+                  // rematerializan, en vez de quedarse con el del montaje.
+                  contextsRevision={contextsRevisionByCwd[tabAgentCatalogKey(tab)] ?? 0}
                   projectFolderSelectLabel={t('tabs.projectFolderSelect')}
                   projectFolderChangeLabel={t('tabs.projectFolderChange')}
                   projectFolderEmptyHint={t('tabs.projectFolderEmptyHint')}
@@ -5807,6 +5830,7 @@ export const App: React.FC = () => {
 
       <AppModals
         config={config}
+        settingsCwd={settingsCwd}
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}

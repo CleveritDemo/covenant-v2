@@ -113,6 +113,12 @@ export interface TabAgenticPlaneProps {
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
   onOpenResultsPreview?: (contextId: string) => void
+  /**
+   * Una mención de Jira en el composer materializó un contexto nuevo en
+   * disco: mismo nombre y mismo propósito que el `onContextSaved` de
+   * `TabContextsModal`/`BrainstormRoom` — refrescar el catálogo del tab.
+   */
+  onContextSaved?: () => void
   onSendChat: (
     paneId: string,
     text: string,
@@ -149,6 +155,8 @@ export interface TabAgenticPlaneProps {
   restoreLabel: string
   closeWindowLabel: string
   projectFolder: string
+  /** Sube cuando los contextos del proyecto se remateralizan (`refreshTabContexts`). */
+  contextsRevision?: number
   projectFolderSelectLabel: string
   projectFolderChangeLabel: string
   projectFolderEmptyHint: string
@@ -321,6 +329,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onDeleteContext,
   onAssignContext,
   onOpenResultsPreview,
+  onContextSaved,
   onSendChat,
   onStopChat,
   onAbortDelegation,
@@ -341,6 +350,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   restoreLabel,
   closeWindowLabel,
   projectFolder,
+  contextsRevision = 0,
   projectFolderSelectLabel,
   projectFolderChangeLabel,
   projectFolderEmptyHint,
@@ -820,6 +830,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onFirstLayoutReady={onFirstLayoutReady}
         deferPositionMotion={deferPositionMotion}
         working={planeWorking}
+        cwd={projectFolder}
+        contextsRevision={contextsRevision}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (
@@ -958,6 +970,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onOpenRepoGit={onOpenRepoGit}
               onRefreshRepos={onRefreshRepos}
               systemSoundsEnabled={systemSoundsEnabled}
+              cwd={projectFolder}
+              onContextSaved={onContextSaved}
             />
           )}
         />

@@ -4,6 +4,9 @@ import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { hasPlaneContextDrag, readPlaneContextDragData } from './planeContextDrag'
 import type { PlaneContextPoolItem } from './PlaneContextPool'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
+import { mentionRangeAt, type JiraIssueRef, type JiraMentionRange } from '@shared/jiraIssue'
+import { jiraDraftFromKey } from '../agent/TabContextFormModal'
+import { JiraMentionPicker } from './JiraMentionPicker'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
@@ -109,6 +112,18 @@ export interface PlaneChatComposerProps {
   onRefreshRepos?: () => void
   /** Sonido de inicio de dictado; default true. */
   systemSoundsEnabled?: boolean
+  /**
+   * Carpeta del proyecto: sin esto no hay `jiraStatus`/`jiraSearch` posibles.
+   * `''` (valor por defecto) desactiva la mención — así los tests que no
+   * pasan `cwd` no necesitan mockear `window.api`.
+   */
+  cwd?: string
+  /**
+   * Un contexto nuevo (mención de Jira) se materializó en disco. Mismo nombre
+   * y mismo propósito que el `onContextSaved` que ya usan `TabContextsModal`
+   * y `BrainstormRoom`: refrescar el catálogo del proyecto en el padre.
+   */
+  onContextSaved?: () => void
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -130,6 +145,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   onOpenRepoGit,
   onRefreshRepos,
   systemSoundsEnabled = true,
+  cwd = '',
+  onContextSaved,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -140,6 +157,20 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
    * con el mensaje y se limpian, igual que las imágenes pegadas.
    */
   const [pendingContextIds, setPendingContextIds] = useState<string[]>([])
+  /** Claves de proyecto Jira conectadas: sin esto `@GRAV-` no abre nada (ver `mentionRangeAt`). */
+  const [jiraProjectKeys, setJiraProjectKeys] = useState<string[]>([])
+  /**
+   * `null` = picker cerrado. Incluye dónde empieza/termina el token (no solo
+   * el texto de búsqueda) para poder reemplazarlo por la clave canónica al
+   * elegir un issue, en vez de dejar `GRAV-4` colgado junto al chip adjunto.
+   */
+  const [mentionRange, setMentionRange] = useState<JiraMentionRange | null>(null)
+  const mentionQuery = mentionRange?.query ?? null
+  // `attachJiraMention` lee esto por ref (no por dependencia de useCallback):
+  // así su identidad no cambia en cada tecla mientras el picker está abierto,
+  // y `JiraMentionPicker` no reinstala su listener de teclado sin necesidad.
+  const mentionRangeRef = useRef(mentionRange)
+  mentionRangeRef.current = mentionRange
   const [dropActive, setDropActive] = useState(false)
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const [sketchOpen, setSketchOpen] = useState(false)
@@ -206,6 +237,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     setPendingContextIds(saved?.contextIds ?? [])
     setEditingQueuedId(null)
     setSketchOpen(false)
+    setMentionRange(null)
     historyRef.current = []
     stashRef.current = ''
     setHistoryIndex(null)
@@ -233,6 +265,58 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       setEditingQueuedId(null)
     }
   }, [queuedTurns, editingQueuedId])
+
+  // Sin cwd no hay proyecto Jira que consultar: la mención se queda desactivada
+  // (y ningún test que no pase `cwd` necesita mockear `window.api`).
+  useEffect(() => {
+    if (!cwd.trim()) {
+      setJiraProjectKeys([])
+      return
+    }
+    let cancelled = false
+    void window.api.jiraStatus(cwd).then(status => {
+      if (!cancelled) setJiraProjectKeys(status.connected ? status.projectKeys : [])
+    }).catch(() => {
+      if (!cancelled) setJiraProjectKeys([])
+    })
+    return () => { cancelled = true }
+  }, [cwd])
+
+  /**
+   * Issue elegido en el picker → contexto `jira` real en disco y adjunto a
+   * ESTE turno, exactamente por la vía que ya usa soltar un chip del pool
+   * (`pendingContextIds`). `materializeTabContext` es la misma llamada que
+   * hace `TabContextFormModal.save()`: sin ella el contexto nunca llega a
+   * existir en `.gravity/jira/` y la mención "funcionaría" sin entregar nada
+   * (el bug de la Tarea 9, con otro disfraz). También reemplaza el token
+   * escrito (`GRAV-4`, o `@algo`) por la clave canónica del issue: si no, el
+   * prompt se queda con el texto truncado mientras el chip adjunto apunta a
+   * otra cosa, y ese token sobreviviente reabre el picker en la próxima tecla.
+   */
+  const attachJiraMention = useCallback((issue: JiraIssueRef): void => {
+    const range = mentionRangeRef.current
+    setMentionRange(null)
+    const context = jiraDraftFromKey(issue.key)
+    if (!context || !cwd.trim()) return
+    if (range) {
+      const insert = `${issue.key} `
+      setDraft(current => `${current.slice(0, range.start)}${insert}${current.slice(range.end)}`)
+      const el = composerInputRef.current
+      if (el) {
+        const caretAt = range.start + insert.length
+        requestAnimationFrame(() => el.setSelectionRange(caretAt, caretAt))
+      }
+    }
+    void window.api.materializeTabContext({ context, cwd }).then(result => {
+      if (!result.ok) return
+      onContextSaved?.()
+      setPendingContextIds(previous => (
+        previous.includes(context.id) ? previous : [...previous, context.id]
+      ))
+    }).catch(() => {
+      // Sin `.md` en disco, no hay nada real que adjuntar: no lo intentamos.
+    })
+  }, [cwd, onContextSaved])
 
   const appendPendingImages = useCallback((images: ComposerPendingImage[]): void => {
     if (!images.length) return
@@ -328,6 +412,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     setDraft('')
     setPendingImages([])
     setPendingContextIds([])
+    setMentionRange(null)
     void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
       onSend(selected.paneId, text, attachments, contextIdsSnapshot)
@@ -572,12 +657,30 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 }
                 rows={1}
                 onChange={event => {
-                  setDraft(event.target.value)
+                  const value = event.target.value
+                  setDraft(value)
                   // Editar el texto recuperado es tomar posesión: vuelve a idle.
                   if (historyIndex !== null) setHistoryIndex(null)
+                  setMentionRange(
+                    mentionRangeAt(value, event.target.selectionStart ?? value.length, jiraProjectKeys),
+                  )
+                }}
+                // Mover el cursor (flechas, clic, Cmd+A) sin teclear también
+                // recalcula: si no, mover el caret fuera de `GRAV-4` deja el
+                // picker abierto mirando un token que el usuario ya abandonó.
+                onSelect={event => {
+                  const el = event.currentTarget
+                  setMentionRange(
+                    mentionRangeAt(el.value, el.selectionStart ?? el.value.length, jiraProjectKeys),
+                  )
                 }}
                 onPaste={handlePaste}
                 onKeyDown={event => {
+                  // Con resultados visibles, `JiraMentionPicker` intercepta
+                  // ArrowUp/Down/Enter/Escape en fase de captura y llama
+                  // `stopPropagation()` — este handler ni los ve. Sin
+                  // resultados no intercepta nada, así que Enter/Escape
+                  // siguen su curso normal aquí abajo (no quedan muertos).
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()
                     handleSendClick()
@@ -586,6 +689,15 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                   handleHistoryKey(event)
                 }}
               />
+              {mentionQuery !== null ? (
+                <JiraMentionPicker
+                  cwd={cwd}
+                  query={mentionQuery}
+                  focusElement={composerInputRef.current}
+                  onPick={attachJiraMention}
+                  onDismiss={() => setMentionRange(null)}
+                />
+              ) : null}
               {pendingImages.length > 0 ? (
                 <div
                   className="plane-chat-composer__attachments"

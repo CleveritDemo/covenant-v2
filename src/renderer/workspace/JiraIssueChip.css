@@ -1,0 +1,50 @@
+/*
+ * Tokens verificados contra `src/themes/presets.ts` / `src/renderer/styles/global.css`:
+ * el brief original pedía `--fg`/`--fg-dim`, que no existen en ningún tema — el
+ * equivalente real es `--text`/`--text-muted`.
+ */
+.jira-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.jira-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jira-chip--stale { border-style: dashed; opacity: .75; }
+.jira-chip__key { flex: 0 0 auto; font-family: var(--font-mono); color: var(--accent); }
+
+/* Igual que `.plane-context-card__name` (la fila que este chip sustituye
+   para jira): recorta con ellipsis en vez de desbordar la lista angosta del
+   mini del agente. `min-width: 0` es lo que permite que el flex item se
+   encoja por debajo de su contenido para que el ellipsis tenga efecto. */
+.jira-chip__status {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
+
+/*
+ * Texto solo para lectores de pantalla: entra en el nombre accesible del
+ * botón (no usa `display: none` / `visibility: hidden`) sin ocupar espacio
+ * visual. Mismo propósito que el borde punteado, para quien no puede verlo.
+ */
+.jira-chip__stale-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

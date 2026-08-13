@@ -136,6 +136,7 @@ export const TAB_CONTEXT_COLORS = [
   '#94a3b8',
   '#e879f9',
   '#34d399',
+  '#2684ff',
 ] as const
 
 export type TabContextColor = (typeof TAB_CONTEXT_COLORS)[number]
@@ -153,6 +154,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   spreadsheet: 'table',
   agentResult: 'bot',
   skill: 'sparkles',
+  jira: 'jira',
 }
 
 const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
@@ -168,6 +170,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   spreadsheet: '#34d399',
   agentResult: '#94a3b8',
   skill: '#e879f9',
+  jira: '#2684ff',
 }
 
 const ICON_SET = new Set<string>(TAB_CONTEXT_ICON_NAMES)

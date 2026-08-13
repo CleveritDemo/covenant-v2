@@ -1,6 +1,12 @@
 import React, { useState } from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
-import { normalizeContextFileName, CREATABLE_CONTEXT_KINDS, HOST_CONTEXT_KINDS } from '@shared/tabContext'
+import {
+  canonicalContextFileName,
+  normalizeContextFileName,
+  CREATABLE_CONTEXT_KINDS,
+  HOST_CONTEXT_KINDS,
+} from '@shared/tabContext'
+import { normalizeIssueKey } from '@shared/jiraIssue'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { sectionsForContext } from '@shared/contextSections'
 import { summarizeContextBudget } from '@shared/contextBudget'
@@ -47,6 +53,8 @@ interface Props {
   contexts: TabContext[]
   preview: PreviewState
   notesContent: string
+  /** Texto crudo del campo de clave `jira` (ver `TabContextFormModal.updateJiraKeyDraft`). */
+  jiraKeyDraft: string
   resolvedCwdLabel: string
   projectCwd: string
   duplicateMessage: string
@@ -57,6 +65,7 @@ interface Props {
   onUpdate: (patch: Partial<TabContext>) => void
   onSelectKind: (kind: TabContextKind) => void
   onNotesContentChange: (content: string) => void
+  onJiraKeyDraftChange: (raw: string) => void
   onPreviewReset: () => void
   /**
    * Canal de error de las acciones del panel izquierdo: carpeta raíz inválida
@@ -73,6 +82,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   contexts,
   preview,
   notesContent,
+  jiraKeyDraft,
   resolvedCwdLabel,
   projectCwd,
   duplicateMessage,
@@ -82,6 +92,7 @@ export const TabContextsEditor: React.FC<Props> = ({
   onUpdate,
   onSelectKind,
   onNotesContentChange,
+  onJiraKeyDraftChange,
   onPreviewReset,
   onActionError,
 }) => {
@@ -129,7 +140,16 @@ export const TabContextsEditor: React.FC<Props> = ({
   // con solo el `id` el botón quedaba habilitado apuntando a un .md que
   // todavía no existe.
   const savedContext = contexts.find(item => item.id === draft.id)
-  const isSaved = Boolean(savedContext && savedContext.fileName === draft.fileName)
+  // `jira` aparte: el Input de Nombre (más abajo) reescribe `draft.fileName`
+  // en cada tecla para todos los kinds, y para `jira` eso le hace perder el
+  // subdirectorio `jira/` — el archivo real no cambia con el nombre, así que
+  // comparar contra `draft.fileName` apagaría Revelar tras cualquier
+  // renombrado aunque el .md siga exactamente donde estaba.
+  const isSaved = Boolean(savedContext && (
+    draft.kind === 'jira'
+      ? savedContext.fileName === canonicalContextFileName('jira', { issueKey: draft.issueKey })
+      : savedContext.fileName === draft.fileName
+  ))
 
   return (
     <div className="tab-contexts__panes">
@@ -167,7 +187,7 @@ export const TabContextsEditor: React.FC<Props> = ({
           </div>
         )}
 
-        {draft.kind !== 'notes' && draft.kind !== 'changelog' ? (
+        {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' ? (
           <TabContextRootPathField
             value={draft.rootPath ?? ''}
             projectCwd={projectCwd}
@@ -240,6 +260,18 @@ export const TabContextsEditor: React.FC<Props> = ({
           </label>
         )}
 
+        {draft.kind === 'jira' && (
+          <label>
+            <span>{t('tabContexts.jiraKeyLabel')}</span>
+            <Input
+              value={jiraKeyDraft}
+              placeholder={t('tabContexts.jiraKeyPlaceholder')}
+              onChange={event => onJiraKeyDraftChange(event.target.value)}
+            />
+            <small>{t('tabContexts.jiraKeyHint')}</small>
+          </label>
+        )}
+
         {/* Nombre, archivo y aspecto van después de la configuración del tipo:
             elegir "Classes and methods" y tener que pasar por el nombre y los
             catorce iconos antes de indicar qué carpeta indexar es el
@@ -263,17 +295,39 @@ export const TabContextsEditor: React.FC<Props> = ({
           )}
         </label>
         <div className="tab-contexts__file-row">
-          <span>{`${PROJECT_DIR}/${normalizeContextFileName(
-            draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
-            draft.kind === 'changelog' ? 'changelog' : 'context',
-          )}`}</span>
+          {/* `jira` vive bajo `jira/<CLAVE>.md`. El resto de kinds recompone
+              el archivo desde `name` porque su Input de Nombre lo mantiene en
+              sincro; para `jira` ese mismo Input sobrescribiría
+              `draft.fileName` perdiendo el subdirectorio (Nombre es libre,
+              como para cualquier otro kind — issue Bug de login). Se muestra
+              directo desde el texto actual del campo de clave, no desde
+              `draft.issueKey`: ese campo puede quedarse con la última
+              derivación válida mientras el texto ya no deriva nada (ver
+              `updateJiraKeyDraft`), y aquí no hay razón para mostrar un
+              archivo fantasma (`jira/issue.md`) que Guardar tiene bloqueado. */}
+          <span>{draft.kind === 'jira'
+            ? (normalizeIssueKey(jiraKeyDraft)
+                ? `${PROJECT_DIR}/${canonicalContextFileName('jira', { issueKey: normalizeIssueKey(jiraKeyDraft) })}`
+                : '—')
+            : `${PROJECT_DIR}/${normalizeContextFileName(
+                draft.name || draft.fileName || (draft.kind === 'changelog' ? 'changelog' : 'context'),
+                draft.kind === 'changelog' ? 'changelog' : 'context',
+              )}`}</span>
           <Button
             variant="secondary"
             size="sm"
             disabled={!isSaved}
             onClick={() => {
               onActionError?.('')
-              void window.api.revealTabContext(projectCwd, draft.fileName)
+              // Mismo motivo que `isSaved` arriba: `draft.fileName` puede
+              // llevar el subdirectorio `jira/` perdido tras un renombrado
+              // por el Input de Nombre. Usar el archivo canónico real evita
+              // que Revelar, ya habilitado por `isSaved`, apunte a un
+              // `.gravity/<nombre>.md` que nunca existió.
+              const fileName = draft.kind === 'jira'
+                ? canonicalContextFileName('jira', { issueKey: draft.issueKey })
+                : draft.fileName
+              void window.api.revealTabContext(projectCwd, fileName)
                 .then(result => {
                   if (!result.ok) onActionError?.(result.error ?? t('tabContexts.revealError'))
                 })

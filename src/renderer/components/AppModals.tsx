@@ -18,6 +18,8 @@ import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
 
 interface Props {
   config: AppConfig
+  /** cwd de la pestaña activa: `jira.json` es por proyecto, no de la app. */
+  settingsCwd: string
   settingsOpen: boolean
   orgModalOpen: boolean
   orgWorkspacePickerOpen: boolean
@@ -43,6 +45,7 @@ interface Props {
 
 export const AppModals: React.FC<Props> = ({
   config,
+  settingsCwd,
   settingsOpen,
   orgModalOpen,
   orgWorkspacePickerOpen,
@@ -91,6 +94,7 @@ export const AppModals: React.FC<Props> = ({
       {settingsOpen && (
         <SettingsModal
           config={config}
+          cwd={settingsCwd}
           onSave={onConfigSaved}
           onClose={onCloseSettings}
         />

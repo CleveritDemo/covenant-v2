@@ -87,6 +87,9 @@ import { resolveAgentCli } from './agentCliResolve'
 import {
   startAgentTurn,
   isAgentRunActive,
+  isAgentRunReservationCurrent,
+  reserveAgentRun,
+  resolveProjectCwd,
   stopAgentRun,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
@@ -94,6 +97,14 @@ import {
   clearAgentContextDeliveryState,
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
+import { refreshStaleJiraContexts } from './jiraContextRefresh'
+import {
+  jiraStatusFor,
+  connectJira,
+  disconnectJira,
+  searchJiraQuick,
+  DISCONNECTED as JIRA_DISCONNECTED,
+} from './jiraIpcOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -866,6 +877,40 @@ function registerIpc(): void {
       repo: pick('repo'),
       sinceDay: pick('sinceDay'),
     })
+  })
+
+  // ─── Jira ───────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.JIRA_STATUS, (_e, cwd: unknown) => {
+    if (typeof cwd !== 'string') return JIRA_DISCONNECTED
+    return jiraStatusFor(cwd)
+  })
+
+  ipcMain.handle(IPC.JIRA_CONNECT, async (_e, cwd: unknown, input: unknown) => {
+    if (typeof cwd !== 'string' || !input || typeof input !== 'object') {
+      return { ok: false, error: 'Solicitud de conexión inválida.' }
+    }
+    const { site, email, apiToken, projectKeys } = input as Record<string, unknown>
+    if (typeof site !== 'string' || typeof email !== 'string' || typeof apiToken !== 'string') {
+      return { ok: false, error: 'Solicitud de conexión inválida.' }
+    }
+    return connectJira(cwd, {
+      site,
+      email,
+      apiToken,
+      projectKeys: Array.isArray(projectKeys)
+        ? projectKeys.filter((key): key is string => typeof key === 'string')
+        : [],
+    })
+  })
+
+  ipcMain.handle(IPC.JIRA_DISCONNECT, (_e, cwd: unknown) => {
+    if (typeof cwd !== 'string') return { ok: false, error: 'Solicitud inválida.' }
+    return disconnectJira(cwd)
+  })
+
+  ipcMain.handle(IPC.JIRA_SEARCH, async (_e, cwd: unknown, query: unknown) => {
+    if (typeof cwd !== 'string' || typeof query !== 'string') return []
+    return searchJiraQuick(cwd, query)
   })
 
   // ─── LSP ────────────────────────────────────────────────────────────────
@@ -1919,7 +1964,25 @@ function registerIpc(): void {
         }
       }
     }
-    startAgentTurn(win, request, readConfig(), app.getPath('home'))
+    // Reserva el pane ANTES del await: si solo matáramos el turno anterior
+    // (`stopAgentRun`), el pane queda sin entrada en `agentRuns` durante todo
+    // el refresco y un Stop/close/quit no encuentra nada que matar — el spawn
+    // llega igual cuando el refresco termina. Reservar deja un slot con la
+    // generación nueva para que Stop lo invalide de verdad.
+    const home = app.getPath('home')
+    const generation = reserveAgentRun(request.paneId, win)
+    // `.gravity` vive en el proyecto, nunca en el worktree: el refresco necesita
+    // el cwd del proyecto (`projectCwd`), no el cwd del spawn del turno (`cwd`).
+    const projectCwd = resolveProjectCwd(request, home)
+    void refreshStaleJiraContexts(request.contexts ?? [], projectCwd)
+      .catch(() => { /* refreshStaleJiraContexts no debería rechazar, pero el turno no depende de ello */ })
+      .finally(() => {
+        if (win.isDestroyed()) return
+        // Si Stop (u otro turno para el mismo pane) invalidó la reserva mientras
+        // esperábamos Jira, no arrancar un turno que la UI ya muestra como parado.
+        if (!isAgentRunReservationCurrent(request.paneId, generation)) return
+        startAgentTurn(win, request, readConfig(), home, generation)
+      })
   })
   ipcMain.on(IPC.AGENT_CLI_STOP, (event, paneId: string) => {
     if (typeof paneId !== 'string') return

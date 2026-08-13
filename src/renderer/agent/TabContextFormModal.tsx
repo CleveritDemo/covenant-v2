@@ -2,11 +2,14 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
   applyCanonicalContextIdentity,
+  canonicalContextFileName,
+  canonicalContextId,
   canonicalContextName,
   contextDefinitionKey,
   CREATABLE_CONTEXT_KINDS,
   normalizeContextFileName,
 } from '@shared/tabContext'
+import { normalizeIssueKey } from '@shared/jiraIssue'
 import { defaultColorForKind, defaultIconForKind } from '@shared/tabContextAppearance'
 import { isContextDraftDirty } from '@shared/contextDraftDirty'
 import { PROJECT_DIR } from '@shared/projectDir'
@@ -60,6 +63,23 @@ function contextDefinition(context: TabContext): string | null {
 }
 
 /**
+ * Clave → contexto `jira` listo para guardar. `null` si la clave no es
+ * válida: sin `issueKey` el refresco resuelve `.gravity/jira/issue.md`, que
+ * nunca existe, así que ese estado no puede llegar a guardarse.
+ */
+export function jiraDraftFromKey(raw: string): TabContext | null {
+  const issueKey = normalizeIssueKey(raw)
+  if (!issueKey) return null
+  return {
+    id: canonicalContextId('jira', { issueKey }),
+    name: canonicalContextName('jira', { issueKey }),
+    fileName: canonicalContextFileName('jira', { issueKey }),
+    kind: 'jira',
+    issueKey,
+  }
+}
+
+/**
  * Nombre sugerido al cambiar kind o rootPath. Respeta un nombre que el usuario
  * escribió a mano; si estaba vacío o era el canónico del kind anterior (o el
  * patrón histórico de symbols), usa `canonicalContextName` del kind destino.
@@ -100,6 +120,11 @@ export const TabContextFormModal: React.FC<Props> = ({
   // siempre. `''` = sin aviso.
   const [actionMessage, setActionMessage] = useState('')
   const [notesContent, setNotesContent] = useState('')
+  // Texto crudo del campo de clave `jira`, separado de `draft.issueKey`: si
+  // deja de derivar una clave válida (borrando/editando), el draft se queda
+  // con la última derivación buena a propósito (ver `updateJiraKeyDraft`), y
+  // es este estado — no el draft — el que debe bloquear Guardar.
+  const [jiraKeyDraft, setJiraKeyDraft] = useState('')
   const [resolvedCwdLabel, setResolvedCwdLabel] = useState('')
   // Refs para dismiss/backdrop: evita estado stale en el handler async.
   const draftRef = useRef(draft)
@@ -178,6 +203,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       setActionMessage('')
       setNotesContent('')
       notesInitialContentRef.current = ''
+      setJiraKeyDraft('')
       originalIdRef.current = ''
       originalFileNameRef.current = ''
       setResolvedCwdLabel('')
@@ -189,6 +215,7 @@ export const TabContextFormModal: React.FC<Props> = ({
     originalFileNameRef.current = mode === 'edit' && context ? context.fileName : ''
     setDraft(initial)
     setActionMessage('')
+    setJiraKeyDraft(initial.kind === 'jira' ? (initial.issueKey ?? '') : '')
     setPreview(
       initial.kind === 'changelog' || initial.kind === 'agentResult'
         ? { status: 'loading' }
@@ -424,9 +451,19 @@ export const TabContextFormModal: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, draft, notesContent])
 
+  /** Aplica la clave al draft solo si deriva un contexto válido; ver el estado. */
+  const updateJiraKeyDraft = (raw: string): void => {
+    setJiraKeyDraft(raw)
+    const derived = jiraDraftFromKey(raw)
+    if (derived) update(derived)
+  }
+
   const selectKind = (kind: TabContextKind): void => {
     if (!draft) return
     if (draft.kind === kind) return
+    // Nuevo tipo, nueva clave: no arrastrar la de un `jira` anterior en la
+    // misma sesión del modal (crear → cambiar de tipo → volver a jira).
+    if (kind === 'jira') setJiraKeyDraft('')
     if (kind === 'changelog') {
       setDraft(emptyContext('changelog'))
     } else {
@@ -452,6 +489,16 @@ export const TabContextFormModal: React.FC<Props> = ({
 
   if (!open || !draft) return null
 
+  // Aparte del check genérico de name/fileName: para `jira` ese check no
+  // basta, porque `updateJiraKeyDraft` deja el draft con la última clave
+  // válida cuando el texto actual deja de derivar una. `jiraKeyDraft` es la
+  // fuente de verdad de "qué hay escrito ahora" y es lo que debe bloquear.
+  const saveDisabled = Boolean(duplicateMessage)
+    || (draft.kind === 'changelog'
+      ? false
+      : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
+    || (draft.kind === 'jira' && !jiraDraftFromKey(jiraKeyDraft))
+
   return (
     <TerminalModal
       open={open}
@@ -470,12 +517,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           </Button>
           {draft.kind !== 'agentResult' && (
             <Button
-              disabled={
-                Boolean(duplicateMessage)
-                || (draft.kind === 'changelog'
-                  ? false
-                  : !(draft.name ?? '').trim() || !(draft.fileName ?? '').trim())
-              }
+              disabled={saveDisabled}
               onClick={() => { void save() }}
             >
               {t('tabContexts.saveContext')}
@@ -490,6 +532,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           contexts={contexts}
           preview={preview}
           notesContent={notesContent}
+          jiraKeyDraft={jiraKeyDraft}
           resolvedCwdLabel={resolvedCwdLabel}
           projectCwd={cwd}
           duplicateMessage={duplicateMessage}
@@ -497,6 +540,7 @@ export const TabContextFormModal: React.FC<Props> = ({
           readOnlyChangelog={Boolean(readOnlyChangelog)}
           readOnlyAgentResult={Boolean(readOnlyAgentResult)}
           onUpdate={update}
+          onJiraKeyDraftChange={updateJiraKeyDraft}
           onSelectKind={selectKind}
           onNotesContentChange={setNotesContent}
           onPreviewReset={() => setPreview(current => (current.status === 'success' ? current : { status: 'idle' }))}

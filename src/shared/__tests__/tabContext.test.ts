@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   applyCanonicalContextIdentity,
   canonicalContextFileName,
@@ -8,10 +8,14 @@ import {
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
   isCanonicalContextId,
+  needsContextRediscovery,
+  resolveTurnContextsRefreshing,
   normalizeAnnotation,
+  resolveTurnContexts,
   suggestSymbolsIdentity,
   isProjectRelativePath,
 } from '../tabContext'
+import type { TabContext } from '../tabContext'
 
 describe('canonical context identity', () => {
   it('maps creatable kinds to stemmed iaterminal ids and name-derived filenames', () => {
@@ -144,6 +148,100 @@ describe('defaultAssignedContextIds', () => {
       'iaterminal:symbols:classes-back',
       'iaterminal:symbols:classes-front',
     ])
+  })
+})
+
+describe('needsContextRediscovery / resolveTurnContexts', () => {
+  const staleDisk = [
+    { id: 'iaterminal:folderTree:folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' as const },
+  ]
+  const freshDisk = [
+    ...staleDisk,
+    { id: 'iaterminal:jira:GRAV-412', name: 'GRAV-412', fileName: 'jira/GRAV-412.md', kind: 'jira' as const, issueKey: 'GRAV-412' },
+  ]
+
+  it('detecta que un id adjunto todavía no está en el catálogo en memoria', () => {
+    expect(needsContextRediscovery(['iaterminal:jira:GRAV-412'], staleDisk)).toBe(true)
+    expect(needsContextRediscovery(['iaterminal:jira:GRAV-412'], freshDisk)).toBe(false)
+    expect(needsContextRediscovery([], staleDisk)).toBe(false)
+  })
+
+  it(
+    'reproduce la regresión: sin refrescar el contexto recién materializado se cae del turno; '
+    + 'tras refrescar, viaja',
+    () => {
+      // Justo después de `materializeTabContext`: el .md ya existe en disco,
+      // pero el pane todavía tiene el snapshot viejo en memoria.
+      expect(resolveTurnContexts([], ['iaterminal:jira:GRAV-412'], staleDisk)).toEqual([])
+      // Tras el `refreshDiskContexts()` que dispara `needsContextRediscovery`,
+      // el mismo id sí resuelve a contenido real.
+      expect(resolveTurnContexts([], ['iaterminal:jira:GRAV-412'], freshDisk)).toEqual([
+        freshDisk[1],
+      ])
+    },
+  )
+
+  it('deduplica lo ya asignado en el catálogo con lo adjunto ad-hoc', () => {
+    const result = resolveTurnContexts(
+      ['iaterminal:folderTree:folders'],
+      ['iaterminal:folderTree:folders', 'iaterminal:jira:GRAV-412'],
+      freshDisk,
+    )
+    expect(result).toEqual(freshDisk)
+  })
+})
+
+describe('resolveTurnContextsRefreshing', () => {
+  const staleDisk = [
+    { id: 'iaterminal:folderTree:folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' as const },
+  ]
+  const jira = {
+    id: 'iaterminal:jira:GRAV-412',
+    name: 'GRAV-412',
+    fileName: 'jira/GRAV-412.md',
+    kind: 'jira' as const,
+    issueKey: 'GRAV-412',
+  }
+
+  it('un id desconocido dispara el refresco y el contexto acaba viajando', async () => {
+    let disk: TabContext[] = [...staleDisk]
+    const refresh = vi.fn(async () => { disk = [...staleDisk, jira] })
+
+    const result = await resolveTurnContextsRefreshing([], [jira.id], () => disk, refresh)
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    // El catálogo que cuenta es el de DESPUÉS de refrescar: leerlo antes
+    // devolvería el snapshot viejo y el contexto se caería igual.
+    expect(result).toEqual([jira])
+  })
+
+  it('un id ya conocido NO refresca: una lectura de disco por tecla sería el otro fallo', async () => {
+    const disk = [...staleDisk, jira]
+    const refresh = vi.fn(async () => {})
+
+    const result = await resolveTurnContextsRefreshing([], [jira.id], () => disk, refresh)
+
+    expect(refresh).not.toHaveBeenCalled()
+    expect(result).toEqual([jira])
+  })
+
+  it('sin adjuntos ad-hoc tampoco refresca', async () => {
+    const refresh = vi.fn(async () => {})
+    const result = await resolveTurnContextsRefreshing(
+      ['iaterminal:folderTree:folders'],
+      [],
+      () => staleDisk,
+      refresh,
+    )
+    expect(refresh).not.toHaveBeenCalled()
+    expect(result).toEqual(staleDisk)
+  })
+
+  it('si el refresco no encuentra nada, el turno sale sin ese contexto pero no lanza', async () => {
+    const refresh = vi.fn(async () => {})
+    const result = await resolveTurnContextsRefreshing([], [jira.id], () => staleDisk, refresh)
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(result).toEqual([])
   })
 })
 

@@ -20,6 +20,8 @@ import {
   applyCanonicalContextIdentity,
   isCanonicalContextId,
 } from '../src/shared/tabContext'
+import { jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
+import { issueKeyFor } from '../src/shared/jiraIssue'
 import {
   defaultColorForKind,
   defaultIconForKind,
@@ -132,6 +134,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   spreadsheet: 'Sheet/column meaning only; max 10 words; never restate rows.',
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
   skill: 'Host-installed skill; do not rewrite via annotations.',
+  jira: 'Host-owned Jira snapshot; do not rewrite via annotations.',
 }
 
 function safeRoot(cwd: string, requested?: string): string {
@@ -538,6 +541,11 @@ function contextFilePath(context: TabContext, cwd: string): string {
     )
     return join(dir, 'results', baseName)
   }
+  if (context.kind === 'jira') {
+    // Misma regla que el refresher y que el preámbulo de issues adjuntas: una
+    // sola `issueKeyFor` en `src/shared/jiraIssue.ts` (ver su comentario).
+    return join(dir, 'jira', normalizeContextFileName(issueKeyFor(context), 'issue'))
+  }
   return join(dir, normalizeContextFileName(context.fileName || context.name, context.id))
 }
 
@@ -646,7 +654,14 @@ function serializeContextMetadata(context: TabContext): string {
         (context.fileName || context.name).replace(/^results[/\\]/i, ''),
         context.id.replace(/^iaterminal:result:/, '') || 'agent',
       )}`)
-    : normalizeContextFileName(context.fileName || context.name, context.id)
+    : context.kind === 'jira'
+      ? (context.fileName.replace(/\\/g, '/').startsWith('jira/')
+        ? context.fileName.replace(/\\/g, '/')
+        : `jira/${normalizeContextFileName(
+          (context.issueKey || context.fileName || context.name).replace(/^jira[/\\]/i, ''),
+          'issue',
+        )}`)
+      : normalizeContextFileName(context.fileName || context.name, context.id)
   const metadata = JSON.stringify({
     version: 1,
     id: context.id,
@@ -658,6 +673,8 @@ function serializeContextMetadata(context: TabContext): string {
     ...(context.rootPath ? { rootPath: context.rootPath } : {}),
     ...(context.paths ? { paths: context.paths } : {}),
     ...(context.symbolKinds ? { symbolKinds: context.symbolKinds } : {}),
+    ...(context.issueKey ? { issueKey: context.issueKey } : {}),
+    ...(context.refreshSeconds !== undefined ? { refreshSeconds: context.refreshSeconds } : {}),
   })
     // Evita que datos proporcionados por el usuario puedan cerrar el comentario.
     .replace(/</g, '\\u003c')
@@ -763,6 +780,12 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
         : {}),
       ...(paths ? { paths } : {}),
       ...(symbolKinds ? { symbolKinds } : {}),
+      ...(typeof value.issueKey === 'string' && value.issueKey.trim()
+        ? { issueKey: value.issueKey.trim().slice(0, 60) }
+        : {}),
+      ...(typeof value.refreshSeconds === 'number' && Number.isFinite(value.refreshSeconds)
+        ? { refreshSeconds: value.refreshSeconds }
+        : {}),
     }
   } catch {
     return null
@@ -882,6 +905,16 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
         .sort((a, b) => a.name.localeCompare(b.name))) {
         const relativeFileName = `results/${normalizeContextFileName(entry.name)}`
         ingestFile(join(resultsDir, entry.name), relativeFileName)
+      }
+    }
+
+    const jiraDir = join(dir, 'jira')
+    if (existsSync(jiraDir) && statSync(jiraDir).isDirectory()) {
+      for (const entry of readdirSync(jiraDir, { withFileTypes: true })
+        .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        const relativeFileName = `jira/${normalizeContextFileName(entry.name)}`
+        ingestFile(join(jiraDir, entry.name), relativeFileName)
       }
     }
 
@@ -1168,6 +1201,43 @@ export function materializeTabContext(
       }
     }
 
+    // jira: el contenido real lo trae `refreshStaleJiraContexts` antes del turno
+    // (Task 6); materializeTabContext sigue sin llamar nunca a la API de Jira,
+    // así que aquí solo lee. Pero si todavía no hay snapshot Y se pidió escribir
+    // (alta desde el gestor, Task 9), sí crea el archivo — vacío, con la misma
+    // forma que escribe el refresher — para que el contexto sea descubrible
+    // (`discoverTabContexts` solo lista lo que ya está en `jira/*.md`) y el
+    // refresher, que solo mira contextos ya adjuntos a un turno, tenga algo que
+    // rellenar en la siguiente pasada. Sin esto, un contexto jira recién creado
+    // nunca llega a existir en disco y nunca se refresca.
+    if (contextToWrite.kind === 'jira') {
+      if (!existsSync(filePath)) {
+        if (options.write && contextToWrite.issueKey) {
+          const metadataLine = jiraContextMetadataLine(contextToWrite.issueKey)
+          const placeholder = withJiraAutoBlock('', metadataLine, '')
+          mkdirSync(projectDirPath(cwd, 'jira'), { recursive: true })
+          writeFileSync(filePath, placeholder, 'utf8')
+          return {
+            ok: true,
+            content: placeholder,
+            notesContent: readExistingNotes(filePath),
+            filePath,
+          }
+        }
+        return {
+          ok: false,
+          content: '',
+          error: `No snapshot for ${contextToWrite.issueKey ?? 'this issue'} yet.`,
+        }
+      }
+      return {
+        ok: true,
+        content: readFileSync(filePath, 'utf8'),
+        notesContent: readExistingNotes(filePath),
+        filePath,
+      }
+    }
+
     const existingNotes = readExistingNotes(filePath)
     const auto = buildAutoContent(contextToWrite, cwd, options, filePath)
     let notes: string
@@ -1367,6 +1437,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
       return [contextFilePath(context, cwd)]
     case 'skill':
       return [skillSourcePath(context, root)]
+    case 'jira':
+      return [contextFilePath(context, cwd)]
     // Git and folder trees are cheap enough to rebuild and difficult to
     // fingerprint exactly without repeating their traversal/commands.
     case 'git':

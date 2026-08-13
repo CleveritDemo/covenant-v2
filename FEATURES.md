@@ -654,6 +654,75 @@
 - Actualización de contexto en tiempo real
 - Invalidación de caché cuando es necesario
 
+## 21. Integración con Jira
+
+### 21.1 Conexión (Ajustes → Jira)
+- Sitio de Atlassian Cloud, email de la cuenta y API token
+- Claves de proyecto (`GRAV, COV`) que acotan qué prefijos se leen como issues
+- El probe contra `/rest/api/3/myself` valida antes de persistir nada
+- Botón Desconectar: olvida las credenciales de este equipo
+- Requiere una carpeta de proyecto abierta en la pestaña; sin ella el
+  formulario está deshabilitado
+
+### 21.2 Almacenamiento
+- `<proyecto>/.gravity/jira.json`: sitio, claves de proyecto, `defaultJql`,
+  `refreshSeconds` y `maxComments`. Se commitea; no contiene credenciales
+- Los tres últimos campos solo se editan a mano y reconectar no los sobrescribe
+- Email y API token cifrados con `safeStorage` en userData, indexados por sitio
+- Sin almacén seguro disponible se rechaza guardar el token, nunca se escribe
+  en claro
+- Al conectar se añade `.gravity/jira/` al `.gitignore` del proyecto si no
+  estaba ya cubierto, y la UI lo informa; borrar esa línea comparte las fichas
+
+### 21.3 Issue como contexto
+- Decimotercer kind de contexto (`jira`), junto a folderTree, files, symbols,
+  notes, git, deps, readme, changelog, mcp, spreadsheet, agentResult y skill
+- Cada issue es un `.md` en `<proyecto>/.gravity/jira/<CLAVE>.md`
+- Dos regiones, igual que `results/<agente>.md`: `iaterminal:auto` la regenera
+  el host desde Jira, `iaterminal:notes` la escriben la persona o el agente
+- El refresco nunca pisa las notas
+- Secciones `##` del documento: Resumen, Descripción, Criterios de aceptación,
+  Comentarios y Enlaces y subtareas — cada una pedible por `need-sections`
+- El cuerpo ADF (Atlassian Document Format) se aplana a texto
+
+### 21.4 Refresco
+- `refreshStaleJiraContexts` corre justo antes de componer el turno, nunca
+  durante: el pipeline de contextos sigue siendo síncrono y solo lee disco
+- Un snapshot vencido por `refreshSeconds` (900 s por defecto; 0 lo desactiva)
+  o con la región automática vacía se vuelve a pedir
+- Peticiones en paralelo con techo total de 12 s; una issue que falla no se
+  reintenta durante 5 minutos
+- Si Jira está caído, el snapshot anterior sigue sirviendo y el turno funciona
+- Caché por issue de 60 s: seis agentes con la misma issue son un GET, no seis
+- `maxComments` (10 por defecto) son los comentarios **más recientes**, pedidos
+  al endpoint dedicado con `orderBy=-created`; `0` significa cero comentarios
+
+### 21.5 Menciones en el composer
+- Escribir `GRAV-` o `@` abre un buscador de issues sobre el composer
+- Solo los prefijos declarados en `projectKeys` abren el picker
+- Navegación con flechas, Enter para elegir, Escape para cerrar; el foco nunca
+  sale del textarea (`aria-activedescendant`)
+- Al elegir, el token escrito se sustituye por la clave canónica y la issue se
+  adjunta a ese turno
+
+### 21.6 Chip de issue en el plano
+- Clave y estado visibles siempre; resumen completo en el tooltip
+- El tooltip muestra además cuándo se actualizó la issue en Jira
+- Un snapshot nunca rellenado se marca como vencido en vez de fingir estar al día
+- Se relee cuando los contextos del proyecto se rematerializan
+
+### 21.7 Preámbulo del turno
+- Las issues con snapshot real se anuncian al agente como ya adjuntas, y se le
+  pide que no las vuelva a buscar por MCP
+- Una issue sin contenido en disco no se anuncia: el agente conserva la vía MCP
+  en lugar de quedarse sin ninguna
+
+### 21.8 Canales IPC
+- `jira:status` — configuración y estado de conexión para el cwd
+- `jira:connect` — probar credenciales y persistir
+- `jira:disconnect` — olvidar las credenciales del sitio
+- `jira:search` — buscar issues para el picker
+
 ---
 
-**Última actualización**: 2026-06-19
+**Última actualización**: 2026-08-12

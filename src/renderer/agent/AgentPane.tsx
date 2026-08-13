@@ -13,7 +13,11 @@ import type {
   AgentCliUiEvent,
 } from '@shared/agentCliTypes'
 import type { TabContext } from '@shared/tabContext'
-import { extractTabContextUpdates, defaultAssignedContextIds } from '@shared/tabContext'
+import {
+  extractTabContextUpdates,
+  defaultAssignedContextIds,
+  resolveTurnContextsRefreshing,
+} from '@shared/tabContext'
 import {
   LOOP_INTERVAL_PRESETS,
   MAX_AGENT_LOOP_ITERATIONS,
@@ -678,10 +682,25 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [commitContextsCatalog, stableOnMetaChange])
 
-  const prepareContextDiscovery = useCallback((resolvedCwd: string): void => {
+  /**
+   * Anota qué cwd se va a descubrir. **No vacía el catálogo**: hacerlo antes de
+   * saber si el descubrimiento va a funcionar deja el pane sin contextos si
+   * luego falla — y desde que `dispatchMessage` espera a `refreshDiskContexts()`
+   * antes de resolver el turno, ese hueco viaja al modelo como «este agente no
+   * tiene contextos», que es peor que un catálogo un instante desactualizado.
+   * El reemplazo ocurre solo en el camino de éxito (`applyDiscoveredContexts`).
+   *
+   * Devuelve si el cwd cambió, para que el llamador sí pueda vaciar en el único
+   * caso donde no hay catálogo posible: cwd vacío.
+   */
+  const prepareContextDiscovery = useCallback((resolvedCwd: string): boolean => {
     const next = resolvedCwd.trim()
-    if (discoveredCwdRef.current === next) return
+    if (discoveredCwdRef.current === next) return false
     discoveredCwdRef.current = next
+    return true
+  }, [])
+
+  const clearDiskContexts = useCallback((): void => {
     setDiskContexts([])
     diskContextsRef.current = []
   }, [])
@@ -689,15 +708,18 @@ export const AgentPane: React.FC<Props> = ({
   const refreshDiskContexts = useCallback(async (): Promise<void> => {
     const resolvedCwd = await resolveWorkingCwd()
     // Siempre descubrir (migración canónica en disco), aunque el cwd no cambie.
-    prepareContextDiscovery(resolvedCwd)
+    const cwdChanged = prepareContextDiscovery(resolvedCwd)
     if (!resolvedCwd) {
+      // Sin cwd no hay `.md` que leer: acá sí corresponde vaciar.
+      if (cwdChanged) clearDiskContexts()
       return
     }
     const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
+    // Descubrimiento fallido: se conserva el catálogo anterior.
     if (!result.ok) return
     if (result.contextsMigrated) forceContextFullRefreshRef.current = true
     applyDiscoveredContexts(result.contexts, result.idRemap)
-  }, [applyDiscoveredContexts, prepareContextDiscovery, resolveWorkingCwd])
+  }, [applyDiscoveredContexts, clearDiskContexts, prepareContextDiscovery, resolveWorkingCwd])
 
   useEffect(() => {
     if (retainLiveThreadIdRef.current === activeThreadId) {
@@ -1079,8 +1101,9 @@ export const AgentPane: React.FC<Props> = ({
     let cancelled = false
     void resolveWorkingCwd().then(async resolvedCwd => {
       if (cancelled) return
-      prepareContextDiscovery(resolvedCwd)
+      const cwdChanged = prepareContextDiscovery(resolvedCwd)
       if (!resolvedCwd) {
+        if (cwdChanged) clearDiskContexts()
         return
       }
       const result = await window.api.discoverTabContexts({ cwd: resolvedCwd })
@@ -1091,6 +1114,7 @@ export const AgentPane: React.FC<Props> = ({
     return () => { cancelled = true }
   }, [
     applyDiscoveredContexts,
+    clearDiskContexts,
     contextsOpen,
     contextsRevision,
     cwd,
@@ -1739,16 +1763,23 @@ export const AgentPane: React.FC<Props> = ({
       extraContextIds?: string[]
     },
   ): Promise<boolean> => {
+    const extraContextIds = options?.extraContextIds ?? []
     /**
-     * Los del catálogo del agente más los que vengan adjuntos al turno. El Set
-     * deduplica: adjuntar algo ya asignado no lo manda dos veces.
+     * `contextsRevision` (bump en `App.tsx`'s `refreshTabContexts`) es el
+     * camino normal para que este pane vuelva a leer disco, pero es async y
+     * el usuario puede pulsar Enter a los pocos ms de elegir una mención.
+     * Guarda determinista: si algo que este turno pide adjuntar todavía no
+     * está en el catálogo en memoria, refrescar ANTES de resolver — si no,
+     * `resolveTurnContexts` lo descarta en silencio (el id llegó, el `.md`
+     * existe, pero nadie lo había leído todavía aquí). La regla vive en
+     * `src/shared/tabContext.ts` porque este archivo no tiene harness de test.
      */
-    const wantedContextIds = new Set([
-      ...(metaRef.current.contextIds ?? []),
-      ...(options?.extraContextIds ?? []),
-    ])
-    const assigned = diskContextsRef.current.filter(context =>
-      wantedContextIds.has(context.id))
+    const assigned = await resolveTurnContextsRefreshing(
+      metaRef.current.contextIds ?? [],
+      extraContextIds,
+      () => diskContextsRef.current,
+      refreshDiskContexts,
+    )
     const images: AgentCliImageAttachment[] = []
     const displayImages: AgentChatImage[] = []
     for (const [index, image] of imagesSnapshot.entries()) {
@@ -1787,7 +1818,7 @@ export const AgentPane: React.FC<Props> = ({
         : {}),
       ...(options?.viaLoop ? { viaLoop: true } : {}),
     })
-  }, [startTurn, t])
+  }, [refreshDiskContexts, startTurn, t])
 
   /** Cada ciclo del loop = el mismo despacho que un mensaje del chat. */
   const runLoopIteration = useCallback((iteration: number): void => {

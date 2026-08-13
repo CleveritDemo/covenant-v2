@@ -16,6 +16,7 @@ import {
 import {
   buildBrainstormTurnPrompt,
   createBrainstormRoom,
+  formatBrainstormClosing,
   parseBrainstormClosing,
   parseCeremonyClosing,
   type BrainstormRoom,
@@ -365,5 +366,76 @@ describe('buildBrainstormTurnPrompt — sombreros del orador', () => {
   it('sin ceremonia ni asientos el prompt es el de siempre', () => {
     const prompt = buildBrainstormTurnPrompt(room, 'maria', 'Maria', 'product owner')
     expect(prompt).not.toContain('you cover')
+  })
+})
+
+describe('parseBrainstormClosing — bloques de varias líneas', () => {
+  it('recoge la lista que va debajo de la etiqueta', () => {
+    const closing = parseBrainstormClosing([
+      'Decision: Ship the intersection now.',
+      '',
+      'Agreed:',
+      '- The R kind is out of the schema.',
+      '- New kinds die on downgrade.',
+      '- Additive fields only.',
+      '',
+      'Next: Cristian writes the outcome field.',
+    ].join('\n'))
+    expect(closing?.decision).toBe('Ship the intersection now.')
+    expect(closing?.agreed).toBe([
+      '- The R kind is out of the schema.',
+      '- New kinds die on downgrade.',
+      '- Additive fields only.',
+    ].join('\n'))
+    expect(closing?.next).toBe('Cristian writes the outcome field.')
+  })
+
+  it('un valor que sigue en la línea siguiente no se pierde', () => {
+    const closing = parseBrainstormClosing([
+      'Decision: Ship the intersection now;',
+      'the versioned-vs-unversioned question waits on the backend.',
+      'Why: the stop-write path holds on both forks.',
+    ].join('\n'))
+    expect(closing?.decision).toBe(
+      'Ship the intersection now;\nthe versioned-vs-unversioned question waits on the backend.',
+    )
+    expect(closing?.why).toBe('the stop-write path holds on both forks.')
+  })
+
+  it('la línea en blanco no corta el bloque, solo otra etiqueta', () => {
+    const closing = parseBrainstormClosing([
+      'Decision: A',
+      '',
+      '- segunda parte de la decisión',
+      'Why: B',
+    ].join('\n'))
+    expect(closing?.decision).toBe('A\n- segunda parte de la decisión')
+    expect(closing?.why).toBe('B')
+  })
+
+  it('sin línea Decision no hay tarjeta, como siempre', () => {
+    expect(parseBrainstormClosing('un párrafo cualquiera')).toBeNull()
+    expect(parseBrainstormClosing('Decision:')).toBeNull()
+  })
+
+  it('el cierre de ceremonia también admite listas', () => {
+    const closing = parseCeremonyClosing([
+      'Rules:',
+      '- monto máximo 50.000',
+      '- edad mínima 18',
+      'Examples: edad 25 → aprobado',
+      'Questions: none',
+    ].join('\n'), 'exampleMapping')
+    expect(closing?.fields.rules).toBe('- monto máximo 50.000\n- edad mínima 18')
+    expect(closing?.fields.questions).toBe('none')
+  })
+
+  it('el Markdown baja el bloque multilínea a su propio renglón', () => {
+    const md = formatBrainstormClosing('Tema', {
+      decision: 'A',
+      agreed: '- uno\n- dos',
+    })
+    expect(md).toContain('**Agreed:**\n- uno\n- dos')
+    expect(md).toContain('**Decision:** A')
   })
 })

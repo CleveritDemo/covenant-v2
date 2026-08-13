@@ -17,6 +17,7 @@ import type {
 import {
   buildWikiCuratorPrompt,
   extractWikiViewRequest,
+  isWikiCuratorInitCommand,
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
   type WikiCuratorConfig,
@@ -185,6 +186,7 @@ export function startWikiCuratorTurn(
     ? config.cliSessionId.trim()
     : undefined
 
+  const init = isWikiCuratorInitCommand(message)
   const request: AgentCliStartRequest = {
     paneId,
     provider: curatorConfig.provider ?? 'claude',
@@ -194,6 +196,7 @@ export function startWikiCuratorTurn(
       curatorConfig,
       message || '(imagen adjunta)',
       buildWikiHealthSection(cwd),
+      init ? 'init' : 'chat',
     ),
     cwd,
     name: curatorConfig.name,

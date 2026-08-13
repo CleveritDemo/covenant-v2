@@ -666,7 +666,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     || selectedAgent?.delegationWorkActive,
   )
 
-  const showIdleGravity = !anyFullscreen && !quickChatShowing
+  const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
 
   return (
@@ -865,6 +865,29 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
         tabActive={tabActive}
+        stageHidden={wikiMapOpen}
+        wikiOverlay={wikiMapOpen ? (
+          <WikiGraphView
+            data={wikiGraphData}
+            cwd={projectFolder.trim()}
+            active={tabActive}
+            onClose={() => setWikiMapOpen(false)}
+            onOpenNode={slug => setWikiNodeSlugs([slug])}
+            onRefetchGraph={() => {
+              setWikiGraphRefreshToken(token => token + 1)
+              const cwd = projectFolder.trim()
+              if (cwd) onWikiMutated?.(cwd)
+            }}
+            curator={projectFolder.trim() ? (
+              <WikiCuratorComposer
+                cwd={projectFolder.trim()}
+                systemSoundsEnabled={systemSoundsEnabled}
+                onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
+                onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
+              />
+            ) : null}
+          />
+        ) : null}
         seatDragEnabled={brainstormTableOpen}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
@@ -958,7 +981,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
@@ -1034,7 +1057,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1052,29 +1075,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onBootstrapAgents={onBootstrapAgents}
         />
       )}
-
-      {wikiMapOpen ? (
-        <WikiGraphView
-          data={wikiGraphData}
-          cwd={projectFolder.trim()}
-          active={tabActive}
-          onClose={() => setWikiMapOpen(false)}
-          onOpenNode={slug => setWikiNodeSlugs([slug])}
-          onRefetchGraph={() => {
-            setWikiGraphRefreshToken(token => token + 1)
-            const cwd = projectFolder.trim()
-            if (cwd) onWikiMutated?.(cwd)
-          }}
-          curator={projectFolder.trim() ? (
-            <WikiCuratorComposer
-              cwd={projectFolder.trim()}
-              systemSoundsEnabled={systemSoundsEnabled}
-              onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
-              onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
-            />
-          ) : null}
-        />
-      ) : null}
 
       {/* Páginas reales de la wiki (markdown crudo; el render md rico llega después).
           Cascada de hasta 3 (view del curador), 24px de offset por paso; z por

@@ -781,6 +781,8 @@ const es = {
     wikiCuratorSend: 'Enviar al curador',
     wikiCuratorStop: 'Detener al curador',
     wikiCuratorThinking: 'El curador está pensando…',
+    wikiCuratorHistoryLabel: 'Historial de conversación',
+    wikiCuratorHistoryClear: 'Limpiar historial',
     wikiCuratorConfigOpen: 'Configuración del curador',
     wikiCuratorConfigTitle: 'Curador de la wiki',
     wikiCuratorConfigNameLabel: 'Nombre',

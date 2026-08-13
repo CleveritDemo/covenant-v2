@@ -4,6 +4,10 @@
  */
 
 import { agentInstanceTag, parseExpertReplicaRequest } from './expertReplicas'
+import {
+  formatCatalogAgentDelegationLabel,
+  type ProjectAgentDefinition,
+} from './projectAgentCatalog'
 
 /**
  * `deferred` es una delegación aceptada que todavía no arrancó (el pane destino
@@ -25,7 +29,7 @@ export interface OrchestrationAwaitingItemInput {
 
 export interface OrchestrationAwaitingItemView {
   delegationId: string
-  /** Nombre del experto: en una réplica, el del base (`frontend`, no `frontend-2`). */
+  /** Nombre + rol del catálogo; en réplica, el del experto base (no el slug `frontend-2`). */
   agentLabel: string
   /** Tag de instancia de la réplica (`R2`); ausente en el experto base. */
   instanceTag?: string
@@ -129,19 +133,31 @@ export function shouldDeferReplicaDisposeForWave(
   return remaining > 0 || deferredLeft > 0
 }
 
+export interface BuildOrchestrationAwaitingViewOptions {
+  catalog?: readonly ProjectAgentDefinition[]
+}
+
 export function buildOrchestrationAwaitingView(
   items: readonly OrchestrationAwaitingItemInput[],
+  options?: BuildOrchestrationAwaitingViewOptions,
 ): OrchestrationAwaitingView | null {
   if (!items.length) return null
+  const catalog = options?.catalog ?? []
+  const labelForExpertId = (expertId: string): string => {
+    const id = expertId.trim()
+    if (!id) return expertId
+    if (catalog.length) return formatCatalogAgentDelegationLabel(id, catalog)
+    return id
+  }
   const views: OrchestrationAwaitingItemView[] = items.map(item => {
     const to = item.toAgentId.trim()
     const replica = isReplicaAgentId(to, item.baseAgentId)
     const tag = replica ? agentInstanceTag(to) : null
+    const expertId = (tag ? (item.baseAgentId?.trim() || parseExpertReplicaRequest(to).baseId) : to)
+      || item.delegationId
     return {
       delegationId: item.delegationId,
-      // Con tag, el nombre visible es el del experto: "frontend R2", no "frontend-2 R2".
-      agentLabel: (tag ? (item.baseAgentId?.trim() || parseExpertReplicaRequest(to).baseId) : to)
-        || item.delegationId,
+      agentLabel: labelForExpertId(expertId),
       ...(tag ? { instanceTag: tag } : {}),
       status: item.status,
       ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),

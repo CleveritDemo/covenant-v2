@@ -38,8 +38,9 @@ import {
   threadPatch,
   touchActiveThread,
 } from '@shared/agentThreads'
-import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
+import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts, formatCatalogAgentDelegationLabel } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { parseExpertReplicaRequest } from '@shared/expertReplicas'
 import {
   orchestrationAwaitingSignature,
   type OrchestrationAwaitingView,
@@ -1688,7 +1689,10 @@ export const AgentPane: React.FC<Props> = ({
       onOrchestratorDelegationsRef.current?.(tagged, jobId)
       if (tagged.length) {
         const names = tagged
-          .map(item => item.toAgentId)
+          .map(item => formatCatalogAgentDelegationLabel(
+            parseExpertReplicaRequest(item.toAgentId).baseId,
+            projectAgentsRef.current,
+          ))
           .join(', ')
         setMessages(prev => [
           ...prev,

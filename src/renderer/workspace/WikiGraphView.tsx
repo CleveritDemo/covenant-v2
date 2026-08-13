@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
 import { Spinner } from '../components/ui/Spinner'
@@ -46,8 +45,8 @@ const LEGEND_TYPES: WikiGraphNodeType[] = ['concept', 'decision', 'flow', 'refer
 /**
  * Mapa neuronal 3D de la wiki: cubre el plano del workspace (absolute inset)
  * y se cierra con Escape o su botón. Vive dentro de `.tab-agentic-plane` para
- * no tapar otros workspaces al cambiar de tab; el z APP_OVERLAY_MODAL_Z queda
- * por encima del stacking de PlaneMap (z 16), así las PaneWindow no lo tapan.
+ * no tapar otros workspaces al cambiar de tab. Se monta dentro de PlaneMap
+ * (`.plane-map__wiki-overlay`) sobre el backdrop de grilla y partículas.
  * El render 3D vive en `useWikiGraphScene`; aquí solo el chrome HTML.
  */
 export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
@@ -98,7 +97,6 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       className="wiki-graph-view"
       role="region"
       aria-label={t('tabs.wikiMapTitle')}
-      style={{ zIndex: APP_OVERLAY_MODAL_Z }}
     >
       <div ref={containerRef} className="wiki-graph-view__canvas" />
       {isEmpty ? (

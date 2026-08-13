@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.44.0
+
+- **Curador de la wiki con historial local**: los turnos quedan en un panel scrolleable por proyecto; al limpiar historial desaparece también el bloque vivo y no se duplican errores del CLI.
+- **CLI y modelo del curador al alcance**: los selects de proveedor y modelo viven encima del input como pills del plano (misma columna de 640px que el composer de agentes); el popover solo nombre y reglas.
+- **`/init` en el curador**: el comando arranca el modo init del prompt para sembrar o rehacer la wiki sin mezclarlo con un turno normal.
+- **Indicadores de delegación con nombre del catálogo**: la ola awaiting y el mensaje «Delegado a» muestran nombre · rol del agente (réplicas siguen con tag R2), no el slug interno del JSON.
+- **Mapa wiki sobre el plano vivo**: el grafo se monta como overlay del PlaneMap con canvas transparente; grilla, partículas y atmósfera siguen visibles y el stage de ventanas se oculta sin desmontarse.
+- **Rayos del mapa que iluminan nodos**: materiales Lambert, luces puntuales por descarga, glow volumétrico y núcleo teñido por el color del nodo de origen.
+
 ## v0.43.0
 
 - **Wiki como sustrato index-first en el prompt**: el índice compacto incluye resúmenes por página y la directiva de consultar la wiki antes de explorar el repo.

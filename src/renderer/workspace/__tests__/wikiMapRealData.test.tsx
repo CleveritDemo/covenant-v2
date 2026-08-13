@@ -18,7 +18,9 @@ vi.mock('../useWikiGraphScene', () => ({
 
 // Hijos pesados del plano (canvas, xterm, dictado): stubs — este test no los necesita.
 vi.mock('../PlaneMap', () => ({
-  PlaneMap: () => <div data-testid="plane-map" />,
+  PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
+    <div data-testid="plane-map">{wikiOverlay}</div>
+  ),
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
 vi.mock('../PlaneChatDock', () => ({ PlaneChatDock: () => null }))

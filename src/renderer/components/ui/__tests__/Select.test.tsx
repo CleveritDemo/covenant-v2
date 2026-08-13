@@ -160,6 +160,11 @@ describe('Select', () => {
     expect(trigger.getAttribute('aria-haspopup')).toBe('listbox')
   })
 
+  it('variant badge aplica la clase pill del plano', () => {
+    render(<Select value="" options={OPTIONS} onChange={() => {}} variant="badge" />)
+    expect(screen.getByRole('button').className).toContain('select--badge')
+  })
+
   it('abre debajo del disparador cuando hay espacio', () => {
     render(<Select value="" options={OPTIONS} onChange={() => {}} />)
     mockTriggerBox({ top: 100, bottom: 132, left: 80, width: 240 })

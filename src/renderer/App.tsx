@@ -513,7 +513,10 @@ export const App: React.FC = () => {
           ...(worktreePath ? { worktreePath } : {}),
         }
       })
-      const view = buildOrchestrationAwaitingView(flat)
+      const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+      const catalogKey = tab ? tabAgentCatalogKey(tab) : ''
+      const catalog = catalogKey ? (projectAgentsByCwdRef.current[catalogKey] ?? []) : []
+      const view = buildOrchestrationAwaitingView(flat, { catalog })
       const stillWaiting = jobs.some(isJobAwaiting)
       if (view && stillWaiting) nextViews.set(fromPaneId, view)
       if (!stillWaiting) {

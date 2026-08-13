@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 vi.mock('@i18n/useT', () => ({
-  useT: () => ({ t: (key: string) => key }),
+  useT: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${Object.values(params).join(',')}` : key,
+  }),
 }))
 
 import { JiraIssueChip } from '../JiraIssueChip'
@@ -60,6 +63,55 @@ describe('JiraIssueChip', () => {
   it('sin vencer, el botón no lleva el aviso de frescura', () => {
     render(<JiraIssueChip issueKey="GRAV-412" summary="x" status="Done" stale={false} onOpen={vi.fn()} />)
     expect(screen.getByRole('button').textContent).not.toContain('jira.staleHint')
+  })
+
+  it('con snapshot lleno, el hint lleva estado Y fecha de actualización de la issue', async () => {
+    // `stale` dice si el ARCHIVO se llenó; `updated`, cuándo cambió la ISSUE.
+    // Sin la fecha, un snapshot de hace dos semanas se veía igual de al día
+    // que uno de hace un minuto.
+    render(
+      <JiraIssueChip
+        issueKey="GRAV-412"
+        summary="Loop chain colgada"
+        status="Done"
+        stale={false}
+        updated="2026-08-01T09:00:00.000Z"
+        onOpen={vi.fn()}
+      />,
+    )
+    fireEvent.focus(screen.getByRole('button'))
+
+    const bubble = await screen.findByRole('tooltip')
+    expect(bubble.textContent).toContain('Done')
+    expect(bubble.textContent).toContain('jira.updatedHint:2026-08-01T09:00:00.000Z')
+  })
+
+  it('sin fecha de actualización, el hint es solo el estado', async () => {
+    render(
+      <JiraIssueChip issueKey="GRAV-412" summary="x" status="Done" stale={false} onOpen={vi.fn()} />,
+    )
+    fireEvent.focus(screen.getByRole('button'))
+
+    const bubble = await screen.findByRole('tooltip')
+    expect(bubble.textContent).not.toContain('jira.updatedHint')
+  })
+
+  it('vencido, el hint sigue siendo el aviso de frescura y no la fecha', async () => {
+    render(
+      <JiraIssueChip
+        issueKey="GRAV-412"
+        summary="x"
+        status="Done"
+        stale
+        updated="2026-08-01T09:00:00.000Z"
+        onOpen={vi.fn()}
+      />,
+    )
+    fireEvent.focus(screen.getByRole('button'))
+
+    const bubble = await screen.findByRole('tooltip')
+    expect(bubble.textContent).toContain('jira.staleHint')
+    expect(bubble.textContent).not.toContain('jira.updatedHint')
   })
 
   it('el ícono decorativo no se anuncia dos veces: aria-hidden', () => {

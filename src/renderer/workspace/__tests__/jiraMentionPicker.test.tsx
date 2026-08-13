@@ -99,6 +99,64 @@ describe('JiraMentionPicker', () => {
     expect(onPick).not.toHaveBeenCalled()
   })
 
+  it('al desmontar limpia los TRES atributos aria del textarea', async () => {
+    // `aria-controls` se ponía y no se quitaba: quedaba apuntando a un <ul>
+    // que ya no está en el DOM, una referencia rota para el lector de pantalla
+    // sobre el textarea del composer.
+    const textarea = document.createElement('textarea')
+    document.body.appendChild(textarea)
+
+    const { unmount } = render(
+      <JiraMentionPicker
+        cwd="/repo"
+        query="GRAV-4"
+        onPick={vi.fn()}
+        onDismiss={vi.fn()}
+        focusElement={textarea}
+      />,
+    )
+    await screen.findByText('Loop chain colgada')
+    await waitFor(() => expect(textarea.getAttribute('aria-controls')).toBeTruthy())
+
+    unmount()
+
+    expect(textarea.getAttribute('aria-controls')).toBeNull()
+    expect(textarea.getAttribute('aria-expanded')).toBeNull()
+    expect(textarea.getAttribute('aria-activedescendant')).toBeNull()
+    textarea.remove()
+  })
+
+  it('cuando la búsqueda deja de tener resultados, también se limpia aria-controls', async () => {
+    const textarea = document.createElement('textarea')
+    document.body.appendChild(textarea)
+
+    const { rerender } = render(
+      <JiraMentionPicker
+        cwd="/repo"
+        query="GRAV-4"
+        onPick={vi.fn()}
+        onDismiss={vi.fn()}
+        focusElement={textarea}
+      />,
+    )
+    await waitFor(() => expect(textarea.getAttribute('aria-controls')).toBeTruthy())
+
+    jiraSearch.mockResolvedValue([])
+    rerender(
+      <JiraMentionPicker
+        cwd="/repo"
+        query="GRAV-99"
+        onPick={vi.fn()}
+        onDismiss={vi.fn()}
+        focusElement={textarea}
+      />,
+    )
+
+    await waitFor(() => expect(textarea.getAttribute('aria-controls')).toBeNull())
+    expect(textarea.getAttribute('aria-expanded')).toBeNull()
+    textarea.remove()
+  })
+
   it('solo la búsqueda más reciente pinta, aunque resuelva después de reordenarse', async () => {
     let resolveFirst: (issues: JiraIssueRef[]) => void = () => {}
     let resolveSecond: (issues: JiraIssueRef[]) => void = () => {}

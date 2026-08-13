@@ -153,6 +153,8 @@ export interface TabAgenticPlaneProps {
   restoreLabel: string
   closeWindowLabel: string
   projectFolder: string
+  /** Sube cuando los contextos del proyecto se remateralizan (`refreshTabContexts`). */
+  contextsRevision?: number
   projectFolderSelectLabel: string
   projectFolderChangeLabel: string
   projectFolderEmptyHint: string
@@ -344,6 +346,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   restoreLabel,
   closeWindowLabel,
   projectFolder,
+  contextsRevision = 0,
   projectFolderSelectLabel,
   projectFolderChangeLabel,
   projectFolderEmptyHint,
@@ -824,6 +827,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         deferPositionMotion={deferPositionMotion}
         working={planeWorking}
         cwd={projectFolder}
+        contextsRevision={contextsRevision}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (

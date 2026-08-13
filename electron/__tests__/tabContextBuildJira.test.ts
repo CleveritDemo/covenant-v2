@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -20,14 +20,14 @@ const mockState = vi.hoisted(() => ({ userDataDir: '' }))
 vi.mock('electron', () => ({
   app: { getPath: () => mockState.userDataDir },
   safeStorage: {
-    isEncryptionAvailable: () => false,
+    isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(value),
     decryptString: (buffer: Buffer) => buffer.toString(),
   },
 }))
 
 const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
-const { refreshStaleJiraContexts } = await import('../jiraContextRefresh')
+const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
 
 const context: TabContext = {
   id: 'iaterminal:jira:grav-412',
@@ -135,6 +135,13 @@ const issuePath = (dir: string): string => join(dir, '.gravity', 'jira', 'GRAV-4
 // siempre, porque nada más escribe ese archivo antes de que exista un turno
 // que lo adjunte.
 describe('materializeTabContext con kind jira — alta desde el gestor (write:true)', () => {
+  // La memoria de fallos del refresher es de módulo: sin limpiarla, un test
+  // que provoca un 502 castigaría a los siguientes.
+  beforeEach(() => {
+    clearJiraRefreshFailures()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
   it('sin snapshot y write:true crea un placeholder en la ruta que resuelve contextFilePath', () => {
     const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
     const result = materializeTabContext(context, dir, { write: true })
@@ -213,7 +220,14 @@ describe('materializeTabContext con kind jira — alta desde el gestor (write:tr
     // placeholder original): antes del fix del round 2 este turno también se
     // habría saltado el fetch por mtime, agravando la ventana de silencio de
     // una falla transitoria a los refreshSeconds completos.
-    await refreshStaleJiraContexts([context], dir, { fetchIssue: async () => snapshot })
+    // `failureCooldownMs: 0` aísla lo que este test mira: hoy hay ADEMÁS un
+    // backoff por fallo (`jiraContextRefresh.test.ts` lo cubre aparte), y sin
+    // vencerlo el reintento inmediato no distinguiría cuál de los dos frenos
+    // actuó.
+    await refreshStaleJiraContexts([context], dir, {
+      fetchIssue: async () => snapshot,
+      failureCooldownMs: 0,
+    })
     expect(materializeTabContext(context, dir).content).toContain('nuevo título')
   })
 })

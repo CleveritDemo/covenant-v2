@@ -12,6 +12,14 @@ export interface JiraIssueChipProps {
   status: string
   /** Región `iaterminal:auto` vacía o ausente: snapshot placeholder, nunca refrescado. */
   stale: boolean
+  /**
+   * `fields.updated` de Jira: cuándo cambió la ISSUE. Distinto de `stale`, que
+   * dice si este ARCHIVO se llegó a rellenar alguna vez. Un snapshot puede
+   * estar perfecto y describir un ticket que no se toca hace dos semanas —
+   * sin esta fecha, esos dos casos se veían exactamente igual. Vacío si el
+   * `.md` no la trae.
+   */
+  updated?: string
   onOpen: () => void
 }
 
@@ -26,12 +34,18 @@ export const JiraIssueChip: React.FC<JiraIssueChipProps> = ({
   summary,
   status,
   stale,
+  updated = '',
   onOpen,
 }) => {
   const { t } = useT()
   const staleHint = t('jira.staleHint')
+  // Con snapshot lleno, el hint dice estado Y desde cuándo: son las dos cosas
+  // que distinguen «al día» de «materializado pero viejo».
+  const freshHint = updated.trim()
+    ? `${status} · ${t('jira.updatedHint', { date: updated.trim() })}`
+    : status
   return (
-    <Tooltip content={summary} hint={stale ? staleHint : status}>
+    <Tooltip content={summary} hint={stale ? staleHint : freshHint}>
       <button
         type="button"
         className={['jira-chip', stale ? 'jira-chip--stale' : ''].filter(Boolean).join(' ')}

@@ -22,9 +22,16 @@ export interface PlaneAgentContextNodesProps {
   onOpenAgent: () => void
   /** Carpeta del proyecto: la usa el chip jira para pedir su preview vía IPC. */
   cwd?: string
+  /** Sube cuando los contextos se remateralizan; el chip jira relee su snapshot. */
+  contextsRevision?: number
 }
 
-function renderContextItem(ctx: PlaneAgentContextChip, onOpenAgent: () => void, cwd: string) {
+function renderContextItem(
+  ctx: PlaneAgentContextChip,
+  onOpenAgent: () => void,
+  cwd: string,
+  contextsRevision: number,
+) {
   return (
     <li key={ctx.id} className="plane-agent-context-nodes__item" role="listitem">
       <PlaneContextCard
@@ -37,6 +44,7 @@ function renderContextItem(ctx: PlaneAgentContextChip, onOpenAgent: () => void, 
         kind={ctx.kind}
         issueKey={ctx.issueKey}
         cwd={cwd}
+        contextsRevision={contextsRevision}
       />
     </li>
   )
@@ -47,6 +55,7 @@ export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
   contexts,
   onOpenAgent,
   cwd = '',
+  contextsRevision = 0,
 }) => {
   if (contexts.length === 0) return null
 
@@ -56,11 +65,11 @@ export const PlaneAgentContextNodes: React.FC<PlaneAgentContextNodesProps> = ({
 
   return (
     <ul className="plane-agent-context-nodes" role="list">
-      {normal.map(ctx => renderContextItem(ctx, onOpenAgent, cwd))}
+      {normal.map(ctx => renderContextItem(ctx, onOpenAgent, cwd, contextsRevision))}
       {showSeparator ? (
         <li className="plane-agent-context-nodes__sep" aria-hidden="true" />
       ) : null}
-      {results.map(ctx => renderContextItem(ctx, onOpenAgent, cwd))}
+      {results.map(ctx => renderContextItem(ctx, onOpenAgent, cwd, contextsRevision))}
     </ul>
   )
 }

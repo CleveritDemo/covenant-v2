@@ -632,6 +632,32 @@ export function resolveTurnContexts(
   return diskContexts.filter(context => wanted.has(context.id))
 }
 
+/**
+ * La guarda de `dispatchMessage`, entera y sin React: si algún id adjunto a
+ * ESTE turno no está en el catálogo en memoria, releer disco ANTES de resolver.
+ *
+ * `read()` se llama dos veces a propósito — la segunda después del `refresh()`,
+ * porque el catálogo que importa es el de después de refrescar; el pane guarda
+ * el suyo en un ref que `refresh()` reemplaza, así que capturarlo antes daría
+ * el valor viejo.
+ *
+ * Vive acá y no en el componente porque el repo no tiene harness de
+ * `AgentPane`: es la única forma de fijar que el refresco ocurre cuando un id
+ * es desconocido, y NO ocurre cuando ya se conoce (una llamada a disco por
+ * tecla en el composer sería el otro fallo).
+ */
+export async function resolveTurnContextsRefreshing(
+  catalogContextIds: readonly string[],
+  extraContextIds: readonly string[],
+  read: () => readonly TabContext[],
+  refresh: () => Promise<void>,
+): Promise<TabContext[]> {
+  if (needsContextRediscovery(extraContextIds, read())) {
+    await refresh()
+  }
+  return resolveTurnContexts(catalogContextIds, extraContextIds, read())
+}
+
 /** Sugiere nombre/archivo para un contexto symbols según la subcarpeta. */
 export function suggestSymbolsIdentity(rootPath: string | undefined): {
   name: string

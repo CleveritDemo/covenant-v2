@@ -22,18 +22,35 @@ export interface PlaneContextCardProps {
   issueKey?: string
   /** Carpeta del proyecto: sin ella `previewTabContext` no puede resolver el `.md` de la issue. */
   cwd?: string
+  /**
+   * Se incrementa cuando los contextos del proyecto se remateralizan
+   * (`refreshTabContexts` en `App.tsx`). Es la señal para releer el snapshot:
+   * el chip lo pedía una sola vez al montar y se quedaba mostrando el estado
+   * viejo aunque el turno acabara de refrescarlo.
+   */
+  contextsRevision?: number
 }
 
-const NO_PREVIEW: JiraIssuePreview = { stale: false }
+/**
+ * Estado inicial Y fallback de error. `stale: true` porque no saber si el
+ * snapshot está lleno no es lo mismo que saber que lo está: pintarlo como
+ * fresco invierte la regla del feature justo cuando falta el dato.
+ */
+const NO_PREVIEW: JiraIssuePreview = { stale: true }
 
 /**
  * Resumen/estado/frescura de una issue jira, leídos del mismo `.md` que ya
  * expone `previewTabContext` — el IPC que usa cualquier preview de contexto,
- * no uno nuevo, y sin lectura de disco propia del renderer. Un solo fetch al
- * montar (nunca en hover, nunca en cada render); un fallo deja el chip sin
- * resumen/estado en vez de lanzar o quedarse cargando para siempre.
+ * no uno nuevo, y sin lectura de disco propia del renderer. Se pide al montar
+ * y cada vez que `contextsRevision` cambia (nunca en hover, nunca en cada
+ * render, nunca por polling); un fallo deja el chip sin resumen/estado en vez
+ * de lanzar o quedarse cargando para siempre.
  */
-function useJiraIssuePreview(issueKey: string | undefined, cwd: string | undefined): JiraIssuePreview {
+function useJiraIssuePreview(
+  issueKey: string | undefined,
+  cwd: string | undefined,
+  contextsRevision: number,
+): JiraIssuePreview {
   const [preview, setPreview] = useState<JiraIssuePreview>(NO_PREVIEW)
   const key = (issueKey ?? '').trim()
   const workingCwd = (cwd ?? '').trim()
@@ -57,7 +74,7 @@ function useJiraIssuePreview(issueKey: string | undefined, cwd: string | undefin
     return () => {
       cancelled = true
     }
-  }, [key, workingCwd])
+  }, [key, workingCwd, contextsRevision])
 
   return preview
 }
@@ -73,10 +90,11 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
   kind,
   issueKey,
   cwd,
+  contextsRevision = 0,
 }) => {
   const isJira = kind === 'jira' && Boolean((issueKey ?? '').trim())
   // El hook corre siempre (regla de hooks); dentro decide si hay algo que pedir.
-  const preview = useJiraIssuePreview(isJira ? issueKey : undefined, cwd)
+  const preview = useJiraIssuePreview(isJira ? issueKey : undefined, cwd, contextsRevision)
 
   if (isJira) {
     return (
@@ -94,6 +112,7 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
           summary={preview.summary ?? ''}
           status={preview.status ?? ''}
           stale={preview.stale}
+          updated={preview.updated ?? ''}
           onOpen={() => onOpen?.()}
         />
       </span>

@@ -94,18 +94,22 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
   // Anuncia la fila activa sobre el textarea (el foco real nunca se mueve).
   useEffect(() => {
     if (!focusElement) return
-    if (!results.length) {
+    // Los TRES atributos se ponen y se quitan juntos: dejar un `aria-controls`
+    // apuntando a un `<ul>` que ya no está en el DOM le da al lector de
+    // pantalla una referencia rota sobre el textarea del composer.
+    const clear = (): void => {
       focusElement.removeAttribute('aria-expanded')
+      focusElement.removeAttribute('aria-controls')
       focusElement.removeAttribute('aria-activedescendant')
+    }
+    if (!results.length) {
+      clear()
       return
     }
     focusElement.setAttribute('aria-expanded', 'true')
     focusElement.setAttribute('aria-controls', listId)
     focusElement.setAttribute('aria-activedescendant', optionId(active))
-    return () => {
-      focusElement.removeAttribute('aria-expanded')
-      focusElement.removeAttribute('aria-activedescendant')
-    }
+    return clear
   }, [focusElement, results, active, listId])
 
   if (!results.length) return null

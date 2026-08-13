@@ -70,6 +70,48 @@ describe('PlaneContextCard — kind jira', () => {
     expect(call.context.issueKey).toBe('GRAV-412')
   })
 
+  it('relee el snapshot cuando `contextsRevision` cambia (el turno lo refrescó)', async () => {
+    // El chip pedía el preview UNA vez al montar, así que tras un turno que
+    // refresca el snapshot seguía mostrando el estado viejo para siempre.
+    const previewTabContext = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        content: '<!-- iaterminal:auto -->\n\n<!-- /iaterminal:auto -->',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        content: [
+          '<!-- iaterminal:auto -->',
+          '## Resumen',
+          'GRAV-412 · Loop chain colgada',
+          'Estado: Done · Tipo: Bug',
+          '<!-- /iaterminal:auto -->',
+        ].join('\n'),
+      })
+    Object.assign(window, { api: { previewTabContext } })
+
+    const card = (revision: number) => (
+      <PlaneContextCard
+        name="GRAV-412"
+        icon="jira"
+        color="#888"
+        kind="jira"
+        issueKey="GRAV-412"
+        cwd="/proyecto"
+        contextsRevision={revision}
+        onOpen={vi.fn()}
+      />
+    )
+    const { container, rerender } = render(card(0))
+    await waitFor(() => expect(container.querySelector('.jira-chip--stale')).toBeTruthy())
+
+    rerender(card(1))
+
+    await waitFor(() => expect(screen.getByText('Done')).toBeTruthy())
+    expect(container.querySelector('.jira-chip--stale')).toBeNull()
+    expect(previewTabContext).toHaveBeenCalledTimes(2)
+  })
+
   it('el clic hace lo mismo que hace un click en la tarjeta hoy (forward de onOpen)', async () => {
     const previewTabContext = vi.fn().mockResolvedValue({ ok: true, content: '' })
     Object.assign(window, { api: { previewTabContext } })
@@ -109,10 +151,12 @@ describe('PlaneContextCard — kind jira', () => {
     await waitFor(() => expect(container.querySelector('.jira-chip--stale')).toBeTruthy())
   })
 
-  it('un preview fallido no rompe el render: el chip sigue mostrando la clave', async () => {
+  it('un preview fallido no rompe el render y NO se pinta como fresco', async () => {
+    // Sin snapshot legible no se sabe si está lleno; pintarlo como fresco
+    // invierte la regla del feature justo cuando falta el dato.
     const previewTabContext = vi.fn().mockRejectedValue(new Error('offline'))
     Object.assign(window, { api: { previewTabContext } })
-    render(
+    const { container } = render(
       <PlaneContextCard
         name="GRAV-412"
         icon="jira"
@@ -125,6 +169,7 @@ describe('PlaneContextCard — kind jira', () => {
     )
     await waitFor(() => expect(previewTabContext).toHaveBeenCalledTimes(1))
     expect(screen.getByText('GRAV-412')).toBeTruthy()
+    await waitFor(() => expect(container.querySelector('.jira-chip--stale')).toBeTruthy())
   })
 
   it('sin cwd, no pide preview (no hay `.md` que resolver)', () => {

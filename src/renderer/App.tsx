@@ -5511,6 +5511,10 @@ export const App: React.FC = () => {
                   restoreLabel={t('tabs.planeRestore')}
                   closeWindowLabel={t('tabs.planeHideWindow')}
                   projectFolder={tab.projectFolder ?? ''}
+                  // Misma señal que ya recibe cada `AgentPane`: el chip jira de
+                  // un mini relee su snapshot cuando los contextos se
+                  // rematerializan, en vez de quedarse con el del montaje.
+                  contextsRevision={contextsRevisionByCwd[tabAgentCatalogKey(tab)] ?? 0}
                   projectFolderSelectLabel={t('tabs.projectFolderSelect')}
                   projectFolderChangeLabel={t('tabs.projectFolderChange')}
                   projectFolderEmptyHint={t('tabs.projectFolderEmptyHint')}

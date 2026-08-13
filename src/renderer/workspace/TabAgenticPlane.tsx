@@ -217,37 +217,6 @@ export interface TabAgenticPlaneProps {
    * pool de contextos se retira, que es de quien hereda su esquina.
    */
   brainstormOverlayOpen?: boolean
-  loopsTitle: string
-  loopsSubtitle: string
-  loopsEmptyTitle: string
-  loopsEmptyHint: string
-  loopsChainsTitle: string
-  loopsChainsEmpty: string
-  loopsCreateChainLabel: string
-  loopsAppendStepLabel: string
-  loopsStartChainLabel: string
-  loopsStopChainLabel: string
-  loopsDeleteChainLabel: string
-  loopsChainModalTitle: string
-  loopsChainModalDescription: string
-  loopsAppendModalTitle: string
-  loopsAppendModalDescription: string
-  loopsAgentLabel: string
-  loopsObjectiveLabel: string
-  loopsObjectivePlaceholder: string
-  loopsNoAgentsHint: string
-  loopsNoAppendAgentsHint: string
-  loopsBlockNeedObjectiveHint: string
-  loopsChainConfirmLabel: string
-  loopsAppendConfirmLabel: string
-  loopsCancelLabel: string
-  loopsStatusIdle: string
-  loopsStatusBusy: string
-  loopsStatusLooping: string
-  loopsChainStatusIdle: string
-  loopsChainStatusRunning: string
-  loopsChainStatusWaiting: string
-  loopsChainStatusStopped: string
   loopChains: PlaneLoopChain[]
   onLoopChainsChange: (chains: PlaneLoopChain[]) => void
   onStartLoopChain: (chainId: string) => void
@@ -406,37 +375,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   brainstormOverlays,
   brainstormOverlayOpen = false,
   brainstormsListButtonLabel = 'Brainstorms',
-  loopsTitle,
-  loopsSubtitle,
-  loopsEmptyTitle,
-  loopsEmptyHint,
-  loopsChainsTitle,
-  loopsChainsEmpty,
-  loopsCreateChainLabel,
-  loopsAppendStepLabel,
-  loopsStartChainLabel,
-  loopsStopChainLabel,
-  loopsDeleteChainLabel,
-  loopsChainModalTitle,
-  loopsChainModalDescription,
-  loopsAppendModalTitle,
-  loopsAppendModalDescription,
-  loopsAgentLabel,
-  loopsObjectiveLabel,
-  loopsObjectivePlaceholder,
-  loopsNoAgentsHint,
-  loopsNoAppendAgentsHint,
-  loopsBlockNeedObjectiveHint,
-  loopsChainConfirmLabel,
-  loopsAppendConfirmLabel,
-  loopsCancelLabel,
-  loopsStatusIdle,
-  loopsStatusBusy,
-  loopsStatusLooping,
-  loopsChainStatusIdle,
-  loopsChainStatusRunning,
-  loopsChainStatusWaiting,
-  loopsChainStatusStopped,
   loopChains,
   onLoopChainsChange,
   onStartLoopChain,
@@ -840,37 +778,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       )}
       <PlaneLoopsSection
         open={loopsOpen && !anyFullscreen && tabActive}
-        title={loopsTitle}
-        subtitle={loopsSubtitle}
-        emptyTitle={loopsEmptyTitle}
-        emptyHint={loopsEmptyHint}
-        chainsTitle={loopsChainsTitle}
-        chainsEmpty={loopsChainsEmpty}
-        createChainLabel={loopsCreateChainLabel}
-        appendStepLabel={loopsAppendStepLabel}
-        startChainLabel={loopsStartChainLabel}
-        stopChainLabel={loopsStopChainLabel}
-        deleteChainLabel={loopsDeleteChainLabel}
-        chainModalTitle={loopsChainModalTitle}
-        chainModalDescription={loopsChainModalDescription}
-        appendModalTitle={loopsAppendModalTitle}
-        appendModalDescription={loopsAppendModalDescription}
-        agentLabel={loopsAgentLabel}
-        objectiveLabel={loopsObjectiveLabel}
-        objectivePlaceholder={loopsObjectivePlaceholder}
-        noAgentsHint={loopsNoAgentsHint}
-        noAppendAgentsHint={loopsNoAppendAgentsHint}
-        blockNeedObjectiveHint={loopsBlockNeedObjectiveHint}
-        chainConfirmLabel={loopsChainConfirmLabel}
-        appendConfirmLabel={loopsAppendConfirmLabel}
-        cancelLabel={loopsCancelLabel}
-        statusIdle={loopsStatusIdle}
-        statusBusy={loopsStatusBusy}
-        statusLooping={loopsStatusLooping}
-        chainStatusIdle={loopsChainStatusIdle}
-        chainStatusRunning={loopsChainStatusRunning}
-        chainStatusWaiting={loopsChainStatusWaiting}
-        chainStatusStopped={loopsChainStatusStopped}
         agents={loopAgents}
         chains={loopChains}
         canStartChains={canStartLoopChains}

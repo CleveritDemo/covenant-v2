@@ -6203,37 +6203,6 @@ export const App: React.FC = () => {
                   }}
                   brainstormOverlayOpen={Boolean(brainstormViewByTab[tab.id])}
                   brainstormOverlays={renderBrainstormOverlays(tab)}
-                  loopsTitle={t('tabs.loopsTitle')}
-                  loopsSubtitle={t('tabs.loopsSubtitle')}
-                  loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
-                  loopsEmptyHint={t('tabs.loopsEmptyHint')}
-                  loopsChainsTitle={t('tabs.loopsChainsTitle')}
-                  loopsChainsEmpty={t('tabs.loopsChainsEmpty')}
-                  loopsCreateChainLabel={t('tabs.loopsCreateChain')}
-                  loopsAppendStepLabel={t('tabs.loopsAppendStep')}
-                  loopsStartChainLabel={t('tabs.loopsStartChain')}
-                  loopsStopChainLabel={t('tabs.loopsStopChain')}
-                  loopsDeleteChainLabel={t('tabs.loopsDeleteChain')}
-                  loopsChainModalTitle={t('tabs.loopsChainModalTitle')}
-                  loopsChainModalDescription={t('tabs.loopsChainModalDescription')}
-                  loopsAppendModalTitle={t('tabs.loopsAppendModalTitle')}
-                  loopsAppendModalDescription={t('tabs.loopsAppendModalDescription')}
-                  loopsAgentLabel={t('tabs.loopsAgent')}
-                  loopsObjectiveLabel={t('tabs.loopsObjective')}
-                  loopsObjectivePlaceholder={t('tabs.loopsObjectivePlaceholder')}
-                  loopsNoAgentsHint={t('tabs.loopsNoAgents')}
-                  loopsNoAppendAgentsHint={t('tabs.loopsNoAppendAgents')}
-                  loopsBlockNeedObjectiveHint={t('tabs.loopsBlockNeedObjective')}
-                  loopsChainConfirmLabel={t('tabs.loopsChainConfirm')}
-                  loopsAppendConfirmLabel={t('tabs.loopsAppendConfirm')}
-                  loopsCancelLabel={t('common.cancel')}
-                  loopsStatusIdle={t('tabs.loopsStatusIdle')}
-                  loopsStatusBusy={t('tabs.loopsStatusBusy')}
-                  loopsStatusLooping={t('tabs.loopsStatusLooping')}
-                  loopsChainStatusIdle={t('tabs.loopsChainStatusIdle')}
-                  loopsChainStatusRunning={t('tabs.loopsChainStatusRunning')}
-                  loopsChainStatusWaiting={t('tabs.loopsChainStatusWaiting')}
-                  loopsChainStatusStopped={t('tabs.loopsChainStatusStopped')}
                   loopChains={tab.planeLoopChains ?? []}
                   onLoopChainsChange={chains => handleLoopChainsChange(tab.id, chains)}
                   onStartLoopChain={chainId => handleStartLoopChain(tab.id, chainId)}

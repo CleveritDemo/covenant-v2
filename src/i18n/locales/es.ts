@@ -1469,10 +1469,16 @@ const es = {
     projectKeysLabel: 'Claves de proyecto',
     projectKeysHint: 'Separadas por coma, p. ej. GRAV, COV. Solo esos prefijos se leen como claves.',
     connectAction: 'Conectar',
+    reconnectAction: 'Reconectar',
     connectedAs: 'Conectado como {{name}}',
+    connectedToSite: 'Conectado a {{site}}',
+    disconnectAction: 'Desconectar',
     disconnectedHint: 'Sin conectar. Todavía no se pueden adjuntar issues como contexto.',
+    noProjectHint: 'Abre antes una carpeta de proyecto en esta pestaña: jira.json vive en el proyecto.',
+    gitignoreAppended: 'Los snapshots de issues se añadieron a .gitignore para que no se commiteen. Borra la línea si quieres compartirlos con tu equipo.',
     mentionListLabel: 'Issues de Jira',
     staleHint: 'Snapshot desactualizado: se refresca en el próximo turno.',
+    updatedHint: 'Issue actualizada el {{date}}',
   },
 } satisfies AppTranslations
 

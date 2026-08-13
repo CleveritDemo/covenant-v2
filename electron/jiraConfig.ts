@@ -63,12 +63,29 @@ function readStore(): StoredCredentials {
   }
 }
 
-function writeStore(store: StoredCredentials): void {
-  const json = JSON.stringify(store)
-  const payload = safeStorage.isEncryptionAvailable()
-    ? { encrypted: safeStorage.encryptString(json).toString('base64') }
-    : { plain: store }
-  writeFileSync(storePath(), JSON.stringify(payload), 'utf8')
+/**
+ * Guardar un API token en claro es peor que no guardarlo: el usuario cree que
+ * la app lo protegió (se lo pidió en un campo de contraseña, le dijo que lo
+ * cifraba) y en disco queda un secreto de Jira legible por cualquier proceso.
+ * Sin `safeStorage` se rechaza y el error sube hasta Ajustes.
+ *
+ * `allowPlain` existe solo para el borrado: si el almacén seguro no está
+ * disponible, lo que hay en disco solo puede ser un `plain` escrito por una
+ * versión anterior, y reescribirlo con una entrada MENOS no degrada nada —
+ * negarse ahí dejaría la credencial que el usuario pidió olvidar.
+ */
+function writeStore(store: StoredCredentials, options: { allowPlain?: boolean } = {}): void {
+  if (safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(JSON.stringify(store)).toString('base64')
+    writeFileSync(storePath(), JSON.stringify({ encrypted }), 'utf8')
+    return
+  }
+  if (!options.allowPlain) {
+    throw new Error(
+      'El almacén seguro del sistema no está disponible: no se puede guardar el token de Jira sin cifrarlo.',
+    )
+  }
+  writeFileSync(storePath(), JSON.stringify({ plain: store }), 'utf8')
 }
 
 export function readJiraCredentials(site: string): JiraCredentials | null {
@@ -81,4 +98,12 @@ export function writeJiraCredentials(credentials: JiraCredentials): void {
   const store = readStore()
   store[credentials.site] = { email: credentials.email, apiToken: credentials.apiToken }
   writeStore(store)
+}
+
+/** Olvida la credencial de un sitio. Las de los demás sitios se conservan. */
+export function deleteJiraCredentials(site: string): void {
+  const store = readStore()
+  if (!(site in store)) return
+  delete store[site]
+  writeStore(store, { allowPlain: true })
 }

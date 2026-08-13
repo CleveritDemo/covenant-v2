@@ -1467,10 +1467,16 @@ const en = {
     projectKeysLabel: 'Project keys',
     projectKeysHint: 'Comma-separated, e.g. GRAV, COV. Only these prefixes are read as issue keys.',
     connectAction: 'Connect',
+    reconnectAction: 'Reconnect',
     connectedAs: 'Connected as {{name}}',
+    connectedToSite: 'Connected to {{site}}',
+    disconnectAction: 'Disconnect',
     disconnectedHint: 'Not connected. Issues cannot be attached as context yet.',
+    noProjectHint: 'Open a project folder in this tab first — jira.json lives in the project.',
+    gitignoreAppended: 'Issue snapshots were added to .gitignore so they are not committed. Remove the line to share them with your team.',
     mentionListLabel: 'Jira issues',
     staleHint: 'Snapshot out of date — it refreshes on the next turn.',
+    updatedHint: 'Issue last updated {{date}}',
   },
 }
 

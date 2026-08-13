@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -13,7 +13,7 @@ const mockState = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: { getPath: () => mockState.userDataDir },
   safeStorage: {
-    isEncryptionAvailable: () => false,
+    isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(value),
     decryptString: (buffer: Buffer) => buffer.toString(),
   },
@@ -23,7 +23,7 @@ const jiraMyself = vi.fn()
 const jiraSearch = vi.fn()
 vi.mock('../jiraClient', () => ({ jiraMyself, jiraSearch }))
 
-const { jiraStatusFor, connectJira, searchJiraQuick } = await import('../jiraIpcOps')
+const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick } = await import('../jiraIpcOps')
 const { readJiraConfig, writeJiraConfig, readJiraCredentials, writeJiraCredentials } =
   await import('../jiraConfig')
 
@@ -43,6 +43,7 @@ describe('jiraStatusFor', () => {
     expect(jiraStatusFor(dir)).toEqual({
       configured: false,
       site: '',
+      email: '',
       projectKeys: [],
       connected: false,
     })
@@ -60,6 +61,7 @@ describe('jiraStatusFor', () => {
     expect(jiraStatusFor(dir)).toEqual({
       configured: true,
       site: 'https://x.atlassian.net',
+      email: '',
       projectKeys: ['GRAV'],
       connected: false,
     })
@@ -77,6 +79,42 @@ describe('jiraStatusFor', () => {
     writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
     expect(jiraStatusFor(dir).connected).toBe(true)
   })
+
+  it('devuelve el email guardado: sin él, Ajustes no puede repintar el formulario', () => {
+    // El email no es secreto (el secreto es el token). Sin devolverlo, el campo
+    // sale vacío al reabrir Ajustes y el reintento manda email vacío → 401
+    // encima de una conexión que funcionaba.
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: [],
+      defaultJql: 'x',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+    expect(jiraStatusFor(dir).email).toBe('a@x.com')
+  })
+
+  it('cwd vacío (pestaña sin proyecto): DISCONNECTED, no mira el cwd del proceso', () => {
+    // `projectDirPath('')` resuelve a `process.cwd()`: en dev, el repo de
+    // Gravity; empaquetado desde Finder, `/`. Reportar ese `jira.json` como si
+    // fuera el de la pestaña es mentir sobre a qué proyecto pertenece.
+    expect(jiraStatusFor('')).toEqual({
+      configured: false,
+      site: '',
+      email: '',
+      projectKeys: [],
+      connected: false,
+    })
+    expect(jiraStatusFor('   ')).toEqual({
+      configured: false,
+      site: '',
+      email: '',
+      projectKeys: [],
+      connected: false,
+    })
+  })
 })
 
 describe('connectJira', () => {
@@ -89,7 +127,7 @@ describe('connectJira', () => {
       projectKeys: ['grav'],
     })
 
-    expect(result).toEqual({ ok: true, displayName: 'Ana' })
+    expect(result).toMatchObject({ ok: true, displayName: 'Ana' })
     expect(JSON.stringify(result)).not.toContain('tok-secreto')
     expect(readJiraConfig(dir)?.projectKeys).toEqual(['GRAV'])
     expect(readJiraCredentials('https://x.atlassian.net')).toEqual({
@@ -146,6 +184,96 @@ describe('connectJira', () => {
         projectKeys: [],
       }),
     ).resolves.toMatchObject({ ok: false })
+  })
+
+  it('cwd vacío: rechaza sin tocar la red ni escribir en el cwd del proceso', async () => {
+    const result = await connectJira('', {
+      site: 'https://x.atlassian.net',
+      email: 'a@x.com',
+      apiToken: 'tok',
+      projectKeys: [],
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/proyecto/i)
+    expect(jiraMyself).not.toHaveBeenCalled()
+  })
+
+  it('reconectar CONSERVA defaultJql, refreshSeconds y maxComments puestos a mano', async () => {
+    // Esos tres campos no tienen UI: editar `jira.json` es la única forma de
+    // fijarlos, y ese archivo se commitea. Una rotación de token meses después
+    // no puede borrarle al equipo el JQL y el intervalo que afinó.
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: ['GRAV'],
+      defaultJql: 'project = GRAV AND labels = infra',
+      refreshSeconds: 120,
+      maxComments: 3,
+    })
+
+    await connectJira(dir, {
+      site: 'https://x.atlassian.net',
+      email: 'a@x.com',
+      apiToken: 'tok-nuevo',
+      projectKeys: ['grav', 'cov'],
+    })
+
+    expect(readJiraConfig(dir)).toEqual({
+      site: 'https://x.atlassian.net',
+      // lo que el formulario sí pidió cambiar
+      projectKeys: ['GRAV', 'COV'],
+      // lo que nadie tocó
+      defaultJql: 'project = GRAV AND labels = infra',
+      refreshSeconds: 120,
+      maxComments: 3,
+    })
+  })
+
+  it('al conectar, ignora los snapshots en el .gitignore del proyecto', async () => {
+    const dir = tmp('gravity-jira-proj-')
+    mkdirSync(join(dir, '.git'), { recursive: true })
+    writeFileSync(join(dir, '.gitignore'), 'node_modules\n', 'utf8')
+
+    const result = await connectJira(dir, {
+      site: 'https://x.atlassian.net',
+      email: 'a@x.com',
+      apiToken: 'tok',
+      projectKeys: [],
+    })
+
+    expect(result.gitignore).toBe('appended')
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('/jira/')
+  })
+})
+
+describe('disconnectJira', () => {
+  it('olvida la credencial pero deja el jira.json del proyecto', () => {
+    // `jira.json` está commiteado y es del equipo: desconectarse en la máquina
+    // de uno no puede cambiarle la configuración a los demás.
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: ['GRAV'],
+      defaultJql: 'x',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+
+    expect(disconnectJira(dir)).toEqual({ ok: true })
+
+    expect(readJiraCredentials('https://x.atlassian.net')).toBeNull()
+    expect(readJiraConfig(dir)?.projectKeys).toEqual(['GRAV'])
+    expect(jiraStatusFor(dir)).toMatchObject({ configured: true, connected: false })
+  })
+
+  it('sin proyecto abierto, no hace nada', () => {
+    expect(disconnectJira('').ok).toBe(false)
+  })
+
+  it('sin jira.json, es un no-op exitoso', () => {
+    expect(disconnectJira(tmp('gravity-jira-proj-'))).toEqual({ ok: true })
   })
 })
 

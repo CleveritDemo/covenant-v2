@@ -98,7 +98,13 @@ import {
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import { refreshStaleJiraContexts } from './jiraContextRefresh'
-import { jiraStatusFor, connectJira, searchJiraQuick, DISCONNECTED as JIRA_DISCONNECTED } from './jiraIpcOps'
+import {
+  jiraStatusFor,
+  connectJira,
+  disconnectJira,
+  searchJiraQuick,
+  DISCONNECTED as JIRA_DISCONNECTED,
+} from './jiraIpcOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -895,6 +901,11 @@ function registerIpc(): void {
         ? projectKeys.filter((key): key is string => typeof key === 'string')
         : [],
     })
+  })
+
+  ipcMain.handle(IPC.JIRA_DISCONNECT, (_e, cwd: unknown) => {
+    if (typeof cwd !== 'string') return { ok: false, error: 'Solicitud inválida.' }
+    return disconnectJira(cwd)
   })
 
   ipcMain.handle(IPC.JIRA_SEARCH, async (_e, cwd: unknown, query: unknown) => {

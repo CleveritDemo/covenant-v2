@@ -993,14 +993,28 @@ const api = {
   // ─── Jira ───────────────────────────────────────────────────────────────────
   jiraStatus(
     cwd: string,
-  ): Promise<{ configured: boolean; site: string; projectKeys: string[]; connected: boolean }> {
+  ): Promise<{
+    configured: boolean
+    site: string
+    email: string
+    projectKeys: string[]
+    connected: boolean
+  }> {
     return ipcRenderer.invoke(IPC.JIRA_STATUS, cwd)
   },
   jiraConnect(
     cwd: string,
     input: { site: string; email: string; apiToken: string; projectKeys: string[] },
-  ): Promise<{ ok: boolean; displayName?: string; error?: string }> {
+  ): Promise<{
+    ok: boolean
+    displayName?: string
+    error?: string
+    gitignore?: 'appended' | 'already-ignored' | 'skipped'
+  }> {
     return ipcRenderer.invoke(IPC.JIRA_CONNECT, cwd, input)
+  },
+  jiraDisconnect(cwd: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_DISCONNECT, cwd)
   },
   jiraSearch(cwd: string, query: string): Promise<JiraIssueRef[]> {
     return ipcRenderer.invoke(IPC.JIRA_SEARCH, cwd, query)

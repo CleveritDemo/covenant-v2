@@ -333,6 +333,8 @@ export const IPC = {
   JIRA_STATUS: 'jira:status',
   /** Renderer → main (invoke): probar credenciales y persistir sitio + config si el probe ok */
   JIRA_CONNECT: 'jira:connect',
+  /** Renderer → main (invoke): olvidar las credenciales del sitio (el `jira.json` del proyecto se queda) */
+  JIRA_DISCONNECT: 'jira:disconnect',
   /** Renderer → main (invoke): buscar issues (clave exacta o texto libre) para el picker */
   JIRA_SEARCH: 'jira:search',
 

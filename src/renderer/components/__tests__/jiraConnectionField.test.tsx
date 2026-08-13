@@ -16,11 +16,19 @@ vi.mock('@i18n/useT', () => ({
 
 const jiraStatus = vi.fn()
 const jiraConnect = vi.fn()
+const jiraDisconnect = vi.fn()
 
 beforeEach(() => {
-  jiraStatus.mockReset().mockResolvedValue({ configured: false, site: '', projectKeys: [], connected: false })
+  jiraStatus.mockReset().mockResolvedValue({
+    configured: false,
+    site: '',
+    email: '',
+    projectKeys: [],
+    connected: false,
+  })
   jiraConnect.mockReset().mockResolvedValue({ ok: true, displayName: 'Rodrigo' })
-  ;(window as unknown as { api: unknown }).api = { jiraStatus, jiraConnect }
+  jiraDisconnect.mockReset().mockResolvedValue({ ok: true })
+  ;(window as unknown as { api: unknown }).api = { jiraStatus, jiraConnect, jiraDisconnect }
 })
 
 // Vitest no inyecta `afterEach` como global (`test.globals` está apagado), así
@@ -73,5 +81,62 @@ describe('JiraConnectionField', () => {
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
     expect(screen.getByLabelText('jira.tokenLabel', { exact: false }).getAttribute('type')).toBe('password')
+  })
+
+  it('con credenciales ya guardadas, al abrir Ajustes se ve conectado y con el email puesto', async () => {
+    // El caso que faltaba: el componente leía `status.connected` y lo tiraba,
+    // así que una conexión que funcionaba se pintaba como «sin conectar» y
+    // empujaba a reconectar con el email vacío → 401 encima de algo sano.
+    jiraStatus.mockResolvedValue({
+      configured: true,
+      site: 'https://x.atlassian.net',
+      email: 'a@b.c',
+      projectKeys: ['GRAV'],
+      connected: true,
+    })
+    render(<JiraConnectionField cwd="/repo" />)
+
+    await screen.findByText(/jira\.connectedToSite/)
+    expect(screen.queryByText('jira.disconnectedHint')).toBeNull()
+    expect((screen.getByLabelText('jira.emailLabel') as HTMLInputElement).value).toBe('a@b.c')
+    expect(screen.getByText('jira.disconnectAction')).toBeTruthy()
+  })
+
+  it('desconectar limpia el estado conectado', async () => {
+    jiraStatus.mockResolvedValue({
+      configured: true,
+      site: 'https://x.atlassian.net',
+      email: 'a@b.c',
+      projectKeys: [],
+      connected: true,
+    })
+    render(<JiraConnectionField cwd="/repo" />)
+    fireEvent.click(await screen.findByText('jira.disconnectAction'))
+
+    await waitFor(() => expect(jiraDisconnect).toHaveBeenCalledWith('/repo'))
+    await screen.findByText('jira.disconnectedHint')
+  })
+
+  it('sin proyecto abierto: campos deshabilitados, Conectar apagado y aviso', async () => {
+    // `settingsCwd` es '' en una pestaña de terminal. Dejar conectar ahí
+    // escribe `jira.json` en el cwd del proceso (el repo de Gravity en dev,
+    // `/` empaquetado desde Finder).
+    render(<JiraConnectionField cwd="" />)
+
+    await screen.findAllByText('jira.noProjectHint')
+    expect(jiraStatus).not.toHaveBeenCalled()
+    expect((screen.getByText('jira.connectAction') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('jira.siteLabel', { exact: false }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('jira.tokenLabel', { exact: false }) as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('avisa cuando el connect añadió la regla al .gitignore', async () => {
+    jiraConnect.mockResolvedValue({ ok: true, displayName: 'Rodrigo', gitignore: 'appended' })
+    render(<JiraConnectionField cwd="/repo" />)
+    await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('jira.siteLabel', { exact: false }), { target: { value: 'https://x.atlassian.net' } })
+    fireEvent.click(screen.getByText('jira.connectAction'))
+
+    await screen.findByText('jira.gitignoreAppended')
   })
 })

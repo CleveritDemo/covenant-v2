@@ -4,11 +4,9 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
-## Sin publicar
+## v0.41.0
 
-Cambios que ya están en `main` y que ningún release ha empaquetado todavía. Al
-cortar la próxima versión, renombra esta sección a `## vX.Y.Z`.
-
+- **Saber qué contexto usa cada agente**: el gestor de contextos listaba todos los `.md` del proyecto en un scroll alfabético sin decir quién los carga. Ahora tiene buscador, filtro por agente —con «Sin usar» para los que no lee nadie— y filtro por tipo; cada fila enseña la cara de los agentes que lo cargan, y desde la ficha del contexto se lo aplicas o se lo quitas a cualquiera sin entrar en su configuración.
 - **Los selectores de pestañas se ven bien**: el recuadro de la opción elegida se estiraba a lo ancho de su hueco, así que una palabra corta quedaba flotando en medio de un rectángulo enorme, y sus esquinas no encajaban con las del marco. Ahora se ajusta al texto. Se nota en el resultado de una sala, en Pulse, en la configuración de un agente y en el editor de archivos, entre otros.
 - **La issue se ve nada más añadirla**: al crear un contexto de Jira desde el gestor, el ticket que acabas de ver en la vista previa ya queda dentro. Antes se guardaba vacío, y si no se lo asignabas a ningún agente seguía vacío para siempre.
 - **Buscar issues también al crear una sala**: el buscador de Jira estaba en el formulario de editar una sala pero no en el de crearla, que es por donde se entra. Ahora escribes `#` en el objetivo, eliges la issue, y además de quedar citada se suma al material de la sala.

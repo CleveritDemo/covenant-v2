@@ -29,7 +29,7 @@ const issue: JiraIssueSnapshot = {
     { author: 'Ana', created: '2026-08-11T12:00:00.000Z', body: 'confirmado' },
   ],
   subtasks: [
-    { key: 'GRAV-413', summary: 'test de regresión', status: 'To Do', issueType: 'Sub-task', assignee: null },
+    { key: 'GRAV-413', summary: 'test de regresión', status: 'To Do', issueType: 'Sub-task', assignee: null, updated: '' },
   ],
   links: [{ type: 'blocks', key: 'GRAV-400', summary: 'Refactor del orquestador' }],
 }

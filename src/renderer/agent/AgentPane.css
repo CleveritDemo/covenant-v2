@@ -812,6 +812,8 @@ html[data-reduce-motion="true"] {
 /* ── Composer ────────────────────────────────────────────────────────── */
 
 .agent-pane__composer {
+  /* Ancla del desplegable de menciones de Jira, que se posiciona absoluto. */
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2102,6 +2104,12 @@ html[data-reduce-motion="true"] {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+/* Ancla del desplegable de búsqueda de issues: la lista se posiciona absoluta
+   contra este contenedor, así que necesita ser el bloque contenedor. */
+.tab-contexts__jira-search {
+  position: relative;
 }
 
 .tab-contexts__root-row {

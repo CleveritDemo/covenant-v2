@@ -14,6 +14,7 @@ import { useT } from '@i18n/useT'
 import { Button, Input, SegmentedControl, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { ContextReport } from '../workspace/ContextReport'
+import { JiraMentionPicker } from '../workspace/JiraMentionPicker'
 import { KIND_ICONS } from './tabContextKindIcons'
 import { TabContextAppearancePopup } from './TabContextAppearancePopup'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
@@ -98,6 +99,14 @@ export const TabContextsEditor: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [previewView, setPreviewView] = useState<'rendered' | 'source'>('rendered')
+  /**
+   * El input de búsqueda de Jira como estado, no como `useRef`: el picker
+   * necesita re-renderizar cuando el elemento existe para colgarle el
+   * `aria-activedescendant`, y una ref no dispara render.
+   */
+  const [jiraInputEl, setJiraInputEl] = useState<HTMLInputElement | null>(null)
+  /** Término para el que el usuario ya cerró la lista (Escape o elección). */
+  const [pickerDismissedFor, setPickerDismissedFor] = useState<string | null>(null)
 
   /**
    * Copia los archivos elegidos dentro del proyecto y agrega sus rutas. Los
@@ -263,11 +272,41 @@ export const TabContextsEditor: React.FC<Props> = ({
         {draft.kind === 'jira' && (
           <label>
             <span>{t('tabContexts.jiraKeyLabel')}</span>
-            <Input
-              value={jiraKeyDraft}
-              placeholder={t('tabContexts.jiraKeyPlaceholder')}
-              onChange={event => onJiraKeyDraftChange(event.target.value)}
-            />
+            {/*
+              Buscador, no campo de clave: pedirle a alguien la clave exacta de
+              memoria es el mismo trabajo que hace Jira. Reusa el picker del
+              composer — mismo debounce, mismo teclado, misma IPC — desplegado
+              hacia abajo porque aquí sí hay sitio.
+            */}
+            <div className="tab-contexts__jira-search">
+              <Input
+                ref={setJiraInputEl}
+                value={jiraKeyDraft}
+                placeholder={t('tabContexts.jiraKeyPlaceholder')}
+                onChange={event => {
+                  setPickerDismissedFor(null)
+                  onJiraKeyDraftChange(event.target.value)
+                }}
+              />
+              {projectCwd.trim() && jiraKeyDraft.trim() && jiraKeyDraft !== pickerDismissedFor
+                ? (
+                  <JiraMentionPicker
+                    cwd={projectCwd}
+                    query={jiraKeyDraft}
+                    placement="down"
+                    showEmptyState
+                    focusElement={jiraInputEl}
+                    onPick={issue => {
+                      // La clave elegida cerraría y reabriría la lista con ese
+                      // mismo término: se marca como descartada para ese valor.
+                      setPickerDismissedFor(issue.key)
+                      onJiraKeyDraftChange(issue.key)
+                    }}
+                    onDismiss={() => setPickerDismissedFor(jiraKeyDraft)}
+                  />
+                )
+                : null}
+            </div>
             <small>{t('tabContexts.jiraKeyHint')}</small>
           </label>
         )}
@@ -402,7 +441,12 @@ export const TabContextsEditor: React.FC<Props> = ({
           )}
         </div>
         {preview.status === 'loading' && <p className="tab-contexts__output-msg">{t('tabContexts.loading')}</p>}
-        {preview.status === 'idle' && <p className="tab-contexts__output-msg">{t('tabContexts.previewIdle')}</p>}
+        {preview.status === 'idle' && (
+          <p className="tab-contexts__output-msg">
+            {/* Para `jira` el disparador no es el nombre, es elegir la issue. */}
+            {t(draft.kind === 'jira' ? 'tabContexts.jiraPreviewIdle' : 'tabContexts.previewIdle')}
+          </p>
+        )}
         {preview.status === 'empty' && <p className="tab-contexts__output-msg">{t('tabContexts.previewEmpty')}</p>}
         {preview.status === 'error' && (
           <p className="tab-contexts__output-msg tab-contexts__output-msg--error">{preview.message}</p>

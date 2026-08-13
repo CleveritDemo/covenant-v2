@@ -139,4 +139,22 @@ describe('JiraConnectionField', () => {
 
     await screen.findByText('jira.gitignoreAppended')
   })
+
+  it('avisa cuando la clave de proyecto es en realidad el nombre del proyecto', async () => {
+    render(<JiraConnectionField cwd="/repo" />)
+    await waitFor(() => expect(jiraStatus).toHaveBeenCalled())
+
+    // `CDLC-TRANSFORMATION` es el NOMBRE. Una clave de Jira no lleva guion, y
+    // con esto el `project in (…)` que arma el buscador es inválido: búsquedas
+    // y menciones devuelven vacío sin decir por qué.
+    fireEvent.change(screen.getByLabelText('jira.projectKeysLabel', { exact: false }), {
+      target: { value: 'CDLC-TRANSFORMATION' },
+    })
+    expect(screen.getByText(/jira.projectKeyWarning/)).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('jira.projectKeysLabel', { exact: false }), {
+      target: { value: 'CDLC, GRAV' },
+    })
+    expect(screen.queryByText(/jira.projectKeyWarning/)).toBeNull()
+  })
 })

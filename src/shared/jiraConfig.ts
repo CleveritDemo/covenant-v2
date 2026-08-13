@@ -23,7 +23,23 @@ export interface JiraProjectConfig {
   maxComments: number
 }
 
-export const DEFAULT_JIRA_JQL = 'assignee = currentUser() AND sprint in openSprints()'
+/**
+ * Qué se ofrece al abrir el picker sin haber escrito nada.
+ *
+ * «Lo que miraste hace poco» gana a «tu sprint abierto»: al abrir un buscador
+ * lo que buscas casi siempre es algo en lo que ya estabas, y la lista sale útil
+ * sin teclear. Requiere que la instancia tenga historial (`issueHistory()`),
+ * que es estándar en Jira Cloud.
+ */
+export const DEFAULT_JIRA_JQL = 'issuekey in issueHistory() ORDER BY lastViewed DESC'
+
+/**
+ * El default anterior. Un `jira.json` que lo lleve tal cual nunca lo eligió
+ * nadie — es el valor que escribimos nosotros — así que se trata como «sin
+ * fijar» y se migra al nuevo. Quien de verdad quiera su sprint solo tiene que
+ * escribir cualquier variante.
+ */
+const LEGACY_DEFAULT_JIRA_JQL = 'assignee = currentUser() AND sprint in openSprints()'
 export const DEFAULT_REFRESH_SECONDS = 900
 export const DEFAULT_MAX_COMMENTS = 10
 const MAX_COMMENTS_CAP = 50
@@ -51,6 +67,17 @@ function clamp(raw: unknown, fallback: number, min: number, max: number): number
   return Math.round(raw)
 }
 
+/**
+ * Forma de una CLAVE de proyecto de Jira: letras y dígitos, empezando por
+ * letra. Sin guiones — `CDLC-TRANSFORMATION` es el *nombre* del proyecto, y
+ * colarlo aquí genera un JQL que Jira rechaza (`project in (…)`), dejando la
+ * búsqueda y las menciones mudas. Se valida en la UI para avisar a tiempo, no
+ * para bloquear: quien tenga una instancia rara puede seguir guardando.
+ */
+export function isJiraProjectKey(value: string): boolean {
+  return /^[A-Z][A-Z0-9]*$/.test(value.trim().toUpperCase())
+}
+
 export function parseJiraConfig(raw: unknown): JiraProjectConfig | null {
   const record = asRecord(raw)
   if (!record) return null
@@ -68,7 +95,9 @@ export function parseJiraConfig(raw: unknown): JiraProjectConfig | null {
   return {
     site,
     projectKeys,
-    defaultJql: typeof record.defaultJql === 'string' && record.defaultJql.trim()
+    defaultJql: typeof record.defaultJql === 'string'
+      && record.defaultJql.trim()
+      && record.defaultJql.trim() !== LEGACY_DEFAULT_JIRA_JQL
       ? record.defaultJql.trim()
       : DEFAULT_JIRA_JQL,
     refreshSeconds: clamp(record.refreshSeconds, DEFAULT_REFRESH_SECONDS, 0, 86_400),

@@ -5,10 +5,11 @@
  * el `unknown` que llega del renderer y delega aquí con tipos ya sanos.
  */
 
-import { parseJiraConfig } from '../src/shared/jiraConfig'
+import { isJiraProjectKey, parseJiraConfig } from '../src/shared/jiraConfig'
 import { buildJiraQuickJql } from '../src/shared/jiraQuickJql'
-import type { JiraIssueRef } from '../src/shared/jiraIssue'
-import { jiraMyself, jiraSearch } from './jiraClient'
+import { normalizeIssueKey, parsePartialIssueKey, type JiraIssueRef } from '../src/shared/jiraIssue'
+import { issueAutoMarkdown } from '../src/shared/jiraIssueDoc'
+import { jiraGetIssue, jiraMyself, jiraSearch } from './jiraClient'
 import { ensureJiraGitignore, type JiraGitignoreOutcome } from './jiraGitignore'
 import { clearJiraRefreshFailures } from './jiraContextRefresh'
 import {
@@ -155,16 +156,75 @@ export function disconnectJira(cwd: string): { ok: boolean; error?: string } {
   }
 }
 
-export async function searchJiraQuick(cwd: string, query: string): Promise<JiraIssueRef[]> {
-  if (!hasProject(cwd)) return []
+export interface JiraIssuePreview {
+  ok: boolean
+  /** Markdown idéntico al que acabará en el `.md`; vacío si `ok` es false. */
+  content?: string
+  error?: string
+}
+
+/**
+ * Vista previa de una issue ANTES de crear el contexto.
+ *
+ * Se compone con `issueAutoMarkdown`, el mismo escritor que usa el refrescador,
+ * para que lo que se ve en el formulario sea exactamente lo que recibirá el
+ * agente — no una aproximación. No escribe nada en disco: el `.md` lo crea el
+ * guardado, y el snapshot real lo rellena el refrescador antes del turno.
+ */
+export async function previewJiraIssue(cwd: string, issueKey: string): Promise<JiraIssuePreview> {
+  const key = normalizeIssueKey(issueKey)
+  if (!key) return { ok: false, error: 'Clave de issue no válida.' }
+  if (!hasProject(cwd)) return { ok: false, error: 'No hay proyecto abierto.' }
   const config = readJiraConfig(cwd)
-  if (!config) return []
+  if (!config) return { ok: false, error: 'Este proyecto todavía no tiene Jira configurado.' }
   const credentials = readJiraCredentials(config.site)
-  if (!credentials) return []
-  const jql = buildJiraQuickJql(query, config)
+  if (!credentials) return { ok: false, error: 'Sin credenciales de Jira para este sitio.' }
   try {
-    return await jiraSearch(credentials, jql, 8)
-  } catch {
-    return []
+    const issue = await jiraGetIssue(credentials, key, config.maxComments)
+    return { ok: true, content: issueAutoMarkdown(issue, config.maxComments) }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export interface JiraSearchResult {
+  issues: JiraIssueRef[]
+  /**
+   * Por qué no hay resultados, cuando el motivo no es «no hay coincidencias».
+   * Antes esto se tragaba y se devolvía `[]`: un JQL inválido (una clave de
+   * proyecto mal puesta, por ejemplo) era indistinguible de una búsqueda sin
+   * resultados, y el usuario se quedaba mirando una lista vacía sin saber que
+   * su configuración estaba rota.
+   */
+  error?: string
+}
+
+export async function searchJiraQuick(cwd: string, query: string): Promise<JiraSearchResult> {
+  if (!hasProject(cwd)) return { issues: [] }
+  const config = readJiraConfig(cwd)
+  if (!config) return { issues: [], error: 'Este proyecto todavía no tiene Jira configurado.' }
+  const credentials = readJiraCredentials(config.site)
+  if (!credentials) return { issues: [], error: 'Sin credenciales de Jira para este sitio.' }
+  const jql = buildJiraQuickJql(query, config)
+  const partial = parsePartialIssueKey(query)
+  try {
+    // Con un prefijo de clave se piden más y se filtra por clave aquí: JQL no
+    // sabe casar `CT-12*`, así que el recorte lo hace el cliente sobre las
+    // issues recientes del proyecto.
+    const issues = await jiraSearch(credentials, jql, partial ? 50 : 8)
+    if (!partial) return { issues }
+    const prefix = `${partial.project}-${partial.digits}`
+    return { issues: issues.filter(issue => issue.key.startsWith(prefix)).slice(0, 8) }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    const badKeys = config.projectKeys.filter(key => !isJiraProjectKey(key))
+    // Un 400 con claves de proyecto mal formadas casi siempre es eso, y el
+    // mensaje crudo de Jira no lo dice de forma accionable.
+    return {
+      issues: [],
+      error: badKeys.length
+        ? `${detail}. Revisa las claves de proyecto en Ajustes: ${badKeys.join(', ')} no tiene forma de clave de Jira.`
+        : detail,
+    }
   }
 }

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useRef } from 'react'
 import type { TFunction } from 'i18next'
 import {
   BRAINSTORM_MAX_ROUNDS_CAP,
@@ -14,6 +14,9 @@ import {
   type CeremonyId,
   type CeremonyRoleCandidate,
 } from '@shared/agileCeremonies'
+import type { JiraIssueRef } from '@shared/jiraIssue'
+import { jiraDraftFromKey } from '../agent/TabContextFormModal'
+import { useJiraMention } from './useJiraMention'
 import { useT } from '@i18n/useT'
 import { SegmentedControl, Select, TextArea } from '../components/ui'
 import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
@@ -90,6 +93,34 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
   ceremony = DEFAULT_CEREMONY_ID,
   seatedAgents = [],
 }) => {
+  const topicRef = useRef<HTMLTextAreaElement>(null)
+  /**
+   * La issue elegida entra en el working set además de escribirse en el tema:
+   * la sala arranca con el ticket ya adjunto, sin pegarlo a mano.
+   */
+  const attachIssue = useCallback((issue: JiraIssueRef): void => {
+    const context = jiraDraftFromKey(issue.key)
+    if (!context || !cwd.trim()) return
+    void window.api.materializeTabContext({ context, cwd }).then(result => {
+      if (!result.ok) return
+      onWorkingSetChange({
+        contextIds: contextIds.includes(context.id) ? contextIds : [...contextIds, context.id],
+        filePaths,
+      })
+    }).catch(() => {
+      // Sin `.md` en disco no hay contexto real que sumar al working set.
+    })
+  }, [contextIds, cwd, filePaths, onWorkingSetChange])
+
+  const mention = useJiraMention({
+    cwd,
+    value: topic,
+    onValueChange: onTopicChange,
+    inputRef: topicRef,
+    onPicked: attachIssue,
+    placement: 'down',
+    showEmptyState: true,
+  })
   const { t } = useT()
   const ceremonyDef = ceremonyById(ceremony)
   const isFree = ceremonyUsesFreeOutcome(ceremony)
@@ -182,13 +213,26 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
       )}
       <label className="brainstorm-brief__field">
         <span className="brainstorm-brief__label">{t('tabs.brainstormTopicLabel')}</span>
-        <TextArea
-          value={topic}
-          autoFocus={autoFocus}
-          rows={3}
-          placeholder={t('tabs.brainstormTopicPlaceholder')}
-          onChange={event => onTopicChange(event.target.value)}
-        />
+        {/*
+          Mencionar la issue en el tema la añade además al working set: convocar
+          una sala sobre un ticket y tener que pegar su contexto aparte era el
+          mismo dato pedido dos veces.
+        */}
+        <div className="brainstorm-brief__mention-anchor">
+          <TextArea
+            ref={topicRef}
+            value={topic}
+            autoFocus={autoFocus}
+            rows={3}
+            placeholder={t('tabs.brainstormTopicPlaceholder')}
+            onChange={event => {
+              onTopicChange(event.target.value)
+              mention.handleChange(event.target)
+            }}
+            onSelect={event => mention.handleSelect(event.currentTarget)}
+          />
+          {mention.picker}
+        </div>
         <span className="brainstorm-brief__hint">{t('tabs.brainstormTopicFieldHint')}</span>
       </label>
       <div className="brainstorm-brief__field">

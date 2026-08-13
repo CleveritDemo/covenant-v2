@@ -14,35 +14,47 @@ function config(overrides: Partial<JiraProjectConfig> = {}): JiraProjectConfig {
 }
 
 describe('buildJiraQuickJql', () => {
-  it('una clave exacta busca esa issue, ignorando el resto del texto', () => {
-    expect(buildJiraQuickJql('grav-412', config())).toBe('key = GRAV-412')
+  it('un prefijo de clave lista el proyecto por actividad, no lo busca por texto', () => {
+    // El `~` de Jira no indexa la clave de la issue: `text ~ "CT-*"` no casa
+    // NUNCA con CT-128. Con un prefijo de clave lo útil es el proyecto entero
+    // ordenado por actividad, y el recorte por dígitos se hace después.
+    expect(buildJiraQuickJql('CT-', config())).toBe('project = CT ORDER BY updated DESC')
+    expect(buildJiraQuickJql('ct-12', config())).toBe('project = CT ORDER BY updated DESC')
   })
 
-  it('una clave de otro proyecto igual se trata como clave: no hay filtro por proyecto', () => {
-    expect(buildJiraQuickJql('OTHER-9', config())).toBe('key = OTHER-9')
+  it('el prefijo tecleado manda sobre projectKeys: sirve aunque Ajustes esté mal', () => {
+    // El prefijo ES la clave del proyecto. Si se acotara con `projectKeys` mal
+    // puestos (el nombre del proyecto en vez de la clave), esto no devolvería
+    // nada — que es exactamente el estado en el que se descubrió.
+    expect(buildJiraQuickJql('CT-128', config({ projectKeys: ['CDLC-TRANSFORMATION'] })))
+      .toBe('project = CT ORDER BY updated DESC')
+  })
+
+  it('nunca usa `key =`: sobre una issue inexistente Jira rechaza el JQL entero', () => {
+    expect(buildJiraQuickJql('grav-412', config())).not.toContain('key =')
   })
 
   it('texto libre queda acotado a los proyectos declarados', () => {
     expect(buildJiraQuickJql('login roto', config())).toBe(
-      'project in (GRAV) AND summary ~ "login roto*" ORDER BY updated DESC',
+      'project in (GRAV) AND (summary ~ "login roto*" OR text ~ "login roto*") ORDER BY updated DESC',
     )
   })
 
   it('sin proyectos declarados, el texto libre no lleva scope', () => {
     expect(buildJiraQuickJql('login roto', config({ projectKeys: [] }))).toBe(
-      'summary ~ "login roto*" ORDER BY updated DESC',
+      '(summary ~ "login roto*" OR text ~ "login roto*") ORDER BY updated DESC',
     )
   })
 
   it('varios proyectos declarados se unen con coma', () => {
     expect(buildJiraQuickJql('x', config({ projectKeys: ['GRAV', 'OPS'] }))).toBe(
-      'project in (GRAV, OPS) AND summary ~ "x*" ORDER BY updated DESC',
+      'project in (GRAV, OPS) AND (summary ~ "x*" OR text ~ "x*") ORDER BY updated DESC',
     )
   })
 
   it('comillas y backslashes del usuario se eliminan: no pueden romper el JQL', () => {
     expect(buildJiraQuickJql('dice "hola\\adios"', config({ projectKeys: [] }))).toBe(
-      'summary ~ "dice  hola adios*" ORDER BY updated DESC',
+      '(summary ~ "dice  hola adios*" OR text ~ "dice  hola adios*") ORDER BY updated DESC',
     )
   })
 

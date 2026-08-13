@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useT } from '@i18n/useT'
+import { isJiraProjectKey } from '@shared/jiraConfig'
 import { Button, Input } from './ui'
 import { SettingsField } from './SettingsSection'
 import './JiraConnectionField.css'
@@ -27,6 +28,10 @@ export const JiraConnectionField: React.FC<JiraConnectionFieldProps> = ({ cwd })
   const [email, setEmail] = useState('')
   const [apiToken, setApiToken] = useState('')
   const [projectKeys, setProjectKeys] = useState('')
+  const badProjectKeys = projectKeys
+    .split(',')
+    .map(key => key.trim())
+    .filter(key => key && !isJiraProjectKey(key))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -140,16 +145,41 @@ export const JiraConnectionField: React.FC<JiraConnectionFieldProps> = ({ cwd })
           onChange={event => setProjectKeys(event.target.value)}
         />
       </SettingsField>
+      {/*
+        Avisa, no bloquea. Pegar el NOMBRE del proyecto en vez de su clave
+        (`CDLC-TRANSFORMATION` en vez de `CDLC`) genera un `project in (…)` que
+        Jira rechaza, y el resultado es que buscar y mencionar devuelven vacío
+        sin explicar nada. Es un error silencioso caro de diagnosticar, así que
+        se dice aquí, donde se comete.
+      */}
+      {badProjectKeys.length ? (
+        <p className="jira-connection__warning">
+          {t('jira.projectKeyWarning', { keys: badProjectKeys.join(', ') })}
+        </p>
+      ) : null}
 
       <div className="jira-connection__actions">
-        <Button onClick={() => void connect()} disabled={busy || !hasProject || !site.trim()}>
-          {connected ? t('jira.reconnectAction') : t('jira.connectAction')}
-        </Button>
-        {connected ? (
-          <Button onClick={() => void disconnect()} disabled={busy} variant="danger">
-            {t('jira.disconnectAction')}
+        {/*
+          Conectar es la acción principal de la sección, así que va en `primary`:
+          el default de `Button` es `ghost` y dejaba el botón en `--text-muted`,
+          prácticamente invisible. Desconectar va en `secondary` — es reversible
+          (se vuelve a pegar el token), y en `danger` era lo más llamativo de la
+          pantalla, con la jerarquía al revés.
+        */}
+        <div className="jira-connection__buttons">
+          <Button
+            variant="primary"
+            onClick={() => void connect()}
+            disabled={busy || !hasProject || !site.trim()}
+          >
+            {connected ? t('jira.reconnectAction') : t('jira.connectAction')}
           </Button>
-        ) : null}
+          {connected ? (
+            <Button onClick={() => void disconnect()} disabled={busy} variant="secondary">
+              {t('jira.disconnectAction')}
+            </Button>
+          ) : null}
+        </div>
         {connected
           ? (
             <span className="jira-connection__ok">

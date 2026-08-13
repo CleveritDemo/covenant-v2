@@ -410,6 +410,39 @@ export const TabContextFormModal: React.FC<Props> = ({
         setPreview({ status: 'error', message: t('tabContexts.missingCwd') })
         return
       }
+      /*
+       * `jira` no tiene nada que materializar todavía: el `.md` lo escribe el
+       * guardado. Pedirle a `previewTabContext` un archivo que aún no existe
+       * devolvía «No snapshot yet» y el panel lo pintaba en rojo, como si el
+       * formulario estuviera roto. Se pide la issue a Jira y se muestra el
+       * mismo Markdown que acabará en el archivo — la vista previa es la
+       * issue, no un aviso.
+       */
+      if (draft.kind === 'jira') {
+        /*
+         * La clave sale del texto tecleado, no de `draft.issueKey`: al elegir
+         * el kind, `applyCanonicalContextIdentity` rellena ese campo con un
+         * stem derivado del nombre sugerido ("Jira issue"), y consultarlo daba
+         * «Clave de issue no válida» con el formulario recién abierto y el
+         * campo vacío. Mismo origen que usa el botón Guardar.
+         */
+        const issueKey = normalizeIssueKey(jiraKeyDraft)
+        if (!issueKey) {
+          setPreview({ status: 'idle' })
+          return
+        }
+        const issue = await window.api.jiraPreviewIssue(workingCwd, issueKey)
+        if (stale()) return
+        setPreview(issue.ok && (issue.content ?? '').trim()
+          ? {
+            status: 'success',
+            content: issue.content ?? '',
+            filePath: `${PROJECT_DIR}/${canonicalContextFileName('jira', { issueKey })}`,
+          }
+          : { status: 'error', message: issue.error ?? t('tabContexts.previewError') })
+        return
+      }
+
       const result = await window.api.previewTabContext({
         context: draft,
         cwd: workingCwd,
@@ -448,8 +481,11 @@ export const TabContextFormModal: React.FC<Props> = ({
     const timer = setTimeout(() => { void loadPreview() }, 400)
     return () => clearTimeout(timer)
     // loadPreview se redefine en cada render; dependemos del contenido, no de él.
+    // `jiraKeyDraft` va aparte de `draft`: un texto que aún no deriva una clave
+    // válida no toca el draft, y sin esta dependencia borrar el campo dejaría
+    // en pantalla la vista previa de la issue anterior.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, draft, notesContent])
+  }, [open, draft, notesContent, jiraKeyDraft])
 
   /** Aplica la clave al draft solo si deriva un contexto válido; ver el estado. */
   const updateJiraKeyDraft = (raw: string): void => {

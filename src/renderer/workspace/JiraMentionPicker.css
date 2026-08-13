@@ -1,9 +1,7 @@
 .jira-mention__list {
   position: absolute;
-  bottom: 100%;
   left: 0;
   right: 0;
-  margin: 0 0 6px;
   padding: 0;
   list-style: none;
   z-index: 20;
@@ -14,10 +12,42 @@
   border-radius: 8px;
 }
 
+.jira-mention__list--up {
+  bottom: 100%;
+  margin: 0 0 6px;
+}
+
+.jira-mention__list--down {
+  top: 100%;
+  margin: 6px 0 0;
+}
+
+/* Mismo hueco que la lista: «buscando…» y «sin coincidencias» ocupan donde
+   estarían los resultados, para que la caja no salte al aparecer. */
+.jira-mention__empty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.jira-mention__empty--up { bottom: 100%; margin-bottom: 6px; }
+.jira-mention__empty--down { top: 100%; margin-top: 6px; }
+.jira-mention__empty--error { color: var(--danger); }
+
 .jira-mention__item {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
   padding: 7px 12px;
   background: none;
@@ -31,6 +61,39 @@
 .jira-mention__item--active,
 .jira-mention__item:focus-visible { background: var(--tab-active-bg); }
 
-.jira-mention__key { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+/* Primera línea: clave, resumen y, a la derecha, cuándo se tocó. */
+.jira-mention__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Sin `--font-mono`: la clave no es código, y la fuente mono del usuario puede
+   ser cualquier cosa. Se distingue por color y peso, en la tipografía de la UI. */
+.jira-mention__key { flex: 0 0 auto; font-weight: 600; color: var(--accent); }
 .jira-mention__summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jira-mention__status { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* La coincidencia: `<mark>` da el significado, el color lo pone el tema — el
+   amarillo por defecto del navegador no existe en ninguna paleta de la app. */
+.jira-mention__match {
+  background: none;
+  color: inherit;
+  font-weight: 700;
+}
+
+.jira-mention__when {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Segunda línea: de dónde sale y qué es. */
+.jira-mention__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

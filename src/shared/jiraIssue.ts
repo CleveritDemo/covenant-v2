@@ -10,6 +10,12 @@ export interface JiraIssueRef {
   status: string
   issueType: string
   assignee: string | null
+  /**
+   * ISO 8601 del `fields.updated`. El picker lo muestra como «hace 2 días»:
+   * entre varias issues que casan, la actividad reciente es la señal que
+   * distingue la que buscas.
+   */
+  updated: string
 }
 
 export interface JiraComment {
@@ -64,6 +70,28 @@ export function parseIssueKeys(text: string, projectKeys: readonly string[]): st
     found.push(key)
   }
   return found
+}
+
+export interface PartialIssueKey {
+  /** Prefijo tecleado, en mayúsculas: la clave del proyecto. */
+  project: string
+  /** Dígitos tecleados tras el guion; `''` si todavía no hay ninguno. */
+  digits: string
+}
+
+/**
+ * `CT-`, `CT-12`, `CT-128` → `{ project: 'CT', digits: … }`.
+ *
+ * Existe porque el `~` de Jira **no indexa la clave de la issue**: buscar
+ * `CT-*` por texto no casa nunca, por muy difusa que sea la consulta. Cuando lo
+ * tecleado tiene forma de clave, lo útil es acotar al proyecto y filtrar por
+ * prefijo de clave; el prefijo ES la clave del proyecto, así que sirve incluso
+ * si la lista de `projectKeys` de Ajustes está mal puesta.
+ */
+export function parsePartialIssueKey(query: string): PartialIssueKey | null {
+  const match = (query ?? '').trim().match(/^([A-Za-z][A-Za-z0-9]*)-(\d*)$/)
+  if (!match) return null
+  return { project: match[1].toUpperCase(), digits: match[2] }
 }
 
 /**
@@ -134,25 +162,29 @@ export function mentionRangeAt(
   const clampedCaret = Math.max(0, caret)
   const before = (text ?? '').slice(0, clampedCaret)
 
-  const mention = before.match(/(?:^|\s)@([\w-]*)$/)
-  if (mention) {
-    // -1: el `@` no está en el grupo capturado, pero sí en el token a reemplazar.
-    return { start: clampedCaret - mention[1].length - 1, end: clampedCaret, query: mention[1] }
+  const sigil = before.match(/(?:^|\s)#([\w-]*)$/)
+  if (sigil) {
+    // -1: el `#` no está en el grupo capturado, pero sí en el token a reemplazar.
+    return { start: clampedCaret - sigil[1].length - 1, end: clampedCaret, query: sigil[1] }
   }
 
-  const partial = before.match(/(?:^|\s)([A-Za-z][A-Za-z0-9]*)-(\d*)$/)
-  if (!partial) return null
-  const project = partial[1].toUpperCase()
-  if (!projectKeys.some(key => key.trim().toUpperCase() === project)) return null
-  const matchedLength = partial[1].length + 1 + partial[2].length
-  return { start: clampedCaret - matchedLength, end: clampedCaret, query: `${project}-${partial[2]}` }
+  return null
 }
 
 /**
  * Qué está escribiendo el usuario justo antes del cursor, si es una mención.
- * Devuelve el término de búsqueda, `''` para un `@` recién tecleado, o `null`
- * si no hay nada que buscar. Vive acá y no en el componente porque es la regla
- * que decide cuándo la app interrumpe al usuario: se testea sin React.
+ * Devuelve el rango del token y el término, o `null` si no hay nada que buscar.
+ * Vive acá y no en el componente porque es la regla que decide cuándo la app
+ * interrumpe al usuario: se testea sin React.
+ *
+ * El disparador es `#` — como en GitHub o Linear para tickets, y deja `@` libre
+ * para dirigirse a un agente, que es lo que ese símbolo va a querer decir en
+ * esta app.
+ *
+ * El patrón de clave suelto (`CT-128`) NO abre nada: en un chat es prosa, y con
+ * la lista abierta Enter elige en vez de enviar. El campo «Issue key» del
+ * formulario sí busca al teclear, pero no pasa por aquí — allí el campo entero
+ * es la consulta.
  *
  * El prefijo `PROY-` solo abre el picker si `PROY` está en `projectKeys`: sin
  * ese filtro, `UTF-8`, `SHA-256` o `CVE-2023-30533` abrirían un picker en

@@ -5821,6 +5821,7 @@ export const App: React.FC = () => {
                 target={{ path: gitUi.repoPath }}
                 config={config}
                 workspace={pulseWorkspaceTag(tab.orgWorkspace) ?? undefined}
+                projectCwd={tab.projectFolder ?? ''}
                 onClose={() => closeTabGitModal(tab.id)}
               />
             ) : null}

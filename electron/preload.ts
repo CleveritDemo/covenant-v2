@@ -1017,8 +1017,17 @@ const api = {
   jiraDisconnect(cwd: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke(IPC.JIRA_DISCONNECT, cwd)
   },
-  jiraSearch(cwd: string, query: string): Promise<JiraIssueRef[]> {
+  jiraSearch(
+    cwd: string,
+    query: string,
+  ): Promise<{ issues: JiraIssueRef[]; error?: string }> {
     return ipcRenderer.invoke(IPC.JIRA_SEARCH, cwd, query)
+  },
+  jiraPreviewIssue(
+    cwd: string,
+    issueKey: string,
+  ): Promise<{ ok: boolean; content?: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_PREVIEW_ISSUE, cwd, issueKey)
   },
 
   // ─── LSP (code intelligence) ───────────────────────────────────────────────

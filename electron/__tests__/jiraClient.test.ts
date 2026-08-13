@@ -99,6 +99,7 @@ describe('jiraSearch', () => {
       status: 'In Progress',
       issueType: 'Bug',
       assignee: 'Rodrigo',
+      updated: '2026-08-12T09:40:00.000Z',
     }])
   })
 
@@ -173,6 +174,9 @@ describe('jiraGetIssue', () => {
       status: 'To Do',
       issueType: 'Task',
       assignee: null,
+      // Las subtareas del payload de la issue no traen `updated`; el mapeo cae
+      // a cadena vacía y el picker esconde la columna en vez de pintar basura.
+      updated: '',
     }])
     expect(issue.links).toEqual([{ type: 'blocks', key: 'GRAV-500', summary: 'Bloqueada' }])
   })

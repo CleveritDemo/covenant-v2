@@ -798,3 +798,8 @@ button.git-file-list__stats-hit {
   min-width: 0;
   max-width: min(40vw, 240px);
 }
+
+/* Ancla del desplegable de menciones de Jira sobre el mensaje de commit. */
+.git-panel-commit-field {
+  position: relative;
+}

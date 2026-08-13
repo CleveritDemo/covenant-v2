@@ -22,6 +22,7 @@ import { shortPathTail, splitGitFilesByArea } from './git/gitPathUtils'
 import { gitWorktreeOptions } from './git/gitWorktreeOptions'
 import { gitAreaTotals, parseGitNumStat } from './git/gitDiffNumStat'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { useJiraMention } from '../workspace/useJiraMention'
 import './GitPanelModal.css'
 
 interface GitPanelModalProps {
@@ -30,6 +31,11 @@ interface GitPanelModalProps {
   config: AppConfig
   /** Workspace org de la pestaña; solo etiqueta el evento de Pulse del commit. */
   workspace?: string
+  /**
+   * Carpeta del PROYECTO, no la del repo: `jira.json` vive en el proyecto y un
+   * repo puede ser un subdirectorio suyo. Sin esto no hay mención de issues.
+   */
+  projectCwd?: string
   onClose: () => void
 }
 
@@ -38,6 +44,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   target,
   config,
   workspace,
+  projectCwd = '',
   onClose,
 }) => {
   const { t } = useT()
@@ -47,6 +54,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   const [lastLog, setLastLog] = useState('')
   const [lastRun, setLastRun] = useState<{ label: string; ok: boolean } | null>(null)
   const [commitMsg, setCommitMsg] = useState('')
+  const commitRef = useRef<HTMLTextAreaElement>(null)
   const [actionsRefreshToken, setActionsRefreshToken] = useState(0)
   // El panel de Actions avisa si el remoto no es de GitHub; entonces sobra la columna.
   const [actionsAvailable, setActionsAvailable] = useState(true)
@@ -218,6 +226,21 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
       await runAndLog('git push', () => window.api.gitPush(targetRef.current))
     })()
   }
+
+  /*
+   * Mención de issues en el mensaje de commit. Aquí NO se materializa ningún
+   * contexto: el commit solo quiere la clave bien escrita. Es el sitio donde
+   * más veces al día se teclea a mano y donde equivocarse es silencioso —
+   * `CT-218` por `CT-128` rompe la trazabilidad sin que nada falle.
+   */
+  const mention = useJiraMention({
+    cwd: projectCwd,
+    value: commitMsg,
+    onValueChange: setCommitMsg,
+    inputRef: commitRef,
+    placement: 'down',
+    showEmptyState: true,
+  })
 
   const onCommitKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (!(e.metaKey || e.ctrlKey) || e.key !== 'Enter') return
@@ -447,16 +470,24 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
 
             {repo && status && (
               <div className="git-panel-commit">
-                <TextArea
-                  size="md"
-                  rows={2}
-                  autoGrow
-                  placeholder={t('git.commitPlaceholder')}
-                  value={commitMsg}
-                  onChange={e => setCommitMsg(e.target.value)}
-                  onKeyDown={onCommitKeyDown}
-                  spellCheck
-                />
+                <div className="git-panel-commit-field">
+                  <TextArea
+                    ref={commitRef}
+                    size="md"
+                    rows={2}
+                    autoGrow
+                    placeholder={t('git.commitPlaceholder')}
+                    value={commitMsg}
+                    onChange={e => {
+                      setCommitMsg(e.target.value)
+                      mention.handleChange(e.target)
+                    }}
+                    onSelect={e => mention.handleSelect(e.currentTarget)}
+                    onKeyDown={onCommitKeyDown}
+                    spellCheck
+                  />
+                  {mention.picker}
+                </div>
                 <div className="git-panel-commit-foot">
                   <Tooltip content={t('git.suggestButton')}>
                     <Button

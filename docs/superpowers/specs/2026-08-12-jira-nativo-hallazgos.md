@@ -22,13 +22,18 @@ Cómo comprobarlo: una issue real con más de una página de comentarios (>50), 
 `## Comentarios` del `.md` trae los últimos. Si no los trae, la salida es
 `startAt: total - N` sobre el mismo endpoint.
 
-## Fallo intermitente sin identificar
+## Fallo intermitente — IDENTIFICADO, y no es de Jira
 
-En una de diez ejecuciones de la suite completa falló un test; tres ejecuciones completas
-posteriores y seis pasadas dirigidas a los ficheros sensibles a timing
-(`jiraMentionPicker`, `planeChatComposerJiraMention`, `jiraContextRefresh`, `jiraClient`,
-`jiraIssueChip`) salieron verdes. No se identificó cuál era. Si reaparece, el sospechoso más
-probable es alguno de los tests con promesas diferidas o con `Promise.race` contra un temporizador.
+`src/renderer/workspace/__tests__/PlaneMapGridParticles.test.tsx`, el caso
+«beat alto aumenta radio/alpha/halo; al bajar el beat cae suave sin ir a idle de golpe».
+
+Falla con una comparación numérica del decaimiento (`expected 0.5609… to be less than 0.5184…`).
+Aparece **solo en la suite completa**, ~3 de 20 pasadas; en aislamiento pasó 8 de 8. Es sensible a
+la carga: con varios workers de vitest en paralelo, los deltas del decaimiento no salen iguales.
+
+No lo toco porque es de otra área (llegó a `main` mientras esta rama estaba en curso) y arreglarlo
+bien pasa por que el test no dependa del reloj real. El arreglo natural es inyectar el tiempo en
+vez de leerlo, como hace el resto de la lógica pura del repo.
 
 ## Correcciones pendientes, todas locales
 
@@ -46,6 +51,27 @@ probable es alguno de los tests con promesas diferidas o con `Promise.race` cont
 | `src/shared/jiraIssue.ts` | El patrón de clave vive en dos regex (`KEY_RE` anclada y la de lookaround en `parseIssueKeys`) | Si cambia la forma hay que tocar las dos. |
 | `src/shared/jiraIssueDoc.ts` | La rama defensiva de `withJiraAutoBlock` solo cubre «sin marcadores»; un marcador de apertura huérfano deja el documento en un estado donde `extractSection` corta mal | Solo alcanzable editando el `.md` a mano. |
 | `src/renderer/workspace/JiraIssueChip.css` | El arreglo de truncado no tiene test | jsdom no hace layout, así que una aserción sobre la regla CSS sería confianza falsa. Para una suite visual/e2e si aparece. |
+
+## Crear rama desde la issue — pedido, y aplazado con motivo
+
+`feature/CT-128-permissions-en-rojo` elegido desde el picker es una buena idea, pero **no es añadir
+el selector a un campo que ya existe**: hoy Gravity no sabe crear ramas desde la UI.
+
+- El badge de rama del panel de Git (`GitPanelModal.tsx`) es de solo lectura.
+- No hay canal IPC de `checkout -b`; `GIT_*` cubre status, stage, commit, push, pull y worktrees.
+- `gitWorktreeAdd` es lo único que crea ramas, y solo lo llama `App.tsx` para aislar delegaciones.
+
+Construirlo implica canal IPC nuevo, la operación en el main, un punto de entrada en la UI, y tres
+decisiones de producto que no deberían tomarse de pasada:
+
+1. **¿Rama en el sitio o worktree?** Gravity usa worktrees para aislar agentes; una rama creada a
+   mano en el repo de la pestaña se comporta distinto que todo lo demás.
+2. **¿Qué pasa con los cambios sin commitear** al cambiar de rama?
+3. **¿Dónde vive la acción?** El panel de Git es el sitio obvio, pero ahí hoy no se navega entre
+   ramas, así que sería la primera.
+
+El generador de nombre (issue → slug) es trivial y puro; se escribe cuando exista el consumidor, no
+antes — añadirlo ahora sería código que nadie llama.
 
 ## Fuera de alcance por decisión, no por olvido
 

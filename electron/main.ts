@@ -102,6 +102,7 @@ import {
   jiraStatusFor,
   connectJira,
   disconnectJira,
+  previewJiraIssue,
   searchJiraQuick,
   DISCONNECTED as JIRA_DISCONNECTED,
 } from './jiraIpcOps'
@@ -909,8 +910,15 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.JIRA_SEARCH, async (_e, cwd: unknown, query: unknown) => {
-    if (typeof cwd !== 'string' || typeof query !== 'string') return []
+    if (typeof cwd !== 'string' || typeof query !== 'string') return { issues: [] }
     return searchJiraQuick(cwd, query)
+  })
+
+  ipcMain.handle(IPC.JIRA_PREVIEW_ISSUE, async (_e, cwd: unknown, issueKey: unknown) => {
+    if (typeof cwd !== 'string' || typeof issueKey !== 'string') {
+      return { ok: false, error: 'Solicitud de vista previa no válida.' }
+    }
+    return previewJiraIssue(cwd, issueKey)
   })
 
   // ─── LSP ────────────────────────────────────────────────────────────────

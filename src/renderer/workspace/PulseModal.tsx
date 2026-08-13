@@ -13,6 +13,7 @@ import {
 import { foldPulseReplicas, type PulseAgentGroup } from '@shared/pulseReplicas'
 import type { OrgWorkspaceCatalog } from '@shared/orgWorkspaceCatalog'
 import { pulseWorkspaceLabel } from '@shared/pulseWorkspaceLabels'
+import { relativeTime } from '@shared/relativeTime'
 import { TerminalModal } from '../components/TerminalModal'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
@@ -75,15 +76,6 @@ function formatDuration(ms: number): string {
   const m = Math.floor(total / 60)
   const s = total % 60
   return m > 0 ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`
-}
-
-function relativeTime(ms: number, nowMs: number): string {
-  const fmt = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-  const minutes = Math.round((ms - nowMs) / 60_000)
-  if (Math.abs(minutes) < 60) return fmt.format(minutes, 'minute')
-  const hours = Math.round(minutes / 60)
-  if (Math.abs(hours) < 24) return fmt.format(hours, 'hour')
-  return fmt.format(Math.round(hours / 24), 'day')
 }
 
 /** Reparto porcentual de los modos, redondeado a 100 para que la barra cierre. */

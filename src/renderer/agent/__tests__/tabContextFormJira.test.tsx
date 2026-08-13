@@ -26,10 +26,20 @@ vi.mock('../../components/TerminalModal', () => ({
 }))
 
 const previewTabContext = vi.fn()
+const jiraSearch = vi.fn()
+const jiraPreviewIssue = vi.fn()
 
 beforeEach(() => {
   previewTabContext.mockReset().mockResolvedValue({ ok: true, content: '' })
-  ;(window as unknown as { api: Record<string, unknown> }).api = { previewTabContext }
+  // El campo de clave monta el buscador del composer: sin este mock la llamada
+  // revienta dentro del debounce, fuera de cualquier aserción.
+  jiraSearch.mockReset().mockResolvedValue({ issues: [] })
+  jiraPreviewIssue.mockReset().mockResolvedValue({ ok: true, content: '## Resumen\nGRAV-412' })
+  ;(window as unknown as { api: Record<string, unknown> }).api = {
+    previewTabContext,
+    jiraSearch,
+    jiraPreviewIssue,
+  }
 })
 
 afterEach(cleanup)
@@ -122,9 +132,13 @@ describe('TabContextFormModal — alta de jira', () => {
       issueKey: 'GRAV-1',
     }
     const revealTabContext = vi.fn().mockResolvedValue({ ok: true })
+    // `jiraSearch` va siempre: en edición el campo arranca con la clave puesta,
+    // así que el buscador se monta y llama al canal dentro del debounce.
     ;(window as unknown as { api: Record<string, unknown> }).api = {
       previewTabContext,
       revealTabContext,
+      jiraSearch,
+      jiraPreviewIssue,
     }
     render(
       <TabContextFormModal
@@ -165,6 +179,8 @@ describe('TabContextFormModal — alta de jira', () => {
     ;(window as unknown as { api: Record<string, unknown> }).api = {
       previewTabContext,
       materializeTabContext,
+      jiraSearch,
+      jiraPreviewIssue,
     }
     const onRefresh = vi.fn()
     const onClose = vi.fn()
@@ -195,5 +211,87 @@ describe('TabContextFormModal — alta de jira', () => {
     expect(cwd).toBe('/repo')
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('buscar por texto libre: elegir una issue rellena la clave y habilita Guardar', async () => {
+    jiraSearch.mockResolvedValue({
+      issues: [
+        { key: 'GRAV-412', summary: 'Loop chain colgada', status: 'In Progress', issueType: 'Bug', assignee: null, updated: '2026-08-12T09:40:00.000Z' },
+      ],
+    })
+
+    render(
+      <TabContextFormModal
+        open
+        mode="create"
+        context={null}
+        contexts={[]}
+        cwd="/repo"
+        onRefresh={() => {}}
+        onClose={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_jira' }))
+    const saveButton = screen.getByRole('button', { name: 'tabContexts.saveContext' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(true)
+
+    // Texto libre, no una clave: es justo lo que el campo antiguo no aceptaba.
+    fireEvent.change(screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }), {
+      target: { value: 'loop chain' },
+    })
+
+    await waitFor(() => expect(jiraSearch).toHaveBeenCalledWith('/repo', 'loop chain'))
+    const option = await screen.findByRole('option', { name: /GRAV-412/ })
+    fireEvent.click(option)
+
+    expect(
+      (screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }) as HTMLInputElement).value,
+    ).toBe('GRAV-412')
+    expect(saveButton.disabled).toBe(false)
+    // Elegir cierra la lista: si siguiera abierta, el término elegido la
+    // reabriría con la misma issue debajo del campo.
+    await waitFor(() => expect(screen.queryByRole('option')).toBeNull())
+  })
+
+  it('la vista previa muestra la issue, no el aviso de "sin snapshot"', async () => {
+    jiraPreviewIssue.mockResolvedValue({
+      ok: true,
+      content: '## Resumen\nGRAV-412 · Loop chain colgada\nEstado: In Progress',
+    })
+
+    render(
+      <TabContextFormModal
+        open
+        mode="create"
+        context={null}
+        contexts={[]}
+        cwd="/repo"
+        onRefresh={() => {}}
+        onClose={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_jira' }))
+    // Sin clave todavía: mensaje neutro propio de jira, no el genérico ni un error.
+    expect(screen.getByText('tabContexts.jiraPreviewIdle')).toBeTruthy()
+
+    // Y sigue siéndolo PASADO el debounce de la vista previa: comprobarlo solo
+    // de forma síncrona dejaba pasar el caso real — al elegir el kind, el draft
+    // trae un `issueKey` fantasma derivado del nombre sugerido, y la consulta
+    // devolvía «Clave de issue no válida» con el campo vacío.
+    await new Promise(resolve => { setTimeout(resolve, 600) })
+    expect(jiraPreviewIssue).not.toHaveBeenCalled()
+    expect(screen.getByText('tabContexts.jiraPreviewIdle')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }), {
+      target: { value: 'GRAV-412' },
+    })
+
+    await waitFor(() => expect(jiraPreviewIssue).toHaveBeenCalledWith('/repo', 'GRAV-412'))
+    await screen.findByText(/Loop chain colgada/)
+    // Lo que se materializaría nunca se pide para un jira sin guardar: pedirlo
+    // era lo que devolvía «No snapshot yet» y lo pintaba en rojo.
+    expect(previewTabContext).not.toHaveBeenCalled()
   })
 })

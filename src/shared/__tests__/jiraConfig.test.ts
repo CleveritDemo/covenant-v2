@@ -6,10 +6,27 @@ describe('parseJiraConfig', () => {
     expect(parseJiraConfig({ site: 'https://x.atlassian.net' })).toEqual({
       site: 'https://x.atlassian.net',
       projectKeys: [],
-      defaultJql: 'assignee = currentUser() AND sprint in openSprints()',
+      defaultJql: 'issuekey in issueHistory() ORDER BY lastViewed DESC',
       refreshSeconds: 900,
       maxComments: 10,
     })
+  })
+
+  it('el defaultJql viejo se migra: nadie lo eligió, lo escribimos nosotros', () => {
+    // Abrir el picker sin escribir nada mostraba «tu sprint abierto». Lo útil
+    // es lo que miraste hace poco, así que el valor que dejamos por defecto se
+    // trata como «sin fijar» y se actualiza.
+    expect(parseJiraConfig({
+      site: 'https://x.atlassian.net',
+      defaultJql: 'assignee = currentUser() AND sprint in openSprints()',
+    })?.defaultJql).toBe('issuekey in issueHistory() ORDER BY lastViewed DESC')
+  })
+
+  it('un JQL escrito a mano se respeta', () => {
+    expect(parseJiraConfig({
+      site: 'https://x.atlassian.net',
+      defaultJql: 'assignee = currentUser() ORDER BY created DESC',
+    })?.defaultJql).toBe('assignee = currentUser() ORDER BY created DESC')
   })
 
   it('normaliza el sitio: sin barra final y en minúsculas', () => {

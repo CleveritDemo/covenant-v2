@@ -1,5 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import type { JiraIssueRef } from '@shared/jiraIssue'
+import { highlightParts } from '@shared/textHighlight'
+import { relativeTimeFromIso } from '@shared/relativeTime'
 import { useT } from '@i18n/useT'
 import './JiraMentionPicker.css'
 
@@ -20,6 +22,21 @@ export interface JiraMentionPickerProps {
    * la fila activa de una mención abierta en un composer que ni se ve.
    */
   focusElement: HTMLElement | null
+  /**
+   * Hacia dónde se despliega la lista. El composer vive pegado al borde
+   * inferior de la ventana, así que abre hacia arriba (`up`, por defecto); en
+   * un formulario el campo tiene sitio debajo.
+   */
+  placement?: 'up' | 'down'
+  /**
+   * Pintar «buscando…», «sin coincidencias» y los errores además de la lista.
+   *
+   * En el composer se deja en `false`: un panel flotando sobre lo que escribes
+   * para decirte que no hay nada es peor que no interrumpir. En un formulario
+   * es al revés — el silencio total parece que la app está rota, que es justo
+   * lo que pasaba cuando un JQL inválido devolvía cero resultados.
+   */
+  showEmptyState?: boolean
 }
 
 /**
@@ -32,9 +49,13 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
   onPick,
   onDismiss,
   focusElement,
+  placement = 'up',
+  showEmptyState = false,
 }) => {
   const { t } = useT()
   const [results, setResults] = useState<JiraIssueRef[]>([])
+  const [error, setError] = useState('')
+  const [searching, setSearching] = useState(false)
   const [active, setActive] = useState(0)
   // El orden de respuesta no está garantizado: solo la última búsqueda pinta.
   const requestRef = useRef(0)
@@ -43,15 +64,20 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
 
   useEffect(() => {
     const token = ++requestRef.current
+    setSearching(true)
     const timer = setTimeout(() => {
-      void window.api.jiraSearch(cwd, query).then((issues: JiraIssueRef[]) => {
+      void window.api.jiraSearch(cwd, query).then(result => {
         if (token !== requestRef.current) return
-        setResults(issues)
+        setResults(result.issues)
+        setError(result.error ?? '')
+        setSearching(false)
         setActive(0)
-      }).catch(() => {
+      }).catch((cause: unknown) => {
         // Canal caído a mitad de vuelo: no dejar resultados viejos pintados.
         if (token !== requestRef.current) return
         setResults([])
+        setError(cause instanceof Error ? cause.message : String(cause))
+        setSearching(false)
       })
     }, DEBOUNCE_MS)
     return () => clearTimeout(timer)
@@ -112,12 +138,43 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
     return clear
   }, [focusElement, results, active, listId])
 
-  if (!results.length) return null
+  // Un único `now` por render: dos filas no pueden decir horas distintas.
+  const now = Date.now()
+  /** El trozo que coincide con lo tecleado, en negrita. */
+  const marked = (text: string): React.ReactNode =>
+    highlightParts(text, query).map((part, index) => (
+      part.match
+        ? <mark key={index} className="jira-mention__match">{part.text}</mark>
+        : <span key={index}>{part.text}</span>
+    ))
+
+  if (!results.length) {
+    if (!showEmptyState) return null
+    const message = error
+      ? error
+      : searching
+        ? t('jira.searching')
+        : t('jira.noMatches')
+    return (
+      <p
+        className={[
+          'jira-mention__empty',
+          `jira-mention__empty--${placement}`,
+          error ? 'jira-mention__empty--error' : '',
+        ].filter(Boolean).join(' ')}
+        // Los errores de búsqueda son accionables (config rota, Jira caído):
+        // se anuncian; «buscando…» y «sin coincidencias», no.
+        role={error ? 'alert' : undefined}
+      >
+        {message}
+      </p>
+    )
+  }
 
   return (
     <ul
       id={listId}
-      className="jira-mention__list"
+      className={`jira-mention__list jira-mention__list--${placement}`}
       role="listbox"
       aria-label={t('jira.mentionListLabel')}
     >
@@ -135,9 +192,19 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
             onMouseEnter={() => setActive(index)}
             onClick={() => onPick(issue)}
           >
-            <span className="jira-mention__key">{issue.key}</span>
-            <span className="jira-mention__summary">{issue.summary}</span>
-            <span className="jira-mention__status">{issue.status}</span>
+            <span className="jira-mention__line">
+              <span className="jira-mention__key">{marked(issue.key)}</span>
+              <span className="jira-mention__summary">{marked(issue.summary)}</span>
+              {/* La actividad reciente es lo que distingue entre varias que casan. */}
+              {relativeTimeFromIso(issue.updated, now)
+                ? <span className="jira-mention__when">{relativeTimeFromIso(issue.updated, now)}</span>
+                : null}
+            </span>
+            <span className="jira-mention__meta">
+              {['Jira', issue.issueType, issue.key.split('-')[0], issue.status]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
           </button>
         </li>
       ))}

@@ -4,13 +4,54 @@
   gap: 10px;
 }
 
+/*
+ * El estado va en su propia fila, debajo de los botones. Compartiendo fila
+ * competía por el ancho con ellos y una URL larga se partía a mitad del
+ * dominio; abajo dispone de todo el ancho de la sección.
+ */
 .jira-connection__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.jira-connection__buttons {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.jira-connection__ok { color: var(--success, #4ade80); font-size: 12px; }
-.jira-connection__hint { color: var(--fg-dim); font-size: 12px; }
-.jira-connection__error { color: var(--danger, #f87171); font-size: 12px; margin: 0; }
-.jira-connection__notice { color: var(--fg-dim); font-size: 12px; margin: 0; }
+/*
+ * El estado puede ser una URL sin espacios: sin `anywhere` desborda la caja en
+ * vez de envolverse. `min-width: 0` es lo que permite al track de grid encoger
+ * por debajo del contenido.
+ */
+.jira-connection__ok,
+.jira-connection__hint {
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* El tema no tiene token de éxito; `GitHubTokenField` usa --accent para lo mismo. */
+.jira-connection__ok { color: var(--accent); }
+.jira-connection__hint { color: var(--text-muted); }
+
+.jira-connection__error,
+.jira-connection__notice {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.jira-connection__error { color: var(--danger); }
+
+/* Aviso, no error: la conexión funciona, lo que no funcionará es la búsqueda. */
+.jira-connection__warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.jira-connection__notice { color: var(--text-muted); }

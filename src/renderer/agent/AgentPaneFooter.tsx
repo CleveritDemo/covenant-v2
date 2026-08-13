@@ -30,6 +30,17 @@ export interface AgentPaneFooterProps {
   onInputChange: (value: string) => void
   onComposerPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  /**
+   * Recalcula la mención de Jira. Se llama al escribir y también al mover el
+   * caret sin teclear (flechas, clic, Cmd+A): si no, salir de `GRAV-4` deja la
+   * lista abierta sobre un token que el usuario ya abandonó.
+   */
+  onComposerCaret?: (element: HTMLTextAreaElement) => void
+  /**
+   * La lista de issues de Jira, ya posicionada. El footer solo la coloca: quién
+   * la abre y qué pasa al elegir lo decide `AgentPane` con `useJiraMention`.
+   */
+  mentionPicker?: React.ReactNode
   onRemovePendingImage: (id: string) => void
   onSendClick: () => void
   /** Envía texto dictado (mismo path que send). */
@@ -55,6 +66,8 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   onInputChange,
   onComposerPaste,
   onComposerKeyDown,
+  onComposerCaret,
+  mentionPicker,
   onRemovePendingImage,
   onSendClick,
   onDictateSend,
@@ -139,11 +152,16 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           disabled={composerDisabled}
           placeholder={composerPlaceholder}
           rows={1}
-          onChange={event => onInputChange(event.target.value)}
+          onChange={event => {
+            onInputChange(event.target.value)
+            onComposerCaret?.(event.target)
+          }}
+          onSelect={event => onComposerCaret?.(event.currentTarget)}
           onPaste={onComposerPaste}
           onKeyDown={onComposerKeyDown}
           onMouseDown={event => event.stopPropagation()}
         />
+        {mentionPicker}
         <AgentPaneSendButton
           mode={sendMode}
           label={sendMode === 'mic' ? micLabel : sendLabel}

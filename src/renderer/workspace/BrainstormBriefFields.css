@@ -144,3 +144,8 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
+
+/* Ancla del desplegable de menciones de Jira sobre el tema de la sala. */
+.brainstorm-brief__mention-anchor {
+  position: relative;
+}

@@ -337,6 +337,8 @@ export const IPC = {
   JIRA_DISCONNECT: 'jira:disconnect',
   /** Renderer → main (invoke): buscar issues (clave exacta o texto libre) para el picker */
   JIRA_SEARCH: 'jira:search',
+  /** Markdown de una issue para la vista previa del formulario; no escribe disco. */
+  JIRA_PREVIEW_ISSUE: 'jira:previewIssue',
 
   // ─── Motor LSP (code intelligence) ─────────────────────────────────────────
   /** Renderer → main (invoke): estado de instalación + runtime de un lenguaje */

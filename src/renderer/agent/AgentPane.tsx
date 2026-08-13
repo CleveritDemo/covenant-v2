@@ -66,6 +66,9 @@ import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
 import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
 import { AgentPaneMessages } from './AgentPaneMessages'
+import { useJiraMention } from '../workspace/useJiraMention'
+import { jiraDraftFromKey } from './TabContextFormModal'
+import type { JiraIssueRef } from '@shared/jiraIssue'
 import { AgentPaneFooter } from './AgentPaneFooter'
 import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
@@ -567,6 +570,11 @@ export const AgentPane: React.FC<Props> = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<AgentChatBubblesHandle>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
+  /**
+   * Issues mencionadas en el mensaje que se está escribiendo. Son contextos del
+   * turno (como los chips del plano), no del agente: se envían y se limpian.
+   */
+  const [pendingJiraContextIds, setPendingJiraContextIds] = useState<string[]>([])
   /** Conversación viva del pane: fija de qué archivo se lee y a cuál se escribe. */
   const activeThreadId = meta.activeThreadId ?? DEFAULT_THREAD_ID
   messagesRef.current = messages
@@ -614,6 +622,32 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   /** Carpeta BASE del proyecto: usar para todo lo relacionado con `.gravity/` (contexts, results, catálogo de agentes). Nunca el worktree. */
+  /**
+   * Mención de issues en el chat propio del pane. Misma mecánica que el chat
+   * del plano — se extrajo a `useJiraMention` justo para no tener dos copias
+   * que diverjan a la primera corrección.
+   */
+  const attachJiraMention = useCallback((issue: JiraIssueRef): void => {
+    const context = jiraDraftFromKey(issue.key)
+    if (!context || !cwd.trim()) return
+    void window.api.materializeTabContext({ context, cwd }).then(result => {
+      if (!result.ok) return
+      setPendingJiraContextIds(previous => (
+        previous.includes(context.id) ? previous : [...previous, context.id]
+      ))
+    }).catch(() => {
+      // Sin `.md` en disco no hay nada real que adjuntar.
+    })
+  }, [cwd])
+
+  const jiraMention = useJiraMention({
+    cwd,
+    value: input,
+    onValueChange: setInput,
+    inputRef: composerInputRef,
+    onPicked: attachJiraMention,
+  })
+
   const resolveWorkingCwd = useCallback(async (): Promise<string> => {
     return cwdRef.current.trim()
   }, [])
@@ -1851,7 +1885,15 @@ export const AgentPane: React.FC<Props> = ({
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
-    void dispatchMessage(prompt, imagesSnapshot)
+    // Las issues mencionadas en ESTE mensaje viajan como contextos del turno,
+    // igual que en el chat del plano; no se quedan pegadas al agente.
+    const jiraSnapshot = pendingJiraContextIds
+    setPendingJiraContextIds([])
+    void dispatchMessage(
+      prompt,
+      imagesSnapshot,
+      jiraSnapshot.length ? { extraContextIds: jiraSnapshot } : undefined,
+    )
   }, [
     canStartHumanTurnNow,
     dispatchMessage,
@@ -1859,6 +1901,7 @@ export const AgentPane: React.FC<Props> = ({
     input,
     onRequestPaneFocus,
     pendingImages,
+    pendingJiraContextIds,
     queuedTurns.length,
   ])
 
@@ -2585,6 +2628,8 @@ export const AgentPane: React.FC<Props> = ({
             onInputChange={setInput}
             onComposerPaste={handleComposerPaste}
             onComposerKeyDown={handleComposerKeyDown}
+            onComposerCaret={jiraMention.handleChange}
+            mentionPicker={jiraMention.picker}
             onRemovePendingImage={removePendingImage}
             onSendClick={handleSendClick}
             onDictateSend={handleDictateSend}

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
+import type { JiraIssueRef } from '../../src/shared/jiraIssue'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -26,7 +27,8 @@ const jiraSearch = vi.fn()
 const jiraGetIssue = vi.fn()
 vi.mock('../jiraClient', () => ({ jiraMyself, jiraSearch, jiraGetIssue }))
 
-const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick } = await import('../jiraIpcOps')
+const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick, previewJiraIssue } =
+  await import('../jiraIpcOps')
 const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
 const { readJiraConfig, writeJiraConfig, readJiraCredentials, writeJiraCredentials } =
   await import('../jiraConfig')
@@ -375,9 +377,11 @@ describe('disconnectJira', () => {
 })
 
 describe('searchJiraQuick', () => {
-  it('sin jira.json: array vacío, no llama a la red', async () => {
+  it('sin jira.json: sin resultados y con motivo, no llama a la red', async () => {
     const dir = tmp('gravity-jira-proj-')
-    expect(await searchJiraQuick(dir, 'algo')).toEqual([])
+    const out = await searchJiraQuick(dir, 'algo')
+    expect(out.issues).toEqual([])
+    expect(out.error).toBeTruthy()
     expect(jiraSearch).not.toHaveBeenCalled()
   })
 
@@ -390,11 +394,13 @@ describe('searchJiraQuick', () => {
       refreshSeconds: 900,
       maxComments: 10,
     })
-    expect(await searchJiraQuick(dir, 'algo')).toEqual([])
+    const out = await searchJiraQuick(dir, 'algo')
+    expect(out.issues).toEqual([])
+    expect(out.error).toBeTruthy()
     expect(jiraSearch).not.toHaveBeenCalled()
   })
 
-  it('con credenciales: construye el JQL de clave exacta y delega en jiraSearch', async () => {
+  it('con credenciales: construye el JQL difuso y delega en jiraSearch', async () => {
     const dir = tmp('gravity-jira-proj-')
     writeJiraConfig(dir, {
       site: 'https://x.atlassian.net',
@@ -404,20 +410,66 @@ describe('searchJiraQuick', () => {
       maxComments: 10,
     })
     writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
-    const issues = [{ key: 'GRAV-1', summary: 's', status: 'Open', issueType: 'Bug', assignee: null }]
+    const issues = [{ key: 'GRAV-1', summary: 's', status: 'Open', issueType: 'Bug', assignee: null, updated: '2026-08-12T09:40:00.000Z' }]
     jiraSearch.mockResolvedValue(issues)
 
-    const out = await searchJiraQuick(dir, 'grav-1')
+    // Texto libre, no un prefijo de clave: esta es la rama difusa.
+    const out = await searchJiraQuick(dir, 'login roto')
 
-    expect(out).toBe(issues)
+    expect(out.issues).toBe(issues)
+    expect(out.error).toBeUndefined()
     expect(jiraSearch).toHaveBeenCalledWith(
       { site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' },
-      'key = GRAV-1',
+      'project in (GRAV) AND (summary ~ "login roto*" OR text ~ "login roto*") ORDER BY updated DESC',
       8,
     )
   })
 
-  it('jiraSearch rechaza: array vacío, no propaga el rechazo', async () => {
+  it('prefijo de clave: pide el proyecto y recorta por clave en el cliente', async () => {
+    // El caso que motivó esto: teclear `CT-` no devolvía nada porque el `~` de
+    // Jira no indexa la clave. Ahora se piden las issues recientes del proyecto
+    // y el recorte por dígitos se hace aquí.
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: ['CDLC-TRANSFORMATION'],
+      defaultJql: 'x',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+    const ref = (key: string): JiraIssueRef =>
+      ({ key, summary: key, status: 'Open', issueType: 'Bug', assignee: null, updated: '2026-08-12T09:40:00.000Z' })
+    jiraSearch.mockResolvedValue([ref('CT-128'), ref('CT-12'), ref('CT-9'), ref('CT-200')])
+
+    const out = await searchJiraQuick(dir, 'CT-12')
+
+    expect(out.issues.map(issue => issue.key)).toEqual(['CT-128', 'CT-12'])
+    expect(jiraSearch).toHaveBeenCalledWith(
+      expect.anything(),
+      'project = CT ORDER BY updated DESC',
+      50,
+    )
+  })
+
+  it('prefijo sin dígitos devuelve el proyecto entero, sin recortar', async () => {
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: [],
+      defaultJql: 'x',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+    const ref = (key: string): JiraIssueRef =>
+      ({ key, summary: key, status: 'Open', issueType: 'Bug', assignee: null, updated: '2026-08-12T09:40:00.000Z' })
+    jiraSearch.mockResolvedValue([ref('CT-1'), ref('CT-2')])
+
+    expect((await searchJiraQuick(dir, 'CT-')).issues.map(i => i.key)).toEqual(['CT-1', 'CT-2'])
+  })
+
+  it('jiraSearch rechaza: sin resultados, con el motivo, y sin propagar el rechazo', async () => {
     const dir = tmp('gravity-jira-proj-')
     writeJiraConfig(dir, {
       site: 'https://x.atlassian.net',
@@ -429,6 +481,87 @@ describe('searchJiraQuick', () => {
     writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
     jiraSearch.mockRejectedValue(new Error('timeout'))
 
-    expect(await searchJiraQuick(dir, 'algo')).toEqual([])
+    const out = await searchJiraQuick(dir, 'algo')
+    expect(out.issues).toEqual([])
+    expect(out.error).toContain('timeout')
+  })
+})
+
+describe('previewJiraIssue', () => {
+  function project(): string {
+    const dir = tmp('gravity-jira-preview-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: ['GRAV'],
+      defaultJql: 'project = GRAV',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+    return dir
+  }
+
+  const issue = {
+    key: 'GRAV-412',
+    summary: 'Loop chain colgada',
+    status: 'In Progress',
+    issueType: 'Bug',
+    assignee: 'Rodrigo',
+    priority: null,
+    sprint: null,
+    updated: '2026-08-12T09:40:00.000Z',
+    url: 'https://x.atlassian.net/browse/GRAV-412',
+    description: 'El FIFO no libera el slot.',
+    acceptanceCriteria: null,
+    comments: [],
+    subtasks: [],
+    links: [],
+  }
+
+  it('devuelve el MISMO Markdown que acabará en el .md, no un resumen aparte', async () => {
+    const dir = project()
+    jiraGetIssue.mockResolvedValue(issue)
+
+    const result = await previewJiraIssue(dir, 'grav-412')
+
+    expect(result.ok).toBe(true)
+    // Compuesto por `issueAutoMarkdown`, el escritor del refrescador: si la
+    // vista previa usara su propio formato, mostraría algo que el agente nunca
+    // recibe.
+    expect(result.content).toContain('## Resumen')
+    expect(result.content).toContain('GRAV-412 · Loop chain colgada')
+    expect(result.content).toContain('El FIFO no libera el slot.')
+    // La clave se normaliza antes de salir a la red.
+    expect(jiraGetIssue).toHaveBeenCalledWith(expect.anything(), 'GRAV-412', 10)
+  })
+
+  it('no escribe nada en disco: la vista previa no crea el contexto', async () => {
+    const dir = project()
+    jiraGetIssue.mockResolvedValue(issue)
+
+    await previewJiraIssue(dir, 'GRAV-412')
+
+    expect(existsSync(join(dir, '.gravity', 'jira', 'GRAV-412.md'))).toBe(false)
+  })
+
+  it('una clave inválida ni siquiera sale a la red', async () => {
+    const dir = project()
+    expect((await previewJiraIssue(dir, 'no soy una clave')).ok).toBe(false)
+    expect(jiraGetIssue).not.toHaveBeenCalled()
+  })
+
+  it('sin proyecto abierto no resuelve contra process.cwd()', async () => {
+    expect((await previewJiraIssue('', 'GRAV-412')).ok).toBe(false)
+    expect(jiraGetIssue).not.toHaveBeenCalled()
+  })
+
+  it('un fallo de Jira vuelve como error legible, no como excepción', async () => {
+    const dir = project()
+    jiraGetIssue.mockRejectedValue(new Error('Jira 404'))
+
+    const result = await previewJiraIssue(dir, 'GRAV-999')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('404')
   })
 })

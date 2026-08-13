@@ -47,7 +47,7 @@ beforeEach(() => {
     projectKeys: ['GRAV'],
     connected: true,
   })
-  jiraSearch.mockReset().mockResolvedValue([issue])
+  jiraSearch.mockReset().mockResolvedValue({ issues: [issue] })
   materializeTabContext.mockReset().mockResolvedValue({ ok: true, content: '' })
   ;(window as unknown as { api: unknown }).api = { jiraStatus, jiraSearch, materializeTabContext }
 })
@@ -80,7 +80,8 @@ describe('PlaneChatComposer — mención de Jira', () => {
     // (ver JiraMentionPicker.tsx) — igual que en el uso real.
     input().focus()
 
-    const typed = 'arregla GRAV-4'
+    // `#` es el disparador en los chats: una clave suelta en prosa no interrumpe.
+    const typed = 'arregla #GRAV-4'
     fireEvent.change(input(), { target: { value: typed, selectionStart: typed.length } })
     await waitFor(() => expect(jiraSearch).toHaveBeenCalledWith('/repo', 'GRAV-4'))
     await screen.findByText('Loop chain colgada')

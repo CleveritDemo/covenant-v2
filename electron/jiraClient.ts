@@ -53,6 +53,7 @@ function refFrom(raw: unknown): JiraIssueRef {
     status: String(asRecord(fields.status).name ?? ''),
     issueType: String(asRecord(fields.issuetype).name ?? ''),
     assignee: fields.assignee ? String(asRecord(fields.assignee).displayName ?? '') || null : null,
+    updated: String(fields.updated ?? ''),
   }
 }
 
@@ -75,7 +76,7 @@ export async function jiraSearch(
   const query = new URLSearchParams({
     jql,
     maxResults: String(max),
-    fields: 'summary,status,issuetype,assignee',
+    fields: 'summary,status,issuetype,assignee,updated',
   })
   const payload = asRecord(await getJson(cred, `/rest/api/3/search/jql?${query}`))
   const issues = Array.isArray(payload.issues) ? payload.issues : []

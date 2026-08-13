@@ -3,7 +3,6 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { isReduceMotionActive } from '../reduceMotion'
 import { getThemeMusicBeat } from '../themeMusicEnergy'
-import { easeVisualBeatPulse } from './PlaneMapGridParticles'
 import {
   layoutWikiGraph,
   type WikiGraphData,
@@ -61,16 +60,11 @@ const NODE_MAX_CONCURRENT_PULSES = 2
 const BOLT_CAP_RETRY_MS = 250
 /** Cooldown global entre disparos sincronizados al beat (ms). */
 const BOLT_BEAT_COOLDOWN_MS = 350
-/** Ataque del pulso visual al beat del tema (mismo que PlaneMapGridParticles). */
-const VISUAL_BEAT_ATTACK = 0.42
-/** Release del pulso visual al beat del tema. */
-const VISUAL_BEAT_RELEASE = 0.12
 
 const isMusicActive = (pulse: number): boolean => pulse > 0.001
 
-/** El núcleo toma el color del nodo de origen, aclarado hacia blanco para
- *  conservar el punto caliente del centro. */
-const BOLT_CORE_WHITE_MIX = 0.35
+/** Color único de todos los rayos (core, halo, glow, flashes, luces). */
+const BOLT_WHITE = new THREE.Color('#ffffff')
 const BOLT_CORE_OPACITY = 0.95
 const BOLT_HALO_OPACITY = 0.55
 /** Halo externo ancho: mayor jitter y opacidad baja para simular "linewidth"
@@ -362,10 +356,6 @@ export function useWikiGraphScene(
     }
     const bolts: Bolt[] = []
     const boltIndicesByFromSlug = new Map<string, number[]>()
-    const coreWhite = new THREE.Color('#ffffff')
-    /** Núcleo del rayo: color del nodo de origen aclarado hacia blanco. */
-    const boltCoreColor = (type: WikiGraphNodeType): THREE.Color =>
-      (nodeColors.get(type) ?? coreWhite).clone().lerp(coreWhite, BOLT_CORE_WHITE_MIX)
     const boltStartOffset = performance.now()
     // Pool de luces puntuales: pocas luces reales compartidas entre todas las
     // aristas (WebGL no aguanta una por arista); la descarga toma una libre.
@@ -421,7 +411,7 @@ export function useWikiGraphScene(
         glowGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
 
         const coreMat = new THREE.LineBasicMaterial({
-          color: boltCoreColor(edge.type),
+          color: BOLT_WHITE.clone(),
           vertexColors: true,
           transparent: true,
           opacity: 0,
@@ -429,14 +419,14 @@ export function useWikiGraphScene(
           blending: THREE.AdditiveBlending,
         })
         const haloMat = new THREE.LineBasicMaterial({
-          color: (nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')).clone(),
+          color: BOLT_WHITE.clone(),
           transparent: true,
           opacity: 0,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
         })
         const glowMat = new THREE.LineBasicMaterial({
-          color: (nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')).clone(),
+          color: BOLT_WHITE.clone(),
           transparent: true,
           opacity: 0,
           depthWrite: false,
@@ -457,11 +447,10 @@ export function useWikiGraphScene(
         let flashFrom: THREE.Sprite | null = null
         let flashTo: THREE.Sprite | null = null
         if (glowTexture) {
-          const endColor = nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')
           const makeFlash = (at: THREE.Vector3): THREE.Sprite => {
             const s = new THREE.Sprite(new THREE.SpriteMaterial({
               map: glowTexture,
-              color: endColor.clone(),
+              color: BOLT_WHITE.clone(),
               blending: THREE.AdditiveBlending,
               transparent: true,
               opacity: 0,
@@ -481,11 +470,10 @@ export function useWikiGraphScene(
         // volumen de luz que emite la descarga.
         const rayGlows: THREE.Sprite[] = []
         if (glowTexture) {
-          const rayColor = nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')
           BOLT_RAY_GLOW_STOPS.forEach((stop, gi) => {
             const s = new THREE.Sprite(new THREE.SpriteMaterial({
               map: glowTexture,
-              color: rayColor.clone(),
+              color: BOLT_WHITE.clone(),
               blending: THREE.AdditiveBlending,
               transparent: true,
               opacity: 0,
@@ -569,14 +557,12 @@ export function useWikiGraphScene(
         const bolt = bolts[boltIndex]!
         bolt.state = 'firing'
         bolt.startedAt = now
-        bolt.peak = 0.72 + Math.random() * 0.28
+        bolt.peak = 0.88 + Math.random() * 0.12
         rewriteBolt(bolt, 1)
         const light = lightPool.pop() ?? null
         if (light) {
           const edge = edgeEnds[bolt.edgeIndex]!
-          light.color.copy(
-            nodeColors.get(edge.type) ?? new THREE.Color('#ffffff'),
-          )
+          light.color.copy(BOLT_WHITE)
           light.position.set(
             (edge.from.x + edge.to.x) / 2,
             (edge.from.y + edge.to.y) / 2,
@@ -669,14 +655,13 @@ export function useWikiGraphScene(
         }
       }
       for (const bolt of bolts) {
-        const color = nodeColors.get(edgeEnds[bolt.edgeIndex]!.type) ?? new THREE.Color('#ffffff')
-        bolt.haloMat.color.copy(color)
-        bolt.glowMat.color.copy(color)
-        bolt.coreMat.color.copy(boltCoreColor(edgeEnds[bolt.edgeIndex]!.type))
-        if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).color.copy(color)
-        if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).color.copy(color)
+        bolt.coreMat.color.copy(BOLT_WHITE)
+        bolt.haloMat.color.copy(BOLT_WHITE)
+        bolt.glowMat.color.copy(BOLT_WHITE)
+        if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).color.copy(BOLT_WHITE)
+        if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).color.copy(BOLT_WHITE)
         for (const glow of bolt.rayGlows) {
-          (glow.material as THREE.SpriteMaterial).color.copy(color)
+          (glow.material as THREE.SpriteMaterial).color.copy(BOLT_WHITE)
         }
       }
       render()
@@ -767,31 +752,24 @@ export function useWikiGraphScene(
     canvas.addEventListener('pointerup', onPointerUp)
 
     let raf = 0
-    let lastNow = performance.now()
-    let visualBeatPulse = 0
     let prevBeatPulse = 0
     let lastBeatFireAt = 0
+    let beatNodeCursor = 0
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
-      const dt = Math.min(0.05, (now - lastNow) / 1000)
-      lastNow = now
 
       const beat = getThemeMusicBeat()
-      const target = Math.min(1, Math.max(0, beat.pulse))
-      const rate = target > visualBeatPulse ? VISUAL_BEAT_ATTACK : VISUAL_BEAT_RELEASE
-      const blend = 1 - Math.pow(1 - rate, dt * 60)
-      visualBeatPulse += (target - visualBeatPulse) * blend
-      const drawBeat = easeVisualBeatPulse(visualBeatPulse)
-      const beatBoost = drawBeat > 0.001 ? 1 + 0.35 * drawBeat : 1
-      const lightBeatBoost = drawBeat > 0.001 ? 1 + 0.5 * drawBeat : 1
 
-      if (drawBeat > 0.001) {
+      if (isMusicActive(beat.pulse)) {
         const beatOnset = beat.pulse > 0.35 && beat.pulse > prevBeatPulse
         if (beatOnset && now - lastBeatFireAt >= BOLT_BEAT_COOLDOWN_MS) {
-          lastBeatFireAt = now
-          for (const fromSlug of sourceNodeSlugs) {
-            fireNodePulse(fromSlug, now)
+          if (countFiringNodes() < NODE_MAX_CONCURRENT_PULSES) {
+            const slugCount = Math.max(1, sourceNodeSlugs.length)
+            const slug = sourceNodeSlugs[beatNodeCursor % slugCount]!
+            fireNodePulse(slug, now)
+            beatNodeCursor = (beatNodeCursor + 1) % slugCount
+            lastBeatFireAt = now
           }
         }
         prevBeatPulse = beat.pulse
@@ -840,41 +818,27 @@ export function useWikiGraphScene(
         const eased = Math.max(0, env)
         const envelope = eased * bolt.peak
         const flicker = 0.88 + 0.12 * Math.sin(now * 0.05 + bolt.seed)
-        const ambientFlicker = drawBeat <= 0.001
-          ? 0.78 + 0.22 * (
-            0.5 + 0.5 * Math.sin(now * 0.0023 + bolt.seed)
-            * (0.5 + 0.5 * Math.sin(now * 0.0057 + bolt.seed * 2.1))
-          )
-          : 1
-        const intensityScale = beatBoost * ambientFlicker
-        const lightIntensityScale = lightBeatBoost * ambientFlicker
-        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker * intensityScale
-        bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker * intensityScale
-        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope * intensityScale
+        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker
+        bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker
+        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope
         // Flashes en endpoints: destello más corto (potencia^2) para reforzar
         // "arranque/impacto" del rayo sin robar continuidad al halo.
-        const flash = BOLT_ENDPOINT_OPACITY * eased * eased * intensityScale
+        const flash = BOLT_ENDPOINT_OPACITY * eased * eased
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = flash
         if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = flash
         // Glow volumétrico y luz real siguen el mismo envelope del rayo.
         for (const glow of bolt.rayGlows) {
           (glow.material as THREE.SpriteMaterial).opacity =
-            BOLT_RAY_GLOW_OPACITY * envelope * intensityScale
+            BOLT_RAY_GLOW_OPACITY * envelope
         }
         if (bolt.light) {
-          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope * lightIntensityScale
+          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope
         }
         // Un pequeño re-jitter a mitad de vida da sensación de descarga viva.
         if (t > 0.45 && t < 0.55) rewriteBolt(bolt, 0.7)
       }
-      if (drawBeat > 0.001) {
-        for (const sceneNode of sceneNodes) {
-          sceneNode.mesh.scale.setScalar(1 + 0.06 * drawBeat)
-        }
-      } else {
-        for (const sceneNode of sceneNodes) {
-          sceneNode.mesh.scale.setScalar(1)
-        }
+      for (const sceneNode of sceneNodes) {
+        sceneNode.mesh.scale.setScalar(1)
       }
       controls.update()
       render()

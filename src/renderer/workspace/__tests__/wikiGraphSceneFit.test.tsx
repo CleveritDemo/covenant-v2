@@ -300,19 +300,10 @@ const resizeCallbacks: Array<() => void> = []
 } as unknown as typeof ResizeObserver
 
 const getThemeMusicBeat = vi.fn(() => ({ pulse: 0, bpm: null as number | null }))
-const easeVisualBeatPulse = vi.fn((raw: number) => raw)
 
 vi.mock('../../themeMusicEnergy', () => ({
   getThemeMusicBeat: (...args: unknown[]) => getThemeMusicBeat(...args),
 }))
-
-vi.mock('../PlaneMapGridParticles', async importOriginal => {
-  const actual = await importOriginal<typeof import('../PlaneMapGridParticles')>()
-  return {
-    ...actual,
-    easeVisualBeatPulse: (...args: unknown[]) => easeVisualBeatPulse(...args),
-  }
-})
 
 beforeAll(() => {
   const fake2d = {
@@ -351,6 +342,19 @@ const MULTI_EDGE_DATA: WikiGraphData = {
     { from: 'a', to: 'b' },
     { from: 'a', to: 'c' },
     { from: 'a', to: 'd' },
+  ],
+}
+
+const TWO_SOURCE_DATA: WikiGraphData = {
+  nodes: [
+    { slug: 'a', title: 'A', type: 'concept', linkCount: 1, body: '' },
+    { slug: 'b', title: 'B', type: 'flow', linkCount: 1, body: '' },
+    { slug: 'c', title: 'C', type: 'flow', linkCount: 1, body: '' },
+    { slug: 'd', title: 'D', type: 'flow', linkCount: 1, body: '' },
+  ],
+  edges: [
+    { from: 'a', to: 'b' },
+    { from: 'c', to: 'd' },
   ],
 }
 
@@ -538,7 +542,7 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     expect(midIntensity).toBeGreaterThan(lastIntensity)
   })
 
-  it('peak por disparo queda en [0.72, 1.0] y flicker solo en core y halo', () => {
+  it('peak por disparo queda en [0.88, 1.0] y flicker solo en core y halo', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     const randomValues = [0, 0, 0.5]
@@ -574,7 +578,7 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
     const envelope1 = glowMat.opacity / BOLT_GLOW_OPACITY
     const inferredPeak = envelope1 / (0.1 / 0.18)
-    expect(inferredPeak).toBeGreaterThanOrEqual(0.72 * 0.78)
+    expect(inferredPeak).toBeGreaterThanOrEqual(0.88 * 0.78)
     expect(inferredPeak).toBeLessThanOrEqual(1.0)
     expect(glowMat.opacity / envelope1).toBeCloseTo(BOLT_GLOW_OPACITY, 4)
 
@@ -598,12 +602,11 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     nowSpy.mockRestore()
   })
 
-  it('con pulse musical 1 la opacidad del core en firing supera pulse 0', () => {
+  it('opacidad del core igual con pulse 0 y pulse 1 en la misma fase de ataque', () => {
     const measureCoreOpacity = (pulse: number): number => {
       resetGlobals()
       document.documentElement.removeAttribute('data-reduce-motion')
-      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
-      easeVisualBeatPulse.mockImplementation(raw => raw)
+      getThemeMusicBeat.mockReturnValue({ pulse, bpm: pulse > 0 ? 120 : null })
 
       const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
       const rafQueue: FrameRequestCallback[] = []
@@ -621,18 +624,7 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
       nowSpy.mockReturnValue(t0)
       tick(t0)
-      if (pulse > 0) {
-        for (let i = 1; i <= 12; i++) {
-          const t = t0 + i * 16
-          nowSpy.mockReturnValue(t)
-          tick(t)
-        }
-        getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
-        const tBeat = t0 + 13 * 16
-        nowSpy.mockReturnValue(tBeat)
-        tick(tBeat)
-      }
-      const tAttack = (pulse > 0 ? t0 + 13 * 16 : t0) + BOLT_ACTIVE_MS * 0.1
+      const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
       nowSpy.mockReturnValue(tAttack)
       tick(tAttack)
 
@@ -645,14 +637,13 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
     const opacityNoPulse = measureCoreOpacity(0)
     const opacityWithPulse = measureCoreOpacity(1)
-    expect(opacityWithPulse).toBeGreaterThan(opacityNoPulse)
+    expect(opacityWithPulse).toBeCloseTo(opacityNoPulse, 4)
   })
 
   it('sin música, los 3 rayos salientes de A encienden juntos al pulsar el nodo', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
-    easeVisualBeatPulse.mockImplementation(raw => raw)
 
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     const rafQueue: FrameRequestCallback[] = []
@@ -685,11 +676,10 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     nowSpy.mockRestore()
   })
 
-  it('con beat onset, todos los nodos disparan sus rayos salientes a la vez', () => {
+  it('con beat onset en MULTI_EDGE_DATA enciende los 3 rayos salientes de A', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
-    easeVisualBeatPulse.mockImplementation(raw => raw)
 
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     const rafQueue: FrameRequestCallback[] = []
@@ -703,20 +693,74 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
     render(<Harness data={MULTI_EDGE_DATA} />)
     const coreMats = getCoreMats()
+    expect(coreMats).toHaveLength(3)
     const tick = rafQueue[rafQueue.length - 1]!
 
     nowSpy.mockReturnValue(t0)
     tick(t0)
-    for (let i = 1; i <= 8; i++) {
-      const t = t0 + i * 16
-      nowSpy.mockReturnValue(t)
-      tick(t)
-    }
     const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
     nowSpy.mockReturnValue(tAttack)
     tick(tAttack)
 
     expect(coreMats.filter(m => m.opacity > 0)).toHaveLength(3)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('segundo beat con TWO_SOURCE rota al otro nodo origen', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    const BOLT_BEAT_COOLDOWN_MS = 350
+
+    let beatPulse = 0.2
+    getThemeMusicBeat.mockImplementation(() => ({ pulse: beatPulse, bpm: 120 }))
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness data={TWO_SOURCE_DATA} />)
+    const coreMats = getCoreMats()
+    expect(coreMats).toHaveLength(2)
+    const tick = rafQueue[rafQueue.length - 1]!
+
+    // Primer beat: nodo A (índice 0 en sourceNodeSlugs)
+    beatPulse = 0.5
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack1 = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack1)
+    tick(tAttack1)
+    expect(coreMats[0]!.opacity).toBeGreaterThan(0)
+    expect(coreMats[1]!.opacity).toBe(0)
+
+    // Esperar fin del rayo y cooldown
+    const tAfterCooldown = t0 + BOLT_ACTIVE_MS + BOLT_BEAT_COOLDOWN_MS + 10
+    nowSpy.mockReturnValue(tAfterCooldown)
+    tick(tAfterCooldown)
+    coreMats.forEach(m => { m.opacity = 0 })
+
+    // Segundo beat: nodo C (índice 1) — bajar pulse y volver a subir para onset
+    beatPulse = 0.2
+    tick(tAfterCooldown + 1)
+    beatPulse = 0.5
+    const tBeat2 = tAfterCooldown + 20
+    nowSpy.mockReturnValue(tBeat2)
+    tick(tBeat2)
+    const tAttack2 = tBeat2 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack2)
+    tick(tAttack2)
+
+    expect(coreMats[0]!.opacity).toBe(0)
+    expect(coreMats[1]!.opacity).toBeGreaterThan(0)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()

@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.49.0
+
+- **Rayos del mapa wiki siempre brillantes**: opacidad y luces al máximo en cada disparo; sin atenuación por música ni flicker ambiental.
+- **Rayos blancos**: core, halo, glow, flashes y luces puntuales en blanco; nodos conservan color por tipo.
+- **Música solo mueve el foco**: cada beat enciende el siguiente nodo origen (sus rayos salientes juntos); la música no cambia el estilo visual de los rayos.
+
 ## v0.48.0
 
 - **Menos presión al streamear respuestas**: los deltas del asistente se acumulan ~200 ms antes de actualizar el chat; el texto sigue llegando en tiempo real con menos re-renders.

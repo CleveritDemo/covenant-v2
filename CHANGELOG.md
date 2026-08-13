@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.41.1
+
+- **Interlineado de la terminal, a tu medida**: las filas ya no van tan holgadas; el default es cómodo (1.2). En Ajustes → Apariencia → Tipografía puedes pasar a compacto o holgado, y se aplica al momento.
+
 ## v0.41.0
 
 - **Cancelar una sincronización o publicación con Espacio**: mientras el workspace de org sincroniza o publica, el overlay dice el atajo y Espacio corta la operación. Lo que llegue después ya no reabre el modal ni con éxito ni con error de wiki, y una operación vieja no puede apagar el aviso de otra más nueva. Vale para los cuatro caminos que sincronizan: sincronizar, publicar, crear la pestaña de org y asignarle carpeta. El clonado de repositorios sigue sin cancelación.

@@ -26,6 +26,12 @@ if [ "$solo_tags" = "1" ]; then
   exit 0
 fi
 
+# Git exporta GIT_DIR (y compañía) a los hooks. Los tests que crean repos de
+# usar y tirar corren `git` con `cwd` en un tmpdir, pero GIT_DIR gana sobre el
+# cwd: heredado, sus `init`/`add`/`commit` caen en ESTE repo. Deja commits
+# «initial commit» en la rama que estás pusheando y el índice con dos archivos.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
 echo "pre-push: contrato de UI…"
 npm run --silent check:ui
 

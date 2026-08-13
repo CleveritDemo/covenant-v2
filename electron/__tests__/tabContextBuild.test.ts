@@ -1672,7 +1672,7 @@ export class Widget {
       expect(result.content).not.toContain('- entry-05')
     })
 
-    it('con wiki asignada emite el bloque Wiki ingest', () => {
+    it('con wiki en disco emite el bloque Project wiki en delivery; assigned mantiene Wiki ingest', () => {
       const cwd = tempCwd()
       seedWiki(cwd)
       const tree = applyCanonicalContextIdentity({
@@ -1687,7 +1687,12 @@ export class Widget {
       })
       expect(delivery.prompt).toContain('## Available tab contexts (on demand)')
       expect(delivery.prompt).not.toContain('## Attached tab contexts')
-      for (const text of [assigned, delivery.prompt]) {
+      expect(delivery.prompt).not.toContain('context-id: iaterminal:wiki')
+      expect(delivery.prompt).toContain('## Project wiki')
+      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept)')
+      expect(delivery.prompt).toContain('Recent log:')
+      expect(delivery.prompt).toContain('```ia-terminal-wiki')
+      for (const text of [assigned]) {
         expect(text).not.toContain('## Context maintenance')
         expect(text).not.toContain('```ia-terminal-context')
         expect(text).toContain('## Wiki ingest')
@@ -1706,7 +1711,7 @@ export class Widget {
       }
     })
 
-    it('sin wiki asignada no hay Wiki ingest ni Context maintenance', () => {
+    it('sin wiki en disco no hay Project wiki ni Wiki ingest en delivery', () => {
       const cwd = tempCwd()
       const tree = applyCanonicalContextIdentity({
         id: '',
@@ -1720,9 +1725,46 @@ export class Widget {
       })
       for (const text of [assigned, delivery.prompt]) {
         expect(text).not.toContain('## Context maintenance')
+        expect(text).not.toContain('## Project wiki')
         expect(text).not.toContain('## Wiki ingest')
         expect(text).not.toContain('```ia-terminal-wiki')
       }
+    })
+
+    it('con wiki en disco y contexts=[] emite Project wiki con índice compacto e ingest', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const delivery = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
+      expect(delivery.prompt).toContain('## Project wiki')
+      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept)')
+      expect(delivery.prompt).toContain('```ia-terminal-wiki')
+    })
+
+    it('segunda entrega sin cambios en index/log no re-emite Project wiki', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const first = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
+      expect(first.prompt).toContain('## Project wiki')
+      const second = buildContextPromptDelivery([], cwd, { previousSnapshot: first.snapshot })
+      expect(second.prompt).not.toContain('## Project wiki')
+    })
+
+    it('un context kind wiki asignado no aparece en attached ni en catálogo on-demand', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const tree = applyCanonicalContextIdentity({
+        id: '',
+        name: '',
+        fileName: '',
+        kind: 'folderTree',
+      })
+      const delivery = buildContextPromptDelivery([tree, wikiContext], cwd, {
+        forceFullRefresh: true,
+      })
+      expect(delivery.prompt).not.toContain('context-id: iaterminal:wiki')
+      expect(delivery.prompt).not.toContain('### Wiki [wiki]')
+      const catalogSection = delivery.prompt.split('## Available tab contexts (on demand)')[1] ?? ''
+      expect(catalogSection).not.toContain('"id":"iaterminal:wiki"')
     })
 
     it('deleteTabContext borra solo el mirror, jamás la carpeta wiki/', () => {

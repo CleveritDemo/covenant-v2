@@ -22,6 +22,12 @@ export function wikiRootPath(cwd: string): string {
   return projectDirPath(cwd, WIKI_DIR)
 }
 
+/** true si existe wiki/pages o wiki/index.md bajo la raíz del proyecto. */
+export function hasWiki(cwd: string): boolean {
+  const wikiRoot = wikiRootPath(cwd)
+  return existsSync(join(wikiRoot, PAGES_DIR)) || existsSync(join(wikiRoot, INDEX_FILE))
+}
+
 /**
  * Ruta absoluta de la page solo si el slug es canónico y la ruta resuelta
  * queda bajo wiki/pages (patrón safeFile de tabContextBuild). Un slug con

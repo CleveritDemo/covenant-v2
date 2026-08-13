@@ -151,6 +151,17 @@ function wikiPageExcerpt(body: string): string {
   return ''
 }
 
+/** Índice compacto para prompt: una línea por page, sin excerpt ni links. */
+export function buildWikiPromptIndex(pages: readonly WikiPage[]): string {
+  if (!pages.length) return ''
+  const bySlug = new Map<string, WikiPage>()
+  for (const page of pages) bySlug.set(page.slug, page)
+  return [...bySlug.values()]
+    .sort((a, b) => a.slug.localeCompare(b.slug))
+    .map(page => `- [[${page.slug}]] — ${page.title} (${page.type})`)
+    .join('\n')
+}
+
 /** Índice determinista: pages ordenadas por slug, una entrada por slug. */
 export function buildWikiIndex(pages: readonly WikiPage[]): string {
   const bySlug = new Map<string, WikiPage>()

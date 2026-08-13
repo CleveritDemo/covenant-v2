@@ -61,8 +61,9 @@ import {
   PAGES_DIR,
   WIKI_PAGE_TYPES,
   buildWikiWritingGuidance,
+  buildWikiPromptIndex,
 } from '../src/shared/wikiDoc'
-import { readWikiPages, wikiRootPath } from './wikiStore'
+import { hasWiki, readWikiLogTail, readWikiPages, wikiRootPath } from './wikiStore'
 import {
   AUTO_START,
   AUTO_END,
@@ -912,8 +913,7 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
 
     // La wiki se descubre por presencia en disco (no es creatable): el mirror
     // `.gravity/wiki.md` lo escribe la materialización normal.
-    const wikiRoot = wikiRootPath(base)
-    if (existsSync(join(wikiRoot, PAGES_DIR)) || existsSync(join(wikiRoot, INDEX_FILE))) {
+    if (hasWiki(base)) {
       const wikiId = 'iaterminal:wiki'
       if (!seenIds.has(wikiId)) {
         seenIds.add(wikiId)
@@ -1710,31 +1710,48 @@ export function buildContextPromptDelivery(
   cwd: string,
   options: ContextPromptOptions = {},
 ): ContextPromptDelivery {
+  const deliveryContexts = contexts.filter(context => context.kind !== 'wiki')
+  const wikiPresent = hasWiki(cwd)
   const fullRefresh = options.forceFullRefresh === true || !options.previousSnapshot
-  if (!contexts.length) {
-    const removedIds = Object.keys(options.previousSnapshot?.fingerprints ?? {})
+  const previousFingerprints = options.previousSnapshot?.fingerprints ?? {}
+  const wikiFingerprint = wikiPresent ? wikiSubstrateFingerprint(cwd) : undefined
+
+  if (!deliveryContexts.length) {
+    const fingerprints: Record<string, string> = {}
+    if (wikiFingerprint !== undefined) fingerprints['iaterminal:wiki'] = wikiFingerprint
+    const removedIds = Object.keys(previousFingerprints)
+      .filter(id => id !== 'iaterminal:wiki' && !(id in fingerprints))
+    const lines: string[] = []
+    if (removedIds.length) {
+      lines.push(
+        '## Tab context changes',
+        'All previously supplied tab contexts are now disabled. Forget their catalogs and bodies.',
+        `Removed context ids: ${removedIds.join(', ')}`,
+      )
+    }
+    const shouldEmitWiki = wikiPresent && (
+      fullRefresh || previousFingerprints['iaterminal:wiki'] !== wikiFingerprint
+    )
+    if (shouldEmitWiki) {
+      if (lines.length) lines.push('')
+      lines.push(buildWikiSubstrateBlock(cwd))
+    }
     return {
-      prompt: removedIds.length
-        ? [
-            '## Tab context changes',
-            'All previously supplied tab contexts are now disabled. Forget their catalogs and bodies.',
-            `Removed context ids: ${removedIds.join(', ')}`,
-          ].join('\n')
-        : '',
-      snapshot: { fingerprints: {} },
+      prompt: lines.join('\n'),
+      snapshot: { fingerprints },
       fullRefresh,
       preattachedSectionCount: 0,
       catalogChars: 0,
     }
   }
   const available = materializedContextSections(
-    contexts,
+    deliveryContexts,
     cwd,
     options.contextContents,
   )
   const allDirect: MaterializedContextData[] = []
   const allOnDemand: MaterializedContextData[] = []
-  for (const context of contexts) {
+  for (const context of deliveryContexts) {
     const data = available.get(context.id)
     if (!data) continue
     // notes / agentResult: siempre directo, sin tope de tamaño.
@@ -1753,14 +1770,14 @@ export function buildContextPromptDelivery(
       deliveryFingerprint(data, directIds.has(data.context.id) ? 'direct' : 'catalog'),
     ]),
   )
-  const previousFingerprints = options.previousSnapshot?.fingerprints ?? {}
+  if (wikiFingerprint !== undefined) fingerprints['iaterminal:wiki'] = wikiFingerprint
   const changedIds = new Set(
-    contexts
+    deliveryContexts
       .map(context => context.id)
       .filter(id => fullRefresh || previousFingerprints[id] !== fingerprints[id]),
   )
   const removedIds = Object.keys(previousFingerprints)
-    .filter(id => !(id in fingerprints))
+    .filter(id => id !== 'iaterminal:wiki' && !(id in fingerprints))
   const direct = allDirect.filter(data => changedIds.has(data.context.id))
   const onDemand = allOnDemand.filter(data => changedIds.has(data.context.id))
   const userPrompt = options.userPrompt?.trim() ?? ''
@@ -1782,7 +1799,7 @@ export function buildContextPromptDelivery(
     preattachBudget -= content.length
   }
   const suggestions = userPrompt
-    ? suggestContextKindsFromPrompt(userPrompt, contexts, options.discoveredContexts ?? [])
+    ? suggestContextKindsFromPrompt(userPrompt, deliveryContexts, options.discoveredContexts ?? [])
     : []
 
   const lines: string[] = []
@@ -1862,8 +1879,11 @@ export function buildContextPromptDelivery(
       '```',
     )
   }
-  if (contexts.some(context => context.kind === 'wiki')) {
-    lines.push('', buildWikiIngestBlock())
+  const shouldEmitWiki = wikiPresent && (
+    fullRefresh || previousFingerprints['iaterminal:wiki'] !== wikiFingerprint
+  )
+  if (shouldEmitWiki) {
+    lines.push('', buildWikiSubstrateBlock(cwd))
   }
   return {
     prompt: lines.join('\n'),
@@ -2087,6 +2107,30 @@ export function buildRequestedContextSections(
     ...(errors.length ? ['', '## Context request errors', ...errors.map(error => `- ${error}`)] : []),
   ].join('\n')
   return { prompt, sectionCount, errors, truncated }
+}
+
+function wikiSubstrateFingerprint(cwd: string): string {
+  const wikiRoot = wikiRootPath(cwd)
+  return `${fileFingerprint(join(wikiRoot, INDEX_FILE))}${fileFingerprint(join(wikiRoot, LOG_FILE))}`
+}
+
+function buildWikiSubstrateBlock(cwd: string): string {
+  const projectDir = projectDirName(cwd)
+  const index = buildWikiPromptIndex(readWikiPages(cwd))
+  const logTail = readWikiLogTail(cwd, 5)
+  return [
+    '## Project wiki',
+    'The index below is your navigation map.',
+    `To read a page, open \`${projectDir}/wiki/pages/<slug>.md\` with the file read tool.`,
+    `To search wiki content, grep in \`${projectDir}/wiki/pages/\`.`,
+    '',
+    index || '(empty)',
+    '',
+    'Recent log:',
+    ...(logTail.length ? logTail : ['(empty)']),
+    '',
+    buildWikiIngestBlock(),
+  ].join('\n')
 }
 
 /** Bloque de prompt del ingest de wiki; único mantenedor de conocimiento del proyecto. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWikiIndex,
+  buildWikiPromptIndex,
   buildWikiWritingGuidance,
   composeWikiPage,
   extractWikiIngest,
@@ -80,6 +81,28 @@ describe('composeWikiPage / parseWikiPage', () => {
   it('tolera page sin heading ni metadata: título = slug, type concept', () => {
     const parsed = parseWikiPage('solo cuerpo', 'suelta.md')
     expect(parsed).toMatchObject({ slug: 'suelta', title: 'suelta', type: 'concept', body: 'solo cuerpo' })
+  })
+})
+
+describe('buildWikiPromptIndex', () => {
+  it('una línea por page ordenada por slug, sin excerpt ni links', () => {
+    const a = page({ slug: 'beta', title: 'Beta', body: 'Resumen de beta.', links: ['gamma'] })
+    const b = page({
+      slug: 'alfa',
+      title: 'Alfa',
+      type: 'decision',
+      body: 'Primera línea útil.',
+      links: ['beta', 'gamma'],
+    })
+    expect(buildWikiPromptIndex([a, b])).toBe([
+      '- [[alfa]] — Alfa (decision)',
+      '- [[beta]] — Beta (concept)',
+    ].join('\n'))
+    expect(buildWikiPromptIndex([b, a])).toBe(buildWikiPromptIndex([a, b]))
+  })
+
+  it('sin pages devuelve cadena vacía', () => {
+    expect(buildWikiPromptIndex([])).toBe('')
   })
 })
 

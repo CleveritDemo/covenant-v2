@@ -104,6 +104,10 @@ import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
+import {
+  dedupeHumanQueuedTurnOnEnqueue,
+  removeMatchingHumanQueuedTurns,
+} from './queuedTurnDedup'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import { mcpConfigLabelFor, mcpsNeedingAuth } from '@shared/mcpContext'
 import { mcpConnectHint } from '@shared/mcpProbe'
@@ -1918,12 +1922,18 @@ export const AgentPane: React.FC<Props> = ({
     setPendingImages([])
     // Encolar mientras hay trabajo/delegaciones; abort solo al iniciar turno humano.
     if (!canStartHumanTurnNow) {
-      setQueuedTurns(prev => [
-        ...prev,
-        { id: crypto.randomUUID(), text: prompt, images: imagesSnapshot },
-      ])
+      setQueuedTurns(prev => dedupeHumanQueuedTurnOnEnqueue(prev, {
+        id: crypto.randomUUID(),
+        text: prompt,
+        images: imagesSnapshot,
+      }))
       return
     }
+    setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
+      prev,
+      prompt,
+      imagesSnapshot.length,
+    ))
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
@@ -1999,15 +2009,12 @@ export const AgentPane: React.FC<Props> = ({
       setQueuedTurns(prev => {
         if (prev.length >= MAX_QUEUED_TURNS) return prev
         didEnqueue = true
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            text: prompt,
-            images: imagesSnapshot,
-            ...turnOptions,
-          },
-        ]
+        return dedupeHumanQueuedTurnOnEnqueue(prev, {
+          id: crypto.randomUUID(),
+          text: prompt,
+          images: imagesSnapshot,
+          ...turnOptions,
+        })
       })
       if (!didEnqueue) {
         imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
@@ -2024,6 +2031,11 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (preferSend.focusPane !== false) onRequestPaneFocus()
+    setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
+      prev,
+      prompt,
+      imagesSnapshot.length,
+    ))
     if (
       isHumanTurn
       && coordinationCanDelegate(metaRef.current.coordination)
@@ -2135,6 +2147,7 @@ export const AgentPane: React.FC<Props> = ({
     const isHumanTurn = !next.orchestrationFollowUp && !next.delegation
     if (
       isHumanTurn
+      && !next.orchestrationJobId?.trim()
       && coordinationCanDelegate(metaRef.current.coordination)
     ) {
       onOrchestrationUserTurnRef.current?.()

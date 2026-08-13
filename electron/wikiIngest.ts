@@ -1,4 +1,3 @@
-import type { TabContext } from '../src/shared/tabContext'
 import { extractWikiIngest, type WikiIngestOp } from '../src/shared/wikiDoc'
 import { applyWikiIngest } from './wikiStore'
 
@@ -6,7 +5,7 @@ export interface WikiIngestFromFinalTextResult {
   visibleText: string
   applied: number
   errors: string[]
-  /** true si hubo ingest con wiki asignada y se escribió vía applyWikiIngest. */
+  /** true si hubo ingest y persist true y se escribió vía applyWikiIngest. */
   persisted: boolean
 }
 
@@ -22,21 +21,19 @@ function summarizeWikiOps(ops: readonly WikiIngestOp[]): string {
 
 /**
  * Extrae el fence ```ia-terminal-wiki``` del assistant_final y lo aplica al
- * store SOLO si hay un contexto kind 'wiki' asignado. Sin wiki asignada el
- * fence se remueve igual del texto visible (nunca se muestra crudo) y no se
- * escribe nada. Si el ingest no trae log, se autogenera desde las ops; el
- * store le agrega timestamp ISO y agentId con formatWikiLogEntry.
- * A diferencia de las anotaciones, el ingest NO se filtra por changedPaths:
- * captura decisiones y significado, no diffs.
+ * store cuando persist es true. Con persist false solo limpia el fence del
+ * texto visible (nunca se muestra crudo) y no escribe nada. Si el ingest no
+ * trae log, se autogenera desde las ops; el store le agrega timestamp ISO y
+ * agentId con formatWikiLogEntry. A diferencia de las anotaciones, el ingest
+ * NO se filtra por changedPaths: captura decisiones y significado, no diffs.
  */
 export function applyWikiIngestFromFinalText(
   finalText: string,
-  contexts: readonly TabContext[],
   cwd: string,
-  options: { agentId?: string } = {},
+  options: { agentId?: string; persist: boolean },
 ): WikiIngestFromFinalTextResult {
   const { visibleText, ingest } = extractWikiIngest(finalText)
-  if (!ingest || !contexts.some(context => context.kind === 'wiki')) {
+  if (!ingest || !options.persist) {
     return { visibleText, applied: 0, errors: [], persisted: false }
   }
   const log = ingest.log ?? (ingest.ops.length ? summarizeWikiOps(ingest.ops) : null)

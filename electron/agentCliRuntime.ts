@@ -70,6 +70,7 @@ import {
 import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
+import { hasWiki } from './wikiStore'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
 import {
@@ -1263,9 +1264,11 @@ export function startAgentTurn(
             // fence del texto visible.
             const wikiIngest = applyWikiIngestFromFinalText(
               finalText,
-              wikiIngestPersisted ? [] : request.contexts ?? [],
               projectCwd,
-              { agentId: request.agentId?.trim() || undefined },
+              {
+                agentId: request.agentId?.trim() || undefined,
+                persist: !wikiIngestPersisted && hasWiki(projectCwd),
+              },
             )
             if (wikiIngest.persisted) wikiIngestPersisted = true
             const { visibleText: afterChangelog, changes } = extractAiChangelog(

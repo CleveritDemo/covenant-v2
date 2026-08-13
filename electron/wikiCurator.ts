@@ -197,8 +197,9 @@ export function startWikiCuratorTurn(
       }
       // runAgentCliSpawn no aplica el ingest de assistant_final (eso vive en
       // startAgentTurn): se aplica aquí, una sola vez, con la wiki asignada.
-      const ingest = applyWikiIngestFromFinalText(finalText, contexts, cwd, {
+      const ingest = applyWikiIngestFromFinalText(finalText, cwd, {
         agentId: CURATOR_AGENT_ID,
+        persist: true,
       })
       if (ingest.persisted) {
         emitCurator(win, cwd, { type: 'applied', opsCount: ingest.applied })

@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.42.0
+
+- **Wiki de proyecto en el prompt de todos los agentes**: si existe `.gravity/wiki` en disco, cada agente recibe el índice compacto, el log y el ingest en su contexto, sin que tengas que asignar la wiki manualmente como contexto.
+- **En turbo, un mensaje encolado no se ejecuta dos veces**: si el orquestador está ocupado y reenvías el mismo mensaje al liberarse, la cola lo deduplica y no vuelve a correr el turno duplicado.
+
 ## v0.41.2
 
 - **Instalar un language server ya te dice qué pasa**: si la instalación falla, el error se ve en la fila en vez de que el botón parezca muerto; y cuando el problema es el runtime (por ejemplo jdtls, que necesita Java 21), la fila avisa la versión que hace falta, la que encontró, dónde tienes una válida fuera del PATH y cambia el botón por Comprobar de nuevo. El aviso de runtime del editor pasa a usar el mismo componente.

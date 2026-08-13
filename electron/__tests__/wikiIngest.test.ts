@@ -4,20 +4,6 @@ import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { applyWikiIngestFromFinalText } from '../wikiIngest'
 import { wikiRootPath } from '../wikiStore'
-import type { TabContext } from '../../src/shared/tabContext'
-
-const wikiContext: TabContext = {
-  id: 'iaterminal:wiki',
-  name: 'Wiki',
-  fileName: 'wiki.md',
-  kind: 'wiki',
-}
-const notesContext: TabContext = {
-  id: 'iaterminal:notes:Plan',
-  name: 'Plan',
-  fileName: 'Plan.md',
-  kind: 'notes',
-}
 
 const roots: string[] = []
 
@@ -36,13 +22,12 @@ function fenced(json: string): string {
 }
 
 describe('applyWikiIngestFromFinalText', () => {
-  it('con wiki asignada aplica las ops y limpia el fence del texto visible', () => {
+  it('con persist true aplica las ops y limpia el fence del texto visible', () => {
     const cwd = makeRoot()
     const result = applyWikiIngestFromFinalText(
       fenced('{"ops":[{"op":"upsert","slug":"auth-flow","title":"Auth flow","type":"decision","body":"Cómo entra el usuario."}],"log":"alta de auth-flow"}'),
-      [notesContext, wikiContext],
       cwd,
-      { agentId: 'frontend' },
+      { agentId: 'frontend', persist: true },
     )
     expect(result.visibleText).toBe('Listo el turno.')
     expect(result).toMatchObject({ applied: 1, errors: [], persisted: true })
@@ -54,12 +39,12 @@ describe('applyWikiIngestFromFinalText', () => {
       .toMatch(/- `\d{4}-\d{2}-\d{2}T[^`]+` — \[frontend\] alta de auth-flow\n$/)
   })
 
-  it('sin wiki asignada remueve el fence pero no escribe nada', () => {
+  it('con persist false remueve el fence pero no escribe nada', () => {
     const cwd = makeRoot()
     const result = applyWikiIngestFromFinalText(
       fenced('{"ops":[{"op":"upsert","slug":"a","title":"A","type":"concept","body":"x"}],"log":"alta"}'),
-      [notesContext],
       cwd,
+      { persist: false },
     )
     expect(result.visibleText).toBe('Listo el turno.')
     expect(result).toMatchObject({ applied: 0, errors: [], persisted: false })
@@ -68,7 +53,7 @@ describe('applyWikiIngestFromFinalText', () => {
 
   it('sin fence devuelve el texto tal cual y no toca disco', () => {
     const cwd = makeRoot()
-    const result = applyWikiIngestFromFinalText('Solo prosa.', [wikiContext], cwd)
+    const result = applyWikiIngestFromFinalText('Solo prosa.', cwd, { persist: true })
     expect(result.visibleText).toBe('Solo prosa.')
     expect(result.persisted).toBe(false)
     expect(existsSync(wikiRootPath(cwd))).toBe(false)
@@ -78,9 +63,8 @@ describe('applyWikiIngestFromFinalText', () => {
     const cwd = makeRoot()
     applyWikiIngestFromFinalText(
       fenced('{"ops":[{"op":"upsert","slug":"a","title":"A","type":"concept","body":"x"},{"op":"upsert","slug":"b","title":"B","type":"concept","body":"y"},{"op":"delete","slug":"c"}]}'),
-      [wikiContext],
       cwd,
-      { agentId: 'frontend' },
+      { agentId: 'frontend', persist: true },
     )
     const log = readFileSync(join(wikiRootPath(cwd), 'log.md'), 'utf8')
     expect(log).toMatch(/- `[^`]+` — \[frontend\] upsert a, b; delete c\n$/)
@@ -93,8 +77,8 @@ describe('applyWikiIngestFromFinalText', () => {
     ))
     const result = applyWikiIngestFromFinalText(
       fenced(`{"ops":[${ops.join(',')}]}`),
-      [wikiContext],
       cwd,
+      { persist: true },
     )
     expect(result.applied).toBe(8)
     expect(existsSync(join(wikiRootPath(cwd), 'pages', 'p-8.md'))).toBe(false)
@@ -102,14 +86,14 @@ describe('applyWikiIngestFromFinalText', () => {
     expect(firstLine).toBe(`# ${'T'.repeat(120)}`)
   })
 
-  it('con contexts vacíos (flag ya persistido) limpia el fence sin re-aplicar', () => {
+  it('con persist false (flag ya persistido) limpia el fence sin re-aplicar', () => {
     const cwd = makeRoot()
     const text = fenced('{"ops":[{"op":"upsert","slug":"a","title":"A","type":"concept","body":"x"}],"log":"alta"}')
-    const first = applyWikiIngestFromFinalText(text, [wikiContext], cwd, { agentId: 'tl' })
+    const first = applyWikiIngestFromFinalText(text, cwd, { agentId: 'tl', persist: true })
     expect(first.persisted).toBe(true)
     const logAfterFirst = readFileSync(join(wikiRootPath(cwd), 'log.md'), 'utf8')
 
-    const second = applyWikiIngestFromFinalText(text, [], cwd, { agentId: 'tl' })
+    const second = applyWikiIngestFromFinalText(text, cwd, { agentId: 'tl', persist: false })
     expect(second.visibleText).toBe('Listo el turno.')
     expect(second.persisted).toBe(false)
     expect(readFileSync(join(wikiRootPath(cwd), 'log.md'), 'utf8')).toBe(logAfterFirst)

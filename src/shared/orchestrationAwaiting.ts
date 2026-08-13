@@ -63,16 +63,47 @@ export function isReplicaAgentId(toAgentId: string, baseAgentId?: string): boole
 }
 
 /**
- * Réplica efímera a borrar al completar/abortar: solo si el pending trajo
- * `baseAgentId` (spawn). Nunca el experto base.
+ * Réplica efímera a borrar al completar/abortar.
+ * Marcadores de spawn: `baseAgentId` en el pending, o `localOnly` en el binding
+ * / definición (red de seguridad si el pending o el registry se perdieron).
+ * Nunca el experto base.
  */
 export function shouldDisposeReplicaOnComplete(input: {
   toAgentId: string
   baseAgentId?: string
+  localOnly?: boolean
 }): boolean {
+  if (input.localOnly === true) return true
   const base = input.baseAgentId?.trim()
   if (!base) return false
   return isReplicaAgentId(input.toAgentId, base)
+}
+
+export interface ReplicaPaneMatchInput {
+  paneId: string
+  agentId?: string
+  localOnly?: boolean
+}
+
+/**
+ * Localiza el pane de una réplica cuando el pending y el registry ya no están.
+ * Prioridad: `toPaneId` del resultado; si falta, binding `localOnly` con el mismo agent id.
+ */
+export function matchReplicaPane(input: {
+  toPaneId?: string
+  toAgentId?: string
+  panes: ReadonlyArray<ReplicaPaneMatchInput>
+}): ReplicaPaneMatchInput | undefined {
+  const paneId = input.toPaneId?.trim()
+  if (paneId) {
+    return input.panes.find(item => item.paneId === paneId) ?? { paneId }
+  }
+  const agentId = input.toAgentId?.trim().toLowerCase()
+  if (!agentId) return undefined
+  return input.panes.find(item => (
+    item.localOnly === true
+    && (item.agentId ?? '').trim().toLowerCase() === agentId
+  ))
 }
 
 /** Hint corto del path de worktree (p. ej. `tab/dlg-id`). */

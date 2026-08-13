@@ -125,6 +125,7 @@ import {
 } from '@shared/expertReplicas'
 import {
   buildOrchestrationAwaitingView,
+  matchReplicaPane,
   orchestrationAwaitingSignature,
   shouldDisposeReplicaOnComplete,
   type OrchestrationAwaitingView,
@@ -3887,6 +3888,10 @@ export const App: React.FC = () => {
         disposeReplica: shouldDisposeReplicaOnComplete({
           toAgentId: routedAgentId,
           baseAgentId,
+          ...(tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
+            ?.agentByPane?.[toPaneId]?.localOnly === true
+            ? { localOnly: true }
+            : {}),
         }),
       })
       occupiedPaneIds.add(toPaneId)
@@ -4053,6 +4058,10 @@ export const App: React.FC = () => {
       disposeReplica: shouldDisposeReplicaOnComplete({
         toAgentId: next.toAgentId,
         baseAgentId: next.baseAgentId,
+        ...(tabsRef.current.find(item => (item.paneIds ?? []).includes(next.toPaneId))
+          ?.agentByPane?.[next.toPaneId]?.localOnly === true
+          ? { localOnly: true }
+          : {}),
       }),
     })
     upsertOrchestrationWaveItem(job, {
@@ -4304,6 +4313,7 @@ export const App: React.FC = () => {
           reason: 'merge_failed',
           detail: mergeResult.stderr,
         })
+        await window.api.gitWorktreeAbortMerge({ path: info.baseCwd })
         try {
           clearPaneCwdOverride(info.toPaneId)
           await window.api.gitWorktreeRemove({ path: info.baseCwd }, {
@@ -4400,13 +4410,60 @@ export const App: React.FC = () => {
           reason: 'orphaned_result_unknown',
         },
       )
+      const worktreeInfo = worktreesByDelegationRef.current.get(result.id)
+      const panes = tabsRef.current.flatMap(tab =>
+        (tab.paneIds ?? []).map(paneId => {
+          const binding = tab.agentByPane?.[paneId]
+          return {
+            paneId,
+            ...(binding?.agentId ? { agentId: binding.agentId } : {}),
+            ...(binding?.localOnly === true ? { localOnly: true } : {}),
+          }
+        }),
+      )
+      const matched = matchReplicaPane({
+        toPaneId: result.toPaneId ?? worktreeInfo?.toPaneId,
+        toAgentId: result.toAgentId,
+        panes,
+      })
+      if (worktreeInfo) {
+        clearPaneCwdOverride(worktreeInfo.toPaneId)
+        void window.api.gitWorktreeRemove({ path: worktreeInfo.baseCwd }, {
+          worktreePath: worktreeInfo.worktreePath,
+          branch: worktreeInfo.branch,
+          force: true,
+        }).catch(() => undefined)
+        worktreesByDelegationRef.current.delete(result.id)
+      }
+      const targetPaneId = matched?.paneId ?? worktreeInfo?.toPaneId
+      if (
+        targetPaneId
+        && shouldDisposeReplicaOnComplete({
+          toAgentId: result.toAgentId ?? '',
+          ...(worktreeInfo?.baseAgentId ? { baseAgentId: worktreeInfo.baseAgentId } : {}),
+          ...(matched?.localOnly === true ? { localOnly: true } : {}),
+        })
+      ) {
+        const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(targetPaneId))
+        if (replicaTab) handleClosePane(replicaTab.id, targetPaneId)
+      }
       return
     }
     const completedMeta = job.pending.get(result.id)
     const freedPaneId = completedMeta?.toPaneId
+    const replicaTabForMeta = freedPaneId
+      ? tabsRef.current.find(item => (item.paneIds ?? []).includes(freedPaneId))
+      : undefined
+    const bindingLocalOnly = Boolean(
+      freedPaneId && replicaTabForMeta?.agentByPane?.[freedPaneId]?.localOnly,
+    )
     const disposeReplica = Boolean(
       completedMeta
-      && shouldDisposeReplicaOnComplete(completedMeta),
+      && shouldDisposeReplicaOnComplete({
+        toAgentId: completedMeta.toAgentId,
+        ...(completedMeta.baseAgentId ? { baseAgentId: completedMeta.baseAgentId } : {}),
+        ...(bindingLocalOnly ? { localOnly: true } : {}),
+      }),
     )
     job.pending.delete(result.id)
     let remaining = job.pending.size
@@ -4576,7 +4633,15 @@ export const App: React.FC = () => {
     const runningTargets = [...new Set(allPending.map(item => item.toPaneId))]
     const replicaPaneIds = [...new Set(
       allPending
-        .filter(item => shouldDisposeReplicaOnComplete(item))
+        .filter(item => {
+          const tab = tabsRef.current.find(entry => (entry.paneIds ?? []).includes(item.toPaneId))
+          const localOnly = tab?.agentByPane?.[item.toPaneId]?.localOnly === true
+          return shouldDisposeReplicaOnComplete({
+            toAgentId: item.toAgentId,
+            ...(item.baseAgentId ? { baseAgentId: item.baseAgentId } : {}),
+            ...(localOnly ? { localOnly: true } : {}),
+          })
+        })
         .map(item => item.toPaneId),
     )]
     orchestrationJobsByPaneRef.current.delete(fromPaneId)
@@ -4674,20 +4739,21 @@ export const App: React.FC = () => {
       }
     }
 
-    if (
-      toPaneId
-      && shouldDisposeReplicaOnComplete({
+    if (toPaneId) {
+      const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
+      const localOnly = replicaTab?.agentByPane?.[toPaneId]?.localOnly === true
+      if (shouldDisposeReplicaOnComplete({
         toAgentId: abort.toAgentId ?? '',
         ...(abort.baseAgentId ? { baseAgentId: abort.baseAgentId } : {}),
-      })
-    ) {
-      // Vía registry para mantener idempotencia (si un resultado tardío llega
-      // luego, `claimReplicaDispose` devolverá undefined y no cerrará dos veces).
-      const disposed = disposeDelegationReplicaIfNeeded(id, 'single_abort')
-      if (!disposed) {
-        // Sin entry en registry (path histórico): fallback al cierre directo.
-        const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
-        if (replicaTab) handleClosePane(replicaTab.id, toPaneId)
+        ...(localOnly ? { localOnly: true } : {}),
+      })) {
+        // Vía registry para mantener idempotencia (si un resultado tardío llega
+        // luego, `claimReplicaDispose` devolverá undefined y no cerrará dos veces).
+        const disposed = disposeDelegationReplicaIfNeeded(id, 'single_abort')
+        if (!disposed) {
+          // Sin entry en registry (path histórico): fallback al cierre directo.
+          if (replicaTab) handleClosePane(replicaTab.id, toPaneId)
+        }
       }
     }
     deleteDelegationRuntime(delegationRuntimeByIdRef.current, id)

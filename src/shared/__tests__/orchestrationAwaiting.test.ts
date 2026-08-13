@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildOrchestrationAwaitingView,
   isReplicaAgentId,
+  matchReplicaPane,
   orchestrationAwaitingSignature,
   shortWorktreeHint,
   shouldDisposeReplicaOnComplete,
@@ -37,6 +38,38 @@ describe('shouldDisposeReplicaOnComplete', () => {
 
   it('ignores -N heuristic alone (no spawn marker)', () => {
     expect(shouldDisposeReplicaOnComplete({ toAgentId: 'frontend-2' })).toBe(false)
+  })
+
+  it('disposes localOnly replica without baseAgentId', () => {
+    expect(shouldDisposeReplicaOnComplete({
+      toAgentId: 'frontend-2',
+      localOnly: true,
+    })).toBe(true)
+  })
+})
+
+describe('matchReplicaPane', () => {
+  const panes = [
+    { paneId: 'pane-base', agentId: 'frontend' },
+    { paneId: 'pane-r2', agentId: 'frontend-2', localOnly: true },
+  ]
+
+  it('matches by toPaneId even without localOnly', () => {
+    expect(matchReplicaPane({ toPaneId: 'pane-base', panes })).toEqual(panes[0])
+  })
+
+  it('returns the paneId when the pane is already gone', () => {
+    expect(matchReplicaPane({ toPaneId: 'pane-missing', panes })).toEqual({
+      paneId: 'pane-missing',
+    })
+  })
+
+  it('falls back to localOnly binding with the replica agent id', () => {
+    expect(matchReplicaPane({ toAgentId: 'frontend-2', panes })).toEqual(panes[1])
+  })
+
+  it('does not match a base expert by agent id alone', () => {
+    expect(matchReplicaPane({ toAgentId: 'frontend', panes })).toBeUndefined()
   })
 })
 

@@ -21,6 +21,7 @@ import { issueKeyFor } from '../src/shared/jiraIssue'
 import { jiraSnapshotHasContent } from '../src/shared/jiraIssueDoc'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
+import { otelEnvFromConfig } from './otelEnv'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
@@ -1026,7 +1027,7 @@ export function runAgentCliSpawn(
   try {
     proc = crossSpawn(command, args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...otelEnvFromConfig(config) },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     }) as ChildProcessWithoutNullStreams
@@ -1195,7 +1196,7 @@ export function startAgentTurn(
     try {
       proc = crossSpawn(command, args, {
         cwd,
-        env: process.env,
+        env: { ...process.env, ...otelEnvFromConfig(config) },
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       }) as ChildProcessWithoutNullStreams

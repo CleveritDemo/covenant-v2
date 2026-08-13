@@ -47,6 +47,7 @@ const LANGUAGES: { value: Language; label: string }[] = [
 ]
 
 const CATEGORIES = [
+  { id: 'telemetry', icon: 'chart', labelKey: 'settings.telemetrySection' },
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'jira', icon: 'jira', labelKey: 'jira.section' },
@@ -71,6 +72,7 @@ type CategoryId = (typeof CATEGORIES)[number]['id']
  * desde ahí, no un extractor de i18n.
  */
 const SEARCH_INDEX = [
+  { category: 'telemetry', anchor: 'settings-telemetry', titleKey: 'settings.telemetrySection', termKeys: ['settings.telemetryHint', 'settings.telemetryEndpointLabel', 'settings.telemetryHeadersLabel', 'settings.telemetryEnabledTitle', 'settings.telemetryLogPromptsTitle', 'settings.telemetryLogToolIOTitle'] },
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
   { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
   { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
@@ -109,6 +111,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     fontMono: config.fontMono ?? '',
     terminalLineHeight: sanitizeTerminalLineHeight(config.terminalLineHeight),
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
+    otelEndpoint: config.otelEndpoint ?? '',
+    otelProtocol: config.otelProtocol ?? 'http/protobuf',
+    otelEnabled: config.otelEnabled ?? false,
+    otelHeaders: config.otelHeaders ?? '',
+    otelLogPrompts: config.otelLogPrompts ?? false,
+    otelLogToolIO: config.otelLogToolIO ?? false,
   })
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
@@ -278,6 +286,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       terminalLineHeight: sanitizeTerminalLineHeight(form.terminalLineHeight),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
+      otelEndpoint: form.otelEndpoint.trim(),
+      otelProtocol: form.otelProtocol,
+      otelEnabled: form.otelEnabled,
+      otelHeaders: form.otelHeaders,
+      otelLogPrompts: form.otelLogPrompts,
+      otelLogToolIO: form.otelLogToolIO,
     })
   }
 
@@ -353,6 +367,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       fontMono: original.fontMono ?? '',
       terminalLineHeight: sanitizeTerminalLineHeight(original.terminalLineHeight),
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
+      otelEndpoint: original.otelEndpoint ?? '',
+      otelProtocol: original.otelProtocol ?? 'http/protobuf',
+      otelEnabled: original.otelEnabled ?? false,
+      otelHeaders: original.otelHeaders ?? '',
+      otelLogPrompts: original.otelLogPrompts ?? false,
+      otelLogToolIO: original.otelLogToolIO ?? false,
     })
     setErrors([])
     setTokenFieldEpoch(n => n + 1)
@@ -432,6 +452,86 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
         </nav>
 
         <div className="settings-panel">
+          {category === 'telemetry' && (
+            <SettingsSection title={t('settings.telemetrySection')} anchor="settings-telemetry">
+              <p className="settings-hint settings-hint--block">{t('settings.telemetryHint')}</p>
+              <SettingsField
+                label={t('settings.telemetryEndpointLabel')}
+                htmlFor="settings-otel-endpoint"
+              >
+                <Input
+                  id="settings-otel-endpoint"
+                  value={form.otelEndpoint}
+                  onChange={e => update('otelEndpoint', e.target.value)}
+                  placeholder={t('settings.telemetryEndpointPlaceholder')}
+                />
+                <p className="settings-hint">{t('settings.telemetryEndpointHint')}</p>
+              </SettingsField>
+              <SettingsField
+                label={t('settings.telemetryProtocolLabel')}
+                htmlFor="settings-otel-protocol"
+              >
+                <Select
+                  id="settings-otel-protocol"
+                  value={form.otelProtocol}
+                  onChange={v => update('otelProtocol', v as AppConfig['otelProtocol'])}
+                  options={[
+                    { value: 'http/protobuf', label: t('settings.telemetryProtocolHttpProtobuf') },
+                    { value: 'grpc', label: t('settings.telemetryProtocolGrpc') },
+                  ]}
+                />
+              </SettingsField>
+              <SettingsField
+                label={t('settings.telemetryHeadersLabel')}
+                htmlFor="settings-otel-headers"
+              >
+                <Input
+                  id="settings-otel-headers"
+                  type="password"
+                  value={form.otelHeaders}
+                  onChange={e => update('otelHeaders', e.target.value)}
+                  placeholder={t('settings.telemetryHeadersPlaceholder')}
+                />
+                <p className="settings-hint">{t('settings.telemetryHeadersHint')}</p>
+              </SettingsField>
+              <SettingToggle
+                checked={form.otelEnabled}
+                onChange={checked => update('otelEnabled', checked)}
+                title={t('settings.telemetryEnabledTitle')}
+                description={
+                  form.otelEndpoint
+                    ? t('settings.telemetryEnabledDescription')
+                    : t('settings.telemetryEnabledNoEndpoint')
+                }
+                disabled={!form.otelEndpoint}
+              />
+              <SettingToggle
+                checked={form.otelLogPrompts}
+                onChange={checked => update('otelLogPrompts', checked)}
+                title={t('settings.telemetryLogPromptsTitle')}
+                description={t('settings.telemetryLogPromptsDescription')}
+                disabled={!form.otelEnabled || !form.otelEndpoint}
+              />
+              {form.otelLogPrompts && form.otelEnabled && form.otelEndpoint && (
+                <p className="settings-hint settings-hint--block settings-hint--warning">
+                  {t('settings.telemetryLogPromptsWarning')}
+                </p>
+              )}
+              <SettingToggle
+                checked={form.otelLogToolIO}
+                onChange={checked => update('otelLogToolIO', checked)}
+                title={t('settings.telemetryLogToolIOTitle')}
+                description={t('settings.telemetryLogToolIODescription')}
+                disabled={!form.otelEnabled || !form.otelEndpoint}
+              />
+              {form.otelLogToolIO && form.otelEnabled && form.otelEndpoint && (
+                <p className="settings-hint settings-hint--block settings-hint--warning">
+                  {t('settings.telemetryLogToolIOWarning')}
+                </p>
+              )}
+            </SettingsSection>
+          )}
+
           {category === 'cli' && (
             <SettingsSection title={t('settings.agentCliSection')} anchor="settings-cli">
               <AgentCliTable

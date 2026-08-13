@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
-import { validateConfig, mergeWithDefaults, sanitizeMusicVolume } from '@shared/configSchema'
+import { validateConfig, mergeWithDefaults, sanitizeMusicVolume, sanitizeTerminalLineHeight } from '@shared/configSchema'
 import { filterSettingsEntries } from '@shared/settingsSearch'
 import { UI_FONTS, MONO_FONTS } from '@shared/fontStacks'
 import { availableFonts, isFontInstalled, isMonospaced } from '@renderer/fontAvailability'
@@ -72,7 +72,7 @@ const SEARCH_INDEX = [
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
   { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
   { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
-  { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
+  { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel', 'settings.terminalLineHeightLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
   { category: 'sound', anchor: 'settings-system-sounds', titleKey: 'settings.systemSoundsSection', termKeys: ['settings.systemSoundsEnabledTitle', 'settings.systemSoundsEnabledDescription'] },
@@ -105,6 +105,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     fontUi: config.fontUi ?? '',
     fontMono: config.fontMono ?? '',
+    terminalLineHeight: sanitizeTerminalLineHeight(config.terminalLineHeight),
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
   })
   const [errors, setErrors] = useState<string[]>([])
@@ -272,6 +273,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       fontUi: form.fontUi,
       fontMono: form.fontMono,
+      terminalLineHeight: sanitizeTerminalLineHeight(form.terminalLineHeight),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
     })
@@ -341,6 +343,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       fontUi: original.fontUi ?? '',
       fontMono: original.fontMono ?? '',
+      terminalLineHeight: sanitizeTerminalLineHeight(original.terminalLineHeight),
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
     })
     setErrors([])
@@ -469,6 +472,22 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   customLabel={t('settings.fontCustomLabel')}
                   placeholder={t('settings.fontCustomMonoPlaceholder')}
                 />
+                <SettingsField
+                  label={t('settings.terminalLineHeightLabel')}
+                  hint={t('settings.terminalLineHeightHint')}
+                >
+                  <Select
+                    size="sm"
+                    value={String(sanitizeTerminalLineHeight(form.terminalLineHeight))}
+                    onChange={next => update('terminalLineHeight', sanitizeTerminalLineHeight(Number(next)))}
+                    aria-label={t('settings.terminalLineHeightLabel')}
+                    options={[
+                      { value: '1', label: t('settings.terminalLineHeightCompact') },
+                      { value: '1.2', label: t('settings.terminalLineHeightComfortable') },
+                      { value: '1.4', label: t('settings.terminalLineHeightRelaxed') },
+                    ]}
+                  />
+                </SettingsField>
               </SettingsSection>
 
               <SettingsSection title={t('settings.languageSection')} anchor="settings-language">

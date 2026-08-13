@@ -13,6 +13,11 @@ export type Language = 'en' | 'es'
 
 const DEFAULT_MUSIC_VOLUME = 0.35
 
+/** Interlineado xterm: 1.2 = cómodo (default), 1 = denso, 1.4 = holgado. */
+const DEFAULT_TERMINAL_LINE_HEIGHT = 1.2
+const MIN_TERMINAL_LINE_HEIGHT = 1
+const MAX_TERMINAL_LINE_HEIGHT = 1.6
+
 /**
  * Volumen de música interna: escala 0..1.
  * Valores fuera de rango se clampean; p. ej. 35 → 1 (no se interpreta como 35%).
@@ -21,6 +26,14 @@ export function sanitizeMusicVolume(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(n)) return DEFAULT_MUSIC_VOLUME
   return Math.min(1, Math.max(0, n))
+}
+
+/** Interlineado de terminal: 1.0–1.6, un decimal. Basura → default. */
+export function sanitizeTerminalLineHeight(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return DEFAULT_TERMINAL_LINE_HEIGHT
+  const clamped = Math.min(MAX_TERMINAL_LINE_HEIGHT, Math.max(MIN_TERMINAL_LINE_HEIGHT, n))
+  return Math.round(clamped * 10) / 10
 }
 
 export interface AppConfig {
@@ -46,6 +59,8 @@ export interface AppConfig {
   fontUi: string
   /** Familia monoespaciada (terminales y código). Vacío = stack por defecto. */
   fontMono: string
+  /** Interlineado xterm (1.0–1.6). UI: Compacto / Cómodo / Holgado. */
+  terminalLineHeight: number
   /** Si true, el chat puede leer/escribir archivos bajo el cwd (modo agente). UI: cabecera del panel IA. */
   agentMode: boolean
   /**
@@ -128,6 +143,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   fontSize: 13,
   fontUi: '',
   fontMono: '',
+  terminalLineHeight: DEFAULT_TERMINAL_LINE_HEIGHT,
   agentMode: false,
   agentLoop: false,
   agentShellPolicy: 'off',
@@ -180,6 +196,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const musicVolume = Object.prototype.hasOwnProperty.call(partial, 'musicVolume')
     ? sanitizeMusicVolume(partial.musicVolume)
     : CONFIG_DEFAULTS.musicVolume
+  const terminalLineHeight = Object.prototype.hasOwnProperty.call(partial, 'terminalLineHeight')
+    ? sanitizeTerminalLineHeight(partial.terminalLineHeight)
+    : CONFIG_DEFAULTS.terminalLineHeight
   const musicPaused = typeof partial.musicPaused === 'boolean'
     ? partial.musicPaused
     : CONFIG_DEFAULTS.musicPaused
@@ -209,6 +228,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     ...CONFIG_DEFAULTS,
     ...partial,
     musicVolume,
+    terminalLineHeight,
     musicPaused,
     systemSoundsEnabled,
     reduceMotion,
@@ -255,6 +275,17 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (config.fontSize < 9 || config.fontSize > 24) {
     errors.push('fontSize debe estar entre 9 y 24')
+  }
+  if (
+    typeof config.terminalLineHeight !== 'number'
+    || !Number.isFinite(config.terminalLineHeight)
+  ) {
+    errors.push('terminalLineHeight debe ser un número')
+  } else if (
+    config.terminalLineHeight < MIN_TERMINAL_LINE_HEIGHT
+    || config.terminalLineHeight > MAX_TERMINAL_LINE_HEIGHT
+  ) {
+    errors.push('terminalLineHeight debe estar entre 1 y 1.6')
   }
   if (typeof config.defaultWorkspacesDir !== 'string') {
     errors.push('defaultWorkspacesDir debe ser un string')

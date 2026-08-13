@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.1
+
+- **Buscar issues también al crear una sala**: el buscador de Jira estaba en el formulario de editar una sala pero no en el de crearla, que es por donde se entra. Ahora escribes `#` en el objetivo, eliges la issue, y además de quedar citada se suma al material de la sala.
+- **Mencionar issues ya no puede tumbar la ventana**: si la app se quedaba a medias entre dos versiones, abrir un formulario con buscador de issues cerraba el diálogo entero. Ahora el buscador simplemente no aparece y todo lo demás sigue funcionando.
+- **La rueda del ratón se queda donde estás mirando**: al desplazar la lista de contextos del plano se movían los agentes del fondo en vez de la lista. Cualquier desplegable con scroll propio se queda ahora con la rueda.
+
 ## v0.40.0
 
 - **Jira Cloud, dentro de Gravity**: se conecta el sitio desde Ajustes (las credenciales se guardan cifradas por sitio) y a partir de ahí una issue es un contexto más: se da de alta pegando su clave, se materializa en `.gravity/jira/` con descripción, estado, sprint y los diez últimos comentarios, y se refresca sola cuando el snapshot vence. Tus notas sobre la issue conviven con esa región automática y no se pisan al refrescar.

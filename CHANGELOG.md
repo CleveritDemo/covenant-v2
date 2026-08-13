@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.71
+
+- **Pulse deja de listar GUIDs en «Repo»**: los turnos que un especialista hacía en su worktree de delegación se etiquetaban con el identificador de la delegación en vez del repositorio; ahora se atribuyen al repo de verdad, y los que ya estaban mal guardados dejan de ensuciar el selector sin perder su sitio en los totales.
+- **El selector de «Workspace» muestra el nombre**: donde antes salía el identificador interno del workspace ahora se lee su nombre.
+
 ## v0.39.70
 
 - **Contextos de org aislados por workspace**: notes y demás contextos con el mismo nombre ya no se mezclan entre workspaces distintos.

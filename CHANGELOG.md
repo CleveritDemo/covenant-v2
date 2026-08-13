@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.3
+
+- **Los selectores de pestañas se ven bien**: el recuadro de la opción elegida se estiraba a lo ancho de su hueco, así que una palabra corta quedaba flotando en medio de un rectángulo enorme, y sus esquinas no encajaban con las del marco. Ahora se ajusta al texto. Se nota en el resultado de una sala, en Pulse, en la configuración de un agente y en el editor de archivos, entre otros.
+
 ## v0.40.2
 
 - **La issue se ve nada más añadirla**: al crear un contexto de Jira desde el gestor, el ticket que acabas de ver en la vista previa ya queda dentro. Antes se guardaba vacío, y si no se lo asignabas a ningún agente seguía vacío para siempre.

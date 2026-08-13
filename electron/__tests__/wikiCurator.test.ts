@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync } from 'fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import type { AppConfig } from '../../src/shared/configSchema'
-import { ensureWikiWithSeed } from '../wikiStore'
+import { applyWikiIngest, ensureWikiWithSeed } from '../wikiStore'
 import {
   clearWikiCuratorForTests,
   startWikiCuratorTurn,
@@ -84,6 +84,103 @@ describe('startWikiCuratorTurn provider', () => {
     expect(result).toEqual({ ok: true })
     expect(requests).toHaveLength(1)
     expect(requests[0]!.provider).toBe('claude')
+  })
+
+  it('inyecta Wiki health en el prompt cuando el lint encuentra hallazgos', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-lint-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+    // `pkg/` existe (ancla la ruta) pero missing.ts no: debe acusarse muerta.
+    mkdirSync(join(cwd, 'pkg'), { recursive: true })
+    const ingest = applyWikiIngest(cwd, {
+      ops: [{
+        op: 'upsert',
+        slug: 'stale-page',
+        title: 'Stale page',
+        type: 'concept',
+        body: 'Apunta a [[nope]] y cita `pkg/missing.ts`.',
+      }],
+      log: 'seed lint',
+    }, { agentId: 'test' })
+    expect(ingest.ok).toBe(true)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      handlers.onDone(0)
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'estado de la wiki' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    const prompt = requests[0]!.prompt
+    expect(prompt).toContain('## Wiki health')
+    expect(prompt).toContain('- orphan page: [[stale-page]]')
+    expect(prompt).toContain('- broken link: [[stale-page]] → [[nope]]')
+    expect(prompt).toContain('- dead file path in [[stale-page]]: `pkg/missing.ts`')
+  })
+
+  it('no reporta rutas que viven en una subcarpeta de primer nivel (monorepo)', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-mono-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+    // La page cita `pkg/alive.ts`, que existe bajo cwd/app-x/pkg/alive.ts.
+    mkdirSync(join(cwd, 'app-x', 'pkg'), { recursive: true })
+    writeFileSync(join(cwd, 'app-x', 'pkg', 'alive.ts'), 'export {}\n')
+    const ingest = applyWikiIngest(cwd, {
+      ops: [{
+        op: 'upsert',
+        slug: 'mono-page',
+        title: 'Mono page',
+        type: 'concept',
+        body: 'Cita `pkg/alive.ts` viva en subcarpeta y `unknown-root/deep.ts` sin anclaje.',
+      }],
+      log: 'seed mono',
+    }, { agentId: 'test' })
+    expect(ingest.ok).toBe(true)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      handlers.onDone(0)
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'estado' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    const prompt = requests[0]!.prompt
+    expect(prompt).not.toContain('dead file path')
+    // mono-page sigue siendo huérfana, así que la sección existe por eso.
+    expect(prompt).toContain('- orphan page: [[mono-page]]')
+  })
+
+  it('con la wiki sana el prompt no lleva sección Wiki health', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-sana-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      handlers.onDone(0)
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(requests[0]!.prompt).not.toContain('## Wiki health')
   })
 
   it('acepta turno solo con imagen y la pasa al runner', () => {

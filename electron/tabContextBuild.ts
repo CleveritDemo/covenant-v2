@@ -1736,6 +1736,13 @@ export function buildContextPromptDelivery(
       if (lines.length) lines.push('')
       lines.push(buildWikiSubstrateBlock(cwd))
     }
+    if (previousFingerprints['iaterminal:wiki'] && !wikiPresent) {
+      if (lines.length) lines.push('')
+      lines.push(
+        '## Project wiki removed',
+        'The project wiki was deleted. Forget the previously supplied ## Project wiki block, its index and its log.',
+      )
+    }
     return {
       prompt: lines.join('\n'),
       snapshot: { fingerprints },
@@ -1884,6 +1891,13 @@ export function buildContextPromptDelivery(
   )
   if (shouldEmitWiki) {
     lines.push('', buildWikiSubstrateBlock(cwd))
+  }
+  if (previousFingerprints['iaterminal:wiki'] && !wikiPresent) {
+    if (lines.length) lines.push('')
+    lines.push(
+      '## Project wiki removed',
+      'The project wiki was deleted. Forget the previously supplied ## Project wiki block, its index and its log.',
+    )
   }
   return {
     prompt: lines.join('\n'),
@@ -2120,6 +2134,7 @@ function buildWikiSubstrateBlock(cwd: string): string {
   const logTail = readWikiLogTail(cwd, 5)
   return [
     '## Project wiki',
+    'Consult this index FIRST: before exploring the repository on your own, check whether a page below already answers your question and read that page instead of searching the codebase.',
     'The index below is your navigation map.',
     `To read a page, open \`${projectDir}/wiki/pages/<slug>.md\` with the file read tool.`,
     `To search wiki content, grep in \`${projectDir}/wiki/pages/\`.`,

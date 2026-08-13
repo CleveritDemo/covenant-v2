@@ -83,6 +83,7 @@ export function parseWikiCuratorConfig(json: string): WikiCuratorConfig {
 export function buildWikiCuratorPrompt(
   config: WikiCuratorConfig,
   userMessage: string,
+  healthSection?: string,
 ): string {
   const name = config.name?.trim() || 'Wiki curator'
   const rules = config.rules ?? []
@@ -109,6 +110,14 @@ export function buildWikiCuratorPrompt(
     '```',
     'The fences are applied by the host and never shown to the user; keep your visible answer short and precise.',
     ...(rules.length ? ['', '## Rules', ...rules.map(rule => `- ${rule}`)] : []),
+    ...(healthSection?.trim()
+      ? [
+          '',
+          '## Wiki health',
+          healthSection.trim(),
+          'When the user asks for maintenance, fix these via ia-terminal-wiki ops; otherwise mention them briefly if relevant.',
+        ]
+      : []),
     '',
     '## User message',
     userMessage.trim(),

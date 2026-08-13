@@ -129,12 +129,14 @@ import {
   buildOrchestrationAwaitingView,
   matchReplicaPane,
   orchestrationAwaitingSignature,
+  shouldDeferReplicaDisposeForWave,
   shouldDisposeReplicaOnComplete,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
 import {
   attachDelegationWorktree,
   claimReplicaDispose,
+  collectWaveReplicaDelegationIds,
   deleteDelegationRuntime,
   getDelegationRuntime,
   markDelegationRuntimeStatus,
@@ -4337,10 +4339,7 @@ export const App: React.FC = () => {
         force: true,
       })
       worktreesByDelegationRef.current.delete(result.id)
-      // Réplica efímera: dispose tras merge ok vía registry idempotente
-      // (no en conflict retry: allí re-entramos al pending y volvemos a esperar).
-      disposeDelegationReplicaIfNeeded(result.id, 'merge_ok')
-      deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+      // Réplica efímera: dispose al cerrar la ola (wave_complete), no por merge individual.
     })
     mergeQueueByOrchestratorRef.current.set(fromPaneId, chainedOp)
     return chainedOp
@@ -4489,10 +4488,13 @@ export const App: React.FC = () => {
         await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
       } else {
         markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
-        if (disposeReplica && freedPaneId) {
+        const deferWaveDispose = shouldDeferReplicaDisposeForWave(remaining, job.deferred.length)
+        if (disposeReplica && freedPaneId && !deferWaveDispose) {
           disposeDelegationReplicaIfNeeded(result.id, 'deferred_no_worktree')
         }
-        deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+        if (!deferWaveDispose || !disposeReplica) {
+          deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+        }
       }
       await startNextDeferredForPane(fromPaneId, freedPaneId)
       remaining = job.pending.size
@@ -4509,8 +4511,12 @@ export const App: React.FC = () => {
         info: worktreeInfo,
       })
     } else if (disposeReplica && freedPaneId) {
-      disposeDelegationReplicaIfNeeded(result.id, 'complete_no_worktree')
-      deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+      markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
+      const deferWaveDispose = shouldDeferReplicaDisposeForWave(remaining, job.deferred.length)
+      if (!deferWaveDispose) {
+        disposeDelegationReplicaIfNeeded(result.id, 'complete_no_worktree')
+        deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+      }
     } else {
       markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
       deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
@@ -4535,6 +4541,18 @@ export const App: React.FC = () => {
     }
 
     await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
+
+    const waveDelegationIds = [
+      ...job.completedResults.map(item => item.id),
+      ...mergeBatch.map(item => item.delegationId),
+    ]
+    for (const delegationId of collectWaveReplicaDelegationIds(
+      delegationRuntimeByIdRef.current,
+      waveDelegationIds,
+    )) {
+      disposeDelegationReplicaIfNeeded(delegationId, 'wave_complete')
+      deleteDelegationRuntime(delegationRuntimeByIdRef.current, delegationId)
+    }
 
     // Job superseded / eliminado por un turno humano nuevo: no encolar resultados viejos.
     const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)

@@ -5,6 +5,7 @@ import {
   matchReplicaPane,
   orchestrationAwaitingSignature,
   shortWorktreeHint,
+  shouldDeferReplicaDisposeForWave,
   shouldDisposeReplicaOnComplete,
 } from '../orchestrationAwaiting'
 
@@ -17,6 +18,18 @@ describe('isReplicaAgentId', () => {
   it('falls back to -N suffix heuristic', () => {
     expect(isReplicaAgentId('frontend-2')).toBe(true)
     expect(isReplicaAgentId('frontend')).toBe(false)
+  })
+})
+
+describe('shouldDeferReplicaDisposeForWave', () => {
+  it('difiere si quedan pending o deferred', () => {
+    expect(shouldDeferReplicaDisposeForWave(1, 0)).toBe(true)
+    expect(shouldDeferReplicaDisposeForWave(0, 1)).toBe(true)
+    expect(shouldDeferReplicaDisposeForWave(2, 3)).toBe(true)
+  })
+
+  it('no difiere cuando la ola terminó', () => {
+    expect(shouldDeferReplicaDisposeForWave(0, 0)).toBe(false)
   })
 })
 

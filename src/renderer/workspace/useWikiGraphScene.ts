@@ -50,7 +50,7 @@ const BOLT_ACTIVE_MS = 260
 /** Ataque rápido: fracción del ciclo hasta el pico. */
 const BOLT_ATTACK = 0.18
 /** Amplitud perpendicular como fracción de la longitud de la arista. */
-const BOLT_JITTER_RATIO = 0.07
+const BOLT_JITTER_RATIO = 0.045
 /** Fondo mínimo entre descargas por arista (aleatorio). */
 const BOLT_INTERVAL_MIN_MS = 1600
 const BOLT_INTERVAL_MAX_MS = 5200
@@ -62,10 +62,14 @@ const BOLT_HALO_OPACITY = 0.55
  *  con aditivo — da la sensación de luz espacial que un LineBasicMaterial solo
  *  no puede lograr en WebGL. */
 const BOLT_GLOW_OPACITY = 0.32
-const BOLT_GLOW_JITTER_MULT = 3.4
+const BOLT_GLOW_JITTER_MULT = 2.6
 /** Flash breve en los endpoints (sprite aditivo): enciende los nodos conectados. */
 const BOLT_ENDPOINT_OPACITY = 0.9
-const BOLT_ENDPOINT_SCALE_MULT = 4.2
+const BOLT_ENDPOINT_SCALE_MULT = 2.8
+/** Radio máximo de nodo (linkCount alto) para margen en fit de cámara. */
+const MAX_NODE_RADIUS = 1.65
+/** Dirección de vista inicial al encuadrar el grafo. */
+const FIT_CAMERA_DIR = new THREE.Vector3(0, 0.25, 1).normalize()
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => isReduceMotionActive())
@@ -285,6 +289,8 @@ export function useWikiGraphScene(
       startedAt: number
       nextFireAt: number
       seed: number
+      /** Intensidad aleatoria del disparo (0.72–1.0). */
+      peak: number
     }
     const bolts: Bolt[] = []
     const coreColor = new THREE.Color(BOLT_CORE_HEX)
@@ -312,6 +318,17 @@ export function useWikiGraphScene(
         }
         const coreGeom = new THREE.BufferGeometry()
         coreGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
+        // Intensidad por vértice: centro más brillante que extremos (no-plano).
+        const coreVertexColors = new Float32Array((BOLT_SEGMENTS + 1) * 3)
+        for (let s = 0; s <= BOLT_SEGMENTS; s++) {
+          const t = s / BOLT_SEGMENTS
+          const bell = Math.sin(t * Math.PI)
+          const intensity = 0.55 + 0.45 * bell
+          coreVertexColors[s * 3] = coreColor.r * intensity
+          coreVertexColors[s * 3 + 1] = coreColor.g * intensity
+          coreVertexColors[s * 3 + 2] = coreColor.b * intensity
+        }
+        coreGeom.setAttribute('color', new THREE.BufferAttribute(coreVertexColors, 3))
         const haloGeom = new THREE.BufferGeometry()
         haloGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
         const glowGeom = new THREE.BufferGeometry()
@@ -319,6 +336,7 @@ export function useWikiGraphScene(
 
         const coreMat = new THREE.LineBasicMaterial({
           color: coreColor.clone(),
+          vertexColors: true,
           transparent: true,
           opacity: 0,
           depthWrite: false,
@@ -394,6 +412,7 @@ export function useWikiGraphScene(
           startedAt: 0,
           nextFireAt: boltStartOffset + stagger,
           seed: Math.random() * 1000,
+          peak: 1,
         })
       })
     }
@@ -415,8 +434,8 @@ export function useWikiGraphScene(
         const isEnd = s === 0 || s === BOLT_SEGMENTS
         const j1c = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
         const j2c = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
-        const j1h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.6
-        const j2h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.6
+        const j1h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.35
+        const j2h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.35
         const j1g = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * BOLT_GLOW_JITTER_MULT
         const j2g = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * BOLT_GLOW_JITTER_MULT
         coreAttr.setXYZ(
@@ -444,6 +463,26 @@ export function useWikiGraphScene(
     }
 
     const render = (): void => renderer.render(scene, camera)
+
+    /** Encuadra la cámara al bounding sphere del grafo (solo al montar). */
+    const fitCameraToGraph = (): void => {
+      if (sceneNodes.length === 0) return
+      const nodePositions = sceneNodes.map(sn => sn.mesh.position)
+      const box = new THREE.Box3().setFromPoints(nodePositions)
+      const sphere = new THREE.Sphere()
+      box.getBoundingSphere(sphere)
+      sphere.radius += MAX_NODE_RADIUS
+      const fovV = (camera.fov * Math.PI) / 180
+      const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect)
+      const effectiveFov = Math.min(fovV, fovH)
+      const distance = (sphere.radius / Math.sin(effectiveFov / 2)) * 1.15
+      controls.target.copy(sphere.center)
+      camera.position.copy(sphere.center).add(
+        FIT_CAMERA_DIR.clone().multiplyScalar(distance),
+      )
+      controls.maxDistance = Math.max(160, distance * 2)
+      controls.update()
+    }
 
     const applyTheme = (): void => {
       readThemeColors()
@@ -479,6 +518,8 @@ export function useWikiGraphScene(
       render()
     }
     resize()
+    fitCameraToGraph()
+    render()
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(resize)
       : null
@@ -555,6 +596,7 @@ export function useWikiGraphScene(
           if (now >= bolt.nextFireAt) {
             bolt.state = 'firing'
             bolt.startedAt = now
+            bolt.peak = 0.72 + Math.random() * 0.28
             rewriteBolt(bolt, 1)
           } else {
             continue
@@ -578,9 +620,11 @@ export function useWikiGraphScene(
           ? t / BOLT_ATTACK
           : 1 - (t - BOLT_ATTACK) / (1 - BOLT_ATTACK)
         const eased = Math.max(0, env)
-        bolt.coreMat.opacity = BOLT_CORE_OPACITY * eased
-        bolt.haloMat.opacity = BOLT_HALO_OPACITY * eased
-        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * eased
+        const envelope = eased * bolt.peak
+        const flicker = 0.88 + 0.12 * Math.sin(now * 0.05 + bolt.seed)
+        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker
+        bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker
+        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope
         // Flashes en endpoints: destello más corto (potencia^2) para reforzar
         // "arranque/impacto" del rayo sin robar continuidad al halo.
         const flash = BOLT_ENDPOINT_OPACITY * eased * eased

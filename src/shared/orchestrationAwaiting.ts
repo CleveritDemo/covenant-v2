@@ -121,6 +121,14 @@ export function shortWorktreeHint(worktreePath: string | undefined): string | un
   return parts[parts.length - 1]
 }
 
+/** Diferir dispose de réplicas hasta que la ola termine (pending o deferred vivos). */
+export function shouldDeferReplicaDisposeForWave(
+  remaining: number,
+  deferredLeft: number,
+): boolean {
+  return remaining > 0 || deferredLeft > 0
+}
+
 export function buildOrchestrationAwaitingView(
   items: readonly OrchestrationAwaitingItemInput[],
 ): OrchestrationAwaitingView | null {

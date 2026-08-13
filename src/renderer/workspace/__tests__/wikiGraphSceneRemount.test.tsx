@@ -21,6 +21,17 @@ vi.mock('three', () => {
     crossVectors(): this { return this }
     copy(): this { return this }
     set(): this { return this }
+    add(): this { return this }
+    clone(): Vector3 { return new Vector3() }
+    multiplyScalar(): this { return this }
+  }
+  class Sphere {
+    center = new Vector3()
+    radius = 1
+  }
+  class Box3 {
+    setFromPoints(): this { return this }
+    getBoundingSphere(sphere: Sphere): Sphere { return sphere }
   }
   const sceneAdds: string[][] = []
   ;(globalThis as { __wikiSceneAdds?: string[][] }).__wikiSceneAdds = sceneAdds
@@ -32,7 +43,8 @@ vi.mock('three', () => {
   }
   class PerspectiveCamera {
     aspect = 1
-    position = { set: (): void => undefined }
+    fov = 50
+    position = new Vector3()
     updateProjectionMatrix(): void {}
   }
   class WebGLRenderer {
@@ -80,7 +92,7 @@ vi.mock('three', () => {
     __kind = 'Mesh' as const
     material: MeshBasicMaterial
     geometry: SphereGeometry
-    position = { set: (): void => undefined }
+    position = new Vector3()
     userData: Record<string, unknown> = {}
     constructor(geometry: SphereGeometry, material: MeshBasicMaterial) {
       this.geometry = geometry; this.material = material
@@ -90,6 +102,7 @@ vi.mock('three', () => {
   class CanvasTexture { needsUpdate = false; dispose(): void {} }
   return {
     AdditiveBlending: 2,
+    Box3,
     BufferAttribute,
     BufferGeometry,
     CanvasTexture,
@@ -103,6 +116,7 @@ vi.mock('three', () => {
     PerspectiveCamera,
     Raycaster,
     Scene,
+    Sphere,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
@@ -122,6 +136,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
     screenSpacePanning = false
     minDistance = 0
     maxDistance = 0
+    target = { copy: (): void => undefined }
     addEventListener(): void {}
     removeEventListener(): void {}
     update(): void {}

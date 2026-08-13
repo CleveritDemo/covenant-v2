@@ -144,6 +144,23 @@ export function claimReplicaDispose(
  * Lista todas las delegaciones anidadas vivas de un padre. Útil para
  * inspección/limpieza si el orquestador se destruye antes que sus anidadas.
  */
+/**
+ * Delegaciones de la ola que aún tienen réplica efímera viva (dispose pendiente).
+ */
+export function collectWaveReplicaDelegationIds(
+  registry: DelegationRuntimeRegistry,
+  delegationIds: readonly string[],
+): string[] {
+  const out: string[] = []
+  for (const delegationId of delegationIds) {
+    const entry = registry.get(delegationId)
+    if (entry?.disposeReplica && !entry.replicaDisposed) {
+      out.push(delegationId)
+    }
+  }
+  return out
+}
+
 export function listNestedDelegations(
   registry: DelegationRuntimeRegistry,
   parentDelegationId: string,

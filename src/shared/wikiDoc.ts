@@ -25,6 +25,7 @@ export const MAX_WIKI_LOG_SUMMARY = 200
 export function buildWikiWritingGuidance(): string {
   return [
     'Only durable project knowledge. If nothing durable changed, skip.',
+    'If new knowledge contradicts an existing page, do not overwrite silently: fix the stale claim and mention the contradiction in the log line, or add a "Contradicts: [[slug]] — why" note in the body when unresolved.',
     'The wiki is an index for agents (humans are secondary): many short nodes, dense with [[slug]] links and real file paths. Scarcity of nodes is a failure; long prose without paths is also a failure.',
     'Each page does ONE job:',
     '- narrate (concept): why it exists — product intent, local vs org, orchestration.',
@@ -151,14 +152,18 @@ function wikiPageExcerpt(body: string): string {
   return ''
 }
 
-/** Índice compacto para prompt: una línea por page, sin excerpt ni links. */
+/** Índice compacto para prompt: una línea por page con excerpt opcional. */
 export function buildWikiPromptIndex(pages: readonly WikiPage[]): string {
   if (!pages.length) return ''
   const bySlug = new Map<string, WikiPage>()
   for (const page of pages) bySlug.set(page.slug, page)
   return [...bySlug.values()]
     .sort((a, b) => a.slug.localeCompare(b.slug))
-    .map(page => `- [[${page.slug}]] — ${page.title} (${page.type})`)
+    .map(page => {
+      const base = `- [[${page.slug}]] — ${page.title} (${page.type})`
+      const excerpt = wikiPageExcerpt(page.body)
+      return excerpt ? `${base} — ${excerpt}` : base
+    })
     .join('\n')
 }
 

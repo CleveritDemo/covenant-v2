@@ -46,4 +46,17 @@ describe('buildWikiCuratorPrompt', () => {
     expect(prompt).toContain('index for agents')
     expect(prompt).toContain('create-agent')
   })
+
+  it('inserta la sección Wiki health antes del mensaje cuando viene reporte', () => {
+    const prompt = buildWikiCuratorPrompt({}, 'hola', '- orphan page: [[old-notes]]')
+    expect(prompt).toContain('## Wiki health')
+    expect(prompt).toContain('- orphan page: [[old-notes]]')
+    expect(prompt).toContain('fix these via ia-terminal-wiki ops')
+    expect(prompt.indexOf('## Wiki health')).toBeLessThan(prompt.indexOf('## User message'))
+  })
+
+  it('omite Wiki health sin reporte o con reporte en blanco', () => {
+    expect(buildWikiCuratorPrompt({}, 'hola')).not.toContain('## Wiki health')
+    expect(buildWikiCuratorPrompt({}, 'hola', '   ')).not.toContain('## Wiki health')
+  })
 })

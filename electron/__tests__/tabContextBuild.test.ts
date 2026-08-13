@@ -1689,7 +1689,8 @@ export class Widget {
       expect(delivery.prompt).not.toContain('## Attached tab contexts')
       expect(delivery.prompt).not.toContain('context-id: iaterminal:wiki')
       expect(delivery.prompt).toContain('## Project wiki')
-      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept)')
+      expect(delivery.prompt).toContain('Consult this index FIRST')
+      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept) — Cuerpo de auth.')
       expect(delivery.prompt).toContain('Recent log:')
       expect(delivery.prompt).toContain('```ia-terminal-wiki')
       for (const text of [assigned]) {
@@ -1703,6 +1704,7 @@ export class Widget {
         expect(block).toContain('inventory')
         expect(block).toContain('create-agent')
         expect(block).toContain('[[slug]]')
+        expect(block).toContain('If new knowledge contradicts an existing page')
         expect(block).toContain('≤8 ops/turn, body ≤10000, title ≤120, log ≤200')
         expect(block).toContain('concept|decision|flow|reference')
         expect(block).toContain('```ia-terminal-wiki')
@@ -1736,7 +1738,8 @@ export class Widget {
       seedWiki(cwd)
       const delivery = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
       expect(delivery.prompt).toContain('## Project wiki')
-      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept)')
+      expect(delivery.prompt).toContain('Consult this index FIRST')
+      expect(delivery.prompt).toContain('- [[auth]] — Auth (concept) — Cuerpo de auth.')
       expect(delivery.prompt).toContain('```ia-terminal-wiki')
     })
 
@@ -1747,6 +1750,37 @@ export class Widget {
       expect(first.prompt).toContain('## Project wiki')
       const second = buildContextPromptDelivery([], cwd, { previousSnapshot: first.snapshot })
       expect(second.prompt).not.toContain('## Project wiki')
+    })
+
+    it('borrar la wiki tras snapshot previo emite Project wiki removed sin contextos asignados', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const first = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
+      rmSync(join(cwd, PROJECT_DIR, 'wiki'), { recursive: true, force: true })
+      const second = buildContextPromptDelivery([], cwd, { previousSnapshot: first.snapshot })
+      expect(second.prompt).toContain('## Project wiki removed')
+      expect(second.prompt).toContain('Forget the previously supplied ## Project wiki block')
+      expect(second.prompt).not.toContain('The index below is your navigation map.')
+      expect(second.snapshot.fingerprints['iaterminal:wiki']).toBeUndefined()
+    })
+
+    it('borrar la wiki tras snapshot previo emite Project wiki removed con contextos asignados', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const tree = applyCanonicalContextIdentity({
+        id: '',
+        name: '',
+        fileName: '',
+        kind: 'folderTree',
+      })
+      const first = buildContextPromptDelivery([tree], cwd, { forceFullRefresh: true })
+      expect(first.prompt).toContain('The index below is your navigation map.')
+      rmSync(join(cwd, PROJECT_DIR, 'wiki'), { recursive: true, force: true })
+      const second = buildContextPromptDelivery([tree], cwd, { previousSnapshot: first.snapshot })
+      expect(second.prompt).toContain('## Project wiki removed')
+      expect(second.prompt).toContain('Forget the previously supplied ## Project wiki block')
+      expect(second.prompt).not.toContain('The index below is your navigation map.')
+      expect(second.snapshot.fingerprints['iaterminal:wiki']).toBeUndefined()
     })
 
     it('un context kind wiki asignado no aparece en attached ni en catálogo on-demand', () => {

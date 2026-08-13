@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   attachDelegationWorktree,
   claimReplicaDispose,
+  collectWaveReplicaDelegationIds,
   deleteDelegationRuntime,
   getDelegationRuntime,
   listNestedDelegations,
@@ -217,5 +218,38 @@ describe('delegationRuntimeRegistry', () => {
     expect(nested.map(item => item.delegationId).sort()).toEqual(['n1', 'n2'])
     expect(listNestedDelegations(reg, 'unknown')).toEqual([])
     expect(listNestedDelegations(reg, '')).toEqual([])
+  })
+
+  it('collectWaveReplicaDelegationIds filtra disposeReplica vivo y omite ya dispuesto', () => {
+    const reg = makeRegistry()
+    registerDelegationRuntime(reg, {
+      delegationId: 'r1',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-r1',
+      toAgentId: 'frontend-2',
+      jobId: 'j1',
+      baseAgentId: 'frontend',
+      disposeReplica: true,
+    })
+    registerDelegationRuntime(reg, {
+      delegationId: 'base',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-base',
+      toAgentId: 'frontend',
+      jobId: 'j1',
+      disposeReplica: false,
+    })
+    registerDelegationRuntime(reg, {
+      delegationId: 'r2',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-r2',
+      toAgentId: 'frontend-3',
+      jobId: 'j1',
+      baseAgentId: 'frontend',
+      disposeReplica: true,
+    })
+    claimReplicaDispose(reg, 'r2')
+    const ids = collectWaveReplicaDelegationIds(reg, ['r1', 'base', 'r2', 'missing'])
+    expect(ids).toEqual(['r1'])
   })
 })

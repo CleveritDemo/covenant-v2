@@ -85,20 +85,25 @@ describe('composeWikiPage / parseWikiPage', () => {
 })
 
 describe('buildWikiPromptIndex', () => {
-  it('una línea por page ordenada por slug, sin excerpt ni links', () => {
+  it('una línea por page ordenada por slug con excerpt cuando hay contenido útil', () => {
     const a = page({ slug: 'beta', title: 'Beta', body: 'Resumen de beta.', links: ['gamma'] })
     const b = page({
       slug: 'alfa',
       title: 'Alfa',
       type: 'decision',
-      body: 'Primera línea útil.',
+      body: '## Sub\nPrimera línea útil.',
       links: ['beta', 'gamma'],
     })
     expect(buildWikiPromptIndex([a, b])).toBe([
-      '- [[alfa]] — Alfa (decision)',
-      '- [[beta]] — Beta (concept)',
+      '- [[alfa]] — Alfa (decision) — Primera línea útil.',
+      '- [[beta]] — Beta (concept) — Resumen de beta.',
     ].join('\n'))
     expect(buildWikiPromptIndex([b, a])).toBe(buildWikiPromptIndex([a, b]))
+  })
+
+  it('omite el guion del excerpt cuando no hay línea útil', () => {
+    const soloHeading = page({ slug: 'vacía', title: 'Vacía', body: '# Solo título\n## Sub' })
+    expect(buildWikiPromptIndex([soloHeading])).toBe('- [[vacía]] — Vacía (concept)')
   })
 
   it('sin pages devuelve cadena vacía', () => {
@@ -246,5 +251,11 @@ describe('buildWikiWritingGuidance', () => {
     expect(text).toContain('decide')
     expect(text).toContain('flow')
     expect(text).toContain('inventory')
+  })
+
+  it('incluye la línea de contradicciones', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('If new knowledge contradicts an existing page')
+    expect(text).toContain('Contradicts: [[slug]]')
   })
 })

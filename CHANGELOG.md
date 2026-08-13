@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.43.0
+
+- **Wiki como sustrato index-first en el prompt**: el índice compacto incluye resúmenes por página y la directiva de consultar la wiki antes de explorar el repo.
+- **Olvido del bloque wiki al borrarla del disco**: si eliminas `.gravity/wiki`, el contexto wiki deja de inyectarse en los turnos siguientes.
+- **Guía de contradicciones en el ingest**: el material de ingest orienta cómo detectar y resolver contradicciones entre páginas.
+- **Lint de salud de la wiki para el curador**: páginas huérfanas, links rotos y rutas muertas con resolución monorepo, visibles en el turno del curador.
+- **Mapa wiki con encuadre completo al abrir**: la cámara encuadra el grafo entero al montar, sin pisar la navegación posterior.
+- **Rayos más pequeños con iluminación no plana**: gradiente por vértice en el núcleo, peak aleatorio por disparo y flicker en core y halo (glow estable).
+- **Dispose de réplicas diferido al cierre de ola turbo**: R2/R3 siguen visibles hasta que termina la ola; el cleanup corre en batch en `wave_complete`.
+- **Test de partículas determinista**: la grilla 6×6 del mapa usa RNG fijado en el bloque live para evitar flakes en CI.
+
 ## v0.42.0
 
 - **Wiki de proyecto en el prompt de todos los agentes**: si existe `.gravity/wiki` en disco, cada agente recibe el índice compacto, el log y el ingest en su contexto, sin que tengas que asignar la wiki manualmente como contexto.

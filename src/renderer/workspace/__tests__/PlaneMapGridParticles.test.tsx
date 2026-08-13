@@ -511,6 +511,12 @@ describe('PlaneMapGridParticles', () => {
       positions.push({ x, y })
     }) as unknown as typeof ctx.arc
 
+    let randomSeq = 0
+    const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
+      randomSeq += 1
+      return ((randomSeq % 36) + 1) / 37
+    })
+
     render(
       <div style={{ width, height }}>
         <PlaneMapGridParticles />
@@ -541,5 +547,6 @@ describe('PlaneMapGridParticles', () => {
       }),
     )
     expect(liveCells.size).toBeGreaterThan(6)
+    randomSpy.mockRestore()
   })
 })

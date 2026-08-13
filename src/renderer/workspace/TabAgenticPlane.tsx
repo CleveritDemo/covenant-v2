@@ -113,6 +113,12 @@ export interface TabAgenticPlaneProps {
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
   onOpenResultsPreview?: (contextId: string) => void
+  /**
+   * Una mención de Jira en el composer materializó un contexto nuevo en
+   * disco: mismo nombre y mismo propósito que el `onContextSaved` de
+   * `TabContextsModal`/`BrainstormRoom` — refrescar el catálogo del tab.
+   */
+  onContextSaved?: () => void
   onSendChat: (
     paneId: string,
     text: string,
@@ -318,6 +324,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onDeleteContext,
   onAssignContext,
   onOpenResultsPreview,
+  onContextSaved,
   onSendChat,
   onStopChat,
   onAbortDelegation,
@@ -953,6 +960,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               gitRepos={gitRepos}
               onOpenRepoGit={onOpenRepoGit}
               onRefreshRepos={onRefreshRepos}
+              cwd={projectFolder}
+              onContextSaved={onContextSaved}
             />
           )}
         />

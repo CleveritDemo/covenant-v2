@@ -75,3 +75,31 @@ export function isSnapshotStale(mtimeMs: number, refreshSeconds: number, nowMs: 
   if (refreshSeconds <= 0) return false
   return nowMs - mtimeMs >= refreshSeconds * 1000
 }
+
+/**
+ * Qué está escribiendo el usuario justo antes del cursor, si es una mención.
+ * Devuelve el término de búsqueda, `''` para un `@` recién tecleado, o `null`
+ * si no hay nada que buscar. Vive acá y no en el componente porque es la regla
+ * que decide cuándo la app interrumpe al usuario: se testea sin React.
+ *
+ * El prefijo `PROY-` solo abre el picker si `PROY` está en `projectKeys`: sin
+ * ese filtro, `UTF-8`, `SHA-256` o `CVE-2023-30533` abrirían un picker en
+ * medio de cualquier frase técnica.
+ */
+export function mentionQueryAt(
+  text: string,
+  caret: number,
+  projectKeys: readonly string[],
+): string | null {
+  if (!projectKeys.length) return null
+  const before = (text ?? '').slice(0, Math.max(0, caret))
+
+  const mention = before.match(/(?:^|\s)@([\w-]*)$/)
+  if (mention) return mention[1]
+
+  const partial = before.match(/(?:^|\s)([A-Za-z][A-Za-z0-9]*)-(\d*)$/)
+  if (!partial) return null
+  const project = partial[1].toUpperCase()
+  if (!projectKeys.some(key => key.trim().toUpperCase() === project)) return null
+  return `${project}-${partial[2]}`
+}

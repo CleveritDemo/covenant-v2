@@ -5363,6 +5363,7 @@ export const App: React.FC = () => {
                   onRefreshRepos={() => { void refreshPlaneGitRepos() }}
                   tabContexts={tabContextBadges}
                   contextCatalog={discoveredContexts}
+                  onContextSaved={() => { void refreshTabContexts(tab.id) }}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}

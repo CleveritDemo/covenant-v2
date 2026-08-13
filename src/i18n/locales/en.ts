@@ -1469,6 +1469,7 @@ const en = {
     connectAction: 'Connect',
     connectedAs: 'Connected as {{name}}',
     disconnectedHint: 'Not connected. Issues cannot be attached as context yet.',
+    mentionListLabel: 'Jira issues',
   },
 }
 

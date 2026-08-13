@@ -1471,6 +1471,7 @@ const es = {
     connectAction: 'Conectar',
     connectedAs: 'Conectado como {{name}}',
     disconnectedHint: 'Sin conectar. Todavía no se pueden adjuntar issues como contexto.',
+    mentionListLabel: 'Issues de Jira',
   },
 } satisfies AppTranslations
 

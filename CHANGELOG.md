@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.0
+
+- **Jira Cloud, dentro de Gravity**: se conecta el sitio desde Ajustes (las credenciales se guardan cifradas por sitio) y a partir de ahí una issue es un contexto más: se da de alta pegando su clave, se materializa en `.gravity/jira/` con descripción, estado, sprint y los diez últimos comentarios, y se refresca sola cuando el snapshot vence. Tus notas sobre la issue conviven con esa región automática y no se pisan al refrescar.
+- **Mencionar issues mientras escribes**: el composer trae un picker de búsqueda para citar una issue sin salir del chat, y el mismo buscador está disponible en las cuatro superficies donde tiene sentido. El chip de la issue muestra su estado y desde cuándo son los datos, sin necesidad de pasar el ratón por encima.
+- **Salas de brainstorm**: arrancar una sala cabe en una pantalla, la sala en vivo refleja lo que está pasando de verdad y se puede cerrar con un resumen que no es un telegrama. Un mismo agente puede cubrir varios roles de la ceremonia.
+- **La barra de contextos del plano deja de crecer**: mostraba un chip por cada contexto del proyecto y, pasados unos cuantos, los últimos se escondían en un scroll invisible. Ahora enseña hasta seis —primero los que algún agente está usando, marcados con un punto— y el resto se pliega en un botón que abre un buscador con los nombres. Se pueden seguir arrastrando sobre un agente desde ahí.
+- **Ver las notas de versión cuando quieras**: Ajustes tiene un botón para abrir el modal de novedades sin esperar a la próxima actualización.
+- **La fuente del terminal deja de colarse en el chrome**: cambiarla ya solo afecta al terminal, no al resto de la interfaz.
+
 ## v0.39.72
 
 - **Modal de organizaciones reordenado**: los ajustes de la org y el detalle de cada workspace viven ahora en paneles propios, con el estado de cada sección a la vista, para que se entienda de un vistazo qué está configurado y qué falta.

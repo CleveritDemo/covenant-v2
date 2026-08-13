@@ -1,6 +1,10 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import type { TabContextKind } from '@shared/tabContext'
+import { canonicalContextFileName, canonicalContextId } from '@shared/tabContext'
+import { parseJiraIssuePreview, type JiraIssuePreview } from '@shared/jiraIssueDoc'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
+import { JiraIssueChip } from './JiraIssueChip'
 import './PlaneContextCard.css'
 
 export interface PlaneContextCardProps {
@@ -12,6 +16,50 @@ export interface PlaneContextCardProps {
   showName?: boolean
   /** Clic: p. ej. abrir chat del agente. */
   onOpen?: () => void
+  /** Kind real del contexto: solo `jira` cambia la representación (ver abajo). */
+  kind?: TabContextKind
+  /** Solo `jira`: clave de la issue. Sin ella no hay `.md` que pedir. */
+  issueKey?: string
+  /** Carpeta del proyecto: sin ella `previewTabContext` no puede resolver el `.md` de la issue. */
+  cwd?: string
+}
+
+const NO_PREVIEW: JiraIssuePreview = { stale: false }
+
+/**
+ * Resumen/estado/frescura de una issue jira, leídos del mismo `.md` que ya
+ * expone `previewTabContext` — el IPC que usa cualquier preview de contexto,
+ * no uno nuevo, y sin lectura de disco propia del renderer. Un solo fetch al
+ * montar (nunca en hover, nunca en cada render); un fallo deja el chip sin
+ * resumen/estado en vez de lanzar o quedarse cargando para siempre.
+ */
+function useJiraIssuePreview(issueKey: string | undefined, cwd: string | undefined): JiraIssuePreview {
+  const [preview, setPreview] = useState<JiraIssuePreview>(NO_PREVIEW)
+  const key = (issueKey ?? '').trim()
+  const workingCwd = (cwd ?? '').trim()
+
+  useEffect(() => {
+    if (!key || !workingCwd) return
+    let cancelled = false
+    const context = {
+      id: canonicalContextId('jira', { issueKey: key }),
+      name: key,
+      fileName: canonicalContextFileName('jira', { issueKey: key }),
+      kind: 'jira' as const,
+      issueKey: key,
+    }
+    void window.api.previewTabContext({ context, cwd: workingCwd }).then(result => {
+      if (cancelled) return
+      setPreview(result.ok ? parseJiraIssuePreview(result.content ?? '') : NO_PREVIEW)
+    }).catch(() => {
+      if (!cancelled) setPreview(NO_PREVIEW)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key, workingCwd])
+
+  return preview
 }
 
 /** Contexto anidado en la mini del agente (ícono o fila con nombre). */
@@ -22,26 +70,56 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
   shared = false,
   showName = false,
   onOpen,
-}) => (
-  <button
-    type="button"
-    className={[
-      'plane-context-card',
-      showName ? 'plane-context-card--labeled' : '',
-      shared ? 'plane-context-card--shared' : '',
-    ].filter(Boolean).join(' ')}
-    style={{ '--context-color': color } as React.CSSProperties}
-    aria-label={name}
-    onClick={event => {
-      event.preventDefault()
-      event.stopPropagation()
-      onOpen?.()
-    }}
-    onPointerDown={event => event.stopPropagation()}
-  >
-    <Icon name={icon} size={showName ? 10 : 12} aria-hidden />
-    {showName ? (
-      <span className="plane-context-card__name">{name}</span>
-    ) : null}
-  </button>
-)
+  kind,
+  issueKey,
+  cwd,
+}) => {
+  const isJira = kind === 'jira' && Boolean((issueKey ?? '').trim())
+  // El hook corre siempre (regla de hooks); dentro decide si hay algo que pedir.
+  const preview = useJiraIssuePreview(isJira ? issueKey : undefined, cwd)
+
+  if (isJira) {
+    return (
+      // El botón real vive dentro de `JiraIssueChip` (contrato fijo: `onOpen`
+      // sin evento) — este envoltorio replica el `stopPropagation` que el
+      // ícono genérico de abajo ya hace, para no romper el drag/reorder del
+      // mini del agente cuando el contexto es jira.
+      <span
+        onClick={event => event.stopPropagation()}
+        onPointerDown={event => event.stopPropagation()}
+      >
+        <JiraIssueChip
+          issueKey={(issueKey ?? '').trim()}
+          summary={preview.summary ?? ''}
+          status={preview.status ?? ''}
+          stale={preview.stale}
+          onOpen={() => onOpen?.()}
+        />
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={[
+        'plane-context-card',
+        showName ? 'plane-context-card--labeled' : '',
+        shared ? 'plane-context-card--shared' : '',
+      ].filter(Boolean).join(' ')}
+      style={{ '--context-color': color } as React.CSSProperties}
+      aria-label={name}
+      onClick={event => {
+        event.preventDefault()
+        event.stopPropagation()
+        onOpen?.()
+      }}
+      onPointerDown={event => event.stopPropagation()}
+    >
+      <Icon name={icon} size={showName ? 10 : 12} aria-hidden />
+      {showName ? (
+        <span className="plane-context-card__name">{name}</span>
+      ) : null}
+    </button>
+  )
+}

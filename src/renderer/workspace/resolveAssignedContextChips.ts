@@ -41,6 +41,8 @@ export function resolveAssignedContextChips(
       icon: contextIconName(resolved),
       color: resolveContextColor(resolved),
       shared: (contextUsage.get(resolved.id) ?? 0) > 1,
+      // Solo jira: la clave real de la issue, para pedir su preview (resumen/estado/frescura).
+      issueKey: resolved.issueKey,
     })
   }
   return chips

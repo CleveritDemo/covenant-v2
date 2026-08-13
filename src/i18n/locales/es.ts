@@ -1472,6 +1472,7 @@ const es = {
     connectedAs: 'Conectado como {{name}}',
     disconnectedHint: 'Sin conectar. Todavía no se pueden adjuntar issues como contexto.',
     mentionListLabel: 'Issues de Jira',
+    staleHint: 'Snapshot desactualizado: se refresca en el próximo turno.',
   },
 } satisfies AppTranslations
 

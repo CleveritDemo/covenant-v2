@@ -97,6 +97,8 @@ export interface PlaneMapProps {
   deferPositionMotion?: boolean
   /** Agente seleccionado en curso: partículas busy en el piso del mapa. */
   working?: boolean
+  /** Carpeta del proyecto: la usa el chip jira anidado en un mini para pedir su preview vía IPC. */
+  cwd?: string
 }
 
 export interface PlaneColumnScrollOffsets {
@@ -228,6 +230,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onFirstLayoutReady,
   deferPositionMotion = false,
   working = false,
+  cwd = '',
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -662,6 +665,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
             }
             : undefined}
           agentId={entity.agentId}
+          cwd={cwd}
         >
           {renderPane(entity.paneId)}
         </PlanePaneWindow>

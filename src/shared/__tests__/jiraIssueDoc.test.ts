@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { JiraIssueSnapshot } from '../jiraIssue'
-import { adfToText, issueAutoMarkdown, withJiraAutoBlock } from '../jiraIssueDoc'
+import {
+  adfToText,
+  issueAutoMarkdown,
+  parseJiraIssuePreview,
+  parseJiraResumenBlock,
+  withJiraAutoBlock,
+} from '../jiraIssueDoc'
 
 const issue: JiraIssueSnapshot = {
   key: 'GRAV-412',
@@ -149,5 +155,60 @@ información crítica sobre la issue
     expect(refreshed).toContain('información crítica sobre la issue')
     expect(refreshed).toContain('<!-- iaterminal:auto -->')
     expect(refreshed).toContain('## Resumen\nnuevo')
+  })
+})
+
+describe('parseJiraResumenBlock', () => {
+  it('extrae resumen y estado del bloque que escribe issueAutoMarkdown', () => {
+    const auto = issueAutoMarkdown(issue, 10)
+    expect(parseJiraResumenBlock(auto)).toEqual({
+      summary: issue.summary,
+      status: issue.status,
+    })
+  })
+
+  it('un resumen con su propio "·" no se corta en el primer separador', () => {
+    const withDot = { ...issue, summary: 'A · B y C' }
+    const auto = issueAutoMarkdown(withDot, 10)
+    expect(parseJiraResumenBlock(auto)).toEqual({ summary: 'A · B y C', status: issue.status })
+  })
+
+  it('sin bloque "## Resumen", null', () => {
+    expect(parseJiraResumenBlock('## Descripción\nsin resumen aquí')).toBeNull()
+  })
+
+  it('con el bloque pero sin línea "Estado:", null', () => {
+    expect(parseJiraResumenBlock('## Resumen\nGRAV-412 · algo\nsin estado')).toBeNull()
+  })
+
+  it('cadena vacía, null', () => {
+    expect(parseJiraResumenBlock('')).toBeNull()
+  })
+})
+
+describe('parseJiraIssuePreview', () => {
+  const meta = '<!-- iaterminal:context {"id":"iaterminal:jira:grav-412","kind":"jira"} -->'
+
+  it('con snapshot real, no está vencido y trae resumen/estado', () => {
+    const doc = withJiraAutoBlock('', meta, issueAutoMarkdown(issue, 10))
+    expect(parseJiraIssuePreview(doc)).toEqual({
+      stale: false,
+      summary: issue.summary,
+      status: issue.status,
+    })
+  })
+
+  it('región auto vacía (placeholder recién creado, sin refrescar): vencido, sin resumen', () => {
+    const placeholder = withJiraAutoBlock('', meta, '')
+    expect(parseJiraIssuePreview(placeholder)).toEqual({ stale: true })
+  })
+
+  it('sin marcadores de región auto en absoluto: vencido', () => {
+    expect(parseJiraIssuePreview('nada de nada')).toEqual({ stale: true })
+  })
+
+  it('región auto presente pero sin bloque "## Resumen" parseable: no vencido, sin resumen', () => {
+    const doc = withJiraAutoBlock('', meta, '## Descripción\nsolo esto')
+    expect(parseJiraIssuePreview(doc)).toEqual({ stale: false })
   })
 })

@@ -823,6 +823,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onFirstLayoutReady={onFirstLayoutReady}
         deferPositionMotion={deferPositionMotion}
         working={planeWorking}
+        cwd={projectFolder}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (

@@ -7,7 +7,7 @@
  * sobrevive `notes`.
  */
 
-import { AUTO_END, AUTO_START, NOTES_END, NOTES_START } from './contextSections'
+import { AUTO_END, AUTO_START, extractSection, markdownSections, NOTES_END, NOTES_START } from './contextSections'
 import type { JiraIssueSnapshot } from './jiraIssue'
 import { canonicalContextId, canonicalContextName } from './tabContext'
 
@@ -165,4 +165,54 @@ export function withJiraAutoBlock(raw: string, metadataLine: string, auto: strin
     `${NOTES_START}\n${NOTES_PLACEHOLDER}\n${NOTES_END}`,
     '',
   ].join('\n')
+}
+
+/**
+ * El lado lector de `issueAutoMarkdown`: mismo bloque, al revés.
+ *
+ * `issueAutoMarkdown` escribe `## Resumen` como
+ * `${key} · ${summary}\nEstado: ${status} · Tipo: ${issueType}[ · Prioridad: ${priority}]\n...`.
+ * `Estado:` siempre va seguido de `· Tipo:` (issueType no es opcional), así que
+ * anclar ahí es más preciso que cortar en el primer `·`, que el resumen puede
+ * traer dentro de su propio texto.
+ */
+const RESUMEN_TITLE_RE = /^[A-Z][A-Z0-9]*-\d+\s*·\s*(.+)$/
+const RESUMEN_STATUS_RE = /^Estado:\s*(.+?)\s*·\s*Tipo:/
+
+/**
+ * Resumen y estado desde el bloque `## Resumen` de la región `auto` (ya
+ * extraída, ver `parseJiraIssuePreview`). `null` si el bloque falta o no
+ * calza con el formato de `issueAutoMarkdown` — mejor sin dato que un resumen
+ * inventado (Tarea 11).
+ */
+export function parseJiraResumenBlock(auto: string): { summary: string; status: string } | null {
+  const section = markdownSections(auto).find(entry => entry.label === 'Resumen')
+  if (!section) return null
+  const [, titleLine = '', metaLine = ''] = section.content.split('\n')
+  const summary = RESUMEN_TITLE_RE.exec(titleLine.trim())?.[1]?.trim()
+  const status = RESUMEN_STATUS_RE.exec(metaLine.trim())?.[1]?.trim()
+  if (!summary || !status) return null
+  return { summary, status }
+}
+
+export interface JiraIssuePreview {
+  /** Región `iaterminal:auto` vacía o ausente: snapshot placeholder, nunca refrescado. */
+  stale: boolean
+  summary?: string
+  status?: string
+}
+
+/**
+ * Lee resumen/estado/frescura del `.md` ya materializado por
+ * `previewTabContext` (mismo IPC que usa cualquier preview de contexto; sin
+ * llamada nueva, sin lectura de disco propia — la usa el renderer sobre el
+ * `content` que ya recibió). La regla de frescura es la misma que aplica el
+ * refresher antes del turno (`hasEmptyAutoRegion`, `electron/jiraContextRefresh.ts`):
+ * región `auto` vacía o ausente = placeholder sin refrescar todavía.
+ */
+export function parseJiraIssuePreview(rawContent: string): JiraIssuePreview {
+  const auto = extractSection(rawContent, AUTO_START, AUTO_END)
+  if (!auto) return { stale: true }
+  const block = parseJiraResumenBlock(auto)
+  return block ? { stale: false, ...block } : { stale: false }
 }

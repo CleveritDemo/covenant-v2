@@ -1470,6 +1470,7 @@ const en = {
     connectedAs: 'Connected as {{name}}',
     disconnectedHint: 'Not connected. Issues cannot be attached as context yet.',
     mentionListLabel: 'Jira issues',
+    staleHint: 'Snapshot out of date — it refreshes on the next turn.',
   },
 }
 

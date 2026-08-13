@@ -1,0 +1,23 @@
+/*
+ * Tokens verificados contra `src/themes/presets.ts` / `src/renderer/styles/global.css`:
+ * el brief original pedía `--fg`/`--fg-dim`, que no existen en ningún tema — el
+ * equivalente real es `--text`/`--text-muted`.
+ */
+.jira-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.jira-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jira-chip--stale { border-style: dashed; opacity: .75; }
+.jira-chip__key { font-family: var(--font-mono); color: var(--accent); }
+.jira-chip__status { color: var(--text-muted); }

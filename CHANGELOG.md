@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.4
+
+- **Si una réplica se queda sin pending ni registry, el pane se cierra igual**: se reconoce por el binding local o el id de la copia. El merge fallido sin conflicto ya aborta el merge en el repo base antes de borrar el worktree.
+
 ## v0.40.3
 
 - **Jira, GitHub y Covenant detrás de un proxy corporativo**: en redes con proxy de empresa o inspección TLS, «Conectar» de Jira fallaba con un «Failed to fetch» que no explicaba nada, aunque la misma llamada funcionara desde la terminal. Las llamadas de red de la app ahora usan el proxy y los certificados del sistema, igual que el navegador, y cuando algo falla el mensaje dice el motivo real. Vale también para GitHub Actions, el inicio de sesión de Covenant, el sondeo de servidores MCP y la descarga de servidores de lenguaje.

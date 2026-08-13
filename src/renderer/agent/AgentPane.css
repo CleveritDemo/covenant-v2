@@ -1644,7 +1644,8 @@ html[data-reduce-motion="true"] {
 
 .tab-contexts__item-file {
   opacity: .7;
-  font-family: var(--font-mono);
+  /* Chrome, no código: la fuente del terminal no pinta aquí. */
+  font-family: var(--font-ui);
 }
 
 .tab-contexts__edit,

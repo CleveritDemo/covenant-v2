@@ -29,8 +29,26 @@ function schedule(gen: number, delayMs: number, apply: () => void): void {
   pendingTimers.add(id)
 }
 
+/**
+ * El modal de notas de versión solo se abre solo cuando la versión guardada
+ * difiere de la instalada, o sea justo después de actualizar. Sin esto no hay
+ * forma de verlo. Es un contador, no un booleano: pulsar dos veces tiene que
+ * volver a abrirlo aunque nadie lo haya cerrado en medio.
+ */
+let notesRequests = 0
+
 export function getUpdateBannerPreviewState(): UpdateState | null {
   return override
+}
+
+export function getReleaseNotesPreviewToken(): number {
+  return notesRequests
+}
+
+/** Abre el modal de notas de la versión instalada. No toca IPC ni el updater. */
+export function previewReleaseNotes(): void {
+  notesRequests += 1
+  emit()
 }
 
 export function isUpdateBannerPreviewActive(): boolean {

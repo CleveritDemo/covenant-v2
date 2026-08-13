@@ -21,7 +21,7 @@ import { AiMarkdown } from './AiMarkdown'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
 import { QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import { replaySplash } from '../splash'
-import { previewUpdateBanner } from '../updateBannerPreview'
+import { previewReleaseNotes, previewUpdateBanner } from '../updateBannerPreview'
 import { changelogRecentModifications } from '@shared/changelog'
 import type { UpdateState } from '@shared/updateState'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
@@ -76,7 +76,7 @@ const SEARCH_INDEX = [
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
   { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
-  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel'] },
+  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
   { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates', 'settings.restartToUpdate'] },
   { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
   // `as const` no es decoración: sin literales, `t()` rechaza las claves.
@@ -630,6 +630,21 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
                   }}
                 >
                   {t('settings.updateBannerPreview')}
+                </Button>
+              </SettingsField>
+              <SettingsField
+                label={t('settings.releaseNotesLabel')}
+                hint={t('settings.releaseNotesHint')}
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    onClose()
+                    previewReleaseNotes()
+                  }}
+                >
+                  {t('settings.releaseNotesPreview')}
                 </Button>
               </SettingsField>
             </SettingsSection>

@@ -9,6 +9,7 @@ import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
 import {
   clearUpdateBannerPreview,
+  getReleaseNotesPreviewToken,
   getUpdateBannerPreviewState,
   isUpdateBannerPreviewActive,
   subscribeUpdateBannerPreview,
@@ -46,8 +47,16 @@ export const UpdateBanner: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    let seenToken = getReleaseNotesPreviewToken()
     return subscribeUpdateBannerPreview(() => {
       setPreviewState(getUpdateBannerPreviewState())
+      const token = getReleaseNotesPreviewToken()
+      if (token === seenToken) return
+      seenToken = token
+      // Ajustes → Developer pide ver el modal de notas sin tener que actualizar.
+      void window.api.getAppVersion().then(version => {
+        setView({ version, notes: changelogSection(changelogMd, version), installed: true })
+      })
     })
   }, [])
 

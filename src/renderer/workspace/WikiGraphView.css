@@ -1,0 +1,235 @@
+/*
+ * Vista fullscreen del mapa neuronal de la wiki: absolute dentro del plano
+ * del workspace (no body), así no tapa otros tabs. El z-index lo pone el
+ * componente inline con APP_OVERLAY_MODAL_Z por encima del stacking de
+ * PlaneMap. El stacking interno (tooltip) es relativo a este contenedor.
+ */
+.wiki-graph-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.wiki-graph-view__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.wiki-graph-view__canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wiki-graph-view__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: center;
+}
+
+/*
+ * Chrome del mapa: anclado a la esquina superior derecha para dejar libre
+ * la .plane-top-left-bar del workspace (carpeta, explorer, git, wiki, etc.).
+ * PlaneContextPool queda oculto mientras el mapa está abierto, así que este
+ * grupo reemplaza visualmente ese slot arriba a la derecha.
+ */
+.wiki-graph-view__bar {
+  position: absolute;
+  top: var(--plane-top-bar-inset, 14px);
+  right: var(--plane-top-bar-inset, 14px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.wiki-graph-view__title {
+  margin: 0;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  height: var(--plane-top-bar-height, 26px);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.wiki-graph-view__legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 10px;
+  height: var(--plane-top-bar-height, 26px);
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 10px;
+}
+
+.wiki-graph-view__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wiki-graph-view__legend-item::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.wiki-graph-view__legend-item--concept::before { background: var(--accent, #7aa2f7); }
+.wiki-graph-view__legend-item--decision::before { background: var(--theme-magenta, #ff79c6); }
+.wiki-graph-view__legend-item--flow::before { background: var(--theme-cyan, #22d3ee); }
+.wiki-graph-view__legend-item--reference::before { background: var(--theme-blue, #60a5fa); }
+
+.wiki-graph-view__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--plane-top-bar-height, 26px);
+  height: var(--plane-top-bar-height, 26px);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  color: var(--text);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.wiki-graph-view__close:hover {
+  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
+  border-color: color-mix(in srgb, var(--plane-border-strong) 40%, transparent);
+}
+
+/* Tooltip propio (nada de title= nativo): sigue al puntero en viewport coords. */
+.wiki-graph-view__tooltip {
+  position: fixed;
+  z-index: 410;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 40%, transparent);
+  border-radius: 8px;
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(var(--plane-blur));
+  pointer-events: none;
+  font-family: var(--font-ui);
+}
+
+.wiki-graph-view__tooltip-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-graph-view__tooltip-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wiki-graph-view__tooltip-type--concept { color: var(--accent, #7aa2f7); }
+.wiki-graph-view__tooltip-type--decision { color: var(--theme-magenta, #ff79c6); }
+.wiki-graph-view__tooltip-type--flow { color: var(--theme-cyan, #22d3ee); }
+.wiki-graph-view__tooltip-type--reference { color: var(--theme-blue, #60a5fa); }
+
+/* Empty state: wiki sin pages — mensaje centrado, sin escena. */
+.wiki-graph-view__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 24px;
+  font-family: var(--font-ui);
+  pointer-events: none;
+}
+
+.wiki-graph-view__empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.wiki-graph-view__empty-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* El contenedor del empty va con pointer-events none (deja pasar la escena);
+   el CTA los recupera para ser clicable. */
+.wiki-graph-view__empty-cta {
+  margin-top: 8px;
+  pointer-events: auto;
+}
+
+.wiki-graph-view__empty-cta .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Error suave del CTA: mismo tono secundario que el hint. */
+.wiki-graph-view__empty-error {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Cuerpo del modal de página (markdown crudo; el render rico llega después). */
+.wiki-graph-node-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-ui);
+}
+
+.wiki-graph-node-page__type {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wiki-graph-node-page__body {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow-y: auto;
+}

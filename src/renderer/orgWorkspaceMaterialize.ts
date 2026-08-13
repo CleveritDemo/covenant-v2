@@ -5,6 +5,8 @@
 
 import type {
   CovenantResult,
+  CovenantWikiLogEntryRecord,
+  CovenantWikiPageRecord,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
   CovenantWorkspaceContextRecord,
@@ -34,6 +36,32 @@ export type OrgWorkspaceMaterializeListResult = {
   contextsOk: boolean
   agentsError?: string
   contextsError?: string
+}
+
+/** Page normalizada para el replace local (espejo de WikiSyncPage en main). */
+export type OrgWikiPullPage = {
+  slug: string
+  title: string
+  type: string
+  body: string
+}
+
+/** Records del server → pages para el replace local (pageType → type). */
+export function wikiPullPagesFromRecords(
+  records: readonly CovenantWikiPageRecord[],
+): OrgWikiPullPage[] {
+  const out: OrgWikiPullPage[] = []
+  for (const record of records) {
+    const slug = typeof record.slug === 'string' ? record.slug.trim() : ''
+    if (!slug) continue
+    out.push({
+      slug,
+      title: typeof record.title === 'string' && record.title.trim() ? record.title : slug,
+      type: typeof record.pageType === 'string' ? record.pageType : 'concept',
+      body: typeof record.body === 'string' ? record.body : '',
+    })
+  }
+  return out
 }
 
 export type OrgWorkspaceMaterializeDeps = {
@@ -74,6 +102,26 @@ export type OrgWorkspaceMaterializeDeps = {
     payload: CovenantWorkspaceContextPayload,
   ) => Promise<CovenantResult<CovenantWorkspaceContextRecord>>
   deleteRemoteContext: (contextId: string) => Promise<CovenantResult<void>>
+  /** Pull de wiki org (opcional: solo el download lo usa). */
+  listRemoteWikiPages?: () => Promise<CovenantResult<CovenantWikiPageRecord[]>>
+  replaceLocalWikiPages?: (
+    cwd: string,
+    pages: OrgWikiPullPage[],
+  ) => Promise<{ ok: boolean; error?: string }>
+  /** Pull del log de wiki (best-effort; fallo no marca download fallido). */
+  listRemoteWikiLog?: () => Promise<CovenantResult<CovenantWikiLogEntryRecord[]>>
+  replaceLocalWikiLog?: (
+    cwd: string,
+    entries: Array<{ entry: string; createdBy?: string | null; createdAt?: number }>,
+  ) => Promise<{ ok: boolean; error?: string }>
+  /**
+   * Post-replace OK de pages: siembra el caché de hashes del push.
+   * `logEntryCount` = entradas bajadas; null si el log no se bajó.
+   */
+  onWikiPagesReplaced?: (
+    pages: OrgWikiPullPage[],
+    logEntryCount: number | null,
+  ) => void | Promise<void>
 }
 
 /**
@@ -173,6 +221,49 @@ export async function downloadOrgWorkspaceToLocal(
     }
   } else {
     contextsError = contextsResult.error
+  }
+
+  // Wiki org: tras bajar contexts, replace local + seed del caché de push.
+  // Best-effort: un fallo de wiki no marca el download como fallido.
+  if (deps.listRemoteWikiPages && deps.replaceLocalWikiPages) {
+    try {
+      const wikiResult = await deps.listRemoteWikiPages()
+      if (wikiResult.ok) {
+        const pages = wikiPullPagesFromRecords(wikiResult.data)
+        const replaced = await deps.replaceLocalWikiPages(root, pages)
+        if (replaced.ok) {
+          let logEntryCount: number | null = null
+          if (deps.listRemoteWikiLog && deps.replaceLocalWikiLog) {
+            try {
+              const logResult = await deps.listRemoteWikiLog()
+              if (logResult.ok) {
+                const logReplaced = await deps.replaceLocalWikiLog(root, logResult.data)
+                if (logReplaced.ok) {
+                  logEntryCount = logResult.data.length
+                } else {
+                  console.warn(`[orgWikiSync] pull log replace falló: ${logReplaced.error ?? 'unknown'}`)
+                }
+              } else {
+                console.warn(`[orgWikiSync] pull log list falló: ${logResult.error}`)
+              }
+            } catch (error) {
+              console.warn(
+                `[orgWikiSync] pull log falló: ${error instanceof Error ? error.message : String(error)}`,
+              )
+            }
+          }
+          await deps.onWikiPagesReplaced?.(pages, logEntryCount)
+        } else {
+          console.warn(`[orgWikiSync] pull replace falló: ${replaced.error ?? 'unknown'}`)
+        }
+      } else {
+        console.warn(`[orgWikiSync] pull list falló: ${wikiResult.error}`)
+      }
+    } catch (error) {
+      console.warn(
+        `[orgWikiSync] pull falló: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
   }
 
   return {

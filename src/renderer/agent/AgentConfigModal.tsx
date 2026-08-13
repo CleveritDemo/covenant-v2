@@ -60,7 +60,6 @@ export interface AgentConfigModalProps {
   awaitingDelegations?: boolean
   diskContexts: TabContext[]
   selectedContextIds: string[]
-  contextNotice: string
   onClose: () => void
   /**
    * Persistencia de identidad: blur de inputs o cierre del modal.
@@ -81,7 +80,6 @@ export interface AgentConfigModalProps {
   onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
-  onAutoImproveChange: (checked: boolean) => void
   onContextsTabFocus?: () => void
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
@@ -101,7 +99,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   awaitingDelegations = false,
   diskContexts,
   selectedContextIds,
-  contextNotice,
   onClose,
   onCommitIdentity,
   onChangeCoordination,
@@ -118,7 +115,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
-  onAutoImproveChange,
   onContextsTabFocus,
   peerAgents = [],
   closeOnBackdrop = true,
@@ -247,7 +243,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     meta.id, meta.name, meta.role, meta.ceremonyRoles, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
     meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
-    meta.acceptDelegations, meta.allowExpertReplicas, meta.autoImproveContexts,
+    meta.acceptDelegations, meta.allowExpertReplicas,
     selectedContextIds,
   ])
   const lastSnapshot = useRef(savedSnapshot)
@@ -461,7 +457,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 locked={locked}
                 diskContexts={diskContexts}
                 selectedContextIds={selectedContextIds}
-                contextNotice={contextNotice}
                 modelOptions={modelOptions}
                 modelsLoading={modelsLoading}
                 modelsError={modelsError}
@@ -481,7 +476,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onToggleLoopMode={onToggleLoopMode}
                 onToggleContext={onToggleContext}
                 onOpenContextsModal={onOpenContextsModal}
-                onAutoImproveChange={onAutoImproveChange}
                 peerAgents={peerAgents}
               />
             )}

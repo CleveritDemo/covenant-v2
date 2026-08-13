@@ -48,7 +48,6 @@ export interface PlaneMapEntity {
   /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
   contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
-  autoImproveContexts?: boolean
   /** Nombre puesto a mano (terminales); sustituye la carpeta en la pastilla. */
   customTitle?: string
   /** Basename de la carpeta actual (terminales). */

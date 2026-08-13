@@ -2,6 +2,9 @@ import type {
   CovenantDefault,
   CovenantMember,
   CovenantOrg,
+  CovenantWikiLogEntryRecord,
+  CovenantWikiPagePayload,
+  CovenantWikiPageRecord,
   CovenantWorkspace,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
@@ -383,6 +386,69 @@ export async function renameWorkspaceContext(
     upsert: (contextId, body) => upsertWorkspaceContext(slug, workspaceId, contextId, body),
     delete: contextId => deleteWorkspaceContext(slug, workspaceId, contextId),
   })
+}
+
+export async function listWikiPages(
+  slug: string,
+  workspaceId: string,
+): Promise<CovenantWikiPageRecord[]> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/wiki/pages`,
+  )
+  return (await response.json()) as CovenantWikiPageRecord[]
+}
+
+export async function upsertWikiPage(
+  slug: string,
+  workspaceId: string,
+  pageSlug: string,
+  payload: CovenantWikiPagePayload,
+): Promise<CovenantWikiPageRecord> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/wiki/pages/${encodeURIComponent(pageSlug)}`,
+    {
+      method: 'PUT',
+      body: {
+        title: payload.title,
+        pageType: payload.pageType,
+        body: payload.body,
+      },
+    },
+  )
+  return (await response.json()) as CovenantWikiPageRecord
+}
+
+export async function deleteWikiPage(
+  slug: string,
+  workspaceId: string,
+  pageSlug: string,
+): Promise<void> {
+  await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/wiki/pages/${encodeURIComponent(pageSlug)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function appendWikiLog(
+  slug: string,
+  workspaceId: string,
+  entry: string,
+): Promise<CovenantWikiLogEntryRecord> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/wiki/log`,
+    { method: 'POST', body: { entry } },
+  )
+  return (await response.json()) as CovenantWikiLogEntryRecord
+}
+
+export async function listWikiLog(
+  slug: string,
+  workspaceId: string,
+): Promise<CovenantWikiLogEntryRecord[]> {
+  const response = await authedFetch(
+    `/orgs/${encodeURIComponent(slug)}/workspaces/${encodeURIComponent(workspaceId)}/wiki/log?limit=50`,
+  )
+  return (await response.json()) as CovenantWikiLogEntryRecord[]
 }
 
 function pickString(raw: Record<string, unknown>, ...keys: string[]): string {

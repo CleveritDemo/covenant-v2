@@ -43,6 +43,13 @@
   display: none;
 }
 
+/* Con el mapa de wiki abierto (.wiki-graph-view a z=APP_OVERLAY_MODAL_Z=670),
+   la barra debe seguir clickeable por encima del overlay del mapa, pero
+   quedarse por debajo del modal de nodo (APP_OVERLAY_MODAL_Z+10=680+). */
+.plane-top-left-bar--over-wiki {
+  z-index: 675;
+}
+
 .plane-top-left-bar .plane-project-folder {
   position: static;
   top: auto;

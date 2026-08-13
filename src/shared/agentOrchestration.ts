@@ -86,6 +86,14 @@ export interface DelegateRequest {
   toAgentId: string
   objective: string
   contextIds?: string[]
+  /**
+   * Runtime linkage: cuando un orquestador anidado emite delegaciones dentro
+   * de un turno delegado por otro (PO → Orq → Especialista), este campo
+   * apunta al delegationId activo del padre. El fence del CLI NO lo emite:
+   * lo anota AgentPane al despachar, para que App enlace la delegación
+   * anidada con la delegación padre en el registry.
+   */
+  parentDelegationId?: string
 }
 
 export type DelegateResultStatus = 'ok' | 'fail' | 'aborted'

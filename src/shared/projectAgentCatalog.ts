@@ -75,7 +75,6 @@ export interface ProjectAgentDefinition {
   rules?: string[]
   model?: string
   contextIds?: string[]
-  autoImproveContexts?: boolean
   emitResults?: boolean
   /** none (default) | orchestrator | productOwner: puede delegar a otros agentes. */
   coordination?: AgentCoordination
@@ -199,7 +198,6 @@ export function buildNewProjectAgentDefinition(
     id,
     provider: sanitizeProvider(provider),
     permissionMode: 'auto',
-    autoImproveContexts: true,
     emitResults: true,
     ...(displayName ? { name: displayName } : {}),
   }
@@ -520,7 +518,7 @@ export function parseProjectAgentDefinition(
   }
   const order = sanitizeAgentOrder(data.order)
   if (order !== undefined) def.order = order
-  if (data.autoImproveContexts === true) def.autoImproveContexts = true
+  // `autoImproveContexts` legacy en JSONs existentes: se ignora y no se re-persiste.
   def.emitResults = true
   const coordination = sanitizeAgentCoordination(data.coordination)
   if (coordination === 'orchestrator' || coordination === 'productOwner') {
@@ -571,7 +569,6 @@ export function cloneProjectAgentDefinition(
     ...(source.rules?.length ? { rules: [...source.rules] } : {}),
     ...(source.model ? { model: source.model } : {}),
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
-    ...(source.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
     // Clones no heredan order: van al final del plano hasta reorder/upload.
     emitResults: true,
     ...(source.coordination === 'orchestrator' || source.coordination === 'productOwner'
@@ -710,7 +707,6 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     model: meta.model,
     contextIds: meta.contextIds,
     order: meta.order,
-    autoImproveContexts: meta.autoImproveContexts,
     emitResults: true,
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,

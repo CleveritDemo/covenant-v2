@@ -125,7 +125,6 @@ describe('projectAgentCatalog', () => {
       id: 'product-designer-2',
       provider: 'cursor',
       permissionMode: 'auto',
-      autoImproveContexts: true,
       emitResults: true,
       name: 'Product Designer',
     })
@@ -145,7 +144,6 @@ describe('projectAgentCatalog', () => {
       role: roleDraft,
       objective: objectiveDraft,
       contextIds: ['a', '', 3, 'b'],
-      autoImproveContexts: true,
       emitResults: true,
     })
     expect(parsed).toEqual({
@@ -156,9 +154,20 @@ describe('projectAgentCatalog', () => {
       role: roleDraft.slice(0, AGENT_ROLE_MAX_LENGTH),
       objective: objectiveDraft.slice(0, AGENT_OBJECTIVE_MAX_LENGTH),
       contextIds: ['a', 'b'],
-      autoImproveContexts: true,
       emitResults: true,
     })
+  })
+
+  it('tolera autoImproveContexts legacy en JSON: no rompe y no lo re-persiste', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'legacy',
+      provider: 'claude',
+      permissionMode: 'auto',
+      autoImproveContexts: true,
+    })
+    expect(parsed).not.toBeNull()
+    expect(parsed).not.toHaveProperty('autoImproveContexts')
+    expect(cloneProjectAgentDefinition(parsed!)).not.toHaveProperty('autoImproveContexts')
   })
 
   it('normaliza el monograma del JSON y lo mantiene al clonar', () => {

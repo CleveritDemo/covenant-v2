@@ -1,0 +1,501 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type { ClipboardEvent } from 'react'
+import { useT } from '@i18n/useT'
+import {
+  AGENT_CLI_PROVIDER_IDS,
+  agentCliSpec,
+  isAgentCliProvider,
+  type AgentCliProvider,
+} from '@shared/agentCliProviders'
+import { modelsForProvider, type AgentModelOption } from '@shared/agentCliModels'
+import type { WikiCuratorConfig } from '@shared/wikiCurator'
+import { stripAgentControlFences } from '../components/ai/assistantBodySegments'
+import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
+import { PendingImageThumb } from '../components/PendingImageThumb'
+import { Button, Icon, Input, Select, Spinner, TextArea, Tooltip } from '../components/ui'
+import {
+  extensionForMime,
+  imagesFromClipboard,
+  materializeClipboardImage,
+  MAX_PENDING_IMAGES,
+  pendingImageFromBlob,
+  pendingImagesToAttachments,
+  type ComposerPendingImage,
+} from '../agent/composerImages'
+import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
+import { PlaneChatComposerShell } from './PlaneChatComposerShell'
+import { PlaneSketchButton } from './PlaneSketchButton'
+import { SketchModal } from './SketchModal'
+import './PlaneChatComposer.css'
+import './WikiCuratorComposer.css'
+
+export interface WikiCuratorComposerProps {
+  cwd: string
+  /** El curador pidió abrir pages (fence view, ya parseado en main). */
+  onViewSlugs: (slugs: string[]) => void
+  /** Hubo ingest aplicado: el grafo debe refetchear. */
+  onWikiChanged: () => void
+  /** Sonido de inicio de dictado; default true. */
+  systemSoundsEnabled?: boolean
+}
+
+/** CLI por defecto del curador cuando `curator.json` no trae provider. */
+const DEFAULT_CURATOR_PROVIDER: AgentCliProvider = 'claude'
+
+/**
+ * Composer flotante del curador de la wiki dentro del mapa 3D.
+ * Reutiliza PlaneChatComposerShell (textarea + send/stop/mic + thumbs) sin
+ * badges/listbox de agentes. Burbuja, config popover e IPC del curador viven aquí.
+ * Escape con foco dentro solo hace blur/cierra el popover — nunca cierra el mapa.
+ */
+export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
+  cwd,
+  onViewSlugs,
+  onWikiChanged,
+  systemSoundsEnabled = true,
+}) => {
+  const { t, i18n } = useT()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const rawReplyRef = useRef('')
+  const pendingImagesRef = useRef<ComposerPendingImage[]>([])
+  const [draft, setDraft] = useState('')
+  const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
+  const [dictationError, setDictationError] = useState('')
+  const [sketchOpen, setSketchOpen] = useState(false)
+  const [reply, setReply] = useState('')
+  const [errorText, setErrorText] = useState('')
+  const [thinking, setThinking] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [config, setConfig] = useState<WikiCuratorConfig>({})
+  const [nameDraft, setNameDraft] = useState('')
+  const [rulesDraft, setRulesDraft] = useState('')
+  const [models, setModels] = useState<AgentModelOption[]>(() => (
+    modelsForProvider(DEFAULT_CURATOR_PROVIDER)
+  ))
+
+  pendingImagesRef.current = pendingImages
+
+  // Callbacks por ref: la suscripción IPC vive solo por cwd.
+  const onViewSlugsRef = useRef(onViewSlugs)
+  onViewSlugsRef.current = onViewSlugs
+  const onWikiChangedRef = useRef(onWikiChanged)
+  onWikiChangedRef.current = onWikiChanged
+
+  const selectedProvider: AgentCliProvider = config.provider ?? DEFAULT_CURATOR_PROVIDER
+
+  useEffect(() => {
+    return () => {
+      pendingImagesRef.current.forEach(image => URL.revokeObjectURL(image.previewUrl))
+    }
+  }, [])
+
+  useEffect(() => {
+    const key = cwd.trim()
+    if (!key) return
+    return window.api.onWikiCuratorEvent(key, event => {
+      if (event.type === 'delta') {
+        rawReplyRef.current += event.text
+        setReply(stripAgentControlFences(rawReplyRef.current))
+        return
+      }
+      if (event.type === 'final') {
+        rawReplyRef.current = event.text
+        setReply(stripAgentControlFences(event.text))
+        return
+      }
+      if (event.type === 'view') {
+        onViewSlugsRef.current(event.slugs)
+        return
+      }
+      if (event.type === 'applied') {
+        onWikiChangedRef.current()
+        return
+      }
+      if (event.type === 'error') {
+        setErrorText(event.message)
+        return
+      }
+      setThinking(false)
+    })
+  }, [cwd])
+
+  const loadModelsForProvider = (provider: AgentCliProvider, cancelled?: () => boolean): void => {
+    setModels(modelsForProvider(provider))
+    void window.api.listAgentCliModels(provider).then(result => {
+      if (cancelled?.() || result.models.length === 0) return
+      setModels(result.models)
+    }).catch(() => undefined)
+  }
+
+  useEffect(() => {
+    if (!configOpen) return
+    const key = cwd.trim()
+    if (!key) return
+    let cancelled = false
+    void window.api.getWikiCuratorConfig(key).then(result => {
+      if (cancelled || !result.ok) return
+      setConfig(result.config)
+      setNameDraft(result.config.name ?? '')
+      setRulesDraft((result.config.rules ?? []).join('\n'))
+      const provider = result.config.provider ?? DEFAULT_CURATOR_PROVIDER
+      loadModelsForProvider(provider, () => cancelled)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [configOpen, cwd])
+
+  const persistConfig = (next: WikiCuratorConfig): void => {
+    setConfig(next)
+    const key = cwd.trim()
+    if (key) void window.api.setWikiCuratorConfig(key, next).catch(() => undefined)
+  }
+
+  const changeProvider = (value: string): void => {
+    if (!isAgentCliProvider(value)) return
+    const next: WikiCuratorConfig = { ...config, provider: value }
+    // Default vacío se mantiene; modelo custom se conserva (no crashea el Select).
+    persistConfig(next)
+    loadModelsForProvider(value)
+  }
+
+  const appendPendingImages = useCallback((images: ComposerPendingImage[]): void => {
+    if (!images.length) return
+    setPendingImages(previous => {
+      const room = Math.max(0, MAX_PENDING_IMAGES - previous.length)
+      if (!room) {
+        images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        return previous
+      }
+      const accepted = images.slice(0, room)
+      images.slice(room).forEach(image => URL.revokeObjectURL(image.previewUrl))
+      return [...previous, ...accepted]
+    })
+  }, [])
+
+  const removePendingImage = useCallback((id: string): void => {
+    setPendingImages(previous => {
+      const target = previous.find(image => image.id === id)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return previous.filter(image => image.id !== id)
+    })
+  }, [])
+
+  const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files = imagesFromClipboard(event.clipboardData)
+    if (!files.length) return
+    event.preventDefault()
+    const jobs = files.map((file, index) =>
+      materializeClipboardImage(
+        file,
+        `paste-${index + 1}${extensionForMime(file.type || 'image/png')}`,
+      ),
+    )
+    void Promise.all(jobs).then(results => {
+      appendPendingImages(results.filter((image): image is ComposerPendingImage => image != null))
+    })
+  }, [appendPendingImages])
+
+  const handleSketchAttach = useCallback((blob: Blob): void => {
+    void pendingImageFromBlob(blob, `sketch-${Date.now()}.png`).then(image => {
+      if (image) appendPendingImages([image])
+    })
+  }, [appendPendingImages])
+
+  const send = useCallback((overrideText?: string): void => {
+    const message = (overrideText ?? draft).trim()
+    const key = cwd.trim()
+    const imagesSnapshot = pendingImages
+    if ((!message && imagesSnapshot.length === 0) || !key || thinking) return
+    rawReplyRef.current = ''
+    setReply('')
+    setErrorText('')
+    setThinking(true)
+    setDraft('')
+    setPendingImages([])
+    void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
+      imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
+      window.api.startWikiCuratorTurn({
+        cwd: key,
+        message,
+        ...(attachments.length ? { images: attachments } : {}),
+      })
+    })
+  }, [cwd, draft, pendingImages, thinking])
+
+  const stop = (): void => {
+    const key = cwd.trim()
+    if (key) window.api.stopWikiCuratorTurn(key)
+    setThinking(false)
+  }
+
+  const mapDictationError = useCallback((code: string): string => {
+    const kind = classifyDictationError(code)
+    if (kind === 'unsupported') return t('agentPane.dictationUnsupported')
+    if (kind === 'helperMissing') return t('agentPane.dictationHelperMissing')
+    if (kind === 'startFailed') return t('agentPane.dictationStartFailed')
+    if (kind === 'permission') return t('agentPane.dictationPermissionDenied')
+    if (kind === 'electronUnavailable') return t('agentPane.dictationUnavailableElectron')
+    if (kind === 'noSpeech') return t('agentPane.dictationNoSpeech')
+    if (kind === 'tooShort') return t('agentPane.dictationTooShort')
+    if (kind === 'noAudio') return t('agentPane.dictationNoAudio')
+    return t('agentPane.dictationError')
+  }, [t])
+
+  const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
+  const { listening, interim, level, start: startDictation, stop: stopDictation } =
+    usePushToTalkSpeech({
+      lang: speechLang,
+      systemSoundsEnabled,
+      onTranscript: text => {
+        send(text)
+      },
+      onError: code => {
+        setDictationError(mapDictationError(code))
+        window.setTimeout(() => setDictationError(''), 5000)
+      },
+    })
+
+  const canSend = Boolean(draft.trim() || pendingImages.length > 0)
+  const micMode = Boolean(!thinking && !draft.trim() && pendingImages.length === 0)
+
+  const handleSendClick = (): void => {
+    if (thinking) {
+      stop()
+      return
+    }
+    if (canSend) send()
+  }
+
+  // Escape dentro del composer nunca llega al listener global del mapa:
+  // primero cierra el popover de config; si no, hace blur del control con foco.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    event.stopPropagation()
+    if (configOpen) {
+      setConfigOpen(false)
+      inputRef.current?.focus()
+      return
+    }
+    const active = document.activeElement
+    if (active instanceof HTMLElement && rootRef.current?.contains(active)) {
+      active.blur()
+    }
+  }
+
+  const selectedModel = config.model?.trim() ?? ''
+  const modelIsCustom = Boolean(selectedModel && !models.some(option => option.id === selectedModel))
+  const showBubble = Boolean(reply || errorText || thinking)
+
+  return (
+    <div
+      ref={rootRef}
+      className="wiki-curator-composer"
+      role="group"
+      aria-label={t('tabs.wikiCuratorName')}
+      onKeyDown={handleKeyDown}
+    >
+      {configOpen ? (
+        <div
+          className="wiki-curator-composer__config"
+          role="dialog"
+          aria-label={t('tabs.wikiCuratorConfigTitle')}
+        >
+          <header className="wiki-curator-composer__config-head">
+            <h3 className="wiki-curator-composer__config-title">
+              {t('tabs.wikiCuratorConfigTitle')}
+            </h3>
+            <Button
+              variant="icon"
+              size="xs"
+              aria-label={t('tabs.wikiCuratorConfigClose')}
+              onClick={() => setConfigOpen(false)}
+            >
+              <Icon name="close" size={11} aria-hidden />
+            </Button>
+          </header>
+          <label className="wiki-curator-composer__config-field">
+            <span className="wiki-curator-composer__config-label">
+              {t('tabs.wikiCuratorConfigNameLabel')}
+            </span>
+            <Input
+              size="sm"
+              value={nameDraft}
+              maxLength={40}
+              onChange={event => setNameDraft(event.target.value)}
+              onBlur={() => {
+                const name = nameDraft.trim()
+                persistConfig({ ...config, name: name || undefined })
+              }}
+            />
+          </label>
+          <label className="wiki-curator-composer__config-field">
+            <span className="wiki-curator-composer__config-label">
+              {t('tabs.wikiCuratorConfigProviderLabel')}
+            </span>
+            <Select
+              size="sm"
+              value={selectedProvider}
+              aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
+              onChange={changeProvider}
+              options={AGENT_CLI_PROVIDER_IDS.map(id => ({
+                value: id,
+                label: agentCliSpec(id).label,
+              }))}
+            />
+          </label>
+          <label className="wiki-curator-composer__config-field">
+            <span className="wiki-curator-composer__config-label">
+              {t('tabs.wikiCuratorConfigModelLabel')}
+            </span>
+            <Select
+              size="sm"
+              value={selectedModel}
+              aria-label={t('tabs.wikiCuratorConfigModelLabel')}
+              onChange={value => persistConfig({ ...config, model: value || undefined })}
+              options={[
+                { value: '', label: t('tabs.wikiCuratorConfigModelDefault') },
+                ...models.map(option => ({
+                  value: option.id,
+                  label: option.label,
+                  hint: option.label === option.id ? undefined : option.id,
+                })),
+                ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
+              ]}
+            />
+            {!selectedModel ? (
+              <span className="wiki-curator-composer__config-hint">
+                {t('tabs.wikiCuratorConfigModelDefaultHint')}
+              </span>
+            ) : null}
+          </label>
+          <label className="wiki-curator-composer__config-field">
+            <span className="wiki-curator-composer__config-label">
+              {t('tabs.wikiCuratorConfigRulesLabel')}
+            </span>
+            <TextArea
+              size="sm"
+              rows={3}
+              spellCheck={false}
+              value={rulesDraft}
+              onChange={event => setRulesDraft(event.target.value)}
+              onBlur={() => {
+                const rules = rulesDraft
+                  .split('\n')
+                  .map(line => line.trim())
+                  .filter(Boolean)
+                persistConfig({ ...config, rules: rules.length ? rules : undefined })
+              }}
+            />
+            <span className="wiki-curator-composer__config-hint">
+              {t('tabs.wikiCuratorConfigRulesHint')}
+            </span>
+          </label>
+        </div>
+      ) : null}
+
+      {showBubble ? (
+        <div className="wiki-curator-composer__bubble" role="status" aria-live="polite">
+          {errorText ? (
+            <p className="wiki-curator-composer__error">{errorText}</p>
+          ) : null}
+          {reply ? (
+            <p className="wiki-curator-composer__reply">{reply}</p>
+          ) : null}
+          {thinking && !reply && !errorText ? (
+            <span className="wiki-curator-composer__thinking">
+              <Spinner aria-label={t('tabs.wikiCuratorThinking')} />
+              {t('tabs.wikiCuratorThinking')}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div
+        className={[
+          'plane-chat-composer',
+          'plane-chat-composer--embedded',
+          thinking ? 'plane-chat-composer--working' : '',
+        ].filter(Boolean).join(' ')}
+      >
+        <div className="plane-chat-composer__body">
+          <DictationListeningOverlay
+            active={listening}
+            level={level}
+            text={interim.trim() || t('agentPane.dictationLive')}
+          />
+          <PlaneChatComposerShell
+            value={draft}
+            onChange={setDraft}
+            placeholder={t('tabs.wikiCuratorPlaceholder')}
+            inputLabel={t('tabs.wikiCuratorInputLabel')}
+            sendLabel={
+              thinking
+                ? t('tabs.wikiCuratorStop')
+                : micMode
+                  ? (listening ? t('agentPane.dictationListening') : t('agentPane.dictationHold'))
+                  : t('tabs.wikiCuratorSend')
+            }
+            sendMode={thinking ? 'stop' : micMode ? 'mic' : 'send'}
+            sendDisabled={!thinking && !micMode && !canSend}
+            listening={listening}
+            disabled={false}
+            onSendClick={handleSendClick}
+            onMicStart={startDictation}
+            onMicStop={stopDictation}
+            onPaste={handlePaste}
+            inputRef={inputRef}
+            leading={(
+              <>
+                <PlaneSketchButton
+                  label={t('sketch.open')}
+                  disabled={thinking || pendingImages.length >= MAX_PENDING_IMAGES}
+                  onClick={() => setSketchOpen(true)}
+                />
+                <Tooltip content={t('tabs.wikiCuratorConfigOpen')}>
+                  <Button
+                    variant="icon"
+                    size="sm"
+                    pressed={configOpen}
+                    aria-label={t('tabs.wikiCuratorConfigOpen')}
+                    aria-expanded={configOpen}
+                    aria-haspopup="dialog"
+                    onClick={() => setConfigOpen(open => !open)}
+                  >
+                    <Icon name="settings" size={14} aria-hidden />
+                  </Button>
+                </Tooltip>
+              </>
+            )}
+            shellAside={pendingImages.length > 0 ? (
+              <div
+                className="plane-chat-composer__attachments"
+                aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
+              >
+                {pendingImages.map(image => (
+                  <PendingImageThumb
+                    key={image.id}
+                    src={image.previewUrl}
+                    name={image.name}
+                    onRemove={() => removePendingImage(image.id)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          />
+          {!listening && dictationError ? (
+            <p className="plane-chat-composer__dictation-error" role="status">
+              {dictationError}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <SketchModal
+        open={sketchOpen}
+        onClose={() => setSketchOpen(false)}
+        onAttach={handleSketchAttach}
+      />
+    </div>
+  )
+}

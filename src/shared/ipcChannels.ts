@@ -64,9 +64,26 @@ export const IPC = {
   AGENT_MCP_CONFIG_WRITE: 'agentMcpServers:writeConfig',
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
-  TAB_CONTEXT_MERGE_ANNOTATIONS: 'tabContext:mergeAnnotations',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
+  /** Renderer → main (invoke): grafo de la wiki (`.gravity/wiki/pages`) de un cwd. */
+  WIKI_GRAPH: 'wiki:graph',
+  /** Renderer → main (invoke): crea `.gravity/wiki` y siembra 'overview' si no hay pages. */
+  WIKI_ENSURE: 'wiki:ensure',
+  /** Renderer → main (invoke): reemplaza pages locales con el set del server (pull org). */
+  WIKI_SYNC_REPLACE: 'wiki:syncReplace',
+  /** Renderer → main (invoke): reemplaza log.md local con el log del server (pull org). */
+  WIKI_SYNC_REPLACE_LOG: 'wiki:syncReplaceLog',
+  /** Renderer → main: turno single-shot del curador de la wiki. */
+  WIKI_CURATOR_START: 'wikiCurator:start',
+  /** Renderer → main: cancelar el turno activo del curador de un cwd. */
+  WIKI_CURATOR_STOP: 'wikiCurator:stop',
+  /** Main → renderer: eventos del curador (delta|final|view|applied|error|done). */
+  WIKI_CURATOR_EVENT: 'wikiCurator:event',
+  /** Renderer → main (invoke): lee `.gravity/wiki/curator.json` sanitizado. */
+  WIKI_CURATOR_CONFIG_GET: 'wikiCurator:configGet',
+  /** Renderer → main (invoke): escribe la config sanitizada del curador. */
+  WIKI_CURATOR_CONFIG_SET: 'wikiCurator:configSet',
   /** Renderer → main: revela el .md del contexto en el Finder. */
   TAB_CONTEXT_REVEAL: 'tabContext:reveal',
   /** Renderer → main: crea .gravity/results/<slug>.md si no existe. */
@@ -210,6 +227,16 @@ export const IPC = {
   COVENANT_WORKSPACE_CONTEXT_RENAME: 'covenant:workspace:context:rename',
   /** Renderer → main (invoke): borrar contexto de workspace org */
   COVENANT_WORKSPACE_CONTEXT_DELETE: 'covenant:workspace:context:delete',
+  /** Renderer → main (invoke): listar pages de la wiki de workspace org */
+  COVENANT_WIKI_PAGES_LIST: 'covenant:wiki:pages:list',
+  /** Renderer → main (invoke): upsert page de la wiki de workspace org */
+  COVENANT_WIKI_PAGE_UPSERT: 'covenant:wiki:page:upsert',
+  /** Renderer → main (invoke): borrar page de la wiki de workspace org */
+  COVENANT_WIKI_PAGE_DELETE: 'covenant:wiki:page:delete',
+  /** Renderer → main (invoke): append de entrada al log de la wiki de workspace org */
+  COVENANT_WIKI_LOG_APPEND: 'covenant:wiki:log:append',
+  /** Renderer → main (invoke): listar entradas del log de la wiki de workspace org */
+  COVENANT_WIKI_LOG_LIST: 'covenant:wiki:log:list',
   /** Renderer → main (invoke): listar repos de workspace org */
   COVENANT_WORKSPACE_REPOS_LIST: 'covenant:workspace:repos:list',
   /** Renderer → main (invoke): agregar repo a workspace org */

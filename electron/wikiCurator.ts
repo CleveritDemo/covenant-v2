@@ -1,0 +1,231 @@
+/**
+ * Turno single-shot del curador de la wiki (patrón brainstormRoom): spawn vía
+ * `runAgentCliSpawn`, que NO post-procesa `assistant_final` — el ingest de
+ * `ia-terminal-wiki` se aplica aquí explícito con applyWikiIngestFromFinalText
+ * y después se extrae el fence `ia-terminal-wiki-view` para la UI.
+ */
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
+import type { BrowserWindow } from 'electron'
+import type { AppConfig } from '../src/shared/configSchema'
+import type {
+  AgentCliImageAttachment,
+  AgentCliStartRequest,
+  AgentCliUiEvent,
+} from '../src/shared/agentCliTypes'
+import {
+  buildWikiCuratorPrompt,
+  extractWikiViewRequest,
+  parseWikiCuratorConfig,
+  sanitizeWikiCuratorConfig,
+  type WikiCuratorConfig,
+  type WikiCuratorEvent,
+} from '../src/shared/wikiCurator'
+import { IPC } from '../src/shared/ipcChannels'
+import { discoverTabContexts } from './tabContextBuild'
+import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+import { applyWikiIngestFromFinalText } from './wikiIngest'
+import { wikiRootPath } from './wikiStore'
+
+export interface WikiCuratorStartConfig {
+  cwd: string
+  message: string
+  /** Continuidad conversacional; sin él se reusa la sesión previa del cwd. */
+  cliSessionId?: string
+  /** Pegadas / sketch del composer; materializa runAgentCliSpawn. */
+  images?: AgentCliImageAttachment[]
+}
+
+/** Mismo contrato que runAgentCliSpawn; inyectable en tests. */
+export type WikiCuratorRunner = (
+  request: AgentCliStartRequest,
+  config: AppConfig,
+  home: string,
+  handlers: {
+    onEvent: (event: AgentCliUiEvent) => void
+    onDone: (code: number) => void
+  },
+) => void
+
+const CURATOR_CONFIG_FILE = 'curator.json'
+const CURATOR_AGENT_ID = 'wiki-curator'
+
+/** Un turno activo por cwd: el nuevo invalida al previo (generación + stop). */
+const curatorGenerations = new Map<string, number>()
+let nextCuratorGeneration = 1
+/** Sesión CLI por cwd para continuidad conversacional entre turnos. */
+const curatorSessions = new Map<string, string>()
+
+export function wikiCuratorPaneId(cwd: string): string {
+  return `wiki-curator:${cwd}`
+}
+
+function emitCurator(win: BrowserWindow, cwd: string, event: WikiCuratorEvent): void {
+  if (!win.isDestroyed()) {
+    win.webContents.send(IPC.WIKI_CURATOR_EVENT, cwd, event)
+  }
+}
+
+function curatorConfigPath(cwd: string): string {
+  return join(wikiRootPath(cwd), CURATOR_CONFIG_FILE)
+}
+
+/** Lee `.gravity/wiki/curator.json` sanitizado; ausente o inválido → {}. */
+export function readWikiCuratorConfig(cwd: string): WikiCuratorConfig {
+  const path = curatorConfigPath(cwd)
+  if (!existsSync(path)) return {}
+  try {
+    return parseWikiCuratorConfig(readFileSync(path, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+/** Escribe la config sanitizada; crea `.gravity/wiki/` si falta. */
+export function writeWikiCuratorConfig(
+  cwd: string,
+  value: unknown,
+): { ok: true; config: WikiCuratorConfig } | { ok: false; error: string } {
+  const config = sanitizeWikiCuratorConfig(value)
+  try {
+    mkdirSync(wikiRootPath(cwd), { recursive: true })
+    writeFileSync(curatorConfigPath(cwd), `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+    return { ok: true, config }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export function startWikiCuratorTurn(
+  win: BrowserWindow,
+  config: WikiCuratorStartConfig,
+  appConfig: AppConfig,
+  home: string,
+  options?: { runner?: WikiCuratorRunner },
+): { ok: true } | { ok: false; error: string } {
+  const cwd = typeof config.cwd === 'string' ? config.cwd.trim() : ''
+  const message = typeof config.message === 'string' ? config.message.trim() : ''
+  const images = Array.isArray(config.images)
+    ? config.images.filter((image): image is AgentCliImageAttachment => (
+      Boolean(
+        image
+        && typeof image.name === 'string'
+        && typeof image.mimeType === 'string'
+        && typeof image.base64 === 'string'
+        && image.base64.length > 0,
+      )
+    ))
+    : []
+  if (!cwd) return { ok: false, error: 'cwd inválido' }
+  if (!message && images.length === 0) return { ok: false, error: 'mensaje vacío' }
+
+  // Solo consume la wiki: sin contexto kind 'wiki' el curador no tiene material.
+  const contexts = discoverTabContexts(cwd).contexts.filter(item => item.kind === 'wiki')
+  if (!contexts.length) {
+    const error = 'El proyecto no tiene wiki (.gravity/wiki).'
+    emitCurator(win, cwd, { type: 'error', message: error })
+    emitCurator(win, cwd, { type: 'done' })
+    return { ok: false, error }
+  }
+
+  const paneId = wikiCuratorPaneId(cwd)
+  const generation = nextCuratorGeneration++
+  curatorGenerations.set(cwd, generation)
+  // El turno nuevo cancela al previo (runAgentCliSpawn también lo hace; esto
+  // cubre runners inyectados y deja el estado consistente al instante).
+  stopAgentRun(paneId)
+  const isStale = (): boolean => curatorGenerations.get(cwd) !== generation
+
+  const curatorConfig = readWikiCuratorConfig(cwd)
+  const requestedSession = typeof config.cliSessionId === 'string' && config.cliSessionId.trim()
+    ? config.cliSessionId.trim()
+    : undefined
+
+  const request: AgentCliStartRequest = {
+    paneId,
+    provider: curatorConfig.provider ?? 'claude',
+    // Gestor de información: nunca programa ni toca archivos → plan.
+    permissionMode: 'plan',
+    prompt: buildWikiCuratorPrompt(curatorConfig, message || '(imagen adjunta)'),
+    cwd,
+    name: curatorConfig.name,
+    model: curatorConfig.model,
+    agentId: CURATOR_AGENT_ID,
+    coordination: 'none',
+    allowDelegations: false,
+    emitResults: false,
+    mcpsAllowed: [],
+    contexts,
+    cliSessionId: requestedSession ?? curatorSessions.get(cwd),
+    ...(images.length ? { images } : {}),
+  }
+
+  let finalText = ''
+  let lastError: string | undefined
+  const runner = options?.runner ?? runAgentCliSpawn
+
+  runner(request, appConfig, home, {
+    onEvent: (event: AgentCliUiEvent) => {
+      if (isStale()) return
+      if (event.type === 'session') {
+        curatorSessions.set(cwd, event.cliSessionId)
+        return
+      }
+      if (event.type === 'assistant_delta') {
+        emitCurator(win, cwd, { type: 'delta', text: event.text })
+        return
+      }
+      if (event.type === 'assistant_final') {
+        finalText = event.text
+        return
+      }
+      if (event.type === 'error') {
+        lastError = event.message
+      }
+    },
+    onDone: code => {
+      if (isStale()) return
+      curatorGenerations.delete(cwd)
+      if (code !== 0 && !finalText.trim()) {
+        emitCurator(win, cwd, {
+          type: 'error',
+          message: lastError || `El CLI terminó con código ${code}.`,
+        })
+        emitCurator(win, cwd, { type: 'done' })
+        return
+      }
+      // runAgentCliSpawn no aplica el ingest de assistant_final (eso vive en
+      // startAgentTurn): se aplica aquí, una sola vez, con la wiki asignada.
+      const ingest = applyWikiIngestFromFinalText(finalText, contexts, cwd, {
+        agentId: CURATOR_AGENT_ID,
+      })
+      if (ingest.persisted) {
+        emitCurator(win, cwd, { type: 'applied', opsCount: ingest.applied })
+      }
+      const view = extractWikiViewRequest(ingest.visibleText)
+      emitCurator(win, cwd, { type: 'final', text: view.visibleText })
+      if (view.slugs.length) {
+        emitCurator(win, cwd, { type: 'view', slugs: view.slugs })
+      }
+      emitCurator(win, cwd, { type: 'done' })
+    },
+  })
+
+  return { ok: true }
+}
+
+export function stopWikiCuratorTurn(cwd: string, win?: BrowserWindow): void {
+  const trimmed = typeof cwd === 'string' ? cwd.trim() : ''
+  if (!trimmed) return
+  if (!curatorGenerations.has(trimmed)) return
+  curatorGenerations.delete(trimmed)
+  stopAgentRun(wikiCuratorPaneId(trimmed))
+  if (win) emitCurator(win, trimmed, { type: 'done' })
+}
+
+/** Solo tests: limpia generaciones y sesiones. */
+export function clearWikiCuratorForTests(): void {
+  curatorGenerations.clear()
+  curatorSessions.clear()
+}

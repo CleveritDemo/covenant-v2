@@ -77,7 +77,6 @@ function renderModal(
       loopActive={false}
       diskContexts={[]}
       selectedContextIds={['ctx-a', 'ctx-b']}
-      contextNotice=""
       onClose={() => {}}
       onCommitIdentity={() => {}}
       onChangeCoordination={() => {}}
@@ -94,7 +93,6 @@ function renderModal(
       onToggleLoopMode={() => {}}
       onToggleContext={() => {}}
       onOpenContextsModal={() => {}}
-      onAutoImproveChange={() => {}}
     />,
   )
 }
@@ -289,7 +287,6 @@ describe('AgentConfigModal', () => {
         loopActive={false}
         diskContexts={[]}
         selectedContextIds={[]}
-        contextNotice=""
         onClose={() => {}}
         onCommitIdentity={() => true}
         onChangeCoordination={() => {}}
@@ -306,7 +303,6 @@ describe('AgentConfigModal', () => {
         onToggleLoopMode={() => {}}
         onToggleContext={() => {}}
         onOpenContextsModal={() => {}}
-        onAutoImproveChange={() => {}}
       />,
     )
     expect(screen.getByText(`${PROJECT_DIR}/agents/tech-lead.json`)).toBeTruthy()

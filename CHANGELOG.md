@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.1
+
+- **Wiki de org totalmente sincronizada**: el log se descarga al sincronizar, crear o abrir workspaces de org; el curador, el upload manual del workspace y el CTA del mapa suben cambios al backend; tras reinicio con caché fría se propagan deletes y la entrada nueva del turno sin duplicar (matching multiset con reglas de truncación).
+- **Workspaces de org: FABs y conversaciones**: crear terminal o agente usa el cwd efectivo y explica el motivo si sigue bloqueado; se puede pedir una conversación nueva con el agente ocupado sin abortar el turno (se aplica al terminar).
+- **Mapa de la wiki**: con reduce motion off, rayos eléctricos iluminan las líneas base; con reduce motion on solo quedan líneas estáticas; al volver de otra pestaña el canvas ya no queda negro y se limpian listeners.
+
 ## v0.40.0
 
 - **Jira Cloud, dentro de Gravity**: se conecta el sitio desde Ajustes (las credenciales se guardan cifradas por sitio) y a partir de ahí una issue es un contexto más: se da de alta pegando su clave, se materializa en `.gravity/jira/` con descripción, estado, sprint y los diez últimos comentarios, y se refresca sola cuando el snapshot vence. Tus notas sobre la issue conviven con esa región automática y no se pisan al refrescar.

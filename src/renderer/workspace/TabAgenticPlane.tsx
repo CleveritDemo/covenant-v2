@@ -29,6 +29,10 @@ import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlanePulseButton } from './PlanePulseButton'
 import { PulseModal } from './PulseModal'
+import { PlaneWikiMapButton } from './PlaneWikiMapButton'
+import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
+import { WikiCuratorComposer } from './WikiCuratorComposer'
+import type { WikiGraphData } from './wikiGraph'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import {
@@ -45,6 +49,7 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
+import { TerminalModal } from '../components/TerminalModal'
 import './TabAgenticPlane.css'
 
 type PendingWorkspaceAction = 'resync' | 'upload'
@@ -58,6 +63,12 @@ export interface TabAgenticPlaneProps {
   tabActive?: boolean
   agentFabTitle: string
   terminalFabTitle: string
+  /** Motivo cuando el FAB de agente queda disabled por falta de cwd. */
+  agentFabDisabledTitle?: string
+  /** Motivo cuando el FAB de terminal queda disabled por falta de cwd. */
+  terminalFabDisabledTitle?: string
+  /** Motivo cuando los FAB no pueden crear porque se alcanzó el máximo de ventanas. */
+  fabPaneLimitReachedTitle?: string
   idleAgentLabel: string
   contextPoolTitle: string
   contextPoolConfigureLabel: string
@@ -79,7 +90,6 @@ export interface TabAgenticPlaneProps {
   /** Catálogo completo (preview del modal de asignación). */
   contextCatalog?: TabContext[]
   onToggleAgentContext: (paneId: string, contextId: string) => void
-  onAutoImproveChange: (paneId: string, enabled: boolean) => void
   onToggleLoop: (paneId: string) => void
   onRemoveQueuedTurn: (paneId: string, id: string) => void
   onUpdateQueuedTurn: (paneId: string, id: string, text: string) => void
@@ -142,6 +152,8 @@ export interface TabAgenticPlaneProps {
   openChatActiveThreadId?: string
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
   openChatAgentId: string | null
+  /** paneId con creación de conversación pendiente (queda "+" bloqueado hasta aplicar). */
+  newThreadPendingPaneId?: string | null
   /** Abre/cambia el chat, o lo cierra con `null`. */
   onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
@@ -274,6 +286,10 @@ export interface TabAgenticPlaneProps {
   onFirstLayoutReady?: () => void
   /** Sin transición de ranura durante el settle de arranque. */
   deferPositionMotion?: boolean
+  /**
+   * Tras crear la wiki desde el CTA del mapa (ensureWiki ok): push org si aplica.
+   */
+  onWikiMutated?: (cwd: string) => void
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -282,6 +298,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   tabActive = true,
   agentFabTitle,
   terminalFabTitle,
+  agentFabDisabledTitle,
+  terminalFabDisabledTitle,
+  fabPaneLimitReachedTitle,
   idleAgentLabel,
   contextPoolTitle,
   contextPoolConfigureLabel,
@@ -301,7 +320,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   tabContexts,
   contextCatalog = [],
   onToggleAgentContext,
-  onAutoImproveChange,
   onToggleLoop,
   onRemoveQueuedTurn,
   onUpdateQueuedTurn,
@@ -340,6 +358,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   openChatThreads = [],
   openChatActiveThreadId = '',
   openChatAgentId,
+  newThreadPendingPaneId = null,
   onOpenChatAgentChange,
   agentStatuses = {},
   chatFontSize = 13,
@@ -451,6 +470,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onRefreshRepos,
   onFirstLayoutReady,
   deferPositionMotion = false,
+  onWikiMutated,
 }) => {
   const { t } = useT()
   const planeRef = useRef<HTMLDivElement>(null)
@@ -459,6 +479,52 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // estado se queda acá en vez de engordar las props de App.tsx.
   const [pulseOpen, setPulseOpen] = useState(false)
   const [pendingWorkspaceAction, setPendingWorkspaceAction] = useState<PendingWorkspaceAction | null>(null)
+  // Mapa de wiki: estado local (sin nada del padre), patrón brainstormViewClose:
+  // abrir tapa el plano entero, cerrar restaura todo tal cual estaba.
+  const [wikiMapOpen, setWikiMapOpen] = useState(false)
+  // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
+  const [wikiNodeSlugs, setWikiNodeSlugs] = useState<string[]>([])
+  // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
+  const [wikiGraphData, setWikiGraphData] = useState<WikiGraphData | null>(null)
+  // Incrementar relanza el fetch del grafo sin cerrar el mapa (CTA 'Crear wiki').
+  const [wikiGraphRefreshToken, setWikiGraphRefreshToken] = useState(0)
+  // Refetch suave (ingest del curador aplicado): swap de data sin cerrar modales.
+  const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
+
+  const loadWikiGraph = useCallback(async (): Promise<WikiGraphData> => {
+    const cwd = projectFolder.trim()
+    if (!cwd) return { nodes: [], edges: [] }
+    try {
+      const result = await window.api.getWikiGraph(cwd)
+      return result.ok && result.data ? result.data : { nodes: [], edges: [] }
+    } catch {
+      return { nodes: [], edges: [] }
+    }
+  }, [projectFolder])
+
+  // Pages reales vía IPC, refetch en cada apertura: la wiki puede haber
+  // cambiado entre una y otra. ok:false o error → grafo vacío (empty state).
+  useEffect(() => {
+    if (!wikiMapOpen) return
+    let cancelled = false
+    setWikiGraphData(null)
+    setWikiNodeSlugs([])
+    void loadWikiGraph().then(data => {
+      if (!cancelled) setWikiGraphData(data)
+    })
+    return () => { cancelled = true }
+  }, [wikiMapOpen, loadWikiGraph, wikiGraphRefreshToken])
+
+  // Camino suave: el curador aplicó ops — los nodos se actualizan en vivo,
+  // sin resetear la escena ni cerrar los modales abiertos.
+  useEffect(() => {
+    if (!wikiMapOpen || wikiGraphSoftToken === 0) return
+    let cancelled = false
+    void loadWikiGraph().then(data => {
+      if (!cancelled) setWikiGraphData(data)
+    })
+    return () => { cancelled = true }
+  }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
 
   useLayoutEffect(() => {
     const el = planeRef.current
@@ -577,17 +643,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     onOpenChatAgentChange(null)
   }
 
-  const selectedContextIds = useMemo(() => {
-    const agent = entities.find(entity => entity.paneId === openChatAgentId)
-    if (!agent || agent.kind !== 'agent') return []
-    if (agent.contextIds?.length) return agent.contextIds
-    return (agent.contexts ?? []).map(context => context.id)
-  }, [entities, openChatAgentId])
-
-  const autoImprove = Boolean(
-    entities.find(entity => entity.paneId === openChatAgentId)?.autoImproveContexts,
-  )
-
   const quickChatStatus = openChatAgentId
     ? agentStatuses[openChatAgentId] ?? null
     : null
@@ -653,7 +708,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       }}
     >
       {!anyFullscreen && (
-        <div className="plane-top-left-bar">
+        <div className={`plane-top-left-bar${wikiMapOpen ? ' plane-top-left-bar--over-wiki' : ''}`}>
           <PlaneProjectFolder
             folderPath={projectFolder}
             selectLabel={projectFolderSelectLabel}
@@ -751,6 +806,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               ) : null}
             </span>
           ) : null}
+          <PlaneWikiMapButton
+            label={t('tabs.wikiMapButton')}
+            pressed={wikiMapOpen}
+            onClick={() => setWikiMapOpen(open => !open)}
+          />
           {projectFolder.trim() && onRevealProjectFolder ? (
             <PlaneRevealFolderButton
               folderPath={projectFolder}
@@ -875,7 +935,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -905,23 +965,23 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
-              assignedContextCount={selectedContextIds.length}
-              autoImprove={autoImprove}
               loopMode={Boolean(quickChatStatus?.loopMode)}
               loopActive={Boolean(quickChatStatus?.loopActive)}
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
               // Cambiar de conversación con un turno o un loop vivo dejaría el
-              // stream escribiendo en el transcript equivocado. Una ola del
-              // orquestador no bloquea el + ni el selector.
-              threadsLocked={Boolean(
+              // stream escribiendo en el transcript equivocado. El "+" solo se
+              // bloquea con loop activo o mientras hay una creación pendiente
+              // aplicándose post-settle; un turno normal sí puede solicitarla.
+              threadSelectionLocked={Boolean(
                 quickChatStatus?.busy
                 || quickChatStatus?.loopActive,
               )}
-              onAutoImproveChange={enabled => {
-                onAutoImproveChange(openChatAgentId, enabled)
-              }}
+              newThreadLocked={Boolean(
+                quickChatStatus?.loopActive
+                || (newThreadPendingPaneId && newThreadPendingPaneId === openChatAgentId),
+              )}
               onToggleLoop={() => onToggleLoop(openChatAgentId)}
               onClearConversation={() => onClearConversation(openChatAgentId)}
               onNewThread={() => onNewThread(openChatAgentId)}
@@ -984,6 +1044,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           canAddTerminal={canAddTerminal}
           agentTitle={agentFabTitle}
           terminalTitle={terminalFabTitle}
+          agentDisabledTitle={agentFabDisabledTitle}
+          terminalDisabledTitle={terminalFabDisabledTitle}
+          paneLimitReachedTitle={fabPaneLimitReachedTitle}
           onAddAgent={onAddAgent}
           onAddTerminal={onAddTerminal}
           bootstrapAgentsTitle={bootstrapAgentsTitle || bootstrapAgentsLabel}
@@ -993,6 +1056,58 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onBootstrapAgents={onBootstrapAgents}
         />
       )}
+
+      {wikiMapOpen ? (
+        <WikiGraphView
+          data={wikiGraphData}
+          cwd={projectFolder.trim()}
+          active={tabActive}
+          onClose={() => setWikiMapOpen(false)}
+          onOpenNode={slug => setWikiNodeSlugs([slug])}
+          onRefetchGraph={() => {
+            setWikiGraphRefreshToken(token => token + 1)
+            const cwd = projectFolder.trim()
+            if (cwd) onWikiMutated?.(cwd)
+          }}
+          curator={projectFolder.trim() ? (
+            <WikiCuratorComposer
+              cwd={projectFolder.trim()}
+              systemSoundsEnabled={systemSoundsEnabled}
+              onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
+              onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
+            />
+          ) : null}
+        />
+      ) : null}
+
+      {/* Páginas reales de la wiki (markdown crudo; el render md rico llega después).
+          Cascada de hasta 3 (view del curador), 24px de offset por paso; z por
+          encima del mapa (APP_OVERLAY_MODAL_Z) — el default 640 quedaría debajo. */}
+      {wikiNodeSlugs.map((slug, index) => {
+        const node = wikiGraphData?.nodes.find(item => item.slug === slug)
+        if (!node) return null
+        return (
+          <TerminalModal
+            key={slug}
+            open
+            active={tabActive}
+            title={node.title}
+            size="sm"
+            zIndex={APP_OVERLAY_MODAL_Z + 10 + index}
+            cascadeStep={index}
+            onClose={() => setWikiNodeSlugs(prev => prev.filter(item => item !== slug))}
+          >
+            <div className="wiki-graph-node-page">
+              <p className="wiki-graph-node-page__type">
+                {t(wikiTypeLabelKey(node.type))}
+              </p>
+              <p className="wiki-graph-node-page__body">
+                {node.body ?? ''}
+              </p>
+            </div>
+          </TerminalModal>
+        )
+      })}
 
       <PulseModal open={pulseOpen} onClose={() => setPulseOpen(false)} />
 

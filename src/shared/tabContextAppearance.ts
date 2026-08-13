@@ -155,6 +155,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   agentResult: 'bot',
   skill: 'sparkles',
   jira: 'jira',
+  wiki: 'book',
 }
 
 const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
@@ -171,6 +172,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   agentResult: '#94a3b8',
   skill: '#e879f9',
   jira: '#2684ff',
+  wiki: '#2dd4bf',
 }
 
 const ICON_SET = new Set<string>(TAB_CONTEXT_ICON_NAMES)

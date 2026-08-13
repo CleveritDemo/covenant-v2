@@ -12,6 +12,7 @@ export type TabContextKind =
   | 'agentResult'
   | 'skill'
   | 'jira'
+  | 'wiki'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
@@ -31,7 +32,7 @@ export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'agentResult', 'skill', 'jira',
+  'agentResult', 'skill', 'jira', 'wiki',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
@@ -204,6 +205,8 @@ export function canonicalContextName(
       return (options.name ?? '').trim() || 'Notes'
     case 'skill':
       return (options.name ?? '').trim() || 'Skill'
+    case 'wiki':
+      return 'Wiki'
     case 'agentResult':
       return (options.name ?? '').trim() || (options.agentId ?? 'agent')
     case 'jira':
@@ -387,12 +390,6 @@ export interface TabContextDeleteResult {
 export interface TabContextAnnotation {
   key: string
   text: string
-}
-
-export interface TabContextAnnotationRequest {
-  context: TabContext
-  cwd: string
-  annotations: TabContextAnnotation[]
 }
 
 const UPDATE_FENCE_RE = /```ia-terminal-context\s*\n([\s\S]*?)\n```/g

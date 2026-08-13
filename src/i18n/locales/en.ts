@@ -1599,6 +1599,8 @@ const en = {
       notInstalled: 'Not installed',
       delete: 'Delete',
       install: 'Install',
+      installError: 'Could not install: {{message}}',
+      deleteError: 'Could not delete: {{message}}',
     },
   },
 

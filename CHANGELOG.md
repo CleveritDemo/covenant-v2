@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.41.2
+
+- **Instalar un language server ya te dice qué pasa**: si la instalación falla, el error se ve en la fila en vez de que el botón parezca muerto; y cuando el problema es el runtime (por ejemplo jdtls, que necesita Java 21), la fila avisa la versión que hace falta, la que encontró, dónde tienes una válida fuera del PATH y cambia el botón por Comprobar de nuevo. El aviso de runtime del editor pasa a usar el mismo componente.
+
 ## v0.41.1
 
 - **Interlineado de la terminal, a tu medida**: las filas ya no van tan holgadas; el default es cómodo (1.2). En Ajustes → Apariencia → Tipografía puedes pasar a compacto o holgado, y se aplica al momento.

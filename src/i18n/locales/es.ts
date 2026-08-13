@@ -1601,6 +1601,8 @@ const es = {
       notInstalled: 'No instalado',
       delete: 'Borrar',
       install: 'Instalar',
+      installError: 'No se pudo instalar: {{message}}',
+      deleteError: 'No se pudo borrar: {{message}}',
     },
   },
 

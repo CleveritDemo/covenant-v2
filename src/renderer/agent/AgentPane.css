@@ -1360,8 +1360,8 @@ html[data-reduce-motion="true"] {
   min-height: 0;
   height: 100%;
   padding: 10px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* El scroll vive en .tab-contexts__rows; el filtro se queda quieto arriba. */
+  overflow: hidden;
   background: color-mix(in srgb, var(--bg) 35%, var(--bg-secondary));
   border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
@@ -1460,6 +1460,19 @@ html[data-reduce-motion="true"] {
   font-variant-numeric: tabular-nums;
 }
 
+.tab-contexts__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  /* -4px/+4px: el scrollbar cae en el borde del rail, no sobre las filas. */
+  margin: 0 -4px;
+  padding: 0 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 /* ── Filtros del índice ────────────────────────────────────────────────
    Con 14 contextos el scroll alfabético no dice quién carga qué. */
 
@@ -1467,12 +1480,8 @@ html[data-reduce-motion="true"] {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 0 0 auto;
   padding: 8px 2px 10px;
-  /* Pegados arriba: con 15+ filas el filtro no puede irse con el scroll. */
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: color-mix(in srgb, var(--bg) 35%, var(--bg-secondary));
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 

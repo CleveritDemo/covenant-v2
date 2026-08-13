@@ -288,30 +288,34 @@ export const TabContextsList: React.FC<Props> = ({
         </div>
       )}
 
-      {contexts.length === 0 && (
-        <p className="tab-contexts__empty">{t('tabContexts.empty')}</p>
-      )}
-      {contexts.length > 0 && visible.length === 0 && (
-        <p className="tab-contexts__empty">{t('tabContexts.filterNoMatch')}</p>
-      )}
-      {projectContexts.length > 0 && (
-        <div className="tab-contexts__group">
-          <h4 className="tab-contexts__group-title">
-            {t('tabContexts.groupProject')}
-            <span>{projectContexts.length}</span>
-          </h4>
-          {projectContexts.map(context => renderItem(context))}
-        </div>
-      )}
-      {agentResultContexts.length > 0 && (
-        <div className="tab-contexts__group">
-          <h4 className="tab-contexts__group-title">
-            {t('tabContexts.groupAgentResults')}
-            <span>{agentResultContexts.length}</span>
-          </h4>
-          {agentResultContexts.map(context => renderItem(context, false))}
-        </div>
-      )}
+      {/* Solo scrollean las filas: con el filtro dentro, `position: sticky`
+          dejaba pasar las filas por encima al llegar arriba del todo. */}
+      <div className="tab-contexts__rows">
+        {contexts.length === 0 && (
+          <p className="tab-contexts__empty">{t('tabContexts.empty')}</p>
+        )}
+        {contexts.length > 0 && visible.length === 0 && (
+          <p className="tab-contexts__empty">{t('tabContexts.filterNoMatch')}</p>
+        )}
+        {projectContexts.length > 0 && (
+          <div className="tab-contexts__group">
+            <h4 className="tab-contexts__group-title">
+              {t('tabContexts.groupProject')}
+              <span>{projectContexts.length}</span>
+            </h4>
+            {projectContexts.map(context => renderItem(context))}
+          </div>
+        )}
+        {agentResultContexts.length > 0 && (
+          <div className="tab-contexts__group">
+            <h4 className="tab-contexts__group-title">
+              {t('tabContexts.groupAgentResults')}
+              <span>{agentResultContexts.length}</span>
+            </h4>
+            {agentResultContexts.map(context => renderItem(context, false))}
+          </div>
+        )}
+      </div>
     </aside>
   )
 }

@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { describeFetchError, httpFetch } from '../httpFetch'
 import { execFileSync, spawn } from 'child_process'
 import { gunzipSync } from 'zlib'
 import {
@@ -158,7 +159,12 @@ export async function downloadServer(
   const artifact = artifactFor(spec)
   if (!artifact) throw new Error('no artifact for platform')
 
-  const resp = await fetch(artifact.url)
+  let resp: Response
+  try {
+    resp = await httpFetch(artifact.url)
+  } catch (error) {
+    throw new Error(`download failed: ${describeFetchError(error)}`)
+  }
   if (!resp.ok) throw new Error(`download failed: HTTP ${resp.status}`)
   if (!resp.body) throw new Error('download failed: empty body')
 

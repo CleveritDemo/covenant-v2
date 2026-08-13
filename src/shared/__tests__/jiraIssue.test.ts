@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSnapshotStale, normalizeIssueKey, parseIssueKeys } from '../jiraIssue'
+import { isSnapshotStale, issueKeyFor, normalizeIssueKey, parseIssueKeys } from '../jiraIssue'
 
 describe('normalizeIssueKey', () => {
   it('mayúsculas y sin espacios', () => {
@@ -61,5 +61,28 @@ describe('isSnapshotStale', () => {
 
   it('refreshSeconds 0 desactiva el refresco automático', () => {
     expect(isSnapshotStale(now - 10_000_000, 0, now)).toBe(false)
+  })
+})
+
+describe('issueKeyFor', () => {
+  it('el issueKey explícito manda, normalizado', () => {
+    expect(issueKeyFor({ issueKey: ' grav-412 ', fileName: 'jira/OTRA-1.md' })).toBe('GRAV-412')
+  })
+
+  it('sin issueKey cae al nombre de archivo (contexto recién descubierto en disco)', () => {
+    expect(issueKeyFor({ fileName: 'jira/GRAV-412.md', name: 'GRAV-412' })).toBe('GRAV-412')
+  })
+
+  it('sin fileName cae al nombre', () => {
+    expect(issueKeyFor({ name: 'grav-412' })).toBe('GRAV-412')
+  })
+
+  it('acepta separadores de Windows', () => {
+    expect(issueKeyFor({ fileName: 'jira\\GRAV-412.md' })).toBe('GRAV-412')
+  })
+
+  it('sin nada resoluble, cadena vacía (el llamador decide qué hacer)', () => {
+    expect(issueKeyFor({})).toBe('')
+    expect(issueKeyFor({ issueKey: '   ' })).toBe('')
   })
 })

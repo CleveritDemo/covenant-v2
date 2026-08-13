@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { JiraIssueSnapshot } from '../jiraIssue'
+import { AUTO_END, AUTO_START } from '../contextSections'
 import {
   adfToText,
+  AUTO_RE,
   issueAutoMarkdown,
+  jiraSnapshotHasContent,
   parseJiraIssuePreview,
   parseJiraResumenBlock,
   withJiraAutoBlock,
@@ -132,14 +135,18 @@ describe('withJiraAutoBlock', () => {
   })
 
   it('AUTO_RE se deriva de los marcadores importados para asegurar sincronía', () => {
-    // Si los marcadores cambiasen (espacios, guiones, etc), la regex debe seguir funcionando.
-    // Probamos que la región con los marcadores reales se reemplaza correctamente.
-    const doc1 = withJiraAutoBlock('', meta, 'contenido1')
-    const doc2 = withJiraAutoBlock(doc1, meta, 'contenido2')
-    // Si AUTO_RE fuese un literal hardcoded, cualquier cambio en los importados sería ignorado.
-    // Verificamos que la sustitución ocurre (doc2 contiene contenido2, no contenido1).
-    expect(doc2).toContain('contenido2')
-    expect(doc2).not.toContain('contenido1')
+    // Sobre `.source`, no sobre el comportamiento: escribir y releer el
+    // documento pasa idéntico contra un literal hardcodeado, así que esa
+    // versión del test no probaba nada de lo que su nombre afirma. Lo único
+    // que distingue «derivada» de «hardcodeada» es que la regex contenga los
+    // marcadores que hoy exporta `contextSections`.
+    // Vía `new RegExp` porque `.source` normaliza (escapa `/`, entre otras):
+    // comparar contra el literal crudo fallaría por la normalización, no por
+    // la derivación, que es lo único que este test mira.
+    const asSource = (literal: string): string =>
+      new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).source
+    expect(AUTO_RE.source).toContain(asSource(AUTO_START))
+    expect(AUTO_RE.source).toContain(asSource(AUTO_END))
   })
 
   it('si la región auto está corrupta pero hay notas reales, no pierde las notas', () => {
@@ -159,18 +166,33 @@ información crítica sobre la issue
 })
 
 describe('parseJiraResumenBlock', () => {
-  it('extrae resumen y estado del bloque que escribe issueAutoMarkdown', () => {
+  it('extrae resumen, estado y fecha de actualización del bloque que escribe issueAutoMarkdown', () => {
     const auto = issueAutoMarkdown(issue, 10)
     expect(parseJiraResumenBlock(auto)).toEqual({
       summary: issue.summary,
       status: issue.status,
+      updated: issue.updated,
     })
+  })
+
+  it('sin sprint, `Actualizada` sigue saliendo (cambia de posición en la línea)', () => {
+    const auto = issueAutoMarkdown({ ...issue, sprint: null }, 10)
+    expect(parseJiraResumenBlock(auto)?.updated).toBe(issue.updated)
   })
 
   it('un resumen con su propio "·" no se corta en el primer separador', () => {
     const withDot = { ...issue, summary: 'A · B y C' }
     const auto = issueAutoMarkdown(withDot, 10)
-    expect(parseJiraResumenBlock(auto)).toEqual({ summary: 'A · B y C', status: issue.status })
+    expect(parseJiraResumenBlock(auto)).toEqual({
+      summary: 'A · B y C',
+      status: issue.status,
+      updated: issue.updated,
+    })
+  })
+
+  it('sin línea "Actualizada", devuelve resumen y estado sin el campo', () => {
+    expect(parseJiraResumenBlock('## Resumen\nGRAV-412 · algo\nEstado: To Do · Tipo: Bug'))
+      .toEqual({ summary: 'algo', status: 'To Do' })
   })
 
   it('sin bloque "## Resumen", null', () => {
@@ -189,13 +211,24 @@ describe('parseJiraResumenBlock', () => {
 describe('parseJiraIssuePreview', () => {
   const meta = '<!-- iaterminal:context {"id":"iaterminal:jira:grav-412","kind":"jira"} -->'
 
-  it('con snapshot real, no está vencido y trae resumen/estado', () => {
+  it('con snapshot real, no está vencido y trae resumen/estado/actualización', () => {
     const doc = withJiraAutoBlock('', meta, issueAutoMarkdown(issue, 10))
     expect(parseJiraIssuePreview(doc)).toEqual({
       stale: false,
       summary: issue.summary,
       status: issue.status,
+      updated: issue.updated,
     })
+  })
+
+  it('`updated` es la fecha de la ISSUE, distinta de `stale` (si el archivo se llenó)', () => {
+    // Un snapshot materializado hace un segundo puede describir una issue que
+    // no se toca hace semanas: `stale:false` y `updated` viejo conviven.
+    const viejo = { ...issue, updated: '2026-07-01T09:00:00.000Z' }
+    const doc = withJiraAutoBlock('', meta, issueAutoMarkdown(viejo, 10))
+    const preview = parseJiraIssuePreview(doc)
+    expect(preview.stale).toBe(false)
+    expect(preview.updated).toBe('2026-07-01T09:00:00.000Z')
   })
 
   it('región auto vacía (placeholder recién creado, sin refrescar): vencido, sin resumen', () => {
@@ -210,5 +243,29 @@ describe('parseJiraIssuePreview', () => {
   it('región auto presente pero sin bloque "## Resumen" parseable: no vencido, sin resumen', () => {
     const doc = withJiraAutoBlock('', meta, '## Descripción\nsolo esto')
     expect(parseJiraIssuePreview(doc)).toEqual({ stale: false })
+  })
+})
+
+describe('jiraSnapshotHasContent', () => {
+  const meta = '<!-- iaterminal:context {"id":"iaterminal:jira:grav-412","kind":"jira"} -->'
+
+  it('el placeholder del alta (marcadores y nada más) NO cuenta como contenido', () => {
+    // El caso que un gate por existencia de archivo deja pasar: el `.md` está
+    // en disco desde que se creó el contexto, pero no tiene dato de Jira.
+    expect(jiraSnapshotHasContent(withJiraAutoBlock('', meta, ''))).toBe(false)
+  })
+
+  it('sin marcadores en absoluto tampoco', () => {
+    expect(jiraSnapshotHasContent('texto suelto')).toBe(false)
+  })
+
+  it('una región auto con markdown real sí', () => {
+    expect(jiraSnapshotHasContent(withJiraAutoBlock('', meta, issueAutoMarkdown(issue, 10)))).toBe(true)
+  })
+
+  it('es exactamente la regla de `parseJiraIssuePreview().stale`', () => {
+    for (const raw of ['', 'suelto', withJiraAutoBlock('', meta, ''), withJiraAutoBlock('', meta, '## X\ny')]) {
+      expect(jiraSnapshotHasContent(raw)).toBe(!parseJiraIssuePreview(raw).stale)
+    }
   })
 })

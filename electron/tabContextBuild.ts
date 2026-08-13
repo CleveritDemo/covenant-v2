@@ -21,6 +21,7 @@ import {
   isCanonicalContextId,
 } from '../src/shared/tabContext'
 import { jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
+import { issueKeyFor } from '../src/shared/jiraIssue'
 import {
   defaultColorForKind,
   defaultIconForKind,
@@ -541,10 +542,9 @@ function contextFilePath(context: TabContext, cwd: string): string {
     return join(dir, 'results', baseName)
   }
   if (context.kind === 'jira') {
-    const issueKey = (context.issueKey || basename(context.fileName || context.name, '.md'))
-      .trim()
-      .toUpperCase()
-    return join(dir, 'jira', normalizeContextFileName(issueKey, 'issue'))
+    // Misma regla que el refresher y que el preámbulo de issues adjuntas: una
+    // sola `issueKeyFor` en `src/shared/jiraIssue.ts` (ver su comentario).
+    return join(dir, 'jira', normalizeContextFileName(issueKeyFor(context), 'issue'))
   }
   return join(dir, normalizeContextFileName(context.fileName || context.name, context.id))
 }

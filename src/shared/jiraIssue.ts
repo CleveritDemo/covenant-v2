@@ -76,6 +76,40 @@ export function isSnapshotStale(mtimeMs: number, refreshSeconds: number, nowMs: 
   return nowMs - mtimeMs >= refreshSeconds * 1000
 }
 
+/**
+ * Lo mínimo que hace falta para saber de qué issue habla un contexto jira.
+ * Estructural (no `TabContext`) para que este módulo siga sin importar nada.
+ */
+export interface JiraIssueKeySource {
+  issueKey?: string
+  fileName?: string
+  name?: string
+}
+
+/**
+ * La ÚNICA regla de resolución de clave para un contexto jira: `issueKey`
+ * explícito y, si falta, el nombre del archivo (`jira/GRAV-412.md` →
+ * `GRAV-412`).
+ *
+ * El fallback no es cosmético: un contexto jira recién descubierto en disco
+ * todavía no tiene `issueKey` en su metadata, y hasta que lo tenga los tres
+ * lados que preguntan «¿de qué issue es esto?» —`contextFilePath`
+ * (`electron/tabContextBuild.ts`), el refresher (`electron/jiraContextRefresh.ts`)
+ * y el preámbulo de issues adjuntas (`composePrompt`)— tienen que responder lo
+ * mismo. Cuando cada uno traía su propia regla, el preámbulo exigía `issueKey`
+ * y los otros dos no: el mismo contexto existía en disco, se refrescaba, y aun
+ * así no se anunciaba al agente.
+ *
+ * Sin `path.basename`: `src/shared/` es puro y el renderer también lo importa.
+ */
+export function issueKeyFor(context: JiraIssueKeySource): string {
+  const explicit = (context.issueKey ?? '').trim()
+  if (explicit) return explicit.toUpperCase()
+  const source = (context.fileName || context.name || '').trim()
+  const base = source.split(/[/\\]/).pop() ?? ''
+  return base.replace(/\.md$/i, '').trim().toUpperCase()
+}
+
 export interface JiraMentionRange {
   /** Offset donde empieza el token completo (incluye el `@` si es búsqueda libre). */
   start: number

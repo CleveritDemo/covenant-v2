@@ -57,8 +57,13 @@ const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g,
 /**
  * Construida dinámicamente desde los marcadores importados para asegurar sincronía:
  * si AUTO_START o AUTO_END cambian, la búsqueda se ajusta automáticamente.
+ *
+ * Exportada solo para que el test pueda afirmar esa derivación sobre
+ * `AUTO_RE.source`: cualquier prueba de comportamiento (escribir y releer el
+ * documento) pasa idéntica contra un literal hardcodeado, que es justo lo que
+ * este comentario promete que no hay.
  */
-const AUTO_RE = new RegExp(
+export const AUTO_RE = new RegExp(
   `${escapeRegExp(AUTO_START)}[\\s\\S]*?${escapeRegExp(AUTO_END)}`
 )
 
@@ -178,21 +183,51 @@ export function withJiraAutoBlock(raw: string, metadataLine: string, auto: strin
  */
 const RESUMEN_TITLE_RE = /^[A-Z][A-Z0-9]*-\d+\s*·\s*(.+)$/
 const RESUMEN_STATUS_RE = /^Estado:\s*(.+?)\s*·\s*Tipo:/
+// Cuarta línea del bloque: `Asignada a: … [· Sprint: …] · Actualizada: <ISO>`.
+// `Actualizada` siempre va última, así que basta anclar al final de la línea.
+const RESUMEN_UPDATED_RE = /Actualizada:\s*(\S.*?)\s*$/
 
 /**
- * Resumen y estado desde el bloque `## Resumen` de la región `auto` (ya
- * extraída, ver `parseJiraIssuePreview`). `null` si el bloque falta o no
- * calza con el formato de `issueAutoMarkdown` — mejor sin dato que un resumen
- * inventado (Tarea 11).
+ * Resumen, estado y fecha de actualización desde el bloque `## Resumen` de la
+ * región `auto` (ya extraída, ver `parseJiraIssuePreview`). `null` si el bloque
+ * falta o no calza con el formato de `issueAutoMarkdown` — mejor sin dato que
+ * un resumen inventado (Tarea 11).
+ *
+ * `updated` es opcional a propósito: es el `fields.updated` de Jira (cuándo
+ * cambió la ISSUE), un dato distinto de `stale` (si este ARCHIVO se llegó a
+ * rellenar alguna vez). Un snapshot puede estar perfectamente materializado y
+ * aun así describir una issue que se movió hace dos semanas; el chip muestra
+ * ambas cosas por separado en vez de mezclarlas en una sola noción de
+ * «frescura».
  */
-export function parseJiraResumenBlock(auto: string): { summary: string; status: string } | null {
+export function parseJiraResumenBlock(
+  auto: string,
+): { summary: string; status: string; updated?: string } | null {
   const section = markdownSections(auto).find(entry => entry.label === 'Resumen')
   if (!section) return null
-  const [, titleLine = '', metaLine = ''] = section.content.split('\n')
+  const [, titleLine = '', metaLine = '', peopleLine = ''] = section.content.split('\n')
   const summary = RESUMEN_TITLE_RE.exec(titleLine.trim())?.[1]?.trim()
   const status = RESUMEN_STATUS_RE.exec(metaLine.trim())?.[1]?.trim()
   if (!summary || !status) return null
-  return { summary, status }
+  const updated = RESUMEN_UPDATED_RE.exec(peopleLine.trim())?.[1]?.trim()
+  return updated ? { summary, status, updated } : { summary, status }
+}
+
+/**
+ * ¿El `.md` de una issue tiene contenido real de Jira, o es solo el envoltorio?
+ *
+ * Esta es la ÚNICA definición de «snapshot con contenido» del feature, y la
+ * usan los tres lados que dependen de ella: el refresher, que decide si hay que
+ * ir a buscar el dato (`electron/jiraContextRefresh.ts`); `composePrompt`, que
+ * decide si puede afirmarle al agente que la issue viaja adjunta y prohibirle
+ * el MCP (`electron/agentCliRuntime.ts`); y el chip del plano, vía
+ * `parseJiraIssuePreview`. Existir en disco no basta: desde que
+ * `materializeTabContext` escribe un placeholder al alta (`write:true`, sin
+ * snapshot), el archivo existe SIEMPRE, y un gate por existencia deja pasar un
+ * documento que solo tiene marcadores HTML.
+ */
+export function jiraSnapshotHasContent(raw: string): boolean {
+  return Boolean(extractSection(raw, AUTO_START, AUTO_END).trim())
 }
 
 export interface JiraIssuePreview {
@@ -200,6 +235,8 @@ export interface JiraIssuePreview {
   stale: boolean
   summary?: string
   status?: string
+  /** `fields.updated` de Jira: cuándo cambió la issue. Ver `parseJiraResumenBlock`. */
+  updated?: string
 }
 
 /**
@@ -211,8 +248,8 @@ export interface JiraIssuePreview {
  * región `auto` vacía o ausente = placeholder sin refrescar todavía.
  */
 export function parseJiraIssuePreview(rawContent: string): JiraIssuePreview {
+  if (!jiraSnapshotHasContent(rawContent)) return { stale: true }
   const auto = extractSection(rawContent, AUTO_START, AUTO_END)
-  if (!auto) return { stale: true }
   const block = parseJiraResumenBlock(auto)
   return block ? { stale: false, ...block } : { stale: false }
 }

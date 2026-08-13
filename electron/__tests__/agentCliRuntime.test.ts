@@ -310,6 +310,82 @@ describe('composePrompt identity', () => {
     }
   })
 
+  it('omits jira issues whose snapshot on disk is only the placeholder (empty auto region)', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-jira-attached-'))
+    try {
+      mkdirSync(join(cwd, PROJECT_DIR, 'jira'), { recursive: true })
+      // Exactamente lo que escribe `materializeTabContext` al alta cuando
+      // todavía no hay snapshot (`write:true`): marcadores y nada más. El
+      // archivo EXISTE, así que `materializeTabContext(...).ok` es `true` —
+      // gatear por existencia dejaría pasar este caso y el preámbulo
+      // afirmaría "fresh snapshot" con cero datos dentro.
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'jira', 'GRAV-412.md'),
+        '<!-- iaterminal:auto -->\n\n<!-- /iaterminal:auto -->\n\n<!-- iaterminal:notes -->\n(no annotations yet)\n<!-- /iaterminal:notes -->\n',
+        'utf8',
+      )
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'revisa esto',
+          contexts: [
+            {
+              id: 'iaterminal:jira:grav-412',
+              name: 'GRAV-412',
+              fileName: 'jira/GRAV-412.md',
+              kind: 'jira',
+              issueKey: 'GRAV-412',
+            },
+          ],
+        }),
+        cwd,
+        [],
+        '',
+      )
+      expect(prompt).not.toContain('## Jira issues attached')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('resolves the issue key from the file name when the context has no explicit issueKey', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-jira-attached-'))
+    try {
+      mkdirSync(join(cwd, PROJECT_DIR, 'jira'), { recursive: true })
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'jira', 'GRAV-412.md'),
+        '<!-- iaterminal:auto -->\n## Resumen\nGRAV-412 · algo\n<!-- /iaterminal:auto -->',
+        'utf8',
+      )
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'revisa esto',
+          // Un contexto recién descubierto en disco: `contextFilePath` y el
+          // refresher ya caían al nombre de archivo; el preámbulo exigía
+          // `issueKey` y por eso se callaba una issue que sí viajaba adjunta.
+          contexts: [
+            {
+              id: 'iaterminal:jira:grav-412',
+              name: 'GRAV-412',
+              fileName: 'jira/GRAV-412.md',
+              kind: 'jira',
+            },
+          ],
+        }),
+        cwd,
+        [],
+        '',
+      )
+      expect(prompt).toContain('## Jira issues attached')
+      expect(prompt).toContain('GRAV-412')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('includes jira issues in the attached-issues prompt once a snapshot is materialized', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'gravity-jira-attached-'))
     try {

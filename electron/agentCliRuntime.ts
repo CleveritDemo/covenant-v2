@@ -12,7 +12,13 @@ import type {
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
-import { filterTabContextUpdatesByChangedPaths, extractTabContextUpdates } from '../src/shared/tabContext'
+import {
+  filterTabContextUpdatesByChangedPaths,
+  extractTabContextUpdates,
+  type TabContext,
+} from '../src/shared/tabContext'
+import { issueKeyFor } from '../src/shared/jiraIssue'
+import { jiraSnapshotHasContent } from '../src/shared/jiraIssueDoc'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
 import { initSessionCwd } from './cdRecentCapture'
@@ -687,6 +693,33 @@ function resolveWorkingDirectory(requested: string, fallback: string): string {
   }
 }
 
+/**
+ * Las claves de issue que el preámbulo puede anunciar como «adjuntas con
+ * snapshot fresco» (y, por tanto, prohibir buscar por MCP).
+ *
+ * El filtro es por CONTENIDO, no por existencia. Desde que `materializeTabContext`
+ * escribe un placeholder al alta (`write:true` sin snapshot), el `.md` existe
+ * desde el instante en que se crea el contexto, así que un gate por `.ok` deja
+ * pasar el caso exacto que ese gate existía para cerrar: Jira sin configurar,
+ * clave equivocada o red caída → el refresher no rellena nada, el documento se
+ * queda en puros marcadores, y el agente recibe «ya la tienes, no la busques»
+ * junto a cero datos. `jiraSnapshotHasContent` es la misma regla que aplica el
+ * refresher (`electron/jiraContextRefresh.ts`) para decidir si hay que ir a
+ * buscar: una sola implementación, porque ya divergieron dos veces.
+ */
+function collectAttachedJiraKeys(contexts: readonly TabContext[], resultsCwd: string): string[] {
+  const keys: string[] = []
+  for (const context of contexts) {
+    if (context.kind !== 'jira') continue
+    const key = issueKeyFor(context)
+    if (!key) continue
+    const materialized = materializeTabContext(context, resultsCwd, { write: false })
+    if (!materialized.ok || !jiraSnapshotHasContent(materialized.content)) continue
+    if (!keys.includes(key)) keys.push(key)
+  }
+  return keys
+}
+
 export function composePrompt(
   request: AgentCliStartRequest,
   cwd: string,
@@ -708,14 +741,10 @@ export function composePrompt(
   // chequeo de snapshot usa el mismo cwd que el resto de operaciones de contexto.
   const resultsCwd = (request.projectCwd ?? '').trim() || cwd
   const jiraAttachedPrompt = buildJiraAttachedPrompt(
-    (Array.isArray(request.contexts) ? request.contexts : [])
-      .filter(context => context.kind === 'jira' && context.issueKey)
-      // Sin esto, un context.kind==='jira' sin snapshot todavía en disco (sin
-      // credenciales configuradas, o Jira caído en el primer fetch) haría que el
-      // preámbulo afirmara "fresh snapshot" y prohibiera el único MCP que sí
-      // tiene el dato — contradice el bloque de capacidades dos líneas arriba.
-      .filter(context => materializeTabContext(context, resultsCwd, { write: false }).ok)
-      .map(context => context.issueKey as string),
+    collectAttachedJiraKeys(
+      Array.isArray(request.contexts) ? request.contexts : [],
+      resultsCwd,
+    ),
   )
   const imageSection = buildImageAttachmentSection(imagePaths)
   const userPrompt = request.prompt.trim()

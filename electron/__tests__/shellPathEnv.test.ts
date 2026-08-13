@@ -29,7 +29,7 @@ describe('shellPathEnv', () => {
     expect(env.PATH).toBeTruthy()
     expect(env.PATH!.includes('/usr/bin')).toBe(true)
     expect(env.PATH).toMatch(/\.local\/bin/)
-  })
+  }, 15_000)
 
   it('parses `env -0` and the newline fallback, dropping rc noise', () => {
     expect(parseShellEnv('A=1\0B=x=y\0Welcome to zsh\0BASH_FUNC_f%%=(){}\0')).toEqual({

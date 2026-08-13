@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildWikiCuratorPrompt,
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
 } from '../wikiCurator'
@@ -35,5 +36,14 @@ describe('sanitizeWikiCuratorConfig provider', () => {
       model: 'gemini-2.5-pro',
     })
     expect(parseWikiCuratorConfig('{bad')).toEqual({})
+  })
+})
+
+describe('buildWikiCuratorPrompt', () => {
+  it('incluye Writing, guidance y ejemplo create-agent', () => {
+    const prompt = buildWikiCuratorPrompt({}, 'hola')
+    expect(prompt).toContain('## Writing')
+    expect(prompt).toContain('index for agents')
+    expect(prompt).toContain('create-agent')
   })
 })

@@ -595,7 +595,6 @@ const es = {
     bootstrapAgentsNeedFolder: 'Elige la carpeta del proyecto antes de crear el equipo.',
     fabAgent: 'Nuevo agente',
     fabTerminal: 'Nueva terminal',
-    fabPaneLimitReached: 'Límite de ventanas alcanzado',
     projectFolderSelect: 'Carpeta del proyecto',
     projectFolderChange: 'Cambiar carpeta del proyecto',
     projectFolderEmptyHint: 'Elige la carpeta del proyecto antes de crear terminales o agentes',

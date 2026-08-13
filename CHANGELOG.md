@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.5
+
+- **Sin techo de agentes y terminales por pestaña**: crear un agente o un terminal ya no se corta a los diez paneles. Los botones del plano solo se bloquean si falta carpeta de proyecto, el arranque de equipo crea todos los agentes del catálogo y al recargar la sesión no se recorta ningún panel.
+- **Cursor deja de pedir confiar en la carpeta**: los turnos headless con Cursor pasan `--trust`, así que ni los agentes del panel ni el curador de la wiki se cortan con el error de carpeta no confiada.
+- **Los agentes escriben mejor la wiki**: agentes y curador comparten ahora la misma política de escritura, con ejemplos de cada tipo de página —narrar, localizar, decidir, flujo, inventario—, la obligación de enlazar con [[slug]] y de citar rutas reales de archivo en vez de ensayos largos.
+
 ## v0.40.4
 
 - **Si una réplica se queda sin pending ni registry, el pane se cierra igual**: se reconoce por el binding local o el id de la copia. El merge fallido sin conflicto ya aborta el merge en el repo base antes de borrar el worktree.

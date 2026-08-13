@@ -1692,12 +1692,16 @@ export class Widget {
         expect(text).not.toContain('```ia-terminal-context')
         expect(text).toContain('## Wiki ingest')
         const block = text.split('## Wiki ingest')[1] ?? ''
-        expect(block).toContain('Only durable project knowledge: decisions, concepts, flows. If nothing durable changed, skip.')
+        expect(block).toContain('index for agents')
+        expect(block).toContain('narrate')
+        expect(block).toContain('locate')
+        expect(block).toContain('inventory')
+        expect(block).toContain('create-agent')
         expect(block).toContain('[[slug]]')
         expect(block).toContain('≤8 ops/turn, body ≤10000, title ≤120, log ≤200')
         expect(block).toContain('concept|decision|flow|reference')
         expect(block).toContain('```ia-terminal-wiki')
-        expect(block).toContain('{"op":"upsert","slug":"auth-flow"')
+        expect(block).toContain('{"op":"upsert","slug":"create-agent"')
         expect(block).toContain('{"op":"delete","slug":"old-page"}')
       }
     })

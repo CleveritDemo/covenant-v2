@@ -70,7 +70,6 @@ export function mergeRemoteAgentsWithLocalOnly(
 }
 
 export interface SyncTabAgentsFromCatalogOptions {
-  maxPanes: number
   createPaneId: () => string
   createWindow: (
     paneWindows: Record<string, PaneWindowState> | undefined,
@@ -103,7 +102,6 @@ export function syncTabAgentsFromCatalog(
 ): SyncTabAgentsFromCatalogResult {
   const preserveCliSessionIds = options.preserveCliSessionIds !== false
   const terminalIds = tab.paneIds.filter(id => tab.paneKinds?.[id] !== 'agent')
-  const agentSlots = Math.max(0, options.maxPanes - terminalIds.length)
   const catalogById = new Map(catalog.map(definition => [definition.id, definition]))
 
   const existingByAgentId = new Map<string, { paneId: string; binding: AgentPaneBinding }>()
@@ -132,7 +130,6 @@ export function syncTabAgentsFromCatalog(
     definition: ProjectAgentDefinition,
     existing: { paneId: string; binding: AgentPaneBinding } | undefined,
   ): void => {
-    if (agentPaneIds.length >= agentSlots) return
     const paneId = existing?.paneId ?? options.createPaneId()
     if (!existing) {
       addedPaneIds.push(paneId)

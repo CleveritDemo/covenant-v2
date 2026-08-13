@@ -593,7 +593,6 @@ const en = {
     bootstrapAgentsNeedFolder: 'Choose the project folder before creating the team.',
     fabAgent: 'New agent',
     fabTerminal: 'New terminal',
-    fabPaneLimitReached: 'Window limit reached',
     projectFolderSelect: 'Project folder',
     projectFolderChange: 'Change project folder',
     projectFolderEmptyHint: 'Choose the project folder before creating terminals or agents',

@@ -269,78 +269,8 @@ import {
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
-/** Máximo de paneles (ventanas) por pestaña. */
-export const MAX_PANES_PER_TAB = 10
-
 function reorderPaneIdsAfterClose(paneIds: string[], closedPaneId: string): string[] {
   return paneIds.filter(id => id !== closedPaneId)
-}
-
-function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSession[]; orphanPaneIds: string[] } {
-  const orphanPaneIds: string[] = []
-  const out = tabs.map(tab => {
-    if (tab.paneIds.length <= maxPanes) return tab
-    orphanPaneIds.push(...tab.paneIds.slice(maxPanes))
-    const paneIds = tab.paneIds.slice(0, maxPanes)
-    const activePaneId = paneIds.includes(tab.activePaneId)
-      ? tab.activePaneId
-      : (paneIds[paneIds.length - 1] ?? '')
-    const paneKinds = Object.fromEntries(
-      Object.entries(tab.paneKinds ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const agentByPane = Object.fromEntries(
-      Object.entries(tab.agentByPane ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const paneWindows = Object.fromEntries(
-      Object.entries(tab.paneWindows ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const planeOpenChatAgentId =
-      typeof tab.planeOpenChatAgentId === 'string'
-      && paneIds.includes(tab.planeOpenChatAgentId)
-      && paneKinds[tab.planeOpenChatAgentId] === 'agent'
-        ? tab.planeOpenChatAgentId
-        : null
-    const agentPaneIds = new Set(
-      paneIds.filter(id => paneKinds[id] === 'agent'),
-    )
-    const planeLoopLinks = (tab.planeLoopLinks ?? []).filter(
-      link => agentPaneIds.has(link.fromPaneId) && agentPaneIds.has(link.toPaneId),
-    )
-    const planeLoopNodePositions = Object.fromEntries(
-      Object.entries(tab.planeLoopNodePositions ?? {})
-        .filter(([id]) => agentPaneIds.has(id)),
-    )
-    const planeLoopChains = (tab.planeLoopChains ?? [])
-      .map(chain => ({
-        ...chain,
-        steps: chain.steps.filter(step => agentPaneIds.has(step.paneId)),
-      }))
-      .filter(chain => chain.steps.length > 0)
-      .map(chain => ({
-        ...chain,
-        cursor: chain.cursor >= 0 && chain.cursor < chain.steps.length ? chain.cursor : 0,
-        status: 'idle' as const,
-      }))
-    const {
-      panePlaneNodes: _legacyPlaneNodes,
-      ...tabBase
-    } = tab as TabSession & { panePlaneNodes?: unknown }
-    return normalizeTabSession({
-      ...tabBase,
-      paneIds,
-      activePaneId,
-      ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
-      ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
-      ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
-      planeOpenChatAgentId,
-      ...(planeLoopLinks.length ? { planeLoopLinks } : { planeLoopLinks: undefined }),
-      ...(Object.keys(planeLoopNodePositions).length
-        ? { planeLoopNodePositions }
-        : { planeLoopNodePositions: undefined }),
-      ...(planeLoopChains.length ? { planeLoopChains } : { planeLoopChains: undefined }),
-    })
-  })
-  return { tabs: out, orphanPaneIds: orphanPaneIds }
 }
 
 /** Marca que las pestañas ya fueron cargadas desde persistencia (o se creó la primera). */
@@ -772,7 +702,6 @@ export const App: React.FC = () => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
     const synced = syncTabAgentsFromCatalog(current, agents, {
-      maxPanes: MAX_PANES_PER_TAB,
       createPaneId: () => crypto.randomUUID(),
       createWindow: (paneWindows, open) => createPaneWindowState(paneWindows, open),
       // Las sesiones CLI viven en memoria (también en org) para --resume entre
@@ -1299,12 +1228,8 @@ export const App: React.FC = () => {
     window.api.loadSession().then(saved => {
       const sanitized = saved ? sanitizePersistedSession(saved) : null
       if (sanitized) {
-        const { tabs: cappedTabs, orphanPaneIds: capOrphans } = capTabsPaneCount(
-          sanitized.tabs,
-          MAX_PANES_PER_TAB,
-        )
-        const orphanPaneIds = [...new Set([...sanitized.orphanPaneIds, ...capOrphans])]
-        const keptPaneIds = new Set(cappedTabs.flatMap(t => t.paneIds))
+        const orphanPaneIds = [...new Set(sanitized.orphanPaneIds)]
+        const keptPaneIds = new Set(sanitized.tabs.flatMap(t => t.paneIds))
         for (const pid of orphanPaneIds) {
           window.api.ptyKill(pid)
           splitSpawnCwdRef.current.delete(pid)
@@ -1338,11 +1263,11 @@ export const App: React.FC = () => {
         for (const [paneId, cwd] of Object.entries(cwdsRef.current)) {
           if (cwd.trim()) splitSpawnCwdRef.current.set(paneId, cwd)
         }
-        tabCounter = deriveTabCounter(cappedTabs)
-        const activeTabId = cappedTabs.some(t => t.id === sanitized.activeTabId)
+        tabCounter = deriveTabCounter(sanitized.tabs)
+        const activeTabId = sanitized.tabs.some(t => t.id === sanitized.activeTabId)
           ? sanitized.activeTabId
-          : cappedTabs[0]!.id
-        const layoutTabs = cappedTabs.map(tab => normalizeTabSession(ensureTabPaneLayout(tab)))
+          : sanitized.tabs[0]!.id
+        const layoutTabs = sanitized.tabs.map(tab => normalizeTabSession(ensureTabPaneLayout(tab)))
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
@@ -2703,13 +2628,13 @@ export const App: React.FC = () => {
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
-    if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!tab) return
     const cwd = tab.projectFolder?.trim() || ''
     if (!cwd) return
     const newPaneId = crypto.randomUUID()
     rememberPaneCwd(newPaneId, cwd)
     setTabs(prev => prev.map(t => {
-      if (t.id !== tabId || t.paneIds.length >= MAX_PANES_PER_TAB) return t
+      if (t.id !== tabId) return t
       const paneWindows = { ...(t.paneWindows ?? {}) }
       minimizeOtherPaneWindows(t.paneIds, paneWindows, newPaneId)
       paneWindows[newPaneId] = createPaneWindowState(paneWindows, true)
@@ -2731,7 +2656,7 @@ export const App: React.FC = () => {
     name: string,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!current) return
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
     if (!cwd) return
@@ -2751,7 +2676,7 @@ export const App: React.FC = () => {
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      if (tab.id !== tabId) return tab
       const paneWindows = { ...(tab.paneWindows ?? {}) }
       /* Mini en el plano: el chat centrado es el home; ventana al expandir. */
       paneWindows[paneId] = createPaneWindowState(paneWindows, false)
@@ -2784,16 +2709,12 @@ export const App: React.FC = () => {
     )
     if (hasAgentPane) return
 
-    const room = MAX_PANES_PER_TAB - current.paneIds.length
-    if (room <= 0) return
-
     const existing = new Set(catalog.map(agent => agent.id))
     const definitions = buildBootstrapProjectAgentDefinitions('cursor', existing)
-      .slice(0, room)
 
     for (const definition of definitions) {
       const tabNow = tabsRef.current.find(tab => tab.id === tabId)
-      if (!tabNow || tabNow.paneIds.length >= MAX_PANES_PER_TAB) break
+      if (!tabNow) break
 
       const written = await window.api.upsertProjectAgent(cwd, definition)
       if (!written.ok) continue
@@ -2808,7 +2729,7 @@ export const App: React.FC = () => {
       const paneId = crypto.randomUUID()
       rememberPaneCwd(paneId, cwd)
       setTabs(prev => prev.map(tab => {
-        if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+        if (tab.id !== tabId) return tab
         const paneWindows = { ...(tab.paneWindows ?? {}) }
         paneWindows[paneId] = createPaneWindowState(paneWindows, false)
         const paneKinds: Record<string, PaneKind> = {
@@ -2843,7 +2764,7 @@ export const App: React.FC = () => {
     sourcePaneId: string,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!current) return
     if (current.paneKinds?.[sourcePaneId] !== 'agent') return
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
@@ -2869,7 +2790,7 @@ export const App: React.FC = () => {
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      if (tab.id !== tabId) return tab
       const paneWindows = { ...(tab.paneWindows ?? {}) }
       paneWindows[paneId] = createPaneWindowState(paneWindows, false)
       const paneKinds: Record<string, PaneKind> = { ...(tab.paneKinds ?? {}), [paneId]: 'agent' }
@@ -2906,7 +2827,7 @@ export const App: React.FC = () => {
     fromPaneId?: string,
   ): void => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!tab) return
     const orgBacked = Boolean(tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim())
     if (!tab.projectFolder?.trim() && !orgBacked) return
     setAgentPicker({ tabId, fromPaneId })
@@ -3740,26 +3661,6 @@ export const App: React.FC = () => {
         // Spawn réplica efímera del experto base (catálogo + pane). Al completar o
         // abortar se dispose la réplica (pane+catálogo+chat); nunca el experto base.
         baseAgentId = decision.baseAgentId
-        if (tab.paneIds.length >= MAX_PANES_PER_TAB) {
-          enqueueOrchestrationSend(fromPaneId, {
-            text: formatDelegationResultFollowUp({
-              id: delegation.id,
-              status: 'fail',
-              summary: `Cannot spawn expert replica for "${decision.baseAgentId}": pane limit reached.`,
-              toAgentId: delegation.toAgentId,
-            }, {
-              round: nextRound,
-              maxRounds,
-              batchRemaining: 0,
-              continuousProductOwner: fromMeta.coordination === 'productOwner',
-            }),
-            focusPane: false,
-            orchestrationFollowUp: true,
-            orchestrationJobId: job.jobId,
-            allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
-          })
-          continue
-        }
         if (!baseCwd && !isOrgBacked) {
           enqueueOrchestrationSend(fromPaneId, {
             text: formatDelegationResultFollowUp({
@@ -3845,7 +3746,7 @@ export const App: React.FC = () => {
         const paneId = crypto.randomUUID()
         if (baseCwd) rememberPaneCwd(paneId, baseCwd)
         setTabs(prev => prev.map(item => {
-          if (item.id !== tabId || item.paneIds.length >= MAX_PANES_PER_TAB) return item
+          if (item.id !== tabId) return item
           const paneWindows = { ...(item.paneWindows ?? {}) }
           paneWindows[paneId] = createPaneWindowState(paneWindows, false)
           const paneKinds: Record<string, PaneKind> = { ...(item.paneKinds ?? {}), [paneId]: 'agent' }
@@ -5354,7 +5255,7 @@ export const App: React.FC = () => {
         const tabList = tabsRef.current
         const aid = activeTabIdRef.current
         const tab = tabList.find(t => t.id === aid)
-        if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+        if (!tab) return
         handleCreateTerminalRef.current(tab.id)
         return
       }
@@ -5370,7 +5271,7 @@ export const App: React.FC = () => {
         e.preventDefault()
         e.stopPropagation()
         const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
-        if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+        if (!tab) return
         requestAddAgentRef.current(tab.id, tab.activePaneId || undefined)
         return
       }
@@ -5753,7 +5654,6 @@ export const App: React.FC = () => {
                   )
                   const canCreatePane = Boolean(effectiveCwd) || orgBacked
                   const canBootstrapAgents = showBootstrapAgents && canCreatePane
-                  const paneLimitReached = tab.paneIds.length >= MAX_PANES_PER_TAB
                   const openChatBinding = tab.planeOpenChatAgentId
                     ? tab.agentByPane?.[tab.planeOpenChatAgentId]
                     : undefined
@@ -5792,7 +5692,6 @@ export const App: React.FC = () => {
                   }
                   agentFabDisabledTitle={t('agentPane.projectFolderRequired')}
                   terminalFabDisabledTitle={t('agentPane.projectFolderRequired')}
-                  fabPaneLimitReachedTitle={t('tabs.fabPaneLimitReached')}
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
@@ -5826,7 +5725,7 @@ export const App: React.FC = () => {
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   onMergeQueuedTurns={handlePlaneMergeQueuedTurns}
-                  canAdd={!paneLimitReached}
+                  canAdd={true}
                   canAddAgent={canCreatePane}
                   canAddTerminal={canCreatePane}
                   bootstrapAgentsLabel={t('tabs.bootstrapAgents')}

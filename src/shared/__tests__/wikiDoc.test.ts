@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWikiIndex,
+  buildWikiWritingGuidance,
   composeWikiPage,
   extractWikiIngest,
   formatWikiLogEntry,
@@ -208,5 +209,19 @@ describe('extractWikiIngest', () => {
     const { visibleText, ingest } = extractWikiIngest('texto normal')
     expect(visibleText).toBe('texto normal')
     expect(ingest).toBeNull()
+  })
+})
+
+describe('buildWikiWritingGuidance', () => {
+  it('incluye política, jobs y anti-ejemplos', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('index for agents')
+    expect(text).toContain('[[slug]]')
+    expect(text).toContain('Bad (do not write)')
+    expect(text).toContain('narrate')
+    expect(text).toContain('locate')
+    expect(text).toContain('decide')
+    expect(text).toContain('flow')
+    expect(text).toContain('inventory')
   })
 })

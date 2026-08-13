@@ -67,8 +67,6 @@ export interface TabAgenticPlaneProps {
   agentFabDisabledTitle?: string
   /** Motivo cuando el FAB de terminal queda disabled por falta de cwd. */
   terminalFabDisabledTitle?: string
-  /** Motivo cuando los FAB no pueden crear porque se alcanzó el máximo de ventanas. */
-  fabPaneLimitReachedTitle?: string
   idleAgentLabel: string
   contextPoolTitle: string
   contextPoolConfigureLabel: string
@@ -300,7 +298,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   terminalFabTitle,
   agentFabDisabledTitle,
   terminalFabDisabledTitle,
-  fabPaneLimitReachedTitle,
   idleAgentLabel,
   contextPoolTitle,
   contextPoolConfigureLabel,
@@ -1046,7 +1043,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           terminalTitle={terminalFabTitle}
           agentDisabledTitle={agentFabDisabledTitle}
           terminalDisabledTitle={terminalFabDisabledTitle}
-          paneLimitReachedTitle={fabPaneLimitReachedTitle}
           onAddAgent={onAddAgent}
           onAddTerminal={onAddTerminal}
           bootstrapAgentsTitle={bootstrapAgentsTitle || bootstrapAgentsLabel}

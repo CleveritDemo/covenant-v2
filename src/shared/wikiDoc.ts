@@ -18,6 +18,32 @@ export const MAX_WIKI_PAGE_BODY = 10000
 export const MAX_WIKI_PAGE_TITLE = 120
 export const MAX_WIKI_LOG_SUMMARY = 200
 
+/**
+ * Política de escritura de wiki compartida por agentes (ingest) y curador.
+ * Un solo texto para ambos callers.
+ */
+export function buildWikiWritingGuidance(): string {
+  return [
+    'Only durable project knowledge. If nothing durable changed, skip.',
+    'The wiki is an index for agents (humans are secondary): many short nodes, dense with [[slug]] links and real file paths. Scarcity of nodes is a failure; long prose without paths is also a failure.',
+    'Each page does ONE job:',
+    '- narrate (concept): why it exists — product intent, local vs org, orchestration.',
+    '- locate (concept|reference): feature → files (e.g. layer-*, create-*, *-ui). Without paths, locate pages are useless.',
+    '- decide (decision): a rule agents must follow.',
+    '- flow (flow): who calls whom and when it ends.',
+    '- inventory (reference): stable lists (kinds, providers, fences, live bugs).',
+    'No transcripts, no per-symbol file:line dumps — say which file to open. Covering the system may take several turns (≤8 ops/turn).',
+    'Good body examples (put these as plain lines, then one fence example below in callers):',
+    '- concept/narrate: "Center of command: human says what/why; agents do how. Local = one folder; org = ready environment. See [[agentic-plane]] [[workspace-logic]]."',
+    '- locate: "Agent create: AgentProviderPickerModal.tsx → App.tsx handleAddAgentPane → projectAgentCatalogOps.ts → .gravity/agents/<slug>.json. See [[create-agent]] [[agent-identity]]."',
+    '- decision: "UI via typed props only — never className/style on kit components. If look does not fit, new component. Gate: check:ui. See [[ui-kit-contract]]."',
+    '- flow: "Fence ia-terminal-delegate parsed in aiAgentDelegate.ts; App.tsx dispatches; jobs live in orchestrationJobs refs (reload loses them). See [[delegation-mechanics]]."',
+    '- inventory: "14 context kinds in tabContext.ts ALL_CONTEXT_KINDS including jira and wiki. Direct bodies: notes, agentResult. See [[context-kinds]]."',
+    'Bad (do not write): a 20-line essay with no [[links]] and no file paths; dumping a whole feature checklist into one page.',
+    'Link related pages with [[slug]] in every body.',
+  ].join('\n')
+}
+
 const WIKI_INDEX_EXCERPT_MAX = 120
 
 /**

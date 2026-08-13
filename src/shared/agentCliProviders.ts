@@ -147,6 +147,8 @@ export const AGENT_CLI_PROVIDERS = {
     stream: 'cursor',
     args: ({ prompt, cwd, mode, model, sessionId }) => [
       '-p',
+      // headless requiere --trust; sin él plan falla en carpetas no confiadas (auto a veces pasa por --force).
+      '--trust',
       '--output-format',
       'stream-json',
       '--stream-partial-output',

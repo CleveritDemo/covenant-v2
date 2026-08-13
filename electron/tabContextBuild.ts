@@ -60,6 +60,7 @@ import {
   MAX_WIKI_PAGE_TITLE,
   PAGES_DIR,
   WIKI_PAGE_TYPES,
+  buildWikiWritingGuidance,
 } from '../src/shared/wikiDoc'
 import { readWikiPages, wikiRootPath } from './wikiStore'
 import {
@@ -2092,11 +2093,10 @@ export function buildRequestedContextSections(
 function buildWikiIngestBlock(): string {
   return [
     '## Wiki ingest',
-    'Only durable project knowledge: decisions, concepts, flows. If nothing durable changed, skip.',
-    'Link related pages with [[slug]] in the body.',
+    buildWikiWritingGuidance(),
     `Caps: ≤${MAX_WIKI_INGEST_OPS} ops/turn, body ≤${MAX_WIKI_PAGE_BODY}, title ≤${MAX_WIKI_PAGE_TITLE}, log ≤${MAX_WIKI_LOG_SUMMARY}. Types: ${WIKI_PAGE_TYPES.join('|')}.`,
     '```ia-terminal-wiki',
-    '{"ops":[{"op":"upsert","slug":"auth-flow","title":"Auth flow","type":"decision","body":"..."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
+    '{"ops":[{"op":"upsert","slug":"create-agent","title":"Create agent","type":"flow","body":"Picker → .gravity/agents/<slug>.json → pane agent. UI: AgentProviderPickerModal.tsx. Persist: projectAgentCatalogOps.ts. See [[agent-identity]] [[pane-windows]]."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
     '```',
   ].join('\n')
 }

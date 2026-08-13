@@ -1,5 +1,6 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
+import { hasNativeScrollAncestor } from './planeWheelTargets'
 import {
   clampPlaneColumnScroll,
   computePlaneMiniSlotCell,
@@ -482,10 +483,16 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         || event.clientY < rect.top
         || event.clientY > rect.bottom
       ) return
-      // Modal o ventana expandida por encima del plano: scroll nativo.
+      // Algo por encima del plano que ya sabe scrollear (modal, ventana
+      // expandida, un desplegable): la rueda es suya. Se comprueba por
+      // capacidad y no por una lista de selectores — la lista se quedaba corta
+      // cada vez que aparecía un overlay nuevo.
       if (
         event.target instanceof Element
-        && event.target.closest('.terminal-modal-root, .pane-window--full')
+        && (
+          event.target.closest('.terminal-modal-root, .pane-window--full')
+          || hasNativeScrollAncestor(event.target, el)
+        )
       ) return
       const x = event.clientX - rect.left
       let column: 'terminal' | 'agent' | null = null

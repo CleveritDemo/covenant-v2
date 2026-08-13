@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_OUTCOMES,
@@ -19,6 +19,9 @@ import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
 import { TerminalModal } from '../components/TerminalModal'
+import type { JiraIssueRef } from '@shared/jiraIssue'
+import { jiraDraftFromKey } from '../agent/TabContextFormModal'
+import { useJiraMention } from './useJiraMention'
 import { Button, SegmentedControl, Select, TextArea } from '../components/ui'
 import { BrainstormInviteGrid } from './BrainstormInviteGrid'
 import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
@@ -68,6 +71,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   const [ceremony, setCeremony] = useState<CeremonyId>(DEFAULT_CEREMONY_ID)
   const [maxRounds, setMaxRounds] = useState(ceremonyById(DEFAULT_CEREMONY_ID).rounds)
   const [contextIds, setContextIds] = useState<string[]>([])
+  const topicRef = useRef<HTMLTextAreaElement>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
   /** Cuántas salas guardadas hay: sin el número, el botón no invita a mirar. */
@@ -140,6 +144,33 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
 
   const ceremonyDef = ceremonyById(ceremony)
   const isFree = ceremonyUsesFreeOutcome(ceremony)
+  /**
+   * La issue elegida entra en el material de la sala además de escribirse en el
+   * objetivo: la sala arranca con el ticket adjunto, sin pegarlo a mano.
+   */
+  const attachIssue = useCallback((issue: JiraIssueRef): void => {
+    const context = jiraDraftFromKey(issue.key)
+    if (!context || !cwd.trim()) return
+    void window.api.materializeTabContext({ context, cwd }).then(result => {
+      if (!result.ok) return
+      setContextIds(previous => (
+        previous.includes(context.id) ? previous : [...previous, context.id]
+      ))
+    }).catch(() => {
+      // Sin `.md` en disco no hay contexto real que sumar.
+    })
+  }, [cwd])
+
+  const mention = useJiraMention({
+    cwd,
+    value: topic,
+    onValueChange: setTopic,
+    inputRef: topicRef,
+    onPicked: attachIssue,
+    placement: 'down',
+    showEmptyState: true,
+  })
+
   const materialCount = contextIds.length + filePaths.length
   const turns = safeParticipantIds.length * sanitizeBrainstormMaxRounds(maxRounds)
 
@@ -237,13 +268,26 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
       >
         <label className="brainstorm-start__field">
           <span className="brainstorm-start__label">{t('tabs.brainstormGoalLabel')}</span>
-          <TextArea
-            value={topic}
-            autoFocus
-            rows={3}
-            placeholder={t('tabs.brainstormTopicPlaceholder')}
-            onChange={event => setTopic(event.target.value)}
-          />
+          {/*
+            Mencionar la issue en el objetivo la añade además al material de la
+            sala: convocarla sobre un ticket y tener que adjuntar su contexto
+            aparte era pedir el mismo dato dos veces.
+          */}
+          <div className="brainstorm-start__mention-anchor">
+            <TextArea
+              ref={topicRef}
+              value={topic}
+              autoFocus
+              rows={3}
+              placeholder={t('tabs.brainstormTopicPlaceholder')}
+              onChange={event => {
+                setTopic(event.target.value)
+                mention.handleChange(event.target)
+              }}
+              onSelect={event => mention.handleSelect(event.currentTarget)}
+            />
+            {mention.picker}
+          </div>
           <span className="brainstorm-start__hint">{t('tabs.brainstormTopicFieldHint')}</span>
         </label>
 

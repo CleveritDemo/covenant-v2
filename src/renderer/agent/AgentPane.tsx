@@ -88,6 +88,7 @@ import {
 import { decideParentDelegationNotify } from './parentDelegationNotify'
 import {
   workspaceContextBody,
+  type WorkspaceContextBodyScope,
 } from '@shared/orgWorkspaceContent'
 import { filterContextIdsAfterDiscover } from '@shared/orgWorkspaceLocalSync'
 import { agentChatRefFor } from '@shared/agentChatPersistence'
@@ -499,6 +500,19 @@ export const AgentPane: React.FC<Props> = ({
    */
   const orgWorkspaceRef = useRef<string | null>(null)
   orgWorkspaceRef.current = pulseWorkspaceTag(orgWorkspace)
+  /** Scope de caché de bodies notes (aislado por workspace org). */
+  const orgBodyScope = useMemo((): WorkspaceContextBodyScope | undefined => {
+    const slug = orgWorkspace?.slug?.trim()
+    const workspaceId = orgWorkspace?.workspaceId?.trim()
+    if (!slug || !workspaceId) return undefined
+    return {
+      slug,
+      workspaceId,
+      ...(cwd.trim() ? { localDir: cwd.trim() } : {}),
+    }
+  }, [cwd, orgWorkspace?.slug, orgWorkspace?.workspaceId])
+  const orgBodyScopeRef = useRef(orgBodyScope)
+  orgBodyScopeRef.current = orgBodyScope
   /** Transcript local por agentId+scope (sobrevive sync aunque cambie paneId). */
   const chatRef = useMemo(
     () => agentChatRefFor(
@@ -1193,7 +1207,9 @@ export const AgentPane: React.FC<Props> = ({
     if (assigned.length && resolvedCwd) {
       const previews = await Promise.all(
         assigned.map(context => {
-          const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
+          const body = context.kind === 'notes'
+            ? workspaceContextBody(context.id, orgBodyScopeRef.current)
+            : ''
           return window.api.previewTabContext({
             context,
             cwd: resolvedCwd,
@@ -1271,7 +1287,11 @@ export const AgentPane: React.FC<Props> = ({
     suppressEmptyHandlingRef.current = false
     // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
     const turnCwd = await resolveTurnCwd()
-    const contextPayload = buildAgentTurnContextPayload(resolvedCwd, assigned)
+    const contextPayload = buildAgentTurnContextPayload(
+      resolvedCwd,
+      assigned,
+      orgBodyScopeRef.current,
+    )
     const rules = normalizeAgentRules(currentMeta.rules)
     const canDelegate = coordinationCanDelegate(currentMeta.coordination)
     const orchestrationAgents = canDelegate
@@ -1396,7 +1416,9 @@ export const AgentPane: React.FC<Props> = ({
         contextWriteQueueRef.current = contextWriteQueueRef.current
           .catch(() => undefined)
           .then(() => Promise.all(refresh.map(context => {
-            const body = context.kind === 'notes' ? workspaceContextBody(context.id) : ''
+            const body = context.kind === 'notes'
+              ? workspaceContextBody(context.id, orgBodyScopeRef.current)
+              : ''
             return window.api.materializeTabContext({
               context,
               cwd: projectCwd,

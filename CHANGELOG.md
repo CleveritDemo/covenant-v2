@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.70
+
+- **Contextos de org aislados por workspace**: notes y demás contextos con el mismo nombre ya no se mezclan entre workspaces distintos.
+
 ## v0.39.69
 
 - **Partículas del plano más discretas**: radios base más pequeños para que el campo moleste menos sin perder bandas ni beat.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clearWorkspaceContextBodies,
   forgetWorkspaceContextBody,
   rememberWorkspaceContextBody,
 } from '@shared/orgWorkspaceContent'
@@ -64,5 +65,27 @@ describe('buildAgentTurnContextPayload', () => {
     })
     forgetWorkspaceContextBody('iaterminal:result:fe')
     forgetWorkspaceContextBody('iaterminal:notes:About')
+  })
+
+  it('uses the body from the requested scope when contextIds collide', () => {
+    const contextId = 'iaterminal:notes:Design-Language'
+    const scopeA = { slug: 'acme', workspaceId: 'ws-a' }
+    const scopeB = { slug: 'acme', workspaceId: 'ws-b' }
+    rememberWorkspaceContextBody(contextId, 'body from A', scopeA)
+    rememberWorkspaceContextBody(contextId, 'body from B', scopeB)
+    const assigned = [{
+      id: contextId,
+      name: 'Design Language',
+      fileName: 'Design-Language.md',
+      kind: 'notes' as const,
+    }]
+    expect(buildAgentTurnContextPayload('/a', assigned, scopeA).contextContents).toEqual({
+      [contextId]: 'body from A',
+    })
+    expect(buildAgentTurnContextPayload('/b', assigned, scopeB).contextContents).toEqual({
+      [contextId]: 'body from B',
+    })
+    clearWorkspaceContextBodies(scopeA)
+    clearWorkspaceContextBodies(scopeB)
   })
 })

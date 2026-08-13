@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { TabContext } from '../tabContext'
 import {
+  clearWorkspaceContextBodies,
   forgetWorkspaceContextBody,
   orgWorkspacePersistContext,
   rememberWorkspaceContextBody,
@@ -8,8 +9,11 @@ import {
   renameWorkspaceContextFromTab,
   sanitizeSlugSegment,
   contextContentsForNotes,
+  tabContextsFromWorkspaceContexts,
   workspaceContextBody,
+  workspaceContextBodyScopeKey,
   workspaceContextUpsertPayload,
+  type WorkspaceContextBodyScope,
 } from '../orgWorkspaceContent'
 import type { CovenantWorkspaceContextRecord } from '../covenantTypes'
 
@@ -26,6 +30,98 @@ describe('sanitizeSlugSegment', () => {
 
   it('recorta espacios extremos antes de colapsar', () => {
     expect(sanitizeSlugSegment('  team  ')).toBe('team')
+  })
+})
+
+describe('workspaceContextBodyScopeKey', () => {
+  it('usa legacy sin org/workspace', () => {
+    expect(workspaceContextBodyScopeKey(undefined)).toBe('__legacy__')
+    expect(workspaceContextBodyScopeKey({})).toBe('__legacy__')
+    expect(workspaceContextBodyScopeKey({ localDir: '/tmp' })).toBe('__legacy__')
+  })
+
+  it('distingue orgSlug/slug + workspaceId', () => {
+    expect(workspaceContextBodyScopeKey({ slug: 'acme', workspaceId: 'ws-1' }))
+      .toBe('acme\0ws-1')
+    expect(workspaceContextBodyScopeKey({ orgSlug: 'acme', workspaceId: 'ws-2' }))
+      .toBe('acme\0ws-2')
+    expect(
+      workspaceContextBodyScopeKey({ slug: 'acme', workspaceId: 'ws-1' }),
+    ).not.toBe(
+      workspaceContextBodyScopeKey({ slug: 'acme', workspaceId: 'ws-2' }),
+    )
+  })
+})
+
+describe('scoped workspace context bodies', () => {
+  const contextId = 'iaterminal:notes:Design-Language'
+  const scopeA: WorkspaceContextBodyScope = { slug: 'org-a', workspaceId: 'ws-a' }
+  const scopeB: WorkspaceContextBodyScope = { slug: 'org-a', workspaceId: 'ws-b' }
+  const note: TabContext = {
+    id: contextId,
+    name: 'Design Language',
+    fileName: 'Design-Language.md',
+    kind: 'notes',
+  }
+
+  it('dos scopes con mismo contextId guardan bodies distintos', () => {
+    rememberWorkspaceContextBody(contextId, 'body A', scopeA)
+    rememberWorkspaceContextBody(contextId, 'body B', scopeB)
+    expect(workspaceContextBody(contextId, scopeA)).toBe('body A')
+    expect(workspaceContextBody(contextId, scopeB)).toBe('body B')
+    clearWorkspaceContextBodies(scopeA)
+    clearWorkspaceContextBodies(scopeB)
+  })
+
+  it('contextContentsForNotes respeta el scope', () => {
+    rememberWorkspaceContextBody(contextId, 'notes A', scopeA)
+    rememberWorkspaceContextBody(contextId, 'notes B', scopeB)
+    expect(contextContentsForNotes([note], scopeA)).toEqual({ [contextId]: 'notes A' })
+    expect(contextContentsForNotes([note], scopeB)).toEqual({ [contextId]: 'notes B' })
+    clearWorkspaceContextBodies(scopeA)
+    clearWorkspaceContextBodies(scopeB)
+  })
+
+  it('forget scoped no borra el otro workspace', () => {
+    rememberWorkspaceContextBody(contextId, 'keep A', scopeA)
+    rememberWorkspaceContextBody(contextId, 'drop B', scopeB)
+    forgetWorkspaceContextBody(contextId, scopeB)
+    expect(workspaceContextBody(contextId, scopeA)).toBe('keep A')
+    expect(workspaceContextBody(contextId, scopeB)).toBe('')
+    clearWorkspaceContextBodies(scopeA)
+  })
+
+  it('rename scoped no borra el body del otro scope', async () => {
+    rememberWorkspaceContextBody('old', 'A stays', scopeA)
+    rememberWorkspaceContextBody('old', 'B moves', scopeB)
+    const payload = {
+      kind: 'notes',
+      name: 'New',
+      body: 'B renamed',
+      meta: { fileName: 'New.md' },
+    }
+    await renameWorkspaceContext('old', 'new', payload, {
+      upsert: async (id) => ({ contextId: id, ...payload }),
+      delete: async () => {},
+    }, scopeB)
+    expect(workspaceContextBody('old', scopeA)).toBe('A stays')
+    expect(workspaceContextBody('new', scopeB)).toBe('B renamed')
+    expect(workspaceContextBody('old', scopeB)).toBe('')
+    clearWorkspaceContextBodies(scopeA)
+    clearWorkspaceContextBodies(scopeB)
+  })
+
+  it('tabContextsFromWorkspaceContexts limpia solo su scope al rehidratar', () => {
+    rememberWorkspaceContextBody(contextId, 'stale A', scopeA)
+    rememberWorkspaceContextBody(contextId, 'keep B', scopeB)
+    tabContextsFromWorkspaceContexts(
+      [{ contextId, kind: 'notes', name: 'Design Language', body: 'fresh A' }],
+      scopeA,
+    )
+    expect(workspaceContextBody(contextId, scopeA)).toBe('fresh A')
+    expect(workspaceContextBody(contextId, scopeB)).toBe('keep B')
+    clearWorkspaceContextBodies(scopeA)
+    clearWorkspaceContextBodies(scopeB)
   })
 })
 

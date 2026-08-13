@@ -213,7 +213,10 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         name: option.name,
       },
       agents: projectAgentsFromWorkspaceAgents(agentsResult.data),
-      contexts: tabContextsFromWorkspaceContexts(contextsResult.data),
+      contexts: tabContextsFromWorkspaceContexts(contextsResult.data, {
+        slug: decoded.slug,
+        workspaceId: decoded.workspaceId,
+      }),
       catalogKey,
     })
   }

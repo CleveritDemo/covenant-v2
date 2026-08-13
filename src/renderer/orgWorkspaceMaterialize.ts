@@ -14,6 +14,7 @@ import {
   tabContextsFromWorkspaceContexts,
   workspaceContextBody,
   workspaceContextUpsertPayload,
+  type WorkspaceContextBodyScope,
 } from '@shared/orgWorkspaceContent'
 import {
   filterSyncableOrgWorkspaceAgents,
@@ -86,12 +87,15 @@ export async function downloadOrgWorkspaceToLocal(
   options: {
     wipeLocal: boolean
     preferredAgentIds?: readonly string[]
+    /** Aísla bodies en memoria por workspace org (colisión de contextId). */
+    orgWorkspaceScope?: WorkspaceContextBodyScope
   } = { wipeLocal: false },
 ): Promise<OrgWorkspaceMaterializeListResult> {
   const root = cwd.trim()
   if (!root) {
     return { agentsOk: false, contextsOk: false, agentsError: 'missing cwd' }
   }
+  const scope = options.orgWorkspaceScope
 
   const [agentsResult, contextsResult] = await Promise.all([
     deps.listRemoteAgents(),
@@ -151,10 +155,12 @@ export async function downloadOrgWorkspaceToLocal(
   }
 
   if (contextsResult.ok) {
-    // Hidrata cuerpos en memoria para notes (workspaceContextBody).
-    const contexts = tabContextsFromWorkspaceContexts(contextsResult.data)
+    // Hidrata cuerpos en memoria para notes (workspaceContextBody), scoped si hay org.
+    const contexts = tabContextsFromWorkspaceContexts(contextsResult.data, scope)
     for (const context of filterSyncableOrgWorkspaceContexts(contexts)) {
-      const body = context.kind === 'notes' ? workspaceContextBody(context.id) : undefined
+      const body = context.kind === 'notes'
+        ? workspaceContextBody(context.id, scope)
+        : undefined
       const written = await deps.materializeLocalContext({
         context,
         cwd: root,

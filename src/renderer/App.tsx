@@ -877,6 +877,12 @@ export const App: React.FC = () => {
       const result = await downloadOrgWorkspaceToLocal(cwd, buildDeps(cwd), {
         wipeLocal: options.wipeLocal === true,
         ...(preferredAgentIds.length ? { preferredAgentIds } : {}),
+        orgWorkspaceScope: {
+          orgSlug: slug,
+          slug,
+          workspaceId,
+          localDir: cwd,
+        },
       })
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false

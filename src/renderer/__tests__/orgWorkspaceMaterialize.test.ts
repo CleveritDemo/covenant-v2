@@ -393,4 +393,33 @@ describe('downloadOrgWorkspaceToLocal order', () => {
     })
     expect(written).toEqual(['frontend', 'qa', 'new-z'])
   })
+
+  it('scoped downloads keep distinct bodies for same contextId', async () => {
+    const materialized: Array<{ cwd: string; content?: string }> = []
+    const contextId = 'iaterminal:notes:Design-Language'
+    const makeDeps = (body: string) => baseDeps({
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId, kind: 'notes', name: 'Design Language', body }],
+      }),
+      materializeLocalContext: async ({ cwd, content }) => {
+        materialized.push({ cwd, content })
+        return { ok: true, notesContent: content ?? '' }
+      },
+    })
+
+    await downloadOrgWorkspaceToLocal('/ws-a', makeDeps('body workspace A'), {
+      wipeLocal: false,
+      orgWorkspaceScope: { slug: 'acme', workspaceId: 'ws-a', localDir: '/ws-a' },
+    })
+    await downloadOrgWorkspaceToLocal('/ws-b', makeDeps('body workspace B'), {
+      wipeLocal: false,
+      orgWorkspaceScope: { slug: 'acme', workspaceId: 'ws-b', localDir: '/ws-b' },
+    })
+
+    expect(materialized).toEqual([
+      { cwd: '/ws-a', content: 'body workspace A' },
+      { cwd: '/ws-b', content: 'body workspace B' },
+    ])
+  })
 })

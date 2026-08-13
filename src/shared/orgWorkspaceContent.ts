@@ -23,23 +23,73 @@ export function sanitizeSlugSegment(s: string): string {
   return s.trim().replace(/[^A-Za-z0-9._-]+/g, '-')
 }
 
-/** Cuerpos markdown de contextos org (no viven en TabContext). */
-const workspaceContextBodyById = new Map<string, string>()
-
-export function rememberWorkspaceContextBody(contextId: string, body: string): void {
-  const id = contextId.trim()
-  if (!id) return
-  workspaceContextBodyById.set(id, body)
+/**
+ * Scope de caché de bodies org. Aísla workspaces homónimos sin meter
+ * org/workspace en el contextId visible.
+ */
+export type WorkspaceContextBodyScope = {
+  orgSlug?: string
+  slug?: string
+  workspaceId?: string
+  localDir?: string
 }
 
-export function forgetWorkspaceContextBody(contextId: string): void {
-  const id = contextId.trim()
-  if (!id) return
-  workspaceContextBodyById.delete(id)
+/** Bucket legacy para flujos sin org/workspace (comportamiento previo). */
+const LEGACY_SCOPE_KEY = '__legacy__'
+
+/** Key estable: orgSlug|slug + workspaceId; sin ambos → legacy. */
+export function workspaceContextBodyScopeKey(
+  scope?: WorkspaceContextBodyScope | null,
+): string {
+  if (!scope) return LEGACY_SCOPE_KEY
+  const org = (scope.orgSlug ?? scope.slug ?? '').trim()
+  const workspaceId = (scope.workspaceId ?? '').trim()
+  if (!org && !workspaceId) return LEGACY_SCOPE_KEY
+  return `${org}\0${workspaceId}`
 }
 
-export function workspaceContextBody(contextId: string): string {
-  return workspaceContextBodyById.get(contextId.trim()) ?? ''
+/** Cuerpos markdown de contextos org (no viven en TabContext), scoped por workspace. */
+const workspaceContextBodiesByScope = new Map<string, Map<string, string>>()
+
+function bodyMapForScope(scope?: WorkspaceContextBodyScope | null): Map<string, string> {
+  const key = workspaceContextBodyScopeKey(scope)
+  let map = workspaceContextBodiesByScope.get(key)
+  if (!map) {
+    map = new Map()
+    workspaceContextBodiesByScope.set(key, map)
+  }
+  return map
+}
+
+/** Borra solo los bodies del scope dado (no toca otros workspaces). */
+export function clearWorkspaceContextBodies(scope: WorkspaceContextBodyScope): void {
+  workspaceContextBodiesByScope.delete(workspaceContextBodyScopeKey(scope))
+}
+
+export function rememberWorkspaceContextBody(
+  contextId: string,
+  body: string,
+  scope?: WorkspaceContextBodyScope,
+): void {
+  const id = contextId.trim()
+  if (!id) return
+  bodyMapForScope(scope).set(id, body)
+}
+
+export function forgetWorkspaceContextBody(
+  contextId: string,
+  scope?: WorkspaceContextBodyScope,
+): void {
+  const id = contextId.trim()
+  if (!id) return
+  bodyMapForScope(scope).delete(id)
+}
+
+export function workspaceContextBody(
+  contextId: string,
+  scope?: WorkspaceContextBodyScope,
+): string {
+  return bodyMapForScope(scope).get(contextId.trim()) ?? ''
 }
 
 /**
@@ -48,11 +98,12 @@ export function workspaceContextBody(contextId: string): string {
  */
 export function contextContentsForNotes(
   contexts: readonly TabContext[],
+  scope?: WorkspaceContextBodyScope,
 ): Record<string, string> {
   const out: Record<string, string> = {}
   for (const context of contexts) {
     if (context.kind !== 'notes') continue
-    const body = workspaceContextBody(context.id)
+    const body = workspaceContextBody(context.id, scope)
     if (!body.trim()) continue
     out[context.id] = body
   }
@@ -63,8 +114,9 @@ export function contextContentsForNotes(
 export function workspaceContextUpsertPayload(
   context: TabContext,
   body?: string,
+  scope?: WorkspaceContextBodyScope,
 ): CovenantWorkspaceContextPayload {
-  const resolvedBody = body ?? workspaceContextBody(context.id)
+  const resolvedBody = body ?? workspaceContextBody(context.id, scope)
   const meta: Record<string, unknown> = {
     fileName: context.fileName,
   }
@@ -105,17 +157,18 @@ export async function renameWorkspaceContext(
   nextId: string,
   payload: CovenantWorkspaceContextPayload,
   deps: RenameWorkspaceContextDeps,
+  scope?: WorkspaceContextBodyScope,
 ): Promise<RenameWorkspaceContextResult> {
   const prev = previousId.trim()
   const next = nextId.trim()
   if (!next) throw new Error('next context id required')
 
   const record = await deps.upsert(next, payload)
-  rememberWorkspaceContextBody(next, payload.body ?? '')
+  rememberWorkspaceContextBody(next, payload.body ?? '', scope)
 
   if (prev && prev !== next) {
     await deps.delete(prev)
-    forgetWorkspaceContextBody(prev)
+    forgetWorkspaceContextBody(prev, scope)
     return { record, deletedPrevious: true }
   }
   return { record, deletedPrevious: false }
@@ -140,12 +193,13 @@ export async function renameWorkspaceContextFromTab(
     ) => Promise<CovenantWorkspaceContextRecord>
     delete: (slug: string, workspaceId: string, contextId: string) => Promise<void>
   },
+  scope?: WorkspaceContextBodyScope,
 ): Promise<RenameWorkspaceContextResult> {
-  const payload = workspaceContextUpsertPayload(nextContext, body)
+  const payload = workspaceContextUpsertPayload(nextContext, body, scope)
   return renameWorkspaceContext(previousId, nextContext.id, payload, {
     upsert: (contextId, p) => deps.upsert(slug, workspaceId, contextId, p),
     delete: contextId => deps.delete(slug, workspaceId, contextId),
-  })
+  }, scope)
 }
 
 /**
@@ -189,10 +243,15 @@ export function projectAgentsFromWorkspaceAgents(
   return sortProjectAgentsByPlaneOrder(out, preferredIds)
 }
 
-/** Convierte contextos del backend a TabContext en memoria (sin filesystem). */
+/**
+ * Convierte contextos del backend a TabContext en memoria (sin filesystem).
+ * Con scope: limpia solo ese bucket y recuerda bodies ahí.
+ */
 export function tabContextsFromWorkspaceContexts(
   items: readonly CovenantWorkspaceContextRecord[],
+  scope?: WorkspaceContextBodyScope,
 ): TabContext[] {
+  if (scope) clearWorkspaceContextBodies(scope)
   const out: TabContext[] = []
   for (const item of items) {
     const contextId = typeof item.contextId === 'string' ? item.contextId.trim() : ''
@@ -200,7 +259,9 @@ export function tabContextsFromWorkspaceContexts(
     const name = typeof item.name === 'string' ? item.name.trim() : ''
     if (!contextId || !name || !isTabContextKind(kindRaw)) continue
     const meta = item.meta && typeof item.meta === 'object' ? item.meta : {}
-    if (typeof item.body === 'string') rememberWorkspaceContextBody(contextId, item.body)
+    if (typeof item.body === 'string') {
+      rememberWorkspaceContextBody(contextId, item.body, scope)
+    }
     const fileName =
       typeof meta.fileName === 'string' && meta.fileName.trim()
         ? meta.fileName.trim()

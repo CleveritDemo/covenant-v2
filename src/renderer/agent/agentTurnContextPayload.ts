@@ -1,5 +1,8 @@
 import type { TabContext } from '@shared/tabContext'
-import { contextContentsForNotes } from '@shared/orgWorkspaceContent'
+import {
+  contextContentsForNotes,
+  type WorkspaceContextBodyScope,
+} from '@shared/orgWorkspaceContent'
 
 /**
  * Campos de turno CLI: projectCwd + contextContents de notes (caché API / memoria).
@@ -8,12 +11,13 @@ import { contextContentsForNotes } from '@shared/orgWorkspaceContent'
 export function buildAgentTurnContextPayload(
   projectCwd: string,
   assigned: readonly TabContext[],
+  scope?: WorkspaceContextBodyScope,
 ): {
   projectCwd?: string
   contextContents?: Record<string, string>
 } {
   const cwd = projectCwd.trim()
-  const notesContents = contextContentsForNotes(assigned)
+  const notesContents = contextContentsForNotes(assigned, scope)
   return {
     ...(cwd ? { projectCwd: cwd } : {}),
     ...(Object.keys(notesContents).length > 0 ? { contextContents: notesContents } : {}),

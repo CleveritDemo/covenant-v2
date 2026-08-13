@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.7
+
+- **Los links del chat abren tu navegador**: hacer click en una URL que escribe un agente ya no levanta una ventana de la propia app; ahora se abre en el navegador por defecto del sistema, igual que los links de la terminal. Ninguna ventana nueva puede volver a nacer dentro de Covenant.
+
 ## v0.40.6
 
 - **El catálogo +N scrollea de verdad**: rueda sobre la lista de contextos ya no mueve las cards de agentes de detrás; el plano le cede el wheel a ese popover.

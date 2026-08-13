@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, utimesSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -16,14 +16,14 @@ const mockState = vi.hoisted(() => ({ userDataDir: '' }))
 vi.mock('electron', () => ({
   app: { getPath: () => mockState.userDataDir },
   safeStorage: {
-    isEncryptionAvailable: () => false,
+    isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(value),
     decryptString: (buffer: Buffer) => buffer.toString(),
   },
 }))
 
 const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
-const { refreshStaleJiraContexts } = await import('../jiraContextRefresh')
+const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
 const { materializeTabContext } = await import('../tabContextBuild')
 
 const snapshot: JiraIssueSnapshot = {
@@ -69,6 +69,17 @@ function project(): string {
 }
 
 const issuePath = (dir: string): string => join(dir, '.gravity', 'jira', 'GRAV-412.md')
+
+// La memoria de fallos es de módulo (a propósito: sobrevive entre turnos), así
+// que cada test arranca sin castigos heredados del anterior.
+beforeEach(() => {
+  clearJiraRefreshFailures()
+  // Varios tests provocan fallos a propósito; el `console.warn` del refresher
+  // es comportamiento deseado, pero no tiene por qué ensuciar la salida.
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+})
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('refreshStaleJiraContexts', () => {
   it('sin snapshot previo lo crea', async () => {
@@ -223,6 +234,103 @@ describe('refreshStaleJiraContexts', () => {
     const body = readFileSync(issuePath(dir), 'utf8')
     expect(body).toContain('nuevo título')
     expect(body).toContain('anotación concurrente de mergeAnnotations')
+  })
+
+  it('una issue que falló no se reintenta dentro del cooldown', async () => {
+    // Sin memoria de fallos, una clave con typo o una issue borrada costaba el
+    // timeout completo del cliente (10 s) en CADA envío del composer, para
+    // siempre.
+    const dir = project()
+    const fetchIssue = vi.fn(async () => { throw new Error('404') })
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+
+    expect(fetchIssue).toHaveBeenCalledTimes(1)
+  })
+
+  it('pasado el cooldown se vuelve a intentar', async () => {
+    const dir = project()
+    const fetchIssue = vi.fn(async () => { throw new Error('502') })
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue })
+    // `failureCooldownMs: 0` = el castigo ya venció (Jira que volvió, clave
+    // corregida): el siguiente turno reintenta.
+    await refreshStaleJiraContexts([context], dir, { fetchIssue, failureCooldownMs: 0 })
+
+    expect(fetchIssue).toHaveBeenCalledTimes(2)
+  })
+
+  it('un éxito posterior olvida el castigo', async () => {
+    const dir = project()
+    const failing = vi.fn(async () => { throw new Error('502') })
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: failing })
+
+    const ok = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: ok, failureCooldownMs: 0 })
+    // Tras el éxito el castigo se borró: el archivo quedó fresco, así que lo
+    // que corta el tercer intento es la frescura, no el cooldown.
+    const again = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: again })
+
+    expect(ok).toHaveBeenCalledTimes(1)
+    expect(again).not.toHaveBeenCalled()
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('nuevo título')
+  })
+
+  it('dos contextos no encadenan sus timeouts: las peticiones salen en paralelo', async () => {
+    // En serie, la segunda petición ni siquiera empieza hasta que la primera
+    // resuelve — con dos issues rotas eran 20 s de composer colgado. Se
+    // comprueba sin relojes: se bloquean AMBAS peticiones y se afirma que las
+    // dos ya salieron antes de liberar ninguna.
+    const dir = project()
+    let started = 0
+    let release: () => void = () => {}
+    const blocked = new Promise<void>(resolve => { release = resolve })
+    const fetchIssue = vi.fn(async (_cred: unknown, key: string) => {
+      started += 1
+      await blocked
+      return { ...snapshot, key, summary: `snapshot de ${key}` }
+    })
+
+    const other: TabContext = {
+      id: 'iaterminal:jira:grav-413',
+      name: 'GRAV-413',
+      fileName: 'jira/GRAV-413.md',
+      kind: 'jira',
+      issueKey: 'GRAV-413',
+    }
+    const pending = refreshStaleJiraContexts([context, other], dir, {
+      fetchIssue: fetchIssue as never,
+    })
+
+    // Una vuelta de microtasks basta: si el bucle fuera secuencial, `started`
+    // se quedaría en 1 con la primera petición aún bloqueada.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(started).toBe(2)
+
+    release()
+    await pending
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('GRAV-412')
+    expect(readFileSync(join(dir, '.gravity', 'jira', 'GRAV-413.md'), 'utf8')).toContain('GRAV-413')
+  })
+
+  it('nunca rechaza aunque el fetch rechace para todos los contextos', async () => {
+    const dir = project()
+    await expect(refreshStaleJiraContexts([context], dir, {
+      fetchIssue: async () => { throw new Error('boom') },
+    })).resolves.toBeUndefined()
+  })
+
+  it('el presupuesto total corta la espera aunque el fetch nunca resuelva', async () => {
+    const dir = project()
+    // Petición que no resuelve jamás: sin techo, el turno espera para siempre.
+    await expect(refreshStaleJiraContexts([context], dir, {
+      fetchIssue: () => new Promise<JiraIssueSnapshot>(() => {}),
+      budgetMs: 5,
+    })).resolves.toBeUndefined()
   })
 
   it('un issueKey hostil no escribe fuera de la carpeta del proyecto', async () => {

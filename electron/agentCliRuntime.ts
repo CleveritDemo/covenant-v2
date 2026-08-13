@@ -1352,6 +1352,8 @@ export function startAgentTurn(
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
       emit(parser.end())
+      // Capturar antes del volcado crudo: emit(assistant_final) pone sawAssistantText=true.
+      const sawParsedAssistantText = sawAssistantText
       // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
       // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
       if (!sawAssistantText && rawStdout.trim()) {
@@ -1383,7 +1385,7 @@ export function startAgentTurn(
         startPhase(continuationPrompt, contextRound + 1)
         return
       }
-      if (code && !sawAssistantText) {
+      if (code && !sawParsedAssistantText) {
         send(win, request.paneId, {
           type: 'error',
           message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),

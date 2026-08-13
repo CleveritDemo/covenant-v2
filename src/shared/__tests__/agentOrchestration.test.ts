@@ -19,6 +19,7 @@ import {
   MAX_ORCHESTRATION_ROUNDS,
   ORCHESTRATION_MAX_ROUNDS_CAP,
   ORCHESTRATION_UNLIMITED_ROUNDS,
+  orchestrationFollowUpKey,
   orchestrationRoundsAtCap,
   parseDelegatePayload,
   resolveOrchestrationMaxRounds,
@@ -356,6 +357,26 @@ describe('buildBatchedDelegationFollowUp', () => {
     expect(blocks[0]).not.toContain('next slice toward the user request')
     expect(blocks[1]).toContain('next slice toward the user request')
     expect(blocks[1]).toContain('do not ask the user')
+  })
+})
+
+describe('orchestrationFollowUpKey', () => {
+  it('da la misma clave para el mismo job y texto', () => {
+    const key = orchestrationFollowUpKey({ text: 'result', orchestrationJobId: 'job-1' })
+    expect(orchestrationFollowUpKey({ text: 'result', orchestrationJobId: 'job-1' })).toBe(key)
+  })
+
+  it('trimea el jobId y trata su ausencia como vacío', () => {
+    expect(orchestrationFollowUpKey({ text: 'a', orchestrationJobId: '  job-1  ' }))
+      .toBe(orchestrationFollowUpKey({ text: 'a', orchestrationJobId: 'job-1' }))
+    expect(orchestrationFollowUpKey({ text: 'a' }))
+      .toBe(orchestrationFollowUpKey({ text: 'a', orchestrationJobId: '   ' }))
+  })
+
+  it('separa por texto y por job', () => {
+    const base = orchestrationFollowUpKey({ text: 'a', orchestrationJobId: 'job-1' })
+    expect(orchestrationFollowUpKey({ text: 'b', orchestrationJobId: 'job-1' })).not.toBe(base)
+    expect(orchestrationFollowUpKey({ text: 'a', orchestrationJobId: 'job-2' })).not.toBe(base)
   })
 })
 

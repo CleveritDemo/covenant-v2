@@ -477,6 +477,15 @@ export function formatDelegationResultFollowUp(
   if (options?.orchestrationJobId?.trim()) {
     lines.push(`orchestrationJobId: ${options.orchestrationJobId.trim()}`)
   }
+  if (result.status === 'fail' || result.status === 'aborted') {
+    lines.push(
+      '',
+      '## Delegation failed',
+      'This delegation did not produce a usable result (specialist runtime error or aborted turn), which is NOT the same as a task that reported a negative finding.',
+      'Do NOT re-emit the same delegation automatically. Re-delegating the identical objective will hit the same failure.',
+      'Report the failure to the user, name the specialist and the reason from the summary, and stop unless the user asks to retry.',
+    )
+  }
   const round = options?.round
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
   const unlimited = isOrchestrationRoundsUnlimited(maxRounds)
@@ -596,6 +605,26 @@ export function buildOrchestratorTurboWorkStyleBlock(options?: {
 /** Host: despertar al orquestador solo cuando no quedan especialistas en la oleada. */
 export function shouldWakeOrchestratorOnDelegationComplete(pendingRemaining: number): boolean {
   return pendingRemaining <= 0
+}
+
+/** Compara jobId (trim; ausente = '') y text para no apilar el mismo follow-up. */
+export function isDuplicateOrchestrationQueueItem(
+  existing: { text: string; orchestrationJobId?: string },
+  next: { text: string; orchestrationJobId?: string },
+): boolean {
+  return (existing.orchestrationJobId?.trim() ?? '') === (next.orchestrationJobId?.trim() ?? '')
+    && existing.text === next.text
+}
+
+/**
+ * Identidad de un follow-up ya despachado (job + texto). El dedupe de la cola
+ * solo mira lo encolado; esta clave recuerda lo que ya se consumió, que es lo
+ * que permitía reenviar la misma delegación en bucle.
+ */
+export function orchestrationFollowUpKey(
+  item: { text: string; orchestrationJobId?: string },
+): string {
+  return `${item.orchestrationJobId?.trim() ?? ''} ${item.text}`
 }
 
 /** Host cortó el ciclo: el modelo debe responder al usuario sin más fences. */

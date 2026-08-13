@@ -422,4 +422,32 @@ describe('downloadOrgWorkspaceToLocal order', () => {
       { cwd: '/ws-b', content: 'body workspace B' },
     ])
   })
+
+  it('wiki page list failure returns wikiError', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const deps = baseDeps({
+      listRemoteWikiPages: async () => ({ ok: false, error: 'wiki list boom' }),
+      replaceLocalWikiPages: async () => ({ ok: true }),
+    })
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps)
+    expect(result.wikiError).toBe('wiki list boom')
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('wiki log failure alone does not set wikiError', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const deps = baseDeps({
+      listRemoteWikiPages: async () => ({ ok: true, data: [] }),
+      replaceLocalWikiPages: async () => ({ ok: true }),
+      listRemoteWikiLog: async () => ({ ok: false, error: 'log list boom' }),
+      replaceLocalWikiLog: async () => ({ ok: true }),
+    })
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps)
+    expect(result.wikiError).toBeUndefined()
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+    warn.mockRestore()
+  })
 })

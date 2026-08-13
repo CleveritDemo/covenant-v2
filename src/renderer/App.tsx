@@ -78,6 +78,8 @@ import {
   formatDelegationRoundCapFollowUp,
   buildBatchedDelegationFollowUp,
   shouldWakeOrchestratorOnDelegationComplete,
+  isDuplicateOrchestrationQueueItem,
+  orchestrationFollowUpKey,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
   isOrchestrationRoundsUnlimited,
@@ -354,7 +356,7 @@ export const App: React.FC = () => {
     workspaceId: string,
     tabIds: string[],
     options?: { wipeLocal?: boolean },
-  ) => Promise<{ agentsOk: boolean; contextsOk: boolean }>>(async () => ({
+  ) => Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }>>(async () => ({
     agentsOk: false,
     contextsOk: false,
   }))
@@ -437,6 +439,12 @@ export const App: React.FC = () => {
     }
   }>>())
   /**
+   * Follow-ups de orquestación ya despachados por pane (clave job+texto). Sin
+   * esto, un follow-up ya consumido se reencola idéntico sin tope; un turno
+   * humano en el pane limpia la memoria.
+   */
+  const dispatchedOrchestrationFollowUpsByPaneRef = useRef(new Map<string, Set<string>>())
+  /**
    * Jobs de orquestación por pane (linear ≤1; turbo N).
    * Reemplaza pending/deferred/wave/rounds/completed por-mapa plano.
    */
@@ -480,6 +488,7 @@ export const App: React.FC = () => {
   const reconcileIdleDelegationTargetRef = useRef<(
     paneId: string,
     summary: string,
+    failed: boolean,
   ) => void>(() => undefined)
   const reconcilingIdleDelegationPaneIdsRef = useRef(new Set<string>())
   const syncAwaitingFromPending = useCallback(() => {
@@ -519,7 +528,11 @@ export const App: React.FC = () => {
         startedAt: pending.startedAt,
         nowMs: Date.now(),
       })) continue
-      reconcileIdleDelegationTargetRef.current(toPaneId, status.lastSnippet)
+      reconcileIdleDelegationTargetRef.current(
+        toPaneId,
+        status.lastSnippet,
+        status.lastTurnFailed === true,
+      )
     }
   }, [])
   /**
@@ -750,7 +763,7 @@ export const App: React.FC = () => {
     workspaceId: string,
     tabIds: string[],
     options: { wipeLocal?: boolean } = {},
-  ): Promise<{ agentsOk: boolean; contextsOk: boolean }> => {
+  ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       return { agentsOk: false, contextsOk: false }
@@ -842,6 +855,7 @@ export const App: React.FC = () => {
 
     let agentsOk = true
     let contextsOk = true
+    let wikiError: string | undefined
     for (const cwd of folders) {
       const preferredAgentIds = targets
         .filter(tab => (
@@ -860,6 +874,7 @@ export const App: React.FC = () => {
       })
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
+      if (result.wikiError && !wikiError) wikiError = result.wikiError
       const agents = await refreshProjectAgents(cwd)
       for (const tab of targets) {
         if ((tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || '') !== cwd) continue
@@ -870,7 +885,19 @@ export const App: React.FC = () => {
         }
       }
     }
-    return { agentsOk, contextsOk }
+    if (wikiError) {
+      setOrgWorkspaceRequirement(prev => {
+        if (!prev) return { wikiError }
+        const {
+          syncing: _syncing,
+          cloning: _cloning,
+          uploading: _uploading,
+          ...rest
+        } = prev
+        return { ...rest, wikiError }
+      })
+    }
+    return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
   }, [refreshProjectAgents, syncTabWithProjectAgents])
   syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
 
@@ -1563,13 +1590,13 @@ export const App: React.FC = () => {
     orgSlug: string,
     workspaceId: string,
     cwd: string,
-  ): Promise<void> => {
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
     const slug = orgSlug.trim()
     const ws = workspaceId.trim()
     const root = cwd.trim()
-    if (!slug || !ws || !root) return
+    if (!slug || !ws || !root) return { ok: true }
     const covenant = getCovenantApi()
-    if (!covenant || !hasCovenantWikiApi(covenant)) return
+    if (!covenant || !hasCovenantWikiApi(covenant)) return { ok: true }
     try {
       await syncOrgWikiPush({
         scope: { orgSlug: slug, workspaceId: ws },
@@ -1583,8 +1610,11 @@ export const App: React.FC = () => {
         listRemotePages: () => covenant.listWikiPages(slug, ws),
         listRemoteLog: () => covenant.listWikiLog(slug, ws),
       })
-    } catch {
-      /* fire-and-forget callers ignore */
+      return { ok: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('[orgWikiSync] push falló:', message)
+      return { ok: false, error: message }
     }
   }, [])
 
@@ -2259,13 +2289,10 @@ export const App: React.FC = () => {
         return
       }
       if (hasCovenantWikiApi(covenant)) {
-        try {
-          await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
-        } catch (err) {
-          console.warn(
-            '[orgWikiSync] push tras upload falló:',
-            err instanceof Error ? err.message : String(err),
-          )
+        const wikiPush = await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
+        if (!wikiPush.ok) {
+          setOrgWorkspaceRequirement({ wikiError: wikiPush.error })
+          return
         }
       }
       setOrgWorkspaceRequirement(null)
@@ -2401,6 +2428,7 @@ export const App: React.FC = () => {
     if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)
     termRefs.current.delete(paneId)
+    dispatchedOrchestrationFollowUpsByPaneRef.current.delete(paneId)
     splitSpawnCwdRef.current.delete(paneId)
     delete cwdsRef.current[paneId]
     setPaneCwds(prev => {
@@ -3117,6 +3145,7 @@ export const App: React.FC = () => {
         && previous.busy === status.busy
         && previous.activity === status.activity
         && previous.lastSnippet === status.lastSnippet
+        && previous.lastTurnFailed === status.lastTurnFailed
         && previous.activeAssistantId === status.activeAssistantId
         && previous.awaitingDelegations === status.awaitingDelegations
         && orchestrationAwaitingSignature(previous.orchestrationAwaiting)
@@ -3164,7 +3193,11 @@ export const App: React.FC = () => {
           startedAt: pending.startedAt,
           nowMs: Date.now(),
         })) {
-          reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
+          reconcileIdleDelegationTargetRef.current(
+            paneId,
+            status.lastSnippet,
+            status.lastTurnFailed === true,
+          )
         }
       }
       if (status.busy) {
@@ -3444,6 +3477,25 @@ export const App: React.FC = () => {
       }
     }
     const queue = orchestrationFifoByPaneRef.current.get(paneId) ?? []
+    // Evita apilar el mismo follow-up (mismo job + mismo texto) en la FIFO.
+    const nextItem = {
+      text: payload.text,
+      orchestrationJobId: payload.orchestrationJobId?.trim(),
+    }
+    if (queue.some(item => isDuplicateOrchestrationQueueItem(item, nextItem))) return
+    // Un follow-up ya despachado no vuelve a la cola: el bucle de re-delegación
+    // nacía de reenviar el mismo texto una vez consumido. El turno humano borra
+    // la memoria para no bloquear un reenvío legítimo pedido por la persona.
+    if (payload.orchestrationFollowUp === true) {
+      const key = orchestrationFollowUpKey(nextItem)
+      const dispatched = dispatchedOrchestrationFollowUpsByPaneRef.current.get(paneId)
+        ?? new Set<string>()
+      if (dispatched.has(key)) return
+      dispatched.add(key)
+      dispatchedOrchestrationFollowUpsByPaneRef.current.set(paneId, dispatched)
+    } else {
+      dispatchedOrchestrationFollowUpsByPaneRef.current.delete(paneId)
+    }
     queue.push({
       text: payload.text,
       images: payload.images ?? [],
@@ -4484,7 +4536,7 @@ export const App: React.FC = () => {
     syncAwaitingFromPending,
   ])
 
-  reconcileIdleDelegationTargetRef.current = (paneId, summary) => {
+  reconcileIdleDelegationTargetRef.current = (paneId, summary, failed) => {
     if (reconcilingIdleDelegationPaneIdsRef.current.has(paneId)) return
     const found = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
     if (!found) return
@@ -4505,9 +4557,11 @@ export const App: React.FC = () => {
         nowMs: Date.now(),
       })) return
       if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+      // El turno murió por error de CLI: `summary` es el texto del fallo, no un
+      // resultado. Cerrarlo como 'ok' hacía que el orquestador lo re-delegara.
       void handleDelegationTurnComplete({
         id: found.delegationId,
-        status: 'ok',
+        status: failed ? 'fail' : 'ok',
         summary: summary.trim() || i18next.t('agentPane.delegationEmptySummary'),
         toAgentId: found.toAgentId,
         toPaneId: paneId,
@@ -6240,6 +6294,7 @@ export const App: React.FC = () => {
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}
         workspaceRenameError={orgWorkspaceRequirement?.workspaceRenameError}
         uploadError={orgWorkspaceRequirement?.uploadError}
+        wikiError={orgWorkspaceRequirement?.wikiError}
         onClose={() => setOrgWorkspaceRequirement(null)}
         onOpenSettings={() => setSettingsOpen(true)}
       />

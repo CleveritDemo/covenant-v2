@@ -21,6 +21,7 @@ export type OrgWorkspaceRequirementState = {
   agentUpdateError?: string
   workspaceRenameError?: string
   uploadError?: string
+  wikiError?: string
 }
 
 interface Props {
@@ -36,6 +37,7 @@ interface Props {
   agentUpdateError?: string
   workspaceRenameError?: string
   uploadError?: string
+  wikiError?: string
   onClose: () => void
   onOpenSettings: () => void
 }
@@ -151,6 +153,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   agentUpdateError,
   workspaceRenameError,
   uploadError,
+  wikiError,
   onClose,
   onOpenSettings,
 }) => {
@@ -173,6 +176,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     : null
   const uploadErr = uploadError?.trim()
     ? t('organizations.reqUploadFailed', { error: uploadError.trim() })
+    : null
+  const wikiErr = wikiError?.trim()
+    ? t('organizations.reqWikiFailed', { error: wikiError.trim() })
     : null
 
   const showAuthorize =
@@ -262,6 +268,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
         {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
         {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
         {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
+        {wikiErr ? <p className="org-ws-req__line">{wikiErr}</p> : null}
       </div>
     </TerminalModal>
   )

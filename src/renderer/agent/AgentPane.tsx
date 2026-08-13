@@ -295,6 +295,8 @@ export interface AgentPlaneStatus {
   busy: boolean
   activity: string
   lastSnippet: string
+  /** El último turno cerró con error de CLI: `lastSnippet` es el texto del fallo. */
+  lastTurnFailed: boolean
   contexts: Array<{ id: string; name: string; kind: string }>
   /** Conversación user/assistant para el chat del plano (sin system). */
   messages: AgentChatEntry[]
@@ -436,6 +438,8 @@ export const AgentPane: React.FC<Props> = ({
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
+  /** Espejo en estado de `turnHadCliErrorRef`: el plano necesita republicar al cambiar. */
+  const [lastTurnFailed, setLastTurnFailed] = useState(false)
   /**
    * Catálogo vivo de contextos para este pane.
    * Personal y org local-first: discover de `.gravity/*.md`.
@@ -466,6 +470,8 @@ export const AgentPane: React.FC<Props> = ({
   const lastTurnRequestRef = useRef<AgentCliStartRequest | null>(null)
   /** Reintentos ya hechos por emptyResponse en el turno actual. */
   const emptyResponseRetriesRef = useRef(0)
+  /** El turno actual recibió un evento CLI `error` (fallo terminal del proceso). */
+  const turnHadCliErrorRef = useRef(false)
   /** Stop del usuario: el cierre diferido no debe reintentar ni mostrar emptyResponse. */
   const suppressEmptyHandlingRef = useRef(false)
   /** Chat hidratado; hasta entonces se encolan eventos CLI (remount durante stream). */
@@ -1039,6 +1045,7 @@ export const AgentPane: React.FC<Props> = ({
       busy,
       activity,
       lastSnippet,
+      lastTurnFailed,
       contexts,
       messages: messages
         .filter(entry => entry.role === 'user' || entry.role === 'assistant'),
@@ -1093,6 +1100,7 @@ export const AgentPane: React.FC<Props> = ({
       loopActive ? '1' : '0',
       chainLoopActive ? '1' : '0',
       turnCloseReason ?? '',
+      lastTurnFailed ? '1' : '0',
       loopEndReason ?? '',
       String(queuedTurns.length),
       String(enteringIds.size),
@@ -1118,6 +1126,7 @@ export const AgentPane: React.FC<Props> = ({
     diskContexts,
     enteringIds,
     loopActive,
+    lastTurnFailed,
     loopEndReason,
     loopOpen,
     materializingIds,
@@ -1371,6 +1380,8 @@ export const AgentPane: React.FC<Props> = ({
       prompt = buildModeHandoffPrompt(priorMessages, options.prompt)
     }
     emptyResponseRetriesRef.current = 0
+    turnHadCliErrorRef.current = false
+    setLastTurnFailed(false)
     suppressEmptyHandlingRef.current = false
     // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
     const turnCwd = await resolveTurnCwd()
@@ -1571,6 +1582,8 @@ export const AgentPane: React.FC<Props> = ({
         setMessages(prev => prev.map(entry => (
           entry.id === id ? { ...entry, content: '' } : entry
         )))
+        turnHadCliErrorRef.current = false
+        setLastTurnFailed(false)
         window.api.startAgentTurn(retryRequest)
         return
       }
@@ -1610,7 +1623,7 @@ export const AgentPane: React.FC<Props> = ({
           : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
         onDelegationTurnCompleteRef.current?.({
           id: delegation.id,
-          status: isEmpty ? 'fail' : 'ok',
+          status: isEmpty || turnHadCliErrorRef.current ? 'fail' : 'ok',
           summary,
           toAgentId: delegation.toAgentId,
           toPaneId: paneId,
@@ -1618,6 +1631,8 @@ export const AgentPane: React.FC<Props> = ({
       }
 
       emptyResponseRetriesRef.current = 0
+      turnHadCliErrorRef.current = false
+      setLastTurnFailed(false)
       finishSideEffects()
     }, 0)
   }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, systemSoundsEnabled, t])
@@ -1713,6 +1728,8 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'error') {
+      turnHadCliErrorRef.current = true
+      setLastTurnFailed(true)
       let assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
       if (!assistantId) {
         const existing = [...messagesRef.current].reverse().find(message => message.role === 'assistant')
@@ -2201,6 +2218,8 @@ export const AgentPane: React.FC<Props> = ({
     const wasLoop = loopActiveRef.current
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
+    turnHadCliErrorRef.current = false
+    setLastTurnFailed(false)
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
@@ -2250,6 +2269,8 @@ export const AgentPane: React.FC<Props> = ({
     const wasRunning = busyRef.current || wasLoop
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
+    turnHadCliErrorRef.current = false
+    setLastTurnFailed(false)
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     if (wasRunning) {
@@ -2406,6 +2427,8 @@ export const AgentPane: React.FC<Props> = ({
       skipLoopContinueRef.current = true
       turnClosedRef.current = true
       emptyResponseRetriesRef.current = 0
+      turnHadCliErrorRef.current = false
+      setLastTurnFailed(false)
       lastTurnRequestRef.current = null
       suppressEmptyHandlingRef.current = true
       beginLiveSettle(activeAssistantIdRef.current)

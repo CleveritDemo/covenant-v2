@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.8
+
+- **Una delegación que falla ya no se repite en bucle**: cuando el CLI de un especialista no arranca, el texto del error dejaba de ser un error y pasaba por resultado válido, así que el orquestador volvía a mandar la misma delegación una y otra vez. Ahora el pane publica que el turno murió por fallo, la delegación se cierra como fallida y el orquestador recibe la instrucción de contarlo en vez de reintentar solo. Además, un follow-up ya despachado no vuelve a la cola; si quieres reintentar, basta con pedirlo tú.
+- **Se ve cuándo la wiki de org no sincroniza**: si al sincronizar o publicar un workspace la wiki falla, el modal lo dice con el motivo en vez de quedarse callado. Los textos de sincronizar y publicar ahora nombran la wiki junto a agentes y contextos.
+- **El fallo al arrancar un CLI se reporta como fallo**: si el proceso muere con código de error y no llegó a hablar, el turno muestra el motivo del arranque fallido y no un turno mudo.
+
 ## v0.40.7
 
 - **Los links del chat abren tu navegador**: hacer click en una URL que escribe un agente ya no levanta una ventana de la propia app; ahora se abre en el navegador por defecto del sistema, igual que los links de la terminal. Ninguna ventana nueva puede volver a nacer dentro de Covenant.

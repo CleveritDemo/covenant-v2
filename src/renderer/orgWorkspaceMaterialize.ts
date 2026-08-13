@@ -36,6 +36,7 @@ export type OrgWorkspaceMaterializeListResult = {
   contextsOk: boolean
   agentsError?: string
   contextsError?: string
+  wikiError?: string
 }
 
 /** Page normalizada para el replace local (espejo de WikiSyncPage en main). */
@@ -224,7 +225,8 @@ export async function downloadOrgWorkspaceToLocal(
   }
 
   // Wiki org: tras bajar contexts, replace local + seed del caché de push.
-  // Best-effort: un fallo de wiki no marca el download como fallido.
+  // Fallo de PAGES → wikiError (visible); fallo de LOG → best-effort (solo warn).
+  let wikiError: string | undefined
   if (deps.listRemoteWikiPages && deps.replaceLocalWikiPages) {
     try {
       const wikiResult = await deps.listRemoteWikiPages()
@@ -254,15 +256,16 @@ export async function downloadOrgWorkspaceToLocal(
           }
           await deps.onWikiPagesReplaced?.(pages, logEntryCount)
         } else {
-          console.warn(`[orgWikiSync] pull replace falló: ${replaced.error ?? 'unknown'}`)
+          wikiError = replaced.error ?? 'unknown'
+          console.warn(`[orgWikiSync] pull replace falló: ${wikiError}`)
         }
       } else {
-        console.warn(`[orgWikiSync] pull list falló: ${wikiResult.error}`)
+        wikiError = wikiResult.error
+        console.warn(`[orgWikiSync] pull list falló: ${wikiError}`)
       }
     } catch (error) {
-      console.warn(
-        `[orgWikiSync] pull falló: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      wikiError = error instanceof Error ? error.message : String(error)
+      console.warn(`[orgWikiSync] pull falló: ${wikiError}`)
     }
   }
 
@@ -271,6 +274,7 @@ export async function downloadOrgWorkspaceToLocal(
     contextsOk,
     ...(agentsError ? { agentsError } : {}),
     ...(contextsError ? { contextsError } : {}),
+    ...(wikiError ? { wikiError } : {}),
   }
 }
 

@@ -107,8 +107,12 @@ export function adfToText(node: unknown): string {
 }
 
 function commentBlock(issue: JiraIssueSnapshot, maxComments: number): string {
-  // Los más recientes: Jira los devuelve en orden ascendente.
-  const recent = maxComments > 0 ? issue.comments.slice(-maxComments) : issue.comments
+  // `issue.comments` ya viene en orden cronológico y acotado a los más
+  // recientes (`fetchRecentComments`, `electron/jiraClient.ts`); este recorte
+  // es el cinturón de seguridad para un snapshot que venga de otra fuente.
+  // `0` es CERO comentarios, no «todos»: mismo criterio que `refreshSeconds: 0`
+  // en el campo de al lado de `jira.json`.
+  const recent = maxComments > 0 ? issue.comments.slice(-maxComments) : []
   if (!recent.length) return ''
   const body = recent
     .map(comment => `**${comment.author}** · ${comment.created}\n${comment.body.trim()}`)

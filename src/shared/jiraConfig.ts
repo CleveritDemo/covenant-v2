@@ -15,6 +15,11 @@ export interface JiraProjectConfig {
   defaultJql: string
   /** 0 desactiva el refresco automático. */
   refreshSeconds: number
+  /**
+   * Cuántos de los comentarios MÁS RECIENTES entran en el snapshot.
+   * `0` es cero comentarios (no «todos»): mismo criterio que `refreshSeconds`
+   * aquí al lado, donde 0 también apaga la función.
+   */
   maxComments: number
 }
 

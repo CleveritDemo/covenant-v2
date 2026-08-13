@@ -23,17 +23,48 @@ const issuePayload = {
   },
 }
 
-function stubFetch(handler: (url: string, init: RequestInit) => unknown): ReturnType<typeof vi.fn> {
+/** Un comentario en la forma que devuelve la API v3 (cuerpo en ADF). */
+function adfComment(author: string, created: string, text: string): unknown {
+  return {
+    author: { displayName: author },
+    created,
+    body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+  }
+}
+
+/**
+ * `jiraGetIssue` hace DOS peticiones (la issue y, aparte, los comentarios más
+ * recientes), así que el stub enruta por URL. Sin `commentPage`, el endpoint de
+ * comentarios responde vacío: los tests que no hablan de comentarios no tienen
+ * que enterarse de que existe.
+ */
+function stubFetch(
+  handler: (url: string, init: RequestInit) => unknown,
+  commentPage?: unknown,
+): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
-    const body = handler(url, init)
+    const body = url.includes('/comment?') ? (commentPage ?? { comments: [] }) : handler(url, init)
     return { ok: true, status: 200, json: async () => body } as unknown as Response
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
 
-beforeEach(() => { clearJiraCache() })
-afterEach(() => { vi.unstubAllGlobals() })
+/** Peticiones al endpoint de issue (no al de comentarios). */
+function issueCalls(fetchMock: ReturnType<typeof vi.fn>): unknown[] {
+  return fetchMock.mock.calls.filter(call => !String(call[0]).includes('/comment?'))
+}
+
+beforeEach(() => {
+  clearJiraCache()
+  // Algunos tests provocan fallos a propósito; el aviso del cliente es
+  // comportamiento deseado, pero no tiene por qué ensuciar la salida.
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+})
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 describe('jiraMyself', () => {
   it('manda Basic auth con email:token en base64', async () => {
@@ -85,7 +116,9 @@ describe('jiraSearch', () => {
 
 describe('jiraGetIssue', () => {
   it('aplana el ADF de descripción y comentarios', async () => {
-    stubFetch(() => issuePayload)
+    stubFetch(() => issuePayload, {
+      comments: [adfComment('Ana', '2026-08-11T10:00:00.000Z', 'reproducido')],
+    })
     const issue = await jiraGetIssue(cred, 'GRAV-412', 10)
     expect(issue.description).toBe('El FIFO no libera.')
     expect(issue.comments[0]).toEqual({
@@ -105,7 +138,7 @@ describe('jiraGetIssue', () => {
     const fetchMock = stubFetch(() => issuePayload)
     await jiraGetIssue(cred, 'GRAV-412', 10)
     await jiraGetIssue(cred, 'GRAV-412', 10)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(issueCalls(fetchMock)).toHaveLength(1)
   })
 
   it('un 404 lanza un error con la clave, para que el refresco lo registre', async () => {
@@ -144,45 +177,102 @@ describe('jiraGetIssue', () => {
     expect(issue.links).toEqual([{ type: 'blocks', key: 'GRAV-500', summary: 'Bloqueada' }])
   })
 
-  it('recorta a los últimos maxComments cuando hay más comentarios que el límite', async () => {
-    const manyComments = {
-      ...issuePayload,
-      fields: {
-        ...issuePayload.fields,
-        comment: {
-          comments: [
-            { author: { displayName: 'Ana' }, created: '2026-08-09T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'uno' }] }] } },
-            { author: { displayName: 'Beto' }, created: '2026-08-10T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'dos' }] }] } },
-            { author: { displayName: 'Cami' }, created: '2026-08-11T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'tres' }] }] } },
-          ],
-        },
-      },
-    }
-    stubFetch(() => manyComments)
+  it('los comentarios vienen del endpoint dedicado, ordenados y acotados por maxComments', async () => {
+    const fetchMock = stubFetch(() => issuePayload, {
+      // `orderBy=-created`: del más nuevo al más viejo.
+      comments: [
+        adfComment('Cami', '2026-08-11T10:00:00.000Z', 'tres'),
+        adfComment('Beto', '2026-08-10T10:00:00.000Z', 'dos'),
+      ],
+    })
+
     const issue = await jiraGetIssue(cred, 'GRAV-412', 2)
+
+    // Cronológico en el documento, aunque la API los diera al revés.
     expect(issue.comments.map(c => c.body)).toEqual(['dos', 'tres'])
+    const commentUrl = String(fetchMock.mock.calls.find(call => String(call[0]).includes('/comment?'))?.[0])
+    expect(commentUrl).toContain('/rest/api/3/issue/GRAV-412/comment?')
+    expect(commentUrl).toContain('orderBy=-created')
+    expect(commentUrl).toContain('maxResults=2')
   })
 
-  it('dos llamadas con distinto maxComments dentro del TTL devuelven cada una su propio recorte, con un solo GET', async () => {
-    const manyComments = {
-      ...issuePayload,
-      fields: {
-        ...issuePayload.fields,
-        comment: {
-          comments: [
-            { author: { displayName: 'Ana' }, created: '2026-08-09T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'uno' }] }] } },
-            { author: { displayName: 'Beto' }, created: '2026-08-10T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'dos' }] }] } },
-            { author: { displayName: 'Cami' }, created: '2026-08-11T10:00:00.000Z', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'tres' }] }] } },
-          ],
+  it('con la página embebida NO siendo la más nueva, el .md se queda con los recientes', async () => {
+    // El caso que nadie podía ver: el campo `comment` del GET de la issue está
+    // paginado desde `startAt: 0`, así que en un hilo largo trae los MÁS
+    // VIEJOS. Recortarle la cola daba justo lo contrario de lo prometido
+    // («Comentarios (últimos 10)»). Aquí la página embebida son los tres
+    // primeros y el endpoint dedicado devuelve los dos últimos.
+    const fetchMock = stubFetch(
+      () => ({
+        ...issuePayload,
+        fields: {
+          ...issuePayload.fields,
+          comment: {
+            comments: [
+              adfComment('Ana', '2026-01-01T10:00:00.000Z', 'primer comentario de todos'),
+              adfComment('Beto', '2026-01-02T10:00:00.000Z', 'segundo'),
+              adfComment('Cami', '2026-01-03T10:00:00.000Z', 'tercero'),
+            ],
+          },
         },
+      }),
+      {
+        comments: [
+          adfComment('Zoe', '2026-08-12T10:00:00.000Z', 'el último de todos'),
+          adfComment('Yago', '2026-08-11T10:00:00.000Z', 'el penúltimo'),
+        ],
       },
-    }
-    const fetchMock = stubFetch(() => manyComments)
-    const first = await jiraGetIssue(cred, 'GRAV-412', 10)
-    const second = await jiraGetIssue(cred, 'GRAV-412', 1)
-    expect(first.comments.map(c => c.body)).toEqual(['uno', 'dos', 'tres'])
-    expect(second.comments.map(c => c.body)).toEqual(['tres'])
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    )
+
+    const issue = await jiraGetIssue(cred, 'GRAV-412', 2)
+
+    expect(issue.comments.map(c => c.body)).toEqual(['el penúltimo', 'el último de todos'])
+    expect(issue.comments.map(c => c.body)).not.toContain('primer comentario de todos')
+    expect(issueCalls(fetchMock)).toHaveLength(1)
+  })
+
+  it('maxComments 0 es CERO comentarios y ni siquiera pide la página', async () => {
+    // Mismo criterio que `refreshSeconds: 0` en el campo de al lado: 0 apaga.
+    const fetchMock = stubFetch(() => issuePayload, {
+      comments: [adfComment('Ana', '2026-08-11T10:00:00.000Z', 'no debería salir')],
+    })
+
+    const issue = await jiraGetIssue(cred, 'GRAV-412', 0)
+
+    expect(issue.comments).toEqual([])
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/comment?'))).toBe(false)
+  })
+
+  it('si el endpoint de comentarios falla, la issue sigue sirviendo con los embebidos', async () => {
+    // Mejor esfuerzo: perder el ticket entero porque falló su hilo de
+    // comentarios sería peor que servir la página embebida.
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes('/comment?')) {
+        return { ok: false, status: 500, json: async () => ({}) } as unknown as Response
+      }
+      return { ok: true, status: 200, json: async () => issuePayload } as unknown as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const issue = await jiraGetIssue(cred, 'GRAV-412', 10)
+
+    expect(issue.summary).toBe('Loop chain colgada')
+    expect(issue.comments.map(c => c.body)).toEqual(['reproducido'])
+  })
+
+  it('la caché no puede servir MÁS comentarios de los que se pidieron al poblarla', async () => {
+    const fetchMock = stubFetch(() => issuePayload, {
+      comments: [adfComment('Cami', '2026-08-11T10:00:00.000Z', 'tres')],
+    })
+
+    await jiraGetIssue(cred, 'GRAV-412', 1)
+    // Menos o igual: se sirve de caché.
+    await jiraGetIssue(cred, 'GRAV-412', 1)
+    expect(issueCalls(fetchMock)).toHaveLength(1)
+
+    // Más: la entrada cacheada no cubre la petición, así que vuelve a la red.
+    await jiraGetIssue(cred, 'GRAV-412', 10)
+    expect(issueCalls(fetchMock)).toHaveLength(2)
   })
 })
 

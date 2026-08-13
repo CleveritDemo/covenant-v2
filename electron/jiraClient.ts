@@ -15,7 +15,13 @@ const TIMEOUT_MS = 10_000
 /** Seis agentes con la misma issue en un turno son un GET, no seis. */
 const CACHE_TTL_MS = 60_000
 
-const cache = new Map<string, { at: number; issue: JiraIssueSnapshot }>()
+/**
+ * `commentsFor` es cuántos comentarios se pidieron al poblar la entrada. La
+ * caché ya no puede guardar «todos» los comentarios: se piden explícitamente
+ * los N más recientes al endpoint dedicado, así que una llamada posterior que
+ * quiera MÁS no puede servirse de aquí y tiene que volver a la red.
+ */
+const cache = new Map<string, { at: number; issue: JiraIssueSnapshot; commentsFor: number }>()
 
 export function clearJiraCache(): void {
   cache.clear()
@@ -93,9 +99,59 @@ function sprintNameFrom(fields: Record<string, any>): string | null {
   return null
 }
 
-/** Recorta al final (más recientes) o devuelve todo si `maxComments` es 0/negativo. */
+/**
+ * Recorta a los `maxComments` más recientes de un array YA en orden
+ * cronológico. `0` (o negativo) es cero comentarios, no «todos»: es el mismo
+ * criterio que `refreshSeconds: 0` en el campo de al lado, donde 0 apaga la
+ * función. Que un 0 significara «sin límite» y el otro «desactivado» en el
+ * mismo archivo de configuración era una trampa.
+ */
 function sliceComments(comments: JiraComment[], maxComments: number): JiraComment[] {
-  return maxComments > 0 ? comments.slice(-maxComments) : comments
+  return maxComments > 0 ? comments.slice(-maxComments) : []
+}
+
+function commentFrom(raw: unknown): JiraComment {
+  const comment = asRecord(raw)
+  return {
+    author: String(asRecord(comment.author).displayName ?? ''),
+    created: String(comment.created ?? ''),
+    body: adfToText(comment.body),
+  }
+}
+
+/**
+ * Los `maxComments` comentarios MÁS RECIENTES, en orden cronológico.
+ *
+ * Endpoint dedicado y `orderBy=-created` explícito, no el `comment` que viene
+ * embebido en el GET de la issue: ese campo está paginado desde `startAt: 0`,
+ * así que para un ticket con más comentarios que una página devuelve los MÁS
+ * VIEJOS. Recortar la cola de esa página daba exactamente lo contrario de lo
+ * que el documento promete («Comentarios (últimos 10)») — y ningún test podía
+ * verlo, porque todos simulaban un hilo corto y completo.
+ *
+ * Mejor esfuerzo: si esta petición falla, el llamador se queda con los
+ * comentarios embebidos. Perder el hilo entero de una issue que por lo demás
+ * se leyó bien sería peor que servir el orden antiguo.
+ */
+async function fetchRecentComments(
+  cred: JiraCredentials,
+  key: string,
+  maxComments: number,
+): Promise<JiraComment[] | null> {
+  if (maxComments <= 0) return []
+  const query = new URLSearchParams({ orderBy: '-created', maxResults: String(maxComments) })
+  try {
+    const payload = asRecord(
+      await getJson(cred, `/rest/api/3/issue/${encodeURIComponent(key)}/comment?${query}`),
+    )
+    const raw = Array.isArray(payload.comments) ? payload.comments : []
+    // `-created` los devuelve del más nuevo al más viejo; el `.md` los quiere
+    // como se leen en Jira, de arriba abajo en el tiempo.
+    return raw.map(commentFrom).reverse()
+  } catch (error) {
+    console.warn(`[jira] ${key}: no se pudieron pedir los comentarios recientes`, error)
+    return null
+  }
 }
 
 export async function jiraGetIssue(
@@ -105,32 +161,31 @@ export async function jiraGetIssue(
 ): Promise<JiraIssueSnapshot> {
   const cacheKey = `${cred.site}:${key}`
   const hit = cache.get(cacheKey)
-  // La caché guarda los comentarios completos, sin recortar: `maxComments` es un
-  // argumento por llamada, no una propiedad de la issue, así que dos llamadas con
-  // valores distintos dentro del TTL deben poder pedir cada una su propio recorte.
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+  // Sirve de caché solo si trae al menos tantos comentarios como se piden
+  // ahora: `maxComments` es un argumento por llamada, no una propiedad de la
+  // issue, y ya no se guardan «todos» (ver `fetchRecentComments`).
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS && maxComments <= hit.commentsFor) {
     return { ...hit.issue, comments: sliceComments(hit.issue.comments, maxComments) }
   }
 
   let payload: Record<string, any>
+  let recentComments: JiraComment[] | null
   try {
-    payload = asRecord(await getJson(cred, `/rest/api/3/issue/${encodeURIComponent(key)}`))
+    // En paralelo: pedir los comentarios aparte no puede costar otra ronda de
+    // latencia encima del turno.
+    ;[payload, recentComments] = await Promise.all([
+      getJson(cred, `/rest/api/3/issue/${encodeURIComponent(key)}`).then(asRecord),
+      fetchRecentComments(cred, key, maxComments),
+    ])
   } catch (error) {
     throw new Error(`${key}: ${error instanceof Error ? error.message : String(error)}`)
   }
 
   const fields = asRecord(payload.fields)
-  const rawComments = Array.isArray(asRecord(fields.comment).comments)
-    ? asRecord(fields.comment).comments as unknown[]
+  const embedded = Array.isArray(asRecord(fields.comment).comments)
+    ? (asRecord(fields.comment).comments as unknown[]).map(commentFrom)
     : []
-  const comments: JiraComment[] = rawComments.map(raw => {
-    const comment = asRecord(raw)
-    return {
-      author: String(asRecord(comment.author).displayName ?? ''),
-      created: String(comment.created ?? ''),
-      body: adfToText(comment.body),
-    }
-  })
+  const comments = recentComments ?? embedded
 
   const issue: JiraIssueSnapshot = {
     ...refFrom(payload),
@@ -140,7 +195,7 @@ export async function jiraGetIssue(
     url: `${cred.site}/browse/${key}`,
     description: adfToText(fields.description),
     acceptanceCriteria: null,
-    // Sin recortar: el recorte por `maxComments` se aplica al leer, no al cachear.
+    // Ya son los `maxComments` más recientes, en orden cronológico.
     comments,
     subtasks: (Array.isArray(fields.subtasks) ? fields.subtasks : []).map(refFrom),
     links: (Array.isArray(fields.issuelinks) ? fields.issuelinks : []).map(raw => {
@@ -154,6 +209,8 @@ export async function jiraGetIssue(
     }).filter(link => link.key),
   }
 
-  cache.set(cacheKey, { at: Date.now(), issue })
+  // `commentsFor` refleja lo que realmente se pidió: si el fallback embebido
+  // entró en juego, no se puede prometer más cobertura que la solicitada.
+  cache.set(cacheKey, { at: Date.now(), issue, commentsFor: Math.max(0, maxComments) })
   return { ...issue, comments: sliceComments(issue.comments, maxComments) }
 }

@@ -97,6 +97,14 @@ describe('issueAutoMarkdown', () => {
     expect(md).not.toContain('reproducido')
   })
 
+  it('maxComments 0 es CERO comentarios, no «todos»', () => {
+    // `refreshSeconds: 0` en el campo de al lado de `jira.json` significa
+    // «apagado»; que este 0 significara «sin límite» era una trampa.
+    const md = issueAutoMarkdown(issue, 0)
+    expect(md).not.toContain('## Comentarios')
+    expect(md).not.toContain('reproducido')
+  })
+
   it('sin criterios de aceptación no se escribe la sección vacía', () => {
     const md = issueAutoMarkdown({ ...issue, acceptanceCriteria: null }, 10)
     expect(md).not.toContain('## Criterios de aceptación')

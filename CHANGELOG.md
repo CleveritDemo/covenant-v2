@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.41.0
+
+- **Cancelar una sincronización o publicación con Espacio**: mientras el workspace de org sincroniza o publica, el overlay dice el atajo y Espacio corta la operación. Lo que llegue después ya no reabre el modal ni con éxito ni con error de wiki, y una operación vieja no puede apagar el aviso de otra más nueva. Vale para los cuatro caminos que sincronizan: sincronizar, publicar, crear la pestaña de org y asignarle carpeta. El clonado de repositorios sigue sin cancelación.
+- **Nodos del mapa neuronal sin halo**: cada página se dibuja como una esfera limpia con el color de su tipo, sin la aureola luminosa que la envolvía. Los rayos eléctricos entre nodos y los destellos en los extremos siguen igual.
+
 ## v0.40.9
 
 - **El bucle de delegaciones fallidas queda cerrado de verdad**: en 0.40.8 el pane olvidaba el fallo justo al cerrar el turno, así que si el aviso normal se perdía y entraba la reconciliación del especialista parado, la delegación muerta volvía a cerrarse como correcta y el orquestador la repetía. Ahora el fallo describe el turno anterior y sobrevive al cierre: solo lo limpia el siguiente turno o tu stop.

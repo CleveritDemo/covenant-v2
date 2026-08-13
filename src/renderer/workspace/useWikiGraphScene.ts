@@ -147,12 +147,11 @@ interface SceneNode {
   slug: string
   type: WikiGraphNodeType
   mesh: THREE.Mesh
-  halo: THREE.Sprite | null
 }
 
 /**
- * Escena three.js del mapa neuronal, aislada de React: nodos-esfera con halo
- * aditivo, aristas tenues y descargas eléctricas intermitentes (polilíneas
+ * Escena three.js del mapa neuronal, aislada de React: nodos-esfera sin halo,
+ * aristas tenues y descargas eléctricas intermitentes (polilíneas
  * jittered con núcleo blanco-cian y halo teñido por tipo) que encienden la
  * conexión completa por breves instantes. OrbitControls con rotación idle.
  * Con reduce-motion la escena queda estática: solo la red base, sin rayos.
@@ -231,22 +230,7 @@ export function useWikiGraphScene(
       scene.add(mesh)
       pickMeshes.push(mesh)
 
-      let halo: THREE.Sprite | null = null
-      // Halo es iluminación especial: solo con reduce motion desactivado.
-      if (glowTexture && !reducedMotion) {
-        halo = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: glowTexture,
-          color: color.clone(),
-          blending: THREE.AdditiveBlending,
-          transparent: true,
-          opacity: 0.55,
-          depthWrite: false,
-        }))
-        halo.scale.setScalar(radius * 5.2)
-        halo.position.copy(mesh.position)
-        scene.add(halo)
-      }
-      sceneNodes.push({ slug: node.slug, type: node.type, mesh, halo })
+      sceneNodes.push({ slug: node.slug, type: node.type, mesh })
     }
 
     const typeBySlug = new Map(data.nodes.map(node => [node.slug, node.type]))
@@ -468,9 +452,6 @@ export function useWikiGraphScene(
       for (const sceneNode of sceneNodes) {
         const color = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
         ;(sceneNode.mesh.material as THREE.MeshBasicMaterial).color.copy(color)
-        if (sceneNode.halo) {
-          (sceneNode.halo.material as THREE.SpriteMaterial).color.copy(color)
-        }
       }
       for (const bolt of bolts) {
         const color = nodeColors.get(edgeEnds[bolt.edgeIndex]!.type) ?? new THREE.Color('#ffffff')
@@ -630,7 +611,6 @@ export function useWikiGraphScene(
       for (const sceneNode of sceneNodes) {
         sceneNode.mesh.geometry.dispose()
         ;(sceneNode.mesh.material as THREE.Material).dispose()
-        if (sceneNode.halo) (sceneNode.halo.material as THREE.Material).dispose()
       }
       for (const bolt of bolts) {
         bolt.coreGeom.dispose()

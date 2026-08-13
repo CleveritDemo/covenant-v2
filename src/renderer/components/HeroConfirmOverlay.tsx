@@ -24,9 +24,13 @@ type BusyProps = {
   title: string
   /** Texto pequeño encima: qué está cargando. */
   meta?: string
+  /** Meta breve debajo (atajos, contexto secundario). */
+  hint?: string
   /** Estado / progreso debajo (aria-describedby). */
   status?: string
   zIndex?: number
+  /** Espacio cancela el trabajo en curso. */
+  onCancel?: () => void
 }
 
 type Props = ConfirmProps | BusyProps
@@ -38,7 +42,7 @@ function isBusyProps(props: Props): props is BusyProps {
 /**
  * Overlay tipográfico a pantalla completa sobre GravityHeroCanvas.
  * - confirm: Esc cancela; Enter confirma.
- * - busy: aria-busy; sin teclas confirm/cancel.
+ * - busy: aria-busy; Espacio cancela si hay onCancel.
  */
 export const HeroConfirmOverlay: React.FC<Props> = (props) => {
   const { open, title, zIndex } = props
@@ -48,9 +52,9 @@ export const HeroConfirmOverlay: React.FC<Props> = (props) => {
   const secondaryId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const onConfirm = busy ? undefined : props.onConfirm
-  const onCancel = busy ? undefined : props.onCancel
+  const onCancel = props.onCancel
   const meta = props.meta
-  const hint = busy ? undefined : props.hint
+  const hint = props.hint
   const status = busy ? props.status : undefined
 
   useEffect(() => {
@@ -62,8 +66,16 @@ export const HeroConfirmOverlay: React.FC<Props> = (props) => {
   }, [open])
 
   useEffect(() => {
-    if (!open || busy || !onConfirm || !onCancel) return
+    if (!open || !onCancel) return
     const onKey = (e: KeyboardEvent): void => {
+      if (busy) {
+        if (e.key !== ' ' || e.metaKey || e.ctrlKey || e.altKey) return
+        e.preventDefault()
+        e.stopPropagation()
+        onCancel()
+        return
+      }
+      if (!onConfirm) return
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()

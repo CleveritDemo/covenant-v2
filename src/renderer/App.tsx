@@ -331,6 +331,8 @@ export const App: React.FC = () => {
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
     useState<OrgWorkspaceRequirementState | null>(null)
+  /** Invalida sync/upload en curso al cancelar con Espacio. */
+  const orgWorkspaceSyncUploadGenRef = useRef(0)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -762,7 +764,7 @@ export const App: React.FC = () => {
     slug: string,
     workspaceId: string,
     tabIds: string[],
-    options: { wipeLocal?: boolean } = {},
+    options: { wipeLocal?: boolean; cancelGen?: number } = {},
   ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
@@ -886,16 +888,20 @@ export const App: React.FC = () => {
       }
     }
     if (wikiError) {
-      setOrgWorkspaceRequirement(prev => {
-        if (!prev) return { wikiError }
-        const {
-          syncing: _syncing,
-          cloning: _cloning,
-          uploading: _uploading,
-          ...rest
-        } = prev
-        return { ...rest, wikiError }
-      })
+      const cancelled = options.cancelGen !== undefined
+        && options.cancelGen !== orgWorkspaceSyncUploadGenRef.current
+      if (!cancelled) {
+        setOrgWorkspaceRequirement(prev => {
+          if (!prev) return { wikiError }
+          const {
+            syncing: _syncing,
+            cloning: _cloning,
+            uploading: _uploading,
+            ...rest
+          } = prev
+          return { ...rest, wikiError }
+        })
+      }
     }
     return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
   }, [refreshProjectAgents, syncTabWithProjectAgents])
@@ -2115,11 +2121,14 @@ export const App: React.FC = () => {
     setActiveTabId(tab.id)
 
     if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+      const opGen = ++orgWorkspaceSyncUploadGenRef.current
       setOrgWorkspaceRequirement({ syncing: true })
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false })
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false, cancelGen: opGen })
       } finally {
-        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+        }
       }
     } else if (selection.agents.length || selection.contexts.length) {
       const cwd = res.workspaceDir
@@ -2141,12 +2150,23 @@ export const App: React.FC = () => {
     }
   }, [refreshAndSyncProjectAgents, rememberProjectAgent, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
+  const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
+    orgWorkspaceSyncUploadGenRef.current += 1
+    setOrgWorkspaceRequirement(prev => {
+      if (!prev?.syncing && !prev?.uploading) return prev
+      return null
+    })
+    setResyncingWorkspaceTabs(new Set())
+    setUploadingWorkspaceTabs(new Set())
+  }, [])
+
   const handleResyncOrgWorkspace = useCallback(async (tab: TabSession) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
     const covenant = getCovenantApi()
     if (!covenant) return
 
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setResyncingWorkspaceTabs(prev => {
       const next = new Set(prev)
       next.add(tab.id)
@@ -2162,6 +2182,7 @@ export const App: React.FC = () => {
           const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
           if (localDir) {
             const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+            if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
             if (reposResult.ok && reposResult.data.length) {
               await covenant.cloneOrgWorkspace({
                 orgSlug: org.slug,
@@ -2180,16 +2201,24 @@ export const App: React.FC = () => {
         console.warn('[resync repos]', org.slug, org.workspaceId, err)
       }
 
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false })
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+          wipeLocal: false,
+          cancelGen: opGen,
+        })
       } catch (err) {
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
         console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
         setOrgWorkspaceRequirement(prev => prev ?? {
           agentUpdateError: err instanceof Error ? err.message : 'resync failed',
         })
       }
     } finally {
-      setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      }
       setResyncingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
@@ -2224,6 +2253,7 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setOrgWorkspaceRequirement({ uploading: true })
     try {
       const deps: OrgWorkspaceMaterializeDeps = {
@@ -2284,12 +2314,14 @@ export const App: React.FC = () => {
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
       })
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       if (!result.ok) {
         setOrgWorkspaceRequirement({ uploadError: result.error ?? 'upload failed' })
         return
       }
       if (hasCovenantWikiApi(covenant)) {
         const wikiPush = await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
         if (!wikiPush.ok) {
           setOrgWorkspaceRequirement({ wikiError: wikiPush.error })
           return
@@ -2297,10 +2329,14 @@ export const App: React.FC = () => {
       }
       setOrgWorkspaceRequirement(null)
     } catch (err) {
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       setOrgWorkspaceRequirement({
         uploadError: err instanceof Error ? err.message : 'upload failed',
       })
     } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.uploading ? null : prev))
+      }
       setUploadingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
@@ -2612,11 +2648,14 @@ export const App: React.FC = () => {
       await saveSessionNow()
 
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+        const opGen = ++orgWorkspaceSyncUploadGenRef.current
         setOrgWorkspaceRequirement({ syncing: true })
         try {
-          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], { wipeLocal: false })
+          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], { wipeLocal: false, cancelGen: opGen })
         } finally {
-          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+          if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+            setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+          }
         }
       }
       return path
@@ -6296,6 +6335,7 @@ export const App: React.FC = () => {
         uploadError={orgWorkspaceRequirement?.uploadError}
         wikiError={orgWorkspaceRequirement?.wikiError}
         onClose={() => setOrgWorkspaceRequirement(null)}
+        onCancelBusy={cancelOrgWorkspaceSyncOrUpload}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 

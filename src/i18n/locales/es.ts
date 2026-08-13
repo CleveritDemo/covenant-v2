@@ -1057,6 +1057,7 @@ const es = {
     reqAgentUpdateFailed: 'No se pudo guardar el agente en el servidor: {{error}}. Se revirtió el cambio local (quizá no tienes permisos de manager).',
     reqWorkspaceRenameFailed: 'No se pudo renombrar el workspace: {{error}}. Solo owners y admins del workspace pueden cambiarlo.',
     reqBusyTitle: 'Sincronizando…',
+    reqBusyCancelHint: 'Espacio cancelar',
     reqCloning: 'Clonando repositorios del workspace…',
     reqSyncing: 'Sincronizando agentes, contextos y wiki del workspace desde el servidor…',
     reqUploading: 'Subiendo agentes, contextos y wiki locales…',

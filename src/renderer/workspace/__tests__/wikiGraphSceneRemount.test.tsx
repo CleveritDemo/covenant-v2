@@ -220,7 +220,7 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
       expect(adds.length).toBeGreaterThan(0)
       const last = adds[adds.length - 1]!
       // Contrato reduce motion ON: nunca se instancia Line (bolts) ni Sprite
-      // (halos de nodo / flashes de endpoint). Solo LineSegments (red base) y
+      // (flashes de endpoint). Solo LineSegments (red base) y
       // los Mesh de los nodos.
       expect(last).toContain('LineSegments')
       expect(last).not.toContain('Line')
@@ -243,7 +243,7 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
     expect(last).toContain('LineSegments')
     expect(getEdgeOpacities().at(-1)).toBe(0.45)
     // Cada arista aporta 3 Line (core + halo + glow) y 2 Sprite endpoint;
-    // con 1 arista: 3 Line, 2 Sprite de flash + halo de nodos por nodo.
+    // con 1 arista: 3 Line, 2 Sprite de flash por arista.
     const lineCount = last.filter(k => k === 'Line').length
     const spriteCount = last.filter(k => k === 'Sprite').length
     expect(lineCount).toBeGreaterThanOrEqual(3)

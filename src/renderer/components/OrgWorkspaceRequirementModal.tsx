@@ -40,6 +40,8 @@ interface Props {
   wikiError?: string
   onClose: () => void
   onOpenSettings: () => void
+  /** Espacio cancela sync o publish en curso. */
+  onCancelBusy?: () => void
 }
 
 type T = ReturnType<typeof useT>['t']
@@ -156,6 +158,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   wikiError,
   onClose,
   onOpenSettings,
+  onCancelBusy,
 }) => {
   const { t } = useT()
   const [ssoOpenFailedUrl, setSsoOpenFailedUrl] = useState<string | null>(null)
@@ -201,6 +204,8 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     })
   }
 
+  const cancelableBusy = syncing || uploading
+
   if (busy) {
     return (
       <HeroConfirmOverlay
@@ -208,7 +213,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
         open={open}
         meta={statusLabel}
         title={t('organizations.reqBusyTitle')}
+        hint={cancelableBusy ? t('organizations.reqBusyCancelHint') : undefined}
         zIndex={ORG_WORKSPACE_BUSY_Z}
+        onCancel={cancelableBusy ? onCancelBusy : undefined}
       />
     )
   }

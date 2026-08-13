@@ -235,6 +235,19 @@
   margin-top: 0;
 }
 
+/* Sala arrancada pero sin turno concedido todavía: main está leyendo el
+   material y armando el prompt. Sin esto el lienzo queda en blanco y parece
+   que la sala no hace nada. */
+.brainstorm-room-view__warmup {
+  margin: 0;
+  padding: 18px 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* Acta en una columna: el carril de color identifica al hablante. */
 .brainstorm-room-view__row {
   display: grid;

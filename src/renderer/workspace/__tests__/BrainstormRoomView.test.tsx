@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
 import { BrainstormRoomView } from '../BrainstormRoomView'
 
@@ -335,5 +335,179 @@ describe('BrainstormRoomView chat bubbles', () => {
       'Saved participants missing from the catalog (skipped): frontend',
     )).toBeTruthy()
     expect(screen.queryByText(/^frontend$/)).toBeNull()
+  })
+})
+
+describe('BrainstormRoomView — el turno concedido antes del primer token', () => {
+  /** Monta la sala y devuelve el emisor de eventos de main. */
+  function mountWithBus(roomInput: BrainstormRoom): {
+    emit: (event: Record<string, unknown>) => void
+  } {
+    const bus: { emit: ((event: Record<string, unknown>) => void) | null } = { emit: null }
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn((_id: string, cb: (event: Record<string, unknown>) => void) => {
+          bus.emit = cb
+          return () => {}
+        }),
+        stopBrainstorm: vi.fn(),
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    render(
+      <BrainstormRoomView
+        open
+        room={roomInput}
+        cwd="/tmp/project"
+        agents={[{ id: 'atlas', name: 'Atlas' }, { id: 'forge', name: 'Forge' }]}
+        onClose={vi.fn()}
+      />,
+    )
+    return { emit: event => { act(() => { bus.emit?.(event) }) } }
+  }
+
+  const emptyRoom: BrainstormRoom = { ...room, messages: [] }
+
+  it('sin turno concedido dice que está preparando la sala', () => {
+    mountWithBus(emptyRoom)
+    expect(screen.getByText('tabs.brainstormRoomWarmup')).toBeTruthy()
+  })
+
+  it('speaker_start ya pinta al orador, sin esperar el primer delta', () => {
+    const { emit } = mountWithBus(emptyRoom)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
+    // El hueco de warmup desaparece y aparece la fila viva del orador.
+    expect(screen.queryByText('tabs.brainstormRoomWarmup')).toBeNull()
+    expect(screen.getByText('tabs.brainstormSpeakerThinking')).toBeTruthy()
+    expect(document.querySelector('.brainstorm-room-view__row--live')).not.toBeNull()
+  })
+
+  it('al llegar el primer delta pasa de «preparando» a «escribiendo»', () => {
+    const { emit } = mountWithBus(emptyRoom)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
+    emit({ type: 'speaker_delta', agentId: 'atlas', round: 0, text: 'Hola' })
+    expect(screen.queryByText('tabs.brainstormSpeakerThinking')).toBeNull()
+    expect(screen.getByText('Atlas · writing…')).toBeTruthy()
+    expect(screen.getByText('Hola')).toBeTruthy()
+  })
+
+  it('speaker_final cierra la fila viva y no deja el warmup de vuelta', () => {
+    const { emit } = mountWithBus(emptyRoom)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
+    emit({ type: 'speaker_delta', agentId: 'atlas', round: 0, text: 'Hola' })
+    emit({
+      type: 'speaker_final', agentId: 'atlas', agentName: 'Atlas', round: 0, text: 'Hola',
+    })
+    expect(document.querySelector('.brainstorm-room-view__row--live')).toBeNull()
+    expect(screen.queryByText('tabs.brainstormRoomWarmup')).toBeNull()
+  })
+})
+
+describe('BrainstormRoomView — salir de una sala terminada', () => {
+  function mount(status: BrainstormRoom['status'], onFinish = vi.fn()) {
+    const onClose = vi.fn()
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn(() => () => {}),
+        stopBrainstorm: vi.fn(),
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    render(
+      <BrainstormRoomView
+        open
+        room={{ ...room, status }}
+        cwd="/tmp/project"
+        onClose={onClose}
+        onFinish={onFinish}
+      />,
+    )
+    return { onClose, onFinish }
+  }
+
+  it('terminada ofrece cerrar la sala, que la suelta del plano', () => {
+    const { onFinish, onClose } = mount('done')
+    fireEvent.click(screen.getByText('tabs.brainstormFinish'))
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('detenida también deja salir', () => {
+    const { onFinish } = mount('stopped')
+    fireEvent.click(screen.getByText('tabs.brainstormFinish'))
+    expect(onFinish).toHaveBeenCalledTimes(1)
+  })
+
+  it('viva no ofrece cerrar: minimizar es lo único que no la mata', () => {
+    mount('running')
+    expect(screen.queryByText('tabs.brainstormFinish')).toBeNull()
+    expect(screen.getByText('tabs.brainstormClose')).toBeTruthy()
+  })
+
+  it('el traffic light rojo suelta la sala terminada en vez de minimizarla', () => {
+    const { onFinish, onClose } = mount('done')
+    const scrim = document.querySelector('.terminal-modal-scrim')
+    scrim!.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
+    )
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('viva, el scrim sigue minimizando y no suelta nada', () => {
+    const { onFinish, onClose } = mount('running')
+    const scrim = document.querySelector('.terminal-modal-scrim')
+    scrim!.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
+    )
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onFinish).not.toHaveBeenCalled()
+  })
+})
+
+describe('BrainstormRoomView — un solo primario en el pie', () => {
+  function footerPrimaries(status: BrainstormRoom['status']): string[] {
+    Object.assign(window, {
+      api: {
+        onBrainstormEvent: vi.fn(() => () => {}),
+        stopBrainstorm: vi.fn(),
+        pauseBrainstorm: vi.fn(),
+        startBrainstorm: vi.fn(),
+        injectBrainstormHumanMessage: vi.fn(),
+      },
+    })
+    render(
+      <BrainstormRoomView
+        open
+        room={{ ...room, status }}
+        cwd="/tmp/project"
+        agents={[{ id: 'atlas', name: 'Atlas' }, { id: 'forge', name: 'Forge' }]}
+        onClose={vi.fn()}
+        onFinish={vi.fn()}
+      />,
+    )
+    return Array.from(
+      document.querySelectorAll('.brainstorm-room-view__footer .btn--primary'),
+    ).map(node => node.textContent?.trim() ?? '')
+  }
+
+  it('terminada: manda cerrar la sala, no alargarla', () => {
+    expect(footerPrimaries('done')).toEqual(['tabs.brainstormFinish'])
+  })
+
+  it('detenida a mano: manda reanudar, y cerrar baja a secundario', () => {
+    expect(footerPrimaries('stopped')).toEqual(['tabs.brainstormResume'])
+  })
+
+  it('en pausa: manda reanudar', () => {
+    expect(footerPrimaries('paused')).toEqual(['tabs.brainstormResume'])
+  })
+
+  it('corriendo: ningún primario compite con Detener', () => {
+    expect(footerPrimaries('running')).toEqual([])
   })
 })

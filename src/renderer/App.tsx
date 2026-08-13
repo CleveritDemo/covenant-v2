@@ -5715,6 +5715,14 @@ export const App: React.FC = () => {
                     onClose={() => {
                       setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: true }))
                     }}
+                    onFinish={() => {
+                      // Soltar la sala terminada: el acta ya está en disco y el
+                      // botón del plano vuelve a abrir «Nueva sala».
+                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
+                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
+                      setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
+                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                    }}
                     onLive={summary => {
                       setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: summary }))
                     }}

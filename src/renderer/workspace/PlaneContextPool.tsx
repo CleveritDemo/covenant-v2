@@ -417,6 +417,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
           ].filter(Boolean).join(' ')}
           role="dialog"
           aria-label={title}
+          data-plane-native-scroll=""
           data-testid="plane-context-pool-overflow"
         >
           <div className="plane-context-pool__overflow-search">

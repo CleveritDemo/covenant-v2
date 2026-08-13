@@ -482,10 +482,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         || event.clientY < rect.top
         || event.clientY > rect.bottom
       ) return
-      // Modal o ventana expandida por encima del plano: scroll nativo.
+      // Overlay con scroll propio (modal, ventana expandida, popover +N).
       if (
         event.target instanceof Element
-        && event.target.closest('.terminal-modal-root, .pane-window--full')
+        && event.target.closest(
+          '.terminal-modal-root, .pane-window--full, [data-plane-native-scroll]',
+        )
       ) return
       const x = event.clientX - rect.left
       let column: 'terminal' | 'agent' | null = null

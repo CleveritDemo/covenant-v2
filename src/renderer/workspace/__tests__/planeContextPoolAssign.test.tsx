@@ -258,6 +258,14 @@ describe('PlaneContextPool — desbordamiento', () => {
     setup()
     expect(moreButton()).toBeNull()
   })
+
+  it('marca el popover para que el wheel del plano no se lo coma', () => {
+    setup(bigCatalog())
+    fireEvent.click(moreButton()!)
+    expect(
+      screen.getByTestId('plane-context-pool-overflow').getAttribute('data-plane-native-scroll'),
+    ).not.toBeNull()
+  })
 })
 
 describe('PlaneContextPool — arrastre desde el popover', () => {

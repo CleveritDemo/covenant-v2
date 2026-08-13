@@ -6,6 +6,7 @@ import {
   PERSONAL_SCOPE,
   pulseScopeOptions,
   pulseWorkspaceTag,
+  normalizePulseEvent,
   dayFromMs,
   heatmapGrid,
   intensityLevels,
@@ -188,6 +189,34 @@ describe('pulseScopeOptions', () => {
 
   it('sin eventos personales no ofrece la opción', () => {
     expect(pulseScopeOptions([prompt('2026-08-01', { workspace: 'a/ws' })]).hasPersonal).toBe(false)
+  })
+
+  it('tras normalizePulseEvent ya no ofrece el GUID del worktree de delegación', () => {
+    const guid = 'e29cbe2a-e6f7-4c1b-8290-aaa68d9d8b72'
+    const opts = pulseScopeOptions([
+      normalizePulseEvent(prompt('2026-08-01', { repo: guid, branch: `gravity/deleg/${guid}` })),
+      normalizePulseEvent(prompt('2026-08-01', { repo: 'covenant', branch: `gravity/deleg/${guid}` })),
+    ])
+    expect(opts.repos).toEqual(['covenant'])
+  })
+})
+
+describe('normalizePulseEvent', () => {
+  const guid = 'e29cbe2a-e6f7-4c1b-8290-aaa68d9d8b72'
+
+  it('quita el repo si es el GUID igual al sufijo de la rama de delegación', () => {
+    const e = prompt('2026-08-01', { repo: guid, branch: `gravity/deleg/${guid}`, provider: 'claude' })
+    expect(normalizePulseEvent(e)).toEqual({ ts: noon('2026-08-01'), kind: 'prompt', branch: `gravity/deleg/${guid}`, provider: 'claude' })
+  })
+
+  it('deja intacto un repo real con rama de delegación', () => {
+    const e = prompt('2026-08-01', { repo: 'covenant', branch: `gravity/deleg/${guid}` })
+    expect(normalizePulseEvent(e)).toBe(e)
+  })
+
+  it('deja intacta una rama normal', () => {
+    const e = prompt('2026-08-01', { repo: guid, branch: 'main' })
+    expect(normalizePulseEvent(e)).toBe(e)
   })
 })
 

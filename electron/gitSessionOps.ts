@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { basename, join, normalize, resolve } from 'path'
+import { basename, dirname, join, normalize, resolve } from 'path'
 import { readdirSync, realpathSync, statSync } from 'fs'
 import type {
   GitCommandResult,
@@ -181,9 +181,31 @@ export function runGit(
 }
 
 /**
- * Repo (basename del toplevel) y rama activa, para etiquetar los eventos de
- * Pulse. Fuera de un repo git devuelve `{}`. Nunca lanza: es telemetría, no
- * puede tumbar el turno ni el commit que la origina.
+ * Nombre del repo principal vía `--git-common-dir`. En un worktree de
+ * delegación el toplevel es `.gravity/worktrees/<tab>/<id>` y su basename es
+ * el GUID; el common dir apunta al `.git` del padre. Repos bare / layouts
+ * raros (common dir que no termina en `.git`) → null y el caller usa el
+ * basename del toplevel. git < 2.31 sin `--path-format=absolute` también
+ * cae al fallback.
+ */
+async function mainRepoName(root: string): Promise<string | null> {
+  const r = await runGit(
+    root,
+    ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+    TIMEOUT_LOCAL_MS,
+  )
+  if (r.exitCode !== 0 || !r.stdout.trim()) return null
+  const common = r.stdout.trim().split('\n')[0]?.trim() ?? ''
+  if (!common || basename(common) !== '.git') return null
+  return basename(dirname(common)) || null
+}
+
+/**
+ * Repo (basename del repo principal, no del worktree) y rama activa, para
+ * etiquetar los eventos de Pulse. En un worktree de delegación la rama queda
+ * `gravity/deleg/<id>` — eso es la traza de que el turno fue ahí. Fuera de un
+ * repo git devuelve `{}`. Nunca lanza: es telemetría, no puede tumbar el
+ * turno ni el commit que la origina.
  */
 export async function repoAndBranch(
   cwd: string,
@@ -191,7 +213,7 @@ export async function repoAndBranch(
   try {
     const root = await getRepoRoot(cwd)
     if (!root) return {}
-    const repo = basename(root)
+    const repo = (await mainRepoName(root)) ?? basename(root)
     const r = await runGit(root, ['branch', '--show-current'], TIMEOUT_LOCAL_MS)
     const branch = r.exitCode === 0 ? r.stdout.trim().split('\n')[0]?.trim() : ''
     // HEAD desacoplado devuelve vacío; se omite en vez de guardar "".

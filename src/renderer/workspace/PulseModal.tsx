@@ -11,6 +11,8 @@ import {
   type PulseSnapshot,
 } from '@shared/pulseEvents'
 import { foldPulseReplicas, type PulseAgentGroup } from '@shared/pulseReplicas'
+import type { OrgWorkspaceCatalog } from '@shared/orgWorkspaceCatalog'
+import { pulseWorkspaceLabel } from '@shared/pulseWorkspaceLabels'
 import { TerminalModal } from '../components/TerminalModal'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
@@ -319,6 +321,7 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
   const [range, setRange] = useState<Range>('all')
   const [workspace, setWorkspace] = useState(ALL)
   const [repo, setRepo] = useState(ALL)
+  const [orgCatalog, setOrgCatalog] = useState<OrgWorkspaceCatalog | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -341,6 +344,22 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
     }
   }, [open, range, workspace, repo])
 
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void window.api
+      .getConfig()
+      .then(cfg => {
+        if (!cancelled) setOrgCatalog(cfg.orgWorkspaceCatalogCache ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setOrgCatalog(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   const grid = useMemo(
     () => heatmapGrid(snapshot?.days ?? [], dayFromMs(Date.now()), RANGES[range].weeks),
     [snapshot, range],
@@ -359,12 +378,13 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
 
   const workspaceOptions = useMemo(() => {
     const scopes = snapshot?.scopes
+    const tags = scopes?.workspaces ?? []
     return [
       { value: ALL, label: t('pulse.scope_all') },
-      ...(scopes?.workspaces ?? []).map(w => ({ value: w, label: w })),
+      ...tags.map(w => ({ value: w, label: pulseWorkspaceLabel(w, orgCatalog, tags) })),
       ...(scopes?.hasPersonal ? [{ value: PERSONAL_SCOPE, label: t('pulse.scope_personal') }] : []),
     ]
-  }, [snapshot, t])
+  }, [snapshot, orgCatalog, t])
 
   const repoOptions = useMemo(
     () => [

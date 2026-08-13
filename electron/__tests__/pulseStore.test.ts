@@ -74,4 +74,19 @@ describe('parsePulseLines', () => {
     const [e] = parsePulseLines('{"ts":1000,"kind":"prompt","provider":"claude"}')
     expect(e).toEqual({ ts: 1000, kind: 'prompt', provider: 'claude' })
   })
+
+  it('una línea con repo GUID + branch gravity/deleg/<mismo GUID> sale sin repo', () => {
+    const guid = 'e29cbe2a-e6f7-4c1b-8290-aaa68d9d8b72'
+    const line = JSON.stringify({
+      ts: 1000,
+      kind: 'prompt',
+      repo: guid,
+      branch: `gravity/deleg/${guid}`,
+    })
+    expect(parsePulseLines(line)[0]).toEqual({
+      ts: 1000,
+      kind: 'prompt',
+      branch: `gravity/deleg/${guid}`,
+    })
+  })
 })

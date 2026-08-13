@@ -4,6 +4,7 @@ import { app } from 'electron'
 import {
   aggregatePulse,
   filterPulseEvents,
+  normalizePulseEvent,
   pulseScopeOptions,
   PULSE_EVENT_KINDS,
   type PulseEvent,
@@ -44,7 +45,7 @@ export function parsePulseLines(text: string): PulseEvent[] {
       const parsed = JSON.parse(line) as Partial<PulseEvent>
       if (typeof parsed.ts !== 'number' || !Number.isFinite(parsed.ts)) continue
       if (!parsed.kind || !PULSE_EVENT_KINDS.includes(parsed.kind)) continue
-      out.push(parsed as PulseEvent)
+      out.push(normalizePulseEvent(parsed as PulseEvent))
     } catch {
       continue
     }

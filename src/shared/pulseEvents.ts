@@ -62,6 +62,29 @@ export function pulseWorkspaceTag(
   return slug && workspaceId ? `${slug}/${workspaceId}` : null
 }
 
+const DELEG_BRANCH_PREFIX = 'gravity/deleg/'
+
+/**
+ * Quita SOLO el `repo` de eventos históricos mal etiquetados: el basename del
+ * worktree de delegación (un GUID) se grabó como repo porque coincidía con el
+ * sufijo de `gravity/deleg/<id>`. El repo padre no es recuperable desde la
+ * bitácora, así que esos eventos siguen contando en totales pero dejan de
+ * aparecer en el selector. Eventos nuevos (repo real + rama de delegación) no
+ * coinciden y se dejan intactos.
+ */
+export function normalizePulseEvent(e: PulseEvent): PulseEvent {
+  if (
+    e.repo &&
+    e.branch?.startsWith(DELEG_BRANCH_PREFIX) &&
+    e.branch.slice(DELEG_BRANCH_PREFIX.length) === e.repo
+  ) {
+    const next = { ...e }
+    delete next.repo
+    return next
+  }
+  return e
+}
+
 export interface PulseDay {
   /** ISO YYYY-MM-DD en la tz local del equipo que grabó. */
   day: string

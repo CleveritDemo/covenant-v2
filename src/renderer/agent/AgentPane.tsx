@@ -13,7 +13,12 @@ import type {
   AgentCliUiEvent,
 } from '@shared/agentCliTypes'
 import type { TabContext } from '@shared/tabContext'
-import { extractTabContextUpdates, defaultAssignedContextIds } from '@shared/tabContext'
+import {
+  extractTabContextUpdates,
+  defaultAssignedContextIds,
+  needsContextRediscovery,
+  resolveTurnContexts,
+} from '@shared/tabContext'
 import {
   LOOP_INTERVAL_PRESETS,
   MAX_AGENT_LOOP_ITERATIONS,
@@ -1714,16 +1719,24 @@ export const AgentPane: React.FC<Props> = ({
       extraContextIds?: string[]
     },
   ): Promise<boolean> => {
+    const extraContextIds = options?.extraContextIds ?? []
     /**
-     * Los del catálogo del agente más los que vengan adjuntos al turno. El Set
-     * deduplica: adjuntar algo ya asignado no lo manda dos veces.
+     * `contextsRevision` (bump en `App.tsx`'s `refreshTabContexts`) es el
+     * camino normal para que este pane vuelva a leer disco, pero es async y
+     * el usuario puede pulsar Enter a los pocos ms de elegir una mención.
+     * Guarda determinista: si algo que este turno pide adjuntar todavía no
+     * está en el catálogo en memoria, refrescar ANTES de resolver — si no,
+     * `resolveTurnContexts` lo descarta en silencio (el id llegó, el `.md`
+     * existe, pero nadie lo había leído todavía aquí).
      */
-    const wantedContextIds = new Set([
-      ...(metaRef.current.contextIds ?? []),
-      ...(options?.extraContextIds ?? []),
-    ])
-    const assigned = diskContextsRef.current.filter(context =>
-      wantedContextIds.has(context.id))
+    if (needsContextRediscovery(extraContextIds, diskContextsRef.current)) {
+      await refreshDiskContexts()
+    }
+    const assigned = resolveTurnContexts(
+      metaRef.current.contextIds ?? [],
+      extraContextIds,
+      diskContextsRef.current,
+    )
     const images: AgentCliImageAttachment[] = []
     const displayImages: AgentChatImage[] = []
     for (const [index, image] of imagesSnapshot.entries()) {
@@ -1762,7 +1775,7 @@ export const AgentPane: React.FC<Props> = ({
         : {}),
       ...(options?.viaLoop ? { viaLoop: true } : {}),
     })
-  }, [startTurn, t])
+  }, [refreshDiskContexts, startTurn, t])
 
   /** Cada ciclo del loop = el mismo despacho que un mensaje del chat. */
   const runLoopIteration = useCallback((iteration: number): void => {

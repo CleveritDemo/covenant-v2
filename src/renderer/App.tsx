@@ -2993,6 +2993,20 @@ export const App: React.FC = () => {
     const result = await window.api.discoverTabContexts({ cwd })
     if (!result.ok) return
     setTabContextsByTab(prev => ({ ...prev, [tabId]: result.contexts }))
+    // `contextsRevision` es el único mecanismo que hace que un `AgentPane` ya
+    // montado vuelva a leer disco (su propio discover solo depende de mount/
+    // cwd/abrir su panel — ver AgentPane.tsx:1061-1082). Sin este bump, un
+    // contexto creado ahora (p. ej. una mención de Jira) nunca entra en
+    // `diskContextsRef` de un pane que ya estaba abierto, y se cae en
+    // silencio de cualquier turno que lo adjunte antes de que el pane vuelva
+    // a abrir su panel de contextos por otra razón.
+    const catalogKey = tabAgentCatalogKey(tab)
+    if (catalogKey) {
+      setContextsRevisionByCwd(prev => ({
+        ...prev,
+        [catalogKey]: (prev[catalogKey] ?? 0) + 1,
+      }))
+    }
   }, [])
 
   const handleConfigureContextsFromPlane = useCallback((tabId: string) => {

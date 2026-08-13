@@ -8,7 +8,9 @@ import {
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
   isCanonicalContextId,
+  needsContextRediscovery,
   normalizeAnnotation,
+  resolveTurnContexts,
   suggestSymbolsIdentity,
   isProjectRelativePath,
 } from '../tabContext'
@@ -144,6 +146,46 @@ describe('defaultAssignedContextIds', () => {
       'iaterminal:symbols:classes-back',
       'iaterminal:symbols:classes-front',
     ])
+  })
+})
+
+describe('needsContextRediscovery / resolveTurnContexts', () => {
+  const staleDisk = [
+    { id: 'iaterminal:folderTree:folders', name: 'folders', fileName: 'folders.md', kind: 'folderTree' as const },
+  ]
+  const freshDisk = [
+    ...staleDisk,
+    { id: 'iaterminal:jira:GRAV-412', name: 'GRAV-412', fileName: 'jira/GRAV-412.md', kind: 'jira' as const, issueKey: 'GRAV-412' },
+  ]
+
+  it('detecta que un id adjunto todavía no está en el catálogo en memoria', () => {
+    expect(needsContextRediscovery(['iaterminal:jira:GRAV-412'], staleDisk)).toBe(true)
+    expect(needsContextRediscovery(['iaterminal:jira:GRAV-412'], freshDisk)).toBe(false)
+    expect(needsContextRediscovery([], staleDisk)).toBe(false)
+  })
+
+  it(
+    'reproduce la regresión: sin refrescar el contexto recién materializado se cae del turno; '
+    + 'tras refrescar, viaja',
+    () => {
+      // Justo después de `materializeTabContext`: el .md ya existe en disco,
+      // pero el pane todavía tiene el snapshot viejo en memoria.
+      expect(resolveTurnContexts([], ['iaterminal:jira:GRAV-412'], staleDisk)).toEqual([])
+      // Tras el `refreshDiskContexts()` que dispara `needsContextRediscovery`,
+      // el mismo id sí resuelve a contenido real.
+      expect(resolveTurnContexts([], ['iaterminal:jira:GRAV-412'], freshDisk)).toEqual([
+        freshDisk[1],
+      ])
+    },
+  )
+
+  it('deduplica lo ya asignado en el catálogo con lo adjunto ad-hoc', () => {
+    const result = resolveTurnContexts(
+      ['iaterminal:folderTree:folders'],
+      ['iaterminal:folderTree:folders', 'iaterminal:jira:GRAV-412'],
+      freshDisk,
+    )
+    expect(result).toEqual(freshDisk)
   })
 })
 

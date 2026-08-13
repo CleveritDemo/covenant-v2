@@ -598,6 +598,40 @@ export function defaultAssignedContextIds(contexts: readonly TabContext[]): stri
     .map(context => context.id)
 }
 
+/**
+ * ¿Hay algún id en `extraContextIds` que el catálogo en memoria (`diskContexts`,
+ * lo último que ese pane leyó de disco) todavía no conoce? Si sí, hace falta
+ * releer disco antes de resolver el turno: un contexto recién materializado
+ * (p. ej. una mención de Jira elegida hace un segundo) no está ahí todavía, y
+ * sin este chequeo `resolveTurnContexts` lo descarta en silencio — el id llegó
+ * adjunto al turno, el `.md` existe, pero nadie en memoria lo había leído.
+ */
+export function needsContextRediscovery(
+  extraContextIds: readonly string[],
+  diskContexts: readonly TabContext[],
+): boolean {
+  if (!extraContextIds.length) return false
+  const known = new Set(diskContexts.map(context => context.id))
+  return extraContextIds.some(id => !known.has(id))
+}
+
+/**
+ * Contextos que viajan en el turno: el catálogo asignado al agente más los
+ * adjuntos ad-hoc de ESE turno (drop de un chip, mención de Jira…),
+ * deduplicados y resueltos contra `diskContexts`. Pura y separada de
+ * `dispatchMessage` para poder probar, sin montar `AgentPane`, que un id
+ * ausente del catálogo en memoria se cae del turno — y que tras refrescar
+ * (`needsContextRediscovery` → releer disco) aparece.
+ */
+export function resolveTurnContexts(
+  catalogContextIds: readonly string[],
+  extraContextIds: readonly string[],
+  diskContexts: readonly TabContext[],
+): TabContext[] {
+  const wanted = new Set([...catalogContextIds, ...extraContextIds])
+  return diskContexts.filter(context => wanted.has(context.id))
+}
+
 /** Sugiere nombre/archivo para un contexto symbols según la subcarpeta. */
 export function suggestSymbolsIdentity(rootPath: string | undefined): {
   name: string

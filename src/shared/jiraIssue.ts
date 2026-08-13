@@ -76,6 +76,44 @@ export function isSnapshotStale(mtimeMs: number, refreshSeconds: number, nowMs: 
   return nowMs - mtimeMs >= refreshSeconds * 1000
 }
 
+export interface JiraMentionRange {
+  /** Offset donde empieza el token completo (incluye el `@` si es búsqueda libre). */
+  start: number
+  /** Siempre el `caret` recibido: el token termina justo donde miró `mentionRangeAt`. */
+  end: number
+  query: string
+}
+
+/**
+ * Igual que `mentionQueryAt`, pero además dice DÓNDE empieza (y termina) el
+ * token que disparó la mención — para poder reemplazarlo por la clave
+ * canónica del issue elegido (`GRAV-4` truncado → `GRAV-412`) en vez de
+ * dejarlo colgado en el borrador. `mentionQueryAt` es un envoltorio de esto:
+ * mismo contrato, ya testeado, sin duplicar la regex.
+ */
+export function mentionRangeAt(
+  text: string,
+  caret: number,
+  projectKeys: readonly string[],
+): JiraMentionRange | null {
+  if (!projectKeys.length) return null
+  const clampedCaret = Math.max(0, caret)
+  const before = (text ?? '').slice(0, clampedCaret)
+
+  const mention = before.match(/(?:^|\s)@([\w-]*)$/)
+  if (mention) {
+    // -1: el `@` no está en el grupo capturado, pero sí en el token a reemplazar.
+    return { start: clampedCaret - mention[1].length - 1, end: clampedCaret, query: mention[1] }
+  }
+
+  const partial = before.match(/(?:^|\s)([A-Za-z][A-Za-z0-9]*)-(\d*)$/)
+  if (!partial) return null
+  const project = partial[1].toUpperCase()
+  if (!projectKeys.some(key => key.trim().toUpperCase() === project)) return null
+  const matchedLength = partial[1].length + 1 + partial[2].length
+  return { start: clampedCaret - matchedLength, end: clampedCaret, query: `${project}-${partial[2]}` }
+}
+
 /**
  * Qué está escribiendo el usuario justo antes del cursor, si es una mención.
  * Devuelve el término de búsqueda, `''` para un `@` recién tecleado, o `null`
@@ -91,15 +129,5 @@ export function mentionQueryAt(
   caret: number,
   projectKeys: readonly string[],
 ): string | null {
-  if (!projectKeys.length) return null
-  const before = (text ?? '').slice(0, Math.max(0, caret))
-
-  const mention = before.match(/(?:^|\s)@([\w-]*)$/)
-  if (mention) return mention[1]
-
-  const partial = before.match(/(?:^|\s)([A-Za-z][A-Za-z0-9]*)-(\d*)$/)
-  if (!partial) return null
-  const project = partial[1].toUpperCase()
-  if (!projectKeys.some(key => key.trim().toUpperCase() === project)) return null
-  return `${project}-${partial[2]}`
+  return mentionRangeAt(text, caret, projectKeys)?.query ?? null
 }

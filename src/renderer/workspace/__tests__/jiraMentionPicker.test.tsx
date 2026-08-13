@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { JiraMentionPicker } from '../JiraMentionPicker'
+import type { JiraIssueRef } from '@shared/jiraIssue'
 
 const jiraSearch = vi.fn()
 
@@ -22,7 +23,9 @@ afterEach(cleanup)
 
 describe('JiraMentionPicker', () => {
   it('busca y lista las coincidencias', async () => {
-    render(<JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={vi.fn()} />)
+    render(
+      <JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
+    )
     await waitFor(() => expect(jiraSearch).toHaveBeenCalledWith('/repo', 'GRAV-4'))
     await screen.findByText('Loop chain colgada')
     expect(screen.getByText('GRAV-407')).toBeTruthy()
@@ -30,7 +33,9 @@ describe('JiraMentionPicker', () => {
 
   it('Enter elige la fila activa', async () => {
     const onPick = vi.fn()
-    render(<JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={onPick} onDismiss={vi.fn()} />)
+    render(
+      <JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={onPick} onDismiss={vi.fn()} focusElement={null} />,
+    )
     await screen.findByText('Loop chain colgada')
     fireEvent.keyDown(window, { key: 'ArrowDown' })
     fireEvent.keyDown(window, { key: 'Enter' })
@@ -39,7 +44,9 @@ describe('JiraMentionPicker', () => {
 
   it('Escape cierra sin elegir', async () => {
     const onDismiss = vi.fn()
-    render(<JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={onDismiss} />)
+    render(
+      <JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={onDismiss} focusElement={null} />,
+    )
     await screen.findByText('Loop chain colgada')
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onDismiss).toHaveBeenCalled()
@@ -48,9 +55,74 @@ describe('JiraMentionPicker', () => {
   it('sin resultados no pinta una lista vacía flotando', async () => {
     jiraSearch.mockResolvedValue([])
     const { container } = render(
-      <JiraMentionPicker cwd="/repo" query="ZZZ" onPick={vi.fn()} onDismiss={vi.fn()} />,
+      <JiraMentionPicker cwd="/repo" query="ZZZ" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
     )
     await waitFor(() => expect(jiraSearch).toHaveBeenCalled())
     await waitFor(() => expect(container.querySelector('.jira-mention__list')).toBeNull())
+  })
+
+  it('sin resultados, Enter/Escape/flechas no se tragan (nada que cerrar)', async () => {
+    jiraSearch.mockResolvedValue([])
+    render(
+      <JiraMentionPicker cwd="/repo" query="ZZZ" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
+    )
+    await waitFor(() => expect(jiraSearch).toHaveBeenCalled())
+    // dispatchEvent devuelve `true` cuando NADIE llamó preventDefault: la
+    // tecla sigue su curso normal (Enter puede enviar el mensaje, etc.).
+    expect(fireEvent.keyDown(window, { key: 'Enter', cancelable: true })).toBe(true)
+    expect(fireEvent.keyDown(window, { key: 'Escape', cancelable: true })).toBe(true)
+    expect(fireEvent.keyDown(window, { key: 'ArrowDown', cancelable: true })).toBe(true)
+  })
+
+  it('con resultados, Enter sí se cancela (el picker lo maneja)', async () => {
+    render(
+      <JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
+    )
+    await screen.findByText('Loop chain colgada')
+    expect(fireEvent.keyDown(window, { key: 'Enter', cancelable: true })).toBe(false)
+  })
+
+  it('ignora el teclado si el foco real no está en el elemento del composer', async () => {
+    const onPick = vi.fn()
+    const detachedTextarea = document.createElement('textarea')
+    render(
+      <JiraMentionPicker
+        cwd="/repo"
+        query="GRAV-4"
+        onPick={onPick}
+        onDismiss={vi.fn()}
+        focusElement={detachedTextarea}
+      />,
+    )
+    await screen.findByText('Loop chain colgada')
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(onPick).not.toHaveBeenCalled()
+  })
+
+  it('solo la búsqueda más reciente pinta, aunque resuelva después de reordenarse', async () => {
+    let resolveFirst: (issues: JiraIssueRef[]) => void = () => {}
+    let resolveSecond: (issues: JiraIssueRef[]) => void = () => {}
+    jiraSearch
+      .mockImplementationOnce(() => new Promise<JiraIssueRef[]>(resolve => { resolveFirst = resolve }))
+      .mockImplementationOnce(() => new Promise<JiraIssueRef[]>(resolve => { resolveSecond = resolve }))
+
+    const { rerender } = render(
+      <JiraMentionPicker cwd="/repo" query="GRAV-4" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
+    )
+    await waitFor(() => expect(jiraSearch).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <JiraMentionPicker cwd="/repo" query="GRAV-41" onPick={vi.fn()} onDismiss={vi.fn()} focusElement={null} />,
+    )
+    await waitFor(() => expect(jiraSearch).toHaveBeenCalledTimes(2))
+
+    // La búsqueda MÁS NUEVA resuelve primero.
+    resolveSecond([refs[1]])
+    await screen.findByText('Timeout de PTY')
+
+    // La búsqueda VIEJA resuelve después: no debe pisar lo ya pintado.
+    resolveFirst([refs[0]])
+    await waitFor(() => expect(screen.getByText('Timeout de PTY')).toBeTruthy())
+    expect(screen.queryByText('Loop chain colgada')).toBeNull()
   })
 })

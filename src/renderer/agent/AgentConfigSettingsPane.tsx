@@ -19,6 +19,7 @@ import {
 import { useT } from '@i18n/useT'
 import { Button, ChoiceCard, ContextCheckOption, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
+import type { ContextPickerAgent } from '@shared/agentContextPicker'
 import { AgentProviderGrid } from './AgentProviderGrid'
 import { AgentConfigFolderChip } from './AgentConfigFolderChip'
 import { McpToolShelf } from './McpToolShelf'
@@ -47,6 +48,8 @@ export interface AgentConfigSettingsPaneProps {
   selectedContextIds: string[]
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
+  /** Catálogo del proyecto: uso de contextos por agente. */
+  projectAgents?: ContextPickerAgent[]
   /** Modelos del CLI (si el modal ya los cargó). */
   modelOptions?: AgentModelOption[]
   modelsLoading?: boolean
@@ -128,6 +131,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   diskContexts,
   selectedContextIds,
   peerAgents = [],
+  projectAgents = [],
   modelOptions: modelOptionsProp,
   modelsLoading = false,
   modelsError = '',
@@ -442,6 +446,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
       locked={false}
       loopActive={loopActive}
       agentId={meta.id}
+      projectAgents={projectAgents}
       onToggleContext={onToggleContext}
       onOpenContextsModal={onOpenContextsModal}
     />

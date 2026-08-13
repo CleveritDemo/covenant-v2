@@ -2905,6 +2905,7 @@ export const AgentPane: React.FC<Props> = ({
           })
         }}
         peerAgents={peerAgents}
+        projectAgents={projectAgents}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}

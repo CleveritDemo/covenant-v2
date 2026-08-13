@@ -24,6 +24,7 @@ import {
   type AgentConfigSectionItem,
 } from './AgentConfigSectionRail'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
+import type { ContextPickerAgent } from '@shared/agentContextPicker'
 import './AgentConfigModal.css'
 
 /**
@@ -83,6 +84,8 @@ export interface AgentConfigModalProps {
   onContextsTabFocus?: () => void
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
+  /** Catálogo del proyecto: uso de contextos por agente. */
+  projectAgents?: ContextPickerAgent[]
   /** Cerrar al pulsar el fondo (por defecto sí para este modal). */
   closeOnBackdrop?: boolean
   /** Tab activa: oculta el portal sin cerrar configOpen del padre. */
@@ -117,6 +120,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onOpenContextsModal,
   onContextsTabFocus,
   peerAgents = [],
+  projectAgents = [],
   closeOnBackdrop = true,
   active = true,
 }) => {
@@ -477,6 +481,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onToggleContext={onToggleContext}
                 onOpenContextsModal={onOpenContextsModal}
                 peerAgents={peerAgents}
+                projectAgents={projectAgents}
               />
             )}
           </section>

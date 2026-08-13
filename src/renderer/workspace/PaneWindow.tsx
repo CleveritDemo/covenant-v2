@@ -266,7 +266,6 @@ export interface PaneWindowProps {
    * Sin esto, el `preventDefault()` del pointerdown (abrir chat sin delay)
    * cancela el drag nativo antes de que empiece.
    */
-  seatDragEnabled?: boolean
   reorderEnabled?: boolean
   reorderState?: 'idle' | 'jiggle' | 'dragging' | 'previewMoving'
   /** Desfase del jiggle (ms) para desincronizar cards. */
@@ -315,7 +314,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onDropContext,
   paneId,
   onMiniContentHeightChange,
-  seatDragEnabled = false,
   reorderEnabled = false,
   reorderState = 'idle',
   reorderJiggleDelayMs = 0,
@@ -641,7 +639,6 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
       return
     }
     if (isMiniExpandSuppressed()) return
-    if (seatDragEnabled) return
     if (reorderEnabled && onReorderPointerDown) {
       onReorderPointerDown(event)
       return
@@ -649,7 +646,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     // Expandir en pointerdown (no esperar al click/mouseup → se siente con delay).
     event.preventDefault()
     onExpand?.()
-  }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled, seatDragEnabled])
+  }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
   const onBodyPointerDown = useCallback((event: React.PointerEvent) => {
     if (!isMini || event.button !== 0) return
@@ -660,8 +657,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     // Agentes mini: clic abre chat; reorder solo vía handle.
     if (miniAgentCard) {
       // Con la mesa abierta la card se arrastra: ni preventDefault ni abrir chat.
-      if (seatDragEnabled) return
-      event.preventDefault()
+        event.preventDefault()
       onFocus()
       onExpand?.()
       return
@@ -674,7 +670,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     event.preventDefault()
     onFocus()
     onExpand?.()
-  }, [isMini, miniAgentCard, onExpand, onFocus, onReorderPointerDown, reorderEnabled, seatDragEnabled])
+  }, [isMini, miniAgentCard, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
   const onContextDragOver = useCallback((event: React.DragEvent) => {
     if (!onDropContext || !hasPlaneContextDrag(event.dataTransfer)) return

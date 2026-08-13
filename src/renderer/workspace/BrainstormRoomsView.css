@@ -1,0 +1,422 @@
+/*
+ * Biblioteca de salas en la columna central de la sala. Antes era el cuerpo de
+ * un modal, así que el alto lo ponía la caja; aquí lo pone el plano y scrollea
+ * la lista.
+ */
+.brainstorm-rooms {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 12px;
+}
+
+.brainstorm-rooms__groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+/* Filtros de la columna: estado y formato, con su cuenta. */
+.brainstorm-rooms__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.brainstorm-rooms__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.brainstorm-rooms__filter i {
+  font-style: normal;
+  font-size: 9.5px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.brainstorm-rooms__filter:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.brainstorm-rooms__filter--on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/*
+ * Biblioteca de salas en la columna central de la sala. Antes era el cuerpo de
+ * un modal, así que el alto lo ponía la caja; aquí lo pone el plano y scrollea
+ * la lista.
+ */
+.brainstorm-rooms {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 12px;
+}
+
+.brainstorm-rooms__groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+/* Filtros de la columna: estado y formato, con su cuenta. */
+.brainstorm-rooms__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.brainstorm-rooms__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.brainstorm-rooms__filter i {
+  font-style: normal;
+  font-size: 9.5px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.brainstorm-rooms__filter:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.brainstorm-rooms__filter--on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.brainstorm-rooms__title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brainstorm-rooms__count {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.brainstorm-rooms__hint {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/*
+ * Buscador: una sola caja. El `variant="inline"` del Input trae su propio
+ * subrayado, que dentro de un campo con borde se leía como dos cajas
+ * encajadas; aquí manda el contenedor y el input va desnudo.
+ */
+.brainstorm-rooms__search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  margin: 0 0 12px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--plane-radius-sm, 10px);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.brainstorm-rooms__search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.brainstorm-rooms__search .input {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 12.5px;
+}
+
+.brainstorm-rooms__search .input:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.brainstorm-rooms__search .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.brainstorm-rooms__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(48vh, 420px);
+  overflow: auto;
+}
+
+.brainstorm-rooms__group-title {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/*
+ * Cada acta es una fila de lista, no una tarjeta. El estado venía codificado
+ * tres veces —franja lateral, chip y pips— y el título se partía en dos líneas
+ * con los botones flotando a media altura. Ahora: un punto para el estado, el
+ * título en una línea, una línea de datos atenuada, y la fila entera abre.
+ */
+.brainstorm-rooms__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.brainstorm-rooms__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 12px;
+  padding: 11px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: var(--plane-radius-sm, 10px);
+}
+
+.brainstorm-rooms__row:first-child {
+  border-top-color: transparent;
+}
+
+.brainstorm-rooms__row:hover,
+.brainstorm-rooms__row:focus-within {
+  background: var(--surface);
+  border-top-color: transparent;
+}
+
+/* Sin hairline entre la fila activa y la siguiente: el fondo ya las separa. */
+.brainstorm-rooms__row:hover + .brainstorm-rooms__row,
+.brainstorm-rooms__row:focus-within + .brainstorm-rooms__row {
+  border-top-color: transparent;
+}
+
+.brainstorm-rooms__row--faded { opacity: 0.75; }
+.brainstorm-rooms__row--faded:hover { opacity: 1; }
+
+/* La capa que abre: cubre la fila por debajo de las acciones. */
+.brainstorm-rooms__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  border-radius: var(--plane-radius-sm, 10px);
+  background: transparent;
+  cursor: pointer;
+}
+
+.brainstorm-rooms__hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.brainstorm-rooms__dot {
+  grid-column: 1;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.brainstorm-rooms__row--idle .brainstorm-rooms__dot { background: var(--caution); }
+.brainstorm-rooms__row--run .brainstorm-rooms__dot {
+  animation: brainstorm-rooms-beat 1.6s ease-in-out infinite;
+}
+
+@keyframes brainstorm-rooms-beat {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brainstorm-rooms__row--run .brainstorm-rooms__dot { animation: none; }
+}
+
+/* El texto no intercepta el clic: la fila entera es el gesto de abrir. */
+.brainstorm-rooms__main {
+  grid-column: 2;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.brainstorm-rooms__topic {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brainstorm-rooms__facts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.brainstorm-rooms__sep { opacity: 0.45; }
+
+/* Solo lo que no es lo normal se dice con palabras. */
+.brainstorm-rooms__flag {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+.brainstorm-rooms__row--run .brainstorm-rooms__flag { color: var(--accent); }
+
+/* Iniciales en gris: identifican sin competir con el estado. */
+.brainstorm-rooms__agents { display: inline-flex; }
+
+.brainstorm-rooms__agents span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  margin-left: -5px;
+  border: 1.5px solid var(--bg);
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.brainstorm-rooms__agents span:first-child { margin-left: 0; }
+.brainstorm-rooms__row:hover .brainstorm-rooms__agents span { border-color: var(--surface); }
+
+.brainstorm-rooms__end {
+  grid-column: 3;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brainstorm-rooms__age {
+  min-width: 52px;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Las acciones salen al pasar por encima: con cuatro por fila, una lista larga
+   se convierte en una pared de botones. `⋯` se queda siempre. */
+.brainstorm-rooms__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.brainstorm-rooms__row:hover .brainstorm-rooms__actions,
+.brainstorm-rooms__row:focus-within .brainstorm-rooms__actions {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brainstorm-rooms__actions { transition: none; }
+}
+
+.brainstorm-rooms__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: calc(var(--radius) / 1.2);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.brainstorm-rooms__empty-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.brainstorm-rooms__empty-body {
+  margin: 0;
+  max-width: 40ch;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.brainstorm-rooms__feedback {
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}

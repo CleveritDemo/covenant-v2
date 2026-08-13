@@ -217,6 +217,8 @@ interface Props {
   peerAgents?: DelegateToPeerAgent[]
   /** Catálogo de agentes del proyecto (cara de las filas de results). */
   projectAgents?: ProjectAgentDefinition[]
+  /** El listado de contextos reasignó los `contextIds` de un agente. */
+  onProjectAgentSaved?: (agent: ProjectAgentDefinition) => void
   /**
    * Catálogo de contextos del tab (App). En org es el SSOT en memoria;
    * en personal suele coincidir con el discover de disco.
@@ -374,6 +376,7 @@ export const AgentPane: React.FC<Props> = ({
   getOrchestrationAgents,
   peerAgents = [],
   projectAgents = [],
+  onProjectAgentSaved,
   tabContexts = [],
   orgWorkspace,
   onOrchestratorDelegations,
@@ -2913,6 +2916,7 @@ export const AgentPane: React.FC<Props> = ({
         open={contextsOpen && tabActive}
         contexts={diskContexts}
         agents={projectAgents}
+        {...(onProjectAgentSaved ? { onAgentSaved: onProjectAgentSaved } : {})}
         cwd={cwd}
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}

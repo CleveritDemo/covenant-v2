@@ -45,7 +45,7 @@ vi.mock('../BrainstormEditRoomModal', () => ({
   ) : null),
 }))
 
-import { BrainstormListModal } from '../BrainstormListModal'
+import { BrainstormRoomsView } from '../BrainstormRoomsView'
 import { PROJECT_DIR } from '@shared/projectDir'
 
 function room(partial: Partial<BrainstormRoom>): BrainstormRoom {
@@ -76,9 +76,9 @@ function openMenu(topic: string): void {
   )
 }
 
-function renderModal(extra: Partial<React.ComponentProps<typeof BrainstormListModal>> = {}) {
+function renderModal(extra: Partial<React.ComponentProps<typeof BrainstormRoomsView>> = {}) {
   return render(
-    <BrainstormListModal
+    <BrainstormRoomsView
       open
       cwd="/tmp/project"
       onClose={() => undefined}
@@ -89,7 +89,7 @@ function renderModal(extra: Partial<React.ComponentProps<typeof BrainstormListMo
   )
 }
 
-describe('BrainstormListModal', () => {
+describe('BrainstormRoomsView', () => {
   const listBrainstorms = vi.fn()
   const exportBrainstormMarkdown = vi.fn()
   const materializeTabContext = vi.fn()
@@ -144,9 +144,34 @@ describe('BrainstormListModal', () => {
     expect(
       within(rowOf('Paused room')).getByRole('button', { name: 'tabs.brainstormsResume' }),
     ).toBeTruthy()
+    // Una sala cerrada no lleva botón «Abrir»: la fila entera es ese gesto, y su
+    // etiqueta accesible lo dice.
     expect(
-      within(rowOf('Closed room')).getByRole('button', { name: 'tabs.brainstormsOpen' }),
+      within(rowOf('Closed room'))
+        .getByRole('button', { name: 'tabs.brainstormsOpen: Closed room' }),
     ).toBeTruthy()
+  })
+
+  /*
+   * Regresión: la biblioteca y la sala son dos vistas del mismo estado. Cuando
+   * la fila cerraba además de abrir, `onClose` devolvía la vista a «nada
+   * abierto» justo después de pedir la sala, y pulsar Abrir no hacía nada.
+   */
+  it('abrir una sala solo abre: no cierra la vista y la cancela', async () => {
+    const onOpenRoom = vi.fn()
+    const onClose = vi.fn()
+    renderModal({ onOpenRoom, onClose })
+    await waitFor(() => {
+      expect(screen.getByText('Closed room')).toBeTruthy()
+    })
+
+    fireEvent.click(
+      within(rowOf('Closed room'))
+        .getByRole('button', { name: 'tabs.brainstormsOpen: Closed room' }),
+    )
+    expect(onOpenRoom).toHaveBeenCalledTimes(1)
+    expect(onOpenRoom.mock.calls[0][0]).toMatchObject({ id: 'done-1' })
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('surfaces «to context» and export only on a closed room', async () => {

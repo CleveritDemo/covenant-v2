@@ -228,6 +228,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Al llegar al final, la rueda no sigue hacia el plano de detrás. Es el
+     complemento del guard de `PlaneMap`: aquel evita que el plano robe la
+     rueda, esto evita que la lista se la devuelva al terminarse. */
+  overscroll-behavior: contain;
   padding: 4px 0 6px;
 }
 

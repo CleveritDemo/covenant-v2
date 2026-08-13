@@ -75,6 +75,9 @@ function renderBrief(overrides: Partial<React.ComponentProps<typeof BrainstormBr
   return props
 }
 
+// El modal de CREAR sala (`BrainstormStartModal`) tiene su propio campo de
+// objetivo: no reusa `BrainstormBriefFields`, que solo usa el de editar. Cablear
+// solo uno dejaba la mención invisible justo en el camino por el que se entra.
 describe('mención de Jira en el tema de una sala', () => {
   it('elegir una issue la añade al working set, no solo al texto', async () => {
     // Convocar una sala sobre un ticket y tener que pegar su contexto aparte

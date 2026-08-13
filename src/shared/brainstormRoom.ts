@@ -133,7 +133,7 @@ export function filterBrainstormInvitableAgents<
 
 export type BrainstormCatalogAgent = Pick<
   ProjectAgentDefinition,
-  'id' | 'name' | 'role' | 'localOnly'
+  'id' | 'name' | 'role' | 'localOnly' | 'monogram' | 'ceremonyRole'
 >
 
 /** Agente permanente del catálogo por id exacto (nunca réplica). */

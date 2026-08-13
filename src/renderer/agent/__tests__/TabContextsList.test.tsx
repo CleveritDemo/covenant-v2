@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 
@@ -75,6 +75,21 @@ describe('TabContextsList', () => {
   it('deja el glifo por kind en los contextos de proyecto', () => {
     const { container } = renderList([notesContext], [techLead])
     expect(container.querySelector('.tab-contexts__item-icon')).toBeTruthy()
-    expect(container.querySelector('.tab-contexts__monogram')).toBeNull()
+    // La cara solo va en results; los chips del filtro sí traen monograma.
+    expect(container.querySelector('.tab-contexts__item .tab-contexts__monogram')).toBeNull()
+  })
+
+  it('marca sin usar y filtra por el agente del chip', () => {
+    const mine = { ...notesContext, id: 'iaterminal:notes:mine', name: 'Mine' }
+    const { container } = renderList(
+      [notesContext, mine],
+      [{ ...techLead, name: 'Tech Lead', contextIds: [mine.id] }],
+    )
+    expect(container.querySelectorAll('.tab-contexts__unused')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /Tech Lead/ }))
+    const names = [...container.querySelectorAll('.tab-contexts__item strong')]
+      .map(node => node.textContent)
+    expect(names).toEqual(['Mine'])
   })
 })

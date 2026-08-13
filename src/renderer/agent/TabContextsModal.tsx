@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { toggleAgentContextId } from '@shared/tabContextAgentUsage'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -22,6 +23,8 @@ interface Props {
   /** Al abrir, salta directo al formulario de creación. */
   openCreate?: boolean
   onRefresh: () => void
+  /** Un agente cambió sus `contextIds` desde el listado; el dueño del catálogo lo aplica. */
+  onAgentSaved?: (agent: ProjectAgentDefinition) => void
   onClose: () => void
 }
 
@@ -38,6 +41,7 @@ export const TabContextsModal: React.FC<Props> = ({
   onFocusContextConsumed,
   openCreate = false,
   onRefresh,
+  onAgentSaved,
   onClose,
 }) => {
   const { t } = useT()
@@ -116,6 +120,32 @@ export const TabContextsModal: React.FC<Props> = ({
     }
   }
 
+  /** Aplica o quita el contexto al agente sin salir del listado. */
+  const toggleAgentContext = async (
+    agent: ProjectAgentDefinition,
+    context: TabContext,
+  ): Promise<void> => {
+    const workingCwd = resolveCwd()
+    if (!workingCwd) {
+      setListError(t('tabContexts.missingCwd'))
+      return
+    }
+    try {
+      const result = await window.api.upsertProjectAgent(
+        workingCwd,
+        toggleAgentContextId(agent, context.id),
+      )
+      if (!result.ok) {
+        setListError(result.error ?? t('tabContexts.previewError'))
+        return
+      }
+      setListError('')
+      onAgentSaved?.(result.agent)
+    } catch (error) {
+      setListError(error instanceof Error ? error.message : t('tabContexts.previewError'))
+    }
+  }
+
   const formMode: TabContextFormMode = formSession?.mode ?? 'create'
   const formContext = formSession?.mode === 'edit' ? formSession.context : null
   const selectedContext = selectedId
@@ -151,7 +181,14 @@ export const TabContextsModal: React.FC<Props> = ({
             }}
             onDelete={setPendingDelete}
           />
-          <TabContextsListPreview context={selectedContext} cwd={resolveCwd()} />
+          <TabContextsListPreview
+            context={selectedContext}
+            cwd={resolveCwd()}
+            agents={agents}
+            {...(onAgentSaved
+              ? { onToggleAgent: (agent, context) => { void toggleAgentContext(agent, context) } }
+              : {})}
+          />
           {listError && (
             <p className="tab-contexts__list-error" role="alert">{listError}</p>
           )}

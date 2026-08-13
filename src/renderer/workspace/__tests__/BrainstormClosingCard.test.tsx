@@ -56,3 +56,52 @@ describe('BrainstormClosingCard save as context', () => {
     })
   })
 })
+
+describe('BrainstormClosingCard — la decisión primero', () => {
+  const closing = {
+    decision: 'Ship the intersection now',
+    why: 'done.code holds on both forks',
+    agreed: 'R is out',
+    open: 'V vs U',
+    next: 'Cristian writes outcome',
+  }
+
+  beforeEach(() => {
+    ;(window as unknown as { api: Record<string, unknown> }).api = {
+      materializeTabContext: vi.fn(),
+      exportBrainstormMarkdown: vi.fn(),
+    }
+  })
+
+  afterEach(cleanup)
+
+  function mount(): void {
+    render(
+      <BrainstormClosingCard
+        roomId="r1"
+        topic="telemetría"
+        cwd="/tmp/project"
+        closing={closing}
+        speakerLabel="Cristian"
+      />,
+    )
+  }
+
+  it('de entrada solo la decisión: las cinco secciones se llevaban media pantalla', () => {
+    mount()
+    expect(screen.getByText('Ship the intersection now')).toBeTruthy()
+    expect(screen.queryByText('done.code holds on both forks')).toBeNull()
+    expect(screen.queryByText('Cristian writes outcome')).toBeNull()
+  })
+
+  it('el desplegable trae el resto y vuelve a plegarlo', () => {
+    mount()
+    const more = screen.getByText('tabs.brainstormClosingMore')
+    fireEvent.click(more)
+    expect(screen.getByText('done.code holds on both forks')).toBeTruthy()
+    expect(screen.getByText('Cristian writes outcome')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('tabs.brainstormClosingLess'))
+    expect(screen.queryByText('done.code holds on both forks')).toBeNull()
+  })
+})

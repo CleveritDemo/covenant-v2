@@ -4,6 +4,25 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## Sin publicar
+
+Cambios que ya están en `main` y que ningún release ha empaquetado todavía. Al
+cortar la próxima versión, renombra esta sección a `## vX.Y.Z`.
+
+- **La sala de brainstorming ocupa la pantalla**: convocar una sala, seguirla y releer su acta abrían modales uno encima de otro. Ahora las salas guardadas, el alta y la sala en marcha son tres vistas del mismo sitio, sobre el plano, y la barra de la esquina —carpeta, explorador, git, wiki— sigue a mano en todas.
+- **Varias salas a la vez**: puedes convocar una sala mientras otra corre. El botón lleva la cuenta de las que siguen vivas y su desplegable dice en qué ronda va cada una y quién habla. Cerrar la vista ya no detiene nada: la sala sigue y al volver está el acta entera.
+- **Escuchar a uno solo**: pulsa un asiento y se abre con sus turnos nada más, como abrir un agente en el plano. Lo que escribas ahí se publica en la sala dirigido a él, así que el acta no se queda con huecos.
+- **El orden de habla se arrastra**: los invitados sentados se reordenan arrastrándolos, y ese orden es el turno en que hablan.
+- **Un agente puede sentarse en dos salas**: cada sala es una conversación aparte y nada de lo que diga en una llega a la otra. Se avisa al invitarlo, en su asiento y en la cola de turnos.
+- **Menos ruido al leer una sala**: al abrirla ya estás al final del acta en vez de recorrerla en un scroll animado, la tarjeta de cierre enseña la decisión y guarda el resto tras un enlace, y cada asiento muestra la última línea que dijo.
+- **Se va la mesa de invitados**: sentar agentes arrastrándolos al lienzo era un tercer camino para hacer lo que el alta hace en una pantalla.
+- **Saber qué contexto usa cada agente**: el gestor de contextos listaba todos los `.md` del proyecto en un scroll alfabético sin decir quién los carga. Ahora tiene buscador, filtro por agente —con «Sin usar» para los que no lee nadie— y filtro por tipo; cada fila enseña la cara de los agentes que lo cargan, y desde la ficha del contexto se lo aplicas o se lo quitas a cualquiera sin entrar en su configuración.
+- **Los selectores de pestañas se ven bien**: el recuadro de la opción elegida se estiraba a lo ancho de su hueco, así que una palabra corta quedaba flotando en medio de un rectángulo enorme, y sus esquinas no encajaban con las del marco. Ahora se ajusta al texto. Se nota en el resultado de una sala, en Pulse, en la configuración de un agente y en el editor de archivos, entre otros.
+- **La issue se ve nada más añadirla**: al crear un contexto de Jira desde el gestor, el ticket que acabas de ver en la vista previa ya queda dentro. Antes se guardaba vacío, y si no se lo asignabas a ningún agente seguía vacío para siempre.
+- **Buscar issues también al crear una sala**: el buscador de Jira estaba en el formulario de editar una sala pero no en el de crearla, que es por donde se entra. Ahora escribes `#` en el objetivo, eliges la issue, y además de quedar citada se suma al material de la sala.
+- **Mencionar issues ya no puede tumbar la ventana**: si la app se quedaba a medias entre dos versiones, abrir un formulario con buscador de issues cerraba el diálogo entero. Ahora el buscador simplemente no aparece y todo lo demás sigue funcionando.
+- **La rueda del ratón se queda donde estás mirando**: al desplazar la lista de contextos del plano se movían los agentes del fondo en vez de la lista. Cualquier desplegable con scroll propio se queda ahora con la rueda.
+
 ## v0.43.0
 
 - **Wiki como sustrato index-first en el prompt**: el índice compacto incluye resúmenes por página y la directiva de consultar la wiki antes de explorar el repo.

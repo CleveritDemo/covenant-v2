@@ -3,7 +3,6 @@ import { useT } from '@i18n/useT'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
-import { filterSeatableAgents } from '@shared/brainstormTable'
 import {
   computePlaneChatColumnWidth,
   PLANE_CHAT_BASE_WIDTH,
@@ -15,7 +14,6 @@ import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
-import { PlaneBrainstormTable } from './PlaneBrainstormTable'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
@@ -186,29 +184,39 @@ export interface TabAgenticPlaneProps {
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
-  /** Mesa de invitados abierta en el lienzo (paso previo al modal de tema). */
-  brainstormTableOpen?: boolean
-  /** Ids sentados, en orden de habla. */
-  brainstormSeated?: readonly string[]
-  onBrainstormSeatedChange?: (next: string[]) => void
-  onBrainstormTableClose?: () => void
-  onBrainstormTableContinue?: () => void
   brainstormNeedFolderHint?: string
   canOpenBrainstorm?: boolean
-  /** Arranque de una sala nueva: es lo que abre el botón cuando no hay sala viva. */
-  brainstormStartOpen?: boolean
-  onBrainstormStartOpenChange?: (open: boolean) => void
+  /**
+   * Vista del módulo: la biblioteca, el alta, una sala por id, o nada. Un solo
+   * campo para las tres, que son excluyentes.
+   */
+  brainstormView?: 'rooms' | 'setup' | string | null
+  onBrainstormViewChange?: (next: 'rooms' | 'setup' | string | null) => void
+  /** Actas en disco: con historial el botón abre la biblioteca, sin él el alta. */
+  brainstormSavedCount?: number
   brainstormsListButtonLabel?: string
-  /** Sala minimizada que sigue viva: punto en el botón + flyout anclado. */
-  brainstormLive?: BrainstormLiveSummary | null
-  /** Hay room montada (minimizada o no), aunque live aún no haya llegado. */
-  brainstormHasRoom?: boolean
-  brainstormMinimized?: boolean
+  /**
+   * Salas del workspace, en orden: vivas y también las terminadas sin soltar.
+   * Corren en paralelo, así que el botón lleva el número y el flyout la lista.
+   */
+  brainstormRooms?: readonly BrainstormLiveSummary[]
   brainstormDockOpen?: boolean
   onBrainstormDockOpenChange?: (open: boolean) => void
-  onRestoreBrainstorm?: () => void
-  onStopBrainstorm?: () => void
-  onDiscardBrainstorm?: () => void
+  /** Volver a mirar una sala que sigue corriendo. */
+  onOpenBrainstormRoom?: (roomId: string) => void
+  onStopBrainstormRoom?: (roomId: string) => void
+  onDiscardBrainstormRoom?: (roomId: string) => void
+  /**
+   * Overlays de la sala (alta y una vista por sala). Se montan aquí dentro
+   * porque van `absolute` contra este plano, igual que el mapa de la wiki; el
+   * estado sigue viviendo arriba, donde ya estaba.
+   */
+  brainstormOverlays?: React.ReactNode
+  /**
+   * Alguna sala ocupa el plano: la barra de navegación sube por encima y el
+   * pool de contextos se retira, que es de quien hereda su esquina.
+   */
+  brainstormOverlayOpen?: boolean
   loopsTitle: string
   loopsSubtitle: string
   loopsEmptyTitle: string
@@ -384,23 +392,19 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
-  brainstormTableOpen = false,
-  brainstormSeated = [],
-  onBrainstormSeatedChange,
-  onBrainstormTableClose,
-  onBrainstormTableContinue,
   brainstormNeedFolderHint,
   canOpenBrainstorm = false,
-  brainstormLive = null,
-  brainstormHasRoom = false,
-  brainstormMinimized = false,
+  brainstormView = null,
+  onBrainstormViewChange,
+  brainstormSavedCount = 0,
+  brainstormRooms = [],
   brainstormDockOpen = false,
   onBrainstormDockOpenChange,
-  onRestoreBrainstorm,
-  onStopBrainstorm,
-  onDiscardBrainstorm,
-  brainstormStartOpen = false,
-  onBrainstormStartOpenChange,
+  onOpenBrainstormRoom,
+  onStopBrainstormRoom,
+  onDiscardBrainstormRoom,
+  brainstormOverlays,
+  brainstormOverlayOpen = false,
   brainstormsListButtonLabel = 'Brainstorms',
   loopsTitle,
   loopsSubtitle,
@@ -479,6 +483,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // Mapa de wiki: estado local (sin nada del padre), patrón brainstormViewClose:
   // abrir tapa el plano entero, cerrar restaura todo tal cual estaba.
   const [wikiMapOpen, setWikiMapOpen] = useState(false)
+  /** Salas que siguen corriendo: son las que cuenta el badge del botón. */
+  const liveBrainstormRooms = useMemo(
+    () => brainstormRooms.filter(room => isBrainstormLive(room.status)),
+    [brainstormRooms],
+  )
   // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
   const [wikiNodeSlugs, setWikiNodeSlugs] = useState<string[]>([])
   // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
@@ -562,16 +571,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         }
       })
   ), [agentStatuses, entities])
-
-  const tableAgents = useMemo(
-    () => filterSeatableAgents(entities.filter(entity => entity.kind === 'agent'))
-      .map(entity => ({
-        agentId: entity.agentId!,
-        name: entity.title,
-        ...(entity.monogram ? { monogram: entity.monogram } : {}),
-      })),
-    [entities],
-  )
 
   const loopAgents = useMemo<PlaneLoopsAgent[]>(
     () => entities
@@ -704,8 +703,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onMinimizeAllWindows()
       }}
     >
+      {/* Con un overlay ocupando el plano (mapa o sala) la barra sube por
+          encima: es lo único que permite moverse y no se puede tapar. */}
       {!anyFullscreen && (
-        <div className={`plane-top-left-bar${wikiMapOpen ? ' plane-top-left-bar--over-wiki' : ''}`}>
+        <div
+          className={`plane-top-left-bar${
+            wikiMapOpen || brainstormOverlayOpen ? ' plane-top-left-bar--over-wiki' : ''
+          }`}
+        >
           <PlaneProjectFolder
             folderPath={projectFolder}
             selectLabel={projectFolderSelectLabel}
@@ -753,51 +758,67 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             pressed={pulseOpen}
             onClick={() => setPulseOpen(open => !open)}
           />
-          {onBrainstormStartOpenChange ? (
+          {onBrainstormViewChange ? (
             <span className="plane-brainstorm-anchor">
+              {/*
+                Toggle con el contrato del mapa de wiki: pulsa y la sala ocupa el
+                plano, vuelve a pulsar y se va la vista —no la sala, que sigue
+                corriendo en main. Sin ninguna sala entra directo al alta; con
+                varias abre la lista, porque hay que elegir a cuál volver.
+              */}
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
-                pressed={
-                  brainstormHasRoom || Boolean(brainstormLive)
-                    ? brainstormDockOpen
-                    : brainstormStartOpen
-                }
+                pressed={brainstormOverlayOpen || brainstormDockOpen}
+                liveCount={liveBrainstormRooms.length}
                 disabled={!canOpenBrainstorm}
                 disabledTitle={brainstormNeedFolderHint}
                 onClick={() => {
-                  const hasRoom = brainstormHasRoom || Boolean(brainstormLive)
-                  // Room minimizada: reabrir modal; no caer en la lista (App la oculta si hay room).
-                  if (hasRoom && brainstormMinimized) {
-                    if (brainstormDockOpen) onBrainstormDockOpenChange?.(false)
-                    onRestoreBrainstorm?.()
+                  if (brainstormOverlayOpen) {
+                    onBrainstormViewChange(null)
                     return
                   }
-                  if (hasRoom) onBrainstormDockOpenChange?.(!brainstormDockOpen)
-                  else onBrainstormStartOpenChange(!brainstormStartOpen)
+                  if (brainstormDockOpen) {
+                    onBrainstormDockOpenChange?.(false)
+                    return
+                  }
+                  // Con más de una sala viva hay que elegir a cuál volver.
+                  if (liveBrainstormRooms.length > 1) {
+                    onBrainstormDockOpenChange?.(true)
+                    return
+                  }
+                  if (liveBrainstormRooms.length === 1) {
+                    onBrainstormViewChange(liveBrainstormRooms[0].roomId)
+                    return
+                  }
+                  onBrainstormViewChange(
+                    brainstormSavedCount > 0 || brainstormRooms.length > 0 ? 'rooms' : 'setup',
+                  )
                 }}
               />
-              {brainstormLive && isBrainstormLive(brainstormLive.status) ? (
+              {liveBrainstormRooms.length > 0 ? (
                 <span
                   className={[
                     'plane-brainstorm-anchor__badge',
-                    brainstormLive.status === 'running'
+                    liveBrainstormRooms.some(room => room.status === 'running')
                       ? 'plane-brainstorm-anchor__badge--pulse'
                       : '',
                   ].filter(Boolean).join(' ')}
-                  aria-hidden
-                />
+                >
+                  {liveBrainstormRooms.length}
+                </span>
               ) : null}
-              {brainstormLive && brainstormDockOpen ? (
+              {brainstormDockOpen ? (
                 <PlaneBrainstormDock
-                  live={brainstormLive}
-                  onOpen={() => {
+                  rooms={brainstormRooms}
+                  onOpen={roomId => {
                     onBrainstormDockOpenChange?.(false)
-                    onRestoreBrainstorm?.()
+                    onOpenBrainstormRoom?.(roomId)
                   }}
-                  onStop={() => onStopBrainstorm?.()}
-                  onDiscard={() => {
+                  onStop={roomId => onStopBrainstormRoom?.(roomId)}
+                  onDiscard={roomId => onDiscardBrainstormRoom?.(roomId)}
+                  onCreate={() => {
                     onBrainstormDockOpenChange?.(false)
-                    onDiscardBrainstorm?.()
+                    onBrainstormViewChange('setup')
                   }}
                 />
               ) : null}
@@ -865,7 +886,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
         tabActive={tabActive}
-        seatDragEnabled={brainstormTableOpen}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}
@@ -908,18 +928,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       ) : null}
 
-      {brainstormTableOpen && onBrainstormSeatedChange ? (
-        <div className="plane-bs-table-anchor">
-          <PlaneBrainstormTable
-            agents={tableAgents}
-            seated={brainstormSeated}
-            onSeatedChange={onBrainstormSeatedChange}
-            onClose={() => onBrainstormTableClose?.()}
-            onContinue={() => onBrainstormTableContinue?.()}
-          />
-        </div>
-      ) : null}
-
       {showIdleGravity && (
         <PlaneIdleGravity
           emptyHint={entities.length === 0 ? emptyHint : undefined}
@@ -932,7 +940,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && (
+      {/* La esquina de arriba a la derecha se la queda el chrome del overlay:
+          el pool se retira mientras el mapa o una sala ocupan el plano. */}
+      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -1052,6 +1062,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onBootstrapAgents={onBootstrapAgents}
         />
       )}
+
+      {/* Sala sobre el plano: mismo montaje que el mapa (absolute contra este
+          contenedor). El estado vive arriba; aquí solo tiene su sitio. */}
+      {brainstormOverlays}
 
       {wikiMapOpen ? (
         <WikiGraphView

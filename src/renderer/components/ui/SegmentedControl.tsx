@@ -57,10 +57,19 @@ export function SegmentedControl<T extends string>({
             ].filter(Boolean).join(' ')}
             onClick={() => onChange(option.value)}
           >
-            <span className="segmented-control__label">{option.label}</span>
-            {option.indicator ? (
-              <span className="segmented-control__dot" aria-hidden />
-            ) : null}
+            {/*
+              El pill vive en este span, no en el botón: el botón ocupa toda la
+              columna (área de clic completa) mientras el fondo activo se ciñe a
+              la etiqueta. Pintándolo en el botón, una palabra corta como
+              «Ideas» quedaba flotando dentro de un rectángulo del ancho de la
+              columna.
+            */}
+            <span className="segmented-control__pill">
+              <span className="segmented-control__label">{option.label}</span>
+              {option.indicator ? (
+                <span className="segmented-control__dot" aria-hidden />
+              ) : null}
+            </span>
           </button>
         )
       })}

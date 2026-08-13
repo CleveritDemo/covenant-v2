@@ -86,11 +86,3 @@
   display: flex;
   justify-content: center;
 }
-
-.agent-config-contexts__notice {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}

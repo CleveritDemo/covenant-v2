@@ -94,6 +94,49 @@ export function dependencySections(body: string): ContextSection[] {
   }
 }
 
+/** Slug canónico de page: el mismo alfabeto que normalizeWikiSlug produce. */
+const WIKI_SECTION_SLUG_RE = /^[a-z0-9._-]+$/
+
+/**
+ * Partición de la wiki materializada: SOLO cortan `## Index`, `## Log` y
+ * `### <slug>` con slug canónico. Headings más profundos, con otros textos o
+ * dentro de un fence son contenido de la sección en curso.
+ */
+export function wikiSections(body: string): ContextSection[] {
+  const lines = body.replace(/\r\n/g, '\n').split('\n')
+  const starts: Array<{ index: number; key: string; label: string }> = []
+  let inFence = false
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    if (/^## Index\s*$/.test(line)) {
+      starts.push({ index, key: 'index', label: 'Index' })
+      continue
+    }
+    if (/^## Log\s*$/.test(line)) {
+      starts.push({ index, key: 'log', label: 'Log' })
+      continue
+    }
+    const page = /^### (\S+)\s*$/.exec(line)
+    if (page && WIKI_SECTION_SLUG_RE.test(page[1])) {
+      starts.push({ index, key: page[1], label: page[1] })
+    }
+  }
+  if (!starts.length) {
+    const content = body.trim()
+    return content ? [{ key: 'all', label: 'Contenido', chars: content.length, content }] : []
+  }
+  return starts.map((start, position) => {
+    const end = starts[position + 1]?.index ?? lines.length
+    const content = lines.slice(start.index, end).join('\n').trim()
+    return { key: start.key, label: start.label, chars: content.length, content }
+  })
+}
+
 export function gitSections(body: string): ContextSection[] {
   const marker = '\n\nDiff stat:\n'
   const split = body.indexOf(marker)
@@ -124,6 +167,7 @@ export function sectionsForContext(
   if (context.kind === 'folderTree') sections = folderTreeSections(body)
   else if (context.kind === 'deps') sections = dependencySections(body)
   else if (context.kind === 'git') sections = gitSections(body)
+  else if (context.kind === 'wiki') sections = wikiSections(body)
   else sections = markdownSections(body)
 
   if (context.kind !== 'notes' && context.kind !== 'changelog') {

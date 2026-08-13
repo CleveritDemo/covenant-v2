@@ -32,6 +32,25 @@ describe('stripAgentControlFences', () => {
     ).not.toContain('ia-terminal-delegate')
   })
 
+  it('strips ia-terminal-wiki fences, closed and open, in both regexes', () => {
+    const closed = [
+      'Visible.',
+      '```ia-terminal-wiki',
+      '{"ops":[{"op":"delete","slug":"old"}],"log":"baja"}',
+      '```',
+      'After.',
+    ].join('\n')
+    const open = [
+      'Visible.',
+      '```ia-terminal-wiki',
+      '{"ops":[{"op":"upsert","slug":"auth"',
+    ].join('\n')
+    for (const options of [undefined, { keepDelegateFences: true }]) {
+      expect(stripAgentControlFences(closed, options)).toBe('Visible.\n\nAfter.')
+      expect(stripAgentControlFences(open, options)).toBe('Visible.')
+    }
+  })
+
   it('still strips ia-terminal-results when keepDelegateFences is true', () => {
     const mixed = [
       'Hi',

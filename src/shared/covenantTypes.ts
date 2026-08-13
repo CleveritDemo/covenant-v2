@@ -100,6 +100,30 @@ export interface CovenantWorkspaceRepoRecord {
   updatedAt: number
 }
 
+/** Cuerpo PUT de page de wiki de workspace org. */
+export interface CovenantWikiPagePayload {
+  title: string
+  pageType: string
+  body: string
+}
+
+/** Respuesta GET/PUT de page de wiki de workspace org. */
+export interface CovenantWikiPageRecord extends CovenantWikiPagePayload {
+  slug: string
+  updatedBy?: string | null
+  updatedById?: string | number | null
+  createdAt?: number
+  updatedAt?: number
+}
+
+/** Respuesta GET/POST de entrada del log de wiki de workspace org. */
+export interface CovenantWikiLogEntryRecord {
+  entry: string
+  createdBy?: string | null
+  createdById?: string | number | null
+  createdAt?: number
+}
+
 export interface CovenantStatus {
   signedIn: boolean
   login?: string

@@ -2,7 +2,7 @@ import React from 'react'
 import type { TabContext } from '@shared/tabContext'
 import { isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
-import { Button, ContextCheckOption, SettingToggle } from '../components/ui'
+import { Button, ContextCheckOption } from '../components/ui'
 import { contextIconName } from './tabContextKindIcons'
 import './AgentConfigContextSummary.css'
 
@@ -11,13 +11,10 @@ export interface AgentConfigContextSummaryProps {
   selectedContextIds: string[]
   locked: boolean
   loopActive: boolean
-  autoImprove: boolean
   /** Slug del agente: oculta su propio results en el picker. */
   agentId?: string
-  contextNotice: string
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
-  onAutoImproveChange: (checked: boolean) => void
 }
 
 /** Picker checkbox de contextos; Gestionar = CRUD. */
@@ -25,12 +22,9 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
   diskContexts,
   selectedContextIds,
   locked,
-  autoImprove,
   agentId,
-  contextNotice,
   onToggleContext,
   onOpenContextsModal,
-  onAutoImproveChange,
 }) => {
   const { t } = useT()
   const selectedCount = selectedContextIds.length
@@ -104,16 +98,6 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
             && renderGroup(t('tabContexts.groupAgentResults'), agentResultContexts)}
         </div>
       )}
-
-      <SettingToggle
-        checked={autoImprove}
-        disabled={locked}
-        title={t('tabContexts.autoImprove')}
-        description={t('tabContexts.autoImproveHint')}
-        hint={t('tabContexts.autoImproveHint')}
-        onChange={onAutoImproveChange}
-      />
-      {contextNotice ? <p className="agent-config-contexts__notice">{contextNotice}</p> : null}
     </div>
   )
 }

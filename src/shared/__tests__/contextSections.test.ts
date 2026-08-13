@@ -103,4 +103,64 @@ describe('sectionsForContext', () => {
     const sections = sectionsForContext(kindOnly('readme'), ok(auto('## Uno\ncuerpo')))
     expect(sections[0].chars).toBe(sections[0].content.length)
   })
+
+  describe('wiki', () => {
+    it('parte solo en ## Index, ### <slug> y ## Log', () => {
+      const sections = sectionsForContext(kindOnly('wiki'), ok(auto([
+        '## Index',
+        '# Wiki index',
+        '- [[auth]] — Auth (concept)',
+        '### auth',
+        'Cuerpo de auth.',
+        '### pagos.v2',
+        'Cuerpo de pagos.',
+        '## Log',
+        '- `2026-08-13T00:00:00.000Z` — seeded',
+      ].join('\n'))))
+
+      expect(sections.map(s => s.key)).toEqual(['index', 'auth', 'pagos.v2', 'log'])
+      expect(sections[0].content).toContain('- [[auth]]')
+      expect(sections[3].content).toContain('seeded')
+    })
+
+    it('headings internos (más profundos, con espacios o mayúsculas) no fragmentan', () => {
+      const sections = sectionsForContext(kindOnly('wiki'), ok(auto([
+        '## Index',
+        '(empty index)',
+        '### auth',
+        '#### Detalle profundo',
+        '### Con Espacios no corta',
+        '### MAYUS',
+        '## Notas internas',
+        'siguen dentro de auth',
+        '## Log',
+        '(empty log)',
+      ].join('\n'))))
+
+      expect(sections.map(s => s.key)).toEqual(['index', 'auth', 'log'])
+      expect(sections[1].content).toContain('#### Detalle profundo')
+      expect(sections[1].content).toContain('### Con Espacios no corta')
+      expect(sections[1].content).toContain('### MAYUS')
+      expect(sections[1].content).toContain('## Notas internas')
+    })
+
+    it('los límites dentro de un fence son contenido, no cortes', () => {
+      const sections = sectionsForContext(kindOnly('wiki'), ok(auto([
+        '## Index',
+        '(empty index)',
+        '### auth',
+        '```md',
+        '## Log',
+        '### otro-slug',
+        '```',
+        'sigue auth',
+        '## Log',
+        '- entrada real',
+      ].join('\n'))))
+
+      expect(sections.map(s => s.key)).toEqual(['index', 'auth', 'log'])
+      expect(sections[1].content).toContain('### otro-slug')
+      expect(sections[2].content).toContain('- entrada real')
+    })
+  })
 })

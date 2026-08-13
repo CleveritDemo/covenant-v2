@@ -154,6 +154,30 @@ describe('sanitizePersistedSession', () => {
     expect(clearedMissing?.tabs[0]?.planeOpenChatAgentId).toBeNull()
   })
 
+  it('descarta autoImproveContexts legacy de bindings de sesiones viejas sin fallar', () => {
+    const result = sanitizePersistedSession({
+      version: 1,
+      activeTabId: 't1',
+      tabs: [{
+        id: 't1',
+        title: 'Agents',
+        paneIds: ['agent'],
+        activePaneId: 'agent',
+        paneKinds: { agent: 'agent' },
+        agentByPane: {
+          agent: {
+            agentId: 'cursor-bot',
+            autoImproveContexts: true,
+          },
+        } as never,
+      }],
+      cwds: {},
+    })
+
+    expect(result?.tabs[0]?.agentByPane?.agent?.agentId).toBe('cursor-bot')
+    expect(result?.tabs[0]?.agentByPane?.agent).not.toHaveProperty('autoImproveContexts')
+  })
+
   it('returns null when no valid tabs', () => {
     expect(sanitizePersistedSession({
       version: 1,

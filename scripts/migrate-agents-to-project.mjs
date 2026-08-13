@@ -73,7 +73,6 @@ function parseDefinition(raw, id) {
           ),
         }
       : {}),
-    ...(raw.autoImproveContexts === true ? { autoImproveContexts: true } : {}),
     ...(raw.emitResults === true ? { emitResults: true } : {}),
   }
 }

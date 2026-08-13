@@ -42,6 +42,7 @@ export interface OrchestrationDeferredItem {
   toPaneId: string
   toAgentId: string
   baseAgentId?: string
+  parentDelegationId?: string
 }
 
 export interface OrchestrationPendingMerge {

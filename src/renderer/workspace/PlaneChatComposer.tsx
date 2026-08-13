@@ -25,7 +25,7 @@ import { PlaneChatCloseButton } from './PlaneChatCloseButton'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
-import { PlaneChatSendButton } from './PlaneChatSendButton'
+import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
@@ -35,22 +35,11 @@ import { shouldShowComposerStop } from '../agent/agentInputGuards'
 import { recallStep, rememberComposerEntry } from '@shared/composerHistory'
 import './PlaneChatComposer.css'
 
-const MAX_COMPOSER_ROWS = 8
-
 /** Lo que el composer guarda por agente al cambiar de chip. */
 interface ComposerDraft {
   text: string
   images: ComposerPendingImage[]
   contextIds: string[]
-}
-
-function resizeComposerTextarea(el: HTMLTextAreaElement): void {
-  el.style.height = 'auto'
-  const styles = getComputedStyle(el)
-  const lineHeight = parseFloat(styles.lineHeight) || 18
-  const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0)
-  const maxH = lineHeight * MAX_COMPOSER_ROWS + padY
-  el.style.height = `${Math.min(el.scrollHeight, maxH)}px`
 }
 
 export interface PlaneChatAgentOption {
@@ -239,11 +228,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     // plane (unos strings y sus objectURL); purgar contra `agents` obligaría a
     // meter la lista en las deps y el efecto se comería el borrador en cada cambio.
   }, [selectedAgentId])
-
-  useEffect(() => {
-    const el = composerInputRef.current
-    if (el) resizeComposerTextarea(el)
-  }, [draft])
 
   // Si el turno editado ya no está en la cola (p. ej. tras merge), cerrar el modal.
   useEffect(() => {
@@ -593,107 +577,83 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           </div>
         )}
 
-        <div className="plane-chat-composer__row">
-          <PlaneSketchButton
-            label={t('sketch.open')}
-            disabled={agents.length === 0 || composerLocked || pendingImages.length >= MAX_PENDING_IMAGES}
-            onClick={() => setSketchOpen(true)}
-          />
-          <span className="plane-chat-composer__field">
+        <PlaneChatComposerShell
+          value={draft}
+          onChange={next => {
+            setDraft(next)
+            // Editar el texto recuperado es tomar posesión: vuelve a idle.
+            if (historyIndex !== null) setHistoryIndex(null)
+          }}
+          onInputChange={el => mention.handleChange(el)}
+          onInputSelect={el => mention.handleSelect(el)}
+          placeholder={
+            agents.length === 0
+              ? emptyAgentsHint
+              : loopActive
+                ? t('agentPane.loopPlaceholder')
+                : turboAwaitingOpen
+                  ? t('agentPane.turboAwaitingPlaceholder')
+                  : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                    ? t('agentPane.queuePlaceholder')
+                    : placeholder
+          }
+          inputLabel={sendLabel}
+          sendLabel={
+            buttonIsStop
+              ? t('agentPane.stop')
+              : micMode
+                ? (listening ? t('agentPane.dictationListening') : t('agentPane.dictationHold'))
+                : sendLabel
+          }
+          sendMode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
+          sendDisabled={!buttonIsStop && !micMode && !canSend}
+          listening={listening}
+          disabled={agents.length === 0 || composerLocked}
+          recalling={historyIndex !== null}
+          onSendClick={handleSendClick}
+          onMicStart={startDictation}
+          onMicStop={stopDictation}
+          onPaste={handlePaste}
+          onExtraKeyDown={event => {
+            handleHistoryKey(event)
+          }}
+          inputRef={composerInputRef}
+          leading={(
+            <PlaneSketchButton
+              label={t('sketch.open')}
+              disabled={agents.length === 0 || composerLocked || pendingImages.length >= MAX_PENDING_IMAGES}
+              onClick={() => setSketchOpen(true)}
+            />
+          )}
+          inputOverlay={mention.picker}
+          shellAside={pendingImages.length > 0 ? (
             <div
-              className={[
-                'plane-chat-composer__input-shell',
-                historyIndex !== null ? 'plane-chat-composer__input-shell--recalling' : '',
-              ].filter(Boolean).join(' ')}
+              className="plane-chat-composer__attachments"
+              aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
             >
-              <textarea
-                ref={composerInputRef}
-                className={`plane-chat-composer__input${historyIndex !== null ? ' plane-chat-composer__input--recalling' : ''}`}
-                value={draft}
-                disabled={agents.length === 0 || composerLocked}
-                placeholder={
-                  agents.length === 0
-                    ? emptyAgentsHint
-                    : loopActive
-                      ? t('agentPane.loopPlaceholder')
-                      : turboAwaitingOpen
-                        ? t('agentPane.turboAwaitingPlaceholder')
-                        : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                          ? t('agentPane.queuePlaceholder')
-                          : placeholder
-                }
-                rows={1}
-                onChange={event => {
-                  setDraft(event.target.value)
-                  // Editar el texto recuperado es tomar posesión: vuelve a idle.
-                  if (historyIndex !== null) setHistoryIndex(null)
-                  mention.handleChange(event.target)
-                }}
-                // Mover el cursor (flechas, clic, Cmd+A) sin teclear también
-                // recalcula: si no, mover el caret fuera de `GRAV-4` deja el
-                // picker abierto mirando un token que el usuario ya abandonó.
-                onSelect={event => mention.handleSelect(event.currentTarget)}
-                onPaste={handlePaste}
-                onKeyDown={event => {
-                  // Con resultados visibles, `JiraMentionPicker` intercepta
-                  // ArrowUp/Down/Enter/Escape en fase de captura y llama
-                  // `stopPropagation()` — este handler ni los ve. Sin
-                  // resultados no intercepta nada, así que Enter/Escape
-                  // siguen su curso normal aquí abajo (no quedan muertos).
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    handleSendClick()
-                    return
-                  }
-                  handleHistoryKey(event)
-                }}
-              />
-              {mention.picker}
-              {pendingImages.length > 0 ? (
-                <div
-                  className="plane-chat-composer__attachments"
-                  aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}
-                >
-                  {pendingImages.map(image => (
-                    <PendingImageThumb
-                      key={image.id}
-                      src={image.previewUrl}
-                      name={image.name}
-                      onRemove={() => removePendingImage(image.id)}
-                    />
-                  ))}
-                </div>
-              ) : null}
+              {pendingImages.map(image => (
+                <PendingImageThumb
+                  key={image.id}
+                  src={image.previewUrl}
+                  name={image.name}
+                  onRemove={() => removePendingImage(image.id)}
+                />
+              ))}
             </div>
-            {historyIndex !== null ? (
-              <span
-                className="plane-chat-composer__history-badge"
-                role="status"
-                aria-label={t('agentPane.historyPosition', {
-                  n: historyIndex + 1,
-                  total: historyRef.current.length,
-                })}
-              >
-                {historyIndex + 1} / {historyRef.current.length}
-              </span>
-            ) : null}
-          </span>
-          <PlaneChatSendButton
-            mode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
-            label={
-              buttonIsStop
-                ? t('agentPane.stop')
-                : micMode
-                  ? (listening ? t('agentPane.dictationListening') : t('agentPane.dictationHold'))
-                  : sendLabel
-            }
-            listening={listening}
-            disabled={!buttonIsStop && !micMode && !canSend}
-            onClick={handleSendClick}
-            onMicStart={startDictation}
-            onMicStop={stopDictation}
-          />
-        </div>
+          ) : null}
+          fieldAside={historyIndex !== null ? (
+            <span
+              className="plane-chat-composer__history-badge"
+              role="status"
+              aria-label={t('agentPane.historyPosition', {
+                n: historyIndex + 1,
+                total: historyRef.current.length,
+              })}
+            >
+              {historyIndex + 1} / {historyRef.current.length}
+            </span>
+          ) : null}
+        />
         {!listening && dictationError ? (
           <p className="plane-chat-composer__dictation-error" role="status">
             {dictationError}

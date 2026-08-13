@@ -188,7 +188,6 @@
   background: color-mix(in srgb, var(--border) 75%, transparent);
 }
 
-.plane-chat-composer__auto-improve-label,
 .plane-chat-composer__loop-label {
   flex: 0 0 auto;
 }
@@ -691,4 +690,27 @@ html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
   color: var(--plane-composer-accent);
   border-color: transparent;
   background: color-mix(in srgb, var(--plane-composer-accent) 10%, transparent);
+}
+
+/*
+ * Variante embebida (curador de wiki): mismo shell de input/send, sin anclarse
+ * al fondo del plano. El padre (wiki-curator-composer) controla posición.
+ */
+.plane-chat-composer--embedded {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  width: 100%;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.plane-chat-composer--embedded .plane-chat-composer__body {
+  width: 100%;
+}
+
+.plane-chat-composer--embedded .plane-chat-composer__row {
+  padding: 0;
 }

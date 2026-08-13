@@ -130,6 +130,15 @@ import {
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
 import {
+  attachDelegationWorktree,
+  claimReplicaDispose,
+  deleteDelegationRuntime,
+  getDelegationRuntime,
+  markDelegationRuntimeStatus,
+  registerDelegationRuntime,
+  type DelegationRuntimeRegistry,
+} from '@shared/delegationRuntimeRegistry'
+import {
   clearPlaneSendsForOrchestrationAbort,
   clearPlaneSendsForSingleDelegationAbort,
   shouldDiscardAbortedDelegationFifoHead,
@@ -209,10 +218,16 @@ import {
 import {
   getCovenantApi,
   hasCovenantOrgAdminsApi,
+  hasCovenantWikiApi,
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
 } from './covenantApi'
+import {
+  clearOrgWikiSyncScope,
+  seedOrgWikiSyncScope,
+  syncOrgWikiPush,
+} from './orgWikiSync'
 import { retryCovenantResult } from '../shared/covenantRetry'
 import { sanitizeSlugSegment } from '../shared/orgWorkspaceContent'
 import {
@@ -517,6 +532,13 @@ export const App: React.FC = () => {
   }>())
   /** Fase 4: cola de merges serializada por orquestador (encadena promesas, evita carreras git). */
   const mergeQueueByOrchestratorRef = useRef(new Map<string, Promise<void>>())
+  /**
+   * Registry central de delegaciones por delegationId. Fuente de verdad para
+   * cleanup terminal cuando el job "oficial" en `orchestrationJobsByPaneRef`
+   * ya no está (superseded, remount, resultado tardío). Ver
+   * `src/shared/delegationRuntimeRegistry.ts` para el racional.
+   */
+  const delegationRuntimeByIdRef = useRef<DelegationRuntimeRegistry>(new Map())
   const [awaitingDelegationPaneIds, setAwaitingDelegationPaneIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -860,6 +882,32 @@ export const App: React.FC = () => {
       deleteRemoteContext: contextId => (
         covenant.workspaceContextDelete(slug, workspaceId, contextId)
       ),
+      // Pull de wiki org + seed del caché de push (no re-pushear lo bajado).
+      ...(hasCovenantWikiApi(covenant) && typeof window.api.syncReplaceWikiPages === 'function'
+        ? {
+            listRemoteWikiPages: () => (
+              retryCovenantResult(() => covenant.listWikiPages(slug, workspaceId))
+            ),
+            replaceLocalWikiPages: (root, pages) => window.api.syncReplaceWikiPages(root, pages),
+            ...(typeof window.api.syncReplaceWikiLog === 'function'
+              ? {
+                  listRemoteWikiLog: () => (
+                    retryCovenantResult(() => covenant.listWikiLog(slug, workspaceId))
+                  ),
+                  replaceLocalWikiLog: (
+                    root: string,
+                    entries: Array<{ entry: string; createdBy?: string | null; createdAt?: number }>,
+                  ) => window.api.syncReplaceWikiLog(root, entries),
+                }
+              : {}),
+            onWikiPagesReplaced: (
+              pages: Parameters<typeof seedOrgWikiSyncScope>[1],
+              logEntryCount: number | null,
+            ) => (
+              seedOrgWikiSyncScope({ orgSlug: slug, workspaceId }, pages, logEntryCount)
+            ),
+          }
+        : {}),
     })
 
     let agentsOk = true
@@ -1577,7 +1625,76 @@ export const App: React.FC = () => {
     })
   }, [resolvePaneCwdForPersist])
 
+  /** Estado busy previo por pane; detecta el cierre de turno (true→false). */
+  const paneBusyForWikiPushRef = useRef(new Map<string, boolean>())
+
+  /**
+   * Push org de la wiki para un scope (post-turno, upload, curador, CTA mapa).
+   * Seed en frío con listRemotePages/listRemoteLog para propagar deletes y
+   * líneas de log locales faltantes tras reinicio.
+   */
+  const pushOrgWikiForScope = useCallback(async (
+    orgSlug: string,
+    workspaceId: string,
+    cwd: string,
+  ): Promise<void> => {
+    const slug = orgSlug.trim()
+    const ws = workspaceId.trim()
+    const root = cwd.trim()
+    if (!slug || !ws || !root) return
+    const covenant = getCovenantApi()
+    if (!covenant || !hasCovenantWikiApi(covenant)) return
+    try {
+      await syncOrgWikiPush({
+        scope: { orgSlug: slug, workspaceId: ws },
+        cwd: root,
+        getWikiGraph: path => window.api.getWikiGraph(path),
+        upsertWikiPage: (pageSlug, payload) => (
+          covenant.upsertWikiPage(slug, ws, pageSlug, payload)
+        ),
+        deleteWikiPage: pageSlug => covenant.deleteWikiPage(slug, ws, pageSlug),
+        appendWikiLog: entry => covenant.appendWikiLog(slug, ws, entry),
+        listRemotePages: () => covenant.listWikiPages(slug, ws),
+        listRemoteLog: () => covenant.listWikiLog(slug, ws),
+      })
+    } catch {
+      /* fire-and-forget callers ignore */
+    }
+  }, [])
+
+  /** Push org de la wiki tras el turno: resuelve tab/pane y delega al helper. */
+  const pushOrgWikiAfterTurn = useCallback((paneId: string) => {
+    const tab = tabsRef.current.find(item => item.paneIds.includes(paneId))
+    if (!tab || tab.paneKinds?.[paneId] !== 'agent') return
+    const orgSlug = tab.orgWorkspace?.slug?.trim() ?? ''
+    const workspaceId = tab.orgWorkspace?.workspaceId?.trim() ?? ''
+    const cwd = tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || ''
+    if (!orgSlug || !workspaceId || !cwd) return
+    void pushOrgWikiForScope(orgSlug, workspaceId, cwd)
+  }, [pushOrgWikiForScope])
+
+  /** Curador applied → push wiki org (mismo patrón de suscripción por cwd). */
+  useEffect(() => {
+    const unsubs: Array<() => void> = []
+    for (const tab of tabs) {
+      const org = tab.orgWorkspace
+      const slug = org?.slug?.trim() ?? ''
+      const workspaceId = org?.workspaceId?.trim() ?? ''
+      const cwd = tab.projectFolder?.trim() || org?.localDir?.trim() || ''
+      if (!slug || !workspaceId || !cwd) continue
+      unsubs.push(window.api.onWikiCuratorEvent(cwd, event => {
+        if (event.type === 'applied') void pushOrgWikiForScope(slug, workspaceId, cwd)
+      }))
+    }
+    return () => {
+      for (const unsub of unsubs) unsub()
+    }
+  }, [tabs, pushOrgWikiForScope])
+
   const handleBusyChange = useCallback((paneId: string, busy: boolean) => {
+    const wasBusy = paneBusyForWikiPushRef.current.get(paneId) === true
+    paneBusyForWikiPushRef.current.set(paneId, busy)
+    if (wasBusy && !busy) pushOrgWikiAfterTurn(paneId)
     setBusyPanes(prev => {
       const hasPid = prev.has(paneId)
       if (busy === hasPid) return prev
@@ -1586,7 +1703,7 @@ export const App: React.FC = () => {
       else next.delete(paneId)
       return next
     })
-  }, [])
+  }, [pushOrgWikiAfterTurn])
 
   /**
    * Fase 3 (plumbing): asigna un override de cwd (worktree) al pane `paneId` para que
@@ -1626,7 +1743,13 @@ export const App: React.FC = () => {
           force: true,
         })
       } catch (err) {
-        console.warn(`[worktree] cleanup falló para la delegación ${delegationId}:`, err)
+        console.warn('[orchestration] worktree cleanup failed', {
+          delegationId,
+          fromPaneId: info.fromPaneId,
+          toPaneId: info.toPaneId,
+          reason: 'pane_cleanup_failed',
+          error: err instanceof Error ? err.message : String(err),
+        })
       } finally {
         worktreesByDelegationRef.current.delete(delegationId)
       }
@@ -2209,6 +2332,16 @@ export const App: React.FC = () => {
         setOrgWorkspaceRequirement({ uploadError: result.error ?? 'upload failed' })
         return
       }
+      if (hasCovenantWikiApi(covenant)) {
+        try {
+          await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
+        } catch (err) {
+          console.warn(
+            '[orgWikiSync] push tras upload falló:',
+            err instanceof Error ? err.message : String(err),
+          )
+        }
+      }
       setOrgWorkspaceRequirement(null)
     } catch (err) {
       setOrgWorkspaceRequirement({
@@ -2221,7 +2354,7 @@ export const App: React.FC = () => {
         return next
       })
     }
-  }, [])
+  }, [pushOrgWikiForScope])
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -2249,7 +2382,22 @@ export const App: React.FC = () => {
         else window.api.ptyKill(pid)
         termRefs.current.delete(pid)
         splitSpawnCwdRef.current.delete(pid)
+        paneBusyForWikiPushRef.current.delete(pid)
         delete cwdsRef.current[pid]
+      }
+      // Cerrar workspace org: limpiar el scope del caché de push de wiki
+      // (junto a los bodies scoped) salvo que otro tab siga usándolo.
+      const victimOrgSlug = victim.orgWorkspace?.slug?.trim() ?? ''
+      const victimWorkspaceId = victim.orgWorkspace?.workspaceId?.trim() ?? ''
+      if (victimOrgSlug && victimWorkspaceId) {
+        const stillInUse = tabsRef.current.some(other => (
+          other.id !== victim.id
+          && other.orgWorkspace?.slug?.trim() === victimOrgSlug
+          && other.orgWorkspace?.workspaceId?.trim() === victimWorkspaceId
+        ))
+        if (!stillInUse) {
+          clearOrgWikiSyncScope({ orgSlug: victimOrgSlug, workspaceId: victimWorkspaceId })
+        }
       }
       setPaneCwds(prev => {
         let changed = false
@@ -2960,18 +3108,6 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const handleAgentAutoImproveChange = useCallback((
-    tabId: string,
-    paneId: string,
-    enabled: boolean,
-  ) => {
-    handleAgentMetaChangeRef.current(tabId, paneId, previous => {
-      if (enabled) return { ...previous, autoImproveContexts: true }
-      const { autoImproveContexts: _dropped, ...rest } = previous
-      return rest
-    })
-  }, [])
-
   const handleOpenConfigFromPlane = useCallback((tabId: string, paneId: string) => {
     // Solo modal de config (portal); no expandir la ventana del agente.
     armSuppressPaneExpand()
@@ -3584,6 +3720,7 @@ export const App: React.FC = () => {
           delegation,
           toPaneId: decision.paneId,
           toAgentId: decision.agentId,
+          ...(delegation.parentDelegationId ? { parentDelegationId: delegation.parentDelegationId } : {}),
         })
         occupiedPaneIds.add(decision.paneId)
         upsertOrchestrationWaveItem(job, {
@@ -3739,6 +3876,19 @@ export const App: React.FC = () => {
         ...(baseAgentId ? { baseAgentId } : {}),
         startedAt: Date.now(),
       })
+      registerDelegationRuntime(delegationRuntimeByIdRef.current, {
+        delegationId: delegation.id,
+        fromPaneId,
+        toPaneId,
+        toAgentId: routedAgentId,
+        jobId: job.jobId,
+        ...(baseAgentId ? { baseAgentId } : {}),
+        ...(delegation.parentDelegationId ? { parentDelegationId: delegation.parentDelegationId } : {}),
+        disposeReplica: shouldDisposeReplicaOnComplete({
+          toAgentId: routedAgentId,
+          baseAgentId,
+        }),
+      })
       occupiedPaneIds.add(toPaneId)
       upsertOrchestrationWaveItem(job, {
         delegationId: delegation.id,
@@ -3784,13 +3934,26 @@ export const App: React.FC = () => {
               baseBranch: branchInfo.baseBranch,
               ...(baseAgentId ? { baseAgentId } : {}),
             })
+            attachDelegationWorktree(delegationRuntimeByIdRef.current, delegation.id, {
+              worktreePath,
+              branch,
+              baseCwd,
+              baseBranch: branchInfo.baseBranch,
+            })
           } else {
             const detail = addResult.error || addResult.stderr || 'unknown error'
-            console.error(
-              `[worktree] gitWorktreeAdd falló para la delegación ${delegation.id}; aislamiento obligatorio:`,
+            console.error('[orchestration] worktree add failed', {
+              delegationId: delegation.id,
+              ...(delegation.parentDelegationId ? { parentDelegationId: delegation.parentDelegationId } : {}),
+              orchestrationJobId: job.jobId,
+              fromPaneId,
+              toPaneId,
+              toAgentId: routedAgentId,
+              reason: 'worktree_add_failed',
               detail,
-            )
+            })
             pending.delete(delegation.id)
+            deleteDelegationRuntime(delegationRuntimeByIdRef.current, delegation.id)
             occupiedPaneIds.delete(toPaneId)
             const waveIdx = waveItems.findIndex(item => item.delegationId === delegation.id)
             if (waveIdx >= 0) waveItems.splice(waveIdx, 1)
@@ -3879,6 +4042,19 @@ export const App: React.FC = () => {
       ...(next.baseAgentId ? { baseAgentId: next.baseAgentId } : {}),
       startedAt: Date.now(),
     })
+    registerDelegationRuntime(delegationRuntimeByIdRef.current, {
+      delegationId: next.delegation.id,
+      fromPaneId,
+      toPaneId: next.toPaneId,
+      toAgentId: next.toAgentId,
+      jobId: job.jobId,
+      ...(next.baseAgentId ? { baseAgentId: next.baseAgentId } : {}),
+      ...(next.parentDelegationId ? { parentDelegationId: next.parentDelegationId } : {}),
+      disposeReplica: shouldDisposeReplicaOnComplete({
+        toAgentId: next.toAgentId,
+        baseAgentId: next.baseAgentId,
+      }),
+    })
     upsertOrchestrationWaveItem(job, {
       delegationId: next.delegation.id,
       toAgentId: next.toAgentId,
@@ -3920,13 +4096,26 @@ export const App: React.FC = () => {
             baseCwd,
             baseBranch: branchInfo.baseBranch,
           })
+          attachDelegationWorktree(delegationRuntimeByIdRef.current, next.delegation.id, {
+            worktreePath,
+            branch,
+            baseCwd,
+            baseBranch: branchInfo.baseBranch,
+          })
         } else {
           const detail = addResult.error || addResult.stderr || 'unknown error'
-          console.error(
-            `[worktree] gitWorktreeAdd falló para delegación diferida ${next.delegation.id}:`,
+          console.error('[orchestration] worktree add failed (deferred)', {
+            delegationId: next.delegation.id,
+            ...(next.parentDelegationId ? { parentDelegationId: next.parentDelegationId } : {}),
+            orchestrationJobId: job.jobId,
+            fromPaneId,
+            toPaneId: next.toPaneId,
+            toAgentId: next.toAgentId,
+            reason: 'worktree_add_failed_deferred',
             detail,
-          )
+          })
           job.pending.delete(next.delegation.id)
+          deleteDelegationRuntime(delegationRuntimeByIdRef.current, next.delegation.id)
           const waveIdx = job.waveItems.findIndex(item => item.delegationId === next.delegation.id)
           if (waveIdx >= 0) job.waveItems.splice(waveIdx, 1)
           const maxRounds = orchestrationMaxRoundsForPane(fromPaneId, next.tabId)
@@ -3978,7 +4167,44 @@ export const App: React.FC = () => {
   ])
 
   /**
-   * Fase 4: al completarse una delegación que usó un worktree dedicado, comitea el
+   * Cierra la réplica efímera de una delegación si corresponde. Idempotente
+   * vía `claimReplicaDispose` (el registry marca `replicaDisposed=true` a la
+   * primera; llamadas subsiguientes son no-ops). Recibe `reason` para dejar
+   * traza accionable en el warn cuando el pane ya no existe.
+   */
+  const disposeDelegationReplicaIfNeeded = useCallback((
+    delegationId: string,
+    reason: string,
+  ): boolean => {
+    const claimed = claimReplicaDispose(delegationRuntimeByIdRef.current, delegationId)
+    if (!claimed) return false
+    const paneId = claimed.toPaneId
+    const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+    if (!replicaTab) {
+      console.info(
+        `[orchestration] réplica ya no está montada al cerrar; skip handleClosePane`,
+        {
+          delegationId,
+          fromPaneId: claimed.fromPaneId,
+          toPaneId: paneId,
+          jobId: claimed.jobId,
+          reason,
+        },
+      )
+      return true
+    }
+    handleClosePane(replicaTab.id, paneId)
+    console.info(`[orchestration] réplica dispuesta`, {
+      delegationId,
+      fromPaneId: claimed.fromPaneId,
+      toPaneId: paneId,
+      jobId: claimed.jobId,
+      reason,
+    })
+    return true
+  }, [handleClosePane])
+
+  /**
    * trabajo del especialista y mergea a la rama base. Los merges (y su commit previo)
    * se serializan por orquestador (fromPaneId) encadenando promesas en
    * mergeQueueByOrchestratorRef — la entrada se registra de forma SÍNCRONA (antes de
@@ -4022,7 +4248,15 @@ export const App: React.FC = () => {
         ...(pulseWorkspaceTag(tab?.orgWorkspace) ? { workspace: pulseWorkspaceTag(tab?.orgWorkspace)! } : {}),
       })
       if (!commitResult.ok && !/nothing to commit/i.test(commitResult.stderr || '')) {
-        console.warn(`[worktree] gitCommit falló para la delegación ${result.id}:`, commitResult.stderr)
+        console.warn('[orchestration] worktree commit failed', {
+          delegationId: result.id,
+          orchestrationJobId: getDelegationRuntime(delegationRuntimeByIdRef.current, result.id)?.jobId,
+          fromPaneId,
+          toPaneId: info.toPaneId,
+          toAgentId: result.toAgentId,
+          reason: 'commit_failed',
+          detail: commitResult.stderr,
+        })
       }
 
       const mergeResult = await window.api.gitWorktreeMerge({ path: info.baseCwd }, {
@@ -4043,6 +4277,7 @@ export const App: React.FC = () => {
             ...(info.baseAgentId ? { baseAgentId: info.baseAgentId } : {}),
             startedAt: Date.now(),
           })
+          markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'pending')
         }
         syncAwaitingFromPending()
         enqueueOrchestrationSend(info.toPaneId, {
@@ -4053,7 +4288,44 @@ export const App: React.FC = () => {
         return
       }
       if (!mergeResult.ok) {
-        console.warn(`[worktree] gitWorktreeMerge falló para la delegación ${result.id}:`, mergeResult.stderr)
+        // Terminal sin conflicto: no hay retry ni prompt al especialista, así
+        // que limpiamos como si el merge hubiera sido ok — pero notamos el
+        // fallo. Antes de esta rama solo se hacía warn+return y quedaban
+        // colgados el worktree, el override del pane, la réplica y la entry
+        // del registry. QA slice 3 pendiente resuelto.
+        const runtime = getDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+        console.warn('[orchestration] worktree merge failed', {
+          delegationId: result.id,
+          ...(runtime?.parentDelegationId ? { parentDelegationId: runtime.parentDelegationId } : {}),
+          orchestrationJobId: runtime?.jobId,
+          fromPaneId,
+          toPaneId: info.toPaneId,
+          toAgentId: result.toAgentId,
+          reason: 'merge_failed',
+          detail: mergeResult.stderr,
+        })
+        try {
+          clearPaneCwdOverride(info.toPaneId)
+          await window.api.gitWorktreeRemove({ path: info.baseCwd }, {
+            worktreePath: info.worktreePath,
+            branch: info.branch,
+            force: true,
+          })
+        } catch (err) {
+          console.warn('[orchestration] worktree cleanup after merge fail failed', {
+            delegationId: result.id,
+            ...(runtime?.parentDelegationId ? { parentDelegationId: runtime.parentDelegationId } : {}),
+            orchestrationJobId: runtime?.jobId,
+            fromPaneId,
+            toPaneId: info.toPaneId,
+            toAgentId: result.toAgentId,
+            reason: 'merge_failed_cleanup_failed',
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+        worktreesByDelegationRef.current.delete(result.id)
+        disposeDelegationReplicaIfNeeded(result.id, 'merge_failed')
+        deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
         return
       }
       clearPaneCwdOverride(info.toPaneId)
@@ -4063,18 +4335,14 @@ export const App: React.FC = () => {
         force: true,
       })
       worktreesByDelegationRef.current.delete(result.id)
-      // Réplica efímera: dispose tras merge ok (no en conflict retry).
-      if (shouldDisposeReplicaOnComplete({
-        toAgentId: result.toAgentId ?? '',
-        baseAgentId: info.baseAgentId,
-      })) {
-        const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(info.toPaneId))
-        if (replicaTab) handleClosePane(replicaTab.id, info.toPaneId)
-      }
+      // Réplica efímera: dispose tras merge ok vía registry idempotente
+      // (no en conflict retry: allí re-entramos al pending y volvemos a esperar).
+      disposeDelegationReplicaIfNeeded(result.id, 'merge_ok')
+      deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
     })
     mergeQueueByOrchestratorRef.current.set(fromPaneId, chainedOp)
     return chainedOp
-  }, [clearPaneCwdOverride, enqueueOrchestrationSend, handleClosePane, syncAwaitingFromPending])
+  }, [clearPaneCwdOverride, disposeDelegationReplicaIfNeeded, enqueueOrchestrationSend, handleClosePane, syncAwaitingFromPending])
 
   const handleDelegationTurnComplete = useCallback(async (result: DelegateResult) => {
     let fromPaneId: string | undefined
@@ -4088,12 +4356,49 @@ export const App: React.FC = () => {
       }
     }
     if (!fromPaneId || !job) {
-      // Un resultado sin pending es un aviso que llega tarde o dos veces (ya lo
-      // cerró el reconciliador). Descartarlo es correcto; hacerlo en silencio
-      // no: era la mitad de las filas que se quedaban colgadas sin rastro.
+      // Resultado sin pending: aviso tardío, doble, o el job "oficial" ya
+      // no existe (superseded/remount). Antes retornábamos en silencio y la
+      // réplica quedaba colgada. Consultamos el registry central: si conoce
+      // la delegación, cerramos la réplica (idempotente) y borramos worktree
+      // huérfano; si no, dejamos warn con metadata mínima igual.
+      const runtime = getDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+      if (runtime) {
+        markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'orphaned')
+        const worktreeInfo = worktreesByDelegationRef.current.get(result.id)
+        if (worktreeInfo) {
+          void window.api.gitWorktreeRemove({ path: worktreeInfo.baseCwd }, {
+            worktreePath: worktreeInfo.worktreePath,
+            branch: worktreeInfo.branch,
+            force: true,
+          }).catch(() => undefined)
+          worktreesByDelegationRef.current.delete(result.id)
+          clearPaneCwdOverride(worktreeInfo.toPaneId)
+        }
+        const closed = disposeDelegationReplicaIfNeeded(result.id, 'orphaned_result')
+        console.warn(
+          `[orchestration] resultado huérfano recuperado por registry`,
+          {
+            delegationId: result.id,
+            fromPaneId: runtime.fromPaneId,
+            toPaneId: runtime.toPaneId,
+            jobId: runtime.jobId,
+            reason: 'orphaned_result',
+            toAgentId: result.toAgentId,
+            status: result.status,
+            replicaClosed: closed,
+          },
+        )
+        deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+        return
+      }
       console.warn(
-        `[orchestration] resultado sin delegación pendiente: ${result.id}`,
-        { toAgentId: result.toAgentId, status: result.status },
+        `[orchestration] resultado sin delegación pendiente ni registry: ${result.id}`,
+        {
+          delegationId: result.id,
+          toAgentId: result.toAgentId,
+          status: result.status,
+          reason: 'orphaned_result_unknown',
+        },
       )
       return
     }
@@ -4123,6 +4428,7 @@ export const App: React.FC = () => {
 
     if (deferredForFreedPane && freedPaneId) {
       if (canFinalize && worktreeInfo) {
+        markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'awaiting_merge')
         void finalizeDelegationWorktree(fromPaneId, result, {
           toPaneId: worktreeInfo.toPaneId,
           worktreePath: worktreeInfo.worktreePath,
@@ -4132,12 +4438,21 @@ export const App: React.FC = () => {
           ...(worktreeInfo.baseAgentId ? { baseAgentId: worktreeInfo.baseAgentId } : {}),
         })
         await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
+      } else {
+        markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
+        if (disposeReplica && freedPaneId) {
+          disposeDelegationReplicaIfNeeded(result.id, 'deferred_no_worktree')
+        }
+        deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
       }
       await startNextDeferredForPane(fromPaneId, freedPaneId)
       remaining = job.pending.size
       const deferredLeft = job.deferred.length
       if (remaining > 0 || deferredLeft > 0) return
     } else if (canFinalize && worktreeInfo) {
+      // Marcado awaiting_merge: la réplica sigue viva hasta que
+      // finalizeDelegationWorktree dispare disposeDelegationReplicaIfNeeded.
+      markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'awaiting_merge')
       job.pendingMerges.push({
         delegationId: result.id,
         completedAt: Date.now(),
@@ -4145,8 +4460,11 @@ export const App: React.FC = () => {
         info: worktreeInfo,
       })
     } else if (disposeReplica && freedPaneId) {
-      const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(freedPaneId))
-      if (replicaTab) handleClosePane(replicaTab.id, freedPaneId)
+      disposeDelegationReplicaIfNeeded(result.id, 'complete_no_worktree')
+      deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+    } else {
+      markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
+      deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
     }
 
     const deferredLeft = job.deferred.length
@@ -4197,6 +4515,8 @@ export const App: React.FC = () => {
       allowDelegations: !atCap,
     })
   }, [
+    clearPaneCwdOverride,
+    disposeDelegationReplicaIfNeeded,
     enqueueOrchestrationSend,
     finalizeDelegationWorktree,
     handleClosePane,
@@ -4261,6 +4581,14 @@ export const App: React.FC = () => {
     )]
     orchestrationJobsByPaneRef.current.delete(fromPaneId)
     activeOrchestrationJobByPaneRef.current.delete(fromPaneId)
+    // Registry: marcar delegaciones de este orquestador como superseded y
+    // sellar replicaDisposed=true (arriba cerramos réplicas a mano) para que
+    // un resultado tardío no dispare un segundo handleClosePane.
+    for (const entry of delegationRuntimeByIdRef.current.values()) {
+      if (entry.fromPaneId !== fromPaneId) continue
+      entry.status = 'superseded'
+      entry.replicaDisposed = true
+    }
     // No reinyectar follow-ups ni subtareas pendientes de este orquestador.
     orchestrationFifoByPaneRef.current.delete(fromPaneId)
     for (const [paneId, queue] of [...orchestrationFifoByPaneRef.current.entries()]) {
@@ -4330,7 +4658,17 @@ export const App: React.FC = () => {
           force: true,
         })
       } catch (err) {
-        console.warn(`[worktree] cleanup falló al abortar delegación ${id}:`, err)
+        const runtime = getDelegationRuntime(delegationRuntimeByIdRef.current, id)
+        console.warn('[orchestration] worktree cleanup on abort failed', {
+          delegationId: id,
+          ...(runtime?.parentDelegationId ? { parentDelegationId: runtime.parentDelegationId } : {}),
+          orchestrationJobId: runtime?.jobId,
+          fromPaneId: worktreeInfo.fromPaneId,
+          toPaneId: worktreeInfo.toPaneId,
+          toAgentId: abort.toAgentId,
+          reason: 'abort_cleanup_failed',
+          error: err instanceof Error ? err.message : String(err),
+        })
       } finally {
         worktreesByDelegationRef.current.delete(id)
       }
@@ -4343,9 +4681,16 @@ export const App: React.FC = () => {
         ...(abort.baseAgentId ? { baseAgentId: abort.baseAgentId } : {}),
       })
     ) {
-      const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
-      if (replicaTab) handleClosePane(replicaTab.id, toPaneId)
+      // Vía registry para mantener idempotencia (si un resultado tardío llega
+      // luego, `claimReplicaDispose` devolverá undefined y no cerrará dos veces).
+      const disposed = disposeDelegationReplicaIfNeeded(id, 'single_abort')
+      if (!disposed) {
+        // Sin entry en registry (path histórico): fallback al cierre directo.
+        const replicaTab = tabsRef.current.find(item => (item.paneIds ?? []).includes(toPaneId))
+        if (replicaTab) handleClosePane(replicaTab.id, toPaneId)
+      }
     }
+    deleteDelegationRuntime(delegationRuntimeByIdRef.current, id)
 
     if (abort.wasPending) {
       job.completedResults.push({
@@ -4416,6 +4761,7 @@ export const App: React.FC = () => {
     })
   }, [
     clearPaneCwdOverride,
+    disposeDelegationReplicaIfNeeded,
     enqueueOrchestrationSend,
     finalizeDelegationWorktree,
     handleClosePane,
@@ -5283,7 +5629,6 @@ export const App: React.FC = () => {
                   delegationWorkActive,
                   contextIds: assignedIds,
                   contexts: assignedContexts,
-                  autoImproveContexts: meta?.autoImproveContexts === true,
                   window: win,
                 }
               }
@@ -5326,6 +5671,11 @@ export const App: React.FC = () => {
                   const explorerState = explorerByTab[tab.id] ?? DEFAULT_FILE_EXPLORER_STATE
                   const explorerSessionId = resolveTabExplorerSessionId(tab)
                   const projectCwd = tab.projectFolder?.trim() || ''
+                  const orgWorkspaceLocalDir = tab.orgWorkspace?.localDir?.trim() || ''
+                  // cwd efectivo del plano: coincide con el que consumen las
+                  // acciones (nuevo agente, nueva terminal, bootstrap) cuando
+                  // el workspace es org-backed y aún no hay projectFolder set.
+                  const effectiveCwd = projectCwd || orgWorkspaceLocalDir
                   const agentCatalogKey = tabAgentCatalogKey(tab)
                   const catalogEmpty = (projectAgentsByCwd[agentCatalogKey] ?? []).length === 0
                   const noAgentPanes = !(tab.paneIds ?? []).some(
@@ -5335,7 +5685,9 @@ export const App: React.FC = () => {
                   const orgBacked = Boolean(
                     tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim(),
                   )
-                  const canBootstrapAgents = showBootstrapAgents && (Boolean(projectCwd) || orgBacked)
+                  const canCreatePane = Boolean(effectiveCwd) || orgBacked
+                  const canBootstrapAgents = showBootstrapAgents && canCreatePane
+                  const paneLimitReached = tab.paneIds.length >= MAX_PANES_PER_TAB
                   const openChatBinding = tab.planeOpenChatAgentId
                     ? tab.agentByPane?.[tab.planeOpenChatAgentId]
                     : undefined
@@ -5353,16 +5705,28 @@ export const App: React.FC = () => {
                   // depender de undefined→fn (evita splash colgado 12s).
                   onFirstLayoutReady={handlePlaneFirstLayoutReady}
                   deferPositionMotion={splashLayoutPending}
+                  onWikiMutated={
+                    orgBacked && effectiveCwd
+                      ? (cwd: string) => {
+                          const slug = tab.orgWorkspace?.slug?.trim() ?? ''
+                          const workspaceId = tab.orgWorkspace?.workspaceId?.trim() ?? ''
+                          if (slug && workspaceId) void pushOrgWikiForScope(slug, workspaceId, cwd)
+                        }
+                      : undefined
+                  }
                   agentFabTitle={
-                    projectCwd || orgBacked
+                    canCreatePane
                       ? t('tabs.fabAgent')
                       : t('agentPane.projectFolderRequired')
                   }
                   terminalFabTitle={
-                    projectCwd || orgBacked
+                    canCreatePane
                       ? t('tabs.fabTerminal')
                       : t('agentPane.projectFolderRequired')
                   }
+                  agentFabDisabledTitle={t('agentPane.projectFolderRequired')}
+                  terminalFabDisabledTitle={t('agentPane.projectFolderRequired')}
+                  fabPaneLimitReachedTitle={t('tabs.fabPaneLimitReached')}
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
@@ -5392,16 +5756,13 @@ export const App: React.FC = () => {
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}
-                  onAutoImproveChange={(paneId, enabled) => {
-                    handleAgentAutoImproveChange(tab.id, paneId, enabled)
-                  }}
                   onToggleLoop={handlePlaneToggleLoop}
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   onMergeQueuedTurns={handlePlaneMergeQueuedTurns}
-                  canAdd={tab.paneIds.length < MAX_PANES_PER_TAB}
-                  canAddAgent={Boolean(projectCwd) || orgBacked}
-                  canAddTerminal={Boolean(projectCwd) || orgBacked}
+                  canAdd={!paneLimitReached}
+                  canAddAgent={canCreatePane}
+                  canAddTerminal={canCreatePane}
                   bootstrapAgentsLabel={t('tabs.bootstrapAgents')}
                   bootstrapAgentsTitle={t('tabs.bootstrapAgentsTitle')}
                   bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
@@ -5436,6 +5797,7 @@ export const App: React.FC = () => {
                     setResultsPreview({ tabId: tab.id, context })
                   }}
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
+                  newThreadPendingPaneId={planeNewThreadPaneId}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
                     yieldChainOfferForUserSend(paneId)

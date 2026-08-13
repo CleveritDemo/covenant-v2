@@ -69,6 +69,7 @@ import {
 } from '../src/shared/agentCliProviders'
 import { resolvePluginDirs } from '../src/shared/installedPlugins'
 import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
+import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
 import {
@@ -117,7 +118,6 @@ const contextDeliveryMetrics: ContextDeliveryMetrics = {
   sectionsRequested: 0,
   sectionsDelivered: 0,
   sectionsPreattached: 0,
-  annotationUpserts: 0,
   inputTokens: 0,
   outputTokens: 0,
 }
@@ -141,7 +141,6 @@ export function clearContextDeliveryMetrics(): void {
   contextDeliveryMetrics.sectionsRequested = 0
   contextDeliveryMetrics.sectionsDelivered = 0
   contextDeliveryMetrics.sectionsPreattached = 0
-  contextDeliveryMetrics.annotationUpserts = 0
   contextDeliveryMetrics.inputTokens = 0
   contextDeliveryMetrics.outputTokens = 0
 }
@@ -177,7 +176,6 @@ function planContextDelivery(
       previous?.turnsSinceFullRefresh ?? null,
     )
   const delivery = buildContextPromptDelivery(request.contexts ?? [], projectCwd, {
-    allowAnnotationUpdates: request.autoImproveContexts === true,
     previousSnapshot: request.forceContextFullRefresh === true ? undefined : previous?.snapshot,
     forceFullRefresh,
     userPrompt: request.prompt,
@@ -727,7 +725,6 @@ export function composePrompt(
   contextPrompt = buildContextCatalogPrompt(
     Array.isArray(request.contexts) ? request.contexts : [],
     cwd,
-    { allowAnnotationUpdates: request.autoImproveContexts === true },
   ),
 ): string {
   const identityPrompt = buildAgentIdentityPrompt({
@@ -1117,6 +1114,8 @@ export function startAgentTurn(
   const beforeSnapshot = captureWorkspaceSnapshot(cwd)
   let latestSessionId = request.cliSessionId
   let changelogPersisted = false
+  /** Mismo patrón que changelogPersisted: el round 2 de need-sections re-emite assistant_final. */
+  let wikiIngestPersisted = false
   const contextDelivery = planContextDelivery(request, projectCwd)
   const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
   let contextDeliveryCommitted = false
@@ -1260,18 +1259,17 @@ export function startAgentTurn(
               beforeSnapshot,
               captureWorkspaceSnapshot(cwd),
             )
-            const contextFilteredText = filterTabContextUpdatesByChangedPaths(
+            // Con [] no escribe (ya persistido), pero sigue limpiando el
+            // fence del texto visible.
+            const wikiIngest = applyWikiIngestFromFinalText(
               finalText,
-              changedPaths,
-              request.contexts ?? [],
+              wikiIngestPersisted ? [] : request.contexts ?? [],
+              projectCwd,
+              { agentId: request.agentId?.trim() || undefined },
             )
-            const annotationUpdates = extractTabContextUpdates(contextFilteredText).updates
-            contextDeliveryMetrics.annotationUpserts += annotationUpdates.reduce(
-              (sum, update) => sum + (update.annotations?.length ?? 0),
-              0,
-            )
+            if (wikiIngest.persisted) wikiIngestPersisted = true
             const { visibleText: afterChangelog, changes } = extractAiChangelog(
-              contextFilteredText,
+              wikiIngest.visibleText,
               changedPaths,
             )
             if (changes.length && !changelogPersisted) {

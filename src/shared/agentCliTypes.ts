@@ -62,8 +62,6 @@ export interface AgentCliStartRequest {
   contexts?: TabContext[]
   /** Catálogo descubierto en disco (para sugerencias; no se adjuntan solos). */
   discoveredContexts?: TabContext[]
-  /** Inyecta el protocolo de actualización incremental de anotaciones. */
-  autoImproveContexts?: boolean
   /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
   emitResults?: boolean
   /**
@@ -155,7 +153,6 @@ export interface ContextDeliveryMetrics {
   sectionsRequested: number
   sectionsDelivered: number
   sectionsPreattached: number
-  annotationUpserts: number
   /** Tokens que el CLI reporta al cerrar cada turno, acumulados. */
   inputTokens: number
   outputTokens: number

@@ -93,6 +93,7 @@ import {
   rememberActiveParentDelegation,
 } from './activeParentDelegation'
 import { decideParentDelegationNotify } from './parentDelegationNotify'
+import { canApplyDeferredNewThread, shouldDeferNewThread } from './newThreadIntent'
 import {
   workspaceContextBody,
   type WorkspaceContextBodyScope,
@@ -417,7 +418,6 @@ export const AgentPane: React.FC<Props> = ({
   const [confirmClear, setConfirmClear] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [contextsOpen, setContextsOpen] = useState(false)
-  const [contextNotice, setContextNotice] = useState('')
   const [loopOpen, setLoopOpen] = useState(false)
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
@@ -486,6 +486,12 @@ export const AgentPane: React.FC<Props> = ({
   const onProjectContextsChangedRef = useRef(onProjectContextsChanged)
   const busyRef = useRef(busy)
   const loopActiveRef = useRef(false)
+  /**
+   * Petición diferida de nueva conversación: si el pane está busy, tiene una
+   * delegación activa o está en settle, `startNewThread` la marca aquí y un
+   * effect la aplica sin abortar cuando el pane vuelve a idle limpio.
+   */
+  const pendingNewThreadRef = useRef(false)
   const loopObjectiveRef = useRef('')
   const loopIterationRef = useRef(0)
   const loopDoneRef = useRef(false)
@@ -545,14 +551,31 @@ export const AgentPane: React.FC<Props> = ({
    * el chat ni tumbar busy/messages del stream que acaba de arrancar.
    */
   const retainLiveThreadIdRef = useRef<string | null>(null)
-  /** Delegación en vuelo (especialista / orch ejecutando subtarea del padre). */
-  const activeDelegationRef = useRef<{
+  /**
+   * Delegación en vuelo (especialista / orch ejecutando subtarea del padre).
+   * `awaitingNested`: si este pane emitió delegaciones anidadas dentro del
+   * turno delegado, guardamos sus ids. Mientras haya entradas, mantenemos el
+   * hold: el padre NO debe recibir `onDelegationTurnComplete` hasta que el
+   * turno agregado del orquestador cierre sin nuevas emisiones. Reemplaza el
+   * booleano `nestedDelegationsDispatchedThisTurnRef` con estado explícito.
+   */
+  type ActiveDelegationRuntime = {
     id: string
     fromPaneId: string
     toAgentId: string
-  } | null>(peekActiveParentDelegation(paneId))
-  /** Este turno emitió fences anidados; no despertar al padre aún. */
-  const nestedDelegationsDispatchedThisTurnRef = useRef(false)
+    awaitingNested: Set<string>
+  }
+  const hydrateActiveParentDelegationForPane = (
+    id: string,
+  ): ActiveDelegationRuntime | null => {
+    const persisted = peekActiveParentDelegation(id)
+    return persisted
+      ? { ...persisted, awaitingNested: new Set<string>() }
+      : null
+  }
+  const activeDelegationRef = useRef<ActiveDelegationRuntime | null>(
+    hydrateActiveParentDelegationForPane(paneId),
+  )
   const onOrchestratorDelegationsRef = useRef(onOrchestratorDelegations)
   onOrchestratorDelegationsRef.current = onOrchestratorDelegations
   const onOrchestratorStopRef = useRef(onOrchestratorStop)
@@ -1244,10 +1267,18 @@ export const AgentPane: React.FC<Props> = ({
     setActiveAssistantId(assistant.id)
     turnGenRef.current += 1
     turnClosedRef.current = false
-    nestedDelegationsDispatchedThisTurnRef.current = false
+    // Turn boundary: cada turno arranca "sin anidadas emitidas". Si el
+    // orquestador vuelve a emitir fences durante el follow-up, los ids se
+    // acumulan de nuevo y el hold se sostiene un turno más.
+    if (activeDelegationRef.current) {
+      activeDelegationRef.current.awaitingNested.clear()
+    }
     // Conservar hold del padre en follow-ups; solo fijar si llega una nueva subtarea.
     if (options.delegation) {
-      activeDelegationRef.current = options.delegation
+      activeDelegationRef.current = {
+        ...options.delegation,
+        awaitingNested: activeDelegationRef.current?.awaitingNested ?? new Set<string>(),
+      }
       rememberActiveParentDelegation(paneId, options.delegation)
     }
     // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
@@ -1289,7 +1320,6 @@ export const AgentPane: React.FC<Props> = ({
         turnClosedRef.current = true
         activeAssistantIdRef.current = null
         setActiveAssistantId(null)
-        nestedDelegationsDispatchedThisTurnRef.current = false
         const failedDelegation = activeDelegationRef.current
         activeDelegationRef.current = null
         clearActiveParentDelegation(paneId)
@@ -1319,7 +1349,6 @@ export const AgentPane: React.FC<Props> = ({
       turnClosedRef.current = true
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
-      nestedDelegationsDispatchedThisTurnRef.current = false
       const failedDelegation = activeDelegationRef.current
       activeDelegationRef.current = null
       clearActiveParentDelegation(paneId)
@@ -1380,7 +1409,6 @@ export const AgentPane: React.FC<Props> = ({
       ...(currentMeta.mcpsAllowed ? { mcpsAllowed: currentMeta.mcpsAllowed } : {}),
       contexts: assigned,
       discoveredContexts: diskContextsRef.current,
-      autoImproveContexts: currentMeta.autoImproveContexts === true,
       emitResults: true,
       ...(() => {
         const ids = [
@@ -1564,16 +1592,16 @@ export const AgentPane: React.FC<Props> = ({
             : entry))
       }
 
-      const delegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+      const delegation = activeDelegationRef.current ?? hydrateActiveParentDelegationForPane(paneId)
       if (delegation && !activeDelegationRef.current) {
         activeDelegationRef.current = delegation
       }
+      const awaitingNested = delegation?.awaitingNested.size ?? 0
       const decision = decideParentDelegationNotify({
         held: Boolean(delegation),
-        dispatchedNested: nestedDelegationsDispatchedThisTurnRef.current,
+        dispatchedNested: awaitingNested > 0,
         canDelegate: coordinationCanDelegate(metaRef.current.coordination),
       })
-      nestedDelegationsDispatchedThisTurnRef.current = false
       if (decision === 'notify' && delegation) {
         activeDelegationRef.current = null
         clearActiveParentDelegation(paneId)
@@ -1604,16 +1632,40 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'delegate') {
-      if (event.delegations.length > 0) {
-        nestedDelegationsDispatchedThisTurnRef.current = true
+      const parent = activeDelegationRef.current
+      // Anota parentDelegationId sobre cada request antes de dispatch. Así
+      // App enlaza estas nested al padre en el registry (no infiere por
+      // "última request"). Solo aplica si este pane corre bajo delegación:
+      // orquestadores sin padre pasan las delegaciones sin tag.
+      const tagged = parent
+        ? event.delegations.map(item => ({ ...item, parentDelegationId: parent.id }))
+        : event.delegations
+      if (parent) {
+        for (const item of tagged) {
+          parent.awaitingNested.add(item.id)
+        }
       }
-      const jobId = resolveOrchestrationJobIdForTurn(
-        event.orchestrationJobId,
-        lastTurnRequestRef.current?.orchestrationJobId,
-      )
-      onOrchestratorDelegationsRef.current?.(event.delegations, jobId)
-      if (event.delegations.length) {
-        const names = event.delegations
+      const explicitJobId = event.orchestrationJobId?.trim() || undefined
+      const requestJobId = lastTurnRequestRef.current?.orchestrationJobId?.trim() || undefined
+      const jobId = resolveOrchestrationJobIdForTurn(explicitJobId, requestJobId)
+      // Diagnóstico de correlación: si el CLI emite un jobId distinto al del
+      // request del turno, algo desalineó. Ganamos el explícito, pero dejamos
+      // rastro para depurar (turbo + follow-ups pisando lastTurnRequestRef).
+      if (explicitJobId && requestJobId && explicitJobId !== requestJobId) {
+        console.warn('[orchestration] delegate event jobId mismatch', {
+          fromPaneId: paneId,
+          toAgentId: tagged[0]?.toAgentId,
+          reason: 'delegate_jobid_mismatch',
+          eventJobId: explicitJobId,
+          requestJobId,
+          resolvedJobId: jobId,
+          delegationIds: tagged.map(item => item.id),
+          ...(parent ? { parentDelegationId: parent.id } : {}),
+        })
+      }
+      onOrchestratorDelegationsRef.current?.(tagged, jobId)
+      if (tagged.length) {
+        const names = tagged
           .map(item => item.toAgentId)
           .join(', ')
         setMessages(prev => [
@@ -1697,42 +1749,12 @@ export const AgentPane: React.FC<Props> = ({
       setBusy(true)
     }
     if (event.type === 'assistant_final') {
-      let { visibleText, updates } = extractTabContextUpdates(event.text)
+      // Solo limpia el fence ia-terminal-context del texto visible; nunca se aplica.
+      let { visibleText } = extractTabContextUpdates(event.text)
       if (loopActiveRef.current) {
         const stripped = stripLoopDoneMarker(visibleText)
         visibleText = stripped.text
         if (stripped.done) loopDoneRef.current = true
-      }
-      const currentMeta = metaRef.current
-      const currentContexts = diskContextsRef.current
-      const assigned = new Set(currentMeta.contextIds ?? [])
-      const valid = currentMeta.autoImproveContexts === true
-        ? updates.filter(update =>
-            assigned.has(update.id) &&
-            update.kind !== 'agentResult' &&
-            update.kind !== 'notes' &&
-            Array.isArray(update.annotations) &&
-            update.annotations.length > 0)
-        : []
-      if (valid.length) {
-        const writes = valid.flatMap(update => {
-          const context = currentContexts.find(item =>
-            item.id === update.id && item.kind === update.kind)
-          const currentCwd = cwdRef.current
-          if (!context || !currentCwd || !update.annotations?.length) return []
-          return [{ context, cwd: currentCwd, annotations: update.annotations }]
-        })
-        if (writes.length) {
-          contextWriteQueueRef.current = contextWriteQueueRef.current
-            .catch(() => undefined)
-            .then(async () => {
-              for (const request of writes) {
-                await window.api.mergeTabContextAnnotations(request)
-              }
-            })
-          setContextNotice(t('tabContexts.updated', { n: writes.length }))
-          window.setTimeout(() => setContextNotice(''), 3500)
-        }
       }
       // Un final vacío no debe borrar deltas ya mostrados (p. ej. result filtrado).
       setMessages(prev => prev.map(message => {
@@ -1921,7 +1943,6 @@ export const AgentPane: React.FC<Props> = ({
     if (handledPreferSendRef.current === preferSend) return
     // Loop local activo: no consumir; App reintentará cuando termine.
     if (loopActive) return
-    handledPreferSendRef.current = preferSend
     const prompt = preferSend.text.trim()
     const inboundImages = preferSend.images ?? []
     const delegation = preferSend.delegation
@@ -1931,14 +1952,17 @@ export const AgentPane: React.FC<Props> = ({
     const allowDelegations = preferSend.allowDelegations
     const orchestrationJobId = preferSend.orchestrationJobId
     const isHumanTurn = !orchestrationFollowUp && !delegation
-    // Busy: no consumir follow-ups ni delegaciones; App FIFO reintenta al idle.
-    if (busy && (preferSend.focusPane === false || Boolean(delegation))) {
-      handledPreferSendRef.current = null
+    const delegationId = delegation?.id
+    // Prompt vacío sin imágenes: no consumir; marcar local para no re-loguear.
+    if (!prompt && inboundImages.length === 0) {
+      handledPreferSendRef.current = preferSend
+      console.warn('[AgentPane] preferSend ignored', {
+        reason: 'empty_prefer_send',
+        delegationId,
+        orchestrationJobId,
+      })
       return
     }
-    onPreferSendConsumed?.()
-    if (!prompt && inboundImages.length === 0) return
-    if (preferSend.focusPane !== false) onRequestPaneFocus()
     const imagesSnapshot = attachmentsToPendingImages(inboundImages)
     const turnOptions = {
       ...(delegation ? { delegation } : {}),
@@ -1948,14 +1972,13 @@ export const AgentPane: React.FC<Props> = ({
       ...(viaLoop ? { viaLoop: true as const } : {}),
       ...(extraContextIds.length ? { extraContextIds } : {}),
     }
-    // Solo humanos / no-delegación encolan en local; delegaciones nunca mientras busy.
+    // Busy o humano sin slot → encolar (delegaciones incluidas para no perderlas).
     const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
     if (shouldEnqueue) {
+      let didEnqueue = false
       setQueuedTurns(prev => {
-        if (prev.length >= MAX_QUEUED_TURNS) {
-          imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
-          return prev
-        }
+        if (prev.length >= MAX_QUEUED_TURNS) return prev
+        didEnqueue = true
         return [
           ...prev,
           {
@@ -1966,14 +1989,29 @@ export const AgentPane: React.FC<Props> = ({
           },
         ]
       })
+      if (!didEnqueue) {
+        imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        console.warn('[AgentPane] preferSend rejected', {
+          reason: 'queue_full',
+          delegationId,
+          orchestrationJobId,
+        })
+        handledPreferSendRef.current = null
+        return
+      }
+      handledPreferSendRef.current = preferSend
+      onPreferSendConsumed?.()
       return
     }
+    if (preferSend.focusPane !== false) onRequestPaneFocus()
     if (
       isHumanTurn
       && coordinationCanDelegate(metaRef.current.coordination)
     ) {
       onOrchestrationUserTurnRef.current?.()
     }
+    handledPreferSendRef.current = preferSend
+    onPreferSendConsumed?.()
     void dispatchMessage(prompt, imagesSnapshot, turnOptions)
   }, [
     busy,
@@ -2172,7 +2210,6 @@ export const AgentPane: React.FC<Props> = ({
     setActivity('')
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
-    nestedDelegationsDispatchedThisTurnRef.current = false
     const delegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
     const decision = decideParentDelegationNotify({
       held: Boolean(delegation),
@@ -2243,7 +2280,6 @@ export const AgentPane: React.FC<Props> = ({
     const clearedDelegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
     activeDelegationRef.current = null
     clearActiveParentDelegation(paneId)
-    nestedDelegationsDispatchedThisTurnRef.current = false
     if (clearedDelegation) {
       onDelegationTurnCompleteRef.current?.({
         id: clearedDelegation.id,
@@ -2270,12 +2306,25 @@ export const AgentPane: React.FC<Props> = ({
   /**
    * Abre una conversación nueva. No borra nada: el thread anterior conserva su
    * transcript y su `cliSessionId`, y se puede reanudar desde el selector.
+   *
+   * Si el pane está busy, hay una delegación viva o el turno está en settle,
+   * la petición queda diferida en `pendingNewThreadRef` y se aplica cuando el
+   * turno actual cierre limpio — sin llamar a `resetLiveState`, que abortaría
+   * el turno o la delegación en curso.
    */
   const startNewThread = useCallback((): void => {
+    if (shouldDeferNewThread({
+      busy: busyRef.current,
+      hasActiveDelegation: Boolean(activeDelegationRef.current),
+    })) {
+      pendingNewThreadRef.current = true
+      return
+    }
     resetLiveState()
     // El thread nuevo no tiene sesión: el turno siguiente arranca un CLI
     // limpio y adopta la que ese CLI emita.
     commitNewThreadCatalog()
+    pendingNewThreadRef.current = false
   }, [commitNewThreadCatalog, resetLiveState])
 
   /** Borra la conversación activa (transcript incluido) y salta a otra. */
@@ -2305,9 +2354,38 @@ export const AgentPane: React.FC<Props> = ({
 
   useEffect(() => {
     if (!preferNewThread) return
-    onPreferNewThreadConsumed?.()
     startNewThread()
+    // Si quedó pendiente (busy/delegación), no consumimos aún: el plane
+    // mantiene la marca para bloquear "+" y evitar duplicados, y el effect
+    // reconciliador flusheará cuando el turno cierre.
+    if (!pendingNewThreadRef.current) {
+      onPreferNewThreadConsumed?.()
+    }
   }, [onPreferNewThreadConsumed, preferNewThread, startNewThread])
+
+  /**
+   * Aplica una petición diferida de nueva conversación cuando el pane vuelve
+   * a idle limpio: sin turno vivo, sin ola de delegaciones y sin animación de
+   * settle. Usa `commitNewThreadCatalog` directamente para no tocar el live.
+   */
+  useEffect(() => {
+    if (!pendingNewThreadRef.current) return
+    if (!canApplyDeferredNewThread({
+      busy,
+      settling: settlingId != null,
+      awaitingDelegations,
+      hasActiveDelegation: Boolean(activeDelegationRef.current),
+    })) return
+    pendingNewThreadRef.current = false
+    commitNewThreadCatalog()
+    onPreferNewThreadConsumed?.()
+  }, [
+    awaitingDelegations,
+    busy,
+    commitNewThreadCatalog,
+    onPreferNewThreadConsumed,
+    settlingId,
+  ])
 
   useEffect(() => {
     if (!preferClearConversation) return
@@ -2649,7 +2727,6 @@ export const AgentPane: React.FC<Props> = ({
         awaitingDelegations={awaitingDelegations}
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
-        contextNotice={contextNotice}
         onClose={() => {
           // Desbloquear + suppress post-cierre (click-through al mini del plano).
           onConfigClose?.()
@@ -2757,10 +2834,6 @@ export const AgentPane: React.FC<Props> = ({
         onToggleLoopMode={toggleLoopMode}
         onToggleContext={toggleContext}
         onOpenContextsModal={() => setContextsOpen(true)}
-        onAutoImproveChange={checked => onMetaChange(previous => ({
-          ...previous,
-          autoImproveContexts: checked,
-        }))}
         onContextsTabFocus={() => { void refreshDiskContexts() }}
       />
 

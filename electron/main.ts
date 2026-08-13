@@ -120,14 +120,29 @@ import {
   deleteTabContext,
   discoverTabContexts,
   materializeTabContext,
-  mergeAnnotations,
 } from './tabContextBuild'
 import { resolveTabContextRevealPath } from './tabContextReveal'
+import {
+  ensureWikiWithSeed,
+  readWikiLogTail,
+  readWikiPages,
+  replaceWikiPagesFromServer,
+  replaceWikiLogFromServer,
+  type WikiSyncPage,
+  type WikiSyncLogEntry,
+} from './wikiStore'
+import {
+  readWikiCuratorConfig,
+  startWikiCuratorTurn,
+  stopWikiCuratorTurn,
+  writeWikiCuratorConfig,
+  type WikiCuratorStartConfig,
+} from './wikiCurator'
+import { buildWikiGraphData } from '../src/shared/wikiGraph'
 import { pulseSnapshot, recordPulseEvent } from './pulseStore'
 import { clearPresence, setPresence } from './discordPresence'
 import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
-  TabContextAnnotationRequest,
   TabContextDeleteRequest,
   TabContextDiscoveryRequest,
   TabContextPreviewRequest,
@@ -208,6 +223,11 @@ import {
   addWorkspaceRepo as covenantAddWorkspaceRepo,
   updateWorkspaceRepo as covenantUpdateWorkspaceRepo,
   deleteWorkspaceRepo as covenantDeleteWorkspaceRepo,
+  listWikiPages as covenantListWikiPages,
+  upsertWikiPage as covenantUpsertWikiPage,
+  deleteWikiPage as covenantDeleteWikiPage,
+  appendWikiLog as covenantAppendWikiLog,
+  listWikiLog as covenantListWikiLog,
   initCovenantSession,
 } from './covenantApi'
 import type { CovenantResult } from '../src/shared/covenantTypes'
@@ -1292,6 +1312,60 @@ function registerIpc(): void {
   )
 
   ipcMain.handle(
+    IPC.COVENANT_WIKI_PAGES_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWikiPages(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WIKI_PAGE_UPSERT,
+    async (_e, slug: unknown, workspaceId: unknown, pageSlug: unknown, payload: unknown) =>
+      covenantInvoke(() =>
+        covenantUpsertWikiPage(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(pageSlug ?? ''),
+          payload as Parameters<typeof covenantUpsertWikiPage>[3],
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WIKI_PAGE_DELETE,
+    async (_e, slug: unknown, workspaceId: unknown, pageSlug: unknown) =>
+      covenantInvoke(async () => {
+        await covenantDeleteWikiPage(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(pageSlug ?? ''),
+        )
+        return null
+      }),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WIKI_LOG_APPEND,
+    async (_e, slug: unknown, workspaceId: unknown, entry: unknown) =>
+      covenantInvoke(() =>
+        covenantAppendWikiLog(
+          String(slug ?? ''),
+          String(workspaceId ?? ''),
+          String(entry ?? ''),
+        ),
+      ),
+  )
+
+  ipcMain.handle(
+    IPC.COVENANT_WIKI_LOG_LIST,
+    async (_e, slug: unknown, workspaceId: unknown) =>
+      covenantInvoke(() =>
+        covenantListWikiLog(String(slug ?? ''), String(workspaceId ?? '')),
+      ),
+  )
+
+  ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPOS_LIST,
     async (_e, slug: unknown, workspaceId: unknown) =>
       covenantInvoke(() =>
@@ -1857,12 +1931,6 @@ function registerIpc(): void {
       previousFileName: request.previousFileName,
     })
   })
-  ipcMain.handle(IPC.TAB_CONTEXT_MERGE_ANNOTATIONS, (_event, request: TabContextAnnotationRequest) => {
-    if (!request || typeof request.cwd !== 'string' || !request.context || !Array.isArray(request.annotations)) {
-      return { ok: false, content: '', error: 'Solicitud inválida.' }
-    }
-    return mergeAnnotations(request.context, request.cwd, request.annotations)
-  })
   ipcMain.handle(IPC.TAB_CONTEXT_DISCOVER, (_event, request: TabContextDiscoveryRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.cwd.trim()) {
       return { ok: false, contexts: [], error: 'Solicitud inválida.' }
@@ -1913,6 +1981,145 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     return deleteTabContext(request.context, request.cwd)
+  })
+  ipcMain.handle(IPC.WIKI_GRAPH, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    try {
+      return {
+        ok: true,
+        data: buildWikiGraphData(readWikiPages(cwd)),
+        logTail: readWikiLogTail(cwd),
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })
+  ipcMain.handle(IPC.WIKI_ENSURE, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false }
+    }
+    try {
+      return { ok: ensureWikiWithSeed(cwd).ok }
+    } catch {
+      return { ok: false }
+    }
+  })
+  ipcMain.handle(IPC.WIKI_SYNC_REPLACE, (_event, cwd: unknown, pages: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim() || !Array.isArray(pages)) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    const sanitized: WikiSyncPage[] = []
+    for (const raw of pages) {
+      if (!raw || typeof raw !== 'object') continue
+      const page = raw as Record<string, unknown>
+      if (typeof page.slug !== 'string' || !page.slug.trim()) continue
+      sanitized.push({
+        slug: page.slug,
+        title: typeof page.title === 'string' ? page.title : page.slug,
+        type: typeof page.type === 'string' ? page.type : 'concept',
+        body: typeof page.body === 'string' ? page.body : '',
+      })
+    }
+    try {
+      const result = replaceWikiPagesFromServer(cwd, sanitized)
+      return result.ok
+        ? { ok: true }
+        : { ok: false, error: result.errors.join('; ') }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })
+  ipcMain.handle(IPC.WIKI_SYNC_REPLACE_LOG, (_event, cwd: unknown, entries: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim() || !Array.isArray(entries)) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    const sanitized: WikiSyncLogEntry[] = []
+    for (const raw of entries) {
+      if (!raw || typeof raw !== 'object') continue
+      const item = raw as Record<string, unknown>
+      if (typeof item.entry !== 'string' || !item.entry.trim()) continue
+      const createdBy = typeof item.createdBy === 'string'
+        ? item.createdBy
+        : item.createdBy === null
+          ? null
+          : undefined
+      const createdAt = typeof item.createdAt === 'number' && Number.isFinite(item.createdAt)
+        ? item.createdAt
+        : undefined
+      sanitized.push({
+        entry: item.entry,
+        ...(createdBy !== undefined ? { createdBy } : {}),
+        ...(createdAt !== undefined ? { createdAt } : {}),
+      })
+    }
+    try {
+      const result = replaceWikiLogFromServer(cwd, sanitized)
+      return result.ok
+        ? { ok: true }
+        : { ok: false, error: result.errors.join('; ') }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })
+  ipcMain.on(IPC.WIKI_CURATOR_START, (event, config: WikiCuratorStartConfig) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || !config || typeof config !== 'object') return
+    try {
+      startWikiCuratorTurn(win, config, readConfig(), app.getPath('home'))
+    } catch (error) {
+      const cwd = typeof config.cwd === 'string' ? config.cwd.trim() : ''
+      if (cwd && !win.isDestroyed()) {
+        win.webContents.send(IPC.WIKI_CURATOR_EVENT, cwd, {
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        })
+        win.webContents.send(IPC.WIKI_CURATOR_EVENT, cwd, { type: 'done' })
+      }
+    }
+  })
+  ipcMain.on(IPC.WIKI_CURATOR_STOP, (event, cwd: unknown) => {
+    if (typeof cwd !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    try {
+      stopWikiCuratorTurn(cwd, win ?? undefined)
+    } catch { /* stop best-effort */ }
+  })
+  ipcMain.handle(IPC.WIKI_CURATOR_CONFIG_GET, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    try {
+      return { ok: true, config: readWikiCuratorConfig(cwd) }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })
+  ipcMain.handle(IPC.WIKI_CURATOR_CONFIG_SET, (_event, cwd: unknown, value: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    try {
+      return writeWikiCuratorConfig(cwd, value)
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
   })
   ipcMain.handle(IPC.TAB_CONTEXT_REVEAL, (_e, cwd: unknown, fileName: unknown) => {
     if (typeof cwd !== 'string' || typeof fileName !== 'string') {

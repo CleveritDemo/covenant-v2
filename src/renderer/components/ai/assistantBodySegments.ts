@@ -4,11 +4,11 @@ export type AssistantBodySegment =
   | { type: 'code'; lang: string; content: string }
 
 const CONTROL_FENCE_RE =
-  /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-delegate|ia-terminal-context|ia-terminal-need-sections)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
+  /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-delegate|ia-terminal-context|ia-terminal-need-sections|ia-terminal-wiki-view|ia-terminal-wiki)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
 
 /** Igual que CONTROL_FENCE_RE pero sin ia-terminal-delegate (visible en streaming). */
 const CONTROL_FENCE_EXCEPT_DELEGATE_RE =
-  /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-context|ia-terminal-need-sections)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
+  /```(?:ia-terminal-results|ia-terminal-changelog|ia-terminal-context|ia-terminal-need-sections|ia-terminal-wiki-view|ia-terminal-wiki)[ \t]*\r?\n([\s\S]*?)(?:\r?\n```|$)/g
 
 export type StripAgentControlFencesOptions = {
   /** Si true, conserva fences ```ia-terminal-delegate (abiertos o cerrados). */

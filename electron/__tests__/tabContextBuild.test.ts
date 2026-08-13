@@ -17,8 +17,6 @@ import {
   discoverTabContexts,
   extractContextSectionRequest,
   materializeTabContext,
-  mergeAnnotations,
-  parseAnnotations,
   reconcileNotesWithAuto,
 } from '../tabContextBuild'
 import { appendAiChangelog } from '../aiChangelog'
@@ -36,6 +34,23 @@ describe('tab context builders', () => {
     return dir
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
+
+  /** Simula anotaciones legacy ya escritas en la sección de notes del .md. */
+  const writeLegacyAnnotations = (
+    filePath: string,
+    annotations: Array<{ key: string; text: string }>,
+  ): void => {
+    const lines = annotations.map(item => `- \`${item.key}\` — ${item.text}`).join('\n')
+    const raw = readFileSync(filePath, 'utf8')
+    writeFileSync(
+      filePath,
+      raw.replace(
+        /<!-- iaterminal:notes -->[\s\S]*?<!-- \/iaterminal:notes -->/,
+        `<!-- iaterminal:notes -->\n${lines}\n<!-- /iaterminal:notes -->`,
+      ),
+      'utf8',
+    )
+  }
 
   it('materializa una hoja de cálculo como CSV por hoja', () => {
     const cwd = tempCwd()
@@ -110,13 +125,9 @@ describe('tab context builders', () => {
       fileName: 'arbol.md',
       kind: 'folderTree' as const,
     })
-    materializeTabContext(context, cwd, { write: true })
-    const first = mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'src', text: 'Usar IPC tipado' },
     ])
-    expect(first.ok).toBe(true)
-    expect(first.content).toContain('<!-- iaterminal:notes -->')
-    expect(first.content).toContain('Usar IPC tipado')
 
     const refreshed = materializeTabContext(context, cwd, { write: true })
     expect(refreshed.ok).toBe(true)
@@ -653,8 +664,7 @@ export class App {
       paths: ['src/App.tsx'],
       symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
-    materializeTabContext(context, cwd, { write: true })
-    mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'src/App.tsx#class:App', text: 'Orquesta tabs y paneles' },
       { key: 'src/App.tsx#method:App.handleAddTab', text: 'Crea pestaña nueva' },
     ])
@@ -702,8 +712,7 @@ export class App {
       symbolKinds: ['class', 'method'] as Array<'class' | 'method'>,
     }
 
-    materializeTabContext(context, cwd, { write: true })
-    mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'src/generated-0.ts#class:Generated_0', text: 'Clase generada inicial' },
     ])
     const refreshed = materializeTabContext(context, cwd, { write: true })
@@ -877,37 +886,7 @@ export class Widget {
     expect(result.content).toMatch(/^- Widget:.*\brender\b/m)
   })
 
-  it('merges annotations by key and truncates to 10 words', () => {
-    const cwd = tempCwd()
-    mkdirSync(join(cwd, 'src'), { recursive: true })
-    mkdirSync(join(cwd, 'electron'), { recursive: true })
-    const context = {
-      id: 'tree',
-      name: 'Árbol',
-      fileName: 'arbol.md',
-      kind: 'folderTree' as const,
-    }
-    materializeTabContext(context, cwd, { write: true })
-    mergeAnnotations(context, cwd, [
-      { key: 'src', text: 'Código fuente principal' },
-    ])
-    const merged = mergeAnnotations(context, cwd, [
-      {
-        key: 'src',
-        text: 'uno dos tres cuatro cinco seis siete ocho nueve diez once doce',
-      },
-      { key: 'electron', text: 'Proceso main de Electron' },
-    ])
-    expect(merged.ok).toBe(true)
-    const notes = merged.notesContent ?? ''
-    expect(notes).toContain('src')
-    expect(notes).toContain('uno dos tres cuatro cinco seis siete ocho nueve diez')
-    expect(notes).not.toContain('once')
-    expect(notes).toContain('electron')
-    expect(parseAnnotations(notes)).toHaveLength(2)
-  })
-
-  it('preserves freeform annotation text and the generated auto layer while merging', () => {
+  it('preserves freeform notes text and legacy annotations on refresh', () => {
     const cwd = tempCwd()
     const context = applyCanonicalContextIdentity({
       id: 'tree',
@@ -915,35 +894,24 @@ export class Widget {
       fileName: 'arbol.md',
       kind: 'folderTree' as const,
     })
-    materializeTabContext(context, cwd, { write: true })
-    mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'note:old', text: 'Nota anterior' },
     ])
     const filePath = join(cwd, PROJECT_DIR, context.fileName)
-    const raw = readFileSync(filePath, 'utf8')
     writeFileSync(
       filePath,
-      raw.replace(
+      readFileSync(filePath, 'utf8').replace(
         '<!-- iaterminal:notes -->',
         '<!-- iaterminal:notes -->\nNo eliminar esta decisión.\n',
       ),
       'utf8',
     )
-    const autoBefore = raw.match(
-      /<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/,
-    )?.[1]
 
-    const merged = mergeAnnotations(context, cwd, [
-      { key: 'note:new', text: 'Cambio observado en esta interacción' },
-    ])
-    const autoAfter = merged.content.match(
-      /<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/,
-    )?.[1]
+    const refreshed = materializeTabContext(context, cwd, { write: true })
 
-    expect(merged.notesContent).toContain('No eliminar esta decisión.')
-    expect(merged.notesContent).toContain('Nota anterior')
-    expect(merged.notesContent).toContain('Cambio observado en esta interacción')
-    expect(autoAfter).toBe(autoBefore)
+    expect(refreshed.ok).toBe(true)
+    expect(refreshed.notesContent).toContain('No eliminar esta decisión.')
+    expect(refreshed.notesContent).toContain('Nota anterior')
   })
 
   it('moves missing symbol annotations to Orphaned', () => {
@@ -969,7 +937,7 @@ export class Widget {
     })
   })
 
-  it('adds write-back instructions only when auto improvement is enabled', () => {
+  it('nunca emite Context maintenance ni el fence ia-terminal-context', () => {
     const cwd = tempCwd()
     const contexts = [
       applyCanonicalContextIdentity({
@@ -979,53 +947,14 @@ export class Widget {
         kind: 'folderTree',
       }),
     ]
-    const readOnlyPrompt = buildAssignedContexts([...contexts], cwd)
-    const prompt = buildAssignedContexts([...contexts], cwd, {
-      allowAnnotationUpdates: true,
-    })
-    expect(readOnlyPrompt).not.toContain('## Context maintenance')
-    expect(readOnlyPrompt).not.toContain('```ia-terminal-context')
-    expect(prompt).toContain('## Assigned tab contexts')
-    expect(prompt).toContain('## Context maintenance')
-    expect(prompt).toContain('```ia-terminal-context')
-    expect(prompt).toContain('annotations')
-    expect(prompt).toContain('Never edit iaterminal:auto')
-    expect(prompt).toContain('file-change evidence')
-    expect(readFileSync(join(cwd, PROJECT_DIR, contexts[0].fileName), 'utf8')).toContain('iaterminal:auto')
-  })
-
-  it('excludes agentResult from Context maintenance Allowed list', () => {
-    const cwd = tempCwd()
-    upsertAiAgentResults(cwd, 'example2', {
-      summary: 'ok',
-      entries: ['done'],
-    }, { agentName: 'fullstack', timestamp: '2026-01-01T00:00:00.000Z' })
-    const contexts = [
-      {
-        id: 'iaterminal:folderTree',
-        name: 'folders',
-        fileName: 'folders.md',
-        kind: 'folderTree' as const,
-      },
-      {
-        id: 'iaterminal:result:example2',
-        name: 'fullstack',
-        fileName: 'results/example2.md',
-        kind: 'agentResult' as const,
-      },
-    ]
-    const prompt = buildAssignedContexts(contexts, cwd, { allowAnnotationUpdates: true })
-    const delivery = buildContextPromptDelivery(contexts, cwd, {
-      allowAnnotationUpdates: true,
-      forceFullRefresh: true,
-    })
-    for (const text of [prompt, delivery.prompt]) {
-      expect(text).toContain('## Context maintenance')
-      const allowed = text.split('## Context maintenance')[1] ?? ''
-      expect(allowed).toContain('iaterminal:folderTree')
-      expect(allowed).not.toMatch(/iaterminal:result:/)
-      expect(allowed).not.toMatch(/\(agentResult\)/)
+    const assigned = buildAssignedContexts([...contexts], cwd)
+    const delivery = buildContextPromptDelivery([...contexts], cwd, { forceFullRefresh: true })
+    for (const text of [assigned, delivery.prompt]) {
+      expect(text).not.toContain('## Context maintenance')
+      expect(text).not.toContain('```ia-terminal-context')
     }
+    expect(assigned).toContain('## Assigned tab contexts')
+    expect(readFileSync(join(cwd, PROJECT_DIR, contexts[0].fileName), 'utf8')).toContain('iaterminal:auto')
   })
 
   it('builds a lightweight section catalog without embedding file contents', () => {
@@ -1093,12 +1022,9 @@ export class Widget {
       kind: 'files' as const,
       paths: ['src/one.ts', 'src/two.ts'],
     }
-    materializeTabContext(context, cwd, { write: true })
-    const merged = mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'note:entrada', text: 'Entrada principal' },
     ])
-    expect(merged.ok).toBe(true)
-    expect(merged.notesContent).toContain('Entrada principal')
     clearTabContextMaterializationCache(cwd)
 
     const payload = buildRequestedContextSections([context], cwd, [
@@ -1127,8 +1053,7 @@ export class Widget {
       kind: 'files' as const,
       paths,
     }
-    materializeTabContext(context, cwd, { write: true })
-    mergeAnnotations(context, cwd, [
+    writeLegacyAnnotations(materializeTabContext(context, cwd, { write: true }).filePath!, [
       { key: 'note:primera', text: 'Primera pieza' },
     ])
     clearTabContextMaterializationCache(cwd)
@@ -1267,29 +1192,6 @@ export class Widget {
     })
     expect(delivery.prompt).toContain('## Suggested contexts (not attached)')
     expect(delivery.prompt).toContain('dependencies')
-  })
-
-  it('rejects annotation keys missing from auto unless note: slug', () => {
-    const cwd = tempCwd()
-    mkdirSync(join(cwd, 'src'), { recursive: true })
-    writeFileSync(join(cwd, 'src', 'App.tsx'), 'export class App {}', 'utf8')
-    const context = {
-      id: 'symbols',
-      name: 'Symbols',
-      fileName: 'symbols.md',
-      kind: 'symbols' as const,
-      paths: ['src/App.tsx'],
-      symbolKinds: ['class'] as Array<'class'>,
-    }
-    materializeTabContext(context, cwd, { write: true })
-    const merged = mergeAnnotations(context, cwd, [
-      { key: 'src/App.tsx#class:App', text: 'Root UI class' },
-      { key: 'src/Missing.tsx#class:Gone', text: 'Should be rejected' },
-      { key: 'note:arch', text: 'Durable slug allowed' },
-    ])
-    expect(merged.notesContent).toContain('Root UI class')
-    expect(merged.notesContent).toContain('Durable slug allowed')
-    expect(merged.notesContent).not.toContain('Should be rejected')
   })
 
   it('puts deps and changelog on the on-demand catalog, not as direct attachments', () => {
@@ -1682,6 +1584,178 @@ export class Widget {
     // skill no la asigna a nadie. Solo contextIds lo hace.
     const found = discoverTabContexts(cwd)
     expect(found.contexts.some(context => context.kind === 'skill')).toBe(false)
+  })
+
+  describe('wiki context (kind wiki, catálogo por secciones)', () => {
+    const wikiContext: TabContext = {
+      id: 'iaterminal:wiki',
+      name: 'Wiki',
+      fileName: 'wiki.md',
+      kind: 'wiki',
+    }
+
+    const seedWiki = (cwd: string): void => {
+      mkdirSync(join(cwd, PROJECT_DIR, 'wiki', 'pages'), { recursive: true })
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'index.md'),
+        '# Wiki index\n\n- [[auth]] — Auth (concept)\n',
+        'utf8',
+      )
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'log.md'),
+        '# Wiki log\n- `2026-08-13T00:00:00.000Z` — seeded\n',
+        'utf8',
+      )
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'pages', 'auth.md'),
+        '# Auth\n<!-- iaterminal:wiki-page {"type":"concept"} -->\n\nCuerpo de auth.\n',
+        'utf8',
+      )
+    }
+
+    it('se descubre como contexto sintético cuando la wiki existe en disco', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const result = discoverTabContexts(cwd)
+      expect(result.ok).toBe(true)
+      expect(result.contexts).toContainEqual(wikiContext)
+    })
+
+    it('sin .gravity/wiki no aparece contexto wiki', () => {
+      const cwd = tempCwd()
+      mkdirSync(join(cwd, PROJECT_DIR), { recursive: true })
+      const result = discoverTabContexts(cwd)
+      expect(result.ok).toBe(true)
+      expect(result.contexts.some(context => context.kind === 'wiki')).toBe(false)
+    })
+
+    it('el mirror materializado no duplica el contexto en discovery', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      materializeTabContext(wikiContext, cwd, { write: true })
+      const found = discoverTabContexts(cwd).contexts.filter(context => context.kind === 'wiki')
+      expect(found).toHaveLength(1)
+      expect(found[0].id).toBe('iaterminal:wiki')
+    })
+
+    it('materializa el mirror wiki.md con index, pages y log seccionables', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const result = materializeTabContext(wikiContext, cwd, { write: true })
+      expect(result.ok).toBe(true)
+      expect(result.content).toContain('## Index')
+      expect(result.content).toContain('- [[auth]] — Auth (concept)')
+      expect(result.content).toContain('### auth')
+      expect(result.content).toContain('Cuerpo de auth.')
+      expect(result.content).toContain('## Log')
+      expect(result.content).toContain('seeded')
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(true)
+      expect(sectionsForContext(wikiContext, result).map(section => section.key))
+        .toEqual(['index', 'auth', 'log'])
+    })
+
+    it('el mirror recorta el log a las últimas 20 líneas', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const entries = Array.from(
+        { length: 25 },
+        (_, index) => `- entry-${String(index + 1).padStart(2, '0')}`,
+      )
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'log.md'),
+        `# Wiki log\n${entries.join('\n')}\n`,
+        'utf8',
+      )
+      const result = materializeTabContext(wikiContext, cwd, { write: true })
+      expect(result.content).toContain('- entry-25')
+      expect(result.content).toContain('- entry-06')
+      expect(result.content).not.toContain('- entry-05')
+    })
+
+    it('con wiki asignada emite el bloque Wiki ingest', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const tree = applyCanonicalContextIdentity({
+        id: '',
+        name: '',
+        fileName: '',
+        kind: 'folderTree',
+      })
+      const assigned = buildAssignedContexts([tree, wikiContext], cwd)
+      const delivery = buildContextPromptDelivery([tree, wikiContext], cwd, {
+        forceFullRefresh: true,
+      })
+      expect(delivery.prompt).toContain('## Available tab contexts (on demand)')
+      expect(delivery.prompt).not.toContain('## Attached tab contexts')
+      for (const text of [assigned, delivery.prompt]) {
+        expect(text).not.toContain('## Context maintenance')
+        expect(text).not.toContain('```ia-terminal-context')
+        expect(text).toContain('## Wiki ingest')
+        const block = text.split('## Wiki ingest')[1] ?? ''
+        expect(block).toContain('Only durable project knowledge: decisions, concepts, flows. If nothing durable changed, skip.')
+        expect(block).toContain('[[slug]]')
+        expect(block).toContain('≤8 ops/turn, body ≤10000, title ≤120, log ≤200')
+        expect(block).toContain('concept|decision|flow|reference')
+        expect(block).toContain('```ia-terminal-wiki')
+        expect(block).toContain('{"op":"upsert","slug":"auth-flow"')
+        expect(block).toContain('{"op":"delete","slug":"old-page"}')
+      }
+    })
+
+    it('sin wiki asignada no hay Wiki ingest ni Context maintenance', () => {
+      const cwd = tempCwd()
+      const tree = applyCanonicalContextIdentity({
+        id: '',
+        name: '',
+        fileName: '',
+        kind: 'folderTree',
+      })
+      const assigned = buildAssignedContexts([tree], cwd)
+      const delivery = buildContextPromptDelivery([tree], cwd, {
+        forceFullRefresh: true,
+      })
+      for (const text of [assigned, delivery.prompt]) {
+        expect(text).not.toContain('## Context maintenance')
+        expect(text).not.toContain('## Wiki ingest')
+        expect(text).not.toContain('```ia-terminal-wiki')
+      }
+    })
+
+    it('deleteTabContext borra solo el mirror, jamás la carpeta wiki/', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      materializeTabContext(wikiContext, cwd, { write: true })
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(true)
+
+      const deleted = deleteTabContext(wikiContext, cwd)
+
+      expect(deleted.ok).toBe(true)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(false)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'index.md'))).toBe(true)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'log.md'))).toBe(true)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'pages', 'auth.md'))).toBe(true)
+      // La wiki sigue en disco: se re-descubre en el siguiente discover.
+      expect(discoverTabContexts(cwd).contexts.some(context => context.kind === 'wiki')).toBe(true)
+    })
+
+    it('la firma de caché invalida cuando cambia una page de la wiki', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      clearTabContextMaterializationCache(cwd)
+      buildContextSectionCatalog([wikiContext], cwd)
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'pages', 'auth.md'),
+        '# Auth\n\nCuerpo actualizado.\n',
+        'utf8',
+      )
+
+      const payload = buildRequestedContextSections([wikiContext], cwd, [
+        { id: 'iaterminal:wiki', sections: ['auth'] },
+      ])
+
+      expect(payload.prompt).toContain('Cuerpo actualizado.')
+      expect(payload.prompt).not.toContain('Cuerpo de auth.')
+    })
   })
 })
 

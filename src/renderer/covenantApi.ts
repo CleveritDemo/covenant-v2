@@ -1,6 +1,9 @@
 /** Contrato renderer de window.api.covenant (implementado en main/preload). */
 
 import type {
+  CovenantWikiLogEntryRecord,
+  CovenantWikiPagePayload,
+  CovenantWikiPageRecord,
   CovenantWorkspace,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
@@ -16,6 +19,9 @@ import type {
 } from '../shared/orgWorkspaceClone'
 
 export type {
+  CovenantWikiLogEntryRecord,
+  CovenantWikiPagePayload,
+  CovenantWikiPageRecord,
   CovenantWorkspace,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
@@ -138,6 +144,30 @@ export interface CovenantApi {
     workspaceId: string,
     contextId: string,
   ): Promise<CovenantResult<null>>
+  listWikiPages(
+    slug: string,
+    workspaceId: string,
+  ): Promise<CovenantResult<CovenantWikiPageRecord[]>>
+  upsertWikiPage(
+    slug: string,
+    workspaceId: string,
+    pageSlug: string,
+    payload: CovenantWikiPagePayload,
+  ): Promise<CovenantResult<CovenantWikiPageRecord>>
+  deleteWikiPage(
+    slug: string,
+    workspaceId: string,
+    pageSlug: string,
+  ): Promise<CovenantResult<null>>
+  appendWikiLog(
+    slug: string,
+    workspaceId: string,
+    entry: string,
+  ): Promise<CovenantResult<CovenantWikiLogEntryRecord>>
+  listWikiLog(
+    slug: string,
+    workspaceId: string,
+  ): Promise<CovenantResult<CovenantWikiLogEntryRecord[]>>
   workspaceReposList(
     slug: string,
     workspaceId: string,
@@ -208,6 +238,18 @@ export function hasCovenantWorkspaceContentApi(api: CovenantApi | undefined): bo
     typeof api.workspaceContextsList === 'function' &&
     typeof api.workspaceContextUpsert === 'function' &&
     typeof api.workspaceContextDelete === 'function'
+  )
+}
+
+/** True si el preload expone la API de wiki de workspace org. */
+export function hasCovenantWikiApi(api: CovenantApi | undefined): boolean {
+  return (
+    !!api &&
+    typeof api.listWikiPages === 'function' &&
+    typeof api.upsertWikiPage === 'function' &&
+    typeof api.deleteWikiPage === 'function' &&
+    typeof api.appendWikiLog === 'function' &&
+    typeof api.listWikiLog === 'function'
   )
 }
 

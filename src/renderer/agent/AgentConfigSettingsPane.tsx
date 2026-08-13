@@ -45,7 +45,6 @@ export interface AgentConfigSettingsPaneProps {
   locked: boolean
   diskContexts: TabContext[]
   selectedContextIds: string[]
-  contextNotice: string
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
   /** Modelos del CLI (si el modal ya los cargó). */
@@ -70,7 +69,6 @@ export interface AgentConfigSettingsPaneProps {
   onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
-  onAutoImproveChange: (checked: boolean) => void
 }
 
 function folderLabel(cwd: string): string {
@@ -129,7 +127,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   locked,
   diskContexts,
   selectedContextIds,
-  contextNotice,
   peerAgents = [],
   modelOptions: modelOptionsProp,
   modelsLoading = false,
@@ -150,7 +147,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
-  onAutoImproveChange,
 }) => {
   const { t } = useT()
   const [localModels, setLocalModels] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
@@ -445,12 +441,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
       // afecta al turno siguiente, así que no se bloquean.
       locked={false}
       loopActive={loopActive}
-      autoImprove={meta.autoImproveContexts === true}
       agentId={meta.id}
-      contextNotice={contextNotice}
       onToggleContext={onToggleContext}
       onOpenContextsModal={onOpenContextsModal}
-      onAutoImproveChange={onAutoImproveChange}
     />
   )
 }

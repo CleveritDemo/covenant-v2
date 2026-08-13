@@ -41,6 +41,9 @@ import type {
   CovenantDefault,
   CovenantMember,
   CovenantOrg,
+  CovenantWikiLogEntryRecord,
+  CovenantWikiPagePayload,
+  CovenantWikiPageRecord,
   CovenantWorkspace,
   CovenantWorkspaceAgentRecord,
   CovenantWorkspaceContextPayload,
@@ -62,6 +65,7 @@ import type {
 } from '../src/shared/fileExplorerTypes'
 import type {
   AgentChatEntry,
+  AgentCliImageAttachment,
   AgentCliStartRequest,
   AgentCliUiEvent,
   ContextDeliveryMetrics,
@@ -71,7 +75,6 @@ import type { BrainstormEvent } from '../src/shared/brainstormRoom'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
 import type {
-  TabContextAnnotationRequest,
   TabContextDeleteRequest,
   TabContextDeleteResult,
   TabContextDiscoveryRequest,
@@ -79,6 +82,8 @@ import type {
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
+import type { WikiGraphResult } from '../src/shared/wikiGraph'
+import type { WikiCuratorConfig, WikiCuratorEvent } from '../src/shared/wikiCurator'
 import type { UpdateState } from '../src/shared/updateState'
 import type { DictationPermissionResult } from '../src/shared/dictation'
 import type {
@@ -124,6 +129,7 @@ const subscribePtyError = createPtyChannelMux<[message: string]>(IPC.PTY_ERROR)
 const subscribeAgentCliEvent = createPtyChannelMux<[event: AgentCliUiEvent]>(IPC.AGENT_CLI_EVENT)
 const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_EXIT)
 const subscribeBrainstormEvent = createPtyChannelMux<[event: BrainstormEvent]>(IPC.BRAINSTORM_EVENT)
+const subscribeWikiCuratorEvent = createPtyChannelMux<[event: WikiCuratorEvent]>(IPC.WIKI_CURATOR_EVENT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
 // Los tres canales LSP se multiplexan igual que los de PTY: el primer argumento
@@ -277,9 +283,6 @@ const api = {
   materializeTabContext(request: TabContextPreviewRequest): Promise<TabContextPreviewResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_MATERIALIZE, request)
   },
-  mergeTabContextAnnotations(request: TabContextAnnotationRequest): Promise<TabContextPreviewResult> {
-    return ipcRenderer.invoke(IPC.TAB_CONTEXT_MERGE_ANNOTATIONS, request)
-  },
   discoverTabContexts(request: TabContextDiscoveryRequest): Promise<TabContextDiscoveryResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DISCOVER, request)
   },
@@ -302,6 +305,48 @@ const api = {
   },
   revealTabContext(cwd: string, fileName: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_REVEAL, cwd, fileName)
+  },
+  getWikiGraph(cwd: string): Promise<WikiGraphResult> {
+    return ipcRenderer.invoke(IPC.WIKI_GRAPH, cwd)
+  },
+  ensureWiki(cwd: string): Promise<{ ok: boolean }> {
+    return ipcRenderer.invoke(IPC.WIKI_ENSURE, cwd)
+  },
+  syncReplaceWikiPages(
+    cwd: string,
+    pages: Array<{ slug: string; title: string; type: string; body: string }>,
+  ): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.WIKI_SYNC_REPLACE, cwd, pages)
+  },
+  syncReplaceWikiLog(
+    cwd: string,
+    entries: Array<{ entry: string; createdBy?: string | null; createdAt?: number }>,
+  ): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.WIKI_SYNC_REPLACE_LOG, cwd, entries)
+  },
+  startWikiCuratorTurn(config: {
+    cwd: string
+    message: string
+    cliSessionId?: string
+    images?: AgentCliImageAttachment[]
+  }): void {
+    ipcRenderer.send(IPC.WIKI_CURATOR_START, config)
+  },
+  stopWikiCuratorTurn(cwd: string): void {
+    ipcRenderer.send(IPC.WIKI_CURATOR_STOP, cwd)
+  },
+  onWikiCuratorEvent(cwd: string, cb: (event: WikiCuratorEvent) => void): () => void {
+    return subscribeWikiCuratorEvent(cwd, cb)
+  },
+  getWikiCuratorConfig(cwd: string): Promise<
+    { ok: true; config: WikiCuratorConfig } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.WIKI_CURATOR_CONFIG_GET, cwd)
+  },
+  setWikiCuratorConfig(cwd: string, config: WikiCuratorConfig): Promise<
+    { ok: true; config: WikiCuratorConfig } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.WIKI_CURATOR_CONFIG_SET, cwd, config)
   },
 
   onShortcutCloseTab(cb: () => void): () => void {
@@ -684,6 +729,46 @@ const api = {
       contextId: string,
     ): Promise<CovenantResult<null>> {
       return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXT_DELETE, slug, workspaceId, contextId)
+    },
+    listWikiPages(
+      slug: string,
+      workspaceId: string,
+    ): Promise<CovenantResult<CovenantWikiPageRecord[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGES_LIST, slug, workspaceId)
+    },
+    upsertWikiPage(
+      slug: string,
+      workspaceId: string,
+      pageSlug: string,
+      payload: CovenantWikiPagePayload,
+    ): Promise<CovenantResult<CovenantWikiPageRecord>> {
+      return ipcRenderer.invoke(
+        IPC.COVENANT_WIKI_PAGE_UPSERT,
+        slug,
+        workspaceId,
+        pageSlug,
+        payload,
+      )
+    },
+    deleteWikiPage(
+      slug: string,
+      workspaceId: string,
+      pageSlug: string,
+    ): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGE_DELETE, slug, workspaceId, pageSlug)
+    },
+    appendWikiLog(
+      slug: string,
+      workspaceId: string,
+      entry: string,
+    ): Promise<CovenantResult<CovenantWikiLogEntryRecord>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_APPEND, slug, workspaceId, entry)
+    },
+    listWikiLog(
+      slug: string,
+      workspaceId: string,
+    ): Promise<CovenantResult<CovenantWikiLogEntryRecord[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_LIST, slug, workspaceId)
     },
     workspaceReposList(
       slug: string,

@@ -1,4 +1,5 @@
 import React from 'react'
+import type { TFunction } from 'i18next'
 import {
   BRAINSTORM_MAX_ROUNDS_CAP,
   BRAINSTORM_OUTCOMES,
@@ -20,7 +21,33 @@ import { CEREMONY_GOAL_KEY, CEREMONY_ROLE_KEY, ceremonyGateKey } from './ceremon
 import './BrainstormBriefFields.css'
 
 /** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
-const MINUTES_PER_TURN = 0.4
+export const MINUTES_PER_TURN = 0.4
+
+/**
+ * Opciones del selector de duración. Vive aquí porque este es el formulario
+ * canónico del brief; el modal de arranque lo reusa para no divergir en las
+ * etiquetas («3 — Equilibrada») que ya conocen los usuarios.
+ */
+export function brainstormRoundOptions(
+  t: TFunction<'app'>,
+): Array<{ value: string; label: string }> {
+  return Array.from(
+    { length: BRAINSTORM_MAX_ROUNDS_CAP },
+    (_, index) => index + 1,
+  ).map(value => {
+    const meaning = value === 1
+      ? t('tabs.brainstormRoundsQuick')
+      : value === 3
+        ? t('tabs.brainstormRoundsBalanced')
+        : value >= 6
+          ? t('tabs.brainstormRoundsDeep')
+          : ''
+    return {
+      value: String(value),
+      label: meaning ? `${value} — ${meaning}` : String(value),
+    }
+  })
+}
 
 export interface BrainstormBriefFieldsProps {
   cwd: string
@@ -77,22 +104,7 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
     critique: t('tabs.brainstormOutcomeCritique'),
   }
 
-  const roundOptions = Array.from(
-    { length: BRAINSTORM_MAX_ROUNDS_CAP },
-    (_, index) => index + 1,
-  ).map(value => {
-    const meaning = value === 1
-      ? t('tabs.brainstormRoundsQuick')
-      : value === 3
-        ? t('tabs.brainstormRoundsBalanced')
-        : value >= 6
-          ? t('tabs.brainstormRoundsDeep')
-          : ''
-    return {
-      value: String(value),
-      label: meaning ? `${value} — ${meaning}` : String(value),
-    }
-  })
+  const roundOptions = brainstormRoundOptions(t)
 
   const turns = participantCount * sanitizeBrainstormMaxRounds(maxRounds)
 

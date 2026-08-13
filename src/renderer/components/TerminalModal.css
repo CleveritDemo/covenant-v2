@@ -85,6 +85,38 @@
   width: min(900px, 98vw);
 }
 
+/* El arranque de brainstorm es el único modal que cambia de ancho en vivo:
+   al desplegar sus ajustes pasa de `lg` a `xl` para repartirlos en dos
+   columnas. El salto seco se lee como si el modal se hubiera vuelto a abrir.
+   Acotado con :has() al contenido —mismo recurso que `:has(.settings-layout)`
+   de arriba— para que ningún otro modal pague esta transición. */
+.terminal-modal-panel:has(.brainstorm-start) {
+  transition: width 220ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+/* Con los ajustes desplegados la caja se fija alta y el cuerpo deja de
+   scrollear: el único scroll es el del catálogo de formatos. Antes scrolleaban
+   los dos y bastaba mirar las tarjetas para perder de vista el objetivo. */
+.terminal-modal-panel:has(.brainstorm-start--expanded) {
+  height: min(88vh, 860px);
+  max-height: min(88vh, 860px);
+}
+
+.terminal-modal-panel:has(.brainstorm-start--expanded) .terminal-modal-body {
+  overflow: hidden;
+}
+
+/* Aquí sí se respeta: esto es un redimensionado, no el zoom de entrada. */
+@media (prefers-reduced-motion: reduce) {
+  .terminal-modal-panel:has(.brainstorm-start) {
+    transition: none;
+  }
+}
+
+:root[data-reduce-motion='true'] .terminal-modal-panel:has(.brainstorm-start) {
+  transition: none;
+}
+
 .terminal-modal-panel--xxl {
   width: min(1100px, 98vw);
   /* Misma caja para Git y File Explorer. */

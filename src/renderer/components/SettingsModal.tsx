@@ -289,7 +289,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       otelEndpoint: form.otelEndpoint.trim(),
       otelProtocol: form.otelProtocol,
       otelEnabled: form.otelEnabled,
-      otelHeaders: form.otelHeaders,
+      otelHeaders: form.otelHeaders.trim(),
       otelLogPrompts: form.otelLogPrompts,
       otelLogToolIO: form.otelLogToolIO,
     })
@@ -462,7 +462,11 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                 <Input
                   id="settings-otel-endpoint"
                   value={form.otelEndpoint}
-                  onChange={e => update('otelEndpoint', e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value
+                    update('otelEndpoint', v)
+                    if (!v.trim()) update('otelEnabled', false)
+                  }}
                   placeholder={t('settings.telemetryEndpointPlaceholder')}
                 />
                 <p className="settings-hint">{t('settings.telemetryEndpointHint')}</p>

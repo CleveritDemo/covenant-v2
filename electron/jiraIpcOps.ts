@@ -10,6 +10,7 @@ import { buildJiraQuickJql } from '../src/shared/jiraQuickJql'
 import type { JiraIssueRef } from '../src/shared/jiraIssue'
 import { jiraMyself, jiraSearch } from './jiraClient'
 import { ensureJiraGitignore, type JiraGitignoreOutcome } from './jiraGitignore'
+import { clearJiraRefreshFailures } from './jiraContextRefresh'
 import {
   deleteJiraCredentials,
   readJiraConfig,
@@ -123,6 +124,11 @@ export async function connectJira(cwd: string, input: JiraConnectInput): Promise
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+  // Reconectar es la señal de que lo que hacía fallar los refrescos (token
+  // expirado, credenciales equivocadas) puede haber desaparecido. Sin esto, un
+  // connect exitoso no arregla nada visible durante hasta cinco minutos: cada
+  // issue adjunta sigue con su castigo anotado y los chips siguen vencidos.
+  clearJiraRefreshFailures()
   // Después de persistir, nunca antes: el `.gitignore` protege snapshots que
   // solo existirán si la conexión llegó hasta aquí.
   return { ...probe, gitignore: ensureJiraGitignore(cwd) }

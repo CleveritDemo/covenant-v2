@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -21,9 +21,13 @@ vi.mock('electron', () => ({
 
 const jiraMyself = vi.fn()
 const jiraSearch = vi.fn()
-vi.mock('../jiraClient', () => ({ jiraMyself, jiraSearch }))
+// `jiraGetIssue` va en el mock aunque estos tests no lo llamen: el refresher lo
+// importa, y un export ausente en la factory revienta al resolverse.
+const jiraGetIssue = vi.fn()
+vi.mock('../jiraClient', () => ({ jiraMyself, jiraSearch, jiraGetIssue }))
 
 const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick } = await import('../jiraIpcOps')
+const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
 const { readJiraConfig, writeJiraConfig, readJiraCredentials, writeJiraCredentials } =
   await import('../jiraConfig')
 
@@ -35,7 +39,13 @@ beforeEach(() => {
   mockState.userDataDir = tmp('gravity-jira-userdata-')
   jiraMyself.mockReset().mockResolvedValue({ ok: true, displayName: 'Ana' })
   jiraSearch.mockReset().mockResolvedValue([])
+  // La memoria de fallos del refresher es de módulo: sin limpiarla, un test
+  // que provoca un fallo castigaría al siguiente.
+  clearJiraRefreshFailures()
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('jiraStatusFor', () => {
   it('sin jira.json: ni configurado ni conectado', () => {
@@ -244,6 +254,93 @@ describe('connectJira', () => {
 
     expect(result.gitignore).toBe('appended')
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('/jira/')
+  })
+})
+
+describe('connectJira ↔ memoria de fallos del refresher', () => {
+  const context = {
+    id: 'iaterminal:jira:grav-412',
+    name: 'GRAV-412',
+    fileName: 'jira/GRAV-412.md',
+    kind: 'jira' as const,
+    issueKey: 'GRAV-412',
+  }
+
+  const snapshot = {
+    key: 'GRAV-412',
+    summary: 'nuevo título',
+    status: 'Done',
+    issueType: 'Bug',
+    assignee: null,
+    priority: null,
+    sprint: null,
+    updated: '2026-08-12T09:40:00.000Z',
+    url: 'https://x.atlassian.net/browse/GRAV-412',
+    description: 'cuerpo',
+    acceptanceCriteria: null,
+    comments: [],
+    subtasks: [],
+    links: [],
+  }
+
+  function configuredProject(): string {
+    const dir = tmp('gravity-jira-proj-')
+    writeJiraConfig(dir, {
+      site: 'https://x.atlassian.net',
+      projectKeys: ['GRAV'],
+      defaultJql: 'project = GRAV',
+      refreshSeconds: 900,
+      maxComments: 10,
+    })
+    writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'viejo' })
+    return dir
+  }
+
+  it('reconectar olvida el castigo: el refresco vuelve a intentarlo enseguida', async () => {
+    // El fallo real: expira el token, cada issue adjunta anota su `site:KEY`,
+    // el usuario reconecta bien... y durante hasta cinco minutos no se refresca
+    // nada, los chips siguen vencidos y nada lo explica.
+    const dir = configuredProject()
+    const failing = vi.fn(async () => { throw new Error('Jira 401') })
+
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: failing })
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: failing })
+    // El cooldown está activo: la segunda pasada ni lo intentó.
+    expect(failing).toHaveBeenCalledTimes(1)
+
+    const result = await connectJira(dir, {
+      site: 'https://x.atlassian.net',
+      email: 'a@x.com',
+      apiToken: 'token-nuevo',
+      projectKeys: ['GRAV'],
+    })
+    expect(result.ok).toBe(true)
+
+    const ok = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: ok })
+
+    expect(ok).toHaveBeenCalledTimes(1)
+    expect(readFileSync(join(dir, '.gravity', 'jira', 'GRAV-412.md'), 'utf8')).toContain('nuevo título')
+  })
+
+  it('un connect FALLIDO no olvida el castigo', async () => {
+    // Solo un connect que llegó a persistir es señal de que la causa del fallo
+    // pudo desaparecer; un 401 en el probe no lo es.
+    const dir = configuredProject()
+    const failing = vi.fn(async () => { throw new Error('Jira 401') })
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: failing })
+
+    jiraMyself.mockResolvedValue({ ok: false, error: 'Jira 401' })
+    await connectJira(dir, {
+      site: 'https://x.atlassian.net',
+      email: 'a@x.com',
+      apiToken: 'sigue-mal',
+      projectKeys: ['GRAV'],
+    })
+
+    const ok = vi.fn(async () => snapshot)
+    await refreshStaleJiraContexts([context], dir, { fetchIssue: ok })
+    expect(ok).not.toHaveBeenCalled()
   })
 })
 

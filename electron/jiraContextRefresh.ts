@@ -52,7 +52,20 @@ const REFRESH_TOTAL_BUDGET_MS = 12_000
 /** `site:KEY` → cuándo falló. Ver `FAILURE_COOLDOWN_MS`. */
 const failures = new Map<string, number>()
 
-/** Para los tests, y para cuando el usuario reconecta con credenciales nuevas. */
+/**
+ * Olvida todos los castigos. La llama `connectJira` (`electron/jiraIpcOps.ts`)
+ * tras un connect exitoso: si el token había expirado, cada issue adjunta tiene
+ * su `site:KEY` anotado, y sin esto el usuario reconectaría bien y aun así no se
+ * refrescaría nada durante hasta `FAILURE_COOLDOWN_MS`, con los chips vencidos y
+ * sin nada que se lo explique. Reconectar es exactamente la señal de que el
+ * motivo del fallo puede haber desaparecido.
+ *
+ * Se limpia el mapa entero, no solo las claves del sitio reconectado: el
+ * castigo es una heurística de ahorro, no un estado que valga la pena
+ * conservar con precisión, y un connect es una acción explícita del usuario.
+ *
+ * Los tests la usan además para aislarse entre sí.
+ */
 export function clearJiraRefreshFailures(): void {
   failures.clear()
 }

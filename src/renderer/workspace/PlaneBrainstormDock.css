@@ -1,23 +1,98 @@
+/*
+ * Flyout con las salas del workspace. Deja de ser una píldora de una sola sala:
+ * las salas corren en paralelo, así que es una lista con su cabecera y su pie.
+ */
 .plane-brainstorm-dock {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 420px;
-  padding: 6px 6px 6px 10px;
+  flex-direction: column;
+  gap: 2px;
+  width: 344px;
+  max-width: 80vw;
+  padding: 9px 11px;
   border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
-  border-radius: 999px;
+  border-radius: var(--plane-radius-sm, 11px);
   background: var(--plane-glass-strong);
   backdrop-filter: blur(var(--plane-blur));
   box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.5);
   font-family: var(--font-ui);
 }
 
+.plane-brainstorm-dock__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.plane-brainstorm-dock__title {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.plane-brainstorm-dock__count {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plane-brainstorm-dock__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--plane-border) 26%, transparent);
+}
+
+/* Terminada y sin soltar: sigue en la lista solo para poder cerrarla. */
+.plane-brainstorm-dock__row--done { opacity: 0.7; }
+
+.plane-brainstorm-dock__empty,
+.plane-brainstorm-dock__hint {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.plane-brainstorm-dock__actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.plane-brainstorm-dock__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--plane-border) 26%, transparent);
+}
+
+.plane-brainstorm-dock__action--go {
+  border-color: var(--accent-solid, var(--accent));
+  background: var(--accent-solid, var(--accent));
+  color: var(--accent-solid-fg, var(--accent-fg));
+}
+
+.plane-brainstorm-dock__action--go:hover {
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  filter: brightness(1.06);
+}
+
 .plane-brainstorm-dock__dot {
   flex: none;
+  margin-top: 4px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -55,7 +130,6 @@
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
-  white-space: nowrap;
 }
 
 .plane-brainstorm-dock__action {
@@ -83,14 +157,26 @@
   display: inline-flex;
 }
 
+/* El badge lleva el número de salas vivas: con salas en paralelo un punto no
+   dice cuántas hay, y el estado «pressed» del botón solo habla de la abierta. */
 .plane-brainstorm-anchor__badge {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--warning, #b0741a);
+  top: -3px;
+  right: -4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--plane-glass-strong);
+  border-radius: 6px;
+  background: var(--accent-solid, var(--accent));
+  color: var(--accent-solid-fg, var(--accent-fg));
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   pointer-events: none;
 }
 

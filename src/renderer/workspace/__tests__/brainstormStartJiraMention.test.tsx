@@ -45,6 +45,9 @@ beforeEach(() => {
     jiraSearch,
     materializeTabContext,
     listBrainstorms,
+    // El material ya no vive detrás de un desplegable: se monta con la sala y
+    // descubre los contextos del proyecto al aparecer.
+    discoverTabContexts: () => Promise.resolve({ ok: true, contexts: [] }),
   }
 })
 

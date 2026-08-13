@@ -100,6 +100,14 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
         [t('tabs.brainstormClosingNext'), closing?.next],
       ]
 
+  /*
+   * La decisión siempre; el resto plegado. Con las cinco secciones abiertas la
+   * tarjeta se llevaba media pantalla y empujaba el acta fuera de vista, cuando
+   * lo que se viene a leer al reabrir una sala es qué se decidió.
+   */
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [lead, ...rest] = blocks.filter((entry): entry is [string, string] => Boolean(entry[1]))
+
   const ceremony = ceremonyClosing ? ceremonyById(ceremonyClosing.ceremony) : null
   const gateState = ceremonyClosing
     ? ceremonyGateState(ceremonyClosing.ceremony, ceremonyClosing.fields)
@@ -136,8 +144,7 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
       </header>
 
       <div className="brainstorm-closing__body">
-        {blocks.map(([label, value]) => {
-          if (!value) return null
+        {(detailOpen ? [lead, ...rest] : [lead]).filter(Boolean).map(([label, value]) => {
           const items = closingBlockItems(value)
           return (
             <div key={label} className="brainstorm-closing__block">
@@ -156,6 +163,20 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
             </div>
           )
         })}
+        {rest.length ? (
+          <button
+            type="button"
+            className="brainstorm-closing__more"
+            aria-expanded={detailOpen}
+            onClick={() => setDetailOpen(open => !open)}
+          >
+            {detailOpen
+              ? t('tabs.brainstormClosingLess')
+              : t('tabs.brainstormClosingMore', {
+                labels: rest.map(([label]) => label).join(' · '),
+              })}
+          </button>
+        ) : null}
       </div>
 
       {checklist ? (

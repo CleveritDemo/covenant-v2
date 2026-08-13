@@ -44,7 +44,7 @@ import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import { markSplashUiReady } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
-import { BrainstormListModal } from './workspace/BrainstormListModal'
+import { BrainstormRoomsView } from './workspace/BrainstormRoomsView'
 import {
   createBrainstormLiveSummary,
   type BrainstormLiveSummary,
@@ -470,17 +470,25 @@ export const App: React.FC = () => {
   const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
   planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
-  /** Arranque de una sala: objetivo, invitados y ajustes en una sola pantalla. */
-  const [brainstormStartOpenByTab, setBrainstormStartOpenByTab] = useState<Record<string, boolean>>({})
-  /** Mesa del plano: camino opcional para sentar arrastrando antes del arranque. */
-  const [brainstormTableOpenByTab, setBrainstormTableOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormSeatedByTab, setBrainstormSeatedByTab] = useState<Record<string, string[]>>({})
-  const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
-  /** Sala minimizada: sigue montada y corriendo, solo oculta. */
-  const [brainstormMinimizedByTab, setBrainstormMinimizedByTab] = useState<Record<string, boolean>>({})
+  /**
+   * Salas por tab, en orden de convocatoria. Son varias a la vez: main ya
+   * lleva un runner por `roomId`, así que el límite era solo del renderer.
+   */
+  const [brainstormRoomsByTab, setBrainstormRoomsByTab] = useState<Record<string, BrainstormRoom[]>>({})
+  /**
+   * Qué mira el usuario dentro del módulo: la biblioteca, el alta, o una sala
+   * por su id. Estado de vista, no de sesión —cerrar no detiene nada—, y por eso
+   * las tres vistas comparten un solo campo en vez de tres booleanos que podían
+   * quedar abiertos a la vez.
+   */
+  const [brainstormViewByTab, setBrainstormViewByTab] = useState<
+    Record<string, 'rooms' | 'setup' | string | null>
+  >({})
+  /** Actas en disco por tab: decide si el botón abre la biblioteca o el alta. */
+  const [brainstormSavedCountByTab, setBrainstormSavedCountByTab] = useState<Record<string, number>>({})
   const [brainstormDockOpenByTab, setBrainstormDockOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormLiveByTab, setBrainstormLiveByTab] = useState<Record<string, BrainstormLiveSummary | null>>({})
+  /** Estado vivo por sala: la clave es el `roomId`, no el tab. */
+  const [brainstormLiveByRoomId, setBrainstormLiveByRoomId] = useState<Record<string, BrainstormLiveSummary>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   /** Override efímero de cwd por-pane (paneId → worktree absoluto); Fase 3, no persistido. */
@@ -3121,6 +3129,36 @@ export const App: React.FC = () => {
     setOpenConfigForPaneId(paneId)
   }, [armSuppressPaneExpand, lockMiniExpandForConfig])
 
+  /**
+   * Cuántas actas tiene cada proyecto en disco. Lo necesita el botón del plano
+   * para saber si el módulo abre por la biblioteca o directo al alta, y hay que
+   * saberlo antes de abrir nada, así que no puede salir de la propia lista.
+   */
+  useEffect(() => {
+    let cancelled = false
+    const roots = new Map<string, string[]>()
+    tabs.forEach(tab => {
+      const cwd = tab.projectFolder?.trim()
+      if (!cwd) return
+      roots.set(cwd, [...(roots.get(cwd) ?? []), tab.id])
+    })
+    roots.forEach((tabIds, cwd) => {
+      void window.api.listBrainstorms(cwd)
+        .then(rooms => {
+          if (cancelled) return
+          setBrainstormSavedCountByTab(prev => {
+            const next = { ...prev }
+            tabIds.forEach(id => { next[id] = rooms.length })
+            return next
+          })
+        })
+        .catch(() => { /* sin actas legibles, el botón abre el alta */ })
+    })
+    return () => { cancelled = true }
+    // `brainstormViewByTab` en las deps: al cerrar el módulo la cuenta se
+    // relee, que es cuando puede haber cambiado (sala nueva, acta borrada).
+  }, [tabs, brainstormViewByTab])
+
   const refreshTabContexts = useCallback(async (tabId: string): Promise<void> => {
     const tab = tabsRef.current.find(item => item.id === tabId)
     if (!tab) return
@@ -5500,6 +5538,125 @@ export const App: React.FC = () => {
   const activeTab = tabs.find(t => t.id === activeTabId)
   const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
 
+  /**
+   * Salas de una pestaña sobre su plano. Van montadas dentro de
+   * `.tab-agentic-plane` —igual que el mapa de la wiki— porque se posicionan
+   * contra él; el estado sigue aquí arriba, que es donde ya vivía.
+   *
+   * Cada sala se queda montada mientras exista, mirándose o no: así el runner
+   * sigue llenando su acta y volver a ella no reinicia nada. `open` es solo
+   * visibilidad.
+   */
+  const renderBrainstormOverlays = (tab: TabSession): React.ReactNode => {
+    const catalogKey = tabAgentCatalogKey(tab)
+    const catalog = filterBrainstormInvitableAgents(projectAgentsByCwd[catalogKey] ?? [])
+    const rooms = brainstormRoomsByTab[tab.id] ?? []
+    const view = brainstormViewByTab[tab.id] ?? null
+    const liveRooms = rooms
+      .map(room => brainstormLiveByRoomId[room.id] ?? createBrainstormLiveSummary(room))
+      .filter(summary => isBrainstormLive(summary.status))
+
+    /** Quién tiene asiento en otra sala viva: se avisa, no se bloquea. */
+    const roomsByAgent = (exceptRoomId: string): Record<string, string[]> => {
+      const map: Record<string, string[]> = {}
+      liveRooms.forEach(summary => {
+        if (summary.roomId === exceptRoomId) return
+        summary.participantAgentIds.forEach(agentId => {
+          map[agentId] = [...(map[agentId] ?? []), summary.topic]
+        })
+      })
+      return map
+    }
+
+    const setView = (next: 'rooms' | 'setup' | string | null): void => {
+      setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: next }))
+    }
+
+    /** Abrir una sala guardada: se monta y se mira, sin salir del módulo. */
+    const openSavedRoom = (room: BrainstormRoom): void => {
+      setBrainstormRoomsByTab(prev => {
+        const current = prev[tab.id] ?? []
+        return current.some(item => item.id === room.id)
+          ? prev
+          : { ...prev, [tab.id]: [...current, room] }
+      })
+      setView(room.id)
+    }
+
+    return (
+      <>
+        {/* Biblioteca: la vista por la que se entra cuando ya hay actas. */}
+        <BrainstormRoomsView
+          open={view === 'rooms'}
+          active={activeTabId === tab.id}
+          cwd={tab.projectFolder ?? ''}
+          agents={projectAgentsByCwd[catalogKey] ?? []}
+          onClose={() => setView(null)}
+          onCreate={() => setView('setup')}
+          onOpenRoom={openSavedRoom}
+          onContextSaved={() => { void refreshTabContexts(tab.id) }}
+        />
+        <BrainstormStartModal
+          open={view === 'setup'}
+          active={activeTabId === tab.id}
+          cwd={tab.projectFolder ?? ''}
+          agents={catalog}
+          agentsInLiveRooms={roomsByAgent('')}
+          savedRoomsCount={brainstormSavedCountByTab[tab.id] ?? 0}
+          onClose={() => setView(null)}
+          onOpenRooms={() => setView('rooms')}
+          onStarted={room => {
+            setBrainstormRoomsByTab(prev => ({
+              ...prev,
+              [tab.id]: [...(prev[tab.id] ?? []), room],
+            }))
+            setView(room.id)
+          }}
+        />
+        {rooms.map(room => (
+          <BrainstormRoomView
+            key={room.id}
+            open={view === room.id}
+            active={activeTabId === tab.id}
+            room={room}
+            cwd={tab.projectFolder ?? ''}
+            agents={catalog}
+            liveRooms={liveRooms.map(summary => ({
+              roomId: summary.roomId,
+              topic: summary.topic,
+            }))}
+            onSwitchRoom={roomId => setView(roomId)}
+            agentsInOtherRooms={roomsByAgent(room.id)}
+            onClose={() => {
+              // Cerrar la vista, no la sala: el runner sigue en main y el botón
+              // de la barra mantiene su cuenta.
+              setView(null)
+            }}
+            onFinish={() => {
+              // Terminada y soltada: el acta ya está en disco y se busca en
+              // «Salas guardadas», así que sale también del flyout.
+              setBrainstormRoomsByTab(prev => ({
+                ...prev,
+                [tab.id]: (prev[tab.id] ?? []).filter(item => item.id !== room.id),
+              }))
+              setBrainstormLiveByRoomId(prev => {
+                const next = { ...prev }
+                delete next[room.id]
+                return next
+              })
+              // Al soltarla, la biblioteca es el sitio donde queda su acta.
+              setView('rooms')
+            }}
+            onLive={summary => {
+              setBrainstormLiveByRoomId(prev => ({ ...prev, [summary.roomId]: summary }))
+            }}
+            onContextSaved={() => { void refreshTabContexts(tab.id) }}
+          />
+        ))}
+      </>
+    )
+  }
+
   return (
     <div className="app-root">
       {/* ── Title bar (macOS traffic lights live here) ── */}
@@ -5589,16 +5746,20 @@ export const App: React.FC = () => {
                   contextKind => t(`tabContexts.kind_${contextKind}`),
                 )
                 // El turno corre en un pane sintético de la sala: sin esto la
-                // tarjeta seguiría diciendo "Standing by" mientras el agente habla.
-                const brainstormLive = brainstormRoomByTab[tab.id]
-                  ? brainstormLiveByTab[tab.id]
-                  : null
-                const inBrainstorm = Boolean(
-                  brainstormLive
-                  && meta?.id
-                  && isBrainstormLive(brainstormLive.status)
-                  && brainstormLive.participantAgentIds.includes(meta.id),
-                )
+                // tarjeta seguiría diciendo "Standing by" mientras el agente
+                // habla. Con salas en paralelo puede estar sentado en varias:
+                // manda la que le tiene el turno ahora mismo.
+                const roomsWithAgent = (brainstormRoomsByTab[tab.id] ?? [])
+                  .map(item => brainstormLiveByRoomId[item.id])
+                  .filter((summary): summary is BrainstormLiveSummary => Boolean(summary))
+                  .filter(summary => isBrainstormLive(summary.status)
+                    && Boolean(meta?.id)
+                    && summary.participantAgentIds.includes(meta!.id))
+                const brainstormLive = roomsWithAgent
+                  .find(summary => summary.speakingAgentId === meta?.id)
+                  ?? roomsWithAgent[0]
+                  ?? null
+                const inBrainstorm = roomsWithAgent.length > 0
                 const brainstormSnippet = inBrainstorm && brainstormLive
                   ? t(
                     brainstormLive.speakingAgentId === meta?.id
@@ -5918,53 +6079,45 @@ export const App: React.FC = () => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   loopsButtonLabel={t('tabs.loopsButton')}
-                  brainstormTableOpen={
-                    Boolean(brainstormTableOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]
-                  }
-                  brainstormSeated={brainstormSeatedByTab[tab.id] ?? []}
-                  onBrainstormSeatedChange={next => {
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: next }))
-                  }}
-                  onBrainstormTableClose={() => {
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                  }}
-                  onBrainstormTableContinue={() => {
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
                   brainstormNeedFolderHint={t('tabs.brainstormNeedFolder')}
                   canOpenBrainstorm={Boolean(tab.projectFolder?.trim())}
-                  brainstormStartOpen={Boolean(brainstormStartOpenByTab[tab.id])}
-                  onBrainstormStartOpenChange={open => {
-                    // El botón abre el arranque, no la lista: crear una sala es el
-                    // caso frecuente y las guardadas están a un clic desde ahí.
-                    if (open) setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  brainstormView={brainstormViewByTab[tab.id] ?? null}
+                  /* Con actas guardadas el módulo abre por la biblioteca; sin
+                     ninguna, directo al alta: no hay nada que listar. */
+                  brainstormSavedCount={brainstormSavedCountByTab[tab.id] ?? 0}
+                  onBrainstormViewChange={next => {
+                    setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: next }))
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
-                  brainstormLive={brainstormRoomByTab[tab.id]
-                    ? brainstormLiveByTab[tab.id]
-                      ?? createBrainstormLiveSummary(brainstormRoomByTab[tab.id]!)
-                    : null}
-                  brainstormHasRoom={Boolean(brainstormRoomByTab[tab.id])}
-                  brainstormMinimized={Boolean(brainstormMinimizedByTab[tab.id])}
+                  brainstormRooms={(brainstormRoomsByTab[tab.id] ?? []).map(
+                    item => brainstormLiveByRoomId[item.id]
+                      ?? createBrainstormLiveSummary(item),
+                  )}
                   brainstormDockOpen={Boolean(brainstormDockOpenByTab[tab.id])}
                   onBrainstormDockOpenChange={open => {
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
-                  onRestoreBrainstorm={() => {
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                  onOpenBrainstormRoom={roomId => {
+                    setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: roomId }))
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
-                  onStopBrainstorm={() => {
-                    const roomId = brainstormRoomByTab[tab.id]?.id
-                    if (roomId) window.api.stopBrainstorm(roomId)
+                  onStopBrainstormRoom={roomId => { window.api.stopBrainstorm(roomId) }}
+                  onDiscardBrainstormRoom={roomId => {
+                    setBrainstormRoomsByTab(prev => ({
+                      ...prev,
+                      [tab.id]: (prev[tab.id] ?? []).filter(item => item.id !== roomId),
+                    }))
+                    setBrainstormLiveByRoomId(prev => {
+                      const next = { ...prev }
+                      delete next[roomId]
+                      return next
+                    })
+                    setBrainstormViewByTab(prev => (
+                      prev[tab.id] === roomId ? { ...prev, [tab.id]: null } : prev
+                    ))
                   }}
-                  onDiscardBrainstorm={() => {
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
-                    setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
-                  }}
+                  brainstormOverlayOpen={Boolean(brainstormViewByTab[tab.id])}
+                  brainstormOverlays={renderBrainstormOverlays(tab)}
                   loopsTitle={t('tabs.loopsTitle')}
                   loopsSubtitle={t('tabs.loopsSubtitle')}
                   loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
@@ -6035,85 +6188,6 @@ export const App: React.FC = () => {
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
                 />
-                <BrainstormListModal
-                  open={Boolean(brainstormListOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
-                  active={activeTabId === tab.id}
-                  cwd={tab.projectFolder ?? ''}
-                  agents={filterBrainstormInvitableAgents(
-                    projectAgentsByCwd[agentCatalogKey] ?? [],
-                  )}
-                  onClose={() => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                  }}
-                  onCreate={() => {
-                    // Camino normal: directo al arranque. Formato, invitados y
-                    // ajustes se eligen ahí, con valores por defecto ya puestos.
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onCreateFromTable={() => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onOpenRoom={room => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
-                  }}
-                  onContextSaved={() => { void refreshTabContexts(tab.id) }}
-                />
-                <BrainstormStartModal
-                  open={Boolean(brainstormStartOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
-                  active={activeTabId === tab.id}
-                  cwd={tab.projectFolder ?? ''}
-                  agents={filterBrainstormInvitableAgents(
-                    projectAgentsByCwd[agentCatalogKey] ?? [],
-                  )}
-                  initialParticipantIds={brainstormSeatedByTab[tab.id] ?? []}
-                  onClose={() => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                  }}
-                  onOpenRooms={() => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onStarted={room => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
-                  }}
-                />
-                {/* Montada mientras exista la sala: minimizar solo oculta el modal. */}
-                {brainstormRoomByTab[tab.id] ? (
-                  <BrainstormRoomView
-                    open={!brainstormMinimizedByTab[tab.id]}
-                    active={activeTabId === tab.id}
-                    room={brainstormRoomByTab[tab.id]!}
-                    cwd={tab.projectFolder ?? ''}
-                    agents={filterBrainstormInvitableAgents(
-                      projectAgentsByCwd[agentCatalogKey] ?? [],
-                    )}
-                    onClose={() => {
-                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: true }))
-                    }}
-                    onFinish={() => {
-                      // Soltar la sala terminada: el acta ya está en disco y el
-                      // botón del plano vuelve a abrir «Nueva sala».
-                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
-                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
-                      setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    }}
-                    onLive={summary => {
-                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: summary }))
-                    }}
-                    onContextSaved={() => { void refreshTabContexts(tab.id) }}
-                  />
-                ) : null}
                       </div>
                   )
                 })()}

@@ -10,21 +10,6 @@ vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('../../components/TerminalModal', () => ({
-  // `size` se expone en el DOM: es lo que se verifica al desplegar los ajustes.
-  TerminalModal: ({
-    open,
-    children,
-    footer,
-    size,
-  }: {
-    open: boolean
-    children: React.ReactNode
-    footer?: React.ReactNode
-    size?: string
-  }) => (open ? <div data-size={size}>{children}<div>{footer}</div></div> : null),
-}))
-
 import { BrainstormStartModal } from '../BrainstormStartModal'
 
 function agent(id: string, role: string): ProjectAgentDefinition {
@@ -39,28 +24,32 @@ const agents = [
 
 const startBrainstorm = vi.fn()
 
+/** Sienta pulsando su tarjeta en la columna de invitados. */
+function seat(name: string): void {
+  const right = document.querySelector('.brainstorm-overlay__col--right') as HTMLElement
+  const card = [...right.querySelectorAll('.brainstorm-seat--invite')]
+    .find(node => node.textContent?.includes(name))
+  fireEvent.click(card as HTMLElement)
+}
+
 function open(initial: string[] = []): void {
   render(
     <BrainstormStartModal
       open
       cwd="/repo"
       agents={agents}
-      initialParticipantIds={initial}
       onClose={() => {}}
       onStarted={() => {}}
     />,
   )
+  // El orden en que se sientan es el orden en que hablan.
+  initial.forEach(seat)
 }
 
 function typeGoal(text: string): void {
   fireEvent.change(screen.getByPlaceholderText('tabs.brainstormTopicPlaceholder'), {
     target: { value: text },
   })
-}
-
-/** El panel de ajustes solo se monta desplegado: el catálogo vive dentro. */
-function expandSettings(): void {
-  fireEvent.click(screen.getByText('tabs.brainstormAdvancedLabel'))
 }
 
 beforeEach(() => {
@@ -77,8 +66,8 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
   it('con el objetivo y dos invitados ya se puede empezar, sin tocar ajustes', () => {
     open()
     typeGoal('¿Schema o row-level security?')
-    fireEvent.click(screen.getByText('rodrigo'))
-    fireEvent.click(screen.getByText('ana'))
+    seat('rodrigo')
+    seat('ana')
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
 
     expect(startBrainstorm).toHaveBeenCalledTimes(1)
@@ -100,13 +89,13 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
   it('con un solo invitado no arranca y lo dice', () => {
     open()
     typeGoal('tema')
-    fireEvent.click(screen.getByText('rodrigo'))
+    seat('rodrigo')
     expect(screen.getByText('tabs.brainstormStartNeedTwo')).toBeTruthy()
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
     expect(startBrainstorm).not.toHaveBeenCalled()
   })
 
-  it('hereda los invitados que ya venían sentados de la mesa', () => {
+  it('el orden en que se sientan es el que se manda a arrancar', () => {
     open(['rodrigo', 'nico'])
     typeGoal('tema')
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
@@ -118,9 +107,9 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
   it('el orden de selección es el orden de habla', () => {
     open()
     typeGoal('tema')
-    fireEvent.click(screen.getByText('nico'))
-    fireEvent.click(screen.getByText('ana'))
-    fireEvent.click(screen.getByText('rodrigo'))
+    seat('nico')
+    seat('ana')
+    seat('rodrigo')
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
     expect(startBrainstorm.mock.calls[0][0]).toMatchObject({
       participantAgentIds: ['nico', 'ana', 'rodrigo'],
@@ -129,10 +118,8 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
 })
 
 describe('BrainstormStartModal — ajustes', () => {
-  it('las 11 ceremonias siguen disponibles dentro de los ajustes', () => {
+  it('las 11 ceremonias están a la vista, sin desplegar nada', () => {
     open()
-    expect(screen.getByText('tabs.brainstormAdvancedLabel')).toBeTruthy()
-    expandSettings()
     expect(screen.getByText('Brainstorming')).toBeTruthy()
     expect(screen.getByText('Example Mapping')).toBeTruthy()
     expect(screen.getByText('Sprint Planning')).toBeTruthy()
@@ -141,7 +128,6 @@ describe('BrainstormStartModal — ajustes', () => {
   it('elegir formato arrastra sus rondas sugeridas', () => {
     open(['rodrigo', 'ana'])
     typeGoal('CT-119 solicitud de préstamo')
-    expandSettings()
     fireEvent.click(screen.getByText('Specification Workshop'))
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
     expect(startBrainstorm.mock.calls[0][0]).toMatchObject({
@@ -152,7 +138,6 @@ describe('BrainstormStartModal — ajustes', () => {
 
   it('la conversación abierta mantiene el selector de salida; una ceremonia lo quita', () => {
     open()
-    expandSettings()
     expect(screen.getByText('tabs.brainstormOutcomeLabel')).toBeTruthy()
     fireEvent.click(screen.getByText('Example Mapping'))
     expect(screen.queryByText('tabs.brainstormOutcomeLabel')).toBeNull()
@@ -160,16 +145,14 @@ describe('BrainstormStartModal — ajustes', () => {
 
   it('avisa de los roles que la ceremonia pide y nadie cubre', () => {
     open(['rodrigo', 'ana'])
-    expandSettings()
     fireEvent.click(screen.getByText('Three Amigos'))
     expect(screen.getByText('tabs.ceremonyRolesPartial')).toBeTruthy()
-    fireEvent.click(screen.getByText('nico'))
+    seat('nico')
     expect(screen.getByText('tabs.ceremonyRolesCovered')).toBeTruthy()
   })
 
   it('nombra cada rol de la ceremonia y marca el asiento vacío', () => {
     open(['rodrigo'])
-    expandSettings()
     fireEvent.click(screen.getByText('Three Amigos'))
     // Los tres roles que pide Three Amigos, con nombre propio.
     expect(screen.getByText('agentPane.ceremonyRoleProductOwner')).toBeTruthy()
@@ -182,7 +165,7 @@ describe('BrainstormStartModal — ajustes', () => {
   it('la conversación abierta no pide roles: solo el orden de habla', () => {
     open(['rodrigo', 'ana'])
     expect(screen.queryByText('tabs.ceremonyRoleMissing')).toBeNull()
-    expect(screen.getByText('tabs.brainstormParticipantsOrderHint')).toBeTruthy()
+    expect(screen.getByText('tabs.brainstormOrderDragHint')).toBeTruthy()
   })
 })
 
@@ -231,31 +214,32 @@ describe('BrainstormInviteGrid — identidad del agente', () => {
   })
 })
 
-describe('BrainstormStartModal — los ajustes ensanchan en vez de estirar', () => {
-  function modalSize(): string | null {
-    return document.querySelector('[data-size]')?.getAttribute('data-size') ?? null
-  }
-
-  const toggleAdvanced = expandSettings
-
-  it('cerrado cabe en lg; desplegado pide xl para las dos columnas', () => {
+describe('BrainstormStartModal — el plano entero, sin modal', () => {
+  it('se monta como overlay del plano, no como modal', () => {
     open()
-    expect(modalSize()).toBe('lg')
-    toggleAdvanced()
-    expect(modalSize()).toBe('xl')
+    expect(document.querySelector('.brainstorm-overlay')).not.toBeNull()
+    expect(document.querySelector('.terminal-modal-root')).toBeNull()
   })
 
-  it('volver a plegarlo devuelve el modal a su ancho', () => {
+  it('formato, material y estimación viven abiertos en la columna, sin desplegable', () => {
     open()
-    toggleAdvanced()
-    toggleAdvanced()
-    expect(modalSize()).toBe('lg')
+    expect(document.querySelector('.brainstorm-overlay__col--left')).not.toBeNull()
+    expect(document.querySelector('.brainstorm-format-list')).not.toBeNull()
+    expect(document.querySelector('.brainstorm-estimate')).not.toBeNull()
+    expect(screen.queryByText('tabs.brainstormAdvancedLabel')).toBeNull()
   })
 
-  it('el panel reparte el formato y el resto en dos bloques', () => {
+  it('los invitados van en la columna de la derecha, donde el plano pone agentes', () => {
+    open(['rodrigo'])
+    const right = document.querySelector('.brainstorm-overlay__col--right')
+    expect(right).not.toBeNull()
+    expect(right?.querySelectorAll('.brainstorm-seat--invite').length).toBe(agents.length)
+    expect(right?.querySelectorAll('.brainstorm-seat--seated').length).toBe(1)
+  })
+
+  it('la sala reserva la franja de la barra de navegación', () => {
     open()
-    expandSettings()
-    expect(document.querySelector('.brainstorm-start__field--format')).not.toBeNull()
-    expect(document.querySelector('.brainstorm-start__more-side')).not.toBeNull()
+    const overlay = document.querySelector('.brainstorm-overlay')
+    expect(overlay?.className).toContain('brainstorm-overlay--setup')
   })
 })

@@ -61,6 +61,7 @@ import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
+import { turnFailedAfter } from './turnFailureState'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
@@ -1381,7 +1382,7 @@ export const AgentPane: React.FC<Props> = ({
     }
     emptyResponseRetriesRef.current = 0
     turnHadCliErrorRef.current = false
-    setLastTurnFailed(false)
+    setLastTurnFailed(prev => turnFailedAfter('start', prev))
     suppressEmptyHandlingRef.current = false
     // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
     const turnCwd = await resolveTurnCwd()
@@ -1583,7 +1584,7 @@ export const AgentPane: React.FC<Props> = ({
           entry.id === id ? { ...entry, content: '' } : entry
         )))
         turnHadCliErrorRef.current = false
-        setLastTurnFailed(false)
+        setLastTurnFailed(prev => turnFailedAfter('retry', prev))
         window.api.startAgentTurn(retryRequest)
         return
       }
@@ -1632,7 +1633,9 @@ export const AgentPane: React.FC<Props> = ({
 
       emptyResponseRetriesRef.current = 0
       turnHadCliErrorRef.current = false
-      setLastTurnFailed(false)
+      // El cierre NO limpia el fallo: la reconciliación idle lee el pane ya
+      // parado, y si lo limpiásemos aquí cerraría la delegación como correcta.
+      setLastTurnFailed(prev => turnFailedAfter('close', prev))
       finishSideEffects()
     }, 0)
   }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, systemSoundsEnabled, t])
@@ -1729,7 +1732,7 @@ export const AgentPane: React.FC<Props> = ({
     }
     if (event.type === 'error') {
       turnHadCliErrorRef.current = true
-      setLastTurnFailed(true)
+      setLastTurnFailed(prev => turnFailedAfter('cli-error', prev))
       let assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
       if (!assistantId) {
         const existing = [...messagesRef.current].reverse().find(message => message.role === 'assistant')
@@ -2219,7 +2222,7 @@ export const AgentPane: React.FC<Props> = ({
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
     turnHadCliErrorRef.current = false
-    setLastTurnFailed(false)
+    setLastTurnFailed(prev => turnFailedAfter('stop', prev))
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
@@ -2270,7 +2273,7 @@ export const AgentPane: React.FC<Props> = ({
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
     turnHadCliErrorRef.current = false
-    setLastTurnFailed(false)
+    setLastTurnFailed(prev => turnFailedAfter('stop', prev))
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     if (wasRunning) {
@@ -2428,7 +2431,7 @@ export const AgentPane: React.FC<Props> = ({
       turnClosedRef.current = true
       emptyResponseRetriesRef.current = 0
       turnHadCliErrorRef.current = false
-      setLastTurnFailed(false)
+      setLastTurnFailed(prev => turnFailedAfter('stop', prev))
       lastTurnRequestRef.current = null
       suppressEmptyHandlingRef.current = true
       beginLiveSettle(activeAssistantIdRef.current)

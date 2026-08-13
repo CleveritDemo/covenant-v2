@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.40.9
+
+- **El bucle de delegaciones fallidas queda cerrado de verdad**: en 0.40.8 el pane olvidaba el fallo justo al cerrar el turno, así que si el aviso normal se perdía y entraba la reconciliación del especialista parado, la delegación muerta volvía a cerrarse como correcta y el orquestador la repetía. Ahora el fallo describe el turno anterior y sobrevive al cierre: solo lo limpia el siguiente turno o tu stop.
+
 ## v0.40.8
 
 - **Una delegación que falla ya no se repite en bucle**: cuando el CLI de un especialista no arranca, el texto del error dejaba de ser un error y pasaba por resultado válido, así que el orquestador volvía a mandar la misma delegación una y otra vez. Ahora el pane publica que el turno murió por fallo, la delegación se cierra como fallida y el orquestador recibe la instrucción de contarlo en vez de reintentar solo. Además, un follow-up ya despachado no vuelve a la cola; si quieres reintentar, basta con pedirlo tú.

@@ -4,8 +4,11 @@
  * borde que el pill activo (4 vs 12) y el control se lee descentrado.
  */
 .segmented-control {
-  gap: 6px;
-  padding: 4px 8px;
+  /* Inset uniforme: con `4px 8px` el pill quedaba a 8 de los lados y a 4 de
+     arriba, y su curva (7) no podía anidar dentro de la de la pista (10−8=2).
+     Esa esquina que no encaja es lo que se percibe como «deforme». */
+  gap: 2px;
+  padding: 4px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   background: color-mix(in srgb, var(--bg) 80%, transparent);
@@ -30,10 +33,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 8px 6px;
+  /* El botón es solo área de clic: ocupa la columna entera y no pinta nada. */
+  padding: 0;
   border: none;
-  border-radius: 7px;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-ui);
@@ -48,14 +50,47 @@
   white-space: nowrap;
 }
 
+.segmented-control--sm .segmented-control__pill {
+  padding: 4px 10px;
+}
+
 .segmented-control--sm .segmented-control__btn {
-  padding: 6px 4px;
   font-size: 11px;
 }
 
-.segmented-control__btn--active {
+/*
+ * El pill se ciñe a la etiqueta. Padding horizontal mayor que el vertical: una
+ * cápsula se lee a lo ancho, y antes era al revés (8 vertical / 6 horizontal).
+ * Radio 6 = 10 de la pista − 4 de inset, así la curva anida.
+ */
+.segmented-control__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.segmented-control__btn--active .segmented-control__pill {
   background: color-mix(in srgb, var(--accent) 16%, var(--bg-secondary));
+}
+
+.segmented-control__btn--active {
   color: var(--text);
+}
+
+/* El foco de teclado sigue al pill, que es lo que se ve. */
+.segmented-control__btn:focus-visible {
+  outline: none;
+}
+
+.segmented-control__btn:focus-visible .segmented-control__pill {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .segmented-control__btn:disabled {
@@ -65,6 +100,9 @@
 
 .segmented-control__label {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .segmented-control__dot {

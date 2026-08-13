@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   getCovenantApi,
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
-  hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
   slugifyOrgName,
   type CovenantAuthStatus,
@@ -12,22 +11,21 @@ import {
   type CovenantMember,
   type CovenantOrg,
   type CovenantWorkspace,
-  type CovenantWorkspaceRepoRecord,
 } from '../covenantApi'
 import { TerminalModal } from './TerminalModal'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
-import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
-import { Select } from './ui/Select'
-import { SegmentedControl } from './ui/SegmentedControl'
-import { Spinner } from './ui/Spinner'
 import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
+import { Tooltip } from './ui/Tooltip'
+import { SectionStatus } from './OrgSectionStatus'
+import { WorkspaceDetailPanel } from './WorkspaceDetailPanel'
+import { OrgSettingsPanel } from './OrgSettingsPanel'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
-import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/repoFullName'
 import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
+import { workspacePeopleRows } from '../../shared/orgPeople'
 
 interface Props {
   open?: boolean
@@ -113,1274 +111,280 @@ function canDeleteOwnedItem(opts: {
   return false
 }
 
-type OrgDetailTab = 'workspaces' | 'members' | 'admins' | 'contexts'
+/** Vista de la tercera columna. */
+type OrgDetailView = 'workspace' | 'settings'
+/** Fila de composición inline abierta (sustituye a los formularios permanentes). */
+type ComposeTarget = 'org' | 'workspace' | null
 
-function SectionStatus({
-  loading,
-  error,
-  loadingLabel,
-}: {
-  loading: boolean
-  error: string | null
-  loadingLabel: string
-}): React.ReactElement | null {
-  if (loading) {
-    return (
-      <p className="orgs-section-status" role="status" aria-live="polite">
-        <Spinner aria-label={loadingLabel} />
-        <span>{loadingLabel}</span>
-      </p>
-    )
-  }
-  if (error) {
-    return (
-      <p className="orgs-section-error" role="alert">
-        {error}
-      </p>
-    )
-  }
-  return null
-}
-
-function AuthBar({
-  available,
+function SignInPanel({
   status,
   loading,
   error,
   busy,
   onSignIn,
-  onSignOut,
 }: {
-  available: boolean
   status: CovenantAuthStatus | null
   loading: boolean
   error: string | null
   busy: boolean
   onSignIn: () => void
-  onSignOut: () => void
 }): React.ReactElement {
   const { t } = useT()
-  const signedIn = status?.signedIn === true
-  const login = status?.login?.trim() || ''
-  const initial = (login || '?').slice(0, 1).toUpperCase()
-
   return (
-    <div className="orgs-stack">
+    <div className="orgs-signin">
       <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : signedIn ? (
-        <div className="orgs-auth-bar" aria-label={t('organizations.authSection')}>
-          {status?.avatarUrl ? (
-            <img
-              className="orgs-auth__avatar"
-              src={status.avatarUrl}
-              alt=""
-              width={32}
-              height={32}
-            />
-          ) : (
-            <span className="orgs-auth__avatar orgs-auth__avatar--placeholder" aria-hidden>
-              {initial}
-            </span>
-          )}
-          <div className="orgs-auth-bar__meta">
-            <p className="orgs-auth__login">{login || t('organizations.signedIn')}</p>
-            {status?.name ? <p className="orgs-auth__hint">{status.name}</p> : null}
-          </div>
-          <Button variant="secondary" size="sm" disabled={busy} onClick={onSignOut}>
-            {t('organizations.signOut')}
-          </Button>
-        </div>
-      ) : (
-        <div className="orgs-auth-bar" aria-label={t('organizations.authSection')}>
-          <div className="orgs-auth-bar__meta">
-            <p className="orgs-auth__login">{t('organizations.signInPrompt')}</p>
-            <p className="orgs-auth__hint">{t('organizations.signInHint')}</p>
-          </div>
-          <Button variant="primary" size="sm" disabled={busy || loading} onClick={onSignIn}>
-            {t('organizations.signIn')}
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function OrgsRail({
-  available,
-  signedIn,
-  orgs,
-  selectedSlug,
-  loading,
-  error,
-  busy,
-  createName,
-  onCreateNameChange,
-  onSelectOrg,
-  onCreate,
-}: {
-  available: boolean
-  signedIn: boolean
-  orgs: CovenantOrg[]
-  selectedSlug: string
-  loading: boolean
-  error: string | null
-  busy: boolean
-  createName: string
-  onCreateNameChange: (value: string) => void
-  onSelectOrg: (slug: string) => void
-  onCreate: () => void
-}): React.ReactElement {
-  const { t } = useT()
-  const slug = slugifyOrgName(createName)
-  const canCreate = available && signedIn && slug.length > 0 && !busy
-
-  return (
-    <aside className="orgs-rail" aria-label={t('organizations.orgRailHeading')}>
-      <h2 className="orgs-rail__heading">{t('organizations.orgRailHeading')}</h2>
-      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : !signedIn ? (
-        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-      ) : (
-        <>
-          {orgs.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.noOrgs')}</p>
-          ) : null}
-          {orgs.length > 0 ? (
-            <ul className="orgs-list" role="listbox" aria-label={t('organizations.orgRailHeading')}>
-              {orgs.map(org => {
-                const selected = org.slug === selectedSlug
-                return (
-                  <li
-                    key={org.slug}
-                    className={[
-                      'orgs-list__item',
-                      'orgs-list__item--org',
-                      selected ? 'is-selected' : '',
-                    ].filter(Boolean).join(' ')}
-                    role="option"
-                    aria-selected={selected}
-                  >
-                    <button
-                      type="button"
-                      className="orgs-list__open"
-                      disabled={busy}
-                      onClick={() => onSelectOrg(org.slug)}
-                      aria-label={`${t('organizations.openOrg')}: ${org.name}`}
-                    >
-                      <span className="orgs-list__main">
-                        <span className="orgs-list__title">{org.name}</span>
-                        <span className="orgs-list__meta">{org.slug}</span>
-                      </span>
-                      {org.role ? <Badge variant="muted">{org.role}</Badge> : null}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-          <div className="orgs-form-zone">
-            <p className="orgs-form-zone__label">{t('organizations.formCreateOrg')}</p>
-            <div className="orgs-form-row">
-              <div className="orgs-form-row__grow">
-                <SettingsField label={t('organizations.orgName')} compact>
-                  <Input
-                    type="text"
-                    size="sm"
-                    value={createName}
-                    disabled={busy}
-                    onChange={e => onCreateNameChange(e.target.value)}
-                    placeholder={t('organizations.orgNamePlaceholder')}
-                    spellCheck={false}
-                    aria-label={t('organizations.orgName')}
-                  />
-                </SettingsField>
-              </div>
-              <Button variant="primary" size="sm" disabled={!canCreate} onClick={onCreate}>
-                {t('organizations.createOrg')}
-              </Button>
-            </div>
-            <p className="orgs-slug">
-              {t('organizations.slugLabel')}: {slug || '—'}
-            </p>
-          </div>
-        </>
-      )}
-    </aside>
-  )
-}
-
-function MembersSection({
-  available,
-  signedIn,
-  activeSlug,
-  canManageMembers,
-  membersForbidden,
-  members,
-  loading,
-  error,
-  busy,
-  loginDraft,
-  onLoginDraftChange,
-  onAdd,
-  onRemove,
-}: {
-  available: boolean
-  signedIn: boolean
-  activeSlug: string
-  canManageMembers: boolean
-  membersForbidden: boolean
-  members: CovenantMember[]
-  loading: boolean
-  error: string | null
-  busy: boolean
-  loginDraft: string
-  onLoginDraftChange: (value: string) => void
-  onAdd: () => void
-  onRemove: (login: string) => void
-}): React.ReactElement {
-  const { t } = useT()
-  const canMutate = available && signedIn && !!activeSlug && canManageMembers && !busy
-  const canAdd = canMutate && loginDraft.trim().length > 0
-  const showError = error && !membersForbidden
-
-  return (
-    <div className="orgs-stack" aria-label={t('organizations.membersSection')}>
-      <h3 className="orgs-panel-heading">{t('organizations.membersSection')}</h3>
-      <SectionStatus
-        loading={loading}
-        error={showError ? error : null}
-        loadingLabel={t('organizations.loading')}
-      />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : !signedIn ? (
-        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-      ) : !activeSlug ? (
-        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-      ) : membersForbidden || !canManageMembers ? (
-        <p className="orgs-empty">{t('organizations.membersAdminsOnly')}</p>
-      ) : (
-        <>
-          <div className="orgs-form-zone">
-            <p className="orgs-form-zone__label">{t('organizations.formAddMember')}</p>
-            <div className="orgs-form-row">
-              <div className="orgs-form-row__grow">
-                <SettingsField label={t('organizations.memberLogin')} compact>
-                  <Input
-                    type="text"
-                    size="sm"
-                    value={loginDraft}
-                    disabled={!canMutate}
-                    onChange={e => onLoginDraftChange(e.target.value)}
-                    placeholder={t('organizations.memberLoginPlaceholder')}
-                    spellCheck={false}
-                    aria-label={t('organizations.memberLogin')}
-                  />
-                </SettingsField>
-              </div>
-              <Button variant="primary" size="sm" disabled={!canAdd} onClick={onAdd}>
-                {t('organizations.addMember')}
-              </Button>
-            </div>
-          </div>
-          {members.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.noMembers')}</p>
-          ) : (
-            <ul className="orgs-list">
-              {members.map(member => (
-                <li key={member.login} className="orgs-list__item">
-                  {member.avatarUrl ? (
-                    <img
-                      className="orgs-auth__avatar"
-                      src={member.avatarUrl}
-                      alt=""
-                      width={32}
-                      height={32}
-                    />
-                  ) : null}
-                  <div className="orgs-list__main">
-                    <p className="orgs-list__title">{member.login}</p>
-                    {member.role ? (
-                      <p className="orgs-list__meta">
-                        <Badge variant="muted">{member.role}</Badge>
-                      </p>
-                    ) : null}
-                  </div>
-                  {canManageMembers ? (
-                    <Button
-                      variant="danger"
-                      size="xs"
-                      disabled={!canMutate}
-                      onClick={() => onRemove(member.login)}
-                    >
-                      {t('organizations.removeMember')}
-                    </Button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-function DefaultsSection({
-  available,
-  signedIn,
-  activeSlug,
-  canCreate,
-  canDeleteItem,
-  defaults,
-  loading,
-  error,
-  busy,
-  kindDraft,
-  nameDraft,
-  onKindDraftChange,
-  onNameDraftChange,
-  onSet,
-  onUnset,
-}: {
-  available: boolean
-  signedIn: boolean
-  activeSlug: string
-  canCreate: boolean
-  canDeleteItem: (item: CovenantDefault) => boolean
-  defaults: CovenantDefault[]
-  loading: boolean
-  error: string | null
-  busy: boolean
-  kindDraft: string
-  nameDraft: string
-  onKindDraftChange: (value: string) => void
-  onNameDraftChange: (value: string) => void
-  onSet: () => void
-  onUnset: (kind: string, name: string) => void
-}): React.ReactElement {
-  const { t } = useT()
-  const canMutateCreate = available && signedIn && !!activeSlug && canCreate && !busy
-  const canSet = canMutateCreate && kindDraft.trim().length > 0 && nameDraft.trim().length > 0
-
-  return (
-    <div className="orgs-stack" aria-label={t('organizations.globalContexts')}>
-      <h3 className="orgs-panel-heading">{t('organizations.globalContexts')}</h3>
-      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : !signedIn ? (
-        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-      ) : !activeSlug ? (
-        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-      ) : (
-        <>
-          {canCreate ? (
-            <div className="orgs-form-zone">
-              <p className="orgs-form-zone__label">{t('organizations.formAddContext')}</p>
-              <div className="orgs-form-row">
-                <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.defaultKind')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={kindDraft}
-                      disabled={!canMutateCreate}
-                      onChange={e => onKindDraftChange(e.target.value)}
-                      placeholder={t('organizations.defaultKindPlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.defaultKind')}
-                    />
-                  </SettingsField>
-                </div>
-                <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.defaultName')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={nameDraft}
-                      disabled={!canMutateCreate}
-                      onChange={e => onNameDraftChange(e.target.value)}
-                      placeholder={t('organizations.defaultNamePlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.defaultName')}
-                    />
-                  </SettingsField>
-                </div>
-                <Button variant="primary" size="sm" disabled={!canSet} onClick={onSet}>
-                  {t('organizations.setDefault')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {defaults.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.noDefaults')}</p>
-          ) : (
-            <ul className="orgs-list">
-              {defaults.map(item => {
-                const canDelete = canDeleteItem(item) && !busy
-                return (
-                  <li key={`${item.kind}:${item.name}`} className="orgs-list__item">
-                    <div className="orgs-list__main">
-                      <p className="orgs-list__title">{item.name}</p>
-                      <p className="orgs-list__meta">{item.kind}</p>
-                    </div>
-                    {canDelete ? (
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => onUnset(item.kind, item.name)}
-                      >
-                        {t('organizations.unsetDefault')}
-                      </Button>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-function LoginChips({
-  logins,
-  busy,
-  emptyLabel,
-  removeLabel,
-  onRemove,
-}: {
-  logins: string[]
-  busy: boolean
-  emptyLabel: string
-  removeLabel: string
-  onRemove: (login: string) => void
-}): React.ReactElement {
-  if (logins.length === 0) {
-    return <p className="orgs-list__meta">{emptyLabel}: —</p>
-  }
-  return (
-    <div className="orgs-assignees">
-      {logins.map(login => (
-        <span key={login} className="orgs-assignee">
-          <Badge variant="muted">{login}</Badge>
-          <Button
-            variant="ghost"
-            size="xs"
-            disabled={busy}
-            onClick={() => onRemove(login)}
-            aria-label={removeLabel}
-          >
-            <Icon name="close" size={12} />
-          </Button>
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function MemberPickRow({
-  options,
-  busy,
-  selectLabel,
-  addLabel,
-  onAdd,
-}: {
-  options: string[]
-  busy: boolean
-  selectLabel: string
-  addLabel: string
-  onAdd: (login: string) => void
-}): React.ReactElement {
-  const [login, setLogin] = useState('')
-  const selected = options.includes(login) ? login : (options[0] ?? '')
-  const canAdd = !busy && !!selected && options.length > 0
-
-  return (
-    <div className="orgs-form-row">
-      <div className="orgs-form-row__grow">
-        <Select
-          size="sm"
-          value={selected}
-          disabled={busy || options.length === 0}
-          onChange={setLogin}
-          aria-label={selectLabel}
-          placeholder={selectLabel}
-          options={options.map(opt => ({ value: opt, label: opt }))}
-        />
-      </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled={!canAdd}
-        onClick={() => {
-          if (!selected) return
-          onAdd(selected)
-        }}
-      >
-        {addLabel}
+      <p className="orgs-signin__title">{t('organizations.signInPrompt')}</p>
+      <p className="orgs-signin__hint">{t('organizations.signInHint')}</p>
+      <Button variant="primary" size="sm" disabled={busy || loading || !status} onClick={onSignIn}>
+        {t('organizations.signIn')}
       </Button>
     </div>
   )
 }
 
-function OrgAdminsSection({
-  available,
-  signedIn,
-  activeSlug,
-  members,
-  admins,
+function OrgsColumn({
+  orgs,
+  selectedSlug,
   loading,
   error,
   busy,
-  onAdd,
-  onRemove,
+  composing,
+  createName,
+  status,
+  authBusy,
+  onCreateNameChange,
+  onComposeToggle,
+  onSelectOrg,
+  onCreate,
+  onSignOut,
 }: {
-  available: boolean
-  signedIn: boolean
-  activeSlug: string
-  members: CovenantMember[]
-  admins: string[]
+  orgs: CovenantOrg[]
+  selectedSlug: string
   loading: boolean
   error: string | null
   busy: boolean
-  onAdd: (login: string) => void
-  onRemove: (login: string) => void
+  composing: boolean
+  createName: string
+  status: CovenantAuthStatus | null
+  authBusy: boolean
+  onCreateNameChange: (value: string) => void
+  onComposeToggle: () => void
+  onSelectOrg: (slug: string) => void
+  onCreate: () => void
+  onSignOut: () => void
 }): React.ReactElement {
   const { t } = useT()
-  const canMutate = available && signedIn && !!activeSlug && !busy
-  const adminSet = new Set(admins)
-  const options = members.map(m => m.login).filter(login => !adminSet.has(login))
+  const slug = slugifyOrgName(createName)
+  const canCreate = slug.length > 0 && !busy
+  const login = status?.login?.trim() || ''
 
   return (
-    <div className="orgs-stack" aria-label={t('organizations.orgAdminsSection')}>
-      <h3 className="orgs-panel-heading">{t('organizations.orgAdminsSection')}</h3>
-      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : !signedIn ? (
-        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-      ) : !activeSlug ? (
-        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-      ) : (
-        <>
-          <LoginChips
-            logins={admins}
-            busy={!canMutate}
-            emptyLabel={t('organizations.orgAdminsSection')}
-            removeLabel={t('organizations.removeAdmin')}
-            onRemove={onRemove}
-          />
-          <div className="orgs-form-zone">
-            <p className="orgs-form-zone__label">{t('organizations.formAddAdmin')}</p>
-            <MemberPickRow
-              options={options}
-              busy={!canMutate}
-              selectLabel={t('organizations.addAdmin')}
-              addLabel={t('organizations.addAdmin')}
-              onAdd={onAdd}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function WorkspacePeopleBlock({
-  assignees,
-  admins,
-  memberLogins,
-  canManageAssignees,
-  canManageProjectAdmins,
-  parentBusy,
-  onAssigneeAdd,
-  onAssigneeRemove,
-  onAdminAdd,
-  onAdminRemove,
-}: {
-  assignees: string[]
-  admins: string[]
-  memberLogins: string[]
-  canManageAssignees: boolean
-  canManageProjectAdmins: boolean
-  parentBusy: boolean
-  onAssigneeAdd: (login: string) => void
-  onAssigneeRemove: (login: string) => void
-  onAdminAdd: (login: string) => void
-  onAdminRemove: (login: string) => void
-}): React.ReactElement {
-  const { t } = useT()
-  const [role, setRole] = useState<'user' | 'admin'>('user')
-  const canManageRole = role === 'user' ? canManageAssignees : canManageProjectAdmins
-  const busy = parentBusy || !canManageRole
-  const activeLogins = role === 'user' ? assignees : admins
-  const taken = new Set(activeLogins)
-  const options = memberLogins.filter(login => !taken.has(login))
-  const addLabel = role === 'user' ? t('organizations.addAssignee') : t('organizations.addAdmin')
-
-  return (
-    <div className="orgs-people" aria-label={t('organizations.peopleSection')}>
-      <p className="orgs-people__heading">{t('organizations.peopleSection')}</p>
-      <div className="orgs-people__group">
-        <p className="orgs-list__meta">{t('organizations.assignees')}</p>
-        <LoginChips
-          logins={assignees}
-          busy={parentBusy || !canManageAssignees}
-          emptyLabel={t('organizations.assignees')}
-          removeLabel={t('organizations.unassign')}
-          onRemove={onAssigneeRemove}
-        />
+    <aside className="orgs-col orgs-col--rail" aria-label={t('organizations.orgRailHeading')}>
+      <div className="orgs-col__head">
+        <h2 className="orgs-col__label">{t('organizations.orgRailHeading')}</h2>
+        <span className="orgs-col__spacer" />
+        <Tooltip content={t('organizations.formCreateOrg')}>
+          <Button
+            variant="icon"
+            size="xs"
+            pressed={composing}
+            disabled={busy}
+            onClick={onComposeToggle}
+            aria-label={t('organizations.formCreateOrg')}
+          >
+            <Icon name="plus" size={14} />
+          </Button>
+        </Tooltip>
       </div>
-      <div className="orgs-people__group">
-        <p className="orgs-list__meta">{t('organizations.workspaceAdmins')}</p>
-        <LoginChips
-          logins={admins}
-          busy={parentBusy || !canManageProjectAdmins}
-          emptyLabel={t('organizations.workspaceAdmins')}
-          removeLabel={t('organizations.removeAdmin')}
-          onRemove={onAdminRemove}
-        />
-      </div>
-      {(canManageAssignees || canManageProjectAdmins) ? (
-        <div className="orgs-people__add">
-          <SegmentedControl
-            size="sm"
-            layout="equal"
-            label={t('organizations.peopleSection')}
-            value={role}
-            disabled={parentBusy}
-            onChange={setRole}
-            options={[
-              {
-                value: 'user',
-                label: t('organizations.roleUser'),
-                disabled: !canManageAssignees,
-              },
-              {
-                value: 'admin',
-                label: t('organizations.roleAdmin'),
-                disabled: !canManageProjectAdmins,
-              },
-            ]}
-          />
-          <MemberPickRow
-            options={options}
-            busy={busy}
-            selectLabel={addLabel}
-            addLabel={addLabel}
-            onAdd={login => {
-              if (role === 'user') onAssigneeAdd(login)
-              else onAdminAdd(login)
-            }}
-          />
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function WorkspaceReposBlock({
-  slug,
-  workspaceId,
-  canManage,
-  parentBusy,
-}: {
-  slug: string
-  workspaceId: string
-  canManage: boolean
-  parentBusy: boolean
-}): React.ReactElement {
-  const { t } = useT()
-  const folderHintId = useId()
-  const covenant = useMemo(() => getCovenantApi(), [])
-  const available = hasCovenantWorkspaceReposApi(covenant)
-  const [repos, setRepos] = useState<CovenantWorkspaceRepoRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [cloneUrlDraft, setCloneUrlDraft] = useState('')
-  const [folderNameDraft, setFolderNameDraft] = useState('')
-
-  const loadRepos = useCallback(async (): Promise<void> => {
-    if (!covenant || !available || !slug || !workspaceId) {
-      setRepos([])
-      return
-    }
-    setLoading(true)
-    setError(null)
-    const result = await covenant.workspaceReposList(slug, workspaceId)
-    setLoading(false)
-    if (!result.ok) {
-      setRepos([])
-      setError(result.error)
-      return
-    }
-    setRepos(result.data)
-  }, [available, covenant, slug, workspaceId])
-
-  useEffect(() => {
-    void loadRepos()
-  }, [loadRepos])
-
-  const canMutate = available && canManage && !busy && !parentBusy
-  const cloneUrl = cloneUrlDraft.trim()
-  const derivedFullName = repoFullNameFromCloneUrl(cloneUrl)
-  const isDuplicate = Boolean(
-    derivedFullName
-    && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === derivedFullName),
-  )
-  const canAdd = canMutate && cloneUrl.length > 0 && !isDuplicate
-
-  async function handleAdd(): Promise<void> {
-    if (!covenant || !canMutate || cloneUrl.length === 0) return
-    const fullName = repoFullNameFromCloneUrl(cloneUrl)
-    if (!fullName) {
-      setError(t('organizations.repoUrlInvalid'))
-      return
-    }
-    if (isDuplicate || repos.some(repo => normalizeRepoFullName(repo.repoFullName) === fullName)) {
-      setError(t('organizations.repoDuplicate'))
-      return
-    }
-    setBusy(true)
-    setError(null)
-    const folderName = folderNameDraft.trim()
-    const result = await covenant.workspaceRepoAdd(slug, workspaceId, {
-      repoFullName: fullName,
-      cloneUrl,
-      ...(folderName ? { folderName } : {}),
-    })
-    setBusy(false)
-    if (!result.ok) {
-      const err = result.error.toLowerCase()
-      if (err.includes('already linked') || err.includes('conflict')) {
-        setError(t('organizations.repoDuplicate'))
-      } else {
-        setError(result.error)
-      }
-      return
-    }
-    setCloneUrlDraft('')
-    setFolderNameDraft('')
-    await loadRepos()
-  }
-
-  async function handleUpdateFolder(repoId: string, folderName: string): Promise<boolean> {
-    if (!covenant || !canMutate) return false
-    setBusy(true)
-    setError(null)
-    const result = await covenant.workspaceRepoUpdate(slug, workspaceId, repoId, { folderName })
-    setBusy(false)
-    if (!result.ok) {
-      setError(result.error)
-      return false
-    }
-    // Refleja la carpeta guardada de inmediato; loadRepos confirma contra el listado.
-    setRepos(prev => prev.map(repo => (repo.id === repoId ? result.data : repo)))
-    await loadRepos()
-    return true
-  }
-
-  async function handleRemove(repoId: string): Promise<void> {
-    if (!covenant || !canMutate) return
-    setBusy(true)
-    setError(null)
-    const result = await covenant.workspaceRepoDelete(slug, workspaceId, repoId)
-    setBusy(false)
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-    await loadRepos()
-  }
-
-  return (
-    <div className="orgs-stack" aria-label={t('organizations.reposTab')}>
-      <p className="orgs-list__meta">{t('organizations.reposTab')}</p>
-      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : (
-        <>
-          {canManage ? (
-            <div className="orgs-form-zone">
-              <p className="orgs-form-zone__label">{t('organizations.addRepo')}</p>
-              <div className="orgs-form-row">
-                <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.addRepo')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={cloneUrlDraft}
-                      disabled={!canMutate}
-                      onChange={e => setCloneUrlDraft(e.target.value)}
-                      placeholder={t('organizations.repoCloneUrlPlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.repoCloneUrlPlaceholder')}
-                    />
-                  </SettingsField>
-                </div>
-                <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.repoFolderNameLabel')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={folderNameDraft}
-                      disabled={!canMutate}
-                      onChange={e => setFolderNameDraft(e.target.value)}
-                      placeholder={t('organizations.repoFolderNamePlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.repoFolderNameLabel')}
-                      aria-describedby={folderHintId}
-                    />
-                  </SettingsField>
-                </div>
-                <Button variant="primary" size="sm" disabled={!canAdd} onClick={() => void handleAdd()}>
-                  {t('organizations.addRepo')}
-                </Button>
-              </div>
-              <p id={folderHintId} className="orgs-list__meta">
-                {t('organizations.repoFolderNameHint')}
-              </p>
-            </div>
-          ) : null}
-          {repos.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.reposEmpty')}</p>
-          ) : (
-            <ul className="orgs-list">
-              {repos.map(repo => (
-                <WorkspaceRepoListItem
-                  key={repo.id}
-                  repo={repo}
-                  canManage={canManage}
-                  canMutate={canMutate}
-                  onSaveFolder={handleUpdateFolder}
-                  onRemove={repoId => void handleRemove(repoId)}
-                />
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-/** Meta de carpeta local en modo lectura (solo si hay folderName). */
-function WorkspaceRepoFolderMeta({ folder }: { folder: string }): React.ReactElement {
-  const { t } = useT()
-  return (
-    <p className="orgs-list__meta">
-      {t('organizations.repoFolderNameMeta', { folder })}
-    </p>
-  )
-}
-
-/** Fila de repo vinculado: ver / editar folderName (solo gestores). */
-function WorkspaceRepoListItem({
-  repo,
-  canManage,
-  canMutate,
-  onSaveFolder,
-  onRemove,
-}: {
-  repo: CovenantWorkspaceRepoRecord
-  canManage: boolean
-  canMutate: boolean
-  onSaveFolder: (repoId: string, folderName: string) => Promise<boolean>
-  onRemove: (repoId: string) => void
-}): React.ReactElement {
-  const { t } = useT()
-  const [editing, setEditing] = useState(false)
-  const folderName = repo.folderName?.trim() ?? ''
-  const [folderDraft, setFolderDraft] = useState(folderName)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!editing) setFolderDraft(folderName)
-  }, [editing, folderName])
-
-  function startEdit(): void {
-    setFolderDraft(folderName)
-    setEditing(true)
-  }
-
-  function cancelEdit(): void {
-    setFolderDraft(folderName)
-    setEditing(false)
-  }
-
-  async function saveEdit(): Promise<void> {
-    if (!canMutate || saving) return
-    setSaving(true)
-    const ok = await onSaveFolder(repo.id, folderDraft.trim())
-    setSaving(false)
-    if (ok) setEditing(false)
-  }
-
-  function clearFolderDraft(): void {
-    if (!canMutate || saving) return
-    setFolderDraft('')
-  }
-
-  const actionsDisabled = !canMutate || saving
-
-  return (
-    <li className="orgs-list__item">
-      <div className="orgs-list__main">
-        <p className="orgs-list__title">{repo.repoFullName}</p>
-        {editing ? (
-          <SettingsField label={t('organizations.repoFolderNameLabel')} compact>
+      <div className="orgs-col__body">
+        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+        {composing ? (
+          <div className="orgs-compose">
             <Input
               type="text"
               size="sm"
-              value={folderDraft}
-              disabled={actionsDisabled}
-              onChange={e => setFolderDraft(e.target.value)}
-              placeholder={t('organizations.repoFolderNamePlaceholder')}
+              autoFocus
+              value={createName}
+              disabled={busy}
+              onChange={e => onCreateNameChange(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && canCreate) onCreate()
+                if (e.key === 'Escape') onComposeToggle()
+              }}
+              placeholder={t('organizations.orgNamePlaceholder')}
               spellCheck={false}
-              aria-label={t('organizations.repoFolderNameLabel')}
+              aria-label={t('organizations.orgName')}
             />
-          </SettingsField>
+            <p className="orgs-row__meta">{t('organizations.slugLabel')}: {slug || '—'}</p>
+          </div>
         ) : null}
-        {!editing && folderName ? <WorkspaceRepoFolderMeta folder={folderName} /> : null}
-        <p className="orgs-list__meta">{repo.cloneUrl}</p>
+        {orgs.length === 0 && !loading ? (
+          <p className="orgs-empty">{t('organizations.noOrgs')}</p>
+        ) : (
+          <ul className="orgs-nav" aria-label={t('organizations.orgRailHeading')}>
+            {orgs.map(org => {
+              const selected = org.slug === selectedSlug
+              return (
+                <li key={org.slug}>
+                  <button
+                    type="button"
+                    className={`orgs-nav__item${selected ? ' is-selected' : ''}`}
+                    disabled={busy}
+                    aria-current={selected}
+                    onClick={() => onSelectOrg(org.slug)}
+                  >
+                    <span className="orgs-nav__avatar" aria-hidden>
+                      {org.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="orgs-nav__text">
+                      <span className="orgs-nav__title">{org.name}</span>
+                    </span>
+                    {org.role && org.role !== 'member' ? (
+                      <Badge variant="muted">{org.role}</Badge>
+                    ) : null}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-      {canManage ? (
-        <div className="orgs-list__actions">
-          {editing ? (
-            <>
-              <Button
-                variant="primary"
-                size="xs"
-                disabled={actionsDisabled}
-                onClick={() => void saveEdit()}
-              >
-                {t('common.save')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={actionsDisabled}
-                onClick={cancelEdit}
-              >
-                {t('common.cancel')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={actionsDisabled || folderDraft.length === 0}
-                onClick={clearFolderDraft}
-              >
-                {t('organizations.clearRepoFolder')}
-              </Button>
-            </>
+      <div className="orgs-col__foot">
+        <span className="orgs-account">
+          {status?.avatarUrl ? (
+            <img className="orgs-account__avatar" src={status.avatarUrl} alt="" width={26} height={26} />
           ) : (
-            <>
-              <Button
-                variant="secondary"
-                size="xs"
-                disabled={actionsDisabled}
-                onClick={startEdit}
-              >
-                {t('organizations.editRepoFolder')}
-              </Button>
-              <Button
-                variant="danger"
-                size="xs"
-                disabled={actionsDisabled}
-                onClick={() => onRemove(repo.id)}
-              >
-                {t('organizations.removeRepo')}
-              </Button>
-            </>
+            <span className="orgs-account__avatar orgs-account__avatar--letter" aria-hidden>
+              {(login || '?').slice(0, 1).toUpperCase()}
+            </span>
           )}
-        </div>
-      ) : null}
-    </li>
+          <span className="orgs-account__login">{login || t('organizations.signedIn')}</span>
+        </span>
+        <Button variant="ghost" size="xs" disabled={authBusy} onClick={onSignOut}>
+          {t('organizations.signOut')}
+        </Button>
+      </div>
+    </aside>
   )
 }
 
-function WorkspacesSection({
-  available,
-  signedIn,
-  activeSlug,
-  canCreate,
-  canDeleteWorkspace,
-  isOrgAdmin,
-  currentLogin,
-  memberLogins,
+function WorkspacesColumn({
+  org,
   workspaces,
+  selectedWorkspaceId,
+  settingsOpen,
   loading,
   error,
   busy,
+  canCreate,
+  composing,
   nameDraft,
   onNameDraftChange,
+  onComposeToggle,
   onCreate,
-  onDeleteRequest,
-  onAssigneeAdd,
-  onAssigneeRemove,
-  onAdminAdd,
-  onAdminRemove,
+  onSelect,
+  onOpenSettings,
 }: {
-  available: boolean
-  signedIn: boolean
-  activeSlug: string
-  canCreate: boolean
-  canDeleteWorkspace: (workspace: CovenantWorkspace) => boolean
-  isOrgAdmin: boolean
-  currentLogin: string
-  memberLogins: string[]
+  org: CovenantOrg
   workspaces: CovenantWorkspace[]
+  selectedWorkspaceId: string
+  settingsOpen: boolean
   loading: boolean
   error: string | null
   busy: boolean
+  canCreate: boolean
+  composing: boolean
   nameDraft: string
   onNameDraftChange: (value: string) => void
+  onComposeToggle: () => void
   onCreate: () => void
-  onDeleteRequest: (workspace: CovenantWorkspace) => void
-  onAssigneeAdd: (workspaceId: string, login: string) => void
-  onAssigneeRemove: (workspaceId: string, login: string) => void
-  onAdminAdd: (workspaceId: string, login: string) => void
-  onAdminRemove: (workspaceId: string, login: string) => void
+  onSelect: (workspaceId: string) => void
+  onOpenSettings: () => void
 }): React.ReactElement {
   const { t } = useT()
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('')
-  const canMutate = available && signedIn && !!activeSlug && !busy
-  const canMutateCreate = canMutate && canCreate
-  const canCreateSubmit = canMutateCreate && nameDraft.trim().length > 0
-
-  useEffect(() => {
-    if (!selectedWorkspaceId) return
-    if (workspaces.some(workspace => workspace.id === selectedWorkspaceId)) return
-    setSelectedWorkspaceId('')
-  }, [selectedWorkspaceId, workspaces])
+  const canSubmit = !busy && nameDraft.trim().length > 0
 
   return (
-    <div className="orgs-stack" aria-label={t('organizations.workspacesSection')}>
-      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
-      {!available ? (
-        <p className="orgs-empty">{t('organizations.unavailable')}</p>
-      ) : !signedIn ? (
-        <p className="orgs-empty">{t('organizations.signInRequired')}</p>
-      ) : !activeSlug ? (
-        <p className="orgs-empty">{t('organizations.selectOrg')}</p>
-      ) : (
-        <>
-          {canCreate ? (
-            <div className="orgs-form-zone">
-              <p className="orgs-form-zone__label">{t('organizations.formCreateWorkspace')}</p>
-              <div className="orgs-form-row">
-                <div className="orgs-form-row__grow">
-                  <SettingsField label={t('organizations.workspaceName')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={nameDraft}
-                      disabled={!canMutateCreate}
-                      onChange={e => onNameDraftChange(e.target.value)}
-                      placeholder={t('organizations.workspaceNamePlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.workspaceName')}
-                    />
-                  </SettingsField>
-                </div>
-                <Button variant="primary" size="sm" disabled={!canCreateSubmit} onClick={onCreate}>
-                  {t('organizations.createWorkspace')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {workspaces.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
-          ) : (
-            <ul className="orgs-list">
-              {workspaces.map(project => {
-                const showDelete = canDeleteWorkspace(project) && canMutate
-                const isCreator = !!currentLogin && project.createdBy === currentLogin
-                const isProjectAdmin = !!currentLogin && project.admins.includes(currentLogin)
-                const canManageAssignees = isOrgAdmin || isCreator || isProjectAdmin
-                const canManageProjectAdmins = isOrgAdmin || isCreator
-                const selected = selectedWorkspaceId === project.id
-                return (
-                  <li
-                    key={project.id}
-                    className={[
-                      'orgs-list__item',
-                      'orgs-list__item--workspace',
-                      selected ? 'is-selected' : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <div className="orgs-workspace-row">
-                      <button
-                        type="button"
-                        className="orgs-list__open"
-                        onClick={() => setSelectedWorkspaceId(selected ? '' : project.id)}
-                        aria-expanded={selected}
-                        aria-label={project.name}
-                      >
-                        <Icon
-                          name={selected ? 'chevron-down' : 'chevron-right'}
-                          size={12}
-                          aria-hidden
-                        />
-                        <span className="orgs-list__title">{project.name}</span>
-                      </button>
-                    </div>
-                    {selected ? (
-                      <div className="orgs-workspace-detail">
-                        <WorkspacePeopleBlock
-                          assignees={project.assignees}
-                          admins={project.admins}
-                          memberLogins={memberLogins}
-                          canManageAssignees={canManageAssignees}
-                          canManageProjectAdmins={canManageProjectAdmins}
-                          parentBusy={busy}
-                          onAssigneeAdd={login => onAssigneeAdd(project.id, login)}
-                          onAssigneeRemove={login => onAssigneeRemove(project.id, login)}
-                          onAdminAdd={login => onAdminAdd(project.id, login)}
-                          onAdminRemove={login => onAdminRemove(project.id, login)}
-                        />
-                        <WorkspaceReposBlock
-                          slug={activeSlug}
-                          workspaceId={project.id}
-                          canManage={canManageAssignees}
-                          parentBusy={busy}
-                        />
-                        {showDelete ? (
-                          <div className="orgs-workspace-detail__actions">
-                            <Button
-                              variant="danger"
-                              size="xs"
-                              disabled={!canMutate}
-                              onClick={() => onDeleteRequest(project)}
-                            >
-                              {t('organizations.deleteWorkspace')}
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-function OrgDetailPanel({
-  org,
-  signedIn,
-  isOrgAdmin,
-  canLeave,
-  leaveError,
-  leaveBusy,
-  activeTab,
-  onTabChange,
-  onLeaveClick,
-  membersProps,
-  orgAdminsProps,
-  workspacesProps,
-  defaultsProps,
-}: {
-  org: CovenantOrg
-  signedIn: boolean
-  isOrgAdmin: boolean
-  canLeave: boolean
-  leaveError: string | null
-  leaveBusy: boolean
-  activeTab: OrgDetailTab
-  onTabChange: (tab: OrgDetailTab) => void
-  onLeaveClick: () => void
-  membersProps: React.ComponentProps<typeof MembersSection>
-  orgAdminsProps: React.ComponentProps<typeof OrgAdminsSection>
-  workspacesProps: React.ComponentProps<typeof WorkspacesSection>
-  defaultsProps: React.ComponentProps<typeof DefaultsSection>
-}): React.ReactElement {
-  const { t } = useT()
-  const tabs: { id: OrgDetailTab; label: string; visible: boolean }[] = [
-    { id: 'workspaces', label: t('organizations.detailTabWorkspaces'), visible: true },
-    { id: 'members', label: t('organizations.detailTabMembers'), visible: isOrgAdmin },
-    { id: 'admins', label: t('organizations.detailTabAdmins'), visible: isOrgAdmin },
-    { id: 'contexts', label: t('organizations.detailTabContexts'), visible: true },
-  ]
-  const visibleTabs = tabs.filter(tab => tab.visible)
-  const resolvedTab = visibleTabs.some(tab => tab.id === activeTab)
-    ? activeTab
-    : (visibleTabs[0]?.id ?? 'workspaces')
-  const panelId = `orgs-tab-panel-${resolvedTab}`
-
-  return (
-    <section className="orgs-detail" aria-label={org.name}>
-      <div className="orgs-detail__header">
-        <div className="orgs-detail__title-block">
-          <h2 className="orgs-detail__title">{org.name}</h2>
-          <p className="orgs-detail__meta">
-            {org.slug}
-            {org.role ? ` · ${org.role}` : ''}
-          </p>
-        </div>
-        <div className="orgs-detail__actions">
-          {signedIn ? (
+    <div className="orgs-col orgs-col--mid" aria-label={t('organizations.workspacesSection')}>
+      <div className="orgs-col__head">
+        <h2 className="orgs-col__label orgs-col__label--strong">{org.name}</h2>
+        <span className="orgs-col__spacer" />
+        <Tooltip content={t('organizations.orgSettings')}>
+          <Button
+            variant="icon"
+            size="xs"
+            pressed={settingsOpen}
+            onClick={onOpenSettings}
+            aria-label={t('organizations.orgSettings')}
+          >
+            <Icon name="settings" size={14} />
+          </Button>
+        </Tooltip>
+        {canCreate ? (
+          <Tooltip content={t('organizations.formCreateWorkspace')}>
             <Button
-              variant="danger"
-              size="sm"
-              disabled={!canLeave || leaveBusy}
-              onClick={onLeaveClick}
+              variant="icon"
+              size="xs"
+              pressed={composing}
+              disabled={busy}
+              onClick={onComposeToggle}
+              aria-label={t('organizations.formCreateWorkspace')}
             >
-              {t('organizations.leaveOrg')}
+              <Icon name="plus" size={14} />
             </Button>
-          ) : null}
-        </div>
+          </Tooltip>
+        ) : null}
       </div>
-
-      {leaveError ? <p className="orgs-section-error" role="alert">{leaveError}</p> : null}
-
-      <div className="orgs-tabs" role="tablist" aria-label={t('organizations.detailTabsLabel')}>
-        {visibleTabs.map(tab => {
-          const selected = tab.id === resolvedTab
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`orgs-tab-${tab.id}`}
-              className="orgs-tabs__tab"
-              aria-selected={selected}
-              aria-controls={panelId}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+      <div className="orgs-col__body">
+        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+        {composing ? (
+          <div className="orgs-compose">
+            <Input
+              type="text"
+              size="sm"
+              autoFocus
+              value={nameDraft}
+              disabled={busy}
+              onChange={e => onNameDraftChange(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && canSubmit) onCreate()
+                if (e.key === 'Escape') onComposeToggle()
+              }}
+              placeholder={t('organizations.workspaceNamePlaceholder')}
+              spellCheck={false}
+              aria-label={t('organizations.workspaceName')}
+            />
+          </div>
+        ) : null}
+        {workspaces.length === 0 && !loading ? (
+          <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
+        ) : (
+          <ul className="orgs-nav" aria-label={t('organizations.workspacesSection')}>
+            {workspaces.map(workspace => {
+              const selected = !settingsOpen && workspace.id === selectedWorkspaceId
+              const people = workspacePeopleRows(workspace.assignees, workspace.admins).length
+              return (
+                <li key={workspace.id}>
+                  <button
+                    type="button"
+                    className={`orgs-nav__item${selected ? ' is-selected' : ''}`}
+                    aria-current={selected}
+                    onClick={() => onSelect(workspace.id)}
+                  >
+                    <span className="orgs-nav__text">
+                      <span className="orgs-nav__title">{workspace.name}</span>
+                      <span className="orgs-nav__meta">
+                        {t('organizations.workspacePeopleCount', { count: people })}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-
-      <div
-        className="orgs-tab-panel"
-        role="tabpanel"
-        id={panelId}
-        aria-labelledby={`orgs-tab-${resolvedTab}`}
-      >
-        {resolvedTab === 'workspaces' ? <WorkspacesSection {...workspacesProps} /> : null}
-        {resolvedTab === 'members' && isOrgAdmin ? <MembersSection {...membersProps} /> : null}
-        {resolvedTab === 'admins' && isOrgAdmin ? <OrgAdminsSection {...orgAdminsProps} /> : null}
-        {resolvedTab === 'contexts' ? <DefaultsSection {...defaultsProps} /> : null}
-      </div>
-    </section>
+    </div>
   )
 }
 
@@ -1426,6 +430,7 @@ export const OrganizationsModal: React.FC<Props> = ({
   const [workspacesBusy, setWorkspacesBusy] = useState(false)
   const [workspaceName, setWorkspaceName] = useState('')
   const [deleteWorkspace, setDeleteWorkspace] = useState<CovenantWorkspace | null>(null)
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('')
 
   const [orgAdmins, setOrgAdmins] = useState<string[]>([])
   const [orgAdminsLoading, setOrgAdminsLoading] = useState(false)
@@ -1436,7 +441,8 @@ export const OrganizationsModal: React.FC<Props> = ({
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [leaveBusy, setLeaveBusy] = useState(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<OrgDetailTab>('workspaces')
+  const [detailView, setDetailView] = useState<OrgDetailView>('workspace')
+  const [composing, setComposing] = useState<ComposeTarget>(null)
 
   const signedIn = auth?.signedIn === true
   const currentLogin = auth?.login?.trim() || ''
@@ -1449,18 +455,10 @@ export const OrganizationsModal: React.FC<Props> = ({
     orgAdmins,
   })
   const isOrgAdmin = isAdmin
-  const personLogins = isOrgAdmin
-    ? members.map(m => m.login)
-    : memberLogins
+  const personLogins = isOrgAdmin ? members.map(m => m.login) : memberLogins
   const workspacesAvailable = hasCovenantWorkspacesApi(covenant)
   const orgAdminsAvailable = hasCovenantOrgAdminsApi(covenant)
-
-  useEffect(() => {
-    if (isOrgAdmin) return
-    if (detailTab === 'members' || detailTab === 'admins') {
-      setDetailTab('workspaces')
-    }
-  }, [detailTab, isOrgAdmin])
+  const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
     if (!covenant) {
@@ -1516,7 +514,8 @@ export const OrganizationsModal: React.FC<Props> = ({
       })
       setDetailSlug(prev => {
         if (prev && list.some(org => org.slug === prev)) return prev
-        return null
+        // Sin tabs, la tercera columna necesita una org desde el primer render.
+        return list[0]?.slug ?? null
       })
     } else {
       setOrgs([])
@@ -1586,7 +585,7 @@ export const OrganizationsModal: React.FC<Props> = ({
     if (!isOrgAdminHint) {
       setMembers([])
       setMembersError(null)
-      setMembersForbidden(false)
+      setMembersForbidden(true)
       setOrgAdmins([])
       setOrgAdminsError(null)
     } else if (membersResult.ok) {
@@ -1666,11 +665,24 @@ export const OrganizationsModal: React.FC<Props> = ({
     void loadOrgDetails(detailSlug)
   }, [open, detailSlug, loadOrgDetails])
 
+  // La selección de la columna 2 sigue viva mientras el workspace exista.
+  useEffect(() => {
+    if (!selectedWorkspaceId) return
+    if (workspaces.some(workspace => workspace.id === selectedWorkspaceId)) return
+    setSelectedWorkspaceId('')
+  }, [selectedWorkspaceId, workspaces])
+
   function openOrg(slug: string): void {
     setActiveSlug(slug)
     setDetailSlug(slug)
     setLeaveError(null)
-    setDetailTab('workspaces')
+    setDetailView('workspace')
+    setSelectedWorkspaceId('')
+    setComposing(null)
+  }
+
+  function toggleCompose(target: Exclude<ComposeTarget, null>): void {
+    setComposing(prev => (prev === target ? null : target))
   }
 
   async function handleSignIn(): Promise<void> {
@@ -1725,9 +737,11 @@ export const OrganizationsModal: React.FC<Props> = ({
       return
     }
     setCreateName('')
+    setComposing(null)
     setActiveSlug(result.data.slug)
     setDetailSlug(result.data.slug)
-    setDetailTab('workspaces')
+    setDetailView('workspace')
+    setSelectedWorkspaceId('')
     await loadAuthAndOrgs()
   }
 
@@ -1804,6 +818,10 @@ export const OrganizationsModal: React.FC<Props> = ({
       return
     }
     setWorkspaceName('')
+    setComposing(null)
+    // El workspace recién creado pasa a ser el detalle: es lo que el usuario va a tocar.
+    setSelectedWorkspaceId(result.data.id)
+    setDetailView('workspace')
     await loadOrgDetails(detailSlug)
     onOrgWorkspacesMutated?.()
   }
@@ -1819,6 +837,7 @@ export const OrganizationsModal: React.FC<Props> = ({
       return
     }
     setDeleteWorkspace(null)
+    setSelectedWorkspaceId('')
     await loadOrgDetails(detailSlug)
     onOrgWorkspacesMutated?.()
   }
@@ -1915,6 +934,12 @@ export const OrganizationsModal: React.FC<Props> = ({
     await loadOrgDetails(detailSlug)
   }
 
+  /** El rol de la tabla se compone de las dos rutas de admins que expone la API. */
+  function handleOrgRoleChange(login: string, role: 'admin' | 'member'): void {
+    if (role === 'admin') void handleOrgAdminAdd(login)
+    else void handleOrgAdminRemove(login)
+  }
+
   async function handleLeaveOrg(slug: string): Promise<void> {
     if (!covenant || !currentLogin) return
     setLeaveBusy(true)
@@ -1936,87 +961,108 @@ export const OrganizationsModal: React.FC<Props> = ({
     await loadAuthAndOrgs()
   }
 
-  const detailSlugValue = detailSlug ?? ''
-  const selectedSlug = detailSlug ?? activeSlug
   const leaveName = detailOrg?.name ?? t('organizations.orgDetailTitle')
+  const settingsOpen = detailView === 'settings'
+  const canManageSelected = selectedWorkspace
+    ? isOrgAdmin
+      || (!!currentLogin && selectedWorkspace.createdBy === currentLogin)
+      || (!!currentLogin && selectedWorkspace.admins.includes(currentLogin))
+    : false
+  const canManageSelectedAdmins = selectedWorkspace
+    ? isOrgAdmin || (!!currentLogin && selectedWorkspace.createdBy === currentLogin)
+    : false
 
-  const membersProps = {
-    available,
-    signedIn,
-    activeSlug: detailSlugValue,
-    canManageMembers,
-    membersForbidden,
-    members,
-    loading: membersLoading,
-    error: membersError,
-    busy: membersBusy,
-    loginDraft: memberLogin,
-    onLoginDraftChange: setMemberLogin,
-    onAdd: () => void handleAddMember(),
-    onRemove: (login: string) => void handleRemoveMember(login),
-  }
-  const orgAdminsProps = {
-    available: available && orgAdminsAvailable,
-    signedIn,
-    activeSlug: detailSlugValue,
-    members,
-    admins: orgAdmins,
-    loading: orgAdminsLoading,
-    error: orgAdminsError,
-    busy: orgAdminsBusy,
-    onAdd: (login: string) => void handleOrgAdminAdd(login),
-    onRemove: (login: string) => void handleOrgAdminRemove(login),
-  }
-  const workspacesProps = {
-    available: available && workspacesAvailable,
-    signedIn,
-    activeSlug: detailSlugValue,
-    canCreate: isOrgAdmin,
-    canDeleteWorkspace: (project: CovenantWorkspace) => canDeleteOwnedItem({
-      isOwner,
-      currentLogin,
-      currentGithubId,
-      createdBy: project.createdBy,
-      createdById: project.createdById,
-    }),
-    isOrgAdmin,
-    currentLogin,
-    memberLogins: personLogins,
-    workspaces,
-    loading: workspacesLoading,
-    error: workspacesError,
-    busy: workspacesBusy,
-    nameDraft: workspaceName,
-    onNameDraftChange: setWorkspaceName,
-    onCreate: () => void handleCreateWorkspace(),
-    onDeleteRequest: (project: CovenantWorkspace) => setDeleteWorkspace(project),
-    onAssigneeAdd: (id: string, login: string) => void handleWorkspaceAssigneeAdd(id, login),
-    onAssigneeRemove: (id: string, login: string) => void handleWorkspaceAssigneeRemove(id, login),
-    onAdminAdd: (id: string, login: string) => void handleWorkspaceAdminAdd(id, login),
-    onAdminRemove: (id: string, login: string) => void handleWorkspaceAdminRemove(id, login),
-  }
-  const defaultsProps = {
-    available,
-    signedIn,
-    activeSlug: detailSlugValue,
-    canCreate: isOrgAdmin,
-    canDeleteItem: (item: CovenantDefault) => canDeleteOwnedItem({
-      isOwner,
-      currentLogin,
-      currentGithubId,
-      createdBy: item.createdBy,
-      createdById: item.createdById,
-    }),
-    defaults,
-    loading: defaultsLoading,
-    error: defaultsError,
-    busy: defaultsBusy,
-    kindDraft: defaultKind,
-    nameDraft: defaultName,
-    onKindDraftChange: setDefaultKind,
-    onNameDraftChange: setDefaultName,
-    onSet: () => void handleSetDefault(),
-    onUnset: (kind: string, name: string) => void handleUnsetDefault(kind, name),
+  function renderDetail(): React.ReactElement {
+    if (!detailOrg) {
+      return (
+        <section className="orgs-panel" aria-label={t('organizations.orgDetailTitle')}>
+          <p className="orgs-empty orgs-empty--panel">{t('organizations.detailSelectHint')}</p>
+        </section>
+      )
+    }
+    if (settingsOpen) {
+      return (
+        <OrgSettingsPanel
+          org={detailOrg}
+          isOwner={isOwner}
+          // El backend responde 403 al owner: no se sale de la propia
+          // organización, se transfiere.
+          canLeave={!!currentLogin && !isOwner}
+          leaveError={leaveError}
+          leaveBusy={leaveBusy}
+          onBack={() => setDetailView('workspace')}
+          onLeaveClick={() => {
+            if (!currentLogin) return
+            setLeaveError(null)
+            setLeaveOpen(true)
+          }}
+          peopleProps={{
+            members,
+            orgAdmins,
+            canManageMembers,
+            canManageRoles: orgAdminsAvailable,
+            membersForbidden,
+            loading: membersLoading || orgAdminsLoading,
+            error: membersError ?? orgAdminsError,
+            busy: membersBusy || orgAdminsBusy,
+            loginDraft: memberLogin,
+            onLoginDraftChange: setMemberLogin,
+            onAdd: () => void handleAddMember(),
+            onRemove: (login: string) => void handleRemoveMember(login),
+            onRoleChange: handleOrgRoleChange,
+          }}
+          contextsProps={{
+            canCreate: isOrgAdmin,
+            canDeleteItem: (item: CovenantDefault) => canDeleteOwnedItem({
+              isOwner,
+              currentLogin,
+              currentGithubId,
+              createdBy: item.createdBy,
+              createdById: item.createdById,
+            }),
+            defaults,
+            loading: defaultsLoading,
+            error: defaultsError,
+            busy: defaultsBusy,
+            kindDraft: defaultKind,
+            nameDraft: defaultName,
+            onKindDraftChange: setDefaultKind,
+            onNameDraftChange: setDefaultName,
+            onSet: () => void handleSetDefault(),
+            onUnset: (kind: string, name: string) => void handleUnsetDefault(kind, name),
+          }}
+        />
+      )
+    }
+    if (!selectedWorkspace) {
+      return (
+        <section className="orgs-panel" aria-label={t('organizations.workspacesSection')}>
+          <p className="orgs-empty orgs-empty--panel">{t('organizations.selectWorkspace')}</p>
+        </section>
+      )
+    }
+    return (
+      <WorkspaceDetailPanel
+        slug={detailOrg.slug}
+        workspace={selectedWorkspace}
+        memberLogins={personLogins}
+        canManageAssignees={canManageSelected}
+        canManageProjectAdmins={canManageSelectedAdmins}
+        canDelete={canDeleteOwnedItem({
+          isOwner,
+          currentLogin,
+          currentGithubId,
+          createdBy: selectedWorkspace.createdBy,
+          createdById: selectedWorkspace.createdById,
+        })}
+        busy={workspacesBusy}
+        onDeleteRequest={workspace => setDeleteWorkspace(workspace)}
+        onAssigneeAdd={login => void handleWorkspaceAssigneeAdd(selectedWorkspace.id, login)}
+        onAssigneeRemove={login => void handleWorkspaceAssigneeRemove(selectedWorkspace.id, login)}
+        onAdminAdd={login => void handleWorkspaceAdminAdd(selectedWorkspace.id, login)}
+        onAdminRemove={login => void handleWorkspaceAdminRemove(selectedWorkspace.id, login)}
+      />
+    )
   }
 
   return (
@@ -2025,9 +1071,9 @@ export const OrganizationsModal: React.FC<Props> = ({
         open={open}
         onClose={onClose}
         title={t('organizations.title')}
-        size="xl"
+        size="xxl"
         zIndex={720}
-        bodyLayout="spacious"
+        bodyLayout="flush"
         closeOnBackdrop
         footer={
           <Button variant="secondary" size="sm" onClick={onClose}>
@@ -2035,70 +1081,63 @@ export const OrganizationsModal: React.FC<Props> = ({
           </Button>
         }
       >
-        <div className="orgs-shell">
-          {!available ? (
-            <p className="orgs-disabled">{t('organizations.unavailable')}</p>
-          ) : (
-            <>
-              <AuthBar
-                available={available}
-                status={auth}
-                loading={authLoading}
-                error={authError}
-                busy={authBusy}
-                onSignIn={() => void handleSignIn()}
-                onSignOut={() => void handleSignOut()}
+        {!available ? (
+          <p className="orgs-disabled">{t('organizations.unavailable')}</p>
+        ) : !signedIn ? (
+          <SignInPanel
+            status={auth}
+            loading={authLoading || orgsLoading}
+            error={authError}
+            busy={authBusy}
+            onSignIn={() => void handleSignIn()}
+          />
+        ) : (
+          <div className="orgs-shell">
+            <OrgsColumn
+              orgs={orgs}
+              selectedSlug={detailSlug ?? activeSlug}
+              loading={orgsLoading}
+              error={orgsError ?? authError}
+              busy={orgsBusy}
+              composing={composing === 'org'}
+              createName={createName}
+              status={auth}
+              authBusy={authBusy}
+              onCreateNameChange={setCreateName}
+              onComposeToggle={() => toggleCompose('org')}
+              onSelectOrg={openOrg}
+              onCreate={() => void handleCreateOrg()}
+              onSignOut={() => void handleSignOut()}
+            />
+            {detailOrg ? (
+              <WorkspacesColumn
+                org={detailOrg}
+                workspaces={workspaces}
+                selectedWorkspaceId={selectedWorkspaceId}
+                settingsOpen={settingsOpen}
+                loading={workspacesLoading}
+                error={workspacesAvailable ? workspacesError : null}
+                busy={workspacesBusy}
+                canCreate={isOrgAdmin && workspacesAvailable}
+                composing={composing === 'workspace'}
+                nameDraft={workspaceName}
+                onNameDraftChange={setWorkspaceName}
+                onComposeToggle={() => toggleCompose('workspace')}
+                onCreate={() => void handleCreateWorkspace()}
+                onSelect={id => {
+                  setSelectedWorkspaceId(id)
+                  setDetailView('workspace')
+                  setComposing(null)
+                }}
+                onOpenSettings={() => {
+                  setLeaveError(null)
+                  setDetailView(prev => (prev === 'settings' ? 'workspace' : 'settings'))
+                }}
               />
-              {signedIn ? (
-                <div className="orgs-split">
-                  <OrgsRail
-                    available={available}
-                    signedIn={signedIn}
-                    orgs={orgs}
-                    selectedSlug={selectedSlug}
-                    loading={orgsLoading}
-                    error={orgsError}
-                    busy={orgsBusy}
-                    createName={createName}
-                    onCreateNameChange={setCreateName}
-                    onSelectOrg={openOrg}
-                    onCreate={() => void handleCreateOrg()}
-                  />
-                  {detailOrg ? (
-                    <OrgDetailPanel
-                      org={detailOrg}
-                      signedIn={signedIn}
-                      isOrgAdmin={isOrgAdmin}
-                      // El backend responde 403 al owner: no se sale de la
-                      // propia organización, se transfiere. Ofrecer el botón
-                      // era prometer algo que la API no iba a cumplir.
-                      canLeave={!!currentLogin && !isOwner}
-                      leaveError={leaveError}
-                      leaveBusy={leaveBusy}
-                      activeTab={detailTab}
-                      onTabChange={setDetailTab}
-                      onLeaveClick={() => {
-                        if (!currentLogin) return
-                        setLeaveError(null)
-                        setLeaveOpen(true)
-                      }}
-                      membersProps={membersProps}
-                      orgAdminsProps={orgAdminsProps}
-                      workspacesProps={workspacesProps}
-                      defaultsProps={defaultsProps}
-                    />
-                  ) : (
-                    <section className="orgs-detail" aria-label={t('organizations.orgDetailTitle')}>
-                      <p className="orgs-empty orgs-empty--panel">
-                        {t('organizations.detailSelectHint')}
-                      </p>
-                    </section>
-                  )}
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
+            ) : null}
+            {renderDetail()}
+          </div>
+        )}
       </TerminalModal>
 
       <ConfirmTerminalModal

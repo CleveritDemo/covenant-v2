@@ -103,6 +103,17 @@ export function canAccessOrgWorkspace(opts: {
   return (opts.assignees ?? []).some(a => sameGithubLogin(a, login))
 }
 
+/** Filtro del picker Cmd+T: case-insensitive sobre org, slug y nombre. */
+export function matchesWorkspaceQuery(
+  entry: { orgName?: string; slug?: string; name?: string },
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return [entry.orgName, entry.slug, entry.name]
+    .some(field => (field ?? '').toLowerCase().includes(needle))
+}
+
 export function buildOrgWorkspaceCatalog(
   login: string,
   orgs: Array<{ slug: string; name: string }>,

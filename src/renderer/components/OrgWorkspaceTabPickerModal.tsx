@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
-import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
-import { Select, type SelectOption } from './ui/Select'
+import { Input } from './ui/Input'
 import {
   getCovenantApi,
   hasCovenantWorkspacesApi,
@@ -19,7 +18,11 @@ import {
   tabContextsFromWorkspaceContexts,
 } from '../../shared/orgWorkspaceContent'
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
-import { canAccessOrgWorkspace, sameGithubLogin } from '../../shared/orgWorkspaceCatalog'
+import {
+  canAccessOrgWorkspace,
+  matchesWorkspaceQuery,
+  sameGithubLogin,
+} from '../../shared/orgWorkspaceCatalog'
 import type { ProjectAgentDefinition } from '../../shared/projectAgentCatalog'
 import type { TabContext } from '../../shared/tabContext'
 import './OrganizationsModal.css'
@@ -40,6 +43,7 @@ interface WorkspaceOption {
   workspaceId: string
   label: string
   name: string
+  orgName: string
 }
 
 interface Props {
@@ -73,6 +77,7 @@ function optionsFromCatalog(entries: OrgWorkspaceCatalogEntry[]): WorkspaceOptio
     slug: entry.slug,
     workspaceId: entry.workspaceId,
     name: entry.name,
+    orgName: entry.orgName || entry.slug,
     label: `${entry.orgName || entry.slug} · ${entry.name}`,
   }))
 }
@@ -88,12 +93,14 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [options, setOptions] = useState<WorkspaceOption[]>(() => optionsFromCatalog(catalog ?? []))
   const [value, setValue] = useState(PERSONAL_VALUE)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     if (!open) return
     setBusy(false)
     setError(null)
     setValue(PERSONAL_VALUE)
+    setQuery('')
     setOptions(optionsFromCatalog(catalog ?? []))
   }, [open, catalog])
 
@@ -140,6 +147,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
             slug,
             workspaceId,
             name,
+            orgName: org.name || slug,
             label: `${org.name || slug} · ${name}`,
           })
         }
@@ -156,22 +164,26 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     }
   }, [open])
 
-  const selectOptions: SelectOption[] = useMemo(
-    () => [
-      { value: PERSONAL_VALUE, label: t('organizations.newTabWorkspacePersonal') },
-      ...options.map(option => ({ value: option.value, label: option.label })),
-    ],
-    [options, t],
-  )
+  // Agrupado por org y filtrado: con más de tres orgs una lista plana no se lee.
+  const groups = useMemo(() => {
+    const byOrg = new Map<string, WorkspaceOption[]>()
+    for (const option of options) {
+      if (!matchesWorkspaceQuery(option, query)) continue
+      const bucket = byOrg.get(option.orgName)
+      if (bucket) bucket.push(option)
+      else byOrg.set(option.orgName, [option])
+    }
+    return [...byOrg.entries()].map(([orgName, items]) => ({ orgName, items }))
+  }, [options, query])
 
-  async function handleConfirm(): Promise<void> {
+  async function handleConfirm(target: string = value): Promise<void> {
     if (busy) return
-    if (!value) {
+    if (!target) {
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
     }
-    const decoded = decodeWorkspaceValue(value)
-    const option = options.find(item => item.value === value)
+    const decoded = decodeWorkspaceValue(target)
+    const option = options.find(item => item.value === target)
     if (!decoded || !option) {
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
@@ -226,7 +238,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       title={t('organizations.newTabWorkspaceTitle')}
-      size="sm"
+      size="md"
       zIndex={760}
       bodyLayout="spacious"
       closeOnBackdrop={!busy}
@@ -246,18 +258,73 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         </>
       }
     >
-      <div className="orgs-stack">
+      <div className="orgs-picker">
         <p className="orgs-empty">{t('organizations.newTabWorkspaceHint')}</p>
-        <SettingsField label={t('organizations.newTabWorkspaceLabel')}>
-          <Select
-            value={value}
-            options={selectOptions}
-            onChange={setValue}
-            size="sm"
-            disabled={busy}
-            aria-label={t('organizations.newTabWorkspaceLabel')}
-          />
-        </SettingsField>
+        <Input
+          type="text"
+          size="sm"
+          autoFocus
+          value={query}
+          disabled={busy}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !busy) void handleConfirm()
+          }}
+          placeholder={t('organizations.searchWorkspaces')}
+          spellCheck={false}
+          aria-label={t('organizations.searchWorkspaces')}
+        />
+        <ul className="orgs-picker__list" aria-label={t('organizations.newTabWorkspaceLabel')}>
+          <li>
+            <button
+              type="button"
+              className={`orgs-nav__item${value === PERSONAL_VALUE ? ' is-selected' : ''}`}
+              disabled={busy}
+              aria-current={value === PERSONAL_VALUE}
+              onClick={() => setValue(PERSONAL_VALUE)}
+            >
+              <span className="orgs-nav__text">
+                <span className="orgs-nav__title">{t('organizations.newTabWorkspacePersonal')}</span>
+                <span className="orgs-nav__meta">{t('organizations.personalTabHint')}</span>
+              </span>
+            </button>
+          </li>
+          {groups.map(group => (
+            <React.Fragment key={group.orgName}>
+              <li>
+                <p className="orgs-picker__group">{group.orgName}</p>
+              </li>
+              {group.items.map(option => {
+                const selected = option.value === value
+                return (
+                  <li key={option.value}>
+                    <button
+                      type="button"
+                      className={`orgs-nav__item${selected ? ' is-selected' : ''}`}
+                      disabled={busy}
+                      aria-current={selected}
+                      onClick={() => setValue(option.value)}
+                      onDoubleClick={() => {
+                        setValue(option.value)
+                        if (!busy) void handleConfirm(option.value)
+                      }}
+                    >
+                      <span className="orgs-nav__text">
+                        <span className="orgs-nav__title">{option.name}</span>
+                        <span className="orgs-nav__meta">{option.slug}</span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </React.Fragment>
+          ))}
+          {groups.length === 0 && query.trim() ? (
+            <li>
+              <p className="orgs-empty">{t('organizations.noWorkspaceMatches')}</p>
+            </li>
+          ) : null}
+        </ul>
         {error ? <p className="orgs-section-error">{error}</p> : null}
       </div>
     </TerminalModal>

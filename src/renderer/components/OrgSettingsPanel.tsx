@@ -1,0 +1,286 @@
+import React from 'react'
+import { useT } from '@i18n/useT'
+import type { CovenantDefault, CovenantMember, CovenantOrg } from '../covenantApi'
+import { SettingsField } from './SettingsSection'
+import { Button } from './ui/Button'
+import { Input } from './ui/Input'
+import { Select } from './ui/Select'
+import { SectionStatus } from './OrgSectionStatus'
+import { orgPeopleRows } from '../../shared/orgPeople'
+
+/**
+ * Columna de detalle en modo "ajustes de la organización".
+ * Sustituye a los tabs Members / Admins / Contexts: People es una sola tabla
+ * con el rol como celda, y salir de la org vive en su propia zona al final.
+ */
+
+export interface OrgPeopleSectionProps {
+  members: CovenantMember[]
+  orgAdmins: string[]
+  canManageMembers: boolean
+  /** El rol se compone de orgAdminAdd/Remove: sin esa API la celda es de solo lectura. */
+  canManageRoles: boolean
+  membersForbidden: boolean
+  loading: boolean
+  error: string | null
+  busy: boolean
+  loginDraft: string
+  onLoginDraftChange: (value: string) => void
+  onAdd: () => void
+  onRemove: (login: string) => void
+  onRoleChange: (login: string, role: 'admin' | 'member') => void
+}
+
+export interface OrgContextsSectionProps {
+  canCreate: boolean
+  canDeleteItem: (item: CovenantDefault) => boolean
+  defaults: CovenantDefault[]
+  loading: boolean
+  error: string | null
+  busy: boolean
+  kindDraft: string
+  nameDraft: string
+  onKindDraftChange: (value: string) => void
+  onNameDraftChange: (value: string) => void
+  onSet: () => void
+  onUnset: (kind: string, name: string) => void
+}
+
+function OrgPeopleSection(props: OrgPeopleSectionProps): React.ReactElement {
+  const { t } = useT()
+  const rows = orgPeopleRows(props.members, props.orgAdmins)
+  const canMutate = props.canManageMembers && !props.busy
+  const canAdd = canMutate && props.loginDraft.trim().length > 0
+  const showError = props.error && !props.membersForbidden
+
+  return (
+    <section className="orgs-section" aria-label={t('organizations.membersSection')}>
+      <h3 className="orgs-section__title">{t('organizations.membersSection')}</h3>
+      <SectionStatus
+        loading={props.loading}
+        error={showError ? props.error : null}
+        loadingLabel={t('organizations.loading')}
+      />
+      {props.membersForbidden || !props.canManageMembers ? (
+        <p className="orgs-notice">{t('organizations.membersAdminsOnly')}</p>
+      ) : (
+        <>
+          {rows.length === 0 && !props.loading ? (
+            <p className="orgs-empty">{t('organizations.noMembers')}</p>
+          ) : (
+            <table className="orgs-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('organizations.personColumn')}</th>
+                  <th scope="col">{t('organizations.roleColumn')}</th>
+                  <th scope="col">
+                    <span className="orgs-visually-hidden">{t('organizations.removeMember')}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => (
+                  <tr key={row.login}>
+                    <td>
+                      <span className="orgs-person">
+                        {row.avatarUrl ? (
+                          <img className="orgs-person__avatar" src={row.avatarUrl} alt="" width={24} height={24} />
+                        ) : (
+                          <span className="orgs-person__avatar orgs-person__avatar--letter" aria-hidden>
+                            {row.login.slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="orgs-person__login">{row.login}</span>
+                      </span>
+                    </td>
+                    <td>
+                      {row.role === 'owner' ? (
+                        <span className="orgs-row__meta">{t('organizations.roleOwner')}</span>
+                      ) : (
+                        <Select
+                          size="sm"
+                          value={row.role}
+                          disabled={!canMutate || !props.canManageRoles}
+                          aria-label={t('organizations.roleFor', { login: row.login })}
+                          onChange={next => props.onRoleChange(row.login, next as 'admin' | 'member')}
+                          options={[
+                            { value: 'admin', label: t('organizations.roleAdmin') },
+                            { value: 'member', label: t('organizations.roleUser') },
+                          ]}
+                        />
+                      )}
+                    </td>
+                    <td>
+                      {row.role === 'owner' ? null : (
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          disabled={!canMutate}
+                          onClick={() => props.onRemove(row.login)}
+                        >
+                          <span className="orgs-danger-text">{t('organizations.removeMember')}</span>
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="orgs-inline-form__row">
+            <div className="orgs-inline-form__grow">
+              <SettingsField label={t('organizations.memberLogin')} compact>
+                <Input
+                  type="text"
+                  size="sm"
+                  value={props.loginDraft}
+                  disabled={!canMutate}
+                  onChange={e => props.onLoginDraftChange(e.target.value)}
+                  placeholder={t('organizations.memberLoginPlaceholder')}
+                  spellCheck={false}
+                  aria-label={t('organizations.memberLogin')}
+                />
+              </SettingsField>
+            </div>
+            <Button variant="secondary" size="sm" disabled={!canAdd} onClick={props.onAdd}>
+              {t('organizations.addMember')}
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+function OrgContextsSection(props: OrgContextsSectionProps): React.ReactElement {
+  const { t } = useT()
+  const canMutateCreate = props.canCreate && !props.busy
+  const canSet = canMutateCreate
+    && props.kindDraft.trim().length > 0
+    && props.nameDraft.trim().length > 0
+
+  return (
+    <section className="orgs-section" aria-label={t('organizations.globalContexts')}>
+      <h3 className="orgs-section__title">{t('organizations.globalContexts')}</h3>
+      <SectionStatus loading={props.loading} error={props.error} loadingLabel={t('organizations.loading')} />
+      {props.defaults.length === 0 && !props.loading ? (
+        <p className="orgs-empty">{t('organizations.noDefaults')}</p>
+      ) : (
+        <ul className="orgs-rows">
+          {props.defaults.map(item => (
+            <li key={`${item.kind}:${item.name}`} className="orgs-row">
+              <div className="orgs-row__main">
+                <p className="orgs-row__title">{item.name}</p>
+                <p className="orgs-row__meta">{item.kind}</p>
+              </div>
+              {props.canDeleteItem(item) && !props.busy ? (
+                <div className="orgs-row__actions">
+                  <Button variant="ghost" size="xs" onClick={() => props.onUnset(item.kind, item.name)}>
+                    <span className="orgs-danger-text">{t('organizations.unsetDefault')}</span>
+                  </Button>
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {props.canCreate ? (
+        <div className="orgs-inline-form__row">
+          <div className="orgs-inline-form__grow">
+            <SettingsField label={t('organizations.defaultKind')} compact>
+              <Input
+                type="text"
+                size="sm"
+                value={props.kindDraft}
+                disabled={!canMutateCreate}
+                onChange={e => props.onKindDraftChange(e.target.value)}
+                placeholder={t('organizations.defaultKindPlaceholder')}
+                spellCheck={false}
+                aria-label={t('organizations.defaultKind')}
+              />
+            </SettingsField>
+          </div>
+          <div className="orgs-inline-form__grow">
+            <SettingsField label={t('organizations.defaultName')} compact>
+              <Input
+                type="text"
+                size="sm"
+                value={props.nameDraft}
+                disabled={!canMutateCreate}
+                onChange={e => props.onNameDraftChange(e.target.value)}
+                placeholder={t('organizations.defaultNamePlaceholder')}
+                spellCheck={false}
+                aria-label={t('organizations.defaultName')}
+              />
+            </SettingsField>
+          </div>
+          <Button variant="secondary" size="sm" disabled={!canSet} onClick={props.onSet}>
+            {t('organizations.setDefault')}
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+export function OrgSettingsPanel({
+  org,
+  isOwner,
+  canLeave,
+  leaveError,
+  leaveBusy,
+  onBack,
+  onLeaveClick,
+  peopleProps,
+  contextsProps,
+}: {
+  org: CovenantOrg
+  isOwner: boolean
+  canLeave: boolean
+  leaveError: string | null
+  leaveBusy: boolean
+  onBack: () => void
+  onLeaveClick: () => void
+  peopleProps: OrgPeopleSectionProps
+  contextsProps: OrgContextsSectionProps
+}): React.ReactElement {
+  const { t } = useT()
+
+  return (
+    <section className="orgs-panel" aria-label={t('organizations.orgSettingsTitle', { name: org.name })}>
+      <header className="orgs-panel__head">
+        <Button variant="ghost" size="xs" onClick={onBack}>
+          {t('organizations.back')}
+        </Button>
+        <div className="orgs-panel__title-block">
+          <h2 className="orgs-panel__title">
+            {t('organizations.orgSettingsTitle', { name: org.name })}
+          </h2>
+          <p className="orgs-panel__meta">
+            {org.slug}
+            {org.role ? ` · ${org.role}` : ''}
+          </p>
+        </div>
+      </header>
+      <div className="orgs-panel__body">
+        <OrgPeopleSection {...peopleProps} />
+        <OrgContextsSection {...contextsProps} />
+        <section className="orgs-section" aria-label={t('organizations.dangerZone')}>
+          <h3 className="orgs-section__title">{t('organizations.dangerZone')}</h3>
+          {leaveError ? <p className="orgs-section-error" role="alert">{leaveError}</p> : null}
+          <div className="orgs-danger-zone">
+            <div className="orgs-row__main">
+              <p className="orgs-row__title">{t('organizations.leaveOrg')}</p>
+              <p className="orgs-row__meta">
+                {isOwner ? t('organizations.ownerCannotLeave') : t('organizations.leaveOrgDetail')}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" disabled={!canLeave || leaveBusy} onClick={onLeaveClick}>
+              <span className="orgs-danger-text">{t('organizations.leaveOrg')}</span>
+            </Button>
+          </div>
+        </section>
+      </div>
+    </section>
+  )
+}

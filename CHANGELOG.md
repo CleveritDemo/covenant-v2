@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.39.72
+
+- **Modal de organizaciones reordenado**: los ajustes de la org y el detalle de cada workspace viven ahora en paneles propios, con el estado de cada sección a la vista, para que se entienda de un vistazo qué está configurado y qué falta.
+
 ## v0.39.71
 
 - **Pulse deja de listar GUIDs en «Repo»**: los turnos que un especialista hacía en su worktree de delegación se etiquetaban con el identificador de la delegación en vez del repositorio; ahora se atribuyen al repo de verdad, y los que ya estaban mal guardados dejan de ensuciar el selector sin perder su sitio en los totales.

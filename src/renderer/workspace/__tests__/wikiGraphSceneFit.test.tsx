@@ -19,6 +19,7 @@ vi.mock('three', () => {
     copy(): this { return this }
     clone(): Color { return new Color() }
     lerp(): this { return this }
+    multiplyScalar(): this { return this }
   }
   class Vector2 { x = 0; y = 0 }
   class Vector3 {
@@ -164,7 +165,19 @@ vi.mock('three', () => {
   class SphereGeometry { dispose(): void {} }
   class MeshBasicMaterial { color = new Color(); dispose(): void {} }
   class MeshLambertMaterial { color = new Color(); dispose(): void {} }
+  class MeshStandardMaterial {
+    color = new Color()
+    emissive = new Color()
+    metalness = 0
+    roughness = 0
+    dispose(): void {}
+  }
   class AmbientLight { __kind = 'AmbientLight' as const }
+  class HemisphereLight { __kind = 'HemisphereLight' as const }
+  class DirectionalLight {
+    __kind = 'DirectionalLight' as const
+    position = { set: (): void => undefined }
+  }
   class PointLight {
     __kind = 'PointLight' as const
     color = new Color()
@@ -182,11 +195,15 @@ vi.mock('three', () => {
   }
   class Mesh {
     __kind = 'Mesh' as const
-    material: MeshBasicMaterial
+    material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial
     geometry: SphereGeometry
     position = new Vector3()
+    scale = { setScalar: vi.fn() }
     userData: Record<string, unknown> = {}
-    constructor(geometry: SphereGeometry, material: MeshBasicMaterial) {
+    constructor(
+      geometry: SphereGeometry,
+      material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial,
+    ) {
       this.geometry = geometry; this.material = material
     }
   }
@@ -213,6 +230,9 @@ vi.mock('three', () => {
     AmbientLight,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    MeshStandardMaterial,
+    HemisphereLight,
+    DirectionalLight,
     PointLight,
     PerspectiveCamera,
     Raycaster,
@@ -279,6 +299,21 @@ const resizeCallbacks: Array<() => void> = []
   disconnect(): void {}
 } as unknown as typeof ResizeObserver
 
+const getThemeMusicBeat = vi.fn(() => ({ pulse: 0, bpm: null as number | null }))
+const easeVisualBeatPulse = vi.fn((raw: number) => raw)
+
+vi.mock('../../themeMusicEnergy', () => ({
+  getThemeMusicBeat: (...args: unknown[]) => getThemeMusicBeat(...args),
+}))
+
+vi.mock('../PlaneMapGridParticles', async importOriginal => {
+  const actual = await importOriginal<typeof import('../PlaneMapGridParticles')>()
+  return {
+    ...actual,
+    easeVisualBeatPulse: (...args: unknown[]) => easeVisualBeatPulse(...args),
+  }
+})
+
 beforeAll(() => {
   const fake2d = {
     createRadialGradient: () => ({ addColorStop: (): void => undefined }),
@@ -303,6 +338,20 @@ const DATA: WikiGraphData = {
     { slug: 'b', title: 'B', type: 'flow', linkCount: 1, body: '' },
   ],
   edges: [{ from: 'a', to: 'b' }],
+}
+
+const MULTI_EDGE_DATA: WikiGraphData = {
+  nodes: [
+    { slug: 'a', title: 'A', type: 'concept', linkCount: 3, body: '' },
+    { slug: 'b', title: 'B', type: 'flow', linkCount: 1, body: '' },
+    { slug: 'c', title: 'C', type: 'flow', linkCount: 1, body: '' },
+    { slug: 'd', title: 'D', type: 'flow', linkCount: 1, body: '' },
+  ],
+  edges: [
+    { from: 'a', to: 'b' },
+    { from: 'a', to: 'c' },
+    { from: 'a', to: 'd' },
+  ],
 }
 
 const EMPTY_DATA: WikiGraphData = { nodes: [], edges: [] }
@@ -525,7 +574,7 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
     const envelope1 = glowMat.opacity / BOLT_GLOW_OPACITY
     const inferredPeak = envelope1 / (0.1 / 0.18)
-    expect(inferredPeak).toBeGreaterThanOrEqual(0.72)
+    expect(inferredPeak).toBeGreaterThanOrEqual(0.72 * 0.78)
     expect(inferredPeak).toBeLessThanOrEqual(1.0)
     expect(glowMat.opacity / envelope1).toBeCloseTo(BOLT_GLOW_OPACITY, 4)
 
@@ -543,6 +592,131 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     const haloNorm2 = haloMat.opacity / envelope2
     expect(coreNorm1).not.toBeCloseTo(coreNorm2, 2)
     expect(haloNorm1).not.toBeCloseTo(haloNorm2, 2)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('con pulse musical 1 la opacidad del core en firing supera pulse 0', () => {
+    const measureCoreOpacity = (pulse: number): number => {
+      resetGlobals()
+      document.documentElement.removeAttribute('data-reduce-motion')
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+      easeVisualBeatPulse.mockImplementation(raw => raw)
+
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+      const rafQueue: FrameRequestCallback[] = []
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+        rafQueue.push(cb)
+        return rafQueue.length
+      })
+      const nowSpy = vi.spyOn(performance, 'now')
+      const t0 = 10000
+      nowSpy.mockReturnValue(t0)
+
+      render(<Harness />)
+      const coreMat = getBoltMats().find(m => m.vertexColors)!
+      const tick = rafQueue[rafQueue.length - 1]!
+
+      nowSpy.mockReturnValue(t0)
+      tick(t0)
+      if (pulse > 0) {
+        for (let i = 1; i <= 12; i++) {
+          const t = t0 + i * 16
+          nowSpy.mockReturnValue(t)
+          tick(t)
+        }
+        getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
+        const tBeat = t0 + 13 * 16
+        nowSpy.mockReturnValue(tBeat)
+        tick(tBeat)
+      }
+      const tAttack = (pulse > 0 ? t0 + 13 * 16 : t0) + BOLT_ACTIVE_MS * 0.1
+      nowSpy.mockReturnValue(tAttack)
+      tick(tAttack)
+
+      const opacity = coreMat.opacity
+      randomSpy.mockRestore()
+      rafSpy.mockRestore()
+      nowSpy.mockRestore()
+      return opacity
+    }
+
+    const opacityNoPulse = measureCoreOpacity(0)
+    const opacityWithPulse = measureCoreOpacity(1)
+    expect(opacityWithPulse).toBeGreaterThan(opacityNoPulse)
+  })
+
+  it('sin música, los 3 rayos salientes de A encienden juntos al pulsar el nodo', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+    easeVisualBeatPulse.mockImplementation(raw => raw)
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness data={MULTI_EDGE_DATA} />)
+    const coreMats = getCoreMats()
+    expect(coreMats).toHaveLength(3)
+
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const opacities = coreMats.map(m => m.opacity)
+    expect(opacities.every(o => o > 0)).toBe(true)
+    const spread = Math.max(...opacities) - Math.min(...opacities)
+    expect(spread).toBeLessThan(0.05)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('con beat onset, todos los nodos disparan sus rayos salientes a la vez', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
+    easeVisualBeatPulse.mockImplementation(raw => raw)
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness data={MULTI_EDGE_DATA} />)
+    const coreMats = getCoreMats()
+    const tick = rafQueue[rafQueue.length - 1]!
+
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    for (let i = 1; i <= 8; i++) {
+      const t = t0 + i * 16
+      nowSpy.mockReturnValue(t)
+      tick(t)
+    }
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    expect(coreMats.filter(m => m.opacity > 0)).toHaveLength(3)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()

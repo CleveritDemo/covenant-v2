@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.47.0
+
+- **Nodos del mapa wiki más volumétricos**: esferas con sombreado real y luces cuando reduce motion está desactivado; con reduce motion el look plano se conserva.
+- **Rayos que salen todos juntos desde cada nodo**: cada nodo enciende a la vez todos sus enlaces salientes; sin música el ritmo es aleatorio por nodo; con música del tema, todos los nodos pulsan al beat.
+- **Mapa wiki vivo sobre el plano**: grilla y partículas siguen visibles detrás del grafo; fit automático al abrir y picking intacto.
+
 ## v0.46.0
 
 - **Guardado de chat con debounce**: el transcript se persiste cada ~500 ms durante streaming, no en cada token; flush al cerrar turno, cambiar de thread o cerrar el pane.

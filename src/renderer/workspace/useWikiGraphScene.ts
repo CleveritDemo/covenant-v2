@@ -2,11 +2,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { isReduceMotionActive } from '../reduceMotion'
+import { getThemeMusicBeat } from '../themeMusicEnergy'
+import { easeVisualBeatPulse } from './PlaneMapGridParticles'
 import {
   layoutWikiGraph,
   type WikiGraphData,
   type WikiGraphNodeType,
 } from './wikiGraph'
+import {
+  computeInitialNodeFireAt,
+  computeNextNodeFireAt,
+} from './wikiGraphBoltTiming'
 
 export interface WikiGraphHover {
   slug: string
@@ -49,9 +55,19 @@ const BOLT_ACTIVE_MS = 260
 const BOLT_ATTACK = 0.18
 /** Amplitud perpendicular como fracción de la longitud de la arista. */
 const BOLT_JITTER_RATIO = 0.045
-/** Fondo mínimo entre descargas por arista (aleatorio). */
-const BOLT_INTERVAL_MIN_MS = 1600
-const BOLT_INTERVAL_MAX_MS = 5200
+/** Máximo de nodos con al menos un rayo en estado firing. */
+const NODE_MAX_CONCURRENT_PULSES = 2
+/** Reintento cuando el cap de nodos activos está lleno (ms). */
+const BOLT_CAP_RETRY_MS = 250
+/** Cooldown global entre disparos sincronizados al beat (ms). */
+const BOLT_BEAT_COOLDOWN_MS = 350
+/** Ataque del pulso visual al beat del tema (mismo que PlaneMapGridParticles). */
+const VISUAL_BEAT_ATTACK = 0.42
+/** Release del pulso visual al beat del tema. */
+const VISUAL_BEAT_RELEASE = 0.12
+
+const isMusicActive = (pulse: number): boolean => pulse > 0.001
+
 /** El núcleo toma el color del nodo de origen, aclarado hacia blanco para
  *  conservar el punto caliente del centro. */
 const BOLT_CORE_WHITE_MIX = 0.35
@@ -236,9 +252,16 @@ export function useWikiGraphScene(
     // Sin scene.background: el fondo lo pone el CSS translúcido de la vista,
     // dejando pasar la grilla y las partículas del plano.
 
-    // Ambiente a intensidad 1: los nodos Lambert lucen igual que con material
-    // básico en reposo, pero reciben las luces puntuales de las descargas.
-    scene.add(new THREE.AmbientLight('#ffffff', 1))
+    if (reducedMotion) {
+      // Ambiente a intensidad 1: nodos Lambert planos, sin luces extra.
+      scene.add(new THREE.AmbientLight('#ffffff', 1))
+    } else {
+      scene.add(new THREE.AmbientLight('#ffffff', 0.35))
+      scene.add(new THREE.HemisphereLight('#c8d8ff', '#1a1028', 0.55))
+      const dirLight = new THREE.DirectionalLight('#ffffff', 0.65)
+      dirLight.position.set(12, 18, 14)
+      scene.add(dirLight)
+    }
 
     const sceneNodes: SceneNode[] = []
     const pickMeshes: THREE.Mesh[] = []
@@ -246,12 +269,22 @@ export function useWikiGraphScene(
       const [x, y, z] = positions.get(node.slug) ?? [0, 0, 0]
       const color = nodeColors.get(node.type) ?? new THREE.Color('#ffffff')
       const radius = nodeRadius(node.linkCount)
+      const segments = reducedMotion ? 24 : 32
+      const material = reducedMotion
+        ? new THREE.MeshLambertMaterial({ color: color.clone() })
+        : new THREE.MeshStandardMaterial({
+          color: color.clone(),
+          metalness: 0.12,
+          roughness: 0.38,
+          emissive: color.clone().multiplyScalar(0.08),
+        })
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 24, 24),
-        new THREE.MeshLambertMaterial({ color: color.clone() }),
+        new THREE.SphereGeometry(radius, segments, segments),
+        material,
       )
       mesh.position.set(x, y, z)
       mesh.userData.slug = node.slug
+      if (!reducedMotion) mesh.userData.baseRadius = radius
       scene.add(mesh)
       pickMeshes.push(mesh)
 
@@ -259,7 +292,12 @@ export function useWikiGraphScene(
     }
 
     const typeBySlug = new Map(data.nodes.map(node => [node.slug, node.type]))
-    const edgeEnds: Array<{ from: THREE.Vector3; to: THREE.Vector3; type: WikiGraphNodeType }> = []
+    const edgeEnds: Array<{
+      from: THREE.Vector3
+      to: THREE.Vector3
+      type: WikiGraphNodeType
+      fromSlug: string
+    }> = []
     const edgePositions: number[] = []
     for (const edge of data.edges) {
       const from = positions.get(edge.from)
@@ -270,6 +308,7 @@ export function useWikiGraphScene(
         from: new THREE.Vector3(...from),
         to: new THREE.Vector3(...to),
         type: typeBySlug.get(edge.from) ?? 'concept',
+        fromSlug: edge.from,
       })
     }
     const edgeGeometry = new THREE.BufferGeometry()
@@ -312,12 +351,17 @@ export function useWikiGraphScene(
       light: THREE.PointLight | null
       state: 'idle' | 'firing'
       startedAt: number
-      nextFireAt: number
       seed: number
       /** Intensidad aleatoria del disparo (0.72–1.0). */
       peak: number
     }
+    interface NodePulseSchedule {
+      fromSlug: string
+      nodeIndex: number
+      nextFireAt: number
+    }
     const bolts: Bolt[] = []
+    const boltIndicesByFromSlug = new Map<string, number[]>()
     const coreWhite = new THREE.Color('#ffffff')
     /** Núcleo del rayo: color del nodo de origen aclarado hacia blanco. */
     const boltCoreColor = (type: WikiGraphNodeType): THREE.Color =>
@@ -458,7 +502,11 @@ export function useWikiGraphScene(
           })
         }
 
-        const stagger = Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
+        const boltIndex = bolts.length
+        const fromIndices = boltIndicesByFromSlug.get(edge.fromSlug) ?? []
+        fromIndices.push(boltIndex)
+        boltIndicesByFromSlug.set(edge.fromSlug, fromIndices)
+
         bolts.push({
           edgeIndex: i,
           length,
@@ -480,11 +528,64 @@ export function useWikiGraphScene(
           light: null,
           state: 'idle',
           startedAt: 0,
-          nextFireAt: boltStartOffset + stagger,
           seed: Math.random() * 1000,
           peak: 1,
         })
       })
+    }
+
+    const musicAtMount = isMusicActive(getThemeMusicBeat().pulse)
+    const sourceNodeSlugs = [...boltIndicesByFromSlug.keys()]
+    const nodeSchedules: NodePulseSchedule[] = sourceNodeSlugs.map((fromSlug, nodeIndex) => ({
+      fromSlug,
+      nodeIndex,
+      nextFireAt: computeInitialNodeFireAt(
+        boltStartOffset,
+        nodeIndex,
+        sourceNodeSlugs.length,
+        Math.random,
+        musicAtMount,
+      ),
+    }))
+
+    const countFiringNodes = (): number => {
+      let count = 0
+      for (const fromSlug of sourceNodeSlugs) {
+        const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+        if (indices.some(index => bolts[index]!.state === 'firing')) count++
+      }
+      return count
+    }
+
+    const isNodePulsing = (fromSlug: string): boolean => {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      return indices.some(index => bolts[index]!.state === 'firing')
+    }
+
+    /** Enciende todos los rayos salientes de un nodo a la vez. */
+    const fireNodePulse = (fromSlug: string, now: number): void => {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      for (const boltIndex of indices) {
+        const bolt = bolts[boltIndex]!
+        bolt.state = 'firing'
+        bolt.startedAt = now
+        bolt.peak = 0.72 + Math.random() * 0.28
+        rewriteBolt(bolt, 1)
+        const light = lightPool.pop() ?? null
+        if (light) {
+          const edge = edgeEnds[bolt.edgeIndex]!
+          light.color.copy(
+            nodeColors.get(edge.type) ?? new THREE.Color('#ffffff'),
+          )
+          light.position.set(
+            (edge.from.x + edge.to.x) / 2,
+            (edge.from.y + edge.to.y) / 2,
+            (edge.from.z + edge.to.z) / 2,
+          )
+          light.distance = bolt.length * BOLT_LIGHT_DISTANCE_MULT
+          bolt.light = light
+        }
+      }
     }
 
     /** Reescribe la polilínea del rayo con jitter perpendicular determinista+random. */
@@ -559,7 +660,13 @@ export function useWikiGraphScene(
       edgeMaterial.color = themeColor(container, EDGE_VAR, EDGE_FALLBACK)
       for (const sceneNode of sceneNodes) {
         const color = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
-        ;(sceneNode.mesh.material as THREE.MeshLambertMaterial).color.copy(color)
+        const mat = sceneNode.mesh.material
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.color.copy(color)
+          mat.emissive.copy(color).multiplyScalar(0.08)
+        } else {
+          (mat as THREE.MeshLambertMaterial).color.copy(color)
+        }
       }
       for (const bolt of bolts) {
         const color = nodeColors.get(edgeEnds[bolt.edgeIndex]!.type) ?? new THREE.Color('#ffffff')
@@ -660,35 +767,54 @@ export function useWikiGraphScene(
     canvas.addEventListener('pointerup', onPointerUp)
 
     let raf = 0
+    let lastNow = performance.now()
+    let visualBeatPulse = 0
+    let prevBeatPulse = 0
+    let lastBeatFireAt = 0
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
-      for (const bolt of bolts) {
-        if (bolt.state === 'idle') {
-          if (now >= bolt.nextFireAt) {
-            bolt.state = 'firing'
-            bolt.startedAt = now
-            bolt.peak = 0.72 + Math.random() * 0.28
-            rewriteBolt(bolt, 1)
-            // Toma una luz libre del pool: la descarga ilumina a sus vecinos.
-            const light = lightPool.pop() ?? null
-            if (light) {
-              const edge = edgeEnds[bolt.edgeIndex]!
-              light.color.copy(
-                nodeColors.get(edge.type) ?? new THREE.Color('#ffffff'),
-              )
-              light.position.set(
-                (edge.from.x + edge.to.x) / 2,
-                (edge.from.y + edge.to.y) / 2,
-                (edge.from.z + edge.to.z) / 2,
-              )
-              light.distance = bolt.length * BOLT_LIGHT_DISTANCE_MULT
-              bolt.light = light
-            }
-          } else {
-            continue
+      const dt = Math.min(0.05, (now - lastNow) / 1000)
+      lastNow = now
+
+      const beat = getThemeMusicBeat()
+      const target = Math.min(1, Math.max(0, beat.pulse))
+      const rate = target > visualBeatPulse ? VISUAL_BEAT_ATTACK : VISUAL_BEAT_RELEASE
+      const blend = 1 - Math.pow(1 - rate, dt * 60)
+      visualBeatPulse += (target - visualBeatPulse) * blend
+      const drawBeat = easeVisualBeatPulse(visualBeatPulse)
+      const beatBoost = drawBeat > 0.001 ? 1 + 0.35 * drawBeat : 1
+      const lightBeatBoost = drawBeat > 0.001 ? 1 + 0.5 * drawBeat : 1
+
+      if (drawBeat > 0.001) {
+        const beatOnset = beat.pulse > 0.35 && beat.pulse > prevBeatPulse
+        if (beatOnset && now - lastBeatFireAt >= BOLT_BEAT_COOLDOWN_MS) {
+          lastBeatFireAt = now
+          for (const fromSlug of sourceNodeSlugs) {
+            fireNodePulse(fromSlug, now)
           }
         }
+        prevBeatPulse = beat.pulse
+      } else {
+        prevBeatPulse = 0
+        for (const schedule of nodeSchedules) {
+          if (isNodePulsing(schedule.fromSlug) || now < schedule.nextFireAt) continue
+          if (countFiringNodes() >= NODE_MAX_CONCURRENT_PULSES) {
+            schedule.nextFireAt = now + BOLT_CAP_RETRY_MS
+            continue
+          }
+          fireNodePulse(schedule.fromSlug, now)
+          schedule.nextFireAt = computeNextNodeFireAt(
+            now,
+            schedule.nodeIndex,
+            Math.random,
+            false,
+          )
+        }
+      }
+
+      for (const bolt of bolts) {
+        if (bolt.state === 'idle') continue
         const t = (now - bolt.startedAt) / BOLT_ACTIVE_MS
         if (t >= 1) {
           bolt.state = 'idle'
@@ -705,9 +831,6 @@ export function useWikiGraphScene(
             lightPool.push(bolt.light)
             bolt.light = null
           }
-          const gap = BOLT_INTERVAL_MIN_MS
-            + Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
-          bolt.nextFireAt = now + gap
           continue
         }
         // Envelope: ataque rápido y fade largo — chispazo eléctrico.
@@ -717,24 +840,41 @@ export function useWikiGraphScene(
         const eased = Math.max(0, env)
         const envelope = eased * bolt.peak
         const flicker = 0.88 + 0.12 * Math.sin(now * 0.05 + bolt.seed)
-        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker
-        bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker
-        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope
+        const ambientFlicker = drawBeat <= 0.001
+          ? 0.78 + 0.22 * (
+            0.5 + 0.5 * Math.sin(now * 0.0023 + bolt.seed)
+            * (0.5 + 0.5 * Math.sin(now * 0.0057 + bolt.seed * 2.1))
+          )
+          : 1
+        const intensityScale = beatBoost * ambientFlicker
+        const lightIntensityScale = lightBeatBoost * ambientFlicker
+        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker * intensityScale
+        bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker * intensityScale
+        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope * intensityScale
         // Flashes en endpoints: destello más corto (potencia^2) para reforzar
         // "arranque/impacto" del rayo sin robar continuidad al halo.
-        const flash = BOLT_ENDPOINT_OPACITY * eased * eased
+        const flash = BOLT_ENDPOINT_OPACITY * eased * eased * intensityScale
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = flash
         if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = flash
         // Glow volumétrico y luz real siguen el mismo envelope del rayo.
         for (const glow of bolt.rayGlows) {
           (glow.material as THREE.SpriteMaterial).opacity =
-            BOLT_RAY_GLOW_OPACITY * envelope
+            BOLT_RAY_GLOW_OPACITY * envelope * intensityScale
         }
         if (bolt.light) {
-          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope
+          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope * lightIntensityScale
         }
         // Un pequeño re-jitter a mitad de vida da sensación de descarga viva.
         if (t > 0.45 && t < 0.55) rewriteBolt(bolt, 0.7)
+      }
+      if (drawBeat > 0.001) {
+        for (const sceneNode of sceneNodes) {
+          sceneNode.mesh.scale.setScalar(1 + 0.06 * drawBeat)
+        }
+      } else {
+        for (const sceneNode of sceneNodes) {
+          sceneNode.mesh.scale.setScalar(1)
+        }
       }
       controls.update()
       render()

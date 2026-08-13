@@ -10,7 +10,12 @@ import type { WikiGraphData } from '../wikiGraph'
 // propio. Lo que verifica el test es el ciclo append→cleanup→append cuando
 // `active` alterna, no las matemáticas de la escena.
 vi.mock('three', () => {
-  class Color { copy(): this { return this }; clone(): Color { return new Color() }; lerp(): this { return this } }
+  class Color {
+    copy(): this { return this }
+    clone(): Color { return new Color() }
+    lerp(): this { return this }
+    multiplyScalar(): this { return this }
+  }
   class Vector2 {}
   class Vector3 {
     x = 0; y = 0; z = 0
@@ -83,7 +88,19 @@ vi.mock('three', () => {
   class SphereGeometry { dispose(): void {} }
   class MeshBasicMaterial { color = new Color(); dispose(): void {} }
   class MeshLambertMaterial { color = new Color(); dispose(): void {} }
+  class MeshStandardMaterial {
+    color = new Color()
+    emissive = new Color()
+    metalness = 0
+    roughness = 0
+    dispose(): void {}
+  }
   class AmbientLight { __kind = 'AmbientLight' as const }
+  class HemisphereLight { __kind = 'HemisphereLight' as const }
+  class DirectionalLight {
+    __kind = 'DirectionalLight' as const
+    position = { set: (): void => undefined }
+  }
   class PointLight {
     __kind = 'PointLight' as const
     color = new Color()
@@ -101,11 +118,15 @@ vi.mock('three', () => {
   }
   class Mesh {
     __kind = 'Mesh' as const
-    material: MeshBasicMaterial
+    material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial
     geometry: SphereGeometry
     position = new Vector3()
+    scale = { setScalar: (): void => undefined }
     userData: Record<string, unknown> = {}
-    constructor(geometry: SphereGeometry, material: MeshBasicMaterial) {
+    constructor(
+      geometry: SphereGeometry,
+      material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial,
+    ) {
       this.geometry = geometry; this.material = material
     }
   }
@@ -126,6 +147,9 @@ vi.mock('three', () => {
     AmbientLight,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    MeshStandardMaterial,
+    HemisphereLight,
+    DirectionalLight,
     PointLight,
     PerspectiveCamera,
     Raycaster,

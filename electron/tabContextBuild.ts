@@ -1214,7 +1214,10 @@ export function materializeTabContext(
       if (!existsSync(filePath)) {
         if (options.write && contextToWrite.issueKey) {
           const metadataLine = jiraContextMetadataLine(contextToWrite.issueKey)
-          const placeholder = withJiraAutoBlock('', metadataLine, '')
+          // El llamador puede traer ya el snapshot (el formulario lo acaba de
+          // pedir para la vista previa). Si lo trae, el archivo nace con la
+          // issue dentro en vez de vacío a la espera del primer turno.
+          const placeholder = withJiraAutoBlock('', metadataLine, (options.content ?? '').trim())
           mkdirSync(projectDirPath(cwd, 'jira'), { recursive: true })
           writeFileSync(filePath, placeholder, 'utf8')
           return {

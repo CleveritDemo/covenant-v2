@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { discoverTabContexts, materializeTabContext } from '../tabContextBuild'
@@ -150,6 +150,32 @@ describe('materializeTabContext con kind jira — alta desde el gestor (write:tr
     expect(existsSync(issuePath(dir))).toBe(true)
     expect(result.content).toContain('<!-- iaterminal:auto -->')
     expect(result.content).toContain('<!-- iaterminal:notes -->')
+  })
+
+  it('con `content`, el archivo nace con la issue dentro y no vacío', () => {
+    // El formulario acaba de pedirle la issue a Jira para la vista previa. Sin
+    // pasarla aquí, el contexto se creaba vacío y decía «no content yet» justo
+    // después de haber enseñado el ticket entero — y si nadie lo adjuntaba a un
+    // turno, se quedaba así para siempre: el refrescador solo mira los
+    // contextos de un turno.
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+    const snapshot = '## Resumen\nGRAV-412 · Loop chain colgada\nEstado: In Progress'
+
+    const result = materializeTabContext(context, dir, { write: true, content: snapshot })
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('Loop chain colgada')
+    expect(readFileSync(issuePath(dir), 'utf8')).toContain('Loop chain colgada')
+  })
+
+  it('sin `content` sigue escribiendo el placeholder vacío', () => {
+    // La mención del composer y el brief de una sala no traen snapshot: adjuntan
+    // y dejan que el refrescador rellene antes del turno.
+    const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-create-'))
+    const result = materializeTabContext(context, dir, { write: true })
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('<!-- iaterminal:auto -->')
+    expect(result.content).not.toContain('## Resumen')
   })
 
   it('con snapshot ya existente, write:true no lo pisa (comportamiento sin cambios)', () => {

@@ -255,3 +255,8 @@
   min-height: 0;
   max-height: none;
 }
+
+/* Ancla del desplegable de menciones de Jira sobre el objetivo de la sala. */
+.brainstorm-start__mention-anchor {
+  position: relative;
+}

@@ -117,6 +117,40 @@ export function appendLoopStep(
   }
 }
 
+/**
+ * Reordena un paso dentro de la cadena (drag de la pista).
+ * Índices fuera de rango o iguales → la misma cadena.
+ * ponytail: no toca el cursor; la UI solo permite reordenar cadenas detenidas.
+ */
+export function moveLoopStep(
+  chain: PlaneLoopChain,
+  from: number,
+  to: number,
+): PlaneLoopChain {
+  const last = chain.steps.length - 1
+  if (from < 0 || from > last || to < 0 || to > last || from === to) return chain
+  const steps = [...chain.steps]
+  const [moved] = steps.splice(from, 1)
+  steps.splice(to, 0, moved!)
+  return { ...chain, steps }
+}
+
+/** Actualiza la interacción de un paso (edición en línea en la pista). */
+export function setLoopStepObjective(
+  chain: PlaneLoopChain,
+  paneId: string,
+  objective: string,
+): PlaneLoopChain {
+  const text = objective.trim()
+  if (!text) return chain
+  return {
+    ...chain,
+    steps: chain.steps.map(step => (
+      step.paneId === paneId ? { ...step, objective: text } : step
+    )),
+  }
+}
+
 /** Quita pasos de paneles inexistentes; descarta cadenas vacías. */
 export function sanitizePlaneLoopChains(
   chains: unknown,

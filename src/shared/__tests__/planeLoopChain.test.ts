@@ -5,10 +5,12 @@ import {
   appendLoopStep,
   canAppendLoopStep,
   createLoopChain,
+  moveLoopStep,
   paneIdsUsedInLoopChains,
   planeLoopChainsForPersist,
   removePaneFromLoopChains,
   sanitizePlaneLoopChains,
+  setLoopStepObjective,
 } from '@shared/planeLoopChain'
 
 describe('planeLoopChain', () => {
@@ -114,6 +116,29 @@ describe('planeLoopChain', () => {
     expect(next[0]?.steps.map(step => step.paneId)).toEqual(['a', 'c'])
     expect(next[0]?.cursor).toBe(1)
     expect(next[0]?.status).toBe('stopped')
+  })
+
+  it('reorders steps and ignores out-of-range moves', () => {
+    const chain = appendLoopStep(
+      appendLoopStep(createLoopChain('a', 'one')!, 'b', 'two')!,
+      'c',
+      'three',
+    )!
+    expect(moveLoopStep(chain, 2, 0).steps.map(step => step.paneId)).toEqual(['c', 'a', 'b'])
+    expect(moveLoopStep(chain, 0, 1).steps.map(step => step.paneId)).toEqual(['b', 'a', 'c'])
+    expect(moveLoopStep(chain, 1, 1)).toBe(chain)
+    expect(moveLoopStep(chain, -1, 0)).toBe(chain)
+    expect(moveLoopStep(chain, 0, 3)).toBe(chain)
+  })
+
+  it('edits a step objective in place, ignoring blanks', () => {
+    const chain = appendLoopStep(createLoopChain('a', 'one')!, 'b', 'two')!
+    expect(setLoopStepObjective(chain, 'b', '  three  ').steps).toEqual([
+      { paneId: 'a', objective: 'one' },
+      { paneId: 'b', objective: 'three' },
+    ])
+    expect(setLoopStepObjective(chain, 'b', '   ')).toBe(chain)
+    expect(setLoopStepObjective(chain, 'zz', 'nope').steps).toEqual(chain.steps)
   })
 
   it('lists panes of running or waiting chains', () => {

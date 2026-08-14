@@ -88,6 +88,33 @@ export function sanitizeBrainstormMaxRounds(raw: unknown): number {
   return n
 }
 
+/**
+ * Las tres paradas del selector de duración: rápida, equilibrada y a fondo.
+ * El campo sigue aceptando cualquier entero hasta el cap (una ceremonia sugiere
+ * 4 ó 5); las paradas son solo lo que ofrece el control.
+ */
+export const BRAINSTORM_ROUND_STOPS = [1, 3, 6] as const
+
+/** Parada más cercana a un número libre de rondas, para colocar el pulgar. */
+export function brainstormRoundStopIndex(rounds: number): number {
+  const target = sanitizeBrainstormMaxRounds(rounds)
+  let best = 0
+  for (let i = 1; i < BRAINSTORM_ROUND_STOPS.length; i++) {
+    const closer = Math.abs(BRAINSTORM_ROUND_STOPS[i] - target)
+      < Math.abs(BRAINSTORM_ROUND_STOPS[best] - target)
+    if (closer) best = i
+  }
+  return best
+}
+
+/** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
+export const MINUTES_PER_TURN = 0.4
+
+/** Minutos redondeados de una tirada, nunca cero. */
+export function brainstormRunMinutes(turns: number): number {
+  return Math.max(1, Math.round(turns * MINUTES_PER_TURN))
+}
+
 function newRoomId(): string {
   const uuid = globalThis.crypto?.randomUUID?.()
   if (uuid) return uuid

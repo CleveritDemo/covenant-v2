@@ -102,10 +102,14 @@ describe('orden de habla — arrastrar cambia el turno', () => {
       const card = cards.find(node => node.textContent?.includes(name))
       fireEvent.click(card as HTMLElement)
     })
+    // El orden vive en el cajón de «quién habla» de la frase.
+    fireEvent.click(document.querySelectorAll('.brainstorm-sentence__tok')[0])
   }
 
+  /** Solo los sentados: van primero y en orden de habla. */
   function order(): string[] {
-    return Array.from(document.querySelectorAll('.brainstorm-start__order-item'))
+    return Array.from(document.querySelectorAll('.brainstorm-sentence__opt'))
+      .filter(node => node.getAttribute('aria-pressed') === 'true')
       .map(node => node.textContent?.replace(/^\d+/, '') ?? '')
   }
 
@@ -113,7 +117,7 @@ describe('orden de habla — arrastrar cambia el turno', () => {
     open()
     expect(order()).toEqual(['rodrigo', 'ana', 'nico'])
 
-    const items = document.querySelectorAll('.brainstorm-start__order-item')
+    const items = document.querySelectorAll('.brainstorm-sentence__opt')
     fireEvent.dragStart(items[2])
     fireEvent.dragOver(items[0])
     fireEvent.drop(items[0])
@@ -127,7 +131,7 @@ describe('orden de habla — arrastrar cambia el turno', () => {
 
   it('soltar sobre sí mismo no cambia nada', () => {
     open()
-    const items = document.querySelectorAll('.brainstorm-start__order-item')
+    const items = document.querySelectorAll('.brainstorm-sentence__opt')
     fireEvent.dragStart(items[1])
     fireEvent.drop(items[1])
     expect(order()).toEqual(['rodrigo', 'ana', 'nico'])

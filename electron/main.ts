@@ -1900,18 +1900,35 @@ function registerIpc(): void {
       return { ok: false, error: (error as Error).message }
     }
   })
-  ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
+  /**
+   * `materializeTabContext` es síncrono y nunca llama a Jira, así que un
+   * contexto jira nacía con la región `auto` vacía y seguía vacío hasta el
+   * primer turno que lo adjuntara: abrirlo mostraba un `.md` sin la issue y su
+   * chip salía punteado («stale») con solo la clave. El refresher del turno ya
+   * sabe rellenarlo —y trae su cooldown de fallos y su presupuesto de tiempo—,
+   * así que se corre también aquí. Si el llamador ya trae el snapshot (el
+   * formulario lo pidió para la vista previa) no hay nada que buscar.
+   */
+  const fillJiraSnapshot = async (request: TabContextPreviewRequest): Promise<void> => {
+    if (request.context?.kind !== 'jira') return
+    if ((request.content ?? '').trim()) return
+    // Nunca debería rechazar, pero abrir un contexto no puede caerse por Jira.
+    await refreshStaleJiraContexts([request.context], request.cwd).catch(() => {})
+  }
+  ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, async (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
+    await fillJiraSnapshot(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
     })
   })
-  ipcMain.handle(IPC.TAB_CONTEXT_MATERIALIZE, (_event, request: TabContextPreviewRequest) => {
+  ipcMain.handle(IPC.TAB_CONTEXT_MATERIALIZE, async (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
+    await fillJiraSnapshot(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
       write: true,

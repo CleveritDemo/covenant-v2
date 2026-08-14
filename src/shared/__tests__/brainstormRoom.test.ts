@@ -4,9 +4,12 @@ import {
   BRAINSTORM_HUMAN_AGENT_ID,
   BRAINSTORM_HUMAN_AGENT_NAME,
   BRAINSTORM_MAX_ROUNDS_CAP,
+  BRAINSTORM_ROUND_STOPS,
   BRAINSTORM_WORKING_SET_CAP,
   advanceBrainstormCursor,
   appendBrainstormHumanMessage,
+  brainstormRoundStopIndex,
+  brainstormRunMinutes,
   brainstormSeats,
   brainstormTurnCount,
   brainstormTurnsDone,
@@ -48,6 +51,24 @@ describe('sanitizeBrainstormMaxRounds', () => {
     expect(sanitizeBrainstormMaxRounds(0)).toBe(1)
     expect(sanitizeBrainstormMaxRounds(99)).toBe(BRAINSTORM_MAX_ROUNDS_CAP)
     expect(sanitizeBrainstormMaxRounds(4.7)).toBe(4)
+  })
+})
+
+describe('brainstormRoundStopIndex', () => {
+  it('lands on the nearest stop, including the 4/5 a ceremony suggests', () => {
+    expect(BRAINSTORM_ROUND_STOPS.map(brainstormRoundStopIndex)).toEqual([0, 1, 2])
+    expect(brainstormRoundStopIndex(4)).toBe(1)
+    expect(brainstormRoundStopIndex(5)).toBe(2)
+    expect(brainstormRoundStopIndex(10)).toBe(2)
+    // Sin valor válido cae en el default (3 rondas), no en la primera parada.
+    expect(brainstormRoundStopIndex(NaN)).toBe(1)
+  })
+})
+
+describe('brainstormRunMinutes', () => {
+  it('never promises zero minutes', () => {
+    expect(brainstormRunMinutes(0)).toBe(1)
+    expect(brainstormRunMinutes(9)).toBe(4)
   })
 })
 

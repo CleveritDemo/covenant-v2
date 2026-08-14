@@ -3,25 +3,45 @@
  * el brief original pedía `--fg`/`--fg-dim`, que no existen en ningún tema — el
  * equivalente real es `--text`/`--text-muted`.
  */
+/*
+ * Una fila más de la lista de contextos del mini, no un pill aparte: mismas
+ * medidas y tipografía que `.plane-context-card--labeled` + `__name`. El pill
+ * con borde, `--font-mono` y 12px destacaba sobre sus vecinos como si fuera
+ * otro control.
+ */
 .jira-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  max-width: 100%;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  /* Como `.plane-context-card`: el color del contexto es del ícono; el texto
+     lo pisa con el mismo gris de `.plane-context-card__name`. */
+  color: var(--context-color, var(--accent));
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-align: left;
   cursor: pointer;
 }
 
 .jira-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.jira-chip--stale { border-style: dashed; opacity: .75; }
-.jira-chip__key { flex: 0 0 auto; font-family: var(--font-mono); color: var(--accent); }
+
+/* Sin borde no hay «punteado». El snapshot viejo atenúa solo el ícono: el
+   texto tiene que leerse exactamente igual que el de las filas vecinas
+   (el `__stale-label` y el hint del tooltip siguen contando el resto). */
+.jira-chip--stale > svg { opacity: .45; }
+
+.jira-chip__key {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
+}
 
 /* Igual que `.plane-context-card__name` (la fila que este chip sustituye
    para jira): recorta con ellipsis en vez de desbordar la lista angosta del
@@ -32,7 +52,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
 }
 
 /*

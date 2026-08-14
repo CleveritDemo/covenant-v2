@@ -20,6 +20,8 @@ export interface JiraIssueChipProps {
    * `.md` no la trae.
    */
   updated?: string
+  /** Color del contexto en el catálogo: tiñe el ícono como en las demás filas. */
+  color?: string
   onOpen: () => void
 }
 
@@ -35,6 +37,7 @@ export const JiraIssueChip: React.FC<JiraIssueChipProps> = ({
   status,
   stale,
   updated = '',
+  color,
   onOpen,
 }) => {
   const { t } = useT()
@@ -49,9 +52,10 @@ export const JiraIssueChip: React.FC<JiraIssueChipProps> = ({
       <button
         type="button"
         className={['jira-chip', stale ? 'jira-chip--stale' : ''].filter(Boolean).join(' ')}
+        style={{ '--context-color': color } as React.CSSProperties}
         onClick={onOpen}
       >
-        <Icon name="jira" size={12} aria-hidden />
+        <Icon name="jira" size={10} aria-hidden />
         <span className="jira-chip__key">{issueKey}</span>
         {status ? <span className="jira-chip__status">{status}</span> : null}
         {/*

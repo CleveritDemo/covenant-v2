@@ -8,6 +8,8 @@ import { projectDirPath } from '../projectDir'
 import { applyWikiIngest, ensureWikiWithSeed } from '../wikiStore'
 import {
   clearWikiCuratorForTests,
+  applyWikiCuratorConfigToApp,
+  maybeMigrateWikiCuratorFromProject,
   startWikiCuratorTurn,
   writeWikiCuratorConfig,
   type WikiCuratorRunner,
@@ -35,11 +37,10 @@ describe('startWikiCuratorTurn provider', () => {
     }
   })
 
-  it('usa el provider de curator.json cuando está configurado', () => {
+  it('usa el provider de AppConfig.wikiCurator cuando está configurado', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-prov-'))
     dirs.push(cwd)
     expect(ensureWikiWithSeed(cwd).ok).toBe(true)
-    expect(writeWikiCuratorConfig(cwd, { provider: 'cursor', model: 'auto' }).ok).toBe(true)
 
     const requests: AgentCliStartRequest[] = []
     const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
@@ -47,10 +48,15 @@ describe('startWikiCuratorTurn provider', () => {
       handlers.onDone(0)
     }
 
+    const appConfig = {
+      agentCliCommands: {},
+      wikiCurator: { provider: 'cursor' as const, model: 'auto' },
+    } as AppConfig
+
     const result = startWikiCuratorTurn(
       fakeWindow(),
       { cwd, message: 'lista pages' },
-      { agentCliCommands: {} } as AppConfig,
+      appConfig,
       '/home',
       { runner },
     )
@@ -62,11 +68,10 @@ describe('startWikiCuratorTurn provider', () => {
     expect(requests[0]!.permissionMode).toBe('plan')
   })
 
-  it('cae a claude cuando curator.json no trae provider', () => {
+  it('cae a claude cuando AppConfig.wikiCurator no trae provider', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-fb-'))
     dirs.push(cwd)
     expect(ensureWikiWithSeed(cwd).ok).toBe(true)
-    expect(writeWikiCuratorConfig(cwd, { name: 'Solo nombre' }).ok).toBe(true)
 
     const requests: AgentCliStartRequest[] = []
     const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
@@ -74,10 +79,15 @@ describe('startWikiCuratorTurn provider', () => {
       handlers.onDone(0)
     }
 
+    const appConfig = {
+      agentCliCommands: {},
+      wikiCurator: { name: 'Solo nombre' },
+    } as AppConfig
+
     const result = startWikiCuratorTurn(
       fakeWindow(),
       { cwd, message: 'hola' },
-      { agentCliCommands: {} } as AppConfig,
+      appConfig,
       '/home',
       { runner },
     )
@@ -307,5 +317,63 @@ describe('startWikiCuratorTurn provider', () => {
     expect(requests[0]!.prompt).toContain('## Init mode')
     expect(requests[0]!.contexts.some(c => c.kind === 'wiki')).toBe(true)
     expect(requests[0]!.contexts.some(c => c.kind === 'folderTree')).toBe(true)
+  })
+})
+
+describe('wikiCurator AppConfig helpers', () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) {
+      try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
+    }
+  })
+
+  it('maybeMigrateWikiCuratorFromProject copia curator.json cuando AppConfig está vacío', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-mig-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+    expect(writeWikiCuratorConfig(cwd, { provider: 'cursor', model: 'composer-2.5' }).ok).toBe(true)
+
+    const appConfig = { agentCliCommands: {}, wikiCurator: {} } as AppConfig
+    const result = maybeMigrateWikiCuratorFromProject(cwd, appConfig)
+
+    expect(result.migrated).toBe(true)
+    expect(result.config).toEqual({ provider: 'cursor', model: 'composer-2.5' })
+    expect(result.appConfig.wikiCurator).toEqual({ provider: 'cursor', model: 'composer-2.5' })
+  })
+
+  it('maybeMigrateWikiCuratorFromProject no migra si AppConfig ya tiene curador', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-no-mig-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+    expect(writeWikiCuratorConfig(cwd, { provider: 'claude', model: 'opus' }).ok).toBe(true)
+
+    const appConfig = {
+      agentCliCommands: {},
+      wikiCurator: { provider: 'cursor', model: 'auto' },
+    } as AppConfig
+    const result = maybeMigrateWikiCuratorFromProject(cwd, appConfig)
+
+    expect(result.migrated).toBe(false)
+    expect(result.config).toEqual({ provider: 'cursor', model: 'auto' })
+  })
+
+  it('applyWikiCuratorConfigToApp sanitiza y devuelve AppConfig actualizado', () => {
+    const appConfig = { agentCliCommands: {}, wikiCurator: {} } as AppConfig
+    const applied = applyWikiCuratorConfigToApp(appConfig, {
+      name: 'Wiki TL',
+      provider: 'cursor',
+      model: 'auto',
+      rules: ['corta'],
+    })
+
+    expect(applied.config).toEqual({
+      name: 'Wiki TL',
+      provider: 'cursor',
+      model: 'auto',
+      rules: ['corta'],
+    })
+    expect(applied.appConfig.wikiCurator).toEqual(applied.config)
   })
 })

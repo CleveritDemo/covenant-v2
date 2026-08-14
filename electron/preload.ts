@@ -300,6 +300,15 @@ const api = {
   }): Promise<{ ok: boolean; filePath?: string; error?: string }> {
     return ipcRenderer.invoke(IPC.AGENT_RESULTS_SET_NOTES, request)
   },
+  readAgentResultsLatest(request: {
+    cwd: string
+    agentId: string
+  }): Promise<
+    | { ok: true; summary: string | null; changes: string[] }
+    | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.AGENT_RESULTS_READ_LATEST, request)
+  },
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)
   },

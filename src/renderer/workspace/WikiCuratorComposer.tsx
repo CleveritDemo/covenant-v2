@@ -47,7 +47,7 @@ export interface WikiCuratorComposerProps {
   bootstrapInitToken?: number
 }
 
-/** CLI por defecto del curador cuando `curator.json` no trae provider. */
+/** CLI por defecto del curador cuando AppConfig no trae provider. */
 const DEFAULT_CURATOR_PROVIDER: AgentCliProvider = 'claude'
 
 const IMAGE_ONLY_USER_TEXT = '(imagen adjunta)'
@@ -68,6 +68,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const historyWrapRef = useRef<HTMLDivElement>(null)
   const historyPanelRef = useRef<HTMLDivElement>(null)
   const rawReplyRef = useRef('')
   const pendingImagesRef = useRef<ComposerPendingImage[]>([])
@@ -383,6 +384,22 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     panel.scrollTop = panel.scrollHeight
   }, [history, reply, errorText, thinking])
 
+  const scrollHistoryToEnd = useCallback((): void => {
+    const panel = historyPanelRef.current
+    if (!panel) return
+    panel.scrollTop = panel.scrollHeight
+  }, [])
+
+  const handleHistoryWrapMouseLeave = useCallback((): void => {
+    scrollHistoryToEnd()
+  }, [scrollHistoryToEnd])
+
+  const handleHistoryTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>): void => {
+    if (event.propertyName === 'max-height') {
+      scrollHistoryToEnd()
+    }
+  }, [scrollHistoryToEnd])
+
   return (
     <div
       ref={rootRef}
@@ -451,11 +468,16 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       ) : null}
 
       {showHistoryPanel ? (
-        <div className="wiki-curator-composer__history-wrap">
+        <div
+          ref={historyWrapRef}
+          className="wiki-curator-composer__history-wrap"
+          onMouseLeave={handleHistoryWrapMouseLeave}
+        >
           <div
             ref={historyPanelRef}
             className="wiki-curator-composer__history"
             aria-label={t('tabs.wikiCuratorHistoryLabel')}
+            onTransitionEnd={handleHistoryTransitionEnd}
           >
             {history.map((entry, index) => (
               <p

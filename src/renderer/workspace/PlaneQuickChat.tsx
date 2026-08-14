@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
@@ -24,6 +25,7 @@ export interface PlaneQuickChatProps {
   onShowingChange?: (showing: boolean) => void
   /** Stop por fila en Waiting (solo esa delegación). */
   onAbortDelegation?: (delegationId: string) => void
+  projectAgents?: ProjectAgentDefinition[]
 }
 
 /** Conversación user/assistant del plano (sin system). */
@@ -48,6 +50,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   settlingId = null,
   onShowingChange,
   onAbortDelegation,
+  projectAgents = [],
 }) => {
   const { t } = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -119,6 +122,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 settlingId={settlingId}
                 surface="pane"
                 scrollRef={scrollRef}
+                projectAgents={projectAgents}
               />
               {awaitingDelegations ? (
                 <div className="plane-quick-chat__delegating">

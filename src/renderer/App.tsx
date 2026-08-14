@@ -68,6 +68,8 @@ import {
 } from '@shared/paneWindows'
 import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
+import { isHumanQueuedTurn, queuedTurnHumanKey } from './agent/queuedTurnDedup'
+import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
@@ -87,6 +89,11 @@ import {
   shouldAbortOnHumanTurn,
 } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
+import {
+  buildDelegationTurnSummary,
+  isBetterDelegationSummary,
+  isDelegationSummaryPlaceholder,
+} from '@shared/delegationTurnSummary'
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
@@ -197,6 +204,7 @@ import {
   allocateAgentSlug,
   agentBindingFromMeta,
   agentDefinitionFromMeta,
+  agentResultContextIdForSlug,
   buildNewProjectAgentDefinition,
   cloneProjectAgentDefinition,
   isAgentOwnResultContext,
@@ -3271,12 +3279,7 @@ export const App: React.FC = () => {
         && previous.localLoopActive === status.localLoopActive
         && previous.turnCloseReason === status.turnCloseReason
         && previous.loopEndReason === status.loopEndReason
-        && (previous.queuedTurns?.length ?? 0) === status.queuedTurns.length
-        && (previous.queuedTurns ?? []).every((item, i) =>
-          item.id === status.queuedTurns[i]?.id
-          && item.text === status.queuedTurns[i]?.text
-          && item.images.length === status.queuedTurns[i]?.images.length,
-        )
+        && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
         && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
@@ -4417,11 +4420,27 @@ export const App: React.FC = () => {
     let job: OrchestrationJob | undefined
     for (const [paneId, jobsMap] of orchestrationJobsByPaneRef.current.entries()) {
       const found = findJobByDelegation(jobsMap.values(), result.id)
-      if (found && found.pending.has(result.id)) {
+      if (found) {
         fromPaneId = paneId
         job = found
         break
       }
+    }
+    if (fromPaneId && job && !job.pending.has(result.id)) {
+      const existingIdx = job.completedResults.findIndex(item => item.id === result.id)
+      if (existingIdx >= 0) {
+        const existing = job.completedResults[existingIdx]
+        if (isBetterDelegationSummary(existing.summary, result.summary)) {
+          job.completedResults[existingIdx] = {
+            ...existing,
+            summary: result.summary,
+            ...(result.resultContextId ? { resultContextId: result.resultContextId } : {}),
+          }
+        }
+        return
+      }
+      fromPaneId = undefined
+      job = undefined
     }
     if (!fromPaneId || !job) {
       // Resultado sin pending: aviso tardío, doble, o el job "oficial" ya
@@ -4671,28 +4690,62 @@ export const App: React.FC = () => {
     })) return
     // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
     if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-    reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
-    void window.api.isAgentTurnActive(paneId).catch(() => false).then(turnActive => {
-      if (turnActive) return
-      const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
-      if (!still || still.delegationId !== found.delegationId) return
-      if (!canReconcileIdlePending(still.sawBusy, {
-        startedAt: still.startedAt,
-        nowMs: Date.now(),
-      })) return
-      if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-      // El turno murió por error de CLI: `summary` es el texto del fallo, no un
-      // resultado. Cerrarlo como 'ok' hacía que el orquestador lo re-delegara.
-      void handleDelegationTurnComplete({
-        id: found.delegationId,
-        status: failed ? 'fail' : 'ok',
-        summary: summary.trim() || i18next.t('agentPane.delegationEmptySummary'),
-        toAgentId: found.toAgentId,
-        toPaneId: paneId,
+
+    const runReconcile = (): void => {
+      reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
+      void window.api.isAgentTurnActive(paneId).catch(() => false).then(async turnActive => {
+        if (turnActive) return
+        const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
+        if (!still || still.delegationId !== found.delegationId) return
+        if (!canReconcileIdlePending(still.sawBusy, {
+          startedAt: still.startedAt,
+          nowMs: Date.now(),
+        })) return
+        if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+        const emptyFallback = i18next.t('agentPane.delegationEmptySummary')
+        let finalSummary = summary.trim() || emptyFallback
+        let resultContextId: string | undefined
+        if (isDelegationSummaryPlaceholder(finalSummary) && still.toAgentId) {
+          const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+          const cwd = tab?.projectFolder?.trim()
+          if (cwd) {
+            const results = await window.api.readAgentResultsLatest({
+              cwd,
+              agentId: still.toAgentId,
+            })
+            if (results.ok) {
+              finalSummary = buildDelegationTurnSummary({
+                assistantText: finalSummary,
+                resultsSummary: results.summary,
+                resultsChanges: results.changes,
+                emptyFallback,
+              })
+              if (!isDelegationSummaryPlaceholder(finalSummary)) {
+                resultContextId = agentResultContextIdForSlug(still.toAgentId)
+              }
+            }
+          }
+        }
+        // El turno murió por error de CLI: `summary` es el texto del fallo, no un
+        // resultado. Cerrarlo como 'ok' hacía que el orquestador lo re-delegara.
+        void handleDelegationTurnComplete({
+          id: found.delegationId,
+          status: failed ? 'fail' : 'ok',
+          summary: finalSummary,
+          toAgentId: found.toAgentId,
+          toPaneId: paneId,
+          ...(resultContextId ? { resultContextId } : {}),
+        })
+      }).finally(() => {
+        reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
       })
-    }).finally(() => {
-      reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
-    })
+    }
+
+    if (found.sawBusy) {
+      window.setTimeout(runReconcile, 300)
+    } else {
+      runReconcile()
+    }
   }
 
   const requestPlaneStop = useCallback((paneId: string) => {
@@ -4960,7 +5013,23 @@ export const App: React.FC = () => {
   }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
 
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
+    const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
+    if (!target || !isHumanQueuedTurn(target)) return
+    const removedKey = queuedTurnHumanKey(target)
+    setPlaneSendByPane(prev => {
+      const pending = prev[paneId]
+      if (!pending || !isHumanQueuedTurn(pending)) return prev
+      if (queuedTurnHumanKey({
+        text: pending.text,
+        images: Array.from({ length: pending.images?.length ?? 0 }, () => ({ previewUrl: '' })),
+      }) !== removedKey) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
   }, [])
 
   const handlePlaneUpdateQueuedTurn = useCallback((paneId: string, id: string, text: string) => {
@@ -6010,7 +6079,6 @@ export const App: React.FC = () => {
                     t('tabs.planeConfirmDeleteContextMessage', { name })
                   )}
                   contextPoolDeleteConfirmDetail={t('tabs.planeConfirmDeleteContextDetail')}
-                  contextPoolTrashDropLabel={t('tabs.planeContextPoolTrashDrop')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -6068,15 +6136,25 @@ export const App: React.FC = () => {
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
                     yieldChainOfferForUserSend(paneId)
-                    setPlaneSendByPane(prev => ({
-                      ...prev,
-                      [paneId]: {
-                        text,
-                        images,
-                        focusPane: true,
-                        ...(contextIds.length ? { extraContextIds: contextIds } : {}),
-                      },
-                    }))
+                    const queued = agentPlaneStatusRef.current[paneId]?.queuedTurns ?? []
+                    const inboundKey = queuedTurnHumanKey({
+                      text,
+                      images: Array.from({ length: images.length }, () => ({ previewUrl: '' })),
+                    })
+                    const alreadyQueued = queued.some(
+                      turn => isHumanQueuedTurn(turn) && queuedTurnHumanKey(turn) === inboundKey,
+                    )
+                    if (!alreadyQueued) {
+                      setPlaneSendByPane(prev => ({
+                        ...prev,
+                        [paneId]: {
+                          text,
+                          images,
+                          focusPane: true,
+                          ...(contextIds.length ? { extraContextIds: contextIds } : {}),
+                        },
+                      }))
+                    }
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {
                         if (tabItem.id !== tab.id) return tabItem
@@ -6144,6 +6222,7 @@ export const App: React.FC = () => {
                   openChatThreads={openChatThreadState?.threads ?? []}
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   agentStatuses={agentPlaneStatus}
+                  projectAgents={projectAgentsByCwd[agentCatalogKey] ?? []}
                   chatFontSize={config.fontSize ?? 13}
                   systemSoundsEnabled={config.systemSoundsEnabled !== false}
                   configLabel={t('agentPane.openConfig')}

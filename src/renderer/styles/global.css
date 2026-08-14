@@ -110,6 +110,14 @@
     inset 0 0 0 1px var(--plane-highlight);
 }
 
+/* Temas oscuros: cristal del plano opaco (sin mezcla con transparent/surface). */
+:root[data-theme-appearance='dark'] {
+  --plane-glass: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg));
+  --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg));
+  --plane-node-bg: color-mix(in srgb, var(--bg-secondary) 90%, var(--bg));
+  --plane-node-solid: color-mix(in srgb, var(--bg) 60%, var(--bg-secondary));
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;

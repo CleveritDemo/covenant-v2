@@ -14,7 +14,7 @@ import type {
   WikiGraphNodeType,
 } from '@shared/wikiGraph'
 
-export { buildWikiGraphData } from '@shared/wikiGraph'
+export { buildWikiGraphData, getMostRecentlyUpdatedWikiSlugs } from '@shared/wikiGraph'
 export type {
   WikiGraphData,
   WikiGraphEdge,

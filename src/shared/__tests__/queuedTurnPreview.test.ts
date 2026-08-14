@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest'
+import {
+  buildBatchedDelegationFollowUp,
+  formatDelegationResultFollowUp,
+} from '../agentOrchestration'
+import type { ProjectAgentDefinition } from '../projectAgentCatalog'
+import { resolveQueuedTurnPreview } from '../queuedTurnPreview'
+
+const catalog: ProjectAgentDefinition[] = [
+  {
+    id: 'frontend',
+    name: 'David',
+    role: 'frontend engineer',
+    provider: 'cursor',
+    permissionMode: 'auto',
+  },
+  {
+    id: 'qa',
+    name: 'Vanesa',
+    role: 'qa',
+    provider: 'cursor',
+    permissionMode: 'auto',
+  },
+]
+
+describe('resolveQueuedTurnPreview', () => {
+  it('human — sin follow-up ni delegation', () => {
+    expect(resolveQueuedTurnPreview({ text: 'Fix login' })).toEqual({ kind: 'human' })
+  })
+
+  it('delegation_result ok con nombre de catálogo y resumen corto', () => {
+    const text = formatDelegationResultFollowUp({
+      id: 'd1',
+      status: 'ok',
+      summary: 'Login form validated on submit.',
+      toAgentId: 'frontend',
+    })
+    expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toEqual({
+      kind: 'delegation_result',
+      agentLabel: 'David · frontend engineer',
+      status: 'ok',
+      summarySnippet: 'Login form validated on submit.',
+    })
+  })
+
+  it('delegation_result fail conserva status', () => {
+    const text = formatDelegationResultFollowUp({
+      id: 'd2',
+      status: 'fail',
+      summary: 'Build broke.',
+      toAgentId: 'qa',
+    })
+    expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toMatchObject({
+      kind: 'delegation_result',
+      agentLabel: 'Vanesa · qa',
+      status: 'fail',
+      summarySnippet: 'Build broke.',
+    })
+  })
+
+  it('delegation_results_batch con dos cards', () => {
+    const text = buildBatchedDelegationFollowUp([
+      {
+        id: 'd1',
+        status: 'ok',
+        summary: 'Frontend done.',
+        toAgentId: 'frontend',
+      },
+      {
+        id: 'd2',
+        status: 'fail',
+        summary: 'QA blocked.',
+        toAgentId: 'qa',
+      },
+    ])
+    expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toEqual({
+      kind: 'delegation_results_batch',
+      items: [
+        {
+          agentLabel: 'David · frontend engineer',
+          status: 'ok',
+          summarySnippet: 'Frontend done.',
+        },
+        {
+          agentLabel: 'Vanesa · qa',
+          status: 'fail',
+          summarySnippet: 'QA blocked.',
+        },
+      ],
+    })
+  })
+
+  it('delegation_task con réplica frontend-2', () => {
+    expect(resolveQueuedTurnPreview({
+      text: 'Implement UI',
+      delegation: {
+        id: 'dlg-1',
+        fromPaneId: 'orch',
+        toAgentId: 'frontend-2',
+      },
+    }, catalog)).toEqual({
+      kind: 'delegation_task',
+      agentLabel: 'David · frontend engineer',
+      instanceTag: 'R2',
+    })
+  })
+
+  it('fallback human cuando follow-up no parsea cards', () => {
+    const text = '## Delegation result\nSome raw host text without id/status lines'
+    const preview = resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)
+    expect(preview.kind).toBe('human')
+    if (preview.kind === 'human') {
+      expect(preview.fallbackText).toBe('Some raw host text without id/status lines')
+      expect(preview.fallbackText).not.toContain('##')
+    }
+  })
+})

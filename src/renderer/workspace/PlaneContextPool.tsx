@@ -1,21 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { TabContext, TabContextKind } from '@shared/tabContext'
+import type { TabContext } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
-import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
-import { Input } from '../components/ui/Input'
 import { Tooltip } from '../components/ui/Tooltip'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
-import {
-  hasPlaneContextDrag,
-  readPlaneContextDragData,
-  setPlaneContextDragData,
-} from './planeContextDrag'
+import { setPlaneContextDragData } from './planeContextDrag'
 import { PlaneContextAssignModal } from './PlaneContextAssignModal'
+import { PlaneContextChipMenu } from './PlaneContextChipMenu'
+import type { PlaneContextChipMenuItem } from './PlaneContextChipMenu'
 import {
-  POOL_VISIBLE_CAP,
   assignedPaneIdsByContext,
   splitPoolContexts,
   type PlaneContextPoolAgent,
@@ -35,12 +30,8 @@ function setChipDragImage(event: React.DragEvent<HTMLButtonElement>): void {
   const ghost = event.currentTarget.cloneNode(true) as HTMLElement
   ghost.classList.add('plane-context-pool__chip--ghost')
   document.body.appendChild(ghost)
-  // Se mide el clon, no el origen: la fila del popover mide 292 px pero su
-  // fantasma se reduce al mismo chip de la barra, y con el ancla del origen
-  // el puntero acababa a media fila de distancia.
   const { width, height } = ghost.getBoundingClientRect()
   event.dataTransfer.setDragImage(ghost, width / 2, height / 2)
-  // El fantasma solo hace falta durante el snapshot síncrono del dragstart.
   window.setTimeout(() => ghost.remove(), 0)
 }
 
@@ -48,7 +39,7 @@ export interface PlaneContextPoolProps {
   title: string
   configureLabel: string
   createLabel: string
-  /** Hint del chip (segunda línea del tooltip + aria): clic asigna, arrastrar también. */
+  /** Hint del chip (segunda línea del tooltip + aria): clic menú, arrastrar a agente. */
   chipActionHint?: string
   /** Título del modal de asignación. */
   assignLabel: string
@@ -60,8 +51,6 @@ export interface PlaneContextPoolProps {
   deleteLabel: string
   deleteConfirmMessage: (name: string) => string
   deleteConfirmDetail: string
-  /** Aria de la zona soltar-para-borrar (visible solo al arrastrar). */
-  trashDropLabel: string
   contexts: PlaneContextPoolItem[]
   /** Catálogo completo para el preview del modal. */
   contextCatalog?: TabContext[]
@@ -74,11 +63,13 @@ export interface PlaneContextPoolProps {
   onCreate: () => void
   /** Abre ese contexto para editarlo. */
   onOpenContext?: (contextId: string) => void
-  /** Elimina el contexto (tras ConfirmTerminalModal en assign o trash drop). */
+  /** Elimina el contexto (tras ConfirmTerminalModal en el menú del chip). */
   onDeleteContext?: (contextId: string) => void
   /** Asigna/desasigna un contexto a un agente. */
   onToggleAssign: (paneId: string, contextId: string) => void
 }
+
+const EXPAND_COLLAPSE_MS = 120
 
 export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   title,
@@ -92,7 +83,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   deleteLabel,
   deleteConfirmMessage,
   deleteConfirmDetail,
-  trashDropLabel,
   contexts,
   contextCatalog = [],
   cwd = '',
@@ -106,15 +96,11 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const { t } = useT()
   const dragOccurredRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const collapseTimerRef = useRef<number | null>(null)
   const [openContextId, setOpenContextId] = useState<string | null>(null)
-  const [overflowOpen, setOverflowOpen] = useState(false)
-  const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState(false)
   const [rovingIndex, setRovingIndex] = useState(0)
-  /** Id del chip en arrastre: muestra la papelera a la izquierda de los chips. */
-  const [draggingContextId, setDraggingContextId] = useState<string | null>(null)
-  /** Aparta el popover una vez arrancado el arrastre (ver `onDragStart`). */
-  const [overflowHidden, setOverflowHidden] = useState(false)
-  const [trashHot, setTrashHot] = useState(false)
+  const [chipMenu, setChipMenu] = useState<{ contextId: string; anchor: DOMRect } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
 
   const visibleContexts = useMemo(
@@ -133,20 +119,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     () => splitPoolContexts(visibleContexts, assignedCount),
     [visibleContexts, assignedCount],
   )
-  /**
-   * El popover lista el catálogo completo, no solo lo que sobra: buscar «api» y
-   * no encontrarlo porque justo ese chip sí cabía sería peor que no buscar.
-   */
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    if (!needle) return visibleContexts
-    return visibleContexts.filter(ctx => (
-      ctx.name.toLowerCase().includes(needle)
-      || ctx.kindLabel.toLowerCase().includes(needle)
-    ))
-  }, [visibleContexts, query])
-  const inUseMatches = matches.filter(ctx => assignedCount(ctx.id) > 0)
-  const freeMatches = matches.filter(ctx => assignedCount(ctx.id) === 0)
 
   const openContext = openContextId
     ? visibleContexts.find(ctx => ctx.id === openContextId) ?? null
@@ -154,45 +126,36 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const previewContext = openContextId
     ? contextCatalog.find(ctx => ctx.id === openContextId) ?? null
     : null
+  const chipMenuContext = chipMenu
+    ? visibleContexts.find(ctx => ctx.id === chipMenu.contextId) ?? null
+    : null
 
-  // El contexto abierto puede desaparecer (borrado desde el modal).
   useEffect(() => {
     if (openContextId && !openContext) setOpenContextId(null)
   }, [openContextId, openContext])
 
-  // Si el catálogo encoge por debajo del tope ya no hay nada que desbordar.
-  useEffect(() => {
-    if (overflowContexts.length === 0) setOverflowOpen(false)
-  }, [overflowContexts.length])
+  useEffect(() => () => {
+    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current)
+  }, [])
 
-  useEffect(() => {
-    if (!overflowOpen) return
-    const onPointerDown = (event: PointerEvent): void => {
-      if (rootRef.current?.contains(event.target as Node)) return
-      setOverflowOpen(false)
+  const onPoolMouseEnter = useCallback(() => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current)
+      collapseTimerRef.current = null
     }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOverflowOpen(false)
-    }
-    window.addEventListener('pointerdown', onPointerDown, true)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, true)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [overflowOpen])
+    setExpanded(true)
+  }, [])
 
-  const toggleOverflow = useCallback(() => {
-    setQuery('')
-    setOpenContextId(null)
-    setOverflowOpen(open => !open)
+  const onPoolMouseLeave = useCallback(() => {
+    collapseTimerRef.current = window.setTimeout(() => {
+      setExpanded(false)
+      collapseTimerRef.current = null
+    }, EXPAND_COLLAPSE_MS)
   }, [])
 
   /** Roving tabindex: la barra entera es una sola parada de tabulación. */
   const onToolbarKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-    // Dentro del popover las flechas son del buscador, no de la barra.
-    if ((event.target as HTMLElement).closest('.plane-context-pool__overflow')) return
     const root = rootRef.current
     if (!root) return
     const items = Array.from(root.querySelectorAll<HTMLElement>('[data-pool-item]'))
@@ -211,7 +174,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     onFocus: () => setRovingIndex(index),
   })
 
-  /** El chip de la barra y la fila del popover son el mismo gesto: clic asigna, arrastrar también. */
   const contextItemProps = (ctx: PlaneContextPoolItem) => ({
     draggable: true,
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -221,8 +183,14 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         dragOccurredRef.current = false
         return
       }
-      setOverflowOpen(false)
-      setOpenContextId(current => (current === ctx.id ? null : ctx.id))
+      if (chipMenu?.contextId === ctx.id) {
+        setChipMenu(null)
+        return
+      }
+      setChipMenu({
+        contextId: ctx.id,
+        anchor: event.currentTarget.getBoundingClientRect(),
+      })
     },
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       event.stopPropagation()
@@ -231,14 +199,9 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       event.stopPropagation()
       dragOccurredRef.current = true
       setOpenContextId(null)
-      setDraggingContextId(ctx.id)
+      setChipMenu(null)
       setPlaneContextDragData(event.dataTransfer, ctx.id)
       setChipDragImage(event)
-      // Chromium cancela el arrastre si el origen (o un ancestro) cambia de
-      // visibilidad dentro del propio `dragstart`, y para la fila del popover
-      // ocultarlo es exactamente eso. Se aplaza un tick, cuando el arrastre ya
-      // está en curso. Ni desmontarlo ni `opacity: 0` síncronos valen aquí.
-      window.setTimeout(() => setOverflowHidden(true), 0)
     },
     onDragEnd: (event: React.DragEvent<HTMLButtonElement>) => {
       event.stopPropagation()
@@ -246,7 +209,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     },
   })
 
-  /** Tooltip/aria del chip y de la fila: nombre, kind y a cuántos agentes está asignado. */
   const contextSummary = (ctx: PlaneContextPoolItem): string => {
     const count = assignedCount(ctx.id)
     return [
@@ -258,10 +220,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const closeAssignModal = useCallback(() => setOpenContextId(null), [])
 
   const endChipDrag = useCallback(() => {
-    setDraggingContextId(null)
-    setOverflowHidden(false)
-    setOverflowOpen(false)
-    setTrashHot(false)
     window.setTimeout(() => {
       dragOccurredRef.current = false
     }, 50)
@@ -272,19 +230,101 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     setPendingDelete({ id: contextId, name })
   }, [onDeleteContext])
 
-  const showTrash = Boolean(draggingContextId && onDeleteContext)
+  const chipMenuItems = useMemo((): PlaneContextChipMenuItem[] => {
+    if (!chipMenu || !chipMenuContext) return []
+    const id = chipMenu.contextId
+    const name = chipMenuContext.name
+    const items = [
+      {
+        key: 'assign',
+        label: assignLabel,
+        icon: 'users' as const,
+        onSelect: () => setOpenContextId(id),
+      },
+    ]
+    if (onOpenContext) {
+      items.push({
+        key: 'edit',
+        label: editLabel,
+        icon: 'pencil' as const,
+        onSelect: () => onOpenContext(id),
+      })
+    }
+    if (onDeleteContext) {
+      items.push({
+        key: 'delete',
+        label: deleteLabel,
+        icon: 'trash' as const,
+        danger: true,
+        onSelect: () => requestDelete(id, name),
+      })
+    }
+    return items
+  }, [
+    chipMenu,
+    chipMenuContext,
+    assignLabel,
+    editLabel,
+    deleteLabel,
+    onOpenContext,
+    onDeleteContext,
+    requestDelete,
+  ])
+
+  const renderChip = (
+    ctx: PlaneContextPoolItem,
+    index: number,
+    overflow = false,
+  ) => {
+    const menuOpen = chipMenu?.contextId === ctx.id
+    const assignOpen = openContextId === ctx.id
+    const summary = contextSummary(ctx)
+    const label = [summary, chipActionHint ?? ''].filter(Boolean).join('. ')
+    return (
+      <div key={ctx.id} role="listitem">
+        <Tooltip content={summary} hint={chipActionHint}>
+          <button
+            type="button"
+            className={[
+              'plane-context-pool__chip',
+              overflow ? 'plane-context-pool__chip--overflow' : '',
+              menuOpen || assignOpen ? 'plane-context-pool__chip--open' : '',
+            ].filter(Boolean).join(' ')}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label={label}
+            {...contextItemProps(ctx)}
+            {...itemProps(index + 1)}
+          >
+            <span
+              className="plane-context-pool__chip-icon"
+              style={{ color: ctx.color }}
+            >
+              <Icon name={ctx.icon} size={13} aria-hidden />
+            </span>
+            {assignedCount(ctx.id) > 0 ? (
+              <span className="plane-context-pool__chip-pin" aria-hidden />
+            ) : null}
+          </button>
+        </Tooltip>
+      </div>
+    )
+  }
+
+  const createIndex = 1 + visibleContexts.length
 
   return (
     <div
       ref={rootRef}
       className={[
-        'plane-context-pool',
-        visibleContexts.length === 0 ? 'plane-context-pool--empty' : '',
-        showTrash ? 'plane-context-pool--dragging' : '',
+        'plane-context-pool-shell',
+        expanded ? 'plane-context-pool-shell--expanded' : '',
       ].filter(Boolean).join(' ')}
       role="toolbar"
       aria-label={title}
       onMouseDown={event => event.stopPropagation()}
+      onMouseEnter={onPoolMouseEnter}
+      onMouseLeave={onPoolMouseLeave}
       onKeyDown={onToolbarKeyDown}
     >
       <Tooltip content={configureLabel}>
@@ -299,184 +339,49 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         </button>
       </Tooltip>
 
+      {visibleContexts.length > 0 ? (
+        <div
+          className={[
+            'plane-context-pool',
+            expanded ? 'plane-context-pool--expanded' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <div className="plane-context-pool__icons" role="list">
+            {barContexts.map((ctx, index) => renderChip(ctx, index, false))}
+            {overflowContexts.map((ctx, index) => renderChip(ctx, barContexts.length + index, true))}
+          </div>
+
+          {overflowContexts.length > 0 ? (
+            <Tooltip content={t('tabs.planeContextPoolMore', { count: overflowContexts.length })}>
+              <span
+                className="plane-context-pool__overflow-badge"
+                aria-label={t('tabs.planeContextPoolMore', { count: overflowContexts.length })}
+              >
+                +{overflowContexts.length}
+              </span>
+            </Tooltip>
+          ) : null}
+        </div>
+      ) : null}
+
       <Tooltip content={createLabel}>
         <button
           type="button"
-          className="plane-context-pool__configure"
+          className="plane-context-pool__create"
           aria-label={createLabel}
           onClick={onCreate}
-          {...itemProps(1)}
+          {...itemProps(createIndex)}
         >
           <Icon name="plus" size={12} />
         </button>
       </Tooltip>
 
-      {showTrash ? (
-        <div
-          className={[
-            'plane-context-pool__trash',
-            trashHot ? 'plane-context-pool__trash--hot' : '',
-          ].filter(Boolean).join(' ')}
-          role="button"
-          aria-label={trashDropLabel}
-          data-testid="plane-context-pool-trash"
-          onDragEnter={event => {
-            if (!hasPlaneContextDrag(event.dataTransfer)) return
-            event.preventDefault()
-            setTrashHot(true)
-          }}
-          onDragOver={event => {
-            if (!hasPlaneContextDrag(event.dataTransfer)) return
-            event.preventDefault()
-            event.dataTransfer.dropEffect = 'move'
-            setTrashHot(true)
-          }}
-          onDragLeave={event => {
-            if (event.currentTarget.contains(event.relatedTarget as Node)) return
-            setTrashHot(false)
-          }}
-          onDrop={event => {
-            event.preventDefault()
-            event.stopPropagation()
-            const droppedId = readPlaneContextDragData(event.dataTransfer)
-              || draggingContextId
-            endChipDrag()
-            if (!droppedId) return
-            const target = visibleContexts.find(ctx => ctx.id === droppedId)
-            if (!target) return
-            requestDelete(target.id, target.name)
-          }}
-        >
-          <Icon name="trash" size={12} aria-hidden />
-        </div>
-      ) : null}
-
-      {barContexts.length > 0 ? (
-        <div className="plane-context-pool__icons" role="list">
-          {barContexts.map((ctx, index) => {
-            const open = openContextId === ctx.id
-            const summary = contextSummary(ctx)
-            const label = [summary, chipActionHint ?? ''].filter(Boolean).join('. ')
-            return (
-              <div key={ctx.id} role="listitem">
-                <Tooltip content={summary} hint={chipActionHint}>
-                  <button
-                    type="button"
-                    className={[
-                      'plane-context-pool__chip',
-                      open ? 'plane-context-pool__chip--open' : '',
-                    ].filter(Boolean).join(' ')}
-                    aria-haspopup="dialog"
-                    aria-expanded={open}
-                    aria-label={label}
-                    {...contextItemProps(ctx)}
-                    {...itemProps(index + 2)}
-                  >
-                    <span
-                      className="plane-context-pool__chip-icon"
-                      style={{ color: ctx.color }}
-                    >
-                      <Icon name={ctx.icon} size={13} aria-hidden />
-                    </span>
-                    {assignedCount(ctx.id) > 0 ? (
-                      <span className="plane-context-pool__chip-pin" aria-hidden />
-                    ) : null}
-                  </button>
-                </Tooltip>
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
-
-      {overflowContexts.length > 0 ? (
-        <Tooltip content={t('tabs.planeContextPoolMore', { count: overflowContexts.length })}>
-          <button
-            type="button"
-            className={[
-              'plane-context-pool__more',
-              overflowOpen ? 'plane-context-pool__more--open' : '',
-            ].filter(Boolean).join(' ')}
-            aria-haspopup="dialog"
-            aria-expanded={overflowOpen}
-            aria-label={t('tabs.planeContextPoolMore', { count: overflowContexts.length })}
-            onClick={toggleOverflow}
-            {...itemProps(barContexts.length + 2)}
-          >
-            +{overflowContexts.length}
-            <Icon name="chevron-down" size={10} aria-hidden />
-          </button>
-        </Tooltip>
-      ) : null}
-
-      {overflowOpen ? (
-        <div
-          className={[
-            'plane-context-pool__overflow',
-            overflowHidden ? 'plane-context-pool__overflow--dragging' : '',
-          ].filter(Boolean).join(' ')}
-          role="dialog"
-          aria-label={title}
-          data-plane-native-scroll=""
-          data-testid="plane-context-pool-overflow"
-        >
-          <div className="plane-context-pool__overflow-search">
-            <Input
-              size="sm"
-              autoFocus
-              value={query}
-              placeholder={t('tabs.planeContextPoolSearch')}
-              aria-label={t('tabs.planeContextPoolSearch')}
-              onChange={event => setQuery(event.target.value)}
-            />
-          </div>
-
-          <div className="plane-context-pool__overflow-list">
-            {matches.length === 0 ? (
-              <p className="plane-context-pool__overflow-empty">
-                {t('tabs.planeContextPoolNoMatch')}
-              </p>
-            ) : null}
-            {([
-              [t('tabs.planeContextPoolInUse'), inUseMatches],
-              [t('tabs.planeContextPoolFree'), freeMatches],
-            ] as const).map(([groupLabel, group]) => (
-              group.length === 0 ? null : (
-                <React.Fragment key={groupLabel}>
-                  <p className="plane-context-pool__overflow-group">
-                    {groupLabel} <span>{group.length}</span>
-                  </p>
-                  {group.map(ctx => (
-                    <button
-                      key={ctx.id}
-                      type="button"
-                      className="plane-context-pool__row"
-                      aria-haspopup="dialog"
-                      aria-label={contextSummary(ctx)}
-                      {...contextItemProps(ctx)}
-                    >
-                      <span
-                        className="plane-context-pool__row-icon"
-                        style={{ color: ctx.color }}
-                      >
-                        <Icon name={ctx.icon} size={13} aria-hidden />
-                      </span>
-                      <span className="plane-context-pool__row-name">{ctx.name}</span>
-                      <span className="plane-context-pool__row-kind">{ctx.kindLabel}</span>
-                      {assignedCount(ctx.id) > 0 ? (
-                        <span className="plane-context-pool__row-count">
-                          {assignedCount(ctx.id)}
-                        </span>
-                      ) : null}
-                    </button>
-                  ))}
-                </React.Fragment>
-              )
-            ))}
-          </div>
-
-          <p className="plane-context-pool__overflow-hint">{chipActionHint}</p>
-        </div>
+      {chipMenu && chipMenuItems.length > 0 ? (
+        <PlaneContextChipMenu
+          anchor={chipMenu.anchor}
+          items={chipMenuItems}
+          onClose={() => setChipMenu(null)}
+        />
       ) : null}
 
       <PlaneContextAssignModal
@@ -488,13 +393,9 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         assignLabel={assignLabel}
         assignEmptyHint={assignEmptyHint}
         editLabel={editLabel}
-        deleteLabel={deleteLabel}
-        deleteConfirmMessage={deleteConfirmMessage(openContext?.name ?? '')}
-        deleteConfirmDetail={deleteConfirmDetail}
         onClose={closeAssignModal}
         onToggleAssign={onToggleAssign}
         onEdit={onOpenContext}
-        onDelete={onDeleteContext}
       />
 
       <ConfirmTerminalModal

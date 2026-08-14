@@ -16,6 +16,25 @@ export interface WikiGraphNode {
   linkCount: number
   /** Body crudo de la page (markdown); ausente solo en datos de mock/layout. */
   body?: string
+  /** mtime del .md en disco; propagado desde WikiPage.updatedAtMs. */
+  updatedAtMs?: number
+}
+
+/** Slugs de las `limit` pages con updatedAtMs más reciente (desempate estable por slug). */
+export function getMostRecentlyUpdatedWikiSlugs(
+  nodes: readonly Pick<WikiGraphNode, 'slug' | 'updatedAtMs'>[],
+  limit = 10,
+): Set<string> {
+  const dated = nodes.filter(
+    (node): node is Pick<WikiGraphNode, 'slug' | 'updatedAtMs'> & { updatedAtMs: number } =>
+      node.updatedAtMs != null && Number.isFinite(node.updatedAtMs),
+  )
+  dated.sort((a, b) => {
+    const byTime = b.updatedAtMs - a.updatedAtMs
+    if (byTime !== 0) return byTime
+    return a.slug.localeCompare(b.slug)
+  })
+  return new Set(dated.slice(0, limit).map(node => node.slug))
 }
 
 export interface WikiGraphEdge {
@@ -68,6 +87,7 @@ export function buildWikiGraphData(pages: WikiPage[]): WikiGraphData {
       type: page.type,
       linkCount: degree.get(page.slug) ?? 0,
       body: page.body,
+      ...(page.updatedAtMs != null ? { updatedAtMs: page.updatedAtMs } : {}),
     })),
     edges,
   }

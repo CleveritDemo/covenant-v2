@@ -1,11 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
 import { Icon } from '../components/ui/Icon'
 import { Spinner } from '../components/ui/Spinner'
 import { Tooltip } from '../components/ui/Tooltip'
-import { useWikiGraphScene, type WikiGraphHover } from './useWikiGraphScene'
-import type { WikiGraphData, WikiGraphNodeType } from './wikiGraph'
+import {
+  useWikiGraphScene,
+  type WikiGraphHover,
+  type WikiGraphNodeScreenPosition,
+} from './useWikiGraphScene'
+import { getMostRecentlyUpdatedWikiSlugs, type WikiGraphData, type WikiGraphNodeType } from './wikiGraph'
 import './WikiGraphView.css'
 
 export type WikiGraphPhase = 'loading' | 'empty' | 'ready' | 'error'
@@ -69,6 +74,9 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<WikiGraphHover | null>(null)
+  const [nodeScreenPositions, setNodeScreenPositions] = useState<
+    ReadonlyMap<string, WikiGraphNodeScreenPosition>
+  >(() => new Map())
   const [creatingWiki, setCreatingWiki] = useState(false)
   const [createWikiFailed, setCreateWikiFailed] = useState(false)
   const awaitingCreateLoadRef = useRef(false)
@@ -84,9 +92,17 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
 
   const showLoadingOverlay = phase === 'loading' || creatingWiki
 
+  const handleNodeScreenPositions = useCallback(
+    (positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>) => {
+      setNodeScreenPositions(positions)
+    },
+    [],
+  )
+
   const { webglAvailable } = useWikiGraphScene(containerRef, graphData, {
     onHover: setHover,
     onPick: onOpenNode,
+    onNodeScreenPositions: handleNodeScreenPositions,
   }, active)
 
   // Tras ensureWiki ok el padre refetchea (data=null); mantener spinner hasta que llegue data.
@@ -115,6 +131,17 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
     [graphData, hover],
   )
 
+  const recentBadges = useMemo(() => {
+    if (phase !== 'ready') return []
+    const recentSlugs = getMostRecentlyUpdatedWikiSlugs(graphData.nodes)
+    return graphData.nodes.flatMap(node => {
+      if (!recentSlugs.has(node.slug)) return []
+      const pos = nodeScreenPositions.get(node.slug)
+      if (!pos?.visible) return []
+      return [{ slug: node.slug, x: pos.x, y: pos.y }]
+    })
+  }, [graphData.nodes, nodeScreenPositions, phase])
+
   if (!active) return null
 
   return (
@@ -124,6 +151,19 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       aria-label={t('tabs.wikiMapTitle')}
     >
       <div ref={containerRef} className="wiki-graph-view__canvas" />
+      {recentBadges.length > 0 ? (
+        <div className="wiki-graph-view__node-badges" aria-hidden>
+          {recentBadges.map(badge => (
+            <span
+              key={badge.slug}
+              className="wiki-graph-view__node-badge"
+              style={{ left: badge.x + 12, top: badge.y }}
+            >
+              <Badge variant="accent">{t('tabs.wikiMapRecentlyUpdated')}</Badge>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {showLoadingOverlay ? (
         <div className="wiki-graph-view__loading" role="status">
           <Spinner

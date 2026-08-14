@@ -72,6 +72,13 @@ function toStatus(raw: string): DelegateResultStatus {
   return 'ok'
 }
 
+/** `2/∞ (per job/user message)` → `2/∞` para la UI. */
+function normalizeOrchestrationRound(raw: string): string {
+  const trimmed = raw.trim()
+  const match = /^(\S+)/.exec(trimmed)
+  return match ? match[1] : trimmed
+}
+
 /** Encabezado de la sección de cambios que suelen escribir los especialistas. */
 function isChangelogHeading(line: string): boolean {
   const match = /^#{1,6}\s+(.*)$/.exec(line.trim())
@@ -188,7 +195,7 @@ function parseBlock(lines: string[]): DelegationResultCardData | null {
     changelog,
     ...(tail.toAgentId ? { agentId: tail.toAgentId } : {}),
     ...(tail.resultContextId ? { resultContextId: tail.resultContextId } : {}),
-    ...(tail.orchestrationRound ? { round: tail.orchestrationRound } : {}),
+    ...(tail.orchestrationRound ? { round: normalizeOrchestrationRound(tail.orchestrationRound) } : {}),
     ...(Number.isFinite(pendingRaw) && pendingRaw > 0 ? { pendingInBatch: pendingRaw } : {}),
   }
 }

@@ -24,7 +24,28 @@ describe('mergeQueuedTurns', () => {
     expect(result[0]?.images).toEqual([imgA, imgB])
   })
 
-  it('keeps the id and position of the first mergeable turn', () => {
+  it('merges three consecutive human turns into one chip', () => {
+    const result = mergeQueuedTurns([
+      turn({ id: 't1', text: 'one' }),
+      turn({ id: 't2', text: 'two' }),
+      turn({ id: 't3', text: 'three' }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.id).toBe('t1')
+    expect(result[0]?.text).toBe('one\ntwo\nthree')
+  })
+
+  it('merges orchestrationFollowUp with adjacent human turns', () => {
+    const result = mergeQueuedTurns([
+      turn({ id: 't1', text: 'one' }),
+      turn({ id: 't2', text: 'two', orchestrationFollowUp: true }),
+      turn({ id: 't3', text: 'three' }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.text).toBe('one\ntwo\nthree')
+  })
+
+  it('keeps the id and position of the first mergeable turn in a run', () => {
     const delegated = turn({
       id: 'd1',
       text: 'delegated',
@@ -41,28 +62,55 @@ describe('mergeQueuedTurns', () => {
     expect(result[1]?.text).toBe('one\ntwo')
   })
 
-  it('does not merge delegation or orchestrationFollowUp turns and preserves relative order', () => {
+  it('[h1,h2,deleg,h3] merges only consecutive runs before and after delegation', () => {
     const delegated = turn({
       id: 'd1',
       text: 'subtask',
       delegation: { fromPaneId: 'p-orch' },
     })
-    const followUp = turn({
-      id: 'f1',
-      text: 'follow-up',
-      orchestrationFollowUp: true,
+    const result = mergeQueuedTurns([
+      turn({ id: 't1', text: 'one' }),
+      turn({ id: 't2', text: 'two' }),
+      delegated,
+      turn({ id: 't3', text: 'three' }),
+    ])
+    expect(result).toHaveLength(3)
+    expect(result[0]?.id).toBe('t1')
+    expect(result[0]?.text).toBe('one\ntwo')
+    expect(result[1]).toBe(delegated)
+    expect(result[2]?.id).toBe('t3')
+    expect(result[2]?.text).toBe('three')
+  })
+
+  it('[h1,deleg,h2] does not merge humans separated by delegation', () => {
+    const delegated = turn({
+      id: 'd1',
+      text: 'subtask',
+      delegation: { fromPaneId: 'p-orch' },
+    })
+    const h1 = turn({ id: 't1', text: 'one' })
+    const h2 = turn({ id: 't2', text: 'two' })
+    const result = mergeQueuedTurns([h1, delegated, h2])
+    expect(result).toHaveLength(3)
+    expect(result[0]).toBe(h1)
+    expect(result[1]).toBe(delegated)
+    expect(result[2]).toBe(h2)
+  })
+
+  it('[h1,h2,deleg] merges humans before delegation into two chips', () => {
+    const delegated = turn({
+      id: 'd1',
+      text: 'subtask',
+      delegation: { fromPaneId: 'p-orch' },
     })
     const result = mergeQueuedTurns([
       turn({ id: 't1', text: 'one' }),
-      delegated,
       turn({ id: 't2', text: 'two' }),
-      followUp,
+      delegated,
     ])
-    expect(result).toHaveLength(3)
-    expect(result.map(item => item.id)).toEqual(['t1', 'd1', 'f1'])
+    expect(result).toHaveLength(2)
     expect(result[0]?.text).toBe('one\ntwo')
     expect(result[1]).toBe(delegated)
-    expect(result[2]).toBe(followUp)
   })
 
   it('skips empty texts (image-only turns) without extra newlines', () => {
@@ -78,7 +126,7 @@ describe('mergeQueuedTurns', () => {
     expect(result[0]?.images).toEqual([img])
   })
 
-  it('returns the original array reference with fewer than 2 mergeable turns', () => {
+  it('returns the original array reference with fewer than 2 mergeable turns in any run', () => {
     const single = [turn({ id: 't1', text: 'alone' })]
     expect(mergeQueuedTurns(single)).toBe(single)
 

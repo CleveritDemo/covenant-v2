@@ -20,9 +20,18 @@ export interface WikiGraphHover {
   y: number
 }
 
+export interface WikiGraphNodeScreenPosition {
+  x: number
+  y: number
+  visible: boolean
+}
+
 export interface WikiGraphSceneCallbacks {
   onHover: (hover: WikiGraphHover | null) => void
   onPick: (slug: string) => void
+  onNodeScreenPositions?: (
+    positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>,
+  ) => void
 }
 
 /** Semilla fija: el mapa se ve igual entre aperturas mientras no cambien las pages. */
@@ -622,7 +631,31 @@ export function useWikiGraphScene(
       glowAttr.needsUpdate = true
     }
 
-    const render = (): void => renderer.render(scene, camera)
+    const render = (): void => {
+      reportNodeScreenPositions()
+      renderer.render(scene, camera)
+    }
+
+    const ndc = new THREE.Vector3()
+    const reportNodeScreenPositions = (): void => {
+      const cb = callbacksRef.current.onNodeScreenPositions
+      if (!cb) return
+      const width = container.clientWidth
+      const height = container.clientHeight
+      if (width <= 0 || height <= 0) return
+      const screenPositions = new Map<string, WikiGraphNodeScreenPosition>()
+      for (const sceneNode of sceneNodes) {
+        ndc.copy(sceneNode.mesh.position)
+        ndc.project(camera)
+        const visible = ndc.z >= -1 && ndc.z <= 1
+        screenPositions.set(sceneNode.slug, {
+          x: (ndc.x * 0.5 + 0.5) * width,
+          y: (-ndc.y * 0.5 + 0.5) * height,
+          visible,
+        })
+      }
+      cb(screenPositions)
+    }
 
     /** Encuadra la cámara al bounding sphere del grafo (solo al montar). */
     const fitCameraToGraph = (): void => {

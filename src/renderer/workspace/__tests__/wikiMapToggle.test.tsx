@@ -23,7 +23,9 @@ vi.mock('../PlaneMap', () => ({
   ),
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
-vi.mock('../PlaneChatDock', () => ({ PlaneChatDock: () => null }))
+vi.mock('../PlaneChatDock', () => ({
+  PlaneChatDock: () => <div className="plane-chat-dock" data-testid="plane-chat-dock" />,
+}))
 vi.mock('../PlaneChatComposer', () => ({ PlaneChatComposer: () => null }))
 vi.mock('../PlaneChatContextsBar', () => ({ PlaneChatContextsBar: () => null }))
 vi.mock('../PlaneQuickChat', () => ({ PlaneQuickChat: () => null }))
@@ -116,6 +118,8 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
     expect(screen.queryByText('tabs.wikiMapNoWebgl')).toBeNull()
     expect(document.querySelector('.wiki-graph-view__loading')).toBeNull()
+    // El chat central del plano sigue montado con el mapa wiki abierto.
+    expect(screen.getByTestId('plane-chat-dock')).toBeTruthy()
 
     fireEvent.click(wikiButton())
     // Al cerrar, el overlay se desmonta del plano.

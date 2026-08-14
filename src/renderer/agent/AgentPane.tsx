@@ -38,13 +38,17 @@ import {
   threadPatch,
   touchActiveThread,
 } from '@shared/agentThreads'
-import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts, formatCatalogAgentDelegationLabel } from '@shared/projectAgentCatalog'
+import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts, formatCatalogAgentDelegationLabel, agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { parseExpertReplicaRequest } from '@shared/expertReplicas'
 import {
   orchestrationAwaitingSignature,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
+import {
+  buildDelegationTurnSummary,
+  isDelegationSummaryPlaceholder,
+} from '@shared/delegationTurnSummary'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -90,6 +94,7 @@ import {
   imagesFromClipboard,
   materializeClipboardImage,
   MAX_PENDING_IMAGES,
+  publishedQueueImagePreviewUrl,
   type ComposerPendingImage,
 } from './composerImages'
 import {
@@ -1109,7 +1114,7 @@ export const AgentPane: React.FC<Props> = ({
         text: item.text,
         images: item.images.map(image => ({
           id: image.id,
-          previewUrl: image.previewUrl,
+          previewUrl: publishedQueueImagePreviewUrl(image),
           name: image.name,
         })),
         ...(item.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
@@ -1668,16 +1673,39 @@ export const AgentPane: React.FC<Props> = ({
       if (decision === 'notify' && delegation) {
         activeDelegationRef.current = null
         clearActiveParentDelegation(paneId)
-        const summary = isEmpty
+        const assistantSummary = isEmpty
           ? t('agentPane.delegationEmptySummary')
           : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
-        onDelegationTurnCompleteRef.current?.({
-          id: delegation.id,
-          status: isEmpty || turnHadCliErrorRef.current ? 'fail' : 'ok',
-          summary,
-          toAgentId: delegation.toAgentId,
-          toPaneId: paneId,
-        })
+        void (async () => {
+          let summary = assistantSummary
+          let resultContextId: string | undefined
+          const projectCwd = cwdRef.current.trim()
+          if (isDelegationSummaryPlaceholder(assistantSummary) && projectCwd) {
+            const results = await window.api.readAgentResultsLatest({
+              cwd: projectCwd,
+              agentId: delegation.toAgentId,
+            })
+            if (results.ok) {
+              summary = buildDelegationTurnSummary({
+                assistantText: assistantSummary,
+                resultsSummary: results.summary,
+                resultsChanges: results.changes,
+                emptyFallback: t('agentPane.delegationEmptySummary'),
+              })
+              if (!isDelegationSummaryPlaceholder(summary)) {
+                resultContextId = agentResultContextIdForSlug(delegation.toAgentId)
+              }
+            }
+          }
+          onDelegationTurnCompleteRef.current?.({
+            id: delegation.id,
+            status: isEmpty || turnHadCliErrorRef.current ? 'fail' : 'ok',
+            summary,
+            toAgentId: delegation.toAgentId,
+            toPaneId: paneId,
+            ...(resultContextId ? { resultContextId } : {}),
+          })
+        })()
       }
 
       emptyResponseRetriesRef.current = 0
@@ -1963,6 +1991,19 @@ export const AgentPane: React.FC<Props> = ({
   }, [dispatchMessage, finishLoop])
   runLoopIterationRef.current = runLoopIteration
 
+  const enqueueQueuedTurn = useCallback((item: Omit<QueuedTurn, 'id'>): boolean => {
+    let didEnqueue = false
+    setQueuedTurns(prev => {
+      if (prev.length >= MAX_QUEUED_TURNS) return prev
+      didEnqueue = true
+      return dedupeHumanQueuedTurnOnEnqueue(prev, {
+        id: crypto.randomUUID(),
+        ...item,
+      })
+    })
+    return didEnqueue
+  }, [])
+
   const send = useCallback((overrideText?: string): void => {
     const prompt = (overrideText ?? input).trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
@@ -1973,11 +2014,10 @@ export const AgentPane: React.FC<Props> = ({
     setPendingImages([])
     // Encolar mientras hay trabajo/delegaciones; abort solo al iniciar turno humano.
     if (!canStartHumanTurnNow) {
-      setQueuedTurns(prev => dedupeHumanQueuedTurnOnEnqueue(prev, {
-        id: crypto.randomUUID(),
+      enqueueQueuedTurn({
         text: prompt,
         images: imagesSnapshot,
-      }))
+      })
       return
     }
     setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
@@ -2006,6 +2046,7 @@ export const AgentPane: React.FC<Props> = ({
     pendingImages,
     pendingJiraContextIds,
     queuedTurns.length,
+    enqueueQueuedTurn,
   ])
 
   useEffect(() => {
@@ -2044,58 +2085,62 @@ export const AgentPane: React.FC<Props> = ({
       })
       return
     }
-    const imagesSnapshot = attachmentsToPendingImages(inboundImages)
-    const turnOptions = {
-      ...(delegation ? { delegation } : {}),
-      ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
-      ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
-      ...(orchestrationJobId?.trim() ? { orchestrationJobId: orchestrationJobId.trim() } : {}),
-      ...(viaLoop ? { viaLoop: true as const } : {}),
-      ...(extraContextIds.length ? { extraContextIds } : {}),
-    }
-    // Busy o humano sin slot → encolar (delegaciones incluidas para no perderlas).
-    const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
-    if (shouldEnqueue) {
-      let didEnqueue = false
-      setQueuedTurns(prev => {
-        if (prev.length >= MAX_QUEUED_TURNS) return prev
-        didEnqueue = true
-        return dedupeHumanQueuedTurnOnEnqueue(prev, {
-          id: crypto.randomUUID(),
+    let cancelled = false
+    void (async () => {
+      const imagesSnapshot = await attachmentsToPendingImages(inboundImages)
+      if (cancelled) {
+        imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        return
+      }
+      const turnOptions = {
+        ...(delegation ? { delegation } : {}),
+        ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
+        ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
+        ...(orchestrationJobId?.trim() ? { orchestrationJobId: orchestrationJobId.trim() } : {}),
+        ...(viaLoop ? { viaLoop: true as const } : {}),
+        ...(extraContextIds.length ? { extraContextIds } : {}),
+      }
+      // Busy o humano sin slot → encolar (delegaciones incluidas para no perderlas).
+      const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
+      if (shouldEnqueue) {
+        handledPreferSendRef.current = preferSend
+        const didEnqueue = enqueueQueuedTurn({
           text: prompt,
           images: imagesSnapshot,
           ...turnOptions,
         })
-      })
-      if (!didEnqueue) {
-        imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
-        console.warn('[AgentPane] preferSend rejected', {
-          reason: 'queue_full',
-          delegationId,
-          orchestrationJobId,
-        })
-        handledPreferSendRef.current = null
+        if (!didEnqueue) {
+          imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          console.warn('[AgentPane] preferSend rejected', {
+            reason: 'queue_full',
+            delegationId,
+            orchestrationJobId,
+          })
+          handledPreferSendRef.current = null
+          return
+        }
+        onPreferSendConsumed?.()
         return
+      }
+      if (preferSend.focusPane !== false) onRequestPaneFocus()
+      setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
+        prev,
+        prompt,
+        imagesSnapshot.length,
+      ))
+      if (
+        isHumanTurn
+        && coordinationCanDelegate(metaRef.current.coordination)
+      ) {
+        onOrchestrationUserTurnRef.current?.()
       }
       handledPreferSendRef.current = preferSend
       onPreferSendConsumed?.()
-      return
+      void dispatchMessage(prompt, imagesSnapshot, turnOptions)
+    })()
+    return () => {
+      cancelled = true
     }
-    if (preferSend.focusPane !== false) onRequestPaneFocus()
-    setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
-      prev,
-      prompt,
-      imagesSnapshot.length,
-    ))
-    if (
-      isHumanTurn
-      && coordinationCanDelegate(metaRef.current.coordination)
-    ) {
-      onOrchestrationUserTurnRef.current?.()
-    }
-    handledPreferSendRef.current = preferSend
-    onPreferSendConsumed?.()
-    void dispatchMessage(prompt, imagesSnapshot, turnOptions)
   }, [
     busy,
     canStartHumanTurnNow,
@@ -2105,6 +2150,7 @@ export const AgentPane: React.FC<Props> = ({
     onRequestPaneFocus,
     preferNewThread,
     preferSend,
+    enqueueQueuedTurn,
   ])
 
   const removeQueuedTurn = useCallback((id: string): void => {
@@ -2122,13 +2168,22 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const handleMergeQueuedTurns = useCallback((): void => {
-    const next = mergeQueuedTurns(queuedTurns)
-    if (next === queuedTurns) return
-    setQueuedTurns(next)
-    setEditingQueuedId(current => (
-      current && !next.some(item => item.id === current) ? null : current
-    ))
-  }, [queuedTurns])
+    setQueuedTurns(previous => {
+      const next = mergeQueuedTurns(previous)
+      if (next === previous) return previous
+      const keptIds = new Set(next.map(item => item.id))
+      for (const item of previous) {
+        if (!keptIds.has(item.id)) {
+          item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        }
+      }
+      setEditingQueuedId(current => (
+        current && !next.some(item => item.id === current) ? null : current
+      ))
+      planeStatusThrottlerRef.current.flush()
+      return next
+    })
+  }, [])
 
   const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
     setQueuedTurns(previous => {
@@ -2157,24 +2212,28 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [])
 
+  const removeQueuedTurnRef = useRef(removeQueuedTurn)
+  removeQueuedTurnRef.current = removeQueuedTurn
+  const updateQueuedTurnRef = useRef(updateQueuedTurn)
+  updateQueuedTurnRef.current = updateQueuedTurn
+  const mergeQueuedTurnsRef = useRef(handleMergeQueuedTurns)
+  mergeQueuedTurnsRef.current = handleMergeQueuedTurns
+  const cancelDelegationsFromRef = useRef(cancelDelegationsFrom)
+  cancelDelegationsFromRef.current = cancelDelegationsFrom
+  const cancelDelegationRef = useRef(cancelDelegation)
+  cancelDelegationRef.current = cancelDelegation
+
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
     onPlaneQueueControlsReady({
-      remove: removeQueuedTurn,
-      update: updateQueuedTurn,
-      merge: handleMergeQueuedTurns,
-      cancelDelegationsFrom,
-      cancelDelegation,
+      remove: id => removeQueuedTurnRef.current(id),
+      update: (id, text) => updateQueuedTurnRef.current(id, text),
+      merge: () => mergeQueuedTurnsRef.current(),
+      cancelDelegationsFrom: fromPaneId => cancelDelegationsFromRef.current(fromPaneId),
+      cancelDelegation: delegationId => cancelDelegationRef.current(delegationId),
     })
     return () => onPlaneQueueControlsReady(null)
-  }, [
-    cancelDelegation,
-    cancelDelegationsFrom,
-    handleMergeQueuedTurns,
-    onPlaneQueueControlsReady,
-    removeQueuedTurn,
-    updateQueuedTurn,
-  ])
+  }, [onPlaneQueueControlsReady])
 
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
@@ -2777,6 +2836,7 @@ export const AgentPane: React.FC<Props> = ({
             onRemoveQueuedTurn={removeQueuedTurn}
             onEditQueuedTurn={id => setEditingQueuedId(id)}
             onMergeQueuedTurns={handleMergeQueuedTurns}
+            projectAgents={projectAgents}
             onScrollToBottom={scrollChatToBottom}
             onAbortDelegation={id => onAbortDelegationRef.current?.(id)}
           />

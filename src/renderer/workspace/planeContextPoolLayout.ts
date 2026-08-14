@@ -31,7 +31,7 @@ export function assignedPaneIdsByContext(
   return byContext
 }
 
-/** Chips que caben en la barra; el resto vive en el popover de desbordamiento. */
+/** Chips que caben en la barra colapsada; el resto se expande al hover. */
 export const POOL_VISIBLE_CAP = 6
 
 /**

@@ -8,6 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
@@ -45,7 +46,7 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
 import {
   computeWikiModalSpreadPositions,
   WIKI_MODAL_ESTIMATED_HEIGHT,
@@ -89,7 +90,6 @@ export interface TabAgenticPlaneProps {
   contextPoolDeleteLabel: string
   contextPoolDeleteConfirmMessage: (name: string) => string
   contextPoolDeleteConfirmDetail: string
-  contextPoolTrashDropLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -165,6 +165,8 @@ export interface TabAgenticPlaneProps {
   onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
   agentStatuses?: Record<string, AgentPlaneStatus>
+  /** Catálogo de agentes del workspace (preview de cola humanizada). */
+  projectAgents?: ProjectAgentDefinition[]
   chatFontSize?: number
   /** Sonidos del sistema para dictado del composer. */
   systemSoundsEnabled?: boolean
@@ -329,7 +331,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolDeleteLabel,
   contextPoolDeleteConfirmMessage,
   contextPoolDeleteConfirmDetail,
-  contextPoolTrashDropLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -377,6 +378,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   newThreadPendingPaneId = null,
   onOpenChatAgentChange,
   agentStatuses = {},
+  projectAgents = [],
   chatFontSize = 13,
   systemSoundsEnabled = true,
   configLabel,
@@ -735,6 +737,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       className="tab-agentic-plane"
       style={{
         ['--plane-chat-column-width' as string]: `${chatColumnWidth || PLANE_CHAT_BASE_WIDTH}px`,
+        ['--plane-chat-stack-z' as string]: `${PLANE_CHAT_STACK_Z}`,
       }}
       onPointerDown={event => {
         if (event.button !== 0) return
@@ -751,7 +754,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
           '.plane-chat-dock__toolbar',
-          '.plane-context-pool',
+          '.plane-context-pool-shell',
           '[role="dialog"]',
           'button',
           'a',
@@ -1046,7 +1049,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           deleteLabel={contextPoolDeleteLabel}
           deleteConfirmMessage={contextPoolDeleteConfirmMessage}
           deleteConfirmDetail={contextPoolDeleteConfirmDetail}
-          trashDropLabel={contextPoolTrashDropLabel}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -1059,7 +1061,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && (
+      {!anyFullscreen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
@@ -1106,6 +1108,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   ? (delegationId => onAbortDelegation(openChatAgentId, delegationId))
                   : undefined
               }
+              projectAgents={projectAgents}
             />
           ) : null}
           composer={(
@@ -1117,6 +1120,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}
               queuedTurns={quickChatStatus?.queuedTurns ?? []}
+              agentCatalog={projectAgents}
               onSelectAgent={openChatAgent}
               onCloseChat={closeChatAgent}
               onStop={onStopChat}

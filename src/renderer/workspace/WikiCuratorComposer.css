@@ -8,7 +8,7 @@
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);
-  z-index: 5;
+  z-index: 400;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -17,13 +17,16 @@
   font-family: var(--font-ui);
 }
 
-/* Panel de historial scrolleable sobre el dock. */
+/* Panel de historial scrolleable sobre el dock; colapsado 10vh, expande hacia arriba al hover. */
 .wiki-curator-composer__history-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .wiki-curator-composer__history {
-  max-height: 40vh;
+  max-height: 10vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -31,8 +34,14 @@
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--plane-border) 32%, transparent);
   border-radius: 12px;
-  background: var(--plane-glass-strong);
+  background: transparent;
+  transition: max-height 0.25s ease;
   animation: wiki-curator-bubble-in 0.14s ease-out;
+}
+
+.wiki-curator-composer__history-wrap:hover .wiki-curator-composer__history,
+.wiki-curator-composer__history-wrap:focus-within .wiki-curator-composer__history {
+  max-height: 40vh;
 }
 
 .wiki-curator-composer__history-clear {
@@ -157,5 +166,9 @@
   .wiki-curator-composer__history,
   .wiki-curator-composer__config {
     animation: none;
+  }
+
+  .wiki-curator-composer__history {
+    transition: none;
   }
 }

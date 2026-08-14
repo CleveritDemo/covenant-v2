@@ -67,6 +67,10 @@ vi.mock('three', () => {
     distanceTo(v: { x: number; y: number; z: number }): number {
       return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z)
     }
+    project(): this {
+      this.z = 0
+      return this
+    }
   }
   class Sphere {
     center = new Vector3()
@@ -421,16 +425,24 @@ function Harness({
   data = DATA,
   width = 800,
   height = 600,
+  onNodeScreenPositions,
 }: {
   data?: WikiGraphData
   width?: number
   height?: number
+  onNodeScreenPositions?: (
+    positions: ReadonlyMap<string, { x: number; y: number; visible: boolean }>,
+  ) => void
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useWikiGraphScene(
     ref,
     data,
-    { onHover: () => undefined, onPick: () => undefined },
+    {
+      onHover: () => undefined,
+      onPick: () => undefined,
+      onNodeScreenPositions,
+    },
     true,
   )
   return (
@@ -901,5 +913,27 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     randomSpy.mockRestore()
     rafSpy.mockRestore()
     nowSpy.mockRestore()
+  })
+})
+
+describe('useWikiGraphScene: proyección de nodos', () => {
+  it('onNodeScreenPositions recibe un entry por nodo tras el primer render', () => {
+    resetGlobals()
+    const positions = new Map<string, { x: number; y: number; visible: boolean }>()
+    render(
+      <Harness
+        onNodeScreenPositions={map => {
+          for (const [slug, pos] of map) positions.set(slug, { ...pos })
+        }}
+      />,
+    )
+    expect(positions.size).toBe(DATA.nodes.length)
+    for (const node of DATA.nodes) {
+      const pos = positions.get(node.slug)
+      expect(pos).toBeDefined()
+      expect(pos!.visible).toBe(true)
+      expect(Number.isFinite(pos!.x)).toBe(true)
+      expect(Number.isFinite(pos!.y)).toBe(true)
+    }
   })
 })

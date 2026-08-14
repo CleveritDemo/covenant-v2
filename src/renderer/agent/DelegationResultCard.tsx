@@ -14,15 +14,19 @@ import './DelegationResultCard.css'
  * La tarjeta se queda con lo que le sirve a quien mira: quién contestó, cómo
  * le fue, qué resumió y qué archivos tocó.
  */
-export const DelegationResultCard: React.FC<{ data: DelegationResultCardData }> = ({ data }) => {
+export const DelegationResultCard: React.FC<{
+  data: DelegationResultCardData
+  agentLabel?: string
+}> = ({ data, agentLabel }) => {
   const { t } = useT()
   const statusLabel = t(`delegationCard.status_${data.status}`)
+  const displayAgent = agentLabel || data.agentId || t('delegationCard.agentUnknown')
 
   return (
     <div className={`delegation-card delegation-card--${data.status}`}>
       <div className="delegation-card__head">
         <span className="delegation-card__agent">
-          {data.agentId || t('delegationCard.agentUnknown')}
+          {displayAgent}
         </span>
         <span className="delegation-card__status">{statusLabel}</span>
         {data.round ? (

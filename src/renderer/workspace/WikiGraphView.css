@@ -25,6 +25,20 @@
   height: 100%;
 }
 
+/* Badges «Hoy» proyectados desde nodos 3D; debajo de bar/tooltip. */
+.wiki-graph-view__node-badges {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.wiki-graph-view__node-badge {
+  position: absolute;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .wiki-graph-view__fallback {
   position: absolute;
   inset: 0;

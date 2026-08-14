@@ -50,6 +50,16 @@ describe('queuedTurnDedup', () => {
     expect(result[0]?.id).toBe('t1')
   })
 
+  it('two back-to-back enqueues with the same key leave one human turn', () => {
+    const first = turn({ id: 't1', text: 'haz X', images: [] })
+    const second = turn({ id: 't2', text: 'haz X', images: [] })
+    let queue: TestTurn[] = []
+    queue = dedupeHumanQueuedTurnOnEnqueue(queue, first)
+    queue = dedupeHumanQueuedTurnOnEnqueue(queue, second)
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.id).toBe('t1')
+  })
+
   it('dedupeHumanQueuedTurnOnEnqueue does not dedupe human vs follow-up with same text', () => {
     const human = turn({ id: 'h1', text: 'haz X', images: [] })
     const followUp = turn({

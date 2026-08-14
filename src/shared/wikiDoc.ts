@@ -81,6 +81,8 @@ export interface WikiPage {
   body: string
   /** Slugs referenciados desde el body; derivados, no se guardan aparte. */
   links: string[]
+  /** mtime del .md en disco; solo lo rellena readWikiPages (electron). */
+  updatedAtMs?: number
 }
 
 const WIKI_PAGE_META_RE = /<!--\s*iaterminal:wiki-page\s+(\{[^\n]*\})\s*-->/

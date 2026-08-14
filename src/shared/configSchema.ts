@@ -1,6 +1,10 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
+import {
+  sanitizeWikiCuratorConfig,
+  type WikiCuratorConfig,
+} from './wikiCurator'
 
 /** Política de ejecución de shell del modo agente (el modelo propone bloques RUN). */
 export type AgentShellPolicy = 'off' | 'ask' | 'always'
@@ -122,6 +126,8 @@ export interface AppConfig {
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
    */
   orgWorkspaceCatalogCache?: OrgWorkspaceCatalog | null
+  /** Curador wiki global (nombre, CLI, modelo, reglas); persiste en userData/config.json. */
+  wikiCurator: WikiCuratorConfig
 }
 
 export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
@@ -158,6 +164,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   discordPresenceEnabled: false,
   autoUpdatesEnabled: true,
   agentCliCommands: {},
+  wikiCurator: {},
 }
 
 /** Claves previas a `agentCliCommands` (una por proveedor). */
@@ -224,6 +231,11 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
       ? undefined
       : (parseOrgWorkspaceCatalog(catalogRaw) ?? undefined)
     : undefined
+  const wikiCurator = sanitizeWikiCuratorConfig(
+    Object.prototype.hasOwnProperty.call(partial, 'wikiCurator')
+      ? partial.wikiCurator
+      : CONFIG_DEFAULTS.wikiCurator,
+  )
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
@@ -235,6 +247,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     autoUpdatesEnabled,
     agentCliCommands,
     defaultWorkspacesDir,
+    wikiCurator,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
   delete merged.soundFeedbackEnabled

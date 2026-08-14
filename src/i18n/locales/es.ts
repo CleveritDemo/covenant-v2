@@ -775,6 +775,7 @@ const es = {
     brainstormStatusStopped: 'Detenida',
     brainstormSpeakerLabel: '{{name}} · ronda {{round}}',
     brainstormSpeakerWriting: '{{name}} · escribiendo…',
+    brainstormWikiPageMissing: 'Esta página no está en el wiki del proyecto. El agente la escribió, pero no llegó a guardarse: comprueba que el proyecto tenga wiki.',
     brainstormWikiWrote: 'Escribió en el wiki · {{count}}',
     brainstormWikiDeleted: 'borrada',
     wikiTypeConcept: 'concepto',

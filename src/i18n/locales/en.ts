@@ -773,6 +773,7 @@ const en = {
     brainstormStatusStopped: 'Stopped',
     brainstormSpeakerLabel: '{{name}} · round {{round}}',
     brainstormSpeakerWriting: '{{name}} · writing…',
+    brainstormWikiPageMissing: 'This page is not in the project wiki. The agent wrote it, but it never got saved: check that the project has a wiki.',
     brainstormWikiWrote: 'Wrote to the wiki · {{count}}',
     brainstormWikiDeleted: 'deleted',
     wikiTypeConcept: 'concept',

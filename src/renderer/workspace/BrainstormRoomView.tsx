@@ -28,6 +28,11 @@ import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormLiveSeatCard } from './BrainstormSeatCard'
 import { BrainstormAgentPane } from './BrainstormAgentPane'
 import { AiMarkdown } from '../components/AiMarkdown'
+import { TerminalModal } from '../components/TerminalModal'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { formatWikiPageBodyForHuman } from '@shared/wikiPagePlain'
+import type { WikiGraphNode } from '@shared/wikiGraph'
+import { wikiTypeLabelKey } from './WikiGraphView'
 import { ChatBubble } from '../components/ai/ChatBubble'
 import {
   createInitialBrainstormLiveState,
@@ -132,6 +137,29 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     filePaths: string[]
   } | null>(null)
   const [workingSetError, setWorkingSetError] = useState<string | null>(null)
+  /**
+   * Página de wiki abierta desde la tarjeta de un turno. El grafo ya trae el
+   * body, así que una sola llamada resuelve título, tipo y contenido — y si el
+   * slug no está, eso ES la respuesta: el turno la escribió pero no llegó a
+   * disco (el proyecto puede no tener wiki). La tarjeta no lo promete; abrirla
+   * es la comprobación.
+   */
+  const [wikiPage, setWikiPage] = useState<WikiGraphNode | null>(null)
+  const [wikiPageMissing, setWikiPageMissing] = useState<string | null>(null)
+
+  const openWikiPage = useCallback((slug: string): void => {
+    const root = cwd.trim()
+    if (!root) return
+    setWikiPage(null)
+    setWikiPageMissing(null)
+    void window.api.getWikiGraph(root).then(result => {
+      const node = result.ok
+        ? result.data?.nodes.find(item => item.slug === slug)
+        : undefined
+      if (node) setWikiPage(node)
+      else setWikiPageMissing(slug)
+    }).catch(() => setWikiPageMissing(slug))
+  }, [cwd])
   liveStatusRef.current = live.status
 
   const participantResolution = useMemo(() => {
@@ -807,7 +835,11 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                         ops en mitad de la conversación, y taparlo sin más
                         dejaba el trabajo invisible. */}
                     {parts ? (
-                      <BrainstormWikiCard ops={parts.wikiOps} log={parts.wikiLog} />
+                      <BrainstormWikiCard
+                        ops={parts.wikiOps}
+                        log={parts.wikiLog}
+                        onOpenPage={openWikiPage}
+                      />
                     ) : null}
                   </div>
                 </article>
@@ -948,6 +980,43 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             />
           ) : undefined}
         />
+      ) : null}
+
+      {/* La página que escribió un turno, abierta desde su tarjeta. */}
+      {wikiPage ? (
+        <TerminalModal
+          open
+          active={active}
+          movable
+          title={wikiPage.title}
+          size="sm"
+          zIndex={APP_OVERLAY_MODAL_Z + 10}
+          onClose={() => setWikiPage(null)}
+        >
+          <div className="brainstorm-room-view__wiki-page">
+            <p className="brainstorm-room-view__wiki-type">
+              {t(wikiTypeLabelKey(wikiPage.type))}
+            </p>
+            <AiMarkdown content={formatWikiPageBodyForHuman(wikiPage.body ?? '')} />
+          </div>
+        </TerminalModal>
+      ) : null}
+
+      {/* El slug no está en el grafo: el turno la escribió, pero no llegó a
+          disco. Decirlo es más útil que no abrir nada. */}
+      {wikiPageMissing ? (
+        <TerminalModal
+          open
+          active={active}
+          title={wikiPageMissing}
+          size="sm"
+          zIndex={APP_OVERLAY_MODAL_Z + 10}
+          onClose={() => setWikiPageMissing(null)}
+        >
+          <p className="brainstorm-room-view__wiki-missing">
+            {t('tabs.brainstormWikiPageMissing')}
+          </p>
+        </TerminalModal>
       ) : null}
     </BrainstormOverlay>
   )

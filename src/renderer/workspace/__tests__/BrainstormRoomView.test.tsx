@@ -77,6 +77,91 @@ beforeEach(() => {
   })
 })
 
+// El JSON de las ops salía crudo en la conversación; ahora es una tarjeta que
+// abre la página, y abrirla es la única comprobación de que llegó a disco.
+describe('tarjeta de wiki en la transcripción', () => {
+  const wikiRoom: BrainstormRoom = {
+    ...room,
+    messages: [{
+      agentId: 'atlas',
+      agentName: 'Atlas',
+      round: 0,
+      text: [
+        'Refinado el alcance.',
+        '',
+        '```ia-terminal-wiki',
+        JSON.stringify({
+          ops: [{
+            op: 'upsert',
+            slug: 'ct133-ui',
+            title: 'CT-133 UI options',
+            type: 'decision',
+            body: 'Sin dashboard.',
+          }],
+        }),
+        '```',
+      ].join('\n'),
+    }],
+  }
+
+  function mountWiki(): void {
+    render(
+      <BrainstormRoomView
+        open
+        room={wikiRoom}
+        cwd="/repo"
+        agents={[{ id: 'atlas', name: 'Atlas' }, { id: 'forge', name: 'Forge' }]}
+        onClose={vi.fn()}
+      />,
+    )
+  }
+
+  it('el JSON de las ops no llega a la conversación', () => {
+    mountWiki()
+    // Sale en la transcripción y como cola del asiento: en ninguna de las dos
+    // se cuela el JSON, que es justo lo que se veía antes en las dos.
+    expect(screen.getAllByText('Refinado el alcance.').length).toBeGreaterThan(0)
+    expect(document.body.textContent).not.toContain('"ops"')
+    expect(screen.getByText('CT-133 UI options')).toBeTruthy()
+  })
+
+  it('pulsar la página la abre desde el grafo del wiki', async () => {
+    const getWikiGraph = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        nodes: [{
+          slug: 'ct133-ui',
+          title: 'CT-133 UI options',
+          type: 'decision',
+          linkCount: 0,
+          body: 'Sin dashboard en esta app.',
+        }],
+        edges: [],
+      },
+    })
+    Object.assign(window.api, { getWikiGraph })
+    mountWiki()
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('CT-133 UI options'))
+    })
+    expect(getWikiGraph).toHaveBeenCalledWith('/repo')
+    expect(screen.getByText('Sin dashboard en esta app.')).toBeTruthy()
+  })
+
+  it('si la página no está en el grafo, lo dice en vez de no hacer nada', async () => {
+    Object.assign(window.api, {
+      getWikiGraph: vi.fn().mockResolvedValue({ ok: true, data: { nodes: [], edges: [] } }),
+    })
+    mountWiki()
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('CT-133 UI options'))
+    })
+    expect(screen.getByText('tabs.brainstormWikiPageMissing')).toBeTruthy()
+  })
+})
+
 describe('BrainstormRoomView minimizada', () => {
   it('Escape cierra la vista y no detiene el runner', () => {
     const stopBrainstorm = vi.fn()

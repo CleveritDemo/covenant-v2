@@ -263,3 +263,29 @@
 :root[data-reduce-motion='true'] .brainstorm-room-view__messages {
   scroll-behavior: auto;
 }
+
+/* Página de wiki abierta desde la tarjeta de un turno. */
+.brainstorm-room-view__wiki-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.brainstorm-room-view__wiki-type {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-room-view__wiki-missing {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

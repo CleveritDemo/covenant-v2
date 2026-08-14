@@ -42,6 +42,8 @@ import {
 } from './brainstormViewClose'
 import { BrainstormClosingCard } from './BrainstormClosingCard'
 import { BrainstormSpeakerWaiting } from './BrainstormSpeakerWaiting'
+import { BrainstormWikiCard } from './BrainstormWikiCard'
+import { splitBrainstormMessage } from '@shared/brainstormMessageParts'
 import { BrainstormHumanComposer } from './BrainstormHumanComposer'
 import './BrainstormRoomView.css'
 
@@ -767,6 +769,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 </React.Fragment>
               )
             }
+            // Una sola pasada por mensaje: parte prosa y ops de wiki.
+            const parts = human ? null : splitBrainstormMessage(message.text)
             return (
               <React.Fragment key={`${message.agentId}-${message.round}-${index}`}>
                 {opensRound ? (
@@ -796,9 +800,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                       {human ? (
                         <div className="brainstorm-room-view__plain">{message.text}</div>
                       ) : (
-                        <AiMarkdown content={stripBrainstormProtocolFences(message.text)} />
+                        <AiMarkdown content={parts?.prose ?? ''} />
                       )}
                     </ChatBubble>
+                    {/* Lo que el turno escribió en el wiki: era el JSON de las
+                        ops en mitad de la conversación, y taparlo sin más
+                        dejaba el trabajo invisible. */}
+                    {parts ? (
+                      <BrainstormWikiCard ops={parts.wikiOps} log={parts.wikiLog} />
+                    ) : null}
                   </div>
                 </article>
               </React.Fragment>

@@ -209,6 +209,15 @@
     minmax(0, var(--brainstorm-col-w));
 }
 
+/* Sin columna izquierda (el alta la vació al pasar todo a la frase) su ancho
+   se lo queda el centro: 304px en blanco se leen como un bug, no como aire. */
+.brainstorm-overlay--setup:not(:has(.brainstorm-overlay__col--left)) {
+  grid-template-columns:
+    0
+    minmax(0, 1fr)
+    minmax(0, var(--brainstorm-col-w));
+}
+
 .brainstorm-overlay__col--left {
   grid-column: 1;
   border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);

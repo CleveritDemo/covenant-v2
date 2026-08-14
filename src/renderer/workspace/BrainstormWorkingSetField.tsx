@@ -42,6 +42,20 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
 
   const root = cwd.trim()
 
+  const contextsById = useMemo(
+    () => new Map(contexts.map(context => [context.id, context])),
+    [contexts],
+  )
+
+  /**
+   * Un id que no está en el catálogo suele ser un contexto recién materializado
+   * —mencionar una issue en el tema la crea en disco después de este descubrir—
+   * y el chip acababa mostrando el id crudo (`iaterminal:jira:ct-128`). Volver a
+   * descubrir lo nombra. No hay bucle: si tras redescubrir sigue sin aparecer,
+   * la clave no cambia y el efecto no se repite.
+   */
+  const unknownIds = contextIds.filter(id => !contextsById.has(id)).join('|')
+
   useEffect(() => {
     if (!root) return
     let cancelled = false
@@ -52,7 +66,7 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
       if (!cancelled) setContexts([])
     })
     return () => { cancelled = true }
-  }, [root])
+  }, [root, unknownIds])
 
   useEffect(() => {
     const q = query.trim()
@@ -77,11 +91,6 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
       window.clearTimeout(timer)
     }
   }, [root, query])
-
-  const contextsById = useMemo(
-    () => new Map(contexts.map(context => [context.id, context])),
-    [contexts],
-  )
 
   const full = contextIds.length + filePaths.length >= BRAINSTORM_WORKING_SET_CAP
 
@@ -163,7 +172,8 @@ export const BrainstormWorkingSetField: React.FC<BrainstormWorkingSetFieldProps>
               <span className="brainstorm-working-set__tag">
                 {contextsById.get(id)?.kind ?? 'ctx'}
               </span>
-              {contextsById.get(id)?.name ?? id}
+              {/* Sin catálogo, el último tramo del id es lo único legible. */}
+              {contextsById.get(id)?.name ?? id.split(':').pop() ?? id}
               <button
                 type="button"
                 className="brainstorm-working-set__remove"

@@ -1,7 +1,7 @@
 /*
  * Alta de la sala en la columna central del overlay: el objetivo arriba con
- * tipografía de titular —es lo único sin valor por defecto—, el orden de habla
- * en medio y el arranque abajo, fijo.
+ * tipografía de titular —es lo único sin valor por defecto—, la frase con toda
+ * la configuración debajo y el arranque abajo, fijo.
  */
 .brainstorm-start {
   display: flex;
@@ -16,6 +16,24 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Qué te llevas: empuja el pie hacia abajo y se lee justo antes de arrancar. */
+.brainstorm-start__takeaway {
+  margin-top: auto;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* Lo único que impide empezar, dicho una vez y entero. */
+.brainstorm-start__missing {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* El objetivo se lleva el escenario: sin caja, con una línea que lo subraya. */
@@ -37,138 +55,6 @@
   box-shadow: none;
 }
 
-.brainstorm-start__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 6px;
-}
-
-/* Orden de habla: el número de cada tarjeta, leído de corrido. */
-.brainstorm-start__order {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.brainstorm-start__order-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 11px 4px 6px;
-  border: 1px solid color-mix(in srgb, var(--brainstorm-seat-color) 45%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--brainstorm-seat-color) 8%, transparent);
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  color: var(--text);
-  /* Arrastrable: el orden es el turno de habla, no una decoración. */
-  cursor: grab;
-}
-
-.brainstorm-start__order-item--dragging {
-  opacity: 0.5;
-  cursor: grabbing;
-}
-
-.brainstorm-start__order-index {
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
-  color: var(--brainstorm-seat-color);
-}
-
-/* Formatos: las once ceremonias en la columna, agrupadas por etapa. */
-.brainstorm-format-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 260px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.brainstorm-format-list__stage {
-  padding: 6px 2px 2px;
-  font-family: var(--font-ui);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.brainstorm-format-list__item {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.brainstorm-format-list__item:hover { background: var(--surface-hover); }
-
-.brainstorm-format-list__item--on {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  font-weight: 600;
-}
-
-.brainstorm-format-list__rounds {
-  flex: none;
-  font-family: var(--font-ui);
-  font-size: 9.5px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Lo que cuesta, en tres cifras. */
-.brainstorm-estimate {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  overflow: hidden;
-  background: var(--border);
-}
-
-.brainstorm-estimate__cell {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 8px;
-  background: var(--bg-secondary);
-}
-
-.brainstorm-estimate__cell b {
-  font-family: var(--font-ui);
-  font-size: 15px;
-  font-weight: 620;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.brainstorm-estimate__cell span {
-  font-family: var(--font-ui);
-  font-size: 8.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
 .brainstorm-start__label {
   font-family: var(--font-ui);
   font-size: 12px;
@@ -180,64 +66,6 @@
   font-family: var(--font-ui);
   font-size: 12px;
   line-height: 1.4;
-  color: var(--text-muted);
-}
-
-/* Asientos de la ceremonia: qué rol pide y quién lo cubre. El hueco vacío se
-   ve de un vistazo, que es lo que el conteo no decía. */
-.brainstorm-start__seats {
-  list-style: none;
-  margin: 2px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.brainstorm-start__seat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 9px;
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--brainstorm-seat-color, var(--border));
-  border-radius: 999px;
-  background: var(--surface);
-}
-
-/* Hueco sin cubrir, rol deducido y segundo sombrero comparten el borde
-   punteado: los tres significan «esto no está confirmado». */
-.brainstorm-start__seat--missing,
-.brainstorm-start__seat--guess,
-.brainstorm-start__seat--double {
-  border-style: dashed;
-}
-
-.brainstorm-start__seat-role {
-  font-family: var(--font-ui);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.brainstorm-start__seat-agent {
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 550;
-  color: var(--text);
-}
-
-.brainstorm-start__seat--missing .brainstorm-start__seat-agent {
-  font-weight: 450;
-  color: var(--text-muted);
-}
-
-.brainstorm-start__seat-guess {
-  font-family: var(--font-ui);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--text-muted);
 }
 
@@ -253,12 +81,35 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-.brainstorm-start__summary {
+/* Lo que va a costar la tirada, en el pie: los números son el dato, la unidad
+   solo los etiqueta. */
+.brainstorm-start__cost {
+  display: flex;
   flex: 1;
   min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brainstorm-start__cost-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.brainstorm-start__cost-cell b {
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 /* Ancla del desplegable de menciones de Jira sobre el objetivo de la sala. */

@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.59.0
+
+- **Loops en main, sin ocupar el chat**: las cadenas corren headless con transcript propio en la vista Loops; brainstorm y loops ya no compiten con el hueco del panel ni marcan busy al agente del plano.
+- **Cola del chat al instante**: los mensajes encolados aparecen como chip al enviar (promoción síncrona), con contextos preservados, aviso al tope y merge por identidad de envío.
+- **Orquestación más fiable**: follow-ups turbo sin duplicados silenciosos, diferidas que despiertan al liberar carril y jobs con solo subtareas pendientes ya no se descartan.
+- **Hilos como chips en el plano**: activo y corriendo al centro; historial paginado entre + y papelera; lápiz que expande la pastilla al hover; clic en mini card abre el hilo humano correcto.
+- **Pool de contextos**: la barra colapsa al clic fuera; preview con clic y menú contextual en clic derecho.
+- **Delegaciones por carril**: hasta tres hilos en paralelo por especialista, entrega dirigida por job y retiro del modelo de réplicas en UI y runtime.
+
 ## v0.58.0
 
 - **Pulse ahora se abre como vista a pantalla completa del plano en vez de modal**, con Escape para cerrar.

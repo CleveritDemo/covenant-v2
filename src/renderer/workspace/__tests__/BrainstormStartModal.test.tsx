@@ -366,7 +366,7 @@ describe('BrainstormStartModal — el plano entero, sin modal', () => {
     const card = [...document.querySelectorAll('.brainstorm-seat--invite')]
       .find(node => node.textContent?.includes('vanesa')) as HTMLElement
     expect(card.querySelector('.plane-mini-face')).not.toBeNull()
-    expect(card.querySelector('.plane-context-card__name')?.textContent).toBe('Front Rules')
+    expect(card.querySelector('button[aria-label="Front Rules"]')).not.toBeNull()
     // Sin asiento lo dice la cápsula de estado; sentarse la cambia por el turno.
     expect(card.textContent).toContain('tabs.brainstormSeatFree')
     fireEvent.click(card)

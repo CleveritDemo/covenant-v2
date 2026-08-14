@@ -25,6 +25,7 @@ vi.mock('../PlaneMap', () => ({
   PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
     <div data-testid="plane-map">{wikiOverlay}</div>
   ),
+  planeFloorAuroraActive: (working: boolean, wikiOpen: boolean) => working && !wikiOpen,
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
 vi.mock('../PlaneChatDock', () => ({

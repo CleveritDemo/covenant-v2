@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.54.0
+
+- **Loops: la cadena es la interfaz**: se acabó el asistente Agent→Interaction→Wait. Los pasos viven en una pista, el retorno del ciclo se dibuja con su intervalo, un paso nuevo se añade en línea y el objetivo se edita en la propia fila; mientras la cadena corre se ve el paso activo y el estado de cada agente.
+- **Bandeja en el picker de contextos**: lo que el agente carga en cada turno va arriba en chips, y el catálogo se filtra por texto y por tipo en vez de ser una lista plana.
+- **Quién consume cada contexto**: cada fila del picker muestra los monogramas de los agentes que ya lo cargan, o el tag «sin usar» si no lo usa nadie.
+
 ## v0.53.1
 
 - **Fix rayos wiki en light**: el rayo visual sigue oscuro, pero la PointLight viajera y el wash emissive son blancos y aclaran los nodos al disparar (corrige v0.53.0 que oscurecía nodos en light).

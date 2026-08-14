@@ -3,7 +3,7 @@
  * Puro: ids a upsert/borrar y filtros syncable (sin I/O).
  */
 
-import { shouldSyncOrgWorkspaceAgentDefinition } from './expertReplicas'
+import { shouldSyncOrgWorkspaceAgentDefinition } from './delegationTargets'
 import type { ProjectAgentDefinition } from './projectAgentCatalog'
 import type { TabContext } from './tabContext'
 

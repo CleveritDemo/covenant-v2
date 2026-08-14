@@ -25,7 +25,12 @@ describe('queuedTurnDedup', () => {
     expect(isHumanQueuedTurn(turn({
       id: 'd1',
       text: 'sub',
-      delegation: { fromPaneId: 'p' },
+      delegation: {
+        id: 'd1',
+        fromPaneId: 'p',
+        toAgentId: 'qa',
+        orchestrationJobId: 'job-1',
+      },
     }))).toBe(false)
     expect(isHumanQueuedTurn(turn({
       id: 'f1',
@@ -72,7 +77,12 @@ describe('queuedTurnDedup', () => {
       id: 'd1',
       text: 'haz X',
       images: [],
-      delegation: { fromPaneId: 'p' },
+      delegation: {
+        id: 'd1',
+        fromPaneId: 'p',
+        toAgentId: 'qa',
+        orchestrationJobId: 'job-1',
+      },
     })
     expect(dedupeHumanQueuedTurnOnEnqueue([human], followUp)).toHaveLength(2)
     expect(dedupeHumanQueuedTurnOnEnqueue([human], delegation)).toHaveLength(2)

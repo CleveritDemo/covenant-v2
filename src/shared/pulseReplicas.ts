@@ -6,7 +6,7 @@
  * verdad del log— las devuelve como agentes sueltos. Esto es solo la vista.
  */
 
-import { parseExpertReplicaRequest } from './expertReplicas'
+import { parseExpertReplicaRequest } from './delegationTargets'
 import type { PulseAgentStat } from './pulseEvents'
 
 export interface PulseAgentGroup {

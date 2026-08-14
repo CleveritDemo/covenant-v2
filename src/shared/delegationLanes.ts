@@ -1,5 +1,5 @@
 import type { OrchestrationAgentRef } from './agentOrchestration'
-import { parseExpertReplicaRequest } from './expertReplicas'
+import { parseExpertReplicaRequest } from './delegationTargets'
 
 export const MAX_LANES_PER_PANE = 3
 

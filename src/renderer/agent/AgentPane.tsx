@@ -3418,6 +3418,7 @@ export const AgentPane: React.FC<Props> = ({
               orchestrationMaxRounds: _rounds,
               orchestrationWorkStyle: _style,
               delegateTo: _dt,
+              // Descarta allowExpertReplicas legacy del JSON en disco; no afecta runtime.
               allowExpertReplicas: _replicas,
               ...rest
             } = previous
@@ -3451,7 +3452,7 @@ export const AgentPane: React.FC<Props> = ({
               return { ...previous, orchestrationWorkStyle: 'turbo' }
             }
             const { orchestrationWorkStyle: _drop, ...rest } = previous
-            // Al volver a linear no apagar réplicas automáticamente.
+            // Linear no reescribe el catálogo; solo cambia el estilo de trabajo.
             return rest
           })
         }}

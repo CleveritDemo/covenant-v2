@@ -138,7 +138,7 @@ import {
 } from '@shared/worktreeDelegation'
 import {
   shouldFinalizeWorktreeFromOrchestrator,
-} from '@shared/expertReplicas'
+} from '@shared/delegationTargets'
 import {
   buildOrchestrationAwaitingView,
   orchestrationAwaitingSignature,
@@ -4399,8 +4399,8 @@ export const App: React.FC = () => {
         // Terminal sin conflicto: no hay retry ni prompt al especialista, así
         // que limpiamos como si el merge hubiera sido ok — pero notamos el
         // fallo. Antes de esta rama solo se hacía warn+return y quedaban
-        // colgados el worktree, el override del pane, la réplica y la entry
-        // del registry. QA slice 3 pendiente resuelto.
+        // colgados el worktree, el override del pane y la entry del registry.
+        // QA slice 3 pendiente resuelto.
         const runtime = getDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
         console.warn('[orchestration] worktree merge failed', {
           delegationId: result.id,

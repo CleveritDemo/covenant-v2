@@ -2,9 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBatchedDelegationFollowUp,
   formatDelegationResultFollowUp,
+  type DelegateResult,
 } from '../agentOrchestration'
 import type { ProjectAgentDefinition } from '../projectAgentCatalog'
-import { resolveQueuedTurnPreview } from '../queuedTurnPreview'
+import { resolveQueuedTurnPreview, type QueuedTurnDelegationLike } from '../queuedTurnPreview'
+
+function stubResult(
+  partial: Partial<DelegateResult> & Pick<DelegateResult, 'id' | 'status' | 'summary'>,
+): DelegateResult {
+  return {
+    fromPaneId: 'p-orq',
+    orchestrationJobId: 'job-1',
+    ...partial,
+  }
+}
 
 const catalog: ProjectAgentDefinition[] = [
   {
@@ -29,12 +40,12 @@ describe('resolveQueuedTurnPreview', () => {
   })
 
   it('delegation_result ok con nombre de catálogo y resumen corto', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd1',
       status: 'ok',
       summary: 'Login form validated on submit.',
       toAgentId: 'frontend',
-    })
+    }))
     expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toEqual({
       kind: 'delegation_result',
       agentLabel: 'David · frontend engineer',
@@ -44,12 +55,12 @@ describe('resolveQueuedTurnPreview', () => {
   })
 
   it('delegation_result fail conserva status', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd2',
       status: 'fail',
       summary: 'Build broke.',
       toAgentId: 'qa',
-    })
+    }))
     expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toMatchObject({
       kind: 'delegation_result',
       agentLabel: 'Vanesa · qa',
@@ -60,18 +71,18 @@ describe('resolveQueuedTurnPreview', () => {
 
   it('delegation_results_batch con dos cards', () => {
     const text = buildBatchedDelegationFollowUp([
-      {
+      stubResult({
         id: 'd1',
         status: 'ok',
         summary: 'Frontend done.',
         toAgentId: 'frontend',
-      },
-      {
+      }),
+      stubResult({
         id: 'd2',
         status: 'fail',
         summary: 'QA blocked.',
         toAgentId: 'qa',
-      },
+      }),
     ])
     expect(resolveQueuedTurnPreview({ text, orchestrationFollowUp: true }, catalog)).toEqual({
       kind: 'delegation_results_batch',
@@ -91,13 +102,15 @@ describe('resolveQueuedTurnPreview', () => {
   })
 
   it('delegation_task usa slug cuando el agent id no está en catálogo', () => {
+    const delegation = {
+      id: 'dlg-1',
+      fromPaneId: 'orch',
+      toAgentId: 'frontend-2',
+      orchestrationJobId: 'job-deleg-1',
+    } satisfies QueuedTurnDelegationLike
     expect(resolveQueuedTurnPreview({
       text: 'Implement UI',
-      delegation: {
-        id: 'dlg-1',
-        fromPaneId: 'orch',
-        toAgentId: 'frontend-2',
-      },
+      delegation,
     }, catalog)).toEqual({
       kind: 'delegation_task',
       agentLabel: 'frontend-2',

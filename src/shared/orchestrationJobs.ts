@@ -484,7 +484,7 @@ export interface AbortOneDelegationResult {
 
 /**
  * Quita una delegación de pending/deferred/waveItems del job.
- * App se encarga de stop del pane, réplica, worktree y follow-up.
+ * App se encarga de stop del pane, worktree y follow-up.
  */
 export function abortOneDelegationInJob(
   job: OrchestrationJob,

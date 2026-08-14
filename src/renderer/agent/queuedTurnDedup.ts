@@ -1,17 +1,13 @@
-/** Forma mínima de un turno encolado para dedupe humano. */
-export interface HumanQueuedTurnLike {
-  text: string
-  images: Array<{ previewUrl: string }>
-  orchestrationFollowUp?: boolean
-  delegation?: object
-}
+import type { HumanQueuedTurnLike } from '@shared/queuedTurnPreview'
+
+export type { HumanQueuedTurnLike }
 
 export function isHumanQueuedTurn(item: HumanQueuedTurnLike): boolean {
   return !item.delegation && !item.orchestrationFollowUp
 }
 
 export function queuedTurnHumanKey(item: HumanQueuedTurnLike): string {
-  return `${item.text.trim()}\0${item.images.length}`
+  return `${item.text.trim()}\0${item.images?.length ?? 0}`
 }
 
 export function dedupeHumanQueuedTurnOnEnqueue<T extends HumanQueuedTurnLike>(
@@ -35,7 +31,16 @@ export function removeMatchingHumanQueuedTurns<T extends HumanQueuedTurnLike>(
   const kept: T[] = []
   for (const turn of turns) {
     if (isHumanQueuedTurn(turn) && queuedTurnHumanKey(turn) === key) {
-      turn.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+      turn.images?.forEach(image => {
+        if (
+          image
+          && typeof image === 'object'
+          && 'previewUrl' in image
+          && typeof image.previewUrl === 'string'
+        ) {
+          URL.revokeObjectURL(image.previewUrl)
+        }
+      })
       continue
     }
     kept.push(turn)

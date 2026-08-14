@@ -598,7 +598,7 @@ export function buildBatchedDelegationFollowUp(
 
 /**
  * Instrucciones extra del modo turbo (hilos/jobs concurrentes entre mensajes humanos).
- * Vacío en linear. Réplicas se asumen on en la práctica.
+ * Vacío en linear. Turbo asume carriles paralelos por conversación cuando el pane está ocupado.
  */
 export function buildOrchestratorTurboWorkStyleBlock(options?: {
   jobId?: string

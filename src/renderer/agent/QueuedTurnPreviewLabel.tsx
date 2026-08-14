@@ -5,22 +5,18 @@ import './QueuedTurnPreviewLabel.css'
 
 export type QueuedTurnPreviewRenderable = Exclude<QueuedTurnPreview, { kind: 'human' }>
 
-function agentWithTag(label: string, instanceTag?: string): string {
-  return instanceTag ? `${label} ${instanceTag}` : label
-}
-
 export function formatQueuedTurnPreviewText(
   preview: QueuedTurnPreviewRenderable,
   t: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
   if (preview.kind === 'delegation_task') {
     return t('agentPane.queueDelegatedTask', {
-      agent: agentWithTag(preview.agentLabel, preview.instanceTag),
+      agent: preview.agentLabel,
     })
   }
 
   if (preview.kind === 'delegation_result') {
-    const agent = agentWithTag(preview.agentLabel, preview.instanceTag)
+    const agent = preview.agentLabel
     if (preview.status === 'ok' && preview.summarySnippet) {
       return t('agentPane.queueDelegationResultSummary', {
         agent,
@@ -36,7 +32,7 @@ export function formatQueuedTurnPreviewText(
     return t('agentPane.queueDelegationResult', { agent })
   }
 
-  const labels = preview.items.map(item => agentWithTag(item.agentLabel, item.instanceTag))
+  const labels = preview.items.map(item => item.agentLabel)
   const shown = labels.slice(0, 3)
   const agents = shown.join(', ') + (labels.length > 3 ? '…' : '')
   return t('agentPane.queueDelegationResultsBatch', {
@@ -45,14 +41,9 @@ export function formatQueuedTurnPreviewText(
   })
 }
 
-function renderAgentRef(agentLabel: string, instanceTag?: string): React.ReactNode {
-  return agentWithTag(agentLabel, instanceTag)
-}
-
 function renderAroundAgent(
   template: string,
   agentLabel: string,
-  instanceTag: string | undefined,
   marker = '\0',
 ): React.ReactNode {
   const parts = template.split(marker)
@@ -60,7 +51,7 @@ function renderAroundAgent(
   return (
     <>
       {parts[0]}
-      {renderAgentRef(agentLabel, instanceTag)}
+      {agentLabel}
       {parts.slice(1).join(marker)}
     </>
   )
@@ -85,7 +76,7 @@ export const QueuedTurnPreviewLabel: React.FC<QueuedTurnPreviewLabelProps> = ({ 
     const template = t('agentPane.queueDelegatedTask', { agent: '\0' })
     return (
       <span className="queued-turn-preview">
-        {renderAroundAgent(template, preview.agentLabel, preview.instanceTag)}
+        {renderAroundAgent(template, preview.agentLabel)}
       </span>
     )
   }
@@ -97,7 +88,7 @@ export const QueuedTurnPreviewLabel: React.FC<QueuedTurnPreviewLabelProps> = ({ 
     })
     return (
       <span className="queued-turn-preview">
-        {renderAroundAgent(template, preview.agentLabel, preview.instanceTag)}
+        {renderAroundAgent(template, preview.agentLabel)}
       </span>
     )
   }
@@ -110,7 +101,7 @@ export const QueuedTurnPreviewLabel: React.FC<QueuedTurnPreviewLabelProps> = ({ 
   const template = t(key, { agent: '\0' })
   return (
     <span className="queued-turn-preview">
-      {renderAroundAgent(template, preview.agentLabel, preview.instanceTag)}
+      {renderAroundAgent(template, preview.agentLabel)}
     </span>
   )
 }

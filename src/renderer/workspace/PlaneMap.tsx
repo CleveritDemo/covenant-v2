@@ -43,7 +43,7 @@ export interface PlaneMapEntity {
   snippet?: string
   /** Slug del agente en catálogo (drag de results). */
   agentId?: string
-  /** Réplica temporal del turbo: no se sienta en una sala de brainstorm. */
+  /** Agente localOnly del turbo: carril paralelo, no se publica al org workspace. */
   localOnly?: boolean
   /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
   contextIds?: string[]

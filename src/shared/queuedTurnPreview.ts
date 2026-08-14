@@ -5,35 +5,58 @@ import {
   type ProjectAgentDefinition,
 } from './projectAgentCatalog'
 
+/** Delegación encolada con contrato completo; compatible con PlaneSendDelegation. */
+export interface QueuedTurnDelegationLike {
+  id: string
+  fromPaneId: string
+  toAgentId: string
+  orchestrationJobId: string
+  threadId?: string
+  cwd?: string
+}
+
+/** Subconjunto que el preview realmente lee de una delegación encolada. */
+export type QueuedTurnDelegationPreviewLike = Pick<
+  QueuedTurnDelegationLike,
+  'id' | 'fromPaneId' | 'toAgentId'
+>
+
 export interface QueuedTurnPreviewInput {
   text: string
   orchestrationFollowUp?: boolean
-  delegation?: { id: string; fromPaneId: string; toAgentId: string }
+  delegation?: QueuedTurnDelegationPreviewLike
+}
+
+/** Forma mínima de un turno encolado para dedupe humano y preview. */
+export interface HumanQueuedTurnLike {
+  text: string
+  /** Cola local usa previewUrl; planeSend usa AgentCliImageAttachment (solo cuenta). */
+  images?: readonly unknown[]
+  orchestrationFollowUp?: boolean
+  delegation?: QueuedTurnDelegationLike
 }
 
 export interface QueuedTurnPreviewAgentItem {
   agentLabel: string
-  instanceTag?: string
   status: DelegateResultStatus
   summarySnippet?: string
 }
 
 export type QueuedTurnPreview =
   | { kind: 'human'; fallbackText?: string }
-  | { kind: 'delegation_task'; agentLabel: string; instanceTag?: string }
+  | { kind: 'delegation_task'; agentLabel: string }
   | ({ kind: 'delegation_result' } & QueuedTurnPreviewAgentItem)
   | { kind: 'delegation_results_batch'; items: QueuedTurnPreviewAgentItem[] }
 
 export function resolveAgentLabel(
   agentId: string,
   catalog: readonly ProjectAgentDefinition[],
-): { agentLabel: string; instanceTag?: string } {
+): string {
   const to = agentId.trim()
-  if (!to) return { agentLabel: agentId }
-  const agentLabel = catalog.length
+  if (!to) return agentId
+  return catalog.length
     ? formatCatalogAgentDelegationLabel(to, catalog)
     : to
-  return { agentLabel }
 }
 
 function stripMarkdownInline(text: string): string {
@@ -79,13 +102,12 @@ function cardPreviewItem(
   catalog: readonly ProjectAgentDefinition[],
 ): QueuedTurnPreviewAgentItem {
   const agentId = card.agentId?.trim() ?? ''
-  const { agentLabel, instanceTag } = agentId
+  const agentLabel = agentId
     ? resolveAgentLabel(agentId, catalog)
-    : { agentLabel: 'agent' }
+    : 'agent'
   const snippet = card.summary ? summarySnippet(card.summary) : undefined
   return {
     agentLabel,
-    ...(instanceTag ? { instanceTag } : {}),
     status: card.status,
     ...(snippet ? { summarySnippet: snippet } : {}),
   }
@@ -98,11 +120,10 @@ export function resolveQueuedTurnPreview(
   const cat = catalog ?? []
 
   if (item.delegation) {
-    const { agentLabel, instanceTag } = resolveAgentLabel(item.delegation.toAgentId, cat)
+    const agentLabel = resolveAgentLabel(item.delegation.toAgentId, cat)
     return {
       kind: 'delegation_task',
       agentLabel,
-      ...(instanceTag ? { instanceTag } : {}),
     }
   }
 

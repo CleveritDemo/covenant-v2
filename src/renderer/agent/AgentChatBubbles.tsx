@@ -48,8 +48,7 @@ function delegationCardAgentLabel(
 ): string | undefined {
   const to = agentId?.trim()
   if (!to || !catalog.length) return undefined
-  const { agentLabel, instanceTag } = resolveAgentLabel(to, catalog)
-  return instanceTag ? `${agentLabel} ${instanceTag}` : agentLabel
+  return resolveAgentLabel(to, catalog)
 }
 
 const BubbleBodyInner: React.FC<{

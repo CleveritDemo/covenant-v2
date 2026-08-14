@@ -904,6 +904,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
         tabActive={tabActive}
+        seatDragEnabled={brainstormView === 'setup'}
         stageHidden={wikiMapOpen}
         wikiOverlay={wikiMapOpen ? (
           <WikiGraphView

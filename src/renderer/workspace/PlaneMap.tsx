@@ -71,6 +71,7 @@ export interface PlaneMapProps {
   /** Overlay del mapa wiki: se monta sobre el backdrop y bajo el stage oculto. */
   wikiOverlay?: React.ReactNode
   /** Mesa de brainstorm abierta: las cards de agente se arrastran a ella. */
+  seatDragEnabled?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -263,6 +264,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   tabActive = true,
   stageHidden = false,
   wikiOverlay = null,
+  seatDragEnabled = false,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -409,7 +411,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const anyWindowOpen = terminalOpen
   // Con la mesa abierta la card de agente es un token que se arrastra a ella:
   // el reorder por handle movería la card de verdad (y pasaría bajo la mesa).
-  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
+  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen && !seatDragEnabled
 
   const baselineLayout = useMemo(
     () => buildSlotOrigins(

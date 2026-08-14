@@ -4,6 +4,20 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.56.0
+
+- **Alta de sala en una frase**: la configuración deja de ser cinco paneles repartidos en tres columnas y pasa a leerse como una frase editable —«Quiero que Karl y María me den ideas en unos 5 min, leyendo CT-133»—. Cada palabra resaltada abre su control debajo, y la frase ya viene respondida: se puede arrancar sin tocar nada.
+- **Las plantillas dejan de ser lo primero**: las once ceremonias viven dentro de la decisión que reemplazan, la salida, y se presentan por para qué sirven en vez de por su nombre de manual. La conversación abierta pasa a ser cuatro formatos con nombre propio: ideas, decisión, plan y crítica.
+- **Duración en tres paradas**: rápida, equilibrada o a fondo, con las rondas y los minutos estimados a la vista, en lugar de un desplegable con un número sin unidad.
+- **Un solo aviso de lo que falta**: «faltan participantes» salía dos veces y escribir el objetivo no se avisaba en ningún lado. Ahora se dice una vez y entero, y ese mismo hueco pasa a mostrar el coste cuando ya no falta nada.
+- **El borrador sobrevive a cerrar el módulo**: tocar el toggle sin querer ya no cuesta el objetivo, los invitados ni el material. Se limpia al arrancar la sala o al cambiar de proyecto.
+- **La espera del turno se puede leer**: entre conceder el turno y la primera palabra pueden pasar treinta segundos. En vez de una línea fija, una tarjeta con el reloj, el material que está leyendo y tres pasos que avanzan con hechos: turno preparado, CLI arrancado, escribiendo.
+- **Lo que el turno escribe en el wiki, como tarjeta**: el JSON de las ops ya no aparece en mitad de la conversación. Se ve qué páginas tocó y de qué tipo, y pulsar una la abre; si no está en el wiki, lo dice.
+- **Todos hablan el mismo idioma**: el turno pedía la respuesta sin fijar idioma, así que una sala podía salir mitad en español y mitad en inglés. Ahora responden en el idioma del objetivo.
+- **La sala se ve trabajando**: spinner mientras el turno está en marcha y las mismas partículas que el piso del plano enciende cuando un agente trabaja.
+- **Fix contextos de Jira vacíos**: una issue recién adjuntada nacía sin contenido y así se quedaba hasta el primer turno que la usara. Ahora se rellena al crearla o al abrirla, y los archivos que ya estaban vacíos se curan solos.
+- **Fix chips con el id crudo**: un contexto recién creado mostraba `iaterminal:jira:ct-128` en vez de su nombre.
+
 ## v0.55.0
 
 - **Asistente de primer uso**: wizard de cinco pasos (bienvenida, CLIs, carpeta, equipo, primer mensaje).

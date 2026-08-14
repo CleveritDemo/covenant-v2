@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.58.0
+
+- **Pulse ahora se abre como vista a pantalla completa del plano en vez de modal**, con Escape para cerrar.
+- **Abrir Pulse, el mapa de wiki o una sala cierra automáticamente a los otros dos**, así nunca quedan dos superpuestos.
+
 ## v0.57.0
 
 - **El agente se reconoce igual en las tres vistas**: la tarjeta del plano es ahora la misma que se sienta en una sala y la que habla en ella. Monograma, marca del CLI, chip de orquestador y los contextos que trae leídos —con su icono y su color— en lugar de tres dibujos distintos del mismo agente.

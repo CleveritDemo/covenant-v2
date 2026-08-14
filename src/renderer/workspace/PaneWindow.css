@@ -320,6 +320,16 @@
   min-height: 0;
 }
 
+/* El live-host del AgentPane no debe tapar la mini face ni robar clics. */
+.pane-window--agent-card.pane-window--mini .pane-window__live-host {
+  pointer-events: none;
+}
+
+.pane-window--agent-card.pane-window--mini .plane-mini-face {
+  position: relative;
+  z-index: 2;
+}
+
 .pane-window--agent-card.pane-window--busy.pane-window--mini {
   transition:
     left 0.34s cubic-bezier(0.22, 1, 0.36, 1),

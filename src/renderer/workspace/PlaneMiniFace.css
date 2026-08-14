@@ -1,5 +1,5 @@
 .plane-mini-face {
-  --plane-mini-face-section-gap: 6px;
+  --plane-mini-face-section-gap: 8px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -28,6 +28,10 @@
   transition:
     background 0.28s ease,
     box-shadow 0.28s ease;
+}
+
+.plane-mini-face--openable {
+  cursor: pointer;
 }
 
 .plane-mini-face__glow {
@@ -191,6 +195,10 @@
   flex: 0 0 auto;
 }
 
+.plane-mini-face__body--slot {
+  width: 100%;
+}
+
 /* Cápsula del estado: superficie sutil theme-aware. */
 .plane-mini-face__status-surface {
   display: inline-flex;
@@ -238,6 +246,8 @@
   flex-direction: column;
   min-height: 0;
   margin-top: var(--plane-mini-face-section-gap);
+  gap: var(--plane-mini-face-section-gap);
+  transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Busy: sin glow; el indicador es PlaneBusyDot en la esquina. */

@@ -76,7 +76,8 @@
   --plane-composer-accent: var(--accent);
   position: relative;
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
+  width: 100%;
   padding: 0;
   font-family: var(--font-ui);
   color: var(--plane-composer-accent);
@@ -103,82 +104,6 @@
   max-width: 160px;
 }
 
-/* Chip: una sola gramática para los tres controles (menú, toggle, toggle).
-   Apagado = fantasma neutro; encendido = relleno de acento. */
-.plane-chat-composer__chip {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 0;
-  height: 24px;
-  padding: 0 8px;
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font: 500 11px var(--font-ui);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
-}
-
-.plane-chat-composer__chip > svg {
-  flex: 0 0 auto;
-  color: inherit;
-}
-
-.plane-chat-composer__chip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  color: var(--text);
-}
-
-.plane-chat-composer__chip:focus-visible {
-  outline: 2px solid var(--plane-composer-accent);
-  outline-offset: 1px;
-}
-
-.plane-chat-composer__chip--on {
-  color: var(--plane-composer-accent);
-  background: color-mix(in srgb, var(--plane-composer-accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--plane-composer-accent) 42%, transparent);
-  font-weight: 650;
-}
-
-.plane-chat-composer__chip--on:hover:not(:disabled) {
-  color: var(--plane-composer-accent);
-  background: color-mix(in srgb, var(--plane-composer-accent) 22%, transparent);
-}
-
-/* Bloqueado: el borde punteado dice “falta algo”, no “está roto”. */
-.plane-chat-composer__chip:disabled {
-  cursor: default;
-  opacity: 0.5;
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--border) 80%, transparent);
-}
-
-/* Corriendo: sigue encendido y el icono gira; no lee como deshabilitado. */
-.plane-chat-composer__chip--on:disabled {
-  opacity: 0.85;
-  border-style: solid;
-}
-
-.plane-chat-composer__chip--running > svg {
-  animation: plane-chat-composer-spin 2.4s linear infinite;
-}
-
-@keyframes plane-chat-composer-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .plane-chat-composer__chip--running > svg { animation: none; }
-}
-
 /* Separador antes de la acción destructiva. */
 .plane-chat-composer__bar-sep {
   flex: 0 0 auto;
@@ -186,10 +111,6 @@
   align-self: stretch;
   margin: 2px 3px;
   background: color-mix(in srgb, var(--border) 75%, transparent);
-}
-
-.plane-chat-composer__loop-label {
-  flex: 0 0 auto;
 }
 
 .plane-chat-composer__queue-bubble {
@@ -500,9 +421,9 @@
 /* Working: glass suave — blur ligero + relleno bajo para leer las partículas
    del piso del mapa a través del input. */
 .plane-chat-composer--working .plane-chat-composer__input-shell {
-  background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
-  backdrop-filter: blur(5px) saturate(1.12);
-  -webkit-backdrop-filter: blur(5px) saturate(1.12);
+  background: color-mix(in srgb, var(--bg-secondary) 14%, transparent);
+  backdrop-filter: blur(4px) saturate(1.08);
+  -webkit-backdrop-filter: blur(4px) saturate(1.08);
 }
 
 .plane-chat-composer__input::-webkit-scrollbar {

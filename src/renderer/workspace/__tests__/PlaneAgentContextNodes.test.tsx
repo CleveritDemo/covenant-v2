@@ -20,7 +20,7 @@ const chip = (
 })
 
 describe('PlaneAgentContextNodes', () => {
-  it('separa normales y resultados con un separador sutil', () => {
+  it('ordena normales antes que resultados sin separador extra', () => {
     const { container } = render(
       <PlaneAgentContextNodes
         contexts={[
@@ -42,27 +42,39 @@ describe('PlaneAgentContextNodes', () => {
     ])
 
     const sep = container.querySelector('.plane-agent-context-nodes__sep')
-    expect(sep).toBeTruthy()
-    expect(sep?.getAttribute('aria-hidden')).toBe('true')
+    expect(sep).toBeNull()
     expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(4)
   })
 
-  it('no muestra separador si solo hay normales o solo resultados', () => {
-    const { container: onlyNormal } = render(
+  it('rellena filas según el ancho disponible de la grilla', () => {
+    const { container } = render(
       <PlaneAgentContextNodes
-        contexts={[chip({ id: 'notes', name: 'Notes', kind: 'notes' })]}
+        contexts={Array.from({ length: 7 }, (_, index) => (
+          chip({ id: `c${index}`, name: `Ctx ${index}`, kind: 'notes' })
+        ))}
         onOpenAgent={vi.fn()}
       />,
     )
-    expect(onlyNormal.querySelector('.plane-agent-context-nodes__sep')).toBeNull()
-    cleanup()
 
-    const { container: onlyResults } = render(
+    const grid = container.querySelector('.plane-agent-context-nodes')
+    expect(grid).toBeTruthy()
+    expect(container.querySelectorAll('.plane-agent-context-nodes__item')).toHaveLength(7)
+    expect(container.querySelectorAll('.plane-agent-context-nodes__item > .ui-tooltip')).toHaveLength(7)
+  })
+
+  it('marca entradas con contenedor y results solo con monograma', () => {
+    const { container } = render(
       <PlaneAgentContextNodes
-        contexts={[chip({ id: 'result', name: 'Result', kind: 'agentResult' })]}
+        contexts={[
+          chip({ id: 'notes', name: 'Notes', kind: 'notes' }),
+          chip({ id: 'result', name: 'David', kind: 'agentResult', monogram: 'DV' }),
+        ]}
         onOpenAgent={vi.fn()}
       />,
     )
-    expect(onlyResults.querySelector('.plane-agent-context-nodes__sep')).toBeNull()
+    expect(container.querySelector('.plane-agent-context-nodes__item--input')).toBeTruthy()
+    expect(container.querySelector('.plane-context-card--input')).toBeTruthy()
+    expect(container.querySelector('.plane-context-card--result')).toBeNull()
+    expect(container.querySelector('.plane-context-card__monogram')?.textContent).toBe('DV')
   })
 })

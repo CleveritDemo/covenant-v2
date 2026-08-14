@@ -25,6 +25,8 @@ vi.mock('../PlaneMap', () => ({
   PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
     <div data-testid="plane-map">{wikiOverlay}</div>
   ),
+  // El plano lo llama en render: sin el export el mock revienta al montar.
+  planeFloorAuroraActive: (working: boolean, wikiOpen: boolean) => working && !wikiOpen,
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
 vi.mock('../PlaneChatDock', () => ({

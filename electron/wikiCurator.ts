@@ -265,6 +265,7 @@ export function startWikiCuratorTurn(
     coordination: 'none',
     allowDelegations: false,
     emitResults: false,
+    emitChangelog: false,
     mcpsAllowed: [],
     contexts,
     cliSessionId: requestedSession ?? curatorSessions.get(cwd),

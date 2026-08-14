@@ -6,7 +6,7 @@ import {
   clampLoopChainIntervalMs,
   createLoopChain,
   moveLoopStep,
-  paneIdsUsedInLoopChains,
+  agentIdsUsedInLoopChains,
   setLoopStepObjective,
 } from '@shared/planeLoopChain'
 import { loopIntervalPresetByMs } from '@shared/agentLoop'
@@ -18,15 +18,15 @@ import { BrandIcon } from '../components/ui/BrandIcon'
 import { Button } from '../components/ui'
 import { TerminalModal } from '../components/TerminalModal'
 import { AgentLoopIntervalModal } from '../agent/AgentLoopIntervalModal'
+import { LoopChainTranscriptPanel } from './LoopChainTranscriptPanel'
+import type { LoopChainLiveSlice } from './useLoopChainLiveState'
 import './PlaneLoopsSection.css'
 
 export interface PlaneLoopsAgent {
-  paneId: string
+  agentId: string
   title: string
   monogram?: string
   busy: boolean
-  loopActive: boolean
-  loopMode?: boolean
   provider?: AgentCliProvider
 }
 
@@ -34,6 +34,7 @@ export interface PlaneLoopsSectionProps {
   open: boolean
   agents: PlaneLoopsAgent[]
   chains: PlaneLoopChain[]
+  liveByChainId?: Readonly<Record<string, LoopChainLiveSlice>>
   /** Sin carpeta de proyecto no se puede iniciar una cadena. */
   canStartChains?: boolean
   startBlockedHint?: string
@@ -46,19 +47,34 @@ export interface PlaneLoopsSectionProps {
 /** Alta de paso en línea: `chainId` null = cadena nueva todavía sin crear. */
 interface StepDraft {
   chainId: string | null
-  paneId: string | null
+  agentId: string | null
   objective: string
 }
 
-const isActive = (chain: PlaneLoopChain): boolean => (
-  chain.status === 'running' || chain.status === 'waiting'
-)
+function isChainActive(
+  chain: PlaneLoopChain,
+  live?: LoopChainLiveSlice,
+): boolean {
+  if (live) return live.status === 'running' || live.status === 'waiting'
+  return chain.status === 'running' || chain.status === 'waiting'
+}
+
+function effectiveChainStatus(
+  chain: PlaneLoopChain,
+  live?: LoopChainLiveSlice,
+): PlaneLoopChain['status'] {
+  if (live?.status === 'running') return 'running'
+  if (live?.status === 'waiting') return 'waiting'
+  if (live?.status === 'stopped') return 'stopped'
+  return chain.status
+}
 
 /** Ventana Loops: la cadena es la interfaz (pista + retorno con intervalo). */
 export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
   open,
   agents,
   chains,
+  liveByChainId = {},
   canStartChains = true,
   startBlockedHint = '',
   onClose,
@@ -71,24 +87,31 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
   /** Cadena cuyo intervalo se está editando (mismo modal que el loop del chat). */
   const [intervalChainId, setIntervalChainId] = useState<string | null>(null)
   const [drag, setDrag] = useState<{ chainId: string; from: number } | null>(null)
+  const [transcriptChainId, setTranscriptChainId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
       setDraft(null)
       setIntervalChainId(null)
       setDrag(null)
+      setTranscriptChainId(null)
     }
   }, [open])
 
   const agentById = useMemo(() => {
     const map = new Map<string, PlaneLoopsAgent>()
-    for (const agent of agents) map.set(agent.paneId, agent)
+    for (const agent of agents) map.set(agent.agentId, agent)
     return map
   }, [agents])
 
-  const claimed = useMemo(() => paneIdsUsedInLoopChains(chains), [chains])
+  const agentTitleById = useMemo(
+    () => new Map(agents.map(agent => [agent.agentId, agent.title])),
+    [agents],
+  )
+
+  const claimed = useMemo(() => agentIdsUsedInLoopChains(chains), [chains])
   const freeAgents = useMemo(
-    () => agents.filter(agent => !claimed.has(agent.paneId)),
+    () => agents.filter(agent => !claimed.has(agent.agentId)),
     [agents, claimed],
   )
 
@@ -97,13 +120,12 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
     : undefined
 
   const statusFor = (agent: PlaneLoopsAgent): string => {
-    if (agent.loopActive) return t('tabs.loopsStatusLooping')
     if (agent.busy) return t('tabs.loopsStatusBusy')
     return t('tabs.loopsStatusIdle')
   }
 
-  const chainStatusLabel = (chain: PlaneLoopChain): string => {
-    switch (chain.status) {
+  const chainStatusLabel = (chain: PlaneLoopChain, live?: LoopChainLiveSlice): string => {
+    switch (effectiveChainStatus(chain, live)) {
       case 'running': return t('tabs.loopsChainStatusRunning')
       case 'waiting': return t('tabs.loopsChainStatusWaiting')
       case 'stopped': return t('tabs.loopsChainStatusStopped')
@@ -123,21 +145,21 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
   }
 
   const commitDraft = (): void => {
-    if (!draft?.paneId) return
+    if (!draft?.agentId) return
     const objective = draft.objective.trim()
     if (!objective) return
     if (draft.chainId === null) {
-      const created = createLoopChain(draft.paneId, objective)
+      const created = createLoopChain(draft.agentId, objective)
       if (!created) return
       onChainsChange([...chains, created])
       // Encadenar: el siguiente paso se añade sin volver a abrir nada.
-      const remaining = freeAgents.filter(agent => agent.paneId !== draft.paneId)
+      const remaining = freeAgents.filter(agent => agent.agentId !== draft.agentId)
       setDraft(remaining.length
-        ? { chainId: created.id, paneId: null, objective: '' }
+        ? { chainId: created.id, agentId: null, objective: '' }
         : null)
       return
     }
-    patchChain(draft.chainId, chain => appendLoopStep(chain, draft.paneId!, objective) ?? chain)
+    patchChain(draft.chainId, chain => appendLoopStep(chain, draft.agentId!, objective) ?? chain)
     setDraft(null)
   }
 
@@ -145,14 +167,18 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
     chain: PlaneLoopChain,
     step: PlaneLoopChain['steps'][number],
     index: number,
+    live?: LoopChainLiveSlice,
   ): React.ReactNode => {
-    const agent = agentById.get(step.paneId)
-    const active = isActive(chain)
-    const current = chain.status === 'running' && chain.cursor === index
+    const agent = agentById.get(step.agentId)
+    const active = isChainActive(chain, live)
+    const current = live
+      ? live.status === 'running' && live.stepIndex === index
+      : chain.status === 'running' && chain.cursor === index
     const provider = agent?.provider ?? 'claude'
+    const liveText = current && live?.lastText.trim() ? live.lastText.trim() : ''
     return (
       <li
-        key={step.paneId}
+        key={step.agentId}
         className={[
           'plane-loops__step',
           current ? 'plane-loops__step--current' : '',
@@ -171,11 +197,11 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
         }}
       >
         <span className="plane-loops__avatar" aria-hidden>
-          {(agent?.monogram?.trim() || agentMonogram(agent?.title ?? step.paneId)).toUpperCase()}
+          {(agent?.monogram?.trim() || agentMonogram(agent?.title ?? step.agentId)).toUpperCase()}
         </span>
         <div className="plane-loops__step-body">
           <div className="plane-loops__step-who">
-            <b>{agent?.title ?? step.paneId}</b>
+            <b>{agent?.title ?? step.agentId}</b>
             <span
               className="plane-loops__provider"
               style={{ '--plane-loops-brand': agentCliSpec(provider).brand } as React.CSSProperties}
@@ -185,12 +211,17 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
             </span>
             <span className="plane-loops__step-state">
               {current
-                ? t('tabs.loopsStepWorking')
+                ? (liveText
+                  ? t('tabs.loopsStepStreaming')
+                  : t('tabs.loopsStepWorking'))
                 : agent ? statusFor(agent) : t('tabs.loopsStepMissing')}
             </span>
           </div>
+          {liveText ? (
+            <p className="plane-loops__live-text">{liveText}</p>
+          ) : null}
           <input
-            key={`${step.paneId}-${step.objective}`}
+            key={`${step.agentId}-${step.objective}`}
             className="plane-loops__objective"
             defaultValue={step.objective}
             readOnly={active}
@@ -209,7 +240,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                 event.currentTarget.value = step.objective
                 return
               }
-              patchChain(chain.id, item => setLoopStepObjective(item, step.paneId, next))
+              patchChain(chain.id, item => setLoopStepObjective(item, step.agentId, next))
             }}
           />
         </div>
@@ -227,12 +258,12 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
     if (!pending) {
       if (chainId === null) return null
       const chain = chains.find(item => item.id === chainId)
-      if (!chain || isActive(chain) || freeAgents.length === 0) return null
+      if (!chain || isChainActive(chain, liveByChainId[chainId]) || freeAgents.length === 0) return null
       return (
         <button
           type="button"
           className="plane-loops__slot"
-          onClick={() => setDraft({ chainId, paneId: null, objective: '' })}
+          onClick={() => setDraft({ chainId, agentId: null, objective: '' })}
         >
           <span className="plane-loops__avatar plane-loops__avatar--slot" aria-hidden>
             <Icon name="plus" size={12} />
@@ -242,7 +273,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
       )
     }
 
-    const picked = pending.paneId ? agentById.get(pending.paneId) : undefined
+    const picked = pending.agentId ? agentById.get(pending.agentId) : undefined
     return (
       <div className="plane-loops__picker">
         {!picked ? (
@@ -254,10 +285,10 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
               <div className="plane-loops__agents">
                 {freeAgents.map(agent => (
                   <button
-                    key={agent.paneId}
+                    key={agent.agentId}
                     type="button"
                     className="plane-loops__chip"
-                    onClick={() => setDraft({ ...pending, paneId: agent.paneId })}
+                    onClick={() => setDraft({ ...pending, agentId: agent.agentId })}
                   >
                     <span className="plane-loops__chip-monogram" aria-hidden>
                       {(agent.monogram?.trim() || agentMonogram(agent.title)).toUpperCase()}
@@ -312,20 +343,33 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
   }
 
   const renderChain = (chain: PlaneLoopChain): React.ReactNode => {
-    const active = isActive(chain)
+    const live = liveByChainId[chain.id]
+    const active = isChainActive(chain, live)
+    const status = effectiveChainStatus(chain, live)
+    const showTranscript = transcriptChainId === chain.id
     return (
       <li key={chain.id} className="plane-loops__chain">
         <header className="plane-loops__chain-head">
-          <span className={`plane-loops__pill plane-loops__pill--${chain.status}`}>
-            {chainStatusLabel(chain)}
+          <span className={`plane-loops__pill plane-loops__pill--${status}`}>
+            {chainStatusLabel(chain, live)}
           </span>
           <span className="plane-loops__chain-meta">
-            {t('tabs.loopsChainSteps', { count: chain.steps.length })}
+            {live && (live.status === 'running' || live.status === 'waiting')
+              ? t('tabs.loopsChainCycle', { cycle: live.cycle })
+              : t('tabs.loopsChainSteps', { count: chain.steps.length })}
           </span>
           {!active && !canStartChains && startBlockedHint ? (
             <span className="plane-loops__chain-meta">{startBlockedHint}</span>
           ) : null}
           <span className="plane-loops__spacer" />
+          <Button
+            variant="ghost"
+            size="xs"
+            aria-pressed={showTranscript}
+            onClick={() => setTranscriptChainId(showTranscript ? null : chain.id)}
+          >
+            {showTranscript ? t('tabs.loopsHideTranscript') : t('tabs.loopsViewTranscript')}
+          </Button>
           {active ? (
             <Button variant="ghost" size="xs" onClick={() => onStopChain(chain.id)}>
               {t('tabs.loopsStopChain')}
@@ -356,11 +400,11 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
 
         <div className={[
           'plane-loops__track',
-          chain.status === 'waiting' ? 'plane-loops__track--waiting' : '',
+          status === 'waiting' ? 'plane-loops__track--waiting' : '',
         ].filter(Boolean).join(' ')}
         >
           <ul className="plane-loops__steps">
-            {chain.steps.map((step, index) => renderStep(chain, step, index))}
+            {chain.steps.map((step, index) => renderStep(chain, step, index, live))}
           </ul>
           {renderDraft(chain.id)}
           <span className="plane-loops__loopback" aria-hidden />
@@ -374,6 +418,12 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
             <span>{intervalLabelFor(chain.intervalMs)}</span>
           </button>
         </div>
+        {showTranscript ? (
+          <LoopChainTranscriptPanel
+            chainId={chain.id}
+            agentTitleById={agentTitleById}
+          />
+        ) : null}
       </li>
     )
   }
@@ -395,7 +445,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
             variant="primary"
             size="sm"
             disabled={freeAgents.length === 0 || Boolean(newChainDraft)}
-            onClick={() => setDraft({ chainId: null, paneId: null, objective: '' })}
+            onClick={() => setDraft({ chainId: null, agentId: null, objective: '' })}
           >
             {t('tabs.loopsCreateChain')}
           </Button>
@@ -426,7 +476,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
                     <button
                       type="button"
                       className="plane-loops__slot"
-                      onClick={() => setDraft({ chainId: null, paneId: null, objective: '' })}
+                      onClick={() => setDraft({ chainId: null, agentId: null, objective: '' })}
                     >
                       <span className="plane-loops__avatar plane-loops__avatar--slot" aria-hidden>
                         <Icon name="plus" size={12} />

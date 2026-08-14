@@ -645,7 +645,7 @@ export function isDuplicateOrchestrationQueueItem(
 export function orchestrationFollowUpKey(
   item: { text: string; orchestrationJobId?: string },
 ): string {
-  return `${item.orchestrationJobId?.trim() ?? ''} ${item.text}`
+  return `${item.orchestrationJobId?.trim() ?? ''}\0${item.text}`
 }
 
 /** Host cortó el ciclo: el modelo debe responder al usuario sin más fences. */

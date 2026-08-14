@@ -1,0 +1,207 @@
+.plane-chat-contexts-bar__stack {
+  --plane-chat-contexts-bar-expand-duration: 0.2s;
+  --plane-chat-contexts-bar-expand-ease: cubic-bezier(0, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 26px;
+  padding-right: 78px;
+  box-sizing: border-box;
+}
+
+.plane-chat-contexts-bar__chips {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 1px 0;
+}
+
+.plane-chat-contexts-bar__chips::-webkit-scrollbar {
+  display: none;
+}
+
+.plane-chat-contexts-bar__chip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  max-width: 176px;
+  height: 22px;
+  padding: 0 10px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  box-sizing: border-box;
+  transition:
+    border-color 0.14s ease,
+    color 0.14s ease,
+    background 0.14s ease,
+    padding-right var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
+    gap var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease);
+}
+
+.plane-chat-contexts-bar__chip:not(.plane-chat-contexts-bar__chip--editing):hover,
+.plane-chat-contexts-bar__chip:not(.plane-chat-contexts-bar__chip--editing):focus-within {
+  padding-right: 4px;
+  gap: 4px;
+}
+
+.plane-chat-contexts-bar__chip:hover {
+  border-color: color-mix(in srgb, var(--text-muted) 38%, transparent);
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.plane-chat-contexts-bar__chip--active {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  font-weight: 500;
+}
+
+.plane-chat-contexts-bar__chip--active:hover {
+  border-color: color-mix(in srgb, var(--accent) 68%, transparent);
+  color: color-mix(in srgb, var(--accent) 92%, var(--text));
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.plane-chat-contexts-bar__chip--editing {
+  flex: 1 1 auto;
+  max-width: 220px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
+}
+
+.plane-chat-contexts-bar__chip--editing .input {
+  min-width: 0;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.plane-chat-contexts-bar__chip--editing .input:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.plane-chat-contexts-bar__chip--editing .input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+}
+
+.plane-chat-contexts-bar__chip-tab {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: 400 11px var(--font-ui);
+  line-height: 1;
+  cursor: pointer;
+  text-align: left;
+}
+
+.plane-chat-contexts-bar__chip-tab:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.plane-chat-contexts-bar__chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.plane-chat-contexts-bar__chip-edit {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  cursor: pointer;
+  transition:
+    opacity var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
+    max-width var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
+    width var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
+    background 0.12s ease;
+}
+
+.plane-chat-contexts-bar__chip:hover .plane-chat-contexts-bar__chip-edit,
+.plane-chat-contexts-bar__chip:focus-within .plane-chat-contexts-bar__chip-edit {
+  width: 16px;
+  max-width: 16px;
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.plane-chat-contexts-bar__chip-edit:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.plane-chat-contexts-bar__chip-edit:focus-visible {
+  opacity: 0.9;
+  outline: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.plane-chat-contexts-bar__actions {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  transform: translateY(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-chat-contexts-bar__chip {
+    transition:
+      border-color 0.14s ease,
+      color 0.14s ease,
+      background 0.14s ease;
+  }
+
+  .plane-chat-contexts-bar__chip-edit {
+    transition: opacity 0.12s ease, background 0.12s ease;
+  }
+}

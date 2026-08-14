@@ -40,3 +40,44 @@
   opacity: 0.4;
   cursor: default;
 }
+
+.plane-loops-button-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.plane-loops-button-anchor__badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--plane-glass-strong);
+  border-radius: 6px;
+  background: var(--accent-solid, var(--accent));
+  color: var(--accent-solid-fg, var(--accent-fg));
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.plane-loops-button-anchor__badge--pulse {
+  animation: plane-loops-button-badge-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes plane-loops-button-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-loops-button-anchor__badge--pulse {
+    animation: none;
+  }
+}

@@ -2,15 +2,21 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_THREAD_ID,
   MAX_THREADS_PER_PANE,
+  chipVisibleThreadIds,
   deleteThread,
   newThread,
+  paginateThreadHistory,
   pruneCompletedDelegationThreads,
   renameThread,
+  resolveCardOpenThreadId,
+  resolvePreferredHumanThreadId,
   sanitizeThreadState,
   selectThread,
+  selectThreadOpened,
   setActiveThreadSession,
   sortThreadsByRecency,
   stripThreadSessions,
+  threadHistoryCandidates,
   threadPatch,
   threadTitleFrom,
   touchActiveThread,
@@ -203,6 +209,106 @@ describe('operaciones', () => {
   })
 })
 
+describe('resolvePreferredHumanThreadId', () => {
+  it('elige el humano más reciente e ignora delegaciones', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 't1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 't2', title: 'newer', updatedAt: 300, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 999, origin: 'delegation' },
+      ],
+      't1',
+    )
+    expect(resolvePreferredHumanThreadId(state)).toBe('t2')
+  })
+
+  it('trata hilos legacy sin origin como humanos', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 't1', title: 'old', updatedAt: 10 },
+        { id: 't3', title: 'recent', updatedAt: 50 },
+      ],
+      't1',
+    )
+    expect(resolvePreferredHumanThreadId(state)).toBe('t3')
+  })
+})
+
+describe('resolveCardOpenThreadId', () => {
+  it('con un solo hilo en curso de delegación abre el humano preferido', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 500, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 50, origin: 'delegation' },
+      ],
+      'h1',
+    )
+    expect(resolveCardOpenThreadId(state, ['d1'])).toBe('h1')
+  })
+
+  it('con un humano en curso abre ese hilo', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 'h2', title: 'newer', updatedAt: 300, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 50, origin: 'delegation' },
+      ],
+      'h1',
+    )
+    expect(resolveCardOpenThreadId(state, ['h2', 'd1'])).toBe('h2')
+  })
+
+  it('con varios humanos en curso usa el humano más reciente entre los que corren', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 'h2', title: 'newer', updatedAt: 300, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 50, origin: 'delegation' },
+        { id: 'd2', title: 'del2', updatedAt: 60, origin: 'delegation' },
+      ],
+      'h1',
+    )
+    expect(resolveCardOpenThreadId(state, ['h1', 'd1', 'd2'])).toBe('h1')
+    expect(resolveCardOpenThreadId(state, ['h1', 'h2', 'd1', 'd2'])).toBe('h2')
+  })
+
+  it('sin hilos humanos en curso usa el humano preferido', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 'h2', title: 'newer', updatedAt: 300, origin: 'human' },
+      ],
+      'h1',
+    )
+    expect(resolveCardOpenThreadId(state, [])).toBe('h2')
+  })
+})
+
+describe('selectThreadOpened', () => {
+  it('actualiza updatedAt aunque el hilo ya esté activo', () => {
+    const state = sanitizeThreadState(
+      [{ id: 't1', title: 'main', updatedAt: 10, origin: 'human' }],
+      't1',
+    )
+    const next = selectThreadOpened(state, 't1', 500)
+    expect(next.activeThreadId).toBe('t1')
+    expect(next.threads[0]!.updatedAt).toBe(500)
+  })
+
+  it('cambia activo y marca apertura', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 't1', title: 'a', updatedAt: 10, origin: 'human' },
+        { id: 't2', title: 'b', updatedAt: 20, origin: 'human' },
+      ],
+      't1',
+    )
+    const next = selectThreadOpened(state, 't2', 400)
+    expect(next.activeThreadId).toBe('t2')
+    expect(next.threads.find(thread => thread.id === 't2')!.updatedAt).toBe(400)
+  })
+})
+
 describe('pruneCompletedDelegationThreads', () => {
   it('borra solo hilos de delegación y conserva los humanos', () => {
     const state = sanitizeThreadState(
@@ -241,5 +347,38 @@ describe('pruneCompletedDelegationThreads', () => {
     const { state: next, deletedIds } = pruneCompletedDelegationThreads(state, ['h1'], 'fb', 200)
     expect(deletedIds).toEqual([])
     expect(next).toBe(state)
+  })
+})
+
+describe('thread history helpers', () => {
+  const threads = [
+    { id: 't1', title: 'One', updatedAt: 6 },
+    { id: 't2', title: 'Two', updatedAt: 5 },
+    { id: 't3', title: 'Three', updatedAt: 4 },
+    { id: 't4', title: 'Four', updatedAt: 3 },
+    { id: 't5', title: 'Five', updatedAt: 2 },
+    { id: 't6', title: 'Six', updatedAt: 1 },
+  ]
+
+  it('chipVisibleThreadIds incluye activo y running', () => {
+    const ids = chipVisibleThreadIds('t1', ['t2', 't3'])
+    expect([...ids].sort()).toEqual(['t1', 't2', 't3'])
+  })
+
+  it('threadHistoryCandidates incluye todos los hilos ordenados por recencia', () => {
+    const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
+    expect(candidates.map(thread => thread.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6'])
+  })
+
+  it('paginateThreadHistory devuelve items y hasMore', () => {
+    const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
+    expect(paginateThreadHistory(candidates, 5)).toEqual({
+      items: candidates.slice(0, 5),
+      hasMore: true,
+    })
+    expect(paginateThreadHistory(candidates, 2)).toEqual({
+      items: candidates.slice(0, 2),
+      hasMore: true,
+    })
   })
 })

@@ -770,7 +770,9 @@ export function composePrompt(
     || (imagePaths.length
       ? 'Please inspect the attached image(s) and respond helpfully.'
       : '')
-  const resultsInstruction = buildAiAgentResultsInstruction(request.name)
+  const resultsInstruction = request.emitResults !== false
+    ? buildAiAgentResultsInstruction(request.name)
+    : ''
   const recentResultsPrompt = Array.isArray(request.tabAgentIds) && request.tabAgentIds.length
     ? buildRecentAgentResultsPrompt(resultsCwd, request.tabAgentIds)
     : ''
@@ -833,7 +835,7 @@ export function composePrompt(
     '## User request',
     userPrompt,
     '',
-    buildAiChangelogInstruction(),
+    ...(request.emitChangelog !== false ? [buildAiChangelogInstruction()] : []),
     ...(resultsInstruction ? ['', resultsInstruction] : []),
     ...(planDeliveryInstruction ? ['', planDeliveryInstruction] : []),
   ].join('\n')
@@ -843,6 +845,7 @@ export function buildContextContinuationPrompt(
   initialPrompt: string,
   contextResponse: string,
   hasResumableSession: boolean,
+  emitChangelog?: boolean,
 ): string {
   if (!hasResumableSession) {
     return [
@@ -858,7 +861,7 @@ export function buildContextContinuationPrompt(
   return [
     contextResponse,
     '',
-    buildAiChangelogInstruction(),
+    ...(emitChangelog !== false ? [buildAiChangelogInstruction()] : []),
   ].join('\n')
 }
 
@@ -1274,6 +1277,7 @@ export function startAgentTurn(
                 initialPrompt,
                 payload.prompt,
                 Boolean(latestSessionId),
+                request.emitChangelog,
               )
               send(win, runKey, {
                 type: 'context',
@@ -1302,26 +1306,29 @@ export function startAgentTurn(
               },
             )
             if (wikiIngest.persisted) wikiIngestPersisted = true
-            const { visibleText: afterChangelog, changes } = extractAiChangelog(
-              wikiIngest.visibleText,
-              changedPaths,
-            )
-            if (changes.length && !changelogPersisted) {
-              appendAiChangelog(projectCwd, changes)
-              changelogPersisted = true
+            let afterChangelog = wikiIngest.visibleText
+            if (request.emitChangelog !== false) {
+              const changelogExtract = extractAiChangelog(wikiIngest.visibleText, changedPaths)
+              afterChangelog = changelogExtract.visibleText
+              if (changelogExtract.changes.length && !changelogPersisted) {
+                appendAiChangelog(projectCwd, changelogExtract.changes)
+                changelogPersisted = true
+              }
             }
-            const { visibleText: afterResults, payload: resultsPayload } = extractAiAgentResults(
-              afterChangelog,
-            )
-            if (
-              resultsPayload
-              && request.agentId?.trim()
-            ) {
-              const resolvedAgentId = resolveResultsAgentId(projectCwd, request.agentId.trim())
-              upsertAiAgentResults(projectCwd, resolvedAgentId, resultsPayload, {
-                agentName: request.name?.trim(),
-              })
-              recordDerivedPulse({ kind: 'result', ...pulseTags })
+            let afterResults = afterChangelog
+            if (request.emitResults !== false) {
+              const resultsExtract = extractAiAgentResults(afterChangelog)
+              afterResults = resultsExtract.visibleText
+              if (
+                resultsExtract.payload
+                && request.agentId?.trim()
+              ) {
+                const resolvedAgentId = resolveResultsAgentId(projectCwd, request.agentId.trim())
+                upsertAiAgentResults(projectCwd, resolvedAgentId, resultsExtract.payload, {
+                  agentName: request.name?.trim(),
+                })
+                recordDerivedPulse({ kind: 'result', ...pulseTags })
+              }
             }
             const { visibleText, delegations } = coordinationCanDelegate(request.coordination)
               ? extractAiAgentDelegates(afterResults)
@@ -1519,6 +1526,18 @@ export function stopAgentRun(runKey: string, options: StopAgentRunOptions = {}):
 export function stopAgentRunsForPane(paneId: string, options: StopAgentRunOptions = {}): void {
   for (const key of [...agentRuns.keys()]) {
     if (parseRunKey(key).paneId === paneId) stopAgentRun(key, options)
+  }
+}
+
+/** Detiene carriles cuyo paneId empieza con el prefijo (runs headless multi-agente). */
+export function stopAgentRunsForPaneIdPrefix(
+  paneIdPrefix: string,
+  options: StopAgentRunOptions = {},
+): void {
+  const prefix = paneIdPrefix.trim()
+  if (!prefix) return
+  for (const key of [...agentRuns.keys()]) {
+    if (parseRunKey(key).paneId.startsWith(prefix)) stopAgentRun(key, options)
   }
 }
 

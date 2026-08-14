@@ -12,51 +12,14 @@ vi.mock('@i18n/useT', () => ({
 
 afterEach(cleanup)
 
-const threads = [
-  { id: 't1', title: 'Primero', running: true, active: true },
-  { id: 't2', title: '', running: false, active: false },
-]
-
 describe('PlaneAgentThreadNodes', () => {
-  it('colapsado muestra el contador de conversaciones cuando ninguno corre', () => {
-    const { container } = render(
-      <PlaneAgentThreadNodes
-        threads={threads}
-        expanded={false}
-        onToggleExpanded={vi.fn()}
-        onOpenThread={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText('tabs.planeAgentThreadsConversations')).toBeTruthy()
-    expect(container.querySelector('[role="listitem"]')).toBeNull()
-    expect(container.querySelector('.plane-agent-thread-nodes__stack')).toBeTruthy()
-    expect(container.querySelector('.plane-busy-dot')).toBeNull()
-  })
-
-  it('colapsado muestra contador de trabajando y dot cuando hay hilos en curso', () => {
+  it('no renderiza si ningún hilo está activo', () => {
     const { container } = render(
       <PlaneAgentThreadNodes
         threads={[
-          { id: 't1', title: 'Activo', running: false, active: true },
-          { id: 't2', title: 'Fondo', running: true, active: false },
+          { id: 't1', title: 'Uno', running: false, active: true },
+          { id: 't2', title: 'Dos', running: false, active: false },
         ]}
-        expanded={false}
-        onToggleExpanded={vi.fn()}
-        onOpenThread={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText('tabs.planeAgentThreadsWorking')).toBeTruthy()
-    expect(container.querySelector('.plane-busy-dot')).toBeTruthy()
-  })
-
-  it('no renderiza si solo queda el hilo activo', () => {
-    const { container } = render(
-      <PlaneAgentThreadNodes
-        threads={[{ id: 't1', title: 'Solo', running: false, active: true }]}
-        expanded={false}
-        onToggleExpanded={vi.fn()}
         onOpenThread={vi.fn()}
       />,
     )
@@ -64,62 +27,68 @@ describe('PlaneAgentThreadNodes', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('click expande', () => {
-    const onToggleExpanded = vi.fn()
-    const { container } = render(
-      <PlaneAgentThreadNodes
-        threads={threads}
-        expanded={false}
-        onToggleExpanded={onToggleExpanded}
-        onOpenThread={vi.fn()}
-      />,
-    )
-
-    const stack = container.querySelector('.plane-agent-thread-nodes__stack')
-    expect(stack).toBeTruthy()
-    fireEvent.click(stack!, { bubbles: true })
-
-    expect(onToggleExpanded).toHaveBeenCalledTimes(1)
-  })
-
-  it('expandido omite el hilo activo y muestra dot en los que corren', () => {
+  it('lista hilos activos con dot y petición del usuario', () => {
     const { container } = render(
       <PlaneAgentThreadNodes
         threads={[
-          { id: 't1', title: 'Activo', running: true, active: true },
-          { id: 't2', title: 'Fondo', running: true, active: false },
+          { id: 't1', title: 'Activo', running: true, active: true, activity: 'Arregla el login' },
+          { id: 't2', title: 'Fondo', running: true, active: false, activity: 'Revisa los tests' },
           { id: 't3', title: 'Idle', running: false, active: false },
         ]}
-        expanded
-        onToggleExpanded={vi.fn()}
         onOpenThread={vi.fn()}
       />,
     )
 
-    const cards = container.querySelectorAll('.plane-agent-thread-nodes__card')
-    expect(cards).toHaveLength(2)
-    expect(screen.queryByText('Activo')).toBeNull()
-    expect(container.querySelectorAll('.plane-busy-dot')).toHaveLength(1)
+    const rows = container.querySelectorAll('.plane-agent-thread-nodes__row')
+    expect(rows).toHaveLength(2)
+    expect(screen.getByText('Arregla el login')).toBeTruthy()
+    expect(screen.getByText('Revisa los tests')).toBeTruthy()
+    expect(container.querySelectorAll('.plane-busy-dot')).toHaveLength(2)
   })
 
-  it('click en una tarjeta llama onOpenThread con el id correcto y no propaga al contenedor', () => {
+  it('usa fallback i18n cuando no hay petición', () => {
+    render(
+      <PlaneAgentThreadNodes
+        threads={[
+          { id: 't1', title: 'Sin actividad', running: true, active: false },
+        ]}
+        onOpenThread={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('agentPane.awaitingStatusRunning')).toBeTruthy()
+  })
+
+  it('envuelve hilos activos en contenedor de altura animada', () => {
+    const { container } = render(
+      <PlaneAgentThreadNodes
+        threads={[
+          { id: 't1', title: 'Uno', running: true, active: true, activity: 'A' },
+        ]}
+        onOpenThread={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector('.plane-agent-thread-nodes-wrap')).toBeTruthy()
+  })
+
+  it('click en fila llama onOpenThread sin propagar', () => {
     const onOpenThread = vi.fn()
     const onContainerClick = vi.fn()
     const { container } = render(
       <div onClick={onContainerClick}>
         <PlaneAgentThreadNodes
-          threads={threads}
-          expanded
-          onToggleExpanded={vi.fn()}
+          threads={[
+            { id: 't2', title: 'Fondo', running: true, active: false, activity: 'Trabajando' },
+          ]}
           onOpenThread={onOpenThread}
         />
       </div>,
     )
 
-    const cards = container.querySelectorAll('.plane-agent-thread-nodes__card')
-    expect(cards).toHaveLength(1)
-
-    fireEvent.click(cards[0]!, { bubbles: true })
+    const row = container.querySelector('.plane-agent-thread-nodes__row')
+    expect(row).toBeTruthy()
+    fireEvent.click(row!, { bubbles: true })
 
     expect(onOpenThread).toHaveBeenCalledWith('t2')
     expect(onContainerClick).not.toHaveBeenCalled()

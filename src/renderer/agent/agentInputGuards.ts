@@ -1,19 +1,14 @@
-export interface AgentHumanInputGuard {
-  loopActive: boolean
-}
-
 /**
- * Bloquea solo el composer humano cuando el loop local está activo.
- * Busy / delegaciones permiten encolar; no usan este guard.
+ * Bloquea el composer humano. Los loops locales del pane ya no existen; busy /
+ * delegaciones permiten encolar y no usan este guard.
  */
-export function isAgentHumanInputBlocked(state: AgentHumanInputGuard): boolean {
-  return state.loopActive
+export function isAgentHumanInputBlocked(): boolean {
+  return false
 }
 
 export interface AgentQueueDrainGuard {
   loaded: boolean
   busy: boolean
-  loopActive: boolean
   awaitingDelegations: boolean
   delegationWorkActive: boolean
   /** FIFO/preferSend de orquestación pendiente en App para este pane. */
@@ -32,13 +27,12 @@ export interface AgentQueueDrainGuard {
 
 /**
  * La cola humana solo drena cuando el pane está libre y no hay trabajo de sistema primero.
- * Orden: loop → orchestrationFifo/preferSend → queuedTurns humanas.
+ * Orden: orchestrationFifo/preferSend → queuedTurns humanas.
  * Cabeza delegación: permite drenar aunque delegationWorkActive (defensa post-deadlock).
  * Turbo: ignora awaitingDelegations para turnos humanos.
  */
 export function canStartHumanTurnNow(state: {
   busy: boolean
-  loopActive: boolean
   awaitingDelegations: boolean
   delegationWorkActive: boolean
   systemFollowUpsPending: boolean
@@ -46,7 +40,7 @@ export function canStartHumanTurnNow(state: {
 }): boolean {
   const awaitingBlocksHuman = state.orchestrationWorkStyle !== 'turbo' && state.awaitingDelegations
   return !state.busy && !awaitingBlocksHuman && !state.delegationWorkActive
-    && !state.systemFollowUpsPending && !state.loopActive
+    && !state.systemFollowUpsPending
 }
 
 export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
@@ -54,22 +48,47 @@ export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
   const awaitingOk = state.orchestrationWorkStyle === 'turbo' || !state.awaitingDelegations
   return state.loaded
     && !state.busy
-    && !state.loopActive
     && awaitingOk
     && delegationHoldOk
     && !state.systemFollowUpsPending
 }
 
 /**
- * Stop rojo del composer: turno propio (busy / loop) o target seleccionado
+ * Stop rojo del composer: turno propio (busy) o target seleccionado
  * de una delegación en el plano. awaitingDelegations NO cuenta: el
  * orquestador cancela especialistas desde Waiting, fila por fila.
  */
 export function shouldShowComposerStop(state: {
-  loopActive: boolean
   busy: boolean
   awaitingDelegations?: boolean
   delegationWorkActive?: boolean
 }): boolean {
-  return Boolean(state.loopActive || state.busy || state.delegationWorkActive)
+  return Boolean(state.busy || state.delegationWorkActive)
+}
+
+export interface HumanSendVisibleQueuePromotionStatus {
+  busy: boolean
+  awaitingDelegations?: boolean
+  delegationWorkActive?: boolean
+  systemFollowUpsPending?: boolean
+}
+
+/**
+ * Promueve el chip a la cola visible en onSendChat (sin esperar al drenador FIFO)
+ * con la misma regla que preferSendIntake para turnos humanos: busy o no puede
+ * arrancar turno ahora.
+ */
+export function shouldPromoteHumanSendToVisibleQueue(
+  status: HumanSendVisibleQueuePromotionStatus | null | undefined,
+  orchestrationWorkStyle?: 'linear' | 'turbo',
+): boolean {
+  if (!status) return false
+  const canStart = canStartHumanTurnNow({
+    busy: status.busy,
+    awaitingDelegations: status.awaitingDelegations ?? false,
+    delegationWorkActive: status.delegationWorkActive ?? false,
+    systemFollowUpsPending: status.systemFollowUpsPending ?? false,
+    orchestrationWorkStyle,
+  })
+  return status.busy || !canStart
 }

@@ -172,9 +172,20 @@ describe('Select', () => {
       panel.showPopover()
     })
 
-    const dots = panel.querySelectorAll('.select-panel__busy-dot')
+    const dots = panel.querySelectorAll('.plane-busy-dot')
     expect(dots).toHaveLength(1)
     expect(dots[0]?.closest('[role="option"]')?.textContent).toContain('Beta')
+  })
+
+  it('muestra el dot busy en el disparador cuando la opción activa está busy', () => {
+    const busyOptions: SelectOption[] = [
+      { value: 'a', label: 'Alpha' },
+      { value: 'b', label: 'Beta', busy: true },
+    ]
+    render(<Select value="b" options={busyOptions} onChange={() => {}} />)
+    const trigger = screen.getByRole('button')
+    expect(trigger.querySelectorAll('.plane-busy-dot')).toHaveLength(1)
+    expect(trigger.textContent).toContain('Beta')
   })
 
   it('abre debajo del disparador cuando hay espacio', () => {

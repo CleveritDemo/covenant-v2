@@ -10,6 +10,7 @@ import {
   computeStandardPaneWindowGeometry,
   estimatePlaneAgentMiniHeight,
   PLANE_MINI_BOTTOM_CLEARANCE,
+  PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_Y,
   PLANE_MINI_WINDOW_HEIGHT,
@@ -22,6 +23,7 @@ import { PlaneColumnOverflowPill } from './PlaneColumnOverflowPill'
 import { PlaneMapBackdrop } from './PlaneMapBackdrop'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
+import '../agent/AgentPane.css'
 import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
@@ -48,7 +50,7 @@ export interface PlaneMapEntity {
   /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
   contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
-  threads?: { id: string; title: string; running: boolean }[]
+  threads?: { id: string; title: string; running: boolean; activity?: string }[]
   activeThreadId?: string
   /** Nombre puesto a mano (terminales); sustituye la carpeta en la pastilla. */
   customTitle?: string
@@ -63,6 +65,11 @@ export interface PlaneMapProps {
   activePaneId: string
   /** Agente con chat abierto en el plano (selección estática, no busy). */
   chatActiveAgentId?: string | null
+  /** Velo superior del quick-chat: debajo de paneles, encima de grilla. */
+  chatTopFadeVisible?: boolean
+  /** Aurora inferior del plano (idle 30%; working a intensidad plena). */
+  chatFloorGlowVisible?: boolean
+  chatFloorGlowWorking?: boolean
   /** Tab activa: oculta modales portaled del plano. */
   tabActive?: boolean
   /** Solo fondo: oculta el stage de ventanas (sin desmontarlas) dejando
@@ -131,6 +138,7 @@ export interface PlaneColumnHiddenIds {
 interface PlaneSlotLayout {
   origins: Record<string, PaneWindowGeometry>
   visibleById: Record<string, boolean>
+  fadeProgressById: Record<string, number>
   hidden: {
     terminal: PlaneColumnHiddenIds
     agent: PlaneColumnHiddenIds
@@ -153,6 +161,7 @@ export function buildSlotOrigins(
   const vw = Math.max(viewport.width, 320)
   const origins: Record<string, PaneWindowGeometry> = {}
   const visibleById: Record<string, boolean> = {}
+  const fadeProgressById: Record<string, number> = {}
   const terminals = entities.filter(entity => entity.kind !== 'agent')
   const agents = entities.filter(entity => entity.kind === 'agent')
   const columnCount = Math.max(terminals.length, agents.length, 1)
@@ -170,6 +179,7 @@ export function buildSlotOrigins(
   })
   for (const slot of terminalWindow.slots) {
     visibleById[slot.id] = slot.visible
+    fadeProgressById[slot.id] = slot.progress
     origins[slot.id] = {
       x: padX,
       y: slot.y,
@@ -185,14 +195,17 @@ export function buildSlotOrigins(
         id: entity.paneId,
         height: measured && measured > 0
           ? measured
-          : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0),
+          : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0, cell.width),
       }
     }),
     viewportHeight: viewport.height,
     scrollOffset: scrollOffsets.agent,
+    bottomClearance: PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+    fitAlignment: 'bottom',
   })
   for (const slot of agentWindow.slots) {
     visibleById[slot.id] = slot.visible
+    fadeProgressById[slot.id] = slot.progress
     origins[slot.id] = {
       x: agentX,
       y: slot.y,
@@ -204,6 +217,7 @@ export function buildSlotOrigins(
   return {
     origins,
     visibleById,
+    fadeProgressById,
     hidden: {
       terminal: {
         above: terminalWindow.hiddenAbove,
@@ -261,6 +275,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   entities,
   activePaneId,
   chatActiveAgentId = null,
+  chatTopFadeVisible = false,
+  chatFloorGlowVisible = false,
+  chatFloorGlowWorking = false,
   tabActive = true,
   stageHidden = false,
   wikiOverlay = null,
@@ -292,7 +309,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [agentHeights, setAgentHeights] = useState<Record<string, number>>({})
-  const [threadNodesExpanded, setThreadNodesExpanded] = useState<Record<string, boolean>>({})
   const [scrollOffsets, setScrollOffsets] = useState<PlaneColumnScrollOffsets>(ZERO_SCROLL_OFFSETS)
   const [wheelScrolling, setWheelScrolling] = useState(false)
   const wheelScrollingTimeoutRef = useRef<number | null>(null)
@@ -301,10 +317,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 
   const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
     setAgentHeights(prev => (prev[paneId] === height ? prev : { ...prev, [paneId]: height }))
-  }, [])
-
-  const handleToggleThreadNodes = useCallback((paneId: string) => {
-    setThreadNodesExpanded(prev => ({ ...prev, [paneId]: !prev[paneId] }))
   }, [])
 
   useLayoutEffect(() => {
@@ -335,15 +347,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       const next: Record<string, number> = {}
       for (const [id, height] of Object.entries(prev)) {
         if (agentIds.has(id)) next[id] = height
-        else changed = true
-      }
-      return changed ? next : prev
-    })
-    setThreadNodesExpanded(prev => {
-      let changed = false
-      const next: Record<string, boolean> = {}
-      for (const [id, expanded] of Object.entries(prev)) {
-        if (agentIds.has(id)) next[id] = expanded
         else changed = true
       }
       return changed ? next : prev
@@ -662,7 +665,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentHeights, layoutEntities, scrollOffsets, viewport],
   )
   const slotOrigins = renderLayout.origins
-  const visibleById = renderLayout.visibleById
+  const fadeProgressById = renderLayout.fadeProgressById
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
   const terminalsDom = useMemo(
@@ -722,7 +725,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           title={entity.title}
           seatDragEnabled={seatDragEnabled && !entity.localOnly}
           deferPositionMotion={deferPositionMotion}
-          outOfBand={visibleById[entity.paneId] === false}
+          fadeProgress={fadeProgressById[entity.paneId] ?? 1}
+          outOfBand={(fadeProgressById[entity.paneId] ?? 1) <= 0}
           monogram={entity.monogram}
           busy={entity.busy}
           provider={entity.provider}
@@ -784,10 +788,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               active: thread.id === entity.activeThreadId,
             }))
             : undefined}
-          threadNodesExpanded={threadNodesExpanded[entity.paneId] ?? false}
-          onToggleThreadNodes={entity.kind === 'agent' && onOpenThread
-            ? () => handleToggleThreadNodes(entity.paneId)
-            : undefined}
           onOpenThread={entity.kind === 'agent' && onOpenThread
             ? threadId => onOpenThread(entity.paneId, threadId)
             : undefined}
@@ -811,6 +811,22 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
       <PlaneMapBackdrop />
+      {chatFloorGlowVisible ? (
+        <div
+          className={[
+            'plane-map__floor-glow',
+            'agent-pane',
+            chatFloorGlowWorking ? 'agent-pane--working' : '',
+          ].filter(Boolean).join(' ')}
+          aria-hidden="true"
+        />
+      ) : null}
+      {chatTopFadeVisible ? (
+        <div className="plane-map__chat-top-fade" aria-hidden="true" />
+      ) : null}
+      {wikiOverlay ? (
+        <div className="plane-map__wiki-overlay">{wikiOverlay}</div>
+      ) : null}
       {entities.length === 0 ? (
         <div className="plane-map__empty" aria-hidden="true" />
       ) : (
@@ -858,6 +874,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               style={{
                 left: columnGeometry.padX,
                 width: columnGeometry.cellWidth,
+                bottom: PLANE_MINI_BOTTOM_CLEARANCE,
               }}
             >
               <PlaneColumnOverflowPill
@@ -881,6 +898,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               style={{
                 left: columnGeometry.agentX,
                 width: columnGeometry.cellWidth,
+                bottom: PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
               }}
             >
               <PlaneColumnOverflowPill

@@ -84,29 +84,28 @@ function setup(overrides: Partial<PlaneContextPoolProps> = {}) {
 const chipButton = () => screen.getByRole('button', { name: /Estructura/ })
 
 const openChipMenu = () => {
-  fireEvent.click(chipButton())
+  fireEvent.contextMenu(chipButton())
   return screen.getByRole('menu')
 }
 
 const openAssignModal = () => {
-  openChipMenu()
-  fireEvent.click(screen.getByRole('menuitem', { name: /Asignar a agentes/ }))
+  fireEvent.click(chipButton())
 }
 
 describe('PlaneContextPool — asignación por modal', () => {
-  it('el clic en chip abre menú contextual, no el modal de asignación', () => {
+  it('el clic en chip abre el modal de asignación, no el menú contextual', () => {
     setup()
     expect(chipButton().querySelector('.plane-context-pool__chip-name')).toBeNull()
-    openChipMenu()
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByRole('menuitem', { name: /Asignar a agentes/ })).toBeTruthy()
+    openAssignModal()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 
-  it('segundo clic en el mismo chip cierra el menú', () => {
+  it('segundo clic en el mismo chip cierra el modal', () => {
     setup()
-    openChipMenu()
+    openAssignModal()
     fireEvent.click(chipButton())
-    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('el chip es solo ícono; el nombre aparece en el modal', () => {
@@ -117,7 +116,7 @@ describe('PlaneContextPool — asignación por modal', () => {
     expect(document.querySelector('.plane-context-pool__pop')).toBeNull()
   })
 
-  it('menú → asignar abre el modal con los agentes del plano y su estado', () => {
+  it('clic abre el modal con los agentes del plano y su estado', () => {
     setup()
     openAssignModal()
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -136,7 +135,7 @@ describe('PlaneContextPool — asignación por modal', () => {
     expect(onToggleAssign.mock.calls).toEqual([['p2', 'tree'], ['p1', 'tree']])
   })
 
-  it('menú → editar llama onOpenContext', () => {
+  it('clic derecho → editar llama onOpenContext', () => {
     const { onOpenContext } = setup()
     openChipMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: /Editar/ }))
@@ -144,7 +143,7 @@ describe('PlaneContextPool — asignación por modal', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('menú → eliminar confirma y llama onDelete(contextId)', () => {
+  it('clic derecho → eliminar confirma y llama onDelete(contextId)', () => {
     const { onDeleteContext } = setup()
     openChipMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: /Eliminar/ }))
@@ -153,7 +152,7 @@ describe('PlaneContextPool — asignación por modal', () => {
     expect(onDeleteContext).toHaveBeenCalledWith('tree')
   })
 
-  it('menú → eliminar y cancelar no llama onDelete', () => {
+  it('clic derecho → eliminar y cancelar no llama onDelete', () => {
     const { onDeleteContext } = setup()
     openChipMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: /Eliminar/ }))
@@ -275,32 +274,65 @@ describe('PlaneContextPool — desbordamiento', () => {
   it('hover expande la barra con todos los chips y oculta el badge', () => {
     setup(bigCatalog())
     const pool = poolRoot()!
-    fireEvent.mouseEnter(pool)
+    fireEvent.pointerEnter(pool)
     expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
     expect(document.querySelectorAll('.plane-context-pool__chip')).toHaveLength(9)
     expect(screen.queryByTestId('plane-context-pool-overflow')).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 
-  it('chip overflow expandido abre el menú y luego el modal de asignación', () => {
+  it('clic fuera colapsa la barra expandida', () => {
     setup(bigCatalog())
-    fireEvent.mouseEnter(poolRoot()!)
+    const pool = poolRoot()!
+    fireEvent.pointerEnter(pool)
+    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
+    fireEvent.pointerDown(document.body)
+    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
+    expect(barChips()).toHaveLength(6)
+  })
+
+  it('clic fuera colapsa la barra aunque el modal de asignación siga abierto', () => {
+    setup(bigCatalog())
+    const pool = poolRoot()!
+    fireEvent.pointerEnter(pool)
     fireEvent.click(screen.getByRole('button', { name: /Contexto 8/ }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /Asignar a agentes/ }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.pointerDown(document.body)
+    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('chip overflow expandido abre el modal de asignación al clic', () => {
+    setup(bigCatalog())
+    fireEvent.pointerEnter(poolRoot()!)
+    fireEvent.click(screen.getByRole('button', { name: /Contexto 8/ }))
     expect(screen.getByRole('dialog').textContent).toContain('Contexto 8')
     expect(poolRoot()?.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
   })
 
-  it('mouseLeave colapsa la barra tras 120 ms', async () => {
+  it('pointerLeave colapsa la barra tras la gracia de cierre', async () => {
     vi.useFakeTimers()
     setup(bigCatalog())
     const pool = poolRoot()!
-    fireEvent.mouseEnter(pool)
+    fireEvent.pointerEnter(pool)
     expect(document.querySelectorAll('.plane-context-pool__chip')).toHaveLength(9)
-    fireEvent.mouseLeave(pool)
-    await act(async () => { vi.advanceTimersByTime(120) })
+    fireEvent.pointerLeave(pool)
+    await act(async () => { vi.advanceTimersByTime(80) })
     expect(barChips()).toHaveLength(6)
     expect(overflowBadge()?.textContent).toBe('+3')
+    vi.useRealTimers()
+  })
+
+  it('puntero fuera colapsa la barra aunque un chip conserve el foco', async () => {
+    vi.useFakeTimers()
+    setup(bigCatalog())
+    const pool = poolRoot()!
+    fireEvent.pointerEnter(pool)
+    screen.getByRole('button', { name: /Contexto 6/ }).focus()
+    fireEvent.pointerLeave(pool)
+    await act(async () => { vi.advanceTimersByTime(80) })
+    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
+    expect(barChips()).toHaveLength(6)
     vi.useRealTimers()
   })
 
@@ -320,7 +352,7 @@ describe('PlaneContextPool — desbordamiento', () => {
 
   it('el fantasma de un chip overflow es visible (sin la clase que lo colapsa)', () => {
     setup(bigCatalog())
-    fireEvent.mouseEnter(poolRoot()!)
+    fireEvent.pointerEnter(poolRoot()!)
     const chip = screen.getByRole('button', { name: /Contexto 8/ })
     const transfer = dragTransfer('c8')
     fireEvent.dragStart(chip, { dataTransfer: transfer })
@@ -333,7 +365,7 @@ describe('PlaneContextPool — desbordamiento', () => {
   it('arrastrar chip overflow expandido no colapsa la barra', () => {
     setup(bigCatalog())
     const pool = poolRoot()!
-    fireEvent.mouseEnter(pool)
+    fireEvent.pointerEnter(pool)
     const chip = screen.getByRole('button', { name: /Contexto 8/ })
     fireEvent.dragStart(chip, { dataTransfer: dragTransfer('c8') })
     expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)

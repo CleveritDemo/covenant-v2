@@ -4,8 +4,6 @@
   --agent-radius: 12px;
   --agent-chat-font-size: 13px;
   --agent-beam: var(--accent);
-  /* Espacio bajo la toolbar (Context / self-improve); el fade sigue desde top:0. */
-  --plane-chat-toolbar-clearance: 44px;
   /* Aire bajo la última burbuja: va en el scroll interior, no en el shell. */
   --plane-chat-last-bubble-gap: 56px;
   position: relative;
@@ -14,13 +12,14 @@
   width: 100%;
   max-width: 100%;
   min-height: 0;
+  height: 100%;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: stretch;
-  /* Solo clearance del composer: el gap del último texto es padding del scroll. */
-  padding: var(--plane-chat-toolbar-clearance) 0 var(--plane-composer-clearance, 112px);
+  /* Solo clearance del composer; la toolbar flota en el fade superior. */
+  padding: 0 0 var(--plane-composer-clearance, 112px);
   pointer-events: none;
   font-family: var(--agent-font);
   color: var(--text);
@@ -30,38 +29,17 @@
   overflow: visible !important;
 }
 
-/* Velo superior: cubre también bajo la toolbar; sin banda opaca que marque un corte. */
-.plane-quick-chat.agent-pane::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: max(160px, calc(var(--plane-chat-toolbar-clearance) + 100px));
-  z-index: 3;
-  pointer-events: none;
-  opacity: 1;
-  transform: none;
-  will-change: auto;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg) 88%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 55%, transparent) 42%,
-    color-mix(in srgb, var(--bg) 18%, transparent) 72%,
-    transparent 100%
-  );
-  background-repeat: no-repeat;
-  background-position: center top;
-  background-size: 100% 100%;
-  mask-image: none;
-  -webkit-mask-image: none;
-  transition: none;
-}
+/* Velo superior: lo pinta PlaneMap (.plane-map__chat-top-fade) bajo los paneles. */
 
 /* Evita el radial superior del .agent-pane heredado. */
 .plane-quick-chat.agent-pane {
   background: transparent;
   overflow: visible;
+}
+
+/* La aurora del piso la pinta .plane-floor-glow en TabAgenticPlane. */
+.plane-quick-chat.agent-pane::before {
+  display: none;
 }
 
 .plane-quick-chat__enter {
@@ -108,7 +86,8 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-top: 8px;
+  /* La toolbar del dock flota en el fade; el scroll llega hasta arriba. */
+  padding-top: var(--plane-chat-toolbar-clearance, 38px);
   /* Empuja solo el último texto; el shell del chat no se encoge. */
   padding-bottom: var(--plane-chat-last-bubble-gap);
   box-sizing: border-box;
@@ -120,6 +99,7 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+  --agent-messages-edge-fade: max(52px, calc(var(--plane-chat-toolbar-clearance, 38px) + 14px));
 }
 
 .plane-quick-chat .agent-pane__messages {

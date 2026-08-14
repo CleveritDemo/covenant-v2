@@ -474,7 +474,7 @@ describe('sanitizePersistedSession', () => {
           steps: [
             { paneId: 'a1', objective: 'scout' },
             { paneId: 'a2', objective: 'fix' },
-          ],
+          ] as unknown as import('@shared/planeLoopChain').PlaneLoopStep[],
           intervalMs: 600_000,
           status: 'waiting',
           cursor: 1,
@@ -486,8 +486,8 @@ describe('sanitizePersistedSession', () => {
     expect(result?.tabs[0]?.planeLoopChains).toEqual([{
       id: 'chain-1',
       steps: [
-        { paneId: 'a1', objective: 'scout' },
-        { paneId: 'a2', objective: 'fix' },
+        { agentId: 'claude', objective: 'scout' },
+        { agentId: 'cursor', objective: 'fix' },
       ],
       intervalMs: 600_000,
       status: 'idle',

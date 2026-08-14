@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import {
+  collectRunningThreadActivities,
   collectRunningThreadIds,
+  lastUserPromptFromMessages,
   mergePaneReportedRunningThreadIds,
 } from '../AgentPane'
-import { startLane, endLane } from '../paneThreadLanes'
+import { setLaneActivity, startLane, endLane } from '../paneThreadLanes'
 
 const user: AgentChatEntry = { id: 'u1', role: 'user', content: 'hola' }
 const assistant: AgentChatEntry = { id: 'a1', role: 'assistant', content: '' }
@@ -43,6 +45,53 @@ describe('collectRunningThreadIds', () => {
       messages: [user, assistant],
     })
     expect(collectRunningThreadIds(lanes, 'human-active', true)).toEqual(['human-active'])
+  })
+})
+
+describe('lastUserPromptFromMessages', () => {
+  it('toma el último mensaje user ignorando assistant', () => {
+    const msgs: AgentChatEntry[] = [
+      { id: 'u1', role: 'user', content: 'Primera' },
+      { id: 'a1', role: 'assistant', content: 'Respuesta larga' },
+      { id: 'u2', role: 'user', content: 'Segunda petición' },
+    ]
+    expect(lastUserPromptFromMessages(msgs)).toBe('Segunda petición')
+  })
+})
+
+describe('collectRunningThreadActivities', () => {
+  it('expone la petición del usuario en un carril de fondo', () => {
+    const userMsg: AgentChatEntry = {
+      id: 'u1',
+      role: 'user',
+      content: 'Arregla el CSS del header',
+    }
+    let lanes = startLane(new Map(), {
+      threadId: 'human-bg',
+      delegationId: '',
+      assistantId: 'a1',
+      messages: [userMsg, assistant],
+    })
+    lanes = setLaneActivity(lanes, 'human-bg', 'Editando CSS')
+    expect(collectRunningThreadActivities(
+      lanes,
+      ['human-bg'],
+      'human-active',
+      [],
+    )).toEqual({ 'human-bg': 'Arregla el CSS del header' })
+  })
+
+  it('usa la última petición del hilo activo cuando no hay carril', () => {
+    const msgs: AgentChatEntry[] = [
+      { id: 'u1', role: 'user', content: 'Revisa los tests' },
+      { id: 'a1', role: 'assistant', content: 'Leyendo archivos…' },
+    ]
+    expect(collectRunningThreadActivities(
+      new Map(),
+      ['human-active'],
+      'human-active',
+      msgs,
+    )).toEqual({ 'human-active': 'Revisa los tests' })
   })
 })
 

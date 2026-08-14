@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
+import { PlaneBusyDot } from '../../workspace/PlaneBusyDot'
 import { Icon } from './Icon'
 import './Select.css'
 
@@ -176,7 +177,12 @@ export const Select: React.FC<SelectProps> = ({
         popovertarget={panelId}
       >
         <span className="select__value" data-placeholder={selected ? undefined : true}>
-          {selected?.label ?? placeholder ?? value}
+          {selected ? (
+            <span className="select__value-row">
+              {selected.busy ? <PlaneBusyDot size="sm" /> : null}
+              <span className="select__value-label">{selected.label}</span>
+            </span>
+          ) : (placeholder ?? value)}
         </span>
         <Icon name="chevron-down" size={variant === 'ghost' || variant === 'badge' ? 12 : 14} aria-hidden />
       </button>
@@ -215,9 +221,7 @@ export const Select: React.FC<SelectProps> = ({
             </span>
             <span className="select-panel__text">
               <span className="select-panel__label-row">
-                {option.busy ? (
-                  <span className="select-panel__busy-dot" aria-hidden="true" />
-                ) : null}
+                {option.busy ? <PlaneBusyDot size="sm" /> : null}
                 <span className="select-panel__label">{option.label}</span>
               </span>
               {option.hint ? <span className="select-panel__hint">{option.hint}</span> : null}

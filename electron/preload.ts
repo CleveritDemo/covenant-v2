@@ -73,6 +73,7 @@ import type {
 } from '../src/shared/agentCliTypes'
 import type { AgentChatRef } from '../src/shared/agentChatPersistence'
 import type { BrainstormEvent } from '../src/shared/brainstormRoom'
+import type { LoopChainEvent, LoopChainRunStateSnapshot, LoopChainTranscript } from '../src/shared/loopChainEvents'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import type { AgentCliProvider, AgentCliResolution } from '../src/shared/agentCliProviders'
 import type {
@@ -130,6 +131,7 @@ const subscribePtyError = createPtyChannelMux<[message: string]>(IPC.PTY_ERROR)
 const subscribeAgentCliEvent = createPtyChannelMux<[event: AgentCliUiEvent]>(IPC.AGENT_CLI_EVENT)
 const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_EXIT)
 const subscribeBrainstormEvent = createPtyChannelMux<[event: BrainstormEvent]>(IPC.BRAINSTORM_EVENT)
+const subscribeLoopChainEvent = createPtyChannelMux<[event: LoopChainEvent]>(IPC.LOOP_CHAIN_EVENT)
 const subscribeWikiCuratorEvent = createPtyChannelMux<[event: WikiCuratorEvent]>(IPC.WIKI_CURATOR_EVENT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
@@ -226,6 +228,28 @@ const api = {
   },
   onBrainstormEvent(roomId: string, cb: (event: BrainstormEvent) => void): () => void {
     return subscribeBrainstormEvent(roomId, cb)
+  },
+  startLoopChain(config: {
+    chainId: string
+    steps: Array<{ agentId: string; objective: string }>
+    intervalMs: number
+    cwd: string
+    agents: import('../src/shared/projectAgentCatalog').ProjectAgentDefinition[]
+    contexts?: import('../src/shared/tabContext').TabContext[]
+  }): void {
+    ipcRenderer.send(IPC.LOOP_CHAIN_START, config)
+  },
+  stopLoopChain(chainId: string): void {
+    ipcRenderer.send(IPC.LOOP_CHAIN_STOP, chainId)
+  },
+  getLoopChainState(chainId: string): Promise<LoopChainRunStateSnapshot | null> {
+    return ipcRenderer.invoke(IPC.LOOP_CHAIN_STATE, chainId)
+  },
+  getLoopChainTranscript(chainId: string): Promise<LoopChainTranscript | null> {
+    return ipcRenderer.invoke(IPC.LOOP_CHAIN_TRANSCRIPT, chainId)
+  },
+  onLoopChainEvent(chainId: string, cb: (event: LoopChainEvent) => void): () => void {
+    return subscribeLoopChainEvent(chainId, cb)
   },
   loadAgentChat(ref: AgentChatRef | string, threadId: string): Promise<AgentChatEntry[]> {
     return ipcRenderer.invoke(IPC.AGENT_CHAT_LOAD, ref, threadId)

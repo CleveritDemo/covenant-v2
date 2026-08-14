@@ -2,7 +2,7 @@ import React, { useCallback } from 'react'
 import { Icon } from '../components/ui/Icon'
 import './AgentPane.css'
 
-export type AgentPaneSendMode = 'send' | 'stop' | 'play' | 'mic'
+export type AgentPaneSendMode = 'send' | 'stop' | 'mic'
 
 export interface AgentPaneSendButtonProps {
   mode: AgentPaneSendMode
@@ -14,7 +14,7 @@ export interface AgentPaneSendButtonProps {
   onMicStop?: () => void
 }
 
-/** Send / stop / play / mic (push-to-talk) del composer del AgentPane. */
+/** Send / stop / mic (push-to-talk) del composer del AgentPane. */
 export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
   mode,
   label,
@@ -36,11 +36,9 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
 
   const iconName = mode === 'stop'
     ? 'stop'
-    : mode === 'play'
-      ? 'play'
-      : mode === 'mic'
-        ? 'mic'
-        : 'send'
+    : mode === 'mic'
+      ? 'mic'
+      : 'send'
 
   return (
     <button
@@ -48,7 +46,6 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
       className={[
         'agent-pane__send',
         mode === 'stop' ? 'agent-pane__send--stop' : '',
-        mode === 'play' ? 'agent-pane__send--play' : '',
         isMic ? 'agent-pane__send--mic' : '',
         listening ? 'agent-pane__send--listening' : '',
       ].filter(Boolean).join(' ')}

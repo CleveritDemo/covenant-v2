@@ -17,7 +17,8 @@ export interface PlaneContextChipMenuProps {
   onClose: () => void
 }
 
-const MENU_WIDTH = 190
+const MENU_WIDTH = 148
+const MENU_ITEM_HEIGHT = 28
 const MENU_MARGIN = 8
 
 /**
@@ -58,7 +59,7 @@ export const PlaneContextChipMenu: React.FC<PlaneContextChipMenuProps> = ({
   )
   const top = Math.min(
     anchor.bottom + 4,
-    window.innerHeight - items.length * 34 - MENU_MARGIN,
+    window.innerHeight - items.length * MENU_ITEM_HEIGHT - MENU_MARGIN,
   )
 
   return createPortal(
@@ -82,7 +83,7 @@ export const PlaneContextChipMenu: React.FC<PlaneContextChipMenuProps> = ({
               item.onSelect()
             }}
           >
-            <Icon name={item.icon} size={14} />
+            <Icon name={item.icon} size={12} />
             {item.label}
           </button>
         </React.Fragment>

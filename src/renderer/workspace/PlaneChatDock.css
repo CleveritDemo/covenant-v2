@@ -3,27 +3,37 @@
      (--plane-composer-clearance) cuando no hay .plane-chat-composer montado,
      para no dejar padding fantasma de 112px. */
   --plane-composer-clearance: 112px;
+  /* Alto del overlay de hilos sobre el fade superior del chat (no reserva banda). */
+  --plane-chat-toolbar-clearance: 38px;
   position: absolute;
   inset: 0;
-  /* Por encima de pane windows (140) vía --plane-chat-stack-z; debajo de modales portaled (670). */
+  /* Por encima del chat (200); debajo del mapa elevado con ventana (205). */
   z-index: var(--plane-chat-stack-z, 200);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-areas: 'stack';
   pointer-events: none;
   min-height: 0;
 }
 
+.plane-chat-dock__toolbar,
+.plane-chat-dock__chat {
+  grid-area: stack;
+  min-width: 0;
+  min-height: 0;
+}
+
 .plane-chat-dock__toolbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  /* Por encima del fade superior del quick-chat (::before z3). */
+  position: relative;
+  align-self: start;
+  justify-self: center;
+  width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
+  /* Por encima del velo del scroll y del mapa. */
   z-index: 8;
   display: flex;
   justify-content: center;
-  padding: 10px 16px 0;
+  padding: 10px 0 0;
   pointer-events: none;
+  background: transparent;
 }
 
 .plane-chat-dock__toolbar > * {
@@ -31,17 +41,15 @@
 }
 
 .plane-chat-dock__chat {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   /* visible: permite ver la escala de entrada del chat. */
   overflow: visible;
+  pointer-events: none;
 }
 
 .plane-chat-dock__composer-shell {
-  /* contents: el composer (+1 sobre el dock) participa en el stacking del plano. */
+  /* contents: el composer participa en el stacking del plano bajo ventana abierta. */
   display: contents;
 }

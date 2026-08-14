@@ -66,6 +66,8 @@ export interface AgentCliStartRequest {
   discoveredContexts?: TabContext[]
   /** Inyecta el protocolo de registro de resultados y persiste el bloque emitido. */
   emitResults?: boolean
+  /** Inyecta protocolo de changelog y persiste bloque emitido. Default true. */
+  emitChangelog?: boolean
   /**
    * Ids de agentes vivos en el mismo tab/plano. El host inyecta hasta 5 results
    * recientes de cada uno (si existen) en el prompt del turno.

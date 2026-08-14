@@ -4,7 +4,7 @@ import './PlaneChatDock.css'
 export interface PlaneChatDockProps {
   chat: React.ReactNode
   composer: React.ReactNode
-  /** Controles encima del chat (por encima del fade superior). */
+  /** Controles flotantes en el fade superior del chat (hilos / limpiar). */
   toolbar?: React.ReactNode
 }
 

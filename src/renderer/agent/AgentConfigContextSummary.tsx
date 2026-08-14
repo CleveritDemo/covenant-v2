@@ -27,7 +27,6 @@ export interface AgentConfigContextSummaryProps {
   diskContexts: TabContext[]
   selectedContextIds: string[]
   locked: boolean
-  loopActive: boolean
   /** Slug del agente: oculta su propio results en el picker. */
   agentId?: string
   /** Catálogo del proyecto: alimenta la pila de monogramas y el tag «sin usar». */

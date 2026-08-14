@@ -73,8 +73,6 @@ function renderModal(
       meta={{ ...meta, ...overrides }}
       cwd="/tmp/project"
       busy={busy}
-      loopMode={false}
-      loopActive={false}
       diskContexts={[]}
       selectedContextIds={['ctx-a', 'ctx-b']}
       onClose={() => {}}
@@ -89,7 +87,6 @@ function renderModal(
       onChangePermission={() => {}}
       onChangeNativeSkills={() => {}}
       onChangeMcpsAllowed={() => {}}
-      onToggleLoopMode={() => {}}
       onToggleContext={() => {}}
       onOpenContextsModal={() => {}}
     />,
@@ -282,8 +279,6 @@ describe('AgentConfigModal', () => {
         meta={meta}
         cwd="/tmp/project"
         busy={false}
-        loopMode={false}
-        loopActive={false}
         diskContexts={[]}
         selectedContextIds={[]}
         onClose={() => {}}
@@ -298,7 +293,6 @@ describe('AgentConfigModal', () => {
         onChangePermission={() => {}}
         onChangeNativeSkills={() => {}}
         onChangeMcpsAllowed={() => {}}
-        onToggleLoopMode={() => {}}
         onToggleContext={() => {}}
         onOpenContextsModal={() => {}}
       />,

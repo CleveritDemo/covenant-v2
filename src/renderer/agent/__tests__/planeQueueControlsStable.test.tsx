@@ -42,6 +42,7 @@ function StableQueueControlsProbe({
       merge: () => mergeQueuedTurnsRef.current(),
       cancelDelegationsFrom: fromPaneId => cancelDelegationsFromRef.current(fromPaneId),
       cancelDelegation: delegationId => cancelDelegationRef.current(delegationId),
+      enqueueHuman: async () => 'enqueued',
     })
     return () => onReady(null)
   }, [onReady])

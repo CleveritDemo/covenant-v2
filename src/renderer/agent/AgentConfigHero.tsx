@@ -21,7 +21,6 @@ export interface AgentConfigHeroProps {
   role: string
   chips: AgentConfigHeroChip[]
   busy: boolean
-  loopActive: boolean
   awaitingDelegations?: boolean
   onChipClick: (section: AgentConfigSection) => void
 }
@@ -39,7 +38,6 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   role,
   chips,
   busy,
-  loopActive,
   awaitingDelegations = false,
   onChipClick,
 }) => {
@@ -47,11 +45,9 @@ export const AgentConfigHero: React.FC<AgentConfigHeroProps> = ({
   const nameEmpty = !name.trim()
   const displayName = name.trim() || t('agentPane.configUnnamed')
 
-  const statusLabel = loopActive
-    ? t('agentPane.configStatusLoop')
-    : busy || awaitingDelegations
-      ? t('agentPane.configStatusBusy')
-      : t('agentPane.configStatusIdle')
+  const statusLabel = busy || awaitingDelegations
+    ? t('agentPane.configStatusBusy')
+    : t('agentPane.configStatusIdle')
 
   return (
     <div className="agent-config-hero">

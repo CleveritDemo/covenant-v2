@@ -2,10 +2,15 @@ import React, { useEffect, useState } from 'react'
 import type { TabContextKind } from '@shared/tabContext'
 import { canonicalContextFileName, canonicalContextId } from '@shared/tabContext'
 import { parseJiraIssuePreview, type JiraIssuePreview } from '@shared/jiraIssueDoc'
+import { useT } from '@i18n/useT'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import { JiraIssueChip } from './JiraIssueChip'
 import './PlaneContextCard.css'
+
+/** Íconos de entrada en la grilla 18px; los monogramas de result no usan este tamaño. */
+const INPUT_ICON_ONLY_SIZE = 9
 
 export interface PlaneContextCardProps {
   name: string
@@ -14,12 +19,16 @@ export interface PlaneContextCardProps {
   shared?: boolean
   /** Fila con ícono + nombre (lista de contextos del agente). */
   showName?: boolean
+  /** Solo ícono 18px (grilla mini del agente). */
+  iconOnly?: boolean
   /** Clic: p. ej. abrir chat del agente. */
   onOpen?: () => void
   /** Kind real del contexto: solo `jira` cambia la representación (ver abajo). */
   kind?: TabContextKind
   /** Solo `jira`: clave de la issue. Sin ella no hay `.md` que pedir. */
   issueKey?: string
+  /** Solo `agentResult`: monograma del agente en lugar del ícono genérico. */
+  monogram?: string
   /** Carpeta del proyecto: sin ella `previewTabContext` no puede resolver el `.md` de la issue. */
   cwd?: string
   /**
@@ -86,15 +95,58 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
   color,
   shared = false,
   showName = false,
+  iconOnly = false,
   onOpen,
   kind,
   issueKey,
+  monogram,
   cwd,
   contextsRevision = 0,
 }) => {
+  const { t } = useT()
   const isJira = kind === 'jira' && Boolean((issueKey ?? '').trim())
+  const isResult = kind === 'agentResult'
+  const iconCellClass = iconOnly && !isResult ? 'plane-context-card--input' : ''
   // El hook corre siempre (regla de hooks); dentro decide si hay algo que pedir.
   const preview = useJiraIssuePreview(isJira ? issueKey : undefined, cwd, contextsRevision)
+
+  if (isJira && iconOnly) {
+    const key = (issueKey ?? '').trim()
+    const staleHint = t('jira.staleHint')
+    const freshHint = preview.updated?.trim()
+      ? `${preview.status} · ${t('jira.updatedHint', { date: preview.updated.trim() })}`
+      : preview.status
+    const content = (preview.summary ?? '').trim() || name || key
+    const hint = preview.stale ? staleHint : freshHint
+    return (
+      <span
+        className="plane-context-card__jira-wrap"
+        onClick={event => event.stopPropagation()}
+        onPointerDown={event => event.stopPropagation()}
+      >
+        <Tooltip content={content} hint={hint || undefined}>
+          <button
+            type="button"
+            className={[
+              'plane-context-card',
+              'plane-context-card--input',
+              preview.stale ? 'plane-context-card--stale' : '',
+            ].filter(Boolean).join(' ')}
+            style={{ '--context-color': color } as React.CSSProperties}
+            aria-label={key}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              onOpen?.()
+            }}
+            onPointerDown={event => event.stopPropagation()}
+          >
+            <Icon name="jira" size={INPUT_ICON_ONLY_SIZE} aria-hidden />
+          </button>
+        </Tooltip>
+      </span>
+    )
+  }
 
   if (isJira) {
     return (
@@ -127,6 +179,7 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
         'plane-context-card',
         showName ? 'plane-context-card--labeled' : '',
         shared ? 'plane-context-card--shared' : '',
+        iconCellClass,
       ].filter(Boolean).join(' ')}
       style={{ '--context-color': color } as React.CSSProperties}
       aria-label={name}
@@ -137,7 +190,17 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
       }}
       onPointerDown={event => event.stopPropagation()}
     >
-      <Icon name={icon} size={showName ? 10 : 12} aria-hidden />
+      {monogram?.trim() ? (
+        <span className="plane-context-card__monogram" aria-hidden>
+          {monogram.trim()}
+        </span>
+      ) : (
+        <Icon
+          name={icon}
+          size={showName ? 10 : iconOnly ? INPUT_ICON_ONLY_SIZE : 12}
+          aria-hidden
+        />
+      )}
       {showName ? (
         <span className="plane-context-card__name">{name}</span>
       ) : null}

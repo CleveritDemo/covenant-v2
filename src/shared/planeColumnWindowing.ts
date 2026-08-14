@@ -16,6 +16,14 @@ export interface PlaneColumnWindowingInput {
   padY?: number
   gap?: number
   bottomClearance?: number
+  fadeZone?: number
+  /** Si el contenido cabe sin scroll, anclar al borde inferior de la banda. */
+  fitAlignment?: 'top' | 'bottom'
+}
+
+function smoothFadeProgress(linearRatio: number): number {
+  const t = Math.min(1, Math.max(0, linearRatio))
+  return t * t * (3 - 2 * t)
 }
 
 export interface PlaneColumnSlotY {
@@ -23,6 +31,7 @@ export interface PlaneColumnSlotY {
   y: number
   height: number
   visible: boolean
+  progress: number
 }
 
 export interface PlaneColumnWindowingResult {
@@ -40,6 +49,7 @@ export function computePlaneColumnWindowing(
   const padY = input.padY ?? PLANE_MINI_SLOT_PAD_Y
   const gap = input.gap ?? PLANE_MINI_SLOT_GAP
   const bottomClearance = input.bottomClearance ?? PLANE_MINI_BOTTOM_CLEARANCE
+  const fadeZone = input.fadeZone ?? 112
   const vh = input.viewportHeight > 0 ? input.viewportHeight : 640
   const items = input.items
   const n = items.length
@@ -54,20 +64,32 @@ export function computePlaneColumnWindowing(
 
   const bandTop = padY
   const bandBottom = Math.max(bandTop + 1, vh - bottomClearance)
+  const fitAlignment = input.fitAlignment ?? 'top'
+  const stackLift = fitAlignment === 'bottom'
+    && maxScroll === 0
+    && n > 0
+    && contentHeight < bandBottom
+    ? bandBottom - contentHeight
+    : 0
 
   const slots: PlaneColumnSlotY[] = []
   const hiddenAbove: string[] = []
   const hiddenBelow: string[] = []
 
-  let stackY = padY
+  let stackY = padY + stackLift
   for (let i = 0; i < n; i += 1) {
     const height = heights[i]
     const y = stackY - appliedScrollOffset
     const visible = y >= bandTop - 1 && y + height <= bandBottom + 1
+    const overshootTop = Math.max(0, bandTop - y)
+    const overshootBottom = Math.max(0, (y + height) - bandBottom)
+    const overshoot = Math.max(overshootTop, overshootBottom)
+    const linearProgress = Math.min(1, Math.max(0, 1 - overshoot / Math.max(1, fadeZone)))
+    const progress = Math.round(smoothFadeProgress(linearProgress) * 1000) / 1000
 
-    slots.push({ id: items[i].id, y, height, visible })
+    slots.push({ id: items[i].id, y, height, visible, progress })
 
-    if (!visible) {
+    if (progress === 0) {
       if (y + height < bandTop) {
         hiddenAbove.push(items[i].id)
       } else {

@@ -122,6 +122,15 @@ import {
 } from './brainstormRoom'
 import type { BrainstormStartConfig } from './brainstormRoom'
 import {
+  startLoopChainRun,
+  stopLoopChainRun,
+  stopAllLoopChainRuns,
+  stopLoopChainRunsForWindow,
+  getLoopChainRunState,
+  getLoopChainTranscript,
+} from './loopChainRun'
+import type { LoopChainStartConfig } from './loopChainRun'
+import {
   deleteTabContext,
   discoverTabContexts,
   materializeTabContext,
@@ -459,6 +468,7 @@ app.on('will-quit', () => {
   clearPresence()
   stopAllAgentRuns()
   stopAllBrainstormRooms()
+  stopAllLoopChainRuns()
   stopAllLspServers()
   killAllPtySessions()
   stopAllFileExplorerWatches()
@@ -2317,6 +2327,45 @@ function registerIpc(): void {
     }
   })
 
+  ipcMain.on(IPC.LOOP_CHAIN_START, (event, config: LoopChainStartConfig) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || !config || typeof config !== 'object') return
+    const result = startLoopChainRun(
+      win,
+      config,
+      readConfig(),
+      app.getPath('home'),
+    )
+    if (!result.ok) {
+      const chainId = typeof config.chainId === 'string' ? config.chainId.trim() : ''
+      if (chainId) {
+        win.webContents.send(IPC.LOOP_CHAIN_EVENT, chainId, {
+          type: 'error',
+          chainId,
+          message: result.error,
+        })
+        win.webContents.send(IPC.LOOP_CHAIN_EVENT, chainId, {
+          type: 'run_end',
+          chainId,
+          reason: 'error',
+        })
+      }
+    }
+  })
+  ipcMain.on(IPC.LOOP_CHAIN_STOP, (event, chainId: string) => {
+    if (typeof chainId !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    stopLoopChainRun(chainId, win ? { win, notify: true } : {})
+  })
+  ipcMain.handle(IPC.LOOP_CHAIN_STATE, (_event, chainId: unknown) => {
+    if (typeof chainId !== 'string') return null
+    return getLoopChainRunState(chainId)
+  })
+  ipcMain.handle(IPC.LOOP_CHAIN_TRANSCRIPT, (_event, chainId: unknown) => {
+    if (typeof chainId !== 'string') return null
+    return getLoopChainTranscript(chainId)
+  })
+
   ipcMain.on(IPC.PTY_CREATE, (event, sessionId: string, cwd?: string) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
@@ -2507,7 +2556,10 @@ function createWindow(): BrowserWindow {
   ipcMain.on(IPC.APP_QUIT_CONFIRMED, onQuitConfirmed)
 
   win.on('close', e => {
-    if (closingFromReady) return
+    if (closingFromReady) {
+      stopLoopChainRunsForWindow(win.id, win)
+      return
+    }
     e.preventDefault()
 
     // Confirmar sólo si hay terminales/agentes vivos; instalando update nadie pregunta.
@@ -2521,6 +2573,7 @@ function createWindow(): BrowserWindow {
 
     const timeout = setTimeout(() => {
       closingFromReady = true
+      stopLoopChainRunsForWindow(win.id, win)
       win.destroy()
     }, 2_000)
 
@@ -2532,6 +2585,7 @@ function createWindow(): BrowserWindow {
         }
       }
       closingFromReady = true
+      stopLoopChainRunsForWindow(win.id, win)
       win.destroy()
     })
   })
@@ -2542,6 +2596,7 @@ function createWindow(): BrowserWindow {
     const closedWinId = win.id
     stopAgentRunsForWindow(closedWinId)
     stopBrainstormRoomsForWindow(closedWinId)
+    stopLoopChainRunsForWindow(closedWinId, win)
     for (const [id, entry] of [...ptySessions.entries()]) {
       if (entry.windowId === closedWinId) {
         killPty(id)

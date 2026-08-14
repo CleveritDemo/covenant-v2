@@ -33,6 +33,36 @@ describe('PlaneContextCard — kinds normales', () => {
     expect(screen.getByRole('button', { name: 'Folders' })).toBeTruthy()
     expect(previewTabContext).not.toHaveBeenCalled()
   })
+
+  it('muestra monograma en agentResult con iconOnly', () => {
+    const { container } = render(
+      <PlaneContextCard
+        name="David"
+        icon="bot"
+        color="#888"
+        kind="agentResult"
+        monogram="DV"
+        iconOnly
+        onOpen={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('.plane-context-card__monogram')?.textContent).toBe('DV')
+    expect(container.querySelector('.plane-context-card--result')).toBeNull()
+  })
+
+  it('marca entradas con borde sólido en iconOnly', () => {
+    const { container } = render(
+      <PlaneContextCard
+        name="Folders"
+        icon="folder"
+        color="#888"
+        kind="folderTree"
+        iconOnly
+        onOpen={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('.plane-context-card--input')).toBeTruthy()
+  })
 })
 
 describe('PlaneContextCard — kind jira', () => {

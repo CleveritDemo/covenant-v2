@@ -16,7 +16,10 @@ export const PLANE_MINI_MAX_HEIGHT = 300
 /** Padding superior / gap / hueco inferior (composer) para empaquetar la columna. */
 export const PLANE_MINI_SLOT_PAD_Y = 72
 export const PLANE_MINI_SLOT_GAP = 20
-export const PLANE_MINI_BOTTOM_CLEARANCE = 148
+/** Hueco inferior columna terminales (FAB izquierdo + margen). */
+export const PLANE_MINI_BOTTOM_CLEARANCE = 96
+/** Hueco inferior columna agentes (FAB derecho + margen). */
+export const PLANE_MINI_AGENT_BOTTOM_CLEARANCE = 88
 /** Padding horizontal mínimo (referencia ~1280px). */
 export const PLANE_MINI_SLOT_PAD_X = 28
 /** Tope de padding exterior en pantallas muy anchas. */
@@ -127,10 +130,45 @@ export const PLANE_MINI_TITLEBAR_HEIGHT = 26
 
 /** Altura base de la card mini de agente (face min-height 82 + border 2). */
 export const PLANE_MINI_AGENT_BASE_HEIGHT = 84
+/** Tamaño del ícono de contexto en la grilla mini (`.plane-context-card`). */
+export const PLANE_MINI_AGENT_CONTEXT_ICON_SIZE = 18
+/** Gap horizontal entre íconos en la grilla. */
+export const PLANE_MINI_AGENT_CONTEXT_COL_GAP = 6
+/** Padding horizontal de `.plane-mini-face` (10px izq + 44px der). */
+export const PLANE_MINI_AGENT_FACE_PAD_X = 54
 /** Altura de cada fila de contexto (ícono 18px). */
-export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = 18
+export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = PLANE_MINI_AGENT_CONTEXT_ICON_SIZE
 /** .plane-mini-face__nodes margin-top. */
-export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 6
+export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 8
+/** Gap vertical entre filas de la grilla de contextos en la mini. */
+export const PLANE_MINI_AGENT_CONTEXT_ROW_GAP = 4
+
+/** Cuántos íconos caben por fila según el ancho de la mini del agente. */
+export function computePlaneAgentContextIconsPerRow(cellWidth: number): number {
+  const available = Math.max(
+    0,
+    Math.floor(cellWidth) - PLANE_MINI_AGENT_FACE_PAD_X,
+  )
+  if (available < PLANE_MINI_AGENT_CONTEXT_ICON_SIZE) return 1
+  const stride = PLANE_MINI_AGENT_CONTEXT_ICON_SIZE + PLANE_MINI_AGENT_CONTEXT_COL_GAP
+  return Math.max(
+    1,
+    Math.floor((available + PLANE_MINI_AGENT_CONTEXT_COL_GAP) / stride),
+  )
+}
+
+/** Altura de la grilla de contextos según cantidad de íconos. */
+export function estimatePlaneAgentContextGridHeight(
+  contextCount: number,
+  iconsPerRow: number,
+): number {
+  const n = Math.max(0, Math.floor(contextCount))
+  const perRow = Math.max(1, Math.floor(iconsPerRow))
+  if (n === 0) return 0
+  const rows = Math.ceil(n / perRow)
+  return rows * PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT
+    + Math.max(0, rows - 1) * PLANE_MINI_AGENT_CONTEXT_ROW_GAP
+}
 
 /** offsetHeight = border-box local; no usar getBoundingClientRect (tilt 3D de la columna). */
 export function readPlaneMiniAgentLayoutHeight(el: HTMLElement): number {
@@ -138,13 +176,17 @@ export function readPlaneMiniAgentLayoutHeight(el: HTMLElement): number {
 }
 
 /** Altura de mini agente según contextos (primer frame, antes del ResizeObserver). */
-export function estimatePlaneAgentMiniHeight(contextCount: number): number {
+export function estimatePlaneAgentMiniHeight(
+  contextCount: number,
+  cellWidth = PLANE_MINI_WINDOW_WIDTH,
+): number {
   const n = Math.max(0, Math.floor(contextCount))
   if (n === 0) return PLANE_MINI_AGENT_BASE_HEIGHT
+  const iconsPerRow = computePlaneAgentContextIconsPerRow(cellWidth)
   // padding-y 8+8, header drag 22 + margin 6, status ~17, nodes margin 6, padding-bottom 8, +2 border.
   // No modela el separator notes/results (6px): el RO lo corrige.
   const content = 8 + 22 + 6 + 17 + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
-    + n * PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT
+    + estimatePlaneAgentContextGridHeight(n, iconsPerRow)
     + 8
   return Math.max(
     PLANE_MINI_AGENT_BASE_HEIGHT,

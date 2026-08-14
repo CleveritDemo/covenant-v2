@@ -3,26 +3,21 @@ import {
   canDrainAgentQueue,
   canStartHumanTurnNow,
   isAgentHumanInputBlocked,
+  shouldPromoteHumanSendToVisibleQueue,
   shouldShowComposerStop,
 } from '../agentInputGuards'
 
 const idleBase = {
   loaded: true,
   busy: false,
-  loopActive: false,
   awaitingDelegations: false,
   delegationWorkActive: false,
   systemFollowUpsPending: false,
 } as const
 
 describe('agent input anti-collision guards', () => {
-  it('blocks human input only while the local loop is active', () => {
-    expect(isAgentHumanInputBlocked({ loopActive: true })).toBe(true)
-    expect(isAgentHumanInputBlocked({ loopActive: false })).toBe(false)
-  })
-
-  it('does not block human input when orchestrator is busy or awaiting', () => {
-    expect(isAgentHumanInputBlocked({ loopActive: false })).toBe(false)
+  it('does not block human input in the pane composer', () => {
+    expect(isAgentHumanInputBlocked()).toBe(false)
   })
 
   it('does not drain the user queue while awaiting delegations', () => {
@@ -106,16 +101,10 @@ describe('agent input anti-collision guards', () => {
     })).toBe(true)
   })
 
-  it('still blocks delegation-head drain when busy or loop active', () => {
+  it('still blocks delegation-head drain when busy', () => {
     expect(canDrainAgentQueue({
       ...idleBase,
       busy: true,
-      delegationWorkActive: true,
-      headIsDelegation: true,
-    })).toBe(false)
-    expect(canDrainAgentQueue({
-      ...idleBase,
-      loopActive: true,
       delegationWorkActive: true,
       headIsDelegation: true,
     })).toBe(false)
@@ -151,22 +140,53 @@ describe('canStartHumanTurnNow', () => {
 describe('shouldShowComposerStop', () => {
   it('ignores awaitingDelegations for the red Composer Stop', () => {
     expect(shouldShowComposerStop({
-      loopActive: false,
       busy: false,
       awaitingDelegations: true,
     })).toBe(false)
   })
 
-  it('shows Stop for own busy or local loop', () => {
-    expect(shouldShowComposerStop({ loopActive: false, busy: true })).toBe(true)
-    expect(shouldShowComposerStop({ loopActive: true, busy: false })).toBe(true)
+  it('shows Stop for own busy', () => {
+    expect(shouldShowComposerStop({ busy: true })).toBe(true)
   })
 
   it('shows Stop for a selected delegation target in the plane composer', () => {
     expect(shouldShowComposerStop({
-      loopActive: false,
       busy: false,
       delegationWorkActive: true,
     })).toBe(true)
+  })
+})
+
+describe('shouldPromoteHumanSendToVisibleQueue', () => {
+  const idleStatus = {
+    busy: false,
+    awaitingDelegations: false,
+    delegationWorkActive: false,
+    systemFollowUpsPending: false,
+  } as const
+
+  it('promotes when the pane is busy', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      ...idleStatus,
+      busy: true,
+    })).toBe(true)
+  })
+
+  it('promotes in linear while awaiting delegations even if not busy', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      ...idleStatus,
+      awaitingDelegations: true,
+    }, 'linear')).toBe(true)
+  })
+
+  it('does not promote when idle and can start a human turn', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue(idleStatus, 'turbo')).toBe(false)
+  })
+
+  it('promotes when system follow-ups are pending', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      ...idleStatus,
+      systemFollowUpsPending: true,
+    }, 'turbo')).toBe(true)
   })
 })

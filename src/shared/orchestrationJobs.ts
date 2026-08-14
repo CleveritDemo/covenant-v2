@@ -381,15 +381,37 @@ export function occupiedTargetPaneIdsAcrossAllJobs(
   return out
 }
 
-/** Orquestadores con pending (para descartar FIFO de subtareas abortadas). */
+/** Orquestadores con pending o deferred (para descartar FIFO de subtareas abortadas). */
 export function pendingOrchestratorIdsFromJobs(
   byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
 ): Set<string> {
   const out = new Set<string>()
   for (const [paneId, jobs] of byPane.entries()) {
     for (const job of jobs.values()) {
-      if (job.pending.size > 0) {
+      if (job.pending.size > 0 || job.deferred.length > 0) {
         out.add(paneId)
+        break
+      }
+    }
+  }
+  return out
+}
+
+/** Orquestadores con al menos una deferred hacia `freedPaneId` (orden de inserción, sin duplicados). */
+export function orchestratorPanesWithDeferredForPane(
+  jobsByPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+  freedPaneId: string,
+): string[] {
+  const wanted = freedPaneId.trim()
+  if (!wanted) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const [fromPaneId, jobs] of jobsByPane.entries()) {
+    if (seen.has(fromPaneId)) continue
+    for (const job of jobs.values()) {
+      if (job.deferred.some(item => item.toPaneId === wanted)) {
+        out.push(fromPaneId)
+        seen.add(fromPaneId)
         break
       }
     }

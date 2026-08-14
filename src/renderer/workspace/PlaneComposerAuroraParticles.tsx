@@ -20,8 +20,10 @@ type Particle = {
 
 const COLOR_VARS = ['--accent', '--theme-cyan', '--theme-magenta', '--theme-blue'] as const
 const FIELD_HEIGHT = 160
-const MAX_PARTICLES = 84
-const SPAWN_INTERVAL_MS = 28
+const MAX_PARTICLES = 42
+const SPAWN_INTERVAL_MS = 56
+/** Margen inferior para que el radio no se recorte en el borde del canvas. */
+const SPAWN_BOTTOM_MARGIN = 16
 /** Pico de opacidad: legible bajo el glass suave, sin competir con el texto. */
 const ALPHA_PEAK = 0.9
 
@@ -62,7 +64,7 @@ function spawnParticle(width: number, height: number, colors: string[]): Particl
   const maxLife = 2.2 + Math.random() * 1.8
   return {
     x: Math.random() * width,
-    y: height - 1 - Math.random() * 2,
+    y: height - SPAWN_BOTTOM_MARGIN - Math.random() * 8,
     vx: (Math.random() - 0.5) * 22,
     vy: -(16 + Math.random() * 36),
     life: maxLife,

@@ -43,6 +43,7 @@ describe('computePlaneColumnWindowing', () => {
     expect(result.maxScroll).toBe(0)
     expect(result.appliedScrollOffset).toBe(0)
     expect(result.slots.every(slot => slot.visible)).toBe(true)
+    expect(result.slots.every(slot => slot.progress === 1)).toBe(true)
     expect(result.hiddenAbove).toEqual([])
     expect(result.hiddenBelow).toEqual([])
   })
@@ -63,10 +64,18 @@ describe('computePlaneColumnWindowing', () => {
     )
 
     expect(result.contentHeight).toBe(952)
-    expect(result.maxScroll).toBe(300)
+    expect(result.maxScroll).toBe(248)
     expect(result.slots.filter(slot => slot.visible).every(
       slot => slot.y + slot.height <= bandBottom + 1,
     )).toBe(true)
+    expect(result.hiddenBelow.every(id => {
+      const slot = result.slots.find(item => item.id === id)
+      return slot?.progress === 0
+    })).toBe(true)
+    expect(result.hiddenAbove.every(id => {
+      const slot = result.slots.find(item => item.id === id)
+      return slot?.progress === 0
+    })).toBe(true)
     expect(result.hiddenBelow.length).toBeGreaterThan(0)
     expect(result.hiddenAbove).toEqual([])
   })
@@ -111,7 +120,29 @@ describe('computePlaneColumnWindowing', () => {
 
     expect(result.appliedScrollOffset).toBe(maxScroll)
     expect(result.slots.at(-1)?.visible).toBe(true)
+    expect(result.hiddenAbove.every(id => {
+      const slot = result.slots.find(item => item.id === id)
+      return slot?.progress === 0
+    })).toBe(true)
     expect(result.hiddenAbove.length).toBeGreaterThan(0)
+  })
+
+  it('bottom-aligns short stacks when fitAlignment is bottom and there is no scroll', () => {
+    const result = computePlaneColumnWindowing({
+      items: [
+        { id: 'a', height: 100 },
+        { id: 'b', height: 140 },
+      ],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+      bottomClearance: 88,
+      fitAlignment: 'bottom',
+    })
+
+    const bandBottom = VIEWPORT_HEIGHT - 88
+    expect(result.maxScroll).toBe(0)
+    expect(result.slots.at(-1)!.y + result.slots.at(-1)!.height).toBe(bandBottom)
+    expect(result.slots[0].y).toBeGreaterThan(PLANE_MINI_SLOT_PAD_Y)
   })
 
   it('stacks mixed heights with gap between consecutive cards', () => {
@@ -142,5 +173,52 @@ describe('computePlaneColumnWindowing', () => {
       viewportHeight: VIEWPORT_HEIGHT,
       scrollOffset: 0,
     })).not.toThrow()
+  })
+
+  it('gives a card at the bottom band edge partial progress between 0 and 1', () => {
+    const result = computePlaneColumnWindowing({
+      items: [{ id: 'edge', height: 600 }],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+      bottomClearance: 148,
+    })
+
+    const slot = result.slots[0]
+    expect(slot.progress).toBeGreaterThan(0)
+    expect(slot.progress).toBeLessThan(1)
+    expect(result.hiddenBelow).not.toContain('edge')
+    expect(result.hiddenAbove).not.toContain('edge')
+  })
+
+  it('lists a fully outside card with progress 0 in hiddenBelow', () => {
+    const result = computePlaneColumnWindowing({
+      items: [{ id: 'below', height: 700 }],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+      bottomClearance: 148,
+    })
+
+    expect(result.slots[0].progress).toBe(0)
+    expect(result.hiddenBelow).toEqual(['below'])
+    expect(result.hiddenAbove).toEqual([])
+  })
+
+  it('decays progress faster with an explicit fadeZone of 40 than the default', () => {
+    const items = [{ id: 'fade', height: 600 }]
+    const defaultResult = computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+      bottomClearance: 148,
+    })
+    const tightResult = computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+      fadeZone: 40,
+      bottomClearance: 148,
+    })
+
+    expect(defaultResult.slots[0].progress).toBeGreaterThan(tightResult.slots[0].progress)
   })
 })

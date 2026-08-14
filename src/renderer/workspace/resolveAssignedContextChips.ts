@@ -1,7 +1,18 @@
 import type { TabContext } from '@shared/tabContext'
-import { resolveContextColor } from '@shared/tabContextAppearance'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
+import { agentMonogram, resolveContextColor } from '@shared/tabContextAppearance'
 import { contextIconName } from '../agent/tabContextKindIcons'
 import type { PlaneAgentContextChip } from '../workspace/PlaneAgentContextNodes'
+
+function resolveAgentResultMonogram(
+  context: TabContext,
+  agents: readonly ProjectAgentDefinition[],
+): string {
+  const agent = agents.find(item => agentResultContextIdForSlug(item.id) === context.id)
+  const label = agent?.name?.trim() || agent?.id?.trim() || context.name
+  return (agent?.monogram?.trim() || agentMonogram(label)).toUpperCase()
+}
 
 /** Resuelve un TabContext del catálogo o sintetiza agentResult (`iaterminal:result:*`). */
 export function resolveTabContextById(
@@ -28,6 +39,7 @@ export function resolveAssignedContextChips(
   discovered: readonly TabContext[],
   contextUsage: ReadonlyMap<string, number>,
   kindLabel: (kind: TabContext['kind']) => string,
+  agents: readonly ProjectAgentDefinition[] = [],
 ): PlaneAgentContextChip[] {
   const chips: PlaneAgentContextChip[] = []
   for (const id of contextIds) {
@@ -43,6 +55,9 @@ export function resolveAssignedContextChips(
       shared: (contextUsage.get(resolved.id) ?? 0) > 1,
       // Solo jira: la clave real de la issue, para pedir su preview (resumen/estado/frescura).
       issueKey: resolved.issueKey,
+      monogram: resolved.kind === 'agentResult'
+        ? resolveAgentResultMonogram(resolved, agents)
+        : undefined,
     })
   }
   return chips

@@ -5,7 +5,6 @@ import type { AgentPreferSend } from '../AgentPane'
 function ctx(overrides: Partial<PreferSendIntakeContext> = {}): PreferSendIntakeContext {
   return {
     busy: false,
-    loopActive: false,
     preferNewThread: false,
     canStartHumanTurnNow: true,
     queuedCount: 0,
@@ -62,11 +61,6 @@ describe('planPreferSendIntake', () => {
     })
   })
 
-  it('skips (does not consume) while loopActive so App can retry', () => {
-    const p = planPreferSendIntake(preferSend(), null, ctx({ loopActive: true }))
-    expect(p).toEqual({ action: 'skip', reason: 'loop_active' })
-  })
-
   it('skips while preferNewThread is on', () => {
     const p = planPreferSendIntake(preferSend(), null, ctx({ preferNewThread: true }))
     expect(p).toEqual({ action: 'skip', reason: 'prefer_new_thread' })
@@ -90,6 +84,50 @@ describe('planPreferSendIntake', () => {
     })
     const p = planPreferSendIntake(send, null, ctx())
     expect(p).toEqual({ action: 'dispatch', isHumanTurn: true })
+  })
+
+  it('consumes a re-offered send already consumed (no duplicate chip)', () => {
+    const send = preferSend({ text: 'con imagen', sendId: 'send-1' })
+    const p = planPreferSendIntake(send, null, ctx({
+      busy: true,
+      consumedSendIds: ['send-1'],
+    }))
+    expect(p).toEqual({ action: 'consume', reason: 'already_consumed', sendId: 'send-1' })
+  })
+
+  it('enqueues a fresh sendId even if another one was consumed before', () => {
+    const send = preferSend({ text: 'otro mensaje', sendId: 'send-2' })
+    const p = planPreferSendIntake(send, null, ctx({
+      busy: true,
+      consumedSendIds: ['send-1'],
+    }))
+    expect(p).toEqual({ action: 'enqueue', isHumanTurn: true })
+  })
+
+  it('enqueues a repeated text with a new sendId (no text-based dedupe)', () => {
+    const first = preferSend({ text: 'mismo texto', sendId: 'send-1' })
+    const second = preferSend({ text: 'mismo texto', sendId: 'send-2' })
+    const ctxWithFirstConsumed = ctx({ busy: true, consumedSendIds: ['send-1'] })
+    expect(planPreferSendIntake(first, null, ctxWithFirstConsumed).action).toBe('consume')
+    expect(planPreferSendIntake(second, null, ctxWithFirstConsumed)).toEqual({
+      action: 'enqueue',
+      isHumanTurn: true,
+    })
+  })
+
+  it('dispatches a lane delegation while the pane is busy (own thread)', () => {
+    const send = preferSend({
+      text: 'lane work',
+      delegation: {
+        id: 'd3',
+        fromPaneId: 'orch',
+        toAgentId: 'spec',
+        orchestrationJobId: 'job-lane-1',
+        threadId: 't7',
+      },
+    })
+    const p = planPreferSendIntake(send, null, ctx({ busy: true }))
+    expect(p).toEqual({ action: 'dispatch', isHumanTurn: false })
   })
 
   it('dispatches a human preferSend in turbo when canStartHumanTurnNow is true', () => {

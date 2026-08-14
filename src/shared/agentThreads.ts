@@ -56,6 +56,35 @@ export function sortThreadsByRecency(threads: readonly AgentThread[]): AgentThre
   return [...threads].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+/** Hilos que ocupan chips en la barra: activo + los que están corriendo. */
+export function chipVisibleThreadIds(
+  activeThreadId: string,
+  runningThreadIds: readonly string[],
+): Set<string> {
+  const ids = new Set<string>()
+  if (activeThreadId) ids.add(activeThreadId)
+  for (const id of runningThreadIds) ids.add(id)
+  return ids
+}
+
+/** Todos los hilos del agente, ordenados por recencia (popover de historial). */
+export function threadHistoryCandidates(
+  threads: readonly AgentThread[],
+  _activeThreadId?: string,
+  _runningThreadIds?: readonly string[],
+): AgentThread[] {
+  return sortThreadsByRecency(threads)
+}
+
+export function paginateThreadHistory(
+  candidates: readonly AgentThread[],
+  limit: number,
+): { items: AgentThread[]; hasMore: boolean } {
+  const safeLimit = Math.max(0, Math.floor(limit))
+  const items = candidates.slice(0, safeLimit)
+  return { items, hasMore: candidates.length > safeLimit }
+}
+
 /**
  * Tope duro de threads por pane. El activo nunca se poda.
  * ponytail: el transcript del thread podado queda huérfano en disco hasta que
@@ -161,10 +190,77 @@ export function newThread(
   return { threads: prune(threads, id, protectedIds), activeThreadId: id }
 }
 
+export function isHumanThread(thread: AgentThread): boolean {
+  return thread.origin !== 'delegation'
+}
+
+/** Hilos humanos (o legacy sin origin), más recientes primero. */
+export function humanThreadsByRecency(state: AgentThreadState): AgentThread[] {
+  return sortThreadsByRecency(state.threads.filter(isHumanThread))
+}
+
+/**
+ * Hilo por defecto al abrir la card: última interacción humana (updatedAt),
+ * incluyendo aperturas recientes vía `selectThreadOpened`.
+ */
+export function resolvePreferredHumanThreadId(state: AgentThreadState): string {
+  const humans = humanThreadsByRecency(state)
+  if (humans.length > 0) return humans[0]!.id
+  const legacy = state.threads.find(thread => thread.id === DEFAULT_THREAD_ID)
+  if (legacy) return legacy.id
+  return state.threads[0]?.id ?? DEFAULT_THREAD_ID
+}
+
+/**
+ * Hilo al abrir la card mini: hilo humano; si hay alguno en curso, el humano
+ * más reciente entre los que corren. Clic en fila de hilo → ese id (fuera de acá).
+ */
+export function resolveCardOpenThreadId(
+  state: AgentThreadState,
+  runningThreadIds: readonly string[],
+): string {
+  const running = new Set(runningThreadIds)
+  const runningHumans = humanThreadsByRecency(state).filter(thread => running.has(thread.id))
+  if (runningHumans.length > 0) {
+    return runningHumans[0]!.id
+  }
+  return resolvePreferredHumanThreadId(state)
+}
+
+/** Marca apertura/selección: actualiza updatedAt para ordenar la próxima apertura. */
+export function markThreadOpened(
+  state: AgentThreadState,
+  id: string,
+  now: number,
+): AgentThreadState {
+  const thread = state.threads.find(entry => entry.id === id)
+  if (!thread) return state
+  if (thread.updatedAt === now) return state
+  return {
+    ...state,
+    threads: state.threads.map(entry => (
+      entry.id === id ? { ...entry, updatedAt: now } : entry
+    )),
+  }
+}
+
 export function selectThread(state: AgentThreadState, id: string): AgentThreadState {
   if (id === state.activeThreadId) return state
   if (!state.threads.some(thread => thread.id === id)) return state
   return { ...state, activeThreadId: id }
+}
+
+/** Selecciona y registra apertura (card, fila de hilo, selector del composer). */
+export function selectThreadOpened(
+  state: AgentThreadState,
+  id: string,
+  now: number,
+): AgentThreadState {
+  if (!state.threads.some(thread => thread.id === id)) return state
+  const activated = state.activeThreadId === id
+    ? state
+    : { ...state, activeThreadId: id }
+  return markThreadOpened(activated, id, now)
 }
 
 /**

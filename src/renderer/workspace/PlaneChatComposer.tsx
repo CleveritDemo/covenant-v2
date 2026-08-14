@@ -30,7 +30,7 @@ import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
 import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
-import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
+import { PlaneQueueFullNotice } from './PlaneQueueFullNotice'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
@@ -50,8 +50,6 @@ export interface PlaneChatAgentOption {
   paneId: string
   title: string
   busy: boolean
-  /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
-  loopActive?: boolean
   /** El orquestador espera resultados y solo permite detener el batch. */
   awaitingDelegations?: boolean
   /** Este agente es destino de una delegación pendiente. */
@@ -72,6 +70,12 @@ export interface PlaneChatQueuedTurn {
   delegation?: { id: string; fromPaneId: string; toAgentId: string }
 }
 
+export interface PlaneChatQueueFullNotice {
+  paneId: string
+  text: string
+  at: number
+}
+
 export interface PlaneChatComposerProps {
   agents: PlaneChatAgentOption[]
   /** Catálogo del pool: resuelve el id que llega en el drop a nombre/ícono. */
@@ -82,6 +86,9 @@ export interface PlaneChatComposerProps {
   sendLabel: string
   queuedTurns?: PlaneChatQueuedTurn[]
   agentCatalog?: ProjectAgentDefinition[]
+  /** Cola humana llena: devuelve el texto al input y muestra aviso inline. */
+  queueFullNotice?: PlaneChatQueueFullNotice | null
+  onQueueFullNoticeDismiss?: () => void
   onSelectAgent: (paneId: string) => void
   onCloseChat?: () => void
   onStop: (paneId: string) => void
@@ -114,8 +121,6 @@ export interface PlaneChatComposerProps {
    * y `BrainstormRoom`: refrescar el catálogo del proyecto en el padre.
    */
   onContextSaved?: () => void
-  /** Terminal/explorer abierto: oculta partículas busy aunque el agente siga trabajando. */
-  suppressAuroraParticles?: boolean
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -127,6 +132,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   sendLabel,
   queuedTurns = [],
   agentCatalog = [],
+  queueFullNotice = null,
+  onQueueFullNoticeDismiss,
   onSelectAgent,
   onCloseChat,
   onStop,
@@ -140,7 +147,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   systemSoundsEnabled = true,
   cwd = '',
   onContextSaved,
-  suppressAuroraParticles = false,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -176,25 +182,21 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const busy = Boolean(selected?.busy)
-  const loopActive = Boolean(selected?.loopActive)
   const awaitingDelegations = Boolean(selected?.awaitingDelegations)
   const delegationWorkActive = Boolean(selected?.delegationWorkActive)
   const orchestratorBusy = Boolean(selected?.orchestratorBusy)
   const turboAwaitingOpen = selected?.orchestrationWorkStyle === 'turbo'
     && awaitingDelegations
     && !busy
-  // Solo el loop bloquea teclear; busy/delegaciones permiten encolar.
-  const composerLocked = loopActive
   const canSend = Boolean(
-    selected && !composerLocked && (draft.trim() || pendingImages.length > 0),
+    selected && (draft.trim() || pendingImages.length > 0),
   )
   const showStop = Boolean(selected && shouldShowComposerStop({
-    loopActive,
     busy,
     awaitingDelegations,
     delegationWorkActive,
   }))
-  const buttonIsStop = Boolean(showStop && (loopActive || !canSend))
+  const buttonIsStop = Boolean(showStop && !canSend)
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
@@ -240,6 +242,24 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       setEditingQueuedId(null)
     }
   }, [queuedTurns, editingQueuedId])
+
+  // Cola humana llena: devolver el texto descartado si el input quedó vacío.
+  useEffect(() => {
+    if (!queueFullNotice) return
+    setDraft(current => (current.trim() ? current : queueFullNotice.text))
+  }, [queueFullNotice])
+
+  useEffect(() => {
+    if (!queueFullNotice) return
+    const timeoutId = window.setTimeout(() => {
+      onQueueFullNoticeDismiss?.()
+    }, 6000)
+    return () => window.clearTimeout(timeoutId)
+  }, [queueFullNotice, onQueueFullNoticeDismiss])
+
+  const dismissQueueFullNotice = useCallback((): void => {
+    if (queueFullNotice) onQueueFullNoticeDismiss?.()
+  }, [queueFullNotice, onQueueFullNoticeDismiss])
 
   /**
    * Issue elegido en el picker → contexto `jira` real en disco y adjunto a
@@ -359,7 +379,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const submit = useCallback((overrideText?: string): void => {
     const text = (overrideText ?? draft).trim()
-    if (!selected || composerLocked || (!text && pendingImages.length === 0)) return
+    if (!selected || (!text && pendingImages.length === 0)) return
     const imagesSnapshot = pendingImages
     const contextIdsSnapshot = pendingContextIds
     historyRef.current = rememberComposerEntry(historyRef.current, text)
@@ -374,7 +394,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       onSend(selected.paneId, text, attachments, contextIdsSnapshot)
     })
   }, [
-    composerLocked,
     draft,
     onSend,
     pendingContextIds,
@@ -454,12 +473,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const micMode = Boolean(
     selected
     && !buttonIsStop
-    && !composerLocked
     && !draft.trim()
     && pendingImages.length === 0,
   )
 
-  const composerWorking = Boolean(busy || loopActive || awaitingDelegations || delegationWorkActive)
+  const composerWorking = Boolean(busy || awaitingDelegations || delegationWorkActive)
 
   return (
     <div
@@ -475,9 +493,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       onDrop={handleDrop}
     >
       <PlaneComposerAurora />
-      <PlaneComposerAuroraParticles
-        active={composerWorking && !suppressAuroraParticles}
-      />
       <div className="plane-chat-composer__body">
         <DictationListeningOverlay
           active={listening}
@@ -588,10 +603,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           </div>
         )}
 
+        {queueFullNotice ? <PlaneQueueFullNotice /> : null}
+
         <PlaneChatComposerShell
           value={draft}
           onChange={next => {
             setDraft(next)
+            dismissQueueFullNotice()
             // Editar el texto recuperado es tomar posesión: vuelve a idle.
             if (historyIndex !== null) setHistoryIndex(null)
           }}
@@ -600,13 +618,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           placeholder={
             agents.length === 0
               ? emptyAgentsHint
-              : loopActive
-                ? t('agentPane.loopPlaceholder')
-                : turboAwaitingOpen
-                  ? t('agentPane.turboAwaitingPlaceholder')
-                  : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                    ? t('agentPane.queuePlaceholder')
-                    : placeholder
+              : turboAwaitingOpen
+                ? t('agentPane.turboAwaitingPlaceholder')
+                : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                  ? t('agentPane.queuePlaceholder')
+                  : placeholder
           }
           inputLabel={sendLabel}
           sendLabel={
@@ -619,7 +635,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           sendMode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
           sendDisabled={!buttonIsStop && !micMode && !canSend}
           listening={listening}
-          disabled={agents.length === 0 || composerLocked}
+          disabled={agents.length === 0}
           recalling={historyIndex !== null}
           onSendClick={handleSendClick}
           onMicStart={startDictation}
@@ -632,7 +648,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           leading={(
             <PlaneSketchButton
               label={t('sketch.open')}
-              disabled={agents.length === 0 || composerLocked || pendingImages.length >= MAX_PENDING_IMAGES}
+              disabled={agents.length === 0 || pendingImages.length >= MAX_PENDING_IMAGES}
               onClick={() => setSketchOpen(true)}
             />
           )}

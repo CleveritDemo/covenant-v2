@@ -15,6 +15,7 @@ import {
   jobRoundsAtCap,
   markPendingSawBusyForPane,
   occupiedPaneIdsAcrossJobs,
+  orchestratorPanesWithDeferredForPane,
   pendingOrchestratorIdsFromJobs,
   resolveOrchestrationWorkStyle,
   sanitizeOrchestrationWorkStyle,
@@ -219,6 +220,65 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
 
     expect([...awaitingOrchestratorPaneIds(byPane)]).toEqual(['orch-1'])
     expect([...pendingOrchestratorIdsFromJobs(byPane)]).toEqual(['orch-1'])
+  })
+
+  it('pendingOrchestratorIdsFromJobs incluye jobs solo-deferred', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+    const jobs = new Map<string, OrchestrationJob>()
+    const deferredOnly = createOrchestrationJob('orch-deferred')
+    deferredOnly.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-wait', toAgentId: 'frontend', objective: 'wait' },
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+    })
+    jobs.set(deferredOnly.jobId, deferredOnly)
+    byPane.set('orch-deferred', jobs)
+
+    expect([...pendingOrchestratorIdsFromJobs(byPane)]).toEqual(['orch-deferred'])
+  })
+})
+
+describe('orchestratorPanesWithDeferredForPane', () => {
+  it('devuelve orquestadores con deferred hacia el pane liberado, sin duplicados', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+
+    const jobsA = new Map<string, OrchestrationJob>()
+    const jobA = createOrchestrationJob('orch-a')
+    jobA.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-a1', toAgentId: 'frontend', objective: 'a' },
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+    })
+    jobA.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-a2', toAgentId: 'backend', objective: 'b' },
+      toPaneId: 'pane-be',
+      toAgentId: 'backend',
+    })
+    jobsA.set(jobA.jobId, jobA)
+    byPane.set('orch-a', jobsA)
+
+    const jobsB = new Map<string, OrchestrationJob>()
+    const jobB = createOrchestrationJob('orch-b')
+    jobB.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-b1', toAgentId: 'frontend', objective: 'c' },
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+    })
+    jobsB.set(jobB.jobId, jobB)
+    byPane.set('orch-b', jobsB)
+
+    const jobsC = new Map<string, OrchestrationJob>()
+    jobsC.set('job-c', createOrchestrationJob('orch-c'))
+    byPane.set('orch-c', jobsC)
+
+    expect(orchestratorPanesWithDeferredForPane(byPane, 'pane-fe')).toEqual(['orch-a', 'orch-b'])
+    expect(orchestratorPanesWithDeferredForPane(byPane, 'pane-be')).toEqual(['orch-a'])
+    expect(orchestratorPanesWithDeferredForPane(byPane, 'pane-missing')).toEqual([])
+    expect(orchestratorPanesWithDeferredForPane(byPane, '  ')).toEqual([])
   })
 })
 

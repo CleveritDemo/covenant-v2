@@ -135,17 +135,29 @@ function sanitizeTab(tab: TabSession): {
     planeLoopChains: _rawLoopChains,
     ...tabBase
   } = tab as TabSession & { panePlaneNodes?: unknown }
-  const agentPaneIds = new Set(
-    Object.entries(paneKinds)
-      .filter(([, kind]) => kind === 'agent')
-      .map(([id]) => id),
+  const paneIdToAgentId: Record<string, string> = {}
+  const knownAgentIds = new Set<string>()
+  for (const [paneId, binding] of Object.entries(agentByPane)) {
+    const agentId = binding.agentId?.trim()
+    if (!agentId) continue
+    paneIdToAgentId[paneId] = agentId
+    knownAgentIds.add(agentId)
+  }
+  const planeLoopLinks = sanitizePlaneLoopLinks(
+    tab.planeLoopLinks,
+    knownAgentIds,
+    paneIdToAgentId,
   )
-  const planeLoopLinks = sanitizePlaneLoopLinks(tab.planeLoopLinks, agentPaneIds)
   const planeLoopNodePositions = sanitizePlaneLoopNodePositions(
     tab.planeLoopNodePositions,
-    agentPaneIds,
+    knownAgentIds,
+    paneIdToAgentId,
   )
-  const planeLoopChains = sanitizePlaneLoopChains(tab.planeLoopChains, agentPaneIds)
+  const planeLoopChains = sanitizePlaneLoopChains(
+    tab.planeLoopChains,
+    knownAgentIds,
+    paneIdToAgentId,
+  )
   return {
     tab: normalizeTabSession({
       ...tabBase,

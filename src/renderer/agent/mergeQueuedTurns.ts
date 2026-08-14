@@ -5,6 +5,24 @@ export interface MergeableQueuedTurnLike {
   images: unknown[]
   orchestrationFollowUp?: boolean
   delegation?: object
+  sourceSendId?: string
+  sourceSendIds?: string[]
+}
+
+function collectSourceSendIds(turn: MergeableQueuedTurnLike): string[] {
+  return [
+    turn.sourceSendId?.trim(),
+    ...(turn.sourceSendIds ?? []).map(id => id.trim()),
+  ].filter((id): id is string => Boolean(id))
+}
+
+function dedupeSourceSendIds(ids: string[]): string[] {
+  const seen = new Set<string>()
+  return ids.filter(id => {
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
 }
 
 function isMergeable(turn: MergeableQueuedTurnLike): boolean {
@@ -12,6 +30,7 @@ function isMergeable(turn: MergeableQueuedTurnLike): boolean {
 }
 
 function mergeRun<T extends MergeableQueuedTurnLike>(run: T[]): T {
+  const sourceSendIds = dedupeSourceSendIds(run.flatMap(collectSourceSendIds))
   return {
     ...run[0]!,
     text: run
@@ -19,6 +38,7 @@ function mergeRun<T extends MergeableQueuedTurnLike>(run: T[]): T {
       .filter(text => text.trim() !== '')
       .join('\n'),
     images: run.flatMap(turn => turn.images),
+    ...(sourceSendIds.length > 0 ? { sourceSendIds } : {}),
   } as T
 }
 

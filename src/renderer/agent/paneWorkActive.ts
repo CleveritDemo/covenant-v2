@@ -8,11 +8,9 @@ export interface PaneWorkStatusSlice {
   awaitingDelegations?: boolean
   delegationWorkActive?: boolean
   orchestratorBusy?: boolean
-  loopActive?: boolean
-  localLoopActive?: boolean
 }
 
-/** True si el pane tiene ejecución, delegación, loop u orquestación en curso. */
+/** True si el pane tiene ejecución, delegación u orquestación en curso. */
 export function isPaneWorkActive(
   paneId: string,
   busyPanes: ReadonlySet<string>,
@@ -26,8 +24,6 @@ export function isPaneWorkActive(
     status.busy
     || status.delegationWorkActive
     || status.orchestratorBusy
-    || status.loopActive
-    || status.localLoopActive
     || status.awaitingDelegations,
   )
 }

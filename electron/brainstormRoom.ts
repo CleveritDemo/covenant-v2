@@ -2,7 +2,6 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
-import type { AgentCliStartRequest, AgentCliUiEvent } from '../src/shared/agentCliTypes'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { ceremonyRolesForAgent } from '../src/shared/agileCeremonies'
 import type { TabContext } from '../src/shared/tabContext'
@@ -30,7 +29,12 @@ import { IPC } from '../src/shared/ipcChannels'
 import { listProjectAgents } from './projectAgentCatalogOps'
 import { listBrainstormRooms, upsertBrainstormRoom } from './brainstormCatalogOps'
 import { discoverTabContexts } from './tabContextBuild'
-import { runAgentCliSpawn, stopAgentRunsForPane } from './agentCliRuntime'
+import {
+  headlessRunKey,
+  runHeadlessAgentTurn,
+  type HeadlessAgentTurnResult,
+} from './agentHeadlessRun'
+import { stopAgentRunsForPane } from './agentCliRuntime'
 
 /** Nota humana en cola, con destino opcional. */
 interface PendingHumanMessage {
@@ -64,7 +68,7 @@ export interface BrainstormStartConfig {
 }
 
 export interface BrainstormSpeakerTurnInput {
-  paneId: string
+  roomId: string
   agent: ProjectAgentDefinition
   prompt: string
   cwd: string
@@ -78,9 +82,7 @@ export interface BrainstormSpeakerTurnInput {
   onPhase?: (phase: BrainstormSpeakerPhase) => void
 }
 
-export type BrainstormSpeakerTurnResult =
-  | { ok: true; text: string }
-  | { ok: false; aborted?: boolean; error?: string }
+export type BrainstormSpeakerTurnResult = HeadlessAgentTurnResult
 
 export type RunBrainstormSpeakerTurn = (
   input: BrainstormSpeakerTurnInput,
@@ -112,99 +114,27 @@ function emitBrainstorm(
   }
 }
 
-function brainstormPaneId(roomId: string, agentId: string): string {
-  return `brainstorm:${roomId}:${agentId}`
-}
-
-/** Ejecuta un turno single-shot vía `runAgentCliSpawn`. */
+/** Ejecuta un turno single-shot vía `runHeadlessAgentTurn`. */
 export function defaultRunBrainstormSpeakerTurn(
   input: BrainstormSpeakerTurnInput,
   config: AppConfig,
   home: string,
 ): Promise<BrainstormSpeakerTurnResult> {
-  return new Promise(resolve => {
-    if (input.isStale()) {
-      resolve({ ok: false, aborted: true })
-      return
-    }
-
-    let finalText = ''
-    let lastError: string | undefined
-    let settled = false
-    // Cualquier primer evento sirve: significa que el proceso arrancó y ya está
-    // masticando el contexto. Antes de esto no hay nada honesto que contar.
-    let announcedAlive = false
-
-    const settle = (result: BrainstormSpeakerTurnResult): void => {
-      if (settled) return
-      settled = true
-      resolve(result)
-    }
-
-    const request: AgentCliStartRequest = {
-      paneId: input.paneId,
-      provider: input.agent.provider,
-      // Brainstorm: auto (no plan) — camino más corto; sin tools ni delegación.
-      permissionMode: 'auto',
-      prompt: input.prompt,
-      cwd: input.cwd,
-      name: input.agent.name,
-      role: input.agent.role,
-      objective: input.agent.objective,
-      rules: input.agent.rules,
-      model: input.agent.model,
-      agentId: input.agent.id,
-      cliSessionId: input.cliSessionId,
-      coordination: 'none',
-      allowDelegations: false,
-      emitResults: false,
-      // La sala hereda skills y MCP del agente: sin esto el turno arranca sin
-      // su `.mcp.json` acotado y sin el preámbulo, y el modelo dice que no
-      // tiene Jira.
-      nativeSkills: input.agent.nativeSkills,
-      mcpsAllowed: input.agent.mcpsAllowed ?? [],
-      contexts: input.contexts ?? [],
-    }
-
-    runAgentCliSpawn(request, config, home, {
-      onEvent: (event: AgentCliUiEvent) => {
-        if (input.isStale()) return
-        if (!announcedAlive) {
-          announcedAlive = true
-          input.onPhase?.('reading')
-        }
-        if (event.type === 'session') {
-          input.onSession?.(event.cliSessionId)
-          return
-        }
-        if (event.type === 'assistant_delta') {
-          input.onDelta(event.text)
-          return
-        }
-        if (event.type === 'assistant_final') {
-          finalText = event.text
-          return
-        }
-        if (event.type === 'error') {
-          lastError = event.message
-        }
-      },
-      onDone: code => {
-        if (input.isStale()) {
-          settle({ ok: false, aborted: true })
-          return
-        }
-        if (code !== 0 && !finalText.trim()) {
-          settle({
-            ok: false,
-            error: lastError || `El CLI terminó con código ${code}.`,
-          })
-          return
-        }
-        settle({ ok: true, text: finalText })
-      },
-    })
-  })
+  return runHeadlessAgentTurn({
+    runnerKind: 'brainstorm',
+    runnerId: input.roomId,
+    agent: input.agent,
+    prompt: input.prompt,
+    cwd: input.cwd,
+    cliSessionId: input.cliSessionId,
+    contexts: input.contexts,
+    emitResults: false,
+    emitChangelog: false,
+    isStale: input.isStale,
+    onDelta: input.onDelta,
+    onSession: input.onSession,
+    onPhase: input.onPhase,
+  }, config, home)
 }
 
 /** Contextos del proyecto que están en el working set, en el orden elegido. */
@@ -354,7 +284,6 @@ export async function runBrainstormSequence(
 
     const agentName = agent.name?.trim() || agent.id
     const speakRound = room.round
-    const paneId = brainstormPaneId(deps.roomId, agent.id)
     // Los asientos se reparten entre todos los participantes, no solo el que
     // habla: quién cubre qué depende de con quién más está sentado.
     const seatedAgents = room.participantAgentIds
@@ -372,7 +301,7 @@ export async function runBrainstormSequence(
     deps.emit({ type: 'speaker_start', agentId: agent.id, round: speakRound })
 
     const result = await deps.runSpeakerTurn({
-      paneId,
+      roomId: deps.roomId,
       agent,
       prompt,
       cwd: '',
@@ -658,7 +587,7 @@ export function startBrainstormRoom(
       },
       runSpeakerTurn: async input => {
         if (isStale()) return { ok: false, aborted: true }
-        const paneId = input.paneId
+        const paneId = headlessRunKey('brainstorm', roomId, input.agent.id)
         const current = roomRuns.get(roomId)
         if (!current || current.generation !== generation) {
           return { ok: false, aborted: true }

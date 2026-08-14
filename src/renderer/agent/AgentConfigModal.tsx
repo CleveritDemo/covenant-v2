@@ -57,8 +57,6 @@ export interface AgentConfigModalProps {
   /** Carpeta del proyecto (solo lectura; no configurable por agente). */
   cwd: string
   busy: boolean
-  loopMode: boolean
-  loopActive: boolean
   awaitingDelegations?: boolean
   diskContexts: TabContext[]
   selectedContextIds: string[]
@@ -78,7 +76,6 @@ export interface AgentConfigModalProps {
   onChangePermission: (permissionMode: AgentPermissionMode) => void
   onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
   onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
-  onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
   onContextsTabFocus?: () => void
@@ -97,8 +94,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   meta,
   cwd,
   busy,
-  loopMode,
-  loopActive,
   awaitingDelegations = false,
   diskContexts,
   selectedContextIds,
@@ -114,7 +109,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangePermission,
   onChangeNativeSkills,
   onChangeMcpsAllowed,
-  onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
   onContextsTabFocus,
@@ -124,7 +118,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   active = true,
 }) => {
   const { t } = useT()
-  const locked = busy || loopActive || awaitingDelegations
+  const locked = busy || awaitingDelegations
   const [draft, setDraft] = useState<AgentIdentityDraft>(() => identityDraftFromMeta(meta))
   const draftRef = useRef(draft)
   draftRef.current = draft
@@ -385,7 +379,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
           role={draft.role}
           chips={heroChips}
           busy={busy}
-          loopActive={loopActive}
           awaitingDelegations={awaitingDelegations}
           onChipClick={selectSection}
         />
@@ -427,7 +420,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
       <div className="agent-config-modal" onKeyDown={handleKeyDown}>
         <AgentConfigLockBanner
           busy={busy}
-          loopActive={loopActive}
           awaitingDelegations={awaitingDelegations}
         />
         <div className="agent-config-modal__body">
@@ -455,8 +447,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 section={section}
                 meta={meta}
                 cwd={cwd}
-                loopMode={loopMode}
-                loopActive={loopActive}
                 locked={locked}
                 diskContexts={diskContexts}
                 selectedContextIds={selectedContextIds}
@@ -475,7 +465,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onChangePermission={onChangePermission}
                 onChangeNativeSkills={onChangeNativeSkills}
                 onChangeMcpsAllowed={onChangeMcpsAllowed}
-                onToggleLoopMode={onToggleLoopMode}
                 onToggleContext={onToggleContext}
                 onOpenContextsModal={onOpenContextsModal}
                 peerAgents={peerAgents}

@@ -37,7 +37,6 @@ const renderPicker = (onToggle = vi.fn()) => {
       diskContexts={CONTEXTS}
       selectedContextIds={['about']}
       locked={false}
-      loopActive={false}
       agentId="maria"
       projectAgents={PROJECT_AGENTS}
       onToggleContext={onToggle}

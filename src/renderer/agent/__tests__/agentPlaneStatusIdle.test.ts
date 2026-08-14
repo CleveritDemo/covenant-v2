@@ -26,13 +26,11 @@ function minimalStatus(messages: AgentChatEntry[]): AgentPlaneStatus {
     orchestrationAwaiting: null,
     delegationWorkActive: false,
     orchestratorBusy: false,
-    loopMode: false,
-    loopActive: false,
-    localLoopActive: false,
     turnCloseReason: null,
-    loopEndReason: null,
     queuedTurns: [],
     canClearConversation: messages.length > 0,
+    runningThreadIds: [],
+    runningThreadActivities: {},
   }
 }
 

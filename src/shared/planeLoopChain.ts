@@ -2,7 +2,7 @@
 import { LOOP_INTERVAL_PRESETS } from './agentLoop'
 
 export interface PlaneLoopStep {
-  paneId: string
+  agentId: string
   objective: string
 }
 
@@ -45,58 +45,58 @@ export function clampLoopChainIntervalMs(value: number): number {
   return best.ms
 }
 
-/** paneIds de cadenas running/waiting (loop “encendido” en chat). */
-export function activeLoopChainPaneIds(
+/** agentIds de cadenas running/waiting (loop “encendido” en chat). */
+export function activeLoopChainAgentIds(
   chains: readonly PlaneLoopChain[],
 ): Set<string> {
   const ids = new Set<string>()
   for (const chain of chains) {
     if (chain.status !== 'running' && chain.status !== 'waiting') continue
-    for (const step of chain.steps) ids.add(step.paneId)
+    for (const step of chain.steps) ids.add(step.agentId)
   }
   return ids
 }
 
-/** paneIds presentes en cualquier cadena (un agente = una sola cadena). */
-export function paneIdsUsedInLoopChains(
+/** agentIds presentes en cualquier cadena (un agente = una sola cadena). */
+export function agentIdsUsedInLoopChains(
   chains: readonly PlaneLoopChain[],
   exceptChainId?: string,
 ): Set<string> {
   const ids = new Set<string>()
   for (const chain of chains) {
     if (exceptChainId && chain.id === exceptChainId) continue
-    for (const step of chain.steps) ids.add(step.paneId)
+    for (const step of chain.steps) ids.add(step.agentId)
   }
   return ids
 }
 
-export function chainHasPane(
+export function chainHasAgent(
   chain: Pick<PlaneLoopChain, 'steps'>,
-  paneId: string,
+  agentId: string,
 ): boolean {
-  return chain.steps.some(step => step.paneId === paneId)
+  return chain.steps.some(step => step.agentId === agentId)
 }
 
 export function canAppendLoopStep(
   chain: Pick<PlaneLoopChain, 'steps'>,
-  paneId: string,
+  agentId: string,
 ): boolean {
-  const id = paneId.trim()
+  const id = agentId.trim()
   if (!id) return false
-  return !chainHasPane(chain, id)
+  return !chainHasAgent(chain, id)
 }
 
 export function createLoopChain(
-  paneId: string,
+  agentId: string,
   objective: string,
   intervalMs: number = DEFAULT_INTERVAL_MS,
 ): PlaneLoopChain | null {
-  const id = paneId.trim()
+  const id = agentId.trim()
   const text = objective.trim()
   if (!id || !text) return null
   return {
     id: newChainId(),
-    steps: [{ paneId: id, objective: text }],
+    steps: [{ agentId: id, objective: text }],
     intervalMs: clampLoopChainIntervalMs(intervalMs),
     status: 'idle',
     cursor: 0,
@@ -105,15 +105,15 @@ export function createLoopChain(
 
 export function appendLoopStep(
   chain: PlaneLoopChain,
-  paneId: string,
+  agentId: string,
   objective: string,
 ): PlaneLoopChain | null {
-  const id = paneId.trim()
+  const id = agentId.trim()
   const text = objective.trim()
   if (!id || !text || !canAppendLoopStep(chain, id)) return null
   return {
     ...chain,
-    steps: [...chain.steps, { paneId: id, objective: text }],
+    steps: [...chain.steps, { agentId: id, objective: text }],
   }
 }
 
@@ -138,7 +138,7 @@ export function moveLoopStep(
 /** Actualiza la interacción de un paso (edición en línea en la pista). */
 export function setLoopStepObjective(
   chain: PlaneLoopChain,
-  paneId: string,
+  agentId: string,
   objective: string,
 ): PlaneLoopChain {
   const text = objective.trim()
@@ -146,21 +146,35 @@ export function setLoopStepObjective(
   return {
     ...chain,
     steps: chain.steps.map(step => (
-      step.paneId === paneId ? { ...step, objective: text } : step
+      step.agentId === agentId ? { ...step, objective: text } : step
     )),
   }
 }
 
-/** Quita pasos de paneles inexistentes; descarta cadenas vacías. */
+function resolveStepAgentId(
+  step: Record<string, unknown>,
+  agentIds: ReadonlySet<string>,
+  paneIdToAgentId: Record<string, string>,
+): string {
+  const direct = typeof step.agentId === 'string' ? step.agentId.trim() : ''
+  if (direct && agentIds.has(direct)) return direct
+  const legacyPane = typeof step.paneId === 'string' ? step.paneId.trim() : ''
+  if (!legacyPane) return ''
+  const mapped = paneIdToAgentId[legacyPane]?.trim() ?? ''
+  return mapped && agentIds.has(mapped) ? mapped : ''
+}
+
+/** Quita pasos de agentes inexistentes; descarta cadenas vacías. */
 export function sanitizePlaneLoopChains(
   chains: unknown,
-  agentPaneIds: ReadonlySet<string>,
+  agentIds: ReadonlySet<string>,
+  paneIdToAgentId: Record<string, string> = {},
 ): PlaneLoopChain[] {
   if (!Array.isArray(chains)) return []
   const result: PlaneLoopChain[] = []
   const seenIds = new Set<string>()
   /** Un agente solo puede pertenecer a una cadena. */
-  const panesClaimed = new Set<string>()
+  const agentsClaimed = new Set<string>()
 
   for (const raw of chains) {
     if (!raw || typeof raw !== 'object') continue
@@ -172,17 +186,17 @@ export function sanitizePlaneLoopChains(
 
     const rawSteps = Array.isArray(item.steps) ? item.steps : []
     const steps: PlaneLoopStep[] = []
-    const usedPanes = new Set<string>()
+    const usedAgents = new Set<string>()
     for (const rawStep of rawSteps) {
       if (!rawStep || typeof rawStep !== 'object') continue
       const step = rawStep as Record<string, unknown>
-      const paneId = typeof step.paneId === 'string' ? step.paneId.trim() : ''
+      const agentId = resolveStepAgentId(step, agentIds, paneIdToAgentId)
       const objective = typeof step.objective === 'string' ? step.objective.trim() : ''
-      if (!paneId || !objective || !agentPaneIds.has(paneId)) continue
-      if (usedPanes.has(paneId) || panesClaimed.has(paneId)) continue
-      usedPanes.add(paneId)
-      panesClaimed.add(paneId)
-      steps.push({ paneId, objective })
+      if (!agentId || !objective) continue
+      if (usedAgents.has(agentId) || agentsClaimed.has(agentId)) continue
+      usedAgents.add(agentId)
+      agentsClaimed.add(agentId)
+      steps.push({ agentId, objective })
     }
     if (steps.length === 0) continue
 
@@ -211,7 +225,7 @@ export function planeLoopChainsForPersist(
   const next = chains.map(chain => ({
     id: chain.id,
     steps: chain.steps.map(step => ({
-      paneId: step.paneId,
+      agentId: step.agentId,
       objective: step.objective,
     })),
     intervalMs: clampLoopChainIntervalMs(chain.intervalMs),
@@ -221,15 +235,15 @@ export function planeLoopChainsForPersist(
   return next.length ? next : undefined
 }
 
-/** Filtra cadenas/pasos al cerrar un panel de agente. */
-export function removePaneFromLoopChains(
+/** Filtra cadenas/pasos al cerrar un agente del catálogo. */
+export function removeAgentFromLoopChains(
   chains: readonly PlaneLoopChain[],
-  paneId: string,
+  agentId: string,
 ): PlaneLoopChain[] {
   const next: PlaneLoopChain[] = []
   for (const chain of chains) {
-    const removedIndex = chain.steps.findIndex(step => step.paneId === paneId)
-    const steps = chain.steps.filter(step => step.paneId !== paneId)
+    const removedIndex = chain.steps.findIndex(step => step.agentId === agentId)
+    const steps = chain.steps.filter(step => step.agentId !== agentId)
     if (steps.length === 0) continue
     let cursor = chain.cursor
     if (removedIndex >= 0 && removedIndex < cursor) cursor -= 1

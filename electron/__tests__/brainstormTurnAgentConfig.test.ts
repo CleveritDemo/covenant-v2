@@ -28,12 +28,12 @@ describe('el turno de la sala hereda la config del agente', () => {
       provider: 'claude',
       permissionMode: 'auto',
       mcpsAllowed: ['jira'],
-      nativeSkills: { namespaces: ['superpowers'] },
+      nativeSkills: { enabled: true, namespaces: ['superpowers'] },
     }
 
     await defaultRunBrainstormSpeakerTurn(
       {
-        paneId: 'brainstorm:r1:tl',
+        roomId: 'r1',
         agent,
         prompt: 'habla',
         cwd: '/tmp',
@@ -46,6 +46,7 @@ describe('el turno de la sala hereda la config del agente', () => {
 
     expect(spawned).toHaveLength(1)
     expect(spawned[0]!.mcpsAllowed).toEqual(['jira'])
-    expect(spawned[0]!.nativeSkills).toEqual({ namespaces: ['superpowers'] })
+    expect(spawned[0]!.nativeSkills).toEqual({ enabled: true, namespaces: ['superpowers'] })
+    expect(spawned[0]!.paneId).toBe('brainstorm:r1:tl')
   })
 })

@@ -140,4 +140,15 @@ describe('mergeQueuedTurns', () => {
     const empty: ReturnType<typeof turn>[] = []
     expect(mergeQueuedTurns(empty)).toBe(empty)
   })
+
+  it('mergeRun preserves all sourceSendIds from the run in order and deduped', () => {
+    const result = mergeQueuedTurns([
+      turn({ id: 't1', text: 'one', sourceSendId: 's1' }),
+      turn({ id: 't2', text: 'two', sourceSendId: 's2' }),
+      turn({ id: 't3', text: 'three', sourceSendId: 's2', sourceSendIds: ['s3'] }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.sourceSendId).toBe('s1')
+    expect(result[0]?.sourceSendIds).toEqual(['s1', 's2', 's3'])
+  })
 })

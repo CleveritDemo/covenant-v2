@@ -169,9 +169,22 @@ export function loopEdgePath(
   return `M ${start.x} ${start.y} C ${c1x} ${start.y}, ${c2x} ${end.y}, ${end.x} ${end.y}`
 }
 
+function resolveLoopEndpointId(
+  raw: string,
+  agentIds: ReadonlySet<string>,
+  paneIdToAgentId: Record<string, string>,
+): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  if (agentIds.has(trimmed)) return trimmed
+  const mapped = paneIdToAgentId[trimmed]?.trim() ?? ''
+  return mapped && agentIds.has(mapped) ? mapped : ''
+}
+
 export function sanitizePlaneLoopLinks(
   links: unknown,
-  agentPaneIds: ReadonlySet<string>,
+  agentIds: ReadonlySet<string>,
+  paneIdToAgentId: Record<string, string> = {},
 ): PlaneLoopLink[] {
   if (!Array.isArray(links)) return []
   const seen = new Set<string>()
@@ -179,9 +192,17 @@ export function sanitizePlaneLoopLinks(
   for (const raw of links) {
     if (!raw || typeof raw !== 'object') continue
     const item = raw as Record<string, unknown>
-    const fromPaneId = typeof item.fromPaneId === 'string' ? item.fromPaneId : ''
-    const toPaneId = typeof item.toPaneId === 'string' ? item.toPaneId : ''
-    if (!agentPaneIds.has(fromPaneId) || !agentPaneIds.has(toPaneId)) continue
+    const fromPaneId = resolveLoopEndpointId(
+      typeof item.fromPaneId === 'string' ? item.fromPaneId : '',
+      agentIds,
+      paneIdToAgentId,
+    )
+    const toPaneId = resolveLoopEndpointId(
+      typeof item.toPaneId === 'string' ? item.toPaneId : '',
+      agentIds,
+      paneIdToAgentId,
+    )
+    if (!fromPaneId || !toPaneId) continue
     if (fromPaneId === toPaneId) continue
     const pairKey = `${fromPaneId}\0${toPaneId}`
     if (seen.has(pairKey)) continue
@@ -203,17 +224,19 @@ export function sanitizePlaneLoopLinks(
 
 export function sanitizePlaneLoopNodePositions(
   positions: unknown,
-  agentPaneIds: ReadonlySet<string>,
+  agentIds: ReadonlySet<string>,
+  paneIdToAgentId: Record<string, string> = {},
 ): Record<string, PlaneLoopNodePosition> | undefined {
   if (!positions || typeof positions !== 'object') return undefined
   const next: Record<string, PlaneLoopNodePosition> = {}
-  for (const [paneId, raw] of Object.entries(positions as Record<string, unknown>)) {
-    if (!agentPaneIds.has(paneId) || !raw || typeof raw !== 'object') continue
+  for (const [key, raw] of Object.entries(positions as Record<string, unknown>)) {
+    const agentId = resolveLoopEndpointId(key, agentIds, paneIdToAgentId)
+    if (!agentId || !raw || typeof raw !== 'object') continue
     const point = raw as Record<string, unknown>
     const x = typeof point.x === 'number' ? point.x : Number.NaN
     const y = typeof point.y === 'number' ? point.y : Number.NaN
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue
-    next[paneId] = { x, y }
+    next[agentId] = { x, y }
   }
   return Object.keys(next).length > 0 ? next : undefined
 }

@@ -72,7 +72,8 @@ export interface PlaneContextPoolProps {
   onToggleAssign: (paneId: string, contextId: string) => void
 }
 
-const EXPAND_COLLAPSE_MS = 120
+/** Breve gracia al salir del puntero (cruces rápidos entre chips). */
+const COLLAPSE_GRACE_MS = 80
 
 export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   title,
@@ -100,8 +101,11 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const dragOccurredRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const collapseTimerRef = useRef<number | null>(null)
+  const pointerInsideRef = useRef(false)
   const [openContextId, setOpenContextId] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [hoverExpanded, setHoverExpanded] = useState(false)
+  const [keyboardExpanded, setKeyboardExpanded] = useState(false)
+  const [draggingChip, setDraggingChip] = useState(false)
   const [rovingIndex, setRovingIndex] = useState(0)
   const [chipMenu, setChipMenu] = useState<{ contextId: string; anchor: DOMRect } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
@@ -137,24 +141,93 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     if (openContextId && !openContext) setOpenContextId(null)
   }, [openContextId, openContext])
 
-  useEffect(() => () => {
-    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current)
-  }, [])
+  const expansionPinned = draggingChip
+  const expanded = hoverExpanded || keyboardExpanded || expansionPinned
 
-  const onPoolMouseEnter = useCallback(() => {
+  const clearCollapseTimer = useCallback(() => {
     if (collapseTimerRef.current) {
       window.clearTimeout(collapseTimerRef.current)
       collapseTimerRef.current = null
     }
-    setExpanded(true)
   }, [])
 
-  const onPoolMouseLeave = useCallback(() => {
-    collapseTimerRef.current = window.setTimeout(() => {
-      setExpanded(false)
-      collapseTimerRef.current = null
-    }, EXPAND_COLLAPSE_MS)
+  const releaseShellFocus = useCallback(() => {
+    const root = rootRef.current
+    const active = document.activeElement
+    if (root && active instanceof HTMLElement && root.contains(active)) {
+      active.blur()
+    }
   }, [])
+
+  const commitCollapse = useCallback(() => {
+    clearCollapseTimer()
+    if (expansionPinned || pointerInsideRef.current) return
+    setHoverExpanded(false)
+    setKeyboardExpanded(false)
+    releaseShellFocus()
+  }, [clearCollapseTimer, expansionPinned, releaseShellFocus])
+
+  const scheduleCollapse = useCallback(() => {
+    if (expansionPinned || pointerInsideRef.current) return
+    clearCollapseTimer()
+    collapseTimerRef.current = window.setTimeout(() => {
+      collapseTimerRef.current = null
+      commitCollapse()
+    }, COLLAPSE_GRACE_MS)
+  }, [clearCollapseTimer, commitCollapse, expansionPinned])
+
+  useEffect(() => () => {
+    clearCollapseTimer()
+  }, [clearCollapseTimer])
+
+  useEffect(() => {
+    if (expansionPinned) return
+    if (!pointerInsideRef.current) scheduleCollapse()
+  }, [expansionPinned, scheduleCollapse])
+
+  useEffect(() => {
+    if (!expanded) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rootRef.current?.contains(target)) return
+      if (target instanceof Element && target.closest('.plane-context-chip-menu')) return
+      pointerInsideRef.current = false
+      clearCollapseTimer()
+      setHoverExpanded(false)
+      setKeyboardExpanded(false)
+      releaseShellFocus()
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [expanded, clearCollapseTimer, releaseShellFocus])
+
+  const onPoolPointerEnter = useCallback(() => {
+    pointerInsideRef.current = true
+    clearCollapseTimer()
+    setHoverExpanded(true)
+  }, [clearCollapseTimer])
+
+  const onPoolPointerLeave = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const related = event.relatedTarget
+    if (related instanceof Node && rootRef.current?.contains(related)) return
+    pointerInsideRef.current = false
+    scheduleCollapse()
+  }, [scheduleCollapse])
+
+  const onPoolFocusIn = useCallback(() => {
+    clearCollapseTimer()
+    setKeyboardExpanded(true)
+  }, [clearCollapseTimer])
+
+  const onPoolFocusOut = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    const related = event.relatedTarget
+    if (related instanceof Node && rootRef.current?.contains(related)) return
+    setKeyboardExpanded(false)
+    if (!pointerInsideRef.current && !expansionPinned) {
+      scheduleCollapse()
+    }
+  }, [expansionPinned, scheduleCollapse])
 
   /** Roving tabindex: la barra entera es una sola parada de tabulación. */
   const onToolbarKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -186,10 +259,18 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         dragOccurredRef.current = false
         return
       }
-      if (chipMenu?.contextId === ctx.id) {
-        setChipMenu(null)
+      setChipMenu(null)
+      if (openContextId === ctx.id) {
+        setOpenContextId(null)
         return
       }
+      setOpenContextId(ctx.id)
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (dragOccurredRef.current) return
+      setOpenContextId(null)
       setChipMenu({
         contextId: ctx.id,
         anchor: event.currentTarget.getBoundingClientRect(),
@@ -201,6 +282,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     onDragStart: (event: React.DragEvent<HTMLButtonElement>) => {
       event.stopPropagation()
       dragOccurredRef.current = true
+      setDraggingChip(true)
       setOpenContextId(null)
       setChipMenu(null)
       setPlaneContextDragData(event.dataTransfer, ctx.id)
@@ -208,7 +290,9 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     },
     onDragEnd: (event: React.DragEvent<HTMLButtonElement>) => {
       event.stopPropagation()
+      setDraggingChip(false)
       endChipDrag()
+      if (!pointerInsideRef.current) scheduleCollapse()
     },
   })
 
@@ -237,14 +321,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     if (!chipMenu || !chipMenuContext) return []
     const id = chipMenu.contextId
     const name = chipMenuContext.name
-    const items = [
-      {
-        key: 'assign',
-        label: assignLabel,
-        icon: 'users' as const,
-        onSelect: () => setOpenContextId(id),
-      },
-    ]
+    const items: PlaneContextChipMenuItem[] = []
     if (onOpenContext) {
       items.push({
         key: 'edit',
@@ -266,7 +343,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   }, [
     chipMenu,
     chipMenuContext,
-    assignLabel,
     editLabel,
     deleteLabel,
     onOpenContext,
@@ -288,6 +364,9 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         key={ctx.id}
         role="listitem"
         className={overflow ? 'plane-context-pool__item--overflow' : undefined}
+        style={overflow ? {
+          ['--plane-context-pool-chip-stagger' as string]: `${Math.max(0, index - barContexts.length) * 14}ms`,
+        } : undefined}
       >
         <Tooltip content={summary} hint={chipActionHint}>
           <button
@@ -297,8 +376,8 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
               overflow ? 'plane-context-pool__chip--overflow' : '',
               menuOpen || assignOpen ? 'plane-context-pool__chip--open' : '',
             ].filter(Boolean).join(' ')}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen || assignOpen}
             aria-label={label}
             {...contextItemProps(ctx)}
             {...itemProps(index)}
@@ -328,8 +407,10 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       role="toolbar"
       aria-label={title}
       onMouseDown={event => event.stopPropagation()}
-      onMouseEnter={onPoolMouseEnter}
-      onMouseLeave={onPoolMouseLeave}
+      onPointerEnter={onPoolPointerEnter}
+      onPointerLeave={onPoolPointerLeave}
+      onFocusCapture={onPoolFocusIn}
+      onBlurCapture={onPoolFocusOut}
       onKeyDown={onToolbarKeyDown}
     >
       {visibleContexts.length > 0 ? (
@@ -341,7 +422,9 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         >
           <div className="plane-context-pool__icons" role="list">
             {barContexts.map((ctx, index) => renderChip(ctx, index, false))}
-            {overflowContexts.map((ctx, index) => renderChip(ctx, barContexts.length + index, true))}
+            {overflowContexts.map((ctx, index) =>
+              renderChip(ctx, barContexts.length + index, true),
+            )}
           </div>
 
           {overflowContexts.length > 0 ? (

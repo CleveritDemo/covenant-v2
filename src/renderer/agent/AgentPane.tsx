@@ -18,11 +18,6 @@ import {
   defaultAssignedContextIds,
   resolveTurnContextsRefreshing,
 } from '@shared/tabContext'
-import {
-  LOOP_INTERVAL_PRESETS,
-  MAX_AGENT_LOOP_ITERATIONS,
-  stripLoopDoneMarker,
-} from '@shared/agentLoop'
 import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
 import {
   applyAgentIdentityDraft,
@@ -73,7 +68,6 @@ import { turnFailedAfter } from './turnFailureState'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
-import { AgentLoopIntervalModal } from './AgentLoopIntervalModal'
 import { AgentPaneMessages } from './AgentPaneMessages'
 import { useJiraMention } from '../workspace/useJiraMention'
 import { jiraDraftFromKey } from './TabContextFormModal'
@@ -118,7 +112,9 @@ import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
-import { appendQueuedTurnIfRoom } from './queuedTurnDedup'
+import { appendQueuedTurnIfRoom, type AppendQueuedTurnOutcome } from './queuedTurnDedup'
+import { planPreferSendIntake } from './preferSendIntake'
+import { rememberConsumedSendId } from './consumedSendIds'
 import {
   appendLaneText,
   endLane,
@@ -166,8 +162,6 @@ interface QueuedTurn {
   id: string
   text: string
   images: PendingImage[]
-  /** Se encoló un turno de loop: al drenarlo sigue siendo de loop. */
-  viaLoop?: boolean
   /** Contextos adjuntos solo a este turno; se encolan con él. */
   extraContextIds?: string[]
   orchestrationFollowUp?: boolean
@@ -175,15 +169,23 @@ interface QueuedTurn {
   /** Turbo: follow-up / redelegación anclada a este job. */
   orchestrationJobId?: string
   delegation?: PlaneSendDelegation
+  /** Envío que lo originó: la reoferta del mismo no pinta otra copia. */
+  sourceSendId?: string
+  /** Ids fusionados tras mergeQueuedTurns. */
+  sourceSendIds?: string[]
 }
 
 export interface AgentPreferSend {
   text: string
   images?: AgentCliImageAttachment[]
+  /**
+   * Identidad del envío, puesta por quien lo origina (chat central, FIFO de
+   * orquestación, cadena). El intake es idempotente por `sendId`: si el padre
+   * vuelve a ofrecer el mismo envío, se consume sin encolar otra copia.
+   */
+  sendId?: string
   /** Si false, no enfoca la ventana del pane (p. ej. cadenas en background). */
   focusPane?: boolean
-  /** Lo despachó una cadena de loop del plano, no una persona. */
-  viaLoop?: boolean
   /** Contextos adjuntos a este turno desde el composer (no van al catálogo). */
   extraContextIds?: string[]
   /** Follow-up de orquestación (no resetea oleadas). */
@@ -228,8 +230,6 @@ interface Props {
   onBusyChange?: (busy: boolean) => void
   /** Estado para el mapa 2D del plano (preview / satélites). */
   onPlaneStatusChange?: (status: AgentPlaneStatus) => void
-  /** Registra el toggle de loop para el chat del plano (null al desmontar). */
-  onPlaneLoopToggleReady?: (toggle: (() => void) | null) => void
   /** Controles de cola (quitar / editar) para el composer del plano. */
   onPlaneQueueControlsReady?: (controls: AgentPlaneQueueControls | null) => void
   /** Especialistas visibles para un orquestador (cada turno). */
@@ -283,23 +283,12 @@ interface Props {
   /** Pedido externo: detener el turno/bucle desde el composer del plano. */
   preferStop?: boolean
   onPreferStopConsumed?: () => void
-  /** Pedido externo: arrancar el loop (p. ej. encadenamiento desde otro agente). */
-  preferStartLoop?: { objective?: string } | null
-  onPreferStartLoopConsumed?: () => void
-  /** Pedido externo: abrir el modal de crear/iniciar loop. */
-  preferCreateLoop?: boolean
-  onPreferCreateLoopConsumed?: () => void
   /** Pedido externo: pedir confirmación para borrar la conversación activa. */
   preferClearConversation?: boolean
   onPreferClearConversationConsumed?: () => void
   /** Pedido externo: abrir una conversación nueva (no borra la actual). */
   preferNewThread?: boolean
   onPreferNewThreadConsumed?: () => void
-  /**
-   * El pane participa en una cadena Loops running/waiting:
-   * el botón de loop del chat debe verse encendido (mismo estado visual).
-   */
-  chainLoopActive?: boolean
   /** El orquestador espera subtareas (Stop / drain; ya no bloquea teclear). */
   awaitingDelegations?: boolean
   /** Estilo efectivo desde App (evita meta stale en turbo). */
@@ -310,8 +299,6 @@ interface Props {
   delegationWorkActive?: boolean
   /** App aún tiene FIFO/preferSend de orquestación para este pane. */
   systemFollowUpsPending?: boolean
-  /** Pedido externo: detener cadenas que incluyen este pane (p. ej. stop en waiting). */
-  onChainLoopStop?: () => void
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -338,6 +325,38 @@ export function collectRunningThreadIds(
     ids.push(activeThreadId)
   }
   return ids
+}
+
+/** Recorta la última petición humana visible en la card mini. */
+export function lastUserPromptFromMessages(
+  messages: readonly AgentChatEntry[],
+  maxLen = 120,
+): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const entry = messages[i]
+    if (!entry || entry.role !== 'user') continue
+    const text = entry.content.trim()
+    if (!text) continue
+    return text.length > maxLen ? `${text.slice(0, maxLen - 3)}…` : text
+  }
+  return ''
+}
+
+/** Petición del usuario por hilo en curso (sin actividad de stream del CLI). */
+export function collectRunningThreadActivities(
+  lanes: ReadonlyMap<string, LaneState>,
+  runningThreadIds: readonly string[],
+  activeThreadId: string,
+  activeThreadMessages: readonly AgentChatEntry[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const threadId of runningThreadIds) {
+    const lane = getLane(lanes, threadId)
+    const source = lane?.messages ?? (threadId === activeThreadId ? activeThreadMessages : [])
+    const prompt = lastUserPromptFromMessages(source)
+    if (prompt) out[threadId] = prompt
+  }
+  return out
 }
 
 /** Une los hilos reportados por cada pane al mapa de delegaciones pendientes. */
@@ -378,22 +397,18 @@ export interface AgentPlaneStatus {
   orchestratorBusy: boolean
   /** Estilo de trabajo del orquestador (para placeholder/cola del plano). */
   orchestrationWorkStyle?: 'linear' | 'turbo'
-  loopMode: boolean
-  loopActive: boolean
-  /** Solo el loop local del chat (no cadenas del modal Loops). */
-  localLoopActive: boolean
   /**
    * Motivo del último cierre de turno (busy true→false).
    * La orquestación de cadenas solo avanza si es `completed`.
    */
   turnCloseReason: 'completed' | 'aborted' | null
-  /** Última causa de fin de loop (para encadenar nests solo en done/max). */
-  loopEndReason: 'done' | 'max' | 'stopped' | null
   queuedTurns: Array<{
     id: string
     text: string
     images: Array<{ id: string; previewUrl: string; name: string }>
     orchestrationFollowUp?: boolean
+    sourceSendId?: string
+    sourceSendIds?: string[]
     delegation?: {
       id: string
       fromPaneId: string
@@ -405,6 +420,8 @@ export interface AgentPlaneStatus {
   canClearConversation: boolean
   /** Hilos con carril vivo o turno activo del pane (para dot del selector). */
   runningThreadIds: string[]
+  /** Petición del usuario por hilo busy (mini del plano). */
+  runningThreadActivities: Record<string, string>
 }
 
 export interface AgentPlaneQueueControls {
@@ -416,6 +433,13 @@ export interface AgentPlaneQueueControls {
   cancelDelegationsFrom: (fromPaneId: string) => void
   /** Quita la subtarea con este delegationId (Stop por fila). */
   cancelDelegation: (delegationId: string) => void
+  /** Encola un envío humano en la cola visible del pane (sin competir por preferSend). */
+  enqueueHuman: (item: {
+    text: string
+    images: AgentCliImageAttachment[]
+    sendId?: string
+    extraContextIds?: string[]
+  }) => Promise<AppendQueuedTurnOutcome>
 }
 
 function systemMessage(content: string): AgentChatEntry {
@@ -439,7 +463,6 @@ export const AgentPane: React.FC<Props> = ({
   onClosePane,
   onBusyChange,
   onPlaneStatusChange,
-  onPlaneLoopToggleReady,
   onPlaneQueueControlsReady,
   getOrchestrationAgents,
   peerAgents = [],
@@ -463,21 +486,15 @@ export const AgentPane: React.FC<Props> = ({
   onPreferSendConsumed,
   preferStop = false,
   onPreferStopConsumed,
-  preferStartLoop = null,
-  onPreferStartLoopConsumed,
-  preferCreateLoop = false,
-  onPreferCreateLoopConsumed,
   preferClearConversation = false,
   onPreferClearConversationConsumed,
   preferNewThread = false,
   onPreferNewThreadConsumed,
-  chainLoopActive = false,
   awaitingDelegations = false,
   orchestrationWorkStyle: orchestrationWorkStyleProp,
   orchestrationAwaiting = null,
   delegationWorkActive = false,
   systemFollowUpsPending = false,
-  onChainLoopStop,
   paneReorder,
   registerShortcutCloseInterceptor,
 }) => {
@@ -497,23 +514,17 @@ export const AgentPane: React.FC<Props> = ({
   const [confirmClear, setConfirmClear] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [contextsOpen, setContextsOpen] = useState(false)
-  const [loopOpen, setLoopOpen] = useState(false)
-  const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
-  const [loopActive, setLoopActive] = useState(false)
   const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
   const orchestrationWorkStyle = orchestrationWorkStyleProp
     ?? resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
-  const humanInputBlocked = isAgentHumanInputBlocked({ loopActive })
+  const humanInputBlocked = isAgentHumanInputBlocked()
   const canStartHumanTurnNow = computeCanStartHumanTurnNow({
     busy,
-    loopActive,
     awaitingDelegations,
     delegationWorkActive,
     systemFollowUpsPending,
     orchestrationWorkStyle,
   })
-  const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
-  const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
   /** Espejo en estado de `turnHadCliErrorRef`: el plano necesita republicar al cambiar. */
   const [lastTurnFailed, setLastTurnFailed] = useState(false)
@@ -557,7 +568,6 @@ export const AgentPane: React.FC<Props> = ({
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
   const applyLaneCliEventRef = useRef<(threadId: string, event: AgentCliUiEvent) => void>(() => undefined)
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
-  const runLoopIterationRef = useRef<(iteration: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
   const chatSaveScheduleRef = useRef(createAgentChatSaveSchedule())
   const planeStatusThrottlerRef = useRef(createPlaneStatusThrottler<AgentPlaneStatus>())
@@ -582,21 +592,12 @@ export const AgentPane: React.FC<Props> = ({
   const onProjectContextsChangedRef = useRef(onProjectContextsChanged)
   const busyRef = useRef(busy)
   const activityRef = useRef(activity)
-  const loopActiveRef = useRef(false)
   /**
    * Petición diferida de nueva conversación: si el pane está busy, tiene una
    * delegación activa o está en settle, `startNewThread` la marca aquí y un
    * effect la aplica sin abortar cuando el pane vuelve a idle limpio.
    */
   const pendingNewThreadRef = useRef(false)
-  const loopObjectiveRef = useRef('')
-  const loopIterationRef = useRef(0)
-  const loopDoneRef = useRef(false)
-  const skipLoopContinueRef = useRef(false)
-  const loopContinueTimerRef = useRef<number | null>(null)
-  /** Pausa elegida en el modal antes de la siguiente iteración. */
-  const loopContinueDelayMsRef = useRef<number>(LOOP_INTERVAL_PRESETS[0].ms)
-  const [loopContinueDelayMs, setLoopContinueDelayMs] = useState<number>(LOOP_INTERVAL_PRESETS[0].ms)
   const contextWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const discoveryHydratedRef = useRef(false)
   /** CWD al que pertenece diskContexts; impide reutilizar catálogo entre proyectos. */
@@ -643,6 +644,12 @@ export const AgentPane: React.FC<Props> = ({
   const adoptsCliSessionRef = useRef(true)
   /** Dedup de preferSend (mismo objeto no debe despachar dos veces). */
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
+  /** Dedup por identidad de envío: sobrevive a que cambie el objeto ofrecido. */
+  const consumedSendIdsRef = useRef<string[]>([])
+  const onPreferSendConsumedRef = useRef(onPreferSendConsumed)
+  onPreferSendConsumedRef.current = onPreferSendConsumed
+  const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
+  onRequestPaneFocusRef.current = onRequestPaneFocus
   /**
    * Delegación abre un hilo nuevo en el mismo tick que el turno: no recargar
    * el chat ni tumbar busy/messages del stream que acaba de arrancar.
@@ -752,8 +759,6 @@ export const AgentPane: React.FC<Props> = ({
   onProjectContextsChangedRef.current = onProjectContextsChanged
   busyRef.current = busy
   activityRef.current = activity
-  loopActiveRef.current = loopActive
-  loopIterationRef.current = loopIteration
   const projectAgentsRef = useRef(projectAgents)
   projectAgentsRef.current = projectAgents
   const peerAgentsRef = useRef(peerAgents)
@@ -770,13 +775,6 @@ export const AgentPane: React.FC<Props> = ({
   const stableOnMetaChange = useCallback((
     next: AgentPaneMeta | ((previous: AgentPaneMeta) => AgentPaneMeta),
   ): void | Promise<boolean> => onMetaChangeRef.current(next), [])
-
-  const clearLoopTimer = useCallback((): void => {
-    if (loopContinueTimerRef.current != null) {
-      window.clearTimeout(loopContinueTimerRef.current)
-      loopContinueTimerRef.current = null
-    }
-  }, [])
 
   /** Activa el aterrizaje suave (solo CSS) antes de quitar --live. */
   const beginLiveSettle = useCallback((id: string | null): void => {
@@ -968,17 +966,10 @@ export const AgentPane: React.FC<Props> = ({
       window.clearTimeout(liveSettleTimerRef.current)
       liveSettleTimerRef.current = null
     }
-    clearLoopTimer()
-    loopActiveRef.current = false
-    loopDoneRef.current = false
     discoveryHydratedRef.current = false
     discoveredCwdRef.current = null
     setDiskContexts([])
     diskContextsRef.current = []
-    setLoopOpen(false)
-    setLoopActive(false)
-    setLoopEndReason(null)
-    setLoopIteration(0)
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
@@ -1021,7 +1012,7 @@ export const AgentPane: React.FC<Props> = ({
       }
     })
     return () => { cancelled = true }
-  }, [activeThreadId, chatRef, clearLoopTimer, paneId])
+  }, [activeThreadId, chatRef, paneId])
 
   useEffect(() => {
     // `loadedRef` (síncrono) y no solo `loaded` (estado): al cambiar de thread
@@ -1226,6 +1217,12 @@ export const AgentPane: React.FC<Props> = ({
       activeThreadId,
       busy,
     )
+    const runningThreadActivities = collectRunningThreadActivities(
+      lanesRef.current,
+      runningThreadIds,
+      activeThreadId,
+      messages,
+    )
     const status: AgentPlaneStatus = {
       busy,
       activity,
@@ -1242,11 +1239,7 @@ export const AgentPane: React.FC<Props> = ({
       delegationWorkActive,
       orchestratorBusy,
       orchestrationWorkStyle,
-      loopMode: loopOpen || loopActive || chainLoopActive,
-      loopActive: loopActive || chainLoopActive,
-      localLoopActive: loopActive,
       turnCloseReason,
-      loopEndReason,
       queuedTurns: queuedTurns.map(item => ({
         id: item.id,
         text: item.text,
@@ -1256,6 +1249,8 @@ export const AgentPane: React.FC<Props> = ({
           name: image.name,
         })),
         ...(item.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
+        ...(item.sourceSendId?.trim() ? { sourceSendId: item.sourceSendId.trim() } : {}),
+        ...(item.sourceSendIds?.length ? { sourceSendIds: item.sourceSendIds } : {}),
         ...(item.delegation ? { delegation: { ...item.delegation } } : {}),
       })),
       canClearConversation: messages.length > 0
@@ -1263,14 +1258,13 @@ export const AgentPane: React.FC<Props> = ({
         || pendingImages.length > 0
         || Boolean(meta.cliSessionId)
         || busy
-        || loopActive
-        || chainLoopActive
         // Un hilo nuevo y vacío no tiene nada que limpiar, pero sí hay que
         // poder descartarlo mientras quede otro al que volver.
         || (meta.threads?.length ?? 0) > 1,
       runningThreadIds,
+      runningThreadActivities,
     }
-    // busy/loops/activity: inmediato. Solo messages/snippet: throttle (~150ms).
+    // busy/activity: inmediato. Solo messages/snippet: throttle (~150ms).
     const controlKey = [
       busy ? '1' : '0',
       activity,
@@ -1281,12 +1275,8 @@ export const AgentPane: React.FC<Props> = ({
       delegationWorkActive ? '1' : '0',
       orchestratorBusy ? '1' : '0',
       orchestrationWorkStyle,
-      loopOpen ? '1' : '0',
-      loopActive ? '1' : '0',
-      chainLoopActive ? '1' : '0',
       turnCloseReason ?? '',
       lastTurnFailed ? '1' : '0',
-      loopEndReason ?? '',
       queuedTurns.map(item => item.id).join(','),
       tabActive ? String(enteringIds.size) : '0',
       tabActive ? String(materializingIds.size) : '0',
@@ -1295,6 +1285,7 @@ export const AgentPane: React.FC<Props> = ({
       String(meta.threads?.length ?? 0),
       (meta.contextIds ?? []).join(','),
       runningThreadIds.join(','),
+      Object.entries(runningThreadActivities).map(([id, text]) => `${id}:${text}`).join('|'),
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({
       controlKey,
@@ -1311,15 +1302,11 @@ export const AgentPane: React.FC<Props> = ({
     awaitingDelegations,
     orchestrationAwaiting,
     busy,
-    chainLoopActive,
     delegationWorkActive,
     diskContexts,
     enteringIds,
     lanesVersion,
-    loopActive,
     lastTurnFailed,
-    loopEndReason,
-    loopOpen,
     materializingIds,
     messages,
     meta.cliSessionId,
@@ -1549,7 +1536,6 @@ export const AgentPane: React.FC<Props> = ({
     displayImages?: AgentChatImage[]
     allowDelegations?: boolean
     orchestrationJobId?: string
-    viaLoop?: boolean
     delegation?: {
       id: string
       fromPaneId: string
@@ -1836,7 +1822,6 @@ export const AgentPane: React.FC<Props> = ({
         : {}),
       ...(options.images?.length ? { images: options.images } : {}),
       ...(orgWorkspaceRef.current ? { workspace: orgWorkspaceRef.current } : {}),
-      ...(options.viaLoop ? { viaLoop: true } : {}),
     }
     if (forceContextFullRefreshRef.current) forceContextFullRefreshRef.current = false
     if (!isLaneDelegation) {
@@ -1858,22 +1843,6 @@ export const AgentPane: React.FC<Props> = ({
     syncVisibleFromLane,
     t,
   ])
-
-  const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
-    clearLoopTimer()
-    loopActiveRef.current = false
-    loopDoneRef.current = false
-    setLoopActive(false)
-    setLoopEndReason(reason)
-    setLoopIteration(0)
-    loopIterationRef.current = 0
-    const message = reason === 'done'
-      ? t('agentPane.loopCompleted')
-      : reason === 'max'
-        ? t('agentPane.loopMaxIterations', { n: MAX_AGENT_LOOP_ITERATIONS })
-        : t('agentPane.loopStopped')
-    setMessages(prev => [...prev, systemMessage(message)])
-  }, [clearLoopTimer, t])
 
   const completeTurn = useCallback((expectedGen?: number): void => {
     if (expectedGen != null && expectedGen !== turnGenRef.current) return
@@ -1906,25 +1875,6 @@ export const AgentPane: React.FC<Props> = ({
             })
           })))
       }
-      if (!loopActiveRef.current) return
-      if (skipLoopContinueRef.current) {
-        skipLoopContinueRef.current = false
-        return
-      }
-      if (loopDoneRef.current) {
-        finishLoop('done')
-        return
-      }
-      const nextIteration = loopIterationRef.current + 1
-      if (nextIteration > MAX_AGENT_LOOP_ITERATIONS) {
-        finishLoop('max')
-        return
-      }
-      clearLoopTimer()
-      loopContinueTimerRef.current = window.setTimeout(() => {
-        loopContinueTimerRef.current = null
-        if (loopActiveRef.current) runLoopIterationRef.current(nextIteration)
-      }, loopContinueDelayMsRef.current)
     }
 
     // Diferir: EXIT puede llegar antes que assistant_final (canales IPC distintos).
@@ -2019,7 +1969,7 @@ export const AgentPane: React.FC<Props> = ({
       chatSaveScheduleRef.current.flush()
       finishSideEffects()
     }, 0)
-  }, [beginLiveSettle, clearLoopTimer, emitDelegationResult, finishLoop, paneId, systemSoundsEnabled, t])
+  }, [activeThreadId, beginLiveSettle, emitDelegationResult, paneId, systemSoundsEnabled, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
@@ -2163,12 +2113,7 @@ export const AgentPane: React.FC<Props> = ({
     if (event.type === 'assistant_final') {
       assistantDeltaThrottlerRef.current.flush()
       // Solo limpia el fence ia-terminal-context del texto visible; nunca se aplica.
-      let { visibleText } = extractTabContextUpdates(event.text)
-      if (loopActiveRef.current) {
-        const stripped = stripLoopDoneMarker(visibleText)
-        visibleText = stripped.text
-        if (stripped.done) loopDoneRef.current = true
-      }
+      const { visibleText } = extractTabContextUpdates(event.text)
       // Un final vacío no debe borrar deltas ya mostrados (p. ej. result filtrado).
       setMessages(prev => prev.map(message => {
         if (message.id !== assistantId) return message
@@ -2381,7 +2326,6 @@ export const AgentPane: React.FC<Props> = ({
 
   useEffect(() => {
     return () => {
-      clearLoopTimer()
       for (const threadId of lanesRef.current.keys()) {
         const lane = getLane(lanesRef.current, threadId)
         if (lane?.busy) {
@@ -2389,7 +2333,7 @@ export const AgentPane: React.FC<Props> = ({
         }
       }
     }
-  }, [clearLoopTimer, paneId])
+  }, [paneId])
 
   useEffect(() => {
     if (!onClosePane || !registerShortcutCloseInterceptor) return
@@ -2405,7 +2349,6 @@ export const AgentPane: React.FC<Props> = ({
       allowDelegations?: boolean
       orchestrationFollowUp?: boolean
       orchestrationJobId?: string
-      viaLoop?: boolean
       extraContextIds?: string[]
     },
   ): Promise<boolean> => {
@@ -2462,34 +2405,34 @@ export const AgentPane: React.FC<Props> = ({
       ...(options?.orchestrationJobId?.trim()
         ? { orchestrationJobId: options.orchestrationJobId.trim() }
         : {}),
-      ...(options?.viaLoop ? { viaLoop: true } : {}),
     })
   }, [refreshDiskContexts, startTurn, t])
 
-  /** Cada ciclo del loop = el mismo despacho que un mensaje del chat. */
-  const runLoopIteration = useCallback((iteration: number): void => {
-    const objective = loopObjectiveRef.current.trim()
-    if (!objective || !loopActiveRef.current) return
-    loopIterationRef.current = iteration
-    setLoopIteration(iteration)
-    void dispatchMessage(objective, [], { viaLoop: true }).then(ok => {
-      if (!ok && loopActiveRef.current) finishLoop('stopped')
-    })
-  }, [dispatchMessage, finishLoop])
-  runLoopIterationRef.current = runLoopIteration
-
-  const enqueueQueuedTurn = useCallback((item: Omit<QueuedTurn, 'id'>): boolean => {
-    let didEnqueue = false
+  const enqueueQueuedTurn = useCallback((
+    item: Omit<QueuedTurn, 'id'>,
+  ): AppendQueuedTurnOutcome => {
+    // El id del turno se genera fuera del updater: React invoca el updater dos
+    // veces en StrictMode y con crypto.randomUUID() dentro no era determinista.
+    const id = crypto.randomUUID()
+    let outcome: AppendQueuedTurnOutcome = 'full'
     setQueuedTurns(prev => {
       const result = appendQueuedTurnIfRoom(prev, {
-        id: crypto.randomUUID(),
+        id,
         ...item,
       }, MAX_VISIBLE_QUEUED_TURNS)
-      didEnqueue = result.didEnqueue
+      outcome = result.outcome
+      if (result.outcome !== 'enqueued') {
+        console.warn('[AgentPane] queued turn skipped', {
+          paneId,
+          reason: result.outcome,
+          sourceSendId: item.sourceSendId,
+          queued: prev.length,
+        })
+      }
       return result.turns
     })
-    return didEnqueue
-  }, [])
+    return outcome
+  }, [paneId])
 
   const send = useCallback((overrideText?: string): void => {
     const prompt = (overrideText ?? input).trim()
@@ -2531,102 +2474,145 @@ export const AgentPane: React.FC<Props> = ({
     enqueueQueuedTurn,
   ])
 
+  /**
+   * Intake del `preferSend` del padre. La decisión es pura
+   * (`planPreferSendIntake`) y el consumo es idempotente por `sendId`: el effect
+   * se re-ejecuta muchas veces con el mismo envío (el padre pasa handlers
+   * inline, `busy` cambia con el stream), y sin esa identidad cada re-entrada
+   * encolaba otra copia del mismo mensaje.
+   */
   useEffect(() => {
-    if (!preferSend) {
-      handledPreferSendRef.current = null
+    const plan = planPreferSendIntake(preferSend, handledPreferSendRef.current, {
+      busy,
+      preferNewThread,
+      canStartHumanTurnNow,
+      queuedCount: queuedTurns.length,
+      maxQueued: MAX_VISIBLE_QUEUED_TURNS,
+      consumedSendIds: consumedSendIdsRef.current,
+    })
+    if (plan.action === 'skip') {
+      // Sin envío, o el + tiene que crear el hilo antes de consumirlo: liberar
+      // el claim. `already_handled` lo conserva (App reintenta).
+      if (plan.reason === 'no_prefer_send' || plan.reason === 'prefer_new_thread') {
+        handledPreferSendRef.current = null
+      }
       return
     }
-    // El + tiene que crear el hilo antes de consumir el send; si no, startTurn
-    // retitula el activo y startNewThread aborta la delegación al resetear.
-    if (preferNewThread) {
-      handledPreferSendRef.current = null
-      return
-    }
-    // Evitar doble envío: startTurn pone busy y re-ejecuta el effect con el
-    // mismo preferSend antes de que el padre lo limpie.
-    if (handledPreferSendRef.current === preferSend) return
-    // Loop local activo: no consumir; App reintentará cuando termine.
-    if (loopActive) return
-    const prompt = preferSend.text.trim()
-    const inboundImages = preferSend.images ?? []
+    if (!preferSend) return
     const delegation = preferSend.delegation
-    const orchestrationFollowUp = preferSend.orchestrationFollowUp === true
-    const viaLoop = preferSend.viaLoop === true
-    const extraContextIds = preferSend.extraContextIds ?? []
-    const allowDelegations = preferSend.allowDelegations
-    const orchestrationJobId = preferSend.orchestrationJobId
-    const isHumanTurn = !orchestrationFollowUp && !delegation
-    const delegationId = delegation?.id
-    // Prompt vacío sin imágenes: no consumir; marcar local para no re-loguear.
-    if (!prompt && inboundImages.length === 0) {
+    if (plan.action === 'ignore') {
       handledPreferSendRef.current = preferSend
       console.warn('[AgentPane] preferSend ignored', {
-        reason: 'empty_prefer_send',
-        delegationId,
-        orchestrationJobId,
+        reason: plan.reason,
+        delegationId: plan.delegationId,
+        orchestrationJobId: plan.orchestrationJobId,
       })
       return
     }
-    const imagesSnapshot = attachmentsToPendingImages(inboundImages)
+    if (plan.action === 'reject') {
+      // Cola llena: no consumir. App reintenta al drenarse.
+      handledPreferSendRef.current = null
+      console.warn('[AgentPane] preferSend rejected', {
+        reason: plan.reason,
+        delegationId: plan.delegationId,
+        orchestrationJobId: plan.orchestrationJobId,
+      })
+      return
+    }
+    if (plan.action === 'consume') {
+      // Reoferta de un envío ya consumido: cerrar el slot sin duplicar.
+      handledPreferSendRef.current = preferSend
+      console.warn('[AgentPane] preferSend duplicate', {
+        reason: plan.reason,
+        sendId: plan.sendId,
+      })
+      onPreferSendConsumedRef.current?.()
+      return
+    }
+    const prompt = preferSend.text.trim()
+    const extraContextIds = preferSend.extraContextIds ?? []
+    const allowDelegations = preferSend.allowDelegations
+    const orchestrationJobId = preferSend.orchestrationJobId
+    // Convertir adjuntos tarda varios frames (decode + thumbnail). Un fallo de
+    // decode no puede dejar el envío colgado: degrada a texto.
+    const imagesSnapshot = attachmentsToPendingImages(preferSend.images ?? [])
+      .catch((error: unknown) => {
+        console.warn('[AgentPane] preferSend images failed', {
+          reason: 'images_decode_failed',
+          detail: String(error),
+        })
+        return [] as PendingImage[]
+      })
     const turnOptions = {
       ...(delegation ? { delegation } : {}),
       ...(allowDelegations === false ? { allowDelegations: false as const } : {}),
-      ...(orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
+      ...(preferSend.orchestrationFollowUp ? { orchestrationFollowUp: true as const } : {}),
       ...(orchestrationJobId?.trim() ? { orchestrationJobId: orchestrationJobId.trim() } : {}),
-      ...(viaLoop ? { viaLoop: true as const } : {}),
       ...(extraContextIds.length ? { extraContextIds } : {}),
     }
-    let cancelled = false
+    // Reclamar ANTES del await y no soltar el claim en el cleanup: el effect se
+    // re-ejecuta durante la conversión de imágenes (el padre re-renderiza con el
+    // stream) y si cada pasada reiniciaba el trabajo, un mensaje con imagen no
+    // llegaba nunca a la cola. Con el claim puesto, las pasadas siguientes ven
+    // `already_handled` y el trabajo en vuelo sigue vivo hasta consumir.
+    handledPreferSendRef.current = preferSend
+    const markConsumed = (): void => {
+      consumedSendIdsRef.current = rememberConsumedSendId(
+        consumedSendIdsRef.current,
+        preferSend.sendId,
+      )
+      onPreferSendConsumedRef.current?.()
+    }
     void (async () => {
       const resolvedImages = await imagesSnapshot
-      if (cancelled) {
+      // El claim es el dueño del trabajo: si el padre cambió o retiró el envío
+      // mientras se convertía, esta pasada se descarta sin encolar.
+      if (handledPreferSendRef.current !== preferSend) {
         resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
         return
       }
       const isLaneDelegation = Boolean(delegation?.threadId?.trim())
-      const shouldEnqueue = !isLaneDelegation && (busy || (isHumanTurn && !canStartHumanTurnNow))
-      if (shouldEnqueue) {
-        handledPreferSendRef.current = preferSend
-        const didEnqueue = enqueueQueuedTurn({
+      // Pudo ponerse busy mientras convertía: encolar en vez de abrir otro turno.
+      if (plan.action === 'enqueue' || (busyRef.current && !isLaneDelegation)) {
+        const outcome = enqueueQueuedTurn({
           text: prompt,
           images: resolvedImages,
+          ...(preferSend.sendId?.trim() ? { sourceSendId: preferSend.sendId.trim() } : {}),
           ...turnOptions,
         })
-        if (!didEnqueue) {
+        if (outcome === 'full') {
           resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
           console.warn('[AgentPane] preferSend rejected', {
             reason: 'queue_full',
-            delegationId,
+            delegationId: delegation?.id,
             orchestrationJobId,
           })
           handledPreferSendRef.current = null
           return
         }
-        onPreferSendConsumed?.()
+        // `duplicate`: el envío ya estaba en la cola. Consumir el slot igual —
+        // reintentar solo pintaría otra copia del mismo mensaje.
+        if (outcome === 'duplicate') {
+          resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        }
+        markConsumed()
         return
       }
-      if (preferSend.focusPane !== false) onRequestPaneFocus()
+      if (preferSend.focusPane !== false) onRequestPaneFocusRef.current()
       if (
-        isHumanTurn
+        plan.isHumanTurn
         && coordinationCanDelegate(metaRef.current.coordination)
       ) {
         onOrchestrationUserTurnRef.current?.()
       }
-      handledPreferSendRef.current = preferSend
-      onPreferSendConsumed?.()
+      markConsumed()
       void dispatchMessage(prompt, resolvedImages, turnOptions)
     })()
-    return () => {
-      cancelled = true
-    }
   }, [
     busy,
     canStartHumanTurnNow,
     dispatchMessage,
     enqueueQueuedTurn,
-    loopActive,
-    onPreferSendConsumed,
-    onRequestPaneFocus,
     preferNewThread,
     preferSend,
     queuedTurns.length,
@@ -2700,6 +2686,8 @@ export const AgentPane: React.FC<Props> = ({
   cancelDelegationsFromRef.current = cancelDelegationsFrom
   const cancelDelegationRef = useRef(cancelDelegation)
   cancelDelegationRef.current = cancelDelegation
+  const enqueueQueuedTurnRef = useRef(enqueueQueuedTurn)
+  enqueueQueuedTurnRef.current = enqueueQueuedTurn
 
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
@@ -2709,6 +2697,30 @@ export const AgentPane: React.FC<Props> = ({
       merge: () => mergeQueuedTurnsRef.current(),
       cancelDelegationsFrom: fromPaneId => cancelDelegationsFromRef.current(fromPaneId),
       cancelDelegation: delegationId => cancelDelegationRef.current(delegationId),
+      enqueueHuman: item => {
+        const sourceSendId = item.sendId?.trim()
+        const imagesSnapshot = attachmentsToPendingImages(item.images ?? [])
+          .catch((error: unknown) => {
+            console.warn('[AgentPane] enqueueHuman images failed', {
+              reason: 'images_decode_failed',
+              detail: String(error),
+            })
+            return [] as PendingImage[]
+          })
+        return (async () => {
+          const resolvedImages = await imagesSnapshot
+          const outcome = enqueueQueuedTurnRef.current({
+            text: item.text,
+            images: resolvedImages,
+            ...(sourceSendId ? { sourceSendId } : {}),
+            ...(item.extraContextIds?.length ? { extraContextIds: item.extraContextIds } : {}),
+          })
+          if (outcome === 'duplicate' || outcome === 'full') {
+            resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          }
+          return outcome
+        })()
+      },
     })
     return () => onPlaneQueueControlsReady(null)
   }, [onPlaneQueueControlsReady])
@@ -2720,11 +2732,10 @@ export const AgentPane: React.FC<Props> = ({
     const headIsDelegation = Boolean(head?.delegation)
     const headIsLaneDelegation = Boolean(head?.delegation?.threadId?.trim())
     const queueReady = headIsLaneDelegation
-      ? loaded && !loopActive && !(systemFollowUpsPending || preferSend != null)
+      ? loaded && !(systemFollowUpsPending || preferSend != null)
       : canDrainAgentQueue({
         loaded,
         busy,
-        loopActive,
         awaitingDelegations,
         delegationWorkActive,
         systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
@@ -2751,7 +2762,6 @@ export const AgentPane: React.FC<Props> = ({
       ...(next.orchestrationJobId?.trim()
         ? { orchestrationJobId: next.orchestrationJobId.trim() }
         : {}),
-      ...(next.viaLoop ? { viaLoop: true } : {}),
       ...(next.extraContextIds?.length ? { extraContextIds: next.extraContextIds } : {}),
     }).finally(() => {
       drainingRef.current = false
@@ -2762,7 +2772,6 @@ export const AgentPane: React.FC<Props> = ({
     delegationWorkActive,
     dispatchMessage,
     loaded,
-    loopActive,
     orchestrationWorkStyle,
     preferSend,
     queuedTurns,
@@ -2792,7 +2801,6 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const handleComposerPaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>): void => {
-    if (loopActive) return
     const files = imagesFromClipboard(event.clipboardData)
     if (!files.length) return
     event.preventDefault()
@@ -2807,7 +2815,7 @@ export const AgentPane: React.FC<Props> = ({
     void Promise.all(jobs).then(results => {
       appendPendingImages(results.filter((image): image is PendingImage => image != null))
     })
-  }, [appendPendingImages, loopActive])
+  }, [appendPendingImages])
 
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
@@ -2822,8 +2830,6 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const stop = useCallback((): void => {
-    clearLoopTimer()
-    const wasLoop = loopActiveRef.current
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
     turnHadCliErrorRef.current = false
@@ -2870,12 +2876,10 @@ export const AgentPane: React.FC<Props> = ({
         summary: t('agentPane.delegationAbortedSummary'),
       }, 'stop')
     }
-    if (wasLoop) finishLoop('stopped')
-    if (chainLoopActive) onChainLoopStop?.()
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestratorStopRef.current?.()
     }
-  }, [beginLiveSettle, bumpLanes, chainLoopActive, chatRef, clearLoopTimer, emitDelegationResult, finishLoop, onChainLoopStop, paneId, t])
+  }, [beginLiveSettle, bumpLanes, chatRef, emitDelegationResult, paneId, t])
 
   useEffect(() => {
     if (!preferStop) return
@@ -2884,14 +2888,12 @@ export const AgentPane: React.FC<Props> = ({
   }, [onPreferStopConsumed, preferStop, stop])
 
   /**
-   * Deja el pane sin turno, sin loop y sin cola: lo que hace falta antes de
+   * Deja el pane sin turno ni cola: lo que hace falta antes de
    * cambiar de conversación. No toca disco ni el catálogo de threads.
    */
   const resetLiveState = useCallback((): void => {
     assistantDeltaThrottlerRef.current.flush()
-    clearLoopTimer()
-    const wasLoop = loopActiveRef.current
-    const wasRunning = busyRef.current || wasLoop
+    const wasRunning = busyRef.current
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
     turnHadCliErrorRef.current = false
@@ -2902,17 +2904,8 @@ export const AgentPane: React.FC<Props> = ({
       window.api.stopAgentTurn(runKey)
     }
     beginLiveSettle(activeAssistantIdRef.current)
-    loopActiveRef.current = false
-    loopDoneRef.current = false
-    loopObjectiveRef.current = ''
-    loopIterationRef.current = 0
-    skipLoopContinueRef.current = false
     pendingModeHandoffRef.current = false
     pendingCliEventsRef.current = []
-    setLoopOpen(false)
-    setLoopActive(false)
-    setLoopEndReason(wasLoop ? 'stopped' : null)
-    setLoopIteration(0)
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
@@ -2945,7 +2938,7 @@ export const AgentPane: React.FC<Props> = ({
     setEditingQueuedId(null)
     setInput('')
     setMessages([])
-  }, [beginLiveSettle, clearLoopTimer, emitDelegationResult, paneId, runKey, t])
+  }, [beginLiveSettle, emitDelegationResult, paneId, runKey, t])
 
   /**
    * Abre una conversación nueva. No borra nada: el thread anterior conserva su
@@ -3045,109 +3038,6 @@ export const AgentPane: React.FC<Props> = ({
     setConfirmClear(true)
   }, [onPreferClearConversationConsumed, preferClearConversation])
 
-  const startLoop = useCallback((objectiveOverride?: string): boolean => {
-    const fromOverride = objectiveOverride?.trim() ?? ''
-    const fromStored = loopObjectiveRef.current.trim()
-    const fromInput = input.trim()
-    const fromMeta = metaRef.current.objective?.trim() ?? ''
-    const objective = fromOverride || fromStored || fromInput || fromMeta
-    if (!objective || loopActiveRef.current) return false
-    onRequestPaneFocus()
-    // Si había un turno normal en curso, se corta y se avisa al padre si era subtarea.
-    if (busyRef.current) {
-      skipLoopContinueRef.current = true
-      turnClosedRef.current = true
-      emptyResponseRetriesRef.current = 0
-      turnHadCliErrorRef.current = false
-      setLastTurnFailed(prev => turnFailedAfter('stop', prev))
-      lastTurnRequestRef.current = null
-      suppressEmptyHandlingRef.current = true
-      beginLiveSettle(activeAssistantIdRef.current)
-      setTurnCloseReason('aborted')
-      setBusy(false)
-      setActivity('')
-      activeAssistantIdRef.current = null
-      setActiveAssistantId(null)
-      const cutDelegation = activeDelegationRef.current
-        ?? peekActiveParentDelegation(paneId, metaRef.current.activeThreadId)
-      activeDelegationRef.current = null
-      if (cutDelegation) {
-        clearActiveParentDelegation(paneId, cutDelegation.threadId)
-        emitDelegationResult(cutDelegation, {
-          status: 'aborted',
-          summary: t('agentPane.delegationAbortedSummary'),
-        }, 'start_loop_cut')
-      }
-      if (chainLoopActive) onChainLoopStop?.()
-    }
-    clearLoopTimer()
-    if (objective !== input.trim()) setInput(objective)
-    loopObjectiveRef.current = objective
-    loopDoneRef.current = false
-    loopActiveRef.current = true
-    setLoopEndReason(null)
-    setLoopActive(true)
-    setLoopOpen(true)
-    runLoopIteration(1)
-    return true
-  }, [
-    beginLiveSettle,
-    chainLoopActive,
-    clearLoopTimer,
-    emitDelegationResult,
-    input,
-    onChainLoopStop,
-    onRequestPaneFocus,
-    paneId,
-    runLoopIteration,
-    t,
-  ])
-
-  useEffect(() => {
-    if (!preferStartLoop) return
-    // Esperar a idle de loop; App solo debería ofertar nests listos, pero cubre carreras.
-    if (loopActive) return
-    const started = startLoop(preferStartLoop.objective)
-    if (started) {
-      onPreferStartLoopConsumed?.()
-      return
-    }
-    // Idle y no arrancó (sin objetivo usable): sacar para no bloquear la cola.
-    onPreferStartLoopConsumed?.()
-  }, [loopActive, onPreferStartLoopConsumed, preferStartLoop, startLoop])
-
-  useEffect(() => {
-    if (!preferCreateLoop) return
-    onPreferCreateLoopConsumed?.()
-    if (loopActiveRef.current || busyRef.current) return
-    setLoopIntervalModalOpen(true)
-  }, [onPreferCreateLoopConsumed, preferCreateLoop])
-
-  const toggleLoopMode = useCallback((): void => {
-    if (loopActive || busy) return
-    if (loopOpen) {
-      setLoopOpen(false)
-      loopObjectiveRef.current = ''
-      return
-    }
-    setLoopIntervalModalOpen(true)
-  }, [busy, loopActive, loopOpen])
-
-  useEffect(() => {
-    if (!onPlaneLoopToggleReady) return
-    onPlaneLoopToggleReady(toggleLoopMode)
-    return () => onPlaneLoopToggleReady(null)
-  }, [onPlaneLoopToggleReady, toggleLoopMode])
-
-  const confirmLoopSetup = useCallback((delayMs: number, objective: string): void => {
-    const trimmed = objective.trim()
-    if (!trimmed || busyRef.current || loopActiveRef.current) return
-    loopContinueDelayMsRef.current = delayMs
-    setLoopContinueDelayMs(delayMs)
-    setLoopIntervalModalOpen(false)
-    startLoop(trimmed)
-  }, [startLoop])
-
   const changePermission = (permissionMode: AgentPermissionMode): void => {
     if (permissionMode === meta.permissionMode) return
     // Bug del CLI de Cursor: --resume conserva plan en SQLite y no hay
@@ -3210,18 +3100,13 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const loopMode = loopOpen || loopActive || chainLoopActive
-  const effectiveLoopActive = loopActive || chainLoopActive
   const selectedContextIds = meta.contextIds ?? []
-  // Solo el loop bloquea teclear; busy/delegaciones encolan.
   const showStop = shouldShowComposerStop({
-    loopActive: effectiveLoopActive,
     busy,
     awaitingDelegations,
     delegationWorkActive: false,
   })
-  const showPlay = loopMode && !effectiveLoopActive && !busy
-  const composerDisabled = effectiveLoopActive
+  const composerDisabled = false
 
   const handleEnteringAnimationEnd = useCallback((messageId: string): void => {
     setEnteringIds(previous => {
@@ -3241,37 +3126,32 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [])
 
+  const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
+  const buttonIsStop = showStop && !hasComposerPayload
+
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      if (loopActive) stop()
-      else if (showPlay) startLoop()
+      if (buttonIsStop) stop()
       else send()
     }
-  }, [loopActive, send, showPlay, startLoop, stop])
-
-  const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
-  const buttonIsStop = showStop && (
-    effectiveLoopActive || (!hasComposerPayload && !showPlay)
-  )
+  }, [buttonIsStop, send, stop])
 
   const handleSendClick = useCallback((): void => {
     if (buttonIsStop) stop()
-    else if (showPlay) startLoop()
     else if (hasComposerPayload) send()
-  }, [buttonIsStop, hasComposerPayload, send, showPlay, startLoop, stop])
+  }, [buttonIsStop, hasComposerPayload, send, stop])
 
   const handleDictateSend = useCallback((text: string): void => {
-    if (buttonIsStop || showPlay) return
+    if (buttonIsStop) return
     send(text)
-  }, [buttonIsStop, send, showPlay])
+  }, [buttonIsStop, send])
 
   return (
     <div
       className={[
         'agent-pane',
         tabActive && isActivePane ? 'agent-pane--focused' : '',
-        effectiveLoopActive ? 'agent-pane--looping' : '',
         busy || awaitingDelegations || delegationWorkActive ? 'agent-pane--working' : '',
       ].filter(Boolean).join(' ')}
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
@@ -3323,8 +3203,6 @@ export const AgentPane: React.FC<Props> = ({
             activity={activity}
             awaitingDelegations={awaitingDelegations}
             orchestrationAwaiting={orchestrationAwaiting}
-            loopActive={effectiveLoopActive}
-            loopIteration={loopIteration}
             queuedTurns={queuedTurns}
             nearBottom={nearBottom}
             activeAssistantId={activeAssistantId}
@@ -3345,16 +3223,13 @@ export const AgentPane: React.FC<Props> = ({
           <AgentPaneFooter
             pendingImages={pendingImages}
             composerDisabled={composerDisabled}
-            loopMode={loopMode}
             busy={busy}
-            loopActive={effectiveLoopActive}
             awaitingDelegations={awaitingDelegations}
             delegationWorkActive={delegationWorkActive}
             orchestratorBusy={orchestratorBusy}
             orchestrationWorkStyle={orchestrationWorkStyle}
             input={input}
             showStop={buttonIsStop}
-            showPlay={showPlay}
             composerInputRef={composerInputRef}
             onInputChange={setInput}
             onComposerPaste={handleComposerPaste}
@@ -3378,8 +3253,6 @@ export const AgentPane: React.FC<Props> = ({
         meta={meta}
         cwd={cwd}
         busy={busy}
-        loopMode={loopMode}
-        loopActive={effectiveLoopActive}
         awaitingDelegations={awaitingDelegations}
         diskContexts={diskContexts}
         selectedContextIds={selectedContextIds}
@@ -3475,7 +3348,6 @@ export const AgentPane: React.FC<Props> = ({
             return { ...previous, mcpsAllowed }
           })
         }}
-        onToggleLoopMode={toggleLoopMode}
         onToggleContext={toggleContext}
         onOpenContextsModal={() => setContextsOpen(true)}
         onContextsTabFocus={() => { void refreshDiskContexts() }}
@@ -3524,13 +3396,6 @@ export const AgentPane: React.FC<Props> = ({
         onFocusContextConsumed={onPreferOpenContextConsumed}
         onRefresh={() => { void refreshDiskContexts() }}
         onClose={() => setContextsOpen(false)}
-      />
-      <AgentLoopIntervalModal
-        open={loopIntervalModalOpen && tabActive}
-        initialMs={loopContinueDelayMs}
-        initialObjective={loopObjectiveRef.current || input}
-        onConfirm={confirmLoopSetup}
-        onClose={() => setLoopIntervalModalOpen(false)}
       />
     </div>
   )

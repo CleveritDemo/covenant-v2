@@ -1,8 +1,12 @@
 .plane-agent-context-nodes {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
+  --plane-context-icon-size: 18px;
+  --plane-context-col-gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--plane-context-icon-size));
+  column-gap: var(--plane-context-col-gap);
+  row-gap: 4px;
+  justify-content: start;
+  align-content: start;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -13,18 +17,35 @@
 
 .plane-agent-context-nodes__item {
   display: flex;
-  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--plane-context-icon-size);
+  height: var(--plane-context-icon-size);
   min-width: 0;
-  width: 100%;
-  line-height: 1.15;
+  line-height: 1;
 }
 
-/* Spacer entre contextos normales y resultados (misma medida que status → nodos). */
-.plane-agent-context-nodes__sep {
-  flex: 0 0 auto;
-  height: var(--plane-mini-face-section-gap, 6px);
-  margin: 0;
-  border: 0;
-  list-style: none;
-  pointer-events: none;
+.plane-agent-context-nodes__item > .ui-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--plane-context-icon-size);
+  height: var(--plane-context-icon-size);
+  min-width: 0;
+}
+
+.plane-agent-context-nodes__item .plane-context-card {
+  flex-shrink: 0;
+}
+
+.plane-agent-context-nodes__item .plane-context-card__jira-wrap {
+  width: var(--plane-context-icon-size);
+  height: var(--plane-context-icon-size);
+  align-items: center;
+  justify-content: center;
+}
+
+.plane-agent-context-nodes__item .plane-context-card__jira-wrap > .ui-tooltip {
+  width: var(--plane-context-icon-size);
+  height: var(--plane-context-icon-size);
 }

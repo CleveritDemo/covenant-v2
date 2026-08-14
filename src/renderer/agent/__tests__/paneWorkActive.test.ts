@@ -14,8 +14,6 @@ describe('isPaneWorkActive', () => {
     expect(isPaneWorkActive('a', empty, empty, { busy: true })).toBe(true)
     expect(isPaneWorkActive('a', empty, empty, { delegationWorkActive: true })).toBe(true)
     expect(isPaneWorkActive('a', empty, empty, { orchestratorBusy: true })).toBe(true)
-    expect(isPaneWorkActive('a', empty, empty, { loopActive: true })).toBe(true)
-    expect(isPaneWorkActive('a', empty, empty, { localLoopActive: true })).toBe(true)
     expect(isPaneWorkActive('a', empty, empty, { awaitingDelegations: true })).toBe(true)
     expect(isPaneWorkActive('a', empty, empty, {})).toBe(false)
   })
@@ -31,7 +29,7 @@ describe('collectBusyTabIds', () => {
       tabs,
       empty,
       empty,
-      { worker: { loopActive: true } },
+      { worker: { busy: true } },
     )
     expect([...ids]).toEqual(['t1'])
   })

@@ -13,7 +13,8 @@ import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatCompose
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
-import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
+import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
+import { PlaneMap, planeFloorAuroraActive, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
@@ -34,6 +35,7 @@ import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
 import { WikiCuratorComposer } from './WikiCuratorComposer'
 import type { WikiGraphData } from './wikiGraph'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
+import { useLoopChainLiveState } from './useLoopChainLiveState'
 import { PlaneQuickChat } from './PlaneQuickChat'
 import {
   PlaneContextPool,
@@ -47,7 +49,7 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
-import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z, PLANE_ELEVATED_MAP_Z } from '@shared/overlayZIndex'
 import {
   computeWikiModalPositionNearPoint,
   computeWikiModalSpreadPositions,
@@ -104,7 +106,6 @@ export interface TabAgenticPlaneProps {
   /** Catálogo completo (preview del modal de asignación). */
   contextCatalog?: TabContext[]
   onToggleAgentContext: (paneId: string, contextId: string) => void
-  onToggleLoop: (paneId: string) => void
   onRemoveQueuedTurn: (paneId: string, id: string) => void
   onUpdateQueuedTurn: (paneId: string, id: string, text: string) => void
   onMergeQueuedTurns: (paneId: string) => void
@@ -161,6 +162,8 @@ export interface TabAgenticPlaneProps {
   onSelectThread: (paneId: string, threadId: string) => void
   /** Abre el chat del agente y selecciona un hilo desde la card mini del plano. */
   onOpenAgentThread?: (paneId: string, threadId: string) => void
+  /** Clic en la card o contextos: abre chat en el hilo por defecto. */
+  onOpenAgentFromCard?: (paneId: string) => void
   /** Retitula la conversación activa del agente. */
   onRenameThread: (paneId: string, title: string) => void
   /** Conversaciones del agente con el chat abierto. */
@@ -170,6 +173,10 @@ export interface TabAgenticPlaneProps {
   openChatAgentId: string | null
   /** paneId con creación de conversación pendiente (queda "+" bloqueado hasta aplicar). */
   newThreadPendingPaneId?: string | null
+  /** Aviso de cola humana llena para el agente del chat abierto. */
+  queueFullNotice?: { paneId: string; text: string; at: number } | null
+  /** Cierra el aviso de cola llena (escribir o timeout en el composer). */
+  onQueueFullNoticeDismiss?: () => void
   /** Abre/cambia el chat, o lo cierra con `null`. */
   onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
@@ -315,7 +322,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   tabContexts,
   contextCatalog = [],
   onToggleAgentContext,
-  onToggleLoop,
   onRemoveQueuedTurn,
   onUpdateQueuedTurn,
   onMergeQueuedTurns,
@@ -350,11 +356,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onNewThread,
   onSelectThread,
   onOpenAgentThread,
+  onOpenAgentFromCard,
   onRenameThread,
   openChatThreads = [],
   openChatActiveThreadId = '',
   openChatAgentId,
   newThreadPendingPaneId = null,
+  queueFullNotice = null,
+  onQueueFullNoticeDismiss,
   onOpenChatAgentChange,
   agentStatuses = {},
   projectAgents = [],
@@ -448,6 +457,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const liveBrainstormRooms = useMemo(
     () => brainstormRooms.filter(room => isBrainstormLive(room.status)),
     [brainstormRooms],
+  )
+  const { liveByChainId, liveCount: liveLoopCount, livePulse: liveLoopPulse } = useLoopChainLiveState(
+    loopChains,
+    onLoopChainsChange,
   )
   // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
   const [wikiNodeModals, setWikiNodeModals] = useState<WikiNodeModalState[]>([])
@@ -605,7 +618,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           title: entity.title,
           monogram: entity.monogram,
           busy: Boolean(status?.busy ?? entity.busy),
-          loopActive: Boolean(status?.loopActive),
           awaitingDelegations: Boolean(status?.awaitingDelegations),
           delegationWorkActive: Boolean(status?.delegationWorkActive || entity.delegationWorkActive),
           orchestratorBusy: Boolean(status?.orchestratorBusy),
@@ -620,11 +632,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       .map(entity => {
         const status = agentStatuses[entity.paneId]
         return {
-          paneId: entity.paneId,
+          agentId: entity.agentId ?? entity.paneId,
           title: entity.title,
+          monogram: entity.monogram,
           busy: Boolean(status?.busy ?? entity.busy),
-          loopActive: Boolean(status?.loopActive),
-          loopMode: Boolean(status?.loopMode),
           provider: entity.provider,
         }
       }),
@@ -677,6 +688,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     onOpenChatAgentChange(paneId)
   }
 
+  const openAgentFromCard = useCallback((paneId: string): void => {
+    if (onOpenAgentFromCard) {
+      onOpenAgentFromCard(paneId)
+      return
+    }
+    onOpenChatAgentChange(paneId)
+  }, [onOpenAgentFromCard, onOpenChatAgentChange])
+
   const closeChatAgent = (): void => {
     onOpenChatAgentChange(null)
   }
@@ -712,8 +731,20 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const anyWindowOpen = entities.some(entity => entity.window.open)
     || Boolean(explorerState?.open)
 
-  const showIdleGravity = !anyFullscreen && !quickChatShowing
+  const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen && !brainstormOverlayOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
+
+  const composerWorking = Boolean(
+    openChatAgentId
+    && quickChatStatus
+    && (
+      quickChatStatus.busy
+      || quickChatStatus.awaitingDelegations
+      || quickChatStatus.delegationWorkActive
+    ),
+  )
+  const floorAuroraActive = planeFloorAuroraActive(composerWorking, wikiMapOpen)
+    && !anyWindowOpen
 
   return (
     <div
@@ -723,6 +754,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         ['--plane-chat-column-width' as string]: `${chatColumnWidth || PLANE_CHAT_BASE_WIDTH}px`,
         ['--plane-chat-stack-z' as string]: `${PLANE_CHAT_STACK_Z}`,
         ['--plane-chrome-stack-z' as string]: `${PLANE_CHROME_STACK_Z}`,
+        ['--plane-elevated-map-z' as string]: `${PLANE_ELEVATED_MAP_Z}`,
       }}
       onPointerDown={event => {
         if (event.button !== 0) return
@@ -800,6 +832,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           <PlaneLoopsButton
             label={loopsButtonLabel}
             pressed={loopsOpen}
+            liveCount={liveLoopCount}
+            livePulse={liveLoopPulse}
             onClick={() => onLoopsOpenChange(!loopsOpen)}
           />
           <PlanePulseButton
@@ -891,6 +925,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         open={loopsOpen && !anyFullscreen && tabActive}
         agents={loopAgents}
         chains={loopChains}
+        liveByChainId={liveByChainId}
         canStartChains={canStartLoopChains}
         startBlockedHint={startLoopChainsBlockedHint}
         onClose={() => onLoopsOpenChange(false)}
@@ -903,6 +938,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         entities={entities}
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
+        chatTopFadeVisible={quickChatVisible}
+        chatFloorGlowVisible={!anyFullscreen && !wikiMapOpen}
+        chatFloorGlowWorking={composerWorking}
         tabActive={tabActive}
         seatDragEnabled={brainstormView === 'setup'}
         stageHidden={wikiMapOpen}
@@ -952,7 +990,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onFocusWindow={onFocusWindow}
         onToggleFullscreen={onToggleFullscreen}
         onOpenConfig={onOpenConfig}
-        onOpenChat={openChatAgent}
+        onOpenChat={openAgentFromCard}
         onDeletePane={onDeletePane}
         onRenamePane={onRenamePane}
         onAssignContext={onAssignContext}
@@ -1026,22 +1064,15 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
-              loopMode={Boolean(quickChatStatus?.loopMode)}
-              loopActive={Boolean(quickChatStatus?.loopActive)}
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
               runningThreadIds={openChatRunningThreadIds}
-              // Cambiar de conversación con un loop vivo dejaría el stream escribiendo
-              // en el transcript equivocado. El "+" solo se bloquea con loop activo o
-              // mientras hay una creación pendiente aplicándose post-settle; un turno
-              // normal sí puede solicitarla y cambiar de hilo promueve el activo a fondo.
-              threadSelectionLocked={Boolean(quickChatStatus?.loopActive)}
+              // Cambiar de conversación con un turno vivo promueve el activo a fondo.
+              threadSelectionLocked={false}
               newThreadLocked={Boolean(
-                quickChatStatus?.loopActive
-                || (newThreadPendingPaneId && newThreadPendingPaneId === openChatAgentId),
+                newThreadPendingPaneId && newThreadPendingPaneId === openChatAgentId,
               )}
-              onToggleLoop={() => onToggleLoop(openChatAgentId)}
               onClearConversation={() => onClearConversation(openChatAgentId)}
               onNewThread={() => onNewThread(openChatAgentId)}
               onSelectThread={threadId => onSelectThread(openChatAgentId, threadId)}
@@ -1075,12 +1106,17 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               agents={agents}
               contexts={tabContexts}
               selectedAgentId={openChatAgentId}
-              suppressAuroraParticles={anyWindowOpen}
               placeholder={chatPlaceholder}
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}
               queuedTurns={quickChatStatus?.queuedTurns ?? []}
               agentCatalog={projectAgents}
+              queueFullNotice={
+                queueFullNotice && queueFullNotice.paneId === openChatAgentId
+                  ? queueFullNotice
+                  : null
+              }
+              onQueueFullNoticeDismiss={onQueueFullNoticeDismiss}
               onSelectAgent={openChatAgent}
               onCloseChat={closeChatAgent}
               onStop={onStopChat}
@@ -1098,6 +1134,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           )}
         />
       )}
+
+      {!anyFullscreen && !wikiMapOpen ? (
+        <div
+          className={[
+            'plane-floor-aurora',
+            floorAuroraActive ? 'plane-floor-aurora--active' : '',
+          ].filter(Boolean).join(' ')}
+          aria-hidden="true"
+        >
+          <PlaneComposerAuroraParticles active={floorAuroraActive} tabActive={tabActive} />
+        </div>
+      ) : null}
 
       {!anyFullscreen && !wikiMapOpen && (
         <PlaneFabStack

@@ -1,13 +1,13 @@
-import React, { useState } from 'react'
-import { Button, Icon, Input, Select, Tooltip } from '../components/ui'
+import React, { useMemo, useState } from 'react'
+import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
 import { sortThreadsByRecency, type AgentThread } from '@shared/agentThreads'
-import { PlaneChatLoopButton } from './PlaneChatLoopButton'
+import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
 import './PlaneChatComposer.css'
+import './PlaneChatContextsBar.css'
 
 export interface PlaneChatContextsBarProps {
-  loopMode: boolean
-  loopActive: boolean
   canClearConversation?: boolean
   /** Conversaciones del agente abierto; vacío oculta el selector. */
   threads?: readonly AgentThread[]
@@ -25,7 +25,6 @@ export interface PlaneChatContextsBarProps {
    * se permite pedirla y aplicarla en diferido al cerrar el turno.
    */
   newThreadLocked?: boolean
-  onToggleLoop: () => void
   onClearConversation?: () => void
   onSelectThread?: (threadId: string) => void
   onNewThread?: () => void
@@ -33,22 +32,26 @@ export interface PlaneChatContextsBarProps {
   onRenameThread?: (title: string) => void
 }
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
+/** Hilos visibles en la barra: conversación activa + las que están corriendo. */
+function visibleThreads(
+  threads: readonly AgentThread[],
+  activeThreadId: string,
+  runningThreadIds: readonly string[],
+): AgentThread[] {
+  const ids = new Set<string>()
+  if (activeThreadId) ids.add(activeThreadId)
+  for (const id of runningThreadIds) ids.add(id)
+  return sortThreadsByRecency(threads.filter(thread => ids.has(thread.id)))
+}
 
-/** Controles encima del chat (loop y conversaciones). */
+/** Controles encima del chat (conversaciones). */
 export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
-  loopMode,
-  loopActive,
   canClearConversation = false,
   threads = [],
   activeThreadId = '',
   runningThreadIds = [],
   threadSelectionLocked = false,
   newThreadLocked = false,
-  onToggleLoop,
   onClearConversation,
   onSelectThread,
   onNewThread,
@@ -56,13 +59,23 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
 }) => {
   const { t } = useT()
   const showThreads = threads.length > 0 && Boolean(onSelectThread)
-  /** `null` = no se está renombrando; el selector ocupa su lugar. */
-  const [draftTitle, setDraftTitle] = useState<string | null>(null)
-  const activeThread = threads.find(thread => thread.id === activeThreadId)
+  const chips = useMemo(
+    () => visibleThreads(threads, activeThreadId, runningThreadIds),
+    [threads, activeThreadId, runningThreadIds],
+  )
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
 
   const commitRename = (): void => {
-    if (draftTitle !== null) onRenameThread?.(draftTitle)
-    setDraftTitle(null)
+    if (editingThreadId === null) return
+    onRenameThread?.(draftTitle)
+    setEditingThreadId(null)
+    setDraftTitle('')
+  }
+
+  const startRename = (thread: AgentThread): void => {
+    setEditingThreadId(thread.id)
+    setDraftTitle(thread.title || '')
   }
 
   return (
@@ -70,67 +83,91 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       className="plane-chat-composer__contexts"
       aria-label={t('tabContexts.composerSection')}
     >
-      <div className="plane-chat-composer__contexts-stack">
-        <PlaneChatLoopButton
-          pressed={loopMode}
-          active={loopActive}
-          disabled={loopActive}
-          label={t('agentPane.loopBar')}
-          ariaLabel={t('agentPane.loopTitle')}
-          onClick={onToggleLoop}
-        />
-
+      <div className="plane-chat-contexts-bar__stack">
         {showThreads ? (
-          <>
-            <div className="plane-chat-composer__bar-sep" aria-hidden="true" />
-            {/* El Input del kit ocupa el 100%; el Select en ghost se auto-ajusta. */}
-            <div className="plane-chat-composer__threads">
-              {draftTitle === null ? (
-                <Select
-                  size="sm"
-                  variant="ghost"
-                  value={activeThreadId}
-                  disabled={threadSelectionLocked}
-                  aria-label={t('agentPane.threadsLabel')}
-                  options={sortThreadsByRecency(threads).map(thread => ({
-                    value: thread.id,
-                    label: thread.title || t('agentPane.threadUntitled'),
-                    ...(thread.updatedAt ? { hint: dateFormat.format(thread.updatedAt) } : {}),
-                    ...(runningThreadIds.includes(thread.id) ? { busy: true } : {}),
-                  }))}
-                  onChange={threadId => onSelectThread?.(threadId)}
-                />
-              ) : (
-                <Input
-                  size="sm"
-                  autoFocus
-                  value={draftTitle}
-                  aria-label={t('agentPane.threadRename')}
-                  placeholder={t('agentPane.threadUntitled')}
-                  onChange={event => setDraftTitle(event.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') commitRename()
-                    if (event.key === 'Escape') setDraftTitle(null)
-                  }}
-                />
-              )}
-            </div>
-            {onRenameThread ? (
-              <Tooltip content={t('agentPane.threadRename')}>
-                <Button
-                  variant="icon"
-                  size="sm"
-                  aria-label={t('agentPane.threadRename')}
-                  // Solo abre: el blur del input ya cierra y guarda, así que un
-                  // toggle aquí se pelearía con él y reabriría al instante.
-                  disabled={draftTitle !== null}
-                  onClick={() => setDraftTitle(activeThread?.title ?? '')}
+          <div
+            className="plane-chat-contexts-bar__chips"
+            role="tablist"
+            aria-label={t('agentPane.threadsLabel')}
+          >
+            {chips.map(thread => {
+              const isActive = thread.id === activeThreadId
+              const isRunning = runningThreadIds.includes(thread.id)
+              const isEditing = editingThreadId === thread.id
+              const title = thread.title || t('agentPane.threadUntitled')
+              const switchDisabled = threadSelectionLocked && !isActive
+
+              if (isEditing) {
+                return (
+                  <div
+                    key={thread.id}
+                    className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--editing"
+                    role="presentation"
+                  >
+                    <Input
+                      size="sm"
+                      autoFocus
+                      value={draftTitle}
+                      aria-label={t('agentPane.threadRename')}
+                      placeholder={t('agentPane.threadUntitled')}
+                      onChange={event => setDraftTitle(event.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') commitRename()
+                        if (event.key === 'Escape') {
+                          setEditingThreadId(null)
+                          setDraftTitle('')
+                        }
+                      }}
+                    />
+                  </div>
+                )
+              }
+
+              return (
+                <div
+                  key={thread.id}
+                  className={[
+                    'plane-chat-contexts-bar__chip',
+                    isActive ? 'plane-chat-contexts-bar__chip--active' : '',
+                  ].filter(Boolean).join(' ')}
+                  role="presentation"
                 >
-                  <Icon name="pencil" size={13} />
-                </Button>
-              </Tooltip>
-            ) : null}
+                  <button
+                    type="button"
+                    role="tab"
+                    className="plane-chat-contexts-bar__chip-tab"
+                    aria-selected={isActive}
+                    aria-label={title}
+                    disabled={switchDisabled}
+                    onClick={() => {
+                      if (!isActive) onSelectThread?.(thread.id)
+                    }}
+                  >
+                    {isRunning ? <PlaneBusyDot size="sm" /> : null}
+                    <span className="plane-chat-contexts-bar__chip-label">{title}</span>
+                  </button>
+                  {onRenameThread ? (
+                    <button
+                      type="button"
+                      className="plane-chat-contexts-bar__chip-edit"
+                      aria-label={t('agentPane.threadRename')}
+                      onClick={event => {
+                        event.stopPropagation()
+                        startRename(thread)
+                      }}
+                    >
+                      <Icon name="pencil" size={12} />
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+
+        {onNewThread || onClearConversation || showThreads ? (
+          <div className="plane-chat-contexts-bar__actions">
             {onNewThread ? (
               <Tooltip content={t('agentPane.threadNew')} hint={t('agentPane.threadNewHint')}>
                 <Button
@@ -144,26 +181,29 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                 </Button>
               </Tooltip>
             ) : null}
-          </>
-        ) : null}
-
-        {onClearConversation ? (
-          <>
-            {showThreads ? null : (
-              <div className="plane-chat-composer__bar-sep" aria-hidden="true" />
-            )}
-            <Tooltip content={t('agentPane.clearConversation')}>
-              <Button
-                variant="icon"
-                size="sm"
-                aria-label={t('agentPane.clearConversation')}
-                disabled={!canClearConversation}
-                onClick={onClearConversation}
-              >
-                <Icon name="trash" size={13} />
-              </Button>
-            </Tooltip>
-          </>
+            {showThreads && onSelectThread ? (
+              <PlaneChatThreadHistoryButton
+                threads={threads}
+                activeThreadId={activeThreadId}
+                runningThreadIds={runningThreadIds}
+                threadSelectionLocked={threadSelectionLocked}
+                onSelectThread={onSelectThread}
+              />
+            ) : null}
+            {onClearConversation ? (
+              <Tooltip content={t('agentPane.clearConversation')}>
+                <Button
+                  variant="icon"
+                  size="sm"
+                  aria-label={t('agentPane.clearConversation')}
+                  disabled={!canClearConversation}
+                  onClick={onClearConversation}
+                >
+                  <Icon name="trash" size={13} />
+                </Button>
+              </Tooltip>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>

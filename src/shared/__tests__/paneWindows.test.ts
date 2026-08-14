@@ -8,6 +8,7 @@ import {
   computePlaneChatColumnWidth,
   computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
+  computePlaneAgentContextIconsPerRow,
   computeStandardPaneWindowGeometry,
   createPaneWindowState,
   ensurePaneWindows,
@@ -151,10 +152,18 @@ describe('paneWindows', () => {
     expect(clampPlaneColumnScroll(37, 10_000)).toBe(0)
   })
 
+  it('computes context icons per row from mini cell width', () => {
+    expect(computePlaneAgentContextIconsPerRow(PLANE_MINI_WINDOW_WIDTH)).toBe(6)
+    expect(computePlaneAgentContextIconsPerRow(128)).toBe(3)
+    expect(computePlaneAgentContextIconsPerRow(40)).toBe(1)
+  })
+
   it('estimates mini agent height from CSS chrome, not AABB', () => {
     expect(estimatePlaneAgentMiniHeight(0)).toBe(84)
-    expect(estimatePlaneAgentMiniHeight(1)).toBe(87)
-    expect(estimatePlaneAgentMiniHeight(3)).toBe(2 + 8 + 22 + 6 + 17 + 6 + 54 + 8)
+    expect(estimatePlaneAgentMiniHeight(1)).toBe(89)
+    expect(estimatePlaneAgentMiniHeight(3)).toBe(89)
+    expect(estimatePlaneAgentMiniHeight(6)).toBe(89)
+    expect(estimatePlaneAgentMiniHeight(6, 128)).toBe(2 + 8 + 22 + 6 + 17 + 8 + 40 + 8)
   })
 
   it('readPlaneMiniAgentLayoutHeight uses offsetHeight, not getBoundingClientRect', () => {

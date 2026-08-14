@@ -1,0 +1,11 @@
+.plane-queue-full-notice {
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning, #f5a524) 14%, transparent);
+  color: color-mix(in srgb, var(--warning, #f5a524) 88%, var(--text));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+}

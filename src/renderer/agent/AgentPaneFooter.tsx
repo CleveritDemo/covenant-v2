@@ -15,9 +15,7 @@ export interface AgentPanePendingImage {
 export interface AgentPaneFooterProps {
   pendingImages: AgentPanePendingImage[]
   composerDisabled: boolean
-  loopMode: boolean
   busy: boolean
-  loopActive: boolean
   awaitingDelegations: boolean
   delegationWorkActive: boolean
   orchestratorBusy: boolean
@@ -25,7 +23,6 @@ export interface AgentPaneFooterProps {
   orchestrationWorkStyle?: 'linear' | 'turbo'
   input: string
   showStop: boolean
-  showPlay: boolean
   composerInputRef: React.Ref<HTMLTextAreaElement>
   onInputChange: (value: string) => void
   onComposerPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void
@@ -52,16 +49,13 @@ export interface AgentPaneFooterProps {
 export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   pendingImages,
   composerDisabled,
-  loopMode,
   busy,
-  loopActive,
   awaitingDelegations,
   delegationWorkActive,
   orchestratorBusy,
   orchestrationWorkStyle = 'linear',
   input,
   showStop,
-  showPlay,
   composerInputRef,
   onInputChange,
   onComposerPaste,
@@ -77,26 +71,20 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   const [dictationError, setDictationError] = useState('')
   const sendMode = showStop
     ? 'stop'
-    : showPlay
-      ? 'play'
-      : (!input.trim() && pendingImages.length === 0 ? 'mic' : 'send')
+    : (!input.trim() && pendingImages.length === 0 ? 'mic' : 'send')
   const sendLabel = showStop
     ? t('agentPane.stop')
-    : showPlay
-      ? t('agentPane.loopStart')
-      : sendMode === 'mic'
-        ? t('agentPane.dictationHold')
-        : t('agentPane.send')
+    : sendMode === 'mic'
+      ? t('agentPane.dictationHold')
+      : t('agentPane.send')
   const turboAwaitingOpen = orchestrationWorkStyle === 'turbo'
     && awaitingDelegations
     && !busy
-  const composerPlaceholder = loopActive || loopMode
-    ? t('agentPane.loopPlaceholder')
-    : turboAwaitingOpen
-      ? t('agentPane.turboAwaitingPlaceholder')
-      : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-        ? t('agentPane.queuePlaceholder')
-        : t('agentPane.placeholder')
+  const composerPlaceholder = turboAwaitingOpen
+    ? t('agentPane.turboAwaitingPlaceholder')
+    : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+      ? t('agentPane.queuePlaceholder')
+      : t('agentPane.placeholder')
 
   const mapDictationError = useCallback((code: string): string => {
     const kind = classifyDictationError(code)
@@ -145,7 +133,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
         </div>
       )}
 
-      <div className={['agent-pane__composer', loopMode ? 'agent-pane__composer--loop' : ''].filter(Boolean).join(' ')}>
+      <div className="agent-pane__composer">
         <textarea
           ref={composerInputRef}
           value={input}
@@ -166,7 +154,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           mode={sendMode}
           label={sendMode === 'mic' ? micLabel : sendLabel}
           listening={listening}
-          disabled={composerDisabled && !showStop && !showPlay}
+          disabled={composerDisabled && !showStop}
           onClick={onSendClick}
           onMicStart={startDictation}
           onMicStop={stopDictation}

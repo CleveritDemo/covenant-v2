@@ -76,7 +76,11 @@ import {
   type AgentPlaneQueueControls,
   type PlaneSendDelegation,
 } from './agent/AgentPane'
-import { isHumanQueuedTurn, queuedTurnHumanKey } from './agent/queuedTurnDedup'
+import {
+  isHumanQueuedTurn,
+  queuedTurnSourceSendIds,
+  shouldClearPlaneSendForRemovedQueuedTurn,
+} from './agent/queuedTurnDedup'
 import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
 import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds } from './agent/paneWorkActive'
@@ -119,6 +123,7 @@ import {
   listJobsForPane,
   markPendingSawBusyForPane,
   occupiedTargetPaneIdsAcrossAllJobs,
+  orchestratorPanesWithDeferredForPane,
   pendingOrchestratorIdsFromJobs,
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
@@ -163,6 +168,7 @@ import {
   MAX_VISIBLE_QUEUED_TURNS,
   takeNextHumanSend,
 } from '@shared/planeHumanSendFifo'
+import { shouldPromoteHumanSendToVisibleQueue } from './agent/agentInputGuards'
 import {
   applyDelegationLaneStop,
   clearPlaneSendsForOrchestrationAbort,
@@ -237,8 +243,10 @@ import {
   DEFAULT_THREAD_ID,
   pruneCompletedDelegationThreads,
   renameThread,
+  resolveCardOpenThreadId,
+  resolvePreferredHumanThreadId,
   sanitizeThreadState,
-  selectThread,
+  selectThreadOpened,
   threadPatch,
 } from '../shared/agentThreads'
 import { buildBootstrapProjectAgentDefinitions } from '../shared/projectAgentBootstrap'
@@ -276,27 +284,9 @@ import {
   type OrgWorkspaceRequirementState,
 } from './components/OrgWorkspaceRequirementModal'
 import {
-  removePaneFromLoopChains,
-  activeLoopChainPaneIds,
-  chainHasPane,
+  removeAgentFromLoopChains,
   planeLoopChainsForPersist,
 } from '../shared/planeLoopChain'
-import {
-  advanceLoopChainAfterStep,
-  resumeLoopChainAfterWait,
-  startLoopChain,
-  stopLoopChain,
-  type LoopOrchestratorAction,
-} from './workspace/loopOrchestrator'
-import {
-  createLoopChainFifoItem,
-  dequeueLoopChainFifoHead,
-  enqueueLoopChainFifo,
-  removeLoopChainFromFifo,
-  removePaneFromFifo,
-  type LoopChainFifoItem,
-  type LoopChainTurnWait,
-} from './workspace/loopChainFifo'
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
@@ -492,7 +482,6 @@ export const App: React.FC = () => {
   const [agentPlaneStatus, setAgentPlaneStatus] = useState<Record<string, AgentPlaneStatus>>({})
   const agentPlaneStatusRef = useRef(agentPlaneStatus)
   agentPlaneStatusRef.current = agentPlaneStatus
-  const planeLoopToggleByPaneRef = useRef(new Map<string, () => void>())
   const planeQueueControlsByPaneRef = useRef(new Map<string, AgentPlaneQueueControls>())
   const [tabContextsByTab, setTabContextsByTab] = useState<Record<string, TabContext[]>>({})
   /** Fuerza rediscovery de contextos en AgentPane tras rename de results. */
@@ -536,8 +525,9 @@ export const App: React.FC = () => {
   const [planeSendByPane, setPlaneSendByPane] = useState<Record<string, {
     text: string
     images: AgentCliImageAttachment[]
+    /** Identidad del envío: el pane consume una sola vez por sendId. */
+    sendId?: string
     focusPane?: boolean
-    viaLoop?: boolean
     /** Contextos adjuntos solo a este turno (drop en el composer). */
     extraContextIds?: string[]
     orchestrationFollowUp?: boolean
@@ -548,6 +538,11 @@ export const App: React.FC = () => {
   const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeNewThreadPaneId, setPlaneNewThreadPaneId] = useState<string | null>(null)
+  const [planeQueueFullNotice, setPlaneQueueFullNotice] = useState<{
+    paneId: string
+    text: string
+    at: number
+  } | null>(null)
   const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
   planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
@@ -570,32 +565,28 @@ export const App: React.FC = () => {
   const [brainstormDockOpenByTab, setBrainstormDockOpenByTab] = useState<Record<string, boolean>>({})
   /** Estado vivo por sala: la clave es el `roomId`, no el tab. */
   const [brainstormLiveByRoomId, setBrainstormLiveByRoomId] = useState<Record<string, BrainstormLiveSummary>>({})
-  const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   const [humanSendFifoTick, setHumanSendFifoTick] = useState(0)
   /** Override efímero de cwd por-pane (paneId → worktree absoluto); Fase 3, no persistido. */
   const [paneCwdOverrideTick, setPaneCwdOverrideTick] = useState(0)
   const paneCwdOverrideRef = useRef(new Map<string, string>())
-  const chainFifoByPaneRef = useRef(new Map<string, LoopChainFifoItem[]>())
-  const chainOfferByPaneRef = useRef(new Map<string, LoopChainFifoItem>())
-  const chainTurnWaitRef = useRef(new Map<string, LoopChainTurnWait>())
-  const chainWaitTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const prevBusyByPaneRef = useRef<Record<string, boolean>>({})
   /** Cola de envíos de orquestación (delegaciones + follow-ups) por pane. */
   const orchestrationFifoByPaneRef = useRef(new Map<string, Array<{
     text: string
     images: AgentCliImageAttachment[]
+    sendId?: string
     focusPane?: boolean
     orchestrationFollowUp?: boolean
     allowDelegations?: boolean
     orchestrationJobId?: string
     delegation?: PlaneSendDelegation
   }>>())
+  const humanDirectDrainInFlightRef = useRef(new Set<string>())
   const humanSendFifoByPaneRef = useRef(new Map<string, Array<{
     text: string
     images: AgentCliImageAttachment[]
+    sendId?: string
     focusPane?: boolean
-    viaLoop?: boolean
     extraContextIds?: string[]
     orchestrationFollowUp?: boolean
     allowDelegations?: boolean
@@ -687,7 +678,7 @@ export const App: React.FC = () => {
     // No reconciliar pending recién creado: el pane aún idle con lastSnippet viejo.
     for (const toPaneId of occupiedTargetPaneIdsAcrossAllJobs(byPane)) {
       const status = agentPlaneStatusRef.current[toPaneId]
-      if (!status || status.busy || status.awaitingDelegations || status.localLoopActive) continue
+      if (!status || status.busy || status.awaitingDelegations) continue
       const pending = findPendingDelegationByToPane(byPane, toPaneId)
       if (!pending || !canReconcileIdlePending(pending.sawBusy, {
         startedAt: pending.startedAt,
@@ -795,14 +786,7 @@ export const App: React.FC = () => {
       termRefs.current.delete(paneId)
       splitSpawnCwdRef.current.delete(paneId)
       delete cwdsRef.current[paneId]
-      planeLoopToggleByPaneRef.current.delete(paneId)
       planeQueueControlsByPaneRef.current.delete(paneId)
-      removePaneFromFifo(chainFifoByPaneRef.current, paneId)
-      chainOfferByPaneRef.current.delete(paneId)
-      for (const [chainId, wait] of [...chainTurnWaitRef.current.entries()]) {
-        if (wait.paneId === paneId) chainTurnWaitRef.current.delete(chainId)
-      }
-      delete prevBusyByPaneRef.current[paneId]
     }
     setPaneCwds(prev => {
       let changed = false
@@ -2670,12 +2654,15 @@ export const App: React.FC = () => {
       const planeOpenChatAgentId = tab.planeOpenChatAgentId === paneId
         ? null
         : (tab.planeOpenChatAgentId ?? null)
+      const removedAgentId = tab.agentByPane?.[paneId]?.agentId?.trim()
       const planeLoopLinks = (tab.planeLoopLinks ?? []).filter(
-        link => link.fromPaneId !== paneId && link.toPaneId !== paneId,
+        link => link.fromPaneId !== removedAgentId && link.toPaneId !== removedAgentId,
       )
       const planeLoopNodePositions = { ...(tab.planeLoopNodePositions ?? {}) }
-      delete planeLoopNodePositions[paneId]
-      const planeLoopChains = removePaneFromLoopChains(tab.planeLoopChains ?? [], paneId)
+      if (removedAgentId) delete planeLoopNodePositions[removedAgentId]
+      const planeLoopChains = removedAgentId
+        ? removeAgentFromLoopChains(tab.planeLoopChains ?? [], removedAgentId)
+        : (tab.planeLoopChains ?? [])
       const {
         panePlaneNodes: _legacyPlaneNodes,
         ...tabBase
@@ -2702,20 +2689,25 @@ export const App: React.FC = () => {
       delete next[paneId]
       return next
     })
-    removePaneFromFifo(chainFifoByPaneRef.current, paneId)
-    chainOfferByPaneRef.current.delete(paneId)
+    orchestrationFifoByPaneRef.current.delete(paneId)
     setPlaneSendByPane(prev => {
       if (!(paneId in prev)) return prev
       const next = { ...prev }
       delete next[paneId]
       return next
     })
-    for (const [chainId, wait] of [...chainTurnWaitRef.current.entries()]) {
-      if (wait.paneId === paneId) chainTurnWaitRef.current.delete(chainId)
-    }
-    delete prevBusyByPaneRef.current[paneId]
-    planeLoopToggleByPaneRef.current.delete(paneId)
     planeQueueControlsByPaneRef.current.delete(paneId)
+    humanDirectDrainInFlightRef.current.delete(paneId)
+    const pendingHumanFifo = humanSendFifoByPaneRef.current.get(paneId)
+    if (pendingHumanFifo) {
+      for (const item of pendingHumanFifo) {
+        for (const image of item.images) {
+          const previewUrl = (image as { previewUrl?: string }).previewUrl
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+        }
+      }
+      humanSendFifoByPaneRef.current.delete(paneId)
+    }
     // QA fix: no dejar worktrees/ramas huérfanos si se cierra el orquestador o el pane
     // especialista que estaba ejecutando una delegación en un worktree dedicado.
     void cleanupWorktreesForPane(paneId)
@@ -3483,12 +3475,10 @@ export const App: React.FC = () => {
         && previous.delegationWorkActive === status.delegationWorkActive
         && previous.orchestratorBusy === status.orchestratorBusy
         && previous.orchestrationWorkStyle === status.orchestrationWorkStyle
-        && previous.loopMode === status.loopMode
-        && previous.loopActive === status.loopActive
-        && previous.localLoopActive === status.localLoopActive
         && previous.turnCloseReason === status.turnCloseReason
-        && previous.loopEndReason === status.loopEndReason
         && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
+        && JSON.stringify(previous.runningThreadActivities ?? {})
+          === JSON.stringify(status.runningThreadActivities ?? {})
         && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
@@ -3503,7 +3493,6 @@ export const App: React.FC = () => {
         previous?.busy
         && !status.busy
         && !status.awaitingDelegations
-        && !status.localLoopActive
       ) {
         const pending = findPendingDelegationByToPane(
           orchestrationJobsByPaneRef.current,
@@ -3527,25 +3516,6 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const handlePlaneLoopToggleReady = useCallback((paneId: string, toggle: (() => void) | null) => {
-    if (toggle) planeLoopToggleByPaneRef.current.set(paneId, toggle)
-    else planeLoopToggleByPaneRef.current.delete(paneId)
-  }, [])
-
-  const handlePlaneToggleLoop = useCallback((paneId: string) => {
-    planeLoopToggleByPaneRef.current.get(paneId)?.()
-  }, [])
-
-  const yieldChainOfferForUserSend = useCallback((paneId: string) => {
-    const offer = chainOfferByPaneRef.current.get(paneId)
-    if (!offer) return
-    chainOfferByPaneRef.current.delete(paneId)
-    chainTurnWaitRef.current.delete(offer.chainId)
-    const rest = chainFifoByPaneRef.current.get(paneId) ?? []
-    chainFifoByPaneRef.current.set(paneId, [offer, ...rest.filter(item => item.id !== offer.id)])
-    setLoopFifoTick(n => n + 1)
-  }, [])
-
   const handleLoopChainsChange = useCallback((tabId: string, chains: PlaneLoopChain[]) => {
     setTabs(prev => {
       const nextTabs = prev.map(tab => {
@@ -3561,207 +3531,28 @@ export const App: React.FC = () => {
     void saveSessionNow()
   }, [saveSessionNow])
 
-  const patchLoopChain = useCallback((
-    tabId: string,
-    chainId: string,
-    updater: (chain: PlaneLoopChain) => PlaneLoopChain,
-  ): PlaneLoopChain | null => {
-    let updated: PlaneLoopChain | null = null
-    setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        const chains = tab.planeLoopChains ?? []
-        const nextChains = chains.map(chain => {
-          if (chain.id !== chainId) return chain
-          updated = updater(chain)
-          return updated
-        })
-        return {
-          ...tab,
-          ...(nextChains.length
-            ? { planeLoopChains: nextChains }
-            : { planeLoopChains: undefined }),
-        }
-      })
-      tabsRef.current = nextTabs
-      return nextTabs
-    })
-    void saveSessionNow()
-    return updated
-  }, [saveSessionNow])
-
-  const clearChainWaitTimer = useCallback((chainId: string) => {
-    const timer = chainWaitTimersRef.current.get(chainId)
-    if (timer) {
-      clearTimeout(timer)
-      chainWaitTimersRef.current.delete(chainId)
-    }
-  }, [])
-
-  const enqueueChainAction = useCallback((
-    tabId: string,
-    chainId: string,
-    action: LoopOrchestratorAction,
-  ) => {
-    if (action.type === 'noop') return
-    if (action.type === 'send_step') {
-      const item = createLoopChainFifoItem({
-        tabId,
-        chainId,
-        stepIndex: action.stepIndex,
-        paneId: action.paneId,
-        text: action.objective,
-      })
-      const queue = chainFifoByPaneRef.current.get(action.paneId) ?? []
-      chainFifoByPaneRef.current.set(
-        action.paneId,
-        enqueueLoopChainFifo(queue, item),
-      )
-      setLoopFifoTick(n => n + 1)
-      return
-    }
-    if (action.type === 'start_wait') {
-      clearChainWaitTimer(chainId)
-      const timer = setTimeout(() => {
-        chainWaitTimersRef.current.delete(chainId)
-        const tab = tabsRef.current.find(item => item.id === tabId)
-        const chain = tab?.planeLoopChains?.find(item => item.id === chainId)
-        if (!chain || chain.status !== 'waiting') return
-        const resumed = resumeLoopChainAfterWait(chain)
-        patchLoopChain(tabId, chainId, () => resumed.chain)
-        enqueueChainAction(tabId, chainId, resumed.action)
-      }, action.intervalMs)
-      chainWaitTimersRef.current.set(chainId, timer)
-    }
-  }, [clearChainWaitTimer, patchLoopChain])
-
   const handleStartLoopChain = useCallback((tabId: string, chainId: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab?.projectFolder?.trim()) return
+    if (!tab) return
+    const cwd = tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || ''
+    if (!cwd) return
     const chain = tab.planeLoopChains?.find(item => item.id === chainId)
-    if (!chain) return
-    const started = startLoopChain(chain)
-    if (started.action.type === 'noop') return
-    patchLoopChain(tabId, chainId, () => started.chain)
-    enqueueChainAction(tabId, chainId, started.action)
-  }, [enqueueChainAction, patchLoopChain])
+    if (!chain || chain.steps.length === 0) return
+    if (chain.status === 'running' || chain.status === 'waiting') return
+    const catalogKey = tabAgentCatalogKey(tab)
+    window.api.startLoopChain({
+      chainId: chain.id,
+      steps: chain.steps,
+      intervalMs: chain.intervalMs,
+      cwd,
+      agents: projectAgentsByCwdRef.current[catalogKey] ?? [],
+      contexts: tabContextsByTabRef.current[tabId] ?? [],
+    })
+  }, [])
 
-  const handleStopLoopChain = useCallback((tabId: string, chainId: string) => {
-    clearChainWaitTimer(chainId)
-    removeLoopChainFromFifo(chainFifoByPaneRef.current, chainId)
-    chainTurnWaitRef.current.delete(chainId)
-    for (const [paneId, offer] of [...chainOfferByPaneRef.current.entries()]) {
-      if (offer.chainId !== chainId) continue
-      chainOfferByPaneRef.current.delete(paneId)
-      setPlaneSendByPane(prev => {
-        if (!(paneId in prev)) return prev
-        const next = { ...prev }
-        delete next[paneId]
-        return next
-      })
-    }
-    patchLoopChain(tabId, chainId, chain => stopLoopChain(chain))
-    setLoopFifoTick(n => n + 1)
-  }, [clearChainWaitTimer, patchLoopChain])
-
-  const stopChainsForPane = useCallback((tabId: string, paneId: string) => {
-    const tab = tabsRef.current.find(item => item.id === tabId)
-    for (const chain of tab?.planeLoopChains ?? []) {
-      if (
-        (chain.status === 'running' || chain.status === 'waiting')
-        && chainHasPane(chain, paneId)
-      ) {
-        handleStopLoopChain(tabId, chain.id)
-      }
-    }
-  }, [handleStopLoopChain])
-
-  // Drena FIFO por agente: ofrece preferSend solo si el pane está idle.
-  useEffect(() => {
-    const queues = chainFifoByPaneRef.current
-    for (const paneId of [...queues.keys()]) {
-      if (chainOfferByPaneRef.current.has(paneId)) continue
-      if (planeSendByPane[paneId]) continue
-      const status = agentPlaneStatus[paneId]
-      if (status?.busy || status?.localLoopActive) continue
-      const peek = queues.get(paneId)?.[0]
-      if (!peek) continue
-      const tab = tabsRef.current.find(item => item.id === peek.tabId)
-      const chain = tab?.planeLoopChains?.find(item => item.id === peek.chainId)
-      if (!chain) {
-        // Ítem huérfano: sí descartar.
-        dequeueLoopChainFifoHead(queues, paneId)
-        continue
-      }
-      // No descartar si aún no está running (p. ej. estado stale); stop limpia la cola.
-      if (chain.status !== 'running') continue
-      const head = dequeueLoopChainFifoHead(queues, paneId)
-      if (!head) continue
-      chainOfferByPaneRef.current.set(paneId, head)
-      chainTurnWaitRef.current.set(head.chainId, {
-        tabId: head.tabId,
-        chainId: head.chainId,
-        paneId: head.paneId,
-        stepIndex: head.stepIndex,
-        phase: 'awaiting_busy',
-      })
-      setPlaneSendByPane(prev => {
-        if (prev[paneId]) {
-          // Otro offer ganó la carrera: devolver el head a la FIFO.
-          const q = queues.get(paneId) ?? []
-          q.unshift(head)
-          queues.set(paneId, q)
-          chainOfferByPaneRef.current.delete(paneId)
-          chainTurnWaitRef.current.delete(head.chainId)
-          return prev
-        }
-        return {
-          ...prev,
-          [paneId]: {
-            text: head.text,
-            images: [],
-            focusPane: false,
-            viaLoop: true,
-          },
-        }
-      })
-    }
-  }, [agentPlaneStatus, loopFifoTick, planeSendByPane])
-
-  // Avanza la cadena solo si el turno cerró con éxito (no stop/fallo).
-  useEffect(() => {
-    const prev = prevBusyByPaneRef.current
-    const nextPrev = { ...prev }
-    for (const [paneId, status] of Object.entries(agentPlaneStatus)) {
-      const wasBusy = Boolean(prev[paneId])
-      const isBusy = Boolean(status.busy)
-      nextPrev[paneId] = isBusy
-
-      const wait = [...chainTurnWaitRef.current.values()].find(item => item.paneId === paneId)
-      if (!wait) continue
-
-      if (!wasBusy && isBusy && wait.phase === 'awaiting_busy') {
-        chainTurnWaitRef.current.set(wait.chainId, { ...wait, phase: 'in_flight' })
-        continue
-      }
-      if (wasBusy && !isBusy && wait.phase === 'in_flight') {
-        chainTurnWaitRef.current.delete(wait.chainId)
-        chainOfferByPaneRef.current.delete(wait.paneId)
-        setLoopFifoTick(n => n + 1)
-        if (status.turnCloseReason !== 'completed') {
-          handleStopLoopChain(wait.tabId, wait.chainId)
-          continue
-        }
-        const tab = tabsRef.current.find(item => item.id === wait.tabId)
-        const chain = tab?.planeLoopChains?.find(item => item.id === wait.chainId)
-        if (!chain || chain.status !== 'running') continue
-        const advanced = advanceLoopChainAfterStep(chain)
-        patchLoopChain(wait.tabId, wait.chainId, () => advanced.chain)
-        enqueueChainAction(wait.tabId, wait.chainId, advanced.action)
-      }
-    }
-    prevBusyByPaneRef.current = nextPrev
-  }, [agentPlaneStatus, enqueueChainAction, handleStopLoopChain, patchLoopChain])
+  const handleStopLoopChain = useCallback((_tabId: string, chainId: string) => {
+    window.api.stopLoopChain(chainId)
+  }, [])
 
   const handlePlaneQueueControlsReady = useCallback((
     paneId: string,
@@ -3806,9 +3597,9 @@ export const App: React.FC = () => {
       orchestrationJobId: payload.orchestrationJobId?.trim(),
     }
     if (queue.some(item => isDuplicateOrchestrationQueueItem(item, nextItem))) return
-    // Un follow-up ya despachado no vuelve a la cola: el bucle de re-delegación
-    // nacía de reenviar el mismo texto una vez consumido. El turno humano borra
-    // la memoria para no bloquear un reenvío legítimo pedido por la persona.
+    // Un follow-up ya despachado no vuelve a la cola: evita reenviar el mismo texto
+    // tras consumirlo. beginOrchestrationUserTurn borra la memoria del pane al
+    // arrancar un turno humano del orquestador.
     if (payload.orchestrationFollowUp === true) {
       const key = orchestrationFollowUpKey(nextItem)
       const dispatched = dispatchedOrchestrationFollowUpsByPaneRef.current.get(paneId)
@@ -3822,6 +3613,7 @@ export const App: React.FC = () => {
     queue.push({
       text: payload.text,
       images: payload.images ?? [],
+      sendId: crypto.randomUUID(),
       focusPane: payload.focusPane,
       ...(payload.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
       ...(payload.allowDelegations === false ? { allowDelegations: false } : {}),
@@ -3883,6 +3675,7 @@ export const App: React.FC = () => {
   const abortOrchestrationRunRef = useRef<((fromPaneId: string) => void) | null>(null)
 
   const beginOrchestrationUserTurn = useCallback((fromPaneId: string) => {
+    dispatchedOrchestrationFollowUpsByPaneRef.current.delete(fromPaneId)
     const workStyle = orchestrationWorkStyleForPane(fromPaneId)
     if (shouldAbortOnHumanTurn(workStyle)) {
       // Linear: awaiting bloquea humanos hasta cerrar la ola; esto es cleanup seguro.
@@ -4302,6 +4095,24 @@ export const App: React.FC = () => {
     syncAwaitingFromPending,
   ])
 
+  const wakeDeferredForFreedPane = useCallback(async (
+    freedPaneId: string,
+    exceptFromPaneId?: string,
+  ): Promise<void> => {
+    const wanted = freedPaneId.trim()
+    if (!wanted) return
+    for (const fromPaneId of orchestratorPanesWithDeferredForPane(
+      orchestrationJobsByPaneRef.current,
+      wanted,
+    )) {
+      if (fromPaneId === exceptFromPaneId) continue
+      if ((countActiveLanesByPane(orchestrationJobsByPaneRef.current).get(wanted) ?? 0) >= MAX_LANES_PER_PANE) {
+        break
+      }
+      await startNextDeferredForPane(fromPaneId, wanted)
+    }
+  }, [startNextDeferredForPane])
+
   /**
    * trabajo del especialista y mergea a la rama base. Los merges (y su commit previo)
    * se serializan por orquestador (fromPaneId) encadenando promesas en
@@ -4583,6 +4394,7 @@ export const App: React.FC = () => {
         deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
       }
       await startNextDeferredForPane(fromPaneId, freedPaneId)
+      await wakeDeferredForFreedPane(freedPaneId, fromPaneId)
       remaining = job.pending.size
       const deferredLeft = job.deferred.length
       if (remaining > 0 || deferredLeft > 0) return
@@ -4605,6 +4417,10 @@ export const App: React.FC = () => {
     } else {
       markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'completed')
       deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+    }
+
+    if (freedPaneId && !deferredForFreedPane) {
+      await wakeDeferredForFreedPane(freedPaneId)
     }
 
     const deferredLeft = job.deferred.length
@@ -4666,6 +4482,7 @@ export const App: React.FC = () => {
     orchestrationWorkStyleForPane,
     startNextDeferredForPane,
     syncAwaitingFromPending,
+    wakeDeferredForFreedPane,
   ])
 
   reconcileIdleDelegationTargetRef.current = (paneId, summary, failed) => {
@@ -4928,6 +4745,9 @@ export const App: React.FC = () => {
       const deferredForFreed = job.deferred.some(item => item.toPaneId === toPaneId)
       if (deferredForFreed) {
         await startNextDeferredForPane(fromPaneId, toPaneId)
+        await wakeDeferredForFreedPane(toPaneId, fromPaneId)
+      } else {
+        await wakeDeferredForFreedPane(toPaneId)
       }
     }
 
@@ -4990,6 +4810,7 @@ export const App: React.FC = () => {
     requestPlaneStop,
     startNextDeferredForPane,
     syncAwaitingFromPending,
+    wakeDeferredForFreedPane,
   ])
 
   const handleOrchestratorStop = useCallback((fromPaneId: string) => {
@@ -5002,9 +4823,8 @@ export const App: React.FC = () => {
     const pendingIds = pendingOrchestratorIdsFromJobs(orchestrationJobsByPaneRef.current)
     for (const paneId of [...queues.keys()]) {
       if (planeSendByPane[paneId]) continue
-      if (chainOfferByPaneRef.current.has(paneId)) continue
       const status = agentPlaneStatus[paneId]
-      if (status?.busy || status?.localLoopActive) continue
+      if (status?.busy) continue
       const visibleQueued = status?.queuedTurns?.length ?? 0
       if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
       const queue = queues.get(paneId)
@@ -5026,21 +4846,17 @@ export const App: React.FC = () => {
         continue
       }
       if (!queue.length) queues.delete(paneId)
-      let rollbackHead = false
+      if (planeSendByPane[paneId]) {
+        queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
+        continue
+      }
+      if (head.orchestrationJobId?.trim()) {
+        activeOrchestrationJobByPaneRef.current.set(paneId, head.orchestrationJobId.trim())
+      }
       setPlaneSendByPane(prev => {
-        if (prev[paneId]) {
-          rollbackHead = true
-          return prev
-        }
-        if (head.orchestrationJobId?.trim()) {
-          activeOrchestrationJobByPaneRef.current.set(paneId, head.orchestrationJobId.trim())
-        }
+        if (prev[paneId]) return prev
         return { ...prev, [paneId]: head }
       })
-      // Rollback fuera del updater: StrictMode puede invocar el updater dos veces con el mismo prev.
-      if (rollbackHead) {
-        queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
-      }
     }
   }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
 
@@ -5048,6 +4864,52 @@ export const App: React.FC = () => {
   useEffect(() => {
     const queues = humanSendFifoByPaneRef.current
     for (const paneId of [...queues.keys()]) {
+      const controls = planeQueueControlsByPaneRef.current.get(paneId)
+      if (agentPlaneStatus[paneId]?.busy === true && controls) {
+        if (humanDirectDrainInFlightRef.current.has(paneId)) continue
+        const visibleQueued = agentPlaneStatus[paneId]?.queuedTurns?.length ?? 0
+        if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
+        const queue = queues.get(paneId)
+        if (!queue?.length) {
+          queues.delete(paneId)
+          continue
+        }
+        const { head, rest } = takeNextHumanSend(queue)
+        if (!head) {
+          if (!rest.length) queues.delete(paneId)
+          else queues.set(paneId, rest)
+          continue
+        }
+        if (!rest.length) queues.delete(paneId)
+        else queues.set(paneId, rest)
+
+        const promotedSendId = head.sendId?.trim()
+        if (
+          promotedSendId
+          && (agentPlaneStatus[paneId]?.queuedTurns ?? []).some(turn =>
+            queuedTurnSourceSendIds(turn).includes(promotedSendId))
+        ) {
+          setHumanSendFifoTick(n => n + 1)
+          continue
+        }
+
+        humanDirectDrainInFlightRef.current.add(paneId)
+        void controls.enqueueHuman({
+          text: head.text,
+          images: head.images,
+          sendId: head.sendId,
+          ...(head.extraContextIds?.length ? { extraContextIds: head.extraContextIds } : {}),
+        }).then(outcome => {
+          if (outcome === 'full') {
+            queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
+          }
+          humanDirectDrainInFlightRef.current.delete(paneId)
+          if (outcome === 'duplicate' || outcome === 'enqueued') {
+            setHumanSendFifoTick(n => n + 1)
+          }
+        })
+        continue
+      }
       if (planeSendByPane[paneId]) continue
       const visibleQueued = agentPlaneStatus[paneId]?.queuedTurns?.length ?? 0
       if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
@@ -5064,6 +4926,17 @@ export const App: React.FC = () => {
       }
       if (!rest.length) queues.delete(paneId)
       else queues.set(paneId, rest)
+
+      const promotedSendId = head.sendId?.trim()
+      if (
+        promotedSendId
+        && (agentPlaneStatus[paneId]?.queuedTurns ?? []).some(turn =>
+          queuedTurnSourceSendIds(turn).includes(promotedSendId))
+      ) {
+        setHumanSendFifoTick(n => n + 1)
+        continue
+      }
+
       let rollbackHead = false
       setPlaneSendByPane(prev => {
         if (prev[paneId]) {
@@ -5075,6 +4948,7 @@ export const App: React.FC = () => {
       // Rollback fuera del updater: StrictMode puede invocar el updater dos veces con el mismo prev.
       if (rollbackHead) {
         queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
+        setHumanSendFifoTick(n => n + 1)
       }
     }
   }, [agentPlaneStatus, humanSendFifoTick, planeSendByPane])
@@ -5083,14 +4957,10 @@ export const App: React.FC = () => {
     const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
     if (!target || !isHumanQueuedTurn(target)) return
-    const removedKey = queuedTurnHumanKey(target)
     setPlaneSendByPane(prev => {
       const pending = prev[paneId]
       if (!pending || !isHumanQueuedTurn(pending)) return prev
-      if (queuedTurnHumanKey({
-        text: pending.text,
-        images: Array.from({ length: pending.images?.length ?? 0 }, () => ({ previewUrl: '' })),
-      }) !== removedKey) {
+      if (!shouldClearPlaneSendForRemovedQueuedTurn(target, pending.sendId)) {
         return prev
       }
       const next = { ...prev }
@@ -5615,7 +5485,6 @@ export const App: React.FC = () => {
     const isAgent = tab.paneKinds?.[paneId] === 'agent'
     const registerClose = (openConfirm: () => void) =>
       registerPaneShortcutCloseIntercept(paneId, openConfirm)
-    const chainLoopActive = activeLoopChainPaneIds(tab.planeLoopChains ?? []).has(paneId)
     const paneCatalogKey = tabAgentCatalogKey(tab)
 
     if (isAgent) {
@@ -5636,7 +5505,6 @@ export const App: React.FC = () => {
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
-          chainLoopActive={chainLoopActive}
           awaitingDelegations={awaitingDelegationPaneIds.has(paneId)}
           orchestrationWorkStyle={orchestrationWorkStyleForPane(paneId, tab.id)}
           orchestrationAwaiting={orchestrationAwaitingByPane.get(paneId) ?? null}
@@ -5645,13 +5513,11 @@ export const App: React.FC = () => {
             orchestrationFifoTick >= 0
             && (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
           }
-          onChainLoopStop={() => stopChainsForPane(tab.id, paneId)}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
           onClosePane={() => handleClosePane(tab.id, paneId)}
           onBusyChange={busy => handleBusyChange(paneId, busy)}
           onPlaneStatusChange={status => handleAgentPlaneStatusChange(paneId, status)}
-          onPlaneLoopToggleReady={toggle => handlePlaneLoopToggleReady(paneId, toggle)}
           onPlaneQueueControlsReady={controls => handlePlaneQueueControlsReady(paneId, controls)}
           getOrchestrationAgents={() => {
             const panes = (tab.paneIds ?? [])
@@ -5955,6 +5821,9 @@ export const App: React.FC = () => {
               color: resolveContextColor(ctx),
             }))
 
+            const agentCatalogKey = tabAgentCatalogKey(tab)
+            const tabProjectAgents = projectAgentsByCwd[agentCatalogKey] ?? []
+
             const contextUsage = new Map<string, number>()
             for (const paneId of tab.paneIds) {
               if (tab.paneKinds?.[paneId] !== 'agent') continue
@@ -6012,48 +5881,39 @@ export const App: React.FC = () => {
                   discoveredContexts,
                   contextUsage,
                   contextKind => t(`tabContexts.kind_${contextKind}`),
+                  tabProjectAgents,
                 )
-                // El turno corre en un pane sintético de la sala: sin esto la
-                // tarjeta seguiría diciendo "Standing by" mientras el agente
-                // habla. Con salas en paralelo puede estar sentado en varias:
-                // manda la que le tiene el turno ahora mismo.
-                const roomsWithAgent = (brainstormRoomsByTab[tab.id] ?? [])
-                  .map(item => brainstormLiveByRoomId[item.id])
-                  .filter((summary): summary is BrainstormLiveSummary => Boolean(summary))
-                  .filter(summary => isBrainstormLive(summary.status)
-                    && Boolean(meta?.id)
-                    && summary.participantAgentIds.includes(meta!.id))
-                const brainstormLive = roomsWithAgent
-                  .find(summary => summary.speakingAgentId === meta?.id)
-                  ?? roomsWithAgent[0]
-                  ?? null
-                const inBrainstorm = roomsWithAgent.length > 0
-                const brainstormSnippet = inBrainstorm && brainstormLive
-                  ? t(
-                    brainstormLive.speakingAgentId === meta?.id
-                      ? 'tabs.brainstormAgentSpeaking'
-                      : 'tabs.brainstormAgentInRoom',
-                    // ponytail: el tema recortado alcanza para reconocer la sala.
-                    { topic: brainstormLive.topic.slice(0, 32) },
-                  )
-                  : ''
                 const binding = tab.agentByPane?.[paneId]
                 const threadState = binding ? threadStateOf(binding) : null
+                const userPromptSnippet = (() => {
+                  const activeId = threadState?.activeThreadId
+                  const fromRunning = activeId
+                    ? status?.runningThreadActivities?.[activeId]?.trim()
+                    : ''
+                  if (fromRunning) return fromRunning
+                  const msgs = status?.messages ?? []
+                  for (let i = msgs.length - 1; i >= 0; i--) {
+                    const entry = msgs[i]
+                    if (!entry || entry.role !== 'user') continue
+                    const text = entry.content.trim()
+                    if (!text) continue
+                    return text.length > 120 ? `${text.slice(0, 117)}…` : text
+                  }
+                  return ''
+                })()
                 return {
                   paneId,
                   kind,
                   title,
                   monogram: meta?.monogram,
-                  busy: visuallyBusy || inBrainstorm,
+                  busy: visuallyBusy,
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'
                     || meta?.coordination === 'productOwner'
                     ? meta.coordination
                     : 'none') as 'none' | 'orchestrator' | 'productOwner',
-                  snippet: brainstormSnippet
-                    || status?.activity?.trim()
+                  snippet: userPromptSnippet
                     || (delegationWorkActive ? t('agentPane.awaitingStatusRunning') : '')
-                    || status?.lastSnippet
                     || '',
                   agentId: meta?.id,
                   localOnly: meta?.localOnly === true,
@@ -6064,6 +5924,7 @@ export const App: React.FC = () => {
                     id: thread.id,
                     title: thread.title,
                     running: runningThreadIdsByPane.get(paneId)?.has(thread.id) ?? false,
+                    activity: status?.runningThreadActivities?.[thread.id] ?? '',
                   })) ?? [],
                   activeThreadId: threadState?.activeThreadId,
                   window: win,
@@ -6105,8 +5966,7 @@ export const App: React.FC = () => {
                   // acciones (nuevo agente, nueva terminal, bootstrap) cuando
                   // el workspace es org-backed y aún no hay projectFolder set.
                   const effectiveCwd = projectCwd || orgWorkspaceLocalDir
-                  const agentCatalogKey = tabAgentCatalogKey(tab)
-                  const catalogEmpty = (projectAgentsByCwd[agentCatalogKey] ?? []).length === 0
+                  const catalogEmpty = tabProjectAgents.length === 0
                   const noAgentPanes = !(tab.paneIds ?? []).some(
                     paneId => tab.paneKinds?.[paneId] === 'agent',
                   )
@@ -6182,7 +6042,6 @@ export const App: React.FC = () => {
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}
-                  onToggleLoop={handlePlaneToggleLoop}
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   onMergeQueuedTurns={handlePlaneMergeQueuedTurns}
@@ -6224,12 +6083,16 @@ export const App: React.FC = () => {
                   }}
                   openChatAgentId={tab.planeOpenChatAgentId ?? null}
                   newThreadPendingPaneId={planeNewThreadPaneId}
+                  queueFullNotice={planeQueueFullNotice}
+                  onQueueFullNoticeDismiss={() => setPlaneQueueFullNotice(null)}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
-                    yieldChainOfferForUserSend(paneId)
                     const sendItem = {
                       text,
                       images,
+                      // Identidad del envío: el pane lo consume una sola vez
+                      // aunque el slot se re-ofrezca mientras convierte imágenes.
+                      sendId: crypto.randomUUID(),
                       focusPane: true as const,
                       ...(contextIds.length ? { extraContextIds: contextIds } : {}),
                     }
@@ -6237,13 +6100,65 @@ export const App: React.FC = () => {
                     const { queue: nextQueue, dropped } = enqueueHumanSend(queue, sendItem)
                     if (dropped) {
                       console.warn('[plane] human send dropped', { paneId, reason: 'human_fifo_full' })
+                      setPlaneQueueFullNotice({ paneId, text, at: Date.now() })
                       for (const image of images) {
                         const previewUrl = (image as { previewUrl?: string }).previewUrl
                         if (previewUrl) URL.revokeObjectURL(previewUrl)
                       }
                     } else {
                       humanSendFifoByPaneRef.current.set(paneId, nextQueue)
+                      const controls = planeQueueControlsByPaneRef.current.get(paneId)
+                      const planeStatus = agentPlaneStatusRef.current[paneId]
+                      const visibleQueued = planeStatus?.queuedTurns?.length ?? 0
+                      const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
+                      const orchestrationFifoPending =
+                        (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
+                      const shouldPromote = shouldPromoteHumanSendToVisibleQueue({
+                        busy: planeStatus?.busy === true,
+                        awaitingDelegations:
+                          planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
+                        delegationWorkActive:
+                          planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
+                        systemFollowUpsPending:
+                          orchestrationFifoPending || Boolean(planeSendByPane[paneId]),
+                      }, workStyle)
+                      if (
+                        shouldPromote
+                        && controls
+                        && visibleQueued < MAX_VISIBLE_QUEUED_TURNS
+                      ) {
+                        void controls.enqueueHuman({
+                          text: sendItem.text,
+                          images: sendItem.images,
+                          sendId: sendItem.sendId,
+                          ...(sendItem.extraContextIds?.length
+                            ? { extraContextIds: sendItem.extraContextIds }
+                            : {}),
+                        }).then(outcome => {
+                          if (outcome === 'enqueued' || outcome === 'duplicate') {
+                            const fifo = humanSendFifoByPaneRef.current.get(paneId)
+                            if (fifo) {
+                              const trimmed = fifo.filter(item => item.sendId !== sendItem.sendId)
+                              if (trimmed.length) {
+                                humanSendFifoByPaneRef.current.set(paneId, trimmed)
+                              } else {
+                                humanSendFifoByPaneRef.current.delete(paneId)
+                              }
+                            }
+                          }
+                          setHumanSendFifoTick(n => n + 1)
+                        })
+                      }
                       setHumanSendFifoTick(n => n + 1)
+                      // Una línea por envío aceptado: si en la cola aparecen N
+                      // copias, aquí se ve si el chat mandó N o si se multiplicó
+                      // más abajo (el pane loguea sus propios descartes).
+                      console.warn('[plane] human send queued', {
+                        paneId,
+                        sendId: sendItem.sendId,
+                        images: images.length,
+                        fifo: nextQueue.length,
+                      })
                     }
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {
@@ -6277,7 +6192,6 @@ export const App: React.FC = () => {
                       return
                     }
                     requestPlaneStop(paneId)
-                    stopChainsForPane(tab.id, paneId)
                   }}
                   onAbortDelegation={(fromPaneId, delegationId) => {
                     void abortSingleDelegation(fromPaneId, delegationId)
@@ -6295,7 +6209,7 @@ export const App: React.FC = () => {
                     )
                     void handleAgentMetaChange(tab.id, paneId, previous => ({
                       ...previous,
-                      ...threadPatch(selectThread(
+                      ...threadPatch(selectThreadOpened(
                         sanitizeThreadState(
                           previous.threads,
                           previous.activeThreadId,
@@ -6303,8 +6217,39 @@ export const App: React.FC = () => {
                           protectedIds,
                         ),
                         threadId,
+                        Date.now(),
                       )),
                     }))
+                  }}
+                  onOpenAgentFromCard={paneId => {
+                    handlePlaneOpenChatAgent(tab.id, paneId)
+                    const runningThreadIds = [
+                      ...(runningThreadIdsByPane.get(paneId) ?? []),
+                    ]
+                    const protectedIds = liveLaneThreadIdsForPane(
+                      paneId,
+                      orchestrationJobsByPaneRef.current,
+                    )
+                    void handleAgentMetaChange(tab.id, paneId, previous => {
+                      const sanitized = sanitizeThreadState(
+                        previous.threads,
+                        previous.activeThreadId,
+                        undefined,
+                        protectedIds,
+                      )
+                      const threadId = resolveCardOpenThreadId(
+                        sanitized,
+                        runningThreadIds,
+                      )
+                      return {
+                        ...previous,
+                        ...threadPatch(selectThreadOpened(
+                          sanitized,
+                          threadId,
+                          Date.now(),
+                        )),
+                      }
+                    })
                   }}
                   onOpenAgentThread={(paneId, threadId) => {
                     handlePlaneOpenChatAgent(tab.id, paneId)
@@ -6314,7 +6259,7 @@ export const App: React.FC = () => {
                     )
                     void handleAgentMetaChange(tab.id, paneId, previous => ({
                       ...previous,
-                      ...threadPatch(selectThread(
+                      ...threadPatch(selectThreadOpened(
                         sanitizeThreadState(
                           previous.threads,
                           previous.activeThreadId,
@@ -6322,6 +6267,7 @@ export const App: React.FC = () => {
                           protectedIds,
                         ),
                         threadId,
+                        Date.now(),
                       )),
                     }))
                   }}
@@ -6431,7 +6377,9 @@ export const App: React.FC = () => {
                   onLoopChainsChange={chains => handleLoopChainsChange(tab.id, chains)}
                   onStartLoopChain={chainId => handleStartLoopChain(tab.id, chainId)}
                   onStopLoopChain={chainId => handleStopLoopChain(tab.id, chainId)}
-                  canStartLoopChains={Boolean(tab.projectFolder?.trim())}
+                  canStartLoopChains={Boolean(
+                    tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim(),
+                  )}
                   startLoopChainsBlockedHint={t('agentPane.projectFolderRequired')}
                   onOpenConfig={paneId => handleOpenConfigFromPlane(tab.id, paneId)}
                   onDeletePane={paneId => handleClosePane(tab.id, paneId)}

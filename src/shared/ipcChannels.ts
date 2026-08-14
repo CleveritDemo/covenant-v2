@@ -43,6 +43,16 @@ export const IPC = {
   BRAINSTORM_WORKING_SET_ADD: 'brainstorm:workingSetAdd',
   /** Renderer → main (invoke): exportar transcript de sala a Markdown. */
   BRAINSTORM_EXPORT_MD: 'brainstorm:exportMd',
+  /** Renderer → main: iniciar ejecución de cadena de loop en main. */
+  LOOP_CHAIN_START: 'loopChain:start',
+  /** Renderer → main: detener cadena de loop. */
+  LOOP_CHAIN_STOP: 'loopChain:stop',
+  /** Renderer → main (invoke): estado vivo de una cadena de loop. */
+  LOOP_CHAIN_STATE: 'loopChain:state',
+  /** Renderer → main (invoke): transcript persistido de una cadena de loop. */
+  LOOP_CHAIN_TRANSCRIPT: 'loopChain:transcript',
+  /** Main → renderer: eventos de cadena de loop (mux por chainId). */
+  LOOP_CHAIN_EVENT: 'loopChain:event',
   AGENT_CHAT_LOAD: 'agentChat:load',
   AGENT_CHAT_SAVE: 'agentChat:save',
   AGENT_CHAT_DELETE: 'agentChat:delete',

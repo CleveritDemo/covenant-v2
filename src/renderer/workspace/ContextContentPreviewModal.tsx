@@ -286,7 +286,7 @@ export const ContextPreviewBody: React.FC<{ context: TabContext; cwd: string }> 
 
   // Identidad del contexto, no del objeto: el catálogo se reconstruye entero en
   // cada refresh y volvería a disparar la carga (y su parpadeo) sin haber cambiado.
-  const contextKey = `${context.id} ${context.fileName} ${context.kind}`
+  const contextKey = `${context.id}\0${context.fileName}\0${context.kind}`
 
   useEffect(() => {
     const workingCwd = cwd.trim()

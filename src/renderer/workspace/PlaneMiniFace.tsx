@@ -6,7 +6,7 @@ import { agentCliSpec } from '@shared/agentCliProviders'
 import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
-import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
 import './PlaneMiniFace.css'
 
@@ -23,6 +23,8 @@ export interface PlaneMiniFaceProps {
   /** Muestra chip de orquestador / product owner junto al proveedor. */
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   statusLabel: string
+  /** Reemplaza la cápsula de estado (p. ej. hilos activos en lugar de «En espera»). */
+  statusSlot?: React.ReactNode
   /** Densidad visual; compact reduce padding/gaps para listas y modales. */
   density?: 'default' | 'compact'
   configLabel?: string
@@ -37,6 +39,8 @@ export interface PlaneMiniFaceProps {
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Clic puro (sin drag) sobre el icono de results → vista previa. */
   onOpenResultsPreview?: (contextId: string) => void
+  /** Clic en la cara (fuera de controles): abrir chat del agente. */
+  onOpen?: () => void
   /** Contextos anidados (lista con nombres) debajo del cuerpo. */
   children?: React.ReactNode
 }
@@ -50,6 +54,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   provider = 'claude',
   coordination = 'none',
   statusLabel,
+  statusSlot,
   density = 'default',
   configLabel,
   deleteLabel,
@@ -61,6 +66,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   resultsDragLabel,
   onReorderPointerDown,
   onOpenResultsPreview,
+  onOpen,
   children,
 }) => {
   const { t } = useT()
@@ -74,6 +80,16 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const resultsTitle = resultsDragLabel || resultsId
   const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
 
+  const openFromFace = (event: React.PointerEvent): void => {
+    if (event.button !== 0 || !onOpen) return
+    if ((event.target as HTMLElement | null)?.closest?.(
+      'button, a, input, select, textarea, [role="button"]',
+    )) {
+      return
+    }
+    event.stopPropagation()
+    onOpen()
+  }
 
   return (
   <div
@@ -82,10 +98,11 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       busy ? 'plane-mini-face--busy' : '',
       density === 'compact' ? 'plane-mini-face--compact' : '',
       `plane-mini-face--${provider}`,
+      onOpen ? 'plane-mini-face--openable' : '',
     ].filter(Boolean).join(' ')}
+    onPointerDown={onOpen ? openFromFace : undefined}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
-    {busy ? <PlaneBusyDot placement="corner" /> : null}
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">
         {showReorder ? (
@@ -174,10 +191,17 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         ) : null}
       </div>
     </div>
-    <div className="plane-mini-face__body">
-      <div className="plane-mini-face__status-surface">
-        <span className="plane-mini-face__status">{statusLabel}</span>
-      </div>
+    <div
+      className={[
+        'plane-mini-face__body',
+        statusSlot ? 'plane-mini-face__body--slot' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {statusSlot ?? (
+        <div className="plane-mini-face__status-surface">
+          <span className="plane-mini-face__status">{statusLabel}</span>
+        </div>
+      )}
     </div>
     {children ? (
       <div className="plane-mini-face__nodes">

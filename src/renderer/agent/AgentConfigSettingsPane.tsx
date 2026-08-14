@@ -41,8 +41,6 @@ export interface AgentConfigSettingsPaneProps {
   section: AgentConfigSettingsSection
   meta: AgentPaneMeta
   cwd: string
-  loopMode: boolean
-  loopActive: boolean
   locked: boolean
   diskContexts: TabContext[]
   selectedContextIds: string[]
@@ -68,7 +66,6 @@ export interface AgentConfigSettingsPaneProps {
   onChangePermission: (permissionMode: AgentPermissionMode) => void
   onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
   onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
-  onToggleLoopMode: () => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
 }
@@ -124,8 +121,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   section,
   meta,
   cwd,
-  loopMode,
-  loopActive,
   locked,
   diskContexts,
   selectedContextIds,
@@ -146,7 +141,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onChangePermission,
   onChangeNativeSkills,
   onChangeMcpsAllowed,
-  onToggleLoopMode,
   onToggleContext,
   onOpenContextsModal,
 }) => {
@@ -411,13 +405,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             onChange={onAcceptDelegationsChange}
           />
         )}
-        <SettingToggle
-          checked={loopMode}
-          disabled={locked}
-          title={t('agentPane.loopTitle')}
-          description={t('agentPane.loopHint')}
-          onChange={() => onToggleLoopMode()}
-        />
       </div>
     )
   }
@@ -429,7 +416,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
       // Los contextos se materializan al enviar: cambiarlos en caliente solo
       // afecta al turno siguiente, así que no se bloquean.
       locked={false}
-      loopActive={loopActive}
       agentId={meta.id}
       projectAgents={projectAgents}
       onToggleContext={onToggleContext}

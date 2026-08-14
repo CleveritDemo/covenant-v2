@@ -22,13 +22,10 @@ describe('PlaneChatContextsBar locks', () => {
     const onNewThread = vi.fn()
     render(
       <PlaneChatContextsBar
-        loopMode={false}
-        loopActive={false}
         threads={threads}
         activeThreadId="t-1"
         threadSelectionLocked={false}
         newThreadLocked
-        onToggleLoop={() => undefined}
         onSelectThread={() => undefined}
         onNewThread={onNewThread}
       />,
@@ -39,60 +36,60 @@ describe('PlaneChatContextsBar locks', () => {
     expect(onNewThread).not.toHaveBeenCalled()
   })
 
-  it('threadSelectionLocked=true bloquea el Select pero + queda habilitado', () => {
+  it('threadSelectionLocked=true bloquea otros chips pero + queda habilitado', () => {
     const onNewThread = vi.fn()
+    const onSelectThread = vi.fn()
     render(
       <PlaneChatContextsBar
-        loopMode={false}
-        loopActive={false}
         threads={threads}
         activeThreadId="t-1"
+        runningThreadIds={['t-2']}
         threadSelectionLocked
         newThreadLocked={false}
-        onToggleLoop={() => undefined}
-        onSelectThread={() => undefined}
+        onSelectThread={onSelectThread}
         onNewThread={onNewThread}
       />,
     )
-    const select = screen.getByRole('button', { name: 'agentPane.threadsLabel' }) as HTMLButtonElement
-    expect(select.disabled).toBe(true)
+    const activeTab = screen.getByRole('tab', { name: 'One' }) as HTMLButtonElement
+    const runningTab = screen.getByRole('tab', { name: 'Two' }) as HTMLButtonElement
+    expect(activeTab.disabled).toBe(false)
+    expect(runningTab.disabled).toBe(true)
+    fireEvent.click(runningTab)
+    expect(onSelectThread).not.toHaveBeenCalled()
     const plusBtn = screen.getByRole('button', { name: 'agentPane.threadNew' }) as HTMLButtonElement
     expect(plusBtn.disabled).toBe(false)
     fireEvent.click(plusBtn)
     expect(onNewThread).toHaveBeenCalledTimes(1)
   })
 
-  it('con hilos corriendo el Select queda habilitado si no hay loop activo', () => {
+  it('muestra chip activo y hilos corriendo; permite cambiar si no hay lock', () => {
+    const onSelectThread = vi.fn()
     render(
       <PlaneChatContextsBar
-        loopMode={false}
-        loopActive={false}
         threads={threads}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         threadSelectionLocked={false}
-        onToggleLoop={() => undefined}
-        onSelectThread={() => undefined}
+        onSelectThread={onSelectThread}
       />,
     )
-    const select = screen.getByRole('button', { name: 'agentPane.threadsLabel' }) as HTMLButtonElement
-    expect(select.disabled).toBe(false)
+    expect(screen.getByRole('tab', { name: 'One' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Two' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Two' }))
+    expect(onSelectThread).toHaveBeenCalledWith('t-2')
   })
 
-  it('loop activo deshabilita el Select aunque haya hilos corriendo', () => {
+  it('threadSelectionLocked deshabilita chips ajenos aunque haya hilos corriendo', () => {
     render(
       <PlaneChatContextsBar
-        loopMode
-        loopActive
         threads={threads}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         threadSelectionLocked
-        onToggleLoop={() => undefined}
         onSelectThread={() => undefined}
       />,
     )
-    const select = screen.getByRole('button', { name: 'agentPane.threadsLabel' }) as HTMLButtonElement
-    expect(select.disabled).toBe(true)
+    const runningTab = screen.getByRole('tab', { name: 'Two' }) as HTMLButtonElement
+    expect(runningTab.disabled).toBe(true)
   })
 })

@@ -29,7 +29,24 @@ describe('resolveAssignedContextChips', () => {
       name: 'fullstack',
       kind: 'agentResult',
       shared: true,
+      monogram: 'FU',
     })
+  })
+
+  it('usa el monograma del catálogo cuando el agente está registrado', () => {
+    const chips = resolveAssignedContextChips(
+      ['iaterminal:result:frontend'],
+      [],
+      new Map(),
+      kind => kind,
+      [{
+        id: 'frontend',
+        provider: 'claude',
+        name: 'David',
+        monogram: 'DV',
+      }],
+    )
+    expect(chips[0]?.monogram).toBe('DV')
   })
 
   it('compares context id lists', () => {

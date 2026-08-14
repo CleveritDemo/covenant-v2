@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import type { PaneWindowGeometry } from '@shared/paneWindows'
 import { useT } from '@i18n/useT'
@@ -72,6 +72,8 @@ export interface PlanePaneWindowProps {
   deferPositionMotion?: boolean
   /** Card fuera de la banda visible del plano: oculta sin desmontar. */
   outOfBand?: boolean
+  /** Progreso de fade/escala continuo al acercarse al borde de la banda (1 = plena). */
+  fadeProgress?: number
   dragPosition?: { x: number; y: number } | null
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Handle de agentes: reorder inmediato (sin long-press). */
@@ -85,8 +87,6 @@ export interface PlanePaneWindowProps {
   /** Sube cuando los contextos se remateralizan; el chip jira relee su snapshot. */
   contextsRevision?: number
   threadNodes?: PlaneAgentThreadNode[]
-  threadNodesExpanded?: boolean
-  onToggleThreadNodes?: () => void
   onOpenThread?: (threadId: string) => void
 }
 
@@ -132,6 +132,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   slotMotion = false,
   deferPositionMotion = false,
   outOfBand = false,
+  fadeProgress = 1,
   dragPosition = null,
   onReorderPointerDown,
   onReorderHandlePointerDown,
@@ -140,8 +141,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   cwd = '',
   contextsRevision = 0,
   threadNodes = [],
-  threadNodesExpanded = false,
-  onToggleThreadNodes,
   onOpenThread,
 }) => {
   const { t } = useT()
@@ -154,8 +153,9 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
     ? (snippet?.trim() || idleLabel)
     : idleLabel
   const showThreadNodes = isAgent
-    && threadNodes.some(thread => !thread.active)
-    && Boolean(onToggleThreadNodes && onOpenThread)
+    && threadNodes.some(thread => thread.running)
+    && Boolean(onOpenThread)
+  const openAgentFromCard = onOpenChat
   const origin = dragPosition && !isExpanded
     ? {
         x: dragPosition.x,
@@ -164,6 +164,14 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         height: miniOrigin.height,
       }
     : miniOrigin
+  const effectiveFadeProgress = fadeProgress
+  const paneWindowClassName = [
+    effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
+    effectiveFadeProgress < 1 ? 'pane-window--fading' : '',
+  ].filter(Boolean).join(' ') || undefined
+  const paneWindowStyle = effectiveFadeProgress < 1
+    ? { ['--plane-card-progress' as string]: effectiveFadeProgress }
+    : undefined
 
   return (
     <>
@@ -171,7 +179,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         title={title}
         paneId={paneId}
         display={display}
-        className={outOfBand ? 'pane-window--out-of-band' : undefined}
+        className={paneWindowClassName}
+        style={paneWindowStyle}
         geometry={{
           ...openGeometry,
           zIndex: window.zIndex,
@@ -213,6 +222,13 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             provider={provider}
             coordination={coordination}
             statusLabel={statusLabel}
+            onOpen={openAgentFromCard}
+            statusSlot={showThreadNodes ? (
+              <PlaneAgentThreadNodes
+                threads={threadNodes}
+                onOpenThread={onOpenThread!}
+              />
+            ) : undefined}
             agentId={agentId}
             reorderEnabled={reorderEnabled}
             reorderLabel={t('tabs.planeDragHandle')}
@@ -227,17 +243,9 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
                 contexts={contexts}
-                onOpenAgent={onOpenChat}
+                onOpenAgent={openAgentFromCard}
                 cwd={cwd}
                 contextsRevision={contextsRevision}
-              />
-            ) : null}
-            {showThreadNodes ? (
-              <PlaneAgentThreadNodes
-                threads={threadNodes}
-                expanded={threadNodesExpanded}
-                onToggleExpanded={onToggleThreadNodes!}
-                onOpenThread={onOpenThread!}
               />
             ) : null}
           </PlaneMiniFace>
@@ -254,7 +262,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             }}
           />
         )}
-        onExpand={isAgent ? onOpenChat : onExpand}
+        onExpand={isAgent ? openAgentFromCard : onExpand}
         onToggleFullscreen={onToggleFullscreen}
         onClose={onClose}
         onFocus={onFocus}

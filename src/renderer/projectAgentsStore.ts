@@ -12,7 +12,7 @@ import {
   type ProjectAgentDefinition,
 } from '@shared/projectAgentCatalog'
 import { tabAgentCatalogKey } from '@shared/covenantTypes'
-import { removePaneFromLoopChains } from '@shared/planeLoopChain'
+import { removeAgentFromLoopChains } from '@shared/planeLoopChain'
 import { ensurePaneWindows } from '@shared/paneWindows'
 
 /** Resuelve la vista runtime de un pane desde binding local + catálogo del cwd/org. */
@@ -175,7 +175,8 @@ export function syncTabAgentsFromCatalog(
 
   let planeLoopChains = tab.planeLoopChains ?? []
   for (const paneId of removedPaneIds) {
-    planeLoopChains = removePaneFromLoopChains(planeLoopChains, paneId)
+    const agentId = tab.agentByPane?.[paneId]?.agentId?.trim()
+    if (agentId) planeLoopChains = removeAgentFromLoopChains(planeLoopChains, agentId)
   }
 
   const planeOpenChatAgentId =

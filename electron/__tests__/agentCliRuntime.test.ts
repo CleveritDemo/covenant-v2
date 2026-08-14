@@ -446,6 +446,55 @@ describe('composePrompt identity', () => {
     expect(prompt).not.toContain('brief summary')
   })
 
+  it('omits agent results registry when emitResults is false', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        name: 'Scout',
+        prompt: 'hola',
+        emitResults: false,
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).not.toContain('## Agent results registry')
+    expect(prompt).not.toContain('ia-terminal-results')
+  })
+
+  it('omits AI changelog instruction when emitChangelog is false', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        name: 'Scout',
+        prompt: 'hola',
+        emitChangelog: false,
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).not.toContain('## AI changelog')
+    expect(prompt).not.toContain('ia-terminal-changelog')
+  })
+
+  it('includes AI changelog instruction by default', () => {
+    const prompt = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        prompt: 'hola',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).toContain('## AI changelog')
+    expect(prompt).toContain('ia-terminal-changelog')
+  })
+
   it('injects recent tab agent results before the user request', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'gravity-recent-results-'))
     try {
@@ -940,6 +989,19 @@ describe('portable context continuation', () => {
     )
     expect(prompt).toContain('REQUESTED CONTEXT')
     expect(prompt).not.toContain('INITIAL USER REQUEST')
+    expect(prompt).toContain('## AI changelog')
+  })
+
+  it('skips changelog instruction when emitChangelog is false', () => {
+    const prompt = buildContextContinuationPrompt(
+      'INITIAL USER REQUEST',
+      'REQUESTED CONTEXT',
+      true,
+      false,
+    )
+    expect(prompt).toContain('REQUESTED CONTEXT')
+    expect(prompt).not.toContain('## AI changelog')
+    expect(prompt).not.toContain('ia-terminal-changelog')
   })
 
   it('restores the complete initial prompt when no session is available', () => {

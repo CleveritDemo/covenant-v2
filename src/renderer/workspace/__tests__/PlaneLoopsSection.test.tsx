@@ -13,8 +13,8 @@ vi.mock('../../agent/AgentLoopIntervalModal', () => ({
 }))
 
 const agents: PlaneLoopsAgent[] = [
-  { paneId: 'p1', title: 'Karl', busy: false, loopActive: false },
-  { paneId: 'p2', title: 'David', busy: false, loopActive: false },
+  { agentId: 'karl', title: 'Karl', busy: false },
+  { agentId: 'david', title: 'David', busy: false },
 ]
 
 const setup = (chains: PlaneLoopChain[]) => {
@@ -48,14 +48,14 @@ describe('PlaneLoopsSection', () => {
 
     expect(onChainsChange).toHaveBeenCalledTimes(1)
     const [created] = onChainsChange.mock.calls[0]![0] as PlaneLoopChain[]
-    expect(created!.steps).toEqual([{ paneId: 'p1', objective: 'revisa el backlog' }])
+    expect(created!.steps).toEqual([{ agentId: 'karl', objective: 'revisa el backlog' }])
     expect(created!.status).toBe('idle')
   })
 
   it('edita la interacción en línea al salir del campo', () => {
     const chain: PlaneLoopChain = {
       id: 'c1',
-      steps: [{ paneId: 'p1', objective: 'uno' }],
+      steps: [{ agentId: 'karl', objective: 'uno' }],
       intervalMs: 60_000,
       status: 'idle',
       cursor: 0,
@@ -67,14 +67,14 @@ describe('PlaneLoopsSection', () => {
     fireEvent.blur(input)
 
     expect(onChainsChange).toHaveBeenCalledWith([
-      { ...chain, steps: [{ paneId: 'p1', objective: 'dos' }] },
+      { ...chain, steps: [{ agentId: 'karl', objective: 'dos' }] },
     ])
   })
 
   it('bloquea la edición y el alta mientras la cadena corre', () => {
     const chain: PlaneLoopChain = {
       id: 'c1',
-      steps: [{ paneId: 'p1', objective: 'uno' }],
+      steps: [{ agentId: 'karl', objective: 'uno' }],
       intervalMs: 60_000,
       status: 'running',
       cursor: 0,

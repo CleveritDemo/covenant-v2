@@ -1,6 +1,7 @@
 import React from 'react'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
+import { Gravity } from './Gravity'
 import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
 import './AgentDelegatingIndicator.css'
 
@@ -36,12 +37,8 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
   onStopItem,
 }) => (
   <div className="agent-delegating" role="status" aria-live="polite">
-    <div className="agent-delegating__orbit" aria-hidden="true">
-      <span className="agent-delegating__ring" />
-      <span className="agent-delegating__core" />
-      <span className="agent-delegating__sat agent-delegating__sat--a" />
-      <span className="agent-delegating__sat agent-delegating__sat--b" />
-      <span className="agent-delegating__sat agent-delegating__sat--c" />
+    <div className="agent-delegating__logo" aria-hidden="true">
+      <Gravity size="compact" />
     </div>
     <div className="agent-delegating__copy">
       <p className="agent-delegating__label">{label}</p>

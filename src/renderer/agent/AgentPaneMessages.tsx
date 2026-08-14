@@ -32,8 +32,6 @@ export interface AgentPaneMessagesProps {
   /** Orquestador esperando resultados de sub-agentes. */
   awaitingDelegations: boolean
   orchestrationAwaiting?: OrchestrationAwaitingView | null
-  loopActive: boolean
-  loopIteration: number
   queuedTurns: AgentPaneQueuedTurn[]
   /** Turnos sin delegation/follow-up: con 2+ se ofrece fusionar. */
   mergeableCount: number
@@ -61,8 +59,6 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   activity,
   awaitingDelegations,
   orchestrationAwaiting = null,
-  loopActive,
-  loopIteration,
   queuedTurns,
   mergeableCount,
   nearBottom,
@@ -135,26 +131,19 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
               onStopItem={onAbortDelegation}
             />
           </div>
-        ) : (busy || activity !== '') && (() => {
-          const activityText = activity
-            ? (loopActive
-                ? `${t('agentPane.loopBadge', { n: loopIteration })} · ${activity}`
-                : activity)
-            : (loopActive ? t('agentPane.loopWorking', { n: loopIteration }) : '')
-          return (
-            <div
-              className={[
-                'agent-pane__activity',
-                activityText === '' ? 'agent-pane__activity--idle' : '',
-              ].filter(Boolean).join(' ')}
-            >
-              <span className="agent-pane__activity-dot" aria-hidden="true" />
-              <span className="agent-pane__activity-text" key={activityText}>
-                {activityText === '' ? '\u00A0' : activityText}
-              </span>
-            </div>
-          )
-        })()}
+        ) : (busy || activity !== '') && (
+          <div
+            className={[
+              'agent-pane__activity',
+              activity === '' ? 'agent-pane__activity--idle' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            <span className="agent-pane__activity-dot" aria-hidden="true" />
+            <span className="agent-pane__activity-text" key={activity}>
+              {activity === '' ? '\u00A0' : activity}
+            </span>
+          </div>
+        )}
         {queuedTurns.length > 0 && (
           <div
             className="agent-pane__queue"

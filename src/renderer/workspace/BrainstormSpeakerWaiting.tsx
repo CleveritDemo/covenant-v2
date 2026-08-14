@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { BrainstormSpeakerPhase } from '@shared/brainstormRoom'
 import { useT } from '@i18n/useT'
+import { Spinner } from '../components/ui/Spinner'
 import './BrainstormSpeakerWaiting.css'
 
 const STEPS = [
@@ -63,6 +64,11 @@ export const BrainstormSpeakerWaiting: React.FC<BrainstormSpeakerWaitingProps> =
   return (
     <div className="brainstorm-wait" role="status">
       <div className="brainstorm-wait__head">
+        {/* El mismo spinner que el resto de la app usa mientras un agente
+            trabaja: aquí el turno también está en marcha. */}
+        <span className="brainstorm-wait__spinner">
+          <Spinner aria-label={t('tabs.brainstormPreparingNow', { name })} />
+        </span>
         <span className="brainstorm-wait__name">{name}</span>
         {role ? <span className="brainstorm-wait__role">{role}</span> : null}
         <span className="brainstorm-wait__clock">{clock}</span>

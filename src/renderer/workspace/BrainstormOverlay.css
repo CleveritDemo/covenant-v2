@@ -409,6 +409,9 @@
 
 .brainstorm-seat__state {
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 999px;

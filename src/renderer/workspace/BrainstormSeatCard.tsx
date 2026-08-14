@@ -2,6 +2,7 @@ import React from 'react'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import type { BrainstormSeatState } from '@shared/brainstormRoom'
 import { useT } from '@i18n/useT'
+import { Spinner } from '../components/ui/Spinner'
 import { Tooltip } from '../components/ui/Tooltip'
 
 export interface BrainstormSeatCardProps {
@@ -158,7 +159,14 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
           <span className="brainstorm-seat__turns">{turnsDone}/{rounds}</span>
         </span>
         <span className="brainstorm-seat__row brainstorm-seat__row--meta">
-          <span className="brainstorm-seat__state">{stateLabel}</span>
+          <span className="brainstorm-seat__state">
+            {/* Mismo spinner que el resto de la app mientras un agente trabaja:
+                el chip decía «hablando» pero nada se movía. */}
+            {state === 'speaking' ? (
+              <Spinner aria-label={stateLabel} />
+            ) : null}
+            {stateLabel}
+          </span>
           <AlsoTag
             rooms={alsoInRooms}
             prefix={t('tabs.brainstormSeatAlsoShort')}

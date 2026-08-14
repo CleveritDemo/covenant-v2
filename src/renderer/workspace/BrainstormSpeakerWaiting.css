@@ -16,6 +16,11 @@
   gap: 9px;
 }
 
+.brainstorm-wait__spinner {
+  display: inline-flex;
+  align-self: center;
+}
+
 .brainstorm-wait__name {
   font-family: var(--font-ui);
   font-size: 14px;

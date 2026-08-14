@@ -14,13 +14,14 @@ import { foldPulseReplicas, type PulseAgentGroup } from '@shared/pulseReplicas'
 import type { OrgWorkspaceCatalog } from '@shared/orgWorkspaceCatalog'
 import { pulseWorkspaceLabel } from '@shared/pulseWorkspaceLabels'
 import { relativeTime } from '@shared/relativeTime'
-import { TerminalModal } from '../components/TerminalModal'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { Icon } from '../components/ui/Icon'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
-import './PulseModal.css'
+import './PulseView.css'
 
-export interface PulseModalProps {
+export interface PulseViewProps {
   open: boolean
   active?: boolean
   onClose: () => void
@@ -306,7 +307,7 @@ const AgentRow: React.FC<{ group: PulseAgentGroup; nowMs: number; defaultOpen: b
 }
 
 /** Dashboard local de uso: la cadencia humana arriba, la flota de agentes abajo. */
-export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onClose }) => {
+export const PulseView: React.FC<PulseViewProps> = ({ open, active = true, onClose }) => {
   const { t } = useT()
   const [snapshot, setSnapshot] = useState<PulseSnapshot | null>(null)
   const [metric, setMetric] = useState<Metric>('both')
@@ -314,6 +315,20 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
   const [workspace, setWorkspace] = useState(ALL)
   const [repo, setRepo] = useState(ALL)
   const [orgCatalog, setOrgCatalog] = useState<OrgWorkspaceCatalog | null>(null)
+
+  // Escape cierra la vista — salvo que haya un modal portaled encima
+  // (confirmaciones, pickers): ese Escape es del modal.
+  useEffect(() => {
+    if (!open || !active) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      if (document.querySelector('.terminal-modal-root')) return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, active, onClose])
 
   useEffect(() => {
     if (!open) return
@@ -415,224 +430,238 @@ export const PulseModal: React.FC<PulseModalProps> = ({ open, active = true, onC
     }
   }, [rows, snapshot])
 
+  if (!open || !active) return null
+
   return (
-    <TerminalModal
-      open={open}
-      active={active}
-      onClose={onClose}
-      title={t('pulse.title')}
-      size="xxl"
-      closeOnEscape
-      closeOnBackdrop
+    <div
+      className="pulse-view"
+      role="region"
+      aria-label={t('pulse.title')}
+      style={{ zIndex: APP_OVERLAY_MODAL_Z }}
     >
-      {snapshot === null ? (
-        <p className="pulse__empty">{t('pulse.loading')}</p>
-      ) : (
-        <div className="pulse">
-          <div className="pulse__scope">
-            <span className="pulse__scope-key">{t('pulse.scope_workspace')}</span>
-            <span className="pulse__scope-field">
-              <Select
-                value={workspace}
-                options={workspaceOptions}
-                onChange={setWorkspace}
-                size="sm"
-                aria-label={t('pulse.scope_workspace')}
-              />
-            </span>
-            <span className="pulse__scope-key">{t('pulse.scope_repo')}</span>
-            <span className="pulse__scope-field">
-              <Select
-                value={repo}
-                options={repoOptions}
-                onChange={setRepo}
-                size="sm"
-                aria-label={t('pulse.scope_repo')}
-              />
-            </span>
-            <span className="pulse__scope-spacer" />
-            <SegmentedControl
-              value={range}
-              options={[
-                { value: '30d', label: t('pulse.range_30d') },
-                { value: '90d', label: t('pulse.range_90d') },
-                { value: 'all', label: t('pulse.range_all') },
-              ]}
-              onChange={setRange}
-              label={t('pulse.activity')}
-              size="sm"
-              layout="scroll"
-            />
-          </div>
-
-          {/* ─── Sección 1: la cadencia de la persona ─────────────────────── */}
-          <section className="pulse__section">
-            <header className="pulse__section-head">
-              <span className="pulse__rail" />
-              <span className="pulse__section-titles">
-                <span className="pulse__eyebrow">{t('pulse.human_eyebrow')}</span>
-                <h3 className="pulse__section-title">{t('pulse.human_title')}</h3>
-                <p className="pulse__section-sub">{t('pulse.human_sub')}</p>
+      <header className="pulse-view__bar">
+        <span className="pulse-view__title">{t('pulse.title')}</span>
+        <Tooltip content={t('pulse.closeView')}>
+          <button
+            type="button"
+            className="pulse-view__icon"
+            aria-label={t('pulse.closeView')}
+            onClick={onClose}
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </Tooltip>
+      </header>
+      <div className="pulse-view__body">
+        {snapshot === null ? (
+          <p className="pulse__empty">{t('pulse.loading')}</p>
+        ) : (
+          <div className="pulse">
+            <div className="pulse__scope">
+              <span className="pulse__scope-key">{t('pulse.scope_workspace')}</span>
+              <span className="pulse__scope-field">
+                <Select
+                  value={workspace}
+                  options={workspaceOptions}
+                  onChange={setWorkspace}
+                  size="sm"
+                  aria-label={t('pulse.scope_workspace')}
+                />
               </span>
-            </header>
-
-            <div className="pulse__stats">
-              <div className="pulse__stat pulse__stat--accent">
-                <span className="pulse__value">
-                  {snapshot.currentStreak}
-                  {t('pulse.daysSuffix')}
-                </span>
-                <span className="pulse__label">
-                  {t('pulse.currentStreak')}
-                  <span className="pulse__delta">
-                    {t('pulse.longestStreakShort', { n: snapshot.longestStreak })}
-                  </span>
-                </span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatNumber(snapshot.todayPrompts)}</span>
-                <span className="pulse__label">
-                  {t('pulse.today')}
-                  {delta !== null ? (
-                    <span className={delta < 0 ? 'pulse__delta pulse__delta--down' : 'pulse__delta'}>
-                      {delta < 0 ? '▽' : '△'} {delta > 0 ? '+' : ''}
-                      {delta}% {t('pulse.vsAverage')}
-                    </span>
-                  ) : null}
-                </span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatStat(snapshot.totalPrompts)}</span>
-                <span className="pulse__label">{t('pulse.turnsDirected')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatStat(snapshot.totalCommits)}</span>
-                <span className="pulse__label">{t('pulse.totalCommits')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">
-                  {snapshot.totalCommits > 0
-                    ? (snapshot.totalPrompts / snapshot.totalCommits).toFixed(1)
-                    : '—'}
-                </span>
-                <span className="pulse__label">{t('pulse.turnsPerCommit')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatNumber(snapshot.days.length)}</span>
-                <span className="pulse__label">{t('pulse.activeDays')}</span>
-              </div>
+              <span className="pulse__scope-key">{t('pulse.scope_repo')}</span>
+              <span className="pulse__scope-field">
+                <Select
+                  value={repo}
+                  options={repoOptions}
+                  onChange={setRepo}
+                  size="sm"
+                  aria-label={t('pulse.scope_repo')}
+                />
+              </span>
+              <span className="pulse__scope-spacer" />
+              <SegmentedControl
+                value={range}
+                options={[
+                  { value: '30d', label: t('pulse.range_30d') },
+                  { value: '90d', label: t('pulse.range_90d') },
+                  { value: 'all', label: t('pulse.range_all') },
+                ]}
+                onChange={setRange}
+                label={t('pulse.activity')}
+                size="sm"
+                layout="scroll"
+              />
             </div>
 
-            <section className="pulse__panel">
-              <header className="pulse__panel-head">
-                <h3 className="pulse__panel-title">{t(RANGES[range].titleKey)}</h3>
-                <div className="pulse__toggle" role="group" aria-label={t('pulse.activity')}>
-                  {METRICS.map(({ id, labelKey }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className={
-                        metric === id ? 'pulse__toggle-btn pulse__toggle-btn--on' : 'pulse__toggle-btn'
-                      }
-                      aria-pressed={metric === id}
-                      onClick={() => setMetric(id)}
-                    >
-                      {t(labelKey)}
-                    </button>
-                  ))}
-                </div>
+            {/* ─── Sección 1: la cadencia de la persona ─────────────────────── */}
+            <section className="pulse__section">
+              <header className="pulse__section-head">
+                <span className="pulse__rail" />
+                <span className="pulse__section-titles">
+                  <span className="pulse__eyebrow">{t('pulse.human_eyebrow')}</span>
+                  <h3 className="pulse__section-title">{t('pulse.human_title')}</h3>
+                  <p className="pulse__section-sub">{t('pulse.human_sub')}</p>
+                </span>
               </header>
 
-              {empty ? (
-                <p className="pulse__empty">{t('pulse.empty')}</p>
+              <div className="pulse__stats">
+                <div className="pulse__stat pulse__stat--accent">
+                  <span className="pulse__value">
+                    {snapshot.currentStreak}
+                    {t('pulse.daysSuffix')}
+                  </span>
+                  <span className="pulse__label">
+                    {t('pulse.currentStreak')}
+                    <span className="pulse__delta">
+                      {t('pulse.longestStreakShort', { n: snapshot.longestStreak })}
+                    </span>
+                  </span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatNumber(snapshot.todayPrompts)}</span>
+                  <span className="pulse__label">
+                    {t('pulse.today')}
+                    {delta !== null ? (
+                      <span className={delta < 0 ? 'pulse__delta pulse__delta--down' : 'pulse__delta'}>
+                        {delta < 0 ? '▽' : '△'} {delta > 0 ? '+' : ''}
+                        {delta}% {t('pulse.vsAverage')}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatStat(snapshot.totalPrompts)}</span>
+                  <span className="pulse__label">{t('pulse.turnsDirected')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatStat(snapshot.totalCommits)}</span>
+                  <span className="pulse__label">{t('pulse.totalCommits')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">
+                    {snapshot.totalCommits > 0
+                      ? (snapshot.totalPrompts / snapshot.totalCommits).toFixed(1)
+                      : '—'}
+                  </span>
+                  <span className="pulse__label">{t('pulse.turnsPerCommit')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatNumber(snapshot.days.length)}</span>
+                  <span className="pulse__label">{t('pulse.activeDays')}</span>
+                </div>
+              </div>
+
+              <section className="pulse__panel">
+                <header className="pulse__panel-head">
+                  <h3 className="pulse__panel-title">{t(RANGES[range].titleKey)}</h3>
+                  <div className="pulse__toggle" role="group" aria-label={t('pulse.activity')}>
+                    {METRICS.map(({ id, labelKey }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={
+                          metric === id ? 'pulse__toggle-btn pulse__toggle-btn--on' : 'pulse__toggle-btn'
+                        }
+                        aria-pressed={metric === id}
+                        onClick={() => setMetric(id)}
+                      >
+                        {t(labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                </header>
+
+                {empty ? (
+                  <p className="pulse__empty">{t('pulse.empty')}</p>
+                ) : (
+                  <>
+                    <div className="pulse__grid">
+                      {grid.map(column => (
+                        <div className="pulse__col" key={column[0]!.day}>
+                          {column.map(cell => (
+                            <Tooltip
+                              key={cell.day}
+                              content={cell.day}
+                              hint={t('pulse.dayDetail', {
+                                prompts: cell.prompts,
+                                commits: cell.commits,
+                              })}
+                            >
+                              <span
+                                className="pulse__cell"
+                                data-level={levelFor(valueOf(cell), thresholds)}
+                              />
+                            </Tooltip>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pulse__legend">
+                      <span>{t('pulse.less')}</span>
+                      {[0, 1, 2, 3, 4].map(level => (
+                        <span key={level} className="pulse__cell" data-level={level} />
+                      ))}
+                      <span>{t('pulse.more')}</span>
+                    </div>
+                  </>
+                )}
+              </section>
+            </section>
+
+            {/* ─── Sección 2: la flota ──────────────────────────────────────── */}
+            <section className="pulse__section">
+              <header className="pulse__section-head">
+                <span className="pulse__rail pulse__rail--fleet" />
+                <span className="pulse__section-titles">
+                  <span className="pulse__eyebrow">{t('pulse.fleet_eyebrow')}</span>
+                  <h3 className="pulse__section-title">{t('pulse.fleet_title')}</h3>
+                  <p className="pulse__section-sub">{t('pulse.fleet_sub')}</p>
+                </span>
+              </header>
+
+              <div className="pulse__stats">
+                <div className="pulse__stat pulse__stat--accent">
+                  <span className="pulse__value">{formatNumber(fleet.agents)}</span>
+                  <span className="pulse__label">{t('pulse.activeAgents')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <Tooltip content={formatNumber(snapshot.totalTokens)}>
+                    <span className="pulse__value">{formatStat(snapshot.totalTokens)}</span>
+                  </Tooltip>
+                  <span className="pulse__label">{t('pulse.totalTokens')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatStat(fleet.tokensPerTurn)}</span>
+                  <span className="pulse__label">{t('pulse.tokensPerTurn')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{fleet.autoShare}%</span>
+                  <span className="pulse__label">{t('pulse.autoShare')}</span>
+                </div>
+                <div className="pulse__stat">
+                  <span className="pulse__value">{formatNumber(fleet.delegations)}</span>
+                  <span className="pulse__label">{t('pulse.delegations')}</span>
+                </div>
+              </div>
+
+              {snapshot.agents.length === 0 ? (
+                <p className="pulse__empty">{t('pulse.roster_empty')}</p>
               ) : (
-                <>
-                  <div className="pulse__grid">
-                    {grid.map(column => (
-                      <div className="pulse__col" key={column[0]!.day}>
-                        {column.map(cell => (
-                          <Tooltip
-                            key={cell.day}
-                            content={cell.day}
-                            hint={t('pulse.dayDetail', {
-                              prompts: cell.prompts,
-                              commits: cell.commits,
-                            })}
-                          >
-                            <span
-                              className="pulse__cell"
-                              data-level={levelFor(valueOf(cell), thresholds)}
-                            />
-                          </Tooltip>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pulse__legend">
-                    <span>{t('pulse.less')}</span>
-                    {[0, 1, 2, 3, 4].map(level => (
-                      <span key={level} className="pulse__cell" data-level={level} />
-                    ))}
-                    <span>{t('pulse.more')}</span>
-                  </div>
-                </>
+                <div className="pulse__roster">
+                  {rows.map((group, i) => (
+                    <AgentRow
+                      key={group.base.agentId}
+                      group={group}
+                      nowMs={nowMs}
+                      defaultOpen={i === 0}
+                    />
+                  ))}
+                </div>
               )}
             </section>
-          </section>
-
-          {/* ─── Sección 2: la flota ──────────────────────────────────────── */}
-          <section className="pulse__section">
-            <header className="pulse__section-head">
-              <span className="pulse__rail pulse__rail--fleet" />
-              <span className="pulse__section-titles">
-                <span className="pulse__eyebrow">{t('pulse.fleet_eyebrow')}</span>
-                <h3 className="pulse__section-title">{t('pulse.fleet_title')}</h3>
-                <p className="pulse__section-sub">{t('pulse.fleet_sub')}</p>
-              </span>
-            </header>
-
-            <div className="pulse__stats">
-              <div className="pulse__stat pulse__stat--accent">
-                <span className="pulse__value">{formatNumber(fleet.agents)}</span>
-                <span className="pulse__label">{t('pulse.activeAgents')}</span>
-              </div>
-              <div className="pulse__stat">
-                <Tooltip content={formatNumber(snapshot.totalTokens)}>
-                  <span className="pulse__value">{formatStat(snapshot.totalTokens)}</span>
-                </Tooltip>
-                <span className="pulse__label">{t('pulse.totalTokens')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatStat(fleet.tokensPerTurn)}</span>
-                <span className="pulse__label">{t('pulse.tokensPerTurn')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{fleet.autoShare}%</span>
-                <span className="pulse__label">{t('pulse.autoShare')}</span>
-              </div>
-              <div className="pulse__stat">
-                <span className="pulse__value">{formatNumber(fleet.delegations)}</span>
-                <span className="pulse__label">{t('pulse.delegations')}</span>
-              </div>
-            </div>
-
-            {snapshot.agents.length === 0 ? (
-              <p className="pulse__empty">{t('pulse.roster_empty')}</p>
-            ) : (
-              <div className="pulse__roster">
-                {rows.map((group, i) => (
-                  <AgentRow
-                    key={group.base.agentId}
-                    group={group}
-                    nowMs={nowMs}
-                    defaultOpen={i === 0}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-    </TerminalModal>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

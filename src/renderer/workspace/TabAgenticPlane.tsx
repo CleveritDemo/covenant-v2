@@ -28,7 +28,7 @@ import { isBrainstormLive } from './brainstormViewClose'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlanePulseButton } from './PlanePulseButton'
-import { PulseModal } from './PulseModal'
+import { PulseView } from './PulseView'
 import { PlaneWikiMapButton } from './PlaneWikiMapButton'
 import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
 import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
@@ -731,7 +731,28 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const anyWindowOpen = entities.some(entity => entity.window.open)
     || Boolean(explorerState?.open)
 
-  const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen && !brainstormOverlayOpen
+  const planeWorking = agents.some(agent => (
+    agent.busy
+    || agent.loopActive
+    || agent.awaitingDelegations
+    || agent.delegationWorkActive
+  ))
+
+  // Los tres ocupan el mismo sitio del plano; cerrar la vista de una sala no para su runner, que sigue en main.
+  const closeOtherPlaneOverlays = useCallback((keep: 'wiki' | 'brainstorm' | 'pulse'): void => {
+    if (keep !== 'wiki') {
+      setWikiMapOpen(false)
+      setWikiNodeModals([])
+    }
+    if (keep !== 'brainstorm') {
+      onBrainstormViewChange?.(null)
+      onBrainstormDockOpenChange?.(false)
+    }
+    if (keep !== 'pulse') setPulseOpen(false)
+  }, [onBrainstormViewChange, onBrainstormDockOpenChange])
+
+  const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen
+    && !brainstormOverlayOpen && !pulseOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
 
   const composerWorking = Boolean(
@@ -789,7 +810,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {!anyFullscreen && (
         <div
           className={`plane-top-left-bar${
-            wikiMapOpen || brainstormOverlayOpen ? ' plane-top-left-bar--over-wiki' : ''
+            wikiMapOpen || brainstormOverlayOpen || pulseOpen ? ' plane-top-left-bar--over-wiki' : ''
           }`}
         >
           <PlaneProjectFolder
@@ -839,7 +860,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           <PlanePulseButton
             label={t('pulse.button')}
             pressed={pulseOpen}
-            onClick={() => setPulseOpen(open => !open)}
+            onClick={() => {
+              if (pulseOpen) { setPulseOpen(false); return }
+              closeOtherPlaneOverlays('pulse')
+              setPulseOpen(true)
+            }}
           />
           {onBrainstormViewChange ? (
             <span className="plane-brainstorm-anchor">
@@ -866,13 +891,16 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   }
                   // Con más de una sala viva hay que elegir a cuál volver.
                   if (liveBrainstormRooms.length > 1) {
+                    closeOtherPlaneOverlays('brainstorm')
                     onBrainstormDockOpenChange?.(true)
                     return
                   }
                   if (liveBrainstormRooms.length === 1) {
+                    closeOtherPlaneOverlays('brainstorm')
                     onBrainstormViewChange(liveBrainstormRooms[0].roomId)
                     return
                   }
+                  closeOtherPlaneOverlays('brainstorm')
                   onBrainstormViewChange(
                     brainstormSavedCount > 0 || brainstormRooms.length > 0 ? 'rooms' : 'setup',
                   )
@@ -894,12 +922,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                 <PlaneBrainstormDock
                   rooms={brainstormRooms}
                   onOpen={roomId => {
+                    closeOtherPlaneOverlays('brainstorm')
                     onBrainstormDockOpenChange?.(false)
                     onOpenBrainstormRoom?.(roomId)
                   }}
                   onStop={roomId => onStopBrainstormRoom?.(roomId)}
                   onDiscard={roomId => onDiscardBrainstormRoom?.(roomId)}
                   onCreate={() => {
+                    closeOtherPlaneOverlays('brainstorm')
                     onBrainstormDockOpenChange?.(false)
                     onBrainstormViewChange('setup')
                   }}
@@ -910,7 +940,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           <PlaneWikiMapButton
             label={t('tabs.wikiMapButton')}
             pressed={wikiMapOpen}
-            onClick={() => setWikiMapOpen(open => !open)}
+            onClick={() => {
+              if (wikiMapOpen) { setWikiMapOpen(false); setWikiNodeModals([]); return }
+              closeOtherPlaneOverlays('wiki')
+              setWikiMapOpen(true)
+            }}
           />
           {projectFolder.trim() && onRevealProjectFolder ? (
             <PlaneRevealFolderButton
@@ -1035,7 +1069,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {/* La esquina de arriba a la derecha se la queda el chrome del overlay:
           el pool se retira mientras el mapa o una sala ocupan el plano. */}
-      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && (
+      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -1060,7 +1094,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
@@ -1147,7 +1181,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         </div>
       ) : null}
 
-      {!anyFullscreen && !wikiMapOpen && (
+      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1169,6 +1203,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {/* Sala sobre el plano: mismo montaje que el mapa (absolute contra este
           contenedor). El estado vive arriba; aquí solo tiene su sitio. */}
       {brainstormOverlays}
+
+      <PulseView open={pulseOpen} active={tabActive} onClose={() => setPulseOpen(false)} />
 
       {/* Páginas reales de la wiki (cuerpo legible vía preprocess + AiMarkdown).
           Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}
@@ -1210,8 +1246,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           </TerminalModal>
         )
       })}
-
-      <PulseModal open={pulseOpen} onClose={() => setPulseOpen(false)} />
 
       <ConfirmTerminalModal
         open={pendingWorkspaceAction !== null}

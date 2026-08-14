@@ -4,6 +4,19 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.58.0
+
+- **Pulse ahora se abre como vista a pantalla completa del plano en vez de modal**, con Escape para cerrar.
+- **Abrir Pulse, el mapa de wiki o una sala cierra automáticamente a los otros dos**, así nunca quedan dos superpuestos.
+
+## v0.57.0
+
+- **El agente se reconoce igual en las tres vistas**: la tarjeta del plano es ahora la misma que se sienta en una sala y la que habla en ella. Monograma, marca del CLI, chip de orquestador y los contextos que trae leídos —con su icono y su color— en lugar de tres dibujos distintos del mismo agente.
+- **Los contextos del invitado, en fila**: al convocar una sala se veían como texto corrido y cortado («Front Rules · Workspace logic · AI…»). Ahora cada uno es una fila con su icono, así que se ve de un vistazo con qué material se sienta cada quien.
+- **El estado dice qué hace ese agente aquí**: «sin asiento» y «turno 2» al convocar; «hablando · 2/4» y «done · 4/4» en la sala viva, con el contador dentro del estado en vez de en otra esquina.
+- **Fix la última línea del turno se cortaba**: la tarjeta de la sala viva tenía tope de alto, y con los contextos dentro lo primero en caerse era justo la frase con la que se quedó el agente.
+- **Fix el velo del asiento se cortaba en el borde**: abrir un asiento atenuaba el acta pero dejaba la columna de asientos —y el canto de su borde— por encima. Ahora atenúa las tres columnas por igual.
+
 ## v0.56.0
 
 - **Alta de sala en una frase**: la configuración deja de ser cinco paneles repartidos en tres columnas y pasa a leerse como una frase editable —«Quiero que Karl y María me den ideas en unos 5 min, leyendo CT-133»—. Cada palabra resaltada abre su control debajo, y la frase ya viene respondida: se puede arrancar sin tocar nada.

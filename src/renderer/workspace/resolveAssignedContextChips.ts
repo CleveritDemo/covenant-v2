@@ -14,6 +14,12 @@ function resolveAgentResultMonogram(
   return (agent?.monogram?.trim() || agentMonogram(label)).toUpperCase()
 }
 
+/**
+ * Sin panes que compartan contexto: ninguno se marca como compartido. Lo usan
+ * las vistas de sala, donde los contextos son del agente y de nadie más.
+ */
+export const NO_CONTEXT_USAGE: ReadonlyMap<string, number> = new Map()
+
 /** Resuelve un TabContext del catálogo o sintetiza agentResult (`iaterminal:result:*`). */
 export function resolveTabContextById(
   contextId: string,

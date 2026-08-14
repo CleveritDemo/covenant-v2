@@ -12,17 +12,7 @@ vi.mock('@i18n/useT', () => ({
   }),
 }))
 
-vi.mock('../../components/TerminalModal', () => ({
-  TerminalModal: ({
-    open,
-    children,
-  }: {
-    open: boolean
-    children: React.ReactNode
-  }) => (open ? <div>{children}</div> : null),
-}))
-
-import { PulseModal } from '../PulseModal'
+import { PulseView } from '../PulseView'
 
 const WORKSPACE_ID = 'dbbda641-1971-40bf-b139-bfb90a9205c6'
 const TAG = `rodrigoanti/${WORKSPACE_ID}`
@@ -77,7 +67,7 @@ beforeAll(() => {
 
 afterEach(cleanup)
 
-describe('PulseModal workspace labels', () => {
+describe('PulseView workspace labels', () => {
   const pulseSnapshot = vi.fn()
   const getConfig = vi.fn()
 
@@ -103,8 +93,25 @@ describe('PulseModal workspace labels', () => {
     }
   })
 
+  it('no monta nada con open=false', () => {
+    const { container } = render(<PulseView open={false} active onClose={() => undefined} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('Escape dispara onClose', async () => {
+    const onClose = vi.fn()
+    render(<PulseView open active onClose={onClose} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'pulse.title' })).toBeTruthy()
+    })
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('muestra el nombre del workspace y filtra con el tag completo', async () => {
-    render(<PulseModal open onClose={() => undefined} />)
+    render(<PulseView open active onClose={() => undefined} />)
 
     await waitFor(() => {
       expect(screen.getByText('rodrigoanti/Covenant')).toBeTruthy()

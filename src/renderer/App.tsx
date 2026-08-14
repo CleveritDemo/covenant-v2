@@ -5720,6 +5720,7 @@ export const App: React.FC = () => {
           cwd={tab.projectFolder ?? ''}
           agents={catalog}
           agentsInLiveRooms={roomsByAgent('')}
+          contexts={tabContextsByTab[tab.id] ?? []}
           savedRoomsCount={brainstormSavedCountByTab[tab.id] ?? 0}
           onClose={() => setView(null)}
           onOpenRooms={() => setView('rooms')}
@@ -5745,6 +5746,7 @@ export const App: React.FC = () => {
             }))}
             onSwitchRoom={roomId => setView(roomId)}
             agentsInOtherRooms={roomsByAgent(room.id)}
+            contexts={tabContextsByTab[tab.id] ?? []}
             onClose={() => {
               // Cerrar la vista, no la sala: el runner sigue en main y el botón
               // de la barra mantiene su cuenta.

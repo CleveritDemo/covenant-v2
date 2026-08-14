@@ -811,6 +811,8 @@ const es = {
     brainstormSeatQueued: 'en cola · {{position}}',
     brainstormSeatSilent: 'aún no habla',
     brainstormSeatOpenPane: 'Abrir a {{name}} por separado',
+    brainstormSeatTurn: 'turno {{order}}',
+    brainstormSeatFree: 'sin asiento',
     brainstormSeatAlsoShort: 'también',
     brainstormSeatAlsoTitle: 'También tiene asiento en otra sala viva. Contextos independientes: nada pasa de una sala a la otra.',
     brainstormPaneTitle: '{{name}} · en esta sala',
@@ -1611,6 +1613,7 @@ const es = {
   pulse: {
     title: 'Pulse',
     button: 'Pulse',
+    closeView: 'Cerrar Pulse',
     loading: 'Cargando…',
     empty: 'Todavía no hay actividad. Envía un prompt o haz un commit y aparece acá.',
     currentStreak: 'Racha actual',

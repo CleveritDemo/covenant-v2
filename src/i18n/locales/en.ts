@@ -809,6 +809,8 @@ const en = {
     brainstormSeatQueued: 'queued · {{position}}',
     brainstormSeatSilent: 'hasn\'t spoken yet',
     brainstormSeatOpenPane: 'Open {{name}} on their own',
+    brainstormSeatTurn: 'turn {{order}}',
+    brainstormSeatFree: 'not seated',
     brainstormSeatAlsoShort: 'also',
     brainstormSeatAlsoTitle: 'Also seated in another live room. Separate context: nothing carries between rooms.',
     brainstormPaneTitle: '{{name}} · this room',
@@ -1609,6 +1611,7 @@ const en = {
   pulse: {
     title: 'Pulse',
     button: 'Pulse',
+    closeView: 'Close Pulse',
     loading: 'Loading…',
     empty: 'No activity yet. Send a prompt or make a commit and it lands here.',
     currentStreak: 'Current streak',

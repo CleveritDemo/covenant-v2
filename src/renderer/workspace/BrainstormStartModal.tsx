@@ -17,8 +17,9 @@ import {
   type CeremonyId,
 } from '@shared/agileCeremonies'
 import { agentMonogram } from '@shared/tabContextAppearance'
-import { brainstormContextLabel } from '@shared/brainstormContextLabel'
+import type { TabContext } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
+import { NO_CONTEXT_USAGE, resolveAssignedContextChips } from './resolveAssignedContextChips'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
 import type { JiraIssueRef } from '@shared/jiraIssue'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
@@ -42,6 +43,11 @@ export interface BrainstormStartModalProps {
    * independientes, así que la tarjeta lo avisa antes de sentarlo.
    */
   agentsInLiveRooms?: Readonly<Record<string, readonly string[]>>
+  /**
+   * Catálogo de contextos del proyecto: la columna de invitados pinta los del
+   * agente con su icono y color reales, igual que la mini del plano.
+   */
+  contexts?: readonly TabContext[]
   /** Actas guardadas: el número va en la pestaña de la biblioteca. */
   savedRoomsCount?: number
   onClose: () => void
@@ -66,6 +72,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   cwd,
   agents,
   agentsInLiveRooms = {},
+  contexts = [],
   savedRoomsCount = 0,
   onClose,
   onOpenRooms,
@@ -271,10 +278,16 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
                 monogram={agent.monogram?.trim()
                   || agentMonogram(brainstormCatalogAgentLabel(agent))}
                 order={at >= 0 ? at + 1 : null}
-                /* Los ids crudos (`iaterminal:notes:Front-Rules`) no dicen nada:
-                   la mini del plano muestra el nombre y aquí igual. */
-                contexts={(agent.contextIds ?? [])
-                  .map(id => brainstormContextLabel(id).label)}
+                provider={agent.provider}
+                coordination={agent.coordination}
+                /* Sin uso compartido: aquí no hay panes que compartan contexto,
+                   así que ninguno se marca como tal. */
+                contexts={resolveAssignedContextChips(
+                  agent.contextIds ?? [],
+                  contexts,
+                  NO_CONTEXT_USAGE,
+                  kind => t(`tabContexts.kind_${kind}`),
+                )}
                 alsoInRooms={agentsInLiveRooms[agent.id] ?? []}
                 onToggle={() => toggleAgent(agent.id)}
               />

@@ -342,6 +342,37 @@ describe('BrainstormStartModal — el plano entero, sin modal', () => {
     expect(right?.querySelectorAll('.brainstorm-seat--seated').length).toBe(1)
   })
 
+  // El asiento no es una tarjeta parecida a la del plano: es la misma cara,
+  // con los contextos del agente pintados como allí (icono + nombre).
+  it('el asiento es la mini del plano con los contextos del agente', () => {
+    render(
+      <BrainstormStartModal
+        open
+        cwd="/repo"
+        agents={[
+          { ...agent('vanesa', 'QA'), contextIds: ['iaterminal:notes:Front-Rules'] },
+          agent('ana', 'Dev'),
+        ]}
+        contexts={[{
+          id: 'iaterminal:notes:Front-Rules',
+          name: 'Front Rules',
+          fileName: 'Front-Rules.md',
+          kind: 'notes',
+        }]}
+        onClose={() => {}}
+        onStarted={() => {}}
+      />,
+    )
+    const card = [...document.querySelectorAll('.brainstorm-seat--invite')]
+      .find(node => node.textContent?.includes('vanesa')) as HTMLElement
+    expect(card.querySelector('.plane-mini-face')).not.toBeNull()
+    expect(card.querySelector('.plane-context-card__name')?.textContent).toBe('Front Rules')
+    // Sin asiento lo dice la cápsula de estado; sentarse la cambia por el turno.
+    expect(card.textContent).toContain('tabs.brainstormSeatFree')
+    fireEvent.click(card)
+    expect(card.textContent).toContain('tabs.brainstormSeatTurn')
+  })
+
   it('la sala reserva la franja de la barra de navegación', () => {
     open()
     const overlay = document.querySelector('.brainstorm-overlay')

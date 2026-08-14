@@ -37,6 +37,13 @@ export interface BrainstormOverlayProps {
    * dos columnas miden lo mismo que las del plano de codificación.
    */
   variant?: 'setup' | 'live'
+  /**
+   * Capa por encima de las tres columnas: el pane de un asiento. Va aquí y no
+   * en `children` porque cada columna es un contexto de apilado propio (`z-index:
+   * 1` sobre el piso de partículas), así que un velo montado dentro del centro
+   * solo tapaba el centro: los asientos y el borde de su columna seguían encima.
+   */
+  pane?: React.ReactNode
   children: React.ReactNode
 }
 
@@ -62,6 +69,7 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
   right,
   seatCount = 0,
   variant = 'live',
+  pane,
   children,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -144,6 +152,8 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
           {right}
         </aside>
       ) : null}
+
+      {pane}
     </div>
   )
 }

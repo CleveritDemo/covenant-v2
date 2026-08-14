@@ -20,7 +20,12 @@ import { candidateCeremonyRoles } from '@shared/agileCeremonies'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
 import { brainstormSeatTail } from '@shared/brainstormSeatTail'
 import { brainstormContextLabel } from '@shared/brainstormContextLabel'
+import type { TabContext } from '@shared/tabContext'
+import type { AgentCliProvider } from '@shared/tabSession'
+import type { AgentCoordination } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
+import { NO_CONTEXT_USAGE, resolveAssignedContextChips } from './resolveAssignedContextChips'
+import type { PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { isReduceMotionActive } from '../reduceMotion'
 import { Button, Tooltip } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
@@ -86,6 +91,11 @@ export interface BrainstormRoomViewProps {
    * tarjeta lo dice en vez de dejar que compitan en silencio.
    */
   agentsInOtherRooms?: Readonly<Record<string, readonly string[]>>
+  /**
+   * Catálogo de contextos del proyecto: la tarjeta del asiento pinta los del
+   * agente con su icono y color reales, igual que la mini del plano.
+   */
+  contexts?: readonly TabContext[]
   /** El cierre se guardó como contexto en `.gravity`: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
 }
@@ -119,6 +129,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   liveRooms = [],
   onSwitchRoom,
   agentsInOtherRooms = {},
+  contexts = [],
 }) => {
   const { t } = useT()
   /** Asiento abierto en su propio pane: solo sus turnos, al 0.7 del plano. */
@@ -329,11 +340,18 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   }, [agents, live.messages, live.round, live.streaming, paneAgentId])
 
   /**
-   * Con qué rol se sienta cada uno y su monograma. Los roles de ceremonia
-   * mandan sobre el texto libre, igual que en la invitación: es el rol que le
-   * dio el asiento.
+   * Con qué rol se sienta cada uno, su monograma y lo que la tarjeta hereda de
+   * la mini del plano (marca del CLI, coordinación, contextos). Los roles de
+   * ceremonia mandan sobre el texto libre, igual que en la invitación: es el rol
+   * que le dio el asiento.
    */
-  const identityOf = useCallback((agentId: string): { role: string; monogram: string } => {
+  const identityOf = useCallback((agentId: string): {
+    role: string
+    monogram: string
+    provider?: AgentCliProvider
+    coordination?: AgentCoordination
+    contexts: PlaneAgentContextChip[]
+  } => {
     const agent = agents.find(item => item.id === agentId)
     const ceremonyRoles = agent ? candidateCeremonyRoles(agent) : []
     const role = ceremonyRoles.length
@@ -342,8 +360,16 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return {
       role,
       monogram: agent?.monogram?.trim() || agentMonogram(speakerLabel(agentId)),
+      provider: agent?.provider,
+      coordination: agent?.coordination,
+      contexts: resolveAssignedContextChips(
+        agent?.contextIds ?? [],
+        contexts,
+        NO_CONTEXT_USAGE,
+        kind => t(`tabContexts.kind_${kind}`),
+      ),
     }
-  }, [agents, speakerLabel, t])
+  }, [agents, contexts, speakerLabel, t])
 
   /** Quién de esta sala también tiene asiento en otra: se avisa, no se bloquea. */
   const sharedSeatNames = useMemo(
@@ -733,6 +759,9 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 name={speakerLabel(seat.agentId)}
                 role={identity.role}
                 monogram={identity.monogram}
+                provider={identity.provider}
+                coordination={identity.coordination}
+                contexts={identity.contexts}
                 state={seat.state}
                 queuePosition={queuePositions.get(seat.agentId)}
                 turnsDone={detail?.turns ?? 0}
@@ -748,6 +777,34 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           })}
         </>
       )}
+      /* Un asiento a pantalla: solo sus turnos. Filtra lo que lees; escribir
+         desde ahí publica en la sala, dirigido a él. Va en la capa de encima
+         para que su velo tape también los asientos y el borde de su columna. */
+      pane={paneAgentId ? (
+        <BrainstormAgentPane
+          agentId={paneAgentId}
+          name={speakerLabel(paneAgentId)}
+          role={identityOf(paneAgentId).role}
+          turns={paneTurns}
+          roomTurns={totalTurns}
+          speaking={live.streaming?.agentId === paneAgentId
+            || live.speakingAgentId === paneAgentId}
+          onClose={() => setPaneAgentId(null)}
+          composer={showComposer ? (
+            <BrainstormHumanComposer
+              placeholder={t('tabs.brainstormPaneAsk', { name: speakerLabel(paneAgentId) })}
+              sendLabel={t('tabs.brainstormHumanSend')}
+              roomLabel={t('tabs.brainstormTargetRoom')}
+              timingHint={t('tabs.brainstormHumanTiming', {
+                turn: Math.min(turnsDone + 1, totalTurns),
+              })}
+              cwd={cwd}
+              addContextLabel={t('tabs.brainstormHumanAddContext')}
+              onSend={text => handleHumanSend(text, paneAgentId)}
+            />
+          ) : undefined}
+        />
+      ) : null}
     >
       <div className="brainstorm-room-view">
         {/* Ronda, turno y quién habla viven en el chrome de arriba: aquí solo el
@@ -955,34 +1012,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           </div>
         ) : null}
       </div>
-
-      {/* Un asiento a pantalla: solo sus turnos. Filtra lo que lees; escribir
-          desde ahí publica en la sala, dirigido a él. */}
-      {paneAgentId ? (
-        <BrainstormAgentPane
-          agentId={paneAgentId}
-          name={speakerLabel(paneAgentId)}
-          role={identityOf(paneAgentId).role}
-          turns={paneTurns}
-          roomTurns={totalTurns}
-          speaking={live.streaming?.agentId === paneAgentId
-            || live.speakingAgentId === paneAgentId}
-          onClose={() => setPaneAgentId(null)}
-          composer={showComposer ? (
-            <BrainstormHumanComposer
-              placeholder={t('tabs.brainstormPaneAsk', { name: speakerLabel(paneAgentId) })}
-              sendLabel={t('tabs.brainstormHumanSend')}
-              roomLabel={t('tabs.brainstormTargetRoom')}
-              timingHint={t('tabs.brainstormHumanTiming', {
-                turn: Math.min(turnsDone + 1, totalTurns),
-              })}
-              cwd={cwd}
-              addContextLabel={t('tabs.brainstormHumanAddContext')}
-              onSend={text => handleHumanSend(text, paneAgentId)}
-            />
-          ) : undefined}
-        />
-      ) : null}
 
       {/* La página que escribió un turno, abierta desde su tarjeta. */}
       {wikiPage ? (

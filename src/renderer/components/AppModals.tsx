@@ -15,6 +15,7 @@ import {
 } from './OrgWorkspaceTabPickerModal'
 import { ThemePickerModal } from './ThemePickerModal'
 import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
+import { OnboardingModal, type OnboardingCliRow } from './onboarding'
 
 interface Props {
   config: AppConfig
@@ -41,6 +42,22 @@ interface Props {
   onAgentProviderSelect: (provider: AgentCliProvider) => void
   onAgentCloneSelect: (sourcePaneId: string) => void
   onAgentCreateConfirm: (name: string) => void
+  onReplayOnboarding?: () => void
+  onboardingOpen: boolean
+  onboardingStep: number
+  onboardingClis: OnboardingCliRow[]
+  onboardingCliLoading: boolean
+  onboardingCliError: boolean
+  onboardingTeamCreated: boolean
+  onboardingFolderPath: string | null
+  onboardingCanCreateTeam: boolean
+  onOnboardingNext: () => void
+  onOnboardingBack: () => void
+  onOnboardingSkip: () => void
+  onOnboardingFinish: () => void
+  onOnboardingRecheck: () => void
+  onOnboardingPickFolder: () => void
+  onOnboardingCreateTeam: () => void
 }
 
 export const AppModals: React.FC<Props> = ({
@@ -67,6 +84,22 @@ export const AppModals: React.FC<Props> = ({
   onAgentProviderSelect,
   onAgentCloneSelect,
   onAgentCreateConfirm,
+  onReplayOnboarding,
+  onboardingOpen,
+  onboardingStep,
+  onboardingClis,
+  onboardingCliLoading,
+  onboardingCliError,
+  onboardingTeamCreated,
+  onboardingFolderPath,
+  onboardingCanCreateTeam,
+  onOnboardingNext,
+  onOnboardingBack,
+  onOnboardingSkip,
+  onOnboardingFinish,
+  onOnboardingRecheck,
+  onOnboardingPickFolder,
+  onOnboardingCreateTeam,
 }) => {
   const handleThemeAudioConfigChange = useCallback((partial: ThemePickerAudioPartial) => {
     onConfigSaved(mergeWithDefaults({
@@ -97,6 +130,7 @@ export const AppModals: React.FC<Props> = ({
           cwd={settingsCwd}
           onSave={onConfigSaved}
           onClose={onCloseSettings}
+          onReplayOnboarding={onReplayOnboarding}
         />
       )}
 
@@ -121,6 +155,24 @@ export const AppModals: React.FC<Props> = ({
         onSelectTheme={onThemeChange}
         onAudioConfigChange={handleThemeAudioConfigChange}
         onClose={onCloseThemePicker}
+      />
+
+      <OnboardingModal
+        open={onboardingOpen}
+        stepIndex={onboardingStep}
+        onNext={onOnboardingNext}
+        onBack={onOnboardingBack}
+        onSkip={onOnboardingSkip}
+        onFinish={onOnboardingFinish}
+        cliRows={onboardingClis}
+        loading={onboardingCliLoading}
+        cliError={onboardingCliError}
+        onRecheck={onOnboardingRecheck}
+        folderPath={onboardingFolderPath}
+        onPickFolder={onOnboardingPickFolder}
+        canCreateTeam={onboardingCanCreateTeam}
+        teamCreated={onboardingTeamCreated}
+        onCreateTeam={onOnboardingCreateTeam}
       />
     </>
   )

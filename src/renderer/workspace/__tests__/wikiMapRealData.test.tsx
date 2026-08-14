@@ -16,9 +16,15 @@ vi.mock('../useWikiGraphScene', () => ({
   useWikiGraphScene: () => ({ webglAvailable: false }),
 }))
 
+vi.mock('../../reduceMotion', () => ({
+  isReduceMotionActive: () => true,
+}))
+
 // Hijos pesados del plano (canvas, xterm, dictado): stubs — este test no los necesita.
 vi.mock('../PlaneMap', () => ({
-  PlaneMap: () => <div data-testid="plane-map" />,
+  PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
+    <div data-testid="plane-map">{wikiOverlay}</div>
+  ),
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
 vi.mock('../PlaneChatDock', () => ({ PlaneChatDock: () => null }))
@@ -112,13 +118,28 @@ describe('mapa de wiki con pages reales vía IPC', () => {
     expect(screen.getByTestId('plane-map')).toBeTruthy()
   })
 
-  it('ok:false también cae en el empty state, sin romper la vista', async () => {
+  it('ok:false muestra overlay de error con retry, sin empty state', async () => {
     getWikiGraph.mockResolvedValue({ ok: false, error: 'sin wiki' })
     render(<TabAgenticPlane {...baseProps} />)
 
     fireEvent.click(wikiButton())
-    expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
+    expect(await screen.findByText('sin wiki')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'tabs.wikiMapRetry' })).toBeTruthy()
+    expect(screen.queryByText('tabs.wikiMapEmpty')).toBeNull()
     expect(screen.getByRole('region', { name: 'tabs.wikiMapTitle' })).toBeTruthy()
+  })
+
+  it('mientras data es null muestra overlay de carga sin empty state', async () => {
+    let resolveGraph: (value: WikiGraphResult) => void = () => {}
+    getWikiGraph.mockReturnValue(new Promise(resolve => { resolveGraph = resolve }))
+    render(<TabAgenticPlane {...baseProps} />)
+
+    fireEvent.click(wikiButton())
+    expect(document.querySelector('.wiki-graph-view__loading')).toBeTruthy()
+    expect(screen.queryByText('tabs.wikiMapEmpty')).toBeNull()
+
+    resolveGraph({ ok: true, data: { nodes: [], edges: [] } })
+    expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
   })
 
   it('con pages reales no hay empty state y refetchea en cada apertura', async () => {
@@ -175,8 +196,7 @@ describe('CTA Crear wiki en el empty state', () => {
     const button = await createButton()
     fireEvent.click(button)
     expect(ensureWiki).toHaveBeenCalledWith('/tmp/proyecto-wiki')
-    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true))
-    expect(button.querySelector('.spinner')).toBeTruthy()
+    await waitFor(() => expect(document.querySelector('.wiki-graph-view__loading')).toBeTruthy())
 
     resolveEnsure({ ok: true })
     await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(2))

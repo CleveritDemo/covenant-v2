@@ -8,7 +8,13 @@ import {
   type AgentCliProvider,
 } from '@shared/agentCliProviders'
 import { modelsForProvider, type AgentModelOption } from '@shared/agentCliModels'
-import type { WikiCuratorConfig } from '@shared/wikiCurator'
+import { WIKI_CURATOR_INIT_COMMAND, type WikiCuratorConfig } from '@shared/wikiCurator'
+import {
+  appendWikiCuratorHistoryEntry,
+  parseWikiCuratorHistory,
+  wikiCuratorHistoryStorageKey,
+  type WikiCuratorHistoryEntry,
+} from '@shared/wikiCuratorHistory'
 import { stripAgentControlFences } from '../components/ai/assistantBodySegments'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { PendingImageThumb } from '../components/PendingImageThumb'
@@ -37,15 +43,19 @@ export interface WikiCuratorComposerProps {
   onWikiChanged: () => void
   /** Sonido de inicio de dictado; default true. */
   systemSoundsEnabled?: boolean
+  /** Incrementar tras bootstrap wiki dispara /init automático (guard thinking). */
+  bootstrapInitToken?: number
 }
 
-/** CLI por defecto del curador cuando `curator.json` no trae provider. */
+/** CLI por defecto del curador cuando AppConfig no trae provider. */
 const DEFAULT_CURATOR_PROVIDER: AgentCliProvider = 'claude'
+
+const IMAGE_ONLY_USER_TEXT = '(imagen adjunta)'
 
 /**
  * Composer flotante del curador de la wiki dentro del mapa 3D.
  * Reutiliza PlaneChatComposerShell (textarea + send/stop/mic + thumbs) sin
- * badges/listbox de agentes. Burbuja, config popover e IPC del curador viven aquí.
+ * badges/listbox de agentes. Historial, config popover e IPC del curador viven aquí.
  * Escape con foco dentro solo hace blur/cierra el popover — nunca cierra el mapa.
  */
 export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
@@ -53,10 +63,13 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   onViewSlugs,
   onWikiChanged,
   systemSoundsEnabled = true,
+  bootstrapInitToken = 0,
 }) => {
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const historyWrapRef = useRef<HTMLDivElement>(null)
+  const historyPanelRef = useRef<HTMLDivElement>(null)
   const rawReplyRef = useRef('')
   const pendingImagesRef = useRef<ComposerPendingImage[]>([])
   const [draft, setDraft] = useState('')
@@ -66,6 +79,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   const [reply, setReply] = useState('')
   const [errorText, setErrorText] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [history, setHistory] = useState<WikiCuratorHistoryEntry[]>([])
   const [configOpen, setConfigOpen] = useState(false)
   const [config, setConfig] = useState<WikiCuratorConfig>({})
   const [nameDraft, setNameDraft] = useState('')
@@ -84,11 +98,61 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
 
   const selectedProvider: AgentCliProvider = config.provider ?? DEFAULT_CURATOR_PROVIDER
 
+  const persistHistory = useCallback((entries: WikiCuratorHistoryEntry[]): void => {
+    const key = cwd.trim()
+    if (!key) return
+    try {
+      localStorage.setItem(wikiCuratorHistoryStorageKey(key), JSON.stringify(entries))
+    } catch {
+      // quota o modo privado
+    }
+  }, [cwd])
+
+  const appendHistoryEntry = useCallback((
+    entry: Omit<WikiCuratorHistoryEntry, 'at'> & { at?: number },
+  ): void => {
+    const full: WikiCuratorHistoryEntry = { ...entry, at: entry.at ?? Date.now() }
+    setHistory(previous => {
+      const next = appendWikiCuratorHistoryEntry(previous, full)
+      persistHistory(next)
+      return next
+    })
+  }, [persistHistory])
+
+  const appendHistoryEntryRef = useRef(appendHistoryEntry)
+  appendHistoryEntryRef.current = appendHistoryEntry
+
+  const clearHistory = useCallback((): void => {
+    rawReplyRef.current = ''
+    setReply('')
+    setErrorText('')
+    setHistory([])
+    const key = cwd.trim()
+    if (!key) return
+    try {
+      localStorage.removeItem(wikiCuratorHistoryStorageKey(key))
+    } catch {
+      // ignore
+    }
+  }, [cwd])
+
   useEffect(() => {
     return () => {
       pendingImagesRef.current.forEach(image => URL.revokeObjectURL(image.previewUrl))
     }
   }, [])
+
+  useEffect(() => {
+    const key = cwd.trim()
+    if (!key) return
+    try {
+      const raw = localStorage.getItem(wikiCuratorHistoryStorageKey(key))
+      if (raw) setHistory(parseWikiCuratorHistory(raw))
+      else setHistory([])
+    } catch {
+      setHistory([])
+    }
+  }, [cwd])
 
   useEffect(() => {
     const key = cwd.trim()
@@ -101,7 +165,11 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       }
       if (event.type === 'final') {
         rawReplyRef.current = event.text
-        setReply(stripAgentControlFences(event.text))
+        const stripped = stripAgentControlFences(event.text)
+        if (stripped.trim()) {
+          appendHistoryEntryRef.current({ role: 'curator', text: stripped })
+        }
+        setReply('')
         return
       }
       if (event.type === 'view') {
@@ -114,8 +182,12 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       }
       if (event.type === 'error') {
         setErrorText(event.message)
+        appendHistoryEntryRef.current({ role: 'error', text: event.message })
         return
       }
+      rawReplyRef.current = ''
+      setReply('')
+      setErrorText('')
       setThinking(false)
     })
   }, [cwd])
@@ -129,7 +201,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   }
 
   useEffect(() => {
-    if (!configOpen) return
     const key = cwd.trim()
     if (!key) return
     let cancelled = false
@@ -142,7 +213,13 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       loadModelsForProvider(provider, () => cancelled)
     }).catch(() => undefined)
     return () => { cancelled = true }
-  }, [configOpen, cwd])
+  }, [cwd])
+
+  useEffect(() => {
+    if (!configOpen) return
+    setNameDraft(config.name ?? '')
+    setRulesDraft((config.rules ?? []).join('\n'))
+  }, [configOpen, config.name, config.rules])
 
   const persistConfig = (next: WikiCuratorConfig): void => {
     setConfig(next)
@@ -206,6 +283,8 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     const key = cwd.trim()
     const imagesSnapshot = pendingImages
     if ((!message && imagesSnapshot.length === 0) || !key || thinking) return
+    const userText = message || IMAGE_ONLY_USER_TEXT
+    appendHistoryEntry({ role: 'user', text: userText })
     rawReplyRef.current = ''
     setReply('')
     setErrorText('')
@@ -220,7 +299,18 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
         ...(attachments.length ? { images: attachments } : {}),
       })
     })
-  }, [cwd, draft, pendingImages, thinking])
+  }, [appendHistoryEntry, cwd, draft, pendingImages, thinking])
+
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const lastBootstrapInitTokenRef = useRef(0)
+
+  useEffect(() => {
+    if (bootstrapInitToken === 0 || bootstrapInitToken === lastBootstrapInitTokenRef.current) return
+    lastBootstrapInitTokenRef.current = bootstrapInitToken
+    if (thinking) return
+    sendRef.current(WIKI_CURATOR_INIT_COMMAND)
+  }, [bootstrapInitToken, thinking])
 
   const stop = (): void => {
     const key = cwd.trim()
@@ -285,7 +375,30 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
 
   const selectedModel = config.model?.trim() ?? ''
   const modelIsCustom = Boolean(selectedModel && !models.some(option => option.id === selectedModel))
-  const showBubble = Boolean(reply || errorText || thinking)
+  const showLive = Boolean(reply || errorText || thinking)
+  const showHistoryPanel = history.length > 0 || showLive
+
+  useEffect(() => {
+    const panel = historyPanelRef.current
+    if (!panel) return
+    panel.scrollTop = panel.scrollHeight
+  }, [history, reply, errorText, thinking])
+
+  const scrollHistoryToEnd = useCallback((): void => {
+    const panel = historyPanelRef.current
+    if (!panel) return
+    panel.scrollTop = panel.scrollHeight
+  }, [])
+
+  const handleHistoryWrapMouseLeave = useCallback((): void => {
+    scrollHistoryToEnd()
+  }, [scrollHistoryToEnd])
+
+  const handleHistoryTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>): void => {
+    if (event.propertyName === 'max-height') {
+      scrollHistoryToEnd()
+    }
+  }, [scrollHistoryToEnd])
 
   return (
     <div
@@ -331,46 +444,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
           </label>
           <label className="wiki-curator-composer__config-field">
             <span className="wiki-curator-composer__config-label">
-              {t('tabs.wikiCuratorConfigProviderLabel')}
-            </span>
-            <Select
-              size="sm"
-              value={selectedProvider}
-              aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
-              onChange={changeProvider}
-              options={AGENT_CLI_PROVIDER_IDS.map(id => ({
-                value: id,
-                label: agentCliSpec(id).label,
-              }))}
-            />
-          </label>
-          <label className="wiki-curator-composer__config-field">
-            <span className="wiki-curator-composer__config-label">
-              {t('tabs.wikiCuratorConfigModelLabel')}
-            </span>
-            <Select
-              size="sm"
-              value={selectedModel}
-              aria-label={t('tabs.wikiCuratorConfigModelLabel')}
-              onChange={value => persistConfig({ ...config, model: value || undefined })}
-              options={[
-                { value: '', label: t('tabs.wikiCuratorConfigModelDefault') },
-                ...models.map(option => ({
-                  value: option.id,
-                  label: option.label,
-                  hint: option.label === option.id ? undefined : option.id,
-                })),
-                ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
-              ]}
-            />
-            {!selectedModel ? (
-              <span className="wiki-curator-composer__config-hint">
-                {t('tabs.wikiCuratorConfigModelDefaultHint')}
-              </span>
-            ) : null}
-          </label>
-          <label className="wiki-curator-composer__config-field">
-            <span className="wiki-curator-composer__config-label">
               {t('tabs.wikiCuratorConfigRulesLabel')}
             </span>
             <TextArea
@@ -394,20 +467,64 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
         </div>
       ) : null}
 
-      {showBubble ? (
-        <div className="wiki-curator-composer__bubble" role="status" aria-live="polite">
-          {errorText ? (
-            <p className="wiki-curator-composer__error">{errorText}</p>
+      {showHistoryPanel ? (
+        <div
+          ref={historyWrapRef}
+          className="wiki-curator-composer__history-wrap"
+          onMouseLeave={handleHistoryWrapMouseLeave}
+        >
+          {history.length > 0 ? (
+            <div className="wiki-curator-composer__history-toolbar">
+              <Tooltip content={t('tabs.wikiCuratorHistoryClear')}>
+                <Button
+                  variant="icon"
+                  size="xs"
+                  aria-label={t('tabs.wikiCuratorHistoryClear')}
+                  onClick={clearHistory}
+                >
+                  <Icon name="close" size={11} aria-hidden />
+                </Button>
+              </Tooltip>
+            </div>
           ) : null}
-          {reply ? (
-            <p className="wiki-curator-composer__reply">{reply}</p>
-          ) : null}
-          {thinking && !reply && !errorText ? (
-            <span className="wiki-curator-composer__thinking">
-              <Spinner aria-label={t('tabs.wikiCuratorThinking')} />
-              {t('tabs.wikiCuratorThinking')}
-            </span>
-          ) : null}
+          <div
+            ref={historyPanelRef}
+            className="wiki-curator-composer__history"
+            aria-label={t('tabs.wikiCuratorHistoryLabel')}
+            onTransitionEnd={handleHistoryTransitionEnd}
+          >
+            {history.map((entry, index) => (
+              <p
+                key={`${entry.at}-${index}`}
+                className={[
+                  'wiki-curator-composer__entry',
+                  `wiki-curator-composer__entry--${entry.role}`,
+                ].join(' ')}
+              >
+                {entry.text}
+              </p>
+            ))}
+            {showLive ? (
+              <div className="wiki-curator-composer__live" role="status" aria-live="polite">
+                {errorText ? (
+                  <p className="wiki-curator-composer__entry wiki-curator-composer__entry--error">
+                    {errorText}
+                  </p>
+                ) : null}
+                {reply ? (
+                  <p className="wiki-curator-composer__entry wiki-curator-composer__entry--curator">
+                    {reply}
+                  </p>
+                ) : null}
+                {thinking && !reply && !errorText ? (
+                  <span className="wiki-curator-composer__thinking">
+                    <Spinner aria-label={t('tabs.wikiCuratorThinking')} />
+                    {t('tabs.wikiCuratorThinking')}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -424,6 +541,35 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
             level={level}
             text={interim.trim() || t('agentPane.dictationLive')}
           />
+          <div className="wiki-curator-composer__quick-config">
+            <Select
+              variant="badge"
+              size="sm"
+              value={selectedProvider}
+              aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
+              onChange={changeProvider}
+              options={AGENT_CLI_PROVIDER_IDS.map(id => ({
+                value: id,
+                label: agentCliSpec(id).label,
+              }))}
+            />
+            <Select
+              variant="badge"
+              size="sm"
+              value={selectedModel}
+              aria-label={t('tabs.wikiCuratorConfigModelLabel')}
+              onChange={value => persistConfig({ ...config, model: value || undefined })}
+              options={[
+                { value: '', label: t('tabs.wikiCuratorConfigModelDefault') },
+                ...models.map(option => ({
+                  value: option.id,
+                  label: option.label,
+                  hint: option.label === option.id ? undefined : option.id,
+                })),
+                ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
+              ]}
+            />
+          </div>
           <PlaneChatComposerShell
             value={draft}
             onChange={setDraft}

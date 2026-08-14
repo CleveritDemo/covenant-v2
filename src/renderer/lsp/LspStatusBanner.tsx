@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useT } from '@i18n/useT'
 import { FileEditorActionButton } from '../terminal/explorer/FileEditorActionButton'
 import { grantConsentFor, lspManager, type LspDocStatus } from './manager'
+import { LspRuntimeHint } from './LspRuntimeHint'
 
 interface LspStatusBannerProps {
   status: LspDocStatus | null
@@ -87,28 +88,14 @@ export const LspStatusBanner: React.FC<LspStatusBannerProps> = ({ status, langua
   }
 
   if (status.kind === 'needs-runtime') {
-    // Se ramifica acá en vez de armar la clave dinámicamente: `t` está tipado
-    // contra el árbol de locales y una unión de claves con params no le entra.
-    const s = status.suggestion
     return (
       <div className="lsp-banner" role="status">
-        <span>
-          {status.found
-            ? t('lsp.runtime.tooOld', { name: status.name, min: status.min, found: status.found })
-            : t('lsp.runtime.missing', { name: status.name, min: status.min })}
-        </span>
-        {s?.kind === 'onDiskNotOnPath' && (
-          <>
-            <span>{t('lsp.runtime.onDiskNotOnPath', { version: s.version, dir: s.dir })}</span>
-            <code className="lsp-banner__command">{`export PATH="${s.dir}:$PATH"`}</code>
-          </>
-        )}
-        {s?.kind === 'install' && (
-          <>
-            <span>{t('lsp.runtime.install')}</span>
-            <code className="lsp-banner__command">{s.hint}</code>
-          </>
-        )}
+        <LspRuntimeHint
+          name={status.name}
+          min={status.min}
+          found={status.found}
+          suggestion={status.suggestion}
+        />
         <FileEditorActionButton label={t('lsp.recheck')} onClick={() => { void handleRecheck() }} />
       </div>
     )

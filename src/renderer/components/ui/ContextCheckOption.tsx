@@ -15,6 +15,12 @@ export interface ContextCheckOptionProps {
   appearance?: 'panel' | 'menu'
   emphasize?: boolean
   title?: string
+  /** Etiqueta de aviso antes del kind (p. ej. «sin usar»). */
+  flag?: string
+  /** Quién más consume la opción: pila de monogramas al final de la fila. */
+  usedBy?: readonly { id: string; monogram: string; name: string }[]
+  /** Texto accesible de la pila; recibe los nombres ya unidos. */
+  usedByLabel?: string
 }
 
 /** Opción multi-select de contexto (checkbox + nombre + kind). */
@@ -28,6 +34,9 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
   appearance = 'panel',
   emphasize = false,
   title,
+  flag,
+  usedBy,
+  usedByLabel,
 }) => (
   <label
     className={[
@@ -58,6 +67,14 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
       </span>
     ) : null}
     <span className="context-check-option__name">{name}</span>
+    {flag ? <span className="context-check-option__flag">{flag}</span> : null}
     {kindLabel ? <span className="context-check-option__kind">{kindLabel}</span> : null}
+    {usedBy && usedBy.length > 0 ? (
+      <span className="context-check-option__stack" aria-label={usedByLabel}>
+        {usedBy.map(user => (
+          <span key={user.id} className="context-check-option__monogram">{user.monogram}</span>
+        ))}
+      </span>
+    ) : null}
   </label>
 )

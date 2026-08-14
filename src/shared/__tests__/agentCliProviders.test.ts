@@ -69,6 +69,25 @@ describe('claude · allowlist de MCP', () => {
   })
 })
 
+const cursorArgs = (over: Partial<Parameters<typeof AGENT_CLI_PROVIDERS.cursor.args>[0]> = {}) =>
+  AGENT_CLI_PROVIDERS.cursor.args({ prompt: 'hola', cwd: '/repo', mode: 'auto', ...over })
+
+describe('cursor', () => {
+  it('args mode auto incluyen --trust', () => {
+    expect(cursorArgs({ mode: 'auto' })).toContain('--trust')
+  })
+
+  it('args mode plan incluyen --trust', () => {
+    expect(cursorArgs({ mode: 'plan' })).toContain('--trust')
+  })
+
+  it('--trust presente aunque no haya --force (plan)', () => {
+    const args = cursorArgs({ mode: 'plan' })
+    expect(args).toContain('--trust')
+    expect(args).not.toContain('--force')
+  })
+})
+
 describe('capacidades por proveedor', () => {
   it('claude soporta las dos', () => {
     expect(providerCapabilities('claude')).toEqual({

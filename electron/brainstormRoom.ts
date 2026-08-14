@@ -22,6 +22,7 @@ import {
   type BrainstormEvent,
   type BrainstormMessage,
   type BrainstormRoom,
+  type BrainstormSpeakerPhase,
   type BrainstormWorkingSet,
 } from '../src/shared/brainstormRoom'
 import { sanitizeCeremonyId } from '../src/shared/agileCeremonies'
@@ -73,6 +74,8 @@ export interface BrainstormSpeakerTurnInput {
   isStale: () => boolean
   onDelta: (text: string) => void
   onSession?: (cliSessionId: string) => void
+  /** Se llama una vez, con el primer evento del CLI: el proceso está vivo. */
+  onPhase?: (phase: BrainstormSpeakerPhase) => void
 }
 
 export type BrainstormSpeakerTurnResult =
@@ -128,6 +131,9 @@ export function defaultRunBrainstormSpeakerTurn(
     let finalText = ''
     let lastError: string | undefined
     let settled = false
+    // Cualquier primer evento sirve: significa que el proceso arrancó y ya está
+    // masticando el contexto. Antes de esto no hay nada honesto que contar.
+    let announcedAlive = false
 
     const settle = (result: BrainstormSpeakerTurnResult): void => {
       if (settled) return
@@ -163,6 +169,10 @@ export function defaultRunBrainstormSpeakerTurn(
     runAgentCliSpawn(request, config, home, {
       onEvent: (event: AgentCliUiEvent) => {
         if (input.isStale()) return
+        if (!announcedAlive) {
+          announcedAlive = true
+          input.onPhase?.('reading')
+        }
         if (event.type === 'session') {
           input.onSession?.(event.cliSessionId)
           return
@@ -664,6 +674,17 @@ export function startBrainstormRoom(
               if (run?.generation === generation) {
                 run.cliSessions.set(input.agent.id, cliSessionId)
               }
+            },
+            onPhase: phase => {
+              if (isStale()) return
+              const run = roomRuns.get(roomId)
+              if (!run || run.generation !== generation) return
+              emitBrainstorm(win, roomId, {
+                type: 'speaker_phase',
+                agentId: input.agent.id,
+                round: run.room.round,
+                phase,
+              })
             },
             isStale,
           },

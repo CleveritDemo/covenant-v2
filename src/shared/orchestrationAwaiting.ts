@@ -3,6 +3,11 @@
  * Sin React/electron: App arma inputs desde refs; UI solo renderiza la vista.
  */
 
+import {
+  formatCatalogAgentDelegationLabel,
+  type ProjectAgentDefinition,
+} from './projectAgentCatalog'
+
 /**
  * `deferred` es una delegación aceptada que todavía no arrancó (el pane destino
  * estaba ocupado y no se permitió réplica). Se separó de `running` porque
@@ -64,15 +69,27 @@ export function shortWorktreeHint(worktreePath: string | undefined): string | un
   return parts[parts.length - 1]
 }
 
+export interface BuildOrchestrationAwaitingViewOptions {
+  catalog?: readonly ProjectAgentDefinition[]
+}
+
 export function buildOrchestrationAwaitingView(
   items: readonly OrchestrationAwaitingItemInput[],
+  options?: BuildOrchestrationAwaitingViewOptions,
 ): OrchestrationAwaitingView | null {
   if (!items.length) return null
+  const catalog = options?.catalog ?? []
+  const labelForExpertId = (expertId: string): string => {
+    const id = expertId.trim()
+    if (!id) return expertId
+    if (catalog.length) return formatCatalogAgentDelegationLabel(id, catalog)
+    return id
+  }
   const views: OrchestrationAwaitingItemView[] = items.map(item => {
     const to = item.toAgentId.trim()
     return {
       delegationId: item.delegationId,
-      agentLabel: to || item.delegationId,
+      agentLabel: labelForExpertId(to || item.delegationId),
       status: item.status,
       ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),
       ...(shortWorktreeHint(item.worktreePath)

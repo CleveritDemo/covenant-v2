@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useT } from '@i18n/useT'
+import type { OrgWorkspaceSyncPhase } from '../orgWorkspaceMaterialize'
 import type { OrgWorkspaceCloneFailure } from '../../shared/orgWorkspaceCloneError'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
 import { TerminalModal } from './TerminalModal'
@@ -16,11 +17,13 @@ export type OrgWorkspaceRequirementState = {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  syncPhase?: OrgWorkspaceSyncPhase
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
   workspaceRenameError?: string
   uploadError?: string
+  wikiError?: string
 }
 
 interface Props {
@@ -31,16 +34,35 @@ interface Props {
   cloneFailure?: OrgWorkspaceCloneFailure
   cloning?: boolean
   syncing?: boolean
+  syncPhase?: OrgWorkspaceSyncPhase
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
   workspaceRenameError?: string
   uploadError?: string
+  wikiError?: string
   onClose: () => void
   onOpenSettings: () => void
+  /** Espacio cancela sync o publish en curso. */
+  onCancelBusy?: () => void
 }
 
 type T = ReturnType<typeof useT>['t']
+
+function syncingPhaseLabel(phase: OrgWorkspaceSyncPhase | undefined, t: T): string {
+  switch (phase) {
+    case 'repos':
+      return t('organizations.reqSyncingRepos')
+    case 'agents':
+      return t('organizations.reqSyncingAgents')
+    case 'contexts':
+      return t('organizations.reqSyncingContexts')
+    case 'wiki':
+      return t('organizations.reqSyncingWiki')
+    default:
+      return t('organizations.reqSyncing')
+  }
+}
 
 function cloneHeadline(failure: OrgWorkspaceCloneFailure, t: T): string {
   const org = failure.orgName?.trim() || t('organizations.reqCloneOrgFallback')
@@ -146,13 +168,16 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloneFailure,
   cloning = false,
   syncing = false,
+  syncPhase,
   uploading = false,
   agentDeleteError,
   agentUpdateError,
   workspaceRenameError,
   uploadError,
+  wikiError,
   onClose,
   onOpenSettings,
+  onCancelBusy,
 }) => {
   const { t } = useT()
   const [ssoOpenFailedUrl, setSsoOpenFailedUrl] = useState<string | null>(null)
@@ -160,7 +185,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   const statusLabel = uploading
     ? t('organizations.reqUploading')
     : syncing
-      ? t('organizations.reqSyncing')
+      ? syncingPhaseLabel(syncPhase, t)
       : t('organizations.reqCloning')
   const legacyCloneRaw = !cloneFailure && cloneError?.trim() ? cloneError.trim() : null
   const agentErr = agentDeleteError?.trim()
@@ -173,6 +198,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     : null
   const uploadErr = uploadError?.trim()
     ? t('organizations.reqUploadFailed', { error: uploadError.trim() })
+    : null
+  const wikiErr = wikiError?.trim()
+    ? t('organizations.reqWikiFailed', { error: wikiError.trim() })
     : null
 
   const showAuthorize =
@@ -195,6 +223,8 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     })
   }
 
+  const cancelableBusy = syncing || uploading
+
   if (busy) {
     return (
       <HeroConfirmOverlay
@@ -202,7 +232,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
         open={open}
         meta={statusLabel}
         title={t('organizations.reqBusyTitle')}
+        hint={cancelableBusy ? t('organizations.reqBusyCancelHint') : undefined}
         zIndex={ORG_WORKSPACE_BUSY_Z}
+        onCancel={cancelableBusy ? onCancelBusy : undefined}
       />
     )
   }
@@ -262,6 +294,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
         {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
         {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
         {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
+        {wikiErr ? <p className="org-ws-req__line">{wikiErr}</p> : null}
       </div>
     </TerminalModal>
   )

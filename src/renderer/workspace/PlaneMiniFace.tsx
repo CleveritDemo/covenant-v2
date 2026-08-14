@@ -8,7 +8,6 @@ import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import { setPlaneContextDragData } from './planeContextDrag'
-import { setPlaneAgentDragData } from './planeAgentDrag'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -75,7 +74,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const resultsTitle = resultsDragLabel || resultsId
   const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
 
-  const seatDraggable = Boolean(seatDragEnabled && agentId?.trim())
 
   return (
   <div
@@ -83,16 +81,8 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       'plane-mini-face',
       busy ? 'plane-mini-face--busy' : '',
       density === 'compact' ? 'plane-mini-face--compact' : '',
-      seatDraggable ? 'plane-mini-face--seat-draggable' : '',
       `plane-mini-face--${provider}`,
     ].filter(Boolean).join(' ')}
-    draggable={seatDraggable || undefined}
-    onDragStart={seatDraggable
-      ? event => {
-        event.stopPropagation()
-        setPlaneAgentDragData(event.dataTransfer, agentId!.trim())
-      }
-      : undefined}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
     {busy ? <PlaneBusyDot placement="corner" /> : null}
@@ -114,13 +104,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           >
             <Icon name="drag-handle" size={11} />
           </button>
-        ) : seatDraggable ? (
-          <span
-            className="plane-mini-face__action plane-mini-face__drag-hint"
-            aria-hidden="true"
-          >
-            <Icon name="drag-handle" size={11} />
-          </span>
         ) : null}
         <span className="plane-mini-face__monogram" aria-hidden>
           {displayMonogram}

@@ -27,7 +27,7 @@ import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
 import {
   applyAgentIdentityDraft,
   type AgentIdentityDraft,
-  normalizeAgentRules,
+  agentRulesForPrompt,
 } from '@shared/agentIdentity'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
 import {
@@ -39,12 +39,16 @@ import {
   touchActiveThread,
 } from '@shared/agentThreads'
 import { buildRunKey } from '@shared/agentRunKey'
-import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
+import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts, formatCatalogAgentDelegationLabel } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   orchestrationAwaitingSignature,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
+import {
+  buildDelegationTurnSummary,
+  isDelegationSummaryPlaceholder,
+} from '@shared/delegationTurnSummary'
 import type {
   DelegateRequest,
   DelegateResult,
@@ -60,8 +64,12 @@ import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
+import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
+import { resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
+import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
+import { turnFailedAfter } from './turnFailureState'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
@@ -91,6 +99,7 @@ import {
   imagesFromClipboard,
   materializeClipboardImage,
   MAX_PENDING_IMAGES,
+  publishedQueueImagePreviewUrl,
   type ComposerPendingImage,
 } from './composerImages'
 import {
@@ -109,6 +118,10 @@ import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
+import {
+  dedupeHumanQueuedTurnOnEnqueue,
+  removeMatchingHumanQueuedTurns,
+} from './queuedTurnDedup'
 import {
   appendLaneText,
   endLane,
@@ -228,6 +241,8 @@ interface Props {
   peerAgents?: DelegateToPeerAgent[]
   /** Catálogo de agentes del proyecto (cara de las filas de results). */
   projectAgents?: ProjectAgentDefinition[]
+  /** El listado de contextos reasignó los `contextIds` de un agente. */
+  onProjectAgentSaved?: (agent: ProjectAgentDefinition) => void
   /**
    * Catálogo de contextos del tab (App). En org es el SSOT en memoria;
    * en personal suele coincidir con el discover de disco.
@@ -351,6 +366,8 @@ export interface AgentPlaneStatus {
   busy: boolean
   activity: string
   lastSnippet: string
+  /** El último turno cerró con error de CLI: `lastSnippet` es el texto del fallo. */
+  lastTurnFailed: boolean
   contexts: Array<{ id: string; name: string; kind: string }>
   /** Conversación user/assistant para el chat del plano (sin system). */
   messages: AgentChatEntry[]
@@ -430,6 +447,7 @@ export const AgentPane: React.FC<Props> = ({
   getOrchestrationAgents,
   peerAgents = [],
   projectAgents = [],
+  onProjectAgentSaved,
   tabContexts = [],
   orgWorkspace,
   onOrchestratorDelegations,
@@ -500,6 +518,8 @@ export const AgentPane: React.FC<Props> = ({
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
+  /** Espejo en estado de `turnHadCliErrorRef`: el plano necesita republicar al cambiar. */
+  const [lastTurnFailed, setLastTurnFailed] = useState(false)
   /**
    * Catálogo vivo de contextos para este pane.
    * Personal y org local-first: discover de `.gravity/*.md`.
@@ -530,6 +550,8 @@ export const AgentPane: React.FC<Props> = ({
   const lastTurnRequestRef = useRef<AgentCliStartRequest | null>(null)
   /** Reintentos ya hechos por emptyResponse en el turno actual. */
   const emptyResponseRetriesRef = useRef(0)
+  /** El turno actual recibió un evento CLI `error` (fallo terminal del proceso). */
+  const turnHadCliErrorRef = useRef(false)
   /** Stop del usuario: el cierre diferido no debe reintentar ni mostrar emptyResponse. */
   const suppressEmptyHandlingRef = useRef(false)
   /** Chat hidratado; hasta entonces se encolan eventos CLI (remount durante stream). */
@@ -540,7 +562,19 @@ export const AgentPane: React.FC<Props> = ({
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
   const runLoopIterationRef = useRef<(iteration: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
+  const chatSaveScheduleRef = useRef(createAgentChatSaveSchedule())
   const planeStatusThrottlerRef = useRef(createPlaneStatusThrottler<AgentPlaneStatus>())
+  const assistantDeltaThrottlerRef = useRef(createAssistantDeltaThrottler((assistantId, text) => {
+    setMessages(prev => {
+      const next = prev.map(message => {
+        if (message.id !== assistantId) return message
+        return { ...message, content: message.content + text }
+      })
+      messagesRef.current = next
+      return next
+    })
+  }))
+  const tabActivePrevRef = useRef(tabActive)
   const messagesRef = useRef(messages)
   const metaRef = useRef(meta)
   const diskContextsRef = useRef(diskContexts)
@@ -998,8 +1032,22 @@ export const AgentPane: React.FC<Props> = ({
     // del thread anterior. Sin el ref los guardaría bajo el thread nuevo.
     if (!loaded || !loadedRef.current) return
     if (getLane(lanesRef.current, activeThreadId)?.busy) return
-    window.api.saveAgentChat(chatRef, activeThreadId, messages)
+    const schedule = chatSaveScheduleRef.current
+    schedule.schedule(() => {
+      window.api.saveAgentChat(chatRef, activeThreadId, messages)
+    })
   }, [activeThreadId, chatRef, loaded, messages])
+
+  useEffect(() => () => {
+    chatSaveScheduleRef.current.flush()
+  }, [])
+
+  useEffect(() => {
+    if (prevActiveThreadIdRef.current !== activeThreadId) {
+      chatSaveScheduleRef.current.flush()
+      prevActiveThreadIdRef.current = activeThreadId
+    }
+  }, [activeThreadId])
 
   useLayoutEffect(() => {
     if (!loaded) return
@@ -1161,6 +1209,8 @@ export const AgentPane: React.FC<Props> = ({
 
   useEffect(() => {
     if (!onPlaneStatusChange) return
+    const becameActive = tabActive && !tabActivePrevRef.current
+    tabActivePrevRef.current = tabActive
     const assignedIds = new Set(meta.contextIds ?? [])
     const contexts = diskContexts
       .filter(context => assignedIds.has(context.id))
@@ -1183,12 +1233,12 @@ export const AgentPane: React.FC<Props> = ({
       busy,
       activity,
       lastSnippet,
+      lastTurnFailed,
       contexts,
-      messages: messages
-        .filter(entry => entry.role === 'user' || entry.role === 'assistant'),
+      messages: resolvePlaneStatusMessages(tabActive, messages),
       activeAssistantId: busy ? activeAssistantId : null,
-      enteringIds: [...enteringIds],
-      materializingIds: [...materializingIds],
+      enteringIds: tabActive ? [...enteringIds] : [],
+      materializingIds: tabActive ? [...materializingIds] : [],
       settlingId,
       awaitingDelegations,
       orchestrationAwaiting: orchestrationAwaiting ?? null,
@@ -1205,7 +1255,7 @@ export const AgentPane: React.FC<Props> = ({
         text: item.text,
         images: item.images.map(image => ({
           id: image.id,
-          previewUrl: image.previewUrl,
+          previewUrl: publishedQueueImagePreviewUrl(image),
           name: image.name,
         })),
         ...(item.orchestrationFollowUp ? { orchestrationFollowUp: true } : {}),
@@ -1238,10 +1288,11 @@ export const AgentPane: React.FC<Props> = ({
       loopActive ? '1' : '0',
       chainLoopActive ? '1' : '0',
       turnCloseReason ?? '',
+      lastTurnFailed ? '1' : '0',
       loopEndReason ?? '',
-      String(queuedTurns.length),
-      String(enteringIds.size),
-      String(materializingIds.size),
+      queuedTurns.map(item => item.id).join(','),
+      tabActive ? String(enteringIds.size) : '0',
+      tabActive ? String(materializingIds.size) : '0',
       String(pendingImages.length),
       meta.cliSessionId ?? '',
       String(meta.threads?.length ?? 0),
@@ -1253,6 +1304,9 @@ export const AgentPane: React.FC<Props> = ({
       value: status,
       publish: onPlaneStatusChange,
     })
+    if (becameActive) {
+      planeStatusThrottlerRef.current.flush()
+    }
   }, [
     activeAssistantId,
     activeThreadId,
@@ -1266,6 +1320,7 @@ export const AgentPane: React.FC<Props> = ({
     enteringIds,
     lanesVersion,
     loopActive,
+    lastTurnFailed,
     loopEndReason,
     loopOpen,
     materializingIds,
@@ -1279,12 +1334,17 @@ export const AgentPane: React.FC<Props> = ({
     pendingImages.length,
     queuedTurns,
     settlingId,
+    tabActive,
     turnCloseReason,
   ])
 
   useEffect(() => {
-    const throttler = planeStatusThrottlerRef.current
-    return () => throttler.dispose()
+    const planeThrottler = planeStatusThrottlerRef.current
+    const deltaThrottler = assistantDeltaThrottlerRef.current
+    return () => {
+      deltaThrottler.dispose()
+      planeThrottler.dispose()
+    }
   }, [])
 
   // Si cambia el catálogo de agentes, re-mezclar results (altas/bajas/renombres).
@@ -1702,7 +1762,7 @@ export const AgentPane: React.FC<Props> = ({
       assigned,
       orgBodyScopeRef.current,
     )
-    const rules = normalizeAgentRules(currentMeta.rules)
+    const rules = agentRulesForPrompt(currentMeta.rules, currentMeta.rulesEnabled)
     const canDelegate = coordinationCanDelegate(currentMeta.coordination)
     const orchestrationAgents = canDelegate
       ? (getOrchestrationAgentsRef.current?.() ?? [])
@@ -1821,6 +1881,7 @@ export const AgentPane: React.FC<Props> = ({
   const completeTurn = useCallback((expectedGen?: number): void => {
     if (expectedGen != null && expectedGen !== turnGenRef.current) return
     if (turnClosedRef.current) return
+    assistantDeltaThrottlerRef.current.flush()
     turnClosedRef.current = true
     const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
     const closedGen = turnGenRef.current
@@ -1908,6 +1969,8 @@ export const AgentPane: React.FC<Props> = ({
         setMessages(prev => prev.map(entry => (
           entry.id === id ? { ...entry, content: '' } : entry
         )))
+        turnHadCliErrorRef.current = false
+        setLastTurnFailed(prev => turnFailedAfter('retry', prev))
         window.api.startAgentTurn(retryRequest)
         return
       }
@@ -1952,6 +2015,11 @@ export const AgentPane: React.FC<Props> = ({
       }
 
       emptyResponseRetriesRef.current = 0
+      turnHadCliErrorRef.current = false
+      // El cierre NO limpia el fallo: la reconciliación idle lee el pane ya
+      // parado, y si lo limpiásemos aquí cerraría la delegación como correcta.
+      setLastTurnFailed(prev => turnFailedAfter('close', prev))
+      chatSaveScheduleRef.current.flush()
       finishSideEffects()
     }, 0)
   }, [beginLiveSettle, clearLoopTimer, emitDelegationResult, finishLoop, paneId, systemSoundsEnabled, t])
@@ -2006,7 +2074,10 @@ export const AgentPane: React.FC<Props> = ({
       onOrchestratorDelegationsRef.current?.(tagged, jobId)
       if (tagged.length) {
         const names = tagged
-          .map(item => item.toAgentId)
+          .map(item => formatCatalogAgentDelegationLabel(
+            item.toAgentId,
+            projectAgentsRef.current,
+          ))
           .join(', ')
         setMessages(prev => [
           ...prev,
@@ -2044,6 +2115,7 @@ export const AgentPane: React.FC<Props> = ({
       if (event.status === 'loading') {
         const id = activeAssistantIdRef.current
         if (id) {
+          assistantDeltaThrottlerRef.current.flush()
           // El primer proceso pudo emitir el bloque interno durante streaming.
           // Se limpia antes de continuar con la respuesta real.
           setMessages(prev => prev.map(message =>
@@ -2053,6 +2125,8 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'error') {
+      turnHadCliErrorRef.current = true
+      setLastTurnFailed(prev => turnFailedAfter('cli-error', prev))
       let assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
       if (!assistantId) {
         const existing = [...messagesRef.current].reverse().find(message => message.role === 'assistant')
@@ -2066,6 +2140,7 @@ export const AgentPane: React.FC<Props> = ({
       lastAssistantIdRef.current = assistantId
       setActiveAssistantId(assistantId)
       setBusy(true)
+      assistantDeltaThrottlerRef.current.flush()
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
         const existing = prev.findIndex(message => message.id === assistantId)
@@ -2089,6 +2164,7 @@ export const AgentPane: React.FC<Props> = ({
       setBusy(true)
     }
     if (event.type === 'assistant_final') {
+      assistantDeltaThrottlerRef.current.flush()
       // Solo limpia el fence ia-terminal-context del texto visible; nunca se aplica.
       let { visibleText } = extractTabContextUpdates(event.text)
       if (loopActiveRef.current) {
@@ -2104,10 +2180,9 @@ export const AgentPane: React.FC<Props> = ({
       }))
       return
     }
-    setMessages(prev => prev.map(message => {
-      if (message.id !== assistantId) return message
-      return { ...message, content: message.content + event.text }
-    }))
+    if (event.type === 'assistant_delta') {
+      assistantDeltaThrottlerRef.current.append(assistantId, event.text)
+    }
   }, [completeTurn, onMetaChange, t])
 
   const laneCompletingRef = useRef<Set<string>>(new Set())
@@ -2406,6 +2481,19 @@ export const AgentPane: React.FC<Props> = ({
   }, [dispatchMessage, finishLoop])
   runLoopIterationRef.current = runLoopIteration
 
+  const enqueueQueuedTurn = useCallback((item: Omit<QueuedTurn, 'id'>): boolean => {
+    let didEnqueue = false
+    setQueuedTurns(prev => {
+      if (prev.length >= MAX_VISIBLE_QUEUED_TURNS) return prev
+      didEnqueue = true
+      return dedupeHumanQueuedTurnOnEnqueue(prev, {
+        id: crypto.randomUUID(),
+        ...item,
+      })
+    })
+    return didEnqueue
+  }, [])
+
   const send = useCallback((overrideText?: string): void => {
     const prompt = (overrideText ?? input).trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
@@ -2416,12 +2504,17 @@ export const AgentPane: React.FC<Props> = ({
     setPendingImages([])
     // Encolar mientras hay trabajo/delegaciones; abort solo al iniciar turno humano.
     if (!canStartHumanTurnNow) {
-      setQueuedTurns(prev => [
-        ...prev,
-        { id: crypto.randomUUID(), text: prompt, images: imagesSnapshot },
-      ])
+      enqueueQueuedTurn({
+        text: prompt,
+        images: imagesSnapshot,
+      })
       return
     }
+    setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
+      prev,
+      prompt,
+      imagesSnapshot.length,
+    ))
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
@@ -2443,6 +2536,7 @@ export const AgentPane: React.FC<Props> = ({
     pendingImages,
     pendingJiraContextIds,
     queuedTurns.length,
+    enqueueQueuedTurn,
   ])
 
   useEffect(() => {
@@ -2490,52 +2584,59 @@ export const AgentPane: React.FC<Props> = ({
       ...(viaLoop ? { viaLoop: true as const } : {}),
       ...(extraContextIds.length ? { extraContextIds } : {}),
     }
-    // Busy o humano sin slot → encolar (delegaciones en carril arrancan en background).
-    const isLaneDelegation = Boolean(delegation?.threadId?.trim())
-    const shouldEnqueue = !isLaneDelegation && (busy || (isHumanTurn && !canStartHumanTurnNow))
-    if (shouldEnqueue) {
-      let didEnqueue = false
-      setQueuedTurns(prev => {
-        if (prev.length >= MAX_VISIBLE_QUEUED_TURNS) return prev
-        didEnqueue = true
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            text: prompt,
-            images: imagesSnapshot,
-            ...turnOptions,
-          },
-        ]
-      })
-      if (!didEnqueue) {
-        imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
-        console.warn('[AgentPane] preferSend rejected', {
-          reason: 'queue_full',
-          delegationId,
-          orchestrationJobId,
-        })
-        handledPreferSendRef.current = null
+    let cancelled = false
+    void (async () => {
+      const resolvedImages = await imagesSnapshot
+      if (cancelled) {
+        resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
         return
+      }
+      const isLaneDelegation = Boolean(delegation?.threadId?.trim())
+      const shouldEnqueue = !isLaneDelegation && (busy || (isHumanTurn && !canStartHumanTurnNow))
+      if (shouldEnqueue) {
+        handledPreferSendRef.current = preferSend
+        const didEnqueue = enqueueQueuedTurn({
+          text: prompt,
+          images: resolvedImages,
+          ...turnOptions,
+        })
+        if (!didEnqueue) {
+          resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          console.warn('[AgentPane] preferSend rejected', {
+            reason: 'queue_full',
+            delegationId,
+            orchestrationJobId,
+          })
+          handledPreferSendRef.current = null
+          return
+        }
+        onPreferSendConsumed?.()
+        return
+      }
+      if (preferSend.focusPane !== false) onRequestPaneFocus()
+      setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
+        prev,
+        prompt,
+        resolvedImages.length,
+      ))
+      if (
+        isHumanTurn
+        && coordinationCanDelegate(metaRef.current.coordination)
+      ) {
+        onOrchestrationUserTurnRef.current?.()
       }
       handledPreferSendRef.current = preferSend
       onPreferSendConsumed?.()
-      return
+      void dispatchMessage(prompt, resolvedImages, turnOptions)
+    })()
+    return () => {
+      cancelled = true
     }
-    if (preferSend.focusPane !== false) onRequestPaneFocus()
-    if (
-      isHumanTurn
-      && coordinationCanDelegate(metaRef.current.coordination)
-    ) {
-      onOrchestrationUserTurnRef.current?.()
-    }
-    handledPreferSendRef.current = preferSend
-    onPreferSendConsumed?.()
-    void dispatchMessage(prompt, imagesSnapshot, turnOptions)
   }, [
     busy,
     canStartHumanTurnNow,
     dispatchMessage,
+    enqueueQueuedTurn,
     loopActive,
     onPreferSendConsumed,
     onRequestPaneFocus,
@@ -2559,13 +2660,21 @@ export const AgentPane: React.FC<Props> = ({
   }, [])
 
   const handleMergeQueuedTurns = useCallback((): void => {
-    const next = mergeQueuedTurns(queuedTurns)
-    if (next === queuedTurns) return
-    setQueuedTurns(next)
-    setEditingQueuedId(current => (
-      current && !next.some(item => item.id === current) ? null : current
-    ))
-  }, [queuedTurns])
+    setQueuedTurns(previous => {
+      const next = mergeQueuedTurns(previous)
+      if (next === previous) return previous
+      const keptIds = new Set(next.map(item => item.id))
+      for (const item of previous) {
+        if (!keptIds.has(item.id)) {
+          item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
+        }
+      }
+      setEditingQueuedId(current => (
+        current && !next.some(item => item.id === current) ? null : current
+      ))
+      return next
+    })
+  }, [])
 
   const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
     setQueuedTurns(previous => {
@@ -2594,24 +2703,28 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [])
 
+  const removeQueuedTurnRef = useRef(removeQueuedTurn)
+  removeQueuedTurnRef.current = removeQueuedTurn
+  const updateQueuedTurnRef = useRef(updateQueuedTurn)
+  updateQueuedTurnRef.current = updateQueuedTurn
+  const mergeQueuedTurnsRef = useRef(handleMergeQueuedTurns)
+  mergeQueuedTurnsRef.current = handleMergeQueuedTurns
+  const cancelDelegationsFromRef = useRef(cancelDelegationsFrom)
+  cancelDelegationsFromRef.current = cancelDelegationsFrom
+  const cancelDelegationRef = useRef(cancelDelegation)
+  cancelDelegationRef.current = cancelDelegation
+
   useEffect(() => {
     if (!onPlaneQueueControlsReady) return
     onPlaneQueueControlsReady({
-      remove: removeQueuedTurn,
-      update: updateQueuedTurn,
-      merge: handleMergeQueuedTurns,
-      cancelDelegationsFrom,
-      cancelDelegation,
+      remove: id => removeQueuedTurnRef.current(id),
+      update: (id, text) => updateQueuedTurnRef.current(id, text),
+      merge: () => mergeQueuedTurnsRef.current(),
+      cancelDelegationsFrom: fromPaneId => cancelDelegationsFromRef.current(fromPaneId),
+      cancelDelegation: delegationId => cancelDelegationRef.current(delegationId),
     })
     return () => onPlaneQueueControlsReady(null)
-  }, [
-    cancelDelegation,
-    cancelDelegationsFrom,
-    handleMergeQueuedTurns,
-    onPlaneQueueControlsReady,
-    removeQueuedTurn,
-    updateQueuedTurn,
-  ])
+  }, [onPlaneQueueControlsReady])
 
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
@@ -2639,6 +2752,7 @@ export const AgentPane: React.FC<Props> = ({
     const isHumanTurn = !next.orchestrationFollowUp && !next.delegation
     if (
       isHumanTurn
+      && !next.orchestrationJobId?.trim()
       && coordinationCanDelegate(metaRef.current.coordination)
     ) {
       onOrchestrationUserTurnRef.current?.()
@@ -2725,6 +2839,8 @@ export const AgentPane: React.FC<Props> = ({
     const wasLoop = loopActiveRef.current
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
+    turnHadCliErrorRef.current = false
+    setLastTurnFailed(prev => turnFailedAfter('stop', prev))
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
@@ -2785,11 +2901,14 @@ export const AgentPane: React.FC<Props> = ({
    * cambiar de conversación. No toca disco ni el catálogo de threads.
    */
   const resetLiveState = useCallback((): void => {
+    assistantDeltaThrottlerRef.current.flush()
     clearLoopTimer()
     const wasLoop = loopActiveRef.current
     const wasRunning = busyRef.current || wasLoop
     turnClosedRef.current = true
     emptyResponseRetriesRef.current = 0
+    turnHadCliErrorRef.current = false
+    setLastTurnFailed(prev => turnFailedAfter('stop', prev))
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     if (wasRunning) {
@@ -2952,6 +3071,8 @@ export const AgentPane: React.FC<Props> = ({
       skipLoopContinueRef.current = true
       turnClosedRef.current = true
       emptyResponseRetriesRef.current = 0
+      turnHadCliErrorRef.current = false
+      setLastTurnFailed(prev => turnFailedAfter('stop', prev))
       lastTurnRequestRef.current = null
       suppressEmptyHandlingRef.current = true
       beginLiveSettle(activeAssistantIdRef.current)
@@ -3171,6 +3292,7 @@ export const AgentPane: React.FC<Props> = ({
     >
       {/* Chat UI solo con ventana abierta; en mini el plano usa PlaneQuickChat. */}
       {windowOpen ? (
+        tabActive ? (
         <>
           {mcpAuthNeeded.length > 0 ? (
             <div className="agent-pane__mcp-banner" role="status">
@@ -3224,12 +3346,11 @@ export const AgentPane: React.FC<Props> = ({
             settlingId={settlingId}
             onEnteringAnimationEnd={handleEnteringAnimationEnd}
             onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
-            mergeableCount={queuedTurns.filter(item => (
-              !item.delegation && !item.orchestrationFollowUp
-            )).length}
+            mergeableCount={queuedTurns.filter(item => !item.delegation).length}
             onRemoveQueuedTurn={removeQueuedTurn}
             onEditQueuedTurn={id => setEditingQueuedId(id)}
             onMergeQueuedTurns={handleMergeQueuedTurns}
+            projectAgents={projectAgents}
             onScrollToBottom={scrollChatToBottom}
             onAbortDelegation={id => onAbortDelegationRef.current?.(id)}
           />
@@ -3259,6 +3380,9 @@ export const AgentPane: React.FC<Props> = ({
             systemSoundsEnabled={systemSoundsEnabled}
           />
         </>
+        ) : (
+          <div className="agent-pane__rest" aria-hidden="true" />
+        )
       ) : null}
 
       <AgentConfigModal
@@ -3341,6 +3465,7 @@ export const AgentPane: React.FC<Props> = ({
           })
         }}
         peerAgents={peerAgents}
+        projectAgents={projectAgents}
         onChangeProvider={changeProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
@@ -3405,6 +3530,7 @@ export const AgentPane: React.FC<Props> = ({
         open={contextsOpen && tabActive}
         contexts={diskContexts}
         agents={projectAgents}
+        {...(onProjectAgentSaved ? { onAgentSaved: onProjectAgentSaved } : {})}
         cwd={cwd}
         focusContextId={preferOpenContextId}
         onFocusContextConsumed={onPreferOpenContextConsumed}

@@ -14,9 +14,38 @@ export const WIKI_PAGE_TYPES = ['concept', 'decision', 'flow', 'reference'] as c
 export type WikiPageType = (typeof WIKI_PAGE_TYPES)[number]
 
 export const MAX_WIKI_INGEST_OPS = 8
+/** Cap de ingest solo para /init del curador wiki (≥20 nodos + margen deletes). */
+export const MAX_WIKI_INIT_INGEST_OPS = 24
 export const MAX_WIKI_PAGE_BODY = 10000
 export const MAX_WIKI_PAGE_TITLE = 120
 export const MAX_WIKI_LOG_SUMMARY = 200
+
+/**
+ * Política de escritura de wiki compartida por agentes (ingest) y curador.
+ * Un solo texto para ambos callers.
+ */
+export function buildWikiWritingGuidance(): string {
+  return [
+    'Only durable project knowledge. If nothing durable changed, skip.',
+    'If new knowledge contradicts an existing page, do not overwrite silently: fix the stale claim and mention the contradiction in the log line, or add a "Contradicts: [[slug]] — why" note in the body when unresolved.',
+    'The wiki is an index for agents (humans are secondary): many short nodes, dense with [[slug]] links and real file paths. Scarcity of nodes is a failure; long prose without paths is also a failure.',
+    'Each page does ONE job:',
+    '- narrate (concept): why it exists — product intent, local vs org, orchestration.',
+    '- locate (concept|reference): feature → files (e.g. layer-*, create-*, *-ui). Without paths, locate pages are useless.',
+    '- decide (decision): a rule agents must follow.',
+    '- flow (flow): who calls whom and when it ends.',
+    '- inventory (reference): stable lists (kinds, providers, fences, live bugs).',
+    'No transcripts, no per-symbol file:line dumps — say which file to open. Covering the system may take several turns (≤8 ops/turn).',
+    'Good body examples (put these as plain lines, then one fence example below in callers):',
+    '- concept/narrate: "Center of command: human says what/why; agents do how. Local = one folder; org = ready environment. See [[agentic-plane]] [[workspace-logic]]."',
+    '- locate: "Agent create: AgentProviderPickerModal.tsx → App.tsx handleAddAgentPane → projectAgentCatalogOps.ts → .gravity/agents/<slug>.json. See [[create-agent]] [[agent-identity]]."',
+    '- decision: "UI via typed props only — never className/style on kit components. If look does not fit, new component. Gate: check:ui. See [[ui-kit-contract]]."',
+    '- flow: "Fence ia-terminal-delegate parsed in aiAgentDelegate.ts; App.tsx dispatches; jobs live in orchestrationJobs refs (reload loses them). See [[delegation-mechanics]]."',
+    '- inventory: "14 context kinds in tabContext.ts ALL_CONTEXT_KINDS including jira and wiki. Direct bodies: notes, agentResult. See [[context-kinds]]."',
+    'Bad (do not write): a 20-line essay with no [[links]] and no file paths; dumping a whole feature checklist into one page.',
+    'Link related pages with [[slug]] in every body.',
+  ].join('\n')
+}
 
 const WIKI_INDEX_EXCERPT_MAX = 120
 
@@ -52,6 +81,8 @@ export interface WikiPage {
   body: string
   /** Slugs referenciados desde el body; derivados, no se guardan aparte. */
   links: string[]
+  /** mtime del .md en disco; solo lo rellena readWikiPages (electron). */
+  updatedAtMs?: number
 }
 
 const WIKI_PAGE_META_RE = /<!--\s*iaterminal:wiki-page\s+(\{[^\n]*\})\s*-->/
@@ -123,6 +154,21 @@ function wikiPageExcerpt(body: string): string {
     return trimmed.slice(0, WIKI_INDEX_EXCERPT_MAX)
   }
   return ''
+}
+
+/** Índice compacto para prompt: una línea por page con excerpt opcional. */
+export function buildWikiPromptIndex(pages: readonly WikiPage[]): string {
+  if (!pages.length) return ''
+  const bySlug = new Map<string, WikiPage>()
+  for (const page of pages) bySlug.set(page.slug, page)
+  return [...bySlug.values()]
+    .sort((a, b) => a.slug.localeCompare(b.slug))
+    .map(page => {
+      const base = `- [[${page.slug}]] — ${page.title} (${page.type})`
+      const excerpt = wikiPageExcerpt(page.body)
+      return excerpt ? `${base} — ${excerpt}` : base
+    })
+    .join('\n')
 }
 
 /** Índice determinista: pages ordenadas por slug, una entrada por slug. */
@@ -197,10 +243,12 @@ function normalizeWikiIngestOp(value: unknown): WikiIngestOp | null {
 /**
  * Extrae los fences ```ia-terminal-wiki``` y devuelve el texto limpio para el
  * chat. Mismo patrón que extractTabContextUpdates: JSON inválido → el fence se
- * oculta igual, pero no aplica nada. Caps: ≤8 ops por turno (entre todos los
- * fences), body ≤10000, title ≤120, log ≤200.
+ * oculta igual, pero no aplica nada. Caps: maxOps por turno (default 8; init 24),
  */
-export function extractWikiIngest(text: string): {
+export function extractWikiIngest(
+  text: string,
+  maxOps = MAX_WIKI_INGEST_OPS,
+): {
   visibleText: string
   ingest: WikiIngest | null
 } {
@@ -211,7 +259,7 @@ export function extractWikiIngest(text: string): {
       const value = JSON.parse(json) as Record<string, unknown>
       if (Array.isArray(value.ops)) {
         for (const raw of value.ops) {
-          if (ops.length >= MAX_WIKI_INGEST_OPS) break
+          if (ops.length >= maxOps) break
           const op = normalizeWikiIngestOp(raw)
           if (op) ops.push(op)
         }

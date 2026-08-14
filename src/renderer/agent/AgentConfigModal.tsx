@@ -4,7 +4,7 @@ import { agentCliSpec } from '@shared/agentCliProviders'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
-import { type AgentIdentityDraft } from '@shared/agentIdentity'
+import { type AgentIdentityDraft, sanitizeAgentRulesEnabledDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { AgentCoordination, DelegateToPolicy, OrchestrationWorkStyle } from '@shared/agentOrchestration'
@@ -24,6 +24,7 @@ import {
   type AgentConfigSectionItem,
 } from './AgentConfigSectionRail'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
+import type { ContextPickerAgent } from '@shared/agentContextPicker'
 import './AgentConfigModal.css'
 
 /**
@@ -46,6 +47,7 @@ function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
     ceremonyRoles: candidateCeremonyRoles(meta),
     objective: meta.objective ?? '',
     rules: meta.rules ?? [],
+    rulesEnabled: sanitizeAgentRulesEnabledDraft(meta.rules ?? [], meta.rulesEnabled),
   }
 }
 
@@ -82,6 +84,8 @@ export interface AgentConfigModalProps {
   onContextsTabFocus?: () => void
   /** Otros agentes del tab (exclusiones delegateTo). */
   peerAgents?: DelegateToPeerAgent[]
+  /** Catálogo del proyecto: uso de contextos por agente. */
+  projectAgents?: ContextPickerAgent[]
   /** Cerrar al pulsar el fondo (por defecto sí para este modal). */
   closeOnBackdrop?: boolean
   /** Tab activa: oculta el portal sin cerrar configOpen del padre. */
@@ -115,6 +119,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onOpenContextsModal,
   onContextsTabFocus,
   peerAgents = [],
+  projectAgents = [],
   closeOnBackdrop = true,
   active = true,
 }) => {
@@ -474,6 +479,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onToggleContext={onToggleContext}
                 onOpenContextsModal={onOpenContextsModal}
                 peerAgents={peerAgents}
+                projectAgents={projectAgents}
               />
             )}
           </section>

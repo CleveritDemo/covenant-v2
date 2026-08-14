@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
+import { isReduceMotionActive } from '../reduceMotion'
 import './TerminalModal.css'
 
 export type TerminalModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
@@ -8,6 +9,23 @@ export type TerminalModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
 export type TerminalModalPanelVariant = 'default' | 'theme-picker'
 /** Layout del cuerpo del modal. */
 export type TerminalModalBodyLayout = 'default' | 'spacious' | 'flush'
+
+export interface TerminalModalPosition {
+  x: number
+  y: number
+}
+
+const MOVABLE_CLAMP_PADDING = 8
+
+const FALLBACK_PANEL_WIDTH: Record<TerminalModalSize, number> = {
+  sm: 400,
+  md: 520,
+  lg: 640,
+  xl: 900,
+  xxl: 1100,
+}
+
+const FALLBACK_PANEL_HEIGHT = 200
 
 export interface TerminalModalProps {
   open: boolean
@@ -34,6 +52,18 @@ export interface TerminalModalProps {
    * El padre puede conservar `open` sin auto-cerrar al cambiar de tab.
    */
   active?: boolean
+  /** Panel arrastrable por la titlebar; portal y posición absoluta dentro del contenedor. */
+  movable?: boolean
+  /** Solo con movable; si falta, se centra en boundsRef. */
+  initialPosition?: TerminalModalPosition
+  /** Rect de clamp (clientWidth/Height). */
+  boundsRef?: React.RefObject<HTMLElement | null>
+  /** Con movable, portal aquí en vez de document.body. */
+  portalContainerRef?: React.RefObject<HTMLElement | null>
+  /** Al soltar el drag. */
+  onPositionChange?: (pos: TerminalModalPosition) => void
+  /** Origen de la animación de entrada (mismo espacio que initialPosition). */
+  enterOrigin?: { x: number; y: number }
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -59,6 +89,34 @@ function isTopmostModalRoot(root: HTMLElement): boolean {
   for (const el of roots) topZ = Math.max(topZ, modalRootZ(el))
   const topRoots = roots.filter(el => modalRootZ(el) === topZ)
   return topRoots[topRoots.length - 1] === root
+}
+
+function getBoundsSize(
+  boundsRef: React.RefObject<HTMLElement | null> | undefined,
+  portalContainer: HTMLElement | null,
+): { width: number; height: number } {
+  const el = boundsRef?.current ?? portalContainer
+  if (el) {
+    return { width: el.clientWidth, height: el.clientHeight }
+  }
+  return { width: window.innerWidth, height: window.innerHeight }
+}
+
+function clampPanelPosition(
+  x: number,
+  y: number,
+  panelWidth: number,
+  panelHeight: number,
+  boundsWidth: number,
+  boundsHeight: number,
+  padding = MOVABLE_CLAMP_PADDING,
+): TerminalModalPosition {
+  const maxX = Math.max(padding, boundsWidth - panelWidth - padding)
+  const maxY = Math.max(padding, boundsHeight - panelHeight - padding)
+  return {
+    x: Math.max(padding, Math.min(maxX, x)),
+    y: Math.max(padding, Math.min(maxY, y)),
+  }
 }
 
 function firstFocusTarget(panel: HTMLElement): HTMLElement {
@@ -92,11 +150,81 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   panelVariant = 'default',
   bodyLayout = 'default',
   active = true,
+  movable = false,
+  initialPosition,
+  boundsRef,
+  portalContainerRef,
+  onPositionChange,
+  enterOrigin,
 }) => {
   const { t } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+  } | null>(null)
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const positionRef = useRef<{ x: number; y: number } | null>(null)
+  const [portalTarget, setPortalTarget] = useState<HTMLElement>(document.body)
   const visible = open && active
+
+  positionRef.current = position
+
+  useLayoutEffect(() => {
+    if (!visible) return
+    if (!movable) {
+      setPortalTarget(document.body)
+      return
+    }
+    const container = portalContainerRef?.current
+    if (container) {
+      setPortalTarget(container)
+      return
+    }
+    const raf = requestAnimationFrame(() => {
+      const next = portalContainerRef?.current
+      if (next) setPortalTarget(next)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [visible, movable, portalContainerRef])
+
+  useEffect(() => {
+    if (!visible) setPosition(null)
+  }, [visible])
+
+  useLayoutEffect(() => {
+    if (!visible || !movable) return
+    const panel = panelRef.current
+    if (!panel) return
+    const portalContainer = portalContainerRef?.current ?? null
+    const bounds = getBoundsSize(boundsRef, portalContainer)
+    const panelWidth = panel.offsetWidth || FALLBACK_PANEL_WIDTH[size]
+    const panelHeight = panel.offsetHeight || FALLBACK_PANEL_HEIGHT
+    const target = initialPosition ?? {
+      x: (bounds.width - panelWidth) / 2,
+      y: (bounds.height - panelHeight) / 2,
+    }
+    setPosition(clampPanelPosition(
+      target.x,
+      target.y,
+      panelWidth,
+      panelHeight,
+      bounds.width,
+      bounds.height,
+    ))
+  }, [
+    visible,
+    movable,
+    initialPosition?.x,
+    initialPosition?.y,
+    boundsRef,
+    portalContainerRef,
+    size,
+  ])
 
   useEffect(() => {
     if (!visible) return
@@ -165,10 +293,108 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     onClose()
   }
 
+  const onTitlebarPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!movable || event.button !== 0) return
+    if ((event.target as HTMLElement).closest('.terminal-modal-traffic-btn')) return
+    const currentPosition = positionRef.current
+    if (!currentPosition) return
+    event.preventDefault()
+    event.stopPropagation()
+    const titlebar = event.currentTarget
+    const pointerId = event.pointerId
+    try {
+      titlebar.setPointerCapture(pointerId)
+    } catch {
+      // jsdom y algunos entornos de test no implementan pointer capture.
+    }
+    dragRef.current = {
+      pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: currentPosition.x,
+      originY: currentPosition.y,
+    }
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      const drag = dragRef.current
+      if (!drag) return
+      moveEvent.preventDefault()
+      const panel = panelRef.current
+      if (!panel) return
+      const portalContainer = portalContainerRef?.current ?? null
+      const bounds = getBoundsSize(boundsRef, portalContainer)
+      const panelWidth = panel.offsetWidth || FALLBACK_PANEL_WIDTH[size]
+      const panelHeight = panel.offsetHeight || FALLBACK_PANEL_HEIGHT
+      const next = clampPanelPosition(
+        drag.originX + (moveEvent.clientX - drag.startX),
+        drag.originY + (moveEvent.clientY - drag.startY),
+        panelWidth,
+        panelHeight,
+        bounds.width,
+        bounds.height,
+      )
+      setPosition(next)
+    }
+
+    const onUp = (upEvent: PointerEvent): void => {
+      const drag = dragRef.current
+      if (!drag) return
+      upEvent.preventDefault()
+      dragRef.current = null
+      try {
+        if (titlebar.hasPointerCapture(upEvent.pointerId)) {
+          titlebar.releasePointerCapture(upEvent.pointerId)
+        }
+      } catch {
+        // noop
+      }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      const panel = panelRef.current
+      if (!panel) return
+      const portalContainer = portalContainerRef?.current ?? null
+      const bounds = getBoundsSize(boundsRef, portalContainer)
+      const finalPos = clampPanelPosition(
+        drag.originX + (upEvent.clientX - drag.startX),
+        drag.originY + (upEvent.clientY - drag.startY),
+        panel.offsetWidth || FALLBACK_PANEL_WIDTH[size],
+        panel.offsetHeight || FALLBACK_PANEL_HEIGHT,
+        bounds.width,
+        bounds.height,
+      )
+      setPosition(finalPos)
+      onPositionChange?.(finalPos)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  const rootClass = movable
+    ? 'terminal-modal-root terminal-modal-root--movable'
+    : 'terminal-modal-root'
+
+  const panelPositionStyle = movable && position
+    ? ({ left: position.x, top: position.y } as React.CSSProperties)
+    : undefined
+
+  const useFromOriginEnter = Boolean(
+    movable && position && enterOrigin && !isReduceMotionActive(),
+  )
+  const panelEnterStyle = useFromOriginEnter && enterOrigin && position
+    ? ({
+      ...panelPositionStyle,
+      '--terminal-modal-enter-ox': `${enterOrigin.x - position.x}px`,
+      '--terminal-modal-enter-oy': `${enterOrigin.y - position.y}px`,
+    } as React.CSSProperties)
+    : panelPositionStyle
+
   return createPortal(
     <div
       ref={rootRef}
-      className="terminal-modal-root"
+      className={rootClass}
       style={{ '--modal-z': zIndex } as React.CSSProperties}
       role="presentation"
     >
@@ -192,7 +418,10 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
           'terminal-modal-panel',
           `terminal-modal-panel--${size}`,
           panelVariant !== 'default' ? `terminal-modal-panel--${panelVariant}` : '',
+          movable ? 'terminal-modal-panel--movable' : '',
+          useFromOriginEnter ? 'terminal-modal-panel--from-origin' : '',
         ].filter(Boolean).join(' ')}
+        style={panelEnterStyle}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -201,11 +430,14 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         onPointerDown={e => e.stopPropagation()}
       >
         <header className="terminal-modal-header">
-          <div className="terminal-modal-titlebar">
+          <div
+            className="terminal-modal-titlebar"
+            onPointerDown={onTitlebarPointerDown}
+          >
             <div
               className="terminal-modal-traffic"
               role="group"
-              aria-label={t('ui.closeAriaLabel')}
+              onPointerDown={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
@@ -251,6 +483,6 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         )}
       </div>
     </div>,
-    document.body,
+    portalTarget,
   )
 }

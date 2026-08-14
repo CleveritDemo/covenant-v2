@@ -1,5 +1,6 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
+import { hasNativeScrollAncestor } from './planeWheelTargets'
 import {
   computePlaneColumnWindowing,
 } from '@shared/planeColumnWindowing'
@@ -64,8 +65,12 @@ export interface PlaneMapProps {
   chatActiveAgentId?: string | null
   /** Tab activa: oculta modales portaled del plano. */
   tabActive?: boolean
+  /** Solo fondo: oculta el stage de ventanas (sin desmontarlas) dejando
+   *  visibles atmósfera, grilla y partículas — p. ej. bajo el mapa wiki. */
+  stageHidden?: boolean
+  /** Overlay del mapa wiki: se monta sobre el backdrop y bajo el stage oculto. */
+  wikiOverlay?: React.ReactNode
   /** Mesa de brainstorm abierta: las cards de agente se arrastran a ella. */
-  seatDragEnabled?: boolean
   configLabel: string
   deleteLabel: string
   maximizeLabel: string
@@ -108,6 +113,14 @@ export interface PlaneColumnScrollOffsets {
 }
 
 const ZERO_SCROLL_OFFSETS: PlaneColumnScrollOffsets = { terminal: 0, agent: 0 }
+
+/** Floor busy aurora only; grid/music particles stay on via `tabActive`. */
+export function planeFloorAuroraActive(
+  working: boolean | undefined,
+  stageHidden: boolean,
+): boolean {
+  return Boolean(working) && !stageHidden
+}
 
 export interface PlaneColumnHiddenIds {
   above: string[]
@@ -248,7 +261,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   activePaneId,
   chatActiveAgentId = null,
   tabActive = true,
-  seatDragEnabled = false,
+  stageHidden = false,
+  wikiOverlay = null,
   configLabel,
   deleteLabel,
   maximizeLabel,
@@ -395,7 +409,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const anyWindowOpen = terminalOpen
   // Con la mesa abierta la card de agente es un token que se arrastra a ella:
   // el reorder por handle movería la card de verdad (y pasaría bajo la mesa).
-  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen && !seatDragEnabled
+  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen
 
   const baselineLayout = useMemo(
     () => buildSlotOrigins(
@@ -565,10 +579,19 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         || event.clientY < rect.top
         || event.clientY > rect.bottom
       ) return
-      // Modal o ventana expandida por encima del plano: scroll nativo.
+      // Algo por encima del plano que ya sabe scrollear (modal, ventana
+      // expandida, un desplegable): la rueda es suya. Se comprueba por
+      // capacidad y no solo por una lista de selectores —la lista se quedaba
+      // corta cada vez que aparecía un overlay nuevo—, y se respeta además el
+      // opt-out explícito `data-plane-native-scroll`.
       if (
         event.target instanceof Element
-        && event.target.closest('.terminal-modal-root, .pane-window--full, .plane-chat-dock, .plane-quick-chat, .plane-chat-composer')
+        && (
+          event.target.closest(
+            '.terminal-modal-root, .pane-window--full, [data-plane-native-scroll]',
+          )
+          || hasNativeScrollAncestor(event.target, el)
+        )
       ) return
       const x = event.clientX - rect.left
       let column: 'terminal' | 'agent' | null = null
@@ -781,6 +804,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         anyWindowOpen ? 'plane-map--elevated' : '',
         reorderActive ? 'plane-map--reordering' : '',
         wheelScrolling ? 'plane-map--wheel-scrolling' : '',
+        stageHidden ? 'plane-map--stage-hidden' : '',
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >

@@ -205,3 +205,28 @@
 .brainstorm-closing__feedback--error {
   color: var(--danger, #c44);
 }
+
+/*
+ * Desplegable del cierre: la decisión se lee siempre y el resto se pide. Con las
+ * cinco secciones abiertas la tarjeta se llevaba media pantalla y empujaba el
+ * acta fuera de vista.
+ */
+.brainstorm-closing__more {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-dim, var(--accent));
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.brainstorm-closing__more:hover { text-decoration: underline; }
+
+.brainstorm-closing__more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

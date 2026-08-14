@@ -89,6 +89,7 @@ describe('riel de categorías', () => {
     fireEvent.click(nav('settings.appearanceSection'))
 
     expect(screen.getByText('settings.languageLabel')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.terminalLineHeightLabel' })).toBeTruthy()
     expect(screen.getByText('settings.reduceMotionTitle')).toBeTruthy()
     expect(screen.queryByText('settings.musicEnabledTitle')).toBeNull()
     expect(screen.queryByLabelText('settings.musicVolumeLabel')).toBeNull()

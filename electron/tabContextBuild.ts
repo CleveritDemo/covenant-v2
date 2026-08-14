@@ -60,8 +60,10 @@ import {
   MAX_WIKI_PAGE_TITLE,
   PAGES_DIR,
   WIKI_PAGE_TYPES,
+  buildWikiWritingGuidance,
+  buildWikiPromptIndex,
 } from '../src/shared/wikiDoc'
-import { readWikiPages, wikiRootPath } from './wikiStore'
+import { hasWiki, readWikiLogTail, readWikiPages, wikiRootPath } from './wikiStore'
 import {
   AUTO_START,
   AUTO_END,
@@ -911,8 +913,7 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
 
     // La wiki se descubre por presencia en disco (no es creatable): el mirror
     // `.gravity/wiki.md` lo escribe la materialización normal.
-    const wikiRoot = wikiRootPath(base)
-    if (existsSync(join(wikiRoot, PAGES_DIR)) || existsSync(join(wikiRoot, INDEX_FILE))) {
+    if (hasWiki(base)) {
       const wikiId = 'iaterminal:wiki'
       if (!seenIds.has(wikiId)) {
         seenIds.add(wikiId)
@@ -1258,7 +1259,10 @@ export function materializeTabContext(
       if (!existsSync(filePath)) {
         if (options.write && contextToWrite.issueKey) {
           const metadataLine = jiraContextMetadataLine(contextToWrite.issueKey)
-          const placeholder = withJiraAutoBlock('', metadataLine, '')
+          // El llamador puede traer ya el snapshot (el formulario lo acaba de
+          // pedir para la vista previa). Si lo trae, el archivo nace con la
+          // issue dentro en vez de vacío a la espera del primer turno.
+          const placeholder = withJiraAutoBlock('', metadataLine, (options.content ?? '').trim())
           mkdirSync(projectDirPath(cwd, 'jira'), { recursive: true })
           writeFileSync(filePath, placeholder, 'utf8')
           return {
@@ -1709,31 +1713,55 @@ export function buildContextPromptDelivery(
   cwd: string,
   options: ContextPromptOptions = {},
 ): ContextPromptDelivery {
+  const deliveryContexts = contexts.filter(context => context.kind !== 'wiki')
+  const wikiPresent = hasWiki(cwd)
   const fullRefresh = options.forceFullRefresh === true || !options.previousSnapshot
-  if (!contexts.length) {
-    const removedIds = Object.keys(options.previousSnapshot?.fingerprints ?? {})
+  const previousFingerprints = options.previousSnapshot?.fingerprints ?? {}
+  const wikiFingerprint = wikiPresent ? wikiSubstrateFingerprint(cwd) : undefined
+
+  if (!deliveryContexts.length) {
+    const fingerprints: Record<string, string> = {}
+    if (wikiFingerprint !== undefined) fingerprints['iaterminal:wiki'] = wikiFingerprint
+    const removedIds = Object.keys(previousFingerprints)
+      .filter(id => id !== 'iaterminal:wiki' && !(id in fingerprints))
+    const lines: string[] = []
+    if (removedIds.length) {
+      lines.push(
+        '## Tab context changes',
+        'All previously supplied tab contexts are now disabled. Forget their catalogs and bodies.',
+        `Removed context ids: ${removedIds.join(', ')}`,
+      )
+    }
+    const shouldEmitWiki = wikiPresent && (
+      fullRefresh || previousFingerprints['iaterminal:wiki'] !== wikiFingerprint
+    )
+    if (shouldEmitWiki) {
+      if (lines.length) lines.push('')
+      lines.push(buildWikiSubstrateBlock(cwd))
+    }
+    if (previousFingerprints['iaterminal:wiki'] && !wikiPresent) {
+      if (lines.length) lines.push('')
+      lines.push(
+        '## Project wiki removed',
+        'The project wiki was deleted. Forget the previously supplied ## Project wiki block, its index and its log.',
+      )
+    }
     return {
-      prompt: removedIds.length
-        ? [
-            '## Tab context changes',
-            'All previously supplied tab contexts are now disabled. Forget their catalogs and bodies.',
-            `Removed context ids: ${removedIds.join(', ')}`,
-          ].join('\n')
-        : '',
-      snapshot: { fingerprints: {} },
+      prompt: lines.join('\n'),
+      snapshot: { fingerprints },
       fullRefresh,
       preattachedSectionCount: 0,
       catalogChars: 0,
     }
   }
   const available = materializedContextSections(
-    contexts,
+    deliveryContexts,
     cwd,
     options.contextContents,
   )
   const allDirect: MaterializedContextData[] = []
   const allOnDemand: MaterializedContextData[] = []
-  for (const context of contexts) {
+  for (const context of deliveryContexts) {
     const data = available.get(context.id)
     if (!data) continue
     // notes / agentResult: siempre directo, sin tope de tamaño.
@@ -1752,14 +1780,14 @@ export function buildContextPromptDelivery(
       deliveryFingerprint(data, directIds.has(data.context.id) ? 'direct' : 'catalog'),
     ]),
   )
-  const previousFingerprints = options.previousSnapshot?.fingerprints ?? {}
+  if (wikiFingerprint !== undefined) fingerprints['iaterminal:wiki'] = wikiFingerprint
   const changedIds = new Set(
-    contexts
+    deliveryContexts
       .map(context => context.id)
       .filter(id => fullRefresh || previousFingerprints[id] !== fingerprints[id]),
   )
   const removedIds = Object.keys(previousFingerprints)
-    .filter(id => !(id in fingerprints))
+    .filter(id => id !== 'iaterminal:wiki' && !(id in fingerprints))
   const direct = allDirect.filter(data => changedIds.has(data.context.id))
   const onDemand = allOnDemand.filter(data => changedIds.has(data.context.id))
   const userPrompt = options.userPrompt?.trim() ?? ''
@@ -1781,7 +1809,7 @@ export function buildContextPromptDelivery(
     preattachBudget -= content.length
   }
   const suggestions = userPrompt
-    ? suggestContextKindsFromPrompt(userPrompt, contexts, options.discoveredContexts ?? [])
+    ? suggestContextKindsFromPrompt(userPrompt, deliveryContexts, options.discoveredContexts ?? [])
     : []
 
   const lines: string[] = []
@@ -1861,8 +1889,18 @@ export function buildContextPromptDelivery(
       '```',
     )
   }
-  if (contexts.some(context => context.kind === 'wiki')) {
-    lines.push('', buildWikiIngestBlock())
+  const shouldEmitWiki = wikiPresent && (
+    fullRefresh || previousFingerprints['iaterminal:wiki'] !== wikiFingerprint
+  )
+  if (shouldEmitWiki) {
+    lines.push('', buildWikiSubstrateBlock(cwd))
+  }
+  if (previousFingerprints['iaterminal:wiki'] && !wikiPresent) {
+    if (lines.length) lines.push('')
+    lines.push(
+      '## Project wiki removed',
+      'The project wiki was deleted. Forget the previously supplied ## Project wiki block, its index and its log.',
+    )
   }
   return {
     prompt: lines.join('\n'),
@@ -2088,15 +2126,39 @@ export function buildRequestedContextSections(
   return { prompt, sectionCount, errors, truncated }
 }
 
+function wikiSubstrateFingerprint(cwd: string): string {
+  const wikiRoot = wikiRootPath(cwd)
+  return `${fileFingerprint(join(wikiRoot, INDEX_FILE))}${fileFingerprint(join(wikiRoot, LOG_FILE))}`
+}
+
+function buildWikiSubstrateBlock(cwd: string): string {
+  const projectDir = projectDirName(cwd)
+  const index = buildWikiPromptIndex(readWikiPages(cwd))
+  const logTail = readWikiLogTail(cwd, 5)
+  return [
+    '## Project wiki',
+    'Consult this index FIRST: before exploring the repository on your own, check whether a page below already answers your question and read that page instead of searching the codebase.',
+    'The index below is your navigation map.',
+    `To read a page, open \`${projectDir}/wiki/pages/<slug>.md\` with the file read tool.`,
+    `To search wiki content, grep in \`${projectDir}/wiki/pages/\`.`,
+    '',
+    index || '(empty)',
+    '',
+    'Recent log:',
+    ...(logTail.length ? logTail : ['(empty)']),
+    '',
+    buildWikiIngestBlock(),
+  ].join('\n')
+}
+
 /** Bloque de prompt del ingest de wiki; único mantenedor de conocimiento del proyecto. */
 function buildWikiIngestBlock(): string {
   return [
     '## Wiki ingest',
-    'Only durable project knowledge: decisions, concepts, flows. If nothing durable changed, skip.',
-    'Link related pages with [[slug]] in the body.',
+    buildWikiWritingGuidance(),
     `Caps: ≤${MAX_WIKI_INGEST_OPS} ops/turn, body ≤${MAX_WIKI_PAGE_BODY}, title ≤${MAX_WIKI_PAGE_TITLE}, log ≤${MAX_WIKI_LOG_SUMMARY}. Types: ${WIKI_PAGE_TYPES.join('|')}.`,
     '```ia-terminal-wiki',
-    '{"ops":[{"op":"upsert","slug":"auth-flow","title":"Auth flow","type":"decision","body":"..."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
+    '{"ops":[{"op":"upsert","slug":"create-agent","title":"Create agent","type":"flow","body":"Picker → .gravity/agents/<slug>.json → pane agent. UI: AgentProviderPickerModal.tsx. Persist: projectAgentCatalogOps.ts. See [[agent-identity]] [[pane-windows]]."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
     '```',
   ].join('\n')
 }

@@ -7,6 +7,7 @@
  * escribir; este es el de la app para leer.
  */
 
+import { describeFetchError, httpFetch } from './httpFetch'
 import { adfToText } from '../src/shared/jiraIssueDoc'
 import type { JiraComment, JiraIssueRef, JiraIssueSnapshot } from '../src/shared/jiraIssue'
 import type { JiraCredentials } from './jiraConfig'
@@ -33,13 +34,14 @@ function authHeaders(cred: JiraCredentials): Record<string, string> {
 }
 
 async function getJson(cred: JiraCredentials, path: string): Promise<unknown> {
-  const response = await fetch(`${cred.site}${path}`, {
+  const response = await httpFetch(`${cred.site}${path}`, {
     headers: authHeaders(cred),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!response.ok) throw new Error(`Jira ${response.status}`)
   return response.json()
 }
+
 
 const asRecord = (value: unknown): Record<string, any> =>
   (value && typeof value === 'object' ? value : {}) as Record<string, any>
@@ -64,7 +66,7 @@ export async function jiraMyself(
     const me = asRecord(await getJson(cred, '/rest/api/3/myself'))
     return { ok: true, displayName: String(me.displayName ?? '') }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    return { ok: false, error: describeFetchError(error) }
   }
 }
 

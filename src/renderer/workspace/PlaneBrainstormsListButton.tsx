@@ -8,6 +8,11 @@ export interface PlaneBrainstormsListButtonProps {
   pressed: boolean
   disabled?: boolean
   disabledTitle?: string
+  /**
+   * Salas vivas. Va en el aria-label porque el número es la información: con
+   * salas en paralelo, «pressed» solo dice cuál estás mirando.
+   */
+  liveCount?: number
   onClick: () => void
 }
 
@@ -17,9 +22,11 @@ export const PlaneBrainstormsListButton: React.FC<PlaneBrainstormsListButtonProp
   pressed,
   disabled = false,
   disabledTitle,
+  liveCount = 0,
   onClick,
 }) => {
-  const title = disabled ? (disabledTitle || label) : label
+  const base = liveCount > 0 ? `${label} · ${liveCount}` : label
+  const title = disabled ? (disabledTitle || label) : base
   return (
     <Tooltip content={title}>
       <button

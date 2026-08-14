@@ -11,8 +11,6 @@ export interface PlaneFabStackProps {
   agentDisabledTitle?: string
   /** Motivo cuando el FAB de terminal está deshabilitado por falta de cwd. */
   terminalDisabledTitle?: string
-  /** Motivo cuando ningún FAB puede crear porque se alcanzó el máximo de ventanas. */
-  paneLimitReachedTitle?: string
   onAddAgent: () => void
   onAddTerminal: () => void
   /** Title/aria largo del FAB bootstrap (roles). */
@@ -24,14 +22,12 @@ export interface PlaneFabStackProps {
 }
 
 export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
-  canAdd,
   canAddAgent = true,
   canAddTerminal = true,
   agentTitle,
   terminalTitle,
   agentDisabledTitle,
   terminalDisabledTitle,
-  paneLimitReachedTitle,
   onAddAgent,
   onAddTerminal,
   bootstrapAgentsTitle,
@@ -45,8 +41,8 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
       <PlaneFab
         kind="terminal"
         label={terminalTitle}
-        disabled={!canAdd || !canAddTerminal}
-        disabledTitle={!canAdd ? paneLimitReachedTitle : terminalDisabledTitle}
+        disabled={!canAddTerminal}
+        disabledTitle={terminalDisabledTitle}
         onClick={onAddTerminal}
       />
     </div>
@@ -63,8 +59,8 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
       <PlaneFab
         kind="agent"
         label={agentTitle}
-        disabled={!canAdd || !canAddAgent}
-        disabledTitle={!canAdd ? paneLimitReachedTitle : agentDisabledTitle}
+        disabled={!canAddAgent}
+        disabledTitle={agentDisabledTitle}
         onClick={onAddAgent}
       />
     </div>

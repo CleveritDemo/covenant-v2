@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
 import type { AppConfig } from '../src/shared/configSchema'
+import type { OnboardingCliStatus } from '../src/shared/onboarding'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServersListRequest, McpServersListResult } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
@@ -180,6 +181,9 @@ const api = {
   resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
   },
+  detectOnboardingClis(): Promise<OnboardingCliStatus[]> {
+    return ipcRenderer.invoke(IPC.ONBOARDING_DETECT_CLIS)
+  },
   /** Acepta paneId (todos los carriles) o runKey paneId::threadId (un carril). */
   onAgentCliEvent(runKey: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(runKey, cb)
@@ -302,6 +306,15 @@ const api = {
     notes: string
   }): Promise<{ ok: boolean; filePath?: string; error?: string }> {
     return ipcRenderer.invoke(IPC.AGENT_RESULTS_SET_NOTES, request)
+  },
+  readAgentResultsLatest(request: {
+    cwd: string
+    agentId: string
+  }): Promise<
+    | { ok: true; summary: string | null; changes: string[] }
+    | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.AGENT_RESULTS_READ_LATEST, request)
   },
   deleteTabContext(request: TabContextDeleteRequest): Promise<TabContextDeleteResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DELETE, request)

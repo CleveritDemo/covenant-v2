@@ -14,6 +14,8 @@ import {
   looksLikeDelegationResultFollowUp,
   parseDelegationResultCards,
 } from '@shared/delegationResultCards'
+import { resolveAgentLabel } from '@shared/queuedTurnPreview'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { DelegationResultCard } from './DelegationResultCard'
 import { PendingImageThumb } from '../components/PendingImageThumb'
 import { useT } from '@i18n/useT'
@@ -40,11 +42,22 @@ function isLongBubbleContent(content: string): boolean {
   return lines > BUBBLE_COLLAPSE_LINES
 }
 
-const BubbleBody: React.FC<{
+function delegationCardAgentLabel(
+  agentId: string | undefined,
+  catalog: readonly ProjectAgentDefinition[],
+): string | undefined {
+  const to = agentId?.trim()
+  if (!to || !catalog.length) return undefined
+  const { agentLabel, instanceTag } = resolveAgentLabel(to, catalog)
+  return instanceTag ? `${agentLabel} ${instanceTag}` : agentLabel
+}
+
+const BubbleBodyInner: React.FC<{
   content: string
   live: boolean
   role: 'user' | 'assistant'
-}> = ({ content, live, role }) => {
+  projectAgents?: readonly ProjectAgentDefinition[]
+}> = ({ content, live, role, projectAgents = [] }) => {
   // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
     // Salvo el follow-up de una delegación: ese no lo escribió una persona, lo
@@ -56,7 +69,10 @@ const BubbleBody: React.FC<{
           <div className="agent-pane__bubble-cards">
             {cards.map((card, index) => (
               <ChatBubble key={card.id || `card-${index}`} variant="assistant" solid>
-                <DelegationResultCard data={card} />
+                <DelegationResultCard
+                  data={card}
+                  agentLabel={delegationCardAgentLabel(card.agentId, projectAgents)}
+                />
               </ChatBubble>
             ))}
           </div>
@@ -71,6 +87,13 @@ const BubbleBody: React.FC<{
     </div>
   )
 }
+
+const BubbleBody = React.memo(BubbleBodyInner, (prev, next) => {
+  if (prev.live || next.live) return false
+  return prev.content === next.content
+    && prev.role === next.role
+    && prev.projectAgents === next.projectAgents
+})
 
 function isRenderableChatRow(
   message: AgentChatEntry,
@@ -101,9 +124,10 @@ interface AgentChatBubbleRowProps {
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
   onEnteringAnimationEnd?: (id: string) => void
   onMaterializingAnimationEnd?: (id: string) => void
+  projectAgents?: readonly ProjectAgentDefinition[]
 }
 
-const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
+const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   message,
   busy,
   activeAssistantId,
@@ -116,6 +140,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   scrollRef,
   onEnteringAnimationEnd,
   onMaterializingAnimationEnd,
+  projectAgents = [],
 }) => {
   const { t } = useT()
   const live = busy &&
@@ -199,6 +224,7 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
                     content={message.content}
                     live={live}
                     role={message.role === 'user' ? 'user' : 'assistant'}
+                    projectAgents={projectAgents}
                   />
                 </div>
                 {canCollapse && (
@@ -224,6 +250,30 @@ const AgentChatBubbleRow: React.FC<AgentChatBubbleRowProps> = ({
   )
 }
 
+const AgentChatBubbleRow = React.memo(AgentChatBubbleRowInner, (prev, next) => {
+  const prevLive = prev.busy &&
+    prev.message.role === 'assistant' &&
+    prev.message.id === prev.activeAssistantId
+  const nextLive = next.busy &&
+    next.message.role === 'assistant' &&
+    next.message.id === next.activeAssistantId
+  if (prevLive || nextLive) return false
+  if (prev.message.id !== next.message.id) return false
+  if (prev.message.content !== next.message.content) return false
+  if (prev.message.role !== next.message.role) return false
+  if (prev.expanded !== next.expanded) return false
+  if (prev.isLatestRenderable !== next.isLatestRenderable) return false
+  if (prev.settlingId !== next.settlingId &&
+    (prev.settlingId === prev.message.id || next.settlingId === next.message.id)) {
+    return false
+  }
+  if (prev.enteringIds.has(prev.message.id) !== next.enteringIds.has(next.message.id)) return false
+  if (prev.materializingIds.has(prev.message.id) !== next.materializingIds.has(next.message.id)) {
+    return false
+  }
+  return true
+})
+
 export interface AgentChatBubblesHandle {
   /** Ir al final real del scroll del chat. */
   scrollToEnd: () => void
@@ -240,6 +290,8 @@ export interface AgentChatBubblesProps {
   onMaterializingAnimationEnd?: (id: string) => void
   /** `plane`: burbujas sueltas en el plano, sin marco de panel. */
   surface?: 'pane' | 'plane'
+  /** Catálogo del proyecto para etiquetas legibles en tarjetas de delegación. */
+  projectAgents?: readonly ProjectAgentDefinition[]
   /** Contenedor con scroll (`.agent-pane__messages`). */
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
 }
@@ -256,6 +308,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     onEnteringAnimationEnd,
     onMaterializingAnimationEnd,
     surface = 'pane',
+    projectAgents = [],
     scrollRef,
   },
   ref,
@@ -404,6 +457,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     onToggleExpand,
     onEnteringAnimationEnd,
     onMaterializingAnimationEnd,
+    projectAgents,
   }
 
   const rootClass = [

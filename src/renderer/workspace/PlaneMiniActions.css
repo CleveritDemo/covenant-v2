@@ -29,21 +29,12 @@
   background: var(--plane-glass-strong);
   color: var(--text-muted);
   cursor: pointer;
-  backdrop-filter: blur(8px);
   box-shadow:
     var(--plane-shadow-soft),
     0 4px 12px color-mix(in srgb, #000 18%, transparent);
   transition: color 0.12s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
   /* Evita que el gesto llegue al body del mini (expand). */
   touch-action: manipulation;
-}
-
-/* Fondo ya opaco (--plane-glass-strong): quitar blur no afecta legibilidad. */
-html[data-reduce-motion="true"] {
-  .plane-mini-actions__btn {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }
 
 .plane-mini-actions__btn:hover {

@@ -298,11 +298,17 @@ function drawParticle(
   ctx.fill()
 }
 
+type PlaneMapGridParticlesProps = {
+  active?: boolean
+}
+
 /** Partículas ambientales lentas sobre la cuadrícula del PlaneMap (solo con motion). */
-export const PlaneMapGridParticles: React.FC = () => {
+export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
+  active = true,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reducedMotion = usePrefersReducedMotion()
-  const shouldRun = !reducedMotion
+  const shouldRun = active && !reducedMotion
 
   useEffect(() => {
     const canvas = canvasRef.current

@@ -151,6 +151,7 @@ describe('delegationRuntimeRegistry', () => {
     expect(listNestedDelegations(reg, 'unknown')).toEqual([])
     expect(listNestedDelegations(reg, '')).toEqual([])
   })
+
 })
 
 describe('resolveDelegationDelivery', () => {

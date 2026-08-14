@@ -1,10 +1,20 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
+import {
+  EMPTY_TAB_CONTEXT_FILTER,
+  agentsUsingContext,
+  filterTabContexts,
+  presentContextKinds,
+  unusedContextCount,
+  type ContextAgentFilter,
+  type TabContextListFilter,
+} from '@shared/tabContextAgentUsage'
 import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
+import { Input } from '../components/ui/Input'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { contextIconName } from './tabContextKindIcons'
 import {
@@ -13,6 +23,9 @@ import {
   paletteColorForSeed,
   resolveContextColor,
 } from '@shared/tabContextAppearance'
+
+/** Máximo de caras en la pila de una fila; el resto va como «+N». */
+const STACK_LIMIT = 3
 
 interface Props {
   contexts: TabContext[]
@@ -25,6 +38,28 @@ interface Props {
   onDelete: (context: TabContext) => void
 }
 
+/** Color de identidad del agente; coincide con el de su fila de results. */
+export const agentFaceColor = (agent: ProjectAgentDefinition): string =>
+  paletteColorForSeed(agentResultContextIdForSlug(agent.id))
+
+/** Cara del agente: monograma teñido + marca del CLI. */
+export const AgentFace: React.FC<{
+  agent: ProjectAgentDefinition
+  color?: string
+  small?: boolean
+}> = ({ agent, color, small = false }) => (
+  <span
+    className={`tab-contexts__monogram${small ? ' tab-contexts__monogram--sm' : ''}`}
+    style={{ '--tab-context-mono': color ?? agentFaceColor(agent) } as React.CSSProperties}
+    aria-hidden
+  >
+    {agent.monogram || agentMonogram(agent.name ?? agent.id)}
+    <span className="tab-contexts__monogram-brand">
+      <BrandIcon provider={agent.provider} size={small ? 7 : 8} />
+    </span>
+  </span>
+)
+
 export const TabContextsList: React.FC<Props> = ({
   contexts,
   agents = [],
@@ -35,27 +70,59 @@ export const TabContextsList: React.FC<Props> = ({
   onDelete,
 }) => {
   const { t } = useT()
-  const projectContexts = contexts.filter(context => context.kind !== 'agentResult')
-  const agentResultContexts = contexts.filter(context => context.kind === 'agentResult')
+  const [filter, setFilter] = useState<TabContextListFilter>(EMPTY_TAB_CONTEXT_FILTER)
+
+  const visible = useMemo(
+    () => filterTabContexts(contexts, agents, filter),
+    [contexts, agents, filter],
+  )
+  const kinds = useMemo(() => presentContextKinds(contexts), [contexts])
+  const projectContexts = visible.filter(context => context.kind !== 'agentResult')
+  const agentResultContexts = visible.filter(context => context.kind === 'agentResult')
+  const agentName = (agent: ProjectAgentDefinition): string => agent.name?.trim() || agent.id
+
+  /** Un solo toggle: volver a pulsar el chip activo limpia el filtro. */
+  const pickAgent = (value: ContextAgentFilter) => {
+    setFilter(prev => ({ ...prev, agent: prev.agent === value ? 'all' : value }))
+  }
+
+  const renderChip = (
+    key: string,
+    label: string,
+    count: number,
+    active: boolean,
+    onClick: () => void,
+    face?: React.ReactNode,
+  ) => (
+    <button
+      key={key}
+      type="button"
+      className={`tab-contexts__chip${active ? ' tab-contexts__chip--on' : ''}`}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {face}
+      <span className="tab-contexts__chip-label">{label}</span>
+      <span className="tab-contexts__chip-count">{count}</span>
+    </button>
+  )
 
   /** Monograma del agente + marca del CLI y rol, si el catálogo lo conoce. */
   const renderAgentFace = (context: TabContext) => {
     const agent = agents.find(item => agentResultContextIdForSlug(item.id) === context.id)
     const color = normalizeContextColor(context.color) ?? paletteColorForSeed(context.id)
-    return (
-      <span
-        className="tab-contexts__monogram"
-        style={{ '--tab-context-mono': color } as React.CSSProperties}
-        aria-hidden
-      >
-        {agent?.monogram || agentMonogram(context.name)}
-        {agent ? (
-          <span className="tab-contexts__monogram-brand">
-            <BrandIcon provider={agent.provider} size={8} />
-          </span>
-        ) : null}
-      </span>
-    )
+    if (!agent) {
+      return (
+        <span
+          className="tab-contexts__monogram"
+          style={{ '--tab-context-mono': color } as React.CSSProperties}
+          aria-hidden
+        >
+          {agentMonogram(context.name)}
+        </span>
+      )
+    }
+    return <AgentFace agent={agent} color={color} />
   }
 
   /** Chip de coordinación: mismos glifos que la cara mini del plano. */
@@ -69,6 +136,29 @@ export const TabContextsList: React.FC<Props> = ({
     return (
       <span className="tab-contexts__role" aria-label={label} role="img">
         <Icon name={coordination === 'orchestrator' ? 'git-branch' : 'folder'} size={9} />
+      </span>
+    )
+  }
+
+  /** Quién carga el contexto: la señal que faltaba para saber si sirve a alguien. */
+  const renderUsage = (context: TabContext) => {
+    if (agents.length === 0) return null
+    const users = agentsUsingContext(agents, context.id)
+    if (users.length === 0) {
+      return <span className="tab-contexts__unused">{t('tabContexts.usedByNone')}</span>
+    }
+    return (
+      <span
+        className="tab-contexts__stack"
+        aria-label={t('tabContexts.usedByAria', { agents: users.map(agentName).join(', ') })}
+        role="img"
+      >
+        {users.slice(0, STACK_LIMIT).map(agent => (
+          <AgentFace key={agent.id} agent={agent} small />
+        ))}
+        {users.length > STACK_LIMIT && (
+          <span className="tab-contexts__stack-more">+{users.length - STACK_LIMIT}</span>
+        )}
       </span>
     )
   }
@@ -99,6 +189,7 @@ export const TabContextsList: React.FC<Props> = ({
               : context.fileName}
           </span>
         </span>
+        {renderUsage(context)}
       </button>
       <button
         type="button"
@@ -125,21 +216,106 @@ export const TabContextsList: React.FC<Props> = ({
         <Icon name="plus" size={14} />
         {t('tabContexts.new')}
       </Button>
-      {contexts.length === 0 && (
-        <p className="tab-contexts__empty">{t('tabContexts.empty')}</p>
-      )}
-      {projectContexts.length > 0 && (
-        <div className="tab-contexts__group">
-          <h4 className="tab-contexts__group-title">{t('tabContexts.groupProject')}</h4>
-          {projectContexts.map(context => renderItem(context))}
+
+      {contexts.length > 0 && (
+        <div className="tab-contexts__filters">
+          <Input
+            size="sm"
+            type="search"
+            value={filter.query}
+            aria-label={t('tabContexts.filterSearchAria')}
+            placeholder={t('tabContexts.filterSearchPlaceholder')}
+            onChange={event => setFilter(prev => ({ ...prev, query: event.target.value }))}
+          />
+          {agents.length > 0 && (
+            <div className="tab-contexts__filter-row">
+              <span className="tab-contexts__filter-label">{t('tabContexts.filterAgentLabel')}</span>
+              <div
+                className="tab-contexts__chips"
+                role="group"
+                aria-label={t('tabContexts.filterAgentLabel')}
+              >
+                {renderChip(
+                  'all',
+                  t('tabContexts.filterAll'),
+                  contexts.length,
+                  filter.agent === 'all',
+                  () => pickAgent('all'),
+                )}
+                {agents.map(agent => renderChip(
+                  agent.id,
+                  agentName(agent),
+                  agent.contextIds?.length ?? 0,
+                  filter.agent === agent.id,
+                  () => pickAgent(agent.id),
+                  <AgentFace agent={agent} small />,
+                ))}
+                {renderChip(
+                  'unused',
+                  t('tabContexts.filterUnused'),
+                  unusedContextCount(contexts, agents),
+                  filter.agent === 'unused',
+                  () => pickAgent('unused'),
+                )}
+              </div>
+            </div>
+          )}
+          {kinds.length > 1 && (
+            <div className="tab-contexts__filter-row">
+              <span className="tab-contexts__filter-label">{t('tabContexts.filterKindLabel')}</span>
+              <div
+                className="tab-contexts__chips"
+                role="group"
+                aria-label={t('tabContexts.filterKindLabel')}
+              >
+                {renderChip(
+                  'all',
+                  t('tabContexts.filterAll'),
+                  contexts.length,
+                  filter.kind === 'all',
+                  () => setFilter(prev => ({ ...prev, kind: 'all' })),
+                )}
+                {kinds.map(kind => renderChip(
+                  kind,
+                  t(`tabContexts.kind_${kind}`),
+                  contexts.filter(context => context.kind === kind).length,
+                  filter.kind === kind,
+                  () => setFilter(prev => ({ ...prev, kind: prev.kind === kind ? 'all' : kind })),
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-      {agentResultContexts.length > 0 && (
-        <div className="tab-contexts__group">
-          <h4 className="tab-contexts__group-title">{t('tabContexts.groupAgentResults')}</h4>
-          {agentResultContexts.map(context => renderItem(context, false))}
-        </div>
-      )}
+
+      {/* Solo scrollean las filas: con el filtro dentro, `position: sticky`
+          dejaba pasar las filas por encima al llegar arriba del todo. */}
+      <div className="tab-contexts__rows">
+        {contexts.length === 0 && (
+          <p className="tab-contexts__empty">{t('tabContexts.empty')}</p>
+        )}
+        {contexts.length > 0 && visible.length === 0 && (
+          <p className="tab-contexts__empty">{t('tabContexts.filterNoMatch')}</p>
+        )}
+        {projectContexts.length > 0 && (
+          <div className="tab-contexts__group">
+            <h4 className="tab-contexts__group-title">
+              {t('tabContexts.groupProject')}
+              <span>{projectContexts.length}</span>
+            </h4>
+            {projectContexts.map(context => renderItem(context))}
+          </div>
+        )}
+        {agentResultContexts.length > 0 && (
+          <div className="tab-contexts__group">
+            <h4 className="tab-contexts__group-title">
+              {t('tabContexts.groupAgentResults')}
+              <span>{agentResultContexts.length}</span>
+            </h4>
+            {agentResultContexts.map(context => renderItem(context, false))}
+          </div>
+        )}
+      </div>
     </aside>
   )
 }

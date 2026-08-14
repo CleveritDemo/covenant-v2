@@ -57,8 +57,23 @@ export interface BrainstormWorkingSet {
 }
 
 /** Eventos main → renderer (canal brainstorm:event). */
+/**
+ * En qué va el turno mientras no hay texto. La espera es larga —Gravity hace
+ * `spawn` de un CLI real por turno— y sin esto la sala solo podía decir «se
+ * está preparando» sin distinguir «arrancando el proceso» de «se colgó».
+ * Cada fase corresponde a un hecho, no a tiempo transcurrido.
+ */
+export type BrainstormSpeakerPhase =
+  /** `speaker_start`: el prompt está armado, falta levantar el CLI. */
+  | 'starting'
+  /** Primer evento del CLI: el proceso vive y está leyendo el material. */
+  | 'reading'
+  /** Primer `speaker_delta`: ya hay texto. */
+  | 'writing'
+
 export type BrainstormEvent =
   | { type: 'speaker_start'; agentId: string; round: number }
+  | { type: 'speaker_phase'; agentId: string; round: number; phase: BrainstormSpeakerPhase }
   | { type: 'speaker_delta'; agentId: string; round: number; text: string }
   | { type: 'speaker_final'; agentId: string; agentName: string; round: number; text: string }
   | { type: 'human_message'; text: string; round: number; targetAgentId?: string }
@@ -86,6 +101,33 @@ export function sanitizeBrainstormMaxRounds(raw: unknown): number {
   if (n < 1) return 1
   if (n > BRAINSTORM_MAX_ROUNDS_CAP) return BRAINSTORM_MAX_ROUNDS_CAP
   return n
+}
+
+/**
+ * Las tres paradas del selector de duración: rápida, equilibrada y a fondo.
+ * El campo sigue aceptando cualquier entero hasta el cap (una ceremonia sugiere
+ * 4 ó 5); las paradas son solo lo que ofrece el control.
+ */
+export const BRAINSTORM_ROUND_STOPS = [1, 3, 6] as const
+
+/** Parada más cercana a un número libre de rondas, para colocar el pulgar. */
+export function brainstormRoundStopIndex(rounds: number): number {
+  const target = sanitizeBrainstormMaxRounds(rounds)
+  let best = 0
+  for (let i = 1; i < BRAINSTORM_ROUND_STOPS.length; i++) {
+    const closer = Math.abs(BRAINSTORM_ROUND_STOPS[i] - target)
+      < Math.abs(BRAINSTORM_ROUND_STOPS[best] - target)
+    if (closer) best = i
+  }
+  return best
+}
+
+/** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
+export const MINUTES_PER_TURN = 0.4
+
+/** Minutos redondeados de una tirada, nunca cero. */
+export function brainstormRunMinutes(turns: number): number {
+  return Math.max(1, Math.round(turns * MINUTES_PER_TURN))
 }
 
 function newRoomId(): string {
@@ -133,7 +175,7 @@ export function filterBrainstormInvitableAgents<
 
 export type BrainstormCatalogAgent = Pick<
   ProjectAgentDefinition,
-  'id' | 'name' | 'role' | 'localOnly'
+  'id' | 'name' | 'role' | 'localOnly' | 'monogram' | 'ceremonyRole'
 >
 
 /** Agente permanente del catálogo por id exacto (nunca réplica). */
@@ -280,9 +322,14 @@ export function sanitizeBrainstormInviteIds(
  * En la sala nadie las parsea (los turnos van sin results ni delegación), así que
  * solo son ruido en el acta. `(?:```|$)` recorta también la cerca a medio llegar
  * durante el streaming.
+ *
+ * Cualquier `ia-terminal-*`, no una lista de nombres: la lista se quedó sin
+ * `wiki` y el JSON entero de las ops acabó en la transcripción y en la vista
+ * previa de las tarjetas. Una cerca nueva no puede volver a filtrarse por
+ * olvidarse de añadirla aquí.
  */
 const BRAINSTORM_PROTOCOL_FENCE =
-  /```ia-terminal-(?:results|changelog|delegate|context)[\s\S]*?(?:```|$)/g
+  /```ia-terminal-[a-z][a-z0-9-]*[\s\S]*?(?:```|$)/g
 
 export function stripBrainstormProtocolFences(text: string): string {
   if (typeof text !== 'string' || !text.includes('```ia-terminal-')) return text
@@ -731,6 +778,13 @@ export function buildBrainstormTurnPrompt(
     '',
     'Your turn:',
     '- As long as it needs to be, no longer. Plain language.',
+    /*
+     * El prompt está en inglés y nunca fijaba idioma, así que cada agente
+     * respondía en el que infería de su identidad o de sus reglas: una sala con
+     * agentes en español y en inglés a la vez, y un acta bilingüe. El objetivo
+     * lo escribió el usuario, así que es el ancla honesta.
+     */
+    '- Answer in the same language the goal above is written in, whatever that is.',
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),

@@ -3,19 +3,18 @@ import { useT } from '@i18n/useT'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
-import { filterSeatableAgents } from '@shared/brainstormTable'
 import {
   computePlaneChatColumnWidth,
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
-import { PlaneBrainstormTable } from './PlaneBrainstormTable'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
@@ -31,6 +30,7 @@ import { PlanePulseButton } from './PlanePulseButton'
 import { PulseModal } from './PulseModal'
 import { PlaneWikiMapButton } from './PlaneWikiMapButton'
 import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
+import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
 import { WikiCuratorComposer } from './WikiCuratorComposer'
 import type { WikiGraphData } from './wikiGraph'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
@@ -47,12 +47,29 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
+import {
+  computeWikiModalPositionNearPoint,
+  computeWikiModalSpreadPositions,
+  WIKI_MODAL_ESTIMATED_HEIGHT,
+  WIKI_MODAL_WIDTH,
+} from '@shared/wikiModalPositions'
+import { mergeWikiNodeModalsOpen } from '@shared/wikiNodeModalOpen'
+import { AiMarkdown } from '../components/AiMarkdown'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TerminalModal } from '../components/TerminalModal'
+import { formatWikiPageBodyForHuman } from '@shared/wikiPagePlain'
 import './TabAgenticPlane.css'
 
 type PendingWorkspaceAction = 'resync' | 'upload'
+
+type WikiNodeModalState = {
+  slug: string
+  x: number
+  y: number
+  originX?: number
+  originY?: number
+}
 
 export type { PlaneMapEntity }
 
@@ -67,8 +84,6 @@ export interface TabAgenticPlaneProps {
   agentFabDisabledTitle?: string
   /** Motivo cuando el FAB de terminal queda disabled por falta de cwd. */
   terminalFabDisabledTitle?: string
-  /** Motivo cuando los FAB no pueden crear porque se alcanzó el máximo de ventanas. */
-  fabPaneLimitReachedTitle?: string
   idleAgentLabel: string
   contextPoolTitle: string
   contextPoolConfigureLabel: string
@@ -82,7 +97,6 @@ export interface TabAgenticPlaneProps {
   contextPoolDeleteLabel: string
   contextPoolDeleteConfirmMessage: (name: string) => string
   contextPoolDeleteConfirmDetail: string
-  contextPoolTrashDropLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -160,6 +174,8 @@ export interface TabAgenticPlaneProps {
   onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
   agentStatuses?: Record<string, AgentPlaneStatus>
+  /** Catálogo de agentes del workspace (preview de cola humanizada). */
+  projectAgents?: ProjectAgentDefinition[]
   chatFontSize?: number
   /** Sonidos del sistema para dictado del composer. */
   systemSoundsEnabled?: boolean
@@ -190,60 +206,39 @@ export interface TabAgenticPlaneProps {
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
-  /** Mesa de invitados abierta en el lienzo (paso previo al modal de tema). */
-  brainstormTableOpen?: boolean
-  /** Ids sentados, en orden de habla. */
-  brainstormSeated?: readonly string[]
-  onBrainstormSeatedChange?: (next: string[]) => void
-  onBrainstormTableClose?: () => void
-  onBrainstormTableContinue?: () => void
   brainstormNeedFolderHint?: string
   canOpenBrainstorm?: boolean
-  /** Arranque de una sala nueva: es lo que abre el botón cuando no hay sala viva. */
-  brainstormStartOpen?: boolean
-  onBrainstormStartOpenChange?: (open: boolean) => void
+  /**
+   * Vista del módulo: la biblioteca, el alta, una sala por id, o nada. Un solo
+   * campo para las tres, que son excluyentes.
+   */
+  brainstormView?: 'rooms' | 'setup' | string | null
+  onBrainstormViewChange?: (next: 'rooms' | 'setup' | string | null) => void
+  /** Actas en disco: con historial el botón abre la biblioteca, sin él el alta. */
+  brainstormSavedCount?: number
   brainstormsListButtonLabel?: string
-  /** Sala minimizada que sigue viva: punto en el botón + flyout anclado. */
-  brainstormLive?: BrainstormLiveSummary | null
-  /** Hay room montada (minimizada o no), aunque live aún no haya llegado. */
-  brainstormHasRoom?: boolean
-  brainstormMinimized?: boolean
+  /**
+   * Salas del workspace, en orden: vivas y también las terminadas sin soltar.
+   * Corren en paralelo, así que el botón lleva el número y el flyout la lista.
+   */
+  brainstormRooms?: readonly BrainstormLiveSummary[]
   brainstormDockOpen?: boolean
   onBrainstormDockOpenChange?: (open: boolean) => void
-  onRestoreBrainstorm?: () => void
-  onStopBrainstorm?: () => void
-  onDiscardBrainstorm?: () => void
-  loopsTitle: string
-  loopsSubtitle: string
-  loopsEmptyTitle: string
-  loopsEmptyHint: string
-  loopsChainsTitle: string
-  loopsChainsEmpty: string
-  loopsCreateChainLabel: string
-  loopsAppendStepLabel: string
-  loopsStartChainLabel: string
-  loopsStopChainLabel: string
-  loopsDeleteChainLabel: string
-  loopsChainModalTitle: string
-  loopsChainModalDescription: string
-  loopsAppendModalTitle: string
-  loopsAppendModalDescription: string
-  loopsAgentLabel: string
-  loopsObjectiveLabel: string
-  loopsObjectivePlaceholder: string
-  loopsNoAgentsHint: string
-  loopsNoAppendAgentsHint: string
-  loopsBlockNeedObjectiveHint: string
-  loopsChainConfirmLabel: string
-  loopsAppendConfirmLabel: string
-  loopsCancelLabel: string
-  loopsStatusIdle: string
-  loopsStatusBusy: string
-  loopsStatusLooping: string
-  loopsChainStatusIdle: string
-  loopsChainStatusRunning: string
-  loopsChainStatusWaiting: string
-  loopsChainStatusStopped: string
+  /** Volver a mirar una sala que sigue corriendo. */
+  onOpenBrainstormRoom?: (roomId: string) => void
+  onStopBrainstormRoom?: (roomId: string) => void
+  onDiscardBrainstormRoom?: (roomId: string) => void
+  /**
+   * Overlays de la sala (alta y una vista por sala). Se montan aquí dentro
+   * porque van `absolute` contra este plano, igual que el mapa de la wiki; el
+   * estado sigue viviendo arriba, donde ya estaba.
+   */
+  brainstormOverlays?: React.ReactNode
+  /**
+   * Alguna sala ocupa el plano: la barra de navegación sube por encima y el
+   * pool de contextos se retira, que es de quien hereda su esquina.
+   */
+  brainstormOverlayOpen?: boolean
   loopChains: PlaneLoopChain[]
   onLoopChainsChange: (chains: PlaneLoopChain[]) => void
   onStartLoopChain: (chainId: string) => void
@@ -302,7 +297,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   terminalFabTitle,
   agentFabDisabledTitle,
   terminalFabDisabledTitle,
-  fabPaneLimitReachedTitle,
   idleAgentLabel,
   contextPoolTitle,
   contextPoolConfigureLabel,
@@ -315,7 +309,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolDeleteLabel,
   contextPoolDeleteConfirmMessage,
   contextPoolDeleteConfirmDetail,
-  contextPoolTrashDropLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -364,6 +357,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   newThreadPendingPaneId = null,
   onOpenChatAgentChange,
   agentStatuses = {},
+  projectAgents = [],
   chatFontSize = 13,
   systemSoundsEnabled = true,
   configLabel,
@@ -390,55 +384,20 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
-  brainstormTableOpen = false,
-  brainstormSeated = [],
-  onBrainstormSeatedChange,
-  onBrainstormTableClose,
-  onBrainstormTableContinue,
   brainstormNeedFolderHint,
   canOpenBrainstorm = false,
-  brainstormLive = null,
-  brainstormHasRoom = false,
-  brainstormMinimized = false,
+  brainstormView = null,
+  onBrainstormViewChange,
+  brainstormSavedCount = 0,
+  brainstormRooms = [],
   brainstormDockOpen = false,
   onBrainstormDockOpenChange,
-  onRestoreBrainstorm,
-  onStopBrainstorm,
-  onDiscardBrainstorm,
-  brainstormStartOpen = false,
-  onBrainstormStartOpenChange,
+  onOpenBrainstormRoom,
+  onStopBrainstormRoom,
+  onDiscardBrainstormRoom,
+  brainstormOverlays,
+  brainstormOverlayOpen = false,
   brainstormsListButtonLabel = 'Brainstorms',
-  loopsTitle,
-  loopsSubtitle,
-  loopsEmptyTitle,
-  loopsEmptyHint,
-  loopsChainsTitle,
-  loopsChainsEmpty,
-  loopsCreateChainLabel,
-  loopsAppendStepLabel,
-  loopsStartChainLabel,
-  loopsStopChainLabel,
-  loopsDeleteChainLabel,
-  loopsChainModalTitle,
-  loopsChainModalDescription,
-  loopsAppendModalTitle,
-  loopsAppendModalDescription,
-  loopsAgentLabel,
-  loopsObjectiveLabel,
-  loopsObjectivePlaceholder,
-  loopsNoAgentsHint,
-  loopsNoAppendAgentsHint,
-  loopsBlockNeedObjectiveHint,
-  loopsChainConfirmLabel,
-  loopsAppendConfirmLabel,
-  loopsCancelLabel,
-  loopsStatusIdle,
-  loopsStatusBusy,
-  loopsStatusLooping,
-  loopsChainStatusIdle,
-  loopsChainStatusRunning,
-  loopsChainStatusWaiting,
-  loopsChainStatusStopped,
   loopChains,
   onLoopChainsChange,
   onStartLoopChain,
@@ -485,35 +444,122 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // Mapa de wiki: estado local (sin nada del padre), patrón brainstormViewClose:
   // abrir tapa el plano entero, cerrar restaura todo tal cual estaba.
   const [wikiMapOpen, setWikiMapOpen] = useState(false)
+  /** Salas que siguen corriendo: son las que cuenta el badge del botón. */
+  const liveBrainstormRooms = useMemo(
+    () => brainstormRooms.filter(room => isBrainstormLive(room.status)),
+    [brainstormRooms],
+  )
   // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
-  const [wikiNodeSlugs, setWikiNodeSlugs] = useState<string[]>([])
+  const [wikiNodeModals, setWikiNodeModals] = useState<WikiNodeModalState[]>([])
+  const wikiNodeScreenPositionsRef = useRef<ReadonlyMap<string, WikiGraphNodeScreenPosition>>(new Map())
   // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
   const [wikiGraphData, setWikiGraphData] = useState<WikiGraphData | null>(null)
+  const [wikiGraphError, setWikiGraphError] = useState<string | null>(null)
   // Incrementar relanza el fetch del grafo sin cerrar el mapa (CTA 'Crear wiki').
   const [wikiGraphRefreshToken, setWikiGraphRefreshToken] = useState(0)
   // Refetch suave (ingest del curador aplicado): swap de data sin cerrar modales.
   const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
+  // Tras bootstrap wiki desde el CTA: auto-/init del curador.
+  const [wikiBootstrapInitToken, setWikiBootstrapInitToken] = useState(0)
 
-  const loadWikiGraph = useCallback(async (): Promise<WikiGraphData> => {
+  const getWikiModalBounds = useCallback((): { width: number; height: number } => {
+    const el = planeRef.current
+    if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+      return { width: el.clientWidth, height: el.clientHeight }
+    }
+    if (viewport.width > 0 && viewport.height > 0) {
+      return viewport
+    }
+    return { width: 960, height: 640 }
+  }, [viewport])
+
+  const openWikiNodeModals = useCallback((
+    slugs: string[],
+    origins?: ReadonlyMap<string, { x: number; y: number }>,
+  ) => {
+    const trimmed = slugs.slice(0, 3)
+    if (trimmed.length === 0) {
+      setWikiNodeModals([])
+      return
+    }
+    const bounds = getWikiModalBounds()
+    const modalInput = {
+      width: bounds.width,
+      height: bounds.height,
+      modalWidth: WIKI_MODAL_WIDTH,
+      modalHeight: WIKI_MODAL_ESTIMATED_HEIGHT,
+    }
+
+    const incoming = trimmed.map(slug => {
+      const fromArg = origins?.get(slug)
+      const fromRef = wikiNodeScreenPositionsRef.current.get(slug)
+      const origin = fromArg
+        ?? (fromRef?.visible ? { x: fromRef.x, y: fromRef.y } : null)
+
+      let pos: { x: number; y: number }
+      let originX: number | undefined
+      let originY: number | undefined
+      if (origin) {
+        pos = computeWikiModalPositionNearPoint({
+          originX: origin.x,
+          originY: origin.y,
+          ...modalInput,
+        })
+        originX = origin.x
+        originY = origin.y
+      } else {
+        const [spread] = computeWikiModalSpreadPositions({
+          count: 1,
+          ...modalInput,
+        })
+        pos = spread!
+      }
+
+      return {
+        slug,
+        x: pos.x,
+        y: pos.y,
+        ...(originX != null && originY != null ? { originX, originY } : {}),
+      }
+    })
+
+    setWikiNodeModals(previous => mergeWikiNodeModalsOpen(previous, incoming, 3))
+  }, [getWikiModalBounds])
+
+  const loadWikiGraph = useCallback(async (): Promise<{
+    data: WikiGraphData | null
+    error: string | null
+  }> => {
     const cwd = projectFolder.trim()
-    if (!cwd) return { nodes: [], edges: [] }
+    if (!cwd) return { data: { nodes: [], edges: [] }, error: null }
     try {
       const result = await window.api.getWikiGraph(cwd)
-      return result.ok && result.data ? result.data : { nodes: [], edges: [] }
+      if (!result.ok) {
+        return { data: null, error: result.error ?? '' }
+      }
+      return { data: result.data ?? { nodes: [], edges: [] }, error: null }
     } catch {
-      return { nodes: [], edges: [] }
+      return { data: null, error: '' }
     }
   }, [projectFolder])
 
   // Pages reales vía IPC, refetch en cada apertura: la wiki puede haber
-  // cambiado entre una y otra. ok:false o error → grafo vacío (empty state).
+  // cambiado entre una y otra. ok:false o error → overlay de error.
   useEffect(() => {
     if (!wikiMapOpen) return
     let cancelled = false
     setWikiGraphData(null)
-    setWikiNodeSlugs([])
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    setWikiGraphError(null)
+    setWikiNodeModals([])
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled) return
+      if (error !== null) {
+        setWikiGraphError(error)
+        setWikiGraphData(null)
+      } else {
+        setWikiGraphData(data)
+        setWikiGraphError(null)
+      }
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphRefreshToken])
@@ -523,8 +569,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   useEffect(() => {
     if (!wikiMapOpen || wikiGraphSoftToken === 0) return
     let cancelled = false
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled || error || !data) return
+      setWikiGraphData(data)
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
@@ -566,16 +613,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         }
       })
   ), [agentStatuses, entities])
-
-  const tableAgents = useMemo(
-    () => filterSeatableAgents(entities.filter(entity => entity.kind === 'agent'))
-      .map(entity => ({
-        agentId: entity.agentId!,
-        name: entity.title,
-        ...(entity.monogram ? { monogram: entity.monogram } : {}),
-      })),
-    [entities],
-  )
 
   const loopAgents = useMemo<PlaneLoopsAgent[]>(
     () => entities
@@ -648,6 +685,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     ? agentStatuses[openChatAgentId] ?? null
     : null
 
+  const terminalWindowOpen = entities.some(
+    entity => entity.kind !== 'agent' && entity.window.open,
+  )
+
   const openChatRunningThreadIds = useMemo(() => {
     if (!openChatAgentId) return []
     const entity = entities.find(
@@ -660,7 +701,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const quickChatVisible = Boolean(
     openChatAgentId
     && quickChatStatus
-    && (quickChatStatus.busy || quickChatStatus.messages.length > 0),
+    && (quickChatStatus.busy || quickChatStatus.messages.length > 0)
+    && !terminalWindowOpen,
   )
 
   const anyFullscreen = entities.some(
@@ -679,6 +721,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       className="tab-agentic-plane"
       style={{
         ['--plane-chat-column-width' as string]: `${chatColumnWidth || PLANE_CHAT_BASE_WIDTH}px`,
+        ['--plane-chat-stack-z' as string]: `${PLANE_CHAT_STACK_Z}`,
+        ['--plane-chrome-stack-z' as string]: `${PLANE_CHROME_STACK_Z}`,
       }}
       onPointerDown={event => {
         if (event.button !== 0) return
@@ -695,7 +739,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
           '.plane-chat-dock__toolbar',
-          '.plane-context-pool',
+          '.plane-context-pool-shell',
           '[role="dialog"]',
           'button',
           'a',
@@ -708,8 +752,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onMinimizeAllWindows()
       }}
     >
+      {/* Con un overlay ocupando el plano (mapa o sala) la barra sube por
+          encima: es lo único que permite moverse y no se puede tapar. */}
       {!anyFullscreen && (
-        <div className={`plane-top-left-bar${wikiMapOpen ? ' plane-top-left-bar--over-wiki' : ''}`}>
+        <div
+          className={`plane-top-left-bar${
+            wikiMapOpen || brainstormOverlayOpen ? ' plane-top-left-bar--over-wiki' : ''
+          }`}
+        >
           <PlaneProjectFolder
             folderPath={projectFolder}
             selectLabel={projectFolderSelectLabel}
@@ -757,51 +807,67 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             pressed={pulseOpen}
             onClick={() => setPulseOpen(open => !open)}
           />
-          {onBrainstormStartOpenChange ? (
+          {onBrainstormViewChange ? (
             <span className="plane-brainstorm-anchor">
+              {/*
+                Toggle con el contrato del mapa de wiki: pulsa y la sala ocupa el
+                plano, vuelve a pulsar y se va la vista —no la sala, que sigue
+                corriendo en main. Sin ninguna sala entra directo al alta; con
+                varias abre la lista, porque hay que elegir a cuál volver.
+              */}
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
-                pressed={
-                  brainstormHasRoom || Boolean(brainstormLive)
-                    ? brainstormDockOpen
-                    : brainstormStartOpen
-                }
+                pressed={brainstormOverlayOpen || brainstormDockOpen}
+                liveCount={liveBrainstormRooms.length}
                 disabled={!canOpenBrainstorm}
                 disabledTitle={brainstormNeedFolderHint}
                 onClick={() => {
-                  const hasRoom = brainstormHasRoom || Boolean(brainstormLive)
-                  // Room minimizada: reabrir modal; no caer en la lista (App la oculta si hay room).
-                  if (hasRoom && brainstormMinimized) {
-                    if (brainstormDockOpen) onBrainstormDockOpenChange?.(false)
-                    onRestoreBrainstorm?.()
+                  if (brainstormOverlayOpen) {
+                    onBrainstormViewChange(null)
                     return
                   }
-                  if (hasRoom) onBrainstormDockOpenChange?.(!brainstormDockOpen)
-                  else onBrainstormStartOpenChange(!brainstormStartOpen)
+                  if (brainstormDockOpen) {
+                    onBrainstormDockOpenChange?.(false)
+                    return
+                  }
+                  // Con más de una sala viva hay que elegir a cuál volver.
+                  if (liveBrainstormRooms.length > 1) {
+                    onBrainstormDockOpenChange?.(true)
+                    return
+                  }
+                  if (liveBrainstormRooms.length === 1) {
+                    onBrainstormViewChange(liveBrainstormRooms[0].roomId)
+                    return
+                  }
+                  onBrainstormViewChange(
+                    brainstormSavedCount > 0 || brainstormRooms.length > 0 ? 'rooms' : 'setup',
+                  )
                 }}
               />
-              {brainstormLive && isBrainstormLive(brainstormLive.status) ? (
+              {liveBrainstormRooms.length > 0 ? (
                 <span
                   className={[
                     'plane-brainstorm-anchor__badge',
-                    brainstormLive.status === 'running'
+                    liveBrainstormRooms.some(room => room.status === 'running')
                       ? 'plane-brainstorm-anchor__badge--pulse'
                       : '',
                   ].filter(Boolean).join(' ')}
-                  aria-hidden
-                />
+                >
+                  {liveBrainstormRooms.length}
+                </span>
               ) : null}
-              {brainstormLive && brainstormDockOpen ? (
+              {brainstormDockOpen ? (
                 <PlaneBrainstormDock
-                  live={brainstormLive}
-                  onOpen={() => {
+                  rooms={brainstormRooms}
+                  onOpen={roomId => {
                     onBrainstormDockOpenChange?.(false)
-                    onRestoreBrainstorm?.()
+                    onOpenBrainstormRoom?.(roomId)
                   }}
-                  onStop={() => onStopBrainstorm?.()}
-                  onDiscard={() => {
+                  onStop={roomId => onStopBrainstormRoom?.(roomId)}
+                  onDiscard={roomId => onDiscardBrainstormRoom?.(roomId)}
+                  onCreate={() => {
                     onBrainstormDockOpenChange?.(false)
-                    onDiscardBrainstorm?.()
+                    onBrainstormViewChange('setup')
                   }}
                 />
               ) : null}
@@ -823,37 +889,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       )}
       <PlaneLoopsSection
         open={loopsOpen && !anyFullscreen && tabActive}
-        title={loopsTitle}
-        subtitle={loopsSubtitle}
-        emptyTitle={loopsEmptyTitle}
-        emptyHint={loopsEmptyHint}
-        chainsTitle={loopsChainsTitle}
-        chainsEmpty={loopsChainsEmpty}
-        createChainLabel={loopsCreateChainLabel}
-        appendStepLabel={loopsAppendStepLabel}
-        startChainLabel={loopsStartChainLabel}
-        stopChainLabel={loopsStopChainLabel}
-        deleteChainLabel={loopsDeleteChainLabel}
-        chainModalTitle={loopsChainModalTitle}
-        chainModalDescription={loopsChainModalDescription}
-        appendModalTitle={loopsAppendModalTitle}
-        appendModalDescription={loopsAppendModalDescription}
-        agentLabel={loopsAgentLabel}
-        objectiveLabel={loopsObjectiveLabel}
-        objectivePlaceholder={loopsObjectivePlaceholder}
-        noAgentsHint={loopsNoAgentsHint}
-        noAppendAgentsHint={loopsNoAppendAgentsHint}
-        blockNeedObjectiveHint={loopsBlockNeedObjectiveHint}
-        chainConfirmLabel={loopsChainConfirmLabel}
-        appendConfirmLabel={loopsAppendConfirmLabel}
-        cancelLabel={loopsCancelLabel}
-        statusIdle={loopsStatusIdle}
-        statusBusy={loopsStatusBusy}
-        statusLooping={loopsStatusLooping}
-        chainStatusIdle={loopsChainStatusIdle}
-        chainStatusRunning={loopsChainStatusRunning}
-        chainStatusWaiting={loopsChainStatusWaiting}
-        chainStatusStopped={loopsChainStatusStopped}
         agents={loopAgents}
         chains={loopChains}
         canStartChains={canStartLoopChains}
@@ -869,7 +904,42 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
         tabActive={tabActive}
-        seatDragEnabled={brainstormTableOpen}
+        stageHidden={wikiMapOpen}
+        wikiOverlay={wikiMapOpen ? (
+          <WikiGraphView
+            data={wikiGraphData}
+            error={wikiGraphError}
+            onRetry={() => setWikiGraphRefreshToken(token => token + 1)}
+            cwd={projectFolder.trim()}
+            active={tabActive}
+            onClose={() => {
+              setWikiMapOpen(false)
+              setWikiNodeModals([])
+            }}
+            onOpenNode={(slug, screen) => openWikiNodeModals(
+              [slug],
+              screen ? new Map([[slug, screen]]) : undefined,
+            )}
+            onNodeScreenPositions={positions => {
+              wikiNodeScreenPositionsRef.current = positions
+            }}
+            onRefetchGraph={() => {
+              setWikiGraphRefreshToken(token => token + 1)
+              const cwd = projectFolder.trim()
+              if (cwd) onWikiMutated?.(cwd)
+              setWikiBootstrapInitToken(token => token + 1)
+            }}
+            curator={projectFolder.trim() ? (
+              <WikiCuratorComposer
+                cwd={projectFolder.trim()}
+                systemSoundsEnabled={systemSoundsEnabled}
+                bootstrapInitToken={wikiBootstrapInitToken}
+                onViewSlugs={slugs => openWikiNodeModals(slugs)}
+                onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
+              />
+            ) : null}
+          />
+        ) : null}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}
@@ -912,18 +982,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       ) : null}
 
-      {brainstormTableOpen && onBrainstormSeatedChange ? (
-        <div className="plane-bs-table-anchor">
-          <PlaneBrainstormTable
-            agents={tableAgents}
-            seated={brainstormSeated}
-            onSeatedChange={onBrainstormSeatedChange}
-            onClose={() => onBrainstormTableClose?.()}
-            onContinue={() => onBrainstormTableContinue?.()}
-          />
-        </div>
-      ) : null}
-
       {showIdleGravity && (
         <PlaneIdleGravity
           emptyHint={entities.length === 0 ? emptyHint : undefined}
@@ -936,7 +994,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && (
+      {/* La esquina de arriba a la derecha se la queda el chrome del overlay:
+          el pool se retira mientras el mapa o una sala ocupan el plano. */}
+      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -949,7 +1009,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           deleteLabel={contextPoolDeleteLabel}
           deleteConfirmMessage={contextPoolDeleteConfirmMessage}
           deleteConfirmDetail={contextPoolDeleteConfirmDetail}
-          trashDropLabel={contextPoolTrashDropLabel}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -962,7 +1021,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
@@ -1007,6 +1066,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   ? (delegationId => onAbortDelegation(openChatAgentId, delegationId))
                   : undefined
               }
+              projectAgents={projectAgents}
             />
           ) : null}
           composer={(
@@ -1019,6 +1079,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}
               queuedTurns={quickChatStatus?.queuedTurns ?? []}
+              agentCatalog={projectAgents}
               onSelectAgent={openChatAgent}
               onCloseChat={closeChatAgent}
               onStop={onStopChat}
@@ -1037,7 +1098,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1046,7 +1107,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           terminalTitle={terminalFabTitle}
           agentDisabledTitle={agentFabDisabledTitle}
           terminalDisabledTitle={terminalFabDisabledTitle}
-          paneLimitReachedTitle={fabPaneLimitReachedTitle}
           onAddAgent={onAddAgent}
           onAddTerminal={onAddTerminal}
           bootstrapAgentsTitle={bootstrapAgentsTitle || bootstrapAgentsLabel}
@@ -1057,53 +1117,46 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {wikiMapOpen ? (
-        <WikiGraphView
-          data={wikiGraphData}
-          cwd={projectFolder.trim()}
-          active={tabActive}
-          onClose={() => setWikiMapOpen(false)}
-          onOpenNode={slug => setWikiNodeSlugs([slug])}
-          onRefetchGraph={() => {
-            setWikiGraphRefreshToken(token => token + 1)
-            const cwd = projectFolder.trim()
-            if (cwd) onWikiMutated?.(cwd)
-          }}
-          curator={projectFolder.trim() ? (
-            <WikiCuratorComposer
-              cwd={projectFolder.trim()}
-              systemSoundsEnabled={systemSoundsEnabled}
-              onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
-              onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
-            />
-          ) : null}
-        />
-      ) : null}
+      {/* Sala sobre el plano: mismo montaje que el mapa (absolute contra este
+          contenedor). El estado vive arriba; aquí solo tiene su sitio. */}
+      {brainstormOverlays}
 
-      {/* Páginas reales de la wiki (markdown crudo; el render md rico llega después).
-          Cascada de hasta 3 (view del curador), 24px de offset por paso; z por
-          encima del mapa (APP_OVERLAY_MODAL_Z) — el default 640 quedaría debajo. */}
-      {wikiNodeSlugs.map((slug, index) => {
-        const node = wikiGraphData?.nodes.find(item => item.slug === slug)
+      {/* Páginas reales de la wiki (cuerpo legible vía preprocess + AiMarkdown).
+          Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}
+      {wikiNodeModals.map((modal, index) => {
+        const node = wikiGraphData?.nodes.find(item => item.slug === modal.slug)
         if (!node) return null
         return (
           <TerminalModal
-            key={slug}
+            key={modal.slug}
             open
             active={tabActive}
+            movable
+            portalContainerRef={planeRef}
+            boundsRef={planeRef}
+            initialPosition={{ x: modal.x, y: modal.y }}
+            enterOrigin={
+              modal.originX != null && modal.originY != null
+                ? { x: modal.originX, y: modal.originY }
+                : undefined
+            }
+            onPositionChange={pos => {
+              setWikiNodeModals(prev => prev.map(item => (
+                item.slug === modal.slug ? { ...item, x: pos.x, y: pos.y } : item
+              )))
+            }}
             title={node.title}
             size="sm"
             zIndex={APP_OVERLAY_MODAL_Z + 10 + index}
-            cascadeStep={index}
-            onClose={() => setWikiNodeSlugs(prev => prev.filter(item => item !== slug))}
+            onClose={() => setWikiNodeModals(prev => prev.filter(item => item.slug !== modal.slug))}
           >
             <div className="wiki-graph-node-page">
               <p className="wiki-graph-node-page__type">
                 {t(wikiTypeLabelKey(node.type))}
               </p>
-              <p className="wiki-graph-node-page__body">
-                {node.body ?? ''}
-              </p>
+              <div className="wiki-graph-node-page__body">
+                <AiMarkdown content={formatWikiPageBodyForHuman(node.body ?? '')} />
+              </div>
             </div>
           </TerminalModal>
         )

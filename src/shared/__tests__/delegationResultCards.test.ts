@@ -159,7 +159,7 @@ describe('parseDelegationResultCards', () => {
     expect(cards[1].summary).toBe('Backend failed.')
   })
 
-  it('hides the turbo concurrent-jobs block from the last card', () => {
+  it('drops the turbo concurrent-jobs block from the last card', () => {
     const text = buildBatchedDelegationFollowUp([
       stubResult({ id: 'a', status: 'ok', summary: 'Done.', toAgentId: 'frontend' }),
     ], { workStyle: 'turbo', orchestrationJobId: 'job-1' })
@@ -168,6 +168,18 @@ describe('parseDelegationResultCards', () => {
     expect(cards[0].summary).toBe('Done.')
     expect(cards[0].summary).not.toContain('Concurrent jobs')
     expect(cards[0].summary).not.toContain('belong to job')
+  })
+
+  it('strips turbo round scope from orchestrationRound', () => {
+    const text = formatDelegationResultFollowUp({
+      id: 'd9',
+      status: 'ok',
+      summary: 'Slice done.',
+      toAgentId: 'qa',
+    }, { round: 2, maxRounds: 0, workStyle: 'turbo' })
+    const [card] = parseDelegationResultCards(text)
+    expect(card.round).toBe('2/∞')
+    expect(card.round).not.toContain('per job')
   })
 
   it('returns nothing for text that is not a delegation follow-up', () => {

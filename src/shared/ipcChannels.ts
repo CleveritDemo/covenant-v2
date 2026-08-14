@@ -19,6 +19,8 @@ export const IPC = {
   AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
   /** Renderer → main: ¿está el CLI de este provider en el PATH? Ruta y versión. */
   AGENT_CLI_RESOLVE: 'agentCli:resolve',
+  /** Renderer → main: detecta qué CLIs de agente están instalados (onboarding). */
+  ONBOARDING_DETECT_CLIS: 'onboarding:detectClis',
   /** Renderer → main: iniciar sala de brainstorm round-robin. */
   BRAINSTORM_START: 'brainstorm:start',
   /** Renderer → main: detener sala de brainstorm. */
@@ -90,6 +92,8 @@ export const IPC = {
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
   /** Renderer → main: guarda solo la región notes de un results. */
   AGENT_RESULTS_SET_NOTES: 'agentResults:setNotes',
+  /** Renderer → main: lee summary/changes del Latest en `.gravity/results/<id>.md`. */
+  AGENT_RESULTS_READ_LATEST: 'agentResults:readLatest',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config

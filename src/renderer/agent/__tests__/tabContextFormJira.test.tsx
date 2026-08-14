@@ -294,4 +294,46 @@ describe('TabContextFormModal — alta de jira', () => {
     // era lo que devolvía «No snapshot yet» y lo pintaba en rojo.
     expect(previewTabContext).not.toHaveBeenCalled()
   })
+
+  it('al guardar pasa el snapshot ya visto: el contexto no nace vacío', async () => {
+    // La vista previa acaba de traer la issue de Jira. Si el guardado no la
+    // lleva, el `.md` se crea vacío y el gestor dice «no content yet» — y si
+    // nadie lo adjunta a un turno se queda así, porque el refrescador solo
+    // recorre los contextos de un turno.
+    jiraPreviewIssue.mockResolvedValue({
+      ok: true,
+      content: '## Resumen\nCT-130 · Permissions en rojo',
+    })
+    const materializeTabContext = vi.fn().mockResolvedValue({ ok: true, content: '' })
+    ;(window as unknown as { api: Record<string, unknown> }).api = {
+      previewTabContext,
+      materializeTabContext,
+      jiraSearch,
+      jiraPreviewIssue,
+    }
+
+    render(
+      <TabContextFormModal
+        open
+        mode="create"
+        context={null}
+        contexts={[]}
+        cwd="/repo"
+        onRefresh={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_jira' }))
+    fireEvent.change(screen.getByLabelText('tabContexts.jiraKeyLabel', { exact: false }), {
+      target: { value: 'CT-130' },
+    })
+    await waitFor(() => expect(jiraPreviewIssue).toHaveBeenCalledWith('/repo', 'CT-130'))
+    await screen.findByText(/Permissions en rojo/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabContexts.saveContext' }))
+
+    await waitFor(() => expect(materializeTabContext).toHaveBeenCalled())
+    expect(materializeTabContext.mock.calls[0][0].content).toContain('Permissions en rojo')
+  })
 })

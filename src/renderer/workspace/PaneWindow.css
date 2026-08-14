@@ -5,7 +5,6 @@
   background: var(--plane-glass-strong);
   border: 1px solid var(--plane-border);
   border-radius: var(--plane-radius-sm);
-  backdrop-filter: blur(calc(var(--plane-blur) * 0.55));
   box-shadow: var(--plane-shadow), inset 0 0 0 1px var(--plane-highlight);
   overflow: hidden;
   transform-origin: top left;

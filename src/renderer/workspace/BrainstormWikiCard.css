@@ -1,0 +1,85 @@
+/* Lo que el turno escribió en el wiki: acompaña al mensaje, no compite con él. */
+.brainstorm-wiki-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 1.6);
+  background: var(--bg-secondary);
+  max-width: 520px;
+}
+
+.brainstorm-wiki-card__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-wiki-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brainstorm-wiki-card__open {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--bg);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.brainstorm-wiki-card__open--flat {
+  cursor: default;
+  opacity: 0.75;
+}
+
+button.brainstorm-wiki-card__open:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+button.brainstorm-wiki-card__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.brainstorm-wiki-card__kind {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-wiki-card__title {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brainstorm-wiki-card__log {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}

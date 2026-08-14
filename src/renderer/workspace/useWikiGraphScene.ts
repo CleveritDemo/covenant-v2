@@ -2,11 +2,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { isReduceMotionActive } from '../reduceMotion'
+import { getThemeMusicBeat } from '../themeMusicEnergy'
 import {
   layoutWikiGraph,
   type WikiGraphData,
   type WikiGraphNodeType,
 } from './wikiGraph'
+import {
+  computeInitialNodeFireAt,
+  computeNextNodeFireAt,
+} from './wikiGraphBoltTiming'
 
 export interface WikiGraphHover {
   slug: string
@@ -15,9 +20,18 @@ export interface WikiGraphHover {
   y: number
 }
 
+export interface WikiGraphNodeScreenPosition {
+  x: number
+  y: number
+  visible: boolean
+}
+
 export interface WikiGraphSceneCallbacks {
   onHover: (hover: WikiGraphHover | null) => void
-  onPick: (slug: string) => void
+  onPick: (slug: string, screen: { x: number; y: number }) => void
+  onNodeScreenPositions?: (
+    positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>,
+  ) => void
 }
 
 /** Semilla fija: el mapa se ve igual entre aperturas mientras no cambien las pages. */
@@ -25,16 +39,17 @@ const LAYOUT_SEED = 42
 
 /** Var CSS del tema por tipo de nodo + fallback hex (mismo enfoque que PlaneMapGridParticles). */
 const NODE_TYPE_COLOR_VARS: Record<WikiGraphNodeType, [string, string]> = {
-  concept: ['--accent', '#7aa2f7'],
-  decision: ['--theme-magenta', '#ff79c6'],
-  flow: ['--theme-cyan', '#22d3ee'],
-  reference: ['--theme-blue', '#60a5fa'],
+  concept: ['--wiki-node-concept', '#7aa2f7'],
+  decision: ['--wiki-node-decision', '#e8b4d8'],
+  flow: ['--wiki-node-flow', '#a8e8f5'],
+  reference: ['--wiki-node-reference', '#b8d4fc'],
 }
 
-const BACKGROUND_VAR = '--bg'
-const BACKGROUND_FALLBACK = '#0b0e14'
 const EDGE_VAR = '--text-muted'
+const EDGE_VAR_LIGHT = '--wiki-edge-color'
 const EDGE_FALLBACK = '#8b93a7'
+/** 50% mezcla de EDGE_FALLBACK con blanco — fallback si falta --wiki-edge-color. */
+const EDGE_FALLBACK_LIGHT = '#c5c9d3'
 /** Red base con reduce motion ON: única representación de conexiones. */
 const EDGE_OPACITY_STATIC = 0.55
 /** Red base con reduce motion OFF: legible bajo los rayos sin competir. */
@@ -44,28 +59,55 @@ const IDLE_ROTATE_SPEED = 0.55
 const IDLE_RESUME_MS = 3000
 
 /** Descarga eléctrica: polilínea jittered que enciende toda la arista. */
-const BOLT_SEGMENTS = 8
+const BOLT_SEGMENTS = 16
 /** Vida total de una descarga (ataque + fade). */
 const BOLT_ACTIVE_MS = 260
 /** Ataque rápido: fracción del ciclo hasta el pico. */
 const BOLT_ATTACK = 0.18
 /** Amplitud perpendicular como fracción de la longitud de la arista. */
-const BOLT_JITTER_RATIO = 0.07
-/** Fondo mínimo entre descargas por arista (aleatorio). */
-const BOLT_INTERVAL_MIN_MS = 1600
-const BOLT_INTERVAL_MAX_MS = 5200
-/** Núcleo blanco-cian intenso; el halo se tiñe por tipo de nodo. */
-const BOLT_CORE_HEX = '#e9fbff'
+const BOLT_JITTER_RATIO = 0.045
+/** Máximo de nodos con al menos un rayo en estado firing. */
+const NODE_MAX_CONCURRENT_PULSES = 2
+/** Reintento cuando el cap de nodos activos está lleno (ms). */
+const BOLT_CAP_RETRY_MS = 250
+/** Cooldown global entre disparos sincronizados al beat (ms). */
+const BOLT_BEAT_COOLDOWN_MS = 350
+
+const isMusicActive = (pulse: number): boolean => pulse > 0.001
+
 const BOLT_CORE_OPACITY = 0.95
 const BOLT_HALO_OPACITY = 0.55
 /** Halo externo ancho: mayor jitter y opacidad baja para simular "linewidth"
  *  con aditivo — da la sensación de luz espacial que un LineBasicMaterial solo
  *  no puede lograr en WebGL. */
 const BOLT_GLOW_OPACITY = 0.32
-const BOLT_GLOW_JITTER_MULT = 3.4
 /** Flash breve en los endpoints (sprite aditivo): enciende los nodos conectados. */
 const BOLT_ENDPOINT_OPACITY = 0.9
-const BOLT_ENDPOINT_SCALE_MULT = 4.2
+const BOLT_ENDPOINT_SCALE_MULT = 2.8
+/** Luz puntual por descarga (pool compartido): ilumina de verdad los nodos
+ *  vecinos — los materiales de nodo son Lambert para recibirla. */
+const BOLT_LIGHT_POOL = 8
+const BOLT_LIGHT_INTENSITY = 78
+const BOLT_LIGHT_DISTANCE_MULT = 1.35
+/** Emissive base y tope al pasar la luz viajera del rayo. */
+const NODE_EMISSIVE_BASE = 0.08
+const NODE_EMISSIVE_MAX = 0.55
+/** Boost extra en el nodo que está emitiendo rayos. */
+const NODE_ORIGIN_EMISSIVE_BOOST = 0.38
+/** Pulso de escala en el nodo emisor (1.0 → 1.07). */
+const NODE_ORIGIN_SCALE_PEAK = 0.07
+/** Glow volumétrico: sprites aditivos a lo largo del rayo (no solo líneas). */
+const BOLT_RAY_GLOW_OPACITY = 0.4
+const BOLT_RAY_GLOW_STOPS = [0.15, 0.3, 0.45, 0.55, 0.65, 0.8, 0.9] as const
+const BOLT_RAY_GLOW_SCALE = [0.11, 0.16, 0.11, 0.14, 0.11, 0.16, 0.11] as const
+/** Blanco fijo para visuals de rayo en dark — no depende de CSS. */
+const BOLT_VISUAL_WHITE = new THREE.Color(0xffffff)
+const BOLT_VAR = '--wiki-bolt-color'
+const BOLT_FALLBACK_LIGHT = '#3d3d5c'
+/** Radio máximo de nodo (linkCount alto) para margen en fit de cámara. */
+const MAX_NODE_RADIUS = 1.65
+/** Dirección de vista inicial al encuadrar el grafo. */
+const FIT_CAMERA_DIR = new THREE.Vector3(0, 0.25, 1).normalize()
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => isReduceMotionActive())
@@ -117,6 +159,52 @@ function themeColor(el: Element, varName: string, fallback: string): THREE.Color
   }
 }
 
+export function isLightAppearance(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.getAttribute('data-theme-appearance') === 'light'
+}
+
+function resolveEdgeColor(container: Element): THREE.Color {
+  if (isLightAppearance()) {
+    return themeColor(container, EDGE_VAR_LIGHT, EDGE_FALLBACK_LIGHT)
+  }
+  return themeColor(container, EDGE_VAR, EDGE_FALLBACK)
+}
+
+export function edgeOpacityForAppearance(reducedMotion: boolean): number {
+  if (isLightAppearance()) {
+    return reducedMotion ? EDGE_OPACITY_STATIC * 0.5 : EDGE_OPACITY_LIVE * 0.5
+  }
+  return reducedMotion ? EDGE_OPACITY_STATIC : EDGE_OPACITY_LIVE
+}
+
+export function boltLightIntensityMult(): number {
+  return 1.5
+}
+
+export function boltGlowsEnabled(): boolean {
+  return !isLightAppearance()
+}
+
+export function resolveBoltVisualColor(container: Element): THREE.Color {
+  if (isLightAppearance()) {
+    return themeColor(container, BOLT_VAR, BOLT_FALLBACK_LIGHT)
+  }
+  return BOLT_VISUAL_WHITE.clone()
+}
+
+/** Iluminación de nodos siempre blanca; el rayo visual puede ser oscuro en light. */
+export function resolveBoltLightColor(_container: Element): THREE.Color {
+  return BOLT_VISUAL_WHITE.clone()
+}
+
+export function boltBlendingForAppearance(): THREE.Blending {
+  if (isLightAppearance()) {
+    return THREE.NormalBlending
+  }
+  return THREE.AdditiveBlending
+}
+
 /** Disco radial blanco→transparente para halos y pulsos (se tiñe por material). */
 function createGlowTexture(): THREE.Texture | null {
   const size = 128
@@ -147,12 +235,11 @@ interface SceneNode {
   slug: string
   type: WikiGraphNodeType
   mesh: THREE.Mesh
-  halo: THREE.Sprite | null
 }
 
 /**
- * Escena three.js del mapa neuronal, aislada de React: nodos-esfera con halo
- * aditivo, aristas tenues y descargas eléctricas intermitentes (polilíneas
+ * Escena three.js del mapa neuronal, aislada de React: nodos-esfera sin halo,
+ * aristas tenues y descargas eléctricas intermitentes (polilíneas
  * jittered con núcleo blanco-cian y halo teñido por tipo) que encienden la
  * conexión completa por breves instantes. OrbitControls con rotación idle.
  * Con reduce-motion la escena queda estática: solo la red base, sin rayos.
@@ -182,12 +269,20 @@ export function useWikiGraphScene(
 
     let renderer: THREE.WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true })
+      // alpha: el canvas es transparente para que la grilla y las partículas
+      // del plano (PlaneMap, debajo del overlay) sigan visibles tras el mapa.
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        premultipliedAlpha: false,
+      })
     } catch {
       return
     }
+    renderer.setClearColor(0x000000, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     const canvas = renderer.domElement
+    canvas.style.background = 'transparent'
     container.appendChild(canvas)
 
     const scene = new THREE.Scene()
@@ -214,7 +309,24 @@ export function useWikiGraphScene(
       }
     }
     readThemeColors()
-    scene.background = themeColor(container, BACKGROUND_VAR, BACKGROUND_FALLBACK)
+    // Sin scene.background: el fondo lo pone el CSS translúcido de la vista,
+    // dejando pasar la grilla y las partículas del plano.
+
+    let ambientLight: THREE.AmbientLight | null = null
+    let hemisphereLight: THREE.HemisphereLight | null = null
+    let directionalLight: THREE.DirectionalLight | null = null
+    if (reducedMotion) {
+      // Ambiente a intensidad 1: nodos Lambert planos, sin luces extra.
+      scene.add(new THREE.AmbientLight('#ffffff', 1))
+    } else {
+      ambientLight = new THREE.AmbientLight('#ffffff', 0.32)
+      scene.add(ambientLight)
+      hemisphereLight = new THREE.HemisphereLight('#e8f0ff', '#f5f8ff', 0.45)
+      scene.add(hemisphereLight)
+      directionalLight = new THREE.DirectionalLight('#ffffff', 0.5)
+      directionalLight.position.set(12, 18, 14)
+      scene.add(directionalLight)
+    }
 
     const sceneNodes: SceneNode[] = []
     const pickMeshes: THREE.Mesh[] = []
@@ -222,35 +334,36 @@ export function useWikiGraphScene(
       const [x, y, z] = positions.get(node.slug) ?? [0, 0, 0]
       const color = nodeColors.get(node.type) ?? new THREE.Color('#ffffff')
       const radius = nodeRadius(node.linkCount)
+      const segments = reducedMotion ? 24 : 32
+      const material = reducedMotion
+        ? new THREE.MeshLambertMaterial({ color: color.clone() })
+        : new THREE.MeshStandardMaterial({
+          color: color.clone(),
+          metalness: 0.32,
+          roughness: 0.28,
+          emissive: color.clone().multiplyScalar(NODE_EMISSIVE_BASE),
+        })
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 24, 24),
-        new THREE.MeshBasicMaterial({ color: color.clone() }),
+        new THREE.SphereGeometry(radius, segments, segments),
+        material,
       )
       mesh.position.set(x, y, z)
       mesh.userData.slug = node.slug
+      if (!reducedMotion) mesh.userData.baseRadius = radius
+      mesh.renderOrder = 50
       scene.add(mesh)
       pickMeshes.push(mesh)
 
-      let halo: THREE.Sprite | null = null
-      // Halo es iluminación especial: solo con reduce motion desactivado.
-      if (glowTexture && !reducedMotion) {
-        halo = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: glowTexture,
-          color: color.clone(),
-          blending: THREE.AdditiveBlending,
-          transparent: true,
-          opacity: 0.55,
-          depthWrite: false,
-        }))
-        halo.scale.setScalar(radius * 5.2)
-        halo.position.copy(mesh.position)
-        scene.add(halo)
-      }
-      sceneNodes.push({ slug: node.slug, type: node.type, mesh, halo })
+      sceneNodes.push({ slug: node.slug, type: node.type, mesh })
     }
 
     const typeBySlug = new Map(data.nodes.map(node => [node.slug, node.type]))
-    const edgeEnds: Array<{ from: THREE.Vector3; to: THREE.Vector3; type: WikiGraphNodeType }> = []
+    const edgeEnds: Array<{
+      from: THREE.Vector3
+      to: THREE.Vector3
+      type: WikiGraphNodeType
+      fromSlug: string
+    }> = []
     const edgePositions: number[] = []
     for (const edge of data.edges) {
       const from = positions.get(edge.from)
@@ -261,6 +374,7 @@ export function useWikiGraphScene(
         from: new THREE.Vector3(...from),
         to: new THREE.Vector3(...to),
         type: typeBySlug.get(edge.from) ?? 'concept',
+        fromSlug: edge.from,
       })
     }
     const edgeGeometry = new THREE.BufferGeometry()
@@ -269,12 +383,13 @@ export function useWikiGraphScene(
       new THREE.Float32BufferAttribute(edgePositions, 3),
     )
     const edgeMaterial = new THREE.LineBasicMaterial({
-      color: themeColor(container, EDGE_VAR, EDGE_FALLBACK),
+      color: resolveEdgeColor(container),
       transparent: true,
-      opacity: reducedMotion ? EDGE_OPACITY_STATIC : EDGE_OPACITY_LIVE,
+      opacity: edgeOpacityForAppearance(reducedMotion),
       depthWrite: false,
     })
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial)
+    edgeLines.renderOrder = 0
     scene.add(edgeLines)
 
     // Descargas eléctricas: dos polilíneas jittered por arista (núcleo blanco-
@@ -297,14 +412,36 @@ export function useWikiGraphScene(
       glowMat: THREE.LineBasicMaterial
       flashFrom: THREE.Sprite | null
       flashTo: THREE.Sprite | null
+      /** Glow volumétrico a lo largo del rayo; vacío sin glowTexture. */
+      rayGlows: THREE.Sprite[]
+      /** Luz del pool asignada mientras dispara; null en idle o pool agotado. */
+      light: THREE.PointLight | null
       state: 'idle' | 'firing'
       startedAt: number
-      nextFireAt: number
       seed: number
+      /** Intensidad aleatoria del disparo (0.72–1.0). */
+      peak: number
+    }
+    interface NodePulseSchedule {
+      fromSlug: string
+      nodeIndex: number
+      nextFireAt: number
     }
     const bolts: Bolt[] = []
-    const coreColor = new THREE.Color(BOLT_CORE_HEX)
+    const boltIndicesByFromSlug = new Map<string, number[]>()
     const boltStartOffset = performance.now()
+    // Pool de luces puntuales: pocas luces reales compartidas entre todas las
+    // aristas (WebGL no aguanta una por arista); la descarga toma una libre.
+    const lightPool: THREE.PointLight[] = []
+    const allLights: THREE.PointLight[] = []
+    if (!reducedMotion) {
+      for (let i = 0; i < BOLT_LIGHT_POOL; i++) {
+        const light = new THREE.PointLight('#ffffff', 0, 1, 2)
+        scene.add(light)
+        lightPool.push(light)
+        allLights.push(light)
+      }
+    }
     if (!reducedMotion) {
       edgeEnds.forEach((edge, i) => {
         const dir = new THREE.Vector3().subVectors(edge.to, edge.from)
@@ -328,31 +465,40 @@ export function useWikiGraphScene(
         }
         const coreGeom = new THREE.BufferGeometry()
         coreGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
+        // Núcleo uniformemente brillante — sin gradiente bell que oscurecía el centro.
+        const coreVertexColors = new Float32Array((BOLT_SEGMENTS + 1) * 3)
+        for (let s = 0; s <= BOLT_SEGMENTS; s++) {
+          coreVertexColors[s * 3] = 1.0
+          coreVertexColors[s * 3 + 1] = 1.0
+          coreVertexColors[s * 3 + 2] = 1.0
+        }
+        coreGeom.setAttribute('color', new THREE.BufferAttribute(coreVertexColors, 3))
         const haloGeom = new THREE.BufferGeometry()
         haloGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
         const glowGeom = new THREE.BufferGeometry()
         glowGeom.setAttribute('position', new THREE.BufferAttribute(points.slice(), 3))
 
         const coreMat = new THREE.LineBasicMaterial({
-          color: coreColor.clone(),
+          color: BOLT_VISUAL_WHITE.clone(),
+          vertexColors: true,
           transparent: true,
           opacity: 0,
           depthWrite: false,
-          blending: THREE.AdditiveBlending,
+          blending: boltBlendingForAppearance(),
         })
         const haloMat = new THREE.LineBasicMaterial({
-          color: (nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')).clone(),
+          color: BOLT_VISUAL_WHITE.clone(),
           transparent: true,
           opacity: 0,
           depthWrite: false,
-          blending: THREE.AdditiveBlending,
+          blending: boltBlendingForAppearance(),
         })
         const glowMat = new THREE.LineBasicMaterial({
-          color: (nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')).clone(),
+          color: BOLT_VISUAL_WHITE.clone(),
           transparent: true,
           opacity: 0,
           depthWrite: false,
-          blending: THREE.AdditiveBlending,
+          blending: boltBlendingForAppearance(),
         })
         const coreLine = new THREE.Line(coreGeom, coreMat)
         const haloLine = new THREE.Line(haloGeom, haloMat)
@@ -360,6 +506,9 @@ export function useWikiGraphScene(
         coreLine.frustumCulled = false
         haloLine.frustumCulled = false
         glowLine.frustumCulled = false
+        coreLine.renderOrder = 100
+        haloLine.renderOrder = 100
+        glowLine.renderOrder = 100
         scene.add(glowLine)
         scene.add(haloLine)
         scene.add(coreLine)
@@ -369,18 +518,18 @@ export function useWikiGraphScene(
         let flashFrom: THREE.Sprite | null = null
         let flashTo: THREE.Sprite | null = null
         if (glowTexture) {
-          const endColor = nodeColors.get(edge.type) ?? new THREE.Color('#ffffff')
           const makeFlash = (at: THREE.Vector3): THREE.Sprite => {
             const s = new THREE.Sprite(new THREE.SpriteMaterial({
               map: glowTexture,
-              color: endColor.clone(),
-              blending: THREE.AdditiveBlending,
+              color: BOLT_VISUAL_WHITE.clone(),
+              blending: boltBlendingForAppearance(),
               transparent: true,
               opacity: 0,
               depthWrite: false,
             }))
             s.scale.setScalar(BOLT_ENDPOINT_SCALE_MULT)
             s.position.copy(at)
+            s.renderOrder = 101
             scene.add(s)
             return s
           }
@@ -388,7 +537,37 @@ export function useWikiGraphScene(
           flashTo = makeFlash(edge.to)
         }
 
-        const stagger = Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
+        // Glow volumétrico: sprites aditivos repartidos a lo largo del rayo.
+        // Las líneas WebGL son de 1px y se ven planas; estos discos dan el
+        // volumen de luz que emite la descarga.
+        const rayGlows: THREE.Sprite[] = []
+        if (glowTexture) {
+          BOLT_RAY_GLOW_STOPS.forEach((stop, gi) => {
+            const s = new THREE.Sprite(new THREE.SpriteMaterial({
+              map: glowTexture,
+              color: BOLT_VISUAL_WHITE.clone(),
+              blending: boltBlendingForAppearance(),
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+            }))
+            s.scale.setScalar(length * (BOLT_RAY_GLOW_SCALE[gi] ?? 0.16))
+            s.position.set(
+              edge.from.x + (edge.to.x - edge.from.x) * stop,
+              edge.from.y + (edge.to.y - edge.from.y) * stop,
+              edge.from.z + (edge.to.z - edge.from.z) * stop,
+            )
+            s.renderOrder = 101
+            scene.add(s)
+            rayGlows.push(s)
+          })
+        }
+
+        const boltIndex = bolts.length
+        const fromIndices = boltIndicesByFromSlug.get(edge.fromSlug) ?? []
+        fromIndices.push(boltIndex)
+        boltIndicesByFromSlug.set(edge.fromSlug, fromIndices)
+
         bolts.push({
           edgeIndex: i,
           length,
@@ -406,12 +585,62 @@ export function useWikiGraphScene(
           glowMat,
           flashFrom,
           flashTo,
+          rayGlows,
+          light: null,
           state: 'idle',
           startedAt: 0,
-          nextFireAt: boltStartOffset + stagger,
           seed: Math.random() * 1000,
+          peak: 1,
         })
       })
+    }
+
+    const musicAtMount = isMusicActive(getThemeMusicBeat().pulse)
+    const sourceNodeSlugs = [...boltIndicesByFromSlug.keys()]
+    const nodeSchedules: NodePulseSchedule[] = sourceNodeSlugs.map((fromSlug, nodeIndex) => ({
+      fromSlug,
+      nodeIndex,
+      nextFireAt: computeInitialNodeFireAt(
+        boltStartOffset,
+        nodeIndex,
+        sourceNodeSlugs.length,
+        Math.random,
+        musicAtMount,
+      ),
+    }))
+
+    const countFiringNodes = (): number => {
+      let count = 0
+      for (const fromSlug of sourceNodeSlugs) {
+        const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+        if (indices.some(index => bolts[index]!.state === 'firing')) count++
+      }
+      return count
+    }
+
+    const isNodePulsing = (fromSlug: string): boolean => {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      return indices.some(index => bolts[index]!.state === 'firing')
+    }
+
+    /** Enciende todos los rayos salientes de un nodo a la vez. */
+    const fireNodePulse = (fromSlug: string, now: number): void => {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      for (const boltIndex of indices) {
+        const bolt = bolts[boltIndex]!
+        bolt.state = 'firing'
+        bolt.startedAt = now
+        bolt.peak = 0.88 + Math.random() * 0.12
+        rewriteBolt(bolt, 1)
+        const light = lightPool.pop() ?? null
+        if (light) {
+          const edge = edgeEnds[bolt.edgeIndex]!
+          light.color.copy(resolveBoltLightColor(container))
+          light.position.set(edge.from.x, edge.from.y, edge.from.z)
+          light.distance = bolt.length * BOLT_LIGHT_DISTANCE_MULT
+          bolt.light = light
+        }
+      }
     }
 
     /** Reescribe la polilínea del rayo con jitter perpendicular determinista+random. */
@@ -429,75 +658,163 @@ export function useWikiGraphScene(
         const baseY = edge.from.y + (edge.to.y - edge.from.y) * t
         const baseZ = edge.from.z + (edge.to.z - edge.from.z) * t
         const isEnd = s === 0 || s === BOLT_SEGMENTS
-        const j1c = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
-        const j2c = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
-        const j1h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.6
-        const j2h = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * 1.6
-        const j1g = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * BOLT_GLOW_JITTER_MULT
-        const j2g = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell * BOLT_GLOW_JITTER_MULT
-        coreAttr.setXYZ(
-          s,
-          baseX + bolt.perp1.x * j1c + bolt.perp2.x * j2c,
-          baseY + bolt.perp1.y * j1c + bolt.perp2.y * j2c,
-          baseZ + bolt.perp1.z * j1c + bolt.perp2.z * j2c,
-        )
-        haloAttr.setXYZ(
-          s,
-          baseX + bolt.perp1.x * j1h + bolt.perp2.x * j2h,
-          baseY + bolt.perp1.y * j1h + bolt.perp2.y * j2h,
-          baseZ + bolt.perp1.z * j1h + bolt.perp2.z * j2h,
-        )
-        glowAttr.setXYZ(
-          s,
-          baseX + bolt.perp1.x * j1g + bolt.perp2.x * j2g,
-          baseY + bolt.perp1.y * j1g + bolt.perp2.y * j2g,
-          baseZ + bolt.perp1.z * j1g + bolt.perp2.z * j2g,
-        )
+        const j1 = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
+        const j2 = isEnd ? 0 : (Math.random() - 0.5) * 2 * amp * bell
+        const px = baseX + bolt.perp1.x * j1 + bolt.perp2.x * j2
+        const py = baseY + bolt.perp1.y * j1 + bolt.perp2.y * j2
+        const pz = baseZ + bolt.perp1.z * j1 + bolt.perp2.z * j2
+        coreAttr.setXYZ(s, px, py, pz)
+        haloAttr.setXYZ(s, px, py, pz)
+        glowAttr.setXYZ(s, px, py, pz)
       }
       coreAttr.needsUpdate = true
       haloAttr.needsUpdate = true
       glowAttr.needsUpdate = true
     }
 
-    const render = (): void => renderer.render(scene, camera)
+    const releaseBoltLight = (bolt: Bolt): void => {
+      if (!bolt.light) return
+      bolt.light.intensity = 0
+      lightPool.push(bolt.light)
+      bolt.light = null
+    }
+
+    const render = (): void => {
+      reportNodeScreenPositions()
+      renderer.render(scene, camera)
+    }
+
+    const ndc = new THREE.Vector3()
+    const reportNodeScreenPositions = (): void => {
+      const cb = callbacksRef.current.onNodeScreenPositions
+      if (!cb) return
+      const width = container.clientWidth
+      const height = container.clientHeight
+      if (width <= 0 || height <= 0) return
+      const screenPositions = new Map<string, WikiGraphNodeScreenPosition>()
+      for (const sceneNode of sceneNodes) {
+        ndc.copy(sceneNode.mesh.position)
+        ndc.project(camera)
+        const visible = ndc.z >= -1 && ndc.z <= 1
+        screenPositions.set(sceneNode.slug, {
+          x: (ndc.x * 0.5 + 0.5) * width,
+          y: (-ndc.y * 0.5 + 0.5) * height,
+          visible,
+        })
+      }
+      cb(screenPositions)
+    }
+
+    /** Encuadra la cámara al bounding sphere del grafo (solo al montar). */
+    const fitCameraToGraph = (): void => {
+      if (sceneNodes.length === 0) return
+      const nodePositions = sceneNodes.map(sn => sn.mesh.position)
+      const box = new THREE.Box3().setFromPoints(nodePositions)
+      const sphere = new THREE.Sphere()
+      box.getBoundingSphere(sphere)
+      sphere.radius += MAX_NODE_RADIUS
+      const fovV = (camera.fov * Math.PI) / 180
+      const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect)
+      const effectiveFov = Math.min(fovV, fovH)
+      const distance = (sphere.radius / Math.sin(effectiveFov / 2)) * 1.15
+      controls.target.copy(sphere.center)
+      camera.position.copy(sphere.center).add(
+        FIT_CAMERA_DIR.clone().multiplyScalar(distance),
+      )
+      controls.maxDistance = Math.max(160, distance * 2)
+      controls.update()
+    }
+
+    const applyBoltTheme = (): void => {
+      const blending = boltBlendingForAppearance()
+      const boltColor = resolveBoltVisualColor(container)
+      const glowsOn = boltGlowsEnabled()
+      for (const bolt of bolts) {
+        bolt.coreMat.color.copy(boltColor)
+        bolt.haloMat.color.copy(boltColor)
+        bolt.glowMat.color.copy(boltColor)
+        bolt.coreMat.blending = blending
+        bolt.haloMat.blending = blending
+        bolt.glowMat.blending = blending
+        if (bolt.flashFrom) {
+          const mat = bolt.flashFrom.material as THREE.SpriteMaterial
+          mat.color.copy(boltColor)
+          mat.blending = blending
+          bolt.flashFrom.visible = glowsOn
+        }
+        if (bolt.flashTo) {
+          const mat = bolt.flashTo.material as THREE.SpriteMaterial
+          mat.color.copy(boltColor)
+          mat.blending = blending
+          bolt.flashTo.visible = glowsOn
+        }
+        for (const glow of bolt.rayGlows) {
+          const mat = glow.material as THREE.SpriteMaterial
+          mat.color.copy(boltColor)
+          mat.blending = blending
+          glow.visible = glowsOn
+        }
+        if (bolt.light) {
+          bolt.light.color.copy(resolveBoltLightColor(container))
+        }
+      }
+    }
+
+    const applySceneLighting = (): void => {
+      if (reducedMotion || !ambientLight || !hemisphereLight || !directionalLight) return
+      ambientLight.intensity = 0.32
+      hemisphereLight.color.set('#e8f0ff')
+      hemisphereLight.groundColor.set('#f5f8ff')
+      hemisphereLight.intensity = 0.45
+      directionalLight.intensity = 0.5
+    }
 
     const applyTheme = (): void => {
       readThemeColors()
-      scene.background = themeColor(container, BACKGROUND_VAR, BACKGROUND_FALLBACK)
-      edgeMaterial.color = themeColor(container, EDGE_VAR, EDGE_FALLBACK)
+      edgeMaterial.color = resolveEdgeColor(container)
+      edgeMaterial.opacity = edgeOpacityForAppearance(reducedMotion)
+      applySceneLighting()
       for (const sceneNode of sceneNodes) {
         const color = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
-        ;(sceneNode.mesh.material as THREE.MeshBasicMaterial).color.copy(color)
-        if (sceneNode.halo) {
-          (sceneNode.halo.material as THREE.SpriteMaterial).color.copy(color)
+        const mat = sceneNode.mesh.material
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.color.copy(color)
+          mat.emissive.copy(color).multiplyScalar(NODE_EMISSIVE_BASE)
+        } else {
+          (mat as THREE.MeshLambertMaterial).color.copy(color)
         }
       }
-      for (const bolt of bolts) {
-        const color = nodeColors.get(edgeEnds[bolt.edgeIndex]!.type) ?? new THREE.Color('#ffffff')
-        bolt.haloMat.color.copy(color)
-        bolt.glowMat.color.copy(color)
-        bolt.coreMat.color.copy(coreColor)
-        if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).color.copy(color)
-        if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).color.copy(color)
-      }
+      applyBoltTheme()
       render()
     }
     // applyTheme() inyecta las vars en el style del root y marca data-theme.
     const themeObserver = new MutationObserver(applyTheme)
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme', 'style'],
+      attributeFilter: ['data-theme', 'data-theme-appearance', 'style'],
     })
+    applyTheme()
 
+    let fitApplied = false
     const resize = (): void => {
       const width = Math.max(1, container.clientWidth)
       const height = Math.max(1, container.clientHeight)
       renderer.setSize(width, height)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
+      if (
+        !fitApplied
+        && container.clientWidth >= 64
+        && container.clientHeight >= 64
+        && sceneNodes.length > 0
+      ) {
+        fitCameraToGraph()
+        fitApplied = true
+      }
       render()
     }
     resize()
+    render()
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(resize)
       : null
@@ -552,33 +869,104 @@ export function useWikiGraphScene(
       if (event.button !== 0) return
       downAt = { x: event.clientX, y: event.clientY }
     }
+    const projectSlugToScreen = (slug: string): { x: number; y: number } | null => {
+      const sceneNode = sceneNodes.find(node => node.slug === slug)
+      if (!sceneNode) return null
+      const width = container.clientWidth
+      const height = container.clientHeight
+      if (width <= 0 || height <= 0) return null
+      ndc.copy(sceneNode.mesh.position)
+      ndc.project(camera)
+      return {
+        x: (ndc.x * 0.5 + 0.5) * width,
+        y: (-ndc.y * 0.5 + 0.5) * height,
+      }
+    }
+
     const onPointerUp = (event: PointerEvent): void => {
       if (event.button !== 0 || !downAt) return
       const moved = Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y)
       downAt = null
       if (moved > 5) return
       const slug = pickAt(event)
-      if (slug) callbacksRef.current.onPick(slug)
+      if (!slug) return
+      const projected = projectSlugToScreen(slug)
+      if (projected) {
+        callbacksRef.current.onPick(slug, projected)
+        return
+      }
+      const rect = canvas.getBoundingClientRect()
+      callbacksRef.current.onPick(slug, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      })
     }
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerleave', onPointerLeave)
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointerup', onPointerUp)
 
+    function boltEnvelopeAt(bolt: Bolt, now: number): number {
+      if (bolt.state !== 'firing') return 0
+      const bt = (now - bolt.startedAt) / BOLT_ACTIVE_MS
+      if (bt >= 1) return 0
+      const env = bt < BOLT_ATTACK
+        ? bt / BOLT_ATTACK
+        : 1 - (bt - BOLT_ATTACK) / (1 - BOLT_ATTACK)
+      return Math.max(0, env) * bolt.peak
+    }
+
+    function originPulseEnvelope(fromSlug: string, now: number): number {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      let max = 0
+      for (const i of indices) {
+        max = Math.max(max, boltEnvelopeAt(bolts[i]!, now))
+      }
+      return max
+    }
+
     let raf = 0
+    let prevBeatPulse = 0
+    let lastBeatFireAt = 0
+    let beatNodeCursor = 0
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
-      for (const bolt of bolts) {
-        if (bolt.state === 'idle') {
-          if (now >= bolt.nextFireAt) {
-            bolt.state = 'firing'
-            bolt.startedAt = now
-            rewriteBolt(bolt, 1)
-          } else {
-            continue
+
+      const beat = getThemeMusicBeat()
+
+      if (isMusicActive(beat.pulse)) {
+        const beatOnset = beat.pulse > 0.35 && beat.pulse > prevBeatPulse
+        if (beatOnset && now - lastBeatFireAt >= BOLT_BEAT_COOLDOWN_MS) {
+          if (countFiringNodes() < NODE_MAX_CONCURRENT_PULSES) {
+            const slugCount = Math.max(1, sourceNodeSlugs.length)
+            const slug = sourceNodeSlugs[beatNodeCursor % slugCount]!
+            fireNodePulse(slug, now)
+            beatNodeCursor = (beatNodeCursor + 1) % slugCount
+            lastBeatFireAt = now
           }
         }
+        prevBeatPulse = beat.pulse
+      } else {
+        prevBeatPulse = 0
+        for (const schedule of nodeSchedules) {
+          if (isNodePulsing(schedule.fromSlug) || now < schedule.nextFireAt) continue
+          if (countFiringNodes() >= NODE_MAX_CONCURRENT_PULSES) {
+            schedule.nextFireAt = now + BOLT_CAP_RETRY_MS
+            continue
+          }
+          fireNodePulse(schedule.fromSlug, now)
+          schedule.nextFireAt = computeNextNodeFireAt(
+            now,
+            schedule.nodeIndex,
+            Math.random,
+            false,
+          )
+        }
+      }
+
+      for (const bolt of bolts) {
+        if (bolt.state === 'idle') continue
         const t = (now - bolt.startedAt) / BOLT_ACTIVE_MS
         if (t >= 1) {
           bolt.state = 'idle'
@@ -587,9 +975,10 @@ export function useWikiGraphScene(
           bolt.glowMat.opacity = 0
           if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = 0
           if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = 0
-          const gap = BOLT_INTERVAL_MIN_MS
-            + Math.random() * (BOLT_INTERVAL_MAX_MS - BOLT_INTERVAL_MIN_MS)
-          bolt.nextFireAt = now + gap
+          for (const glow of bolt.rayGlows) {
+            (glow.material as THREE.SpriteMaterial).opacity = 0
+          }
+          releaseBoltLight(bolt)
           continue
         }
         // Envelope: ataque rápido y fade largo — chispazo eléctrico.
@@ -597,16 +986,85 @@ export function useWikiGraphScene(
           ? t / BOLT_ATTACK
           : 1 - (t - BOLT_ATTACK) / (1 - BOLT_ATTACK)
         const eased = Math.max(0, env)
-        bolt.coreMat.opacity = BOLT_CORE_OPACITY * eased
-        bolt.haloMat.opacity = BOLT_HALO_OPACITY * eased
-        bolt.glowMat.opacity = BOLT_GLOW_OPACITY * eased
-        // Flashes en endpoints: destello más corto (potencia^2) para reforzar
-        // "arranque/impacto" del rayo sin robar continuidad al halo.
-        const flash = BOLT_ENDPOINT_OPACITY * eased * eased
-        if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = flash
-        if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = flash
-        // Un pequeño re-jitter a mitad de vida da sensación de descarga viva.
-        if (t > 0.45 && t < 0.55) rewriteBolt(bolt, 0.7)
+        const envelope = eased * bolt.peak
+        const flicker = 1
+        bolt.coreMat.opacity = BOLT_CORE_OPACITY * envelope * flicker
+        if (boltGlowsEnabled()) {
+          bolt.haloMat.opacity = BOLT_HALO_OPACITY * envelope * flicker
+          bolt.glowMat.opacity = BOLT_GLOW_OPACITY * envelope
+          const flash = BOLT_ENDPOINT_OPACITY * eased * eased
+          if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = flash
+          if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = flash
+          for (const glow of bolt.rayGlows) {
+            (glow.material as THREE.SpriteMaterial).opacity =
+              BOLT_RAY_GLOW_OPACITY * envelope
+          }
+          if (bolt.light) {
+            const travelT = Math.min(1, t * 1.05)
+            const segIdx = Math.min(BOLT_SEGMENTS, Math.floor(travelT * BOLT_SEGMENTS))
+            const coreAttr = bolt.coreGeom.getAttribute('position') as THREE.BufferAttribute
+            bolt.light.position.set(
+              coreAttr.getX(segIdx),
+              coreAttr.getY(segIdx),
+              coreAttr.getZ(segIdx),
+            )
+            bolt.light.intensity =
+              BOLT_LIGHT_INTENSITY * envelope * flicker * boltLightIntensityMult()
+          }
+        } else {
+          bolt.haloMat.opacity = 0
+          bolt.glowMat.opacity = 0
+          if (bolt.flashFrom) (bolt.flashFrom.material as THREE.SpriteMaterial).opacity = 0
+          if (bolt.flashTo) (bolt.flashTo.material as THREE.SpriteMaterial).opacity = 0
+          for (const glow of bolt.rayGlows) {
+            (glow.material as THREE.SpriteMaterial).opacity = 0
+          }
+          if (bolt.light) {
+            const travelT = Math.min(1, t * 1.05)
+            const segIdx = Math.min(BOLT_SEGMENTS, Math.floor(travelT * BOLT_SEGMENTS))
+            const coreAttr = bolt.coreGeom.getAttribute('position') as THREE.BufferAttribute
+            bolt.light.position.set(
+              coreAttr.getX(segIdx),
+              coreAttr.getY(segIdx),
+              coreAttr.getZ(segIdx),
+            )
+            bolt.light.color.copy(resolveBoltLightColor(container))
+            bolt.light.intensity =
+              BOLT_LIGHT_INTENSITY * envelope * flicker * boltLightIntensityMult()
+          }
+        }
+      }
+      for (const sceneNode of sceneNodes) {
+        const mat = sceneNode.mesh.material
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          const nodeColor = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
+          let boost = 0
+          for (const bolt of bolts) {
+            if (bolt.state !== 'firing' || !bolt.light) continue
+            const boltEnvelope = boltEnvelopeAt(bolt, now)
+            const dist = sceneNode.mesh.position.distanceTo(bolt.light.position)
+            const reach = bolt.light.distance
+            if (dist < reach) {
+              boost += 0.42 * (1 - dist / reach) * boltEnvelope
+            }
+          }
+          let originEnv = 0
+          if (isNodePulsing(sceneNode.slug)) {
+            originEnv = originPulseEnvelope(sceneNode.slug, now)
+            boost += NODE_ORIGIN_EMISSIVE_BOOST * originEnv
+          }
+          const scalar = Math.min(NODE_EMISSIVE_MAX, NODE_EMISSIVE_BASE + boost)
+          const whiteMix = boost > 0 ? Math.min(1, boost * 0.75) : 0
+          const tinted = nodeColor.clone().multiplyScalar(scalar)
+          const washTarget = BOLT_VISUAL_WHITE.clone().multiplyScalar(scalar)
+          mat.emissive.copy(tinted).lerp(washTarget, whiteMix)
+          const scale = originEnv > 0
+            ? 1 + NODE_ORIGIN_SCALE_PEAK * originEnv
+            : 1
+          sceneNode.mesh.scale.setScalar(scale)
+        } else {
+          sceneNode.mesh.scale.setScalar(1)
+        }
       }
       controls.update()
       render()
@@ -630,7 +1088,6 @@ export function useWikiGraphScene(
       for (const sceneNode of sceneNodes) {
         sceneNode.mesh.geometry.dispose()
         ;(sceneNode.mesh.material as THREE.Material).dispose()
-        if (sceneNode.halo) (sceneNode.halo.material as THREE.Material).dispose()
       }
       for (const bolt of bolts) {
         bolt.coreGeom.dispose()
@@ -641,7 +1098,11 @@ export function useWikiGraphScene(
         bolt.glowMat.dispose()
         if (bolt.flashFrom) (bolt.flashFrom.material as THREE.Material).dispose()
         if (bolt.flashTo) (bolt.flashTo.material as THREE.Material).dispose()
+        for (const glow of bolt.rayGlows) {
+          (glow.material as THREE.Material).dispose()
+        }
       }
+      for (const light of allLights) light.dispose()
       edgeGeometry.dispose()
       edgeMaterial.dispose()
       glowTexture?.dispose()

@@ -1,17 +1,14 @@
-/* Acta multi-agente: una columna, rondas separadas, carril por hablante. */
+/*
+ * Acta multi-agente: una columna, rondas separadas, carril por hablante.
+ * Vive en la columna central del overlay de la sala, así que no pone fondo ni
+ * alto propios — los hereda del plano y crece con él.
+ */
 
 .brainstorm-room-view {
   display: flex;
   flex-direction: column;
-  min-height: min(56vh, 480px);
-  height: min(62vh, 560px);
-  background:
-    radial-gradient(
-      120% 80% at 50% 0%,
-      color-mix(in srgb, var(--accent) 8%, transparent),
-      transparent 55%
-    ),
-    var(--bg-secondary);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .brainstorm-room-view__head {
@@ -19,119 +16,24 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px 16px 10px;
+  padding: 8px 2px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .brainstorm-room-view__topic {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-size: clamp(15px, 1.5vw, 18px);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
   color: var(--text);
 }
 
-.brainstorm-room-view__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.brainstorm-room-view__meta strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* Acta + panel de estado; el panel se apila en modales estrechos. */
-.brainstorm-room-view__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-@media (min-width: 900px) {
-  .brainstorm-room-view__body {
-    grid-template-columns: minmax(0, 1fr) 208px;
-  }
-}
-
-.brainstorm-room-view__side {
-  display: none;
-  flex-direction: column;
-  gap: 16px;
-  padding: 14px 14px 18px;
-  overflow-y: auto;
-  border-left: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-}
-
-@media (min-width: 900px) {
-  .brainstorm-room-view__side { display: flex; }
-}
-
-.brainstorm-room-view__side-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.brainstorm-room-view__side-title {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.brainstorm-room-view__seat {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-.brainstorm-room-view__seat--speaking {
-  color: var(--text);
-  font-weight: 650;
-}
-
-.brainstorm-room-view__seat-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--brainstorm-speaker, var(--border));
-}
-
-.brainstorm-room-view__seat-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.brainstorm-room-view__seat-state {
-  margin-left: auto;
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.brainstorm-room-view__seat--speaking .brainstorm-room-view__seat-state {
-  color: var(--accent);
-}
+/*
+ * Los asientos y el material se fueron a las columnas del overlay: aquí solo
+ * queda el acta. El panel lateral que vivía dentro del modal ya no existe.
+ */
 
 .brainstorm-room-view__ws-chip {
   display: inline-flex;
@@ -179,28 +81,6 @@
   text-transform: uppercase;
 }
 
-.brainstorm-room-view__pips {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-
-.brainstorm-room-view__pip {
-  display: block;
-  width: 14px;
-  height: 4px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--border) 70%, transparent);
-}
-
-.brainstorm-room-view__pip--done {
-  background: var(--text-muted);
-}
-
-.brainstorm-room-view__pip--now {
-  background: var(--accent);
-}
-
 .brainstorm-room-view__messages {
   display: flex;
   flex-direction: column;
@@ -208,8 +88,51 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px 18px;
+  padding: 14px 2px 18px;
   scroll-behavior: smooth;
+}
+
+/* Cronología de rondas en la columna izquierda. */
+.brainstorm-rounds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brainstorm-rounds__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.brainstorm-rounds__pip {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+}
+
+.brainstorm-rounds__item--done .brainstorm-rounds__pip {
+  background: var(--text-muted);
+  border-color: var(--text-muted);
+}
+
+.brainstorm-rounds__item--now {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.brainstorm-rounds__item--now .brainstorm-rounds__pip {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .brainstorm-room-view__round-sep {
@@ -311,11 +234,15 @@
   color: var(--danger, #c44);
 }
 
+/* Acciones de sala terminada: contra el borde del plano se leían como cortadas. */
 .brainstorm-room-view__footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   width: 100%;
+  padding: 12px 2px 18px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 @keyframes brainstorm-bubble-in {
@@ -335,4 +262,30 @@
 
 :root[data-reduce-motion='true'] .brainstorm-room-view__messages {
   scroll-behavior: auto;
+}
+
+/* Página de wiki abierta desde la tarjeta de un turno. */
+.brainstorm-room-view__wiki-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.brainstorm-room-view__wiki-type {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.brainstorm-room-view__wiki-missing {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
 }

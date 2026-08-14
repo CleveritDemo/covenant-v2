@@ -113,6 +113,7 @@ export const PlaneContextCard: React.FC<PlaneContextCardProps> = ({
           status={preview.status ?? ''}
           stale={preview.stale}
           updated={preview.updated ?? ''}
+          color={color}
           onOpen={() => onOpen?.()}
         />
       </span>

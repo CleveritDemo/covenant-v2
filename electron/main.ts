@@ -13,6 +13,7 @@ import {
 } from 'fs'
 import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
 import { projectDirName } from './projectDir'
+import { openExternalHttpUrl } from './openExternalUrl'
 import {
   app,
   BrowserWindow,
@@ -85,6 +86,7 @@ import { buildRunKey, RUN_KEY_SEP } from '../src/shared/agentRunKey'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import { listAgentCliModels } from './agentCliModelsList'
 import { resolveAgentCli } from './agentCliResolve'
+import { detectOnboardingClis } from './onboardingCliDetect'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -135,16 +137,16 @@ import {
   type WikiSyncLogEntry,
 } from './wikiStore'
 import {
-  readWikiCuratorConfig,
+  applyWikiCuratorConfigToApp,
+  maybeMigrateWikiCuratorFromProject,
   startWikiCuratorTurn,
   stopWikiCuratorTurn,
-  writeWikiCuratorConfig,
   type WikiCuratorStartConfig,
 } from './wikiCurator'
 import { buildWikiGraphData } from '../src/shared/wikiGraph'
 import { pulseSnapshot, recordPulseEvent } from './pulseStore'
 import { clearPresence, setPresence } from './discordPresence'
-import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
+import { ensureAiAgentResults, readLatestAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextDeleteRequest,
   TabContextDiscoveryRequest,
@@ -338,7 +340,7 @@ function configPath(): string {
 }
 
 /** Campos de AppConfig que se cifran en reposo. */
-const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey'] as const
+const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey', 'otelHeaders'] as const
 type SecretField = (typeof SECRET_FIELDS)[number]
 
 /** Descifra los campos sensibles de un objeto leído del disco. */
@@ -791,22 +793,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.OPEN_EXTERNAL_URL, async (_e, urlStr: unknown) => {
-    if (typeof urlStr !== 'string' || !urlStr.trim()) {
-      return { ok: false as const, error: 'URL vacía' }
-    }
-    const raw = urlStr.trim()
-    try {
-      const u = new URL(raw)
-      const isHttp = u.protocol === 'http:' || u.protocol === 'https:'
-      if (!isHttp) {
-        return { ok: false as const, error: 'Solo se permiten http(s)' }
-      }
-      await shell.openExternal(raw)
-      return { ok: true as const }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { ok: false as const, error: msg }
-    }
+    return openExternalHttpUrl(typeof urlStr === 'string' ? urlStr : '')
   })
 
   ipcMain.handle(IPC.PROJECT_AI_CONTEXT_GET, (_e, sessionId: string) => {
@@ -1916,18 +1903,35 @@ function registerIpc(): void {
       return { ok: false, error: (error as Error).message }
     }
   })
-  ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, (_event, request: TabContextPreviewRequest) => {
+  /**
+   * `materializeTabContext` es síncrono y nunca llama a Jira, así que un
+   * contexto jira nacía con la región `auto` vacía y seguía vacío hasta el
+   * primer turno que lo adjuntara: abrirlo mostraba un `.md` sin la issue y su
+   * chip salía punteado («stale») con solo la clave. El refresher del turno ya
+   * sabe rellenarlo —y trae su cooldown de fallos y su presupuesto de tiempo—,
+   * así que se corre también aquí. Si el llamador ya trae el snapshot (el
+   * formulario lo pidió para la vista previa) no hay nada que buscar.
+   */
+  const fillJiraSnapshot = async (request: TabContextPreviewRequest): Promise<void> => {
+    if (request.context?.kind !== 'jira') return
+    if ((request.content ?? '').trim()) return
+    // Nunca debería rechazar, pero abrir un contexto no puede caerse por Jira.
+    await refreshStaleJiraContexts([request.context], request.cwd).catch(() => {})
+  }
+  ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, async (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
+    await fillJiraSnapshot(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
     })
   })
-  ipcMain.handle(IPC.TAB_CONTEXT_MATERIALIZE, (_event, request: TabContextPreviewRequest) => {
+  ipcMain.handle(IPC.TAB_CONTEXT_MATERIALIZE, async (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
+    await fillJiraSnapshot(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
       write: true,
@@ -1978,6 +1982,17 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     return writeAiAgentResultsNotes(cwd, agentId, notes)
+  })
+  ipcMain.handle(IPC.AGENT_RESULTS_READ_LATEST, (_event, request: unknown) => {
+    if (!request || typeof request !== 'object') {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    const cwd = (request as { cwd?: unknown }).cwd
+    const agentId = (request as { agentId?: unknown }).agentId
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentId !== 'string' || !agentId.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return readLatestAiAgentResults(cwd, agentId)
   })
   ipcMain.handle(IPC.TAB_CONTEXT_DELETE, (_event, request: TabContextDeleteRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
@@ -2103,7 +2118,12 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     try {
-      return { ok: true, config: readWikiCuratorConfig(cwd) }
+      const trimmedCwd = cwd.trim()
+      const migration = maybeMigrateWikiCuratorFromProject(trimmedCwd, readConfig())
+      if (migration.migrated) {
+        writeConfig(mergeWithDefaults(migration.appConfig))
+      }
+      return { ok: true, config: migration.config }
     } catch (error) {
       return {
         ok: false,
@@ -2116,7 +2136,9 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     try {
-      return writeWikiCuratorConfig(cwd, value)
+      const applied = applyWikiCuratorConfigToApp(readConfig(), value)
+      writeConfig(mergeWithDefaults(applied.appConfig))
+      return { ok: true, config: applied.config }
     } catch (error) {
       return {
         ok: false,
@@ -2240,6 +2262,7 @@ function registerIpc(): void {
       )
     },
   )
+  ipcMain.handle(IPC.ONBOARDING_DETECT_CLIS, () => detectOnboardingClis(readConfig()))
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -2429,6 +2452,23 @@ function createWindow(): BrowserWindow {
       reason: details.reason,
       exitCode: details.exitCode,
     })
+  })
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void openExternalHttpUrl(url)
+    return { action: 'deny' as const }
+  })
+
+  win.webContents.on('will-navigate', (event, url) => {
+    try {
+      const nextOrigin = new URL(url).origin
+      const currentOrigin = new URL(win.webContents.getURL()).origin
+      if (nextOrigin === currentOrigin) return
+      event.preventDefault()
+      void openExternalHttpUrl(url)
+    } catch {
+      event.preventDefault()
+    }
   })
 
   // Mic/media: registerRendererMediaPermissions() en defaultSession (solo ventanas app).

@@ -77,11 +77,21 @@ export function useJiraMention({
       return
     }
     let cancelled = false
-    void window.api.jiraStatus(cwd).then(status => {
-      if (!cancelled) setProjectKeys(status.connected ? status.projectKeys : [])
-    }).catch(() => {
-      if (!cancelled) setProjectKeys([])
-    })
+    /*
+     * `Promise.resolve().then(...)` y no una llamada directa: si el puente no
+     * expone `jiraStatus` —un preload más viejo que el renderer, que en dev
+     * pasa cada vez que se toca el preload— la llamada directa lanza dentro
+     * del efecto y **tumba el componente que hospeda el campo**. La mención es
+     * un extra: cuando no se puede consultar, se queda apagada y ya.
+     */
+    void Promise.resolve()
+      .then(() => window.api.jiraStatus(cwd))
+      .then(status => {
+        if (!cancelled) setProjectKeys(status.connected ? status.projectKeys : [])
+      })
+      .catch(() => {
+        if (!cancelled) setProjectKeys([])
+      })
     return () => { cancelled = true }
   }, [cwd])
 

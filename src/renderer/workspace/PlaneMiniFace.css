@@ -279,23 +279,3 @@
 html[data-reduce-motion="true"] {
   /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
 }
-
-/* Con la mesa abierta la card se arrastra a ella: que se note al pasar por encima. */
-.plane-mini-face--seat-draggable {
-  cursor: grab;
-  /* El redondeo lo pone el .pane-window (overflow hidden), pero la drag image
-   * nativa solo pinta este elemento: sin radio propio el fantasma sale cuadrado. */
-  border-radius: var(--plane-radius-sm);
-}
-
-/* No es botón: el reorder está apagado con la mesa abierta, esto solo dice
- * "arrástrame". El cursor lo hereda de la card. */
-.plane-mini-face__drag-hint {
-  cursor: inherit;
-  border-color: transparent;
-  background: transparent;
-}
-
-.plane-mini-face--seat-draggable:active {
-  cursor: grabbing;
-}

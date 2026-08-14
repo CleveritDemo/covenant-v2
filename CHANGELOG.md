@@ -4,6 +4,202 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.56.0
+
+- **Alta de sala en una frase**: la configuración deja de ser cinco paneles repartidos en tres columnas y pasa a leerse como una frase editable —«Quiero que Karl y María me den ideas en unos 5 min, leyendo CT-133»—. Cada palabra resaltada abre su control debajo, y la frase ya viene respondida: se puede arrancar sin tocar nada.
+- **Las plantillas dejan de ser lo primero**: las once ceremonias viven dentro de la decisión que reemplazan, la salida, y se presentan por para qué sirven en vez de por su nombre de manual. La conversación abierta pasa a ser cuatro formatos con nombre propio: ideas, decisión, plan y crítica.
+- **Duración en tres paradas**: rápida, equilibrada o a fondo, con las rondas y los minutos estimados a la vista, en lugar de un desplegable con un número sin unidad.
+- **Un solo aviso de lo que falta**: «faltan participantes» salía dos veces y escribir el objetivo no se avisaba en ningún lado. Ahora se dice una vez y entero, y ese mismo hueco pasa a mostrar el coste cuando ya no falta nada.
+- **El borrador sobrevive a cerrar el módulo**: tocar el toggle sin querer ya no cuesta el objetivo, los invitados ni el material. Se limpia al arrancar la sala o al cambiar de proyecto.
+- **La espera del turno se puede leer**: entre conceder el turno y la primera palabra pueden pasar treinta segundos. En vez de una línea fija, una tarjeta con el reloj, el material que está leyendo y tres pasos que avanzan con hechos: turno preparado, CLI arrancado, escribiendo.
+- **Lo que el turno escribe en el wiki, como tarjeta**: el JSON de las ops ya no aparece en mitad de la conversación. Se ve qué páginas tocó y de qué tipo, y pulsar una la abre; si no está en el wiki, lo dice.
+- **Todos hablan el mismo idioma**: el turno pedía la respuesta sin fijar idioma, así que una sala podía salir mitad en español y mitad en inglés. Ahora responden en el idioma del objetivo.
+- **La sala se ve trabajando**: spinner mientras el turno está en marcha y las mismas partículas que el piso del plano enciende cuando un agente trabaja.
+- **Fix contextos de Jira vacíos**: una issue recién adjuntada nacía sin contenido y así se quedaba hasta el primer turno que la usara. Ahora se rellena al crearla o al abrirla, y los archivos que ya estaban vacíos se curan solos.
+- **Fix chips con el id crudo**: un contexto recién creado mostraba `iaterminal:jira:ct-128` en vez de su nombre.
+
+## v0.55.0
+
+- **Asistente de primer uso**: wizard de cinco pasos (bienvenida, CLIs, carpeta, equipo, primer mensaje).
+- **Apertura única tras el splash**: se muestra una sola vez cuando termina el fundido de arranque.
+- **Relanzable desde Ajustes → Developer**: replay del onboarding sin perder ajustes pendientes.
+- **Flush al relanzar**: el replay desde Ajustes confirma el autosave con debounce antes de desmontar.
+- **Equipo creado solo si hubo escritura**: el CTA no marca éxito si el bootstrap no creó agentes.
+- **Error legible si falla la detección de CLIs**: aviso con reintento en lugar de lista vacía muda.
+
+## v0.54.1
+
+- **Modales wiki al mismo lado del nodo**: nodo a la izquierda abre a la izquierda; a la derecha, a la derecha.
+- **Varios modales a la vez**: abrir una página ya no cierra las otras (tope 3; no se evictan).
+- **Entrada desde el nodo**: el modal crece desde la proyección del nodo y se acopla al borde.
+
+## v0.54.0
+
+- **Loops: la cadena es la interfaz**: se acabó el asistente Agent→Interaction→Wait. Los pasos viven en una pista, el retorno del ciclo se dibuja con su intervalo, un paso nuevo se añade en línea y el objetivo se edita en la propia fila; mientras la cadena corre se ve el paso activo y el estado de cada agente.
+- **Bandeja en el picker de contextos**: lo que el agente carga en cada turno va arriba en chips, y el catálogo se filtra por texto y por tipo en vez de ser una lista plana.
+- **Quién consume cada contexto**: cada fila del picker muestra los monogramas de los agentes que ya lo cargan, o el tag «sin usar» si no lo usa nadie.
+- **Mapa wiki con implode propio**: al abrir, el canvas del grafo hace el gesto de entrada (scale/blur 2.4s); ya no se incrusta el logo Gravity.
+- **Mismo piso que el plano**: el mapa wiki comparte grilla y partículas musicales; las partículas busy del piso no corren con el mapa abierto.
+- **Partículas busy del plano**: vuelven a aparecer en el panel principal cuando cualquier agente del plano está busy / loop / delegando.
+- **Unir mensajes limpia chips**: el merge une el texto y elimina de la cola (y del espejo del plano) los mensajes absorbidos.
+- **Chat oculto con terminal expandida**: si una terminal ocupa la columna central, el stream del quick chat no se superpone al xterm.
+- **Pool de contextos**: orden de la barra glass → configurar → crear, con tabindex alineado.
+- **Curador wiki**: clear del historial en toolbar propio (no overlay sobre burbujas); respuesta visible vs cuerpos wiki separados en el prompt.
+- **Modales de página wiki**: posiciones aleatorias (sin perímetro fijo) respetando dead-zone del curador; cuerpo legible vía texto plano + AiMarkdown.
+
+## v0.53.1
+
+- **Fix rayos wiki en light**: el rayo visual sigue oscuro, pero la PointLight viajera y el wash emissive son blancos y aclaran los nodos al disparar (corrige v0.53.0 que oscurecía nodos en light).
+
+## v0.53.0
+
+- **Rayos wiki en light**: rayo visual oscuro con PointLight oscura viajera y wash emissive oscuro durante firing; los nodos se aclaran al paso de la luz; toggles live dark↔light sin regresión en dark.
+- **Toggles por regla de agente**: switch por regla en Rules; las deshabilitadas no van al prompt ni al turno CLI; persisten en el catálogo del agente.
+- **Chrome del plano sobre el chat**: barra superior y pool de contextos comparten z-index 210 para quedar siempre encima del chat del plano.
+- **Cristal del plano en dark**: `--plane-glass-strong` más translúcido para mejor contraste con el mapa wiki detrás.
+- **Tooltip más suave**: transición de aparición del tooltip del kit un poco más lenta y legible.
+
+## v0.52.0
+
+- **Cola del plano sin duplicados**: un turno encolado no aparece dos veces; el × del chip elimina el turno y limpia preferSend asociado.
+- **Miniaturas en chips de cola**: las imágenes del composer se muestran como thumbnail data URL en la cola del plano y no se rompen al despachar otros turnos.
+- **Vista previa legible en cola**: chips muestran resumen del turno (delegación, follow-up, etc.) en lugar de texto crudo.
+- **Unir mensajes por bloques**: merge une runs consecutivos de chips seleccionados, no traga chips de delegaciones intermedias.
+- **Turbo sin resúmenes vacíos**: resultados de delegación en turbo muestran texto real del registry, no «(empty response)»; cards con nombre de catálogo y ola `2/∞`.
+- **Chat del plano siempre visible**: z-index 200 sobre mapa/wiki; dock wiki no se desmonta al abrir mapa; curador wiki en 400.
+- **Historial curador al colapsar**: scroll al colapsar composer wiki; historial colapsado ~10vh.
+- **Modales wiki repartidos**: al abrir varias páginas, posiciones iniciales perimetrales (no solo centro).
+- **Wiki badges Reciente**: top-10 páginas recientes muestran badge «Reciente» (no «Hoy»).
+- **Menú en chips de contexto**: menú contextual en chips del pool de contextos del plano.
+- **Pool contextos**: mejoras de asignación y layout del pool en el plano.
+- **Curador wiki en config**: preferencias del curador wiki persistidas en AppConfig (electron wikiCurator/wikiStore).
+
+## v0.51.0
+
+- **Modales wiki movibles**: las páginas del mapa se abren en un modal que puedes arrastrar; varias a la vez con posiciones repartidas desde el centro y la posición se guarda al soltar.
+- **Ícono del mapa wiki**: el botón de la barra usa el grafo wiki en lugar del cerebro.
+- **Más partículas con agente ocupado**: el aurora del composer duplica densidad mientras un agente está en curso.
+- **Rayos con luz viajera**: un foco recorre cada arista desde el origen; la escena se oscurece y los nodos brillan al paso de la luz.
+- **Nodo origen al disparar**: el nodo que emite rayos gana brillo y un pulso de escala mientras dispara, con o sin música; reduce motion intacto.
+- **Curador `/init` reforzado**: el init asegura la wiki en disco, admite hasta 24 operaciones por turno y el prompt pide un catálogo más amplio cuando el repo lo justifica.
+
+## v0.50.0
+
+- **Menos lag al enviar un turno**: el runtime ya no escanea todo el repo con SHA antes del spawn; el changelog se valida con git diff al cerrar el turno.
+- **Explorador más liviano mientras corre un agente**: el file watcher se pausa durante el turno y refresca al terminar; Stop libera la pausa sin dejar el watcher colgado.
+- **Crear wiki con feedback claro**: spinner mientras carga o crea, overlay de error con reintentar, encuadre automático de cámara al abrir y auto-/init del curador tras el bootstrap.
+- **Plano con cristal opaco**: barras, FABs y contextos usan glass sin blur; solo el input del composer mantiene el efecto de cristal.
+- **Resync org con fases visibles**: al bajar un workspace org el overlay indica si está clonando repos, agentes, contextos o wiki.
+
+## v0.49.0
+
+- **Rayos del mapa wiki siempre brillantes**: opacidad y luces al máximo en cada disparo; sin atenuación por música ni flicker ambiental.
+- **Rayos blancos**: core, halo, glow, flashes y luces puntuales en blanco; nodos conservan color por tipo.
+- **Música solo mueve el foco**: cada beat enciende el siguiente nodo origen (sus rayos salientes juntos); la música no cambia el estilo visual de los rayos.
+
+## v0.48.0
+
+- **Menos presión al streamear respuestas**: los deltas del asistente se acumulan ~200 ms antes de actualizar el chat; el texto sigue llegando en tiempo real con menos re-renders.
+- **Plano más tranquilo mientras escribe un agente**: el estado publicado al plano se throttlea cada 500 ms en vez de ~150 ms; busy, loops y delegación siguen publicándose al instante.
+
+## v0.47.0
+
+- **Nodos del mapa wiki más volumétricos**: esferas con sombreado real y luces cuando reduce motion está desactivado; con reduce motion el look plano se conserva.
+- **Rayos que salen todos juntos desde cada nodo**: cada nodo enciende a la vez todos sus enlaces salientes; sin música el ritmo es aleatorio por nodo; con música del tema, todos los nodos pulsan al beat.
+- **Mapa wiki vivo sobre el plano**: grilla y partículas siguen visibles detrás del grafo; fit automático al abrir y picking intacto.
+
+## v0.46.0
+
+- **Guardado de chat con debounce**: el transcript se persiste cada ~500 ms durante streaming, no en cada token; flush al cerrar turno, cambiar de thread o cerrar el pane.
+- **Tabs en reposo sin perder terminales**: en tabs inactivos se pausan partículas del plano y el render del chat de agentes; los PTY siguen vivos y al volver al tab la terminal muestra la salida acumulada.
+- **Plano liviano en tabs ocultos**: el estado global del plano recibe solo snippet y flags (busy, loop, delegación), no el transcript completo; al volver al tab se re-sincroniza el quick chat.
+- **Markdown incremental en streaming**: solo se re-parsea el tramo en vivo; mensajes cerrados no se re-renderizan en cada delta.
+
+## v0.45.0
+
+- **La sala de brainstorming ocupa la pantalla**: convocar una sala, seguirla y releer su acta abrían modales uno encima de otro. Ahora las salas guardadas, el alta y la sala en marcha son tres vistas del mismo sitio, sobre el plano, y la barra de la esquina —carpeta, explorador, git, wiki— sigue a mano en todas.
+- **Varias salas a la vez**: puedes convocar una sala mientras otra corre. El botón lleva la cuenta de las que siguen vivas y su desplegable dice en qué ronda va cada una y quién habla. Cerrar la vista ya no detiene nada: la sala sigue y al volver está el acta entera.
+- **Escuchar a uno solo**: pulsa un asiento y se abre con sus turnos nada más, como abrir un agente en el plano. Lo que escribas ahí se publica en la sala dirigido a él, así que el acta no se queda con huecos.
+- **El orden de habla se arrastra**: los invitados sentados se reordenan arrastrándolos, y ese orden es el turno en que hablan.
+- **Un agente puede sentarse en dos salas**: cada sala es una conversación aparte y nada de lo que diga en una llega a la otra. Se avisa al invitarlo, en su asiento y en la cola de turnos.
+- **Menos ruido al leer una sala**: al abrirla ya estás al final del acta en vez de recorrerla en un scroll animado, la tarjeta de cierre enseña la decisión y guarda el resto tras un enlace, y cada asiento muestra la última línea que dijo.
+- **Se va la mesa de invitados**: sentar agentes arrastrándolos al lienzo era un tercer camino para hacer lo que el alta hace en una pantalla.
+- **Saber qué contexto usa cada agente**: el gestor de contextos listaba todos los `.md` del proyecto en un scroll alfabético sin decir quién los carga. Ahora tiene buscador, filtro por agente —con «Sin usar» para los que no lee nadie— y filtro por tipo; cada fila enseña la cara de los agentes que lo cargan, y desde la ficha del contexto se lo aplicas o se lo quitas a cualquiera sin entrar en su configuración.
+- **Los selectores de pestañas se ven bien**: el recuadro de la opción elegida se estiraba a lo ancho de su hueco, así que una palabra corta quedaba flotando en medio de un rectángulo enorme, y sus esquinas no encajaban con las del marco. Ahora se ajusta al texto. Se nota en el resultado de una sala, en Pulse, en la configuración de un agente y en el editor de archivos, entre otros.
+- **La issue se ve nada más añadirla**: al crear un contexto de Jira desde el gestor, el ticket que acabas de ver en la vista previa ya queda dentro. Antes se guardaba vacío, y si no se lo asignabas a ningún agente seguía vacío para siempre.
+- **Buscar issues también al crear una sala**: el buscador de Jira estaba en el formulario de editar una sala pero no en el de crearla, que es por donde se entra. Ahora escribes `#` en el objetivo, eliges la issue, y además de quedar citada se suma al material de la sala.
+- **Mencionar issues ya no puede tumbar la ventana**: si la app se quedaba a medias entre dos versiones, abrir un formulario con buscador de issues cerraba el diálogo entero. Ahora el buscador simplemente no aparece y todo lo demás sigue funcionando.
+- **La rueda del ratón se queda donde estás mirando**: al desplazar la lista de contextos del plano se movían los agentes del fondo en vez de la lista. Cualquier desplegable con scroll propio se queda ahora con la rueda.
+## v0.44.0
+
+- **Curador de la wiki con historial local**: los turnos quedan en un panel scrolleable por proyecto; al limpiar historial desaparece también el bloque vivo y no se duplican errores del CLI.
+- **CLI y modelo del curador al alcance**: los selects de proveedor y modelo viven encima del input como pills del plano (misma columna de 640px que el composer de agentes); el popover solo nombre y reglas.
+- **`/init` en el curador**: el comando arranca el modo init del prompt para sembrar o rehacer la wiki sin mezclarlo con un turno normal.
+- **Indicadores de delegación con nombre del catálogo**: la ola awaiting y el mensaje «Delegado a» muestran nombre · rol del agente (réplicas siguen con tag R2), no el slug interno del JSON.
+- **Mapa wiki sobre el plano vivo**: el grafo se monta como overlay del PlaneMap con canvas transparente; grilla, partículas y atmósfera siguen visibles y el stage de ventanas se oculta sin desmontarse.
+- **Rayos del mapa que iluminan nodos**: materiales Lambert, luces puntuales por descarga, glow volumétrico y núcleo teñido por el color del nodo de origen.
+
+## v0.43.0
+
+- **Wiki como sustrato index-first en el prompt**: el índice compacto incluye resúmenes por página y la directiva de consultar la wiki antes de explorar el repo.
+- **Olvido del bloque wiki al borrarla del disco**: si eliminas `.gravity/wiki`, el contexto wiki deja de inyectarse en los turnos siguientes.
+- **Guía de contradicciones en el ingest**: el material de ingest orienta cómo detectar y resolver contradicciones entre páginas.
+- **Lint de salud de la wiki para el curador**: páginas huérfanas, links rotos y rutas muertas con resolución monorepo, visibles en el turno del curador.
+- **Mapa wiki con encuadre completo al abrir**: la cámara encuadra el grafo entero al montar, sin pisar la navegación posterior.
+- **Rayos más pequeños con iluminación no plana**: gradiente por vértice en el núcleo, peak aleatorio por disparo y flicker en core y halo (glow estable).
+- **Dispose de réplicas diferido al cierre de ola turbo**: R2/R3 siguen visibles hasta que termina la ola; el cleanup corre en batch en `wave_complete`.
+- **Test de partículas determinista**: la grilla 6×6 del mapa usa RNG fijado en el bloque live para evitar flakes en CI.
+
+## v0.42.0
+
+- **Wiki de proyecto en el prompt de todos los agentes**: si existe `.gravity/wiki` en disco, cada agente recibe el índice compacto, el log y el ingest en su contexto, sin que tengas que asignar la wiki manualmente como contexto.
+- **En turbo, un mensaje encolado no se ejecuta dos veces**: si el orquestador está ocupado y reenvías el mismo mensaje al liberarse, la cola lo deduplica y no vuelve a correr el turno duplicado.
+
+## v0.41.2
+
+- **Instalar un language server ya te dice qué pasa**: si la instalación falla, el error se ve en la fila en vez de que el botón parezca muerto; y cuando el problema es el runtime (por ejemplo jdtls, que necesita Java 21), la fila avisa la versión que hace falta, la que encontró, dónde tienes una válida fuera del PATH y cambia el botón por Comprobar de nuevo. El aviso de runtime del editor pasa a usar el mismo componente.
+
+## v0.41.1
+
+- **Interlineado de la terminal, a tu medida**: las filas ya no van tan holgadas; el default es cómodo (1.2). En Ajustes → Apariencia → Tipografía puedes pasar a compacto o holgado, y se aplica al momento.
+
+## v0.41.0
+
+- **Cancelar una sincronización o publicación con Espacio**: mientras el workspace de org sincroniza o publica, el overlay dice el atajo y Espacio corta la operación. Lo que llegue después ya no reabre el modal ni con éxito ni con error de wiki, y una operación vieja no puede apagar el aviso de otra más nueva. Vale para los cuatro caminos que sincronizan: sincronizar, publicar, crear la pestaña de org y asignarle carpeta. El clonado de repositorios sigue sin cancelación.
+- **Nodos del mapa neuronal sin halo**: cada página se dibuja como una esfera limpia con el color de su tipo, sin la aureola luminosa que la envolvía. Los rayos eléctricos entre nodos y los destellos en los extremos siguen igual.
+
+## v0.40.9
+
+- **El bucle de delegaciones fallidas queda cerrado de verdad**: en 0.40.8 el pane olvidaba el fallo justo al cerrar el turno, así que si el aviso normal se perdía y entraba la reconciliación del especialista parado, la delegación muerta volvía a cerrarse como correcta y el orquestador la repetía. Ahora el fallo describe el turno anterior y sobrevive al cierre: solo lo limpia el siguiente turno o tu stop.
+
+## v0.40.8
+
+- **Una delegación que falla ya no se repite en bucle**: cuando el CLI de un especialista no arranca, el texto del error dejaba de ser un error y pasaba por resultado válido, así que el orquestador volvía a mandar la misma delegación una y otra vez. Ahora el pane publica que el turno murió por fallo, la delegación se cierra como fallida y el orquestador recibe la instrucción de contarlo en vez de reintentar solo. Además, un follow-up ya despachado no vuelve a la cola; si quieres reintentar, basta con pedirlo tú.
+- **Se ve cuándo la wiki de org no sincroniza**: si al sincronizar o publicar un workspace la wiki falla, el modal lo dice con el motivo en vez de quedarse callado. Los textos de sincronizar y publicar ahora nombran la wiki junto a agentes y contextos.
+- **El fallo al arrancar un CLI se reporta como fallo**: si el proceso muere con código de error y no llegó a hablar, el turno muestra el motivo del arranque fallido y no un turno mudo.
+
+## v0.40.7
+
+- **Los links del chat abren tu navegador**: hacer click en una URL que escribe un agente ya no levanta una ventana de la propia app; ahora se abre en el navegador por defecto del sistema, igual que los links de la terminal. Ninguna ventana nueva puede volver a nacer dentro de Covenant.
+
+## v0.40.6
+
+- **El catálogo +N scrollea de verdad**: rueda sobre la lista de contextos ya no mueve las cards de agentes de detrás; el plano le cede el wheel a ese popover.
+
+## v0.40.5
+
+- **Sin techo de agentes y terminales por pestaña**: crear un agente o un terminal ya no se corta a los diez paneles. Los botones del plano solo se bloquean si falta carpeta de proyecto, el arranque de equipo crea todos los agentes del catálogo y al recargar la sesión no se recorta ningún panel.
+- **Cursor deja de pedir confiar en la carpeta**: los turnos headless con Cursor pasan `--trust`, así que ni los agentes del panel ni el curador de la wiki se cortan con el error de carpeta no confiada.
+- **Los agentes escriben mejor la wiki**: agentes y curador comparten ahora la misma política de escritura, con ejemplos de cada tipo de página —narrar, localizar, decidir, flujo, inventario—, la obligación de enlazar con [[slug]] y de citar rutas reales de archivo en vez de ensayos largos.
+
+## v0.40.4
+
+- **Si una réplica se queda sin pending ni registry, el pane se cierra igual**: se reconoce por el binding local o el id de la copia. El merge fallido sin conflicto ya aborta el merge en el repo base antes de borrar el worktree.
+
+## v0.40.3
+
+- **Jira, GitHub y Covenant detrás de un proxy corporativo**: en redes con proxy de empresa o inspección TLS, «Conectar» de Jira fallaba con un «Failed to fetch» que no explicaba nada, aunque la misma llamada funcionara desde la terminal. Las llamadas de red de la app ahora usan el proxy y los certificados del sistema, igual que el navegador, y cuando algo falla el mensaje dice el motivo real. Vale también para GitHub Actions, el inicio de sesión de Covenant, el sondeo de servidores MCP y la descarga de servidores de lenguaje.
+
 ## v0.40.2
 
 - **Líneas del mapa wiki más visibles**: las conexiones entre nodos se leen claro en ambos modos — 0.55 con reduce motion (única capa de conexiones) y 0.45 sin él, siempre debajo de los rayos eléctricos.

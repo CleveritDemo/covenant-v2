@@ -10,7 +10,13 @@ import type { WikiGraphData } from '../wikiGraph'
 // propio. Lo que verifica el test es el ciclo append→cleanup→append cuando
 // `active` alterna, no las matemáticas de la escena.
 vi.mock('three', () => {
-  class Color { copy(): this { return this }; clone(): Color { return new Color() } }
+  class Color {
+    copy(): this { return this }
+    clone(): Color { return new Color() }
+    lerp(): this { return this }
+    multiplyScalar(): this { return this }
+    set(): this { return this }
+  }
   class Vector2 {}
   class Vector3 {
     x = 0; y = 0; z = 0
@@ -21,6 +27,17 @@ vi.mock('three', () => {
     crossVectors(): this { return this }
     copy(): this { return this }
     set(): this { return this }
+    add(): this { return this }
+    clone(): Vector3 { return new Vector3() }
+    multiplyScalar(): this { return this }
+  }
+  class Sphere {
+    center = new Vector3()
+    radius = 1
+  }
+  class Box3 {
+    setFromPoints(): this { return this }
+    getBoundingSphere(sphere: Sphere): Sphere { return sphere }
   }
   const sceneAdds: string[][] = []
   ;(globalThis as { __wikiSceneAdds?: string[][] }).__wikiSceneAdds = sceneAdds
@@ -32,12 +49,14 @@ vi.mock('three', () => {
   }
   class PerspectiveCamera {
     aspect = 1
-    position = { set: (): void => undefined }
+    fov = 50
+    position = new Vector3()
     updateProjectionMatrix(): void {}
   }
   class WebGLRenderer {
     domElement: HTMLCanvasElement
     constructor() { this.domElement = document.createElement('canvas') }
+    setClearColor(): void {}
     setPixelRatio(): void {}
     setSize(): void {}
     render(): void {}
@@ -69,20 +88,52 @@ vi.mock('three', () => {
   class Line { frustumCulled = false; __kind = 'Line' as const }
   class SphereGeometry { dispose(): void {} }
   class MeshBasicMaterial { color = new Color(); dispose(): void {} }
+  class MeshLambertMaterial { color = new Color(); dispose(): void {} }
+  class MeshStandardMaterial {
+    color = new Color()
+    emissive = new Color()
+    metalness = 0
+    roughness = 0
+    dispose(): void {}
+  }
+  class AmbientLight { __kind = 'AmbientLight' as const; intensity = 0 }
+  class HemisphereLight {
+    __kind = 'HemisphereLight' as const
+    color = new Color()
+    groundColor = new Color()
+    intensity = 0
+  }
+  class DirectionalLight {
+    __kind = 'DirectionalLight' as const
+    position = { set: (): void => undefined }
+    intensity = 0
+  }
+  class PointLight {
+    __kind = 'PointLight' as const
+    color = new Color()
+    intensity = 0
+    distance = 0
+    position = { set: (): void => undefined, copy: (): void => undefined }
+    dispose(): void {}
+  }
   class SpriteMaterial { color = new Color(); opacity = 0; dispose(): void {} }
   class Sprite {
     __kind = 'Sprite' as const
     material = new SpriteMaterial()
-    position = { copy: (): void => undefined }
+    position = { copy: (): void => undefined, set: (): void => undefined }
     scale = { setScalar: (): void => undefined }
   }
   class Mesh {
     __kind = 'Mesh' as const
-    material: MeshBasicMaterial
+    material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial
     geometry: SphereGeometry
-    position = { set: (): void => undefined }
+    position = new Vector3()
+    scale = { setScalar: (): void => undefined }
     userData: Record<string, unknown> = {}
-    constructor(geometry: SphereGeometry, material: MeshBasicMaterial) {
+    constructor(
+      geometry: SphereGeometry,
+      material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial,
+    ) {
       this.geometry = geometry; this.material = material
     }
   }
@@ -90,6 +141,8 @@ vi.mock('three', () => {
   class CanvasTexture { needsUpdate = false; dispose(): void {} }
   return {
     AdditiveBlending: 2,
+    NormalBlending: 1,
+    Box3,
     BufferAttribute,
     BufferGeometry,
     CanvasTexture,
@@ -99,10 +152,17 @@ vi.mock('three', () => {
     LineBasicMaterial,
     LineSegments,
     Mesh,
+    AmbientLight,
     MeshBasicMaterial,
+    MeshLambertMaterial,
+    MeshStandardMaterial,
+    HemisphereLight,
+    DirectionalLight,
+    PointLight,
     PerspectiveCamera,
     Raycaster,
     Scene,
+    Sphere,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
@@ -122,6 +182,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
     screenSpacePanning = false
     minDistance = 0
     maxDistance = 0
+    target = { copy: (): void => undefined }
     addEventListener(): void {}
     removeEventListener(): void {}
     update(): void {}
@@ -220,7 +281,7 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
       expect(adds.length).toBeGreaterThan(0)
       const last = adds[adds.length - 1]!
       // Contrato reduce motion ON: nunca se instancia Line (bolts) ni Sprite
-      // (halos de nodo / flashes de endpoint). Solo LineSegments (red base) y
+      // (flashes de endpoint). Solo LineSegments (red base) y
       // los Mesh de los nodos.
       expect(last).toContain('LineSegments')
       expect(last).not.toContain('Line')
@@ -243,7 +304,7 @@ describe('useWikiGraphScene: ciclo de vida con active', () => {
     expect(last).toContain('LineSegments')
     expect(getEdgeOpacities().at(-1)).toBe(0.45)
     // Cada arista aporta 3 Line (core + halo + glow) y 2 Sprite endpoint;
-    // con 1 arista: 3 Line, 2 Sprite de flash + halo de nodos por nodo.
+    // con 1 arista: 3 Line, 2 Sprite de flash por arista.
     const lineCount = last.filter(k => k === 'Line').length
     const spriteCount = last.filter(k => k === 'Sprite').length
     expect(lineCount).toBeGreaterThanOrEqual(3)

@@ -1,14 +1,17 @@
 /*
- * Vista fullscreen del mapa neuronal de la wiki: absolute dentro del plano
- * del workspace (no body), así no tapa otros tabs. El z-index lo pone el
- * componente inline con APP_OVERLAY_MODAL_Z por encima del stacking de
- * PlaneMap. El stacking interno (tooltip) es relativo a este contenedor.
+ * Vista fullscreen del mapa neuronal de la wiki: vive en `.plane-map__wiki-overlay`
+ * (dentro de PlaneMap), sobre grilla y partículas y bajo el stage oculto.
+ * El z-index lo pone el contenedor del plano; el stacking interno (tooltip) es
+ * relativo a este contenedor.
  */
+/* Fondo transparente: el backdrop del plano (grilla + partículas) queda debajo
+   en el mismo stacking context — no hace falta alpha WebGL a través de un modal. */
 .wiki-graph-view {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: transparent;
+  pointer-events: auto;
 }
 
 .wiki-graph-view__canvas {
@@ -20,6 +23,42 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.wiki-graph-view__canvas--entering {
+  animation: wiki-map-enter 2.4s cubic-bezier(0.22, 0.82, 0.18, 1) both;
+  transform-origin: center center;
+  will-change: transform, opacity, filter;
+}
+@keyframes wiki-map-enter {
+  0% {
+    opacity: 0;
+    transform: scale(2);
+    filter: blur(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+html[data-reduce-motion="true"] .wiki-graph-view__canvas--entering {
+  animation: none;
+  will-change: auto;
+}
+
+/* Badges «Hoy» proyectados desde nodos 3D; debajo de bar/tooltip. */
+.wiki-graph-view__node-badges {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.wiki-graph-view__node-badge {
+  position: absolute;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .wiki-graph-view__fallback {
@@ -45,6 +84,7 @@
   position: absolute;
   top: var(--plane-top-bar-inset, 14px);
   right: var(--plane-top-bar-inset, 14px);
+  z-index: 310;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -60,7 +100,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 11px;
@@ -79,7 +118,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 10px;
@@ -99,10 +137,10 @@
   background: currentColor;
 }
 
-.wiki-graph-view__legend-item--concept::before { background: var(--accent, #7aa2f7); }
-.wiki-graph-view__legend-item--decision::before { background: var(--theme-magenta, #ff79c6); }
-.wiki-graph-view__legend-item--flow::before { background: var(--theme-cyan, #22d3ee); }
-.wiki-graph-view__legend-item--reference::before { background: var(--theme-blue, #60a5fa); }
+.wiki-graph-view__legend-item--concept::before { background: var(--wiki-node-concept, #7aa2f7); }
+.wiki-graph-view__legend-item--decision::before { background: var(--wiki-node-decision, #e8b4d8); }
+.wiki-graph-view__legend-item--flow::before { background: var(--wiki-node-flow, #a8e8f5); }
+.wiki-graph-view__legend-item--reference::before { background: var(--wiki-node-reference, #b8d4fc); }
 
 .wiki-graph-view__close {
   display: inline-flex;
@@ -114,7 +152,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
   border-radius: var(--plane-top-bar-radius, 8px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   color: var(--text);
   cursor: pointer;
   pointer-events: auto;
@@ -138,7 +175,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 40%, transparent);
   border-radius: 8px;
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   pointer-events: none;
   font-family: var(--font-ui);
 }
@@ -155,10 +191,45 @@
   letter-spacing: 0.04em;
 }
 
-.wiki-graph-view__tooltip-type--concept { color: var(--accent, #7aa2f7); }
-.wiki-graph-view__tooltip-type--decision { color: var(--theme-magenta, #ff79c6); }
-.wiki-graph-view__tooltip-type--flow { color: var(--theme-cyan, #22d3ee); }
-.wiki-graph-view__tooltip-type--reference { color: var(--theme-blue, #60a5fa); }
+.wiki-graph-view__tooltip-type--concept { color: var(--wiki-node-concept, #7aa2f7); }
+.wiki-graph-view__tooltip-type--decision { color: var(--wiki-node-decision, #e8b4d8); }
+.wiki-graph-view__tooltip-type--flow { color: var(--wiki-node-flow, #a8e8f5); }
+.wiki-graph-view__tooltip-type--reference { color: var(--wiki-node-reference, #b8d4fc); }
+
+/* Carga del grafo o creación de wiki desde el CTA. */
+.wiki-graph-view__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Error de IPC al cargar el grafo. */
+.wiki-graph-view__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+  font-family: var(--font-ui);
+  pointer-events: none;
+}
+
+.wiki-graph-view__error-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.wiki-graph-view__error-cta {
+  pointer-events: auto;
+}
 
 /* Empty state: wiki sin pages — mensaje centrado, sin escena. */
 .wiki-graph-view__empty {
@@ -228,8 +299,14 @@
   color: var(--text);
   font-size: 13px;
   line-height: 1.5;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 50vh;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.wiki-graph-node-page__body .ai-md {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }

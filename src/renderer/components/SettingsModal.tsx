@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppConfig, Language } from '@shared/configSchema'
-import { validateConfig, mergeWithDefaults, sanitizeMusicVolume } from '@shared/configSchema'
+import { validateConfig, mergeWithDefaults, sanitizeMusicVolume, sanitizeTerminalLineHeight } from '@shared/configSchema'
 import { filterSettingsEntries } from '@shared/settingsSearch'
 import { UI_FONTS, MONO_FONTS } from '@shared/fontStacks'
 import { availableFonts, isFontInstalled, isMonospaced } from '@renderer/fontAvailability'
@@ -37,6 +37,8 @@ interface Props {
   onClose: () => void
   /** cwd de la pestaña activa: `jira.json` es por proyecto, no de la app. */
   cwd?: string
+  /** Relanza el wizard de onboarding (Developer). */
+  onReplayOnboarding?: () => void
 }
 
 const LANGUAGES: { value: Language; label: string }[] = [
@@ -45,6 +47,7 @@ const LANGUAGES: { value: Language; label: string }[] = [
 ]
 
 const CATEGORIES = [
+  { id: 'telemetry', icon: 'chart', labelKey: 'settings.telemetrySection' },
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'jira', icon: 'jira', labelKey: 'jira.section' },
@@ -69,10 +72,11 @@ type CategoryId = (typeof CATEGORIES)[number]['id']
  * desde ahí, no un extractor de i18n.
  */
 const SEARCH_INDEX = [
+  { category: 'telemetry', anchor: 'settings-telemetry', titleKey: 'settings.telemetrySection', termKeys: ['settings.telemetryHint', 'settings.telemetryEndpointLabel', 'settings.telemetryHeadersLabel', 'settings.telemetryEnabledTitle', 'settings.telemetryLogPromptsTitle', 'settings.telemetryLogToolIOTitle'] },
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
   { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
   { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
-  { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel'] },
+  { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel', 'settings.terminalLineHeightLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
   { category: 'sound', anchor: 'settings-system-sounds', titleKey: 'settings.systemSoundsSection', termKeys: ['settings.systemSoundsEnabledTitle', 'settings.systemSoundsEnabledDescription'] },
@@ -81,7 +85,7 @@ const SEARCH_INDEX = [
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
   { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
-  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
+  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.onboardingLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
   { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates', 'settings.restartToUpdate'] },
   { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
   // `as const` no es decoración: sin literales, `t()` rechaza las claves.
@@ -90,7 +94,7 @@ const SEARCH_INDEX = [
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
 
-export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '' }) => {
+export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '', onReplayOnboarding }) => {
   const { t } = useT()
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
@@ -105,7 +109,14 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     defaultWorkspacesDir: config.defaultWorkspacesDir ?? '',
     fontUi: config.fontUi ?? '',
     fontMono: config.fontMono ?? '',
+    terminalLineHeight: sanitizeTerminalLineHeight(config.terminalLineHeight),
     agentCliCommands: { ...(config.agentCliCommands ?? {}) } as Partial<Record<AgentCliProvider, string>>,
+    otelEndpoint: config.otelEndpoint ?? '',
+    otelProtocol: config.otelProtocol ?? 'http/protobuf',
+    otelEnabled: config.otelEnabled ?? false,
+    otelHeaders: config.otelHeaders ?? '',
+    otelLogPrompts: config.otelLogPrompts ?? false,
+    otelLogToolIO: config.otelLogToolIO ?? false,
   })
   const [errors, setErrors] = useState<string[]>([])
   const [category, setCategory] = useState<CategoryId>('cli')
@@ -272,8 +283,15 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       defaultWorkspacesDir: form.defaultWorkspacesDir.trim(),
       fontUi: form.fontUi,
       fontMono: form.fontMono,
+      terminalLineHeight: sanitizeTerminalLineHeight(form.terminalLineHeight),
       // Vacío = comando por defecto del proveedor; mergeWithDefaults poda las claves.
       agentCliCommands: form.agentCliCommands,
+      otelEndpoint: form.otelEndpoint.trim(),
+      otelProtocol: form.otelProtocol,
+      otelEnabled: form.otelEnabled,
+      otelHeaders: form.otelHeaders.trim(),
+      otelLogPrompts: form.otelLogPrompts,
+      otelLogToolIO: form.otelLogToolIO,
     })
   }
 
@@ -311,6 +329,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     onClose()
   }
 
+  /** Replay desmonta Settings: vaciar el debounce antes de salir. */
+  const handleReplayClick = (): void => {
+    if (pending.current) void commit(pending.current)
+    onReplayOnboarding?.()
+  }
+
   /** Hay texto que no se está guardando: el pie tiene que decirlo, no callar. */
   useEffect(() => {
     void window.api.getAppVersion().then(setAppVersion)
@@ -341,7 +365,14 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       defaultWorkspacesDir: original.defaultWorkspacesDir ?? '',
       fontUi: original.fontUi ?? '',
       fontMono: original.fontMono ?? '',
+      terminalLineHeight: sanitizeTerminalLineHeight(original.terminalLineHeight),
       agentCliCommands: { ...(original.agentCliCommands ?? {}) },
+      otelEndpoint: original.otelEndpoint ?? '',
+      otelProtocol: original.otelProtocol ?? 'http/protobuf',
+      otelEnabled: original.otelEnabled ?? false,
+      otelHeaders: original.otelHeaders ?? '',
+      otelLogPrompts: original.otelLogPrompts ?? false,
+      otelLogToolIO: original.otelLogToolIO ?? false,
     })
     setErrors([])
     setTokenFieldEpoch(n => n + 1)
@@ -421,6 +452,91 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
         </nav>
 
         <div className="settings-panel">
+          {category === 'telemetry' && (
+            <SettingsSection title={t('settings.telemetrySection')} anchor="settings-telemetry">
+              <p className="settings-hint settings-hint--block">{t('settings.telemetryHint')}</p>
+              <SettingsField
+                label={t('settings.telemetryEndpointLabel')}
+                htmlFor="settings-otel-endpoint"
+              >
+                <Input
+                  id="settings-otel-endpoint"
+                  value={form.otelEndpoint}
+                  onChange={e => {
+                    const v = e.target.value
+                    update('otelEndpoint', v)
+                    if (!v.trim()) update('otelEnabled', false)
+                  }}
+                  placeholder={t('settings.telemetryEndpointPlaceholder')}
+                />
+                <p className="settings-hint">{t('settings.telemetryEndpointHint')}</p>
+              </SettingsField>
+              <SettingsField
+                label={t('settings.telemetryProtocolLabel')}
+                htmlFor="settings-otel-protocol"
+              >
+                <Select
+                  id="settings-otel-protocol"
+                  value={form.otelProtocol}
+                  onChange={v => update('otelProtocol', v as AppConfig['otelProtocol'])}
+                  options={[
+                    { value: 'http/protobuf', label: t('settings.telemetryProtocolHttpProtobuf') },
+                    { value: 'http/json', label: t('settings.telemetryProtocolHttpJson') },
+                    { value: 'grpc', label: t('settings.telemetryProtocolGrpc') },
+                  ]}
+                />
+              </SettingsField>
+              <SettingsField
+                label={t('settings.telemetryHeadersLabel')}
+                htmlFor="settings-otel-headers"
+              >
+                <Input
+                  id="settings-otel-headers"
+                  type="password"
+                  value={form.otelHeaders}
+                  onChange={e => update('otelHeaders', e.target.value)}
+                  placeholder={t('settings.telemetryHeadersPlaceholder')}
+                />
+                <p className="settings-hint">{t('settings.telemetryHeadersHint')}</p>
+              </SettingsField>
+              <SettingToggle
+                checked={form.otelEnabled}
+                onChange={checked => update('otelEnabled', checked)}
+                title={t('settings.telemetryEnabledTitle')}
+                description={
+                  form.otelEndpoint
+                    ? t('settings.telemetryEnabledDescription')
+                    : t('settings.telemetryEnabledNoEndpoint')
+                }
+                disabled={!form.otelEndpoint}
+              />
+              <SettingToggle
+                checked={form.otelLogPrompts}
+                onChange={checked => update('otelLogPrompts', checked)}
+                title={t('settings.telemetryLogPromptsTitle')}
+                description={t('settings.telemetryLogPromptsDescription')}
+                disabled={!form.otelEnabled || !form.otelEndpoint}
+              />
+              {form.otelLogPrompts && form.otelEnabled && form.otelEndpoint && (
+                <p className="settings-hint settings-hint--block settings-hint--warning">
+                  {t('settings.telemetryLogPromptsWarning')}
+                </p>
+              )}
+              <SettingToggle
+                checked={form.otelLogToolIO}
+                onChange={checked => update('otelLogToolIO', checked)}
+                title={t('settings.telemetryLogToolIOTitle')}
+                description={t('settings.telemetryLogToolIODescription')}
+                disabled={!form.otelEnabled || !form.otelEndpoint}
+              />
+              {form.otelLogToolIO && form.otelEnabled && form.otelEndpoint && (
+                <p className="settings-hint settings-hint--block settings-hint--warning">
+                  {t('settings.telemetryLogToolIOWarning')}
+                </p>
+              )}
+            </SettingsSection>
+          )}
+
           {category === 'cli' && (
             <SettingsSection title={t('settings.agentCliSection')} anchor="settings-cli">
               <AgentCliTable
@@ -469,6 +585,22 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   customLabel={t('settings.fontCustomLabel')}
                   placeholder={t('settings.fontCustomMonoPlaceholder')}
                 />
+                <SettingsField
+                  label={t('settings.terminalLineHeightLabel')}
+                  hint={t('settings.terminalLineHeightHint')}
+                >
+                  <Select
+                    size="sm"
+                    value={String(sanitizeTerminalLineHeight(form.terminalLineHeight))}
+                    onChange={next => update('terminalLineHeight', sanitizeTerminalLineHeight(Number(next)))}
+                    aria-label={t('settings.terminalLineHeightLabel')}
+                    options={[
+                      { value: '1', label: t('settings.terminalLineHeightCompact') },
+                      { value: '1.2', label: t('settings.terminalLineHeightComfortable') },
+                      { value: '1.4', label: t('settings.terminalLineHeightRelaxed') },
+                    ]}
+                  />
+                </SettingsField>
               </SettingsSection>
 
               <SettingsSection title={t('settings.languageSection')} anchor="settings-language">
@@ -620,6 +752,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   {t('settings.splashReplay')}
                 </Button>
               </SettingsField>
+              {onReplayOnboarding ? (
+                <SettingsField label={t('settings.onboardingLabel')}>
+                  <Button variant="secondary" size="sm" onClick={handleReplayClick}>
+                    {t('settings.onboardingButton')}
+                  </Button>
+                </SettingsField>
+              ) : null}
               <SettingsField
                 label={t('settings.quitModalLabel')}
                 hint={t('settings.quitModalHint')}

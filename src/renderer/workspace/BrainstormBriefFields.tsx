@@ -1,8 +1,7 @@
 import React, { useCallback, useRef } from 'react'
-import type { TFunction } from 'i18next'
 import {
-  BRAINSTORM_MAX_ROUNDS_CAP,
   BRAINSTORM_OUTCOMES,
+  brainstormRunMinutes,
   sanitizeBrainstormMaxRounds,
   type BrainstormOutcome,
 } from '@shared/brainstormRoom'
@@ -18,39 +17,11 @@ import type { JiraIssueRef } from '@shared/jiraIssue'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
 import { useJiraMention } from './useJiraMention'
 import { useT } from '@i18n/useT'
-import { SegmentedControl, Select, TextArea } from '../components/ui'
+import { SegmentedControl, TextArea } from '../components/ui'
+import { BrainstormRoundsSlider } from './BrainstormRoundsSlider'
 import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
 import { CEREMONY_GOAL_KEY, CEREMONY_ROLE_KEY, ceremonyGateKey } from './ceremonyLabels'
 import './BrainstormBriefFields.css'
-
-/** Minutos estimados por turno; sirve para dimensionar la tirada, no para prometer. */
-export const MINUTES_PER_TURN = 0.4
-
-/**
- * Opciones del selector de duración. Vive aquí porque este es el formulario
- * canónico del brief; el modal de arranque lo reusa para no divergir en las
- * etiquetas («3 — Equilibrada») que ya conocen los usuarios.
- */
-export function brainstormRoundOptions(
-  t: TFunction<'app'>,
-): Array<{ value: string; label: string }> {
-  return Array.from(
-    { length: BRAINSTORM_MAX_ROUNDS_CAP },
-    (_, index) => index + 1,
-  ).map(value => {
-    const meaning = value === 1
-      ? t('tabs.brainstormRoundsQuick')
-      : value === 3
-        ? t('tabs.brainstormRoundsBalanced')
-        : value >= 6
-          ? t('tabs.brainstormRoundsDeep')
-          : ''
-    return {
-      value: String(value),
-      label: meaning ? `${value} — ${meaning}` : String(value),
-    }
-  })
-}
 
 export interface BrainstormBriefFieldsProps {
   cwd: string
@@ -134,8 +105,6 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
     plan: t('tabs.brainstormOutcomePlan'),
     critique: t('tabs.brainstormOutcomeCritique'),
   }
-
-  const roundOptions = brainstormRoundOptions(t)
 
   const turns = participantCount * sanitizeBrainstormMaxRounds(maxRounds)
 
@@ -261,25 +230,24 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
           />
         </div>
       ) : null}
-      <label className="brainstorm-brief__field">
+      <div className="brainstorm-brief__field">
         <span className="brainstorm-brief__label">{t('tabs.brainstormRoundsLabel')}</span>
-        <Select
-          size="sm"
-          value={String(maxRounds)}
-          onChange={next => onMaxRoundsChange(sanitizeBrainstormMaxRounds(Number(next)))}
-          options={roundOptions}
+        <BrainstormRoundsSlider
+          value={maxRounds}
+          onChange={onMaxRoundsChange}
+          participantCount={participantCount}
         />
         {isFree ? null : (
           <span className="brainstorm-brief__hint">
             {t('tabs.ceremonyRoundsSuggested', { count: String(ceremonyDef.rounds) })}
           </span>
         )}
-      </label>
+      </div>
       <p className="brainstorm-brief__summary">
         {t('tabs.brainstormRunSummary', {
           turns: String(turns),
           contexts: String(contextIds.length + filePaths.length),
-          minutes: String(Math.max(1, Math.round(turns * MINUTES_PER_TURN))),
+          minutes: String(brainstormRunMinutes(turns)),
         })}
       </p>
     </>

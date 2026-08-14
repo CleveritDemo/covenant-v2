@@ -1,6 +1,6 @@
 /*
- * Contenedor del curador de la wiki: posición en el mapa 3D, burbuja de
- * respuesta y popover de config. El dock (textarea, mic, thumbs, send/stop)
+ * Contenedor del curador de la wiki: posición en el mapa 3D, historial de
+ * conversación y popover de config. El dock (textarea, mic, thumbs, send/stop)
  * reutiliza PlaneChatComposerShell (clases en PlaneChatComposer.css).
  */
 .wiki-curator-composer {
@@ -8,42 +8,84 @@
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);
-  z-index: 5;
+  z-index: 400;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  width: min(560px, calc(100vw - 48px));
+  width: min(var(--plane-chat-column-width, 640px), calc(100vw - 48px));
   font-family: var(--font-ui);
 }
 
-/* Burbuja de respuesta (streaming o final) sobre el dock. */
-.wiki-curator-composer__bubble {
-  max-height: 34vh;
+/* Panel de historial scrolleable sobre el dock; colapsado 10vh, expande hacia arriba al hover. */
+.wiki-curator-composer__history-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.wiki-curator-composer__history {
+  max-height: 10vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--plane-border) 32%, transparent);
   border-radius: 12px;
-  background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
+  background: transparent;
+  transition: max-height 0.25s ease;
   animation: wiki-curator-bubble-in 0.14s ease-out;
 }
 
-.wiki-curator-composer__reply {
+.wiki-curator-composer__history-wrap:hover .wiki-curator-composer__history,
+.wiki-curator-composer__history-wrap:focus-within .wiki-curator-composer__history {
+  max-height: 40vh;
+}
+
+.wiki-curator-composer__history-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 2px 2px;
+  pointer-events: auto;
+}
+
+.wiki-curator-composer__entry {
   margin: 0;
-  color: var(--text);
   font-size: 12.5px;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.wiki-curator-composer__error {
-  margin: 0;
+.wiki-curator-composer__entry--user {
+  color: var(--text);
+  align-self: flex-end;
+  max-width: 92%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--plane-border) 18%, transparent);
+}
+
+.wiki-curator-composer__entry--curator {
+  color: var(--text);
+  align-self: flex-start;
+  max-width: 92%;
+}
+
+.wiki-curator-composer__entry--error {
   color: var(--theme-red, #f87171);
   font-size: 12px;
   line-height: 1.4;
-  overflow-wrap: anywhere;
+}
+
+.wiki-curator-composer__live {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .wiki-curator-composer__thinking {
@@ -54,7 +96,18 @@
   font-size: 12px;
 }
 
-/* Popover de configuración (name, CLI, model, rules). */
+/* CLI y modelo como pills del plano, encima del shell (misma fila que agent badges). */
+.wiki-curator-composer__quick-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 10px 0;
+}
+
+/* Popover de configuración (nombre y reglas). */
 .wiki-curator-composer__config {
   display: flex;
   flex-direction: column;
@@ -63,7 +116,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 40%, transparent);
   border-radius: 12px;
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   box-shadow: 0 8px 28px color-mix(in srgb, var(--bg) 45%, transparent);
   animation: wiki-curator-bubble-in 0.14s ease-out;
 }
@@ -113,8 +165,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wiki-curator-composer__bubble,
+  .wiki-curator-composer__history,
   .wiki-curator-composer__config {
     animation: none;
+  }
+
+  .wiki-curator-composer__history {
+    transition: none;
   }
 }

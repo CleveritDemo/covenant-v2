@@ -66,7 +66,10 @@ export const JiraMentionPicker: React.FC<JiraMentionPickerProps> = ({
     const token = ++requestRef.current
     setSearching(true)
     const timer = setTimeout(() => {
-      void window.api.jiraSearch(cwd, query).then(result => {
+      // Igual que en `useJiraMention`: si el puente no expone el método (preload
+      // desfasado), esto debe acabar en el `.catch` y no lanzar en un timer,
+      // donde nadie lo recoge y se pierde la excepción.
+      void Promise.resolve().then(() => window.api.jiraSearch(cwd, query)).then(result => {
         if (token !== requestRef.current) return
         setResults(result.issues)
         setError(result.error ?? '')

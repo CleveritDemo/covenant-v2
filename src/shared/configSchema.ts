@@ -1,6 +1,10 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
+import {
+  sanitizeWikiCuratorConfig,
+  type WikiCuratorConfig,
+} from './wikiCurator'
 
 /** Política de ejecución de shell del modo agente (el modelo propone bloques RUN). */
 export type AgentShellPolicy = 'off' | 'ask' | 'always'
@@ -11,7 +15,15 @@ export type AiProvider = 'ollama' | 'anthropic' | 'openai'
 /** Idioma de la interfaz. */
 export type Language = 'en' | 'es'
 
+/** Protocolo OTLP para exportación de telemetría. */
+export type OtelProtocol = 'http/protobuf' | 'http/json' | 'grpc'
+
 const DEFAULT_MUSIC_VOLUME = 0.35
+
+/** Interlineado xterm: 1.2 = cómodo (default), 1 = denso, 1.4 = holgado. */
+const DEFAULT_TERMINAL_LINE_HEIGHT = 1.2
+const MIN_TERMINAL_LINE_HEIGHT = 1
+const MAX_TERMINAL_LINE_HEIGHT = 1.6
 
 /**
  * Volumen de música interna: escala 0..1.
@@ -21,6 +33,14 @@ export function sanitizeMusicVolume(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(n)) return DEFAULT_MUSIC_VOLUME
   return Math.min(1, Math.max(0, n))
+}
+
+/** Interlineado de terminal: 1.0–1.6, un decimal. Basura → default. */
+export function sanitizeTerminalLineHeight(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return DEFAULT_TERMINAL_LINE_HEIGHT
+  const clamped = Math.min(MAX_TERMINAL_LINE_HEIGHT, Math.max(MIN_TERMINAL_LINE_HEIGHT, n))
+  return Math.round(clamped * 10) / 10
 }
 
 export interface AppConfig {
@@ -46,6 +66,8 @@ export interface AppConfig {
   fontUi: string
   /** Familia monoespaciada (terminales y código). Vacío = stack por defecto. */
   fontMono: string
+  /** Interlineado xterm (1.0–1.6). UI: Compacto / Cómodo / Holgado. */
+  terminalLineHeight: number
   /** Si true, el chat puede leer/escribir archivos bajo el cwd (modo agente). UI: cabecera del panel IA. */
   agentMode: boolean
   /**
@@ -103,10 +125,35 @@ export interface AppConfig {
    */
   agentCliCommands: Partial<Record<AgentCliProvider, string>>
   /**
+   * Versión de onboarding completada (`ONBOARDING_VERSION` en `onboarding.ts`).
+   * `''` = el usuario nunca completó el wizard.
+   */
+  onboardingCompletedVersion: string
+  /**
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
    */
   orgWorkspaceCatalogCache?: OrgWorkspaceCatalog | null
+  /** Curador wiki global (nombre, CLI, modelo, reglas); persiste en userData/config.json. */
+  wikiCurator: WikiCuratorConfig
+
+  // --- OTEL telemetry ---
+
+  /** Endpoint OTLP (p. ej. https://otel.example.com:4318). Vacío = desactivado. */
+  otelEndpoint: string
+  /** Protocolo OTLP: http/protobuf (por defecto) o grpc. */
+  otelProtocol: OtelProtocol
+  /** Activa la inyección de variables OTEL en los spawns de agente CLI. */
+  otelEnabled: boolean
+  /**
+   * Cabeceras OTLP (formato OTEL: `key=value,key2=value2`).
+   * Se cifra en disco vía SECRET_FIELDS.
+   */
+  otelHeaders: string
+  /** Registrar prompts del usuario y respuestas del asistente en telemetría. */
+  otelLogPrompts: boolean
+  /** Registrar detalles y contenido de herramientas en telemetría. */
+  otelLogToolIO: boolean
 }
 
 export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
@@ -128,6 +175,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   fontSize: 13,
   fontUi: '',
   fontMono: '',
+  terminalLineHeight: DEFAULT_TERMINAL_LINE_HEIGHT,
   agentMode: false,
   agentLoop: false,
   agentShellPolicy: 'off',
@@ -142,6 +190,22 @@ export const CONFIG_DEFAULTS: AppConfig = {
   discordPresenceEnabled: false,
   autoUpdatesEnabled: true,
   agentCliCommands: {},
+  onboardingCompletedVersion: '',
+  wikiCurator: {},
+  otelEndpoint: '',
+  otelProtocol: 'http/protobuf',
+  otelEnabled: false,
+  otelHeaders: '',
+  otelLogPrompts: false,
+  otelLogToolIO: false,
+}
+
+/** Versión de onboarding: no-string, vacío o >32 chars → ''. */
+export function sanitizeOnboardingCompletedVersion(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > 32) return ''
+  return trimmed
 }
 
 /** Claves previas a `agentCliCommands` (una por proveedor). */
@@ -180,6 +244,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const musicVolume = Object.prototype.hasOwnProperty.call(partial, 'musicVolume')
     ? sanitizeMusicVolume(partial.musicVolume)
     : CONFIG_DEFAULTS.musicVolume
+  const terminalLineHeight = Object.prototype.hasOwnProperty.call(partial, 'terminalLineHeight')
+    ? sanitizeTerminalLineHeight(partial.terminalLineHeight)
+    : CONFIG_DEFAULTS.terminalLineHeight
   const musicPaused = typeof partial.musicPaused === 'boolean'
     ? partial.musicPaused
     : CONFIG_DEFAULTS.musicPaused
@@ -194,6 +261,12 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
     : CONFIG_DEFAULTS.defaultWorkspacesDir
+  const onboardingCompletedVersion = Object.prototype.hasOwnProperty.call(
+    partial,
+    'onboardingCompletedVersion',
+  )
+    ? sanitizeOnboardingCompletedVersion(partial.onboardingCompletedVersion)
+    : CONFIG_DEFAULTS.onboardingCompletedVersion
   const rawRecord = partial as Record<string, unknown>
   const catalogKeyPresent = Object.prototype.hasOwnProperty.call(
     rawRecord,
@@ -205,16 +278,24 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
       ? undefined
       : (parseOrgWorkspaceCatalog(catalogRaw) ?? undefined)
     : undefined
+  const wikiCurator = sanitizeWikiCuratorConfig(
+    Object.prototype.hasOwnProperty.call(partial, 'wikiCurator')
+      ? partial.wikiCurator
+      : CONFIG_DEFAULTS.wikiCurator,
+  )
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
     musicVolume,
+    terminalLineHeight,
     musicPaused,
     systemSoundsEnabled,
     reduceMotion,
     autoUpdatesEnabled,
     agentCliCommands,
     defaultWorkspacesDir,
+    onboardingCompletedVersion,
+    wikiCurator,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
   delete merged.soundFeedbackEnabled
@@ -256,8 +337,24 @@ export function validateConfig(config: AppConfig): string[] {
   if (config.fontSize < 9 || config.fontSize > 24) {
     errors.push('fontSize debe estar entre 9 y 24')
   }
+  if (
+    typeof config.terminalLineHeight !== 'number'
+    || !Number.isFinite(config.terminalLineHeight)
+  ) {
+    errors.push('terminalLineHeight debe ser un número')
+  } else if (
+    config.terminalLineHeight < MIN_TERMINAL_LINE_HEIGHT
+    || config.terminalLineHeight > MAX_TERMINAL_LINE_HEIGHT
+  ) {
+    errors.push('terminalLineHeight debe estar entre 1 y 1.6')
+  }
   if (typeof config.defaultWorkspacesDir !== 'string') {
     errors.push('defaultWorkspacesDir debe ser un string')
+  }
+  if (typeof config.onboardingCompletedVersion !== 'string') {
+    errors.push('onboardingCompletedVersion debe ser un string')
+  } else if (sanitizeOnboardingCompletedVersion(config.onboardingCompletedVersion) !== config.onboardingCompletedVersion) {
+    errors.push('onboardingCompletedVersion inválida')
   }
   if (
     config.orgWorkspaceCatalogCache != null
@@ -287,6 +384,21 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (typeof config.systemSoundsEnabled !== 'boolean') {
     errors.push('systemSoundsEnabled debe ser boolean')
+  }
+  // OTEL
+  if (config.otelEndpoint) {
+    try {
+      const url = new URL(config.otelEndpoint)
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        errors.push('otelEndpoint debe usar protocolo http o https')
+      }
+    } catch {
+      errors.push('otelEndpoint no es una URL válida')
+    }
+  }
+  const validOtelProtocols: OtelProtocol[] = ['http/protobuf', 'http/json', 'grpc']
+  if (!validOtelProtocols.includes(config.otelProtocol)) {
+    errors.push('otelProtocol debe ser http/protobuf, http/json o grpc')
   }
   return errors
 }

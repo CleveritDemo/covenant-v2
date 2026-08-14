@@ -224,17 +224,6 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
-.lsp-banner__command {
-  padding: 2px 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  border-radius: 4px;
-  user-select: all;
-}
-
 .lsp-banner__progress {
   color: var(--text-muted);
 }

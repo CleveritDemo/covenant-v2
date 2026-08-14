@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { WikiGraphResult } from '@shared/wikiGraph'
 import { TabAgenticPlane, type TabAgenticPlaneProps } from '../TabAgenticPlane'
 
 vi.mock('@i18n/useT', () => ({
@@ -16,12 +16,20 @@ vi.mock('../useWikiGraphScene', () => ({
   useWikiGraphScene: () => ({ webglAvailable: false }),
 }))
 
+vi.mock('../../reduceMotion', () => ({
+  isReduceMotionActive: () => true,
+}))
+
 // Hijos pesados del plano (canvas, xterm, dictado): stubs — el toggle no los necesita.
 vi.mock('../PlaneMap', () => ({
-  PlaneMap: () => <div data-testid="plane-map" />,
+  PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (
+    <div data-testid="plane-map">{wikiOverlay}</div>
+  ),
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
-vi.mock('../PlaneChatDock', () => ({ PlaneChatDock: () => null }))
+vi.mock('../PlaneChatDock', () => ({
+  PlaneChatDock: () => <div className="plane-chat-dock" data-testid="plane-chat-dock" />,
+}))
 vi.mock('../PlaneChatComposer', () => ({ PlaneChatComposer: () => null }))
 vi.mock('../PlaneChatContextsBar', () => ({ PlaneChatContextsBar: () => null }))
 vi.mock('../PlaneQuickChat', () => ({ PlaneQuickChat: () => null }))
@@ -32,6 +40,21 @@ vi.mock('../PlaneBrainstormTable', () => ({ PlaneBrainstormTable: () => null }))
 vi.mock('../TabFileExplorerWindow', () => ({ TabFileExplorerWindow: () => null }))
 vi.mock('../PulseModal', () => ({ PulseModal: () => null }))
 vi.mock('../../components/ConfirmTerminalModal', () => ({ ConfirmTerminalModal: () => null }))
+
+const getWikiGraph = vi.fn<(cwd: string) => Promise<WikiGraphResult>>()
+
+beforeEach(() => {
+  getWikiGraph.mockReset()
+  ;(window as unknown as { api: Record<string, unknown> }).api = {
+    getWikiGraph,
+    ensureWiki: vi.fn(async () => ({ ok: true })),
+    onWikiCuratorEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),
+    startWikiCuratorTurn: vi.fn(),
+    stopWikiCuratorTurn: vi.fn(),
+    getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
+    setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
+  }
+})
 
 afterEach(cleanup)
 
@@ -82,7 +105,7 @@ const wikiView = (): HTMLElement | null =>
   screen.queryByRole('region', { name: 'tabs.wikiMapTitle' })
 
 describe('toggle del mapa de wiki en TabAgenticPlane', () => {
-  it('el botón abre la vista sobre el plano y vuelve a cerrarla', () => {
+  it('el botón abre la vista sobre el plano y vuelve a cerrarla', async () => {
     render(<TabAgenticPlane {...baseProps} />)
     expect(wikiView()).toBeNull()
     expect(wikiButton().getAttribute('aria-pressed')).toBe('false')
@@ -91,13 +114,16 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     const view = wikiView()
     expect(view).not.toBeNull()
     expect(wikiButton().getAttribute('aria-pressed')).toBe('true')
-    // Dentro del plano del workspace (no body): no tapa otros tabs; z alto
-    // frente al stacking de PlaneMap para que las PaneWindow no lo tapen.
+    // Dentro del plano del workspace (no body): montado en PlaneMap sobre el backdrop.
     expect(view!.closest('.tab-agentic-plane')).toBeTruthy()
+    expect(view!.closest('[data-testid="plane-map"]')).toBeTruthy()
     expect(view!.parentElement).not.toBe(document.body)
-    expect(view!.style.zIndex).toBe(String(APP_OVERLAY_MODAL_Z))
-    // Sin WebGL (jsdom) la vista muestra el aviso en lugar del canvas.
-    expect(screen.getByText('tabs.wikiMapNoWebgl')).toBeTruthy()
+    // Sin cwd el grafo resuelve vacío tras el fetch local: empty state, no spinner ni WebGL.
+    expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
+    expect(screen.queryByText('tabs.wikiMapNoWebgl')).toBeNull()
+    expect(document.querySelector('.wiki-graph-view__loading')).toBeNull()
+    // Con el mapa wiki abierto el chat se desmonta (v0.51): no compite con el grafo.
+    expect(screen.queryByTestId('plane-chat-dock')).toBeNull()
 
     fireEvent.click(wikiButton())
     // Al cerrar, el overlay se desmonta del plano.
@@ -147,7 +173,7 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(view).not.toBeNull()
     const barAfterOpen = document.querySelector('.plane-top-left-bar') as HTMLElement | null
     expect(barAfterOpen).not.toBeNull()
-    // Con el mapa abierto la barra sube por encima del overlay (z 675 > 670).
+    // Con el mapa abierto la barra sube a --over-wiki (675) por encima del overlay.
     expect(barAfterOpen!.classList.contains('plane-top-left-bar--over-wiki')).toBe(true)
     // El chrome propio de wiki queda agrupado en un solo header y no ocupa
     // la esquina superior izquierda; título + leyenda + cerrar viven juntos.
@@ -156,7 +182,7 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(wikiBar!.querySelector('.wiki-graph-view__title')).toBeTruthy()
     expect(wikiBar!.querySelector('.wiki-graph-view__legend')).toBeTruthy()
     expect(wikiBar!.querySelector('.wiki-graph-view__close')).toBeTruthy()
-    // La barra izquierda queda fuera del overlay: son hermanos, no descendientes.
+    // La barra izquierda queda fuera del overlay wiki (hermanos en tab-agentic-plane).
     expect(view!.contains(barAfterOpen)).toBe(false)
 
     fireEvent.click(wikiButton())

@@ -60,7 +60,6 @@
   /* Plano 2D — capa HUD/cristal (derivada del tema; applyTheme ajusta glow) */
   --plane-radius: 14px;
   --plane-radius-sm: 10px;
-  --plane-blur: 16px;
   --plane-grid-size: 44px;
   --plane-grid-opacity: 0.1;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
@@ -93,10 +92,21 @@
   --theme-blue: #7aa2f7;
   --theme-magenta: #bb9af7;
   --theme-cyan: #7dcfff;
+  --wiki-bolt-color: #ffffff;
+  --wiki-node-concept: var(--accent);
+  --wiki-node-decision: var(--theme-magenta);
+  --wiki-node-flow: var(--theme-cyan);
+  --wiki-node-reference: var(--theme-blue);
 }
 
 /* Temas claros: elevación sutil (poca opacidad y alcance); oscuro intacto. */
 :root[data-theme-appearance='light'] {
+  --wiki-edge-color: color-mix(in srgb, var(--text-muted) 50%, #ffffff);
+  --wiki-bolt-color: color-mix(in srgb, var(--text-muted) 80%, #000000);
+  --wiki-node-concept: var(--accent);
+  --wiki-node-decision: var(--theme-magenta);
+  --wiki-node-flow: var(--theme-cyan);
+  --wiki-node-reference: var(--theme-blue);
   /* El ámbar claro no contrasta sobre fondo claro. */
   --caution: #9a6212;
   --plane-shadow: 0 10px 28px color-mix(in srgb, #000 14%, transparent);
@@ -109,6 +119,14 @@
     -3px 4px 12px color-mix(in srgb, #000 6%, transparent),
     -1px 1px 3px color-mix(in srgb, #000 3%, transparent),
     inset 0 0 0 1px var(--plane-highlight);
+}
+
+/* Temas oscuros: cristal del plano opaco (sin mezcla con transparent/surface). */
+:root[data-theme-appearance='dark'] {
+  --plane-glass: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg));
+  --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 72%, var(--surface));
+  --plane-node-bg: color-mix(in srgb, var(--bg-secondary) 90%, var(--bg));
+  --plane-node-solid: color-mix(in srgb, var(--bg) 60%, var(--bg-secondary));
 }
 
 *, *::before, *::after {
@@ -224,10 +242,8 @@ textarea:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Reduce motion: sin entradas animadas y sin blur de cristal (coste GPU continuo). */
+/* Reduce motion: sin entradas animadas. */
 html[data-reduce-motion="true"] {
-  --plane-blur: 0px;
-
   .fade-in {
     animation: none;
   }

@@ -17,6 +17,23 @@ describe('shortWorktreeHint', () => {
 })
 
 describe('buildOrchestrationAwaitingView', () => {
+  const catalog = [
+    {
+      id: 'frontend',
+      provider: 'claude' as const,
+      permissionMode: 'auto' as const,
+      name: 'David',
+      role: 'frontend engineer',
+    },
+    {
+      id: 'backend',
+      provider: 'claude' as const,
+      permissionMode: 'auto' as const,
+      name: 'Cristian',
+      role: 'backend engineer',
+    },
+  ]
+
   it('returns null for empty input', () => {
     expect(buildOrchestrationAwaitingView([])).toBeNull()
   })
@@ -35,10 +52,10 @@ describe('buildOrchestrationAwaitingView', () => {
         status: 'running',
         worktreePath: '/repo/.gravity/worktrees/t1/d2',
       },
-    ])
+    ], { catalog })
     expect(view).toMatchObject({ done: 1, total: 2 })
     expect(view?.items[0]).toMatchObject({
-      agentLabel: 'frontend',
+      agentLabel: 'David · frontend engineer',
       status: 'done',
       worktreeHint: 't1/d1',
     })
@@ -47,6 +64,13 @@ describe('buildOrchestrationAwaitingView', () => {
       status: 'running',
       worktreeHint: 't1/d2',
     })
+  })
+
+  it('sin catálogo conserva el slug interno', () => {
+    const view = buildOrchestrationAwaitingView([
+      { delegationId: 'd1', toAgentId: 'frontend', status: 'running' },
+    ])
+    expect(view?.items[0]?.agentLabel).toBe('frontend')
   })
 
   it('propagates toPaneId for Stop-per-row wiring', () => {

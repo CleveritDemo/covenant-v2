@@ -4,6 +4,8 @@
 import React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { WIKI_CURATOR_INIT_COMMAND } from '@shared/wikiCurator'
+import { wikiCuratorHistoryStorageKey } from '@shared/wikiCuratorHistory'
 import { WikiCuratorComposer } from '../WikiCuratorComposer'
 
 vi.mock('@i18n/useT', () => ({
@@ -42,16 +44,32 @@ beforeAll(() => {
 
 const startWikiCuratorTurn = vi.fn()
 const stopWikiCuratorTurn = vi.fn()
-const onWikiCuratorEvent = vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined)
+let wikiCuratorEventHandler: ((event: unknown) => void) | undefined
+const onWikiCuratorEvent = vi.fn((_cwd: string, cb: (event: unknown) => void) => {
+  wikiCuratorEventHandler = cb
+  return () => {
+    wikiCuratorEventHandler = undefined
+  }
+})
 const getWikiCuratorConfig = vi.fn()
 const setWikiCuratorConfig = vi.fn()
 const listAgentCliModels = vi.fn()
 
+const CWD = '/tmp/proyecto'
+const HISTORY_KEY = wikiCuratorHistoryStorageKey(CWD)
+
 beforeEach(() => {
+  localStorage.clear()
+  wikiCuratorEventHandler = undefined
   startWikiCuratorTurn.mockReset()
   stopWikiCuratorTurn.mockReset()
   onWikiCuratorEvent.mockReset()
-  onWikiCuratorEvent.mockImplementation(() => () => undefined)
+  onWikiCuratorEvent.mockImplementation((_cwd, cb) => {
+    wikiCuratorEventHandler = cb
+    return () => {
+      wikiCuratorEventHandler = undefined
+    }
+  })
   getWikiCuratorConfig.mockReset()
   getWikiCuratorConfig.mockResolvedValue({ ok: true as const, config: {} })
   setWikiCuratorConfig.mockReset()
@@ -95,11 +113,17 @@ function pickSelectOption(ariaLabel: string, optionLabel: string): void {
   fireEvent.click(option)
 }
 
+function emitWikiCuratorEvent(event: unknown): void {
+  act(() => {
+    wikiCuratorEventHandler?.(event)
+  })
+}
+
 describe('WikiCuratorComposer reutiliza el shell del composer', () => {
   it('monta PlaneChatComposerShell y no muestra badges/listbox de agentes', () => {
     render(
       <WikiCuratorComposer
-        cwd="/tmp/proyecto"
+        cwd={CWD}
         onViewSlugs={vi.fn()}
         onWikiChanged={vi.fn()}
       />,
@@ -108,7 +132,7 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     expect(document.querySelector('[data-plane-composer-shell]')).toBeTruthy()
     expect(document.querySelector('.plane-chat-composer--embedded')).toBeTruthy()
     expect(document.querySelector('.plane-chat-composer__agents')).toBeNull()
-    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(document.querySelector('.wiki-curator-composer__quick-config')).toBeTruthy()
     expect(screen.getByLabelText('tabs.wikiCuratorInputLabel')).toBeTruthy()
     // Vacío → mic push-to-talk (misma fila que el composer del plano).
     expect(screen.getByLabelText('agentPane.dictationHold')).toBeTruthy()
@@ -119,7 +143,7 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
   it('Enter envía vía startWikiCuratorTurn y stop usa stopWikiCuratorTurn', async () => {
     render(
       <WikiCuratorComposer
-        cwd="/tmp/proyecto"
+        cwd={CWD}
         onViewSlugs={vi.fn()}
         onWikiChanged={vi.fn()}
       />,
@@ -131,19 +155,19 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
 
     await waitFor(() => {
       expect(startWikiCuratorTurn).toHaveBeenCalledWith({
-        cwd: '/tmp/proyecto',
+        cwd: CWD,
         message: 'curar arquitectura',
       })
     })
 
     fireEvent.click(screen.getByLabelText('tabs.wikiCuratorStop'))
-    expect(stopWikiCuratorTurn).toHaveBeenCalledWith('/tmp/proyecto')
+    expect(stopWikiCuratorTurn).toHaveBeenCalledWith(CWD)
   })
 
   it('Escape con foco en el input hace blur (no deja el foco en el composer)', () => {
     render(
       <WikiCuratorComposer
-        cwd="/tmp/proyecto"
+        cwd={CWD}
         onViewSlugs={vi.fn()}
         onWikiChanged={vi.fn()}
       />,
@@ -158,26 +182,28 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     expect(document.activeElement).not.toBe(input)
   })
 
-  it('al cambiar CLI persiste provider y recarga modelos de ese provider', async () => {
+  it('muestra selects de CLI y modelo sin abrir el popover y persiste config', async () => {
     render(
       <WikiCuratorComposer
-        cwd="/tmp/proyecto"
+        cwd={CWD}
         onViewSlugs={vi.fn()}
         onWikiChanged={vi.fn()}
       />,
     )
 
-    openConfigPanel()
     await waitFor(() => {
-      expect(getWikiCuratorConfig).toHaveBeenCalledWith('/tmp/proyecto')
+      expect(getWikiCuratorConfig).toHaveBeenCalledWith(CWD)
       expect(listAgentCliModels).toHaveBeenCalledWith('claude')
     })
+
+    expect(screen.getByRole('button', { name: 'tabs.wikiCuratorConfigProviderLabel' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'tabs.wikiCuratorConfigModelLabel' })).toBeTruthy()
 
     pickSelectOption('tabs.wikiCuratorConfigProviderLabel', 'Cursor Agent')
 
     await waitFor(() => {
       expect(setWikiCuratorConfig).toHaveBeenCalledWith(
-        '/tmp/proyecto',
+        CWD,
         expect.objectContaining({ provider: 'cursor' }),
       )
       expect(listAgentCliModels).toHaveBeenCalledWith('cursor')
@@ -191,5 +217,269 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     })
     expect(screen.getByRole('option', { name: /Composer 2\.5/, hidden: true })).toBeTruthy()
     expect(screen.getByRole('option', { name: 'tabs.wikiCuratorConfigModelDefault', hidden: true })).toBeTruthy()
+  })
+
+  it('el popover de config solo muestra nombre y reglas', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    openConfigPanel()
+
+    await waitFor(() => {
+      expect(screen.getByText('tabs.wikiCuratorConfigNameLabel')).toBeTruthy()
+      expect(screen.getByText('tabs.wikiCuratorConfigRulesLabel')).toBeTruthy()
+    })
+
+    const dialog = screen.getByRole('dialog', { name: 'tabs.wikiCuratorConfigTitle' })
+    expect(dialog.querySelectorAll('[popover]')).toHaveLength(0)
+  })
+
+  it('el historial vive en history-wrap (expansión hover/focus-within vía CSS)', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'mensaje de prueba' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('mensaje de prueba')).toBeTruthy()
+    })
+
+    const wrap = document.querySelector('.wiki-curator-composer__history-wrap')
+    const history = document.querySelector('.wiki-curator-composer__history')
+    expect(wrap).toBeTruthy()
+    expect(history).toBeTruthy()
+    expect(wrap?.contains(history!)).toBe(true)
+
+    const clearButton = screen.getByLabelText('tabs.wikiCuratorHistoryClear')
+    const toolbar = document.querySelector('.wiki-curator-composer__history-toolbar')
+    expect(toolbar).toBeTruthy()
+    expect(toolbar?.contains(clearButton)).toBe(true)
+    expect(history?.contains(clearButton)).toBe(false)
+    expect(document.querySelector('.wiki-curator-composer__history-clear')).toBeNull()
+  })
+
+  it('persiste historial entre remounts vía localStorage', async () => {
+    const { unmount } = render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'hola curador' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(localStorage.getItem(HISTORY_KEY)).toContain('hola curador')
+    })
+
+    unmount()
+
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('hola curador')).toBeTruthy()
+  })
+
+  it('agrega entrada user y curator tras un turno simulado', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'revisar índice' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('revisar índice')).toBeTruthy()
+    })
+
+    emitWikiCuratorEvent({ type: 'delta', text: 'Revisando ' })
+    expect(screen.getByText('Revisando')).toBeTruthy()
+
+    emitWikiCuratorEvent({ type: 'final', text: 'Revisando el índice wiki.' })
+    emitWikiCuratorEvent({ type: 'done' })
+
+    await waitFor(() => {
+      expect(screen.getByText('Revisando el índice wiki.')).toBeTruthy()
+      expect(screen.queryByText('Revisando')).toBeNull()
+    })
+  })
+
+  it('error seguido de done deja una sola representación visible del error', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'fallar cli' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('fallar cli')).toBeTruthy()
+    })
+
+    const errorMessage = 'CLI no disponible'
+    emitWikiCuratorEvent({ type: 'error', message: errorMessage })
+    expect(screen.getAllByText(errorMessage)).toHaveLength(2)
+    expect(document.querySelector('.wiki-curator-composer__live')).toBeTruthy()
+
+    emitWikiCuratorEvent({ type: 'done' })
+
+    await waitFor(() => {
+      expect(screen.getByText(errorMessage)).toBeTruthy()
+      expect(document.querySelector('.wiki-curator-composer__live')).toBeNull()
+    })
+    expect(screen.getAllByText(errorMessage)).toHaveLength(1)
+  })
+
+  it('clear tras error y done elimina todo lo visible y la key de localStorage', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'otro fallo' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('otro fallo')).toBeTruthy()
+    })
+
+    const errorMessage = 'timeout del agente'
+    emitWikiCuratorEvent({ type: 'error', message: errorMessage })
+    emitWikiCuratorEvent({ type: 'done' })
+
+    await waitFor(() => {
+      expect(screen.getByText(errorMessage)).toBeTruthy()
+      expect(document.querySelector('.wiki-curator-composer__live')).toBeNull()
+    })
+
+    fireEvent.click(screen.getByLabelText('tabs.wikiCuratorHistoryClear'))
+
+    await waitFor(() => {
+      expect(screen.queryByText('otro fallo')).toBeNull()
+      expect(screen.queryByText(errorMessage)).toBeNull()
+      expect(localStorage.getItem(HISTORY_KEY)).toBeNull()
+    })
+  })
+
+  it('bootstrapInitToken dispara /init automático cuando no está thinking', async () => {
+    const { rerender } = render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={0}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    rerender(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={1}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(startWikiCuratorTurn).toHaveBeenCalledWith({
+        cwd: CWD,
+        message: WIKI_CURATOR_INIT_COMMAND,
+      })
+    })
+  })
+
+  it('scroll al colapsar (mouseleave) fuerza scrollTop al final del historial', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.change(input, { target: { value: `mensaje largo ${index}` } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await waitFor(() => {
+        expect(screen.getByText(`mensaje largo ${index}`)).toBeTruthy()
+      })
+    }
+
+    const history = document.querySelector('.wiki-curator-composer__history') as HTMLElement
+    const wrap = document.querySelector('.wiki-curator-composer__history-wrap') as HTMLElement
+    expect(history).toBeTruthy()
+    expect(wrap).toBeTruthy()
+
+    Object.defineProperty(history, 'scrollHeight', { value: 1200, configurable: true })
+    let scrollTop = 200
+    Object.defineProperty(history, 'scrollTop', {
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+      configurable: true,
+    })
+
+    fireEvent.mouseLeave(wrap)
+    expect(scrollTop).toBe(1200)
+  })
+
+  it('clear borra historial y la key de localStorage', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'mensaje previo' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('mensaje previo')).toBeTruthy()
+      expect(localStorage.getItem(HISTORY_KEY)).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByLabelText('tabs.wikiCuratorHistoryClear'))
+
+    await waitFor(() => {
+      expect(screen.queryByText('mensaje previo')).toBeNull()
+      expect(localStorage.getItem(HISTORY_KEY)).toBeNull()
+    })
   })
 })

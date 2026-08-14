@@ -1,5 +1,4 @@
-.plane-context-pool {
-  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+.plane-context-pool-shell {
   position: absolute;
   top: var(--plane-top-bar-inset, 16px);
   right: var(--plane-top-bar-inset, 16px);
@@ -11,27 +10,39 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
+  gap: 6px;
   height: var(--plane-top-bar-height, 26px);
   width: max-content;
-  max-width: min(62vw, 640px);
-  padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
-  border-radius: var(--plane-top-bar-radius, 8px);
-  border: 1px solid var(--plane-top-bar-edge);
-  background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   transform: none;
   /* El mapa padre usa pointer-events: none; el pool debe recibir clics. */
   pointer-events: auto;
 }
 
-.plane-context-pool--empty {
-  justify-content: center;
-  padding: 0 4px;
+.plane-context-pool {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  height: var(--plane-top-bar-height, 26px);
+  max-width: min(62vw, 640px);
+  padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  border: 1px solid var(--plane-top-bar-edge);
+  background: var(--plane-glass-strong);
+  transition: max-width 0.2s ease;
 }
 
-.plane-context-pool__configure {
+.plane-context-pool--expanded,
+.plane-context-pool:focus-within,
+.plane-context-pool-shell--expanded .plane-context-pool,
+.plane-context-pool-shell:focus-within .plane-context-pool {
+  max-width: min(90vw, 960px);
+}
+
+.plane-context-pool__configure,
+.plane-context-pool__create {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -48,41 +59,13 @@
   transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 
-.plane-context-pool__configure:hover {
+.plane-context-pool__configure:hover,
+.plane-context-pool__create:hover {
   color: var(--text);
   border-color: transparent;
   background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
 }
 
-/* Papelera solo mientras se arrastra un chip; a la izquierda de los iconos. */
-.plane-context-pool__trash {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  width: 20px;
-  height: 20px;
-  margin: 0 2px 0 0;
-  padding: 0;
-  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
-  border: 1px dashed color-mix(in srgb, var(--danger, #c44) 55%, var(--plane-border));
-  background: color-mix(in srgb, var(--danger, #c44) 12%, transparent);
-  color: color-mix(in srgb, var(--danger, #c44) 85%, var(--text));
-  transition: color 0.12s, border-color 0.12s, background 0.12s, transform 0.12s;
-}
-
-.plane-context-pool__trash--hot {
-  border-style: solid;
-  background: color-mix(in srgb, var(--danger, #c44) 28%, transparent);
-  color: var(--danger, #c44);
-  transform: scale(1.08);
-}
-
-/*
- * ponytail: scroll horizontal como tope del desborde. El upgrade es el chip
- * `+N` con buscador (fase 2), que evita tener que scrollear a ciegas.
- */
 .plane-context-pool__icons {
   display: flex;
   flex-wrap: nowrap;
@@ -91,8 +74,6 @@
   min-width: 0;
   height: 100%;
   overflow-x: auto;
-  /* No `visible`: con un eje en `auto` el otro se computa a `auto` igual, así que
-     era una promesa falsa. Nada debe sobresalir de los chips (ver el badge). */
   overflow-y: hidden;
   scrollbar-width: none;
 }
@@ -138,6 +119,47 @@
   cursor: grabbing;
 }
 
+/* Overflow chips ocultos hasta hover o foco en la barra. */
+.plane-context-pool__chip--overflow {
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: width 0.18s ease, opacity 0.15s ease, margin 0.18s ease;
+}
+
+.plane-context-pool--expanded .plane-context-pool__chip--overflow,
+.plane-context-pool:focus-within .plane-context-pool__chip--overflow,
+.plane-context-pool-shell--expanded .plane-context-pool__chip--overflow,
+.plane-context-pool-shell:focus-within .plane-context-pool__chip--overflow {
+  width: 20px;
+  opacity: 1;
+  margin: 0;
+  padding: 0;
+  border-width: 1px;
+  pointer-events: auto;
+}
+
+/*
+ * El `gap` del flex separa también a los ítems de ancho 0: con la barra
+ * colapsada, cada chip oculto dejaba 2px de hueco delante del badge +N. El
+ * margen negativo lo cancela y se transiciona igual que el chip al expandir.
+ */
+.plane-context-pool__icons > .plane-context-pool__item--overflow {
+  margin-inline-start: -2px;
+  transition: margin 0.18s ease;
+}
+
+.plane-context-pool--expanded .plane-context-pool__item--overflow,
+.plane-context-pool:focus-within .plane-context-pool__item--overflow,
+.plane-context-pool-shell--expanded .plane-context-pool__item--overflow,
+.plane-context-pool-shell:focus-within .plane-context-pool__item--overflow {
+  margin-inline-start: 0;
+}
+
 /* Clon que se arrastra: opaco y con radio propio, ya sin el glass de la barra. */
 .plane-context-pool__chip--ghost {
   position: fixed;
@@ -157,7 +179,6 @@
   flex-shrink: 0;
 }
 
-
 /* Punto de "en uso": el chip asignado a algún agente se distingue del que nadie usa. */
 .plane-context-pool__chip-pin {
   position: absolute;
@@ -170,184 +191,28 @@
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--plane-glass-strong) 90%, transparent);
 }
 
-/* Botón +N: abre el catálogo completo cuando no cabe en la barra. */
-.plane-context-pool__more {
+/* Indicador pasivo +N cuando hay overflow y la barra está colapsada. */
+.plane-context-pool__overflow-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
   flex-shrink: 0;
   box-sizing: border-box;
   height: 20px;
   margin-left: 2px;
   padding: 0 5px;
-  border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
-  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
-  background: color-mix(in srgb, var(--plane-glass) 60%, transparent);
   color: var(--text-muted);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  cursor: pointer;
-  transition: color 0.12s, border-color 0.12s, background 0.12s;
-}
-
-.plane-context-pool__more:hover,
-.plane-context-pool__more--open {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--plane-border) 60%, transparent);
-  background: color-mix(in srgb, var(--plane-glass) 90%, transparent);
-}
-
-/* Popover del catálogo. Cuelga de la barra (que ya es el bloque contenedor). */
-.plane-context-pool__overflow {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  width: 292px;
-  max-height: min(52vh, 380px);
-  border: 1px solid var(--border);
-  border-radius: var(--plane-top-bar-radius, 8px);
-  background: var(--bg-secondary);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
-  overflow: hidden;
-}
-
-.plane-context-pool__overflow-search {
-  flex-shrink: 0;
-  padding: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-}
-
-.plane-context-pool__overflow-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 4px 0 6px;
-}
-
-.plane-context-pool__overflow-group {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 6px 0 2px;
-  padding: 0 10px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.plane-context-pool__overflow-group span {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  opacity: 0.7;
-}
-
-.plane-context-pool__overflow-empty,
-.plane-context-pool__overflow-hint {
-  margin: 0;
-  padding: 10px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.plane-context-pool__overflow-hint {
-  flex-shrink: 0;
-  padding: 6px 10px 8px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-}
-
-/* Fila del catálogo: mismo gesto que el chip, pero con nombre. */
-.plane-context-pool__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 4px 10px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  text-align: left;
-  cursor: grab;
-  /* Sin esto el nombre es texto seleccionable y el mousedown arranca una
-     selección en vez del drag: `dragstart` nunca llega. El chip no lo sufre
-     porque es solo ícono. Mismo motivo que en la cabecera de PaneWindow. */
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.plane-context-pool__row:hover {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.plane-context-pool__row:active {
-  cursor: grabbing;
-}
-
-.plane-context-pool__row-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.plane-context-pool__row-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.plane-context-pool__row-kind {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.plane-context-pool__row-count {
-  flex-shrink: 0;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Durante el arrastre el popover se aparta sin desmontarse: la fila tiene que
-   seguir en el DOM o Chromium cancela el drag, pero no debe tapar al agente. */
-.plane-context-pool__overflow--dragging {
-  opacity: 0;
   pointer-events: none;
 }
 
-/* El fantasma de una fila se reduce al mismo chip que se arrastra desde la
-   barra: arrastrar el mismo contexto debe verse igual venga de donde venga.
-   Va después de `--ghost` a propósito — misma especificidad, y si no, el
-   `background: transparent` de la fila gana y el clon sale translúcido. */
-.plane-context-pool__row.plane-context-pool__chip--ghost {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  gap: 0;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
-  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
-  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--surface));
-}
-
-.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-name,
-.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-kind,
-.plane-context-pool__row.plane-context-pool__chip--ghost .plane-context-pool__row-count {
+.plane-context-pool--expanded .plane-context-pool__overflow-badge,
+.plane-context-pool:focus-within .plane-context-pool__overflow-badge,
+.plane-context-pool-shell--expanded .plane-context-pool__overflow-badge,
+.plane-context-pool-shell:focus-within .plane-context-pool__overflow-badge {
   display: none;
 }

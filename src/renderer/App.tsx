@@ -25,6 +25,9 @@ import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
+import type { OnboardingCliRow } from './components/onboarding'
+import { mapCliRows, shouldOpenOnboarding } from './onboardingGate'
+import { ONBOARDING_VERSION } from '@shared/onboarding'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
@@ -41,10 +44,10 @@ import {
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
-import { markSplashUiReady } from './splash'
+import { markSplashUiReady, whenSplashDismissed } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
-import { BrainstormListModal } from './workspace/BrainstormListModal'
+import { BrainstormRoomsView } from './workspace/BrainstormRoomsView'
 import {
   createBrainstormLiveSummary,
   type BrainstormLiveSummary,
@@ -73,6 +76,9 @@ import {
   type AgentPlaneQueueControls,
   type PlaneSendDelegation,
 } from './agent/AgentPane'
+import { isHumanQueuedTurn, queuedTurnHumanKey } from './agent/queuedTurnDedup'
+import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
+import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
@@ -83,6 +89,8 @@ import {
   formatDelegationRoundCapFollowUp,
   buildBatchedDelegationFollowUp,
   shouldWakeOrchestratorOnDelegationComplete,
+  isDuplicateOrchestrationQueueItem,
+  orchestrationFollowUpKey,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
   isOrchestrationRoundsUnlimited,
@@ -90,6 +98,11 @@ import {
   shouldAbortOnHumanTurn,
 } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
+import {
+  buildDelegationTurnSummary,
+  isBetterDelegationSummary,
+  isDelegationSummaryPlaceholder,
+} from '@shared/delegationTurnSummary'
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
@@ -208,6 +221,7 @@ import {
   allocateAgentSlug,
   agentBindingFromMeta,
   agentDefinitionFromMeta,
+  agentResultContextIdForSlug,
   buildNewProjectAgentDefinition,
   cloneProjectAgentDefinition,
   isAgentOwnResultContext,
@@ -255,6 +269,7 @@ import {
   downloadOrgWorkspaceToLocal,
   uploadOrgWorkspaceFromLocal,
   type OrgWorkspaceMaterializeDeps,
+  type OrgWorkspaceSyncPhase,
 } from './orgWorkspaceMaterialize'
 import {
   OrgWorkspaceRequirementModal,
@@ -285,78 +300,8 @@ import {
 
 export type { TabSession, TabSplitSizes } from '../shared/tabSession'
 
-/** Máximo de paneles (ventanas) por pestaña. */
-export const MAX_PANES_PER_TAB = 10
-
 function reorderPaneIdsAfterClose(paneIds: string[], closedPaneId: string): string[] {
   return paneIds.filter(id => id !== closedPaneId)
-}
-
-function capTabsPaneCount(tabs: TabSession[], maxPanes: number): { tabs: TabSession[]; orphanPaneIds: string[] } {
-  const orphanPaneIds: string[] = []
-  const out = tabs.map(tab => {
-    if (tab.paneIds.length <= maxPanes) return tab
-    orphanPaneIds.push(...tab.paneIds.slice(maxPanes))
-    const paneIds = tab.paneIds.slice(0, maxPanes)
-    const activePaneId = paneIds.includes(tab.activePaneId)
-      ? tab.activePaneId
-      : (paneIds[paneIds.length - 1] ?? '')
-    const paneKinds = Object.fromEntries(
-      Object.entries(tab.paneKinds ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const agentByPane = Object.fromEntries(
-      Object.entries(tab.agentByPane ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const paneWindows = Object.fromEntries(
-      Object.entries(tab.paneWindows ?? {}).filter(([id]) => paneIds.includes(id)),
-    )
-    const planeOpenChatAgentId =
-      typeof tab.planeOpenChatAgentId === 'string'
-      && paneIds.includes(tab.planeOpenChatAgentId)
-      && paneKinds[tab.planeOpenChatAgentId] === 'agent'
-        ? tab.planeOpenChatAgentId
-        : null
-    const agentPaneIds = new Set(
-      paneIds.filter(id => paneKinds[id] === 'agent'),
-    )
-    const planeLoopLinks = (tab.planeLoopLinks ?? []).filter(
-      link => agentPaneIds.has(link.fromPaneId) && agentPaneIds.has(link.toPaneId),
-    )
-    const planeLoopNodePositions = Object.fromEntries(
-      Object.entries(tab.planeLoopNodePositions ?? {})
-        .filter(([id]) => agentPaneIds.has(id)),
-    )
-    const planeLoopChains = (tab.planeLoopChains ?? [])
-      .map(chain => ({
-        ...chain,
-        steps: chain.steps.filter(step => agentPaneIds.has(step.paneId)),
-      }))
-      .filter(chain => chain.steps.length > 0)
-      .map(chain => ({
-        ...chain,
-        cursor: chain.cursor >= 0 && chain.cursor < chain.steps.length ? chain.cursor : 0,
-        status: 'idle' as const,
-      }))
-    const {
-      panePlaneNodes: _legacyPlaneNodes,
-      ...tabBase
-    } = tab as TabSession & { panePlaneNodes?: unknown }
-    return normalizeTabSession({
-      ...tabBase,
-      paneIds,
-      activePaneId,
-      ...(Object.keys(paneKinds).length ? { paneKinds } : { paneKinds: undefined }),
-      ...(Object.keys(agentByPane).length ? { agentByPane } : { agentByPane: undefined }),
-      ...(Object.keys(paneWindows).length ? { paneWindows } : { paneWindows: undefined }),
-      planeOpenChatAgentId,
-      ...(planeLoopLinks.length ? { planeLoopLinks } : { planeLoopLinks: undefined }),
-      ...(Object.keys(planeLoopNodePositions).length
-        ? { planeLoopNodePositions }
-        : { planeLoopNodePositions: undefined }),
-      ...(planeLoopChains.length ? { planeLoopChains } : { planeLoopChains: undefined }),
-    })
-  })
-  return { tabs: out, orphanPaneIds: orphanPaneIds }
 }
 
 /** Marca que las pestañas ya fueron cargadas desde persistencia (o se creó la primera). */
@@ -510,6 +455,13 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
+  const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
+  const [onboardingCliLoading, setOnboardingCliLoading] = useState(false)
+  const [onboardingCliError, setOnboardingCliError] = useState(false)
+  const [onboardingTeamCreated, setOnboardingTeamCreated] = useState(false)
+  const onboardingAutoOpenedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   /** Tabs org cuyo resync manual está en curso. */
@@ -522,6 +474,14 @@ export const App: React.FC = () => {
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
     useState<OrgWorkspaceRequirementState | null>(null)
+
+  const reportOrgSyncPhase = useCallback((phase: OrgWorkspaceSyncPhase) => {
+    setOrgWorkspaceRequirement(prev => (
+      prev?.syncing ? { ...prev, syncPhase: phase } : prev
+    ))
+  }, [])
+  /** Invalida sync/upload en curso al cancelar con Espacio. */
+  const orgWorkspaceSyncUploadGenRef = useRef(0)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [agentPicker, setAgentPicker] = useState<{ tabId: string; fromPaneId?: string } | null>(null)
   const [agentCreate, setAgentCreate] = useState<{
@@ -547,7 +507,7 @@ export const App: React.FC = () => {
     workspaceId: string,
     tabIds: string[],
     options?: { wipeLocal?: boolean },
-  ) => Promise<{ agentsOk: boolean; contextsOk: boolean }>>(async () => ({
+  ) => Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }>>(async () => ({
     agentsOk: false,
     contextsOk: false,
   }))
@@ -591,17 +551,25 @@ export const App: React.FC = () => {
   const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
   planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
-  /** Arranque de una sala: objetivo, invitados y ajustes en una sola pantalla. */
-  const [brainstormStartOpenByTab, setBrainstormStartOpenByTab] = useState<Record<string, boolean>>({})
-  /** Mesa del plano: camino opcional para sentar arrastrando antes del arranque. */
-  const [brainstormTableOpenByTab, setBrainstormTableOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormSeatedByTab, setBrainstormSeatedByTab] = useState<Record<string, string[]>>({})
-  const [brainstormListOpenByTab, setBrainstormListOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormRoomByTab, setBrainstormRoomByTab] = useState<Record<string, BrainstormRoom | null>>({})
-  /** Sala minimizada: sigue montada y corriendo, solo oculta. */
-  const [brainstormMinimizedByTab, setBrainstormMinimizedByTab] = useState<Record<string, boolean>>({})
+  /**
+   * Salas por tab, en orden de convocatoria. Son varias a la vez: main ya
+   * lleva un runner por `roomId`, así que el límite era solo del renderer.
+   */
+  const [brainstormRoomsByTab, setBrainstormRoomsByTab] = useState<Record<string, BrainstormRoom[]>>({})
+  /**
+   * Qué mira el usuario dentro del módulo: la biblioteca, el alta, o una sala
+   * por su id. Estado de vista, no de sesión —cerrar no detiene nada—, y por eso
+   * las tres vistas comparten un solo campo en vez de tres booleanos que podían
+   * quedar abiertos a la vez.
+   */
+  const [brainstormViewByTab, setBrainstormViewByTab] = useState<
+    Record<string, 'rooms' | 'setup' | string | null>
+  >({})
+  /** Actas en disco por tab: decide si el botón abre la biblioteca o el alta. */
+  const [brainstormSavedCountByTab, setBrainstormSavedCountByTab] = useState<Record<string, number>>({})
   const [brainstormDockOpenByTab, setBrainstormDockOpenByTab] = useState<Record<string, boolean>>({})
-  const [brainstormLiveByTab, setBrainstormLiveByTab] = useState<Record<string, BrainstormLiveSummary | null>>({})
+  /** Estado vivo por sala: la clave es el `roomId`, no el tab. */
+  const [brainstormLiveByRoomId, setBrainstormLiveByRoomId] = useState<Record<string, BrainstormLiveSummary>>({})
   const [loopFifoTick, setLoopFifoTick] = useState(0)
   const [orchestrationFifoTick, setOrchestrationFifoTick] = useState(0)
   const [humanSendFifoTick, setHumanSendFifoTick] = useState(0)
@@ -633,6 +601,12 @@ export const App: React.FC = () => {
     allowDelegations?: boolean
     delegation?: PlaneSendDelegation
   }>>())
+  /**
+   * Follow-ups de orquestación ya despachados por pane (clave job+texto). Sin
+   * esto, un follow-up ya consumido se reencola idéntico sin tope; un turno
+   * humano en el pane limpia la memoria.
+   */
+  const dispatchedOrchestrationFollowUpsByPaneRef = useRef(new Map<string, Set<string>>())
   /**
    * Jobs de orquestación por pane (linear ≤1; turbo N).
    * Reemplaza pending/deferred/wave/rounds/completed por-mapa plano.
@@ -676,6 +650,7 @@ export const App: React.FC = () => {
   const reconcileIdleDelegationTargetRef = useRef<(
     paneId: string,
     summary: string,
+    failed: boolean,
   ) => void>(() => undefined)
   const reconcilingIdleDelegationPaneIdsRef = useRef(new Set<string>())
   const syncAwaitingFromPending = useCallback(() => {
@@ -696,7 +671,10 @@ export const App: React.FC = () => {
           ...(worktreePath ? { worktreePath } : {}),
         }
       })
-      const view = buildOrchestrationAwaitingView(flat)
+      const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+      const catalogKey = tab ? tabAgentCatalogKey(tab) : ''
+      const catalog = catalogKey ? (projectAgentsByCwdRef.current[catalogKey] ?? []) : []
+      const view = buildOrchestrationAwaitingView(flat, { catalog })
       const stillWaiting = jobs.some(isJobAwaiting)
       if (view && stillWaiting) nextViews.set(fromPaneId, view)
       if (!stillWaiting) {
@@ -715,7 +693,11 @@ export const App: React.FC = () => {
         startedAt: pending.startedAt,
         nowMs: Date.now(),
       })) continue
-      reconcileIdleDelegationTargetRef.current(toPaneId, status.lastSnippet)
+      reconcileIdleDelegationTargetRef.current(
+        toPaneId,
+        status.lastSnippet,
+        status.lastTurnFailed === true,
+      )
     }
   }, [])
   /**
@@ -898,7 +880,6 @@ export const App: React.FC = () => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
     if (!current) return
     const synced = syncTabAgentsFromCatalog(current, agents, {
-      maxPanes: MAX_PANES_PER_TAB,
       createPaneId: () => crypto.randomUUID(),
       createWindow: (paneWindows, open) => createPaneWindowState(paneWindows, open),
       // Las sesiones CLI viven en memoria (también en org) para --resume entre
@@ -946,8 +927,12 @@ export const App: React.FC = () => {
     slug: string,
     workspaceId: string,
     tabIds: string[],
-    options: { wipeLocal?: boolean } = {},
-  ): Promise<{ agentsOk: boolean; contextsOk: boolean }> => {
+    options: {
+      wipeLocal?: boolean
+      cancelGen?: number
+      onPhase?: (phase: OrgWorkspaceSyncPhase) => void
+    } = {},
+  ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       return { agentsOk: false, contextsOk: false }
@@ -1039,6 +1024,7 @@ export const App: React.FC = () => {
 
     let agentsOk = true
     let contextsOk = true
+    let wikiError: string | undefined
     for (const cwd of folders) {
       const preferredAgentIds = targets
         .filter(tab => (
@@ -1054,9 +1040,11 @@ export const App: React.FC = () => {
           workspaceId,
           localDir: cwd,
         },
+        ...(options.onPhase ? { onPhase: options.onPhase } : {}),
       })
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
+      if (result.wikiError && !wikiError) wikiError = result.wikiError
       const agents = await refreshProjectAgents(cwd)
       for (const tab of targets) {
         if ((tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || '') !== cwd) continue
@@ -1067,7 +1055,23 @@ export const App: React.FC = () => {
         }
       }
     }
-    return { agentsOk, contextsOk }
+    if (wikiError) {
+      const cancelled = options.cancelGen !== undefined
+        && options.cancelGen !== orgWorkspaceSyncUploadGenRef.current
+      if (!cancelled) {
+        setOrgWorkspaceRequirement(prev => {
+          if (!prev) return { wikiError }
+          const {
+            syncing: _syncing,
+            cloning: _cloning,
+            uploading: _uploading,
+            ...rest
+          } = prev
+          return { ...rest, wikiError }
+        })
+      }
+    }
+    return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
   }, [refreshProjectAgents, syncTabWithProjectAgents])
   syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
 
@@ -1425,12 +1429,8 @@ export const App: React.FC = () => {
     window.api.loadSession().then(saved => {
       const sanitized = saved ? sanitizePersistedSession(saved) : null
       if (sanitized) {
-        const { tabs: cappedTabs, orphanPaneIds: capOrphans } = capTabsPaneCount(
-          sanitized.tabs,
-          MAX_PANES_PER_TAB,
-        )
-        const orphanPaneIds = [...new Set([...sanitized.orphanPaneIds, ...capOrphans])]
-        const keptPaneIds = new Set(cappedTabs.flatMap(t => t.paneIds))
+        const orphanPaneIds = [...new Set(sanitized.orphanPaneIds)]
+        const keptPaneIds = new Set(sanitized.tabs.flatMap(t => t.paneIds))
         for (const pid of orphanPaneIds) {
           window.api.ptyKill(pid)
           splitSpawnCwdRef.current.delete(pid)
@@ -1464,11 +1464,11 @@ export const App: React.FC = () => {
         for (const [paneId, cwd] of Object.entries(cwdsRef.current)) {
           if (cwd.trim()) splitSpawnCwdRef.current.set(paneId, cwd)
         }
-        tabCounter = deriveTabCounter(cappedTabs)
-        const activeTabId = cappedTabs.some(t => t.id === sanitized.activeTabId)
+        tabCounter = deriveTabCounter(sanitized.tabs)
+        const activeTabId = sanitized.tabs.some(t => t.id === sanitized.activeTabId)
           ? sanitized.activeTabId
-          : cappedTabs[0]!.id
-        const layoutTabs = cappedTabs.map(tab => normalizeTabSession(ensureTabPaneLayout(tab)))
+          : sanitized.tabs[0]!.id
+        const layoutTabs = sanitized.tabs.map(tab => normalizeTabSession(ensureTabPaneLayout(tab)))
         setTabs(layoutTabs)
         tabsRef.current = layoutTabs
         setActiveTabId(activeTabId)
@@ -1764,13 +1764,13 @@ export const App: React.FC = () => {
     orgSlug: string,
     workspaceId: string,
     cwd: string,
-  ): Promise<void> => {
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
     const slug = orgSlug.trim()
     const ws = workspaceId.trim()
     const root = cwd.trim()
-    if (!slug || !ws || !root) return
+    if (!slug || !ws || !root) return { ok: true }
     const covenant = getCovenantApi()
-    if (!covenant || !hasCovenantWikiApi(covenant)) return
+    if (!covenant || !hasCovenantWikiApi(covenant)) return { ok: true }
     try {
       await syncOrgWikiPush({
         scope: { orgSlug: slug, workspaceId: ws },
@@ -1784,8 +1784,11 @@ export const App: React.FC = () => {
         listRemotePages: () => covenant.listWikiPages(slug, ws),
         listRemoteLog: () => covenant.listWikiLog(slug, ws),
       })
-    } catch {
-      /* fire-and-forget callers ignore */
+      return { ok: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('[orgWikiSync] push falló:', message)
+      return { ok: false, error: message }
     }
   }, [])
 
@@ -2229,87 +2232,104 @@ export const App: React.FC = () => {
 
     const workspaceSlug = sanitizeSlugSegment(org.name || org.workspaceId)
       || sanitizeSlugSegment(org.workspaceId)
-    setOrgWorkspaceRequirement({ cloning: true })
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
     const covenant = getCovenantApi()
-    let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-    if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-      const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
-      if (reposResult.ok) {
-        repos = reposResult.data.map(r => ({
-          repoFullName: r.repoFullName,
-          cloneUrl: r.cloneUrl,
-          ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-        }))
+    try {
+      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+        const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+        if (reposResult.ok) {
+          repos = reposResult.data.map(r => ({
+            repoFullName: r.repoFullName,
+            cloneUrl: r.cloneUrl,
+            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+          }))
+        }
       }
-    }
 
-    const res = await (covenant?.cloneOrgWorkspace
-      ? covenant.cloneOrgWorkspace({
-          orgSlug: org.slug,
-          workspaceSlug,
-          repos,
+      const res = await (covenant?.cloneOrgWorkspace
+        ? covenant.cloneOrgWorkspace({
+            orgSlug: org.slug,
+            workspaceSlug,
+            repos,
+          })
+        : Promise.resolve({
+            ok: false as const,
+            error: 'clone unavailable',
+            failure: undefined,
+          }))
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      if (!res.ok) {
+        if (res.error === 'missing-default-dir') {
+          setOrgWorkspaceRequirement({ missingFolder: true })
+        } else if (res.error === 'missing-token') {
+          setOrgWorkspaceRequirement({ missingToken: true })
+        } else {
+          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+        }
+        return
+      }
+
+      const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
+      const tab = newTab(title)
+      tab.titleLocked = true
+      tab.projectFolder = res.workspaceDir
+      tab.orgWorkspace = {
+        slug: org.slug,
+        workspaceId: org.workspaceId,
+        localDir: res.workspaceDir,
+      }
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+        explorerByTabRef.current = next
+        return next
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+
+      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+          wipeLocal: false,
+          cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
         })
-      : Promise.resolve({
-          ok: false as const,
-          error: 'clone unavailable',
-          failure: undefined,
-        }))
-    if (!res.ok) {
-      if (res.error === 'missing-default-dir') {
-        setOrgWorkspaceRequirement({ missingFolder: true })
-      } else if (res.error === 'missing-token') {
-        setOrgWorkspaceRequirement({ missingToken: true })
-      } else {
-        setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+      } else if (selection.agents.length || selection.contexts.length) {
+        const cwd = res.workspaceDir
+        for (const definition of selection.agents) {
+          const written = await window.api.upsertProjectAgent(cwd, definition)
+          if (written.ok) rememberProjectAgent(cwd, written.agent)
+        }
+        for (const context of selection.contexts) {
+          await window.api.materializeTabContext({ context, cwd })
+        }
+        const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
+        const discovered = await window.api.discoverTabContexts({ cwd })
+        if (discovered.ok) {
+          setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
+        }
+        if (agents.length) {
+          queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
+        }
       }
-      return
-    }
-
-    setOrgWorkspaceRequirement(null)
-    const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
-    const tab = newTab(title)
-    tab.titleLocked = true
-    tab.projectFolder = res.workspaceDir
-    tab.orgWorkspace = {
-      slug: org.slug,
-      workspaceId: org.workspaceId,
-      localDir: res.workspaceDir,
-    }
-    setExplorerByTab(prev => {
-      const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
-      explorerByTabRef.current = next
-      return next
-    })
-    setTabs(prev => [...prev, tab])
-    setActiveTabId(tab.id)
-
-    if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-      setOrgWorkspaceRequirement({ syncing: true })
-      try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false })
-      } finally {
+    } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
         setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       }
-    } else if (selection.agents.length || selection.contexts.length) {
-      const cwd = res.workspaceDir
-      for (const definition of selection.agents) {
-        const written = await window.api.upsertProjectAgent(cwd, definition)
-        if (written.ok) rememberProjectAgent(cwd, written.agent)
-      }
-      for (const context of selection.contexts) {
-        await window.api.materializeTabContext({ context, cwd })
-      }
-      const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
-      const discovered = await window.api.discoverTabContexts({ cwd })
-      if (discovered.ok) {
-        setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
-      }
-      if (agents.length) {
-        queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
-      }
     }
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+
+  const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
+    orgWorkspaceSyncUploadGenRef.current += 1
+    setOrgWorkspaceRequirement(prev => {
+      if (!prev?.syncing && !prev?.uploading) return prev
+      return null
+    })
+    setResyncingWorkspaceTabs(new Set())
+    setUploadingWorkspaceTabs(new Set())
+  }, [])
 
   const handleResyncOrgWorkspace = useCallback(async (tab: TabSession) => {
     const org = tab.orgWorkspace
@@ -2317,12 +2337,13 @@ export const App: React.FC = () => {
     const covenant = getCovenantApi()
     if (!covenant) return
 
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setResyncingWorkspaceTabs(prev => {
       const next = new Set(prev)
       next.add(tab.id)
       return next
     })
-    setOrgWorkspaceRequirement({ syncing: true })
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
     try {
       try {
         if (
@@ -2332,6 +2353,7 @@ export const App: React.FC = () => {
           const localDir = tab.projectFolder?.trim() || org.localDir?.trim() || ''
           if (localDir) {
             const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+            if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
             if (reposResult.ok && reposResult.data.length) {
               await covenant.cloneOrgWorkspace({
                 orgSlug: org.slug,
@@ -2350,23 +2372,32 @@ export const App: React.FC = () => {
         console.warn('[resync repos]', org.slug, org.workspaceId, err)
       }
 
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false })
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+          wipeLocal: false,
+          cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
+        })
       } catch (err) {
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
         console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
         setOrgWorkspaceRequirement(prev => prev ?? {
           agentUpdateError: err instanceof Error ? err.message : 'resync failed',
         })
       }
     } finally {
-      setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      }
       setResyncingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
         return next
       })
     }
-  }, [syncOrgWorkspaceContent])
+  }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   const handleUploadOrgWorkspace = useCallback(async (tab: TabSession) => {
@@ -2394,6 +2425,7 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setOrgWorkspaceRequirement({ uploading: true })
     try {
       const deps: OrgWorkspaceMaterializeDeps = {
@@ -2454,26 +2486,29 @@ export const App: React.FC = () => {
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
       })
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       if (!result.ok) {
         setOrgWorkspaceRequirement({ uploadError: result.error ?? 'upload failed' })
         return
       }
       if (hasCovenantWikiApi(covenant)) {
-        try {
-          await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
-        } catch (err) {
-          console.warn(
-            '[orgWikiSync] push tras upload falló:',
-            err instanceof Error ? err.message : String(err),
-          )
+        const wikiPush = await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+        if (!wikiPush.ok) {
+          setOrgWorkspaceRequirement({ wikiError: wikiPush.error })
+          return
         }
       }
       setOrgWorkspaceRequirement(null)
     } catch (err) {
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       setOrgWorkspaceRequirement({
         uploadError: err instanceof Error ? err.message : 'upload failed',
       })
     } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.uploading ? null : prev))
+      }
       setUploadingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
@@ -2601,6 +2636,7 @@ export const App: React.FC = () => {
     if (isAgent) window.api.stopAgentTurn(paneId)
     else window.api.ptyKill(paneId)
     termRefs.current.delete(paneId)
+    dispatchedOrchestrationFollowUpsByPaneRef.current.delete(paneId)
     splitSpawnCwdRef.current.delete(paneId)
     delete cwdsRef.current[paneId]
     setPaneCwds(prev => {
@@ -2721,77 +2757,84 @@ export const App: React.FC = () => {
 
     if (isOrgBacked && org && path !== previousLocalDir) {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
-      setOrgWorkspaceRequirement({ cloning: true })
+      const opGen = ++orgWorkspaceSyncUploadGenRef.current
+      setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
       const covenant = getCovenantApi()
-      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-        const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
-        if (reposResult.ok) {
-          repos = reposResult.data.map(r => ({
-            repoFullName: r.repoFullName,
-            cloneUrl: r.cloneUrl,
-            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-          }))
+      try {
+        let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+        if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+          const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
+          if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+          if (reposResult.ok) {
+            repos = reposResult.data.map(r => ({
+              repoFullName: r.repoFullName,
+              cloneUrl: r.cloneUrl,
+              ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+            }))
+          }
         }
-      }
-      const res = await (covenant?.cloneOrgWorkspace
-        ? covenant.cloneOrgWorkspace({
-            orgSlug,
-            workspaceSlug,
-            repos,
-            workspaceDir: path,
+        const res = await (covenant?.cloneOrgWorkspace
+          ? covenant.cloneOrgWorkspace({
+              orgSlug,
+              workspaceSlug,
+              repos,
+              workspaceDir: path,
+            })
+          : Promise.resolve({
+              ok: false as const,
+              error: 'clone unavailable',
+              failure: undefined,
+            }))
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+        if (!res.ok) {
+          if (res.error === 'missing-default-dir') {
+            setOrgWorkspaceRequirement({ missingFolder: true })
+          } else if (res.error === 'missing-token') {
+            setOrgWorkspaceRequirement({ missingToken: true })
+          } else {
+            setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+          }
+          return null
+        }
+
+        const next = tabsRef.current.map(t => (
+          t.id === tabId
+            ? {
+                ...t,
+                projectFolder: path,
+                orgWorkspace: {
+                  slug: orgSlug,
+                  workspaceId,
+                  localDir: path,
+                },
+              }
+            : t
+        ))
+        tabsRef.current = next
+        setTabs(next)
+
+        const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
+        const updatedTab = next.find(item => item.id === tabId)
+        const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
+        if (explorerOpen && explorerSessionId) {
+          void window.api.fileExplorerSetRoot(explorerSessionId, path)
+        }
+
+        await saveSessionNow()
+
+        if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], {
+            wipeLocal: false,
+            cancelGen: opGen,
+            onPhase: reportOrgSyncPhase,
           })
-        : Promise.resolve({
-            ok: false as const,
-            error: 'clone unavailable',
-            failure: undefined,
-          }))
-      if (!res.ok) {
-        if (res.error === 'missing-default-dir') {
-          setOrgWorkspaceRequirement({ missingFolder: true })
-        } else if (res.error === 'missing-token') {
-          setOrgWorkspaceRequirement({ missingToken: true })
-        } else {
-          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
         }
-        return null
-      }
-      setOrgWorkspaceRequirement(null)
-
-      const next = tabsRef.current.map(t => (
-        t.id === tabId
-          ? {
-              ...t,
-              projectFolder: path,
-              orgWorkspace: {
-                slug: orgSlug,
-                workspaceId,
-                localDir: path,
-              },
-            }
-          : t
-      ))
-      tabsRef.current = next
-      setTabs(next)
-
-      const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
-      const updatedTab = next.find(item => item.id === tabId)
-      const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
-      if (explorerOpen && explorerSessionId) {
-        void window.api.fileExplorerSetRoot(explorerSessionId, path)
-      }
-
-      await saveSessionNow()
-
-      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-        setOrgWorkspaceRequirement({ syncing: true })
-        try {
-          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], { wipeLocal: false })
-        } finally {
+        return path
+      } finally {
+        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
           setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
         }
       }
-      return path
     }
 
     const previousCwd = tab?.projectFolder?.trim() || ''
@@ -2824,17 +2867,17 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
-    if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!tab) return
     const cwd = tab.projectFolder?.trim() || ''
     if (!cwd) return
     const newPaneId = crypto.randomUUID()
     rememberPaneCwd(newPaneId, cwd)
     setTabs(prev => prev.map(t => {
-      if (t.id !== tabId || t.paneIds.length >= MAX_PANES_PER_TAB) return t
+      if (t.id !== tabId) return t
       const paneWindows = { ...(t.paneWindows ?? {}) }
       minimizeOtherPaneWindows(t.paneIds, paneWindows, newPaneId)
       paneWindows[newPaneId] = createPaneWindowState(paneWindows, true)
@@ -2856,7 +2899,7 @@ export const App: React.FC = () => {
     name: string,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!current) return
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
     if (!cwd) return
@@ -2876,7 +2919,7 @@ export const App: React.FC = () => {
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      if (tab.id !== tabId) return tab
       const paneWindows = { ...(tab.paneWindows ?? {}) }
       /* Mini en el plano: el chat centrado es el home; ventana al expandir. */
       paneWindows[paneId] = createPaneWindowState(paneWindows, false)
@@ -2896,32 +2939,30 @@ export const App: React.FC = () => {
     scheduleSaveSession()
   }, [rememberPaneCwd, rememberProjectAgent, scheduleSaveSession])
 
-  const bootstrapProjectAgents = useCallback(async (tabId: string) => {
+  const bootstrapProjectAgents = useCallback(async (tabId: string): Promise<boolean> => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current) return
+    if (!current) return false
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
-    if (!cwd) return
+    if (!cwd) return false
     const catalog = projectAgentsByCwdRef.current[catalogKey] ?? []
-    if (catalog.length > 0) return
+    if (catalog.length > 0) return true
     const hasAgentPane = (current.paneIds ?? []).some(
       paneId => current.paneKinds?.[paneId] === 'agent',
     )
-    if (hasAgentPane) return
+    if (hasAgentPane) return true
 
-    const room = MAX_PANES_PER_TAB - current.paneIds.length
-    if (room <= 0) return
-
+    let created = false
     const existing = new Set(catalog.map(agent => agent.id))
     const definitions = buildBootstrapProjectAgentDefinitions('cursor', existing)
-      .slice(0, room)
 
     for (const definition of definitions) {
       const tabNow = tabsRef.current.find(tab => tab.id === tabId)
-      if (!tabNow || tabNow.paneIds.length >= MAX_PANES_PER_TAB) break
+      if (!tabNow) break
 
       const written = await window.api.upsertProjectAgent(cwd, definition)
       if (!written.ok) continue
+      created = true
       const agent = written.agent
       rememberProjectAgent(catalogKey, agent)
       await window.api.ensureAiAgentResults({
@@ -2933,7 +2974,7 @@ export const App: React.FC = () => {
       const paneId = crypto.randomUUID()
       rememberPaneCwd(paneId, cwd)
       setTabs(prev => prev.map(tab => {
-        if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+        if (tab.id !== tabId) return tab
         const paneWindows = { ...(tab.paneWindows ?? {}) }
         paneWindows[paneId] = createPaneWindowState(paneWindows, false)
         const paneKinds: Record<string, PaneKind> = {
@@ -2955,6 +2996,7 @@ export const App: React.FC = () => {
     }
     scheduleSaveSession()
     void refreshAndSyncProjectAgents(cwd, tabId)
+    return created
   }, [
     rememberPaneCwd,
     rememberProjectAgent,
@@ -2962,13 +3004,85 @@ export const App: React.FC = () => {
     scheduleSaveSession,
   ])
 
+  const refreshOnboardingClis = useCallback(async () => {
+    setOnboardingCliLoading(true)
+    setOnboardingCliError(false)
+    try {
+      const result = await window.api.detectOnboardingClis()
+      setOnboardingClis(mapCliRows(result))
+    } catch {
+      setOnboardingClis([])
+      setOnboardingCliError(true)
+    } finally {
+      setOnboardingCliLoading(false)
+    }
+  }, [])
+
+  const handleOnboardingNext = useCallback(() => {
+    setOnboardingStep(prev => Math.min(4, prev + 1))
+  }, [])
+
+  const handleOnboardingBack = useCallback(() => {
+    setOnboardingStep(prev => Math.max(0, prev - 1))
+  }, [])
+
+  const persistOnboardingCompleted = useCallback((version: string) => {
+    void window.api.setConfig({ onboardingCompletedVersion: version })
+    setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
+  }, [])
+
+  const handleOnboardingCloseComplete = useCallback(() => {
+    setOnboardingOpen(false)
+    persistOnboardingCompleted(ONBOARDING_VERSION)
+  }, [persistOnboardingCompleted])
+
+  const handleOnboardingPickFolder = useCallback(() => {
+    void handlePickProjectFolder(activeTabIdRef.current)
+  }, [handlePickProjectFolder])
+
+  const handleOnboardingCreateTeam = useCallback(async () => {
+    try {
+      const created = await bootstrapProjectAgents(activeTabIdRef.current)
+      setOnboardingTeamCreated(created)
+    } catch {
+      setOnboardingTeamCreated(false)
+    }
+  }, [bootstrapProjectAgents])
+
+  const handleReplayOnboarding = useCallback(() => {
+    setSettingsOpen(false)
+    setOnboardingStep(0)
+    setOnboardingTeamCreated(false)
+    setOnboardingOpen(true)
+    void refreshOnboardingClis()
+    persistOnboardingCompleted('')
+  }, [persistOnboardingCompleted, refreshOnboardingClis])
+
+  // Onboarding: primer arranque tras el fundido del splash (no roba foco antes).
+  useEffect(() => {
+    const ready = configReady && sessionReady.loaded
+    if (!shouldOpenOnboarding(config.onboardingCompletedVersion, ready)) return
+    if (onboardingAutoOpenedRef.current) return
+    onboardingAutoOpenedRef.current = true
+    void refreshOnboardingClis()
+    let cancelled = false
+    void whenSplashDismissed().then(() => {
+      if (cancelled) return
+      setOnboardingOpen(true)
+      setOnboardingStep(0)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [configReady, config.onboardingCompletedVersion, sessionReady.loaded, refreshOnboardingClis])
+
   /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
   const handleDuplicateAgentPane = useCallback(async (
     tabId: string,
     sourcePaneId: string,
   ) => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current || current.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!current) return
     if (current.paneKinds?.[sourcePaneId] !== 'agent') return
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
@@ -2994,7 +3108,7 @@ export const App: React.FC = () => {
     const paneId = crypto.randomUUID()
     rememberPaneCwd(paneId, cwd)
     setTabs(prev => prev.map(tab => {
-      if (tab.id !== tabId || tab.paneIds.length >= MAX_PANES_PER_TAB) return tab
+      if (tab.id !== tabId) return tab
       const paneWindows = { ...(tab.paneWindows ?? {}) }
       paneWindows[paneId] = createPaneWindowState(paneWindows, false)
       const paneKinds: Record<string, PaneKind> = { ...(tab.paneKinds ?? {}), [paneId]: 'agent' }
@@ -3031,7 +3145,7 @@ export const App: React.FC = () => {
     fromPaneId?: string,
   ): void => {
     const tab = tabsRef.current.find(item => item.id === tabId)
-    if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+    if (!tab) return
     const orgBacked = Boolean(tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim())
     if (!tab.projectFolder?.trim() && !orgBacked) return
     setAgentPicker({ tabId, fromPaneId })
@@ -3247,6 +3361,36 @@ export const App: React.FC = () => {
     setOpenConfigForPaneId(paneId)
   }, [armSuppressPaneExpand, lockMiniExpandForConfig])
 
+  /**
+   * Cuántas actas tiene cada proyecto en disco. Lo necesita el botón del plano
+   * para saber si el módulo abre por la biblioteca o directo al alta, y hay que
+   * saberlo antes de abrir nada, así que no puede salir de la propia lista.
+   */
+  useEffect(() => {
+    let cancelled = false
+    const roots = new Map<string, string[]>()
+    tabs.forEach(tab => {
+      const cwd = tab.projectFolder?.trim()
+      if (!cwd) return
+      roots.set(cwd, [...(roots.get(cwd) ?? []), tab.id])
+    })
+    roots.forEach((tabIds, cwd) => {
+      void window.api.listBrainstorms(cwd)
+        .then(rooms => {
+          if (cancelled) return
+          setBrainstormSavedCountByTab(prev => {
+            const next = { ...prev }
+            tabIds.forEach(id => { next[id] = rooms.length })
+            return next
+          })
+        })
+        .catch(() => { /* sin actas legibles, el botón abre el alta */ })
+    })
+    return () => { cancelled = true }
+    // `brainstormViewByTab` en las deps: al cerrar el módulo la cuenta se
+    // relee, que es cuando puede haber cambiado (sala nueva, acta borrada).
+  }, [tabs, brainstormViewByTab])
+
   const refreshTabContexts = useCallback(async (tabId: string): Promise<void> => {
     const tab = tabsRef.current.find(item => item.id === tabId)
     if (!tab) return
@@ -3316,11 +3460,22 @@ export const App: React.FC = () => {
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
     setAgentPlaneStatus(prev => {
       const previous = prev[paneId]
+      const bothMessagesEmpty = (previous?.messages.length ?? 0) === 0
+        && status.messages.length === 0
+      const messagesUnchanged = bothMessagesEmpty || (
+        (previous?.messages.length ?? 0) === status.messages.length
+        && (previous?.messages ?? []).every((msg, i) =>
+          msg.id === status.messages[i]?.id
+          && msg.role === status.messages[i]?.role
+          && msg.content === status.messages[i]?.content,
+        )
+      )
       if (
         previous
         && previous.busy === status.busy
         && previous.activity === status.activity
         && previous.lastSnippet === status.lastSnippet
+        && previous.lastTurnFailed === status.lastTurnFailed
         && previous.activeAssistantId === status.activeAssistantId
         && previous.awaitingDelegations === status.awaitingDelegations
         && orchestrationAwaitingSignature(previous.orchestrationAwaiting)
@@ -3333,18 +3488,8 @@ export const App: React.FC = () => {
         && previous.localLoopActive === status.localLoopActive
         && previous.turnCloseReason === status.turnCloseReason
         && previous.loopEndReason === status.loopEndReason
-        && (previous.queuedTurns?.length ?? 0) === status.queuedTurns.length
-        && (previous.queuedTurns ?? []).every((item, i) =>
-          item.id === status.queuedTurns[i]?.id
-          && item.text === status.queuedTurns[i]?.text
-          && item.images.length === status.queuedTurns[i]?.images.length,
-        )
-        && previous.messages.length === status.messages.length
-        && previous.messages.every((msg, i) =>
-          msg.id === status.messages[i]?.id
-          && msg.role === status.messages[i]?.role
-          && msg.content === status.messages[i]?.content,
-        )
+        && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
+        && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
           ctx.id === status.contexts[i]?.id
@@ -3368,7 +3513,11 @@ export const App: React.FC = () => {
           startedAt: pending.startedAt,
           nowMs: Date.now(),
         })) {
-          reconcileIdleDelegationTargetRef.current(paneId, status.lastSnippet)
+          reconcileIdleDelegationTargetRef.current(
+            paneId,
+            status.lastSnippet,
+            status.lastTurnFailed === true,
+          )
         }
       }
       if (status.busy) {
@@ -3651,6 +3800,25 @@ export const App: React.FC = () => {
       }
     }
     const queue = orchestrationFifoByPaneRef.current.get(paneId) ?? []
+    // Evita apilar el mismo follow-up (mismo job + mismo texto) en la FIFO.
+    const nextItem = {
+      text: payload.text,
+      orchestrationJobId: payload.orchestrationJobId?.trim(),
+    }
+    if (queue.some(item => isDuplicateOrchestrationQueueItem(item, nextItem))) return
+    // Un follow-up ya despachado no vuelve a la cola: el bucle de re-delegación
+    // nacía de reenviar el mismo texto una vez consumido. El turno humano borra
+    // la memoria para no bloquear un reenvío legítimo pedido por la persona.
+    if (payload.orchestrationFollowUp === true) {
+      const key = orchestrationFollowUpKey(nextItem)
+      const dispatched = dispatchedOrchestrationFollowUpsByPaneRef.current.get(paneId)
+        ?? new Set<string>()
+      if (dispatched.has(key)) return
+      dispatched.add(key)
+      dispatchedOrchestrationFollowUpsByPaneRef.current.set(paneId, dispatched)
+    } else {
+      dispatchedOrchestrationFollowUpsByPaneRef.current.delete(paneId)
+    }
     queue.push({
       text: payload.text,
       images: payload.images ?? [],
@@ -4244,6 +4412,7 @@ export const App: React.FC = () => {
           reason: 'merge_failed',
           detail: mergeResult.stderr,
         })
+        await window.api.gitWorktreeAbortMerge({ path: info.baseCwd })
         try {
           await window.api.gitWorktreeRemove({ path: info.baseCwd }, {
             worktreePath: info.worktreePath,
@@ -4499,7 +4668,7 @@ export const App: React.FC = () => {
     syncAwaitingFromPending,
   ])
 
-  reconcileIdleDelegationTargetRef.current = (paneId, summary) => {
+  reconcileIdleDelegationTargetRef.current = (paneId, summary, failed) => {
     if (reconcilingIdleDelegationPaneIdsRef.current.has(paneId)) return
     const found = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
     if (!found) return
@@ -4510,31 +4679,65 @@ export const App: React.FC = () => {
     })) return
     // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
     if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-    reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
-    void window.api.isAgentTurnActive(paneId).catch(() => false).then(turnActive => {
-      if (turnActive) return
-      const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
-      if (!still || still.delegationId !== found.delegationId) return
-      if (!canReconcileIdlePending(still.sawBusy, {
-        startedAt: still.startedAt,
-        nowMs: Date.now(),
-      })) return
-      if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-      void handleDelegationTurnComplete({
-        id: found.delegationId,
-        status: 'ok',
-        summary: summary.trim() || i18next.t('agentPane.delegationEmptySummary'),
-        fromPaneId: found.fromPaneId,
-        orchestrationJobId: found.job.jobId,
-        toAgentId: found.toAgentId,
-        toPaneId: paneId,
-        ...(found.job.pending.get(found.delegationId)?.toThreadId
-          ? { toThreadId: found.job.pending.get(found.delegationId)!.toThreadId }
-          : {}),
+
+    const runReconcile = (): void => {
+      reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
+      void window.api.isAgentTurnActive(paneId).catch(() => false).then(async turnActive => {
+        if (turnActive) return
+        const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
+        if (!still || still.delegationId !== found.delegationId) return
+        if (!canReconcileIdlePending(still.sawBusy, {
+          startedAt: still.startedAt,
+          nowMs: Date.now(),
+        })) return
+        if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+        const emptyFallback = i18next.t('agentPane.delegationEmptySummary')
+        let finalSummary = summary.trim() || emptyFallback
+        let resultContextId: string | undefined
+        if (isDelegationSummaryPlaceholder(finalSummary) && still.toAgentId) {
+          const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+          const cwd = tab?.projectFolder?.trim()
+          if (cwd) {
+            const results = await window.api.readAgentResultsLatest({
+              cwd,
+              agentId: still.toAgentId,
+            })
+            if (results.ok) {
+              finalSummary = buildDelegationTurnSummary({
+                assistantText: finalSummary,
+                resultsSummary: results.summary,
+                resultsChanges: results.changes,
+                emptyFallback,
+              })
+              if (!isDelegationSummaryPlaceholder(finalSummary)) {
+                resultContextId = agentResultContextIdForSlug(still.toAgentId)
+              }
+            }
+          }
+        }
+        void handleDelegationTurnComplete({
+          id: found.delegationId,
+          status: failed ? 'fail' : 'ok',
+          summary: finalSummary,
+          fromPaneId: found.fromPaneId,
+          orchestrationJobId: found.job.jobId,
+          toAgentId: found.toAgentId,
+          toPaneId: paneId,
+          ...(found.job.pending.get(found.delegationId)?.toThreadId
+            ? { toThreadId: found.job.pending.get(found.delegationId)!.toThreadId }
+            : {}),
+          ...(resultContextId ? { resultContextId } : {}),
+        })
+      }).finally(() => {
+        reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
       })
-    }).finally(() => {
-      reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
-    })
+    }
+
+    if (found.sawBusy) {
+      window.setTimeout(runReconcile, 300)
+    } else {
+      runReconcile()
+    }
   }
 
   const requestPlaneStop = useCallback((paneId: string) => {
@@ -4877,7 +5080,23 @@ export const App: React.FC = () => {
   }, [agentPlaneStatus, humanSendFifoTick, planeSendByPane])
 
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
+    const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
+    if (!target || !isHumanQueuedTurn(target)) return
+    const removedKey = queuedTurnHumanKey(target)
+    setPlaneSendByPane(prev => {
+      const pending = prev[paneId]
+      if (!pending || !isHumanQueuedTurn(pending)) return prev
+      if (queuedTurnHumanKey({
+        text: pending.text,
+        images: Array.from({ length: pending.images?.length ?? 0 }, () => ({ previewUrl: '' })),
+      }) !== removedKey) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
   }, [])
 
   const handlePlaneUpdateQueuedTurn = useCallback((paneId: string, id: string, text: string) => {
@@ -4885,6 +5104,13 @@ export const App: React.FC = () => {
   }, [])
 
   const handlePlaneMergeQueuedTurns = useCallback((paneId: string) => {
+    setAgentPlaneStatus(prev => {
+      const cur = prev[paneId]
+      if (!cur?.queuedTurns || cur.queuedTurns.length < 2) return prev
+      const nextQueue = mergeQueuedTurns(cur.queuedTurns)
+      if (nextQueue === cur.queuedTurns) return prev
+      return { ...prev, [paneId]: { ...cur, queuedTurns: nextQueue } }
+    })
     planeQueueControlsByPaneRef.current.get(paneId)?.merge()
   }, [])
 
@@ -5350,7 +5576,7 @@ export const App: React.FC = () => {
         const tabList = tabsRef.current
         const aid = activeTabIdRef.current
         const tab = tabList.find(t => t.id === aid)
-        if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+        if (!tab) return
         handleCreateTerminalRef.current(tab.id)
         return
       }
@@ -5366,7 +5592,7 @@ export const App: React.FC = () => {
         e.preventDefault()
         e.stopPropagation()
         const tab = tabsRef.current.find(item => item.id === activeTabIdRef.current)
-        if (!tab || tab.paneIds.length >= MAX_PANES_PER_TAB) return
+        if (!tab) return
         requestAddAgentRef.current(tab.id, tab.activePaneId || undefined)
         return
       }
@@ -5406,6 +5632,7 @@ export const App: React.FC = () => {
           tabContexts={tabContextsByTab[tab.id] ?? []}
           orgWorkspace={tab.orgWorkspace}
           onProjectContextsChanged={() => { void refreshTabContexts(tab.id) }}
+          onProjectAgentSaved={agent => rememberProjectAgent(paneCatalogKey, agent)}
           tabActive={tab.id === activeTabId}
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
@@ -5563,6 +5790,125 @@ export const App: React.FC = () => {
   const activeTab = tabs.find(t => t.id === activeTabId)
   const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
 
+  /**
+   * Salas de una pestaña sobre su plano. Van montadas dentro de
+   * `.tab-agentic-plane` —igual que el mapa de la wiki— porque se posicionan
+   * contra él; el estado sigue aquí arriba, que es donde ya vivía.
+   *
+   * Cada sala se queda montada mientras exista, mirándose o no: así el runner
+   * sigue llenando su acta y volver a ella no reinicia nada. `open` es solo
+   * visibilidad.
+   */
+  const renderBrainstormOverlays = (tab: TabSession): React.ReactNode => {
+    const catalogKey = tabAgentCatalogKey(tab)
+    const catalog = filterBrainstormInvitableAgents(projectAgentsByCwd[catalogKey] ?? [])
+    const rooms = brainstormRoomsByTab[tab.id] ?? []
+    const view = brainstormViewByTab[tab.id] ?? null
+    const liveRooms = rooms
+      .map(room => brainstormLiveByRoomId[room.id] ?? createBrainstormLiveSummary(room))
+      .filter(summary => isBrainstormLive(summary.status))
+
+    /** Quién tiene asiento en otra sala viva: se avisa, no se bloquea. */
+    const roomsByAgent = (exceptRoomId: string): Record<string, string[]> => {
+      const map: Record<string, string[]> = {}
+      liveRooms.forEach(summary => {
+        if (summary.roomId === exceptRoomId) return
+        summary.participantAgentIds.forEach(agentId => {
+          map[agentId] = [...(map[agentId] ?? []), summary.topic]
+        })
+      })
+      return map
+    }
+
+    const setView = (next: 'rooms' | 'setup' | string | null): void => {
+      setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: next }))
+    }
+
+    /** Abrir una sala guardada: se monta y se mira, sin salir del módulo. */
+    const openSavedRoom = (room: BrainstormRoom): void => {
+      setBrainstormRoomsByTab(prev => {
+        const current = prev[tab.id] ?? []
+        return current.some(item => item.id === room.id)
+          ? prev
+          : { ...prev, [tab.id]: [...current, room] }
+      })
+      setView(room.id)
+    }
+
+    return (
+      <>
+        {/* Biblioteca: la vista por la que se entra cuando ya hay actas. */}
+        <BrainstormRoomsView
+          open={view === 'rooms'}
+          active={activeTabId === tab.id}
+          cwd={tab.projectFolder ?? ''}
+          agents={projectAgentsByCwd[catalogKey] ?? []}
+          onClose={() => setView(null)}
+          onCreate={() => setView('setup')}
+          onOpenRoom={openSavedRoom}
+          onContextSaved={() => { void refreshTabContexts(tab.id) }}
+        />
+        <BrainstormStartModal
+          open={view === 'setup'}
+          active={activeTabId === tab.id}
+          cwd={tab.projectFolder ?? ''}
+          agents={catalog}
+          agentsInLiveRooms={roomsByAgent('')}
+          savedRoomsCount={brainstormSavedCountByTab[tab.id] ?? 0}
+          onClose={() => setView(null)}
+          onOpenRooms={() => setView('rooms')}
+          onStarted={room => {
+            setBrainstormRoomsByTab(prev => ({
+              ...prev,
+              [tab.id]: [...(prev[tab.id] ?? []), room],
+            }))
+            setView(room.id)
+          }}
+        />
+        {rooms.map(room => (
+          <BrainstormRoomView
+            key={room.id}
+            open={view === room.id}
+            active={activeTabId === tab.id}
+            room={room}
+            cwd={tab.projectFolder ?? ''}
+            agents={catalog}
+            liveRooms={liveRooms.map(summary => ({
+              roomId: summary.roomId,
+              topic: summary.topic,
+            }))}
+            onSwitchRoom={roomId => setView(roomId)}
+            agentsInOtherRooms={roomsByAgent(room.id)}
+            onClose={() => {
+              // Cerrar la vista, no la sala: el runner sigue en main y el botón
+              // de la barra mantiene su cuenta.
+              setView(null)
+            }}
+            onFinish={() => {
+              // Terminada y soltada: el acta ya está en disco y se busca en
+              // «Salas guardadas», así que sale también del flyout.
+              setBrainstormRoomsByTab(prev => ({
+                ...prev,
+                [tab.id]: (prev[tab.id] ?? []).filter(item => item.id !== room.id),
+              }))
+              setBrainstormLiveByRoomId(prev => {
+                const next = { ...prev }
+                delete next[room.id]
+                return next
+              })
+              // Al soltarla, la biblioteca es el sitio donde queda su acta.
+              setView('rooms')
+            }}
+            onLive={summary => {
+              setBrainstormLiveByRoomId(prev => ({ ...prev, [summary.roomId]: summary }))
+            }}
+            onContextSaved={() => { void refreshTabContexts(tab.id) }}
+          />
+        ))}
+      </>
+    )
+  }
+
   return (
     <div className="app-root">
       {/* ── Title bar (macOS traffic lights live here) ── */}
@@ -5668,16 +6014,20 @@ export const App: React.FC = () => {
                   contextKind => t(`tabContexts.kind_${contextKind}`),
                 )
                 // El turno corre en un pane sintético de la sala: sin esto la
-                // tarjeta seguiría diciendo "Standing by" mientras el agente habla.
-                const brainstormLive = brainstormRoomByTab[tab.id]
-                  ? brainstormLiveByTab[tab.id]
-                  : null
-                const inBrainstorm = Boolean(
-                  brainstormLive
-                  && meta?.id
-                  && isBrainstormLive(brainstormLive.status)
-                  && brainstormLive.participantAgentIds.includes(meta.id),
-                )
+                // tarjeta seguiría diciendo "Standing by" mientras el agente
+                // habla. Con salas en paralelo puede estar sentado en varias:
+                // manda la que le tiene el turno ahora mismo.
+                const roomsWithAgent = (brainstormRoomsByTab[tab.id] ?? [])
+                  .map(item => brainstormLiveByRoomId[item.id])
+                  .filter((summary): summary is BrainstormLiveSummary => Boolean(summary))
+                  .filter(summary => isBrainstormLive(summary.status)
+                    && Boolean(meta?.id)
+                    && summary.participantAgentIds.includes(meta!.id))
+                const brainstormLive = roomsWithAgent
+                  .find(summary => summary.speakingAgentId === meta?.id)
+                  ?? roomsWithAgent[0]
+                  ?? null
+                const inBrainstorm = roomsWithAgent.length > 0
                 const brainstormSnippet = inBrainstorm && brainstormLive
                   ? t(
                     brainstormLive.speakingAgentId === meta?.id
@@ -5766,7 +6116,6 @@ export const App: React.FC = () => {
                   )
                   const canCreatePane = Boolean(effectiveCwd) || orgBacked
                   const canBootstrapAgents = showBootstrapAgents && canCreatePane
-                  const paneLimitReached = tab.paneIds.length >= MAX_PANES_PER_TAB
                   const openChatBinding = tab.planeOpenChatAgentId
                     ? tab.agentByPane?.[tab.planeOpenChatAgentId]
                     : undefined
@@ -5805,7 +6154,6 @@ export const App: React.FC = () => {
                   }
                   agentFabDisabledTitle={t('agentPane.projectFolderRequired')}
                   terminalFabDisabledTitle={t('agentPane.projectFolderRequired')}
-                  fabPaneLimitReachedTitle={t('tabs.fabPaneLimitReached')}
                   idleAgentLabel={t('tabs.planeIdleAgent')}
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
@@ -5822,7 +6170,6 @@ export const App: React.FC = () => {
                     t('tabs.planeConfirmDeleteContextMessage', { name })
                   )}
                   contextPoolDeleteConfirmDetail={t('tabs.planeConfirmDeleteContextDetail')}
-                  contextPoolTrashDropLabel={t('tabs.planeContextPoolTrashDrop')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -5839,7 +6186,7 @@ export const App: React.FC = () => {
                   onRemoveQueuedTurn={handlePlaneRemoveQueuedTurn}
                   onUpdateQueuedTurn={handlePlaneUpdateQueuedTurn}
                   onMergeQueuedTurns={handlePlaneMergeQueuedTurns}
-                  canAdd={!paneLimitReached}
+                  canAdd={true}
                   canAddAgent={canCreatePane}
                   canAddTerminal={canCreatePane}
                   bootstrapAgentsLabel={t('tabs.bootstrapAgents')}
@@ -5999,6 +6346,7 @@ export const App: React.FC = () => {
                   openChatThreads={openChatThreadState?.threads ?? []}
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   agentStatuses={agentPlaneStatus}
+                  projectAgents={projectAgentsByCwd[agentCatalogKey] ?? []}
                   chatFontSize={config.fontSize ?? 13}
                   systemSoundsEnabled={config.systemSoundsEnabled !== false}
                   configLabel={t('agentPane.openConfig')}
@@ -6040,84 +6388,45 @@ export const App: React.FC = () => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
                   loopsButtonLabel={t('tabs.loopsButton')}
-                  brainstormTableOpen={
-                    Boolean(brainstormTableOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]
-                  }
-                  brainstormSeated={brainstormSeatedByTab[tab.id] ?? []}
-                  onBrainstormSeatedChange={next => {
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: next }))
-                  }}
-                  onBrainstormTableClose={() => {
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                  }}
-                  onBrainstormTableContinue={() => {
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
                   brainstormNeedFolderHint={t('tabs.brainstormNeedFolder')}
                   canOpenBrainstorm={Boolean(tab.projectFolder?.trim())}
-                  brainstormStartOpen={Boolean(brainstormStartOpenByTab[tab.id])}
-                  onBrainstormStartOpenChange={open => {
-                    // El botón abre el arranque, no la lista: crear una sala es el
-                    // caso frecuente y las guardadas están a un clic desde ahí.
-                    if (open) setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: open }))
+                  brainstormView={brainstormViewByTab[tab.id] ?? null}
+                  /* Con actas guardadas el módulo abre por la biblioteca; sin
+                     ninguna, directo al alta: no hay nada que listar. */
+                  brainstormSavedCount={brainstormSavedCountByTab[tab.id] ?? 0}
+                  onBrainstormViewChange={next => {
+                    setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: next }))
                   }}
                   brainstormsListButtonLabel={t('tabs.brainstormsListButton')}
-                  brainstormLive={brainstormRoomByTab[tab.id]
-                    ? brainstormLiveByTab[tab.id]
-                      ?? createBrainstormLiveSummary(brainstormRoomByTab[tab.id]!)
-                    : null}
-                  brainstormHasRoom={Boolean(brainstormRoomByTab[tab.id])}
-                  brainstormMinimized={Boolean(brainstormMinimizedByTab[tab.id])}
+                  brainstormRooms={(brainstormRoomsByTab[tab.id] ?? []).map(
+                    item => brainstormLiveByRoomId[item.id]
+                      ?? createBrainstormLiveSummary(item),
+                  )}
                   brainstormDockOpen={Boolean(brainstormDockOpenByTab[tab.id])}
                   onBrainstormDockOpenChange={open => {
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: open }))
                   }}
-                  onRestoreBrainstorm={() => {
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
+                  onOpenBrainstormRoom={roomId => {
+                    setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: roomId }))
                     setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
                   }}
-                  onStopBrainstorm={() => {
-                    const roomId = brainstormRoomByTab[tab.id]?.id
-                    if (roomId) window.api.stopBrainstorm(roomId)
+                  onStopBrainstormRoom={roomId => { window.api.stopBrainstorm(roomId) }}
+                  onDiscardBrainstormRoom={roomId => {
+                    setBrainstormRoomsByTab(prev => ({
+                      ...prev,
+                      [tab.id]: (prev[tab.id] ?? []).filter(item => item.id !== roomId),
+                    }))
+                    setBrainstormLiveByRoomId(prev => {
+                      const next = { ...prev }
+                      delete next[roomId]
+                      return next
+                    })
+                    setBrainstormViewByTab(prev => (
+                      prev[tab.id] === roomId ? { ...prev, [tab.id]: null } : prev
+                    ))
                   }}
-                  onDiscardBrainstorm={() => {
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
-                    setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
-                  }}
-                  loopsTitle={t('tabs.loopsTitle')}
-                  loopsSubtitle={t('tabs.loopsSubtitle')}
-                  loopsEmptyTitle={t('tabs.loopsEmptyTitle')}
-                  loopsEmptyHint={t('tabs.loopsEmptyHint')}
-                  loopsChainsTitle={t('tabs.loopsChainsTitle')}
-                  loopsChainsEmpty={t('tabs.loopsChainsEmpty')}
-                  loopsCreateChainLabel={t('tabs.loopsCreateChain')}
-                  loopsAppendStepLabel={t('tabs.loopsAppendStep')}
-                  loopsStartChainLabel={t('tabs.loopsStartChain')}
-                  loopsStopChainLabel={t('tabs.loopsStopChain')}
-                  loopsDeleteChainLabel={t('tabs.loopsDeleteChain')}
-                  loopsChainModalTitle={t('tabs.loopsChainModalTitle')}
-                  loopsChainModalDescription={t('tabs.loopsChainModalDescription')}
-                  loopsAppendModalTitle={t('tabs.loopsAppendModalTitle')}
-                  loopsAppendModalDescription={t('tabs.loopsAppendModalDescription')}
-                  loopsAgentLabel={t('tabs.loopsAgent')}
-                  loopsObjectiveLabel={t('tabs.loopsObjective')}
-                  loopsObjectivePlaceholder={t('tabs.loopsObjectivePlaceholder')}
-                  loopsNoAgentsHint={t('tabs.loopsNoAgents')}
-                  loopsNoAppendAgentsHint={t('tabs.loopsNoAppendAgents')}
-                  loopsBlockNeedObjectiveHint={t('tabs.loopsBlockNeedObjective')}
-                  loopsChainConfirmLabel={t('tabs.loopsChainConfirm')}
-                  loopsAppendConfirmLabel={t('tabs.loopsAppendConfirm')}
-                  loopsCancelLabel={t('common.cancel')}
-                  loopsStatusIdle={t('tabs.loopsStatusIdle')}
-                  loopsStatusBusy={t('tabs.loopsStatusBusy')}
-                  loopsStatusLooping={t('tabs.loopsStatusLooping')}
-                  loopsChainStatusIdle={t('tabs.loopsChainStatusIdle')}
-                  loopsChainStatusRunning={t('tabs.loopsChainStatusRunning')}
-                  loopsChainStatusWaiting={t('tabs.loopsChainStatusWaiting')}
-                  loopsChainStatusStopped={t('tabs.loopsChainStatusStopped')}
+                  brainstormOverlayOpen={Boolean(brainstormViewByTab[tab.id])}
+                  brainstormOverlays={renderBrainstormOverlays(tab)}
                   loopChains={tab.planeLoopChains ?? []}
                   onLoopChainsChange={chains => handleLoopChainsChange(tab.id, chains)}
                   onStartLoopChain={chainId => handleStartLoopChain(tab.id, chainId)}
@@ -6157,85 +6466,6 @@ export const App: React.FC = () => {
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
                 />
-                <BrainstormListModal
-                  open={Boolean(brainstormListOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
-                  active={activeTabId === tab.id}
-                  cwd={tab.projectFolder ?? ''}
-                  agents={filterBrainstormInvitableAgents(
-                    projectAgentsByCwd[agentCatalogKey] ?? [],
-                  )}
-                  onClose={() => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                  }}
-                  onCreate={() => {
-                    // Camino normal: directo al arranque. Formato, invitados y
-                    // ajustes se eligen ahí, con valores por defecto ya puestos.
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onCreateFromTable={() => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onOpenRoom={room => {
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
-                  }}
-                  onContextSaved={() => { void refreshTabContexts(tab.id) }}
-                />
-                <BrainstormStartModal
-                  open={Boolean(brainstormStartOpenByTab[tab.id]) && !brainstormRoomByTab[tab.id]}
-                  active={activeTabId === tab.id}
-                  cwd={tab.projectFolder ?? ''}
-                  agents={filterBrainstormInvitableAgents(
-                    projectAgentsByCwd[agentCatalogKey] ?? [],
-                  )}
-                  initialParticipantIds={brainstormSeatedByTab[tab.id] ?? []}
-                  onClose={() => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                  }}
-                  onOpenRooms={() => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormListOpenByTab(prev => ({ ...prev, [tab.id]: true }))
-                  }}
-                  onStarted={room => {
-                    setBrainstormStartOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormTableOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormSeatedByTab(prev => ({ ...prev, [tab.id]: [] }))
-                    setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: room }))
-                  }}
-                />
-                {/* Montada mientras exista la sala: minimizar solo oculta el modal. */}
-                {brainstormRoomByTab[tab.id] ? (
-                  <BrainstormRoomView
-                    open={!brainstormMinimizedByTab[tab.id]}
-                    active={activeTabId === tab.id}
-                    room={brainstormRoomByTab[tab.id]!}
-                    cwd={tab.projectFolder ?? ''}
-                    agents={filterBrainstormInvitableAgents(
-                      projectAgentsByCwd[agentCatalogKey] ?? [],
-                    )}
-                    onClose={() => {
-                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: true }))
-                    }}
-                    onFinish={() => {
-                      // Soltar la sala terminada: el acta ya está en disco y el
-                      // botón del plano vuelve a abrir «Nueva sala».
-                      setBrainstormRoomByTab(prev => ({ ...prev, [tab.id]: null }))
-                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: null }))
-                      setBrainstormDockOpenByTab(prev => ({ ...prev, [tab.id]: false }))
-                      setBrainstormMinimizedByTab(prev => ({ ...prev, [tab.id]: false }))
-                    }}
-                    onLive={summary => {
-                      setBrainstormLiveByTab(prev => ({ ...prev, [tab.id]: summary }))
-                    }}
-                    onContextSaved={() => { void refreshTabContexts(tab.id) }}
-                  />
-                ) : null}
                       </div>
                   )
                 })()}
@@ -6263,6 +6493,7 @@ export const App: React.FC = () => {
             onFocusContextConsumed={() => setPlaneContextsFocusId(null)}
             openCreate={planeContextsCreate}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
+            onAgentSaved={agent => rememberProjectAgent(catalogKey, agent)}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               setPlaneContextsFocusId(null)
@@ -6352,6 +6583,22 @@ export const App: React.FC = () => {
         }}
         onConfigSaved={handleConfigSaved}
         onThemeChange={handleThemeChange}
+        onReplayOnboarding={handleReplayOnboarding}
+        onboardingOpen={onboardingOpen}
+        onboardingStep={onboardingStep}
+        onboardingClis={onboardingClis}
+        onboardingCliLoading={onboardingCliLoading}
+        onboardingCliError={onboardingCliError}
+        onboardingTeamCreated={onboardingTeamCreated}
+        onboardingFolderPath={activeTab?.projectFolder?.trim() || null}
+        onboardingCanCreateTeam={Boolean(activeTab?.projectFolder?.trim())}
+        onOnboardingNext={handleOnboardingNext}
+        onOnboardingBack={handleOnboardingBack}
+        onOnboardingSkip={handleOnboardingCloseComplete}
+        onOnboardingFinish={handleOnboardingCloseComplete}
+        onOnboardingRecheck={() => { void refreshOnboardingClis() }}
+        onOnboardingPickFolder={handleOnboardingPickFolder}
+        onOnboardingCreateTeam={() => { void handleOnboardingCreateTeam() }}
         onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)
@@ -6392,12 +6639,15 @@ export const App: React.FC = () => {
         cloneFailure={orgWorkspaceRequirement?.cloneFailure}
         cloning={orgWorkspaceRequirement?.cloning}
         syncing={orgWorkspaceRequirement?.syncing}
+        syncPhase={orgWorkspaceRequirement?.syncPhase}
         uploading={orgWorkspaceRequirement?.uploading}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}
         workspaceRenameError={orgWorkspaceRequirement?.workspaceRenameError}
         uploadError={orgWorkspaceRequirement?.uploadError}
+        wikiError={orgWorkspaceRequirement?.wikiError}
         onClose={() => setOrgWorkspaceRequirement(null)}
+        onCancelBusy={cancelOrgWorkspaceSyncOrUpload}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 

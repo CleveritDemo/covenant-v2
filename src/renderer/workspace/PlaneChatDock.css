@@ -5,8 +5,8 @@
   --plane-composer-clearance: 112px;
   position: absolute;
   inset: 0;
-  /* Fade/chat bajo el mapa (16); composer/aurora van por display:contents encima. */
-  z-index: 14;
+  /* Por encima de pane windows (140) vía --plane-chat-stack-z; debajo de modales portaled (670). */
+  z-index: var(--plane-chat-stack-z, 200);
   display: flex;
   flex-direction: column;
   pointer-events: none;
@@ -42,6 +42,6 @@
 }
 
 .plane-chat-dock__composer-shell {
-  /* contents: el composer (z18) participa en el stacking del plano. */
+  /* contents: el composer (+1 sobre el dock) participa en el stacking del plano. */
   display: contents;
 }

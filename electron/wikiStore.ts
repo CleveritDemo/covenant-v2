@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { projectDirPath } from './projectDir'
 import {
@@ -20,6 +20,12 @@ import {
 /** Raíz de la wiki para este cwd: `.gravity/wiki` (o `.iaterminal/wiki` legacy). */
 export function wikiRootPath(cwd: string): string {
   return projectDirPath(cwd, WIKI_DIR)
+}
+
+/** true si existe wiki/pages o wiki/index.md bajo la raíz del proyecto. */
+export function hasWiki(cwd: string): boolean {
+  const wikiRoot = wikiRootPath(cwd)
+  return existsSync(join(wikiRoot, PAGES_DIR)) || existsSync(join(wikiRoot, INDEX_FILE))
 }
 
 /**
@@ -80,13 +86,18 @@ export function readWikiPages(cwd: string): WikiPage[] {
   const pages: WikiPage[] = []
   for (const entry of entries) {
     if (!/\.md$/i.test(entry)) continue
+    const pagePath = join(pagesRoot, entry)
     let raw: string
     try {
-      raw = readFileSync(join(pagesRoot, entry), 'utf8')
+      raw = readFileSync(pagePath, 'utf8')
     } catch {
       continue
     }
-    pages.push(parseWikiPage(raw, entry))
+    const page = parseWikiPage(raw, entry)
+    try {
+      page.updatedAtMs = statSync(pagePath).mtimeMs
+    } catch { /* best-effort */ }
+    pages.push(page)
   }
   return pages.sort((a, b) => a.slug.localeCompare(b.slug))
 }

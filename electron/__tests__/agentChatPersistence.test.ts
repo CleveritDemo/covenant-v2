@@ -122,7 +122,6 @@ describe('planAgentChatCleanupForRemovedPanes + syncTabAgentsFromCatalog', () =>
       }),
       [{ id: 'qa', provider: 'cursor', permissionMode: 'auto', name: 'qa' }],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
         preserveCliSessionIds: false,
@@ -198,7 +197,6 @@ describe('planAgentChatCleanupForRemovedPanes + syncTabAgentsFromCatalog', () =>
       }),
       [{ id: 'qa', provider: 'cursor', permissionMode: 'auto' }],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
         preserveCliSessionIds: false,

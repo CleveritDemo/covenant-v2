@@ -370,6 +370,18 @@ export const TabContextFormModal: React.FC<Props> = ({
         context: normalized,
         cwd: workingCwd,
         ...(normalized.kind === 'notes' ? { content: notesContentRef.current ?? '' } : {}),
+        /*
+         * El `.md` nace con la issue dentro. La vista previa acaba de traerla
+         * de Jira y la tiene en pantalla; sin pasarla aquí se escribía un
+         * placeholder vacío y el contexto decía «no content yet» justo después
+         * de haber enseñado el ticket entero. Peor: el único que rellena ese
+         * hueco es el refrescador, y solo corre sobre contextos adjuntos a un
+         * turno — uno creado desde el gestor y no asignado a nadie se quedaba
+         * vacío para siempre.
+         */
+        ...(normalized.kind === 'jira' && preview.status === 'success'
+          ? { content: preview.content }
+          : {}),
         ...(previousFileName ? { previousFileName } : {}),
       })
       if (!result.ok) {

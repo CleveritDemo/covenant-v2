@@ -35,6 +35,31 @@ export function stripAgentControlFences(
  * Parte el cuerpo en texto / bloques de código por fences ```.
  * Misma lógica que el antiguo `splitAgentBody` de AgentChatBubbles.
  */
+/**
+ * Índice donde empieza el último segmento (texto o fence) aún en progreso durante streaming.
+ * Todo lo anterior es prefijo estable que puede memoizarse entre deltas.
+ */
+export function findAssistantBodyLiveStart(raw: string): number {
+  let segmentStart = 0
+  let i = 0
+  while (i < raw.length) {
+    segmentStart = i
+    const fence = raw.indexOf('```', i)
+    if (fence === -1) return segmentStart
+    if (fence > i) {
+      i = fence
+      segmentStart = i
+    }
+    const langEnd = raw.indexOf('\n', i + 3)
+    if (langEnd === -1) return segmentStart
+    const contentStart = langEnd + 1
+    const close = raw.indexOf('\n```', contentStart)
+    if (close === -1) return segmentStart
+    i = close + 4
+  }
+  return segmentStart
+}
+
 export function splitAssistantBody(raw: string): AssistantBodySegment[] {
   const segments: AssistantBodySegment[] = []
   const pushText = (chunk: string): void => {

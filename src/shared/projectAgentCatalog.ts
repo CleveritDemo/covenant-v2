@@ -5,6 +5,7 @@ import {
   normalizeAgentRules,
   sanitizeAgentMonogram,
   sanitizeAgentRulesDraft,
+  sanitizeAgentRulesEnabledDraft,
   sanitizeAgentTextDraft,
 } from './agentIdentity'
 import {
@@ -73,6 +74,8 @@ export interface ProjectAgentDefinition {
   ceremonyRole?: CeremonyRoleId
   objective?: string
   rules?: string[]
+  /** Paralelo a `rules`; solo se persiste si alguna es `false`. */
+  rulesEnabled?: boolean[]
   model?: string
   contextIds?: string[]
   emitResults?: boolean
@@ -506,7 +509,16 @@ export function parseProjectAgentDefinition(
   const rules = sanitizeAgentRulesDraft(
     Array.isArray(data.rules) ? data.rules.map(String) : undefined,
   )
-  if (rules.length) def.rules = rules
+  if (rules.length) {
+    def.rules = rules
+    if (Array.isArray(data.rulesEnabled)) {
+      const rulesEnabled = sanitizeAgentRulesEnabledDraft(
+        rules,
+        data.rulesEnabled.filter((item): item is boolean => typeof item === 'boolean'),
+      )
+      if (rulesEnabled.some(flag => !flag)) def.rulesEnabled = rulesEnabled
+    }
+  }
   if (typeof data.model === 'string' && data.model.trim()) {
     def.model = data.model.trim()
   }
@@ -566,6 +578,7 @@ export function cloneProjectAgentDefinition(
       : {}),
     ...(source.objective ? { objective: source.objective } : {}),
     ...(source.rules?.length ? { rules: [...source.rules] } : {}),
+    ...(source.rulesEnabled?.length ? { rulesEnabled: [...source.rulesEnabled] } : {}),
     ...(source.model ? { model: source.model } : {}),
     ...(source.contextIds?.length ? { contextIds: [...source.contextIds] } : {}),
     // Clones no heredan order: van al final del plano hasta reorder/upload.
@@ -659,6 +672,18 @@ export function resolveCatalogAgentId(
   return normalized
 }
 
+/** Label legible para delegaciones: nombre registrado + rol (no el slug interno). */
+export function formatCatalogAgentDelegationLabel(
+  agentId: string,
+  catalog: readonly ProjectAgentDefinition[],
+): string {
+  const resolvedId = resolveCatalogAgentId(catalog, agentId)
+  const definition = catalog.find(agent => agent.id === resolvedId)
+  const name = (definition?.name ?? '').trim() || resolvedId
+  const role = (definition?.role ?? '').trim()
+  return role ? `${name} · ${role}` : name
+}
+
 /** Une catálogo + binding local para la UI del pane. */
 export function resolveAgentPaneMeta(
   binding: AgentPaneBinding,
@@ -700,6 +725,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     ceremonyRole: meta.ceremonyRole,
     objective: meta.objective,
     rules: normalizeAgentRules(meta.rules),
+    rulesEnabled: meta.rulesEnabled,
     model: meta.model,
     contextIds: meta.contextIds,
     order: meta.order,

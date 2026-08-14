@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWikiIndex,
+  buildWikiPromptIndex,
+  buildWikiWritingGuidance,
   composeWikiPage,
   extractWikiIngest,
   formatWikiLogEntry,
@@ -79,6 +81,33 @@ describe('composeWikiPage / parseWikiPage', () => {
   it('tolera page sin heading ni metadata: título = slug, type concept', () => {
     const parsed = parseWikiPage('solo cuerpo', 'suelta.md')
     expect(parsed).toMatchObject({ slug: 'suelta', title: 'suelta', type: 'concept', body: 'solo cuerpo' })
+  })
+})
+
+describe('buildWikiPromptIndex', () => {
+  it('una línea por page ordenada por slug con excerpt cuando hay contenido útil', () => {
+    const a = page({ slug: 'beta', title: 'Beta', body: 'Resumen de beta.', links: ['gamma'] })
+    const b = page({
+      slug: 'alfa',
+      title: 'Alfa',
+      type: 'decision',
+      body: '## Sub\nPrimera línea útil.',
+      links: ['beta', 'gamma'],
+    })
+    expect(buildWikiPromptIndex([a, b])).toBe([
+      '- [[alfa]] — Alfa (decision) — Primera línea útil.',
+      '- [[beta]] — Beta (concept) — Resumen de beta.',
+    ].join('\n'))
+    expect(buildWikiPromptIndex([b, a])).toBe(buildWikiPromptIndex([a, b]))
+  })
+
+  it('omite el guion del excerpt cuando no hay línea útil', () => {
+    const soloHeading = page({ slug: 'vacía', title: 'Vacía', body: '# Solo título\n## Sub' })
+    expect(buildWikiPromptIndex([soloHeading])).toBe('- [[vacía]] — Vacía (concept)')
+  })
+
+  it('sin pages devuelve cadena vacía', () => {
+    expect(buildWikiPromptIndex([])).toBe('')
   })
 })
 
@@ -204,9 +233,40 @@ describe('extractWikiIngest', () => {
     expect(ingest?.log).toBe('segunda')
   })
 
+  it('acepta maxOps personalizado: 24 ops cuando maxOps=24', () => {
+    const ops = Array.from({ length: 30 }, (_, i) => ({
+      op: 'upsert',
+      slug: `p-${i}`,
+      title: `T${i}`,
+      body: 'b',
+    }))
+    const { ingest } = extractWikiIngest(fence(JSON.stringify({ ops })), 24)
+    expect(ingest?.ops).toHaveLength(24)
+  })
+
   it('sin fence devuelve el texto intacto e ingest null', () => {
     const { visibleText, ingest } = extractWikiIngest('texto normal')
     expect(visibleText).toBe('texto normal')
     expect(ingest).toBeNull()
+  })
+})
+
+describe('buildWikiWritingGuidance', () => {
+  it('incluye política, jobs y anti-ejemplos', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('index for agents')
+    expect(text).toContain('[[slug]]')
+    expect(text).toContain('Bad (do not write)')
+    expect(text).toContain('narrate')
+    expect(text).toContain('locate')
+    expect(text).toContain('decide')
+    expect(text).toContain('flow')
+    expect(text).toContain('inventory')
+  })
+
+  it('incluye la línea de contradicciones', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('If new knowledge contradicts an existing page')
+    expect(text).toContain('Contradicts: [[slug]]')
   })
 })

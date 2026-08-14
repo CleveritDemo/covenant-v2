@@ -5,7 +5,7 @@ import {
   canonicalContextId,
   normalizeContextFileName,
 } from '../src/shared/tabContext'
-import { withAgentResultsNotes } from '../src/shared/agentResultsDoc'
+import { parseAgentResultsDoc, withAgentResultsNotes } from '../src/shared/agentResultsDoc'
 import {
   normalizeAgentSlug,
   type ProjectAgentDefinition,
@@ -560,6 +560,24 @@ export function writeAiAgentResultsNotes(
     const next = withAgentResultsNotes(raw, notes)
     if (next !== raw) writeFileSync(filePath, next, 'utf8')
     return { ok: true, filePath }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/** Lee el bloque Latest del results file (misma resolución de id que upsert). */
+export function readLatestAiAgentResults(
+  cwd: string,
+  agentId: string,
+): { ok: true; summary: string | null; changes: string[] } | { ok: false; error: string } {
+  const id = resolveResultsAgentId(cwd, agentId)
+  if (!id) return { ok: false, error: 'Agente inválido.' }
+  const filePath = resolveAiAgentResultsPath(cwd, id)
+  if (!existsSync(filePath)) return { ok: false, error: 'No existe el archivo de results.' }
+  try {
+    const raw = readFileSync(filePath, 'utf8')
+    const doc = parseAgentResultsDoc(raw)
+    return { ok: true, summary: doc.summary, changes: doc.changes }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }

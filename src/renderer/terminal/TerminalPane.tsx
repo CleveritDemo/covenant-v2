@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { getTheme } from '@themes/presets'
-import type { AppConfig } from '@shared/configSchema'
+import { sanitizeTerminalLineHeight, type AppConfig } from '@shared/configSchema'
 import { fontStack } from '@shared/fontStacks'
 import { feedCompletedUserLines } from '@renderer/history/feedCompletedUserLines'
 import { isClearCommandLine } from '@renderer/terminal/isClearCommand'
@@ -685,6 +685,7 @@ export const TerminalPane: React.FC<Props> = ({
   }, [sessionId])
 
   useEffect(() => {
+    if (!tabActive) return
     let cancelled = false
     const syncPaneCwd = async (): Promise<void> => {
       const cwd = normalizeSessionCwd(await window.api.getSessionCwd(sessionId))
@@ -701,7 +702,7 @@ export const TerminalPane: React.FC<Props> = ({
       cancelled = true
       window.clearInterval(id)
     }
-  }, [sessionId])
+  }, [sessionId, tabActive])
 
 
   const loadCdPaths = useCallback(async (): Promise<void> => {
@@ -799,7 +800,7 @@ export const TerminalPane: React.FC<Props> = ({
     const term = new Terminal({
       fontFamily: monoFontFamily(configRef.current.fontMono),
       fontSize: configRef.current.fontSize,
-      lineHeight: 1.4,
+      lineHeight: sanitizeTerminalLineHeight(configRef.current.terminalLineHeight),
       cursorBlink: true,
       cursorStyle: 'bar',
       theme: initialTheme.xterm,
@@ -951,10 +952,12 @@ export const TerminalPane: React.FC<Props> = ({
       () => (termAlive && termRef.current === term ? term : null),
     )
     const scheduleTerminalCanvasRepaint = (): void => {
+      if (!tabActiveRef.current) return
       if (!termAlive || termRef.current !== term) return
       terminalRepaint.scheduleAfterWrite()
     }
     const scheduleTerminalCanvasRepaintImmediate = (): void => {
+      if (!tabActiveRef.current) return
       if (!termAlive || termRef.current !== term) return
       terminalRepaint.schedule()
     }
@@ -1444,6 +1447,7 @@ export const TerminalPane: React.FC<Props> = ({
     if (term && fit) {
       term.options.fontSize = config.fontSize
       term.options.fontFamily = monoFontFamily(config.fontMono)
+      term.options.lineHeight = sanitizeTerminalLineHeight(config.terminalLineHeight)
       // Cambiar de familia deja glifos de la anterior en el atlas (igual que al cambiar de tema).
       ;(term as Terminal & { clearTextureAtlas?: () => void }).clearTextureAtlas?.()
       // La celda cambia de ancho: sin fit + ptyResize el PTY sigue con las cols viejas.
@@ -1451,7 +1455,7 @@ export const TerminalPane: React.FC<Props> = ({
       syncTerminalScrolledUpState(term, setIsScrolledUp)
       window.api.ptyResize(sessionId, Math.max(1, term.cols), Math.max(1, term.rows))
     }
-  }, [config.fontSize, config.fontMono, sessionId])
+  }, [config.fontSize, config.fontMono, config.terminalLineHeight, sessionId])
 
   useEffect(() => {
     if (tabActive && isActivePane && fitRef.current && termRef.current) {

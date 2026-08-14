@@ -4,6 +4,7 @@ import {
   AGENT_NAME_MAX_LENGTH,
   AGENT_OBJECTIVE_MAX_LENGTH,
   AGENT_ROLE_MAX_LENGTH,
+  sanitizeAgentRulesEnabledDraft,
   type AgentIdentityDraft,
 } from '@shared/agentIdentity'
 import { agentMonogram } from '@shared/tabContextAppearance'
@@ -84,11 +85,15 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
                   key={template.id}
                   type="button"
                   className="agent-config-identity__template"
-                  onClick={() => onChange({
+                  onClick={() => {
+                    const rules = template.ruleKeys.map(key => t(key))
+                    onChange({
                     role: draft.role.trim() || t(template.roleKey),
                     objective: t(template.objectiveKey),
-                    rules: template.ruleKeys.map(key => t(key)),
-                  })}
+                    rules,
+                    rulesEnabled: sanitizeAgentRulesEnabledDraft(rules),
+                  })
+                  }}
                 >
                   {t(template.labelKey)}
                 </button>
@@ -106,7 +111,8 @@ export const AgentConfigIdentityColumn: React.FC<AgentConfigIdentityColumnProps>
       <div className="agent-config-identity">
         <AgentRulesEditor
           rules={draft.rules}
-          onChange={rules => onChange({ rules })}
+          rulesEnabled={draft.rulesEnabled}
+          onChange={(rules, rulesEnabled) => onChange({ rules, rulesEnabled })}
           onCommit={onCommit}
         />
       </div>

@@ -1,11 +1,14 @@
 import React from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
 import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
 import { Gravity } from './Gravity'
+import { QueuedTurnPreviewLabel } from './QueuedTurnPreviewLabel'
 import './AgentChatBubbles.css'
 
 export interface AgentPaneQueuedTurn {
@@ -16,6 +19,8 @@ export interface AgentPaneQueuedTurn {
     previewUrl: string
     name: string
   }>
+  orchestrationFollowUp?: boolean
+  delegation?: { id: string; fromPaneId: string; toAgentId: string }
 }
 
 export interface AgentPaneMessagesProps {
@@ -45,6 +50,7 @@ export interface AgentPaneMessagesProps {
   onScrollToBottom: () => void
   /** Stop por fila en Waiting (solo esa delegación). */
   onAbortDelegation?: (delegationId: string) => void
+  projectAgents?: ProjectAgentDefinition[]
 }
 
 export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
@@ -71,6 +77,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onMergeQueuedTurns,
   onScrollToBottom,
   onAbortDelegation,
+  projectAgents = [],
 }) => {
   const { t } = useT()
   const waveLabel = orchestrationAwaiting
@@ -102,6 +109,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           onMaterializingAnimationEnd={onMaterializingAnimationEnd}
           surface="pane"
           scrollRef={scrollRef}
+          projectAgents={projectAgents}
         />
         {awaitingDelegations ? (
           <div className="agent-pane__delegating">
@@ -164,7 +172,12 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                 </button>
               </div>
             )}
-            {queuedTurns.map((item, index) => (
+            {queuedTurns.map((item, index) => {
+              const preview = resolveQueuedTurnPreview(item, projectAgents)
+              const queueText = preview.kind === 'human'
+                ? (preview.fallbackText ?? item.text)
+                : null
+              return (
               <div key={item.id} className="agent-pane__queue-bubble">
                 <button
                   type="button"
@@ -185,9 +198,11 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                       ))}
                     </span>
                   )}
-                  {(item.text || item.images.length === 0) && (
+                  {(queueText || preview.kind !== 'human' || item.images.length === 0) && (
                     <span className="agent-pane__queue-text">
-                      {item.text || t('agentPane.imageOnlyMessage')}
+                      {preview.kind !== 'human'
+                        ? <QueuedTurnPreviewLabel preview={preview} />
+                        : (queueText || t('agentPane.imageOnlyMessage'))}
                     </span>
                   )}
                 </button>
@@ -200,7 +215,8 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
                   ×
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

@@ -16,7 +16,7 @@
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   background: color-mix(in srgb, var(--surface) 94%, black 6%);
   color: var(--text);
-  box-shadow: 0 8px 22px color-mix(in srgb, black 30%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, black 15%, transparent);
   font-family: var(--font-ui);
   font-size: 0.75rem;
   line-height: 1.3;

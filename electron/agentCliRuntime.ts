@@ -22,6 +22,7 @@ import { issueKeyFor } from '../src/shared/jiraIssue'
 import { jiraSnapshotHasContent } from '../src/shared/jiraIssueDoc'
 import { buildAgentIdentityPrompt } from '../src/shared/agentIdentity'
 import { buildJiraAttachedPrompt, buildMcpCapabilityPrompt } from '../src/shared/mcpCapabilityPrompt'
+import { otelEnvFromConfig } from './otelEnv'
 import { initSessionCwd } from './cdRecentCapture'
 import { projectDirPath } from './projectDir'
 import { recordPulseEvent } from './pulseStore'
@@ -69,8 +70,15 @@ import {
   type AgentCliProvider,
 } from '../src/shared/agentCliProviders'
 import { resolvePluginDirs } from '../src/shared/installedPlugins'
-import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
+import {
+  beginTurnFileBaseline,
+  resolveTurnChangedPaths,
+  captureWorkspaceSnapshotMetadata,
+  type WorkspaceSnapshot,
+} from './turnFileChanges'
+import { pauseFileExplorerWatchesForCwd } from './fileExplorerWatcher'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
+import { hasWiki } from './wikiStore'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
 import {
@@ -89,7 +97,20 @@ interface AgentRun {
 }
 
 const agentRuns = new Map<string, AgentRun>()
+const turnCleanupByPane = new Map<string, () => void>()
 let nextAgentRunGeneration = 1
+
+export function registerTurnCleanup(paneId: string, cleanup: () => void): void {
+  turnCleanupByPane.get(paneId)?.()
+  turnCleanupByPane.set(paneId, cleanup)
+}
+
+function runTurnCleanup(paneId: string): void {
+  const cleanup = turnCleanupByPane.get(paneId)
+  if (!cleanup) return
+  turnCleanupByPane.delete(paneId)
+  cleanup()
+}
 
 export interface StopAgentRunOptions {
   /** Ventana a notificar; solo con `notify: true`. */
@@ -1008,7 +1029,7 @@ export function runAgentCliSpawn(
   try {
     proc = crossSpawn(command, args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...otelEnvFromConfig(config) },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     }) as ChildProcessWithoutNullStreams
@@ -1114,7 +1135,12 @@ export function startAgentTurn(
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
   if (cwd) initSessionCwd(request.paneId, cwd)
   const imagePaths = materializeClipboardImages(projectCwd, request.images)
-  const beforeSnapshot = captureWorkspaceSnapshot(cwd)
+  const releaseWatcherPause = pauseFileExplorerWatchesForCwd(projectCwd || cwd)
+  const fileBaseline = beginTurnFileBaseline(cwd)
+  let walkBefore: WorkspaceSnapshot | null = null
+  let walkBeforeScheduled = false
+  const endTurnCleanup = (): void => { releaseWatcherPause() }
+  registerTurnCleanup(request.paneId, endTurnCleanup)
   let latestSessionId = request.cliSessionId
   let changelogPersisted = false
   /** Mismo patrón que changelogPersisted: el round 2 de need-sections re-emite assistant_final. */
@@ -1150,6 +1176,7 @@ export function startAgentTurn(
     const current = agentRuns.get(runKey)
     if (current?.generation === generation) agentRuns.delete(runKey)
     send(win, runKey, { type: 'error', message })
+    runTurnCleanup(request.paneId)
     finishAgentTurn(win, runKey, 1)
   }
 
@@ -1172,7 +1199,7 @@ export function startAgentTurn(
     try {
       proc = crossSpawn(command, args, {
         cwd,
-        env: process.env,
+        env: { ...process.env, ...otelEnvFromConfig(config) },
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       }) as ChildProcessWithoutNullStreams
@@ -1185,9 +1212,14 @@ export function startAgentTurn(
     if (!reserved || reserved.generation !== generation) {
       // El usuario paró (o se reemplazó el turno) mientras spawneábamos.
       try { proc.kill('SIGTERM') } catch { /* already exited */ }
+      runTurnCleanup(request.paneId)
       return
     }
     agentRuns.set(runKey, { proc, windowId: win.id, generation })
+    if (fileBaseline.mode === 'walk' && !walkBeforeScheduled) {
+      walkBeforeScheduled = true
+      setImmediate(() => { walkBefore = captureWorkspaceSnapshotMetadata(cwd) })
+    }
     closeAgentCliStdin(proc.stdin)
     let stdoutBuffer = ''
     let stderrBuffer = ''
@@ -1258,17 +1290,16 @@ export function startAgentTurn(
                   ...sectionRequest.errors.map(error => `[Context request error: ${error}]`),
                 ].filter(Boolean).join('\n\n')
               : sectionRequest.visibleText
-            const changedPaths = changedWorkspacePaths(
-              beforeSnapshot,
-              captureWorkspaceSnapshot(cwd),
-            )
+            const changedPaths = resolveTurnChangedPaths(cwd, fileBaseline, walkBefore)
             // Con [] no escribe (ya persistido), pero sigue limpiando el
             // fence del texto visible.
             const wikiIngest = applyWikiIngestFromFinalText(
               finalText,
-              wikiIngestPersisted ? [] : request.contexts ?? [],
               projectCwd,
-              { agentId: request.agentId?.trim() || undefined },
+              {
+                agentId: request.agentId?.trim() || undefined,
+                persist: !wikiIngestPersisted && hasWiki(projectCwd),
+              },
             )
             if (wikiIngest.persisted) wikiIngestPersisted = true
             const { visibleText: afterChangelog, changes } = extractAiChangelog(
@@ -1355,6 +1386,8 @@ export function startAgentTurn(
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
       emit(parser.end())
+      // Capturar antes del volcado crudo: emit(assistant_final) pone sawAssistantText=true.
+      const sawParsedAssistantText = sawAssistantText
       // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
       // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
       if (!sawAssistantText && rawStdout.trim()) {
@@ -1386,13 +1419,14 @@ export function startAgentTurn(
         startPhase(continuationPrompt, contextRound + 1)
         return
       }
-      if (code && !sawAssistantText) {
+      if (code && !sawParsedAssistantText) {
         send(win, runKey, {
           type: 'error',
           message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
         })
       }
       recordTurnInPulse()
+      runTurnCleanup(request.paneId)
       finishAgentTurn(win, runKey, code ?? 0)
     })
   }
@@ -1473,6 +1507,7 @@ export function isAgentRunReservationCurrent(runKey: string, generation: number)
 export function stopAgentRun(runKey: string, options: StopAgentRunOptions = {}): void {
   const run = agentRuns.get(runKey)
   if (!run) return
+  runTurnCleanup(parseRunKey(runKey).paneId)
   agentRuns.delete(runKey)
   try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
   if (options.notify && options.win && !options.win.isDestroyed()) {

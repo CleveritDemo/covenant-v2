@@ -6,11 +6,18 @@ import { IPC } from '../src/shared/ipcChannels'
 interface WatcherEntry {
   watcher: FSWatcher
   cwd: string
+  win: BrowserWindow | null
   debounceTimer: ReturnType<typeof setTimeout> | null
   pendingDirs: Set<string>
+  dirtyWhilePaused: boolean
 }
 
 const watchers = new Map<string, WatcherEntry>()
+const pauseRefCount = new Map<string, number>()
+
+function isPausedForCwd(cwd: string): boolean {
+  return (pauseRefCount.get(cwd) ?? 0) > 0
+}
 
 function normalizeRelFromAbs(cwd: string, absPath: string): string {
   const rel = relative(resolve(cwd), absPath).replace(/\\/g, '/')
@@ -35,6 +42,31 @@ function flushPending(sessionId: string, win: BrowserWindow | null): void {
   }
 }
 
+export function pauseFileExplorerWatchesForCwd(cwdRaw: string): () => void {
+  const cwd = resolve(String(cwdRaw).trim())
+  pauseRefCount.set(cwd, (pauseRefCount.get(cwd) ?? 0) + 1)
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    const next = (pauseRefCount.get(cwd) ?? 1) - 1
+    if (next <= 0) {
+      pauseRefCount.delete(cwd)
+    } else {
+      pauseRefCount.set(cwd, next)
+    }
+    if (next > 0) return
+    for (const [sessionId, entry] of watchers) {
+      if (entry.cwd !== cwd) continue
+      if (entry.pendingDirs.size > 0 || entry.dirtyWhilePaused) {
+        entry.dirtyWhilePaused = false
+        entry.pendingDirs.add('')
+        flushPending(sessionId, entry.win)
+      }
+    }
+  }
+}
+
 export function startFileExplorerWatch(
   sessionId: string,
   cwdRaw: string,
@@ -48,12 +80,16 @@ export function startFileExplorerWatch(
       if (!filename) return
       const entry = watchers.get(sessionId)
       if (!entry) return
+      if (isPausedForCwd(cwd)) {
+        entry.dirtyWhilePaused = true
+        return
+      }
       const abs = resolve(cwd, String(filename))
       const rel = normalizeRelFromAbs(cwd, abs)
       const parent = parentRelPath(rel)
       entry.pendingDirs.add(parent)
       if (entry.debounceTimer) clearTimeout(entry.debounceTimer)
-      entry.debounceTimer = setTimeout(() => flushPending(sessionId, win), 300)
+      entry.debounceTimer = setTimeout(() => flushPending(sessionId, entry.win), 300)
     })
   } catch {
     return
@@ -62,8 +98,10 @@ export function startFileExplorerWatch(
   watchers.set(sessionId, {
     watcher,
     cwd,
+    win,
     debounceTimer: null,
     pendingDirs: new Set(),
+    dirtyWhilePaused: false,
   })
 }
 

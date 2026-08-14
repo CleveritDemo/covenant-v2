@@ -148,6 +148,16 @@ describe('guardado al cambiar', () => {
     await waitFor(() => expect(setConfig.mock.calls.at(-1)?.[0].fontMono).toBe('Menlo'))
   })
 
+  it('el select de interlineado guarda terminalLineHeight', async () => {
+    render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))
+
+    expect(screen.getByRole('button', { name: 'settings.terminalLineHeightLabel' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('option', { name: 'settings.terminalLineHeightRelaxed' }))
+
+    await waitFor(() => expect(setConfig.mock.calls.at(-1)?.[0].terminalLineHeight).toBe(1.4))
+  })
+
   it('el pie pasa a marca de tiempo tras guardar', async () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.appearanceSection' }))

@@ -20,8 +20,11 @@ import {
   type ComposerPendingImage,
 } from '../agent/composerImages'
 import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
+import { formatQueuedTurnPreviewText } from '../agent/QueuedTurnPreviewLabel'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
 import { PlaneChatCloseButton } from './PlaneChatCloseButton'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
@@ -78,6 +81,7 @@ export interface PlaneChatComposerProps {
   emptyAgentsHint: string
   sendLabel: string
   queuedTurns?: PlaneChatQueuedTurn[]
+  agentCatalog?: ProjectAgentDefinition[]
   onSelectAgent: (paneId: string) => void
   onCloseChat?: () => void
   onStop: (paneId: string) => void
@@ -122,6 +126,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   emptyAgentsHint,
   sendLabel,
   queuedTurns = [],
+  agentCatalog = [],
   onSelectAgent,
   onCloseChat,
   onStop,
@@ -487,9 +492,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             >
               {onMergeQueuedTurns
                 && selectedAgentId
-                && queuedTurns.filter(item => (
-                  !item.delegation && !item.orchestrationFollowUp
-                )).length >= 2 && (
+                && queuedTurns.filter(item => !item.delegation).length >= 2 && (
                 <button
                   type="button"
                   className="plane-chat-composer__queue-merge"
@@ -499,11 +502,17 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                   {t('agentPane.queueMerge')}
                 </button>
               )}
-              {queuedTurns.map((item, index) => (
+              {queuedTurns.map((item, index) => {
+                const preview = resolveQueuedTurnPreview(item, agentCatalog)
+                const displayText = preview.kind !== 'human'
+                  ? formatQueuedTurnPreviewText(preview, t)
+                  : preview.fallbackText
+                return (
                 <div key={item.id} className="plane-chat-composer__queue-bubble">
                   <PlaneChatQueueEditButton
                     position={index + 1}
                     text={item.text}
+                    displayText={displayText}
                     emptyText={t('agentPane.imageOnlyMessage')}
                     images={item.images}
                     title={t('agentPane.queueEditHint')}
@@ -517,7 +526,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                     />
                   ) : null}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

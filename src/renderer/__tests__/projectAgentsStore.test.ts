@@ -34,7 +34,6 @@ describe('syncTabAgentsFromCatalog', () => {
         { id: 'example2', provider: 'cursor', permissionMode: 'auto', name: 'example2' },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -69,7 +68,6 @@ describe('syncTabAgentsFromCatalog', () => {
         { id: 'backend', provider: 'claude', permissionMode: 'auto', order: 2 },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -87,7 +85,6 @@ describe('syncTabAgentsFromCatalog', () => {
         { id: 'backend', provider: 'claude', permissionMode: 'auto', order: 2 },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -112,7 +109,6 @@ describe('syncTabAgentsFromCatalog', () => {
       }),
       [{ id: 'qa', provider: 'claude', permissionMode: 'auto' }],
       {
-        maxPanes: 10,
         createPaneId: () => 'should-not-run',
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -148,7 +144,6 @@ describe('syncTabAgentsFromCatalog', () => {
       }),
       [{ id: 'qa', provider: 'cursor', permissionMode: 'auto' }],
       {
-        maxPanes: 10,
         createPaneId: () => 'should-not-run',
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -178,7 +173,6 @@ describe('syncTabAgentsFromCatalog', () => {
         localOnly: true,
       }],
       {
-        maxPanes: 10,
         createPaneId: () => 'should-not-run',
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
         preserveCliSessionIds: false,
@@ -215,7 +209,6 @@ describe('syncTabAgentsFromCatalog', () => {
         { id: 'beta', provider: 'cursor', permissionMode: 'auto', name: 'beta' },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => 'should-not-run',
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -247,7 +240,6 @@ describe('syncTabAgentsFromCatalog', () => {
         { id: 'gamma', provider: 'cursor', permissionMode: 'auto', name: 'gamma' },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => `new-${++n}`,
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -281,7 +273,6 @@ describe('syncTabAgentsFromCatalog', () => {
         },
       ],
       {
-        maxPanes: 10,
         createPaneId: () => 'should-not-run',
         createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
       },
@@ -292,6 +283,27 @@ describe('syncTabAgentsFromCatalog', () => {
       agentId: 'frontend-2',
       localOnly: true,
     })
+  })
+
+  it('empty tab + 12 catalog agents → 12 agent panes (no truncate)', () => {
+    let n = 0
+    const catalog = Array.from({ length: 12 }, (_, i) => ({
+      id: `agent-${i + 1}`,
+      provider: 'cursor' as const,
+      permissionMode: 'auto' as const,
+      name: `agent-${i + 1}`,
+    }))
+    const result = syncTabAgentsFromCatalog(
+      baseTab({ paneIds: [], activePaneId: '' }),
+      catalog,
+      {
+        createPaneId: () => `new-${++n}`,
+        createWindow: () => ({ open: false, fullscreen: false, zIndex: 1 }),
+      },
+    )
+    expect(result.addedPaneIds).toHaveLength(12)
+    expect(result.tab.paneIds).toHaveLength(12)
+    expect(result.tab.paneIds.every(id => result.tab.paneKinds?.[id] === 'agent')).toBe(true)
   })
 })
 

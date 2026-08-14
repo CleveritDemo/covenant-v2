@@ -5,7 +5,7 @@
  * y después se extrae el fence `ia-terminal-wiki-view` para la UI.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { BrowserWindow } from 'electron'
 import type { AppConfig } from '../src/shared/configSchema'
@@ -17,16 +17,20 @@ import type {
 import {
   buildWikiCuratorPrompt,
   extractWikiViewRequest,
+  isWikiCuratorInitCommand,
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
+  WIKI_CURATOR_INIT_COMMAND,
   type WikiCuratorConfig,
   type WikiCuratorEvent,
 } from '../src/shared/wikiCurator'
 import { IPC } from '../src/shared/ipcChannels'
+import { lintWikiPages } from '../src/shared/wikiLint'
 import { discoverTabContexts } from './tabContextBuild'
 import { runAgentCliSpawn, stopAgentRunsForPane } from './agentCliRuntime'
+import { MAX_WIKI_INIT_INGEST_OPS } from '../src/shared/wikiDoc'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
-import { wikiRootPath } from './wikiStore'
+import { ensureWiki, readWikiPages, wikiRootPath } from './wikiStore'
 
 export interface WikiCuratorStartConfig {
   cwd: string
@@ -50,6 +54,48 @@ export type WikiCuratorRunner = (
 
 const CURATOR_CONFIG_FILE = 'curator.json'
 const CURATOR_AGENT_ID = 'wiki-curator'
+
+/**
+ * Las pages citan rutas relativas a su paquete (`electron/…`, `src/…`) pero el
+ * cwd del proyecto puede ser un monorepo con esos paquetes un nivel abajo
+ * (covenant-v2/electron/…), o relativas a raíces aún más profundas
+ * (`locales/en.ts` bajo src/i18n). Regla precision-first: la ruta cuenta como
+ * viva si existe bajo cwd o bajo una subcarpeta visible de primer nivel, y
+ * solo se acusa como muerta si su primer segmento ancla en alguna raíz — una
+ * ruta sin anclaje no es verificable y no se reporta.
+ */
+function buildWikiPathExists(cwd: string): (rel: string) => boolean {
+  let roots: string[] | null = null
+  const listRoots = (): string[] => {
+    if (roots) return roots
+    roots = [cwd]
+    try {
+      for (const entry of readdirSync(cwd, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+        roots.push(join(cwd, entry.name))
+      }
+    } catch { /* cwd ilegible: queda solo cwd */ }
+    return roots
+  }
+  return rel => {
+    const allRoots = listRoots()
+    if (allRoots.some(root => existsSync(join(root, rel)))) return true
+    const first = rel.split('/')[0] ?? ''
+    return !allRoots.some(root => existsSync(join(root, first)))
+  }
+}
+
+/** Sección `## Wiki health` para el prompt del curador; undefined si la wiki está sana. */
+function buildWikiHealthSection(cwd: string): string | undefined {
+  const report = lintWikiPages(readWikiPages(cwd), buildWikiPathExists(cwd))
+  const lines = [
+    ...report.orphans.map(slug => `- orphan page: [[${slug}]]`),
+    ...report.brokenLinks.map(({ from, to }) => `- broken link: [[${from}]] → [[${to}]]`),
+    ...report.deadPaths.map(({ slug, path }) => `- dead file path in [[${slug}]]: \`${path}\``),
+  ]
+  return lines.length ? lines.join('\n') : undefined
+}
 
 /** Un turno activo por cwd: el nuevo invalida al previo (generación + stop). */
 const curatorGenerations = new Map<string, number>()
@@ -97,6 +143,49 @@ export function writeWikiCuratorConfig(
   }
 }
 
+/** True si la config sanitizada no trae nombre, provider, modelo ni reglas. */
+export function isWikiCuratorConfigEmpty(config: WikiCuratorConfig): boolean {
+  return Object.keys(config).length === 0
+}
+
+/** Lee wikiCurator de AppConfig ya sanitizado. */
+export function wikiCuratorConfigFromApp(appConfig: AppConfig): WikiCuratorConfig {
+  return sanitizeWikiCuratorConfig(appConfig.wikiCurator)
+}
+
+/** Aplica valor crudo a AppConfig (sin persistir). */
+export function applyWikiCuratorConfigToApp(
+  appConfig: AppConfig,
+  value: unknown,
+): { ok: true; config: WikiCuratorConfig; appConfig: AppConfig } {
+  const config = sanitizeWikiCuratorConfig(value)
+  return {
+    ok: true,
+    config,
+    appConfig: { ...appConfig, wikiCurator: config },
+  }
+}
+
+/**
+ * Si AppConfig no tiene curador y el proyecto trae `.gravity/wiki/curator.json`,
+ * copia sanitizada one-shot a AppConfig. No borra el archivo de proyecto.
+ */
+export function maybeMigrateWikiCuratorFromProject(
+  cwd: string,
+  appConfig: AppConfig,
+): { appConfig: AppConfig; config: WikiCuratorConfig; migrated: boolean } {
+  const current = wikiCuratorConfigFromApp(appConfig)
+  if (!isWikiCuratorConfigEmpty(current)) {
+    return { appConfig, config: current, migrated: false }
+  }
+  const projectConfig = readWikiCuratorConfig(cwd)
+  if (isWikiCuratorConfigEmpty(projectConfig)) {
+    return { appConfig, config: current, migrated: false }
+  }
+  const appConfigNext = { ...appConfig, wikiCurator: projectConfig }
+  return { appConfig: appConfigNext, config: projectConfig, migrated: true }
+}
+
 export function startWikiCuratorTurn(
   win: BrowserWindow,
   config: WikiCuratorStartConfig,
@@ -120,9 +209,25 @@ export function startWikiCuratorTurn(
   if (!cwd) return { ok: false, error: 'cwd inválido' }
   if (!message && images.length === 0) return { ok: false, error: 'mensaje vacío' }
 
-  // Solo consume la wiki: sin contexto kind 'wiki' el curador no tiene material.
-  const contexts = discoverTabContexts(cwd).contexts.filter(item => item.kind === 'wiki')
-  if (!contexts.length) {
+  const init = isWikiCuratorInitCommand(message)
+  if (init) ensureWiki(cwd)
+  const discovered = discoverTabContexts(cwd).contexts
+  // Chat: solo wiki. Init: wiki + folderTree para explorar el proyecto read-only.
+  let contexts = init
+    ? discovered.filter(item => item.kind === 'wiki' || item.kind === 'folderTree')
+    : discovered.filter(item => item.kind === 'wiki')
+  if (init && !contexts.some(item => item.kind === 'folderTree')) {
+    contexts = [
+      ...contexts,
+      {
+        id: 'iaterminal:folderTree:init',
+        name: 'Project folders',
+        fileName: 'folders.md',
+        kind: 'folderTree',
+      },
+    ]
+  }
+  if (!init && !contexts.length) {
     const error = 'El proyecto no tiene wiki (.gravity/wiki).'
     emitCurator(win, cwd, { type: 'error', message: error })
     emitCurator(win, cwd, { type: 'done' })
@@ -137,7 +242,7 @@ export function startWikiCuratorTurn(
   stopAgentRunsForPane(paneId)
   const isStale = (): boolean => curatorGenerations.get(cwd) !== generation
 
-  const curatorConfig = readWikiCuratorConfig(cwd)
+  const curatorConfig = sanitizeWikiCuratorConfig(appConfig.wikiCurator)
   const requestedSession = typeof config.cliSessionId === 'string' && config.cliSessionId.trim()
     ? config.cliSessionId.trim()
     : undefined
@@ -147,7 +252,12 @@ export function startWikiCuratorTurn(
     provider: curatorConfig.provider ?? 'claude',
     // Gestor de información: nunca programa ni toca archivos → plan.
     permissionMode: 'plan',
-    prompt: buildWikiCuratorPrompt(curatorConfig, message || '(imagen adjunta)'),
+    prompt: buildWikiCuratorPrompt(
+      curatorConfig,
+      message || '(imagen adjunta)',
+      buildWikiHealthSection(cwd),
+      init ? 'init' : 'chat',
+    ),
     cwd,
     name: curatorConfig.name,
     model: curatorConfig.model,
@@ -197,8 +307,10 @@ export function startWikiCuratorTurn(
       }
       // runAgentCliSpawn no aplica el ingest de assistant_final (eso vive en
       // startAgentTurn): se aplica aquí, una sola vez, con la wiki asignada.
-      const ingest = applyWikiIngestFromFinalText(finalText, contexts, cwd, {
+      const ingest = applyWikiIngestFromFinalText(finalText, cwd, {
         agentId: CURATOR_AGENT_ID,
+        persist: true,
+        ...(init ? { maxOps: MAX_WIKI_INIT_INGEST_OPS } : {}),
       })
       if (ingest.persisted) {
         emitCurator(win, cwd, { type: 'applied', opsCount: ingest.applied })

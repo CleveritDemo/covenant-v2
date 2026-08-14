@@ -3,6 +3,12 @@ import { resolveContextColor } from '@shared/tabContextAppearance'
 import { contextIconName } from '../agent/tabContextKindIcons'
 import type { PlaneAgentContextChip } from '../workspace/PlaneAgentContextNodes'
 
+/**
+ * Sin panes que compartan contexto: ninguno se marca como compartido. Lo usan
+ * las vistas de sala, donde los contextos son del agente y de nadie más.
+ */
+export const NO_CONTEXT_USAGE: ReadonlyMap<string, number> = new Map()
+
 /** Resuelve un TabContext del catálogo o sintetiza agentResult (`iaterminal:result:*`). */
 export function resolveTabContextById(
   contextId: string,

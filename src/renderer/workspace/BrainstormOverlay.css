@@ -313,12 +313,15 @@
 }
 
 /*
- * Tarjeta de asiento. `--brainstorm-seat-cell` —la ranura de las minis del
- * plano— entra como TOPE, no como alto fijo: las minis de código son previews
- * de terminal que llenan su caja, mientras un asiento son dos líneas, y
- * forzarle 130px dejaba un hueco blanco debajo. La ranura sigue decidiendo
- * cuánto texto se permite (`[data-seat-tier]`); el nombre y el estado no se
- * caen nunca.
+ * Tarjeta de asiento. La caja solo aporta borde, radio y el color del agente:
+ * dentro va la mini del plano (`PlaneMiniFace`), que trae su propio relleno y su
+ * propio degradado —por eso aquí no hay padding ni gap.
+ *
+ * `--brainstorm-seat-cell` —la ranura de las minis del plano— entra como TOPE,
+ * no como alto fijo: las minis de código son previews de terminal que llenan su
+ * caja, mientras un asiento son dos líneas, y forzarle 130px dejaba un hueco
+ * blanco debajo. La ranura sigue decidiendo cuánto texto se permite
+ * (`[data-seat-tier]`); el nombre y el estado no se caen nunca.
  */
 .brainstorm-seat {
   flex: 0 0 auto;
@@ -328,8 +331,6 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 9px 10px;
   overflow: hidden;
   text-align: left;
   border: 1px solid var(--border);
@@ -342,9 +343,13 @@
   transition: transform 140ms ease, border-color 140ms ease;
 }
 
-.brainstorm-seat--live {
-  max-height: var(--brainstorm-seat-cell, none);
-}
+/*
+ * Sin tope de alto: la tarjeta lleva los contextos del agente además del estado
+ * y la última línea, y `--brainstorm-seat-cell` recortaba justo lo último —la
+ * frase con la que se quedó, que es para lo que se mira esta columna. La columna
+ * ya hace scroll; lo que sigue midiendo la ranura es cuántas líneas se permite
+ * la cola (`[data-seat-tier]`).
+ */
 
 .brainstorm-seat:hover {
   transform: translateY(-1px);
@@ -370,49 +375,13 @@
     var(--plane-mini-card-shadow);
 }
 
-/* El número tiene que seguir legible sobre el velo del agente. */
-.brainstorm-seat--seated .brainstorm-seat__order {
-  background: var(--surface);
-}
-
 /* Esperando turno: sigue legible, pero no compite con quien habla. */
 .brainstorm-seat--waiting { opacity: 0.6; }
 
-.brainstorm-seat__row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.brainstorm-seat__row--meta { flex-wrap: wrap; }
-
-.brainstorm-seat__monogram {
-  flex: none;
-  font-family: var(--font-ui);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: var(--brainstorm-seat-color);
-}
-
-.brainstorm-seat__name {
-  font-size: 12.5px;
-  font-weight: 620;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.brainstorm-seat__turns {
-  margin-left: auto;
-  font-family: var(--font-ui);
-  font-size: 9.5px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
+/* Rol con el que se sienta. El nombre, el monograma y la cápsula de estado ya
+   los pone la mini del plano: aquí solo va lo que la sala añade. */
 .brainstorm-seat__role {
+  padding-bottom: 3px;
   font-family: var(--font-ui);
   font-size: 9px;
   letter-spacing: 0.1em;
@@ -423,29 +392,11 @@
   text-overflow: ellipsis;
 }
 
-.brainstorm-seat__state {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.brainstorm-seat--speaking .brainstorm-seat__state {
-  color: var(--brainstorm-seat-color);
-  border-color: color-mix(in srgb, var(--brainstorm-seat-color) 45%, transparent);
-  background: color-mix(in srgb, var(--brainstorm-seat-color) 10%, transparent);
-}
-
 /* Un agente puede tener asiento en más de una sala viva: los contextos son
    independientes, así que la etiqueta avisa de que hay otra conversación. */
 .brainstorm-seat__also {
+  align-self: flex-start;
+  margin-bottom: 2px;
   font-family: var(--font-ui);
   font-size: 8.5px;
   letter-spacing: 0.06em;
@@ -457,11 +408,12 @@
   white-space: nowrap;
 }
 
+/* Se separa con aire, no con raya: la raya se leía como subrayado del último
+   contexto. Mismo hueco que usa la mini entre sus secciones. */
 .brainstorm-seat__tail {
   min-width: 0;
   overflow-wrap: anywhere;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
+  margin-top: var(--plane-mini-face-section-gap, 6px);
   font-size: 10px;
   line-height: 1.45;
   color: var(--text-muted);
@@ -510,35 +462,23 @@
   -webkit-line-clamp: 4;
 }
 
-/* Número de orden de habla: fuera de la caja, como los badges del plano. */
-.brainstorm-seat__order {
-  position: absolute;
-  top: 7px;
-  right: 8px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--accent-dim);
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
 /*
  * Pane de un asiento: al 0.7 del plano, centrado, con el resto de la sala
  * atenuado detrás. Misma proporción que las ventanas del plano de codificación.
  */
+/*
+ * Velo, no tapa: la sala se sigue viendo detrás, atenuada. Lo que no puede
+ * pasar es que se vea a medias —antes el velo vivía dentro de la columna
+ * central, y como cada columna es su propio contexto de apilado, los asientos y
+ * el borde de su columna quedaban por encima con un canto visible.
+ *
+ * z 3 atenúa las tres columnas (z 1) y deja fuera la barra de la sala (z 4): el
+ * estado de la sala y su cerrar siguen a mano mientras lees un asiento.
+ */
 .brainstorm-pane__scrim {
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: 3;
   background: color-mix(in srgb, var(--bg) 62%, transparent);
 }
 

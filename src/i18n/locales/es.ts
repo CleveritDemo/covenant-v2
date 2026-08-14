@@ -826,6 +826,8 @@ const es = {
     brainstormSeatQueued: 'en cola · {{position}}',
     brainstormSeatSilent: 'aún no habla',
     brainstormSeatOpenPane: 'Abrir a {{name}} por separado',
+    brainstormSeatTurn: 'turno {{order}}',
+    brainstormSeatFree: 'sin asiento',
     brainstormSeatAlsoShort: 'también',
     brainstormSeatAlsoTitle: 'También tiene asiento en otra sala viva. Contextos independientes: nada pasa de una sala a la otra.',
     brainstormPaneTitle: '{{name}} · en esta sala',

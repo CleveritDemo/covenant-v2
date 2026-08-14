@@ -177,6 +177,12 @@ export type BrainstormCatalogAgent = Pick<
   ProjectAgentDefinition,
   'id' | 'name' | 'role' | 'localOnly' | 'monogram' | 'ceremonyRole'
 >
+  /**
+   * Lo que la tarjeta del asiento pinta prestado de la mini del plano: marca del
+   * CLI, chip de coordinación y contextos. Opcional a propósito —la lógica pura
+   * de la sala no lo necesita— para que un catálogo mínimo siga valiendo.
+   */
+  & Partial<Pick<ProjectAgentDefinition, 'provider' | 'coordination' | 'contextIds'>>
 
 /** Agente permanente del catálogo por id exacto (nunca réplica). */
 export function findBrainstormCatalogAgent(

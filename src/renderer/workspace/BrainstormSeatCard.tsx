@@ -1,9 +1,11 @@
 import React from 'react'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import type { BrainstormSeatState } from '@shared/brainstormRoom'
+import type { AgentCliProvider } from '@shared/tabSession'
 import { useT } from '@i18n/useT'
-import { Spinner } from '../components/ui/Spinner'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PlaneMiniFace } from './PlaneMiniFace'
+import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 
 export interface BrainstormSeatCardProps {
   agentId: string
@@ -21,12 +23,21 @@ export interface BrainstormSeatCardProps {
 export interface BrainstormInviteSeatCardProps extends BrainstormSeatCardProps {
   /** Posición en el orden de habla, 1-based. null si no está sentado. */
   order: number | null
-  /** Contextos del agente: lo que ya trae puesto a la mesa. */
-  contexts?: readonly string[]
+  /**
+   * Contextos del agente ya resueltos: los mismos chips que la mini del plano,
+   * con su icono y su color, no una lista de nombres.
+   */
+  contexts?: PlaneAgentContextChip[]
+  provider?: AgentCliProvider
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   onToggle: () => void
 }
 
 export interface BrainstormLiveSeatCardProps extends BrainstormSeatCardProps {
+  /** Contextos del agente, ya resueltos: lo que trae leído a la sala. */
+  contexts?: PlaneAgentContextChip[]
+  provider?: AgentCliProvider
+  coordination?: 'none' | 'orchestrator' | 'productOwner'
   state: BrainstormSeatState
   /** Puesto en la cola de turnos, 1-based. Solo cuando espera. */
   queuePosition?: number
@@ -58,8 +69,16 @@ const AlsoTag: React.FC<{
 }
 
 /**
- * Tarjeta de invitación: se pulsa para sentar y el número dice en qué turno
+ * Tarjeta de invitación: se pulsa para sentar y la cápsula dice en qué turno
  * habla. El orden es la única razón por la que estas tarjetas se reordenan.
+ *
+ * Es la MISMA cara que la mini del plano (`PlaneMiniFace` + sus contextos), no
+ * una tarjeta parecida: al agente se le reconoce igual aquí que allí. Lo único
+ * que se añade alrededor es lo que el plano no necesita saber —el turno de
+ * habla y si ya tiene asiento en otra sala.
+ *
+ * `div role="button"` en vez de `<button>`: dentro van la lista de contextos y
+ * sus chips, que son botones, y un botón no puede contener otro.
  */
 export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> = ({
   agentId,
@@ -68,14 +87,17 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
   monogram,
   order,
   contexts = [],
+  provider,
+  coordination,
   alsoInRooms = [],
   onToggle,
 }) => {
   const { t } = useT()
   const seated = order !== null
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={[
         'brainstorm-seat',
         'brainstorm-seat--invite',
@@ -84,30 +106,36 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
       style={{ '--brainstorm-seat-color': paletteColorForSeed(agentId) } as React.CSSProperties}
       aria-pressed={seated}
       onClick={onToggle}
+      onKeyDown={event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onToggle()
+      }}
     >
-      {seated ? (
-        <span className="brainstorm-seat__order" aria-hidden>{order}</span>
-      ) : null}
       {/* Sin asa de arrastre: la tarjeta no se arrastra —el orden se reordena en
-          los chips del centro— y la mesa a la que se arrastraba ya no existe. */}
-      <span className="brainstorm-seat__row">
-        {monogram ? (
-          <span className="brainstorm-seat__monogram">{monogram}</span>
-        ) : null}
-        <span className="brainstorm-seat__name">{name}</span>
-      </span>
-      <span className="brainstorm-seat__row brainstorm-seat__row--meta">
+          los chips del centro— y la mesa a la que se arrastraba ya no existe.
+          Sin medalla de orden tampoco: el turno lo dice la cápsula de estado, y
+          un número flotando en la esquina se comía el nombre cuando era largo. */}
+      <PlaneMiniFace
+        name={name}
+        monogram={monogram}
+        provider={provider}
+        coordination={coordination}
+        density="compact"
+        statusLabel={seated
+          ? t('tabs.brainstormSeatTurn', { order: String(order) })
+          : t('tabs.brainstormSeatFree')}
+      >
         {role ? <span className="brainstorm-seat__role">{role}</span> : null}
         <AlsoTag
           rooms={alsoInRooms}
           prefix={t('tabs.brainstormSeatAlsoShort')}
           title={t('tabs.brainstormSeatAlsoTitle')}
         />
-      </span>
-      {contexts.length ? (
-        <span className="brainstorm-seat__tail">{contexts.join(' · ')}</span>
-      ) : null}
-    </button>
+        {/* Pulsar un contexto es pulsar el agente, como en el plano. */}
+        <PlaneAgentContextNodes contexts={contexts} onOpenAgent={onToggle} />
+      </PlaneMiniFace>
+    </div>
   )
 }
 
@@ -115,12 +143,20 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
  * Tarjeta en vivo: quién habla, cuántos turnos lleva y la última línea que
  * dijo. Se pulsa para abrir su pane —solo sus turnos— igual que abrir un
  * agente en el plano de codificación.
+ *
+ * Misma cara que el asiento de invitación y que la mini del plano: el agente se
+ * reconoce igual en las tres vistas. Lo propio de la sala viva va debajo, en el
+ * hueco de los contextos: el estado con su contador de turnos y la cola de lo
+ * último que dijo.
  */
 export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
   agentId,
   name,
   role,
   monogram,
+  contexts = [],
+  provider,
+  coordination,
   state,
   queuePosition,
   turnsDone,
@@ -141,8 +177,9 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
 
   return (
     <Tooltip content={t('tabs.brainstormSeatOpenPane', { name })}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className={[
           'brainstorm-seat',
           'brainstorm-seat--live',
@@ -150,46 +187,48 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
         ].join(' ')}
         style={{ '--brainstorm-seat-color': paletteColorForSeed(agentId) } as React.CSSProperties}
         onClick={onOpen}
+        onKeyDown={event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return
+          event.preventDefault()
+          onOpen()
+        }}
       >
-        <span className="brainstorm-seat__row">
-          {monogram ? (
-            <span className="brainstorm-seat__monogram">{monogram}</span>
-          ) : null}
-          <span className="brainstorm-seat__name">{name}</span>
-          <span className="brainstorm-seat__turns">{turnsDone}/{rounds}</span>
-        </span>
-        <span className="brainstorm-seat__row brainstorm-seat__row--meta">
-          <span className="brainstorm-seat__state">
-            {/* Mismo spinner que el resto de la app mientras un agente trabaja:
-                el chip decía «hablando» pero nada se movía. */}
-            {state === 'speaking' ? (
-              <Spinner aria-label={stateLabel} />
-            ) : null}
-            {stateLabel}
-          </span>
+        {/* El contador va dentro del estado: «hablando · 2/4» es una sola cosa
+            —cómo va este asiento— y no dos esquinas que leer por separado. Y
+            mientras habla, el punto de trabajo del plano hace de spinner. */}
+        <PlaneMiniFace
+          name={name}
+          monogram={monogram}
+          provider={provider}
+          coordination={coordination}
+          busy={state === 'speaking'}
+          density="compact"
+          statusLabel={`${stateLabel} · ${turnsDone}/${rounds}`}
+        >
+          {role ? <span className="brainstorm-seat__role">{role}</span> : null}
           <AlsoTag
             rooms={alsoInRooms}
             prefix={t('tabs.brainstormSeatAlsoShort')}
             title={t('tabs.brainstormSeatAlsoTitle')}
           />
-        </span>
-        {role ? <span className="brainstorm-seat__role">{role}</span> : null}
-        {/*
-          La línea es la cola del último turno, literal: sale de lo que ya está
-          en `brainstormLiveState` y no pide un campo nuevo al protocolo de
-          cierre. A veces corta a media frase — es rastro de dónde quedó.
-        */}
-        <span className="brainstorm-seat__tail">
-          {tail
-            ? (
-              <>
-                {tail}
-                {live ? <i className="brainstorm-seat__caret" aria-hidden /> : null}
-              </>
-            )
-            : <em className="brainstorm-seat__silent">{t('tabs.brainstormSeatSilent')}</em>}
-        </span>
-      </button>
+          <PlaneAgentContextNodes contexts={contexts} onOpenAgent={onOpen} />
+          {/*
+            La línea es la cola del último turno, literal: sale de lo que ya
+            está en `brainstormLiveState` y no pide un campo nuevo al protocolo
+            de cierre. A veces corta a media frase — es rastro de dónde quedó.
+          */}
+          <span className="brainstorm-seat__tail">
+            {tail
+              ? (
+                <>
+                  {tail}
+                  {live ? <i className="brainstorm-seat__caret" aria-hidden /> : null}
+                </>
+              )
+              : <em className="brainstorm-seat__silent">{t('tabs.brainstormSeatSilent')}</em>}
+          </span>
+        </PlaneMiniFace>
+      </div>
     </Tooltip>
   )
 }

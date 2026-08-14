@@ -108,6 +108,15 @@ describe('otelEnvFromConfig', () => {
     }))
     expect(env.OTEL_EXPORTER_OTLP_PROTOCOL).toBe('grpc')
   })
+
+  it('supports http/json protocol', () => {
+    const env = otelEnvFromConfig(otelConfig({
+      otelEndpoint: 'https://otel.example.com:4318',
+      otelEnabled: true,
+      otelProtocol: 'http/json',
+    }))
+    expect(env.OTEL_EXPORTER_OTLP_PROTOCOL).toBe('http/json')
+  })
 })
 
 // ---------------------------------------------------------------------------

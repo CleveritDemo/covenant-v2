@@ -118,6 +118,7 @@ const en = {
     telemetryEndpointHint: 'The collector endpoint for traces, metrics, and logs.',
     telemetryProtocolLabel: 'OTLP protocol',
     telemetryProtocolHttpProtobuf: 'HTTP/Protobuf',
+    telemetryProtocolHttpJson: 'HTTP/JSON',
     telemetryProtocolGrpc: 'gRPC',
     telemetryHeadersLabel: 'OTLP headers',
     telemetryHeadersPlaceholder: 'Authorization=Bearer <token>',

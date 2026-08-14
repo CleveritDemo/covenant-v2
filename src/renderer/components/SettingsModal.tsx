@@ -481,6 +481,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   onChange={v => update('otelProtocol', v as AppConfig['otelProtocol'])}
                   options={[
                     { value: 'http/protobuf', label: t('settings.telemetryProtocolHttpProtobuf') },
+                    { value: 'http/json', label: t('settings.telemetryProtocolHttpJson') },
                     { value: 'grpc', label: t('settings.telemetryProtocolGrpc') },
                   ]}
                 />

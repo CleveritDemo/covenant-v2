@@ -16,7 +16,7 @@ export type AiProvider = 'ollama' | 'anthropic' | 'openai'
 export type Language = 'en' | 'es'
 
 /** Protocolo OTLP para exportación de telemetría. */
-export type OtelProtocol = 'http/protobuf' | 'grpc'
+export type OtelProtocol = 'http/protobuf' | 'http/json' | 'grpc'
 
 const DEFAULT_MUSIC_VOLUME = 0.35
 
@@ -396,9 +396,9 @@ export function validateConfig(config: AppConfig): string[] {
       errors.push('otelEndpoint no es una URL válida')
     }
   }
-  const validOtelProtocols: OtelProtocol[] = ['http/protobuf', 'grpc']
+  const validOtelProtocols: OtelProtocol[] = ['http/protobuf', 'http/json', 'grpc']
   if (!validOtelProtocols.includes(config.otelProtocol)) {
-    errors.push('otelProtocol debe ser http/protobuf o grpc')
+    errors.push('otelProtocol debe ser http/protobuf, http/json o grpc')
   }
   return errors
 }

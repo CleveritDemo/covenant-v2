@@ -120,6 +120,7 @@ const es = {
     telemetryEndpointHint: 'El endpoint del colector para trazas, métricas y logs.',
     telemetryProtocolLabel: 'Protocolo OTLP',
     telemetryProtocolHttpProtobuf: 'HTTP/Protobuf',
+    telemetryProtocolHttpJson: 'HTTP/JSON',
     telemetryProtocolGrpc: 'gRPC',
     telemetryHeadersLabel: 'Cabeceras OTLP',
     telemetryHeadersPlaceholder: 'Authorization=Bearer <token>',

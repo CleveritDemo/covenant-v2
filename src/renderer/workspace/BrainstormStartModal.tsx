@@ -81,8 +81,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
 
-  useEffect(() => {
-    if (!open) return
+  const resetDraft = useCallback((): void => {
     setTopic('')
     setParticipantIds([])
     setCeremony(DEFAULT_CEREMONY_ID)
@@ -90,7 +89,17 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
     setContextIds([])
     setFilePaths([])
     setOutcome('ideas')
-  }, [open])
+  }, [])
+
+  /**
+   * El borrador sobrevive a cerrar y volver a abrir: esto se reseteaba al
+   * ABRIR, así que tocar el toggle sin querer costaba todo lo que llevabas
+   * armado. Se limpia al arrancar la sala —ahí el borrador ya se gastó— y al
+   * cambiar de proyecto, que es otro contexto y otro material.
+   */
+  useEffect(() => {
+    resetDraft()
+  }, [cwd, resetDraft])
 
   const invitableAgents = useMemo(
     () => filterBrainstormInvitableAgents(agents),
@@ -206,6 +215,8 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
       cwd: cwd.trim(),
     })
     onStarted(room)
+    // El borrador ya se gastó: la siguiente sala empieza en blanco.
+    resetDraft()
   }
 
   /** Rol con el que se sienta: los de ceremonia mandan, el libre es respaldo. */

@@ -119,6 +119,31 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
     expect(document.querySelector('.brainstorm-start__cost')).not.toBeNull()
   })
 
+  // Tocar el toggle sin querer no puede costar lo que llevabas armado: el
+  // modal nunca se desmonta, era el reset al ABRIR lo que borraba el borrador.
+  it('cerrar y volver a abrir conserva el borrador', () => {
+    const { rerender } = render(
+      <BrainstormStartModal
+        open
+        cwd="/repo"
+        agents={agents}
+        onClose={() => {}}
+        onStarted={() => {}}
+      />,
+    )
+    typeGoal('¿Schema o RLS?')
+    seat('rodrigo')
+
+    const props = { cwd: '/repo', agents, onClose: () => {}, onStarted: () => {} }
+    rerender(<BrainstormStartModal open={false} {...props} />)
+    rerender(<BrainstormStartModal open {...props} />)
+
+    expect(screen.getByDisplayValue('¿Schema o RLS?')).toBeTruthy()
+    // El token de quién habla nombra a los sentados: sigue estando rodrigo.
+    expect(document.querySelectorAll('.brainstorm-sentence__tok')[0].textContent)
+      .toBe('rodrigo')
+  })
+
   it('el orden en que se sientan es el que se manda a arrancar', () => {
     open(['rodrigo', 'nico'])
     typeGoal('tema')

@@ -8,16 +8,18 @@ import type { OnboardingCliRow } from './onboardingTypes'
 export interface OnboardingStepRequirementsProps {
   rows: OnboardingCliRow[]
   loading: boolean
+  error: boolean
   onRecheck: () => void
 }
 
 export const OnboardingStepRequirements: React.FC<OnboardingStepRequirementsProps> = ({
   rows,
   loading,
+  error,
   onRecheck,
 }) => {
   const { t } = useT()
-  const noneInstalled = rows.length > 0 && rows.every(row => !row.installed)
+  const noneInstalled = !error && rows.length > 0 && rows.every(row => !row.installed)
 
   return (
     <section className="onboarding__body" aria-labelledby="onboarding-requirements-title">
@@ -37,6 +39,10 @@ export const OnboardingStepRequirements: React.FC<OnboardingStepRequirementsProp
           <Spinner aria-label={t('onboarding.requirementsChecking')} />
           <span>{t('onboarding.requirementsChecking')}</span>
         </div>
+      ) : error ? (
+        <p className="onboarding__alert" role="status">
+          {t('onboarding.requirementsError')}
+        </p>
       ) : (
         <ul className="onboarding__cli-list">
           {rows.map(row => (

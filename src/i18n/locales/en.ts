@@ -1702,6 +1702,8 @@ const en = {
       'At least one authenticated agent CLI must be available so the team can run work.',
     requirementsNone:
       'No CLI is installed. Without an authenticated CLI the team cannot execute anything.',
+    requirementsError:
+      'Could not check installed CLIs. Try again with "Re-check".',
     requirementsRecheck: 'Recheck',
     requirementsChecking: 'Checking…',
     requirementsInstalled: 'Installed',

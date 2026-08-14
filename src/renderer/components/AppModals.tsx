@@ -47,6 +47,7 @@ interface Props {
   onboardingStep: number
   onboardingClis: OnboardingCliRow[]
   onboardingCliLoading: boolean
+  onboardingCliError: boolean
   onboardingTeamCreated: boolean
   onboardingFolderPath: string | null
   onboardingCanCreateTeam: boolean
@@ -88,6 +89,7 @@ export const AppModals: React.FC<Props> = ({
   onboardingStep,
   onboardingClis,
   onboardingCliLoading,
+  onboardingCliError,
   onboardingTeamCreated,
   onboardingFolderPath,
   onboardingCanCreateTeam,
@@ -164,6 +166,7 @@ export const AppModals: React.FC<Props> = ({
         onFinish={onOnboardingFinish}
         cliRows={onboardingClis}
         loading={onboardingCliLoading}
+        cliError={onboardingCliError}
         onRecheck={onOnboardingRecheck}
         folderPath={onboardingFolderPath}
         onPickFolder={onOnboardingPickFolder}

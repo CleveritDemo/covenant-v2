@@ -57,6 +57,7 @@ function renderWizard(overrides: Partial<OnboardingModalProps> = {}) {
     onFinish: vi.fn(),
     cliRows: [INSTALLED, MISSING],
     loading: false,
+    cliError: false,
     onRecheck: vi.fn(),
     folderPath: null,
     onPickFolder: vi.fn(),
@@ -92,6 +93,18 @@ describe('OnboardingModal steps', () => {
       cliRows: [{ ...MISSING }, { ...MISSING, provider: 'gemini', label: 'Gemini', command: 'gemini' }],
     })
     expect(screen.getByText('onboarding.requirementsNone')).toBeTruthy()
+  })
+
+  it('con cliError muestra el error y no pinta filas de CLI', () => {
+    renderWizard({
+      stepIndex: 1,
+      cliError: true,
+      cliRows: [INSTALLED, MISSING],
+    })
+    expect(screen.getByText('onboarding.requirementsError')).toBeTruthy()
+    expect(screen.queryByText('Claude Code')).toBeNull()
+    expect(screen.queryByText('Codex')).toBeNull()
+    expect(screen.queryByText('onboarding.requirementsNone')).toBeNull()
   })
 
   it('pinta carpeta', () => {

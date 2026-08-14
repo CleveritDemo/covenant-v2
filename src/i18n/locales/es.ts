@@ -1704,6 +1704,8 @@ const es = {
       'Hace falta al menos un CLI de agente autenticado para que el equipo pueda ejecutar trabajo.',
     requirementsNone:
       'Ningún CLI está instalado. Sin un CLI autenticado el equipo no podrá ejecutar nada.',
+    requirementsError:
+      'No se pudo comprobar los CLIs instalados. Vuelve a intentarlo con «Volver a comprobar».',
     requirementsRecheck: 'Volver a comprobar',
     requirementsChecking: 'Comprobando…',
     requirementsInstalled: 'Instalado',

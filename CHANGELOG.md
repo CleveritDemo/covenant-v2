@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.55.0
+
+- **Asistente de primer uso**: wizard de cinco pasos (bienvenida, CLIs, carpeta, equipo, primer mensaje).
+- **Apertura única tras el splash**: se muestra una sola vez cuando termina el fundido de arranque.
+- **Relanzable desde Ajustes → Developer**: replay del onboarding sin perder ajustes pendientes.
+- **Flush al relanzar**: el replay desde Ajustes confirma el autosave con debounce antes de desmontar.
+- **Equipo creado solo si hubo escritura**: el CTA no marca éxito si el bootstrap no creó agentes.
+- **Error legible si falla la detección de CLIs**: aviso con reintento en lugar de lista vacía muda.
+
 ## v0.54.1
 
 - **Modales wiki al mismo lado del nodo**: nodo a la izquierda abre a la izquierda; a la derecha, a la derecha.

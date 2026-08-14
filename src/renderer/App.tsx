@@ -338,6 +338,7 @@ export const App: React.FC = () => {
   const [onboardingStep, setOnboardingStep] = useState(0)
   const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
   const [onboardingCliLoading, setOnboardingCliLoading] = useState(false)
+  const [onboardingCliError, setOnboardingCliError] = useState(false)
   const [onboardingTeamCreated, setOnboardingTeamCreated] = useState(false)
   const onboardingAutoOpenedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
@@ -2815,19 +2816,20 @@ export const App: React.FC = () => {
     scheduleSaveSession()
   }, [rememberPaneCwd, rememberProjectAgent, scheduleSaveSession])
 
-  const bootstrapProjectAgents = useCallback(async (tabId: string) => {
+  const bootstrapProjectAgents = useCallback(async (tabId: string): Promise<boolean> => {
     const current = tabsRef.current.find(tab => tab.id === tabId)
-    if (!current) return
+    if (!current) return false
     const cwd = current.projectFolder?.trim() || ''
     const catalogKey = tabAgentCatalogKey(current)
-    if (!cwd) return
+    if (!cwd) return false
     const catalog = projectAgentsByCwdRef.current[catalogKey] ?? []
-    if (catalog.length > 0) return
+    if (catalog.length > 0) return true
     const hasAgentPane = (current.paneIds ?? []).some(
       paneId => current.paneKinds?.[paneId] === 'agent',
     )
-    if (hasAgentPane) return
+    if (hasAgentPane) return true
 
+    let created = false
     const existing = new Set(catalog.map(agent => agent.id))
     const definitions = buildBootstrapProjectAgentDefinitions('cursor', existing)
 
@@ -2837,6 +2839,7 @@ export const App: React.FC = () => {
 
       const written = await window.api.upsertProjectAgent(cwd, definition)
       if (!written.ok) continue
+      created = true
       const agent = written.agent
       rememberProjectAgent(catalogKey, agent)
       await window.api.ensureAiAgentResults({
@@ -2870,6 +2873,7 @@ export const App: React.FC = () => {
     }
     scheduleSaveSession()
     void refreshAndSyncProjectAgents(cwd, tabId)
+    return created
   }, [
     rememberPaneCwd,
     rememberProjectAgent,
@@ -2879,11 +2883,13 @@ export const App: React.FC = () => {
 
   const refreshOnboardingClis = useCallback(async () => {
     setOnboardingCliLoading(true)
+    setOnboardingCliError(false)
     try {
       const result = await window.api.detectOnboardingClis()
       setOnboardingClis(mapCliRows(result))
     } catch {
       setOnboardingClis([])
+      setOnboardingCliError(true)
     } finally {
       setOnboardingCliLoading(false)
     }
@@ -2912,8 +2918,12 @@ export const App: React.FC = () => {
   }, [handlePickProjectFolder])
 
   const handleOnboardingCreateTeam = useCallback(async () => {
-    await bootstrapProjectAgents(activeTabIdRef.current)
-    setOnboardingTeamCreated(true)
+    try {
+      const created = await bootstrapProjectAgents(activeTabIdRef.current)
+      setOnboardingTeamCreated(created)
+    } catch {
+      setOnboardingTeamCreated(false)
+    }
   }, [bootstrapProjectAgents])
 
   const handleReplayOnboarding = useCallback(() => {
@@ -6547,6 +6557,7 @@ export const App: React.FC = () => {
         onboardingStep={onboardingStep}
         onboardingClis={onboardingClis}
         onboardingCliLoading={onboardingCliLoading}
+        onboardingCliError={onboardingCliError}
         onboardingTeamCreated={onboardingTeamCreated}
         onboardingFolderPath={activeTab?.projectFolder?.trim() || null}
         onboardingCanCreateTeam={Boolean(activeTab?.projectFolder?.trim())}

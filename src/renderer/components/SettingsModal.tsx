@@ -315,6 +315,12 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     onClose()
   }
 
+  /** Replay desmonta Settings: vaciar el debounce antes de salir. */
+  const handleReplayClick = (): void => {
+    if (pending.current) void commit(pending.current)
+    onReplayOnboarding?.()
+  }
+
   /** Hay texto que no se está guardando: el pie tiene que decirlo, no callar. */
   useEffect(() => {
     void window.api.getAppVersion().then(setAppVersion)
@@ -643,7 +649,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
               </SettingsField>
               {onReplayOnboarding ? (
                 <SettingsField label={t('settings.onboardingLabel')}>
-                  <Button variant="secondary" size="sm" onClick={onReplayOnboarding}>
+                  <Button variant="secondary" size="sm" onClick={handleReplayClick}>
                     {t('settings.onboardingButton')}
                   </Button>
                 </SettingsField>

@@ -26,6 +26,7 @@ export interface OnboardingModalProps {
   /** Paso requisitos */
   cliRows: OnboardingCliRow[]
   loading: boolean
+  cliError: boolean
   onRecheck: () => void
   /** Paso carpeta */
   folderPath: string | null
@@ -45,6 +46,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   onFinish,
   cliRows,
   loading,
+  cliError,
   onRecheck,
   folderPath,
   onPickFolder,
@@ -67,6 +69,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         <OnboardingStepRequirements
           rows={cliRows}
           loading={loading}
+          error={cliError}
           onRecheck={onRecheck}
         />
       )

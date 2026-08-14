@@ -337,7 +337,7 @@ function configPath(): string {
 }
 
 /** Campos de AppConfig que se cifran en reposo. */
-const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey'] as const
+const SECRET_FIELDS = ['githubToken', 'anthropicApiKey', 'openaiApiKey', 'otelHeaders'] as const
 type SecretField = (typeof SECRET_FIELDS)[number]
 
 /** Descifra los campos sensibles de un objeto leído del disco. */

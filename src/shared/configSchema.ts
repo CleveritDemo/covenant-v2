@@ -15,6 +15,9 @@ export type AiProvider = 'ollama' | 'anthropic' | 'openai'
 /** Idioma de la interfaz. */
 export type Language = 'en' | 'es'
 
+/** Protocolo OTLP para exportación de telemetría. */
+export type OtelProtocol = 'http/protobuf' | 'http/json' | 'grpc'
+
 const DEFAULT_MUSIC_VOLUME = 0.35
 
 /** Interlineado xterm: 1.2 = cómodo (default), 1 = denso, 1.4 = holgado. */
@@ -133,6 +136,24 @@ export interface AppConfig {
   orgWorkspaceCatalogCache?: OrgWorkspaceCatalog | null
   /** Curador wiki global (nombre, CLI, modelo, reglas); persiste en userData/config.json. */
   wikiCurator: WikiCuratorConfig
+
+  // --- OTEL telemetry ---
+
+  /** Endpoint OTLP (p. ej. https://otel.example.com:4318). Vacío = desactivado. */
+  otelEndpoint: string
+  /** Protocolo OTLP: http/protobuf (por defecto) o grpc. */
+  otelProtocol: OtelProtocol
+  /** Activa la inyección de variables OTEL en los spawns de agente CLI. */
+  otelEnabled: boolean
+  /**
+   * Cabeceras OTLP (formato OTEL: `key=value,key2=value2`).
+   * Se cifra en disco vía SECRET_FIELDS.
+   */
+  otelHeaders: string
+  /** Registrar prompts del usuario y respuestas del asistente en telemetría. */
+  otelLogPrompts: boolean
+  /** Registrar detalles y contenido de herramientas en telemetría. */
+  otelLogToolIO: boolean
 }
 
 export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
@@ -171,6 +192,12 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentCliCommands: {},
   onboardingCompletedVersion: '',
   wikiCurator: {},
+  otelEndpoint: '',
+  otelProtocol: 'http/protobuf',
+  otelEnabled: false,
+  otelHeaders: '',
+  otelLogPrompts: false,
+  otelLogToolIO: false,
 }
 
 /** Versión de onboarding: no-string, vacío o >32 chars → ''. */
@@ -357,6 +384,21 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (typeof config.systemSoundsEnabled !== 'boolean') {
     errors.push('systemSoundsEnabled debe ser boolean')
+  }
+  // OTEL
+  if (config.otelEndpoint) {
+    try {
+      const url = new URL(config.otelEndpoint)
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        errors.push('otelEndpoint debe usar protocolo http o https')
+      }
+    } catch {
+      errors.push('otelEndpoint no es una URL válida')
+    }
+  }
+  const validOtelProtocols: OtelProtocol[] = ['http/protobuf', 'http/json', 'grpc']
+  if (!validOtelProtocols.includes(config.otelProtocol)) {
+    errors.push('otelProtocol debe ser http/protobuf, http/json o grpc')
   }
   return errors
 }

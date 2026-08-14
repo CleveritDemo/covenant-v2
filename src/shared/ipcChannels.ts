@@ -90,6 +90,8 @@ export const IPC = {
   AGENT_RESULTS_ENSURE: 'agentResults:ensure',
   /** Renderer → main: guarda solo la región notes de un results. */
   AGENT_RESULTS_SET_NOTES: 'agentResults:setNotes',
+  /** Renderer → main: lee summary/changes del Latest en `.gravity/results/<id>.md`. */
+  AGENT_RESULTS_READ_LATEST: 'agentResults:readLatest',
   /** Main → renderer: usuario pulsó ⌘W / Ctrl+W (cerrar pestaña o ventana según estado) */
   SHORTCUT_CLOSE_TAB: 'shortcut:close-tab',
   // Config

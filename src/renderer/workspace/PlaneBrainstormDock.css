@@ -16,7 +16,6 @@
   border: 1px solid color-mix(in srgb, var(--plane-border) 34%, transparent);
   border-radius: var(--plane-radius-sm, 11px);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.5);
   font-family: var(--font-ui);
 }

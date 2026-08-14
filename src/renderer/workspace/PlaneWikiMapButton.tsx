@@ -27,7 +27,7 @@ export const PlaneWikiMapButton: React.FC<PlaneWikiMapButtonProps> = ({
       aria-pressed={pressed}
       onClick={onClick}
     >
-      <Icon name="brain" size={12} />
+      <Icon name="wiki-graph" size={13} />
     </button>
   </Tooltip>
 )

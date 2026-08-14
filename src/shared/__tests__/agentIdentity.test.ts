@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_NAME_MAX_LENGTH,
+  agentRulesForPrompt,
   applyAgentIdentityDraft,
   buildAgentIdentityPrompt,
   normalizeAgentRules,
   sanitizeAgentMonogram,
   sanitizeAgentRulesDraft,
+  sanitizeAgentRulesEnabledDraft,
   sanitizeAgentTextDraft,
 } from '../agentIdentity'
 
@@ -55,6 +57,7 @@ describe('applyAgentIdentityDraft', () => {
         role: '   ',
         objective: ' Ship it ',
         rules: ['  Always verify  ', '', '  '],
+        rulesEnabled: [true, false, true],
       },
     )).toEqual({
       name: 'Scout',
@@ -65,7 +68,7 @@ describe('applyAgentIdentityDraft', () => {
 
   it('normaliza el monograma del borrador y lo borra si queda vacío', () => {
     const previous = { name: 'Old', monogram: 'TL' }
-    const base = { id: 'tl', role: '', objective: '', rules: [] }
+    const base = { id: 'tl', role: '', objective: '', rules: [], rulesEnabled: [] }
     expect(applyAgentIdentityDraft(previous, {
       ...base,
       name: 'Tech Lead',
@@ -76,6 +79,51 @@ describe('applyAgentIdentityDraft', () => {
       name: 'Tech Lead',
       monogram: '  ',
     })).toEqual({ name: 'Tech Lead' })
+  })
+
+  it('persists rulesEnabled only when some rule is disabled', () => {
+    expect(applyAgentIdentityDraft(
+      { rules: ['a'], rulesEnabled: [false] },
+      {
+        id: 'qa',
+        name: '',
+        monogram: '',
+        role: '',
+        objective: '',
+        rules: ['a', 'b'],
+        rulesEnabled: [true, false],
+      },
+    )).toEqual({
+      rules: ['a', 'b'],
+      rulesEnabled: [true, false],
+    })
+
+    expect(applyAgentIdentityDraft(
+      { rules: ['a'], rulesEnabled: [false] },
+      {
+        id: 'qa',
+        name: '',
+        monogram: '',
+        role: '',
+        objective: '',
+        rules: ['a', 'b'],
+        rulesEnabled: [true, true],
+      },
+    )).toEqual({
+      rules: ['a', 'b'],
+    })
+  })
+})
+
+describe('agentRulesForPrompt', () => {
+  it('returns all normalized rules when every flag is on or legacy', () => {
+    expect(agentRulesForPrompt(['  a  ', 'b'])).toEqual(['a', 'b'])
+    expect(agentRulesForPrompt(['a', 'b'], [true, true])).toEqual(['a', 'b'])
+    expect(agentRulesForPrompt(['a', 'b'], undefined)).toEqual(['a', 'b'])
+  })
+
+  it('omits disabled rules by index', () => {
+    expect(agentRulesForPrompt(['a', 'b', 'c'], [true, false, true])).toEqual(['a', 'c'])
   })
 })
 
@@ -118,5 +166,15 @@ describe('buildAgentIdentityPrompt', () => {
     expect(prompt).toContain('  1. Always verify in code')
     expect(prompt).toContain('  2. Reply in Spanish')
     expect(prompt).not.toContain('  3.')
+  })
+
+  it('skips disabled rules in the prompt', () => {
+    const prompt = buildAgentIdentityPrompt({
+      name: 'QA',
+      rules: ['Keep', 'Skip'],
+      rulesEnabled: [true, false],
+    })
+    expect(prompt).toContain('  1. Keep')
+    expect(prompt).not.toContain('Skip')
   })
 })

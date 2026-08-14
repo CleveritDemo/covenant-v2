@@ -1,0 +1,7 @@
+.queued-turn-preview__agent {
+  font-weight: 500;
+}
+
+.queued-turn-preview .plane-instance-tag {
+  vertical-align: baseline;
+}

@@ -5,6 +5,7 @@ export interface PlaneChatQueueEditButtonProps {
   position: number
   text: string
   emptyText: string
+  displayText?: string
   images: Array<{ id: string; previewUrl: string; name: string }>
   title: string
   onClick: () => void
@@ -15,10 +16,13 @@ export const PlaneChatQueueEditButton: React.FC<PlaneChatQueueEditButtonProps> =
   position,
   text,
   emptyText,
+  displayText,
   images,
   title,
   onClick,
-}) => (
+}) => {
+  const shownText = displayText ?? text
+  return (
   <button
     type="button"
     className="plane-chat-composer__queue-open"
@@ -40,10 +44,11 @@ export const PlaneChatQueueEditButton: React.FC<PlaneChatQueueEditButtonProps> =
         ))}
       </span>
     )}
-    {(text || images.length === 0) && (
+    {(shownText || images.length === 0) && (
       <span className="plane-chat-composer__queue-text">
-        {text || emptyText}
+        {shownText || emptyText}
       </span>
     )}
   </button>
-)
+  )
+}

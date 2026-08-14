@@ -233,6 +233,17 @@ describe('extractWikiIngest', () => {
     expect(ingest?.log).toBe('segunda')
   })
 
+  it('acepta maxOps personalizado: 24 ops cuando maxOps=24', () => {
+    const ops = Array.from({ length: 30 }, (_, i) => ({
+      op: 'upsert',
+      slug: `p-${i}`,
+      title: `T${i}`,
+      body: 'b',
+    }))
+    const { ingest } = extractWikiIngest(fence(JSON.stringify({ ops })), 24)
+    expect(ingest?.ops).toHaveLength(24)
+  })
+
   it('sin fence devuelve el texto intacto e ingest null', () => {
     const { visibleText, ingest } = extractWikiIngest('texto normal')
     expect(visibleText).toBe('texto normal')

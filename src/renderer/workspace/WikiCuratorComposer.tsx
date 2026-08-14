@@ -8,7 +8,7 @@ import {
   type AgentCliProvider,
 } from '@shared/agentCliProviders'
 import { modelsForProvider, type AgentModelOption } from '@shared/agentCliModels'
-import type { WikiCuratorConfig } from '@shared/wikiCurator'
+import { WIKI_CURATOR_INIT_COMMAND, type WikiCuratorConfig } from '@shared/wikiCurator'
 import {
   appendWikiCuratorHistoryEntry,
   parseWikiCuratorHistory,
@@ -43,9 +43,11 @@ export interface WikiCuratorComposerProps {
   onWikiChanged: () => void
   /** Sonido de inicio de dictado; default true. */
   systemSoundsEnabled?: boolean
+  /** Incrementar tras bootstrap wiki dispara /init automático (guard thinking). */
+  bootstrapInitToken?: number
 }
 
-/** CLI por defecto del curador cuando `curator.json` no trae provider. */
+/** CLI por defecto del curador cuando AppConfig no trae provider. */
 const DEFAULT_CURATOR_PROVIDER: AgentCliProvider = 'claude'
 
 const IMAGE_ONLY_USER_TEXT = '(imagen adjunta)'
@@ -61,10 +63,12 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   onViewSlugs,
   onWikiChanged,
   systemSoundsEnabled = true,
+  bootstrapInitToken = 0,
 }) => {
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const historyWrapRef = useRef<HTMLDivElement>(null)
   const historyPanelRef = useRef<HTMLDivElement>(null)
   const rawReplyRef = useRef('')
   const pendingImagesRef = useRef<ComposerPendingImage[]>([])
@@ -297,6 +301,17 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     })
   }, [appendHistoryEntry, cwd, draft, pendingImages, thinking])
 
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const lastBootstrapInitTokenRef = useRef(0)
+
+  useEffect(() => {
+    if (bootstrapInitToken === 0 || bootstrapInitToken === lastBootstrapInitTokenRef.current) return
+    lastBootstrapInitTokenRef.current = bootstrapInitToken
+    if (thinking) return
+    sendRef.current(WIKI_CURATOR_INIT_COMMAND)
+  }, [bootstrapInitToken, thinking])
+
   const stop = (): void => {
     const key = cwd.trim()
     if (key) window.api.stopWikiCuratorTurn(key)
@@ -369,6 +384,22 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     panel.scrollTop = panel.scrollHeight
   }, [history, reply, errorText, thinking])
 
+  const scrollHistoryToEnd = useCallback((): void => {
+    const panel = historyPanelRef.current
+    if (!panel) return
+    panel.scrollTop = panel.scrollHeight
+  }, [])
+
+  const handleHistoryWrapMouseLeave = useCallback((): void => {
+    scrollHistoryToEnd()
+  }, [scrollHistoryToEnd])
+
+  const handleHistoryTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>): void => {
+    if (event.propertyName === 'max-height') {
+      scrollHistoryToEnd()
+    }
+  }, [scrollHistoryToEnd])
+
   return (
     <div
       ref={rootRef}
@@ -437,11 +468,16 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       ) : null}
 
       {showHistoryPanel ? (
-        <div className="wiki-curator-composer__history-wrap">
+        <div
+          ref={historyWrapRef}
+          className="wiki-curator-composer__history-wrap"
+          onMouseLeave={handleHistoryWrapMouseLeave}
+        >
           <div
             ref={historyPanelRef}
             className="wiki-curator-composer__history"
             aria-label={t('tabs.wikiCuratorHistoryLabel')}
+            onTransitionEnd={handleHistoryTransitionEnd}
           >
             {history.map((entry, index) => (
               <p

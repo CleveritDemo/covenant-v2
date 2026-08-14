@@ -30,9 +30,9 @@ function summarizeWikiOps(ops: readonly WikiIngestOp[]): string {
 export function applyWikiIngestFromFinalText(
   finalText: string,
   cwd: string,
-  options: { agentId?: string; persist: boolean },
+  options: { agentId?: string; persist: boolean; maxOps?: number },
 ): WikiIngestFromFinalTextResult {
-  const { visibleText, ingest } = extractWikiIngest(finalText)
+  const { visibleText, ingest } = extractWikiIngest(finalText, options.maxOps)
   if (!ingest || !options.persist) {
     return { visibleText, applied: 0, errors: [], persisted: false }
   }

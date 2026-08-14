@@ -20,6 +20,7 @@ import {
   isWikiCuratorInitCommand,
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
+  WIKI_CURATOR_INIT_COMMAND,
   type WikiCuratorConfig,
   type WikiCuratorEvent,
 } from '../src/shared/wikiCurator'
@@ -27,8 +28,9 @@ import { IPC } from '../src/shared/ipcChannels'
 import { lintWikiPages } from '../src/shared/wikiLint'
 import { discoverTabContexts } from './tabContextBuild'
 import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+import { MAX_WIKI_INIT_INGEST_OPS } from '../src/shared/wikiDoc'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
-import { readWikiPages, wikiRootPath } from './wikiStore'
+import { ensureWiki, readWikiPages, wikiRootPath } from './wikiStore'
 
 export interface WikiCuratorStartConfig {
   cwd: string
@@ -141,6 +143,49 @@ export function writeWikiCuratorConfig(
   }
 }
 
+/** True si la config sanitizada no trae nombre, provider, modelo ni reglas. */
+export function isWikiCuratorConfigEmpty(config: WikiCuratorConfig): boolean {
+  return Object.keys(config).length === 0
+}
+
+/** Lee wikiCurator de AppConfig ya sanitizado. */
+export function wikiCuratorConfigFromApp(appConfig: AppConfig): WikiCuratorConfig {
+  return sanitizeWikiCuratorConfig(appConfig.wikiCurator)
+}
+
+/** Aplica valor crudo a AppConfig (sin persistir). */
+export function applyWikiCuratorConfigToApp(
+  appConfig: AppConfig,
+  value: unknown,
+): { ok: true; config: WikiCuratorConfig; appConfig: AppConfig } {
+  const config = sanitizeWikiCuratorConfig(value)
+  return {
+    ok: true,
+    config,
+    appConfig: { ...appConfig, wikiCurator: config },
+  }
+}
+
+/**
+ * Si AppConfig no tiene curador y el proyecto trae `.gravity/wiki/curator.json`,
+ * copia sanitizada one-shot a AppConfig. No borra el archivo de proyecto.
+ */
+export function maybeMigrateWikiCuratorFromProject(
+  cwd: string,
+  appConfig: AppConfig,
+): { appConfig: AppConfig; config: WikiCuratorConfig; migrated: boolean } {
+  const current = wikiCuratorConfigFromApp(appConfig)
+  if (!isWikiCuratorConfigEmpty(current)) {
+    return { appConfig, config: current, migrated: false }
+  }
+  const projectConfig = readWikiCuratorConfig(cwd)
+  if (isWikiCuratorConfigEmpty(projectConfig)) {
+    return { appConfig, config: current, migrated: false }
+  }
+  const appConfigNext = { ...appConfig, wikiCurator: projectConfig }
+  return { appConfig: appConfigNext, config: projectConfig, migrated: true }
+}
+
 export function startWikiCuratorTurn(
   win: BrowserWindow,
   config: WikiCuratorStartConfig,
@@ -164,9 +209,25 @@ export function startWikiCuratorTurn(
   if (!cwd) return { ok: false, error: 'cwd inválido' }
   if (!message && images.length === 0) return { ok: false, error: 'mensaje vacío' }
 
-  // Solo consume la wiki: sin contexto kind 'wiki' el curador no tiene material.
-  const contexts = discoverTabContexts(cwd).contexts.filter(item => item.kind === 'wiki')
-  if (!contexts.length) {
+  const init = isWikiCuratorInitCommand(message)
+  if (init) ensureWiki(cwd)
+  const discovered = discoverTabContexts(cwd).contexts
+  // Chat: solo wiki. Init: wiki + folderTree para explorar el proyecto read-only.
+  let contexts = init
+    ? discovered.filter(item => item.kind === 'wiki' || item.kind === 'folderTree')
+    : discovered.filter(item => item.kind === 'wiki')
+  if (init && !contexts.some(item => item.kind === 'folderTree')) {
+    contexts = [
+      ...contexts,
+      {
+        id: 'iaterminal:folderTree:init',
+        name: 'Project folders',
+        fileName: 'folders.md',
+        kind: 'folderTree',
+      },
+    ]
+  }
+  if (!init && !contexts.length) {
     const error = 'El proyecto no tiene wiki (.gravity/wiki).'
     emitCurator(win, cwd, { type: 'error', message: error })
     emitCurator(win, cwd, { type: 'done' })
@@ -181,12 +242,11 @@ export function startWikiCuratorTurn(
   stopAgentRun(paneId)
   const isStale = (): boolean => curatorGenerations.get(cwd) !== generation
 
-  const curatorConfig = readWikiCuratorConfig(cwd)
+  const curatorConfig = sanitizeWikiCuratorConfig(appConfig.wikiCurator)
   const requestedSession = typeof config.cliSessionId === 'string' && config.cliSessionId.trim()
     ? config.cliSessionId.trim()
     : undefined
 
-  const init = isWikiCuratorInitCommand(message)
   const request: AgentCliStartRequest = {
     paneId,
     provider: curatorConfig.provider ?? 'claude',
@@ -250,6 +310,7 @@ export function startWikiCuratorTurn(
       const ingest = applyWikiIngestFromFinalText(finalText, cwd, {
         agentId: CURATOR_AGENT_ID,
         persist: true,
+        ...(init ? { maxOps: MAX_WIKI_INIT_INGEST_OPS } : {}),
       })
       if (ingest.persisted) {
         emitCurator(win, cwd, { type: 'applied', opsCount: ingest.applied })

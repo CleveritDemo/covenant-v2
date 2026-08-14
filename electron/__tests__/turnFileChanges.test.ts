@@ -1,8 +1,15 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { execFileSync } from 'child_process'
 import { afterEach, describe, expect, it } from 'vitest'
-import { captureWorkspaceSnapshot, changedWorkspacePaths } from '../turnFileChanges'
+import {
+  beginTurnFileBaseline,
+  captureWorkspaceSnapshot,
+  captureWorkspaceSnapshotMetadata,
+  changedWorkspacePaths,
+  resolveTurnChangedPaths,
+} from '../turnFileChanges'
 import { PROJECT_DIR } from '../../src/shared/projectDir'
 
 describe('turn file changes', () => {
@@ -11,6 +18,11 @@ describe('turn file changes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ia-terminal-turn-diff-'))
     dirs.push(dir)
     return dir
+  }
+  const gitInit = (cwd: string): void => {
+    execFileSync('git', ['init'], { cwd, stdio: 'ignore' })
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd, stdio: 'ignore' })
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd, stdio: 'ignore' })
   }
   afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
@@ -59,5 +71,47 @@ describe('turn file changes', () => {
     expect([...snapshot.keys()].some(path => path.includes('.Trash'))).toBe(false)
 
     chmodSync(join(cwd, '.Trash'), 0o700)
+  })
+
+  it('resolveTurnChangedPaths with git baseline includes edited tracked file', () => {
+    const cwd = tempCwd()
+    gitInit(cwd)
+    writeFileSync(join(cwd, 'tracked.ts'), 'before')
+    execFileSync('git', ['add', 'tracked.ts'], { cwd, stdio: 'ignore' })
+    execFileSync('git', ['commit', '-m', 'init'], { cwd, stdio: 'ignore' })
+    const baseline = beginTurnFileBaseline(cwd)
+    writeFileSync(join(cwd, 'tracked.ts'), 'after')
+
+    expect(resolveTurnChangedPaths(cwd, baseline, null)).toEqual(['tracked.ts'])
+  })
+
+  it('resolveTurnChangedPaths with git baseline omits unedited tracked file', () => {
+    const cwd = tempCwd()
+    gitInit(cwd)
+    writeFileSync(join(cwd, 'stable.ts'), 'same')
+    execFileSync('git', ['add', 'stable.ts'], { cwd, stdio: 'ignore' })
+    execFileSync('git', ['commit', '-m', 'init'], { cwd, stdio: 'ignore' })
+    const baseline = beginTurnFileBaseline(cwd)
+
+    expect(resolveTurnChangedPaths(cwd, baseline, null)).toEqual([])
+  })
+
+  it('resolveTurnChangedPaths without git detects edit via walkBefore metadata', () => {
+    const cwd = tempCwd()
+    writeFileSync(join(cwd, 'file.txt'), 'before')
+    const baseline = beginTurnFileBaseline(cwd)
+    const walkBefore = captureWorkspaceSnapshotMetadata(cwd)
+    writeFileSync(join(cwd, 'file.txt'), 'after')
+
+    expect(resolveTurnChangedPaths(cwd, baseline, walkBefore)).toEqual(['file.txt'])
+  })
+
+  it('resolveTurnChangedPaths without git and null walkBefore returns empty list', () => {
+    const cwd = tempCwd()
+    writeFileSync(join(cwd, 'file.txt'), 'before')
+    const baseline = beginTurnFileBaseline(cwd)
+    writeFileSync(join(cwd, 'file.txt'), 'after')
+
+    expect(resolveTurnChangedPaths(cwd, baseline, null)).toEqual([])
   })
 })

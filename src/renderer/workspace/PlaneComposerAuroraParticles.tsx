@@ -20,8 +20,8 @@ type Particle = {
 
 const COLOR_VARS = ['--accent', '--theme-cyan', '--theme-magenta', '--theme-blue'] as const
 const FIELD_HEIGHT = 160
-const MAX_PARTICLES = 42
-const SPAWN_INTERVAL_MS = 55
+const MAX_PARTICLES = 84
+const SPAWN_INTERVAL_MS = 28
 /** Pico de opacidad: legible bajo el glass suave, sin competir con el texto. */
 const ALPHA_PEAK = 0.9
 

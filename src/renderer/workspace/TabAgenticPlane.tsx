@@ -8,6 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
@@ -45,12 +46,23 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
+import {
+  computeWikiModalSpreadPositions,
+  WIKI_MODAL_ESTIMATED_HEIGHT,
+  WIKI_MODAL_WIDTH,
+} from '@shared/wikiModalPositions'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TerminalModal } from '../components/TerminalModal'
 import './TabAgenticPlane.css'
 
 type PendingWorkspaceAction = 'resync' | 'upload'
+
+type WikiNodeModalState = {
+  slug: string
+  x: number
+  y: number
+}
 
 export type { PlaneMapEntity }
 
@@ -78,7 +90,6 @@ export interface TabAgenticPlaneProps {
   contextPoolDeleteLabel: string
   contextPoolDeleteConfirmMessage: (name: string) => string
   contextPoolDeleteConfirmDetail: string
-  contextPoolTrashDropLabel: string
   chatPlaceholder: string
   chatEmptyAgents: string
   chatSendLabel: string
@@ -154,6 +165,8 @@ export interface TabAgenticPlaneProps {
   onOpenChatAgentChange: (paneId: string | null) => void
   /** Estados de chat por agente (para el chat centrado del plano). */
   agentStatuses?: Record<string, AgentPlaneStatus>
+  /** Catálogo de agentes del workspace (preview de cola humanizada). */
+  projectAgents?: ProjectAgentDefinition[]
   chatFontSize?: number
   /** Sonidos del sistema para dictado del composer. */
   systemSoundsEnabled?: boolean
@@ -287,7 +300,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolDeleteLabel,
   contextPoolDeleteConfirmMessage,
   contextPoolDeleteConfirmDetail,
-  contextPoolTrashDropLabel,
   chatPlaceholder,
   chatEmptyAgents,
   chatSendLabel,
@@ -335,6 +347,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   newThreadPendingPaneId = null,
   onOpenChatAgentChange,
   agentStatuses = {},
+  projectAgents = [],
   chatFontSize = 13,
   systemSoundsEnabled = true,
   configLabel,
@@ -427,34 +440,83 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     [brainstormRooms],
   )
   // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
-  const [wikiNodeSlugs, setWikiNodeSlugs] = useState<string[]>([])
+  const [wikiNodeModals, setWikiNodeModals] = useState<WikiNodeModalState[]>([])
   // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
   const [wikiGraphData, setWikiGraphData] = useState<WikiGraphData | null>(null)
+  const [wikiGraphError, setWikiGraphError] = useState<string | null>(null)
   // Incrementar relanza el fetch del grafo sin cerrar el mapa (CTA 'Crear wiki').
   const [wikiGraphRefreshToken, setWikiGraphRefreshToken] = useState(0)
   // Refetch suave (ingest del curador aplicado): swap de data sin cerrar modales.
   const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
+  // Tras bootstrap wiki desde el CTA: auto-/init del curador.
+  const [wikiBootstrapInitToken, setWikiBootstrapInitToken] = useState(0)
 
-  const loadWikiGraph = useCallback(async (): Promise<WikiGraphData> => {
+  const getWikiModalBounds = useCallback((): { width: number; height: number } => {
+    const el = planeRef.current
+    if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+      return { width: el.clientWidth, height: el.clientHeight }
+    }
+    if (viewport.width > 0 && viewport.height > 0) {
+      return viewport
+    }
+    return { width: 960, height: 640 }
+  }, [viewport])
+
+  const openWikiNodeModals = useCallback((slugs: string[]) => {
+    const trimmed = slugs.slice(0, 3)
+    if (trimmed.length === 0) {
+      setWikiNodeModals([])
+      return
+    }
+    const bounds = getWikiModalBounds()
+    const positions = computeWikiModalSpreadPositions({
+      count: trimmed.length,
+      width: bounds.width,
+      height: bounds.height,
+      modalWidth: WIKI_MODAL_WIDTH,
+      modalHeight: WIKI_MODAL_ESTIMATED_HEIGHT,
+    })
+    setWikiNodeModals(trimmed.map((slug, index) => ({
+      slug,
+      x: positions[index]!.x,
+      y: positions[index]!.y,
+    })))
+  }, [getWikiModalBounds])
+
+  const loadWikiGraph = useCallback(async (): Promise<{
+    data: WikiGraphData | null
+    error: string | null
+  }> => {
     const cwd = projectFolder.trim()
-    if (!cwd) return { nodes: [], edges: [] }
+    if (!cwd) return { data: { nodes: [], edges: [] }, error: null }
     try {
       const result = await window.api.getWikiGraph(cwd)
-      return result.ok && result.data ? result.data : { nodes: [], edges: [] }
+      if (!result.ok) {
+        return { data: null, error: result.error ?? '' }
+      }
+      return { data: result.data ?? { nodes: [], edges: [] }, error: null }
     } catch {
-      return { nodes: [], edges: [] }
+      return { data: null, error: '' }
     }
   }, [projectFolder])
 
   // Pages reales vía IPC, refetch en cada apertura: la wiki puede haber
-  // cambiado entre una y otra. ok:false o error → grafo vacío (empty state).
+  // cambiado entre una y otra. ok:false o error → overlay de error.
   useEffect(() => {
     if (!wikiMapOpen) return
     let cancelled = false
     setWikiGraphData(null)
-    setWikiNodeSlugs([])
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    setWikiGraphError(null)
+    setWikiNodeModals([])
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled) return
+      if (error !== null) {
+        setWikiGraphError(error)
+        setWikiGraphData(null)
+      } else {
+        setWikiGraphData(data)
+        setWikiGraphError(null)
+      }
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphRefreshToken])
@@ -464,8 +526,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   useEffect(() => {
     if (!wikiMapOpen || wikiGraphSoftToken === 0) return
     let cancelled = false
-    void loadWikiGraph().then(data => {
-      if (!cancelled) setWikiGraphData(data)
+    void loadWikiGraph().then(({ data, error }) => {
+      if (cancelled || error || !data) return
+      setWikiGraphData(data)
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
@@ -612,6 +675,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       className="tab-agentic-plane"
       style={{
         ['--plane-chat-column-width' as string]: `${chatColumnWidth || PLANE_CHAT_BASE_WIDTH}px`,
+        ['--plane-chat-stack-z' as string]: `${PLANE_CHAT_STACK_Z}`,
+        ['--plane-chrome-stack-z' as string]: `${PLANE_CHROME_STACK_Z}`,
       }}
       onPointerDown={event => {
         if (event.button !== 0) return
@@ -628,7 +693,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
           '.plane-chat-dock__toolbar',
-          '.plane-context-pool',
+          '.plane-context-pool-shell',
           '[role="dialog"]',
           'button',
           'a',
@@ -797,20 +862,27 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         wikiOverlay={wikiMapOpen ? (
           <WikiGraphView
             data={wikiGraphData}
+            error={wikiGraphError}
+            onRetry={() => setWikiGraphRefreshToken(token => token + 1)}
             cwd={projectFolder.trim()}
             active={tabActive}
-            onClose={() => setWikiMapOpen(false)}
-            onOpenNode={slug => setWikiNodeSlugs([slug])}
+            onClose={() => {
+              setWikiMapOpen(false)
+              setWikiNodeModals([])
+            }}
+            onOpenNode={slug => openWikiNodeModals([slug])}
             onRefetchGraph={() => {
               setWikiGraphRefreshToken(token => token + 1)
               const cwd = projectFolder.trim()
               if (cwd) onWikiMutated?.(cwd)
+              setWikiBootstrapInitToken(token => token + 1)
             }}
             curator={projectFolder.trim() ? (
               <WikiCuratorComposer
                 cwd={projectFolder.trim()}
                 systemSoundsEnabled={systemSoundsEnabled}
-                onViewSlugs={slugs => setWikiNodeSlugs(slugs.slice(0, 3))}
+                bootstrapInitToken={wikiBootstrapInitToken}
+                onViewSlugs={slugs => openWikiNodeModals(slugs)}
                 onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
               />
             ) : null}
@@ -885,7 +957,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           deleteLabel={contextPoolDeleteLabel}
           deleteConfirmMessage={contextPoolDeleteConfirmMessage}
           deleteConfirmDetail={contextPoolDeleteConfirmDetail}
-          trashDropLabel={contextPoolTrashDropLabel}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -945,6 +1016,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   ? (delegationId => onAbortDelegation(openChatAgentId, delegationId))
                   : undefined
               }
+              projectAgents={projectAgents}
             />
           ) : null}
           composer={(
@@ -956,6 +1028,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}
               queuedTurns={quickChatStatus?.queuedTurns ?? []}
+              agentCatalog={projectAgents}
               onSelectAgent={openChatAgent}
               onCloseChat={closeChatAgent}
               onStop={onStopChat}
@@ -998,21 +1071,28 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {brainstormOverlays}
 
       {/* Páginas reales de la wiki (markdown crudo; el render md rico llega después).
-          Cascada de hasta 3 (view del curador), 24px de offset por paso; z por
-          encima del mapa (APP_OVERLAY_MODAL_Z) — el default 640 quedaría debajo. */}
-      {wikiNodeSlugs.map((slug, index) => {
-        const node = wikiGraphData?.nodes.find(item => item.slug === slug)
+          Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}
+      {wikiNodeModals.map((modal, index) => {
+        const node = wikiGraphData?.nodes.find(item => item.slug === modal.slug)
         if (!node) return null
         return (
           <TerminalModal
-            key={slug}
+            key={modal.slug}
             open
             active={tabActive}
+            movable
+            portalContainerRef={planeRef}
+            boundsRef={planeRef}
+            initialPosition={{ x: modal.x, y: modal.y }}
+            onPositionChange={pos => {
+              setWikiNodeModals(prev => prev.map(item => (
+                item.slug === modal.slug ? { ...item, x: pos.x, y: pos.y } : item
+              )))
+            }}
             title={node.title}
             size="sm"
             zIndex={APP_OVERLAY_MODAL_Z + 10 + index}
-            cascadeStep={index}
-            onClose={() => setWikiNodeSlugs(prev => prev.filter(item => item !== slug))}
+            onClose={() => setWikiNodeModals(prev => prev.filter(item => item.slug !== modal.slug))}
           >
             <div className="wiki-graph-node-page">
               <p className="wiki-graph-node-page__type">

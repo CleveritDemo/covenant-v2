@@ -16,9 +16,18 @@ export const SKIP_OPTIMIZE_UNDER_BYTES = 400 * 1024
 export interface ComposerPendingImage {
   id: string
   previewUrl: string
+  /** Miniatura estable para chips del plano (data URL); el blob local sigue en previewUrl. */
+  thumbnailDataUrl?: string
   blob: Blob
   mimeType: string
   name: string
+}
+
+/** Preview publicado al plano: data URL estable, no el blob revocable del pane. */
+export function publishedQueueImagePreviewUrl(
+  image: Pick<ComposerPendingImage, 'previewUrl' | 'thumbnailDataUrl'>,
+): string {
+  return image.thumbnailDataUrl ?? image.previewUrl
 }
 
 export function extensionForMime(mimeType: string): string {
@@ -178,9 +187,11 @@ export async function pendingImageFromBlob(
     const sourceMime = source.type || 'image/png'
     const sourceBlob = new Blob([buffer], { type: sourceMime })
     const optimized = await optimizeImageForModel(sourceBlob, name)
+    const thumbnailDataUrl = await blobToThumbnailDataUrl(optimized.blob)
     return {
       id: crypto.randomUUID(),
       previewUrl: URL.createObjectURL(optimized.blob),
+      ...(thumbnailDataUrl ? { thumbnailDataUrl } : {}),
       blob: optimized.blob,
       mimeType: optimized.mimeType,
       name: optimized.name,
@@ -226,20 +237,24 @@ export async function pendingImagesToAttachments(
   return attachments
 }
 
-export function attachmentsToPendingImages(
+export async function attachmentsToPendingImages(
   images: AgentCliImageAttachment[],
-): ComposerPendingImage[] {
-  return images.map(image => {
+): Promise<ComposerPendingImage[]> {
+  const pending: ComposerPendingImage[] = []
+  for (const image of images) {
     const binary = atob(image.base64)
     const bytes = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
     const blob = new Blob([bytes], { type: image.mimeType || 'image/png' })
-    return {
+    const thumbnailDataUrl = await blobToThumbnailDataUrl(blob)
+    pending.push({
       id: crypto.randomUUID(),
       previewUrl: URL.createObjectURL(blob),
+      ...(thumbnailDataUrl ? { thumbnailDataUrl } : {}),
       blob,
       mimeType: image.mimeType || 'image/png',
       name: image.name,
-    }
-  })
+    })
+  }
+  return pending
 }

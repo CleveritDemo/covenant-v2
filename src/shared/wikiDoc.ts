@@ -14,6 +14,8 @@ export const WIKI_PAGE_TYPES = ['concept', 'decision', 'flow', 'reference'] as c
 export type WikiPageType = (typeof WIKI_PAGE_TYPES)[number]
 
 export const MAX_WIKI_INGEST_OPS = 8
+/** Cap de ingest solo para /init del curador wiki (≥20 nodos + margen deletes). */
+export const MAX_WIKI_INIT_INGEST_OPS = 24
 export const MAX_WIKI_PAGE_BODY = 10000
 export const MAX_WIKI_PAGE_TITLE = 120
 export const MAX_WIKI_LOG_SUMMARY = 200
@@ -79,6 +81,8 @@ export interface WikiPage {
   body: string
   /** Slugs referenciados desde el body; derivados, no se guardan aparte. */
   links: string[]
+  /** mtime del .md en disco; solo lo rellena readWikiPages (electron). */
+  updatedAtMs?: number
 }
 
 const WIKI_PAGE_META_RE = /<!--\s*iaterminal:wiki-page\s+(\{[^\n]*\})\s*-->/
@@ -239,10 +243,12 @@ function normalizeWikiIngestOp(value: unknown): WikiIngestOp | null {
 /**
  * Extrae los fences ```ia-terminal-wiki``` y devuelve el texto limpio para el
  * chat. Mismo patrón que extractTabContextUpdates: JSON inválido → el fence se
- * oculta igual, pero no aplica nada. Caps: ≤8 ops por turno (entre todos los
- * fences), body ≤10000, title ≤120, log ≤200.
+ * oculta igual, pero no aplica nada. Caps: maxOps por turno (default 8; init 24),
  */
-export function extractWikiIngest(text: string): {
+export function extractWikiIngest(
+  text: string,
+  maxOps = MAX_WIKI_INGEST_OPS,
+): {
   visibleText: string
   ingest: WikiIngest | null
 } {
@@ -253,7 +259,7 @@ export function extractWikiIngest(text: string): {
       const value = JSON.parse(json) as Record<string, unknown>
       if (Array.isArray(value.ops)) {
         for (const raw of value.ops) {
-          if (ops.length >= MAX_WIKI_INGEST_OPS) break
+          if (ops.length >= maxOps) break
           const op = normalizeWikiIngestOp(raw)
           if (op) ops.push(op)
         }

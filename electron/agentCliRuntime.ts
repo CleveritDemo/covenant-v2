@@ -68,7 +68,13 @@ import {
   type AgentCliProvider,
 } from '../src/shared/agentCliProviders'
 import { resolvePluginDirs } from '../src/shared/installedPlugins'
-import { captureWorkspaceSnapshot, changedWorkspacePaths } from './turnFileChanges'
+import {
+  beginTurnFileBaseline,
+  resolveTurnChangedPaths,
+  captureWorkspaceSnapshotMetadata,
+  type WorkspaceSnapshot,
+} from './turnFileChanges'
+import { pauseFileExplorerWatchesForCwd } from './fileExplorerWatcher'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { hasWiki } from './wikiStore'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
@@ -89,7 +95,20 @@ interface AgentRun {
 }
 
 const agentRuns = new Map<string, AgentRun>()
+const turnCleanupByPane = new Map<string, () => void>()
 let nextAgentRunGeneration = 1
+
+export function registerTurnCleanup(paneId: string, cleanup: () => void): void {
+  turnCleanupByPane.get(paneId)?.()
+  turnCleanupByPane.set(paneId, cleanup)
+}
+
+function runTurnCleanup(paneId: string): void {
+  const cleanup = turnCleanupByPane.get(paneId)
+  if (!cleanup) return
+  turnCleanupByPane.delete(paneId)
+  cleanup()
+}
 
 export interface StopAgentRunOptions {
   /** Ventana a notificar; solo con `notify: true`. */
@@ -1112,7 +1131,12 @@ export function startAgentTurn(
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
   if (cwd) initSessionCwd(request.paneId, cwd)
   const imagePaths = materializeClipboardImages(projectCwd, request.images)
-  const beforeSnapshot = captureWorkspaceSnapshot(cwd)
+  const releaseWatcherPause = pauseFileExplorerWatchesForCwd(projectCwd || cwd)
+  const fileBaseline = beginTurnFileBaseline(cwd)
+  let walkBefore: WorkspaceSnapshot | null = null
+  let walkBeforeScheduled = false
+  const endTurnCleanup = (): void => { releaseWatcherPause() }
+  registerTurnCleanup(request.paneId, endTurnCleanup)
   let latestSessionId = request.cliSessionId
   let changelogPersisted = false
   /** Mismo patrón que changelogPersisted: el round 2 de need-sections re-emite assistant_final. */
@@ -1148,6 +1172,7 @@ export function startAgentTurn(
     const current = agentRuns.get(request.paneId)
     if (current?.generation === generation) agentRuns.delete(request.paneId)
     send(win, request.paneId, { type: 'error', message })
+    runTurnCleanup(request.paneId)
     finishAgentTurn(win, request.paneId, 1)
   }
 
@@ -1183,9 +1208,14 @@ export function startAgentTurn(
     if (!reserved || reserved.generation !== generation) {
       // El usuario paró (o se reemplazó el turno) mientras spawneábamos.
       try { proc.kill('SIGTERM') } catch { /* already exited */ }
+      runTurnCleanup(request.paneId)
       return
     }
     agentRuns.set(request.paneId, { proc, windowId: win.id, generation })
+    if (fileBaseline.mode === 'walk' && !walkBeforeScheduled) {
+      walkBeforeScheduled = true
+      setImmediate(() => { walkBefore = captureWorkspaceSnapshotMetadata(cwd) })
+    }
     closeAgentCliStdin(proc.stdin)
     let stdoutBuffer = ''
     let stderrBuffer = ''
@@ -1256,10 +1286,7 @@ export function startAgentTurn(
                   ...sectionRequest.errors.map(error => `[Context request error: ${error}]`),
                 ].filter(Boolean).join('\n\n')
               : sectionRequest.visibleText
-            const changedPaths = changedWorkspacePaths(
-              beforeSnapshot,
-              captureWorkspaceSnapshot(cwd),
-            )
+            const changedPaths = resolveTurnChangedPaths(cwd, fileBaseline, walkBefore)
             // Con [] no escribe (ya persistido), pero sigue limpiando el
             // fence del texto visible.
             const wikiIngest = applyWikiIngestFromFinalText(
@@ -1395,6 +1422,7 @@ export function startAgentTurn(
         })
       }
       recordTurnInPulse()
+      runTurnCleanup(request.paneId)
       finishAgentTurn(win, request.paneId, code ?? 0)
     })
   }
@@ -1466,6 +1494,7 @@ export function isAgentRunReservationCurrent(paneId: string, generation: number)
 export function stopAgentRun(paneId: string, options: StopAgentRunOptions = {}): void {
   const run = agentRuns.get(paneId)
   if (!run) return
+  runTurnCleanup(paneId)
   agentRuns.delete(paneId)
   try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
   if (options.notify && options.win && !options.win.isDestroyed()) {

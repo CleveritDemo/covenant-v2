@@ -68,6 +68,8 @@ import {
 } from '@shared/paneWindows'
 import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
+import { isHumanQueuedTurn, queuedTurnHumanKey } from './agent/queuedTurnDedup'
+import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
@@ -87,6 +89,11 @@ import {
   shouldAbortOnHumanTurn,
 } from '@shared/agentOrchestration'
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
+import {
+  buildDelegationTurnSummary,
+  isBetterDelegationSummary,
+  isDelegationSummaryPlaceholder,
+} from '@shared/delegationTurnSummary'
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
@@ -197,6 +204,7 @@ import {
   allocateAgentSlug,
   agentBindingFromMeta,
   agentDefinitionFromMeta,
+  agentResultContextIdForSlug,
   buildNewProjectAgentDefinition,
   cloneProjectAgentDefinition,
   isAgentOwnResultContext,
@@ -243,6 +251,7 @@ import {
   downloadOrgWorkspaceToLocal,
   uploadOrgWorkspaceFromLocal,
   type OrgWorkspaceMaterializeDeps,
+  type OrgWorkspaceSyncPhase,
 } from './orgWorkspaceMaterialize'
 import {
   OrgWorkspaceRequirementModal,
@@ -333,6 +342,12 @@ export const App: React.FC = () => {
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
     useState<OrgWorkspaceRequirementState | null>(null)
+
+  const reportOrgSyncPhase = useCallback((phase: OrgWorkspaceSyncPhase) => {
+    setOrgWorkspaceRequirement(prev => (
+      prev?.syncing ? { ...prev, syncPhase: phase } : prev
+    ))
+  }, [])
   /** Invalida sync/upload en curso al cancelar con Espacio. */
   const orgWorkspaceSyncUploadGenRef = useRef(0)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
@@ -777,7 +792,11 @@ export const App: React.FC = () => {
     slug: string,
     workspaceId: string,
     tabIds: string[],
-    options: { wipeLocal?: boolean; cancelGen?: number } = {},
+    options: {
+      wipeLocal?: boolean
+      cancelGen?: number
+      onPhase?: (phase: OrgWorkspaceSyncPhase) => void
+    } = {},
   ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
@@ -886,6 +905,7 @@ export const App: React.FC = () => {
           workspaceId,
           localDir: cwd,
         },
+        ...(options.onPhase ? { onPhase: options.onPhase } : {}),
       })
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
@@ -2078,90 +2098,94 @@ export const App: React.FC = () => {
 
     const workspaceSlug = sanitizeSlugSegment(org.name || org.workspaceId)
       || sanitizeSlugSegment(org.workspaceId)
-    setOrgWorkspaceRequirement({ cloning: true })
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
     const covenant = getCovenantApi()
-    let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-    if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-      const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
-      if (reposResult.ok) {
-        repos = reposResult.data.map(r => ({
-          repoFullName: r.repoFullName,
-          cloneUrl: r.cloneUrl,
-          ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-        }))
-      }
-    }
-
-    const res = await (covenant?.cloneOrgWorkspace
-      ? covenant.cloneOrgWorkspace({
-          orgSlug: org.slug,
-          workspaceSlug,
-          repos,
-        })
-      : Promise.resolve({
-          ok: false as const,
-          error: 'clone unavailable',
-          failure: undefined,
-        }))
-    if (!res.ok) {
-      if (res.error === 'missing-default-dir') {
-        setOrgWorkspaceRequirement({ missingFolder: true })
-      } else if (res.error === 'missing-token') {
-        setOrgWorkspaceRequirement({ missingToken: true })
-      } else {
-        setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
-      }
-      return
-    }
-
-    setOrgWorkspaceRequirement(null)
-    const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
-    const tab = newTab(title)
-    tab.titleLocked = true
-    tab.projectFolder = res.workspaceDir
-    tab.orgWorkspace = {
-      slug: org.slug,
-      workspaceId: org.workspaceId,
-      localDir: res.workspaceDir,
-    }
-    setExplorerByTab(prev => {
-      const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
-      explorerByTabRef.current = next
-      return next
-    })
-    setTabs(prev => [...prev, tab])
-    setActiveTabId(tab.id)
-
-    if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-      const opGen = ++orgWorkspaceSyncUploadGenRef.current
-      setOrgWorkspaceRequirement({ syncing: true })
-      try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], { wipeLocal: false, cancelGen: opGen })
-      } finally {
-        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
-          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+    try {
+      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+        const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+        if (reposResult.ok) {
+          repos = reposResult.data.map(r => ({
+            repoFullName: r.repoFullName,
+            cloneUrl: r.cloneUrl,
+            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+          }))
         }
       }
-    } else if (selection.agents.length || selection.contexts.length) {
-      const cwd = res.workspaceDir
-      for (const definition of selection.agents) {
-        const written = await window.api.upsertProjectAgent(cwd, definition)
-        if (written.ok) rememberProjectAgent(cwd, written.agent)
+
+      const res = await (covenant?.cloneOrgWorkspace
+        ? covenant.cloneOrgWorkspace({
+            orgSlug: org.slug,
+            workspaceSlug,
+            repos,
+          })
+        : Promise.resolve({
+            ok: false as const,
+            error: 'clone unavailable',
+            failure: undefined,
+          }))
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      if (!res.ok) {
+        if (res.error === 'missing-default-dir') {
+          setOrgWorkspaceRequirement({ missingFolder: true })
+        } else if (res.error === 'missing-token') {
+          setOrgWorkspaceRequirement({ missingToken: true })
+        } else {
+          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+        }
+        return
       }
-      for (const context of selection.contexts) {
-        await window.api.materializeTabContext({ context, cwd })
+
+      const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
+      const tab = newTab(title)
+      tab.titleLocked = true
+      tab.projectFolder = res.workspaceDir
+      tab.orgWorkspace = {
+        slug: org.slug,
+        workspaceId: org.workspaceId,
+        localDir: res.workspaceDir,
       }
-      const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
-      const discovered = await window.api.discoverTabContexts({ cwd })
-      if (discovered.ok) {
-        setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+        explorerByTabRef.current = next
+        return next
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+
+      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+          wipeLocal: false,
+          cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
+        })
+      } else if (selection.agents.length || selection.contexts.length) {
+        const cwd = res.workspaceDir
+        for (const definition of selection.agents) {
+          const written = await window.api.upsertProjectAgent(cwd, definition)
+          if (written.ok) rememberProjectAgent(cwd, written.agent)
+        }
+        for (const context of selection.contexts) {
+          await window.api.materializeTabContext({ context, cwd })
+        }
+        const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
+        const discovered = await window.api.discoverTabContexts({ cwd })
+        if (discovered.ok) {
+          setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
+        }
+        if (agents.length) {
+          queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
+        }
       }
-      if (agents.length) {
-        queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
+    } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       }
     }
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
     orgWorkspaceSyncUploadGenRef.current += 1
@@ -2185,7 +2209,7 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
-    setOrgWorkspaceRequirement({ syncing: true })
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
     try {
       try {
         if (
@@ -2220,6 +2244,7 @@ export const App: React.FC = () => {
         await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
           wipeLocal: false,
           cancelGen: opGen,
+          onPhase: reportOrgSyncPhase,
         })
       } catch (err) {
         if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
@@ -2238,7 +2263,7 @@ export const App: React.FC = () => {
         return next
       })
     }
-  }, [syncOrgWorkspaceContent])
+  }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   const handleUploadOrgWorkspace = useCallback(async (tab: TabSession) => {
@@ -2598,80 +2623,84 @@ export const App: React.FC = () => {
 
     if (isOrgBacked && org && path !== previousLocalDir) {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
-      setOrgWorkspaceRequirement({ cloning: true })
+      const opGen = ++orgWorkspaceSyncUploadGenRef.current
+      setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
       const covenant = getCovenantApi()
-      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-        const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
-        if (reposResult.ok) {
-          repos = reposResult.data.map(r => ({
-            repoFullName: r.repoFullName,
-            cloneUrl: r.cloneUrl,
-            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-          }))
-        }
-      }
-      const res = await (covenant?.cloneOrgWorkspace
-        ? covenant.cloneOrgWorkspace({
-            orgSlug,
-            workspaceSlug,
-            repos,
-            workspaceDir: path,
-          })
-        : Promise.resolve({
-            ok: false as const,
-            error: 'clone unavailable',
-            failure: undefined,
-          }))
-      if (!res.ok) {
-        if (res.error === 'missing-default-dir') {
-          setOrgWorkspaceRequirement({ missingFolder: true })
-        } else if (res.error === 'missing-token') {
-          setOrgWorkspaceRequirement({ missingToken: true })
-        } else {
-          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
-        }
-        return null
-      }
-      setOrgWorkspaceRequirement(null)
-
-      const next = tabsRef.current.map(t => (
-        t.id === tabId
-          ? {
-              ...t,
-              projectFolder: path,
-              orgWorkspace: {
-                slug: orgSlug,
-                workspaceId,
-                localDir: path,
-              },
-            }
-          : t
-      ))
-      tabsRef.current = next
-      setTabs(next)
-
-      const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
-      const updatedTab = next.find(item => item.id === tabId)
-      const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
-      if (explorerOpen && explorerSessionId) {
-        void window.api.fileExplorerSetRoot(explorerSessionId, path)
-      }
-
-      await saveSessionNow()
-
-      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-        const opGen = ++orgWorkspaceSyncUploadGenRef.current
-        setOrgWorkspaceRequirement({ syncing: true })
-        try {
-          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], { wipeLocal: false, cancelGen: opGen })
-        } finally {
-          if (opGen === orgWorkspaceSyncUploadGenRef.current) {
-            setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      try {
+        let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+        if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+          const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
+          if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+          if (reposResult.ok) {
+            repos = reposResult.data.map(r => ({
+              repoFullName: r.repoFullName,
+              cloneUrl: r.cloneUrl,
+              ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+            }))
           }
         }
+        const res = await (covenant?.cloneOrgWorkspace
+          ? covenant.cloneOrgWorkspace({
+              orgSlug,
+              workspaceSlug,
+              repos,
+              workspaceDir: path,
+            })
+          : Promise.resolve({
+              ok: false as const,
+              error: 'clone unavailable',
+              failure: undefined,
+            }))
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+        if (!res.ok) {
+          if (res.error === 'missing-default-dir') {
+            setOrgWorkspaceRequirement({ missingFolder: true })
+          } else if (res.error === 'missing-token') {
+            setOrgWorkspaceRequirement({ missingToken: true })
+          } else {
+            setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+          }
+          return null
+        }
+
+        const next = tabsRef.current.map(t => (
+          t.id === tabId
+            ? {
+                ...t,
+                projectFolder: path,
+                orgWorkspace: {
+                  slug: orgSlug,
+                  workspaceId,
+                  localDir: path,
+                },
+              }
+            : t
+        ))
+        tabsRef.current = next
+        setTabs(next)
+
+        const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
+        const updatedTab = next.find(item => item.id === tabId)
+        const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
+        if (explorerOpen && explorerSessionId) {
+          void window.api.fileExplorerSetRoot(explorerSessionId, path)
+        }
+
+        await saveSessionNow()
+
+        if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
+          await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], {
+            wipeLocal: false,
+            cancelGen: opGen,
+            onPhase: reportOrgSyncPhase,
+          })
+        }
+        return path
+      } finally {
+        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+        }
       }
-      return path
     }
 
     const previousCwd = tab?.projectFolder?.trim() || ''
@@ -2704,7 +2733,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -3250,12 +3279,7 @@ export const App: React.FC = () => {
         && previous.localLoopActive === status.localLoopActive
         && previous.turnCloseReason === status.turnCloseReason
         && previous.loopEndReason === status.loopEndReason
-        && (previous.queuedTurns?.length ?? 0) === status.queuedTurns.length
-        && (previous.queuedTurns ?? []).every((item, i) =>
-          item.id === status.queuedTurns[i]?.id
-          && item.text === status.queuedTurns[i]?.text
-          && item.images.length === status.queuedTurns[i]?.images.length,
-        )
+        && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
         && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
@@ -4396,11 +4420,27 @@ export const App: React.FC = () => {
     let job: OrchestrationJob | undefined
     for (const [paneId, jobsMap] of orchestrationJobsByPaneRef.current.entries()) {
       const found = findJobByDelegation(jobsMap.values(), result.id)
-      if (found && found.pending.has(result.id)) {
+      if (found) {
         fromPaneId = paneId
         job = found
         break
       }
+    }
+    if (fromPaneId && job && !job.pending.has(result.id)) {
+      const existingIdx = job.completedResults.findIndex(item => item.id === result.id)
+      if (existingIdx >= 0) {
+        const existing = job.completedResults[existingIdx]
+        if (isBetterDelegationSummary(existing.summary, result.summary)) {
+          job.completedResults[existingIdx] = {
+            ...existing,
+            summary: result.summary,
+            ...(result.resultContextId ? { resultContextId: result.resultContextId } : {}),
+          }
+        }
+        return
+      }
+      fromPaneId = undefined
+      job = undefined
     }
     if (!fromPaneId || !job) {
       // Resultado sin pending: aviso tardío, doble, o el job "oficial" ya
@@ -4650,28 +4690,62 @@ export const App: React.FC = () => {
     })) return
     // Mid-orquestador con olas propias vivas: no liberar el hold del padre.
     if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-    reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
-    void window.api.isAgentTurnActive(paneId).catch(() => false).then(turnActive => {
-      if (turnActive) return
-      const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
-      if (!still || still.delegationId !== found.delegationId) return
-      if (!canReconcileIdlePending(still.sawBusy, {
-        startedAt: still.startedAt,
-        nowMs: Date.now(),
-      })) return
-      if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
-      // El turno murió por error de CLI: `summary` es el texto del fallo, no un
-      // resultado. Cerrarlo como 'ok' hacía que el orquestador lo re-delegara.
-      void handleDelegationTurnComplete({
-        id: found.delegationId,
-        status: failed ? 'fail' : 'ok',
-        summary: summary.trim() || i18next.t('agentPane.delegationEmptySummary'),
-        toAgentId: found.toAgentId,
-        toPaneId: paneId,
+
+    const runReconcile = (): void => {
+      reconcilingIdleDelegationPaneIdsRef.current.add(paneId)
+      void window.api.isAgentTurnActive(paneId).catch(() => false).then(async turnActive => {
+        if (turnActive) return
+        const still = findPendingDelegationByToPane(orchestrationJobsByPaneRef.current, paneId)
+        if (!still || still.delegationId !== found.delegationId) return
+        if (!canReconcileIdlePending(still.sawBusy, {
+          startedAt: still.startedAt,
+          nowMs: Date.now(),
+        })) return
+        if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
+        const emptyFallback = i18next.t('agentPane.delegationEmptySummary')
+        let finalSummary = summary.trim() || emptyFallback
+        let resultContextId: string | undefined
+        if (isDelegationSummaryPlaceholder(finalSummary) && still.toAgentId) {
+          const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(paneId))
+          const cwd = tab?.projectFolder?.trim()
+          if (cwd) {
+            const results = await window.api.readAgentResultsLatest({
+              cwd,
+              agentId: still.toAgentId,
+            })
+            if (results.ok) {
+              finalSummary = buildDelegationTurnSummary({
+                assistantText: finalSummary,
+                resultsSummary: results.summary,
+                resultsChanges: results.changes,
+                emptyFallback,
+              })
+              if (!isDelegationSummaryPlaceholder(finalSummary)) {
+                resultContextId = agentResultContextIdForSlug(still.toAgentId)
+              }
+            }
+          }
+        }
+        // El turno murió por error de CLI: `summary` es el texto del fallo, no un
+        // resultado. Cerrarlo como 'ok' hacía que el orquestador lo re-delegara.
+        void handleDelegationTurnComplete({
+          id: found.delegationId,
+          status: failed ? 'fail' : 'ok',
+          summary: finalSummary,
+          toAgentId: found.toAgentId,
+          toPaneId: paneId,
+          ...(resultContextId ? { resultContextId } : {}),
+        })
+      }).finally(() => {
+        reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
       })
-    }).finally(() => {
-      reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
-    })
+    }
+
+    if (found.sawBusy) {
+      window.setTimeout(runReconcile, 300)
+    } else {
+      runReconcile()
+    }
   }
 
   const requestPlaneStop = useCallback((paneId: string) => {
@@ -4939,7 +5013,23 @@ export const App: React.FC = () => {
   }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
 
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
+    const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
+    if (!target || !isHumanQueuedTurn(target)) return
+    const removedKey = queuedTurnHumanKey(target)
+    setPlaneSendByPane(prev => {
+      const pending = prev[paneId]
+      if (!pending || !isHumanQueuedTurn(pending)) return prev
+      if (queuedTurnHumanKey({
+        text: pending.text,
+        images: Array.from({ length: pending.images?.length ?? 0 }, () => ({ previewUrl: '' })),
+      }) !== removedKey) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[paneId]
+      return next
+    })
   }, [])
 
   const handlePlaneUpdateQueuedTurn = useCallback((paneId: string, id: string, text: string) => {
@@ -5989,7 +6079,6 @@ export const App: React.FC = () => {
                     t('tabs.planeConfirmDeleteContextMessage', { name })
                   )}
                   contextPoolDeleteConfirmDetail={t('tabs.planeConfirmDeleteContextDetail')}
-                  contextPoolTrashDropLabel={t('tabs.planeContextPoolTrashDrop')}
                   chatPlaceholder={t('tabs.planeChatPlaceholder')}
                   chatEmptyAgents={t('tabs.planeChatEmptyAgents')}
                   chatSendLabel={t('tabs.planeChatSend')}
@@ -6047,15 +6136,25 @@ export const App: React.FC = () => {
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
                     yieldChainOfferForUserSend(paneId)
-                    setPlaneSendByPane(prev => ({
-                      ...prev,
-                      [paneId]: {
-                        text,
-                        images,
-                        focusPane: true,
-                        ...(contextIds.length ? { extraContextIds: contextIds } : {}),
-                      },
-                    }))
+                    const queued = agentPlaneStatusRef.current[paneId]?.queuedTurns ?? []
+                    const inboundKey = queuedTurnHumanKey({
+                      text,
+                      images: Array.from({ length: images.length }, () => ({ previewUrl: '' })),
+                    })
+                    const alreadyQueued = queued.some(
+                      turn => isHumanQueuedTurn(turn) && queuedTurnHumanKey(turn) === inboundKey,
+                    )
+                    if (!alreadyQueued) {
+                      setPlaneSendByPane(prev => ({
+                        ...prev,
+                        [paneId]: {
+                          text,
+                          images,
+                          focusPane: true,
+                          ...(contextIds.length ? { extraContextIds: contextIds } : {}),
+                        },
+                      }))
+                    }
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {
                         if (tabItem.id !== tab.id) return tabItem
@@ -6123,6 +6222,7 @@ export const App: React.FC = () => {
                   openChatThreads={openChatThreadState?.threads ?? []}
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   agentStatuses={agentPlaneStatus}
+                  projectAgents={projectAgentsByCwd[agentCatalogKey] ?? []}
                   chatFontSize={config.fontSize ?? 13}
                   systemSoundsEnabled={config.systemSoundsEnabled !== false}
                   configLabel={t('agentPane.openConfig')}
@@ -6399,6 +6499,7 @@ export const App: React.FC = () => {
         cloneFailure={orgWorkspaceRequirement?.cloneFailure}
         cloning={orgWorkspaceRequirement?.cloning}
         syncing={orgWorkspaceRequirement?.syncing}
+        syncPhase={orgWorkspaceRequirement?.syncPhase}
         uploading={orgWorkspaceRequirement?.uploading}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}

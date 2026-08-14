@@ -4,6 +4,56 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.53.1
+
+- **Fix rayos wiki en light**: el rayo visual sigue oscuro, pero la PointLight viajera y el wash emissive son blancos y aclaran los nodos al disparar (corrige v0.53.0 que oscurecía nodos en light).
+
+## v0.53.0
+
+- **Rayos wiki en light**: rayo visual oscuro con PointLight oscura viajera y wash emissive oscuro durante firing; los nodos se aclaran al paso de la luz; toggles live dark↔light sin regresión en dark.
+- **Toggles por regla de agente**: switch por regla en Rules; las deshabilitadas no van al prompt ni al turno CLI; persisten en el catálogo del agente.
+- **Chrome del plano sobre el chat**: barra superior y pool de contextos comparten z-index 210 para quedar siempre encima del chat del plano.
+- **Cristal del plano en dark**: `--plane-glass-strong` más translúcido para mejor contraste con el mapa wiki detrás.
+- **Tooltip más suave**: transición de aparición del tooltip del kit un poco más lenta y legible.
+
+## v0.52.0
+
+- **Cola del plano sin duplicados**: un turno encolado no aparece dos veces; el × del chip elimina el turno y limpia preferSend asociado.
+- **Miniaturas en chips de cola**: las imágenes del composer se muestran como thumbnail data URL en la cola del plano y no se rompen al despachar otros turnos.
+- **Vista previa legible en cola**: chips muestran resumen del turno (delegación, follow-up, etc.) en lugar de texto crudo.
+- **Unir mensajes por bloques**: merge une runs consecutivos de chips seleccionados, no traga chips de delegaciones intermedias.
+- **Turbo sin resúmenes vacíos**: resultados de delegación en turbo muestran texto real del registry, no «(empty response)»; cards con nombre de catálogo y ola `2/∞`.
+- **Chat del plano siempre visible**: z-index 200 sobre mapa/wiki; dock wiki no se desmonta al abrir mapa; curador wiki en 400.
+- **Historial curador al colapsar**: scroll al colapsar composer wiki; historial colapsado ~10vh.
+- **Modales wiki repartidos**: al abrir varias páginas, posiciones iniciales perimetrales (no solo centro).
+- **Wiki badges Reciente**: top-10 páginas recientes muestran badge «Reciente» (no «Hoy»).
+- **Menú en chips de contexto**: menú contextual en chips del pool de contextos del plano.
+- **Pool contextos**: mejoras de asignación y layout del pool en el plano.
+- **Curador wiki en config**: preferencias del curador wiki persistidas en AppConfig (electron wikiCurator/wikiStore).
+
+## v0.51.0
+
+- **Modales wiki movibles**: las páginas del mapa se abren en un modal que puedes arrastrar; varias a la vez con posiciones repartidas desde el centro y la posición se guarda al soltar.
+- **Ícono del mapa wiki**: el botón de la barra usa el grafo wiki en lugar del cerebro.
+- **Más partículas con agente ocupado**: el aurora del composer duplica densidad mientras un agente está en curso.
+- **Rayos con luz viajera**: un foco recorre cada arista desde el origen; la escena se oscurece y los nodos brillan al paso de la luz.
+- **Nodo origen al disparar**: el nodo que emite rayos gana brillo y un pulso de escala mientras dispara, con o sin música; reduce motion intacto.
+- **Curador `/init` reforzado**: el init asegura la wiki en disco, admite hasta 24 operaciones por turno y el prompt pide un catálogo más amplio cuando el repo lo justifica.
+
+## v0.50.0
+
+- **Menos lag al enviar un turno**: el runtime ya no escanea todo el repo con SHA antes del spawn; el changelog se valida con git diff al cerrar el turno.
+- **Explorador más liviano mientras corre un agente**: el file watcher se pausa durante el turno y refresca al terminar; Stop libera la pausa sin dejar el watcher colgado.
+- **Crear wiki con feedback claro**: spinner mientras carga o crea, overlay de error con reintentar, encuadre automático de cámara al abrir y auto-/init del curador tras el bootstrap.
+- **Plano con cristal opaco**: barras, FABs y contextos usan glass sin blur; solo el input del composer mantiene el efecto de cristal.
+- **Resync org con fases visibles**: al bajar un workspace org el overlay indica si está clonando repos, agentes, contextos o wiki.
+
+## v0.49.0
+
+- **Rayos del mapa wiki siempre brillantes**: opacidad y luces al máximo en cada disparo; sin atenuación por música ni flicker ambiental.
+- **Rayos blancos**: core, halo, glow, flashes y luces puntuales en blanco; nodos conservan color por tipo.
+- **Música solo mueve el foco**: cada beat enciende el siguiente nodo origen (sus rayos salientes juntos); la música no cambia el estilo visual de los rayos.
+
 ## v0.48.0
 
 - **Menos presión al streamear respuestas**: los deltas del asistente se acumulan ~200 ms antes de actualizar el chat; el texto sigue llegando en tiempo real con menos re-renders.

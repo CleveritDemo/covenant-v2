@@ -4,6 +4,7 @@
 import React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { WIKI_CURATOR_INIT_COMMAND } from '@shared/wikiCurator'
 import { wikiCuratorHistoryStorageKey } from '@shared/wikiCuratorHistory'
 import { WikiCuratorComposer } from '../WikiCuratorComposer'
 
@@ -238,6 +239,30 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     expect(dialog.querySelectorAll('[popover]')).toHaveLength(0)
   })
 
+  it('el historial vive en history-wrap (expansión hover/focus-within vía CSS)', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    fireEvent.change(input, { target: { value: 'mensaje de prueba' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByText('mensaje de prueba')).toBeTruthy()
+    })
+
+    const wrap = document.querySelector('.wiki-curator-composer__history-wrap')
+    const history = document.querySelector('.wiki-curator-composer__history')
+    expect(wrap).toBeTruthy()
+    expect(history).toBeTruthy()
+    expect(wrap?.contains(history!)).toBe(true)
+  })
+
   it('persiste historial entre remounts vía localStorage', async () => {
     const { unmount } = render(
       <WikiCuratorComposer
@@ -361,6 +386,68 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
       expect(screen.queryByText(errorMessage)).toBeNull()
       expect(localStorage.getItem(HISTORY_KEY)).toBeNull()
     })
+  })
+
+  it('bootstrapInitToken dispara /init automático cuando no está thinking', async () => {
+    const { rerender } = render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={0}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    rerender(
+      <WikiCuratorComposer
+        cwd={CWD}
+        bootstrapInitToken={1}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(startWikiCuratorTurn).toHaveBeenCalledWith({
+        cwd: CWD,
+        message: WIKI_CURATOR_INIT_COMMAND,
+      })
+    })
+  })
+
+  it('scroll al colapsar (mouseleave) fuerza scrollTop al final del historial', async () => {
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('tabs.wikiCuratorInputLabel')
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.change(input, { target: { value: `mensaje largo ${index}` } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await waitFor(() => {
+        expect(screen.getByText(`mensaje largo ${index}`)).toBeTruthy()
+      })
+    }
+
+    const history = document.querySelector('.wiki-curator-composer__history') as HTMLElement
+    const wrap = document.querySelector('.wiki-curator-composer__history-wrap') as HTMLElement
+    expect(history).toBeTruthy()
+    expect(wrap).toBeTruthy()
+
+    Object.defineProperty(history, 'scrollHeight', { value: 1200, configurable: true })
+    let scrollTop = 200
+    Object.defineProperty(history, 'scrollTop', {
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+      configurable: true,
+    })
+
+    fireEvent.mouseLeave(wrap)
+    expect(scrollTop).toBe(1200)
   })
 
   it('clear borra historial y la key de localStorage', async () => {

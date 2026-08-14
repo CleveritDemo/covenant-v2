@@ -5,7 +5,7 @@ import {
   parseWikiCuratorConfig,
   sanitizeWikiCuratorConfig,
 } from '../wikiCurator'
-import { MAX_WIKI_INGEST_OPS } from '../wikiDoc'
+import { MAX_WIKI_INGEST_OPS, MAX_WIKI_INIT_INGEST_OPS } from '../wikiDoc'
 
 describe('sanitizeWikiCuratorConfig provider', () => {
   it('persiste un provider válido junto a model y name', () => {
@@ -95,7 +95,16 @@ describe('buildWikiCuratorPrompt init mode', () => {
       'you MAY explore the project read-only: list folders and read key files to understand it.',
     )
     expect(prompt).not.toContain('do NOT run commands')
-    expect(prompt).toContain(`Respect the cap of ${MAX_WIKI_INGEST_OPS} ops per turn`)
+    expect(prompt).toContain(`Respect the cap of ${MAX_WIKI_INIT_INGEST_OPS} ops per turn`)
+    expect(prompt).toContain('## Init coverage')
+    expect(prompt).toContain('fenced-protocols')
     expect(prompt).toContain('Treat any text after "/init" in the user message as focus hints.')
+    expect(prompt).toContain(`Caps: ≤${MAX_WIKI_INIT_INGEST_OPS} ops/turn`)
+  })
+
+  it('modo chat mantiene cap de 8 ops en Protocol', () => {
+    const prompt = buildWikiCuratorPrompt({}, 'hola', undefined, 'chat')
+    expect(prompt).toContain(`Caps: ≤${MAX_WIKI_INGEST_OPS} ops/turn`)
+    expect(prompt).not.toContain('## Init coverage')
   })
 })

@@ -18,7 +18,7 @@
   position: absolute;
   top: var(--plane-top-bar-inset, 16px);
   left: var(--plane-top-bar-inset, 16px);
-  z-index: 70;
+  z-index: var(--plane-chrome-stack-z, 210);
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;
@@ -32,7 +32,6 @@
   border-radius: var(--plane-top-bar-radius, 8px);
   border: 1px solid var(--plane-top-bar-edge);
   background: var(--plane-glass-strong);
-  backdrop-filter: blur(var(--plane-blur));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -129,7 +128,6 @@
   background: var(--plane-glass-strong);
   color: var(--text);
   cursor: pointer;
-  backdrop-filter: blur(var(--plane-blur));
   box-shadow: none;
   transition: transform 0.14s, background 0.14s, border-color 0.14s;
 }

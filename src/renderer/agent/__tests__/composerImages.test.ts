@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  attachmentsToPendingImages,
   MAX_CHAT_PREVIEW_EDGE,
   MAX_MODEL_IMAGE_EDGE,
   blobToThumbnailDataUrl,
   optimizeImageForModel,
+  pendingImageFromBlob,
+  publishedQueueImagePreviewUrl,
   SKIP_OPTIMIZE_UNDER_BYTES,
 } from '../composerImages'
 
@@ -92,5 +95,90 @@ describe('blobToThumbnailDataUrl', () => {
     expect(canvas.height).toBe(720)
     expect(context.imageSmoothingQuality).toBe('high')
     expect(result).toBe('data:image/webp;base64,AAA')
+  })
+})
+
+describe('pendingImageFromBlob', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('stores thumbnailDataUrl alongside the blob previewUrl', async () => {
+    const source = new Blob([new Uint8Array(4_000)], { type: 'image/png' })
+    vi.stubGlobal('crypto', { randomUUID: () => 'img-1' })
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => mockBitmap(400, 300)))
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:local-preview'),
+      revokeObjectURL: vi.fn(),
+    })
+
+    const context = { drawImage: vi.fn() }
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => context),
+      toBlob: vi.fn((callback: BlobCallback) => callback(source)),
+      toDataURL: vi.fn(() => 'data:image/webp;base64,thumb'),
+    }
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => canvas),
+    })
+
+    const image = await pendingImageFromBlob(source, 'shot.png')
+
+    expect(image?.previewUrl).toBe('blob:local-preview')
+    expect(image?.thumbnailDataUrl).toBe('data:image/webp;base64,thumb')
+    expect(publishedQueueImagePreviewUrl(image!)).toBe('data:image/webp;base64,thumb')
+  })
+})
+
+describe('attachmentsToPendingImages', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('builds pending images with stable thumbnail data URLs', async () => {
+    const bytes = new Uint8Array([1, 2, 3])
+    const base64 = btoa(String.fromCharCode(...bytes))
+    vi.stubGlobal('crypto', { randomUUID: () => 'img-1' })
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => mockBitmap(80, 60)))
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:attachment'),
+      revokeObjectURL: vi.fn(),
+    })
+
+    const context = { drawImage: vi.fn(), imageSmoothingEnabled: false, imageSmoothingQuality: 'low' }
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => context),
+      toDataURL: vi.fn(() => 'data:image/webp;base64,queued'),
+    }
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => canvas),
+    })
+
+    const pending = await attachmentsToPendingImages([{
+      name: 'paste.png',
+      mimeType: 'image/png',
+      base64,
+    }])
+
+    expect(pending).toHaveLength(1)
+    expect(pending[0]?.previewUrl).toBe('blob:attachment')
+    expect(pending[0]?.thumbnailDataUrl).toBe('data:image/webp;base64,queued')
+    URL.revokeObjectURL('blob:attachment')
+    expect(publishedQueueImagePreviewUrl(pending[0]!)).toMatch(/^data:/)
+  })
+})
+
+describe('publishedQueueImagePreviewUrl', () => {
+  it('prefers thumbnailDataUrl over revocable blob preview', () => {
+    expect(publishedQueueImagePreviewUrl({
+      previewUrl: 'blob:dead',
+      thumbnailDataUrl: 'data:image/webp;base64,alive',
+    })).toBe('data:image/webp;base64,alive')
   })
 })

@@ -133,16 +133,16 @@ import {
   type WikiSyncLogEntry,
 } from './wikiStore'
 import {
-  readWikiCuratorConfig,
+  applyWikiCuratorConfigToApp,
+  maybeMigrateWikiCuratorFromProject,
   startWikiCuratorTurn,
   stopWikiCuratorTurn,
-  writeWikiCuratorConfig,
   type WikiCuratorStartConfig,
 } from './wikiCurator'
 import { buildWikiGraphData } from '../src/shared/wikiGraph'
 import { pulseSnapshot, recordPulseEvent } from './pulseStore'
 import { clearPresence, setPresence } from './discordPresence'
-import { ensureAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
+import { ensureAiAgentResults, readLatestAiAgentResults, writeAiAgentResultsNotes } from './aiAgentResults'
 import type {
   TabContextDeleteRequest,
   TabContextDiscoveryRequest,
@@ -1962,6 +1962,17 @@ function registerIpc(): void {
     }
     return writeAiAgentResultsNotes(cwd, agentId, notes)
   })
+  ipcMain.handle(IPC.AGENT_RESULTS_READ_LATEST, (_event, request: unknown) => {
+    if (!request || typeof request !== 'object') {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    const cwd = (request as { cwd?: unknown }).cwd
+    const agentId = (request as { agentId?: unknown }).agentId
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof agentId !== 'string' || !agentId.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return readLatestAiAgentResults(cwd, agentId)
+  })
   ipcMain.handle(IPC.TAB_CONTEXT_DELETE, (_event, request: TabContextDeleteRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, error: 'Solicitud inválida.' }
@@ -2086,7 +2097,12 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     try {
-      return { ok: true, config: readWikiCuratorConfig(cwd) }
+      const trimmedCwd = cwd.trim()
+      const migration = maybeMigrateWikiCuratorFromProject(trimmedCwd, readConfig())
+      if (migration.migrated) {
+        writeConfig(mergeWithDefaults(migration.appConfig))
+      }
+      return { ok: true, config: migration.config }
     } catch (error) {
       return {
         ok: false,
@@ -2099,7 +2115,9 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.' }
     }
     try {
-      return writeWikiCuratorConfig(cwd, value)
+      const applied = applyWikiCuratorConfigToApp(readConfig(), value)
+      writeConfig(mergeWithDefaults(applied.appConfig))
+      return { ok: true, config: applied.config }
     } catch (error) {
       return {
         ok: false,

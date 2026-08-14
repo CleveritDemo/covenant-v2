@@ -17,6 +17,8 @@ export interface AgentIdentity {
   objective?: string
   /** Reglas de comportamiento; se envían en cada turno (no cada 10 como los contextos). */
   rules?: string[]
+  /** Paralelo a `rules`; ausente o `true` = habilitada. */
+  rulesEnabled?: boolean[]
 }
 
 export const AGENT_NAME_MAX_LENGTH = 48
@@ -74,6 +76,7 @@ export interface AgentIdentityDraft {
   ceremonyRoles?: CeremonyRoleId[]
   objective: string
   rules: string[]
+  rulesEnabled: boolean[]
 }
 
 /** Aplica el borrador a la meta: trim/clamp una sola vez (blur o cierre). No toca `id`. */
@@ -85,7 +88,17 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
   const monogram = sanitizeAgentMonogram(draft.monogram)
   const role = sanitizeAgentTextDraft(draft.role.trim(), AGENT_ROLE_MAX_LENGTH)
   const objective = sanitizeAgentTextDraft(draft.objective.trim(), AGENT_OBJECTIVE_MAX_LENGTH)
-  const rules = normalizeAgentRules(draft.rules)
+  const draftEnabled = sanitizeAgentRulesEnabledDraft(draft.rules, draft.rulesEnabled)
+  const rules: string[] = []
+  const enabledFlags: boolean[] = []
+  for (let i = 0; i < draft.rules.length; i++) {
+    const text = String(draft.rules[i] ?? '').trim().slice(0, AGENT_RULE_MAX_LENGTH)
+    if (!text) continue
+    rules.push(text)
+    enabledFlags.push(draftEnabled[i] ?? true)
+    if (rules.length >= AGENT_RULES_MAX_COUNT) break
+  }
+  const rulesEnabled = enabledFlags.some(flag => !flag) ? enabledFlags : undefined
   const ceremonyRoles = sanitizeCeremonyRoleIds(draft.ceremonyRoles)
 
   const {
@@ -96,6 +109,7 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
     ceremonyRole: _ceremonyRole,
     objective: _objective,
     rules: _rules,
+    rulesEnabled: _rulesEnabled,
     ...rest
   } = previous
 
@@ -111,7 +125,26 @@ export function applyAgentIdentityDraft<T extends AgentIdentity>(
     ...(role ? { role } : {}),
     ...(objective ? { objective } : {}),
     ...(rules.length ? { rules } : {}),
+    ...(rulesEnabled ? { rulesEnabled } : {}),
   } as T
+}
+
+/** Flags de habilitación alineados a `rules` del borrador; ausente = habilitada. */
+export function sanitizeAgentRulesEnabledDraft(
+  rules: string[],
+  enabled?: boolean[],
+): boolean[] {
+  return rules.map((_, index) => enabled?.[index] !== false)
+}
+
+/** Reglas normalizadas que van al prompt / turno CLI (omite las deshabilitadas). */
+export function agentRulesForPrompt(
+  rules?: string[],
+  rulesEnabled?: boolean[],
+): string[] {
+  const normalized = normalizeAgentRules(rules)
+  if (!rulesEnabled?.length) return normalized
+  return normalized.filter((_, index) => rulesEnabled[index] !== false)
 }
 
 /** Reglas no vacías, recortadas y acotadas (prompt / turno CLI). */
@@ -132,7 +165,7 @@ export function buildAgentIdentityPrompt(identity: AgentIdentity): string {
   const name = identity.name?.trim()
   const role = identity.role?.trim()
   const objective = identity.objective?.trim()
-  const rules = normalizeAgentRules(identity.rules)
+  const rules = agentRulesForPrompt(identity.rules, identity.rulesEnabled)
   if (!name && !role && !objective && rules.length === 0) return ''
 
   const lines = [

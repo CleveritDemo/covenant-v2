@@ -28,6 +28,9 @@ export type { PlaneContextPoolAgent, PlaneContextPoolItem } from './planeContext
  */
 function setChipDragImage(event: React.DragEvent<HTMLButtonElement>): void {
   const ghost = event.currentTarget.cloneNode(true) as HTMLElement
+  // Fuera de la barra no hay `--expanded` que reabra el chip de overflow:
+  // se quedaría en width:0 / opacity:0 y el arrastre no mostraría nada.
+  ghost.classList.remove('plane-context-pool__chip--overflow')
   ghost.classList.add('plane-context-pool__chip--ghost')
   document.body.appendChild(ghost)
   const { width, height } = ghost.getBoundingClientRect()

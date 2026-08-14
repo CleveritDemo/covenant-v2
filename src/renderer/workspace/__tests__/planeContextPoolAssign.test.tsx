@@ -304,6 +304,18 @@ describe('PlaneContextPool — desbordamiento', () => {
     expect(overflowBadge()).toBeNull()
   })
 
+  it('el fantasma de un chip overflow es visible (sin la clase que lo colapsa)', () => {
+    setup(bigCatalog())
+    fireEvent.mouseEnter(poolRoot()!)
+    const chip = screen.getByRole('button', { name: /Contexto 8/ })
+    const transfer = dragTransfer('c8')
+    fireEvent.dragStart(chip, { dataTransfer: transfer })
+    const [ghost] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
+    // Colgado del body pierde `.plane-context-pool--expanded`: con --overflow
+    // quedaría width:0 / opacity:0 y el arrastre no mostraría nada.
+    expect(ghost.classList.contains('plane-context-pool__chip--overflow')).toBe(false)
+  })
+
   it('arrastrar chip overflow expandido no colapsa la barra', () => {
     setup(bigCatalog())
     const pool = poolRoot()!

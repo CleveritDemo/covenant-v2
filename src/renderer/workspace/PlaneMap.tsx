@@ -114,6 +114,14 @@ export interface PlaneColumnScrollOffsets {
 
 const ZERO_SCROLL_OFFSETS: PlaneColumnScrollOffsets = { terminal: 0, agent: 0 }
 
+/** Floor busy aurora only; grid/music particles stay on via `tabActive`. */
+export function planeFloorAuroraActive(
+  working: boolean | undefined,
+  stageHidden: boolean,
+): boolean {
+  return Boolean(working) && !stageHidden
+}
+
 interface PlaneSlotLayout {
   origins: Record<string, PaneWindowGeometry>
   /** Altura total de contenido por columna (sin clearance inferior). */
@@ -702,7 +710,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
-      <PlaneMapBackdrop working={working} tabActive={tabActive} />
+      {/* Floor aurora off while wiki stage is hidden; grid + music particles stay. */}
+      <PlaneMapBackdrop
+        working={planeFloorAuroraActive(working, stageHidden)}
+        tabActive={tabActive}
+      />
       {wikiOverlay ? (
         <div className="plane-map__wiki-overlay">{wikiOverlay}</div>
       ) : null}

@@ -69,6 +69,7 @@ import {
 import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import type { AgentPlaneStatus, AgentPlaneQueueControls } from './agent/AgentPane'
 import { isHumanQueuedTurn, queuedTurnHumanKey } from './agent/queuedTurnDedup'
+import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
 import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
@@ -5037,6 +5038,13 @@ export const App: React.FC = () => {
   }, [])
 
   const handlePlaneMergeQueuedTurns = useCallback((paneId: string) => {
+    setAgentPlaneStatus(prev => {
+      const cur = prev[paneId]
+      if (!cur?.queuedTurns || cur.queuedTurns.length < 2) return prev
+      const nextQueue = mergeQueuedTurns(cur.queuedTurns)
+      if (nextQueue === cur.queuedTurns) return prev
+      return { ...prev, [paneId]: { ...cur, queuedTurns: nextQueue } }
+    })
     planeQueueControlsByPaneRef.current.get(paneId)?.merge()
   }, [])
 

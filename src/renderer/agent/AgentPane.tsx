@@ -1148,7 +1148,7 @@ export const AgentPane: React.FC<Props> = ({
       turnCloseReason ?? '',
       lastTurnFailed ? '1' : '0',
       loopEndReason ?? '',
-      String(queuedTurns.length),
+      queuedTurns.map(item => item.id).join(','),
       tabActive ? String(enteringIds.size) : '0',
       tabActive ? String(materializingIds.size) : '0',
       String(pendingImages.length),
@@ -2180,7 +2180,6 @@ export const AgentPane: React.FC<Props> = ({
       setEditingQueuedId(current => (
         current && !next.some(item => item.id === current) ? null : current
       ))
-      planeStatusThrottlerRef.current.flush()
       return next
     })
   }, [])
@@ -2830,9 +2829,7 @@ export const AgentPane: React.FC<Props> = ({
             settlingId={settlingId}
             onEnteringAnimationEnd={handleEnteringAnimationEnd}
             onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
-            mergeableCount={queuedTurns.filter(item => (
-              !item.delegation && !item.orchestrationFollowUp
-            )).length}
+            mergeableCount={queuedTurns.filter(item => !item.delegation).length}
             onRemoveQueuedTurn={removeQueuedTurn}
             onEditQueuedTurn={id => setEditingQueuedId(id)}
             onMergeQueuedTurns={handleMergeQueuedTurns}

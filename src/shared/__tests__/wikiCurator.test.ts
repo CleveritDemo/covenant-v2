@@ -42,11 +42,14 @@ describe('sanitizeWikiCuratorConfig provider', () => {
 })
 
 describe('buildWikiCuratorPrompt', () => {
-  it('incluye Writing, guidance y ejemplo create-agent', () => {
+  it('incluye Visible answer, Wiki page bodies, guidance y ejemplo create-agent', () => {
     const prompt = buildWikiCuratorPrompt({}, 'hola')
-    expect(prompt).toContain('## Writing')
+    expect(prompt).toContain('## Visible answer')
+    expect(prompt).toContain('## Wiki page bodies')
+    expect(prompt).toContain('Do NOT use [[slug]] wikilinks in the visible reply')
     expect(prompt).toContain('index for agents')
     expect(prompt).toContain('create-agent')
+    expect(prompt.indexOf('## Visible answer')).toBeLessThan(prompt.indexOf('## Wiki page bodies'))
   })
 
   it('inserta la sección Wiki health antes del mensaje cuando viene reporte', () => {

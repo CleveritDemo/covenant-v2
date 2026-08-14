@@ -52,8 +52,10 @@ import {
   WIKI_MODAL_ESTIMATED_HEIGHT,
   WIKI_MODAL_WIDTH,
 } from '@shared/wikiModalPositions'
+import { AiMarkdown } from '../components/AiMarkdown'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TerminalModal } from '../components/TerminalModal'
+import { formatWikiPageBodyForHuman } from '@shared/wikiPagePlain'
 import './TabAgenticPlane.css'
 
 type PendingWorkspaceAction = 'resync' | 'upload'
@@ -644,11 +646,16 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     ? agentStatuses[openChatAgentId] ?? null
     : null
 
-  // Agentes no expanden ventana; el chat del plano no compite con window.open.
+  const terminalWindowOpen = entities.some(
+    entity => entity.kind !== 'agent' && entity.window.open,
+  )
+
+  // Agentes no expanden ventana; el stream del chat sí compite con terminal expandida.
   const quickChatVisible = Boolean(
     openChatAgentId
     && quickChatStatus
-    && (quickChatStatus.busy || quickChatStatus.messages.length > 0),
+    && (quickChatStatus.busy || quickChatStatus.messages.length > 0)
+    && !terminalWindowOpen,
   )
 
   const anyFullscreen = entities.some(
@@ -658,13 +665,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const anyWindowOpen = entities.some(entity => entity.window.open)
     || Boolean(explorerState?.open)
 
-  const selectedAgent = agents.find(agent => agent.paneId === openChatAgentId)
-  const planeWorking = Boolean(
-    selectedAgent?.busy
-    || selectedAgent?.loopActive
-    || selectedAgent?.awaitingDelegations
-    || selectedAgent?.delegationWorkActive,
-  )
+  const planeWorking = agents.some(agent => (
+    agent.busy
+    || agent.loopActive
+    || agent.awaitingDelegations
+    || agent.delegationWorkActive
+  ))
 
   const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
@@ -1070,7 +1076,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           contenedor). El estado vive arriba; aquí solo tiene su sitio. */}
       {brainstormOverlays}
 
-      {/* Páginas reales de la wiki (markdown crudo; el render md rico llega después).
+      {/* Páginas reales de la wiki (cuerpo legible vía preprocess + AiMarkdown).
           Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}
       {wikiNodeModals.map((modal, index) => {
         const node = wikiGraphData?.nodes.find(item => item.slug === modal.slug)
@@ -1098,9 +1104,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               <p className="wiki-graph-node-page__type">
                 {t(wikiTypeLabelKey(node.type))}
               </p>
-              <p className="wiki-graph-node-page__body">
-                {node.body ?? ''}
-              </p>
+              <div className="wiki-graph-node-page__body">
+                <AiMarkdown content={formatWikiPageBodyForHuman(node.body ?? '')} />
+              </div>
             </div>
           </TerminalModal>
         )

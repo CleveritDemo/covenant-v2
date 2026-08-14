@@ -233,15 +233,15 @@ describe('PlaneContextPool — shell y botones externos', () => {
     expect(bar.contains(create)).toBe(false)
   })
 
-  it('orden visual: configure, barra glass, create', () => {
+  it('orden visual: barra glass, configure, create', () => {
     setup()
     const shell = poolRoot()!
     const children = Array.from(shell.children)
-    const configureIdx = children.findIndex(el => el.contains(screen.getByLabelText('Administrar')))
     const barIdx = children.findIndex(el => el.classList.contains('plane-context-pool'))
+    const configureIdx = children.findIndex(el => el.contains(screen.getByLabelText('Administrar')))
     const createIdx = children.findIndex(el => el.contains(screen.getByLabelText('Nuevo')))
-    expect(configureIdx).toBeLessThan(barIdx)
-    expect(barIdx).toBeLessThan(createIdx)
+    expect(barIdx).toBeLessThan(configureIdx)
+    expect(configureIdx).toBeLessThan(createIdx)
   })
 
   it('sin contextos no renderiza la barra glass', () => {
@@ -249,6 +249,11 @@ describe('PlaneContextPool — shell y botones externos', () => {
     expect(glassBar()).toBeNull()
     expect(screen.getByLabelText('Administrar')).toBeTruthy()
     expect(screen.getByLabelText('Nuevo')).toBeTruthy()
+    const shell = poolRoot()!
+    const children = Array.from(shell.children)
+    const configureIdx = children.findIndex(el => el.contains(screen.getByLabelText('Administrar')))
+    const createIdx = children.findIndex(el => el.contains(screen.getByLabelText('Nuevo')))
+    expect(configureIdx).toBeLessThan(createIdx)
   })
 })
 

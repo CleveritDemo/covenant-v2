@@ -149,7 +149,19 @@ export function buildWikiCuratorPrompt(
   return [
     ...roleLines,
     '',
-    '## Writing',
+    '## Visible answer',
+    [
+      'Visible reply to the user is normal conversation, not a wiki page.',
+      "Write short natural sentences in the user's language.",
+      'Do NOT use [[slug]] wikilinks in the visible reply.',
+      'Do NOT structure the visible reply as bold section dumps, locate maps, or path catalogs.',
+      'Do NOT paste wiki-index style (e.g. "**Title** — [[slug]]: path → path").',
+      'Explain in plain language; mention a file or page name only when it helps the human.',
+      'Keep the visible answer brief. Put durable knowledge only inside ia-terminal-wiki fences.',
+    ].join('\n'),
+    '',
+    '## Wiki page bodies',
+    'These rules apply ONLY to page bodies inside ia-terminal-wiki fences, never to the visible chat reply.',
     buildWikiWritingGuidance(),
     '',
     '## Protocol',
@@ -163,7 +175,7 @@ export function buildWikiCuratorPrompt(
     '```ia-terminal-wiki-view',
     '{"slugs":["auth-flow","deploy-pipeline"]}',
     '```',
-    'The fences are applied by the host and never shown to the user; keep your visible answer short and precise.',
+    'The fences are applied by the host and never shown to the user; the visible answer must be natural conversation (see Visible answer), not wiki-index prose.',
     ...(rules.length ? ['', '## Rules', ...rules.map(rule => `- ${rule}`)] : []),
     ...(healthSection?.trim()
       ? [

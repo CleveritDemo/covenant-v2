@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
+import { isReduceMotionActive } from '../reduceMotion'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Icon } from '../components/ui/Icon'
@@ -53,6 +54,9 @@ export function wikiTypeLabelKey(
 
 const LEGEND_TYPES: WikiGraphNodeType[] = ['concept', 'decision', 'flow', 'reference']
 
+/** Duración del implode enter del mapa (mismo timing/easing que gravity-enter). */
+const WIKI_MAP_ENTER_MS = 2400
+
 /**
  * Mapa neuronal 3D de la wiki: cubre el plano del workspace (absolute inset)
  * y se cierra con Escape o su botón. Vive dentro de `.tab-agentic-plane` para
@@ -77,6 +81,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   const [nodeScreenPositions, setNodeScreenPositions] = useState<
     ReadonlyMap<string, WikiGraphNodeScreenPosition>
   >(() => new Map())
+  const [mapEntering, setMapEntering] = useState(true)
   const [creatingWiki, setCreatingWiki] = useState(false)
   const [createWikiFailed, setCreateWikiFailed] = useState(false)
   const awaitingCreateLoadRef = useRef(false)
@@ -104,6 +109,24 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
     onPick: onOpenNode,
     onNodeScreenPositions: handleNodeScreenPositions,
   }, active)
+
+  // Implode enter del canvas al abrir el mapa.
+  useEffect(() => {
+    if (!active) {
+      setMapEntering(true)
+      return
+    }
+    if (isReduceMotionActive()) {
+      setMapEntering(false)
+      return
+    }
+    setMapEntering(true)
+    const timer = window.setTimeout(
+      () => setMapEntering(false),
+      WIKI_MAP_ENTER_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [active])
 
   // Tras ensureWiki ok el padre refetchea (data=null); mantener spinner hasta que llegue data.
   useEffect(() => {
@@ -150,8 +173,14 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       role="region"
       aria-label={t('tabs.wikiMapTitle')}
     >
-      <div ref={containerRef} className="wiki-graph-view__canvas" />
-      {recentBadges.length > 0 ? (
+      <div
+        ref={containerRef}
+        className={[
+          'wiki-graph-view__canvas',
+          mapEntering ? 'wiki-graph-view__canvas--entering' : '',
+        ].filter(Boolean).join(' ')}
+      />
+      {!mapEntering && recentBadges.length > 0 ? (
         <div className="wiki-graph-view__node-badges" aria-hidden>
           {recentBadges.map(badge => (
             <span
@@ -224,43 +253,47 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       ) : phase === 'ready' && !webglAvailable ? (
         <p className="wiki-graph-view__fallback">{t('tabs.wikiMapNoWebgl')}</p>
       ) : null}
-      <header className="wiki-graph-view__bar">
-        <h2 className="wiki-graph-view__title">{t('tabs.wikiMapTitle')}</h2>
-        <ul className="wiki-graph-view__legend">
-          {LEGEND_TYPES.map(type => (
-            <li
-              key={type}
-              className={`wiki-graph-view__legend-item wiki-graph-view__legend-item--${type}`}
+      {!mapEntering ? (
+        <>
+          <header className="wiki-graph-view__bar">
+            <h2 className="wiki-graph-view__title">{t('tabs.wikiMapTitle')}</h2>
+            <ul className="wiki-graph-view__legend">
+              {LEGEND_TYPES.map(type => (
+                <li
+                  key={type}
+                  className={`wiki-graph-view__legend-item wiki-graph-view__legend-item--${type}`}
+                >
+                  {t(wikiTypeLabelKey(type))}
+                </li>
+              ))}
+            </ul>
+            <Tooltip content={t('tabs.wikiMapClose')}>
+              <button
+                type="button"
+                className="wiki-graph-view__close"
+                aria-label={t('tabs.wikiMapClose')}
+                onClick={onClose}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </Tooltip>
+          </header>
+          {curator}
+          {hover && hoverNode ? (
+            <div
+              className="wiki-graph-view__tooltip"
+              role="status"
+              style={{ left: hover.x + 14, top: hover.y + 12 }}
             >
-              {t(wikiTypeLabelKey(type))}
-            </li>
-          ))}
-        </ul>
-        <Tooltip content={t('tabs.wikiMapClose')}>
-          <button
-            type="button"
-            className="wiki-graph-view__close"
-            aria-label={t('tabs.wikiMapClose')}
-            onClick={onClose}
-          >
-            <Icon name="close" size={12} />
-          </button>
-        </Tooltip>
-      </header>
-      {curator}
-      {hover && hoverNode ? (
-        <div
-          className="wiki-graph-view__tooltip"
-          role="status"
-          style={{ left: hover.x + 14, top: hover.y + 12 }}
-        >
-          <span className="wiki-graph-view__tooltip-title">{hoverNode.title}</span>
-          <span
-            className={`wiki-graph-view__tooltip-type wiki-graph-view__tooltip-type--${hoverNode.type}`}
-          >
-            {t(wikiTypeLabelKey(hoverNode.type))}
-          </span>
-        </div>
+              <span className="wiki-graph-view__tooltip-title">{hoverNode.title}</span>
+              <span
+                className={`wiki-graph-view__tooltip-type wiki-graph-view__tooltip-type--${hoverNode.type}`}
+              >
+                {t(wikiTypeLabelKey(hoverNode.type))}
+              </span>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   )

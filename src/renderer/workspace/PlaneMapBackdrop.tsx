@@ -4,6 +4,7 @@ import { PlaneMapGridParticles } from './PlaneMapGridParticles'
 import './PlaneMap.css'
 
 type PlaneMapBackdropProps = {
+  /** Floor busy aurora only; grid/music particles always follow `tabActive`. */
   working: boolean
   tabActive?: boolean
 }

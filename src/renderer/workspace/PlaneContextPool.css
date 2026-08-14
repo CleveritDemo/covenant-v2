@@ -143,6 +143,23 @@
   pointer-events: auto;
 }
 
+/*
+ * El `gap` del flex separa también a los ítems de ancho 0: con la barra
+ * colapsada, cada chip oculto dejaba 2px de hueco delante del badge +N. El
+ * margen negativo lo cancela y se transiciona igual que el chip al expandir.
+ */
+.plane-context-pool__icons > .plane-context-pool__item--overflow {
+  margin-inline-start: -2px;
+  transition: margin 0.18s ease;
+}
+
+.plane-context-pool--expanded .plane-context-pool__item--overflow,
+.plane-context-pool:focus-within .plane-context-pool__item--overflow,
+.plane-context-pool-shell--expanded .plane-context-pool__item--overflow,
+.plane-context-pool-shell:focus-within .plane-context-pool__item--overflow {
+  margin-inline-start: 0;
+}
+
 /* Clon que se arrastra: opaco y con radio propio, ya sin el glass de la barra. */
 .plane-context-pool__chip--ghost {
   position: fixed;

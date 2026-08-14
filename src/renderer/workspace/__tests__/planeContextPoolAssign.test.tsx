@@ -309,6 +309,15 @@ describe('PlaneContextPool — desbordamiento', () => {
     expect(overflowBadge()).toBeNull()
   })
 
+  it('el contenedor del chip overflow se marca para no dejar hueco antes del +N', () => {
+    setup(bigCatalog())
+    // El gap del flex se aplica también a los ítems de ancho 0: sin marcar el
+    // contenedor, 3 chips ocultos separan el último chip del badge.
+    const items = document.querySelectorAll('.plane-context-pool__item--overflow')
+    expect(items).toHaveLength(3)
+    expect(items[0].querySelector('.plane-context-pool__chip--overflow')).toBeTruthy()
+  })
+
   it('el fantasma de un chip overflow es visible (sin la clase que lo colapsa)', () => {
     setup(bigCatalog())
     fireEvent.mouseEnter(poolRoot()!)

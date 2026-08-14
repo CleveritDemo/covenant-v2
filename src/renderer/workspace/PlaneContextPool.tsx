@@ -284,7 +284,11 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     const summary = contextSummary(ctx)
     const label = [summary, chipActionHint ?? ''].filter(Boolean).join('. ')
     return (
-      <div key={ctx.id} role="listitem">
+      <div
+        key={ctx.id}
+        role="listitem"
+        className={overflow ? 'plane-context-pool__item--overflow' : undefined}
+      >
         <Tooltip content={summary} hint={chipActionHint}>
           <button
             type="button"

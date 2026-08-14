@@ -1603,6 +1603,7 @@ const es = {
   pulse: {
     title: 'Pulse',
     button: 'Pulse',
+    closeView: 'Cerrar Pulse',
     loading: 'Cargando…',
     empty: 'Todavía no hay actividad. Envía un prompt o haz un commit y aparece acá.',
     currentStreak: 'Racha actual',

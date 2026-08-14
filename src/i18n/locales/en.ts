@@ -1601,6 +1601,7 @@ const en = {
   pulse: {
     title: 'Pulse',
     button: 'Pulse',
+    closeView: 'Close Pulse',
     loading: 'Loading…',
     empty: 'No activity yet. Send a prompt or make a commit and it lands here.',
     currentStreak: 'Current streak',

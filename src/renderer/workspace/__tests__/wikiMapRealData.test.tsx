@@ -36,7 +36,7 @@ vi.mock('../PlaneFabStack', () => ({ PlaneFabStack: () => null }))
 vi.mock('../PlaneLoopsSection', () => ({ PlaneLoopsSection: () => null }))
 vi.mock('../PlaneBrainstormTable', () => ({ PlaneBrainstormTable: () => null }))
 vi.mock('../TabFileExplorerWindow', () => ({ TabFileExplorerWindow: () => null }))
-vi.mock('../PulseModal', () => ({ PulseModal: () => null }))
+vi.mock('../PulseView', () => ({ PulseView: () => null }))
 vi.mock('../../components/ConfirmTerminalModal', () => ({ ConfirmTerminalModal: () => null }))
 
 const getWikiGraph = vi.fn<(cwd: string) => Promise<WikiGraphResult>>()

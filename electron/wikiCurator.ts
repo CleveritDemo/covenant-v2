@@ -28,8 +28,9 @@ import { IPC } from '../src/shared/ipcChannels'
 import { lintWikiPages } from '../src/shared/wikiLint'
 import { discoverTabContexts } from './tabContextBuild'
 import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+import { MAX_WIKI_INIT_INGEST_OPS } from '../src/shared/wikiDoc'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
-import { readWikiPages, wikiRootPath } from './wikiStore'
+import { ensureWiki, readWikiPages, wikiRootPath } from './wikiStore'
 
 export interface WikiCuratorStartConfig {
   cwd: string
@@ -165,13 +166,25 @@ export function startWikiCuratorTurn(
   if (!cwd) return { ok: false, error: 'cwd inválido' }
   if (!message && images.length === 0) return { ok: false, error: 'mensaje vacío' }
 
-  const discovered = discoverTabContexts(cwd).contexts
   const init = isWikiCuratorInitCommand(message)
+  if (init) ensureWiki(cwd)
+  const discovered = discoverTabContexts(cwd).contexts
   // Chat: solo wiki. Init: wiki + folderTree para explorar el proyecto read-only.
-  const contexts = init
+  let contexts = init
     ? discovered.filter(item => item.kind === 'wiki' || item.kind === 'folderTree')
     : discovered.filter(item => item.kind === 'wiki')
-  if (!contexts.length) {
+  if (init && !contexts.some(item => item.kind === 'folderTree')) {
+    contexts = [
+      ...contexts,
+      {
+        id: 'iaterminal:folderTree:init',
+        name: 'Project folders',
+        fileName: 'folders.md',
+        kind: 'folderTree',
+      },
+    ]
+  }
+  if (!init && !contexts.length) {
     const error = 'El proyecto no tiene wiki (.gravity/wiki).'
     emitCurator(win, cwd, { type: 'error', message: error })
     emitCurator(win, cwd, { type: 'done' })
@@ -254,6 +267,7 @@ export function startWikiCuratorTurn(
       const ingest = applyWikiIngestFromFinalText(finalText, cwd, {
         agentId: CURATOR_AGENT_ID,
         persist: true,
+        ...(init ? { maxOps: MAX_WIKI_INIT_INGEST_OPS } : {}),
       })
       if (ingest.persisted) {
         emitCurator(win, cwd, { type: 'applied', opsCount: ingest.applied })

@@ -283,4 +283,29 @@ describe('startWikiCuratorTurn provider', () => {
     const initKinds = initRequests[0]!.contexts.map(c => c.kind).sort()
     expect(initKinds).toEqual(['folderTree', 'wiki'])
   })
+
+  it('/init sin wiki previa crea árbol mínimo y arranca el turno', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-no-wiki-'))
+    dirs.push(cwd)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      handlers.onDone(0)
+    }
+
+    const result = startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: '/init' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(requests).toHaveLength(1)
+    expect(requests[0]!.prompt).toContain('## Init mode')
+    expect(requests[0]!.contexts.some(c => c.kind === 'wiki')).toBe(true)
+    expect(requests[0]!.contexts.some(c => c.kind === 'folderTree')).toBe(true)
+  })
 })

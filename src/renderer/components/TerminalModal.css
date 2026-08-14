@@ -17,6 +17,16 @@
   pointer-events: none;
 }
 
+.terminal-modal-root--movable {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: block;
+  padding: 0;
+}
+
 .terminal-modal-scrim {
   position: absolute;
   inset: 0;
@@ -29,6 +39,24 @@
 /* Con closeOnBackdrop, el scrim recibe el pointerdown para cerrar. */
 .terminal-modal-scrim[data-close-on-backdrop='true'] {
   pointer-events: auto;
+}
+
+.terminal-modal-panel--movable {
+  position: absolute;
+  margin: 0;
+  max-height: min(72%, 520px);
+  transform-origin: top left;
+  animation: terminal-modal-movable-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.terminal-modal-root--movable .terminal-modal-titlebar {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.terminal-modal-root--movable .terminal-modal-titlebar:active {
+  cursor: grabbing;
 }
 
 .terminal-modal-panel {
@@ -271,6 +299,17 @@
   from {
     opacity: 0;
     transform: scale(0.45);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes terminal-modal-movable-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
   }
   to {
     opacity: 1;

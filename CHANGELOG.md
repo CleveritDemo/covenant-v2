@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.51.0
+
+- **Modales wiki movibles**: las páginas del mapa se abren en un modal que puedes arrastrar; varias a la vez con posiciones repartidas desde el centro y la posición se guarda al soltar.
+- **Ícono del mapa wiki**: el botón de la barra usa el grafo wiki en lugar del cerebro.
+- **Más partículas con agente ocupado**: el aurora del composer duplica densidad mientras un agente está en curso.
+- **Rayos con luz viajera**: un foco recorre cada arista desde el origen; la escena se oscurece y los nodos brillan al paso de la luz.
+- **Nodo origen al disparar**: el nodo que emite rayos gana brillo y un pulso de escala mientras dispara, con o sin música; reduce motion intacto.
+- **Curador `/init` reforzado**: el init asegura la wiki en disco, admite hasta 24 operaciones por turno y el prompt pide un catálogo más amplio cuando el repo lo justifica.
+
 ## v0.50.0
 
 - **Menos lag al enviar un turno**: el runtime ya no escanea todo el repo con SHA antes del spawn; el changelog se valida con git diff al cerrar el turno.

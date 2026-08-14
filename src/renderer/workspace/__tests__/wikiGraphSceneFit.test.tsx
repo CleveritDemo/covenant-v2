@@ -12,14 +12,16 @@ const BOLT_CORE_OPACITY = 0.95
 const BOLT_HALO_OPACITY = 0.55
 const BOLT_GLOW_OPACITY = 0.32
 const BOLT_ACTIVE_MS = 260
+const NODE_EMISSIVE_BASE = 0.08
 
 vi.mock('three', () => {
   class Color {
     r = 1; g = 1; b = 1
+    lastScalar = 1
     copy(): this { return this }
     clone(): Color { return new Color() }
     lerp(): this { return this }
-    multiplyScalar(): this { return this }
+    multiplyScalar(s: number): this { this.lastScalar = s; return this }
   }
   class Vector2 { x = 0; y = 0 }
   class Vector3 {
@@ -61,6 +63,9 @@ vi.mock('three', () => {
     multiplyScalar(s: number): this {
       this.x *= s; this.y *= s; this.z *= s
       return this
+    }
+    distanceTo(v: { x: number; y: number; z: number }): number {
+      return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z)
     }
   }
   class Sphere {
@@ -123,6 +128,9 @@ vi.mock('three', () => {
       this.array[i * 3 + 1] = y
       this.array[i * 3 + 2] = z
     }
+    getX(i: number): number { return this.array[i * 3] }
+    getY(i: number): number { return this.array[i * 3 + 1] }
+    getZ(i: number): number { return this.array[i * 3 + 2] }
   }
   class Float32BufferAttribute extends BufferAttribute {}
   class BufferGeometry {
@@ -178,13 +186,16 @@ vi.mock('three', () => {
     __kind = 'DirectionalLight' as const
     position = { set: (): void => undefined }
   }
+  const pointLights: PointLight[] = []
+  ;(globalThis as { __wikiPointLights?: PointLight[] }).__wikiPointLights = pointLights
   class PointLight {
     __kind = 'PointLight' as const
     color = new Color()
     intensity = 0
     distance = 0
-    position = { set: (): void => undefined, copy: (): void => undefined }
+    position = new Vector3()
     dispose(): void {}
+    constructor() { pointLights.push(this) }
   }
   class SpriteMaterial { color = new Color(); opacity = 0; dispose(): void {} }
   class Sprite {
@@ -193,6 +204,8 @@ vi.mock('three', () => {
     position = { copy: (): void => undefined, set: (): void => undefined }
     scale = { setScalar: (): void => undefined }
   }
+  const sceneMeshes: Mesh[] = []
+  ;(globalThis as { __wikiSceneMeshes?: Mesh[] }).__wikiSceneMeshes = sceneMeshes
   class Mesh {
     __kind = 'Mesh' as const
     material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial
@@ -205,6 +218,7 @@ vi.mock('three', () => {
       material: MeshBasicMaterial | MeshLambertMaterial | MeshStandardMaterial,
     ) {
       this.geometry = geometry; this.material = material
+      sceneMeshes.push(this)
     }
   }
   class Raycaster { setFromCamera(): void {}; intersectObjects(): unknown[] { return [] } }
@@ -375,6 +389,17 @@ function getBoltMats(): LineBasicMaterial[] {
 function getCoreGeoms(): BufferGeometry[] {
   return (globalThis as { __wikiCoreGeoms?: BufferGeometry[] }).__wikiCoreGeoms ?? []
 }
+function getPointLights(): Array<{ position: { x: number; y: number; z: number }; intensity: number }> {
+  return (globalThis as { __wikiPointLights?: Array<{ position: { x: number; y: number; z: number }; intensity: number }> }).__wikiPointLights ?? []
+}
+type SceneMesh = {
+  material: { emissive?: { lastScalar: number } }
+  userData: Record<string, unknown>
+  scale: { setScalar: ReturnType<typeof vi.fn> }
+}
+function getSceneMeshes(): SceneMesh[] {
+  return (globalThis as { __wikiSceneMeshes?: SceneMesh[] }).__wikiSceneMeshes ?? []
+}
 
 function resetGlobals(): void {
   getCameras().length = 0
@@ -382,6 +407,8 @@ function resetGlobals(): void {
   getCoreMats().length = 0
   getBoltMats().length = 0
   getCoreGeoms().length = 0
+  getPointLights().length = 0
+  getSceneMeshes().length = 0
   resizeCallbacks.length = 0
 }
 
@@ -777,6 +804,99 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
 
     expect(coreMats[0]!.opacity).toBe(0)
     expect(coreMats[1]!.opacity).toBeGreaterThan(0)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('la luz puntual arranca en el origen del edge y avanza por la polilínea del core', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness />)
+    const positions = layoutWikiGraph(DATA, { seed: 42 })
+    const from = positions.get('a')!
+    const to = positions.get('b')!
+    const coreGeom = getCoreGeoms()[0]!
+
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light).toBeDefined()
+    expect(light.position.x).toBeCloseTo(from[0], 4)
+    expect(light.position.y).toBeCloseTo(from[1], 4)
+    expect(light.position.z).toBeCloseTo(from[2], 4)
+
+    const tMid = t0 + BOLT_ACTIVE_MS * 0.35
+    nowSpy.mockReturnValue(tMid)
+    tick(tMid)
+
+    const travelT = Math.min(1, 0.35 * 1.05)
+    const segIdx = Math.min(8, Math.floor(travelT * 8))
+    const posAttrMid = coreGeom.getAttribute('position')
+    expect(light.position.x).toBeCloseTo(posAttrMid.array[segIdx * 3], 4)
+    expect(light.position.y).toBeCloseTo(posAttrMid.array[segIdx * 3 + 1], 4)
+    expect(light.position.z).toBeCloseTo(posAttrMid.array[segIdx * 3 + 2], 4)
+
+    const tEnd = t0 + BOLT_ACTIVE_MS * 0.95
+    nowSpy.mockReturnValue(tEnd)
+    tick(tEnd)
+    expect(light.position.x).not.toBeCloseTo((from[0] + to[0]) / 2, 1)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('el nodo origen sube emissive por encima de la base al disparar en fase de ataque', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness />)
+    const originMesh = getSceneMeshes().find(m => m.userData.slug === 'a')!
+    expect(originMesh).toBeDefined()
+
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const emissiveScalar = (originMesh.material as { emissive: { lastScalar: number } }).emissive.lastScalar
+    expect(emissiveScalar).toBeGreaterThan(NODE_EMISSIVE_BASE)
+
+    const destMesh = getSceneMeshes().find(m => m.userData.slug === 'b')!
+    const destScalar = (destMesh.material as { emissive: { lastScalar: number } }).emissive.lastScalar
+    expect(destScalar).toBeLessThan(emissiveScalar)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()

@@ -10,6 +10,7 @@ import {
 } from './agentCliProviders'
 import {
   MAX_WIKI_INGEST_OPS,
+  MAX_WIKI_INIT_INGEST_OPS,
   MAX_WIKI_LOG_SUMMARY,
   MAX_WIKI_PAGE_BODY,
   MAX_WIKI_PAGE_TITLE,
@@ -83,6 +84,31 @@ export function parseWikiCuratorConfig(json: string): WikiCuratorConfig {
   }
 }
 
+/** Catálogo y mindset para /init: se inserta entre ## Init mode y ## Writing. */
+export function buildWikiInitGuidance(): string {
+  return [
+    '## Init coverage',
+    '**Mindset:** Audit wiki pages already attached as context — do not duplicate; create missing pages and update stale ones. A /init pass may use up to 24 ops — target **≥20 new or updated pages** when the repo justifies it; for tiny projects, document essentials and note gaps in your summary.',
+    '',
+    '**Each page must:** one job only (concept|decision|flow|reference), short body with real file paths and dense [[slug]] links, no long prose or transcripts.',
+    '',
+    '**Minimum catalog to cover** (adapt slugs to the real repo; omit only if genuinely absent):',
+    '1. `overview` — product intent, local vs org, human→agents orchestration.',
+    '2. Layer locate pages: `layer-electron`, `layer-renderer`, `layer-shared`, `layer-server` (or monorepo equivalents).',
+    '3. `project-architecture` — how layers connect + server.',
+    '4. `app-shell` — App.tsx as root of state/tabs/sync.',
+    '5. `agentic-plane` — plane, composer, map.',
+    '6. create-* flows: `create-agent`, `create-terminal`, `create-workspace-local`, `create-workspace-org` (those that exist in code).',
+    '7. `composer-turn` + `agent-runtime` + `agent-spawn-cli`.',
+    '8. `delegation-mechanics` + `orchestration-rounds`.',
+    '9. `context-pipeline` + `context-kinds` + `context-strategy`.',
+    '10. `wiki-memory-flow` + `wiki-graph` + `wiki-org-sync` (if org exists).',
+    '11. `org-workspace-sync` + `workspace-logic`.',
+    '12. Decisions: `ui-kit-contract`, `permission-modes`, `wiki-page-structure`.',
+    '13. `ipc-surface` + inventory `fenced-protocols`.',
+  ].join('\n')
+}
+
 /**
  * Prompt del turno del curador. Rol fijo: gestor de información de la wiki —
  * no programa ni toca archivos; solo opera vía los dos fences del protocolo.
@@ -95,6 +121,7 @@ export function buildWikiCuratorPrompt(
 ): string {
   const name = config.name?.trim() || 'Wiki curator'
   const rules = config.rules ?? []
+  const maxOps = mode === 'init' ? MAX_WIKI_INIT_INGEST_OPS : MAX_WIKI_INGEST_OPS
   const roleLines = mode === 'init'
     ? [
         '## Role',
@@ -106,9 +133,11 @@ export function buildWikiCuratorPrompt(
         '## Init mode',
         'Survey the repository on your own and fill the wiki with the general topics a newcomer needs: folder structure, architecture and process boundaries, key technical decisions, the logic of the most important features, and stack/tooling.',
         'FIRST review the wiki pages already attached as context — do not duplicate them, only create missing pages or update stale ones.',
-        `Respect the cap of ${MAX_WIKI_INGEST_OPS} ops per turn, prioritizing the most valuable pages and linking them with [[slug]].`,
+        `Respect the cap of ${maxOps} ops per turn, prioritizing the most valuable pages and linking them with [[slug]].`,
         'End your visible answer with a short summary of what you created/updated and what a next /init pass should cover.',
         'Treat any text after "/init" in the user message as focus hints.',
+        '',
+        buildWikiInitGuidance(),
       ]
     : [
         '## Role',
@@ -126,7 +155,7 @@ export function buildWikiCuratorPrompt(
     '## Protocol',
     'You may only emit these two fences; any other control fence is forbidden.',
     'To edit or delete wiki pages, emit one `ia-terminal-wiki` fence:',
-    `Caps: ≤${MAX_WIKI_INGEST_OPS} ops/turn, body ≤${MAX_WIKI_PAGE_BODY}, title ≤${MAX_WIKI_PAGE_TITLE}, log ≤${MAX_WIKI_LOG_SUMMARY}. Types: ${WIKI_PAGE_TYPES.join('|')}.`,
+    `Caps: ≤${maxOps} ops/turn, body ≤${MAX_WIKI_PAGE_BODY}, title ≤${MAX_WIKI_PAGE_TITLE}, log ≤${MAX_WIKI_LOG_SUMMARY}. Types: ${WIKI_PAGE_TYPES.join('|')}.`,
     '```ia-terminal-wiki',
     '{"ops":[{"op":"upsert","slug":"create-agent","title":"Create agent","type":"flow","body":"Picker → .gravity/agents/<slug>.json → pane agent. UI: AgentProviderPickerModal.tsx. Persist: projectAgentCatalogOps.ts. See [[agent-identity]] [[pane-windows]]."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
     '```',

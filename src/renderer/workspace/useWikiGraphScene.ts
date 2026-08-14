@@ -77,9 +77,16 @@ const BOLT_ENDPOINT_OPACITY = 0.9
 const BOLT_ENDPOINT_SCALE_MULT = 2.8
 /** Luz puntual por descarga (pool compartido): ilumina de verdad los nodos
  *  vecinos — los materiales de nodo son Lambert para recibirla. */
-const BOLT_LIGHT_POOL = 6
-const BOLT_LIGHT_INTENSITY = 45
-const BOLT_LIGHT_DISTANCE_MULT = 0.75
+const BOLT_LIGHT_POOL = 8
+const BOLT_LIGHT_INTENSITY = 78
+const BOLT_LIGHT_DISTANCE_MULT = 1.35
+/** Emissive base y tope al pasar la luz viajera del rayo. */
+const NODE_EMISSIVE_BASE = 0.08
+const NODE_EMISSIVE_MAX = 0.55
+/** Boost extra en el nodo que está emitiendo rayos. */
+const NODE_ORIGIN_EMISSIVE_BOOST = 0.38
+/** Pulso de escala en el nodo emisor (1.0 → 1.07). */
+const NODE_ORIGIN_SCALE_PEAK = 0.07
 /** Glow volumétrico: sprites aditivos a lo largo del rayo (no solo líneas). */
 const BOLT_RAY_GLOW_OPACITY = 0.4
 const BOLT_RAY_GLOW_STOPS = [0.3, 0.5, 0.7] as const
@@ -250,9 +257,9 @@ export function useWikiGraphScene(
       // Ambiente a intensidad 1: nodos Lambert planos, sin luces extra.
       scene.add(new THREE.AmbientLight('#ffffff', 1))
     } else {
-      scene.add(new THREE.AmbientLight('#ffffff', 0.35))
-      scene.add(new THREE.HemisphereLight('#c8d8ff', '#1a1028', 0.55))
-      const dirLight = new THREE.DirectionalLight('#ffffff', 0.65)
+      scene.add(new THREE.AmbientLight('#ffffff', 0.18))
+      scene.add(new THREE.HemisphereLight('#c8d8ff', '#1a1028', 0.38))
+      const dirLight = new THREE.DirectionalLight('#ffffff', 0.42)
       dirLight.position.set(12, 18, 14)
       scene.add(dirLight)
     }
@@ -268,9 +275,9 @@ export function useWikiGraphScene(
         ? new THREE.MeshLambertMaterial({ color: color.clone() })
         : new THREE.MeshStandardMaterial({
           color: color.clone(),
-          metalness: 0.12,
-          roughness: 0.38,
-          emissive: color.clone().multiplyScalar(0.08),
+          metalness: 0.32,
+          roughness: 0.28,
+          emissive: color.clone().multiplyScalar(NODE_EMISSIVE_BASE),
         })
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(radius, segments, segments),
@@ -563,11 +570,7 @@ export function useWikiGraphScene(
         if (light) {
           const edge = edgeEnds[bolt.edgeIndex]!
           light.color.copy(BOLT_WHITE)
-          light.position.set(
-            (edge.from.x + edge.to.x) / 2,
-            (edge.from.y + edge.to.y) / 2,
-            (edge.from.z + edge.to.z) / 2,
-          )
+          light.position.set(edge.from.x, edge.from.y, edge.from.z)
           light.distance = bolt.length * BOLT_LIGHT_DISTANCE_MULT
           bolt.light = light
         }
@@ -649,7 +652,7 @@ export function useWikiGraphScene(
         const mat = sceneNode.mesh.material
         if (mat instanceof THREE.MeshStandardMaterial) {
           mat.color.copy(color)
-          mat.emissive.copy(color).multiplyScalar(0.08)
+          mat.emissive.copy(color).multiplyScalar(NODE_EMISSIVE_BASE)
         } else {
           (mat as THREE.MeshLambertMaterial).color.copy(color)
         }
@@ -760,6 +763,25 @@ export function useWikiGraphScene(
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointerup', onPointerUp)
 
+    function boltEnvelopeAt(bolt: Bolt, now: number): number {
+      if (bolt.state !== 'firing') return 0
+      const bt = (now - bolt.startedAt) / BOLT_ACTIVE_MS
+      if (bt >= 1) return 0
+      const env = bt < BOLT_ATTACK
+        ? bt / BOLT_ATTACK
+        : 1 - (bt - BOLT_ATTACK) / (1 - BOLT_ATTACK)
+      return Math.max(0, env) * bolt.peak
+    }
+
+    function originPulseEnvelope(fromSlug: string, now: number): number {
+      const indices = boltIndicesByFromSlug.get(fromSlug) ?? []
+      let max = 0
+      for (const i of indices) {
+        max = Math.max(max, boltEnvelopeAt(bolts[i]!, now))
+      }
+      return max
+    }
+
     let raf = 0
     let prevBeatPulse = 0
     let lastBeatFireAt = 0
@@ -841,13 +863,47 @@ export function useWikiGraphScene(
             BOLT_RAY_GLOW_OPACITY * envelope
         }
         if (bolt.light) {
-          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope
+          const travelT = Math.min(1, t * 1.05)
+          const segIdx = Math.min(BOLT_SEGMENTS, Math.floor(travelT * BOLT_SEGMENTS))
+          const coreAttr = bolt.coreGeom.getAttribute('position') as THREE.BufferAttribute
+          bolt.light.position.set(
+            coreAttr.getX(segIdx),
+            coreAttr.getY(segIdx),
+            coreAttr.getZ(segIdx),
+          )
+          bolt.light.intensity = BOLT_LIGHT_INTENSITY * envelope * flicker
         }
         // Un pequeño re-jitter a mitad de vida da sensación de descarga viva.
         if (t > 0.45 && t < 0.55) rewriteBolt(bolt, 0.7)
       }
       for (const sceneNode of sceneNodes) {
-        sceneNode.mesh.scale.setScalar(1)
+        const mat = sceneNode.mesh.material
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          const nodeColor = nodeColors.get(sceneNode.type) ?? new THREE.Color('#ffffff')
+          let boost = 0
+          for (const bolt of bolts) {
+            if (bolt.state !== 'firing' || !bolt.light) continue
+            const boltEnvelope = boltEnvelopeAt(bolt, now)
+            const dist = sceneNode.mesh.position.distanceTo(bolt.light.position)
+            const reach = bolt.light.distance
+            if (dist < reach) {
+              boost += 0.42 * (1 - dist / reach) * boltEnvelope
+            }
+          }
+          let originEnv = 0
+          if (isNodePulsing(sceneNode.slug)) {
+            originEnv = originPulseEnvelope(sceneNode.slug, now)
+            boost += NODE_ORIGIN_EMISSIVE_BOOST * originEnv
+          }
+          const scalar = Math.min(NODE_EMISSIVE_MAX, NODE_EMISSIVE_BASE + boost)
+          mat.emissive.copy(nodeColor).multiplyScalar(scalar)
+          const scale = originEnv > 0
+            ? 1 + NODE_ORIGIN_SCALE_PEAK * originEnv
+            : 1
+          sceneNode.mesh.scale.setScalar(scale)
+        } else {
+          sceneNode.mesh.scale.setScalar(1)
+        }
       }
       controls.update()
       render()

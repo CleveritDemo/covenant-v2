@@ -489,9 +489,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             >
               {onMergeQueuedTurns
                 && selectedAgentId
-                && queuedTurns.filter(item => (
-                  !item.delegation && !item.orchestrationFollowUp
-                )).length >= 2 && (
+                && queuedTurns.filter(item => !item.delegation).length >= 2 && (
                 <button
                   type="button"
                   className="plane-chat-composer__queue-merge"

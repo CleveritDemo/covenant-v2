@@ -37,6 +37,8 @@ const es = {
     splashLabel: 'Splash de arranque',
     splashHint: 'Vuelve a lanzar la animación de inicio sobre la app.',
     splashReplay: 'Reproducir splash',
+    onboardingLabel: 'Asistente de inicio',
+    onboardingButton: 'Relanzar onboarding',
     quitModalLabel: 'Confirmación de salida',
     quitModalHint: 'Muestra el diálogo; nunca cierra la app.',
     quitModalPreview: 'Ver diálogo',
@@ -1681,6 +1683,60 @@ const es = {
     projectKeyWarning: 'No tiene forma de clave de Jira: {{keys}}. Usa la clave (p. ej. CDLC), no el nombre del proyecto — con una clave mal puesta, las búsquedas y las menciones devuelven vacío sin avisar.',
     staleHint: 'Snapshot desactualizado: se refresca en el próximo turno.',
     updatedHint: 'Issue actualizada el {{date}}',
+  },
+
+  onboarding: {
+    title: 'Configura Gravity',
+    stepOf: '{{current}} de {{total}}',
+    next: 'Siguiente',
+    back: 'Atrás',
+    skip: 'Omitir',
+    finish: 'Ir al plano',
+
+    welcomeTitle: 'Gravity es tu centro de mando',
+    welcomeLead:
+      'Tú dices qué y por qué. Los agentes hacen el cómo. Tú mandas; ellos ejecutan.',
+    welcomeChainLabel: 'La cadena',
+    welcomeChain: 'querer → decir → encargar → coordinar → ejecutar → ajustar',
+
+    requirementsTitle: 'CLIs de agentes',
+    requirementsLead:
+      'Hace falta al menos un CLI de agente autenticado para que el equipo pueda ejecutar trabajo.',
+    requirementsNone:
+      'Ningún CLI está instalado. Sin un CLI autenticado el equipo no podrá ejecutar nada.',
+    requirementsError:
+      'No se pudo comprobar los CLIs instalados. Vuelve a intentarlo con «Volver a comprobar».',
+    requirementsRecheck: 'Volver a comprobar',
+    requirementsChecking: 'Comprobando…',
+    requirementsInstalled: 'Instalado',
+    requirementsMissing: 'Faltante',
+    requirementsVersion: '{{version}}',
+    requirementsCommand: '{{command}}',
+
+    folderTitle: 'Carpeta del proyecto',
+    folderLead:
+      'Esta pestaña se ancla a una carpeta. Agentes, git y contexto viven relativos a esa ruta.',
+    folderPick: 'Elegir carpeta',
+    folderNone: 'Ninguna carpeta seleccionada',
+    folderChange: 'Cambiar carpeta',
+
+    teamTitle: 'Crear equipo',
+    teamLead:
+      'Cuatro roles cubren el ciclo: alguien dirige, alguien construye la superficie, alguien el backend, alguien verifica.',
+    teamRoleTl: 'TL — dirige y coordina',
+    teamRoleFrontend: 'Frontend — UI e interacción',
+    teamRoleBackend: 'Backend — servicios y datos',
+    teamRoleQa: 'QA — verifica y reporta',
+    teamCreate: 'Crear equipo',
+    teamCreated: 'Equipo listo',
+    teamNeedFolder: 'Elige una carpeta antes de crear el equipo',
+
+    firstMessageTitle: 'Primer mensaje',
+    firstMessageLead:
+      'El chat central es donde encargas trabajo. Empieza por un resultado claro, no por una lista de pasos.',
+    firstMessageExampleLabel: 'Prueba algo así',
+    firstMessageExample:
+      'Explora este repo y propone el cambio más pequeño que mejore el camino de onboarding.',
   },
 } satisfies AppTranslations
 

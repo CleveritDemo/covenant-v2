@@ -4,11 +4,34 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.55.0
+
+- **Asistente de primer uso**: wizard de cinco pasos (bienvenida, CLIs, carpeta, equipo, primer mensaje).
+- **Apertura única tras el splash**: se muestra una sola vez cuando termina el fundido de arranque.
+- **Relanzable desde Ajustes → Developer**: replay del onboarding sin perder ajustes pendientes.
+- **Flush al relanzar**: el replay desde Ajustes confirma el autosave con debounce antes de desmontar.
+- **Equipo creado solo si hubo escritura**: el CTA no marca éxito si el bootstrap no creó agentes.
+- **Error legible si falla la detección de CLIs**: aviso con reintento en lugar de lista vacía muda.
+
+## v0.54.1
+
+- **Modales wiki al mismo lado del nodo**: nodo a la izquierda abre a la izquierda; a la derecha, a la derecha.
+- **Varios modales a la vez**: abrir una página ya no cierra las otras (tope 3; no se evictan).
+- **Entrada desde el nodo**: el modal crece desde la proyección del nodo y se acopla al borde.
+
 ## v0.54.0
 
 - **Loops: la cadena es la interfaz**: se acabó el asistente Agent→Interaction→Wait. Los pasos viven en una pista, el retorno del ciclo se dibuja con su intervalo, un paso nuevo se añade en línea y el objetivo se edita en la propia fila; mientras la cadena corre se ve el paso activo y el estado de cada agente.
 - **Bandeja en el picker de contextos**: lo que el agente carga en cada turno va arriba en chips, y el catálogo se filtra por texto y por tipo en vez de ser una lista plana.
 - **Quién consume cada contexto**: cada fila del picker muestra los monogramas de los agentes que ya lo cargan, o el tag «sin usar» si no lo usa nadie.
+- **Mapa wiki con implode propio**: al abrir, el canvas del grafo hace el gesto de entrada (scale/blur 2.4s); ya no se incrusta el logo Gravity.
+- **Mismo piso que el plano**: el mapa wiki comparte grilla y partículas musicales; las partículas busy del piso no corren con el mapa abierto.
+- **Partículas busy del plano**: vuelven a aparecer en el panel principal cuando cualquier agente del plano está busy / loop / delegando.
+- **Unir mensajes limpia chips**: el merge une el texto y elimina de la cola (y del espejo del plano) los mensajes absorbidos.
+- **Chat oculto con terminal expandida**: si una terminal ocupa la columna central, el stream del quick chat no se superpone al xterm.
+- **Pool de contextos**: orden de la barra glass → configurar → crear, con tabindex alineado.
+- **Curador wiki**: clear del historial en toolbar propio (no overlay sobre burbujas); respuesta visible vs cuerpos wiki separados en el prompt.
+- **Modales de página wiki**: posiciones aleatorias (sin perímetro fijo) respetando dead-zone del curador; cuerpo legible vía texto plano + AiMarkdown.
 
 ## v0.53.1
 

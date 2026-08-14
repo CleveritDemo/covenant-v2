@@ -297,7 +297,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
             aria-expanded={menuOpen}
             aria-label={label}
             {...contextItemProps(ctx)}
-            {...itemProps(index + 1)}
+            {...itemProps(index)}
           >
             <span
               className="plane-context-pool__chip-icon"
@@ -314,8 +314,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     )
   }
 
-  const createIndex = 1 + visibleContexts.length
-
   return (
     <div
       ref={rootRef}
@@ -330,18 +328,6 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       onMouseLeave={onPoolMouseLeave}
       onKeyDown={onToolbarKeyDown}
     >
-      <Tooltip content={configureLabel}>
-        <button
-          type="button"
-          className="plane-context-pool__configure"
-          aria-label={configureLabel}
-          onClick={onConfigure}
-          {...itemProps(0)}
-        >
-          <Icon name="settings" size={12} />
-        </button>
-      </Tooltip>
-
       {visibleContexts.length > 0 ? (
         <div
           className={[
@@ -367,13 +353,25 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         </div>
       ) : null}
 
+      <Tooltip content={configureLabel}>
+        <button
+          type="button"
+          className="plane-context-pool__configure"
+          aria-label={configureLabel}
+          onClick={onConfigure}
+          {...itemProps(visibleContexts.length)}
+        >
+          <Icon name="settings" size={12} />
+        </button>
+      </Tooltip>
+
       <Tooltip content={createLabel}>
         <button
           type="button"
           className="plane-context-pool__create"
           aria-label={createLabel}
           onClick={onCreate}
-          {...itemProps(createIndex)}
+          {...itemProps(visibleContexts.length + 1)}
         >
           <Icon name="plus" size={12} />
         </button>

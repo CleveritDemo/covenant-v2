@@ -28,7 +28,7 @@ export interface WikiGraphNodeScreenPosition {
 
 export interface WikiGraphSceneCallbacks {
   onHover: (hover: WikiGraphHover | null) => void
-  onPick: (slug: string) => void
+  onPick: (slug: string, screen: { x: number; y: number }) => void
   onNodeScreenPositions?: (
     positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>,
   ) => void
@@ -869,13 +869,37 @@ export function useWikiGraphScene(
       if (event.button !== 0) return
       downAt = { x: event.clientX, y: event.clientY }
     }
+    const projectSlugToScreen = (slug: string): { x: number; y: number } | null => {
+      const sceneNode = sceneNodes.find(node => node.slug === slug)
+      if (!sceneNode) return null
+      const width = container.clientWidth
+      const height = container.clientHeight
+      if (width <= 0 || height <= 0) return null
+      ndc.copy(sceneNode.mesh.position)
+      ndc.project(camera)
+      return {
+        x: (ndc.x * 0.5 + 0.5) * width,
+        y: (-ndc.y * 0.5 + 0.5) * height,
+      }
+    }
+
     const onPointerUp = (event: PointerEvent): void => {
       if (event.button !== 0 || !downAt) return
       const moved = Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y)
       downAt = null
       if (moved > 5) return
       const slug = pickAt(event)
-      if (slug) callbacksRef.current.onPick(slug)
+      if (!slug) return
+      const projected = projectSlugToScreen(slug)
+      if (projected) {
+        callbacksRef.current.onPick(slug, projected)
+        return
+      }
+      const rect = canvas.getBoundingClientRect()
+      callbacksRef.current.onPick(slug, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      })
     }
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerleave', onPointerLeave)

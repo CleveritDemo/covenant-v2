@@ -473,6 +473,20 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
           className="wiki-curator-composer__history-wrap"
           onMouseLeave={handleHistoryWrapMouseLeave}
         >
+          {history.length > 0 ? (
+            <div className="wiki-curator-composer__history-toolbar">
+              <Tooltip content={t('tabs.wikiCuratorHistoryClear')}>
+                <Button
+                  variant="icon"
+                  size="xs"
+                  aria-label={t('tabs.wikiCuratorHistoryClear')}
+                  onClick={clearHistory}
+                >
+                  <Icon name="close" size={11} aria-hidden />
+                </Button>
+              </Tooltip>
+            </div>
+          ) : null}
           <div
             ref={historyPanelRef}
             className="wiki-curator-composer__history"
@@ -511,20 +525,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
               </div>
             ) : null}
           </div>
-          {history.length > 0 ? (
-            <div className="wiki-curator-composer__history-clear">
-              <Tooltip content={t('tabs.wikiCuratorHistoryClear')}>
-                <Button
-                  variant="icon"
-                  size="xs"
-                  aria-label={t('tabs.wikiCuratorHistoryClear')}
-                  onClick={clearHistory}
-                >
-                  <Icon name="close" size={11} aria-hidden />
-                </Button>
-              </Tooltip>
-            </div>
-          ) : null}
         </div>
       ) : null}
 

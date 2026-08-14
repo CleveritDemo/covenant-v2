@@ -44,11 +44,13 @@
   max-height: 40vh;
 }
 
-.wiki-curator-composer__history-clear {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 1;
+.wiki-curator-composer__history-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 2px 2px;
+  pointer-events: auto;
 }
 
 .wiki-curator-composer__entry {

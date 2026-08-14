@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeWikiModalPositionNearPoint,
   computeWikiModalSpreadPositions,
   modalOverlapsWikiDeadZone,
+  wikiModalDockSide,
 } from '../wikiModalPositions'
 
 const BOUNDS = { width: 960, height: 640, modalWidth: 400, modalHeight: 280 }
@@ -18,36 +20,137 @@ function minPairDistance(positions: Array<{ x: number; y: number }>): number {
   return min
 }
 
+function boundsFor(padding: number) {
+  const maxX = BOUNDS.width - BOUNDS.modalWidth - padding
+  const deadZoneTop = BOUNDS.height - BOUNDS.height * 0.38
+  const maxY = Math.max(
+    padding,
+    Math.min(
+      BOUNDS.height - BOUNDS.modalHeight - padding,
+      deadZoneTop - BOUNDS.modalHeight - padding,
+    ),
+  )
+  return { minX: padding, minY: padding, maxX, maxY }
+}
+
+describe('computeWikiModalPositionNearPoint', () => {
+  it('acopla a la izquierda cuando el nodo está en la mitad izquierda', () => {
+    expect(wikiModalDockSide(200, BOUNDS.width)).toBe('left')
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 200,
+      originY: 200,
+      ...BOUNDS,
+    })
+    expect(pos.x).toBe(8)
+  })
+
+  it('acopla a la derecha cuando el nodo está en la mitad derecha', () => {
+    expect(wikiModalDockSide(760, BOUNDS.width)).toBe('right')
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 760,
+      originY: 200,
+      ...BOUNDS,
+    })
+    expect(pos.x).toBe(BOUNDS.width - BOUNDS.modalWidth - 8)
+  })
+
+  it('centra verticalmente sobre el origen cuando hay espacio y evita la zona muerta', () => {
+    const originY = 200
+    const padding = 8
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 200,
+      originY,
+      ...BOUNDS,
+    })
+    expect(pos.y).toBe(Math.round(originY - BOUNDS.modalHeight / 2))
+    expect(modalOverlapsWikiDeadZone(
+      pos.x,
+      pos.y,
+      BOUNDS.modalWidth,
+      BOUNDS.modalHeight,
+      BOUNDS.width,
+      BOUNDS.height,
+    )).toBe(false)
+    expect(pos.x).toBeGreaterThanOrEqual(padding)
+    expect(pos.y).toBeGreaterThanOrEqual(padding)
+    expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
+    expect(pos.y + BOUNDS.modalHeight).toBeLessThanOrEqual(BOUNDS.height - padding)
+  })
+
+  it('evita la zona muerta y se mantiene en bounds con origen inferior-centro', () => {
+    const originX = BOUNDS.width / 2
+    const originY = BOUNDS.height - 40
+    const pos = computeWikiModalPositionNearPoint({
+      originX,
+      originY,
+      ...BOUNDS,
+    })
+    const padding = 8
+    expect(modalOverlapsWikiDeadZone(
+      pos.x,
+      pos.y,
+      BOUNDS.modalWidth,
+      BOUNDS.modalHeight,
+      BOUNDS.width,
+      BOUNDS.height,
+    )).toBe(false)
+    expect(pos.x).toBeGreaterThanOrEqual(padding)
+    expect(pos.y).toBeGreaterThanOrEqual(padding)
+    expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
+    expect(pos.y + BOUNDS.modalHeight).toBeLessThanOrEqual(BOUNDS.height - padding)
+  })
+})
+
 describe('computeWikiModalSpreadPositions', () => {
-  it('count=1 coloca el modal arriba-izquierda dentro del padding', () => {
+  it('count=1 con random=0.5 coloca el modal cerca del centro del rect disponible', () => {
     const padding = 8
-    const [pos] = computeWikiModalSpreadPositions({ count: 1, ...BOUNDS, padding })
-    expect(pos!.x).toBe(padding)
-    expect(pos!.y).toBe(padding)
+    const { minX, minY, maxX, maxY } = boundsFor(padding)
+    const [pos] = computeWikiModalSpreadPositions(
+      { count: 1, ...BOUNDS, padding },
+      () => 0.5,
+    )
+    expect(pos!.x).toBe(Math.round(minX + 0.5 * (maxX - minX)))
+    expect(pos!.y).toBe(Math.round(minY + 0.5 * (maxY - minY)))
+    expect(pos!.x).not.toBe(padding)
+    expect(pos!.y).not.toBe(padding)
   })
 
-  it('count=2 separa modales en esquinas superiores', () => {
+  it('count=2 devuelve dos posiciones distintas con RNG determinista', () => {
     const padding = 8
-    const positions = computeWikiModalSpreadPositions({ count: 2, ...BOUNDS, padding })
+    let seed = 0
+    const random = () => {
+      seed += 1
+      return (seed * 17) % 100 / 100
+    }
+    const positions = computeWikiModalSpreadPositions(
+      { count: 2, ...BOUNDS, padding },
+      random,
+    )
     expect(positions).toHaveLength(2)
-    const maxX = BOUNDS.width - BOUNDS.modalWidth - padding
-    expect(positions[0]).toEqual({ x: padding, y: padding })
-    expect(positions[1]).toEqual({ x: maxX, y: padding })
-    expect(minPairDistance(positions)).toBeGreaterThan(400)
+    const keys = new Set(positions.map(pos => `${pos.x},${pos.y}`))
+    expect(keys.size).toBe(2)
   })
 
-  it('count=3 usa triángulo perimetral más separado que la espiral centrada', () => {
-    const positions = computeWikiModalSpreadPositions({ count: 3, ...BOUNDS })
+  it('count=3 devuelve posiciones únicas y separadas con RNG determinista', () => {
+    let seed = 0
+    const random = () => {
+      seed += 1
+      return (seed * 23) % 97 / 97
+    }
+    const positions = computeWikiModalSpreadPositions({ count: 3, ...BOUNDS }, random)
     expect(positions).toHaveLength(3)
     const keys = new Set(positions.map(pos => `${pos.x},${pos.y}`))
     expect(keys.size).toBe(3)
-    const xs = positions.map(pos => pos.x)
-    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(400)
-    expect(minPairDistance(positions)).toBeGreaterThan(90)
+    expect(minPairDistance(positions)).toBeGreaterThan(0)
   })
 
   it('ninguna posición cae en la zona muerta inferior-centro', () => {
-    const positions = computeWikiModalSpreadPositions({ count: 5, ...BOUNDS })
+    let seed = 0
+    const random = () => {
+      seed += 1
+      return (seed * 31) % 89 / 89
+    }
+    const positions = computeWikiModalSpreadPositions({ count: 5, ...BOUNDS }, random)
     for (const pos of positions) {
       expect(modalOverlapsWikiDeadZone(
         pos.x,
@@ -62,7 +165,12 @@ describe('computeWikiModalSpreadPositions', () => {
 
   it('todas las posiciones quedan dentro del bounds con padding', () => {
     const padding = 8
-    const positions = computeWikiModalSpreadPositions({ count: 5, ...BOUNDS, padding })
+    let seed = 0
+    const random = () => {
+      seed += 1
+      return (seed * 13) % 79 / 79
+    }
+    const positions = computeWikiModalSpreadPositions({ count: 5, ...BOUNDS, padding }, random)
     for (const pos of positions) {
       expect(pos.x).toBeGreaterThanOrEqual(padding)
       expect(pos.y).toBeGreaterThanOrEqual(padding)

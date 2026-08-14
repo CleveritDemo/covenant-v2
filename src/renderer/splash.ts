@@ -49,6 +49,23 @@ const uiReadyPromise = new Promise<void>(resolve => {
 })
 
 /**
+ * Gate one-shot del fundido de boot: `settleSplashDismissed` solo resuelve
+ * `dismissedPromise` una vez. `replaySplash` no toca este gate.
+ */
+let dismissedSettled = false
+let resolveDismissed: (() => void) | null = null
+const dismissedPromise = new Promise<void>(resolve => {
+  resolveDismissed = resolve
+})
+
+function settleSplashDismissed(): void {
+  if (dismissedSettled) return
+  dismissedSettled = true
+  resolveDismissed?.()
+  resolveDismissed = null
+}
+
+/**
  * Señala que la UI de arranque ya pintó el plano en su posición final.
  * Idempotente; `dismissSplash` espera esto (además del mínimo en pantalla).
  * One-shot de boot — ver nota sobre `uiReadySettled` arriba.
@@ -60,10 +77,26 @@ export function markSplashUiReady(): void {
   resolveUiReady = null
 }
 
+/**
+ * Resuelve cuando el splash de boot se funde (o ya no aplica).
+ * One-shot e idempotente — ver nota sobre `dismissedSettled` arriba.
+ * Si no hay `#splash` o ya está `is-hidden`, resuelve de inmediato.
+ */
+export function whenSplashDismissed(): Promise<void> {
+  const el = splashEl()
+  if (!el || el.classList.contains('is-hidden')) {
+    return Promise.resolve()
+  }
+  return dismissedPromise
+}
+
 /** Lo funde tras el mínimo en pantalla y el layout listo; llamar al montar la app. */
 export function dismissSplash(): void {
   const el = splashEl()
-  if (!el) return
+  if (!el) {
+    settleSplashDismissed()
+    return
+  }
   const minWaitMs = Math.max(0, SPLASH_MIN_MS - performance.now())
   const minWait = wait(minWaitMs)
   const uiReady = Promise.race([
@@ -72,12 +105,16 @@ export function dismissSplash(): void {
   ])
   void Promise.all([minWait, uiReady])
     .then(() => wait(SPLASH_SETTLE_MS))
-    .then(() => hide(el))
+    .then(() => {
+      hide(el)
+      settleSplashDismissed()
+    })
 }
 
 /**
  * Vuelve a mostrar un ciclo completo (debug de la animación).
  * No resetea `uiReadySettled` / `uiReadyPromise` — ese gate es solo del boot.
+ * No toca `dismissedSettled` / `dismissedPromise` — ese gate también es solo del boot.
  * Settle 0 a propósito (~SPLASH_MIN_MS); el boot real usa SPLASH_SETTLE_MS
  * vía `dismissSplash`.
  */

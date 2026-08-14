@@ -317,5 +317,25 @@
   }
 }
 
+.terminal-modal-panel--movable.terminal-modal-panel--from-origin {
+  transform-origin: var(--terminal-modal-enter-ox) var(--terminal-modal-enter-oy);
+  animation: terminal-modal-from-origin-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes terminal-modal-from-origin-in {
+  from {
+    opacity: 0;
+    transform: scale(0.18);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+html[data-reduce-motion='true'] .terminal-modal-panel--movable.terminal-modal-panel--from-origin {
+  animation: none;
+}
+
 /* No se respeta prefers-reduced-motion aquí a propósito: el zoom de entrada
    del chrome del modal es parte del producto. */

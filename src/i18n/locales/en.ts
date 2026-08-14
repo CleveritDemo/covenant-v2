@@ -35,6 +35,8 @@ const en = {
     splashLabel: 'Startup splash',
     splashHint: 'Replays the launch animation over the app.',
     splashReplay: 'Play splash',
+    onboardingLabel: 'Startup onboarding',
+    onboardingButton: 'Replay onboarding',
     quitModalLabel: 'Quit confirmation',
     quitModalHint: 'Previews the dialog; it never closes the app.',
     quitModalPreview: 'Preview dialog',
@@ -1679,6 +1681,60 @@ const en = {
     projectKeyWarning: 'Not a Jira project key: {{keys}}. Use the key (e.g. CDLC), not the project name — a wrong key makes every search and mention silently return nothing.',
     staleHint: 'Snapshot out of date — it refreshes on the next turn.',
     updatedHint: 'Issue last updated {{date}}',
+  },
+
+  onboarding: {
+    title: 'Set up Gravity',
+    stepOf: '{{current}} of {{total}}',
+    next: 'Next',
+    back: 'Back',
+    skip: 'Skip',
+    finish: 'Go to the plane',
+
+    welcomeTitle: 'Gravity is your command center',
+    welcomeLead:
+      'You say what and why. Agents handle how. You stay in control; they execute.',
+    welcomeChainLabel: 'The chain',
+    welcomeChain: 'want → say → assign → coordinate → execute → adjust',
+
+    requirementsTitle: 'Agent CLIs',
+    requirementsLead:
+      'At least one authenticated agent CLI must be available so the team can run work.',
+    requirementsNone:
+      'No CLI is installed. Without an authenticated CLI the team cannot execute anything.',
+    requirementsError:
+      'Could not check installed CLIs. Try again with "Re-check".',
+    requirementsRecheck: 'Recheck',
+    requirementsChecking: 'Checking…',
+    requirementsInstalled: 'Installed',
+    requirementsMissing: 'Missing',
+    requirementsVersion: '{{version}}',
+    requirementsCommand: '{{command}}',
+
+    folderTitle: 'Project folder',
+    folderLead:
+      'This tab anchors to a folder. Agents, git, and context live relative to that path.',
+    folderPick: 'Choose folder',
+    folderNone: 'No folder selected',
+    folderChange: 'Change folder',
+
+    teamTitle: 'Create a team',
+    teamLead:
+      'Four roles cover the loop: someone leads, someone builds the surface, someone builds the backend, someone verifies.',
+    teamRoleTl: 'TL — directs and coordinates',
+    teamRoleFrontend: 'Frontend — UI and interaction',
+    teamRoleBackend: 'Backend — services and data',
+    teamRoleQa: 'QA — verifies and reports',
+    teamCreate: 'Create team',
+    teamCreated: 'Team ready',
+    teamNeedFolder: 'Choose a folder before creating the team',
+
+    firstMessageTitle: 'First message',
+    firstMessageLead:
+      'The central chat is where you assign work. Start with a clear outcome, not a pile of steps.',
+    firstMessageExampleLabel: 'Try something like',
+    firstMessageExample:
+      'Explore this repo and propose the smallest change that improves the onboarding path.',
   },
 }
 

@@ -261,6 +261,13 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     expect(wrap).toBeTruthy()
     expect(history).toBeTruthy()
     expect(wrap?.contains(history!)).toBe(true)
+
+    const clearButton = screen.getByLabelText('tabs.wikiCuratorHistoryClear')
+    const toolbar = document.querySelector('.wiki-curator-composer__history-toolbar')
+    expect(toolbar).toBeTruthy()
+    expect(toolbar?.contains(clearButton)).toBe(true)
+    expect(history?.contains(clearButton)).toBe(false)
+    expect(document.querySelector('.wiki-curator-composer__history-clear')).toBeNull()
   })
 
   it('persiste historial entre remounts vía localStorage', async () => {

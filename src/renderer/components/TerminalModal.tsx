@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
+import { isReduceMotionActive } from '../reduceMotion'
 import './TerminalModal.css'
 
 export type TerminalModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
@@ -61,6 +62,8 @@ export interface TerminalModalProps {
   portalContainerRef?: React.RefObject<HTMLElement | null>
   /** Al soltar el drag. */
   onPositionChange?: (pos: TerminalModalPosition) => void
+  /** Origen de la animación de entrada (mismo espacio que initialPosition). */
+  enterOrigin?: { x: number; y: number }
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -152,6 +155,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   boundsRef,
   portalContainerRef,
   onPositionChange,
+  enterOrigin,
 }) => {
   const { t } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -376,6 +380,17 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     ? ({ left: position.x, top: position.y } as React.CSSProperties)
     : undefined
 
+  const useFromOriginEnter = Boolean(
+    movable && position && enterOrigin && !isReduceMotionActive(),
+  )
+  const panelEnterStyle = useFromOriginEnter && enterOrigin && position
+    ? ({
+      ...panelPositionStyle,
+      '--terminal-modal-enter-ox': `${enterOrigin.x - position.x}px`,
+      '--terminal-modal-enter-oy': `${enterOrigin.y - position.y}px`,
+    } as React.CSSProperties)
+    : panelPositionStyle
+
   return createPortal(
     <div
       ref={rootRef}
@@ -404,8 +419,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
           `terminal-modal-panel--${size}`,
           panelVariant !== 'default' ? `terminal-modal-panel--${panelVariant}` : '',
           movable ? 'terminal-modal-panel--movable' : '',
+          useFromOriginEnter ? 'terminal-modal-panel--from-origin' : '',
         ].filter(Boolean).join(' ')}
-        style={panelPositionStyle}
+        style={panelEnterStyle}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

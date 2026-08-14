@@ -16,6 +16,10 @@ vi.mock('../useWikiGraphScene', () => ({
   useWikiGraphScene: () => ({ webglAvailable: false }),
 }))
 
+vi.mock('../../reduceMotion', () => ({
+  isReduceMotionActive: () => true,
+}))
+
 // Hijos pesados del plano (canvas, xterm, dictado): stubs — el toggle no los necesita.
 vi.mock('../PlaneMap', () => ({
   PlaneMap: ({ wikiOverlay }: { wikiOverlay?: React.ReactNode }) => (

@@ -122,6 +122,11 @@ export interface AppConfig {
    */
   agentCliCommands: Partial<Record<AgentCliProvider, string>>
   /**
+   * Versión de onboarding completada (`ONBOARDING_VERSION` en `onboarding.ts`).
+   * `''` = el usuario nunca completó el wizard.
+   */
+  onboardingCompletedVersion: string
+  /**
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
    */
@@ -164,7 +169,16 @@ export const CONFIG_DEFAULTS: AppConfig = {
   discordPresenceEnabled: false,
   autoUpdatesEnabled: true,
   agentCliCommands: {},
+  onboardingCompletedVersion: '',
   wikiCurator: {},
+}
+
+/** Versión de onboarding: no-string, vacío o >32 chars → ''. */
+export function sanitizeOnboardingCompletedVersion(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > 32) return ''
+  return trimmed
 }
 
 /** Claves previas a `agentCliCommands` (una por proveedor). */
@@ -220,6 +234,12 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const defaultWorkspacesDir = typeof partial.defaultWorkspacesDir === 'string'
     ? partial.defaultWorkspacesDir
     : CONFIG_DEFAULTS.defaultWorkspacesDir
+  const onboardingCompletedVersion = Object.prototype.hasOwnProperty.call(
+    partial,
+    'onboardingCompletedVersion',
+  )
+    ? sanitizeOnboardingCompletedVersion(partial.onboardingCompletedVersion)
+    : CONFIG_DEFAULTS.onboardingCompletedVersion
   const rawRecord = partial as Record<string, unknown>
   const catalogKeyPresent = Object.prototype.hasOwnProperty.call(
     rawRecord,
@@ -247,6 +267,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     autoUpdatesEnabled,
     agentCliCommands,
     defaultWorkspacesDir,
+    onboardingCompletedVersion,
     wikiCurator,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
@@ -302,6 +323,11 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (typeof config.defaultWorkspacesDir !== 'string') {
     errors.push('defaultWorkspacesDir debe ser un string')
+  }
+  if (typeof config.onboardingCompletedVersion !== 'string') {
+    errors.push('onboardingCompletedVersion debe ser un string')
+  } else if (sanitizeOnboardingCompletedVersion(config.onboardingCompletedVersion) !== config.onboardingCompletedVersion) {
+    errors.push('onboardingCompletedVersion inválida')
   }
   if (
     config.orgWorkspaceCatalogCache != null

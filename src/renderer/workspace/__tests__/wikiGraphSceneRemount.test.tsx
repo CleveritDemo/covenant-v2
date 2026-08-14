@@ -15,6 +15,7 @@ vi.mock('three', () => {
     clone(): Color { return new Color() }
     lerp(): this { return this }
     multiplyScalar(): this { return this }
+    set(): this { return this }
   }
   class Vector2 {}
   class Vector3 {
@@ -95,11 +96,17 @@ vi.mock('three', () => {
     roughness = 0
     dispose(): void {}
   }
-  class AmbientLight { __kind = 'AmbientLight' as const }
-  class HemisphereLight { __kind = 'HemisphereLight' as const }
+  class AmbientLight { __kind = 'AmbientLight' as const; intensity = 0 }
+  class HemisphereLight {
+    __kind = 'HemisphereLight' as const
+    color = new Color()
+    groundColor = new Color()
+    intensity = 0
+  }
   class DirectionalLight {
     __kind = 'DirectionalLight' as const
     position = { set: (): void => undefined }
+    intensity = 0
   }
   class PointLight {
     __kind = 'PointLight' as const
@@ -134,6 +141,7 @@ vi.mock('three', () => {
   class CanvasTexture { needsUpdate = false; dispose(): void {} }
   return {
     AdditiveBlending: 2,
+    NormalBlending: 1,
     Box3,
     BufferAttribute,
     BufferGeometry,

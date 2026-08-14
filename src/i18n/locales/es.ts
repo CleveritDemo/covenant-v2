@@ -383,6 +383,8 @@ const es = {
     objectiveCount: '{{n}}/{{max}}',
     rulesLabel: 'Reglas',
     rulesHint: 'Se envían en cada turno. Cortas e imperativas funcionan mejor.',
+    rulesDisabledHint: 'Las reglas desactivadas no se envían en cada turno.',
+    rulesToggleLabel: 'Habilitar regla',
     rulesAdd: 'Añadir regla',
     rulesRemove: 'Quitar regla',
     rulesMoveUp: 'Subir',

@@ -27,7 +27,7 @@ import { buildModeHandoffPrompt } from '@shared/agentModeHandoff'
 import {
   applyAgentIdentityDraft,
   type AgentIdentityDraft,
-  normalizeAgentRules,
+  agentRulesForPrompt,
 } from '@shared/agentIdentity'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
 import {
@@ -1444,7 +1444,7 @@ export const AgentPane: React.FC<Props> = ({
       assigned,
       orgBodyScopeRef.current,
     )
-    const rules = normalizeAgentRules(currentMeta.rules)
+    const rules = agentRulesForPrompt(currentMeta.rules, currentMeta.rulesEnabled)
     const canDelegate = coordinationCanDelegate(currentMeta.coordination)
     const orchestrationAgents = canDelegate
       ? (getOrchestrationAgentsRef.current?.() ?? [])

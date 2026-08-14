@@ -48,6 +48,11 @@
   color: var(--text-muted);
 }
 
+.agent-rules-editor__hint--sub {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 .agent-rules-editor__empty {
   margin: 0;
   padding: 12px;
@@ -73,9 +78,13 @@
 
 .agent-rules-editor__item {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) repeat(3, 24px);
+  grid-template-columns: 28px 22px minmax(0, 1fr) repeat(3, 24px);
   align-items: center;
   gap: 8px;
+}
+
+.agent-rules-editor__item--off .agent-rules-editor__input {
+  opacity: 0.55;
 }
 
 .agent-rules-editor__index {

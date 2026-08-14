@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import React, { useRef } from 'react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { layoutWikiGraph, type WikiGraphData } from '../wikiGraph'
 
 const MAX_NODE_RADIUS = 1.65
@@ -18,9 +18,52 @@ vi.mock('three', () => {
   class Color {
     r = 1; g = 1; b = 1
     lastScalar = 1
-    copy(): this { return this }
-    clone(): Color { return new Color() }
-    lerp(): this { return this }
+    constructor(value?: string | number) {
+      if (typeof value === 'number') {
+        const hex = value.toString(16).padStart(6, '0').slice(-6)
+        this.r = parseInt(hex.slice(0, 2), 16) / 255
+        this.g = parseInt(hex.slice(2, 4), 16) / 255
+        this.b = parseInt(hex.slice(4, 6), 16) / 255
+        return
+      }
+      if (typeof value === 'string' && value.startsWith('#')) {
+        const hex = value.slice(1)
+        if (hex.length === 6) {
+          this.r = parseInt(hex.slice(0, 2), 16) / 255
+          this.g = parseInt(hex.slice(2, 4), 16) / 255
+          this.b = parseInt(hex.slice(4, 6), 16) / 255
+        }
+      }
+    }
+    copy(other?: Color): this {
+      if (other) {
+        this.r = other.r
+        this.g = other.g
+        this.b = other.b
+      }
+      return this
+    }
+    clone(): Color {
+      const c = new Color()
+      c.r = this.r
+      c.g = this.g
+      c.b = this.b
+      return c
+    }
+    set(value: string): this {
+      if (value.startsWith('#') && value.length === 7) {
+        this.r = parseInt(value.slice(1, 3), 16) / 255
+        this.g = parseInt(value.slice(3, 5), 16) / 255
+        this.b = parseInt(value.slice(5, 7), 16) / 255
+      }
+      return this
+    }
+    lerp(target: Color, alpha: number): this {
+      this.r = this.r + (target.r - this.r) * alpha
+      this.g = this.g + (target.g - this.g) * alpha
+      this.b = this.b + (target.b - this.b) * alpha
+      return this
+    }
     multiplyScalar(s: number): this { this.lastScalar = s; return this }
   }
   class Vector2 { x = 0; y = 0 }
@@ -146,21 +189,31 @@ vi.mock('three', () => {
   const coreMats: LineBasicMaterial[] = []
   const boltMats: LineBasicMaterial[] = []
   const coreGeoms: BufferGeometry[] = []
+  const lineGeoms: BufferGeometry[] = []
   ;(globalThis as { __wikiCoreMats?: LineBasicMaterial[] }).__wikiCoreMats = coreMats
   ;(globalThis as { __wikiBoltMats?: LineBasicMaterial[] }).__wikiBoltMats = boltMats
   ;(globalThis as { __wikiCoreGeoms?: BufferGeometry[] }).__wikiCoreGeoms = coreGeoms
+  ;(globalThis as { __wikiLineGeoms?: BufferGeometry[] }).__wikiLineGeoms = lineGeoms
   class LineBasicMaterial {
     color = new Color()
     opacity = 0
     vertexColors = false
+    blending = 1
     dispose(): void {}
-    constructor(opts?: { vertexColors?: boolean; opacity?: number }) {
+    constructor(opts?: {
+      vertexColors?: boolean
+      opacity?: number
+      color?: Color
+      blending?: number
+    }) {
       boltMats.push(this)
       if (opts?.vertexColors) {
         this.vertexColors = true
         coreMats.push(this)
       }
       if (opts?.opacity != null) this.opacity = opts.opacity
+      if (opts?.color) this.color.copy(opts.color)
+      if (opts?.blending != null) this.blending = opts.blending
     }
   }
   class LineSegments {
@@ -169,8 +222,10 @@ vi.mock('three', () => {
   }
   class Line {
     frustumCulled = false
+    renderOrder = 0
     __kind = 'Line' as const
     constructor(geom: BufferGeometry, mat: LineBasicMaterial) {
+      lineGeoms.push(geom)
       if (mat.vertexColors) coreGeoms.push(geom)
     }
   }
@@ -184,11 +239,37 @@ vi.mock('three', () => {
     roughness = 0
     dispose(): void {}
   }
-  class AmbientLight { __kind = 'AmbientLight' as const }
-  class HemisphereLight { __kind = 'HemisphereLight' as const }
+  class AmbientLight {
+    __kind = 'AmbientLight' as const
+    intensity = 1
+    constructor(_color?: string, intensity?: number) {
+      ambientLights.push(this)
+      if (intensity != null) this.intensity = intensity
+    }
+  }
+  const ambientLights: AmbientLight[] = []
+  ;(globalThis as { __wikiAmbientLights?: AmbientLight[] }).__wikiAmbientLights = ambientLights
+  class HemisphereLight {
+    __kind = 'HemisphereLight' as const
+    color = new Color()
+    groundColor = new Color()
+    intensity = 1
+    constructor(sky?: string, ground?: string, intensity?: number) {
+      hemisphereLights.push(this)
+      if (sky) this.color.set(sky)
+      if (ground) this.groundColor.set(ground)
+      if (intensity != null) this.intensity = intensity
+    }
+  }
+  const hemisphereLights: HemisphereLight[] = []
+  ;(globalThis as { __wikiHemisphereLights?: HemisphereLight[] }).__wikiHemisphereLights = hemisphereLights
   class DirectionalLight {
     __kind = 'DirectionalLight' as const
+    intensity = 1
     position = { set: (): void => undefined }
+    constructor(_color?: string, intensity?: number) {
+      if (intensity != null) this.intensity = intensity
+    }
   }
   const pointLights: PointLight[] = []
   ;(globalThis as { __wikiPointLights?: PointLight[] }).__wikiPointLights = pointLights
@@ -201,7 +282,16 @@ vi.mock('three', () => {
     dispose(): void {}
     constructor() { pointLights.push(this) }
   }
-  class SpriteMaterial { color = new Color(); opacity = 0; dispose(): void {} }
+  class SpriteMaterial {
+    color = new Color()
+    opacity = 0
+    blending = 1
+    dispose(): void {}
+    constructor(opts?: { color?: Color; blending?: number }) {
+      if (opts?.color) this.color.copy(opts.color)
+      if (opts?.blending != null) this.blending = opts.blending
+    }
+  }
   class Sprite {
     __kind = 'Sprite' as const
     material = new SpriteMaterial()
@@ -235,6 +325,7 @@ vi.mock('three', () => {
   }
   return {
     AdditiveBlending: 2,
+    NormalBlending: 1,
     Box3,
     BufferAttribute,
     BufferGeometry,
@@ -303,7 +394,12 @@ type PerspectiveCamera = {
   position: { x: number; y: number; z: number }
 }
 
-type LineBasicMaterial = { vertexColors: boolean; opacity: number }
+type LineBasicMaterial = {
+  vertexColors: boolean
+  opacity: number
+  color: { r: number; g: number; b: number }
+  blending: number
+}
 
 type BufferGeometry = {
   getAttribute: (name: string) => { array: Float32Array; itemSize: number }
@@ -339,7 +435,12 @@ beforeAll(() => {
   } as typeof HTMLCanvasElement.prototype.getContext
 })
 
-import { useWikiGraphScene } from '../useWikiGraphScene'
+import {
+  boltGlowsEnabled,
+  boltLightIntensityMult,
+  edgeOpacityForAppearance,
+  useWikiGraphScene,
+} from '../useWikiGraphScene'
 
 const DATA: WikiGraphData = {
   nodes: [
@@ -390,14 +491,43 @@ function getCoreMats(): LineBasicMaterial[] {
 function getBoltMats(): LineBasicMaterial[] {
   return (globalThis as { __wikiBoltMats?: LineBasicMaterial[] }).__wikiBoltMats ?? []
 }
+function getLineGeoms(): BufferGeometry[] {
+  return (globalThis as { __wikiLineGeoms?: BufferGeometry[] }).__wikiLineGeoms ?? []
+}
 function getCoreGeoms(): BufferGeometry[] {
   return (globalThis as { __wikiCoreGeoms?: BufferGeometry[] }).__wikiCoreGeoms ?? []
 }
-function getPointLights(): Array<{ position: { x: number; y: number; z: number }; intensity: number }> {
-  return (globalThis as { __wikiPointLights?: Array<{ position: { x: number; y: number; z: number }; intensity: number }> }).__wikiPointLights ?? []
+function getPointLights(): Array<{
+  position: { x: number; y: number; z: number }
+  intensity: number
+  color: { r: number; g: number; b: number }
+}> {
+  return (globalThis as {
+    __wikiPointLights?: Array<{
+      position: { x: number; y: number; z: number }
+      intensity: number
+      color: { r: number; g: number; b: number }
+    }>
+  }).__wikiPointLights ?? []
+}
+function getAmbientLights(): Array<{ intensity: number }> {
+  return (globalThis as { __wikiAmbientLights?: Array<{ intensity: number }> }).__wikiAmbientLights ?? []
+}
+function getHemisphereLights(): Array<{
+  groundColor: { r: number; g: number; b: number }
+  intensity: number
+}> {
+  return (globalThis as {
+    __wikiHemisphereLights?: Array<{
+      groundColor: { r: number; g: number; b: number }
+      intensity: number
+    }>
+  }).__wikiHemisphereLights ?? []
 }
 type SceneMesh = {
-  material: { emissive?: { lastScalar: number } }
+  material: {
+    emissive?: { lastScalar: number; r: number; g: number; b: number }
+  }
   userData: Record<string, unknown>
   scale: { setScalar: ReturnType<typeof vi.fn> }
 }
@@ -411,7 +541,10 @@ function resetGlobals(): void {
   getCoreMats().length = 0
   getBoltMats().length = 0
   getCoreGeoms().length = 0
+  getLineGeoms().length = 0
   getPointLights().length = 0
+  getAmbientLights().length = 0
+  getHemisphereLights().length = 0
   getSceneMeshes().length = 0
   resizeCallbacks.length = 0
 }
@@ -426,6 +559,8 @@ function Harness({
   width = 800,
   height = 600,
   onNodeScreenPositions,
+  wikiBoltColor,
+  wikiNodeConcept,
 }: {
   data?: WikiGraphData
   width?: number
@@ -433,6 +568,8 @@ function Harness({
   onNodeScreenPositions?: (
     positions: ReadonlyMap<string, { x: number; y: number; visible: boolean }>,
   ) => void
+  wikiBoltColor?: string
+  wikiNodeConcept?: string
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useWikiGraphScene(
@@ -449,7 +586,11 @@ function Harness({
     <div
       ref={node => {
         ref.current = node
-        if (node) setContainerSize(node, width, height)
+        if (node) {
+          if (wikiBoltColor) node.style.setProperty('--wiki-bolt-color', wikiBoltColor)
+          if (wikiNodeConcept) node.style.setProperty('--wiki-node-concept', wikiNodeConcept)
+          setContainerSize(node, width, height)
+        }
       }}
       className="wiki-graph-view__canvas"
     />
@@ -578,7 +719,7 @@ describe('useWikiGraphScene: fit de cámara', () => {
 })
 
 describe('useWikiGraphScene: iluminación de rayos', () => {
-  it('núcleo con vertexColors y gradiente central > extremos', () => {
+  it('núcleo con vertexColors planos (intensidad uniforme 1.0)', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     render(<Harness />)
@@ -593,11 +734,49 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     const endIntensity = arr[0] + arr[1] + arr[2]
     const midIntensity = arr[mid * 3] + arr[mid * 3 + 1] + arr[mid * 3 + 2]
     const lastIntensity = arr[(nVerts - 1) * 3] + arr[(nVerts - 1) * 3 + 1] + arr[(nVerts - 1) * 3 + 2]
-    expect(midIntensity).toBeGreaterThan(endIntensity)
-    expect(midIntensity).toBeGreaterThan(lastIntensity)
+    expect(endIntensity).toBeCloseTo(3.0, 4)
+    expect(midIntensity).toBeCloseTo(3.0, 4)
+    expect(lastIntensity).toBeCloseTo(3.0, 4)
   })
 
-  it('peak por disparo queda en [0.88, 1.0] y flicker solo en core y halo', () => {
+  it('core y halo comparten la misma espina jittered tras disparo', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.25)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness />)
+    const lineGeoms = getLineGeoms()
+    expect(lineGeoms.length).toBeGreaterThanOrEqual(2)
+    const coreGeom = lineGeoms[0]!
+    const haloGeom = lineGeoms[1]!
+
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+
+    const corePos = coreGeom.getAttribute('position').array
+    const haloPos = haloGeom.getAttribute('position').array
+    const s = 1
+    expect(corePos[s * 3]).toBeCloseTo(haloPos[s * 3], 6)
+    expect(corePos[s * 3 + 1]).toBeCloseTo(haloPos[s * 3 + 1], 6)
+    expect(corePos[s * 3 + 2]).toBeCloseTo(haloPos[s * 3 + 2], 6)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('peak por disparo queda en [0.88, 1.0] sin flicker en opacidades', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     const randomValues = [0, 0, 0.5]
@@ -631,26 +810,27 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     nowSpy.mockReturnValue(tAttack)
     tick(tAttack)
 
-    const envelope1 = glowMat.opacity / BOLT_GLOW_OPACITY
+    const glowBase = BOLT_GLOW_OPACITY
+    const envelope1 = glowMat.opacity / glowBase
     const inferredPeak = envelope1 / (0.1 / 0.18)
     expect(inferredPeak).toBeGreaterThanOrEqual(0.88 * 0.78)
     expect(inferredPeak).toBeLessThanOrEqual(1.0)
-    expect(glowMat.opacity / envelope1).toBeCloseTo(BOLT_GLOW_OPACITY, 4)
+    expect(glowMat.opacity / envelope1).toBeCloseTo(glowBase, 4)
 
     const coreNorm1 = coreMat.opacity / envelope1
     const haloNorm1 = haloMat.opacity / envelope1
     expect(haloNorm1 / coreNorm1).toBeCloseTo(BOLT_HALO_OPACITY / BOLT_CORE_OPACITY, 4)
 
-    const tFlicker = tAttack + 25
-    nowSpy.mockReturnValue(tFlicker)
-    tick(tFlicker)
-    const envelope2 = glowMat.opacity / BOLT_GLOW_OPACITY
-    expect(glowMat.opacity / envelope2).toBeCloseTo(BOLT_GLOW_OPACITY, 4)
+    const tLater = tAttack + 25
+    nowSpy.mockReturnValue(tLater)
+    tick(tLater)
+    const envelope2 = glowMat.opacity / glowBase
+    expect(glowMat.opacity / envelope2).toBeCloseTo(glowBase, 4)
 
     const coreNorm2 = coreMat.opacity / envelope2
     const haloNorm2 = haloMat.opacity / envelope2
-    expect(coreNorm1).not.toBeCloseTo(coreNorm2, 2)
-    expect(haloNorm1).not.toBeCloseTo(haloNorm2, 2)
+    expect(coreNorm1).toBeCloseTo(coreNorm2, 4)
+    expect(haloNorm1).toBeCloseTo(haloNorm2, 4)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()
@@ -846,9 +1026,9 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     const tick = rafQueue[rafQueue.length - 1]!
     nowSpy.mockReturnValue(t0)
     tick(t0)
-    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
-    nowSpy.mockReturnValue(tAttack)
-    tick(tAttack)
+    const tStart = t0 + BOLT_ACTIVE_MS * 0.02
+    nowSpy.mockReturnValue(tStart)
+    tick(tStart)
 
     const light = getPointLights().find(l => l.intensity > 0)!
     expect(light).toBeDefined()
@@ -856,12 +1036,16 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     expect(light.position.y).toBeCloseTo(from[1], 4)
     expect(light.position.z).toBeCloseTo(from[2], 4)
 
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
     const tMid = t0 + BOLT_ACTIVE_MS * 0.35
     nowSpy.mockReturnValue(tMid)
     tick(tMid)
 
     const travelT = Math.min(1, 0.35 * 1.05)
-    const segIdx = Math.min(8, Math.floor(travelT * 8))
+    const segIdx = Math.min(16, Math.floor(travelT * 16))
     const posAttrMid = coreGeom.getAttribute('position')
     expect(light.position.x).toBeCloseTo(posAttrMid.array[segIdx * 3], 4)
     expect(light.position.y).toBeCloseTo(posAttrMid.array[segIdx * 3 + 1], 4)
@@ -903,16 +1087,473 @@ describe('useWikiGraphScene: iluminación de rayos', () => {
     nowSpy.mockReturnValue(tAttack)
     tick(tAttack)
 
-    const emissiveScalar = (originMesh.material as { emissive: { lastScalar: number } }).emissive.lastScalar
-    expect(emissiveScalar).toBeGreaterThan(NODE_EMISSIVE_BASE)
-
-    const destMesh = getSceneMeshes().find(m => m.userData.slug === 'b')!
-    const destScalar = (destMesh.material as { emissive: { lastScalar: number } }).emissive.lastScalar
-    expect(destScalar).toBeLessThan(emissiveScalar)
+    const emissive = (originMesh.material as { emissive: { r: number; g: number; b: number } }).emissive
+    const emissivePeak = Math.max(emissive.r, emissive.g, emissive.b)
+    expect(emissivePeak).toBeGreaterThan(NODE_EMISSIVE_BASE)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()
     nowSpy.mockRestore()
+  })
+
+  it('nodo destino iluminado por rayo tiene emissive blanco (wash), no solo tinte del tipo', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness />)
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const destMesh = getSceneMeshes().find(m => m.userData.slug === 'b')!
+    const emissive = (destMesh.material as { emissive: { r: number; g: number; b: number } }).emissive
+    expect(Math.min(emissive.r, emissive.g, emissive.b)).toBeGreaterThan(0.55)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+})
+
+function getEdgeMat(): LineBasicMaterial | undefined {
+  return getBoltMats().find(m => !m.vertexColors)
+}
+
+describe('useWikiGraphScene: aristas por apariencia', () => {
+  let appearanceBackup: string | null
+
+  beforeEach(() => {
+    appearanceBackup = document.documentElement.getAttribute('data-theme-appearance')
+  })
+
+  afterEach(() => {
+    if (appearanceBackup != null) {
+      document.documentElement.setAttribute('data-theme-appearance', appearanceBackup)
+    } else {
+      document.documentElement.removeAttribute('data-theme-appearance')
+    }
+  })
+
+  it('en light edgeMaterial opacity ≈ 0.225 (0.45×0.5)', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    render(<Harness />)
+    const edgeMat = getEdgeMat()
+    expect(edgeMat?.opacity).toBeCloseTo(0.225, 4)
+    expect(edgeOpacityForAppearance(false)).toBeCloseTo(0.225, 4)
+  })
+
+  it('en dark edgeMaterial opacity sigue 0.45', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    render(<Harness />)
+    const edgeMat = getEdgeMat()
+    expect(edgeMat?.opacity).toBeCloseTo(0.45, 4)
+    expect(edgeOpacityForAppearance(false)).toBeCloseTo(0.45, 4)
+  })
+
+  it('boltLightIntensityMult es 1.5 y en dark firing la PointLight tiene intensidad > 0', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    expect(boltLightIntensityMult()).toBe(1.5)
+    render(<Harness />)
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light.intensity).toBeGreaterThan(0)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('en dark la PointLight activa durante firing es blanca explícita', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness />)
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('en dark usa iluminación de escena clara (hemisphere ground y ambient)', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    render(<Harness />)
+    const ambient = getAmbientLights().at(-1)!
+    const hemisphere = getHemisphereLights().at(-1)!
+    expect(ambient.intensity).toBeCloseTo(0.32, 4)
+    expect(hemisphere.groundColor.b).toBeGreaterThan(0.9)
+    expect(hemisphere.intensity).toBeCloseTo(0.45, 4)
+  })
+})
+
+describe('useWikiGraphScene: color de rayos por apariencia', () => {
+  const ADDITIVE_BLENDING = 2
+  let appearanceBackup: string | null
+
+  beforeEach(() => {
+    appearanceBackup = document.documentElement.getAttribute('data-theme-appearance')
+  })
+
+  afterEach(() => {
+    if (appearanceBackup != null) {
+      document.documentElement.setAttribute('data-theme-appearance', appearanceBackup)
+    } else {
+      document.documentElement.removeAttribute('data-theme-appearance')
+    }
+    document.documentElement.style.removeProperty('--wiki-bolt-color')
+  })
+
+  it('en dark usa blanco brillante y blending aditivo en el núcleo del rayo', () => {
+    resetGlobals()
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    render(<Harness wikiBoltColor="#ffffff" />)
+    const coreMat = getCoreMats()[0]!
+    expect(coreMat.color.r).toBeGreaterThan(0.9)
+    expect(coreMat.color.g).toBeGreaterThan(0.9)
+    expect(coreMat.color.b).toBeGreaterThan(0.9)
+    expect(coreMat.blending).toBe(ADDITIVE_BLENDING)
+  })
+
+  it('en light usa color oscuro y blending Normal en el núcleo del rayo', () => {
+    resetGlobals()
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    render(<Harness wikiBoltColor="#3d3d5c" />)
+    const coreMat = getCoreMats()[0]!
+    expect(Math.max(coreMat.color.r, coreMat.color.g, coreMat.color.b)).toBeLessThan(0.45)
+    expect(coreMat.blending).not.toBe(ADDITIVE_BLENDING)
+    expect(coreMat.blending).toBe(1)
+  })
+
+  it('en light firing: core visible, halo/glow en 0 y PointLight oscura activa', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness wikiBoltColor="#3d3d5c" />)
+    const boltMats = getBoltMats()
+    const coreMat = boltMats.find(m => m.vertexColors)!
+    const haloMat = boltMats[boltMats.indexOf(coreMat) + 1]!
+    const glowMat = boltMats[boltMats.indexOf(coreMat) + 2]!
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    expect(coreMat.opacity).toBeGreaterThan(0)
+    expect(haloMat.opacity).toBe(0)
+    expect(glowMat.opacity).toBe(0)
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light).toBeDefined()
+    expect(light.intensity).toBeGreaterThan(0)
+    expect(light.color.r).toBeLessThan(0.5)
+    expect(light.color.g).toBeLessThan(0.5)
+    expect(light.color.b).toBeLessThan(0.5)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('dark firing → toggle light: PointLight sigue activa y oscura', async () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness wikiBoltColor="#3d3d5c" />)
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light).toBeDefined()
+    expect(light.color.r).toBeGreaterThan(0.9)
+
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    await new Promise<void>(resolve => queueMicrotask(resolve))
+
+    expect(light.intensity).toBeGreaterThan(0)
+    expect(light.color.r).toBeLessThan(0.5)
+    expect(light.color.g).toBeLessThan(0.5)
+    expect(light.color.b).toBeLessThan(0.5)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('en light el nodo origen aplica wash oscuro al disparar', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness wikiBoltColor="#3d3d5c" />)
+    const originMesh = getSceneMeshes().find(m => m.userData.slug === 'a')!
+    const baseEmissive = (originMesh.material as { emissive: { r: number; g: number; b: number } }).emissive
+    const basePeak = Math.max(baseEmissive.r, baseEmissive.g, baseEmissive.b)
+
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const emissive = (originMesh.material as { emissive: { r: number; g: number; b: number } }).emissive
+    const emissivePeak = Math.max(emissive.r, emissive.g, emissive.b)
+    expect(emissivePeak).toBeLessThan(basePeak)
+    expect(emissivePeak).toBeGreaterThan(NODE_EMISSIVE_BASE)
+    const baseSpread = basePeak - Math.min(baseEmissive.r, baseEmissive.g, baseEmissive.b)
+    const emissiveSpread = emissivePeak - Math.min(emissive.r, emissive.g, emissive.b)
+    expect(emissiveSpread).toBeLessThan(baseSpread)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('light firing → toggle dark: PointLight pasa a blanca', async () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness wikiBoltColor="#3d3d5c" />)
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light).toBeDefined()
+    expect(light.color.r).toBeLessThan(0.5)
+    expect(light.color.g).toBeLessThan(0.5)
+    expect(light.color.b).toBeLessThan(0.5)
+
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    await new Promise<void>(resolve => queueMicrotask(resolve))
+
+    expect(light.intensity).toBeGreaterThan(0)
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('en dark firing: core blanco, aditivo y PointLight blanca (regresión)', () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const rafQueue: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+    const nowSpy = vi.spyOn(performance, 'now')
+    const t0 = 10000
+    nowSpy.mockReturnValue(t0)
+
+    render(<Harness wikiBoltColor="#ffffff" />)
+    const coreMat = getCoreMats()[0]!
+    const tick = rafQueue[rafQueue.length - 1]!
+    nowSpy.mockReturnValue(t0)
+    tick(t0)
+    const tAttack = t0 + BOLT_ACTIVE_MS * 0.1
+    nowSpy.mockReturnValue(tAttack)
+    tick(tAttack)
+
+    expect(coreMat.color.r).toBeGreaterThan(0.9)
+    expect(coreMat.color.g).toBeGreaterThan(0.9)
+    expect(coreMat.color.b).toBeGreaterThan(0.9)
+    expect(coreMat.blending).toBe(ADDITIVE_BLENDING)
+    expect(coreMat.opacity).toBeGreaterThan(0)
+    const light = getPointLights().find(l => l.intensity > 0)!
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
+
+    randomSpy.mockRestore()
+    rafSpy.mockRestore()
+    nowSpy.mockRestore()
+  })
+
+  it('boltGlowsEnabled: false en light, true en dark', () => {
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    expect(boltGlowsEnabled()).toBe(false)
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+    expect(boltGlowsEnabled()).toBe(true)
+  })
+})
+
+describe('useWikiGraphScene: color de nodos por apariencia', () => {
+  const SATURATED_CONCEPT = '#7c6af7'
+  const ALT_SATURATED_CONCEPT = '#7aa2f7'
+  let appearanceBackup: string | null
+  const wikiNodeVars = [
+    '--wiki-node-concept',
+    '--wiki-node-decision',
+    '--wiki-node-flow',
+    '--wiki-node-reference',
+  ] as const
+
+  beforeEach(() => {
+    appearanceBackup = document.documentElement.getAttribute('data-theme-appearance')
+  })
+
+  afterEach(() => {
+    if (appearanceBackup != null) {
+      document.documentElement.setAttribute('data-theme-appearance', appearanceBackup)
+    } else {
+      document.documentElement.removeAttribute('data-theme-appearance')
+    }
+    for (const v of wikiNodeVars) {
+      document.documentElement.style.removeProperty(v)
+    }
+  })
+
+  function conceptMeshColor(): { r: number; g: number; b: number } {
+    const mesh = getSceneMeshes().find(m => m.userData.slug === 'a')!
+    const mat = mesh.material as { color: { r: number; g: number; b: number } }
+    return { r: mat.color.r, g: mat.color.g, b: mat.color.b }
+  }
+
+  it('en light y dark usa tokens saturados vía MutationObserver', async () => {
+    resetGlobals()
+    document.documentElement.removeAttribute('data-reduce-motion')
+    document.documentElement.setAttribute('data-theme-appearance', 'light')
+    render(<Harness wikiNodeConcept={SATURATED_CONCEPT} />)
+
+    const lightColor = conceptMeshColor()
+    const lightDominant = Math.max(lightColor.r, lightColor.g, lightColor.b)
+    expect(lightDominant).toBeGreaterThan(0.35)
+
+    const el = document.querySelector('.wiki-graph-view__canvas') as HTMLDivElement
+    el.style.setProperty('--wiki-node-concept', ALT_SATURATED_CONCEPT)
+    document.documentElement.setAttribute('data-theme-appearance', 'dark')
+
+    await waitFor(() => {
+      const darkColor = conceptMeshColor()
+      const darkDominant = Math.max(darkColor.r, darkColor.g, darkColor.b)
+      expect(darkDominant).toBeGreaterThan(0.35)
+      expect(darkColor.b).toBeGreaterThan(darkColor.r * 0.8)
+    })
   })
 })
 

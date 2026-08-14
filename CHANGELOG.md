@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.53.0
+
+- **Rayos wiki en light**: rayo visual oscuro con PointLight oscura viajera y wash emissive oscuro durante firing; los nodos se aclaran al paso de la luz; toggles live dark↔light sin regresión en dark.
+- **Toggles por regla de agente**: switch por regla en Rules; las deshabilitadas no van al prompt ni al turno CLI; persisten en el catálogo del agente.
+- **Chrome del plano sobre el chat**: barra superior y pool de contextos comparten z-index 210 para quedar siempre encima del chat del plano.
+- **Cristal del plano en dark**: `--plane-glass-strong` más translúcido para mejor contraste con el mapa wiki detrás.
+- **Tooltip más suave**: transición de aparición del tooltip del kit un poco más lenta y legible.
+
 ## v0.52.0
 
 - **Cola del plano sin duplicados**: un turno encolado no aparece dos veces; el × del chip elimina el turno y limpia preferSend asociado.

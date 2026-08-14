@@ -2098,91 +2098,91 @@ export const App: React.FC = () => {
 
     const workspaceSlug = sanitizeSlugSegment(org.name || org.workspaceId)
       || sanitizeSlugSegment(org.workspaceId)
-    setOrgWorkspaceRequirement({ cloning: true })
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
+    setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
     const covenant = getCovenantApi()
-    let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-    if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-      const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
-      if (reposResult.ok) {
-        repos = reposResult.data.map(r => ({
-          repoFullName: r.repoFullName,
-          cloneUrl: r.cloneUrl,
-          ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-        }))
+    try {
+      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+        const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+        if (reposResult.ok) {
+          repos = reposResult.data.map(r => ({
+            repoFullName: r.repoFullName,
+            cloneUrl: r.cloneUrl,
+            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+          }))
+        }
       }
-    }
 
-    const res = await (covenant?.cloneOrgWorkspace
-      ? covenant.cloneOrgWorkspace({
-          orgSlug: org.slug,
-          workspaceSlug,
-          repos,
-        })
-      : Promise.resolve({
-          ok: false as const,
-          error: 'clone unavailable',
-          failure: undefined,
-        }))
-    if (!res.ok) {
-      if (res.error === 'missing-default-dir') {
-        setOrgWorkspaceRequirement({ missingFolder: true })
-      } else if (res.error === 'missing-token') {
-        setOrgWorkspaceRequirement({ missingToken: true })
-      } else {
-        setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+      const res = await (covenant?.cloneOrgWorkspace
+        ? covenant.cloneOrgWorkspace({
+            orgSlug: org.slug,
+            workspaceSlug,
+            repos,
+          })
+        : Promise.resolve({
+            ok: false as const,
+            error: 'clone unavailable',
+            failure: undefined,
+          }))
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      if (!res.ok) {
+        if (res.error === 'missing-default-dir') {
+          setOrgWorkspaceRequirement({ missingFolder: true })
+        } else if (res.error === 'missing-token') {
+          setOrgWorkspaceRequirement({ missingToken: true })
+        } else {
+          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+        }
+        return
       }
-      return
-    }
 
-    setOrgWorkspaceRequirement(null)
-    const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
-    const tab = newTab(title)
-    tab.titleLocked = true
-    tab.projectFolder = res.workspaceDir
-    tab.orgWorkspace = {
-      slug: org.slug,
-      workspaceId: org.workspaceId,
-      localDir: res.workspaceDir,
-    }
-    setExplorerByTab(prev => {
-      const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
-      explorerByTabRef.current = next
-      return next
-    })
-    setTabs(prev => [...prev, tab])
-    setActiveTabId(tab.id)
+      const title = org.name?.trim() || t('tabs.defaultTitle', { n: ++tabCounter })
+      const tab = newTab(title)
+      tab.titleLocked = true
+      tab.projectFolder = res.workspaceDir
+      tab.orgWorkspace = {
+        slug: org.slug,
+        workspaceId: org.workspaceId,
+        localDir: res.workspaceDir,
+      }
+      setExplorerByTab(prev => {
+        const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
+        explorerByTabRef.current = next
+        return next
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
 
-    if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-      const opGen = ++orgWorkspaceSyncUploadGenRef.current
-      setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'agents' })
-      try {
+      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
         await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
           wipeLocal: false,
           cancelGen: opGen,
           onPhase: reportOrgSyncPhase,
         })
-      } finally {
-        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
-          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
+      } else if (selection.agents.length || selection.contexts.length) {
+        const cwd = res.workspaceDir
+        for (const definition of selection.agents) {
+          const written = await window.api.upsertProjectAgent(cwd, definition)
+          if (written.ok) rememberProjectAgent(cwd, written.agent)
+        }
+        for (const context of selection.contexts) {
+          await window.api.materializeTabContext({ context, cwd })
+        }
+        const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
+        const discovered = await window.api.discoverTabContexts({ cwd })
+        if (discovered.ok) {
+          setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
+        }
+        if (agents.length) {
+          queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
         }
       }
-    } else if (selection.agents.length || selection.contexts.length) {
-      const cwd = res.workspaceDir
-      for (const definition of selection.agents) {
-        const written = await window.api.upsertProjectAgent(cwd, definition)
-        if (written.ok) rememberProjectAgent(cwd, written.agent)
-      }
-      for (const context of selection.contexts) {
-        await window.api.materializeTabContext({ context, cwd })
-      }
-      const agents = await refreshAndSyncProjectAgents(cwd, tab.id)
-      const discovered = await window.api.discoverTabContexts({ cwd })
-      if (discovered.ok) {
-        setTabContextsByTab(prev => ({ ...prev, [tab.id]: discovered.contexts }))
-      }
-      if (agents.length) {
-        queueMicrotask(() => syncTabWithProjectAgents(tab.id, agents))
+    } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       }
     }
   }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
@@ -2623,84 +2623,84 @@ export const App: React.FC = () => {
 
     if (isOrgBacked && org && path !== previousLocalDir) {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
-      setOrgWorkspaceRequirement({ cloning: true })
+      const opGen = ++orgWorkspaceSyncUploadGenRef.current
+      setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
       const covenant = getCovenantApi()
-      let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
-      if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
-        const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
-        if (reposResult.ok) {
-          repos = reposResult.data.map(r => ({
-            repoFullName: r.repoFullName,
-            cloneUrl: r.cloneUrl,
-            ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
-          }))
+      try {
+        let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
+        if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
+          const reposResult = await covenant.workspaceReposList(orgSlug, workspaceId)
+          if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+          if (reposResult.ok) {
+            repos = reposResult.data.map(r => ({
+              repoFullName: r.repoFullName,
+              cloneUrl: r.cloneUrl,
+              ...(r.folderName?.trim() ? { folderName: r.folderName.trim() } : {}),
+            }))
+          }
         }
-      }
-      const res = await (covenant?.cloneOrgWorkspace
-        ? covenant.cloneOrgWorkspace({
-            orgSlug,
-            workspaceSlug,
-            repos,
-            workspaceDir: path,
-          })
-        : Promise.resolve({
-            ok: false as const,
-            error: 'clone unavailable',
-            failure: undefined,
-          }))
-      if (!res.ok) {
-        if (res.error === 'missing-default-dir') {
-          setOrgWorkspaceRequirement({ missingFolder: true })
-        } else if (res.error === 'missing-token') {
-          setOrgWorkspaceRequirement({ missingToken: true })
-        } else {
-          setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+        const res = await (covenant?.cloneOrgWorkspace
+          ? covenant.cloneOrgWorkspace({
+              orgSlug,
+              workspaceSlug,
+              repos,
+              workspaceDir: path,
+            })
+          : Promise.resolve({
+              ok: false as const,
+              error: 'clone unavailable',
+              failure: undefined,
+            }))
+        if (opGen !== orgWorkspaceSyncUploadGenRef.current) return null
+        if (!res.ok) {
+          if (res.error === 'missing-default-dir') {
+            setOrgWorkspaceRequirement({ missingFolder: true })
+          } else if (res.error === 'missing-token') {
+            setOrgWorkspaceRequirement({ missingToken: true })
+          } else {
+            setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+          }
+          return null
         }
-        return null
-      }
-      setOrgWorkspaceRequirement(null)
 
-      const next = tabsRef.current.map(t => (
-        t.id === tabId
-          ? {
-              ...t,
-              projectFolder: path,
-              orgWorkspace: {
-                slug: orgSlug,
-                workspaceId,
-                localDir: path,
-              },
-            }
-          : t
-      ))
-      tabsRef.current = next
-      setTabs(next)
+        const next = tabsRef.current.map(t => (
+          t.id === tabId
+            ? {
+                ...t,
+                projectFolder: path,
+                orgWorkspace: {
+                  slug: orgSlug,
+                  workspaceId,
+                  localDir: path,
+                },
+              }
+            : t
+        ))
+        tabsRef.current = next
+        setTabs(next)
 
-      const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
-      const updatedTab = next.find(item => item.id === tabId)
-      const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
-      if (explorerOpen && explorerSessionId) {
-        void window.api.fileExplorerSetRoot(explorerSessionId, path)
-      }
+        const explorerOpen = (explorerByTabRef.current[tabId] ?? DEFAULT_FILE_EXPLORER_STATE).open
+        const updatedTab = next.find(item => item.id === tabId)
+        const explorerSessionId = updatedTab ? resolveTabExplorerSessionId(updatedTab) : null
+        if (explorerOpen && explorerSessionId) {
+          void window.api.fileExplorerSetRoot(explorerSessionId, path)
+        }
 
-      await saveSessionNow()
+        await saveSessionNow()
 
-      if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-        const opGen = ++orgWorkspaceSyncUploadGenRef.current
-        setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'agents' })
-        try {
+        if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
           await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], {
             wipeLocal: false,
             cancelGen: opGen,
             onPhase: reportOrgSyncPhase,
           })
-        } finally {
-          if (opGen === orgWorkspaceSyncUploadGenRef.current) {
-            setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
-          }
+        }
+        return path
+      } finally {
+        if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+          setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
         }
       }
-      return path
     }
 
     const previousCwd = tab?.projectFolder?.trim() || ''

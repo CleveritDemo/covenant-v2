@@ -4,7 +4,7 @@ import { agentCliSpec } from '@shared/agentCliProviders'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
-import { type AgentIdentityDraft } from '@shared/agentIdentity'
+import { type AgentIdentityDraft, sanitizeAgentRulesEnabledDraft } from '@shared/agentIdentity'
 import { normalizeAgentSlug } from '@shared/projectAgentCatalog'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { AgentCoordination, DelegateToPolicy, OrchestrationWorkStyle } from '@shared/agentOrchestration'
@@ -46,6 +46,7 @@ function identityDraftFromMeta(meta: AgentPaneMeta): AgentIdentityDraft {
     ceremonyRoles: candidateCeremonyRoles(meta),
     objective: meta.objective ?? '',
     rules: meta.rules ?? [],
+    rulesEnabled: sanitizeAgentRulesEnabledDraft(meta.rules ?? [], meta.rulesEnabled),
   }
 }
 

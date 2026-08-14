@@ -46,7 +46,7 @@ import {
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
-import { APP_OVERLAY_MODAL_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
+import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
 import {
   computeWikiModalSpreadPositions,
   WIKI_MODAL_ESTIMATED_HEIGHT,
@@ -738,6 +738,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       style={{
         ['--plane-chat-column-width' as string]: `${chatColumnWidth || PLANE_CHAT_BASE_WIDTH}px`,
         ['--plane-chat-stack-z' as string]: `${PLANE_CHAT_STACK_Z}`,
+        ['--plane-chrome-stack-z' as string]: `${PLANE_CHROME_STACK_Z}`,
       }}
       onPointerDown={event => {
         if (event.button !== 0) return
@@ -1061,7 +1062,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && (
+      {!anyFullscreen && !wikiMapOpen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar

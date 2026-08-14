@@ -381,6 +381,8 @@ const en = {
     objectiveCount: '{{n}}/{{max}}',
     rulesLabel: 'Rules',
     rulesHint: 'Sent on every turn. Short and imperative works best.',
+    rulesDisabledHint: 'Disabled rules are not sent on each turn.',
+    rulesToggleLabel: 'Enable rule',
     rulesAdd: 'Add rule',
     rulesRemove: 'Remove rule',
     rulesMoveUp: 'Move up',

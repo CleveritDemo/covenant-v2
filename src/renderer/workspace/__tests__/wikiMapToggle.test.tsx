@@ -118,8 +118,8 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
     expect(screen.queryByText('tabs.wikiMapNoWebgl')).toBeNull()
     expect(document.querySelector('.wiki-graph-view__loading')).toBeNull()
-    // El chat central del plano sigue montado con el mapa wiki abierto.
-    expect(screen.getByTestId('plane-chat-dock')).toBeTruthy()
+    // Con el mapa wiki abierto el chat se desmonta (v0.51): no compite con el grafo.
+    expect(screen.queryByTestId('plane-chat-dock')).toBeNull()
 
     fireEvent.click(wikiButton())
     // Al cerrar, el overlay se desmonta del plano.
@@ -169,7 +169,7 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(view).not.toBeNull()
     const barAfterOpen = document.querySelector('.plane-top-left-bar') as HTMLElement | null
     expect(barAfterOpen).not.toBeNull()
-    // Con el mapa abierto la barra sigue por encima del plano (z 70 > plane-map 16).
+    // Con el mapa abierto la barra sube a --over-wiki (675) por encima del overlay.
     expect(barAfterOpen!.classList.contains('plane-top-left-bar--over-wiki')).toBe(true)
     // El chrome propio de wiki queda agrupado en un solo header y no ocupa
     // la esquina superior izquierda; título + leyenda + cerrar viven juntos.

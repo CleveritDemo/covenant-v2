@@ -62,6 +62,7 @@
   position: absolute;
   top: var(--plane-top-bar-inset, 14px);
   right: var(--plane-top-bar-inset, 14px);
+  z-index: 310;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -114,10 +115,10 @@
   background: currentColor;
 }
 
-.wiki-graph-view__legend-item--concept::before { background: var(--accent, #7aa2f7); }
-.wiki-graph-view__legend-item--decision::before { background: var(--theme-magenta, #ff79c6); }
-.wiki-graph-view__legend-item--flow::before { background: var(--theme-cyan, #22d3ee); }
-.wiki-graph-view__legend-item--reference::before { background: var(--theme-blue, #60a5fa); }
+.wiki-graph-view__legend-item--concept::before { background: var(--wiki-node-concept, #7aa2f7); }
+.wiki-graph-view__legend-item--decision::before { background: var(--wiki-node-decision, #e8b4d8); }
+.wiki-graph-view__legend-item--flow::before { background: var(--wiki-node-flow, #a8e8f5); }
+.wiki-graph-view__legend-item--reference::before { background: var(--wiki-node-reference, #b8d4fc); }
 
 .wiki-graph-view__close {
   display: inline-flex;
@@ -168,10 +169,10 @@
   letter-spacing: 0.04em;
 }
 
-.wiki-graph-view__tooltip-type--concept { color: var(--accent, #7aa2f7); }
-.wiki-graph-view__tooltip-type--decision { color: var(--theme-magenta, #ff79c6); }
-.wiki-graph-view__tooltip-type--flow { color: var(--theme-cyan, #22d3ee); }
-.wiki-graph-view__tooltip-type--reference { color: var(--theme-blue, #60a5fa); }
+.wiki-graph-view__tooltip-type--concept { color: var(--wiki-node-concept, #7aa2f7); }
+.wiki-graph-view__tooltip-type--decision { color: var(--wiki-node-decision, #e8b4d8); }
+.wiki-graph-view__tooltip-type--flow { color: var(--wiki-node-flow, #a8e8f5); }
+.wiki-graph-view__tooltip-type--reference { color: var(--wiki-node-reference, #b8d4fc); }
 
 /* Carga del grafo o creación de wiki desde el CTA. */
 .wiki-graph-view__loading {

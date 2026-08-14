@@ -4,8 +4,8 @@
   right: var(--plane-top-bar-inset, 16px);
   left: auto;
   bottom: auto;
-  /* Sobre mapa (16) y dock/fade (14); bajo FABs (50). */
-  z-index: 41;
+  /* Encima del chat (200); mismo techo que .plane-top-left-bar (210). */
+  z-index: var(--plane-chrome-stack-z, 210);
   box-sizing: border-box;
   display: flex;
   flex-direction: row;

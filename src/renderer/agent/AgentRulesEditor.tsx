@@ -2,13 +2,15 @@ import React from 'react'
 import { AGENT_RULE_MAX_LENGTH, AGENT_RULES_MAX_COUNT } from '@shared/agentIdentity'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
+import { Toggle } from '../components/ui/Toggle'
 import './AgentRulesEditor.css'
 
 export interface AgentRulesEditorProps {
   rules: string[]
+  rulesEnabled: boolean[]
   disabled?: boolean
   /** Solo actualiza el borrador local; no persiste. */
-  onChange: (rules: string[]) => void
+  onChange: (rules: string[], rulesEnabled: boolean[]) => void
   /** Persistir al salir de un input de regla. */
   onCommit?: () => void
 }
@@ -22,6 +24,7 @@ export interface AgentRulesEditorProps {
  */
 export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
   rules,
+  rulesEnabled,
   disabled = false,
   onChange,
   onCommit,
@@ -31,40 +34,74 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
 
   const updateAt = (index: number, value: string): void => {
     if (disabled) return
-    onChange(rules.map((rule, i) => (i === index ? value : rule)))
+    onChange(
+      rules.map((rule, i) => (i === index ? value : rule)),
+      rulesEnabled,
+    )
+  }
+
+  const toggleAt = (index: number, checked: boolean): void => {
+    if (disabled) return
+    onChange(
+      rules,
+      rulesEnabled.map((flag, i) => (i === index ? checked : flag)),
+    )
+    onCommit?.()
   }
 
   const removeAt = (index: number): void => {
     if (disabled) return
-    onChange(rules.filter((_, i) => i !== index))
+    onChange(
+      rules.filter((_, i) => i !== index),
+      rulesEnabled.filter((_, i) => i !== index),
+    )
     onCommit?.()
   }
 
   const moveBy = (index: number, delta: number): void => {
     const target = index + delta
     if (disabled || target < 0 || target >= rules.length) return
-    const next = [...rules]
-    const [moved] = next.splice(index, 1)
-    next.splice(target, 0, moved)
-    onChange(next)
+    const nextRules = [...rules]
+    const nextEnabled = [...rulesEnabled]
+    const [movedRule] = nextRules.splice(index, 1)
+    const [movedFlag] = nextEnabled.splice(index, 1)
+    nextRules.splice(target, 0, movedRule)
+    nextEnabled.splice(target, 0, movedFlag)
+    onChange(nextRules, nextEnabled)
     onCommit?.()
   }
 
   const addRule = (): void => {
     if (!canAdd || disabled) return
-    onChange([...rules, ''])
+    onChange([...rules, ''], [...rulesEnabled, true])
   }
 
   return (
     <div className="agent-rules-editor">
       <p className="agent-rules-editor__hint">{t('agentPane.rulesHint')}</p>
+      <p className="agent-rules-editor__hint agent-rules-editor__hint--sub">{t('agentPane.rulesDisabledHint')}</p>
 
       {rules.length === 0 ? (
         <p className="agent-rules-editor__empty">{t('agentPane.rulesEmpty')}</p>
       ) : (
         <ul className="agent-rules-editor__list" aria-label={t('agentPane.rulesLabel')}>
-          {rules.map((rule, index) => (
-            <li key={index} className="agent-rules-editor__item">
+          {rules.map((rule, index) => {
+            const enabled = rulesEnabled[index] ?? true
+            return (
+            <li
+              key={index}
+              className={[
+                'agent-rules-editor__item',
+                enabled ? '' : 'agent-rules-editor__item--off',
+              ].filter(Boolean).join(' ')}
+            >
+              <Toggle
+                compact
+                checked={enabled}
+                disabled={disabled}
+                label={t('agentPane.rulesToggleLabel')}
+                onChange={checked => toggleAt(index, checked)}
+              />
               <span className="agent-rules-editor__index" aria-hidden="true">
                 {index + 1}
               </span>
@@ -107,7 +144,8 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 <Icon name="close" size={12} aria-hidden />
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
 

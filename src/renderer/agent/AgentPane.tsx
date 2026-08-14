@@ -38,6 +38,7 @@ import {
   threadPatch,
   touchActiveThread,
 } from '@shared/agentThreads'
+import { buildRunKey } from '@shared/agentRunKey'
 import { normalizeAgentSlug, isAgentOwnResultContext, withCatalogAgentResultContexts } from '@shared/projectAgentCatalog'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
@@ -72,7 +73,12 @@ import type { JiraIssueRef } from '@shared/jiraIssue'
 import { AgentPaneFooter } from './AgentPaneFooter'
 import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
-import { canDrainAgentQueue, isAgentHumanInputBlocked, shouldShowComposerStop } from './agentInputGuards'
+import {
+  canDrainAgentQueue,
+  canStartHumanTurnNow as computeCanStartHumanTurnNow,
+  isAgentHumanInputBlocked,
+  shouldShowComposerStop,
+} from './agentInputGuards'
 import {
   filterQueuedTurnsAfterOrchestrationAbort,
   filterQueuedTurnsAfterSingleDelegationAbort,
@@ -103,14 +109,22 @@ import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
+import {
+  appendLaneText,
+  endLane,
+  getLane,
+  setLaneActivity,
+  startLane,
+  type LaneState,
+} from './paneThreadLanes'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import { mcpConfigLabelFor, mcpsNeedingAuth } from '@shared/mcpContext'
 import { mcpConnectHint } from '@shared/mcpProbe'
 import { agentCliSpec } from '@shared/agentCliProviders'
+import { MAX_VISIBLE_QUEUED_TURNS } from '@shared/planeHumanSendFifo'
 import { Button } from '../components/ui'
 import './AgentPane.css'
 
-const MAX_QUEUED_TURNS = 10
 /** Reintentos silenciosos si el CLI cierra sin texto antes de mostrar el error. */
 const EMPTY_RESPONSE_MAX_RETRIES = 3
 /** Alto máximo del composer en líneas visibles antes de scroll interno. */
@@ -127,6 +141,16 @@ function resizeComposerTextarea(el: HTMLTextAreaElement): void {
 
 type PendingImage = ComposerPendingImage
 
+/** Subtarea originada por un orquestador (preferSend / FIFO / cola local). */
+export interface PlaneSendDelegation {
+  id: string
+  fromPaneId: string
+  toAgentId: string
+  orchestrationJobId: string
+  threadId?: string
+  cwd?: string
+}
+
 /** Mensaje escrito mientras la IA trabajaba; se envía solo al liberarse el turno. */
 interface QueuedTurn {
   id: string
@@ -140,11 +164,7 @@ interface QueuedTurn {
   allowDelegations?: boolean
   /** Turbo: follow-up / redelegación anclada a este job. */
   orchestrationJobId?: string
-  delegation?: {
-    id: string
-    fromPaneId: string
-    toAgentId: string
-  }
+  delegation?: PlaneSendDelegation
 }
 
 export interface AgentPreferSend {
@@ -163,11 +183,7 @@ export interface AgentPreferSend {
   /** Turbo: job dueño del follow-up. */
   orchestrationJobId?: string
   /** Subtarea originada por un orquestador. */
-  delegation?: {
-    id: string
-    fromPaneId: string
-    toAgentId: string
-  }
+  delegation?: PlaneSendDelegation
 }
 
 interface Props {
@@ -274,6 +290,8 @@ interface Props {
   chainLoopActive?: boolean
   /** El orquestador espera subtareas (Stop / drain; ya no bloquea teclear). */
   awaitingDelegations?: boolean
+  /** Estilo efectivo desde App (evita meta stale en turbo). */
+  orchestrationWorkStyle?: 'linear' | 'turbo'
   /** Detalle de ola (done/total + filas) mientras awaitingDelegations. */
   orchestrationAwaiting?: OrchestrationAwaitingView | null
   /** Este pane ejecuta una subtarea pendiente para un orquestador. */
@@ -289,6 +307,44 @@ interface Props {
     onDragHandleEnd: () => void
   }
   registerShortcutCloseInterceptor?: (openConfirm: () => void) => () => void
+}
+
+/** Hilos con carril vivo o turno activo del pane; orden estable, sin duplicados. */
+export function collectRunningThreadIds(
+  lanes: ReadonlyMap<string, LaneState>,
+  activeThreadId: string,
+  paneBusy: boolean,
+): string[] {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const [threadId, lane] of lanes) {
+    if (!lane.busy || seen.has(threadId)) continue
+    seen.add(threadId)
+    ids.push(threadId)
+  }
+  if (paneBusy && !seen.has(activeThreadId)) {
+    ids.push(activeThreadId)
+  }
+  return ids
+}
+
+/** Une los hilos reportados por cada pane al mapa de delegaciones pendientes. */
+export function mergePaneReportedRunningThreadIds(
+  byPane: Map<string, Set<string>>,
+  paneStatuses: Record<string, { runningThreadIds?: readonly string[] } | undefined>,
+): void {
+  for (const [paneId, status] of Object.entries(paneStatuses)) {
+    const reported = status?.runningThreadIds
+    if (!reported?.length) continue
+    let set = byPane.get(paneId)
+    if (!set) {
+      set = new Set()
+      byPane.set(paneId, set)
+    }
+    for (const threadId of reported) {
+      set.add(threadId)
+    }
+  }
 }
 
 export interface AgentPlaneStatus {
@@ -324,10 +380,17 @@ export interface AgentPlaneStatus {
     text: string
     images: Array<{ id: string; previewUrl: string; name: string }>
     orchestrationFollowUp?: boolean
-    delegation?: { id: string; fromPaneId: string; toAgentId: string }
+    delegation?: {
+      id: string
+      fromPaneId: string
+      toAgentId: string
+      orchestrationJobId: string
+    }
   }>
   /** Hay historial, cola o sesión CLI que se pueden limpiar. */
   canClearConversation: boolean
+  /** Hilos con carril vivo o turno activo del pane (para dot del selector). */
+  runningThreadIds: string[]
 }
 
 export interface AgentPlaneQueueControls {
@@ -395,6 +458,7 @@ export const AgentPane: React.FC<Props> = ({
   onPreferNewThreadConsumed,
   chainLoopActive = false,
   awaitingDelegations = false,
+  orchestrationWorkStyle: orchestrationWorkStyleProp,
   orchestrationAwaiting = null,
   delegationWorkActive = false,
   systemFollowUpsPending = false,
@@ -422,17 +486,17 @@ export const AgentPane: React.FC<Props> = ({
   const [loopIntervalModalOpen, setLoopIntervalModalOpen] = useState(false)
   const [loopActive, setLoopActive] = useState(false)
   const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
-  const orchestrationWorkStyle = resolveOrchestrationWorkStyle(
-    meta.coordination,
-    meta.orchestrationWorkStyle,
-  )
+  const orchestrationWorkStyle = orchestrationWorkStyleProp
+    ?? resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
   const humanInputBlocked = isAgentHumanInputBlocked({ loopActive })
-  const awaitingBlocksHuman = orchestrationWorkStyle !== 'turbo' && awaitingDelegations
-  const canStartHumanTurnNow = !busy
-    && !awaitingBlocksHuman
-    && !delegationWorkActive
-    && !systemFollowUpsPending
-    && !loopActive
+  const canStartHumanTurnNow = computeCanStartHumanTurnNow({
+    busy,
+    loopActive,
+    awaitingDelegations,
+    delegationWorkActive,
+    systemFollowUpsPending,
+    orchestrationWorkStyle,
+  })
   const [loopEndReason, setLoopEndReason] = useState<'done' | 'max' | 'stopped' | null>(null)
   const [loopIteration, setLoopIteration] = useState(0)
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
@@ -472,6 +536,7 @@ export const AgentPane: React.FC<Props> = ({
   const loadedRef = useRef(false)
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
+  const applyLaneCliEventRef = useRef<(threadId: string, event: AgentCliUiEvent) => void>(() => undefined)
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
   const runLoopIterationRef = useRef<(iteration: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
@@ -485,6 +550,7 @@ export const AgentPane: React.FC<Props> = ({
   const onMetaChangeRef = useRef(onMetaChange)
   const onProjectContextsChangedRef = useRef(onProjectContextsChanged)
   const busyRef = useRef(busy)
+  const activityRef = useRef(activity)
   const loopActiveRef = useRef(false)
   /**
    * Petición diferida de nueva conversación: si el pane está busy, tiene una
@@ -563,12 +629,15 @@ export const AgentPane: React.FC<Props> = ({
     id: string
     fromPaneId: string
     toAgentId: string
+    orchestrationJobId: string
+    threadId?: string
     awaitingNested: Set<string>
   }
   const hydrateActiveParentDelegationForPane = (
     id: string,
+    threadId?: string,
   ): ActiveDelegationRuntime | null => {
-    const persisted = peekActiveParentDelegation(id)
+    const persisted = peekActiveParentDelegation(id, threadId ?? meta.activeThreadId)
     return persisted
       ? { ...persisted, awaitingNested: new Set<string>() }
       : null
@@ -576,6 +645,10 @@ export const AgentPane: React.FC<Props> = ({
   const activeDelegationRef = useRef<ActiveDelegationRuntime | null>(
     hydrateActiveParentDelegationForPane(paneId),
   )
+  /** Carriles de delegación en segundo plano (threadId → estado). */
+  const lanesRef = useRef<Map<string, LaneState>>(new Map())
+  const [lanesVersion, setLanesVersion] = useState(0)
+  const laneDelegationRef = useRef<Map<string, ActiveDelegationRuntime>>(new Map())
   const onOrchestratorDelegationsRef = useRef(onOrchestratorDelegations)
   onOrchestratorDelegationsRef.current = onOrchestratorDelegations
   const onOrchestratorStopRef = useRef(onOrchestratorStop)
@@ -584,6 +657,43 @@ export const AgentPane: React.FC<Props> = ({
   onAbortDelegationRef.current = onAbortDelegation
   const onDelegationTurnCompleteRef = useRef(onDelegationTurnComplete)
   onDelegationTurnCompleteRef.current = onDelegationTurnComplete
+  const emitDelegationResult = useCallback((
+    delegation: Pick<
+      ActiveDelegationRuntime,
+      'id' | 'fromPaneId' | 'toAgentId' | 'orchestrationJobId' | 'threadId'
+    > | null | undefined,
+    payload: {
+      status: DelegateResult['status']
+      summary: string
+      toThreadId?: string
+    },
+    warnContext: string,
+  ): void => {
+    if (!delegation) return
+    const fromPaneId = delegation.fromPaneId?.trim()
+    const orchestrationJobId = delegation.orchestrationJobId?.trim()
+    if (!fromPaneId || !orchestrationJobId) {
+      console.warn('[orchestration] delegation result omitted', {
+        reason: 'missing_sender',
+        context: warnContext,
+        delegationId: delegation.id,
+      })
+      return
+    }
+    const toThreadId = payload.toThreadId?.trim()
+      || delegation.threadId?.trim()
+      || undefined
+    onDelegationTurnCompleteRef.current?.({
+      id: delegation.id,
+      fromPaneId,
+      orchestrationJobId,
+      status: payload.status,
+      summary: payload.summary,
+      toAgentId: delegation.toAgentId,
+      toPaneId: paneId,
+      ...(toThreadId ? { toThreadId } : {}),
+    })
+  }, [paneId])
   const onOrchestrationUserTurnRef = useRef(onOrchestrationUserTurn)
   onOrchestrationUserTurnRef.current = onOrchestrationUserTurn
   const getOrchestrationAgentsRef = useRef(getOrchestrationAgents)
@@ -600,6 +710,8 @@ export const AgentPane: React.FC<Props> = ({
   const [pendingJiraContextIds, setPendingJiraContextIds] = useState<string[]>([])
   /** Conversación viva del pane: fija de qué archivo se lee y a cuál se escribe. */
   const activeThreadId = meta.activeThreadId ?? DEFAULT_THREAD_ID
+  const runKey = buildRunKey(paneId, activeThreadId)
+  const prevActiveThreadIdRef = useRef(activeThreadId)
   messagesRef.current = messages
   metaRef.current = meta
   diskContextsRef.current = diskContexts
@@ -608,6 +720,7 @@ export const AgentPane: React.FC<Props> = ({
   onMetaChangeRef.current = onMetaChange
   onProjectContextsChangedRef.current = onProjectContextsChanged
   busyRef.current = busy
+  activityRef.current = activity
   loopActiveRef.current = loopActive
   loopIterationRef.current = loopIteration
   const projectAgentsRef = useRef(projectAgents)
@@ -786,6 +899,31 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     retainLiveThreadIdRef.current = null
+    const liveLane = getLane(lanesRef.current, activeThreadId)
+    if (liveLane) {
+      loadedRef.current = false
+      pendingCliEventsRef.current = []
+      setLoaded(false)
+      knownMessageIdsRef.current = null
+      setEnteringIds(new Set())
+      setMaterializingIds(new Set())
+      setSettlingId(null)
+      messageContentLenRef.current = new Map()
+      setMessages(liveLane.messages)
+      setBusy(liveLane.busy)
+      setActivity(liveLane.activity)
+      if (liveLane.busy) {
+        activeAssistantIdRef.current = liveLane.assistantId
+        setActiveAssistantId(liveLane.assistantId)
+        turnClosedRef.current = false
+      } else {
+        activeAssistantIdRef.current = null
+        setActiveAssistantId(null)
+      }
+      loadedRef.current = true
+      setLoaded(true)
+      return
+    }
     let cancelled = false
     loadedRef.current = false
     pendingCliEventsRef.current = []
@@ -818,7 +956,7 @@ export const AgentPane: React.FC<Props> = ({
     turnClosedRef.current = false
     void Promise.all([
       window.api.loadAgentChat(chatRef, activeThreadId),
-      window.api.isAgentTurnActive(paneId).catch(() => false),
+      window.api.isAgentTurnActive(runKey).catch(() => false),
     ]).then(([entries, turnActive]) => {
       if (cancelled) return
       let nextMessages = entries
@@ -859,6 +997,7 @@ export const AgentPane: React.FC<Props> = ({
     // este effect corre en el mismo commit que el de carga, con los mensajes
     // del thread anterior. Sin el ref los guardaría bajo el thread nuevo.
     if (!loaded || !loadedRef.current) return
+    if (getLane(lanesRef.current, activeThreadId)?.busy) return
     window.api.saveAgentChat(chatRef, activeThreadId, messages)
   }, [activeThreadId, chatRef, loaded, messages])
 
@@ -1035,6 +1174,11 @@ export const AgentPane: React.FC<Props> = ({
       lastSnippet = text.length > 120 ? `${text.slice(0, 117)}…` : text
       break
     }
+    const runningThreadIds = collectRunningThreadIds(
+      lanesRef.current,
+      activeThreadId,
+      busy,
+    )
     const status: AgentPlaneStatus = {
       busy,
       activity,
@@ -1077,6 +1221,7 @@ export const AgentPane: React.FC<Props> = ({
         // Un hilo nuevo y vacío no tiene nada que limpiar, pero sí hay que
         // poder descartarlo mientras quede otro al que volver.
         || (meta.threads?.length ?? 0) > 1,
+      runningThreadIds,
     }
     // busy/loops/activity: inmediato. Solo messages/snippet: throttle (~150ms).
     const controlKey = [
@@ -1101,6 +1246,7 @@ export const AgentPane: React.FC<Props> = ({
       meta.cliSessionId ?? '',
       String(meta.threads?.length ?? 0),
       (meta.contextIds ?? []).join(','),
+      runningThreadIds.join(','),
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({
       controlKey,
@@ -1109,6 +1255,7 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [
     activeAssistantId,
+    activeThreadId,
     activity,
     awaitingDelegations,
     orchestrationAwaiting,
@@ -1117,6 +1264,7 @@ export const AgentPane: React.FC<Props> = ({
     delegationWorkActive,
     diskContexts,
     enteringIds,
+    lanesVersion,
     loopActive,
     loopEndReason,
     loopOpen,
@@ -1207,18 +1355,132 @@ export const AgentPane: React.FC<Props> = ({
     return () => { alive = false }
   }, [cwd, meta.mcpsAllowed, meta.provider])
 
+  const liveLaneThreadIds = (): Set<string> => new Set(lanesRef.current.keys())
+
   /** Catálogo de threads: abre uno nuevo y lo deja activo, sin tocar el live. */
   const commitNewThreadCatalog = useCallback((): string => {
     const id = crypto.randomUUID()
+    const protectedIds = liveLaneThreadIds()
     onMetaChange(previous => {
       const state = newThread(
-        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        sanitizeThreadState(previous.threads, previous.activeThreadId, undefined, protectedIds),
         id,
         Date.now(),
+        protectedIds,
       )
       return { ...previous, ...threadPatch(state) }
     })
     return id
+  }, [onMetaChange])
+
+  const bumpLanes = useCallback((): void => {
+    setLanesVersion(version => version + 1)
+  }, [])
+
+  const syncVisibleFromLane = useCallback((lane: LaneState): void => {
+    setMessages(lane.messages)
+    setBusy(lane.busy)
+    setActivity(lane.activity)
+    if (lane.busy) {
+      activeAssistantIdRef.current = lane.assistantId
+      setActiveAssistantId(lane.assistantId)
+      turnClosedRef.current = false
+    } else {
+      activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
+    }
+  }, [])
+
+  const patchLaneState = useCallback((
+    threadId: string,
+    updater: (lane: LaneState) => LaneState,
+  ): void => {
+    const current = getLane(lanesRef.current, threadId)
+    if (!current) return
+    const nextLane = updater(current)
+    const nextLanes = new Map(lanesRef.current)
+    nextLanes.set(threadId, nextLane)
+    lanesRef.current = nextLanes
+    bumpLanes()
+    const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+    if (visibleThreadId === threadId) syncVisibleFromLane(nextLane)
+  }, [bumpLanes, syncVisibleFromLane])
+
+  /** Promueve el turno vivo del hilo a carril de fondo sin abortar el CLI. */
+  const promoteThreadTurnToBackgroundLane = useCallback((threadId: string): void => {
+    if (getLane(lanesRef.current, threadId)) return
+    const assistantId = activeAssistantIdRef.current ?? lastAssistantIdRef.current
+    if (!assistantId) return
+    const delegation = activeDelegationRef.current
+    lanesRef.current = startLane(lanesRef.current, {
+      threadId,
+      delegationId: delegation?.id ?? '',
+      assistantId,
+      messages: [...messagesRef.current],
+    })
+    const lane = getLane(lanesRef.current, threadId)
+    if (lane && activityRef.current) {
+      const next = new Map(lanesRef.current)
+      next.set(threadId, { ...lane, activity: activityRef.current })
+      lanesRef.current = next
+    }
+    if (delegation) {
+      laneDelegationRef.current.set(threadId, delegation)
+      activeDelegationRef.current = null
+    }
+    bumpLanes()
+  }, [bumpLanes])
+
+  const detachLiveTurnWithoutAbort = useCallback((): void => {
+    activeAssistantIdRef.current = null
+    lastAssistantIdRef.current = null
+    setActiveAssistantId(null)
+    setBusy(false)
+    setActivity('')
+  }, [])
+
+  useLayoutEffect(() => {
+    const prevId = prevActiveThreadIdRef.current
+    if (prevId === activeThreadId) return
+    const hadLiveTurn = busyRef.current || activeAssistantIdRef.current != null
+    if (hadLiveTurn) {
+      promoteThreadTurnToBackgroundLane(prevId)
+      detachLiveTurnWithoutAbort()
+    }
+    prevActiveThreadIdRef.current = activeThreadId
+  }, [
+    activeThreadId,
+    detachLiveTurnWithoutAbort,
+    promoteThreadTurnToBackgroundLane,
+  ])
+
+  const registerDelegationThreadInCatalog = useCallback((
+    threadId: string,
+    delegationId: string,
+  ): void => {
+    const protectedIds = liveLaneThreadIds()
+    onMetaChange(previous => {
+      const sanitized = sanitizeThreadState(
+        previous.threads,
+        previous.activeThreadId,
+        undefined,
+        protectedIds,
+      )
+      if (sanitized.threads.some(thread => thread.id === threadId)) {
+        return previous
+      }
+      const added = newThread(sanitized, threadId, Date.now(), protectedIds)
+      const threads = added.threads.map(thread => (
+        thread.id === threadId
+          ? { ...thread, origin: 'delegation' as const, delegationId }
+          : thread
+      ))
+      return {
+        ...previous,
+        threads,
+        activeThreadId: previous.activeThreadId ?? sanitized.activeThreadId,
+      }
+    })
   }, [onMetaChange])
 
   const startTurn = useCallback(async (options: {
@@ -1235,6 +1497,9 @@ export const AgentPane: React.FC<Props> = ({
       id: string
       fromPaneId: string
       toAgentId: string
+      orchestrationJobId: string
+      threadId?: string
+      cwd?: string
     }
   }): Promise<boolean> => {
     const assistant: AgentChatEntry = { id: crypto.randomUUID(), role: 'assistant', content: '' }
@@ -1247,51 +1512,105 @@ export const AgentPane: React.FC<Props> = ({
       content: userContent,
       ...(options.displayImages?.length ? { images: options.displayImages } : {}),
     }
-    // Delegación: hilo propio en el catálogo. El del usuario permanece.
-    // Sin resetLiveState: no aborta CLI ni borra messages de ese hilo.
-    if (options.delegation) {
-      retainLiveThreadIdRef.current = commitNewThreadCatalog()
-    }
-    // El thread se titula solo con el primer mensaje y marca actividad en cada
-    // turno: es lo que ordena y etiqueta el selector de conversaciones.
-    onMetaChange(previous => ({
-      ...previous,
-      ...touchActiveThread(
-        sanitizeThreadState(previous.threads, previous.activeThreadId),
-        options.displayUser,
-        Date.now(),
-      ),
-    }))
-    activeAssistantIdRef.current = assistant.id
-    lastAssistantIdRef.current = assistant.id
-    setActiveAssistantId(assistant.id)
-    turnGenRef.current += 1
-    turnClosedRef.current = false
-    // Turn boundary: cada turno arranca "sin anidadas emitidas". Si el
-    // orquestador vuelve a emitir fences durante el follow-up, los ids se
-    // acumulan de nuevo y el hold se sostiene un turno más.
-    if (activeDelegationRef.current) {
-      activeDelegationRef.current.awaitingNested.clear()
-    }
-    // Conservar hold del padre en follow-ups; solo fijar si llega una nueva subtarea.
-    if (options.delegation) {
-      activeDelegationRef.current = {
+    const laneThreadId = options.delegation?.threadId?.trim() || undefined
+    const isLaneDelegation = Boolean(laneThreadId && options.delegation)
+
+    if (isLaneDelegation && laneThreadId && options.delegation) {
+      registerDelegationThreadInCatalog(laneThreadId, options.delegation.id)
+      const delegationRuntime: ActiveDelegationRuntime = {
         ...options.delegation,
-        awaitingNested: activeDelegationRef.current?.awaitingNested ?? new Set<string>(),
+        threadId: laneThreadId,
+        awaitingNested: new Set<string>(),
       }
-      rememberActiveParentDelegation(paneId, options.delegation)
+      laneDelegationRef.current.set(laneThreadId, delegationRuntime)
+      rememberActiveParentDelegation(paneId, laneThreadId, options.delegation)
+      lanesRef.current = startLane(lanesRef.current, {
+        threadId: laneThreadId,
+        delegationId: options.delegation.id,
+        assistantId: assistant.id,
+        messages: [user, assistant],
+      })
+      bumpLanes()
+      const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+      if (visibleThreadId === laneThreadId) {
+        syncVisibleFromLane(getLane(lanesRef.current, laneThreadId)!)
+      }
+    } else {
+      // Delegación legacy: hilo propio en el catálogo. El del usuario permanece.
+      if (options.delegation) {
+        retainLiveThreadIdRef.current = commitNewThreadCatalog()
+      }
+      const protectedIds = liveLaneThreadIds()
+      onMetaChange(previous => ({
+        ...previous,
+        ...touchActiveThread(
+          sanitizeThreadState(previous.threads, previous.activeThreadId, undefined, protectedIds),
+          options.displayUser,
+          Date.now(),
+        ),
+      }))
+      activeAssistantIdRef.current = assistant.id
+      lastAssistantIdRef.current = assistant.id
+      setActiveAssistantId(assistant.id)
+      turnGenRef.current += 1
+      turnClosedRef.current = false
+      if (activeDelegationRef.current) {
+        activeDelegationRef.current.awaitingNested.clear()
+      }
+      if (options.delegation) {
+        activeDelegationRef.current = {
+          ...options.delegation,
+          threadId: options.delegation.threadId,
+          awaitingNested: activeDelegationRef.current?.awaitingNested ?? new Set<string>(),
+        }
+        rememberActiveParentDelegation(
+          paneId,
+          options.delegation.threadId,
+          options.delegation,
+        )
+      }
+      forceFollow()
+      setMessages(prev => [...prev, user, assistant])
+      setActivity('')
+      setTurnCloseReason(null)
+      setBusy(true)
     }
-    // Al enviar, siempre aterrizar en el fondo (aunque el follow estuviera off).
-    forceFollow()
-    setMessages(prev => [...prev, user, assistant])
-    setActivity('')
-    setTurnCloseReason(null)
-    setBusy(true)
 
     const currentMeta = metaRef.current
     const assigned = options.contexts
-    // Base: usada para contextos (.gravity vive en el proyecto, nunca en el worktree).
     const resolvedCwd = await resolveWorkingCwd()
+
+    const failLaneTurn = (summary: string): false => {
+      if (!laneThreadId) return false
+      const errorContent = `${t('agentPane.errorPrefix')}: ${summary}`
+      const failedMessages = (getLane(lanesRef.current, laneThreadId)?.messages ?? []).map(message => (
+        message.id === assistant.id
+          ? { ...message, content: errorContent }
+          : message
+      ))
+      const failedDelegation = laneDelegationRef.current.get(laneThreadId)
+      laneDelegationRef.current.delete(laneThreadId)
+      lanesRef.current = endLane(lanesRef.current, laneThreadId)
+      bumpLanes()
+      void window.api.saveAgentChat(chatRef, laneThreadId, failedMessages)
+      if (failedDelegation) {
+        clearActiveParentDelegation(paneId, laneThreadId)
+        emitDelegationResult(failedDelegation, {
+          status: 'fail',
+          summary,
+          toThreadId: laneThreadId,
+        }, 'lane_materialize_failed')
+      }
+      const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+      if (visibleThreadId === laneThreadId) {
+        setMessages(failedMessages)
+        setBusy(false)
+        setActivity('')
+        activeAssistantIdRef.current = null
+        setActiveAssistantId(null)
+      }
+      return false
+    }
 
     if (assigned.length && resolvedCwd) {
       const previews = await Promise.all(
@@ -1307,6 +1626,9 @@ export const AgentPane: React.FC<Props> = ({
         }),
       )
       if (previews.every(preview => !preview.ok || !preview.content.trim())) {
+        if (isLaneDelegation) {
+          return failLaneTurn(t('tabContexts.materializeFailed'))
+        }
         setMessages(prev => prev.map(message => (
           message.id === assistant.id
             ? {
@@ -1322,20 +1644,20 @@ export const AgentPane: React.FC<Props> = ({
         setActiveAssistantId(null)
         const failedDelegation = activeDelegationRef.current
         activeDelegationRef.current = null
-        clearActiveParentDelegation(paneId)
+        clearActiveParentDelegation(paneId, failedDelegation?.threadId)
         if (failedDelegation) {
-          onDelegationTurnCompleteRef.current?.({
-            id: failedDelegation.id,
+          emitDelegationResult(failedDelegation, {
             status: 'fail',
             summary: t('tabContexts.materializeFailed'),
-            toAgentId: failedDelegation.toAgentId,
-            toPaneId: paneId,
-          })
+          }, 'materialize_failed')
         }
         return false
       }
     }
     if (assigned.length && !resolvedCwd) {
+      if (isLaneDelegation) {
+        return failLaneTurn(t('tabContexts.missingCwd'))
+      }
       setMessages(prev => prev.map(message => (
         message.id === assistant.id
           ? {
@@ -1351,29 +1673,30 @@ export const AgentPane: React.FC<Props> = ({
       setActiveAssistantId(null)
       const failedDelegation = activeDelegationRef.current
       activeDelegationRef.current = null
-      clearActiveParentDelegation(paneId)
+      clearActiveParentDelegation(paneId, failedDelegation?.threadId)
       if (failedDelegation) {
-        onDelegationTurnCompleteRef.current?.({
-          id: failedDelegation.id,
+        emitDelegationResult(failedDelegation, {
           status: 'fail',
           summary: t('tabContexts.missingCwd'),
-          toAgentId: failedDelegation.toAgentId,
-          toPaneId: paneId,
-        })
+        }, 'missing_cwd')
       }
       return false
     }
-    // messagesRef aún no incluye el user/assistant de este turno.
-    const priorMessages = messagesRef.current
+    const priorMessages = isLaneDelegation
+      ? (getLane(lanesRef.current, laneThreadId!)?.messages ?? [])
+      : messagesRef.current
     let prompt = options.prompt
-    if (pendingModeHandoffRef.current) {
+    if (!isLaneDelegation && pendingModeHandoffRef.current) {
       pendingModeHandoffRef.current = false
       prompt = buildModeHandoffPrompt(priorMessages, options.prompt)
     }
-    emptyResponseRetriesRef.current = 0
-    suppressEmptyHandlingRef.current = false
-    // Override-aware: solo el spawn del CLI usa el worktree si hay uno asignado.
-    const turnCwd = await resolveTurnCwd()
+    if (!isLaneDelegation) {
+      emptyResponseRetriesRef.current = 0
+      suppressEmptyHandlingRef.current = false
+    }
+    const turnCwd = isLaneDelegation
+      ? (options.delegation?.cwd?.trim() || resolvedCwd)
+      : await resolveTurnCwd()
     const contextPayload = buildAgentTurnContextPayload(
       resolvedCwd,
       assigned,
@@ -1385,18 +1708,20 @@ export const AgentPane: React.FC<Props> = ({
       ? (getOrchestrationAgentsRef.current?.() ?? [])
       : []
     const roundInfo = canDelegate ? getOrchestrationRoundRef.current?.() : undefined
-    // Subtarea del orquestador: CLI fresco (sin --resume de jobs previos en el pane).
     const resumeCliSession = shouldResumeCliSessionForTurn({
       delegation: options.delegation,
     })
-    // El request ya omite el `--resume` cuando no corresponde; esto decide la
-    // otra punta: si el `cliSessionId` que emita este CLI se queda en el hilo.
-    adoptsCliSessionRef.current = resumeCliSession
+    if (!isLaneDelegation) {
+      adoptsCliSessionRef.current = resumeCliSession
+    }
+    const turnThreadId = laneThreadId ?? activeThreadId
     const request: AgentCliStartRequest = {
       paneId,
+      threadId: turnThreadId,
       provider: currentMeta.provider,
       prompt,
       cwd: turnCwd,
+      ...(isLaneDelegation && resolvedCwd ? { projectCwd: resolvedCwd } : {}),
       ...contextPayload,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
       ...(currentMeta.id?.trim() ? { agentId: currentMeta.id.trim() } : {}),
@@ -1427,14 +1752,10 @@ export const AgentPane: React.FC<Props> = ({
               ? 'productOwner' as const
               : 'orchestrator' as const,
             orchestrationAgents,
-            ...((
-              currentMeta.allowExpertReplicas === true
-              || roundInfo?.workStyle === 'turbo'
-            ) ? { allowExpertReplicas: true } : {}),
+            allowParallelLanes: true,
             ...(roundInfo?.workStyle === 'turbo'
               ? { orchestrationWorkStyle: 'turbo' as const }
               : {}),
-            // Explicit follow-up/request jobId wins over pane “active” (turbo race).
             ...(() => {
               const jobId = resolveOrchestrationJobIdForTurn(
                 options.orchestrationJobId,
@@ -1453,7 +1774,7 @@ export const AgentPane: React.FC<Props> = ({
                 : {}),
           }
         : {}),
-      ...(resumeCliSession && currentMeta.cliSessionId
+      ...(!isLaneDelegation && resumeCliSession && currentMeta.cliSessionId
         ? { cliSessionId: currentMeta.cliSessionId }
         : {}),
       ...(options.images?.length ? { images: options.images } : {}),
@@ -1461,10 +1782,25 @@ export const AgentPane: React.FC<Props> = ({
       ...(options.viaLoop ? { viaLoop: true } : {}),
     }
     if (forceContextFullRefreshRef.current) forceContextFullRefreshRef.current = false
-    lastTurnRequestRef.current = request
+    if (!isLaneDelegation) {
+      lastTurnRequestRef.current = request
+    }
     window.api.startAgentTurn(request)
     return true
-  }, [commitNewThreadCatalog, forceFollow, onMetaChange, paneId, resolveTurnCwd, resolveWorkingCwd, t])
+  }, [
+    activeThreadId,
+    bumpLanes,
+    chatRef,
+    commitNewThreadCatalog,
+    forceFollow,
+    onMetaChange,
+    paneId,
+    registerDelegationThreadInCatalog,
+    resolveTurnCwd,
+    resolveWorkingCwd,
+    syncVisibleFromLane,
+    t,
+  ])
 
   const finishLoop = useCallback((reason: 'done' | 'max' | 'stopped'): void => {
     clearLoopTimer()
@@ -1555,6 +1891,7 @@ export const AgentPane: React.FC<Props> = ({
         const sessionId = metaRef.current.cliSessionId
         const retryRequest: AgentCliStartRequest = {
           ...priorRequest,
+          threadId: activeThreadId,
           ...(sessionId ? { cliSessionId: sessionId } : {}),
           ...(metaRef.current.nativeSkills ? { nativeSkills: metaRef.current.nativeSkills } : {}),
           ...(metaRef.current.mcpsAllowed ? { mcpsAllowed: metaRef.current.mcpsAllowed } : {}),
@@ -1604,27 +1941,30 @@ export const AgentPane: React.FC<Props> = ({
       })
       if (decision === 'notify' && delegation) {
         activeDelegationRef.current = null
-        clearActiveParentDelegation(paneId)
+        clearActiveParentDelegation(paneId, delegation.threadId)
         const summary = isEmpty
           ? t('agentPane.delegationEmptySummary')
-          : (message?.content ?? '').trim().slice(0, 500) || t('agentPane.delegationEmptySummary')
-        onDelegationTurnCompleteRef.current?.({
-          id: delegation.id,
+          : (message?.content ?? '').trim() || t('agentPane.delegationEmptySummary')
+        emitDelegationResult(delegation, {
           status: isEmpty ? 'fail' : 'ok',
           summary,
-          toAgentId: delegation.toAgentId,
-          toPaneId: paneId,
-        })
+        }, 'turn_complete')
       }
 
       emptyResponseRetriesRef.current = 0
       finishSideEffects()
     }, 0)
-  }, [beginLiveSettle, clearLoopTimer, finishLoop, paneId, systemSoundsEnabled, t])
+  }, [beginLiveSettle, clearLoopTimer, emitDelegationResult, finishLoop, paneId, systemSoundsEnabled, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
       pendingCliEventsRef.current.push(event)
+      return
+    }
+    const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+    const liveLane = getLane(lanesRef.current, visibleThreadId)
+    if (liveLane?.busy) {
+      applyLaneCliEventRef.current(visibleThreadId, event)
       return
     }
     if (event.type === 'done') {
@@ -1770,16 +2110,171 @@ export const AgentPane: React.FC<Props> = ({
     }))
   }, [completeTurn, onMetaChange, t])
 
+  const laneCompletingRef = useRef<Set<string>>(new Set())
+
+  const commitLanes = useCallback((
+    nextLanes: Map<string, LaneState>,
+    threadId: string,
+  ): void => {
+    lanesRef.current = nextLanes
+    bumpLanes()
+    const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+    if (visibleThreadId === threadId) {
+      const lane = getLane(nextLanes, threadId)
+      if (lane) syncVisibleFromLane(lane)
+    }
+  }, [bumpLanes, syncVisibleFromLane])
+
+  const completeLaneTurn = useCallback((threadId: string): void => {
+    if (laneCompletingRef.current.has(threadId)) return
+    const lane = getLane(lanesRef.current, threadId)
+    if (!lane?.busy) return
+    laneCompletingRef.current.add(threadId)
+    const assistantMessage = [...lane.messages].reverse().find(message => message.role === 'assistant')
+    const isEmpty = !assistantMessage?.content.trim()
+    const finalMessages = isEmpty && assistantMessage
+      ? lane.messages.map(message => (
+        message.id === assistantMessage.id
+          ? {
+              ...message,
+              content: `${t('agentPane.errorPrefix')}: ${t('agentPane.emptyResponse')}`,
+            }
+          : message
+      ))
+      : lane.messages
+    void window.api.saveAgentChat(chatRef, threadId, finalMessages)
+    const delegation = laneDelegationRef.current.get(threadId)
+    laneDelegationRef.current.delete(threadId)
+    lanesRef.current = endLane(lanesRef.current, threadId)
+    bumpLanes()
+    const decision = decideParentDelegationNotify({
+      held: Boolean(delegation),
+      dispatchedNested: (delegation?.awaitingNested.size ?? 0) > 0,
+      canDelegate: coordinationCanDelegate(metaRef.current.coordination),
+    })
+    if (decision === 'notify' && delegation) {
+      clearActiveParentDelegation(paneId, threadId)
+      const summary = isEmpty
+        ? t('agentPane.delegationEmptySummary')
+        : (assistantMessage?.content ?? '').trim() || t('agentPane.delegationEmptySummary')
+      emitDelegationResult(delegation, {
+        status: isEmpty ? 'fail' : 'ok',
+        summary,
+        toThreadId: threadId,
+      }, 'lane_turn_complete')
+    }
+    const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+    if (visibleThreadId === threadId) {
+      setMessages(finalMessages)
+      setBusy(false)
+      setActivity('')
+      activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
+    }
+    laneCompletingRef.current.delete(threadId)
+  }, [bumpLanes, chatRef, emitDelegationResult, paneId, t])
+
+  const applyLaneCliEvent = useCallback((threadId: string, event: AgentCliUiEvent): void => {
+    const lane = getLane(lanesRef.current, threadId)
+    if (!lane?.busy) return
+    if (event.type === 'done') {
+      completeLaneTurn(threadId)
+      return
+    }
+    if (event.type === 'delegate') {
+      const parent = laneDelegationRef.current.get(threadId)
+      const tagged = parent
+        ? event.delegations.map(item => ({ ...item, parentDelegationId: parent.id }))
+        : event.delegations
+      if (parent) {
+        for (const item of tagged) {
+          parent.awaitingNested.add(item.id)
+        }
+      }
+      const explicitJobId = event.orchestrationJobId?.trim() || undefined
+      const jobId = resolveOrchestrationJobIdForTurn(explicitJobId, explicitJobId)
+      onOrchestratorDelegationsRef.current?.(tagged, jobId)
+      return
+    }
+    if (event.type === 'session') return
+    if (event.type === 'tool') {
+      if (event.status === 'started') {
+        const toolLabel = event.detail
+          ? `${event.name} · ${event.detail}`
+          : event.name
+        commitLanes(
+          setLaneActivity(lanesRef.current, threadId, t('agentPane.activity', { tool: toolLabel })),
+          threadId,
+        )
+      }
+      return
+    }
+    if (event.type === 'context') {
+      commitLanes(
+        setLaneActivity(
+          lanesRef.current,
+          threadId,
+          event.status === 'loading'
+            ? t('agentPane.contextLoading', { n: Number(event.detail ?? 0) })
+            : '',
+        ),
+        threadId,
+      )
+      if (event.status === 'loading') {
+        patchLaneState(threadId, current => ({
+          ...current,
+          messages: current.messages.map(message => (
+            message.id === current.assistantId
+              ? { ...message, content: '' }
+              : message
+          )),
+        }))
+      }
+      return
+    }
+    if (event.type === 'error') {
+      const errorContent = `${t('agentPane.errorPrefix')}: ${event.message}`
+      patchLaneState(threadId, current => ({
+        ...current,
+        messages: current.messages.map(message => (
+          message.id === current.assistantId
+            ? { ...message, content: errorContent }
+            : message
+        )),
+      }))
+      return
+    }
+    if (event.type === 'assistant_final') {
+      let { visibleText } = extractTabContextUpdates(event.text)
+      patchLaneState(threadId, current => ({
+        ...current,
+        messages: current.messages.map(message => {
+          if (message.id !== current.assistantId) return message
+          const next = visibleText.trim() ? visibleText : message.content
+          return { ...message, content: next }
+        }),
+      }))
+      return
+    }
+    if (event.type === 'assistant_delta') {
+      commitLanes(appendLaneText(lanesRef.current, threadId, event.text), threadId)
+    }
+  }, [commitLanes, completeLaneTurn, patchLaneState, t])
+
+  applyLaneCliEventRef.current = applyLaneCliEvent
+  const completeLaneTurnRef = useRef(completeLaneTurn)
+  completeLaneTurnRef.current = completeLaneTurn
+
   applyCliEventRef.current = applyCliEvent
   completeTurnRef.current = completeTurn
 
   useEffect(() => {
     // Suscripción estable por paneId: no re-suscribir al re-render (resize/split
     // recreaba callbacks y perdía eventos done/delta a mitad de stream).
-    const offEvent = window.api.onAgentCliEvent(paneId, event => {
+    const offEvent = window.api.onAgentCliEvent(runKey, event => {
       applyCliEventRef.current(event)
     })
-    const offExit = window.api.onAgentCliExit(paneId, () => {
+    const offExit = window.api.onAgentCliExit(runKey, () => {
       // Fallback si el runtime antiguo no emite `done`, o si done se perdió.
       // Capturar generación: un EXIT tardío no debe cerrar el siguiente turno en cola.
       const gen = turnGenRef.current
@@ -1791,15 +2286,38 @@ export const AgentPane: React.FC<Props> = ({
       offEvent()
       offExit()
     }
-  }, [paneId])
+  }, [runKey])
+
+  useEffect(() => {
+    const cleanups: Array<() => void> = []
+    for (const [threadId, lane] of lanesRef.current.entries()) {
+      if (!lane.busy) continue
+      const laneRunKey = buildRunKey(paneId, threadId)
+      cleanups.push(window.api.onAgentCliEvent(laneRunKey, event => {
+        applyLaneCliEventRef.current(threadId, event)
+      }))
+      cleanups.push(window.api.onAgentCliExit(laneRunKey, () => {
+        window.setTimeout(() => {
+          completeLaneTurnRef.current(threadId)
+        }, 0)
+      }))
+    }
+    return () => {
+      for (const cleanup of cleanups) cleanup()
+    }
+  }, [lanesVersion, paneId])
 
   useEffect(() => {
     return () => {
       clearLoopTimer()
-      // No llamar stopAgentTurn aquí: el layout (split/resize) remonta el panel
-      // y mataría un stream vivo. App ya detiene el turno al cerrar el pane.
+      for (const threadId of lanesRef.current.keys()) {
+        const lane = getLane(lanesRef.current, threadId)
+        if (lane?.busy) {
+          window.api.stopAgentTurn(buildRunKey(paneId, threadId))
+        }
+      }
     }
-  }, [clearLoopTimer])
+  }, [clearLoopTimer, paneId])
 
   useEffect(() => {
     if (!onClosePane || !registerShortcutCloseInterceptor) return
@@ -1891,7 +2409,7 @@ export const AgentPane: React.FC<Props> = ({
   const send = useCallback((overrideText?: string): void => {
     const prompt = (overrideText ?? input).trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
-    if (!canStartHumanTurnNow && queuedTurns.length >= MAX_QUEUED_TURNS) return
+    if (!canStartHumanTurnNow && queuedTurns.length >= MAX_VISIBLE_QUEUED_TURNS) return
     onRequestPaneFocus()
     const imagesSnapshot = pendingImages
     setInput('')
@@ -1972,12 +2490,13 @@ export const AgentPane: React.FC<Props> = ({
       ...(viaLoop ? { viaLoop: true as const } : {}),
       ...(extraContextIds.length ? { extraContextIds } : {}),
     }
-    // Busy o humano sin slot → encolar (delegaciones incluidas para no perderlas).
-    const shouldEnqueue = busy || (isHumanTurn && !canStartHumanTurnNow)
+    // Busy o humano sin slot → encolar (delegaciones en carril arrancan en background).
+    const isLaneDelegation = Boolean(delegation?.threadId?.trim())
+    const shouldEnqueue = !isLaneDelegation && (busy || (isHumanTurn && !canStartHumanTurnNow))
     if (shouldEnqueue) {
       let didEnqueue = false
       setQueuedTurns(prev => {
-        if (prev.length >= MAX_QUEUED_TURNS) return prev
+        if (prev.length >= MAX_VISIBLE_QUEUED_TURNS) return prev
         didEnqueue = true
         return [
           ...prev,
@@ -2022,6 +2541,7 @@ export const AgentPane: React.FC<Props> = ({
     onRequestPaneFocus,
     preferNewThread,
     preferSend,
+    queuedTurns.length,
   ])
 
   const removeQueuedTurn = useCallback((id: string): void => {
@@ -2098,16 +2618,20 @@ export const AgentPane: React.FC<Props> = ({
   useEffect(() => {
     const head = queuedTurns[0]
     const headIsDelegation = Boolean(head?.delegation)
-    if (!canDrainAgentQueue({
-      loaded,
-      busy,
-      loopActive,
-      awaitingDelegations,
-      delegationWorkActive,
-      systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
-      headIsDelegation,
-      orchestrationWorkStyle,
-    }) || drainingRef.current) return
+    const headIsLaneDelegation = Boolean(head?.delegation?.threadId?.trim())
+    const queueReady = headIsLaneDelegation
+      ? loaded && !loopActive && !(systemFollowUpsPending || preferSend != null)
+      : canDrainAgentQueue({
+        loaded,
+        busy,
+        loopActive,
+        awaitingDelegations,
+        delegationWorkActive,
+        systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
+        headIsDelegation,
+        orchestrationWorkStyle,
+      })
+    if (!queueReady || drainingRef.current) return
     const next = head
     if (!next) return
     drainingRef.current = true
@@ -2204,35 +2728,51 @@ export const AgentPane: React.FC<Props> = ({
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     window.api.stopAgentTurn(paneId)
+    const abortedSummary = t('agentPane.delegationAbortedSummary')
+    let nextLanes = lanesRef.current
+    for (const [threadId, lane] of lanesRef.current.entries()) {
+      void window.api.saveAgentChat(chatRef, threadId, lane.messages)
+      const delegation = laneDelegationRef.current.get(threadId)
+      laneDelegationRef.current.delete(threadId)
+      laneCompletingRef.current.delete(threadId)
+      nextLanes = endLane(nextLanes, threadId)
+      if (delegation) {
+        emitDelegationResult(delegation, {
+          status: 'fail',
+          summary: abortedSummary,
+          toThreadId: threadId,
+        }, 'lane_stop')
+      }
+    }
+    lanesRef.current = nextLanes
+    bumpLanes()
     beginLiveSettle(activeAssistantIdRef.current)
     setTurnCloseReason('aborted')
     setBusy(false)
     setActivity('')
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
-    const delegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+    const delegation = activeDelegationRef.current
+      ?? peekActiveParentDelegation(paneId, metaRef.current.activeThreadId)
     const decision = decideParentDelegationNotify({
       held: Boolean(delegation),
       dispatchedNested: false,
       aborted: true,
     })
     activeDelegationRef.current = null
-    clearActiveParentDelegation(paneId)
+    if (delegation) clearActiveParentDelegation(paneId, delegation.threadId)
     if (decision === 'notify' && delegation) {
-      onDelegationTurnCompleteRef.current?.({
-        id: delegation.id,
+      emitDelegationResult(delegation, {
         status: 'aborted',
         summary: t('agentPane.delegationAbortedSummary'),
-        toAgentId: delegation.toAgentId,
-        toPaneId: paneId,
-      })
+      }, 'stop')
     }
     if (wasLoop) finishLoop('stopped')
     if (chainLoopActive) onChainLoopStop?.()
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestratorStopRef.current?.()
     }
-  }, [beginLiveSettle, chainLoopActive, clearLoopTimer, finishLoop, onChainLoopStop, paneId, t])
+  }, [beginLiveSettle, bumpLanes, chainLoopActive, chatRef, clearLoopTimer, emitDelegationResult, finishLoop, onChainLoopStop, paneId, t])
 
   useEffect(() => {
     if (!preferStop) return
@@ -2253,7 +2793,7 @@ export const AgentPane: React.FC<Props> = ({
     lastTurnRequestRef.current = null
     suppressEmptyHandlingRef.current = true
     if (wasRunning) {
-      window.api.stopAgentTurn(paneId)
+      window.api.stopAgentTurn(runKey)
     }
     beginLiveSettle(activeAssistantIdRef.current)
     loopActiveRef.current = false
@@ -2277,17 +2817,15 @@ export const AgentPane: React.FC<Props> = ({
     setMaterializingIds(new Set())
     knownMessageIdsRef.current = new Set()
     messageContentLenRef.current = new Map()
-    const clearedDelegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+    const clearedDelegation = activeDelegationRef.current
+      ?? peekActiveParentDelegation(paneId, metaRef.current.activeThreadId)
     activeDelegationRef.current = null
-    clearActiveParentDelegation(paneId)
     if (clearedDelegation) {
-      onDelegationTurnCompleteRef.current?.({
-        id: clearedDelegation.id,
+      clearActiveParentDelegation(paneId, clearedDelegation.threadId)
+      emitDelegationResult(clearedDelegation, {
         status: 'aborted',
         summary: t('agentPane.delegationAbortedSummary'),
-        toAgentId: clearedDelegation.toAgentId,
-        toPaneId: paneId,
-      })
+      }, 'reset_live_state')
     }
     setPendingImages(previous => {
       previous.forEach(image => URL.revokeObjectURL(image.previewUrl))
@@ -2301,31 +2839,38 @@ export const AgentPane: React.FC<Props> = ({
     setEditingQueuedId(null)
     setInput('')
     setMessages([])
-  }, [beginLiveSettle, clearLoopTimer, paneId, t])
+  }, [beginLiveSettle, clearLoopTimer, emitDelegationResult, paneId, runKey, t])
 
   /**
    * Abre una conversación nueva. No borra nada: el thread anterior conserva su
    * transcript y su `cliSessionId`, y se puede reanudar desde el selector.
    *
-   * Si el pane está busy, hay una delegación viva o el turno está en settle,
-   * la petición queda diferida en `pendingNewThreadRef` y se aplica cuando el
-   * turno actual cierre limpio — sin llamar a `resetLiveState`, que abortaría
-   * el turno o la delegación en curso.
+   * Si hay delegación viva en el hilo activo, la petición queda diferida hasta
+   * que cierre. Si el pane está busy por un turno humano, el turno se promueve
+   * a carril de fondo y el hilo nuevo arranca limpio sin abortar el CLI.
    */
   const startNewThread = useCallback((): void => {
     if (shouldDeferNewThread({
-      busy: busyRef.current,
       hasActiveDelegation: Boolean(activeDelegationRef.current),
     })) {
       pendingNewThreadRef.current = true
       return
     }
-    resetLiveState()
-    // El thread nuevo no tiene sesión: el turno siguiente arranca un CLI
-    // limpio y adopta la que ese CLI emita.
+    if (busyRef.current || activeAssistantIdRef.current) {
+      const threadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
+      promoteThreadTurnToBackgroundLane(threadId)
+      detachLiveTurnWithoutAbort()
+    } else {
+      resetLiveState()
+    }
     commitNewThreadCatalog()
     pendingNewThreadRef.current = false
-  }, [commitNewThreadCatalog, resetLiveState])
+  }, [
+    commitNewThreadCatalog,
+    detachLiveTurnWithoutAbort,
+    promoteThreadTurnToBackgroundLane,
+    resetLiveState,
+  ])
 
   /** Borra la conversación activa (transcript incluido) y salta a otra. */
   const deleteActiveThread = useCallback((): void => {
@@ -2340,9 +2885,10 @@ export const AgentPane: React.FC<Props> = ({
     }
     const removedId = currentMeta.activeThreadId ?? DEFAULT_THREAD_ID
     const fallbackId = crypto.randomUUID()
+    const protectedIds = liveLaneThreadIds()
     onMetaChange(previous => {
       const state = deleteThread(
-        sanitizeThreadState(previous.threads, previous.activeThreadId),
+        sanitizeThreadState(previous.threads, previous.activeThreadId, undefined, protectedIds),
         removedId,
         fallbackId,
         Date.now(),
@@ -2414,17 +2960,15 @@ export const AgentPane: React.FC<Props> = ({
       setActivity('')
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
-      const cutDelegation = activeDelegationRef.current ?? peekActiveParentDelegation(paneId)
+      const cutDelegation = activeDelegationRef.current
+        ?? peekActiveParentDelegation(paneId, metaRef.current.activeThreadId)
       activeDelegationRef.current = null
-      clearActiveParentDelegation(paneId)
       if (cutDelegation) {
-        onDelegationTurnCompleteRef.current?.({
-          id: cutDelegation.id,
+        clearActiveParentDelegation(paneId, cutDelegation.threadId)
+        emitDelegationResult(cutDelegation, {
           status: 'aborted',
           summary: t('agentPane.delegationAbortedSummary'),
-          toAgentId: cutDelegation.toAgentId,
-          toPaneId: paneId,
-        })
+        }, 'start_loop_cut')
       }
       if (chainLoopActive) onChainLoopStop?.()
     }
@@ -2442,6 +2986,7 @@ export const AgentPane: React.FC<Props> = ({
     beginLiveSettle,
     chainLoopActive,
     clearLoopTimer,
+    emitDelegationResult,
     input,
     onChainLoopStop,
     onRequestPaneFocus,
@@ -2765,16 +3310,6 @@ export const AgentPane: React.FC<Props> = ({
               : { ...previous, acceptDelegations: false }
           ))
         }}
-        onAllowExpertReplicasChange={allow => {
-          onMetaChange(previous => (
-            allow
-              ? { ...previous, allowExpertReplicas: true }
-              : (() => {
-                const { allowExpertReplicas: _drop, ...rest } = previous
-                return rest
-              })()
-          ))
-        }}
         onOrchestrationMaxRoundsChange={n => {
           onMetaChange(previous => {
             const maxRounds = resolveOrchestrationMaxRounds(n)
@@ -2789,11 +3324,7 @@ export const AgentPane: React.FC<Props> = ({
           onMetaChange(previous => {
             if (previous.coordination !== 'orchestrator') return previous
             if (workStyle === 'turbo') {
-              return {
-                ...previous,
-                orchestrationWorkStyle: 'turbo',
-                allowExpertReplicas: true,
-              }
+              return { ...previous, orchestrationWorkStyle: 'turbo' }
             }
             const { orchestrationWorkStyle: _drop, ...rest } = previous
             // Al volver a linear no apagar réplicas automáticamente.

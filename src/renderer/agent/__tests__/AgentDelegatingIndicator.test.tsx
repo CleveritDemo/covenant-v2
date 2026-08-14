@@ -15,6 +15,45 @@ vi.mock('../../components/ui/Icon', () => ({
 }))
 
 describe('AgentDelegatingIndicator per-row Stop', () => {
+  it('shows PlaneBusyDot on running rows and flat dot on other statuses', () => {
+    const { container } = render(
+      <AgentDelegatingIndicator
+        label="Waiting 0/2"
+        items={[
+          {
+            id: 'd1',
+            label: 'frontend',
+            status: 'running',
+            statusLabel: 'running',
+          },
+          {
+            id: 'd2',
+            label: 'backend',
+            status: 'deferred',
+            statusLabel: 'queued',
+          },
+          {
+            id: 'd3',
+            label: 'qa',
+            status: 'done',
+            statusLabel: 'done',
+          },
+        ]}
+      />,
+    )
+    const runningRow = container.querySelector('.agent-delegating__item--running')
+    expect(runningRow?.querySelector('.plane-busy-dot')).not.toBeNull()
+    expect(runningRow?.querySelector('.agent-delegating__dot')).toBeNull()
+
+    const deferredRow = container.querySelector('.agent-delegating__item--deferred')
+    expect(deferredRow?.querySelector('.agent-delegating__dot')).not.toBeNull()
+    expect(deferredRow?.querySelector('.plane-busy-dot')).toBeNull()
+
+    const doneRow = container.querySelector('.agent-delegating__item--done')
+    expect(doneRow?.querySelector('.agent-delegating__dot')).not.toBeNull()
+    expect(doneRow?.querySelector('.plane-busy-dot')).toBeNull()
+  })
+
   it('calls onStopItem only for the running row', () => {
     const onStopItem = vi.fn()
     render(

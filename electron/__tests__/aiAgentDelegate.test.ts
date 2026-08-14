@@ -73,19 +73,19 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(text).not.toContain('"delegations"')
   })
 
-  it('documents worktrees and optional expert replicas', () => {
+  it('documents worktrees and parallel lanes', () => {
     const base = buildAiAgentDelegateInstruction({ allowedAgentIds: ['frontend'] })
     expect(base).toContain('git worktrees')
-    expect(base).not.toContain('Parallel experts')
-    const withReplicas = buildAiAgentDelegateInstruction({
+    expect(base).toContain('Parallel lanes')
+    expect(base).toContain('agentId#2')
+    const withoutLanes = buildAiAgentDelegateInstruction({
       allowedAgentIds: ['frontend'],
-      allowExpertReplicas: true,
+      allowParallelLanes: false,
     })
-    expect(withReplicas).toContain('Parallel experts')
-    expect(withReplicas).toContain('agentId#2')
+    expect(withoutLanes).not.toContain('Parallel lanes')
   })
 
-  it('injects turbo job guidance and forces replica wording', () => {
+  it('injects turbo job guidance with parallel lane wording', () => {
     const text = buildAiAgentDelegateInstruction({
       allowedAgentIds: ['frontend'],
       workStyle: 'turbo',
@@ -94,7 +94,7 @@ describe('buildAiAgentDelegateInstruction', () => {
     })
     expect(text).toContain('Work style: turbo')
     expect(text).toContain('job-abc')
-    expect(text).toContain('Parallel experts')
+    expect(text).toContain('Parallel lanes')
     expect(text).toContain('per job/user message')
   })
 })

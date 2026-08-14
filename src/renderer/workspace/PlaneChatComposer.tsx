@@ -27,6 +27,7 @@ import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
 import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
+import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
@@ -45,10 +46,6 @@ interface ComposerDraft {
 export interface PlaneChatAgentOption {
   paneId: string
   title: string
-  /** Réplica temporal del experto: `R2`, `R3`… */
-  instanceTag?: string
-  /** Experto base: réplicas suyas vivas ahora mismo. */
-  replicaCount?: number
   busy: boolean
   /** Loop local o cadena activa: el composer debe poder mostrar Stop. */
   loopActive?: boolean
@@ -113,6 +110,8 @@ export interface PlaneChatComposerProps {
    * y `BrainstormRoom`: refrescar el catálogo del proyecto en el padre.
    */
   onContextSaved?: () => void
+  /** Terminal/explorer abierto: oculta partículas busy aunque el agente siga trabajando. */
+  suppressAuroraParticles?: boolean
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -136,6 +135,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   systemSoundsEnabled = true,
   cwd = '',
   onContextSaved,
+  suppressAuroraParticles = false,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -470,6 +470,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       onDrop={handleDrop}
     >
       <PlaneComposerAurora />
+      <PlaneComposerAuroraParticles
+        active={composerWorking && !suppressAuroraParticles}
+      />
       <div className="plane-chat-composer__body">
         <DictationListeningOverlay
           active={listening}
@@ -528,8 +531,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                 <PlaneAgentBadge
                   key={agent.paneId}
                   name={agent.title}
-                  instanceTag={agent.instanceTag}
-                  replicaCount={agent.replicaCount}
                   selected={agent.paneId === selectedAgentId}
                   busy={agent.busy}
                   onSelect={() => onSelectAgent(agent.paneId)}

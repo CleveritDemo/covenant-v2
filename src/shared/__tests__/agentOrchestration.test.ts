@@ -27,7 +27,18 @@ import {
   sanitizeOrchestrationMaxRounds,
   shouldWakeOrchestratorOnDelegationComplete,
   DELEGATE_OBJECTIVE_MAX_LENGTH,
+  type DelegateResult,
 } from '../agentOrchestration'
+
+function stubResult(
+  partial: Partial<DelegateResult> & Pick<DelegateResult, 'id' | 'status' | 'summary'>,
+): DelegateResult {
+  return {
+    fromPaneId: 'p-orq',
+    orchestrationJobId: 'job-1',
+    ...partial,
+  }
+}
 
 describe('sanitizeOrchestrationMaxRounds', () => {
   it('defaults, clamps, truncates, and keeps unlimited sentinel 0', () => {
@@ -201,6 +212,31 @@ describe('sanitizeDelegateRequest', () => {
     expect(sanitizeDelegateRequest({ toAgentId: 'qa' })).toBeNull()
   })
 
+  it('always generates host id and preserves model id as ref', () => {
+    const a = sanitizeDelegateRequest({
+      id: 'model-a',
+      toAgentId: 'qa',
+      objective: 'one',
+    })
+    const b = sanitizeDelegateRequest({
+      id: 'model-a',
+      toAgentId: 'qa',
+      objective: 'two',
+    })
+    expect(a?.ref).toBe('model-a')
+    expect(b?.ref).toBe('model-a')
+    expect(a?.id).toBeTruthy()
+    expect(b?.id).toBeTruthy()
+    expect(a?.id).not.toBe('model-a')
+    expect(a?.id).not.toBe(b?.id)
+  })
+
+  it('omits ref when payload has no model id', () => {
+    const req = sanitizeDelegateRequest({ toAgentId: 'qa', objective: 'go' })
+    expect(req?.ref).toBeUndefined()
+    expect(req?.id).toBeTruthy()
+  })
+
   it('trims and truncates objective to DELEGATE_OBJECTIVE_MAX_LENGTH (4000)', () => {
     expect(DELEGATE_OBJECTIVE_MAX_LENGTH).toBe(4000)
     const long = `  ${'x'.repeat(4500)}  `
@@ -222,13 +258,15 @@ describe('buildOrchestratorAgentsBlock', () => {
     expect(block).toContain('git worktree')
   })
 
-  it('documents expert replicas when enabled', () => {
+  it('documents parallel lanes by default', () => {
     const block = buildOrchestratorAgentsBlock(
       [{ agentId: 'frontend', paneId: 'p1', name: 'Frontend' }],
-      { allowExpertReplicas: true },
+      { allowParallelLanes: true },
     )
-    expect(block).toContain('Expert replicas')
-    expect(block).toContain('frontend#2')
+    expect(block).toContain('Parallel lanes')
+    expect(block).toContain('agentId#2')
+    expect(block).not.toContain('Expert replicas')
+    expect(block).not.toContain('ephemeral specialist replicas')
   })
 })
 
@@ -243,11 +281,13 @@ describe('turbo work style prompt', () => {
     expect(text).toContain('per job/user message')
     expect(text).toContain('without waiting for prior specialist waves')
     expect(text).toContain('working tree')
+    expect(text).toContain('parallel delegation')
+    expect(text).not.toContain('expert replicas')
   })
 
   it('annotates batched follow-up with concurrent job guidance', () => {
     const text = buildBatchedDelegationFollowUp(
-      [{ id: 'd1', status: 'ok', summary: 'done' }],
+      [stubResult({ id: 'd1', status: 'ok', summary: 'done', orchestrationJobId: 'job-9' })],
       { round: 1, maxRounds: 3, orchestrationJobId: 'job-9', workStyle: 'turbo' },
     )
     expect(text).toContain('orchestrationJobId: job-9')
@@ -259,19 +299,19 @@ describe('turbo work style prompt', () => {
 
 describe('formatDelegationResultFollowUp', () => {
   it('includes status and summary', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd1',
       status: 'ok',
       summary: 'All green',
       toAgentId: 'qa',
-    })
+    }))
     expect(text).toContain('status: ok')
     expect(text).toContain('All green')
   })
 
   it('adds stop conditions when the batch is clear', () => {
     const text = formatDelegationResultFollowUp(
-      { id: 'd1', status: 'ok', summary: 'done' },
+      stubResult({ id: 'd1', status: 'ok', summary: 'done' }),
       { round: 2, maxRounds: 3, batchRemaining: 0 },
     )
     expect(text).toContain('orchestrationRound: 2/3')
@@ -281,7 +321,7 @@ describe('formatDelegationResultFollowUp', () => {
 
   it('asks continuous PO to emit next slice without asking the user', () => {
     const text = formatDelegationResultFollowUp(
-      { id: 'd1', status: 'ok', summary: 'PASS' },
+      stubResult({ id: 'd1', status: 'ok', summary: 'PASS' }),
       { round: 1, maxRounds: 5, batchRemaining: 0, continuousProductOwner: true },
     )
     expect(text).toContain('next slice toward the user request')
@@ -294,7 +334,7 @@ describe('formatDelegationResultFollowUp', () => {
 
   it('uses unlimited wording and N/∞ when maxRounds is 0', () => {
     const text = formatDelegationResultFollowUp(
-      { id: 'd1', status: 'ok', summary: 'PASS' },
+      stubResult({ id: 'd1', status: 'ok', summary: 'PASS' }),
       { round: 4, maxRounds: 0, batchRemaining: 0, continuousProductOwner: true },
     )
     expect(text).toContain(`orchestrationRound: ${formatOrchestrationRoundLabel(4, 0)}`)
@@ -305,9 +345,19 @@ describe('formatDelegationResultFollowUp', () => {
     expect(text).not.toContain('At most 0')
   })
 
+  it('mentions model ref on the id line when present', () => {
+    const text = formatDelegationResultFollowUp(stubResult({
+      id: 'host-d1',
+      ref: 'model-d1',
+      status: 'ok',
+      summary: 'done',
+    }))
+    expect(text).toContain('id: host-d1 (ref: model-d1)')
+  })
+
   it('asks to wait when specialists remain in the batch', () => {
     const text = formatDelegationResultFollowUp(
-      { id: 'd1', status: 'ok', summary: 'done' },
+      stubResult({ id: 'd1', status: 'ok', summary: 'done' }),
       { batchRemaining: 2 },
     )
     expect(text).toContain('pendingInBatch: 2')
@@ -330,8 +380,8 @@ describe('buildBatchedDelegationFollowUp', () => {
   it('includes all specialist summaries when the batch completes', () => {
     const text = buildBatchedDelegationFollowUp(
       [
-        { id: 'd1', status: 'ok', summary: 'Auth done', toAgentId: 'fullstack' },
-        { id: 'd2', status: 'fail', summary: 'QA blocked', toAgentId: 'qa' },
+        stubResult({ id: 'd1', status: 'ok', summary: 'Auth done', toAgentId: 'fullstack' }),
+        stubResult({ id: 'd2', status: 'fail', summary: 'QA blocked', toAgentId: 'qa' }),
       ],
       { round: 1, maxRounds: 5 },
     )
@@ -346,8 +396,8 @@ describe('buildBatchedDelegationFollowUp', () => {
   it('passes continuousProductOwner guidance only on the last result', () => {
     const text = buildBatchedDelegationFollowUp(
       [
-        { id: 'd1', status: 'ok', summary: 'first' },
-        { id: 'd2', status: 'ok', summary: 'second' },
+        stubResult({ id: 'd1', status: 'ok', summary: 'first' }),
+        stubResult({ id: 'd2', status: 'ok', summary: 'second' }),
       ],
       { round: 1, maxRounds: 5, continuousProductOwner: true },
     )

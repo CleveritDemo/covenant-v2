@@ -5,7 +5,7 @@
   right: var(--plane-top-bar-inset, 16px);
   left: auto;
   bottom: auto;
-  /* Sobre mapa (16) y dock/fade (14); bajo FABs (50). */
+  /* Sobre mapa (16) y dock/fade (14); bajo mapa elevado (60) y FABs (70, sobre el mapa elevado). */
   z-index: 41;
   box-sizing: border-box;
   display: flex;

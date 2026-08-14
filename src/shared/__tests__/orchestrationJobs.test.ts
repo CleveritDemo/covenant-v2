@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   awaitingOrchestratorPaneIds,
   abortOneDelegationInJob,
+  abortOrchestrationJob,
+  cancelDeferredDelegationsForStoppedPane,
   canReconcileIdlePending,
   createOrchestrationJob,
+  decideJobForTurn,
+  dedupeDelegateResultsById,
   findJobByDelegation,
   findPendingDelegationByToPane,
   IDLE_PENDING_GRACE_MS,
@@ -22,7 +26,17 @@ import {
   upsertOrchestrationWaveItem,
   type OrchestrationJob,
 } from '../orchestrationJobs'
-import { ORCHESTRATION_UNLIMITED_ROUNDS } from '../agentOrchestration'
+import { ORCHESTRATION_UNLIMITED_ROUNDS, type DelegateResult } from '../agentOrchestration'
+
+function stubResult(
+  partial: Partial<DelegateResult> & Pick<DelegateResult, 'id' | 'status' | 'summary'>,
+): DelegateResult {
+  return {
+    fromPaneId: 'orch',
+    orchestrationJobId: 'job-1',
+    ...partial,
+  }
+}
 
 function jobWithPending(
   fromPaneId: string,
@@ -52,6 +66,20 @@ describe('orchestrationWorkStyle helpers', () => {
     expect(shouldAbortOnHumanTurn('linear')).toBe(true)
     expect(shouldAbortOnHumanTurn('turbo')).toBe(false)
     expect(shouldAbortOnHumanTurn()).toBe(true)
+  })
+})
+
+describe('dedupeDelegateResultsById', () => {
+  it('keeps first occurrence per id and drops blanks/duplicates', () => {
+    const first = stubResult({ id: 'd1', status: 'ok', summary: 'a', toAgentId: 'fe' })
+    const dup = stubResult({ id: 'd1', status: 'ok', summary: 'b', toAgentId: 'fe' })
+    const second = stubResult({ id: 'd2', status: 'ok', summary: 'c', toAgentId: 'be' })
+    expect(dedupeDelegateResultsById([first, dup, second])).toEqual([first, second])
+    expect(dedupeDelegateResultsById([
+      stubResult({ id: '  ', status: 'ok', summary: 'x', toAgentId: 'fe' }),
+      second,
+    ])).toEqual([second])
+    expect(dedupeDelegateResultsById([])).toEqual([])
   })
 })
 
@@ -125,48 +153,54 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
     expect(items.map(item => item.toPaneId)).toEqual(['pane-a', 'pane-b'])
   })
 
-  it('flattens deferred replicas with baseAgentId and pane for Waiting Stop', () => {
+  it('flattens deferred items with pane and thread for Waiting Stop', () => {
     const job = createOrchestrationJob('orch')
     job.deferred.push({
       tabId: 'tab',
-      delegation: { id: 'd-replica', toAgentId: 'frontend#2', objective: 'x' },
-      toPaneId: 'pane-replica',
-      toAgentId: 'frontend-2',
-      baseAgentId: 'frontend',
+      delegation: { id: 'd-lane', toAgentId: 'frontend', objective: 'x' },
+      toPaneId: 'pane-front',
+      toAgentId: 'frontend',
+    })
+    upsertOrchestrationWaveItem(job, {
+      delegationId: 'd-lane',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-front',
+      toThreadId: 'thread-lane-1',
+      status: 'deferred',
     })
     expect(flattenAwaitingItemsFromJobs([job])).toEqual([
       {
-        delegationId: 'd-replica',
-        toAgentId: 'frontend-2',
-        toPaneId: 'pane-replica',
-        baseAgentId: 'frontend',
+        delegationId: 'd-lane',
+        toAgentId: 'frontend',
+        toPaneId: 'pane-front',
+        toThreadId: 'thread-lane-1',
         status: 'deferred',
       },
     ])
   })
 
-  it('upserts wave items with replica metadata instead of dropping pane/base info', () => {
+  it('upserts wave items with pane and thread instead of dropping lane info', () => {
     const job = createOrchestrationJob('orch')
     upsertOrchestrationWaveItem(job, {
-      delegationId: 'd-replica',
-      toAgentId: 'frontend-2',
-      toPaneId: 'pane-replica',
-      baseAgentId: 'frontend',
+      delegationId: 'd-lane',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-front',
+      toThreadId: 'thread-lane-1',
       status: 'running',
     })
     upsertOrchestrationWaveItem(job, {
-      delegationId: 'd-replica',
-      toAgentId: 'frontend-2',
-      toPaneId: 'pane-replica-new',
-      baseAgentId: 'frontend',
+      delegationId: 'd-lane',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-front-new',
+      toThreadId: 'thread-lane-2',
       status: 'running',
     })
     expect(job.waveItems).toEqual([
       {
-        delegationId: 'd-replica',
-        toAgentId: 'frontend-2',
-        toPaneId: 'pane-replica-new',
-        baseAgentId: 'frontend',
+        delegationId: 'd-lane',
+        toAgentId: 'frontend',
+        toPaneId: 'pane-front-new',
+        toThreadId: 'thread-lane-2',
         status: 'running',
       },
     ])
@@ -284,21 +318,19 @@ describe('abortOneDelegationInJob', () => {
     expect(job.pending.has('d1')).toBe(true)
   })
 
-  it('returns baseAgentId when aborting a deferred replica', () => {
+  it('returns pane and thread when aborting a deferred item', () => {
     const job = createOrchestrationJob('orch')
     job.deferred.push({
       tabId: 't',
-      delegation: { id: 'd-replica', toAgentId: 'frontend#2', objective: 'x' },
-      toPaneId: 'pane-replica',
-      toAgentId: 'frontend-2',
-      baseAgentId: 'frontend',
+      delegation: { id: 'd-lane', toAgentId: 'frontend', objective: 'x' },
+      toPaneId: 'pane-front',
+      toAgentId: 'frontend',
     })
-    expect(abortOneDelegationInJob(job, 'd-replica')).toMatchObject({
+    expect(abortOneDelegationInJob(job, 'd-lane')).toMatchObject({
       ok: true,
       wasDeferred: true,
-      toPaneId: 'pane-replica',
-      toAgentId: 'frontend-2',
-      baseAgentId: 'frontend',
+      toPaneId: 'pane-front',
+      toAgentId: 'frontend',
     })
   })
 })
@@ -352,5 +384,145 @@ describe('linear cleanup vs turbo parallel human jobs', () => {
     jobB.jobId = 'job-b'
     expect(findJobByDelegation([jobA, jobB], 'd-a')?.jobId).toBe('job-a')
     expect(findJobByDelegation([jobA, jobB], 'd-b')?.jobId).toBe('job-b')
+  })
+})
+
+describe('cancelDeferredDelegationsForStoppedPane', () => {
+  it('quita todas las diferidas del pane detenido y deja vivas las de otros panes', () => {
+    const job = createOrchestrationJob('p-orq')
+    job.pending.set('d-live', {
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+      toThreadId: 'thread-live',
+      startedAt: Date.now(),
+    })
+    job.deferred.push(
+      {
+        tabId: 'tab-1',
+        delegation: { id: 'd-def-1', toAgentId: 'frontend', objective: 'one' },
+        toPaneId: 'pane-fe',
+        toAgentId: 'frontend',
+      },
+      {
+        tabId: 'tab-1',
+        delegation: { id: 'd-def-2', toAgentId: 'frontend', objective: 'two' },
+        toPaneId: 'pane-fe',
+        toAgentId: 'frontend',
+      },
+      {
+        tabId: 'tab-1',
+        delegation: { id: 'd-other', toAgentId: 'backend', objective: 'other' },
+        toPaneId: 'pane-be',
+        toAgentId: 'backend',
+      },
+    )
+    for (const id of ['d-live', 'd-def-1', 'd-def-2', 'd-other']) {
+      upsertOrchestrationWaveItem(job, {
+        delegationId: id,
+        toAgentId: id === 'd-other' ? 'backend' : 'frontend',
+        toPaneId: id === 'd-other' ? 'pane-be' : 'pane-fe',
+        status: id === 'd-live' ? 'running' : 'deferred',
+      })
+    }
+
+    const jobsByPane = new Map([['p-orq', new Map([[job.jobId, job]])]])
+    const cancelled = cancelDeferredDelegationsForStoppedPane(jobsByPane, 'pane-fe')
+
+    expect(job.pending.size).toBe(1)
+    expect(job.deferred).toHaveLength(1)
+    expect(job.deferred[0].delegation.id).toBe('d-other')
+    expect(cancelled.map(item => item.delegationId).sort()).toEqual(['d-def-1', 'd-def-2'])
+    expect(cancelled.every(item => item.fromPaneId === 'p-orq')).toBe(true)
+    expect(job.waveItems.some(item => item.delegationId === 'd-def-1')).toBe(false)
+    expect(job.waveItems.some(item => item.delegationId === 'd-def-2')).toBe(false)
+    expect(job.waveItems.some(item => item.delegationId === 'd-live')).toBe(true)
+    expect(job.waveItems.some(item => item.delegationId === 'd-other')).toBe(true)
+  })
+})
+
+describe('decideJobForTurn', () => {
+  it('returns existing when wanted id is in the map', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const job = createOrchestrationJob('orch', 'job-live')
+    jobs.set(job.jobId, job)
+    expect(decideJobForTurn({ jobs, wantedJobId: 'job-live', workStyle: 'turbo' }))
+      .toEqual({ kind: 'existing', jobId: 'job-live' })
+  })
+
+  it('returns reuseOnly in linear when exactly one alive job exists', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const job = createOrchestrationJob('orch', 'job-linear')
+    jobs.set(job.jobId, job)
+    expect(decideJobForTurn({ jobs, workStyle: 'linear' }))
+      .toEqual({ kind: 'reuseOnly', jobId: 'job-linear' })
+  })
+
+  it('returns fresh with staleJobId when wanted id is missing', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    expect(decideJobForTurn({ jobs, wantedJobId: 'job-ghost', workStyle: 'turbo' }))
+      .toEqual({ kind: 'fresh', staleJobId: 'job-ghost' })
+    expect(decideJobForTurn({ jobs, wantedJobId: 'job-ghost', workStyle: 'linear' }))
+      .toEqual({ kind: 'fresh', staleJobId: 'job-ghost' })
+  })
+
+  it('returns fresh in turbo when no wanted id even with alive jobs', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const a = createOrchestrationJob('orch', 'job-a')
+    const b = createOrchestrationJob('orch', 'job-b')
+    jobs.set(a.jobId, a)
+    jobs.set(b.jobId, b)
+    expect(decideJobForTurn({ jobs, workStyle: 'turbo' })).toEqual({ kind: 'fresh' })
+  })
+
+  it('never reuses a missing wanted id as existing', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const alive = createOrchestrationJob('orch', 'job-alive')
+    jobs.set(alive.jobId, alive)
+    const decision = decideJobForTurn({
+      jobs,
+      wantedJobId: 'job-missing',
+      workStyle: 'linear',
+    })
+    expect(decision).toEqual({ kind: 'fresh', staleJobId: 'job-missing' })
+    expect(decision).not.toEqual({ kind: 'existing', jobId: 'job-missing' })
+  })
+})
+
+describe('abortOrchestrationJob', () => {
+  it('aborts one turbo job without touching a sibling job on the same orchestrator', () => {
+    const jobs = new Map<string, OrchestrationJob>()
+    const jobA = createOrchestrationJob('orch', 'job-a')
+    jobA.pending.set('d-a', {
+      toPaneId: 'pane-a',
+      toAgentId: 'frontend',
+      toThreadId: 'thread-a',
+    })
+    const jobB = createOrchestrationJob('orch', 'job-b')
+    jobB.pending.set('d-b', {
+      toPaneId: 'pane-b',
+      toAgentId: 'backend',
+      toThreadId: 'thread-b',
+    })
+    jobB.deferred.push({
+      tabId: 'tab',
+      delegation: { id: 'd-def', toAgentId: 'qa', objective: 'wait' },
+      toPaneId: 'pane-qa',
+      toAgentId: 'qa',
+    })
+    jobs.set(jobA.jobId, jobA)
+    jobs.set(jobB.jobId, jobB)
+
+    const aborted = abortOrchestrationJob(jobs, 'job-a')
+    expect(aborted.ok).toBe(true)
+    expect(aborted.abortedTargets).toEqual([{ toPaneId: 'pane-a', toThreadId: 'thread-a' }])
+    expect(jobA.pending.size).toBe(0)
+    expect(jobA.deferred).toEqual([])
+    expect(jobA.superseded).toBe(true)
+
+    expect(jobB.pending.size).toBe(1)
+    expect(jobB.deferred).toHaveLength(1)
+    expect(jobB.superseded).toBeFalsy()
+    expect(jobs.has('job-a')).toBe(true)
+    expect(jobs.has('job-b')).toBe(true)
   })
 })

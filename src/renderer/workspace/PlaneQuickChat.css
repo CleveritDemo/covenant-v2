@@ -8,15 +8,9 @@
   --plane-chat-toolbar-clearance: 44px;
   /* Aire bajo la última burbuja: va en el scroll interior, no en el shell. */
   --plane-chat-last-bubble-gap: 56px;
-  /* Solape del fade: solo dentro del gap del scroll, no come el texto. */
-  --plane-chat-fade-overlap: clamp(
-    20px,
-    calc(var(--plane-chat-last-bubble-gap) * 0.55),
-    36px
-  );
   position: relative;
   flex: 1 1 auto;
-  /* Ancho completo: los fades (::before/::after) cruzan todo el plano. */
+  /* Ancho completo: el velo superior (::before) cruza todo el plano. */
   width: 100%;
   max-width: 100%;
   min-height: 0;
@@ -68,37 +62,6 @@
 .plane-quick-chat.agent-pane {
   background: transparent;
   overflow: visible;
-}
-
-/* Velo inferior: pegado al composer (bottom:0). Sólido solo en clearance;
-   el fade solapa el padding-bottom del scroll (gap), no el texto. */
-.plane-quick-chat.agent-pane::after {
-  content: '';
-  position: absolute;
-  top: auto;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: calc(
-    var(--plane-composer-clearance, 112px)
-      + var(--plane-chat-fade-overlap)
-  );
-  z-index: 4;
-  pointer-events: none;
-  border: none;
-  opacity: 1;
-  /* Sólido en el composer; se disuelve en el gap interior del scroll. */
-  background: linear-gradient(
-    to top,
-    var(--bg) 0,
-    var(--bg) calc(100% - var(--plane-chat-fade-overlap)),
-    color-mix(in srgb, var(--bg) 55%, transparent)
-      calc(100% - var(--plane-chat-fade-overlap) * 0.35),
-    transparent 100%
-  );
-  background-repeat: no-repeat;
-  background-position: center bottom;
-  background-size: 100% 100%;
 }
 
 .plane-quick-chat__enter {

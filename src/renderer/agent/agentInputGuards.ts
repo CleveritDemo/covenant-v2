@@ -36,6 +36,19 @@ export interface AgentQueueDrainGuard {
  * Cabeza delegación: permite drenar aunque delegationWorkActive (defensa post-deadlock).
  * Turbo: ignora awaitingDelegations para turnos humanos.
  */
+export function canStartHumanTurnNow(state: {
+  busy: boolean
+  loopActive: boolean
+  awaitingDelegations: boolean
+  delegationWorkActive: boolean
+  systemFollowUpsPending: boolean
+  orchestrationWorkStyle?: 'linear' | 'turbo'
+}): boolean {
+  const awaitingBlocksHuman = state.orchestrationWorkStyle !== 'turbo' && state.awaitingDelegations
+  return !state.busy && !awaitingBlocksHuman && !state.delegationWorkActive
+    && !state.systemFollowUpsPending && !state.loopActive
+}
+
 export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
   const delegationHoldOk = state.headIsDelegation === true || !state.delegationWorkActive
   const awaitingOk = state.orchestrationWorkStyle === 'turbo' || !state.awaitingDelegations

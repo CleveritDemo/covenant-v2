@@ -1,17 +1,8 @@
 /**
  * Registry central de delegaciones vivas para el orquestador (App.tsx).
- *
- * Antes: `handleDelegationTurnComplete` buscaba el job recorriendo
- * `orchestrationJobsByPaneRef`; si no lo encontraba (resultado tardío, job
- * superseded, remount), hacía `console.warn` y retornaba sin cerrar la réplica
- * ni limpiar el worktree. Ese silencio dejaba paneles fantasma.
- *
- * Este módulo es puro (map<delegationId, entry>). El renderer lo mantiene en
- * un ref y consulta aquí el estado terminal cuando el job "oficial" ya no
- * existe. La disposición efectiva de la réplica sigue corriendo en App.tsx
- * (necesita `handleClosePane` + `tabsRef`); acá sólo decidimos qué hacer y
- * marcamos idempotencia.
  */
+
+import type { DelegateResult } from './agentOrchestration'
 
 export type DelegationRuntimeStatus =
   | 'pending'
@@ -19,7 +10,6 @@ export type DelegationRuntimeStatus =
   | 'completed'
   | 'orphaned'
   | 'superseded'
-  | 'replica_disposed'
 
 export type DelegationRuntimeWorktreeInfo = {
   worktreePath: string
@@ -33,6 +23,8 @@ export type DelegationRuntimeEntry = {
   fromPaneId: string
   toPaneId: string
   toAgentId: string
+  /** Carril de hilo del experto base que ejecuta la delegación. */
+  toThreadId?: string
   jobId: string
   baseAgentId?: string
   /**
@@ -43,11 +35,8 @@ export type DelegationRuntimeEntry = {
    */
   parentDelegationId?: string
   worktreeInfo?: DelegationRuntimeWorktreeInfo
-  disposeReplica: boolean
   status: DelegationRuntimeStatus
   registeredAt: number
-  /** Bandera para no cerrar dos veces la misma réplica. */
-  replicaDisposed: boolean
 }
 
 export type DelegationRuntimeRegistry = Map<string, DelegationRuntimeEntry>
@@ -57,10 +46,10 @@ export type RegisterDelegationRuntimeInput = {
   fromPaneId: string
   toPaneId: string
   toAgentId: string
+  toThreadId?: string
   jobId: string
   baseAgentId?: string
   parentDelegationId?: string
-  disposeReplica: boolean
   worktreeInfo?: DelegationRuntimeWorktreeInfo
 }
 
@@ -75,13 +64,12 @@ export function registerDelegationRuntime(
     toPaneId: input.toPaneId,
     toAgentId: input.toAgentId,
     jobId: input.jobId,
+    ...(input.toThreadId ? { toThreadId: input.toThreadId } : {}),
     ...(input.baseAgentId ? { baseAgentId: input.baseAgentId } : {}),
     ...(input.parentDelegationId ? { parentDelegationId: input.parentDelegationId } : {}),
     ...(input.worktreeInfo ? { worktreeInfo: input.worktreeInfo } : {}),
-    disposeReplica: input.disposeReplica,
     status: 'pending',
     registeredAt: now,
-    replicaDisposed: false,
   }
   registry.set(input.delegationId, entry)
   return entry
@@ -123,24 +111,6 @@ export function deleteDelegationRuntime(
 }
 
 /**
- * Decide si corresponde cerrar la réplica ahora. Idempotente: si ya se cerró
- * (o el entry no tiene disposeReplica), devuelve false y no altera nada.
- * Marca `replicaDisposed=true` cuando devuelve true, para bloquear reentradas.
- */
-export function claimReplicaDispose(
-  registry: DelegationRuntimeRegistry,
-  delegationId: string,
-): DelegationRuntimeEntry | undefined {
-  const entry = registry.get(delegationId)
-  if (!entry) return undefined
-  if (!entry.disposeReplica) return undefined
-  if (entry.replicaDisposed) return undefined
-  entry.replicaDisposed = true
-  entry.status = 'replica_disposed'
-  return entry
-}
-
-/**
  * Lista todas las delegaciones anidadas vivas de un padre. Útil para
  * inspección/limpieza si el orquestador se destruye antes que sus anidadas.
  */
@@ -155,4 +125,40 @@ export function listNestedDelegations(
     if (entry.parentDelegationId === parent) out.push(entry)
   }
   return out
+}
+
+export type DelegationDeliveryResolution =
+  | { kind: 'deliver'; entry: DelegationRuntimeEntry }
+  | { kind: 'mismatch'; entry: DelegationRuntimeEntry; reason: 'fromPaneId' | 'jobId' | 'id' }
+  | { kind: 'unknown' }
+
+/**
+ * Valida dirección de un resultado antes de entregarlo al orquestador emisor.
+ * Solo devuelve `deliver` cuando fromPaneId, orchestrationJobId e id coinciden
+ * exactamente con la entry registrada.
+ */
+export function resolveDelegationDelivery(
+  registry: DelegationRuntimeRegistry,
+  result: DelegateResult,
+): DelegationDeliveryResolution {
+  const id = result.id?.trim()
+  if (!id) return { kind: 'unknown' }
+
+  const entry = registry.get(id)
+  if (!entry) return { kind: 'unknown' }
+
+  const fromPaneId = result.fromPaneId?.trim()
+  const jobId = result.orchestrationJobId?.trim()
+
+  if (!fromPaneId || entry.fromPaneId !== fromPaneId) {
+    return { kind: 'mismatch', entry, reason: 'fromPaneId' }
+  }
+  if (!jobId || entry.jobId !== jobId) {
+    return { kind: 'mismatch', entry, reason: 'jobId' }
+  }
+  if (entry.delegationId !== id) {
+    return { kind: 'mismatch', entry, reason: 'id' }
+  }
+
+  return { kind: 'deliver', entry }
 }

@@ -145,6 +145,8 @@ export interface TabAgenticPlaneProps {
   onNewThread: (paneId: string) => void
   /** Reanuda otra conversación del agente. */
   onSelectThread: (paneId: string, threadId: string) => void
+  /** Abre el chat del agente y selecciona un hilo desde la card mini del plano. */
+  onOpenAgentThread?: (paneId: string, threadId: string) => void
   /** Retitula la conversación activa del agente. */
   onRenameThread: (paneId: string, title: string) => void
   /** Conversaciones del agente con el chat abierto. */
@@ -354,6 +356,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onClearConversation,
   onNewThread,
   onSelectThread,
+  onOpenAgentThread,
   onRenameThread,
   openChatThreads = [],
   openChatActiveThreadId = '',
@@ -553,8 +556,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         return {
           paneId: entity.paneId,
           title: entity.title,
-          ...(entity.instanceTag ? { instanceTag: entity.instanceTag } : {}),
-          ...(entity.replicaCount ? { replicaCount: entity.replicaCount } : {}),
           monogram: entity.monogram,
           busy: Boolean(status?.busy ?? entity.busy),
           loopActive: Boolean(status?.loopActive),
@@ -647,6 +648,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     ? agentStatuses[openChatAgentId] ?? null
     : null
 
+  const openChatRunningThreadIds = useMemo(() => {
+    if (!openChatAgentId) return []
+    const entity = entities.find(
+      candidate => candidate.paneId === openChatAgentId && candidate.kind === 'agent',
+    )
+    return entity?.threads?.filter(thread => thread.running).map(thread => thread.id) ?? []
+  }, [entities, openChatAgentId])
+
   // Agentes no expanden ventana; el chat del plano no compite con window.open.
   const quickChatVisible = Boolean(
     openChatAgentId
@@ -660,14 +669,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
   const anyWindowOpen = entities.some(entity => entity.window.open)
     || Boolean(explorerState?.open)
-
-  const selectedAgent = agents.find(agent => agent.paneId === openChatAgentId)
-  const planeWorking = Boolean(
-    selectedAgent?.busy
-    || selectedAgent?.loopActive
-    || selectedAgent?.awaitingDelegations
-    || selectedAgent?.delegationWorkActive,
-  )
 
   const showIdleGravity = !anyFullscreen && !quickChatShowing
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
@@ -889,9 +890,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         reorderAriaLabel={reorderAriaLabel}
         onFirstLayoutReady={onFirstLayoutReady}
         deferPositionMotion={deferPositionMotion}
-        working={planeWorking}
         cwd={projectFolder}
         contextsRevision={contextsRevision}
+        onOpenThread={onOpenAgentThread}
       />
 
       {explorerSessionId && explorerState?.open && onExplorerStateChange ? (
@@ -970,14 +971,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
-              // Cambiar de conversación con un turno o un loop vivo dejaría el
-              // stream escribiendo en el transcript equivocado. El "+" solo se
-              // bloquea con loop activo o mientras hay una creación pendiente
-              // aplicándose post-settle; un turno normal sí puede solicitarla.
-              threadSelectionLocked={Boolean(
-                quickChatStatus?.busy
-                || quickChatStatus?.loopActive,
-              )}
+              runningThreadIds={openChatRunningThreadIds}
+              // Cambiar de conversación con un loop vivo dejaría el stream escribiendo
+              // en el transcript equivocado. El "+" solo se bloquea con loop activo o
+              // mientras hay una creación pendiente aplicándose post-settle; un turno
+              // normal sí puede solicitarla y cambiar de hilo promueve el activo a fondo.
+              threadSelectionLocked={Boolean(quickChatStatus?.loopActive)}
               newThreadLocked={Boolean(
                 quickChatStatus?.loopActive
                 || (newThreadPendingPaneId && newThreadPendingPaneId === openChatAgentId),
@@ -1015,6 +1014,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               agents={agents}
               contexts={tabContexts}
               selectedAgentId={openChatAgentId}
+              suppressAuroraParticles={anyWindowOpen}
               placeholder={chatPlaceholder}
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}

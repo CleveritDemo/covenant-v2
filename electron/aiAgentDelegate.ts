@@ -64,6 +64,8 @@ export function buildAiAgentDelegateInstruction(options?: {
   round?: number
   maxRounds?: number
   allowedAgentIds?: readonly string[]
+  allowParallelLanes?: boolean
+  /** @deprecated */
   allowExpertReplicas?: boolean
   workStyle?: 'linear' | 'turbo'
   orchestrationJobId?: string
@@ -79,11 +81,13 @@ export function buildAiAgentDelegateInstruction(options?: {
   }
   const exampleId = exampleAgentId(options?.allowedAgentIds)
   const turbo = options?.workStyle === 'turbo'
-  const allowExpertReplicas = options?.allowExpertReplicas === true || turbo
-  const replicaLines = allowExpertReplicas
+  const allowParallelLanes = options?.allowParallelLanes !== false
+    || options?.allowExpertReplicas === true
+    || turbo
+  const parallelLaneLines = allowParallelLanes
     ? [
-      'Parallel experts: you may delegate multiple slices to the same specialist role at once.',
-      'Use the listed agentId repeatedly, or agentId#2 / agentId-2; the host clones busy experts into temporary replicas.',
+      'Parallel lanes: you may delegate multiple slices to the same specialist role at once.',
+      'Use the listed agentId repeatedly, or agentId#2 / agentId-2 for another lane of the same expert.',
     ]
     : []
   const turboLines = turbo
@@ -105,7 +109,7 @@ export function buildAiAgentDelegateInstruction(options?: {
     'Trivial answers (clarifications, short factual replies) may be answered directly — without delegating.',
     'Specialists work in dedicated git worktrees. When their turns complete, the host merges those branches into the base branch in order — you integrate outcomes in chat; you do not run git merge yourself.',
     formatAllowedAgentIdsLine(options?.allowedAgentIds),
-    ...replicaLines,
+    ...parallelLaneLines,
     ...turboLines,
     orchestrationWaveCapLine(options),
     'Stop delegating when: the user goal is met, specialists already answered, or another wave would only repeat work.',
@@ -129,6 +133,8 @@ export function buildAiAgentProductOwnerInstruction(options?: {
   round?: number
   maxRounds?: number
   allowedAgentIds?: readonly string[]
+  allowParallelLanes?: boolean
+  /** @deprecated */
   allowExpertReplicas?: boolean
 }): string {
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
@@ -149,9 +155,9 @@ export function buildAiAgentProductOwnerInstruction(options?: {
   const continueLine = unlimited
     ? 'When work remains in the user request scope, emit exactly one fenced JSON block (user-facing text outside it):'
     : 'When work remains in the user request scope and waves remain, emit exactly one fenced JSON block (user-facing text outside it):'
-  const replicaLines = options?.allowExpertReplicas
+  const parallelLaneLines = options?.allowParallelLanes !== false || options?.allowExpertReplicas
     ? [
-      'Parallel experts: you may delegate multiple slices to the same orchestrator/specialist role; the host clones busy experts into temporary replicas.',
+      'Parallel lanes: you may delegate multiple slices to the same orchestrator/specialist role; the host opens separate conversation lanes per delegation.',
     ]
     : []
   return [
@@ -162,7 +168,7 @@ export function buildAiAgentProductOwnerInstruction(options?: {
     'Delegate only to agents listed under Available agents (host-enforced). Prefer orchestrators for build work.',
     'Delegates run in isolated git worktrees; the host merges into the base branch when integrating results.',
     formatAllowedAgentIdsLine(options?.allowedAgentIds),
-    ...replicaLines,
+    ...parallelLaneLines,
     orchestrationWaveCapLine(options),
     'After a slice PASSes, immediately emit the next ```ia-terminal-delegate``` fence to the orchestrator for the next concrete slice toward the user request.',
     'FORBIDDEN: asking "should we continue?", "¿seguimos?", or requesting human priority/approval between slices.',

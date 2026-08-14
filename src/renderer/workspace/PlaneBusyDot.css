@@ -20,6 +20,15 @@
     plane-busy-dot-glow 1.7s ease-in-out infinite;
 }
 
+.plane-busy-dot--sm {
+  width: 7px;
+  height: 7px;
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--accent) 90%, transparent),
+    0 0 8px color-mix(in srgb, var(--theme-cyan) 55%, transparent),
+    0 0 12px color-mix(in srgb, var(--theme-magenta) 42%, transparent);
+}
+
 /* Esquina del padre `position: relative`; inset para no clippear con overflow. */
 .plane-busy-dot--corner {
   position: absolute;

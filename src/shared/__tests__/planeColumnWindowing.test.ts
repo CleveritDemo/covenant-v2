@@ -1,0 +1,146 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PLANE_MINI_BOTTOM_CLEARANCE,
+  PLANE_MINI_SLOT_GAP,
+  PLANE_MINI_SLOT_PAD_Y,
+} from '@shared/paneWindows'
+import { computePlaneColumnWindowing } from '@shared/planeColumnWindowing'
+
+const VIEWPORT_HEIGHT = 800
+
+describe('computePlaneColumnWindowing', () => {
+  it('returns empty layout for an empty column', () => {
+    const result = computePlaneColumnWindowing({
+      items: [],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })
+
+    expect(result).toEqual({
+      slots: [],
+      hiddenAbove: [],
+      hiddenBelow: [],
+      contentHeight: 0,
+      maxScroll: 0,
+      appliedScrollOffset: 0,
+    })
+  })
+
+  it('keeps three short cards fully visible with no scroll', () => {
+    const result = computePlaneColumnWindowing({
+      items: [
+        { id: 'a', height: 100 },
+        { id: 'b', height: 100 },
+        { id: 'c', height: 100 },
+      ],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })
+
+    expect(result.contentHeight).toBe(
+      PLANE_MINI_SLOT_PAD_Y + 300 + 2 * PLANE_MINI_SLOT_GAP,
+    )
+    expect(result.maxScroll).toBe(0)
+    expect(result.appliedScrollOffset).toBe(0)
+    expect(result.slots.every(slot => slot.visible)).toBe(true)
+    expect(result.hiddenAbove).toEqual([])
+    expect(result.hiddenBelow).toEqual([])
+  })
+
+  it('overflows tall stacks into hiddenBelow without crossing bandBottom', () => {
+    const result = computePlaneColumnWindowing({
+      items: Array.from({ length: 6 }, (_, index) => ({
+        id: `c${index}`,
+        height: 130,
+      })),
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })
+
+    const bandBottom = Math.max(
+      PLANE_MINI_SLOT_PAD_Y + 1,
+      VIEWPORT_HEIGHT - PLANE_MINI_BOTTOM_CLEARANCE,
+    )
+
+    expect(result.contentHeight).toBe(952)
+    expect(result.maxScroll).toBe(300)
+    expect(result.slots.filter(slot => slot.visible).every(
+      slot => slot.y + slot.height <= bandBottom + 1,
+    )).toBe(true)
+    expect(result.hiddenBelow.length).toBeGreaterThan(0)
+    expect(result.hiddenAbove).toEqual([])
+  })
+
+  it('clamps scrollOffset above maxScroll and below zero', () => {
+    const items = [{ id: 'a', height: 900 }]
+    const maxScroll = computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    }).maxScroll
+
+    expect(computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 999,
+    }).appliedScrollOffset).toBe(maxScroll)
+
+    expect(computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: -40,
+    }).appliedScrollOffset).toBe(0)
+  })
+
+  it('shows the last card at maxScroll with some hiddenAbove', () => {
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `c${index}`,
+      height: 130,
+    }))
+    const maxScroll = computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    }).maxScroll
+
+    const result = computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: maxScroll,
+    })
+
+    expect(result.appliedScrollOffset).toBe(maxScroll)
+    expect(result.slots.at(-1)?.visible).toBe(true)
+    expect(result.hiddenAbove.length).toBeGreaterThan(0)
+  })
+
+  it('stacks mixed heights with gap between consecutive cards', () => {
+    const result = computePlaneColumnWindowing({
+      items: [
+        { id: 'a', height: 84 },
+        { id: 'b', height: 210 },
+        { id: 'c', height: 130 },
+      ],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })
+
+    const [a, b, c] = result.slots
+    expect(a.y).toBe(PLANE_MINI_SLOT_PAD_Y)
+    expect(b.y).toBe(a.y + a.height + PLANE_MINI_SLOT_GAP)
+    expect(c.y).toBe(b.y + b.height + PLANE_MINI_SLOT_GAP)
+  })
+
+  it('does not mutate frozen input items', () => {
+    const items = Object.freeze([
+      Object.freeze({ id: 'a', height: 120 }),
+      Object.freeze({ id: 'b', height: 140 }),
+    ])
+
+    expect(() => computePlaneColumnWindowing({
+      items,
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })).not.toThrow()
+  })
+})

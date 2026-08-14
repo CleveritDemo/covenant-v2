@@ -1,17 +1,14 @@
 /**
  * Pura: decide si una petición de nueva conversación tiene que quedar en
- * espera en lugar de aplicarse inmediatamente. Se difiere mientras el pane
- * está trabajando (busy) o mantiene una delegación viva; en ambos casos
- * aplicarla ahora abortaría el turno o la delegación al pasar por
- * `resetLiveState`.
+ * espera. Solo se difiere con delegación viva en el hilo activo; si el pane
+ * está busy por un turno humano, el caller promueve a carril de fondo.
  */
 export interface NewThreadRuntimeState {
-  busy: boolean
   hasActiveDelegation: boolean
 }
 
 export function shouldDeferNewThread(state: NewThreadRuntimeState): boolean {
-  return state.busy || state.hasActiveDelegation
+  return state.hasActiveDelegation
 }
 
 /**

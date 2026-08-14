@@ -5,13 +5,17 @@ import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { PaneWindow } from './PaneWindow'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
+import {
+  PlaneAgentThreadNodes,
+  type PlaneAgentThreadNode,
+} from './PlaneAgentThreadNodes'
 import { PlaneMiniActions } from './PlaneMiniActions'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneMiniFolderBadge } from './PlaneMiniFolderBadge'
 import { armMiniExpandSuppress } from './miniExpandSuppress'
 import './PlaneMiniActions.css'
 
-export type { PlaneAgentContextChip }
+export type { PlaneAgentContextChip, PlaneAgentThreadNode }
 
 export interface PlanePaneWindowProps {
   paneId: string
@@ -19,10 +23,6 @@ export interface PlanePaneWindowProps {
   title: string
   /** Mesa de brainstorm abierta: la card se arrastra a ella. */
   seatDragEnabled?: boolean
-  /** Réplica temporal del experto: `R2`, `R3`… */
-  instanceTag?: string
-  /** Experto base: réplicas suyas vivas ahora mismo. */
-  replicaCount?: number
   monogram?: string
   busy?: boolean
   provider?: AgentCliProvider
@@ -70,6 +70,8 @@ export interface PlanePaneWindowProps {
   slotMotion?: boolean
   /** Sin transición de ranura durante el settle de arranque. */
   deferPositionMotion?: boolean
+  /** Card fuera de la banda visible del plano: oculta sin desmontar. */
+  outOfBand?: boolean
   dragPosition?: { x: number; y: number } | null
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Handle de agentes: reorder inmediato (sin long-press). */
@@ -82,6 +84,10 @@ export interface PlanePaneWindowProps {
   cwd?: string
   /** Sube cuando los contextos se remateralizan; el chip jira relee su snapshot. */
   contextsRevision?: number
+  threadNodes?: PlaneAgentThreadNode[]
+  threadNodesExpanded?: boolean
+  onToggleThreadNodes?: () => void
+  onOpenThread?: (threadId: string) => void
 }
 
 export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
@@ -89,8 +95,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   kind,
   title,
   seatDragEnabled = false,
-  instanceTag,
-  replicaCount,
   monogram,
   busy = false,
   provider,
@@ -127,6 +131,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   reorderJiggleDelayMs = 0,
   slotMotion = false,
   deferPositionMotion = false,
+  outOfBand = false,
   dragPosition = null,
   onReorderPointerDown,
   onReorderHandlePointerDown,
@@ -134,6 +139,10 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   onOpenResultsPreview,
   cwd = '',
   contextsRevision = 0,
+  threadNodes = [],
+  threadNodesExpanded = false,
+  onToggleThreadNodes,
+  onOpenThread,
 }) => {
   const { t } = useT()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -144,6 +153,9 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   const statusLabel = busy
     ? (snippet?.trim() || idleLabel)
     : idleLabel
+  const showThreadNodes = isAgent
+    && threadNodes.some(thread => !thread.active)
+    && Boolean(onToggleThreadNodes && onOpenThread)
   const origin = dragPosition && !isExpanded
     ? {
         x: dragPosition.x,
@@ -159,6 +171,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         title={title}
         paneId={paneId}
         display={display}
+        className={outOfBand ? 'pane-window--out-of-band' : undefined}
         geometry={{
           ...openGeometry,
           zIndex: window.zIndex,
@@ -196,8 +209,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
           <PlaneMiniFace
             name={title}
             seatDragEnabled={seatDragEnabled}
-            instanceTag={instanceTag}
-            replicaCount={replicaCount}
             monogram={monogram}
             busy={busy}
             provider={provider}
@@ -220,6 +231,14 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
                 onOpenAgent={onOpenChat}
                 cwd={cwd}
                 contextsRevision={contextsRevision}
+              />
+            ) : null}
+            {showThreadNodes ? (
+              <PlaneAgentThreadNodes
+                threads={threadNodes}
+                expanded={threadNodesExpanded}
+                onToggleExpanded={onToggleThreadNodes!}
+                onOpenThread={onOpenThread!}
               />
             ) : null}
           </PlaneMiniFace>

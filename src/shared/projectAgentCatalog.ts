@@ -534,7 +534,6 @@ export function parseProjectAgentDefinition(
       : 'linear'
     if (workStyle === 'turbo') {
       def.orchestrationWorkStyle = 'turbo'
-      def.allowExpertReplicas = true
     } else if (data.allowExpertReplicas === true) {
       def.allowExpertReplicas = true
     }
@@ -582,11 +581,8 @@ export function cloneProjectAgentDefinition(
       : {}),
     ...(source.coordination === 'orchestrator'
       && sanitizeOrchestrationWorkStyle(source.orchestrationWorkStyle) === 'turbo'
-      ? { orchestrationWorkStyle: 'turbo' as const, allowExpertReplicas: true as const }
-      : (source.coordination === 'orchestrator' || source.coordination === 'productOwner')
-        && source.allowExpertReplicas === true
-        ? { allowExpertReplicas: true as const }
-        : {}),
+      ? { orchestrationWorkStyle: 'turbo' as const }
+      : {}),
     ...(() => {
       const delegateTo = persistableDelegateTo(source.coordination, source.delegateTo)
       return delegateTo ? { delegateTo } : {}
@@ -713,7 +709,6 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
     orchestrationWorkStyle: meta.orchestrationWorkStyle,
     delegateTo: meta.delegateTo,
-    allowExpertReplicas: meta.allowExpertReplicas,
     nativeSkills: meta.nativeSkills,
     mcpsAllowed: meta.mcpsAllowed,
   }, meta.id)

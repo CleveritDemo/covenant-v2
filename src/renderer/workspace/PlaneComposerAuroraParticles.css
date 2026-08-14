@@ -1,6 +1,5 @@
 /*
- * Partículas busy en el piso del plano: mismo stacking que la grilla.
- * Encima de la grid, debajo del stage y del composer.
+ * Partículas busy en el stack del composer: debajo del cuerpo y la cinta aurora.
  * Solo visibles con working y reduce-motion off.
  */
 .plane-composer-aurora-particles {
@@ -8,9 +7,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100%;
   height: var(--plane-aurora-field-height, 160px);
-  z-index: 1;
+  z-index: 0;
   pointer-events: none;
   display: block;
 }

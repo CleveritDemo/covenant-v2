@@ -68,7 +68,6 @@ export interface AgentConfigModalProps {
   onCommitIdentity: (draft: AgentIdentityDraft) => void | boolean | Promise<void | boolean>
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
-  onAllowExpertReplicasChange: (allow: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
@@ -103,7 +102,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onCommitIdentity,
   onChangeCoordination,
   onAcceptDelegationsChange,
-  onAllowExpertReplicasChange,
   onOrchestrationMaxRoundsChange,
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
@@ -243,7 +241,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     meta.id, meta.name, meta.role, meta.ceremonyRoles, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
     meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
-    meta.acceptDelegations, meta.allowExpertReplicas,
+    meta.acceptDelegations,
     selectedContextIds,
   ])
   const lastSnapshot = useRef(savedSnapshot)
@@ -464,7 +462,6 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 cliStatuses={cliStatuses}
                 onChangeCoordination={onChangeCoordination}
                 onAcceptDelegationsChange={onAcceptDelegationsChange}
-                onAllowExpertReplicasChange={onAllowExpertReplicasChange}
                 onOrchestrationMaxRoundsChange={onOrchestrationMaxRoundsChange}
                 onOrchestrationWorkStyleChange={onOrchestrationWorkStyleChange}
                 onChangeDelegateTo={onChangeDelegateTo}

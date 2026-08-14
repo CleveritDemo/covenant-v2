@@ -1,5 +1,7 @@
 /** Limpieza de preferSend / FIFO / cola local al abortar orquestación. */
 
+import { buildRunKey } from '@shared/agentRunKey'
+
 export interface OrchestrationPlaneSendLike {
   orchestrationFollowUp?: boolean
   delegation?: {
@@ -93,4 +95,62 @@ export function clearPlaneSendsForSingleDelegationAbort<T extends OrchestrationP
     if (payload?.delegation?.id === id) delete next[paneId]
   }
   return next
+}
+
+export interface DelegationLaneStopTarget {
+  toPaneId: string
+  toThreadId?: string
+}
+
+/** Resuelve el carril concreto a parar para una delegación pending. */
+export function resolveSingleDelegationLaneStop(input: {
+  pendingToThreadId?: string
+  registryToThreadId?: string
+  toPaneId: string
+}): DelegationLaneStopTarget {
+  const toPaneId = input.toPaneId.trim()
+  const toThreadId = input.pendingToThreadId?.trim() || input.registryToThreadId?.trim()
+  return toThreadId ? { toPaneId, toThreadId } : { toPaneId }
+}
+
+/** Pares únicos pane+hilo de delegaciones pending de un orquestador. */
+export function collectOrchestratorPendingLaneStops(
+  pending: ReadonlyArray<{ toPaneId: string; toThreadId?: string }>,
+): DelegationLaneStopTarget[] {
+  const seen = new Set<string>()
+  const targets: DelegationLaneStopTarget[] = []
+  for (const meta of pending) {
+    const toPaneId = meta.toPaneId.trim()
+    if (!toPaneId) continue
+    const toThreadId = meta.toThreadId?.trim()
+    const key = `${toPaneId}::${toThreadId ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    targets.push(toThreadId ? { toPaneId, toThreadId } : { toPaneId })
+  }
+  return targets
+}
+
+/** Para una delegación: runKey si hay hilo; fallback a stop por pane. */
+export function applyDelegationLaneStop(
+  target: DelegationLaneStopTarget,
+  input: { delegationId?: string },
+  hooks: {
+    stopRunKey: (runKey: string) => void
+    stopPane: (paneId: string) => void
+    warn: (payload: Record<string, unknown>) => void
+  },
+): void {
+  const toPaneId = target.toPaneId.trim()
+  const toThreadId = target.toThreadId?.trim()
+  if (toThreadId) {
+    hooks.stopRunKey(buildRunKey(toPaneId, toThreadId))
+    return
+  }
+  hooks.warn({
+    ...(input.delegationId ? { delegationId: input.delegationId } : {}),
+    toPaneId,
+    reason: 'abort_lane_threadid_missing',
+  })
+  hooks.stopPane(toPaneId)
 }

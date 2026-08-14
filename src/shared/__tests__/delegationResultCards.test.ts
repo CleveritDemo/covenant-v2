@@ -2,11 +2,22 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBatchedDelegationFollowUp,
   formatDelegationResultFollowUp,
+  type DelegateResult,
 } from '../agentOrchestration'
 import {
   looksLikeDelegationResultFollowUp,
   parseDelegationResultCards,
 } from '../delegationResultCards'
+
+function stubResult(
+  partial: Partial<DelegateResult> & Pick<DelegateResult, 'id' | 'status' | 'summary'>,
+): DelegateResult {
+  return {
+    fromPaneId: 'p-orq',
+    orchestrationJobId: 'job-1',
+    ...partial,
+  }
+}
 
 describe('looksLikeDelegationResultFollowUp', () => {
   it('detects host follow-ups without the presentation tag', () => {
@@ -22,13 +33,13 @@ describe('looksLikeDelegationResultFollowUp', () => {
 
 describe('parseDelegationResultCards', () => {
   it('reads agent, status and summary from a real follow-up', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd1',
       status: 'ok',
       summary: 'Login form validated on submit.',
       toAgentId: 'frontend',
       resultContextId: 'ctx-frontend',
-    }, { round: 1, maxRounds: 3 })
+    }), { round: 1, maxRounds: 3 })
     const [card] = parseDelegationResultCards(text)
     expect(card).toMatchObject({
       id: 'd1',
@@ -42,29 +53,29 @@ describe('parseDelegationResultCards', () => {
   })
 
   it('keeps fail and aborted statuses', () => {
-    const fail = parseDelegationResultCards(formatDelegationResultFollowUp({
+    const fail = parseDelegationResultCards(formatDelegationResultFollowUp(stubResult({
       id: 'd2',
       status: 'fail',
       summary: 'Build broke.',
       toAgentId: 'backend',
-    }))
+    })))
     expect(fail[0].status).toBe('fail')
-    const aborted = parseDelegationResultCards(formatDelegationResultFollowUp({
+    const aborted = parseDelegationResultCards(formatDelegationResultFollowUp(stubResult({
       id: 'd3',
       status: 'aborted',
       summary: 'Delegation cancelled',
-    }))
+    })))
     expect(aborted[0].status).toBe('aborted')
     expect(aborted[0].agentId).toBeUndefined()
   })
 
   it('drops the host boilerplate from the visible summary', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd4',
       status: 'ok',
       summary: 'Done.',
       toAgentId: 'frontend',
-    }, { round: 2, maxRounds: 3 })
+    }), { round: 2, maxRounds: 3 })
     const [card] = parseDelegationResultCards(text)
     expect(card.summary).toBe('Done.')
     expect(card.summary).not.toContain('Stop condition')
@@ -73,12 +84,12 @@ describe('parseDelegationResultCards', () => {
   })
 
   it('drops the batch wait line and keeps pendingInBatch', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd5',
       status: 'ok',
       summary: 'Slice one done.',
       toAgentId: 'frontend',
-    }, { batchRemaining: 2 })
+    }), { batchRemaining: 2 })
     const [card] = parseDelegationResultCards(text)
     expect(card.pendingInBatch).toBe(2)
     expect(card.summary).toBe('Slice one done.')
@@ -86,18 +97,18 @@ describe('parseDelegationResultCards', () => {
   })
 
   it('drops the continuous product owner boilerplate', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd6',
       status: 'ok',
       summary: 'Slice done.',
-    }, { continuousProductOwner: true, maxRounds: 4 })
+    }), { continuousProductOwner: true, maxRounds: 4 })
     const [card] = parseDelegationResultCards(text)
     expect(card.summary).toBe('Slice done.')
     expect(card.summary).not.toContain('If the slice PASSED')
   })
 
   it('splits a "## What changed" section into the changelog', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd7',
       status: 'ok',
       summary: [
@@ -108,7 +119,7 @@ describe('parseDelegationResultCards', () => {
         '- src/renderer/agent/AgentChatBubbles.tsx — routes follow-ups',
       ].join('\n'),
       toAgentId: 'frontend',
-    })
+    }))
     const [card] = parseDelegationResultCards(text)
     expect(card.summary).toBe('Delegation card rendered as an artifact.')
     expect(card.changelog).toEqual([
@@ -118,7 +129,7 @@ describe('parseDelegationResultCards', () => {
   })
 
   it('pulls path-like bullets out of a summary without a heading', () => {
-    const text = formatDelegationResultFollowUp({
+    const text = formatDelegationResultFollowUp(stubResult({
       id: 'd8',
       status: 'ok',
       summary: [
@@ -126,7 +137,7 @@ describe('parseDelegationResultCards', () => {
         '- src/shared/agentLoop.ts: cap raised',
         '- Reviewed the wave policy with no code change',
       ].join('\n'),
-    })
+    }))
     const [card] = parseDelegationResultCards(text)
     expect(card.changelog).toEqual(['src/shared/agentLoop.ts: cap raised'])
     expect(card.summary).toBe([
@@ -137,8 +148,8 @@ describe('parseDelegationResultCards', () => {
 
   it('returns one card per result in a batched follow-up', () => {
     const text = buildBatchedDelegationFollowUp([
-      { id: 'a', status: 'ok', summary: 'Frontend done.', toAgentId: 'frontend' },
-      { id: 'b', status: 'fail', summary: 'Backend failed.', toAgentId: 'backend' },
+      stubResult({ id: 'a', status: 'ok', summary: 'Frontend done.', toAgentId: 'frontend' }),
+      stubResult({ id: 'b', status: 'fail', summary: 'Backend failed.', toAgentId: 'backend' }),
     ], { round: 1, maxRounds: 3 })
     const cards = parseDelegationResultCards(text)
     expect(cards).toHaveLength(2)
@@ -150,7 +161,7 @@ describe('parseDelegationResultCards', () => {
 
   it('hides the turbo concurrent-jobs block from the last card', () => {
     const text = buildBatchedDelegationFollowUp([
-      { id: 'a', status: 'ok', summary: 'Done.', toAgentId: 'frontend' },
+      stubResult({ id: 'a', status: 'ok', summary: 'Done.', toAgentId: 'frontend' }),
     ], { workStyle: 'turbo', orchestrationJobId: 'job-1' })
     const cards = parseDelegationResultCards(text)
     expect(cards).toHaveLength(1)
@@ -162,5 +173,22 @@ describe('parseDelegationResultCards', () => {
   it('returns nothing for text that is not a delegation follow-up', () => {
     expect(parseDelegationResultCards('Please refactor the composer')).toEqual([])
     expect(parseDelegationResultCards('## Orchestration limit\nStop now.')).toEqual([])
+  })
+
+  it('deduplicates blocks with the same id and orchestrationJobId', () => {
+    const block = formatDelegationResultFollowUp(stubResult({
+      id: 'dup-1',
+      status: 'ok',
+      summary: 'Done once.',
+      toAgentId: 'frontend',
+      orchestrationJobId: 'job-dup',
+    }))
+    const cards = parseDelegationResultCards(`${block}\n\n${block}`)
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({
+      id: 'dup-1',
+      orchestrationJobId: 'job-dup',
+      summary: 'Done once.',
+    })
   })
 })

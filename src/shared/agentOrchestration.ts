@@ -82,9 +82,15 @@ export interface OrchestrationAgentRef {
 }
 
 export interface DelegateRequest {
+  /** Host-generated delegation id; never taken from the model payload. */
   id: string
   toAgentId: string
   objective: string
+  /**
+   * Optional model-supplied id from the fence payload (sanitized). Used only so
+   * the coordinator recognizes its own delegation in follow-ups — not for routing.
+   */
+  ref?: string
   contextIds?: string[]
   /**
    * Runtime linkage: cuando un orquestador anidado emite delegaciones dentro
@@ -102,9 +108,16 @@ export interface DelegateResult {
   id: string
   status: DelegateResultStatus
   summary: string
+  /** Orquestador que emitió la delegación (dirección de retorno). */
+  fromPaneId: string
+  /** Job de orquestación que originó la delegación. */
+  orchestrationJobId: string
   resultContextId?: string
   toAgentId?: string
   toPaneId?: string
+  toThreadId?: string
+  /** Model ref from the original DelegateRequest, if any. */
+  ref?: string
 }
 
 /** A quién puede delegar un coordinador (portable vía catálogo / meta). */
@@ -368,6 +381,11 @@ function sanitizeContextIds(raw: unknown): string[] | undefined {
   return ids.length ? ids : undefined
 }
 
+function sanitizeDelegateRef(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw.trim()) return undefined
+  return raw.trim().slice(0, 64)
+}
+
 /** Normaliza un item crudo del fence a DelegateRequest. */
 export function sanitizeDelegateRequest(raw: unknown): DelegateRequest | null {
   if (!raw || typeof raw !== 'object') return null
@@ -380,15 +398,14 @@ export function sanitizeDelegateRequest(raw: unknown): DelegateRequest | null {
         : ''
   const objective = sanitizeObjective(data.objective ?? data.prompt ?? data.task)
   if (!toAgentId || !objective) return null
-  const id =
-    typeof data.id === 'string' && data.id.trim()
-      ? data.id.trim().slice(0, 64)
-      : newDelegateId()
+  const ref = sanitizeDelegateRef(data.id)
+  const id = newDelegateId()
   const contextIds = sanitizeContextIds(data.contextIds)
   return {
     id,
     toAgentId,
     objective,
+    ...(ref ? { ref } : {}),
     ...(contextIds ? { contextIds } : {}),
   }
 }
@@ -421,7 +438,7 @@ export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
 /** Bloque de agentes disponibles para el prompt del orquestador. */
 export function buildOrchestratorAgentsBlock(
   agents: readonly OrchestrationAgentRef[],
-  options?: { allowExpertReplicas?: boolean },
+  options?: { allowParallelLanes?: boolean },
 ): string {
   if (!agents.length) {
     return [
@@ -434,11 +451,11 @@ export function buildOrchestratorAgentsBlock(
     'Delegate work to these specialists by agentId. Do not implement their work yourself.',
     'Each specialist runs in an isolated git worktree; the host merges their branches into the base branch when you integrate results (you do not merge yourself).',
   ]
-  if (options?.allowExpertReplicas) {
+  if (options?.allowParallelLanes !== false) {
     lines.push(
-      'Expert replicas: you may emit several parallel delegations to the same role.',
-      'Reuse the base agentId (e.g. frontend) for each slice, or request a replica with frontend#2 / frontend-2.',
-      'The host spawns ephemeral specialist replicas when the base expert is busy; do not invent unrelated agentIds.',
+      'Parallel lanes: you may emit several parallel delegations to the same specialist role.',
+      'The host opens a separate conversation lane within that expert pane for each delegation (up to 3 active at once; extras wait in queue).',
+      'agentId#2 / agentId-2 are accepted aliases for another lane of the same expert — not a new agentId.',
     )
   }
   for (const agent of agents) {
@@ -466,16 +483,20 @@ export function formatDelegationResultFollowUp(
     workStyle?: OrchestrationWorkStyle
   },
 ): string {
+  const idLine = result.ref?.trim()
+    ? `id: ${result.id} (ref: ${result.ref.trim()})`
+    : `id: ${result.id}`
   const lines = [
     '## Delegation result',
-    `id: ${result.id}`,
+    idLine,
     `status: ${result.status}`,
     `summary: ${result.summary.trim() || '(empty)'}`,
   ]
   if (result.toAgentId) lines.push(`toAgentId: ${result.toAgentId}`)
   if (result.resultContextId) lines.push(`resultContextId: ${result.resultContextId}`)
-  if (options?.orchestrationJobId?.trim()) {
-    lines.push(`orchestrationJobId: ${options.orchestrationJobId.trim()}`)
+  const jobId = result.orchestrationJobId?.trim() || options?.orchestrationJobId?.trim()
+  if (jobId) {
+    lines.push(`orchestrationJobId: ${jobId}`)
   }
   const round = options?.round
   const maxRounds = options?.maxRounds ?? MAX_ORCHESTRATION_ROUNDS
@@ -587,7 +608,7 @@ export function buildOrchestratorTurboWorkStyleBlock(options?: {
     'The host keeps a single CLI on this pane but runs specialist waves from multiple jobs in parallel.',
     jobLine,
     'New user messages may arrive without waiting for prior specialist waves to finish; do not assume previous jobs were aborted.',
-    'When a role is busy, prefer replicas (reuse base agentId or agentId#2 / agentId-2); the host always allows expert replicas in turbo.',
+    'When a role is busy, emit another parallel delegation with the same agentId or agentId#2 / agentId-2; the host queues overflow beyond three active lanes per expert pane.',
     'Do not assume the git working tree is stable between messages — other jobs may still be merging.',
     waveCap,
   ].join('\n')

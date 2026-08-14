@@ -18,6 +18,10 @@ export interface AgentThread {
   cliSessionId?: string
   /** epoch ms del último turno: ordena la lista y decide a quién podar. */
   updatedAt: number
+  /** Origen del hilo: humano o delegación entrante. */
+  origin?: 'human' | 'delegation'
+  /** Id de delegación que abrió el hilo (solo origin delegation). */
+  delegationId?: string
 }
 
 export interface AgentThreadState {
@@ -58,15 +62,21 @@ export function sortThreadsByRecency(threads: readonly AgentThread[]): AgentThre
  * se cierra el pane (que borra la carpeta entera). Son kilobytes de texto;
  * barrer por archivo pide un cruce disco↔sesión que hoy no paga.
  */
-function prune(threads: readonly AgentThread[], activeThreadId: string): AgentThread[] {
+function prune(
+  threads: readonly AgentThread[],
+  activeThreadId: string,
+  protectedIds?: ReadonlySet<string>,
+): AgentThread[] {
   if (threads.length <= MAX_THREADS_PER_PANE) return [...threads]
+  const protectedSet = new Set(protectedIds ?? [])
+  protectedSet.add(activeThreadId)
   const keep = new Set(
     sortThreadsByRecency(threads)
-      .filter(thread => thread.id !== activeThreadId)
+      .filter(thread => thread.id !== activeThreadId && !protectedSet.has(thread.id))
       .slice(0, MAX_THREADS_PER_PANE - 1)
       .map(thread => thread.id),
   )
-  keep.add(activeThreadId)
+  for (const id of protectedSet) keep.add(id)
   return threads.filter(thread => keep.has(thread.id))
 }
 
@@ -77,6 +87,12 @@ function sanitizeThread(raw: unknown): AgentThread | null {
   const cliSessionId = typeof data.cliSessionId === 'string' && data.cliSessionId.trim()
     ? data.cliSessionId.trim()
     : undefined
+  const origin = data.origin === 'human' || data.origin === 'delegation'
+    ? data.origin
+    : undefined
+  const delegationId = typeof data.delegationId === 'string' && data.delegationId.trim()
+    ? data.delegationId.trim()
+    : undefined
   return {
     id: data.id,
     title: typeof data.title === 'string' ? threadTitleFrom(data.title) : '',
@@ -84,6 +100,8 @@ function sanitizeThread(raw: unknown): AgentThread | null {
       ? Math.max(0, Math.floor(data.updatedAt))
       : 0,
     ...(cliSessionId ? { cliSessionId } : {}),
+    ...(origin ? { origin } : {}),
+    ...(delegationId ? { delegationId } : {}),
   }
 }
 
@@ -95,6 +113,7 @@ export function sanitizeThreadState(
   rawThreads: unknown,
   rawActiveThreadId: unknown,
   legacyCliSessionId?: string,
+  protectedIds?: ReadonlySet<string>,
 ): AgentThreadState {
   const threads: AgentThread[] = []
   const seen = new Set<string>()
@@ -117,7 +136,7 @@ export function sanitizeThreadState(
     && threads.some(thread => thread.id === rawActiveThreadId)
     ? rawActiveThreadId
     : threads[threads.length - 1]!.id
-  return { threads: prune(threads, activeThreadId), activeThreadId }
+  return { threads: prune(threads, activeThreadId, protectedIds), activeThreadId }
 }
 
 /**
@@ -135,10 +154,11 @@ export function newThread(
   state: AgentThreadState,
   id: string,
   now: number,
+  protectedIds?: ReadonlySet<string>,
 ): AgentThreadState {
   if (!isThreadId(id) || state.threads.some(thread => thread.id === id)) return state
   const threads = [...state.threads, { id, title: '', updatedAt: now }]
-  return { threads: prune(threads, id), activeThreadId: id }
+  return { threads: prune(threads, id, protectedIds), activeThreadId: id }
 }
 
 export function selectThread(state: AgentThreadState, id: string): AgentThreadState {
@@ -151,6 +171,46 @@ export function selectThread(state: AgentThreadState, id: string): AgentThreadSt
  * Borra un thread. Si era el último, deja uno nuevo y vacío con `fallbackId`
  * (un pane siempre tiene una conversación donde escribir).
  */
+/**
+ * Borra hilos de delegación completados. Solo toca `origin === 'delegation'`.
+ * Si el activo es uno de ellos, salta al hilo humano más reciente antes de
+ * borrar; si no queda ninguno, `deleteThread` deja un hilo vacío de respaldo.
+ */
+export function pruneCompletedDelegationThreads(
+  state: AgentThreadState,
+  delegationThreadIds: readonly string[],
+  fallbackId: string,
+  now: number,
+): { state: AgentThreadState; deletedIds: string[] } {
+  const deletedIds: string[] = []
+  let next = state
+  const targetIds = [
+    ...new Set(delegationThreadIds.map(id => id.trim()).filter(Boolean)),
+  ]
+
+  for (const threadId of targetIds) {
+    const thread = next.threads.find(entry => entry.id === threadId)
+    if (!thread || thread.origin !== 'delegation') continue
+
+    if (next.activeThreadId === threadId) {
+      const humanThreads = sortThreadsByRecency(
+        next.threads.filter(entry => entry.origin !== 'delegation'),
+      )
+      if (humanThreads.length > 0) {
+        next = { ...next, activeThreadId: humanThreads[0]!.id }
+      }
+    }
+
+    const hadThread = next.threads.some(entry => entry.id === threadId)
+    next = deleteThread(next, threadId, fallbackId, now)
+    if (hadThread && !next.threads.some(entry => entry.id === threadId)) {
+      deletedIds.push(threadId)
+    }
+  }
+
+  return { state: next, deletedIds }
+}
+
 export function deleteThread(
   state: AgentThreadState,
   id: string,

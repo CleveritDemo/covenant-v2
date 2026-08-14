@@ -14,6 +14,8 @@ export interface SelectOption {
   label: string
   /** Segunda línea de la opción, p. ej. el id real del modelo. */
   hint?: string
+  /** Punto luminoso a la izquierda del label (p. ej. hilo trabajando). */
+  busy?: boolean
 }
 
 export interface SelectProps {
@@ -212,7 +214,12 @@ export const Select: React.FC<SelectProps> = ({
               {option.value === value ? <Icon name="check" size={12} aria-hidden /> : null}
             </span>
             <span className="select-panel__text">
-              <span className="select-panel__label">{option.label}</span>
+              <span className="select-panel__label-row">
+                {option.busy ? (
+                  <span className="select-panel__busy-dot" aria-hidden="true" />
+                ) : null}
+                <span className="select-panel__label">{option.label}</span>
+              </span>
               {option.hint ? <span className="select-panel__hint">{option.hint}</span> : null}
             </span>
           </div>

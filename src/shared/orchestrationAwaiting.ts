@@ -3,8 +3,6 @@
  * Sin React/electron: App arma inputs desde refs; UI solo renderiza la vista.
  */
 
-import { agentInstanceTag, parseExpertReplicaRequest } from './expertReplicas'
-
 /**
  * `deferred` es una delegación aceptada que todavía no arrancó (el pane destino
  * estaba ocupado y no se permitió réplica). Se separó de `running` porque
@@ -17,18 +15,16 @@ export interface OrchestrationAwaitingItemInput {
   toAgentId: string
   /** Pane especialista en vuelo (para Stop por fila). */
   toPaneId?: string
-  /** Si la ruta usó un experto base distinto (réplica spawn). */
-  baseAgentId?: string
+  /** Carril de hilo del experto base que ejecuta la delegación. */
+  toThreadId?: string
   status: OrchestrationAwaitingItemStatus
   worktreePath?: string
 }
 
 export interface OrchestrationAwaitingItemView {
   delegationId: string
-  /** Nombre del experto: en una réplica, el del base (`frontend`, no `frontend-2`). */
+  /** Nombre del experto (agentId tal cual). */
   agentLabel: string
-  /** Tag de instancia de la réplica (`R2`); ausente en el experto base. */
-  instanceTag?: string
   status: OrchestrationAwaitingItemStatus
   /** Pane destino si la ola lo conoce (Stop por fila). */
   toPaneId?: string
@@ -53,28 +49,6 @@ export function orchestrationAwaitingSignature(
   return `${view.done}/${view.total}:${view.items.map(item => `${item.delegationId}:${item.status}`).join(',')}`
 }
 
-/** Heurística: `frontend-2` es réplica de `frontend` si no hay base explícita. */
-export function isReplicaAgentId(toAgentId: string, baseAgentId?: string): boolean {
-  const to = toAgentId.trim().toLowerCase()
-  if (!to) return false
-  const base = baseAgentId?.trim().toLowerCase()
-  if (base) return to !== base
-  return /^.+-\d+$/i.test(to)
-}
-
-/**
- * Réplica efímera a borrar al completar/abortar: solo si el pending trajo
- * `baseAgentId` (spawn). Nunca el experto base.
- */
-export function shouldDisposeReplicaOnComplete(input: {
-  toAgentId: string
-  baseAgentId?: string
-}): boolean {
-  const base = input.baseAgentId?.trim()
-  if (!base) return false
-  return isReplicaAgentId(input.toAgentId, base)
-}
-
 /** Hint corto del path de worktree (p. ej. `tab/dlg-id`). */
 export function shortWorktreeHint(worktreePath: string | undefined): string | undefined {
   const raw = worktreePath?.trim()
@@ -96,14 +70,9 @@ export function buildOrchestrationAwaitingView(
   if (!items.length) return null
   const views: OrchestrationAwaitingItemView[] = items.map(item => {
     const to = item.toAgentId.trim()
-    const replica = isReplicaAgentId(to, item.baseAgentId)
-    const tag = replica ? agentInstanceTag(to) : null
     return {
       delegationId: item.delegationId,
-      // Con tag, el nombre visible es el del experto: "frontend R2", no "frontend-2 R2".
-      agentLabel: (tag ? (item.baseAgentId?.trim() || parseExpertReplicaRequest(to).baseId) : to)
-        || item.delegationId,
-      ...(tag ? { instanceTag: tag } : {}),
+      agentLabel: to || item.delegationId,
       status: item.status,
       ...(item.toPaneId?.trim() ? { toPaneId: item.toPaneId.trim() } : {}),
       ...(shortWorktreeHint(item.worktreePath)

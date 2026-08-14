@@ -4,8 +4,8 @@
  * App.tsx posee los refs; este módulo no toca React/electron.
  */
 
-import type { DelegateRequest, DelegateResult } from './agentOrchestration'
-import { orchestrationRoundsAtCap } from './agentOrchestration'
+import type { DelegateRequest, DelegateResult, OrchestrationWorkStyle } from './agentOrchestration'
+import { orchestrationRoundsAtCap, resolveOrchestrationWorkStyle } from './agentOrchestration'
 import type { OrchestrationAwaitingItemInput } from './orchestrationAwaiting'
 
 export type {
@@ -25,7 +25,8 @@ export function shouldWakeJob(pendingRemaining: number, deferredRemaining = 0): 
 export interface OrchestrationJobPendingMeta {
   toPaneId: string
   toAgentId: string
-  baseAgentId?: string
+  /** Carril de hilo del experto base que ejecuta la delegación. */
+  toThreadId?: string
   /**
    * True when the target pane has been busy at least once while this pending
    * was live. Reconcile-idle must not complete a brand-new pending with an old
@@ -41,7 +42,6 @@ export interface OrchestrationDeferredItem {
   delegation: DelegateRequest
   toPaneId: string
   toAgentId: string
-  baseAgentId?: string
   parentDelegationId?: string
 }
 
@@ -52,11 +52,11 @@ export interface OrchestrationPendingMerge {
   info: {
     fromPaneId: string
     toPaneId: string
+    toThreadId: string
     worktreePath: string
     branch: string
     baseCwd: string
     baseBranch: string
-    baseAgentId?: string
   }
 }
 
@@ -82,6 +82,20 @@ function newJobId(): string {
   const uuid = globalThis.crypto?.randomUUID?.()
   if (uuid) return uuid
   return `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+export function dedupeDelegateResultsById(
+  results: readonly DelegateResult[],
+): DelegateResult[] {
+  const seen = new Set<string>()
+  const out: DelegateResult[] = []
+  for (const r of results) {
+    const id = r.id?.trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(r)
+  }
+  return out
 }
 
 export function createOrchestrationJob(
@@ -125,6 +139,85 @@ export function resolveOrchestrationJobIdForTurn(
   if (fromOptions) return fromOptions
   const fromActive = activeJobId?.trim()
   return fromActive || undefined
+}
+
+export type JobForTurnDecision =
+  | { kind: 'existing'; jobId: string }
+  | { kind: 'reuseOnly'; jobId: string }
+  | { kind: 'fresh'; staleJobId?: string }
+
+function listAliveJobs(
+  jobs: ReadonlyMap<string, OrchestrationJob>,
+): OrchestrationJob[] {
+  return [...jobs.values()].filter(job => !job.superseded)
+}
+
+/**
+ * Decide qué job usar para un turno sin reutilizar ids que ya no existen en el mapa.
+ */
+export function decideJobForTurn(options: {
+  jobs: ReadonlyMap<string, OrchestrationJob>
+  wantedJobId?: string | null
+  activeJobId?: string | null
+  workStyle?: OrchestrationWorkStyle
+}): JobForTurnDecision {
+  const wanted = options.wantedJobId?.trim()
+  if (wanted && options.jobs.has(wanted)) {
+    return { kind: 'existing', jobId: wanted }
+  }
+  if (wanted) {
+    return { kind: 'fresh', staleJobId: wanted }
+  }
+
+  const workStyle = resolveOrchestrationWorkStyle(options.workStyle)
+  const alive = listAliveJobs(options.jobs)
+  if (workStyle !== 'turbo' && alive.length === 1) {
+    return { kind: 'reuseOnly', jobId: alive[0].jobId }
+  }
+
+  return { kind: 'fresh' }
+}
+
+export interface AbortedDelegationTarget {
+  toPaneId: string
+  toThreadId?: string
+}
+
+/**
+ * Cierra un solo job: vacía pending/deferred y devuelve destinos que quedaban vivos.
+ * No toca otros jobs del mismo orquestador.
+ */
+export function abortOrchestrationJob(
+  jobs: Map<string, OrchestrationJob>,
+  jobId: string,
+): { ok: boolean; abortedTargets: AbortedDelegationTarget[] } {
+  const id = jobId.trim()
+  if (!id) return { ok: false, abortedTargets: [] }
+
+  const job = jobs.get(id)
+  if (!job) return { ok: false, abortedTargets: [] }
+
+  const abortedTargets: AbortedDelegationTarget[] = []
+
+  for (const meta of job.pending.values()) {
+    abortedTargets.push({
+      toPaneId: meta.toPaneId,
+      ...(meta.toThreadId ? { toThreadId: meta.toThreadId } : {}),
+    })
+  }
+  for (const item of job.deferred) {
+    abortedTargets.push({
+      toPaneId: item.toPaneId,
+    })
+  }
+
+  job.pending.clear()
+  job.deferred = []
+  job.waveItems = []
+  job.pendingMerges = []
+  job.superseded = true
+
+  return { ok: true, abortedTargets }
 }
 
 /**
@@ -204,7 +297,6 @@ export function flattenAwaitingItemsFromJobs(
       out.push({
         ...item,
         toAgentId: live?.toAgentId ?? item.toAgentId,
-        baseAgentId: live?.baseAgentId ?? item.baseAgentId,
         ...(live?.toPaneId
           ? { toPaneId: live.toPaneId }
           : item.toPaneId
@@ -223,7 +315,6 @@ export function flattenAwaitingItemsFromJobs(
         delegationId,
         toAgentId: meta.toAgentId,
         toPaneId: meta.toPaneId,
-        ...(meta.baseAgentId ? { baseAgentId: meta.baseAgentId } : {}),
         status: 'running',
       })
     }
@@ -233,7 +324,6 @@ export function flattenAwaitingItemsFromJobs(
         delegationId: deferred.delegation.id,
         toAgentId: deferred.toAgentId,
         toPaneId: deferred.toPaneId,
-        ...(deferred.baseAgentId ? { baseAgentId: deferred.baseAgentId } : {}),
         status: 'deferred',
       })
     }
@@ -252,7 +342,7 @@ export function upsertOrchestrationWaveItem(
     toAgentId: input.toAgentId,
     status: input.status,
     ...(input.toPaneId?.trim() ? { toPaneId: input.toPaneId.trim() } : {}),
-    ...(input.baseAgentId?.trim() ? { baseAgentId: input.baseAgentId.trim() } : {}),
+    ...(input.toThreadId?.trim() ? { toThreadId: input.toThreadId.trim() } : {}),
     ...(input.worktreePath?.trim() ? { worktreePath: input.worktreePath.trim() } : {}),
   }
   const idx = job.waveItems.findIndex(item => item.delegationId === id)
@@ -386,7 +476,6 @@ export interface AbortOneDelegationResult {
   ok: boolean
   toPaneId?: string
   toAgentId?: string
-  baseAgentId?: string
   wasPending: boolean
   wasDeferred: boolean
   remainingPending: number
@@ -436,16 +525,58 @@ export function abortOneDelegationInJob(
 
   const toPaneId = pendingMeta?.toPaneId ?? deferred?.toPaneId
   const toAgentId = pendingMeta?.toAgentId ?? deferred?.toAgentId
-  const baseAgentId = pendingMeta?.baseAgentId ?? deferred?.baseAgentId
 
   return {
     ok: true,
     ...(toPaneId ? { toPaneId } : {}),
     ...(toAgentId ? { toAgentId } : {}),
-    ...(baseAgentId ? { baseAgentId } : {}),
     wasPending: Boolean(pendingMeta),
     wasDeferred: Boolean(deferred),
     remainingPending: job.pending.size,
     remainingDeferred: job.deferred.length,
   }
+}
+
+export interface CancelledDeferredDelegation {
+  fromPaneId: string
+  job: OrchestrationJob
+  delegationId: string
+  toAgentId: string
+  tabId: string
+}
+
+/**
+ * Quita delegaciones diferidas cuyo destino es el pane detenido (Stop humano).
+ * No toca pending ni runtime; App notifica al orquestador y limpia el registry.
+ */
+export function cancelDeferredDelegationsForStoppedPane(
+  jobsByPane: Map<string, Map<string, OrchestrationJob>>,
+  stoppedPaneId: string,
+): CancelledDeferredDelegation[] {
+  const paneId = stoppedPaneId.trim()
+  if (!paneId) return []
+
+  const cancelled: CancelledDeferredDelegation[] = []
+  for (const [fromPaneId, jobsMap] of jobsByPane.entries()) {
+    for (const job of jobsMap.values()) {
+      const kept: OrchestrationJob['deferred'] = []
+      for (const item of job.deferred) {
+        if (item.toPaneId === paneId) {
+          const delegationId = item.delegation.id
+          job.waveItems = job.waveItems.filter(wave => wave.delegationId !== delegationId)
+          cancelled.push({
+            fromPaneId,
+            job,
+            delegationId,
+            toAgentId: item.toAgentId,
+            tabId: item.tabId,
+          })
+        } else {
+          kept.push(item)
+        }
+      }
+      job.deferred = kept
+    }
+  }
+  return cancelled
 }

@@ -24,7 +24,7 @@ import {
 } from '../src/shared/wikiCurator'
 import { IPC } from '../src/shared/ipcChannels'
 import { discoverTabContexts } from './tabContextBuild'
-import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+import { runAgentCliSpawn, stopAgentRunsForPane } from './agentCliRuntime'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { wikiRootPath } from './wikiStore'
 
@@ -134,7 +134,7 @@ export function startWikiCuratorTurn(
   curatorGenerations.set(cwd, generation)
   // El turno nuevo cancela al previo (runAgentCliSpawn también lo hace; esto
   // cubre runners inyectados y deja el estado consistente al instante).
-  stopAgentRun(paneId)
+  stopAgentRunsForPane(paneId)
   const isStale = (): boolean => curatorGenerations.get(cwd) !== generation
 
   const curatorConfig = readWikiCuratorConfig(cwd)
@@ -220,7 +220,7 @@ export function stopWikiCuratorTurn(cwd: string, win?: BrowserWindow): void {
   if (!trimmed) return
   if (!curatorGenerations.has(trimmed)) return
   curatorGenerations.delete(trimmed)
-  stopAgentRun(wikiCuratorPaneId(trimmed))
+  stopAgentRunsForPane(wikiCuratorPaneId(trimmed))
   if (win) emitCurator(win, trimmed, { type: 'done' })
 }
 

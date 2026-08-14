@@ -32,6 +32,8 @@ export interface DelegationResultCardData {
   /** Líneas de cambio (rutas/archivos) detectadas en el resumen. */
   changelog: string[]
   resultContextId?: string
+  /** Job turbo al que pertenece el resultado, si el follow-up lo trae. */
+  orchestrationJobId?: string
   /** Etiqueta cruda de la oleada, p. ej. `1/3` o `2/∞`. */
   round?: string
   /** Especialistas que aún faltan en la oleada, si el host lo indicó. */
@@ -188,6 +190,7 @@ function parseBlock(lines: string[]): DelegationResultCardData | null {
     changelog,
     ...(tail.toAgentId ? { agentId: tail.toAgentId } : {}),
     ...(tail.resultContextId ? { resultContextId: tail.resultContextId } : {}),
+    ...(tail.orchestrationJobId ? { orchestrationJobId: tail.orchestrationJobId } : {}),
     ...(tail.orchestrationRound ? { round: tail.orchestrationRound } : {}),
     ...(Number.isFinite(pendingRaw) && pendingRaw > 0 ? { pendingInBatch: pendingRaw } : {}),
   }
@@ -217,5 +220,11 @@ export function parseDelegationResultCards(content: string): DelegationResultCar
     const card = parseBlock(lines.slice(start + 1, end))
     if (card) cards.push(card)
   })
-  return cards
+  const seen = new Set<string>()
+  return cards.filter(card => {
+    const key = `${card.id}:${card.orchestrationJobId ?? ''}`
+    if (!card.id || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }

@@ -5,16 +5,12 @@ import {
 } from '../newThreadIntent'
 
 describe('shouldDeferNewThread', () => {
-  it('difiere si el pane está busy: no abortar turno vivo', () => {
-    expect(shouldDeferNewThread({ busy: true, hasActiveDelegation: false })).toBe(true)
+  it('no difiere solo por busy: el turno se promueve a carril', () => {
+    expect(shouldDeferNewThread({ hasActiveDelegation: false })).toBe(false)
   })
 
   it('difiere si hay delegación activa: no abortar la subtarea', () => {
-    expect(shouldDeferNewThread({ busy: false, hasActiveDelegation: true })).toBe(true)
-  })
-
-  it('idle limpio se aplica inmediatamente', () => {
-    expect(shouldDeferNewThread({ busy: false, hasActiveDelegation: false })).toBe(false)
+    expect(shouldDeferNewThread({ hasActiveDelegation: true })).toBe(true)
   })
 })
 

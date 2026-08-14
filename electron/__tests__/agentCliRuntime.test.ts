@@ -4,6 +4,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import type { AppConfig } from '../../src/shared/configSchema'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
+import { buildRunKey } from '../../src/shared/agentRunKey'
 import {
   buildContextContinuationPrompt,
   clearAgentContextDeliveryForSession,
@@ -141,47 +142,47 @@ describe('reserveAgentRun / isAgentRunReservationCurrent', () => {
   // del refresco no encontraba nada que matar (`stopAgentRun` salía en
   // `if (!run) return`) y el spawn llegaba igual cuando el refresco terminaba.
   it('reservar marca el pane activo y la reserva como vigente', () => {
-    const paneId = 'pane-reserve-active'
-    const generation = reserveAgentRun(paneId, null)
+    const runKey = buildRunKey('pane-reserve-active')
+    const generation = reserveAgentRun(runKey, null)
     try {
-      expect(isAgentRunActive(paneId)).toBe(true)
-      expect(isAgentRunReservationCurrent(paneId, generation)).toBe(true)
+      expect(isAgentRunActive(runKey)).toBe(true)
+      expect(isAgentRunReservationCurrent(runKey, generation)).toBe(true)
     } finally {
-      stopAgentRun(paneId)
+      stopAgentRun(runKey)
     }
   })
 
   it('Stop durante la ventana del refresco invalida la reserva: el turno diferido no debe arrancar', () => {
-    const paneId = 'pane-reserve-stopped'
-    const generation = reserveAgentRun(paneId, null)
+    const runKey = buildRunKey('pane-reserve-stopped')
+    const generation = reserveAgentRun(runKey, null)
 
     // Simula el Stop del usuario mientras `refreshStaleJiraContexts` está en vuelo.
-    stopAgentRun(paneId)
+    stopAgentRun(runKey)
 
-    expect(isAgentRunActive(paneId)).toBe(false)
-    expect(isAgentRunReservationCurrent(paneId, generation)).toBe(false)
+    expect(isAgentRunActive(runKey)).toBe(false)
+    expect(isAgentRunReservationCurrent(runKey, generation)).toBe(false)
   })
 
   it('sin Stop, la reserva sigue vigente cuando el refresco termina: el turno normal debe arrancar', () => {
-    const paneId = 'pane-reserve-normal'
-    const generation = reserveAgentRun(paneId, null)
+    const runKey = buildRunKey('pane-reserve-normal')
+    const generation = reserveAgentRun(runKey, null)
     try {
       // Nada invalidó la reserva durante el "await" simulado del refresco.
-      expect(isAgentRunReservationCurrent(paneId, generation)).toBe(true)
+      expect(isAgentRunReservationCurrent(runKey, generation)).toBe(true)
     } finally {
-      stopAgentRun(paneId)
+      stopAgentRun(runKey)
     }
   })
 
   it('una reserva más nueva para el mismo pane invalida la anterior', () => {
-    const paneId = 'pane-reserve-superseded'
-    const first = reserveAgentRun(paneId, null)
-    const second = reserveAgentRun(paneId, null)
+    const runKey = buildRunKey('pane-reserve-superseded')
+    const first = reserveAgentRun(runKey, null)
+    const second = reserveAgentRun(runKey, null)
     try {
-      expect(isAgentRunReservationCurrent(paneId, first)).toBe(false)
-      expect(isAgentRunReservationCurrent(paneId, second)).toBe(true)
+      expect(isAgentRunReservationCurrent(runKey, first)).toBe(false)
+      expect(isAgentRunReservationCurrent(runKey, second)).toBe(true)
     } finally {
-      stopAgentRun(paneId)
+      stopAgentRun(runKey)
     }
   })
 })

@@ -12,6 +12,7 @@ import type {
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import { IPC } from '../src/shared/ipcChannels'
+import { buildRunKey, parseRunKey } from '../src/shared/agentRunKey'
 import {
   filterTabContextUpdatesByChangedPaths,
   extractTabContextUpdates,
@@ -299,17 +300,17 @@ function buildImageAttachmentSection(paths: string[]): string {
 
 function send(
   win: BrowserWindow,
-  paneId: string,
+  runKey: string,
   event: AgentCliUiEvent,
 ): void {
-  if (!win.isDestroyed()) win.webContents.send(IPC.AGENT_CLI_EVENT, paneId, event)
+  if (!win.isDestroyed()) win.webContents.send(IPC.AGENT_CLI_EVENT, runKey, event)
 }
 
 /** Emite done en el canal de eventos y EXIT; el renderer prioriza done para ordenar el cierre. */
-function finishAgentTurn(win: BrowserWindow, paneId: string, code: number): void {
+function finishAgentTurn(win: BrowserWindow, runKey: string, code: number): void {
   if (win.isDestroyed()) return
-  send(win, paneId, { type: 'done', code })
-  win.webContents.send(IPC.AGENT_CLI_EXIT, paneId, code)
+  send(win, runKey, { type: 'done', code })
+  win.webContents.send(IPC.AGENT_CLI_EXIT, runKey, code)
 }
 
 /**
@@ -756,10 +757,10 @@ export function composePrompt(
   const allowDelegations = request.allowDelegations !== false
   const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
   const workStyle = request.orchestrationWorkStyle === 'turbo' ? 'turbo' as const : 'linear' as const
-  const allowExpertReplicas = request.allowExpertReplicas === true || workStyle === 'turbo'
+  const allowParallelLanes = request.allowParallelLanes !== false
   const orchestrationBlock = canDelegate
     ? [
-        buildOrchestratorAgentsBlock(request.orchestrationAgents ?? [], { allowExpertReplicas }),
+        buildOrchestratorAgentsBlock(request.orchestrationAgents ?? [], { allowParallelLanes }),
         '',
         ...(workStyle === 'turbo' && !isProductOwner(request.coordination)
           ? [
@@ -776,14 +777,14 @@ export function composePrompt(
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
             allowedAgentIds,
-            allowExpertReplicas,
+            allowParallelLanes,
           })
           : buildAiAgentDelegateInstruction({
             allowDelegations,
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
             allowedAgentIds,
-            allowExpertReplicas,
+            allowParallelLanes,
             workStyle,
             orchestrationJobId: request.orchestrationJobId,
           }),
@@ -976,14 +977,15 @@ export function runAgentCliSpawn(
   handlers: AgentCliSpawnHandlers,
   promptOverride?: string,
 ): void {
-  const generation = reserveAgentRun(request.paneId, null)
+  const runKey = buildRunKey(request.paneId, request.threadId)
+  const generation = reserveAgentRun(runKey, null)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const prompt = promptOverride ?? composePrompt(request, cwd)
   let latestSessionId = request.cliSessionId
 
   const failBeforeSpawn = (message: string): void => {
-    const current = agentRuns.get(request.paneId)
-    if (current?.generation === generation) agentRuns.delete(request.paneId)
+    const current = agentRuns.get(runKey)
+    if (current?.generation === generation) agentRuns.delete(runKey)
     handlers.onEvent({ type: 'error', message })
     handlers.onDone(1)
   }
@@ -1015,12 +1017,12 @@ export function runAgentCliSpawn(
     return
   }
 
-  const reserved = agentRuns.get(request.paneId)
+  const reserved = agentRuns.get(runKey)
   if (!reserved || reserved.generation !== generation) {
     try { proc.kill('SIGTERM') } catch { /* already exited */ }
     return
   }
-  agentRuns.set(request.paneId, { proc, windowId: -1, generation })
+  agentRuns.set(runKey, { proc, windowId: -1, generation })
   closeAgentCliStdin(proc.stdin)
 
   let stdoutBuffer = ''
@@ -1078,9 +1080,9 @@ export function runAgentCliSpawn(
   proc.on('close', code => {
     if (stdoutBuffer.trim()) processLine(stdoutBuffer)
     emit(parser.end())
-    const current = agentRuns.get(request.paneId)
+    const current = agentRuns.get(runKey)
     const phaseStillActive = current?.proc === proc && current.generation === generation
-    if (phaseStillActive) agentRuns.delete(request.paneId)
+    if (phaseStillActive) agentRuns.delete(runKey)
     if (!shouldFinishOnProcessClose(phaseStillActive)) return
     if (code && !sawAssistantText) {
       handlers.onEvent({
@@ -1105,7 +1107,8 @@ export function startAgentTurn(
    */
   reservedGeneration?: number,
 ): void {
-  const generation = reservedGeneration ?? reserveAgentRun(request.paneId, win)
+  const runKey = buildRunKey(request.paneId, request.threadId)
+  const generation = reservedGeneration ?? reserveAgentRun(runKey, win)
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const projectCwd = resolveProjectCwd(request, home)
   // Los paneles agente no tienen PTY; sincronizamos cwd lógico para el resto de IPC.
@@ -1144,10 +1147,10 @@ export function startAgentTurn(
   }
 
   const failBeforeSpawn = (message: string): void => {
-    const current = agentRuns.get(request.paneId)
-    if (current?.generation === generation) agentRuns.delete(request.paneId)
-    send(win, request.paneId, { type: 'error', message })
-    finishAgentTurn(win, request.paneId, 1)
+    const current = agentRuns.get(runKey)
+    if (current?.generation === generation) agentRuns.delete(runKey)
+    send(win, runKey, { type: 'error', message })
+    finishAgentTurn(win, runKey, 1)
   }
 
   const startPhase = (prompt: string, contextRound: number): void => {
@@ -1178,13 +1181,13 @@ export function startAgentTurn(
       return
     }
 
-    const reserved = agentRuns.get(request.paneId)
+    const reserved = agentRuns.get(runKey)
     if (!reserved || reserved.generation !== generation) {
       // El usuario paró (o se reemplazó el turno) mientras spawneábamos.
       try { proc.kill('SIGTERM') } catch { /* already exited */ }
       return
     }
-    agentRuns.set(request.paneId, { proc, windowId: win.id, generation })
+    agentRuns.set(runKey, { proc, windowId: win.id, generation })
     closeAgentCliStdin(proc.stdin)
     let stdoutBuffer = ''
     let stderrBuffer = ''
@@ -1204,7 +1207,7 @@ export function startAgentTurn(
         for (const event of events) {
           if (event.type === 'session') {
             latestSessionId = event.cliSessionId
-            send(win, request.paneId, event)
+            send(win, runKey, event)
             continue
           }
           if (
@@ -1240,7 +1243,7 @@ export function startAgentTurn(
                 payload.prompt,
                 Boolean(latestSessionId),
               )
-              send(win, request.paneId, {
+              send(win, runKey, {
                 type: 'context',
                 status: 'loading',
                 detail: `${payload.sectionCount}`,
@@ -1294,7 +1297,7 @@ export function startAgentTurn(
               : { visibleText: afterResults, delegations: [] }
             if (delegations.length && request.allowDelegations !== false) {
               const jobId = request.orchestrationJobId?.trim()
-              send(win, request.paneId, {
+              send(win, runKey, {
                 type: 'delegate',
                 delegations,
                 ...(jobId ? { orchestrationJobId: jobId } : {}),
@@ -1310,10 +1313,10 @@ export function startAgentTurn(
               }
             }
             if (visibleText.trim()) sawAssistantText = true
-            send(win, request.paneId, { ...event, text: visibleText })
+            send(win, runKey, { ...event, text: visibleText })
           } else {
             if (event.type === 'assistant_delta' && event.text.trim()) sawAssistantText = true
-            send(win, request.paneId, event)
+            send(win, runKey, event)
           }
         }
       }
@@ -1344,7 +1347,7 @@ export function startAgentTurn(
     })
     proc.on('error', error => {
       spawnErrnoMessage = error.message
-      send(win, request.paneId, {
+      send(win, runKey, {
         type: 'error',
         message: formatCliSpawnFailure(command, -4058, error.message),
       })
@@ -1357,9 +1360,9 @@ export function startAgentTurn(
       if (!sawAssistantText && rawStdout.trim()) {
         emit([{ type: 'assistant_final', text: rawStdout.trimEnd() }])
       }
-      const current = agentRuns.get(request.paneId)
+      const current = agentRuns.get(runKey)
       const phaseStillActive = current?.proc === proc && current.generation === generation
-      if (phaseStillActive) agentRuns.delete(request.paneId)
+      if (phaseStillActive) agentRuns.delete(runKey)
 
       // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
@@ -1375,22 +1378,22 @@ export function startAgentTurn(
       }
 
       if (continuationPrompt && code === 0) {
-        send(win, request.paneId, {
+        send(win, runKey, {
           type: 'context',
           status: 'loaded',
         })
-        agentRuns.set(request.paneId, { proc: null, windowId: win.id, generation })
+        agentRuns.set(runKey, { proc: null, windowId: win.id, generation })
         startPhase(continuationPrompt, contextRound + 1)
         return
       }
       if (code && !sawAssistantText) {
-        send(win, request.paneId, {
+        send(win, runKey, {
           type: 'error',
           message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
         })
       }
       recordTurnInPulse()
-      finishAgentTurn(win, request.paneId, code ?? 0)
+      finishAgentTurn(win, runKey, code ?? 0)
     })
   }
 
@@ -1424,60 +1427,76 @@ export function startAgentTurn(
   startPhase(initialPrompt, 0)
 }
 
-export function isAgentRunActive(paneId: string): boolean {
-  return agentRuns.has(paneId)
+export function isAgentRunActive(runKey: string): boolean {
+  return agentRuns.has(runKey)
+}
+
+/** ¿Algún carril del pane tiene un turno activo o reservado? */
+export function isAnyAgentRunActiveForPane(paneId: string): boolean {
+  for (const key of agentRuns.keys()) {
+    if (parseRunKey(key).paneId === paneId) return true
+  }
+  return false
 }
 
 /**
- * Reserva el paneId para un turno nuevo: mata cualquier turno anterior (síncrono,
- * sin `await` de por medio) y aparta el slot con una generación fresca.
+ * Reserva el runKey para un turno nuevo: mata cualquier turno anterior en ese
+ * carril (síncrono, sin `await` de por medio) y aparta el slot con una
+ * generación fresca.
  * `startAgentTurn` la usa cuando no recibe una generación ya reservada; el
- * handler de `AGENT_CLI_START` la llama directamente para reservar el pane ANTES
+ * handler de `AGENT_CLI_START` la llama directamente para reservar ANTES
  * del refresco async de Jira — así Stop/close/quit encuentran algo que matar
  * mientras el turno todavía no arrancó, en vez de que `stopAgentRun` salga en
  * `if (!run) return` y el spawn llegue de todas formas cuando el refresco termine.
  */
-export function reserveAgentRun(paneId: string, win: BrowserWindow | null): number {
-  stopAgentRun(paneId)
+export function reserveAgentRun(runKey: string, win: BrowserWindow | null): number {
+  stopAgentRun(runKey)
   const generation = nextAgentRunGeneration++
-  agentRuns.set(paneId, { proc: null, windowId: win?.id ?? -1, generation })
+  agentRuns.set(runKey, { proc: null, windowId: win?.id ?? -1, generation })
   return generation
 }
 
 /**
  * ¿La reserva sigue siendo la misma generación? El handler la comprueba tras el
  * `await` del refresco para decidir si el turno diferido todavía debe arrancar,
- * o si Stop / un turno más nuevo para el mismo pane la invalidó mientras tanto.
+ * o si Stop / un turno más nuevo para el mismo carril la invalidó mientras tanto.
  */
-export function isAgentRunReservationCurrent(paneId: string, generation: number): boolean {
-  return agentRuns.get(paneId)?.generation === generation
+export function isAgentRunReservationCurrent(runKey: string, generation: number): boolean {
+  return agentRuns.get(runKey)?.generation === generation
 }
 
 /**
- * Detiene el proceso del pane.
+ * Detiene el proceso del carril.
  * Con `notify: true` emite done/EXIT de inmediato: si solo matamos y borramos del
  * mapa, el `close` posterior no notifica y la UI se queda en “thinking”.
  */
-export function stopAgentRun(paneId: string, options: StopAgentRunOptions = {}): void {
-  const run = agentRuns.get(paneId)
+export function stopAgentRun(runKey: string, options: StopAgentRunOptions = {}): void {
+  const run = agentRuns.get(runKey)
   if (!run) return
-  agentRuns.delete(paneId)
+  agentRuns.delete(runKey)
   try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
   if (options.notify && options.win && !options.win.isDestroyed()) {
-    finishAgentTurn(options.win, paneId, 130)
+    finishAgentTurn(options.win, runKey, 130)
+  }
+}
+
+/** Detiene todos los carriles activos de un pane (p. ej. cierre del panel). */
+export function stopAgentRunsForPane(paneId: string, options: StopAgentRunOptions = {}): void {
+  for (const key of [...agentRuns.keys()]) {
+    if (parseRunKey(key).paneId === paneId) stopAgentRun(key, options)
   }
 }
 
 export function stopAgentRunsForWindow(windowId: number): void {
-  for (const [paneId, run] of agentRuns) {
-    if (run.windowId === windowId) stopAgentRun(paneId)
+  for (const [runKey, run] of agentRuns) {
+    if (run.windowId === windowId) stopAgentRun(runKey)
   }
 }
 
 /** Mata todos los procesos de agente (p. ej. al salir de la app). */
 export function stopAllAgentRuns(): void {
-  for (const paneId of [...agentRuns.keys()]) {
-    stopAgentRun(paneId)
+  for (const runKey of [...agentRuns.keys()]) {
+    stopAgentRun(runKey)
   }
 }
 

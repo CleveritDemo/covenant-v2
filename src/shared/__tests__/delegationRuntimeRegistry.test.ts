@@ -1,69 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import {
   attachDelegationWorktree,
-  claimReplicaDispose,
   deleteDelegationRuntime,
   getDelegationRuntime,
   listNestedDelegations,
   markDelegationRuntimeStatus,
   registerDelegationRuntime,
+  resolveDelegationDelivery,
   type DelegationRuntimeRegistry,
 } from '../delegationRuntimeRegistry'
+import type { DelegateResult } from '../agentOrchestration'
 
 function makeRegistry(): DelegationRuntimeRegistry {
   return new Map()
 }
 
 describe('delegationRuntimeRegistry', () => {
-  it('registra una delegación pending con toPaneId y jobId', () => {
+  it('registra una delegación pending con toPaneId, toThreadId y jobId', () => {
     const reg = makeRegistry()
     const entry = registerDelegationRuntime(reg, {
       delegationId: 'd1',
       fromPaneId: 'p-o',
       toPaneId: 'p-s',
       toAgentId: 'frontend',
+      toThreadId: 'thread-1',
       jobId: 'j1',
-      disposeReplica: true,
     })
     expect(entry.status).toBe('pending')
-    expect(entry.replicaDisposed).toBe(false)
+    expect(entry.toThreadId).toBe('thread-1')
     expect(getDelegationRuntime(reg, 'd1')).toBe(entry)
-  })
-
-  it('claimReplicaDispose es idempotente: la segunda llamada no retorna entry', () => {
-    const reg = makeRegistry()
-    registerDelegationRuntime(reg, {
-      delegationId: 'd1',
-      fromPaneId: 'p-o',
-      toPaneId: 'p-s',
-      toAgentId: 'frontend',
-      jobId: 'j1',
-      disposeReplica: true,
-    })
-    const first = claimReplicaDispose(reg, 'd1')
-    expect(first).toBeDefined()
-    expect(first?.replicaDisposed).toBe(true)
-    expect(first?.status).toBe('replica_disposed')
-    const second = claimReplicaDispose(reg, 'd1')
-    expect(second).toBeUndefined()
-  })
-
-  it('claimReplicaDispose devuelve undefined si disposeReplica=false', () => {
-    const reg = makeRegistry()
-    registerDelegationRuntime(reg, {
-      delegationId: 'd1',
-      fromPaneId: 'p-o',
-      toPaneId: 'p-s',
-      toAgentId: 'frontend',
-      jobId: 'j1',
-      disposeReplica: false,
-    })
-    expect(claimReplicaDispose(reg, 'd1')).toBeUndefined()
-  })
-
-  it('claimReplicaDispose devuelve undefined para delegación desconocida', () => {
-    const reg = makeRegistry()
-    expect(claimReplicaDispose(reg, 'nope')).toBeUndefined()
   })
 
   it('attachDelegationWorktree adjunta info al entry existente', () => {
@@ -74,7 +39,6 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-s',
       toAgentId: 'frontend',
       jobId: 'j1',
-      disposeReplica: true,
     })
     attachDelegationWorktree(reg, 'd1', {
       worktreePath: '/tmp/wt',
@@ -94,7 +58,6 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-s',
       toAgentId: 'frontend',
       jobId: 'j1',
-      disposeReplica: true,
     })
     markDelegationRuntimeStatus(reg, 'd1', 'awaiting_merge')
     expect(getDelegationRuntime(reg, 'd1')?.status).toBe('awaiting_merge')
@@ -108,27 +71,12 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-s',
       toAgentId: 'frontend',
       jobId: 'j1',
-      disposeReplica: true,
     })
     expect(deleteDelegationRuntime(reg, 'd1')).toBe(true)
     expect(getDelegationRuntime(reg, 'd1')).toBeUndefined()
   })
 
-  it('sella replicaDisposed manualmente para simular cierre externo (abort)', () => {
-    const reg = makeRegistry()
-    const entry = registerDelegationRuntime(reg, {
-      delegationId: 'd1',
-      fromPaneId: 'p-o',
-      toPaneId: 'p-s',
-      toAgentId: 'frontend',
-      jobId: 'j1',
-      disposeReplica: true,
-    })
-    entry.replicaDisposed = true
-    expect(claimReplicaDispose(reg, 'd1')).toBeUndefined()
-  })
-
-  it('flujo típico pendingMerge: pending → awaiting_merge → replica_disposed (una sola vez)', () => {
+  it('flujo típico pendingMerge: pending → awaiting_merge → completed', () => {
     const reg = makeRegistry()
     registerDelegationRuntime(reg, {
       delegationId: 'd1',
@@ -136,17 +84,11 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-s',
       toAgentId: 'frontend',
       jobId: 'j1',
-      disposeReplica: true,
     })
     markDelegationRuntimeStatus(reg, 'd1', 'awaiting_merge')
     expect(getDelegationRuntime(reg, 'd1')?.status).toBe('awaiting_merge')
-    // Un cleanup temprano no debe cerrar mientras esté awaiting_merge... la
-    // política se implementa en el consumidor (App.tsx); acá comprobamos que
-    // el estado es fielmente rastreable.
-    const claimed = claimReplicaDispose(reg, 'd1')
-    expect(claimed?.status).toBe('replica_disposed')
-    // Un segundo intento (por ejemplo, resultado huérfano tardío) es no-op.
-    expect(claimReplicaDispose(reg, 'd1')).toBeUndefined()
+    markDelegationRuntimeStatus(reg, 'd1', 'completed')
+    expect(getDelegationRuntime(reg, 'd1')?.status).toBe('completed')
   })
 
   it('flujo huérfano: registry conocido tras purgar el job permite cleanup terminal', () => {
@@ -157,15 +99,10 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-s',
       toAgentId: 'frontend',
       jobId: 'j1',
-      disposeReplica: true,
     })
-    // El job "oficial" desaparece (superseded, remount). El registry sigue
-    // permitiendo lookup + claim.
     const entry = getDelegationRuntime(reg, 'd1')
     expect(entry).toBeDefined()
     markDelegationRuntimeStatus(reg, 'd1', 'orphaned')
-    const claimed = claimReplicaDispose(reg, 'd1')
-    expect(claimed).toBeDefined()
     deleteDelegationRuntime(reg, 'd1')
     expect(getDelegationRuntime(reg, 'd1')).toBeUndefined()
   })
@@ -179,7 +116,6 @@ describe('delegationRuntimeRegistry', () => {
       toAgentId: 'frontend',
       jobId: 'j-orq',
       parentDelegationId: 'parent-po',
-      disposeReplica: true,
     })
     expect(entry.parentDelegationId).toBe('parent-po')
     expect(getDelegationRuntime(reg, 'nested-1')?.parentDelegationId).toBe('parent-po')
@@ -194,7 +130,6 @@ describe('delegationRuntimeRegistry', () => {
       toAgentId: 'frontend',
       jobId: 'j-orq',
       parentDelegationId: 'parent-po',
-      disposeReplica: true,
     })
     registerDelegationRuntime(reg, {
       delegationId: 'n2',
@@ -203,7 +138,6 @@ describe('delegationRuntimeRegistry', () => {
       toAgentId: 'qa',
       jobId: 'j-orq',
       parentDelegationId: 'parent-po',
-      disposeReplica: true,
     })
     registerDelegationRuntime(reg, {
       delegationId: 'solo',
@@ -211,11 +145,104 @@ describe('delegationRuntimeRegistry', () => {
       toPaneId: 'p-c',
       toAgentId: 'backend',
       jobId: 'j-orq',
-      disposeReplica: true,
     })
     const nested = listNestedDelegations(reg, 'parent-po')
     expect(nested.map(item => item.delegationId).sort()).toEqual(['n1', 'n2'])
     expect(listNestedDelegations(reg, 'unknown')).toEqual([])
     expect(listNestedDelegations(reg, '')).toEqual([])
+  })
+})
+
+describe('resolveDelegationDelivery', () => {
+  function makeResult(partial: Partial<DelegateResult> & Pick<DelegateResult, 'id'>): DelegateResult {
+    return {
+      status: 'ok',
+      summary: 'done',
+      fromPaneId: 'p-o',
+      orchestrationJobId: 'j1',
+      ...partial,
+    }
+  }
+
+  it('delivers when fromPaneId, jobId and id match the registry entry', () => {
+    const reg = makeRegistry()
+    registerDelegationRuntime(reg, {
+      delegationId: 'd1',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-s',
+      toAgentId: 'frontend',
+      jobId: 'j1',
+    })
+    const resolution = resolveDelegationDelivery(reg, makeResult({ id: 'd1' }))
+    expect(resolution.kind).toBe('deliver')
+    if (resolution.kind === 'deliver') {
+      expect(resolution.entry.delegationId).toBe('d1')
+    }
+  })
+
+  it('mismatches when fromPaneId belongs to another orchestrator', () => {
+    const reg = makeRegistry()
+    registerDelegationRuntime(reg, {
+      delegationId: 'd1',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-s',
+      toAgentId: 'frontend',
+      jobId: 'j1',
+    })
+    const resolution = resolveDelegationDelivery(reg, makeResult({
+      id: 'd1',
+      fromPaneId: 'p-other',
+    }))
+    expect(resolution).toMatchObject({ kind: 'mismatch', reason: 'fromPaneId' })
+  })
+
+  it('mismatches when orchestrationJobId is stale', () => {
+    const reg = makeRegistry()
+    registerDelegationRuntime(reg, {
+      delegationId: 'd1',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-s',
+      toAgentId: 'frontend',
+      jobId: 'j1',
+    })
+    const resolution = resolveDelegationDelivery(reg, makeResult({
+      id: 'd1',
+      orchestrationJobId: 'j-old',
+    }))
+    expect(resolution).toMatchObject({ kind: 'mismatch', reason: 'jobId' })
+  })
+
+  it('returns unknown for an unregistered delegation id', () => {
+    const reg = makeRegistry()
+    expect(resolveDelegationDelivery(reg, makeResult({ id: 'missing' })).kind).toBe('unknown')
+  })
+
+  it('does not confuse two orchestrators targeting the same specialist pane', () => {
+    const reg = makeRegistry()
+    registerDelegationRuntime(reg, {
+      delegationId: 'd-orq-a',
+      fromPaneId: 'p-orq-a',
+      toPaneId: 'p-spec',
+      toAgentId: 'frontend',
+      jobId: 'job-a',
+    })
+    registerDelegationRuntime(reg, {
+      delegationId: 'd-orq-b',
+      fromPaneId: 'p-orq-b',
+      toPaneId: 'p-spec',
+      toAgentId: 'frontend',
+      jobId: 'job-b',
+    })
+    const resolution = resolveDelegationDelivery(reg, makeResult({
+      id: 'd-orq-b',
+      fromPaneId: 'p-orq-a',
+      orchestrationJobId: 'job-b',
+    }))
+    expect(resolution).toMatchObject({ kind: 'mismatch', reason: 'fromPaneId' })
+    expect(resolveDelegationDelivery(reg, makeResult({
+      id: 'd-orq-b',
+      fromPaneId: 'p-orq-b',
+      orchestrationJobId: 'job-b',
+    })).kind).toBe('deliver')
   })
 })

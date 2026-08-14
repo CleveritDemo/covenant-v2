@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { canDrainAgentQueue, isAgentHumanInputBlocked, shouldShowComposerStop } from '../agentInputGuards'
+import {
+  canDrainAgentQueue,
+  canStartHumanTurnNow,
+  isAgentHumanInputBlocked,
+  shouldShowComposerStop,
+} from '../agentInputGuards'
 
 const idleBase = {
   loaded: true,
@@ -113,6 +118,32 @@ describe('agent input anti-collision guards', () => {
       loopActive: true,
       delegationWorkActive: true,
       headIsDelegation: true,
+    })).toBe(false)
+  })
+})
+
+describe('canStartHumanTurnNow', () => {
+  it('allows human turn in turbo while awaiting delegations', () => {
+    expect(canStartHumanTurnNow({
+      ...idleBase,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(true)
+  })
+
+  it('blocks human turn in linear while awaiting delegations', () => {
+    expect(canStartHumanTurnNow({
+      ...idleBase,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'linear',
+    })).toBe(false)
+  })
+
+  it('blocks human turn when system follow-ups are pending', () => {
+    expect(canStartHumanTurnNow({
+      ...idleBase,
+      systemFollowUpsPending: true,
+      orchestrationWorkStyle: 'turbo',
     })).toBe(false)
   })
 })

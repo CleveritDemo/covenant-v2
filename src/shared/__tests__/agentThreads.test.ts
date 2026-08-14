@@ -4,6 +4,7 @@ import {
   MAX_THREADS_PER_PANE,
   deleteThread,
   newThread,
+  pruneCompletedDelegationThreads,
   renameThread,
   sanitizeThreadState,
   selectThread,
@@ -62,6 +63,62 @@ describe('sanitizeThreadState', () => {
     expect(state.threads.some(thread => thread.id === 't0')).toBe(true)
     // Se van los más viejos, no el activo.
     expect(state.threads.some(thread => thread.id === 't1')).toBe(false)
+  })
+
+  it('protectedIds no se podan aunque superen MAX_THREADS_PER_PANE', () => {
+    const raw = Array.from({ length: MAX_THREADS_PER_PANE + 3 }, (_, index) => ({
+      id: `t${index}`,
+      title: '',
+      updatedAt: index,
+    }))
+    const protectedIds = new Set(['t99'])
+    const withExtra = [
+      ...raw,
+      { id: 't99', title: 'protegido', updatedAt: 999 },
+    ]
+    const state = sanitizeThreadState(withExtra, 't0', undefined, protectedIds)
+    expect(state.threads.some(thread => thread.id === 't99')).toBe(true)
+    expect(state.threads.some(thread => thread.id === 't0')).toBe(true)
+  })
+
+  it('la poda conserva hilos con carril vivo aunque excedan MAX_THREADS_PER_PANE', () => {
+    const raw = Array.from({ length: MAX_THREADS_PER_PANE + 2 }, (_, index) => ({
+      id: `t${index}`,
+      title: `thread ${index}`,
+      updatedAt: index,
+    }))
+    const liveLaneId = 't-live-lane'
+    const withLane = [
+      ...raw,
+      { id: liveLaneId, title: 'delegación activa', updatedAt: 999, origin: 'delegation' as const },
+    ]
+    const protectedIds = new Set([liveLaneId])
+    const state = sanitizeThreadState(withLane, 't0', undefined, protectedIds)
+    expect(state.threads.some(thread => thread.id === liveLaneId)).toBe(true)
+    expect(state.threads.length).toBeLessThanOrEqual(MAX_THREADS_PER_PANE + 1)
+  })
+
+  it('origin y delegationId sobreviven al sanitize', () => {
+    const state = sanitizeThreadState(
+      [{
+        id: 'd1',
+        title: 'deleg',
+        updatedAt: 1,
+        origin: 'delegation',
+        delegationId: 'del-42',
+      }],
+      'd1',
+    )
+    expect(state.threads[0]).toMatchObject({
+      origin: 'delegation',
+      delegationId: 'del-42',
+    })
+    const bad = sanitizeThreadState(
+      [{ id: 'x', title: '', updatedAt: 0, origin: 'bot', delegationId: '  ' }],
+      'x',
+    )
+    expect(bad.threads[0]!.origin).toBeUndefined()
+    expect(bad.threads[0]!.delegationId).toBeUndefined()
   })
 })
 
@@ -143,5 +200,46 @@ describe('operaciones', () => {
     const stripped = stripThreadSessions(base.threads)
     expect(stripped.map(thread => thread.title)).toEqual(['vieja', 'nueva'])
     expect(stripped.every(thread => thread.cliSessionId === undefined)).toBe(true)
+  })
+})
+
+describe('pruneCompletedDelegationThreads', () => {
+  it('borra solo hilos de delegación y conserva los humanos', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 50, origin: 'delegation', delegationId: 'del-1' },
+      ],
+      'h1',
+    )
+    const { state: next, deletedIds } = pruneCompletedDelegationThreads(state, ['d1'], 'fb', 200)
+    expect(deletedIds).toEqual(['d1'])
+    expect(next.threads.map(thread => thread.id)).toEqual(['h1'])
+    expect(next.activeThreadId).toBe('h1')
+  })
+
+  it('si el activo era delegación, salta al humano más reciente', () => {
+    const state = sanitizeThreadState(
+      [
+        { id: 'h1', title: 'main', updatedAt: 100, origin: 'human' },
+        { id: 'h2', title: 'older', updatedAt: 80, origin: 'human' },
+        { id: 'd1', title: 'del', updatedAt: 50, origin: 'delegation' },
+      ],
+      'd1',
+    )
+    const { state: next } = pruneCompletedDelegationThreads(state, ['d1'], 'fb', 200)
+    expect(next.activeThreadId).toBe('h1')
+    expect(next.threads.some(thread => thread.id === 'd1')).toBe(false)
+    expect(next.threads.length).toBeGreaterThan(0)
+  })
+
+  it('no borra hilos humanos ni sin origin delegation', () => {
+    const state = sanitizeThreadState(
+      [{ id: 'h1', title: 'main', updatedAt: 100, origin: 'human' }],
+      'h1',
+    )
+    const { state: next, deletedIds } = pruneCompletedDelegationThreads(state, ['h1'], 'fb', 200)
+    expect(deletedIds).toEqual([])
+    expect(next).toBe(state)
   })
 })

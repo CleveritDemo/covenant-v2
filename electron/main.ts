@@ -81,6 +81,7 @@ import {
 import { withMcpServerLiveness } from './mcpProbe'
 import type { BrainstormRoom } from '../src/shared/brainstormRoom'
 import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCliTypes'
+import { buildRunKey, RUN_KEY_SEP } from '../src/shared/agentRunKey'
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import { listAgentCliModels } from './agentCliModelsList'
 import { resolveAgentCli } from './agentCliResolve'
@@ -88,9 +89,11 @@ import {
   startAgentTurn,
   isAgentRunActive,
   isAgentRunReservationCurrent,
+  isAnyAgentRunActiveForPane,
   reserveAgentRun,
   resolveProjectCwd,
   stopAgentRun,
+  stopAgentRunsForPane,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
   clearAgentContextDeliveryForSession,
@@ -2134,47 +2137,48 @@ function registerIpc(): void {
   ipcMain.on(IPC.AGENT_CLI_START, (event, request: AgentCliStartRequest) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
-    const reject = (paneId: string, message: string): void => {
+    const reject = (req: AgentCliStartRequest, message: string): void => {
+      const runKey = buildRunKey(req.paneId, req.threadId)
       if (!win.isDestroyed()) {
-        win.webContents.send(IPC.AGENT_CLI_EVENT, paneId, { type: 'error', message })
-        win.webContents.send(IPC.AGENT_CLI_EVENT, paneId, { type: 'done', code: 1 })
-        win.webContents.send(IPC.AGENT_CLI_EXIT, paneId, 1)
+        win.webContents.send(IPC.AGENT_CLI_EVENT, runKey, { type: 'error', message })
+        win.webContents.send(IPC.AGENT_CLI_EVENT, runKey, { type: 'done', code: 1 })
+        win.webContents.send(IPC.AGENT_CLI_EXIT, runKey, 1)
       }
     }
     if (!request || typeof request.paneId !== 'string' || typeof request.prompt !== 'string') {
       if (request && typeof request.paneId === 'string') {
-        reject(request.paneId, 'Solicitud de agente inválida.')
+        reject(request, 'Solicitud de agente inválida.')
       }
       return
     }
     if (!isAgentCliProvider(request.provider)) {
-      reject(request.paneId, 'Proveedor de agente no válido.')
+      reject(request, 'Proveedor de agente no válido.')
       return
     }
     if (!['auto', 'plan'].includes(request.permissionMode)) {
-      reject(request.paneId, 'Modo de permisos no válido.')
+      reject(request, 'Modo de permisos no válido.')
       return
     }
     if (request.model != null && typeof request.model !== 'string') {
-      reject(request.paneId, 'Modelo de agente no válido.')
+      reject(request, 'Modelo de agente no válido.')
       return
     }
     if (request.images != null) {
       if (!Array.isArray(request.images)) {
-        reject(request.paneId, 'Adjuntos de imagen no válidos.')
+        reject(request, 'Adjuntos de imagen no válidos.')
         return
       }
       for (const image of request.images) {
         if (!image || typeof image !== 'object') {
-          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          reject(request, 'Adjuntos de imagen no válidos.')
           return
         }
         if (typeof image.name !== 'string' || typeof image.mimeType !== 'string') {
-          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          reject(request, 'Adjuntos de imagen no válidos.')
           return
         }
         if (typeof image.base64 !== 'string' || !image.base64.trim()) {
-          reject(request.paneId, 'Adjuntos de imagen no válidos.')
+          reject(request, 'Adjuntos de imagen no válidos.')
           return
         }
       }
@@ -2185,7 +2189,8 @@ function registerIpc(): void {
     // llega igual cuando el refresco termina. Reservar deja un slot con la
     // generación nueva para que Stop lo invalide de verdad.
     const home = app.getPath('home')
-    const generation = reserveAgentRun(request.paneId, win)
+    const runKey = buildRunKey(request.paneId, request.threadId)
+    const generation = reserveAgentRun(runKey, win)
     // `.gravity` vive en el proyecto, nunca en el worktree: el refresco necesita
     // el cwd del proyecto (`projectCwd`), no el cwd del spawn del turno (`cwd`).
     const projectCwd = resolveProjectCwd(request, home)
@@ -2195,17 +2200,24 @@ function registerIpc(): void {
         if (win.isDestroyed()) return
         // Si Stop (u otro turno para el mismo pane) invalidó la reserva mientras
         // esperábamos Jira, no arrancar un turno que la UI ya muestra como parado.
-        if (!isAgentRunReservationCurrent(request.paneId, generation)) return
+        if (!isAgentRunReservationCurrent(runKey, generation)) return
         startAgentTurn(win, request, readConfig(), home, generation)
       })
   })
-  ipcMain.on(IPC.AGENT_CLI_STOP, (event, paneId: string) => {
-    if (typeof paneId !== 'string') return
+  ipcMain.on(IPC.AGENT_CLI_STOP, (event, key: string) => {
+    if (typeof key !== 'string') return
     const win = BrowserWindow.fromWebContents(event.sender)
-    stopAgentRun(paneId, win ? { win, notify: true } : {})
+    const options = win ? { win, notify: true as const } : {}
+    if (key.includes(RUN_KEY_SEP)) {
+      stopAgentRun(key, options)
+    } else {
+      stopAgentRunsForPane(key, options)
+    }
   })
-  ipcMain.handle(IPC.AGENT_CLI_IS_ACTIVE, (_event, paneId: string) => {
-    return typeof paneId === 'string' && isAgentRunActive(paneId)
+  ipcMain.handle(IPC.AGENT_CLI_IS_ACTIVE, (_event, key: string) => {
+    if (typeof key !== 'string') return false
+    if (key.includes(RUN_KEY_SEP)) return isAgentRunActive(key)
+    return isAnyAgentRunActiveForPane(key)
   })
   ipcMain.handle(IPC.AGENT_CLI_LIST_MODELS, async (_event, provider: unknown): Promise<AgentCliModelsResult> => {
     if (!isAgentCliProvider(provider)) {

@@ -197,6 +197,37 @@
   z-index: 1;
 }
 
+.pane-window--out-of-band {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.plane-map__overflow {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.plane-map__overflow-column {
+  position: absolute;
+  top: 72px;
+  bottom: 148px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.plane-map__overflow-column .plane-column-overflow-pill {
+  pointer-events: auto;
+}
+
+.plane-map__overflow-column--agents {
+  align-items: flex-end;
+}
+
 .pane-window__shell {
   display: flex;
   flex-direction: column;

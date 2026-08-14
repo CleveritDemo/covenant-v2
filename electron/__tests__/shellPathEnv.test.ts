@@ -22,6 +22,7 @@ describe('shellPathEnv', () => {
     )).toBe(['/shell/bin', '/shared', '/extra/bin', '/electron/bin'].join(SEP))
   })
 
+  // Spawns the real login shell synchronously; needs extra margin under full-suite CPU load.
   it('enriches PATH with login shell and common bin dirs', () => {
     if (process.platform === 'win32') return
     const env: NodeJS.ProcessEnv = { PATH: '/usr/bin:/bin', SHELL: process.env.SHELL }
@@ -29,7 +30,7 @@ describe('shellPathEnv', () => {
     expect(env.PATH).toBeTruthy()
     expect(env.PATH!.includes('/usr/bin')).toBe(true)
     expect(env.PATH).toMatch(/\.local\/bin/)
-  })
+  }, 20000)
 
   it('parses `env -0` and the newline fallback, dropping rc noise', () => {
     expect(parseShellEnv('A=1\0B=x=y\0Welcome to zsh\0BASH_FUNC_f%%=(){}\0')).toEqual({

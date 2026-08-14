@@ -258,11 +258,11 @@ const AgentRow: React.FC<{ group: PulseAgentGroup; nowMs: number; defaultOpen: b
                   <React.Fragment key={instance.agentId}>
                     <span>
                       {instance.agentId}
-                      <span className="pulse-agent__instance-tag">
-                        {index === 0
-                          ? t('pulse.agent_instanceBase')
-                          : t('pulse.agent_instanceReplica')}
-                      </span>
+                      {index === 0 ? (
+                        <span className="pulse-agent__instance-tag">
+                          {t('pulse.agent_instanceBase')}
+                        </span>
+                      ) : null}
                     </span>
                     <span>{formatStat(instance.turns)}</span>
                     <span>{formatStat(instance.tokens)}</span>

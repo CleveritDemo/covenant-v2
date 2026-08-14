@@ -20,6 +20,8 @@ export interface AgentCliImageAttachment {
 
 export interface AgentCliStartRequest {
   paneId: string
+  /** Hilo dueño del turno; ausente = DEFAULT_THREAD_ID. */
+  threadId?: string
   provider: AgentCliProvider
   prompt: string
   /** Cwd del spawn CLI (puede ser worktree). */
@@ -82,9 +84,11 @@ export interface AgentCliStartRequest {
   /** Especialistas del plano visibles para el orquestador. */
   orchestrationAgents?: OrchestrationAgentRef[]
   /**
-   * Orquestador puede pedir varias delegaciones al mismo rol; el host spawnea réplicas.
+   * Orquestador puede pedir varias delegaciones al mismo rol en carriles paralelos.
    * No afecta el aislamiento por worktree (siempre on si hay repo).
    */
+  allowParallelLanes?: boolean
+  /** @deprecated Lectura legacy; usar allowParallelLanes. */
   allowExpertReplicas?: boolean
   /** Solo orchestrator: linear (espera ola) | turbo (jobs humanos concurrentes). */
   orchestrationWorkStyle?: 'linear' | 'turbo'

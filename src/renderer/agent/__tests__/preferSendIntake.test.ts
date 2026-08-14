@@ -27,7 +27,7 @@ describe('planPreferSendIntake', () => {
   it('enqueues an incoming delegation while pane is busy (no silent drop)', () => {
     const send = preferSend({
       text: 'do this',
-      delegation: { id: 'd1', fromPaneId: 'orch', toAgentId: 'spec' },
+      delegation: { id: 'd1', fromPaneId: 'orch', toAgentId: 'spec', orchestrationJobId: 'job-test-1' },
     })
     const p = planPreferSendIntake(send, null, ctx({ busy: true }))
     expect(p).toEqual({ action: 'enqueue', isHumanTurn: false })
@@ -36,7 +36,7 @@ describe('planPreferSendIntake', () => {
   it('ignores empty prompt with no images and does not signal consumption', () => {
     const send = preferSend({
       text: '  ',
-      delegation: { id: 'd1', fromPaneId: 'orch', toAgentId: 'spec' },
+      delegation: { id: 'd1', fromPaneId: 'orch', toAgentId: 'spec', orchestrationJobId: 'job-test-1' },
       orchestrationJobId: 'job-9',
     })
     const p = planPreferSendIntake(send, null, ctx({ busy: true }))
@@ -51,7 +51,7 @@ describe('planPreferSendIntake', () => {
   it('rejects with queue_full when the local queue is at cap', () => {
     const send = preferSend({
       text: 'work',
-      delegation: { id: 'd2', fromPaneId: 'orch', toAgentId: 'spec' },
+      delegation: { id: 'd2', fromPaneId: 'orch', toAgentId: 'spec', orchestrationJobId: 'job-test-2' },
     })
     const p = planPreferSendIntake(send, null, ctx({ busy: true, queuedCount: 10, maxQueued: 10 }))
     expect(p).toEqual({
@@ -89,6 +89,15 @@ describe('planPreferSendIntake', () => {
       images: [{ mimeType: 'image/png', data: 'x' } as never],
     })
     const p = planPreferSendIntake(send, null, ctx())
+    expect(p).toEqual({ action: 'dispatch', isHumanTurn: true })
+  })
+
+  it('dispatches a human preferSend in turbo when canStartHumanTurnNow is true', () => {
+    const p = planPreferSendIntake(
+      preferSend({ orchestrationJobId: 'job-turbo-1' }),
+      null,
+      ctx({ canStartHumanTurnNow: true, busy: false }),
+    )
     expect(p).toEqual({ action: 'dispatch', isHumanTurn: true })
   })
 })

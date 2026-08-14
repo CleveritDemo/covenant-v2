@@ -12,9 +12,11 @@ export interface PlaneChatContextsBarProps {
   /** Conversaciones del agente abierto; vacío oculta el selector. */
   threads?: readonly AgentThread[]
   activeThreadId?: string
+  /** Hilos con turno activo: marcan la opción con punto luminoso en el panel. */
+  runningThreadIds?: readonly string[]
   /**
-   * Cambiar de conversación con un turno o loop vivo dejaría el stream
-   * escribiendo en el transcript equivocado, así que se bloquea el Select.
+   * Cambiar de conversación con un loop vivo dejaría el stream escribiendo en
+   * el transcript equivocado, así que se bloquea el Select.
    */
   threadSelectionLocked?: boolean
   /**
@@ -43,6 +45,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   canClearConversation = false,
   threads = [],
   activeThreadId = '',
+  runningThreadIds = [],
   threadSelectionLocked = false,
   newThreadLocked = false,
   onToggleLoop,
@@ -93,6 +96,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                     value: thread.id,
                     label: thread.title || t('agentPane.threadUntitled'),
                     ...(thread.updatedAt ? { hint: dateFormat.format(thread.updatedAt) } : {}),
+                    ...(runningThreadIds.includes(thread.id) ? { busy: true } : {}),
                   }))}
                   onChange={threadId => onSelectThread?.(threadId)}
                 />

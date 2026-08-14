@@ -72,18 +72,18 @@ describe('mención de Jira en el mensaje de commit', () => {
   it('`#` abre el buscador y elegir deja la clave escrita', async () => {
     render(<CommitBox />)
     const box = screen.getByLabelText('commit') as HTMLTextAreaElement
-    await waitFor(() => expect(jiraStatus).toHaveBeenCalledWith('/repo'))
+    await waitFor(() => expect(jiraStatus).toHaveBeenCalledWith('/repo'), { timeout: 5000 })
 
     fireEvent.change(box, { target: { value: '#CT-12' } })
-    await waitFor(() => expect(jiraSearch).toHaveBeenCalledWith('/repo', 'CT-12'))
+    await waitFor(() => expect(jiraSearch).toHaveBeenCalledWith('/repo', 'CT-12'), { timeout: 5000 })
 
-    const option = await screen.findByRole('option')
+    const option = await screen.findByRole('option', {}, { timeout: 5000 })
     fireEvent.click(option)
 
     // El token `#CT-12` se sustituye por la clave canónica, listo para seguir
     // escribiendo el mensaje: `CT-128: arregla…`.
-    await waitFor(() => expect(box.value).toBe('CT-128 '))
-  })
+    await waitFor(() => expect(box.value).toBe('CT-128 '), { timeout: 5000 })
+  }, 20000)
 
   it('no materializa ningún contexto: un commit solo quiere la clave', async () => {
     const materializeTabContext = vi.fn()

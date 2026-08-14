@@ -1,6 +1,6 @@
 /*
  * Cinta cromática del composer. Idle: estática. Working: espectro en movimiento.
- * Las partículas busy viven en el piso del mapa (PlaneMapBackdrop), no aquí.
+ * Las partículas busy viven en PlaneChatComposer, no aquí.
  */
 .plane-composer-aurora {
   position: absolute;

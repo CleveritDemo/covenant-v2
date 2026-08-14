@@ -81,7 +81,6 @@ function renderModal(
       onCommitIdentity={() => {}}
       onChangeCoordination={() => {}}
       onAcceptDelegationsChange={() => {}}
-      onAllowExpertReplicasChange={() => {}}
       onOrchestrationMaxRoundsChange={() => {}}
       onOrchestrationWorkStyleChange={() => {}}
       onChangeDelegateTo={() => {}}
@@ -291,7 +290,6 @@ describe('AgentConfigModal', () => {
         onCommitIdentity={() => true}
         onChangeCoordination={() => {}}
         onAcceptDelegationsChange={() => {}}
-        onAllowExpertReplicasChange={() => {}}
         onOrchestrationMaxRoundsChange={() => {}}
         onOrchestrationWorkStyleChange={() => {}}
         onChangeDelegateTo={() => {}}

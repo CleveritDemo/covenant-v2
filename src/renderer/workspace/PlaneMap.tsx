@@ -1,12 +1,14 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import {
-  clampPlaneColumnScroll,
+  computePlaneColumnWindowing,
+} from '@shared/planeColumnWindowing'
+import {
   computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
   computeStandardPaneWindowGeometry,
   estimatePlaneAgentMiniHeight,
-  PLANE_MINI_SLOT_GAP,
+  PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_Y,
   PLANE_MINI_WINDOW_HEIGHT,
@@ -15,6 +17,7 @@ import {
 } from '@shared/paneWindows'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
+import { PlaneColumnOverflowPill } from './PlaneColumnOverflowPill'
 import { PlaneMapBackdrop } from './PlaneMapBackdrop'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
@@ -30,10 +33,6 @@ export interface PlaneMapEntity {
   paneId: string
   kind: PaneKind
   title: string
-  /** Réplica temporal del experto: `R2`, `R3`… (del id `frontend-2`). */
-  instanceTag?: string
-  /** Experto base: réplicas suyas vivas ahora mismo. */
-  replicaCount?: number
   monogram?: string
   busy: boolean
   /** Trabajo reservado/activo por una delegación del orquestador. */
@@ -48,6 +47,8 @@ export interface PlaneMapEntity {
   /** Ids asignados en catálogo (fuente de verdad para selección en UI). */
   contextIds?: string[]
   contexts?: PlaneAgentContextChip[]
+  threads?: { id: string; title: string; running: boolean }[]
+  activeThreadId?: string
   /** Nombre puesto a mano (terminales); sustituye la carpeta en la pastilla. */
   customTitle?: string
   /** Basename de la carpeta actual (terminales). */
@@ -94,12 +95,11 @@ export interface PlaneMapProps {
   onFirstLayoutReady?: () => void
   /** Sin transición de ranura hasta que el splash pueda fundirse. */
   deferPositionMotion?: boolean
-  /** Agente seleccionado en curso: partículas busy en el piso del mapa. */
-  working?: boolean
   /** Carpeta del proyecto: la usa el chip jira anidado en un mini para pedir su preview vía IPC. */
   cwd?: string
   /** Sube cuando los contextos se remateralizan; el chip jira relee su snapshot. */
   contextsRevision?: number
+  onOpenThread?: (paneId: string, threadId: string) => void
 }
 
 export interface PlaneColumnScrollOffsets {
@@ -109,10 +109,21 @@ export interface PlaneColumnScrollOffsets {
 
 const ZERO_SCROLL_OFFSETS: PlaneColumnScrollOffsets = { terminal: 0, agent: 0 }
 
+export interface PlaneColumnHiddenIds {
+  above: string[]
+  below: string[]
+}
+
 interface PlaneSlotLayout {
   origins: Record<string, PaneWindowGeometry>
+  visibleById: Record<string, boolean>
+  hidden: {
+    terminal: PlaneColumnHiddenIds
+    agent: PlaneColumnHiddenIds
+  }
   /** Altura total de contenido por columna (sin clearance inferior). */
   contentHeights: PlaneColumnScrollOffsets
+  maxScrollOffsets: PlaneColumnScrollOffsets
 }
 
 /**
@@ -127,47 +138,75 @@ export function buildSlotOrigins(
 ): PlaneSlotLayout {
   const vw = Math.max(viewport.width, 320)
   const origins: Record<string, PaneWindowGeometry> = {}
+  const visibleById: Record<string, boolean> = {}
   const terminals = entities.filter(entity => entity.kind !== 'agent')
   const agents = entities.filter(entity => entity.kind === 'agent')
   const columnCount = Math.max(terminals.length, agents.length, 1)
   const cell = computePlaneMiniSlotCell(viewport, columnCount)
   const padX = computePlaneMiniSlotPadX(viewport, columnCount)
-  const stride = cell.height + PLANE_MINI_SLOT_GAP
-
-  terminals.forEach((entity, index) => {
-    origins[entity.paneId] = {
-      x: padX,
-      y: PLANE_MINI_SLOT_PAD_Y + index * stride - scrollOffsets.terminal,
-      width: cell.width,
-      height: cell.height,
-    }
-  })
-  const terminalContentHeight = terminals.length > 0
-    ? PLANE_MINI_SLOT_PAD_Y
-      + terminals.length * cell.height
-      + (terminals.length - 1) * PLANE_MINI_SLOT_GAP
-    : 0
-
-  let agentY = PLANE_MINI_SLOT_PAD_Y
   const agentX = Math.max(padX, vw - padX - cell.width)
-  agents.forEach(entity => {
-    const measured = agentHeights[entity.paneId]
-    const height = measured && measured > 0
-      ? measured
-      : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0)
-    origins[entity.paneId] = {
-      x: agentX,
-      y: agentY - scrollOffsets.agent,
-      width: cell.width,
-      height,
-    }
-    agentY += height + PLANE_MINI_SLOT_GAP
+
+  const terminalWindow = computePlaneColumnWindowing({
+    items: terminals.map(entity => ({
+      id: entity.paneId,
+      height: cell.height,
+    })),
+    viewportHeight: viewport.height,
+    scrollOffset: scrollOffsets.terminal,
   })
+  for (const slot of terminalWindow.slots) {
+    visibleById[slot.id] = slot.visible
+    origins[slot.id] = {
+      x: padX,
+      y: slot.y,
+      width: cell.width,
+      height: slot.height,
+    }
+  }
+
+  const agentWindow = computePlaneColumnWindowing({
+    items: agents.map(entity => {
+      const measured = agentHeights[entity.paneId]
+      return {
+        id: entity.paneId,
+        height: measured && measured > 0
+          ? measured
+          : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0),
+      }
+    }),
+    viewportHeight: viewport.height,
+    scrollOffset: scrollOffsets.agent,
+  })
+  for (const slot of agentWindow.slots) {
+    visibleById[slot.id] = slot.visible
+    origins[slot.id] = {
+      x: agentX,
+      y: slot.y,
+      width: cell.width,
+      height: slot.height,
+    }
+  }
+
   return {
     origins,
+    visibleById,
+    hidden: {
+      terminal: {
+        above: terminalWindow.hiddenAbove,
+        below: terminalWindow.hiddenBelow,
+      },
+      agent: {
+        above: agentWindow.hiddenAbove,
+        below: agentWindow.hiddenBelow,
+      },
+    },
     contentHeights: {
-      terminal: terminalContentHeight,
-      agent: agents.length > 0 ? agentY : 0,
+      terminal: terminalWindow.contentHeight,
+      agent: agentWindow.contentHeight,
+    },
+    maxScrollOffsets: {
+      terminal: terminalWindow.maxScroll,
+      agent: agentWindow.maxScroll,
     },
   }
 }
@@ -230,13 +269,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onReorderPanes,
   onFirstLayoutReady,
   deferPositionMotion = false,
-  working = false,
   cwd = '',
   contextsRevision = 0,
+  onOpenThread,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [agentHeights, setAgentHeights] = useState<Record<string, number>>({})
+  const [threadNodesExpanded, setThreadNodesExpanded] = useState<Record<string, boolean>>({})
   const [scrollOffsets, setScrollOffsets] = useState<PlaneColumnScrollOffsets>(ZERO_SCROLL_OFFSETS)
   const [wheelScrolling, setWheelScrolling] = useState(false)
   const wheelScrollingTimeoutRef = useRef<number | null>(null)
@@ -245,6 +285,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 
   const handleAgentMiniHeight = useCallback((paneId: string, height: number) => {
     setAgentHeights(prev => (prev[paneId] === height ? prev : { ...prev, [paneId]: height }))
+  }, [])
+
+  const handleToggleThreadNodes = useCallback((paneId: string) => {
+    setThreadNodesExpanded(prev => ({ ...prev, [paneId]: !prev[paneId] }))
   }, [])
 
   useLayoutEffect(() => {
@@ -275,6 +319,15 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       const next: Record<string, number> = {}
       for (const [id, height] of Object.entries(prev)) {
         if (agentIds.has(id)) next[id] = height
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+    setThreadNodesExpanded(prev => {
+      let changed = false
+      const next: Record<string, boolean> = {}
+      for (const [id, expanded] of Object.entries(prev)) {
+        if (agentIds.has(id)) next[id] = expanded
         else changed = true
       }
       return changed ? next : prev
@@ -355,13 +408,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   )
   const baselineSlots = baselineLayout.origins
 
-  const maxScrollOffsets = useMemo<PlaneColumnScrollOffsets>(() => {
-    const vh = viewport.height > 0 ? viewport.height : 640
-    return {
-      terminal: clampPlaneColumnScroll(baselineLayout.contentHeights.terminal, vh),
-      agent: clampPlaneColumnScroll(baselineLayout.contentHeights.agent, vh),
-    }
-  }, [baselineLayout.contentHeights, viewport.height])
+  const maxScrollOffsets = useMemo(
+    () => baselineLayout.maxScrollOffsets,
+    [baselineLayout],
+  )
 
   // Re-clampa offsets si el contenido o el viewport encogen.
   useLayoutEffect(() => {
@@ -460,17 +510,50 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
    */
   const terminalCount = terminalsInOrder.length
   const agentCount = agentsInOrder.length
+
+  const columnGeometry = useMemo(() => {
+    const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
+    const columnCount = Math.max(terminalCount, agentCount, 1)
+    const cell = computePlaneMiniSlotCell(vp, columnCount)
+    const padX = computePlaneMiniSlotPadX(vp, columnCount)
+    return {
+      padX,
+      agentX: Math.max(padX, vp.width - padX - cell.width),
+      cellWidth: cell.width,
+    }
+  }, [agentCount, terminalCount, viewport])
+
+  const scrollColumnBy = useCallback((
+    column: 'terminal' | 'agent',
+    direction: 'up' | 'down',
+  ) => {
+    const vh = viewport.height > 0 ? viewport.height : 640
+    const step = Math.max(
+      80,
+      vh - PLANE_MINI_BOTTOM_CLEARANCE - PLANE_MINI_SLOT_PAD_Y,
+    )
+    setScrollOffsets(prev => {
+      const max = column === 'terminal'
+        ? maxScrollOffsets.terminal
+        : maxScrollOffsets.agent
+      const delta = direction === 'down' ? step : -step
+      const next = Math.min(max, Math.max(0, prev[column] + delta))
+      return next === prev[column] ? prev : { ...prev, [column]: next }
+    })
+  }, [maxScrollOffsets, viewport.height])
+
   useLayoutEffect(() => {
     const el = mapRef.current
     if (!el) return
-    if (anyWindowOpen || reorderActive) return
+    // Con ventana abierta la columna sigue detrás y debe poder desplazarse.
+    if (reorderActive) return
     if (maxScrollOffsets.terminal <= 0 && maxScrollOffsets.agent <= 0) return
     const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
     const columnCount = Math.max(terminalCount, agentCount, 1)
     const cell = computePlaneMiniSlotCell(vp, columnCount)
     const padX = computePlaneMiniSlotPadX(vp, columnCount)
     const agentX = Math.max(padX, vp.width - padX - cell.width)
-    const tolerance = 24
+    const tolerance = Math.max(24, Math.round(cell.width / 2))
 
     const onWheel = (event: WheelEvent): void => {
       if (event.ctrlKey) return
@@ -485,7 +568,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       // Modal o ventana expandida por encima del plano: scroll nativo.
       if (
         event.target instanceof Element
-        && event.target.closest('.terminal-modal-root, .pane-window--full')
+        && event.target.closest('.terminal-modal-root, .pane-window--full, .plane-chat-dock, .plane-quick-chat, .plane-chat-composer')
       ) return
       const x = event.clientX - rect.left
       let column: 'terminal' | 'agent' | null = null
@@ -523,7 +606,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         wheelScrollingTimeoutRef.current = null
       }
     }
-  }, [agentCount, anyWindowOpen, maxScrollOffsets, reorderActive, terminalCount, viewport])
+  }, [agentCount, maxScrollOffsets, reorderActive, terminalCount, viewport])
 
   /**
    * Durante drag: layout temporal según previewIds (hueco del dragged + resto).
@@ -544,15 +627,17 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     terminalsInOrder,
   ])
 
-  const slotOrigins = useMemo(
+  const renderLayout = useMemo(
     () => buildSlotOrigins(
       layoutEntities,
       viewport.width > 0 ? viewport : { width: 960, height: 640 },
       agentHeights,
       scrollOffsets,
-    ).origins,
+    ),
     [agentHeights, layoutEntities, scrollOffsets, viewport],
   )
+  const slotOrigins = renderLayout.origins
+  const visibleById = renderLayout.visibleById
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
   const terminalsDom = useMemo(
@@ -610,10 +695,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           paneId={entity.paneId}
           kind={entity.kind}
           title={entity.title}
-          seatDragEnabled={seatDragEnabled && !entity.localOnly && !entity.instanceTag}
+          seatDragEnabled={seatDragEnabled && !entity.localOnly}
           deferPositionMotion={deferPositionMotion}
-          instanceTag={entity.instanceTag}
-          replicaCount={entity.replicaCount}
+          outOfBand={visibleById[entity.paneId] === false}
           monogram={entity.monogram}
           busy={entity.busy}
           provider={entity.provider}
@@ -669,6 +753,19 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           agentId={entity.agentId}
           cwd={cwd}
           contextsRevision={contextsRevision}
+          threadNodes={entity.kind === 'agent' && entity.threads
+            ? entity.threads.map(thread => ({
+              ...thread,
+              active: thread.id === entity.activeThreadId,
+            }))
+            : undefined}
+          threadNodesExpanded={threadNodesExpanded[entity.paneId] ?? false}
+          onToggleThreadNodes={entity.kind === 'agent' && onOpenThread
+            ? () => handleToggleThreadNodes(entity.paneId)
+            : undefined}
+          onOpenThread={entity.kind === 'agent' && onOpenThread
+            ? threadId => onOpenThread(entity.paneId, threadId)
+            : undefined}
         >
           {renderPane(entity.paneId)}
         </PlanePaneWindow>
@@ -687,7 +784,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
-      <PlaneMapBackdrop working={working} />
+      <PlaneMapBackdrop />
       {entities.length === 0 ? (
         <div className="plane-map__empty" aria-hidden="true" />
       ) : (
@@ -723,6 +820,57 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           ) : null}
         </div>
       )}
+
+      {entities.length > 0 && !reorderActive ? (
+        <div className="plane-map__overflow">
+          {terminalsInOrder.length > 0 ? (
+            <div
+              className={[
+                'plane-map__overflow-column',
+                'plane-map__overflow-column--terminals',
+              ].join(' ')}
+              style={{
+                left: columnGeometry.padX,
+                width: columnGeometry.cellWidth,
+              }}
+            >
+              <PlaneColumnOverflowPill
+                count={baselineLayout.hidden.terminal.above.length}
+                direction="up"
+                onClick={() => scrollColumnBy('terminal', 'up')}
+              />
+              <PlaneColumnOverflowPill
+                count={baselineLayout.hidden.terminal.below.length}
+                direction="down"
+                onClick={() => scrollColumnBy('terminal', 'down')}
+              />
+            </div>
+          ) : null}
+          {agentsInOrder.length > 0 ? (
+            <div
+              className={[
+                'plane-map__overflow-column',
+                'plane-map__overflow-column--agents',
+              ].join(' ')}
+              style={{
+                left: columnGeometry.agentX,
+                width: columnGeometry.cellWidth,
+              }}
+            >
+              <PlaneColumnOverflowPill
+                count={baselineLayout.hidden.agent.above.length}
+                direction="up"
+                onClick={() => scrollColumnBy('agent', 'up')}
+              />
+              <PlaneColumnOverflowPill
+                count={baselineLayout.hidden.agent.below.length}
+                direction="down"
+                onClick={() => scrollColumnBy('agent', 'down')}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
     </div>
   )

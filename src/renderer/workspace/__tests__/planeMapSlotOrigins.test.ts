@@ -34,32 +34,37 @@ const AGENT_HEIGHTS = { a1: 100, a2: 140 }
 
 describe('buildSlotOrigins virtual scroll', () => {
   it('shifts terminal slots up by scrollOffsets.terminal only', () => {
-    const base = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS)
-    const scrolled = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS, {
+    const manyTerminals = Array.from({ length: 6 }, (_, index) => (
+      makeEntity(`t${index}`, 'terminal')
+    ))
+    const base = buildSlotOrigins(manyTerminals, VIEWPORT, {})
+    const scrolled = buildSlotOrigins(manyTerminals, VIEWPORT, {}, {
       terminal: 50,
       agent: 0,
     })
-    for (const id of ['t1', 't2', 't3']) {
-      expect(scrolled.origins[id].y).toBe(base.origins[id].y - 50)
-      expect(scrolled.origins[id].x).toBe(base.origins[id].x)
-    }
-    for (const id of ['a1', 'a2']) {
-      expect(scrolled.origins[id]).toEqual(base.origins[id])
+    expect(scrolled.maxScrollOffsets.terminal).toBeGreaterThan(0)
+    for (const entity of manyTerminals) {
+      expect(scrolled.origins[entity.paneId].y).toBe(base.origins[entity.paneId].y - 50)
+      expect(scrolled.origins[entity.paneId].x).toBe(base.origins[entity.paneId].x)
     }
   })
 
   it('shifts agent slots up by scrollOffsets.agent only', () => {
-    const base = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS)
-    const scrolled = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS, {
+    const manyAgents = Array.from({ length: 6 }, (_, index) => (
+      makeEntity(`a${index}`, 'agent')
+    ))
+    const heights = Object.fromEntries(
+      manyAgents.map(entity => [entity.paneId, 130]),
+    )
+    const base = buildSlotOrigins(manyAgents, VIEWPORT, heights)
+    const scrolled = buildSlotOrigins(manyAgents, VIEWPORT, heights, {
       terminal: 0,
       agent: 80,
     })
-    for (const id of ['a1', 'a2']) {
-      expect(scrolled.origins[id].y).toBe(base.origins[id].y - 80)
-      expect(scrolled.origins[id].x).toBe(base.origins[id].x)
-    }
-    for (const id of ['t1', 't2', 't3']) {
-      expect(scrolled.origins[id]).toEqual(base.origins[id])
+    expect(scrolled.maxScrollOffsets.agent).toBeGreaterThan(0)
+    for (const entity of manyAgents) {
+      expect(scrolled.origins[entity.paneId].y).toBe(base.origins[entity.paneId].y - 80)
+      expect(scrolled.origins[entity.paneId].x).toBe(base.origins[entity.paneId].x)
     }
   })
 
@@ -70,9 +75,7 @@ describe('buildSlotOrigins virtual scroll', () => {
       PLANE_MINI_SLOT_PAD_Y + 3 * cell.height + 2 * PLANE_MINI_SLOT_GAP,
     )
     expect(layout.contentHeights.agent).toBe(
-      PLANE_MINI_SLOT_PAD_Y
-      + (AGENT_HEIGHTS.a1 + PLANE_MINI_SLOT_GAP)
-      + (AGENT_HEIGHTS.a2 + PLANE_MINI_SLOT_GAP),
+      PLANE_MINI_SLOT_PAD_Y + AGENT_HEIGHTS.a1 + AGENT_HEIGHTS.a2 + PLANE_MINI_SLOT_GAP,
     )
   })
 

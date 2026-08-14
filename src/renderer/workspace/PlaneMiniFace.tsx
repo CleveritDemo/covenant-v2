@@ -7,22 +7,17 @@ import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneBusyDot } from './PlaneBusyDot'
-import { PlaneInstanceTag } from './PlaneInstanceTag'
 import { setPlaneContextDragData } from './planeContextDrag'
 import { setPlaneAgentDragData } from './planeAgentDrag'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
   name: string
-  /** Réplica temporal del experto: `R2`, `R3`… (sale del id `frontend-2`). */
-  instanceTag?: string
   /**
    * Con la mesa de brainstorm abierta, la card se arrastra a ella.
    * El handle de reorder sigue siendo suyo: el drag nativo sale del cuerpo.
    */
   seatDragEnabled?: boolean
-  /** Experto base: réplicas suyas vivas ahora mismo. */
-  replicaCount?: number
   monogram?: string
   busy?: boolean
   provider?: AgentCliProvider
@@ -50,9 +45,7 @@ export interface PlaneMiniFaceProps {
 /** Cara mini del agente: card con proveedor, estado y contextos. */
 export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   name,
-  instanceTag,
   seatDragEnabled = false,
-  replicaCount,
   monogram,
   busy = false,
   provider = 'claude',
@@ -133,10 +126,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           {displayMonogram}
         </span>
         <span className="plane-mini-face__name">{name}</span>
-        {instanceTag ? <PlaneInstanceTag text={instanceTag} /> : null}
-        {!instanceTag && replicaCount ? (
-          <PlaneInstanceTag text={`+${replicaCount}`} variant="count" />
-        ) : null}
         <span
           className="plane-mini-face__provider"
           style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}

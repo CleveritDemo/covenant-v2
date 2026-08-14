@@ -98,10 +98,11 @@
   cursor: default;
 }
 
+/* Por encima del mapa elevado (.plane-map--elevated, z 60): con ventana abierta las cards mini tapaban los FAB; por debajo del ancla de brainstorm (150) y del overlay del mapa de wiki (670). */
 .plane-fab-stack {
   position: absolute;
   bottom: 20px;
-  z-index: 50;
+  z-index: 70;
   display: flex;
   flex-direction: column;
   gap: 10px;

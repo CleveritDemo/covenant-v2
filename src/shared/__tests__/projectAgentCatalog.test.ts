@@ -228,7 +228,7 @@ describe('projectAgentCatalog', () => {
     expect(clone.coordination).toBe('orchestrator')
     expect(clone.acceptDelegations).toBe(false)
     expect(clone.orchestrationMaxRounds).toBe(7)
-    expect(clone.allowExpertReplicas).toBe(true)
+    expect(clone.allowExpertReplicas).toBeUndefined()
     expect(clone.orchestrationWorkStyle).toBeUndefined()
 
     const unlimited = parseProjectAgentDefinition({
@@ -261,11 +261,11 @@ describe('projectAgentCatalog', () => {
     expect(turbo).toMatchObject({
       coordination: 'orchestrator',
       orchestrationWorkStyle: 'turbo',
-      allowExpertReplicas: true,
     })
+    expect(turbo?.allowExpertReplicas).toBeUndefined()
     const turboClone = cloneProjectAgentDefinition(turbo!)
     expect(turboClone.orchestrationWorkStyle).toBe('turbo')
-    expect(turboClone.allowExpertReplicas).toBe(true)
+    expect(turboClone.allowExpertReplicas).toBeUndefined()
 
     const linearExplicit = parseProjectAgentDefinition({
       id: 'boss-linear',
@@ -296,7 +296,7 @@ describe('projectAgentCatalog', () => {
     const poClone = cloneProjectAgentDefinition(po!)
     expect(poClone.coordination).toBe('productOwner')
     expect(poClone.orchestrationMaxRounds).toBe(5)
-    expect(poClone.allowExpertReplicas).toBe(true)
+    expect(poClone.allowExpertReplicas).toBeUndefined()
     expect(poClone.orchestrationWorkStyle).toBeUndefined()
 
     const specialist = parseProjectAgentDefinition({

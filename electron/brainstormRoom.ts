@@ -29,7 +29,7 @@ import { IPC } from '../src/shared/ipcChannels'
 import { listProjectAgents } from './projectAgentCatalogOps'
 import { listBrainstormRooms, upsertBrainstormRoom } from './brainstormCatalogOps'
 import { discoverTabContexts } from './tabContextBuild'
-import { runAgentCliSpawn, stopAgentRun } from './agentCliRuntime'
+import { runAgentCliSpawn, stopAgentRunsForPane } from './agentCliRuntime'
 
 /** Nota humana en cola, con destino opcional. */
 interface PendingHumanMessage {
@@ -445,7 +445,7 @@ export async function runBrainstormSequence(
 function invalidateBrainstormGeneration(run: RoomRunState): void {
   run.generation = nextRoomGeneration++
   if (run.activePaneId) {
-    stopAgentRun(run.activePaneId)
+    stopAgentRunsForPane(run.activePaneId)
     run.activePaneId = null
   }
 }

@@ -1,0 +1,123 @@
+.plane-agent-thread-nodes {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.plane-agent-thread-nodes--expanded {
+  gap: 4px;
+  list-style: none;
+}
+
+.plane-agent-thread-nodes__item {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.plane-agent-thread-nodes__stack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, var(--surface));
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.plane-agent-thread-nodes__stack::before,
+.plane-agent-thread-nodes__stack::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 72%, var(--surface));
+  pointer-events: none;
+}
+
+.plane-agent-thread-nodes__stack::before {
+  top: -3px;
+  z-index: -1;
+}
+
+.plane-agent-thread-nodes__stack::after {
+  top: -6px;
+  z-index: -2;
+  opacity: 0.72;
+}
+
+.plane-agent-thread-nodes__stack:hover {
+  background: color-mix(in srgb, var(--surface-raised) 96%, var(--accent) 4%);
+  border-color: color-mix(in srgb, var(--border) 55%, var(--accent) 18%);
+}
+
+.plane-agent-thread-nodes__stack-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-agent-thread-nodes__card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.plane-agent-thread-nodes__card:hover {
+  background: color-mix(in srgb, var(--surface-raised) 90%, var(--accent) 6%);
+  border-color: color-mix(in srgb, var(--border) 50%, var(--accent) 22%);
+  color: var(--text);
+}
+
+.plane-agent-thread-nodes__card--active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+}
+
+.plane-agent-thread-nodes__card-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

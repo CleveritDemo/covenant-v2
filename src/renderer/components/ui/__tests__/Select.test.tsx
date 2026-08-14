@@ -160,6 +160,23 @@ describe('Select', () => {
     expect(trigger.getAttribute('aria-haspopup')).toBe('listbox')
   })
 
+  it('muestra el dot busy solo en las opciones marcadas', () => {
+    const busyOptions: SelectOption[] = [
+      { value: 'a', label: 'Alpha' },
+      { value: 'b', label: 'Beta', busy: true },
+      { value: 'c', label: 'Gamma' },
+    ]
+    render(<Select value="a" options={busyOptions} onChange={() => {}} />)
+    const panel = openPanel()
+    act(() => {
+      panel.showPopover()
+    })
+
+    const dots = panel.querySelectorAll('.select-panel__busy-dot')
+    expect(dots).toHaveLength(1)
+    expect(dots[0]?.closest('[role="option"]')?.textContent).toContain('Beta')
+  })
+
   it('abre debajo del disparador cuando hay espacio', () => {
     render(<Select value="" options={OPTIONS} onChange={() => {}} />)
     mockTriggerBox({ top: 100, bottom: 132, left: 80, width: 240 })

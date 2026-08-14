@@ -196,9 +196,8 @@
   background: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
 
-.agent-delegating__item--running .agent-delegating__dot {
-  background: var(--accent);
-  animation: agent-delegating-dot-pulse 1.8s ease-in-out infinite;
+.agent-delegating__item--running {
+  align-items: center;
 }
 
 /* En cola: aceptada pero sin arrancar. Punto quieto y apagado — el pulso es
@@ -282,23 +281,10 @@
   }
 }
 
-@keyframes agent-delegating-dot-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.22);
-  }
-}
-
 html[data-reduce-motion="true"] {
   .agent-delegating__orbit::before,
   .agent-delegating__ring,
-  .agent-delegating__sat,
-  .agent-delegating__item--running .agent-delegating__dot {
+  .agent-delegating__sat {
     animation: none;
   }
 
@@ -323,8 +309,7 @@ html[data-reduce-motion="true"] {
 @media (prefers-reduced-motion: reduce) {
   .agent-delegating__orbit::before,
   .agent-delegating__ring,
-  .agent-delegating__sat,
-  .agent-delegating__item--running .agent-delegating__dot {
+  .agent-delegating__sat {
     animation: none;
   }
 

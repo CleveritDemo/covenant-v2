@@ -57,7 +57,6 @@ export interface AgentConfigSettingsPaneProps {
   cliStatuses?: Partial<Record<AgentCliProvider, AgentCliResolution>>
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
-  onAllowExpertReplicasChange: (allow: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
@@ -135,7 +134,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   cliStatuses = {},
   onChangeCoordination,
   onAcceptDelegationsChange,
-  onAllowExpertReplicasChange,
   onOrchestrationMaxRoundsChange,
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
@@ -190,7 +188,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
   const maxRounds = resolveOrchestrationMaxRounds(meta.orchestrationMaxRounds)
   const workStyle = resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
-  const turboReplicasLocked = meta.coordination === 'orchestrator' && workStyle === 'turbo'
 
   if (section === 'engine') {
     const providerMissing = cliStatuses[meta.provider]?.path === null
@@ -399,18 +396,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 onChange={checked => onOrchestrationWorkStyleChange(checked ? 'turbo' : 'linear')}
               />
             ) : null}
-            <SettingToggle
-              checked={turboReplicasLocked || meta.allowExpertReplicas === true}
-              disabled={locked || turboReplicasLocked}
-              title={t('agentPane.allowExpertReplicasLabel')}
-              description={turboReplicasLocked
-                ? t('agentPane.allowExpertReplicasTurboLockedHint')
-                : t('agentPane.allowExpertReplicasHint')}
-              hint={turboReplicasLocked
-                ? t('agentPane.allowExpertReplicasTurboLockedHint')
-                : t('agentPane.allowExpertReplicasHint')}
-              onChange={onAllowExpertReplicasChange}
-            />
           </>
         ) : (
           <SettingToggle

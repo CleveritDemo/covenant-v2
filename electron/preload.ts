@@ -166,11 +166,12 @@ const api = {
   startAgentTurn(request: AgentCliStartRequest): void {
     ipcRenderer.send(IPC.AGENT_CLI_START, request)
   },
-  stopAgentTurn(paneId: string): void {
-    ipcRenderer.send(IPC.AGENT_CLI_STOP, paneId)
+  stopAgentTurn(runKey: string): void {
+    ipcRenderer.send(IPC.AGENT_CLI_STOP, runKey)
   },
-  isAgentTurnActive(paneId: string): Promise<boolean> {
-    return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, paneId)
+  /** Acepta paneId (todos los carriles) o runKey paneId::threadId (un carril). */
+  isAgentTurnActive(runKey: string): Promise<boolean> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_IS_ACTIVE, runKey)
   },
   listAgentCliModels(provider: AgentCliProvider): Promise<AgentCliModelsResult> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_LIST_MODELS, provider)
@@ -179,11 +180,13 @@ const api = {
   resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
   },
-  onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
-    return subscribeAgentCliEvent(paneId, cb)
+  /** Acepta paneId (todos los carriles) o runKey paneId::threadId (un carril). */
+  onAgentCliEvent(runKey: string, cb: (event: AgentCliUiEvent) => void): () => void {
+    return subscribeAgentCliEvent(runKey, cb)
   },
-  onAgentCliExit(paneId: string, cb: (code: number) => void): () => void {
-    return subscribeAgentCliExit(paneId, cb)
+  /** Acepta paneId (todos los carriles) o runKey paneId::threadId (un carril). */
+  onAgentCliExit(runKey: string, cb: (code: number) => void): () => void {
+    return subscribeAgentCliExit(runKey, cb)
   },
   startBrainstorm(config: {
     roomId: string

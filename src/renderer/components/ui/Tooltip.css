@@ -58,3 +58,7 @@
   border-left: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   border-bottom: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
 }
+
+:root[data-theme-appearance='light'] .ui-tooltip-bubble {
+  box-shadow: var(--plane-mini-card-shadow);
+}

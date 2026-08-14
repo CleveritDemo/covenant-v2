@@ -132,7 +132,6 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     items={(orchestrationAwaiting?.items ?? []).map(item => ({
                       id: item.delegationId,
                       label: item.agentLabel,
-                      ...(item.instanceTag ? { instanceTag: item.instanceTag } : {}),
                       status: item.status,
                       statusLabel: item.status === 'done'
                         ? t('agentPane.awaitingStatusDone')

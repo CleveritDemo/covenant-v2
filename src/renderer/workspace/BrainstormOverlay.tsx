@@ -7,6 +7,7 @@ import {
 } from '@shared/brainstormSeatCell'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
 import './BrainstormOverlay.css'
 
 export interface BrainstormOverlayProps {
@@ -19,6 +20,12 @@ export interface BrainstormOverlayProps {
   /** Chips y acciones del chrome, antes del botón de cerrar. */
   chrome?: React.ReactNode
   /** Columna izquierda: lo que la sala usa (formato, material, cola). */
+  /**
+   * Hay un turno en marcha: enciende las mismas partículas que el piso del
+   * plano usa mientras un agente trabaja. La sala es el mismo trabajo, así que
+   * es la misma señal ambiental y no una nueva.
+   */
+  busy?: boolean
   left?: React.ReactNode
   /** Columna derecha: los asientos. */
   right?: React.ReactNode
@@ -50,6 +57,7 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
   closeLabel,
   onClose,
   chrome,
+  busy = false,
   left,
   right,
   seatCount = 0,
@@ -105,6 +113,10 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
       } as React.CSSProperties}
       data-seat-tier={tier}
     >
+      <div className="brainstorm-overlay__floor" aria-hidden="true">
+        <PlaneComposerAuroraParticles active={busy} tabActive={active} />
+      </div>
+
       <header className="brainstorm-overlay__bar">
         {chrome}
         <Tooltip content={closeLabel}>

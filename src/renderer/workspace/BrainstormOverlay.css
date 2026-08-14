@@ -43,6 +43,18 @@
   );
 }
 
+/*
+ * Piso de la sala: el contenedor de las partículas busy, el mismo componente
+ * que el piso del plano. Va detrás de todo —las columnas y el centro se pintan
+ * después— y no intercepta el ratón.
+ */
+.brainstorm-overlay__floor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 /* Chrome propio, arriba a la derecha: hereda el hueco que deja el pool de
    contextos, que se oculta mientras la sala está abierta. */
 .brainstorm-overlay__bar {
@@ -189,6 +201,9 @@
  */
 .brainstorm-overlay__col {
   grid-row: 2;
+  /* Los items de un grid admiten z-index sin `position`: así el contenido se
+     pinta sobre el piso de partículas. */
+  z-index: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -261,6 +276,7 @@
 .brainstorm-overlay__center {
   grid-column: 2;
   grid-row: 2;
+  z-index: 1;
   justify-self: center;
   width: min(var(--brainstorm-chat-w), 100%);
   display: flex;

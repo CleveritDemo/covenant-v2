@@ -521,6 +521,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   return (
     <BrainstormOverlay
       active={active}
+      /* Hay alguien con el turno: mismas partículas que el piso del plano. */
+      busy={Boolean(live.speakingAgentId)}
       ariaLabel={t('tabs.brainstormViewTitle')}
       /* ✕ cierra la vista, no la sala: el runner sigue en main y al volver está
          el acta entera. Terminada sí se suelta —su cierre queda guardado. */

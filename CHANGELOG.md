@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.53.1
+
+- **Fix rayos wiki en light**: el rayo visual sigue oscuro, pero la PointLight viajera y el wash emissive son blancos y aclaran los nodos al disparar (corrige v0.53.0 que oscurecía nodos en light).
+
 ## v0.53.0
 
 - **Rayos wiki en light**: rayo visual oscuro con PointLight oscura viajera y wash emissive oscuro durante firing; los nodos se aclaran al paso de la luz; toggles live dark↔light sin regresión en dark.

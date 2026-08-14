@@ -1286,7 +1286,7 @@ describe('useWikiGraphScene: color de rayos por apariencia', () => {
     expect(coreMat.blending).toBe(1)
   })
 
-  it('en light firing: core visible, halo/glow en 0 y PointLight oscura activa', () => {
+  it('en light firing: core visible, halo/glow en 0 y PointLight blanca activa', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     document.documentElement.setAttribute('data-theme-appearance', 'light')
@@ -1320,16 +1320,16 @@ describe('useWikiGraphScene: color de rayos por apariencia', () => {
     const light = getPointLights().find(l => l.intensity > 0)!
     expect(light).toBeDefined()
     expect(light.intensity).toBeGreaterThan(0)
-    expect(light.color.r).toBeLessThan(0.5)
-    expect(light.color.g).toBeLessThan(0.5)
-    expect(light.color.b).toBeLessThan(0.5)
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()
     nowSpy.mockRestore()
   })
 
-  it('dark firing → toggle light: PointLight sigue activa y oscura', async () => {
+  it('dark firing → toggle light: PointLight sigue activa y blanca', async () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     document.documentElement.setAttribute('data-theme-appearance', 'dark')
@@ -1361,16 +1361,16 @@ describe('useWikiGraphScene: color de rayos por apariencia', () => {
     await new Promise<void>(resolve => queueMicrotask(resolve))
 
     expect(light.intensity).toBeGreaterThan(0)
-    expect(light.color.r).toBeLessThan(0.5)
-    expect(light.color.g).toBeLessThan(0.5)
-    expect(light.color.b).toBeLessThan(0.5)
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()
     nowSpy.mockRestore()
   })
 
-  it('en light el nodo origen aplica wash oscuro al disparar', () => {
+  it('en light el nodo origen aclara emissive al disparar', () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     document.documentElement.setAttribute('data-theme-appearance', 'light')
@@ -1400,18 +1400,15 @@ describe('useWikiGraphScene: color de rayos por apariencia', () => {
 
     const emissive = (originMesh.material as { emissive: { r: number; g: number; b: number } }).emissive
     const emissivePeak = Math.max(emissive.r, emissive.g, emissive.b)
-    expect(emissivePeak).toBeLessThan(basePeak)
+    expect(emissivePeak).toBeGreaterThan(basePeak)
     expect(emissivePeak).toBeGreaterThan(NODE_EMISSIVE_BASE)
-    const baseSpread = basePeak - Math.min(baseEmissive.r, baseEmissive.g, baseEmissive.b)
-    const emissiveSpread = emissivePeak - Math.min(emissive.r, emissive.g, emissive.b)
-    expect(emissiveSpread).toBeLessThan(baseSpread)
 
     randomSpy.mockRestore()
     rafSpy.mockRestore()
     nowSpy.mockRestore()
   })
 
-  it('light firing → toggle dark: PointLight pasa a blanca', async () => {
+  it('light firing → toggle dark: PointLight sigue blanca', async () => {
     resetGlobals()
     document.documentElement.removeAttribute('data-reduce-motion')
     document.documentElement.setAttribute('data-theme-appearance', 'light')
@@ -1437,9 +1434,9 @@ describe('useWikiGraphScene: color de rayos por apariencia', () => {
 
     const light = getPointLights().find(l => l.intensity > 0)!
     expect(light).toBeDefined()
-    expect(light.color.r).toBeLessThan(0.5)
-    expect(light.color.g).toBeLessThan(0.5)
-    expect(light.color.b).toBeLessThan(0.5)
+    expect(light.color.r).toBeGreaterThan(0.9)
+    expect(light.color.g).toBeGreaterThan(0.9)
+    expect(light.color.b).toBeGreaterThan(0.9)
 
     document.documentElement.setAttribute('data-theme-appearance', 'dark')
     await new Promise<void>(resolve => queueMicrotask(resolve))

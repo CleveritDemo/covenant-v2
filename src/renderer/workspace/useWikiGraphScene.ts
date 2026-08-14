@@ -193,11 +193,8 @@ export function resolveBoltVisualColor(container: Element): THREE.Color {
   return BOLT_VISUAL_WHITE.clone()
 }
 
-/** Luz puntual que ilumina nodos: oscura en light (como el rayo), blanca en dark. */
-export function resolveBoltLightColor(container: Element): THREE.Color {
-  if (isLightAppearance()) {
-    return resolveBoltVisualColor(container)
-  }
+/** Iluminación de nodos siempre blanca; el rayo visual puede ser oscuro en light. */
+export function resolveBoltLightColor(_container: Element): THREE.Color {
   return BOLT_VISUAL_WHITE.clone()
 }
 
@@ -1035,9 +1032,7 @@ export function useWikiGraphScene(
           const scalar = Math.min(NODE_EMISSIVE_MAX, NODE_EMISSIVE_BASE + boost)
           const whiteMix = boost > 0 ? Math.min(1, boost * 0.75) : 0
           const tinted = nodeColor.clone().multiplyScalar(scalar)
-          const washTarget = isLightAppearance() && boost > 0
-            ? resolveBoltVisualColor(container).multiplyScalar(scalar)
-            : BOLT_VISUAL_WHITE.clone().multiplyScalar(scalar)
+          const washTarget = BOLT_VISUAL_WHITE.clone().multiplyScalar(scalar)
           mat.emissive.copy(tinted).lerp(washTarget, whiteMix)
           const scale = originEnv > 0
             ? 1 + NODE_ORIGIN_SCALE_PEAK * originEnv

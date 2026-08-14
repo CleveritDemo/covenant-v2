@@ -143,14 +143,34 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
 
 describe('BrainstormStartModal — ajustes', () => {
   // Las plantillas ya no son lo primero de la pantalla: viven dentro de la
-  // decisión que reemplazan, la salida.
-  it('las 11 ceremonias viven en el cajón de la salida', () => {
+  // decisión que reemplazan, la salida. Y la conversación abierta no es una
+  // entrada con un ajuste al lado: es cuatro formatos con nombre propio.
+  it('las plantillas y las cuatro salidas viven en el mismo cajón', () => {
     open()
     expect(screen.queryByText('Example Mapping')).toBeNull()
     openToken('outcome')
-    expect(screen.getByText('Brainstorming')).toBeTruthy()
+    expect(screen.getByText('tabs.brainstormOutcomeIdeas')).toBeTruthy()
+    expect(screen.getByText('tabs.brainstormOutcomeDecision')).toBeTruthy()
+    expect(screen.getByText('tabs.brainstormOutcomePlan')).toBeTruthy()
+    expect(screen.getByText('tabs.brainstormOutcomeCritique')).toBeTruthy()
     expect(screen.getByText('Example Mapping')).toBeTruthy()
     expect(screen.getByText('Sprint Planning')).toBeTruthy()
+    // «Brainstorming» deja de aparecer: sus cuatro salidas ocupan su sitio.
+    expect(screen.queryByText('Brainstorming')).toBeNull()
+  })
+
+  it('elegir una salida deja la sala en conversación abierta', () => {
+    open(['rodrigo', 'ana'])
+    typeGoal('tema')
+    openToken('outcome')
+    fireEvent.click(screen.getByText('Example Mapping'))
+    // El cajón sigue abierto: elegir no lo cierra.
+    fireEvent.click(screen.getByText('tabs.brainstormOutcomePlan'))
+    fireEvent.click(screen.getByText('tabs.brainstormStart'))
+    expect(startBrainstorm.mock.calls[0][0]).toMatchObject({
+      ceremony: 'free',
+      outcome: 'plan',
+    })
   })
 
   it('elegir formato arrastra sus rondas sugeridas', () => {

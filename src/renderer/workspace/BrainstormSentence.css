@@ -125,22 +125,17 @@
 /* El número es el turno de habla, no una viñeta. El color del agente va en el
    texto y no de relleno: es un color de paleta arbitrario y no hay forma de
    saber si aguanta etiqueta blanca o negra encima. */
+/*
+ * Sin círculo. Llevaba un `inline-grid` de 17px que el chip encogía, y el
+ * resultado era un arco con el número descolocado; con `flex: none` seguía
+ * dejando un filo del color por debajo. Es decoración: el número en el color
+ * del agente ya dice que es un turno, y así no hay geometría que romper.
+ */
 .brainstorm-sentence__seat {
-  display: inline-grid;
-  place-items: center;
-  /* `flex: none`: sin esto el chip lo encoge y el círculo se vuelve un arco con
-     el número por fuera. `line-height: 1` para que la caja sea la del círculo. */
   flex: none;
-  width: 17px;
-  height: 17px;
-  line-height: 1;
-  border-radius: 50%;
   font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  /* Fondo opaco: el relleno translúcido caía sobre el del chip, que ya lleva el
-     mismo color, y el círculo dejaba de distinguirse. */
-  background: var(--bg);
   color: var(--brainstorm-seat-color, var(--accent));
 }
 

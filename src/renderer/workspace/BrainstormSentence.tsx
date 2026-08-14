@@ -34,6 +34,21 @@ const OUTCOME_PHRASE_KEY = {
   critique: 'tabs.brainstormOutcomeCritiquePhrase',
 } as const satisfies Record<BrainstormOutcome, string>
 
+/** Las cuatro salidas como entradas de la lista de formatos: nombre y para qué. */
+const OUTCOME_LABEL_KEY = {
+  ideas: 'tabs.brainstormOutcomeIdeas',
+  decision: 'tabs.brainstormOutcomeDecision',
+  plan: 'tabs.brainstormOutcomePlan',
+  critique: 'tabs.brainstormOutcomeCritique',
+} as const satisfies Record<BrainstormOutcome, string>
+
+const OUTCOME_GOAL_KEY = {
+  ideas: 'tabs.brainstormOutcomeIdeasGoal',
+  decision: 'tabs.brainstormOutcomeDecisionGoal',
+  plan: 'tabs.brainstormOutcomePlanGoal',
+  critique: 'tabs.brainstormOutcomeCritiqueGoal',
+} as const satisfies Record<BrainstormOutcome, string>
+
 export interface BrainstormSentenceProps {
   /** Agentes invitables, en el orden del catálogo. */
   agents: ProjectAgentDefinition[]
@@ -274,28 +289,6 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
 
       {open === 'outcome' ? (
         <div className="brainstorm-sentence__drawer">
-          <span className="brainstorm-sentence__drawer-label">
-            {t('tabs.brainstormOutcomeLabel')}
-          </span>
-          <div className="brainstorm-sentence__opts">
-            {BRAINSTORM_OUTCOMES.map(value => (
-              <button
-                key={value}
-                type="button"
-                className="brainstorm-sentence__opt"
-                aria-pressed={isFree && value === outcome}
-                onClick={() => {
-                  // Volver a la conversación abierta: elegir una salida a mano
-                  // es justo lo que una ceremonia deja de permitir.
-                  if (!isFree) onCeremonyChange(DEFAULT_CEREMONY_ID)
-                  onOutcomeChange(value)
-                }}
-              >
-                {t(OUTCOME_PHRASE_KEY[value])}
-              </button>
-            ))}
-          </div>
-
           {/* Las plantillas viven aquí, dentro de la decisión que reemplazan:
               eran ocho nombres de manual ocupando lo primero de la pantalla. */}
           <span className="brainstorm-sentence__drawer-label">
@@ -307,24 +300,59 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
                 <span className="brainstorm-sentence__stage">
                   {t(CEREMONY_STAGE_KEY[stage])}
                 </span>
-                {ceremoniesByStage(stage).map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="brainstorm-sentence__template"
-                    aria-pressed={item.id === ceremony}
-                    onClick={() => onCeremonyChange(item.id)}
-                  >
-                    <span className="brainstorm-sentence__template-name">{item.name}</span>
-                    <span className="brainstorm-sentence__template-meta">
-                      {t('tabs.brainstormRoundsDigest', { count: String(item.rounds) })}
-                    </span>
-                    {/* Para qué sirve, no cómo se llama: el nombre de manual no
-                        le dice nada a quien viene de negocio. */}
-                    <span className="brainstorm-sentence__template-for">
-                      {t(CEREMONY_GOAL_KEY[item.id])}
-                    </span>
-                  </button>
+                {ceremoniesByStage(stage).flatMap(item => (
+                  /*
+                   * La conversación abierta no es una entrada con un ajuste al
+                   * lado: es cuatro formatos. La salida solo existía cuando la
+                   * ceremonia era `free`, así que como fila propia arriba
+                   * aparentaba mandar sobre las once, y no mandaba sobre
+                   * ninguna. Aquí cada salida es su propia elección.
+                   */
+                  item.id === DEFAULT_CEREMONY_ID
+                    ? BRAINSTORM_OUTCOMES.map(value => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="brainstorm-sentence__template"
+                        aria-pressed={isFree && value === outcome}
+                        onClick={() => {
+                          // Solo si venía de una plantilla: reelegir salida
+                          // dentro de `free` no debe pisar la duración que el
+                          // usuario ya movió.
+                          if (!isFree) onCeremonyChange(DEFAULT_CEREMONY_ID)
+                          onOutcomeChange(value)
+                        }}
+                      >
+                        <span className="brainstorm-sentence__template-name">
+                          {t(OUTCOME_LABEL_KEY[value])}
+                        </span>
+                        <span className="brainstorm-sentence__template-meta">
+                          {t('tabs.brainstormRoundsDigest', { count: String(item.rounds) })}
+                        </span>
+                        <span className="brainstorm-sentence__template-for">
+                          {t(OUTCOME_GOAL_KEY[value])}
+                        </span>
+                      </button>
+                    ))
+                    : [(
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="brainstorm-sentence__template"
+                        aria-pressed={item.id === ceremony}
+                        onClick={() => onCeremonyChange(item.id)}
+                      >
+                        <span className="brainstorm-sentence__template-name">{item.name}</span>
+                        <span className="brainstorm-sentence__template-meta">
+                          {t('tabs.brainstormRoundsDigest', { count: String(item.rounds) })}
+                        </span>
+                        {/* Para qué sirve, no cómo se llama: el nombre de
+                            manual no le dice nada a quien viene de negocio. */}
+                        <span className="brainstorm-sentence__template-for">
+                          {t(CEREMONY_GOAL_KEY[item.id])}
+                        </span>
+                      </button>
+                    )]
                 ))}
               </React.Fragment>
             ))}

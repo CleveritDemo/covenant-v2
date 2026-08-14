@@ -118,10 +118,7 @@ import { agentChatRefFor } from '@shared/agentChatPersistence'
 import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
-import {
-  dedupeHumanQueuedTurnOnEnqueue,
-  removeMatchingHumanQueuedTurns,
-} from './queuedTurnDedup'
+import { appendQueuedTurnIfRoom } from './queuedTurnDedup'
 import {
   appendLaneText,
   endLane,
@@ -2484,12 +2481,12 @@ export const AgentPane: React.FC<Props> = ({
   const enqueueQueuedTurn = useCallback((item: Omit<QueuedTurn, 'id'>): boolean => {
     let didEnqueue = false
     setQueuedTurns(prev => {
-      if (prev.length >= MAX_VISIBLE_QUEUED_TURNS) return prev
-      didEnqueue = true
-      return dedupeHumanQueuedTurnOnEnqueue(prev, {
+      const result = appendQueuedTurnIfRoom(prev, {
         id: crypto.randomUUID(),
         ...item,
-      })
+      }, MAX_VISIBLE_QUEUED_TURNS)
+      didEnqueue = result.didEnqueue
+      return result.turns
     })
     return didEnqueue
   }, [])
@@ -2510,11 +2507,6 @@ export const AgentPane: React.FC<Props> = ({
       })
       return
     }
-    setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
-      prev,
-      prompt,
-      imagesSnapshot.length,
-    ))
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
@@ -2614,11 +2606,6 @@ export const AgentPane: React.FC<Props> = ({
         return
       }
       if (preferSend.focusPane !== false) onRequestPaneFocus()
-      setQueuedTurns(prev => removeMatchingHumanQueuedTurns(
-        prev,
-        prompt,
-        resolvedImages.length,
-      ))
       if (
         isHumanTurn
         && coordinationCanDelegate(metaRef.current.coordination)

@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  dedupeHumanQueuedTurnOnEnqueue,
+  appendQueuedTurnIfRoom,
   isHumanQueuedTurn,
   queuedTurnHumanKey,
-  removeMatchingHumanQueuedTurns,
+  removeQueuedTurnById,
   type HumanQueuedTurnLike,
 } from '../queuedTurnDedup'
+import { MAX_VISIBLE_QUEUED_TURNS } from '@shared/planeHumanSendFifo'
 
 interface TestTurn extends HumanQueuedTurnLike {
   id: string
@@ -47,81 +48,52 @@ describe('queuedTurnDedup', () => {
     }))).toBe(`haz X${'\0'}2`)
   })
 
-  it('dedupeHumanQueuedTurnOnEnqueue keeps one human with same text', () => {
+  it('appendQueuedTurnIfRoom enqueues two human turns with the same text in order', () => {
     const first = turn({ id: 't1', text: 'haz X', images: [] })
     const second = turn({ id: 't2', text: 'haz X', images: [] })
-    const result = dedupeHumanQueuedTurnOnEnqueue([first], second)
-    expect(result).toHaveLength(1)
-    expect(result[0]?.id).toBe('t1')
+    const firstEnqueue = appendQueuedTurnIfRoom([], first, MAX_VISIBLE_QUEUED_TURNS)
+    expect(firstEnqueue.didEnqueue).toBe(true)
+    const secondEnqueue = appendQueuedTurnIfRoom(
+      firstEnqueue.turns,
+      second,
+      MAX_VISIBLE_QUEUED_TURNS,
+    )
+    expect(secondEnqueue.didEnqueue).toBe(true)
+    expect(secondEnqueue.turns.map(item => item.id)).toEqual(['t1', 't2'])
   })
 
-  it('two back-to-back enqueues with the same key leave one human turn', () => {
-    const first = turn({ id: 't1', text: 'haz X', images: [] })
-    const second = turn({ id: 't2', text: 'haz X', images: [] })
-    let queue: TestTurn[] = []
-    queue = dedupeHumanQueuedTurnOnEnqueue(queue, first)
-    queue = dedupeHumanQueuedTurnOnEnqueue(queue, second)
-    expect(queue).toHaveLength(1)
-    expect(queue[0]?.id).toBe('t1')
-  })
-
-  it('dedupeHumanQueuedTurnOnEnqueue does not dedupe human vs follow-up with same text', () => {
-    const human = turn({ id: 'h1', text: 'haz X', images: [] })
-    const followUp = turn({
-      id: 'f1',
-      text: 'haz X',
-      images: [],
-      orchestrationFollowUp: true,
-    })
-    const delegation = turn({
-      id: 'd1',
-      text: 'haz X',
-      images: [],
-      delegation: {
-        id: 'd1',
-        fromPaneId: 'p',
-        toAgentId: 'qa',
-        orchestrationJobId: 'job-1',
-      },
-    })
-    expect(dedupeHumanQueuedTurnOnEnqueue([human], followUp)).toHaveLength(2)
-    expect(dedupeHumanQueuedTurnOnEnqueue([human], delegation)).toHaveLength(2)
-  })
-
-  it('removeMatchingHumanQueuedTurns removes only matching human turns and revokes URLs', () => {
+  it('removeQueuedTurnById drops one queued turn and keeps a sibling with the same text', () => {
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
-    const keep = turn({ id: 'k1', text: 'other', images: [] })
+    const first = turn({ id: 't1', text: 'haz X', images: [] })
+    const second = turn({ id: 't2', text: 'haz X', images: [] })
+    const queue = [first, second]
+    const result = removeQueuedTurnById(queue, 't1')
+    expect(result.map(item => item.id)).toEqual(['t2'])
+    expect(revoke).not.toHaveBeenCalled()
+    revoke.mockRestore()
+  })
+
+  it('removeQueuedTurnById revokes preview URLs for the removed turn', () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const match = turn({
       id: 'm1',
       text: 'haz X',
       images: [image('blob:match')],
     })
-    const followUp = turn({
-      id: 'f1',
-      text: 'haz X',
-      images: [image('blob:follow')],
-      orchestrationFollowUp: true,
-    })
-    const result = removeMatchingHumanQueuedTurns(
-      [keep, match, followUp],
-      'haz X',
-      1,
-    )
-    expect(result.map(item => item.id)).toEqual(['k1', 'f1'])
+    const result = removeQueuedTurnById([match], 'm1')
+    expect(result).toHaveLength(0)
     expect(revoke).toHaveBeenCalledWith('blob:match')
-    expect(revoke).not.toHaveBeenCalledWith('blob:follow')
     revoke.mockRestore()
   })
 
-  it('dedupeHumanQueuedTurnOnEnqueue appends non-human turns without key check', () => {
-    const human = turn({ id: 'h1', text: 'same', images: [] })
-    const followUp = turn({
-      id: 'f1',
-      text: 'same',
-      images: [],
-      orchestrationFollowUp: true,
-    })
-    const result = dedupeHumanQueuedTurnOnEnqueue([human], followUp)
-    expect(result).toHaveLength(2)
+  it('appendQueuedTurnIfRoom returns false when the visible queue is full', () => {
+    const fullQueue = Array.from({ length: MAX_VISIBLE_QUEUED_TURNS }, (_, i) =>
+      turn({ id: `q-${i}`, text: `msg-${i}` }),
+    )
+    const next = turn({ id: 'overflow', text: 'one more' })
+    const result = appendQueuedTurnIfRoom(fullQueue, next, MAX_VISIBLE_QUEUED_TURNS)
+    expect(result.didEnqueue).toBe(false)
+    expect(result.turns).toHaveLength(MAX_VISIBLE_QUEUED_TURNS)
+    expect(result.turns.map(item => item.id)).toEqual(fullQueue.map(item => item.id))
   })
 })

@@ -10,27 +10,24 @@ export function queuedTurnHumanKey(item: HumanQueuedTurnLike): string {
   return `${item.text.trim()}\0${item.images?.length ?? 0}`
 }
 
-export function dedupeHumanQueuedTurnOnEnqueue<T extends HumanQueuedTurnLike>(
-  turns: T[],
-  next: T,
-): T[] {
-  if (!isHumanQueuedTurn(next)) return [...turns, next]
-  const key = queuedTurnHumanKey(next)
-  if (turns.some(turn => isHumanQueuedTurn(turn) && queuedTurnHumanKey(turn) === key)) {
-    return turns
+export function appendQueuedTurnIfRoom<T extends HumanQueuedTurnLike & { id: string }>(
+  turns: readonly T[],
+  item: T,
+  maxVisible: number,
+): { turns: T[]; didEnqueue: boolean } {
+  if (turns.length >= maxVisible) {
+    return { turns: [...turns], didEnqueue: false }
   }
-  return [...turns, next]
+  return { turns: [...turns, item], didEnqueue: true }
 }
 
-export function removeMatchingHumanQueuedTurns<T extends HumanQueuedTurnLike>(
-  turns: T[],
-  text: string,
-  imageCount: number,
+export function removeQueuedTurnById<T extends HumanQueuedTurnLike & { id: string }>(
+  turns: readonly T[],
+  id: string,
 ): T[] {
-  const key = `${text.trim()}\0${imageCount}`
   const kept: T[] = []
   for (const turn of turns) {
-    if (isHumanQueuedTurn(turn) && queuedTurnHumanKey(turn) === key) {
+    if (turn.id === id) {
       turn.images?.forEach(image => {
         if (
           image

@@ -5,6 +5,10 @@ import {
   MAX_VISIBLE_QUEUED_TURNS,
   takeNextHumanSend,
 } from '@shared/planeHumanSendFifo'
+import {
+  appendQueuedTurnIfRoom,
+  type HumanQueuedTurnLike,
+} from '../agent/queuedTurnDedup'
 
 type PlaneSend = {
   text: string
@@ -13,12 +17,18 @@ type PlaneSend = {
   orchestrationFollowUp?: boolean
 }
 
+type VisibleQueuedTurn = HumanQueuedTurnLike & { id: string }
+
 type VisibleQueueStatus = {
-  queuedTurns?: Array<{ id: string }>
+  queuedTurns?: VisibleQueuedTurn[]
 }
 
-function makeFullVisibleQueue(): Array<{ id: string }> {
-  return Array.from({ length: MAX_VISIBLE_QUEUED_TURNS }, (_, i) => ({ id: `q-${i}` }))
+function makeFullVisibleQueue(): VisibleQueuedTurn[] {
+  return Array.from({ length: MAX_VISIBLE_QUEUED_TURNS }, (_, i) => ({
+    id: `q-${i}`,
+    text: `visible turn ${i + 1}`,
+    images: [],
+  }))
 }
 
 function drainHumanSendFifo(
@@ -382,5 +392,38 @@ describe('plane human send FIFO integration', () => {
 
     expect(planeSendByPane[paneId]?.text).toBe('orchestration follow-up')
     expect(queues.has(paneId)).toBe(false)
+  })
+
+  it('keeps three central-chat sends visible in order when the agent is busy, including duplicate text', () => {
+    const paneId = 'agent-1'
+    const humanFifo = new Map<string, PlaneSend[]>()
+    const texts = ['first', 'repeat', 'repeat']
+    let planeSendByPane: Record<string, PlaneSend> = {}
+    let visibleQueue: VisibleQueuedTurn[] = []
+
+    for (const text of texts) {
+      enqueueHumanPlaneSend(humanFifo, paneId, text)
+    }
+
+    while (humanFifo.has(paneId) || planeSendByPane[paneId]) {
+      planeSendByPane = drainHumanSendFifo(humanFifo, planeSendByPane, {
+        [paneId]: { queuedTurns: visibleQueue },
+      })
+      const send = planeSendByPane[paneId]
+      if (!send) continue
+      const enqueueResult = appendQueuedTurnIfRoom(
+        visibleQueue,
+        { id: `q-${visibleQueue.length}`, text: send.text, images: [] },
+        MAX_VISIBLE_QUEUED_TURNS,
+      )
+      if (!enqueueResult.didEnqueue) continue
+      visibleQueue = enqueueResult.turns
+      const { [paneId]: _consumed, ...freed } = planeSendByPane
+      planeSendByPane = freed
+    }
+
+    expect(visibleQueue.map(item => item.text)).toEqual(texts)
+    expect(humanFifo.has(paneId)).toBe(false)
+    expect(planeSendByPane[paneId]).toBeUndefined()
   })
 })

@@ -41,6 +41,7 @@ import {
   isBrainstormStoppable,
 } from './brainstormViewClose'
 import { BrainstormClosingCard } from './BrainstormClosingCard'
+import { BrainstormSpeakerWaiting } from './BrainstormSpeakerWaiting'
 import { BrainstormHumanComposer } from './BrainstormHumanComposer'
 import './BrainstormRoomView.css'
 
@@ -530,8 +531,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             {live.status === 'running' ? (
               <i className="brainstorm-overlay__chip-dot" aria-hidden />
             ) : null}
+            {/* «X está hablando» mientras aún no ha escrito nada contradecía a
+                su propia tarjeta, que decía «todavía no habló». */}
             {live.speakingAgentId
-              ? t('tabs.brainstormSpeakingNow', { name: speakerLabel(live.speakingAgentId) })
+              ? t(
+                live.streaming
+                  ? 'tabs.brainstormSpeakingNow'
+                  : 'tabs.brainstormPreparingNow',
+                { name: speakerLabel(live.speakingAgentId) },
+              )
               : t(statusLabelKey(live.status))}
           </span>
           <span className="brainstorm-overlay__chip brainstorm-overlay__chip--dim">
@@ -807,19 +815,28 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             >
               <span className="brainstorm-room-view__lane" aria-hidden />
               <div className="brainstorm-room-view__entry">
-                <span className="brainstorm-room-view__speaker">
-                  {live.streaming
-                    ? t('tabs.brainstormSpeakerWriting', { name: liveName })
-                    : t('tabs.brainstormSpeakerThinking', { name: liveName })}
-                </span>
-                <ChatBubble variant="assistant" live>
-                  <AiMarkdown
-                    content={live.streaming
-                      ? stripBrainstormProtocolFences(live.streaming.text)
-                      : ''}
-                    showCursor
+                {live.streaming ? (
+                  <>
+                    <span className="brainstorm-room-view__speaker">
+                      {t('tabs.brainstormSpeakerWriting', { name: liveName })}
+                    </span>
+                    <ChatBubble variant="assistant" live>
+                      <AiMarkdown
+                        content={stripBrainstormProtocolFences(live.streaming.text)}
+                        showCursor
+                      />
+                    </ChatBubble>
+                  </>
+                ) : (
+                  /* La espera puede ser medio minuto: ver `BrainstormSpeakerWaiting`. */
+                  <BrainstormSpeakerWaiting
+                    name={liveName}
+                    role={agents.find(item => item.id === liveAgentId)?.role}
+                    phase={live.speakerPhase}
+                    material={workingSetLabels.map(item => item.label)}
+                    turnKey={`${liveAgentId}:${live.round}`}
                   />
-                </ChatBubble>
+                )}
               </div>
             </article>
           ) : null}

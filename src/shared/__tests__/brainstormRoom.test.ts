@@ -403,6 +403,13 @@ describe('stripBrainstormProtocolFences', () => {
     expect(out).toBe('Decision: keep it.\n\nTrade-off: tokens.')
   })
 
+  // La lista de nombres se quedó sin `wiki` y el JSON de las ops acabó en la
+  // transcripción y en la vista previa de las tarjetas. Cualquier `ia-terminal-*`.
+  it('quita también una cerca que nadie añadió a mano', () => {
+    const text = 'Refinado.\n\n```ia-terminal-wiki\n{"ops":[{"op":"upsert"}]}\n```'
+    expect(stripBrainstormProtocolFences(text)).toBe('Refinado.')
+  })
+
   it('recorta la cerca a medio llegar durante el streaming', () => {
     expect(stripBrainstormProtocolFences('Listo.\n```ia-terminal-results\n{"sum'))
       .toBe('Listo.')

@@ -57,8 +57,23 @@ export interface BrainstormWorkingSet {
 }
 
 /** Eventos main → renderer (canal brainstorm:event). */
+/**
+ * En qué va el turno mientras no hay texto. La espera es larga —Gravity hace
+ * `spawn` de un CLI real por turno— y sin esto la sala solo podía decir «se
+ * está preparando» sin distinguir «arrancando el proceso» de «se colgó».
+ * Cada fase corresponde a un hecho, no a tiempo transcurrido.
+ */
+export type BrainstormSpeakerPhase =
+  /** `speaker_start`: el prompt está armado, falta levantar el CLI. */
+  | 'starting'
+  /** Primer evento del CLI: el proceso vive y está leyendo el material. */
+  | 'reading'
+  /** Primer `speaker_delta`: ya hay texto. */
+  | 'writing'
+
 export type BrainstormEvent =
   | { type: 'speaker_start'; agentId: string; round: number }
+  | { type: 'speaker_phase'; agentId: string; round: number; phase: BrainstormSpeakerPhase }
   | { type: 'speaker_delta'; agentId: string; round: number; text: string }
   | { type: 'speaker_final'; agentId: string; agentName: string; round: number; text: string }
   | { type: 'human_message'; text: string; round: number; targetAgentId?: string }
@@ -307,9 +322,14 @@ export function sanitizeBrainstormInviteIds(
  * En la sala nadie las parsea (los turnos van sin results ni delegación), así que
  * solo son ruido en el acta. `(?:```|$)` recorta también la cerca a medio llegar
  * durante el streaming.
+ *
+ * Cualquier `ia-terminal-*`, no una lista de nombres: la lista se quedó sin
+ * `wiki` y el JSON entero de las ops acabó en la transcripción y en la vista
+ * previa de las tarjetas. Una cerca nueva no puede volver a filtrarse por
+ * olvidarse de añadirla aquí.
  */
 const BRAINSTORM_PROTOCOL_FENCE =
-  /```ia-terminal-(?:results|changelog|delegate|context)[\s\S]*?(?:```|$)/g
+  /```ia-terminal-[a-z][a-z0-9-]*[\s\S]*?(?:```|$)/g
 
 export function stripBrainstormProtocolFences(text: string): string {
   if (typeof text !== 'string' || !text.includes('```ia-terminal-')) return text
@@ -758,6 +778,13 @@ export function buildBrainstormTurnPrompt(
     '',
     'Your turn:',
     '- As long as it needs to be, no longer. Plain language.',
+    /*
+     * El prompt está en inglés y nunca fijaba idioma, así que cada agente
+     * respondía en el que infería de su identidad o de sus reglas: una sala con
+     * agentes en español y en inglés a la vez, y un acta bilingüe. El objetivo
+     * lo escribió el usuario, así que es el ancla honesta.
+     */
+    '- Answer in the same language the goal above is written in, whatever that is.',
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),

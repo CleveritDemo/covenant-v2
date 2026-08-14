@@ -2,6 +2,7 @@ import type {
   BrainstormEvent,
   BrainstormMessage,
   BrainstormRoom,
+  BrainstormSpeakerPhase,
   BrainstormStatus,
 } from '@shared/brainstormRoom'
 import {
@@ -33,6 +34,8 @@ export interface BrainstormLiveState {
   streaming: { agentId: string; round: number; text: string } | null
   /** Turno concedido (llega antes del primer delta); null cuando nadie habla. */
   speakingAgentId: string | null
+  /** En qué va el turno mientras no hay texto; ver `BrainstormSpeakerPhase`. */
+  speakerPhase: BrainstormSpeakerPhase
   round: number
   status: BrainstormStatus
   lastError: string | null
@@ -45,6 +48,7 @@ export function createInitialBrainstormLiveState(
     messages: room?.messages ? [...room.messages] : [],
     streaming: null,
     speakingAgentId: null,
+    speakerPhase: 'starting',
     round: room?.round ?? 0,
     status: room?.status ?? 'running',
     lastError: null,
@@ -93,7 +97,18 @@ export function reduceBrainstormLiveEvent(
 ): BrainstormLiveState {
   switch (event.type) {
     case 'speaker_start':
-      return { ...state, speakingAgentId: event.agentId, round: event.round }
+      return {
+        ...state,
+        speakingAgentId: event.agentId,
+        speakerPhase: 'starting',
+        round: event.round,
+      }
+    // Solo del turno en curso: un evento tardío de otro agente no puede
+    // adelantar la fase del que está hablando ahora.
+    case 'speaker_phase':
+      return state.speakingAgentId === event.agentId
+        ? { ...state, speakerPhase: event.phase }
+        : state
     case 'speaker_delta': {
       const prev = state.streaming
       const same =
@@ -108,6 +123,7 @@ export function reduceBrainstormLiveEvent(
           round: event.round,
           text: same ? `${prev.text}${event.text}` : event.text,
         },
+        speakerPhase: 'writing',
       }
     }
     case 'speaker_final': {
@@ -122,6 +138,7 @@ export function reduceBrainstormLiveEvent(
         messages: [...state.messages, message],
         streaming: null,
         speakingAgentId: null,
+        speakerPhase: 'starting',
       }
     }
     case 'human_message': {

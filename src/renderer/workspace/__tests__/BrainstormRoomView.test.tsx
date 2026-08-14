@@ -379,17 +379,30 @@ describe('BrainstormRoomView — el turno concedido antes del primer token', () 
   it('speaker_start ya pinta al orador, sin esperar el primer delta', () => {
     const { emit } = mountWithBus(emptyRoom)
     emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
-    // El hueco de warmup desaparece y aparece la fila viva del orador.
+    // El hueco de warmup desaparece y aparece la fila viva del orador, con la
+    // tarjeta de espera en el primer paso.
     expect(screen.queryByText('tabs.brainstormRoomWarmup')).toBeNull()
-    expect(screen.getByText('tabs.brainstormSpeakerThinking')).toBeTruthy()
+    expect(document.querySelector('.brainstorm-wait')).not.toBeNull()
+    expect(document.querySelector('.brainstorm-wait__step--now')?.textContent)
+      .toContain('tabs.brainstormWaitPrepared')
     expect(document.querySelector('.brainstorm-room-view__row--live')).not.toBeNull()
+  })
+
+  // Los pasos avanzan con hechos, no con el reloj: el primer evento del CLI es
+  // lo único que distingue «arrancando el proceso» de «colgado».
+  it('el primer evento del CLI mueve la tarjeta a «leyendo»', () => {
+    const { emit } = mountWithBus(emptyRoom)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
+    emit({ type: 'speaker_phase', agentId: 'atlas', round: 0, phase: 'reading' })
+    expect(document.querySelector('.brainstorm-wait__step--now')?.textContent)
+      .toContain('tabs.brainstormWaitReading')
   })
 
   it('al llegar el primer delta pasa de «preparando» a «escribiendo»', () => {
     const { emit } = mountWithBus(emptyRoom)
     emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
     emit({ type: 'speaker_delta', agentId: 'atlas', round: 0, text: 'Hola' })
-    expect(screen.queryByText('tabs.brainstormSpeakerThinking')).toBeNull()
+    expect(document.querySelector('.brainstorm-wait')).toBeNull()
     expect(screen.getByText('Atlas · writing…')).toBeTruthy()
     // «Hola» sale en el acta y, como cola del turno en curso, en su asiento.
     const live = document.querySelector('.brainstorm-room-view__row--live')

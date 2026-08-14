@@ -85,6 +85,7 @@ import type { AgentChatEntry, AgentCliStartRequest } from '../src/shared/agentCl
 import type { AgentCliModelsResult } from '../src/shared/agentCliModels'
 import { listAgentCliModels } from './agentCliModelsList'
 import { resolveAgentCli } from './agentCliResolve'
+import { detectOnboardingClis } from './onboardingCliDetect'
 import {
   startAgentTurn,
   isAgentRunActive,
@@ -2232,6 +2233,7 @@ function registerIpc(): void {
       )
     },
   )
+  ipcMain.handle(IPC.ONBOARDING_DETECT_CLIS, () => detectOnboardingClis(readConfig()))
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {
     const win = BrowserWindow.fromWebContents(event.sender)

@@ -37,6 +37,8 @@ interface Props {
   onClose: () => void
   /** cwd de la pestaña activa: `jira.json` es por proyecto, no de la app. */
   cwd?: string
+  /** Relanza el wizard de onboarding (Developer). */
+  onReplayOnboarding?: () => void
 }
 
 const LANGUAGES: { value: Language; label: string }[] = [
@@ -81,7 +83,7 @@ const SEARCH_INDEX = [
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
   { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
-  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
+  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.onboardingLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
   { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates', 'settings.restartToUpdate'] },
   { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
   // `as const` no es decoración: sin literales, `t()` rechaza las claves.
@@ -90,7 +92,7 @@ const SEARCH_INDEX = [
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
 
-export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '' }) => {
+export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '', onReplayOnboarding }) => {
   const { t } = useT()
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
@@ -639,6 +641,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   {t('settings.splashReplay')}
                 </Button>
               </SettingsField>
+              {onReplayOnboarding ? (
+                <SettingsField label={t('settings.onboardingLabel')}>
+                  <Button variant="secondary" size="sm" onClick={onReplayOnboarding}>
+                    {t('settings.onboardingButton')}
+                  </Button>
+                </SettingsField>
+              ) : null}
               <SettingsField
                 label={t('settings.quitModalLabel')}
                 hint={t('settings.quitModalHint')}

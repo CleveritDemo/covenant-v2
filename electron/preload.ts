@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
 import type { AppConfig } from '../src/shared/configSchema'
+import type { OnboardingCliStatus } from '../src/shared/onboarding'
 import type { ProjectAiContextForAi } from '../src/shared/projectAiContext'
 import type { McpServersListRequest, McpServersListResult } from '../src/shared/mcpContext'
 import type { PersistedSession, ChatEntry } from './persistence'
@@ -178,6 +179,9 @@ const api = {
   /** `command` vacío = el configurado o el por defecto del proveedor. */
   resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
+  },
+  detectOnboardingClis(): Promise<OnboardingCliStatus[]> {
+    return ipcRenderer.invoke(IPC.ONBOARDING_DETECT_CLIS)
   },
   onAgentCliEvent(paneId: string, cb: (event: AgentCliUiEvent) => void): () => void {
     return subscribeAgentCliEvent(paneId, cb)

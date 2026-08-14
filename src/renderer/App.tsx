@@ -25,6 +25,9 @@ import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
+import type { OnboardingCliRow } from './components/onboarding'
+import { mapCliRows, shouldOpenOnboarding } from './onboardingGate'
+import { ONBOARDING_VERSION } from '@shared/onboarding'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
@@ -41,7 +44,7 @@ import {
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
-import { markSplashUiReady } from './splash'
+import { markSplashUiReady, whenSplashDismissed } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormRoomsView } from './workspace/BrainstormRoomsView'
@@ -331,6 +334,12 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
+  const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
+  const [onboardingCliLoading, setOnboardingCliLoading] = useState(false)
+  const [onboardingTeamCreated, setOnboardingTeamCreated] = useState(false)
+  const onboardingAutoOpenedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   /** Tabs org cuyo resync manual está en curso. */
@@ -2867,6 +2876,72 @@ export const App: React.FC = () => {
     refreshAndSyncProjectAgents,
     scheduleSaveSession,
   ])
+
+  const refreshOnboardingClis = useCallback(async () => {
+    setOnboardingCliLoading(true)
+    try {
+      const result = await window.api.detectOnboardingClis()
+      setOnboardingClis(mapCliRows(result))
+    } catch {
+      setOnboardingClis([])
+    } finally {
+      setOnboardingCliLoading(false)
+    }
+  }, [])
+
+  const handleOnboardingNext = useCallback(() => {
+    setOnboardingStep(prev => Math.min(4, prev + 1))
+  }, [])
+
+  const handleOnboardingBack = useCallback(() => {
+    setOnboardingStep(prev => Math.max(0, prev - 1))
+  }, [])
+
+  const persistOnboardingCompleted = useCallback((version: string) => {
+    void window.api.setConfig({ onboardingCompletedVersion: version })
+    setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
+  }, [])
+
+  const handleOnboardingCloseComplete = useCallback(() => {
+    setOnboardingOpen(false)
+    persistOnboardingCompleted(ONBOARDING_VERSION)
+  }, [persistOnboardingCompleted])
+
+  const handleOnboardingPickFolder = useCallback(() => {
+    void handlePickProjectFolder(activeTabIdRef.current)
+  }, [handlePickProjectFolder])
+
+  const handleOnboardingCreateTeam = useCallback(async () => {
+    await bootstrapProjectAgents(activeTabIdRef.current)
+    setOnboardingTeamCreated(true)
+  }, [bootstrapProjectAgents])
+
+  const handleReplayOnboarding = useCallback(() => {
+    setSettingsOpen(false)
+    setOnboardingStep(0)
+    setOnboardingTeamCreated(false)
+    setOnboardingOpen(true)
+    void refreshOnboardingClis()
+    persistOnboardingCompleted('')
+  }, [persistOnboardingCompleted, refreshOnboardingClis])
+
+  // Onboarding: primer arranque tras el fundido del splash (no roba foco antes).
+  useEffect(() => {
+    const ready = configReady && sessionReady.loaded
+    if (!shouldOpenOnboarding(config.onboardingCompletedVersion, ready)) return
+    if (onboardingAutoOpenedRef.current) return
+    onboardingAutoOpenedRef.current = true
+    void refreshOnboardingClis()
+    let cancelled = false
+    void whenSplashDismissed().then(() => {
+      if (cancelled) return
+      setOnboardingOpen(true)
+      setOnboardingStep(0)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [configReady, config.onboardingCompletedVersion, sessionReady.loaded, refreshOnboardingClis])
 
   /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
   const handleDuplicateAgentPane = useCallback(async (
@@ -6467,6 +6542,21 @@ export const App: React.FC = () => {
         }}
         onConfigSaved={handleConfigSaved}
         onThemeChange={handleThemeChange}
+        onReplayOnboarding={handleReplayOnboarding}
+        onboardingOpen={onboardingOpen}
+        onboardingStep={onboardingStep}
+        onboardingClis={onboardingClis}
+        onboardingCliLoading={onboardingCliLoading}
+        onboardingTeamCreated={onboardingTeamCreated}
+        onboardingFolderPath={activeTab?.projectFolder?.trim() || null}
+        onboardingCanCreateTeam={Boolean(activeTab?.projectFolder?.trim())}
+        onOnboardingNext={handleOnboardingNext}
+        onOnboardingBack={handleOnboardingBack}
+        onOnboardingSkip={handleOnboardingCloseComplete}
+        onOnboardingFinish={handleOnboardingCloseComplete}
+        onOnboardingRecheck={() => { void refreshOnboardingClis() }}
+        onOnboardingPickFolder={handleOnboardingPickFolder}
+        onOnboardingCreateTeam={() => { void handleOnboardingCreateTeam() }}
         onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)

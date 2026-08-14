@@ -12,6 +12,16 @@ const MAX_PLACEMENT_ATTEMPTS = 24
 const DEAD_ZONE_WIDTH_RATIO = 0.45
 const DEAD_ZONE_HEIGHT_RATIO = 0.38
 
+export interface WikiModalNearPointInput {
+  originX: number
+  originY: number
+  width: number
+  height: number
+  modalWidth: number
+  modalHeight: number
+  padding?: number
+}
+
 export interface WikiModalSpreadInput {
   count: number
   width: number
@@ -79,6 +89,48 @@ function isTooCloseToExisting(
 ): boolean {
   const minDist = Math.min(180, modalWidth * 0.45)
   return accepted.some(pos => centerDistance(candidate, pos, modalWidth, modalHeight) < minDist)
+}
+
+export function wikiModalDockSide(originX: number, width: number): 'left' | 'right' {
+  return originX < width / 2 ? 'left' : 'right'
+}
+
+/** Docks to the same screen edge as the node half (left half → left edge, right half → right edge); vertically centers on origin; avoids curator dead zone. */
+export function computeWikiModalPositionNearPoint({
+  originX,
+  originY,
+  width,
+  height,
+  modalWidth,
+  modalHeight,
+  padding = DEFAULT_PADDING,
+}: WikiModalNearPointInput): { x: number; y: number } {
+  const minX = padding
+  const minY = padding
+  const maxX = Math.max(minX, width - modalWidth - padding)
+  const deadZone = computeWikiModalDeadZone(width, height)
+  const maxY = Math.max(
+    minY,
+    Math.min(
+      height - modalHeight - padding,
+      deadZone.top - modalHeight - padding,
+    ),
+  )
+
+  const side = wikiModalDockSide(originX, width)
+  let x = side === 'right' ? width - modalWidth - padding : padding
+
+  let y = Math.round(originY - modalHeight / 2)
+  y = clampAxis(y, minY, maxY)
+
+  if (modalOverlapsWikiDeadZone(x, y, modalWidth, modalHeight, width, height)) {
+    y = Math.min(y, deadZone.top - modalHeight - padding)
+    y = clampAxis(y, minY, maxY)
+  }
+
+  x = clampAxis(x, minX, maxX)
+
+  return { x, y }
 }
 
 /**

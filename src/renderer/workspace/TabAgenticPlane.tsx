@@ -30,6 +30,7 @@ import { PlanePulseButton } from './PlanePulseButton'
 import { PulseModal } from './PulseModal'
 import { PlaneWikiMapButton } from './PlaneWikiMapButton'
 import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
+import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
 import { WikiCuratorComposer } from './WikiCuratorComposer'
 import type { WikiGraphData } from './wikiGraph'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
@@ -48,10 +49,12 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentThread } from '@shared/agentThreads'
 import { APP_OVERLAY_MODAL_Z, PLANE_CHROME_STACK_Z, PLANE_CHAT_STACK_Z } from '@shared/overlayZIndex'
 import {
+  computeWikiModalPositionNearPoint,
   computeWikiModalSpreadPositions,
   WIKI_MODAL_ESTIMATED_HEIGHT,
   WIKI_MODAL_WIDTH,
 } from '@shared/wikiModalPositions'
+import { mergeWikiNodeModalsOpen } from '@shared/wikiNodeModalOpen'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TerminalModal } from '../components/TerminalModal'
@@ -64,6 +67,8 @@ type WikiNodeModalState = {
   slug: string
   x: number
   y: number
+  originX?: number
+  originY?: number
 }
 
 export type { PlaneMapEntity }
@@ -443,6 +448,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   )
   // Pila de pages abiertas en modales (clic en nodo = 1; view del curador ≤ 3).
   const [wikiNodeModals, setWikiNodeModals] = useState<WikiNodeModalState[]>([])
+  const wikiNodeScreenPositionsRef = useRef<ReadonlyMap<string, WikiGraphNodeScreenPosition>>(new Map())
   // null = cargando; nodes vacíos = wiki sin pages (empty state en la vista).
   const [wikiGraphData, setWikiGraphData] = useState<WikiGraphData | null>(null)
   const [wikiGraphError, setWikiGraphError] = useState<string | null>(null)
@@ -464,25 +470,57 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     return { width: 960, height: 640 }
   }, [viewport])
 
-  const openWikiNodeModals = useCallback((slugs: string[]) => {
+  const openWikiNodeModals = useCallback((
+    slugs: string[],
+    origins?: ReadonlyMap<string, { x: number; y: number }>,
+  ) => {
     const trimmed = slugs.slice(0, 3)
     if (trimmed.length === 0) {
       setWikiNodeModals([])
       return
     }
     const bounds = getWikiModalBounds()
-    const positions = computeWikiModalSpreadPositions({
-      count: trimmed.length,
+    const modalInput = {
       width: bounds.width,
       height: bounds.height,
       modalWidth: WIKI_MODAL_WIDTH,
       modalHeight: WIKI_MODAL_ESTIMATED_HEIGHT,
+    }
+
+    const incoming = trimmed.map(slug => {
+      const fromArg = origins?.get(slug)
+      const fromRef = wikiNodeScreenPositionsRef.current.get(slug)
+      const origin = fromArg
+        ?? (fromRef?.visible ? { x: fromRef.x, y: fromRef.y } : null)
+
+      let pos: { x: number; y: number }
+      let originX: number | undefined
+      let originY: number | undefined
+      if (origin) {
+        pos = computeWikiModalPositionNearPoint({
+          originX: origin.x,
+          originY: origin.y,
+          ...modalInput,
+        })
+        originX = origin.x
+        originY = origin.y
+      } else {
+        const [spread] = computeWikiModalSpreadPositions({
+          count: 1,
+          ...modalInput,
+        })
+        pos = spread!
+      }
+
+      return {
+        slug,
+        x: pos.x,
+        y: pos.y,
+        ...(originX != null && originY != null ? { originX, originY } : {}),
+      }
     })
-    setWikiNodeModals(trimmed.map((slug, index) => ({
-      slug,
-      x: positions[index]!.x,
-      y: positions[index]!.y,
-    })))
+
+    setWikiNodeModals(previous => mergeWikiNodeModalsOpen(previous, incoming, 3))
   }, [getWikiModalBounds])
 
   const loadWikiGraph = useCallback(async (): Promise<{
@@ -876,7 +914,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               setWikiMapOpen(false)
               setWikiNodeModals([])
             }}
-            onOpenNode={slug => openWikiNodeModals([slug])}
+            onOpenNode={(slug, screen) => openWikiNodeModals(
+              [slug],
+              screen ? new Map([[slug, screen]]) : undefined,
+            )}
+            onNodeScreenPositions={positions => {
+              wikiNodeScreenPositionsRef.current = positions
+            }}
             onRefetchGraph={() => {
               setWikiGraphRefreshToken(token => token + 1)
               const cwd = projectFolder.trim()
@@ -1090,6 +1134,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             portalContainerRef={planeRef}
             boundsRef={planeRef}
             initialPosition={{ x: modal.x, y: modal.y }}
+            enterOrigin={
+              modal.originX != null && modal.originY != null
+                ? { x: modal.originX, y: modal.originY }
+                : undefined
+            }
             onPositionChange={pos => {
               setWikiNodeModals(prev => prev.map(item => (
                 item.slug === modal.slug ? { ...item, x: pos.x, y: pos.y } : item

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeWikiModalPositionNearPoint,
   computeWikiModalSpreadPositions,
   modalOverlapsWikiDeadZone,
+  wikiModalDockSide,
 } from '../wikiModalPositions'
 
 const BOUNDS = { width: 960, height: 640, modalWidth: 400, modalHeight: 280 }
@@ -30,6 +32,74 @@ function boundsFor(padding: number) {
   )
   return { minX: padding, minY: padding, maxX, maxY }
 }
+
+describe('computeWikiModalPositionNearPoint', () => {
+  it('acopla a la izquierda cuando el nodo está en la mitad izquierda', () => {
+    expect(wikiModalDockSide(200, BOUNDS.width)).toBe('left')
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 200,
+      originY: 200,
+      ...BOUNDS,
+    })
+    expect(pos.x).toBe(8)
+  })
+
+  it('acopla a la derecha cuando el nodo está en la mitad derecha', () => {
+    expect(wikiModalDockSide(760, BOUNDS.width)).toBe('right')
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 760,
+      originY: 200,
+      ...BOUNDS,
+    })
+    expect(pos.x).toBe(BOUNDS.width - BOUNDS.modalWidth - 8)
+  })
+
+  it('centra verticalmente sobre el origen cuando hay espacio y evita la zona muerta', () => {
+    const originY = 200
+    const padding = 8
+    const pos = computeWikiModalPositionNearPoint({
+      originX: 200,
+      originY,
+      ...BOUNDS,
+    })
+    expect(pos.y).toBe(Math.round(originY - BOUNDS.modalHeight / 2))
+    expect(modalOverlapsWikiDeadZone(
+      pos.x,
+      pos.y,
+      BOUNDS.modalWidth,
+      BOUNDS.modalHeight,
+      BOUNDS.width,
+      BOUNDS.height,
+    )).toBe(false)
+    expect(pos.x).toBeGreaterThanOrEqual(padding)
+    expect(pos.y).toBeGreaterThanOrEqual(padding)
+    expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
+    expect(pos.y + BOUNDS.modalHeight).toBeLessThanOrEqual(BOUNDS.height - padding)
+  })
+
+  it('evita la zona muerta y se mantiene en bounds con origen inferior-centro', () => {
+    const originX = BOUNDS.width / 2
+    const originY = BOUNDS.height - 40
+    const pos = computeWikiModalPositionNearPoint({
+      originX,
+      originY,
+      ...BOUNDS,
+    })
+    const padding = 8
+    expect(modalOverlapsWikiDeadZone(
+      pos.x,
+      pos.y,
+      BOUNDS.modalWidth,
+      BOUNDS.modalHeight,
+      BOUNDS.width,
+      BOUNDS.height,
+    )).toBe(false)
+    expect(pos.x).toBeGreaterThanOrEqual(padding)
+    expect(pos.y).toBeGreaterThanOrEqual(padding)
+    expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
+    expect(pos.y + BOUNDS.modalHeight).toBeLessThanOrEqual(BOUNDS.height - padding)
+  })
+})
 
 describe('computeWikiModalSpreadPositions', () => {
   it('count=1 con random=0.5 coloca el modal cerca del centro del rect disponible', () => {

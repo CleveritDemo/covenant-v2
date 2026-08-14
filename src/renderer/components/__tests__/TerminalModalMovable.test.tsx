@@ -14,10 +14,12 @@ afterEach(cleanup)
 
 function MovableHarness({
   initialPosition,
+  enterOrigin,
   onPositionChange,
   onClose = () => {},
 }: {
   initialPosition?: { x: number; y: number }
+  enterOrigin?: { x: number; y: number }
   onPositionChange?: (pos: { x: number; y: number }) => void
   onClose?: () => void
 }) {
@@ -32,6 +34,7 @@ function MovableHarness({
         portalContainerRef={containerRef}
         boundsRef={containerRef}
         initialPosition={initialPosition}
+        enterOrigin={enterOrigin}
         onPositionChange={onPositionChange}
         onClose={onClose}
       >
@@ -92,6 +95,22 @@ describe('TerminalModal movable', () => {
     expect(panel.style.left).toBe('160px')
     expect(panel.style.top).toBe('130px')
     expect(onPositionChange).toHaveBeenCalledWith({ x: 160, y: 130 })
+  })
+
+  it('con enterOrigin aplica clase from-origin y vars CSS relativas al panel', async () => {
+    document.documentElement.removeAttribute('data-reduce-motion')
+    render(
+      <MovableHarness
+        initialPosition={{ x: 200, y: 150 }}
+        enterOrigin={{ x: 320, y: 280 }}
+      />,
+    )
+    const panel = screen.getByRole('dialog') as HTMLElement
+    await waitFor(() => {
+      expect(panel.classList.contains('terminal-modal-panel--from-origin')).toBe(true)
+      expect(panel.style.getPropertyValue('--terminal-modal-enter-ox')).toBe('120px')
+      expect(panel.style.getPropertyValue('--terminal-modal-enter-oy')).toBe('130px')
+    })
   })
 
   it('pointerdown en traffic close no inicia drag y cierra', async () => {

@@ -26,7 +26,9 @@ export interface WikiGraphViewProps {
   /** cwd del proyecto; el CTA 'Crear wiki' lo pasa a ensureWiki. */
   cwd: string
   onClose: () => void
-  onOpenNode: (slug: string) => void
+  onOpenNode: (slug: string, screen?: { x: number; y: number }) => void
+  /** Posiciones en pantalla de nodos (canvas/plano); además del estado local de badges. */
+  onNodeScreenPositions?: (positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>) => void
   /** Relanza el fetch del grafo por el camino existente (tras crear la wiki). */
   onRefetchGraph: () => void
   /** Slot del composer del curador; se monta dentro del overlay del mapa. */
@@ -72,6 +74,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   onClose,
   onOpenNode,
   onRefetchGraph,
+  onNodeScreenPositions,
   curator,
   active = true,
 }) => {
@@ -100,13 +103,14 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   const handleNodeScreenPositions = useCallback(
     (positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>) => {
       setNodeScreenPositions(positions)
+      onNodeScreenPositions?.(positions)
     },
-    [],
+    [onNodeScreenPositions],
   )
 
   const { webglAvailable } = useWikiGraphScene(containerRef, graphData, {
     onHover: setHover,
-    onPick: onOpenNode,
+    onPick: (slug, screen) => onOpenNode(slug, screen),
     onNodeScreenPositions: handleNodeScreenPositions,
   }, active)
 

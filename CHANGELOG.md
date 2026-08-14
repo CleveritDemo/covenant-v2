@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.54.1
+
+- **Modales wiki al mismo lado del nodo**: nodo a la izquierda abre a la izquierda; a la derecha, a la derecha.
+- **Varios modales a la vez**: abrir una página ya no cierra las otras (tope 3; no se evictan).
+- **Entrada desde el nodo**: el modal crece desde la proyección del nodo y se acopla al borde.
+
 ## v0.54.0
 
 - **Loops: la cadena es la interfaz**: se acabó el asistente Agent→Interaction→Wait. Los pasos viven en una pista, el retorno del ciclo se dibuja con su intervalo, un paso nuevo se añade en línea y el objetivo se edita en la propia fila; mientras la cadena corre se ve el paso activo y el estado de cada agente.

@@ -123,7 +123,6 @@ import { countQueuedTurnsForThread, resolvePreferSendTargetThreadId } from './co
 import { planPreferSendIntake, shouldReleasePreferSendSlot } from './preferSendIntake'
 import { shouldLogPreferSendQueueFull } from './preferSendQueueFullLog'
 import {
-  planAlreadyConsumedPreferSendSlotRelease,
   rememberConsumedSendId,
 } from './consumedSendIds'
 import {
@@ -293,7 +292,7 @@ interface Props {
   onPreferOpenContextConsumed?: () => void
   /** Pedido externo: enviar un prompt (y opcionalmente imágenes) desde el plano. */
   preferSend?: AgentPreferSend | null
-  onPreferSendConsumed?: () => void
+  onPreferSendConsumed?: (sendId?: string) => void
   /** Pedido externo: detener el turno/bucle desde el composer del plano. */
   preferStop?: boolean
   onPreferStopConsumed?: () => void
@@ -721,7 +720,6 @@ export const AgentPane: React.FC<Props> = ({
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
   /** Dedup por identidad de envío: sobrevive a que cambie el objeto ofrecido. */
   const consumedSendIdsRef = useRef<string[]>([])
-  const releasedPreferSendIdsRef = useRef<string[]>([])
   const loggedAlreadyConsumedSendIdsRef = useRef(new Set<string>())
   const loggedQueueFullSendIdsRef = useRef(new Set<string>())
   /** Un warn por (envío, motivo) al descartar en cola (duplicate/full). */
@@ -2671,7 +2669,9 @@ export const AgentPane: React.FC<Props> = ({
         orchestrationJobId: plan.orchestrationJobId,
       })
       // El envío está vacío, no hay turno que arrancar, pero el hueco debe cerrarse igualmente.
-      if (shouldReleasePreferSendSlot(plan.action)) onPreferSendConsumedRef.current?.()
+      if (shouldReleasePreferSendSlot(plan.action)) {
+        onPreferSendConsumedRef.current?.(preferSend.sendId)
+      }
       return
     }
     if (plan.action === 'reject') {
@@ -2692,11 +2692,6 @@ export const AgentPane: React.FC<Props> = ({
     if (plan.action === 'consume') {
       // Reoferta de un envío ya consumido: cerrar el slot sin duplicar.
       handledPreferSendRef.current = preferSend
-      const releasePlan = planAlreadyConsumedPreferSendSlotRelease(
-        releasedPreferSendIdsRef.current,
-        plan.sendId,
-      )
-      releasedPreferSendIdsRef.current = releasePlan.nextReleasedSendIds
       if (!loggedAlreadyConsumedSendIdsRef.current.has(plan.sendId)) {
         loggedAlreadyConsumedSendIdsRef.current.add(plan.sendId)
         console.warn('[AgentPane] preferSend duplicate', {
@@ -2704,8 +2699,12 @@ export const AgentPane: React.FC<Props> = ({
           sendId: plan.sendId,
         })
       }
-      if (releasePlan.shouldReleaseSlot && shouldReleasePreferSendSlot(plan.action)) {
-        onPreferSendConsumedRef.current?.()
+      // Se suelta SIEMPRE, no una vez por sendId: App vacía el buzón solo si
+      // sigue teniendo este envío, así que soltar de más es inofensivo — y
+      // soltar de menos dejaba el buzón tomado para siempre cuando el mismo
+      // envío se ofrecía dos veces.
+      if (shouldReleasePreferSendSlot(plan.action)) {
+        onPreferSendConsumedRef.current?.(plan.sendId)
       }
       return
     }
@@ -2741,7 +2740,7 @@ export const AgentPane: React.FC<Props> = ({
         consumedSendIdsRef.current,
         preferSend.sendId,
       )
-      onPreferSendConsumedRef.current?.()
+      onPreferSendConsumedRef.current?.(preferSend.sendId)
     }
     void (async () => {
       const resolvedImages = await imagesSnapshot

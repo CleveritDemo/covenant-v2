@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.22
+
+- **Cola humana sin interbloqueo post-orquestación**: el buzón `preferSend` ya no duplica envíos ni queda tomado para siempre; el drenaje decide en el acto si pudo colocar el mensaje y al consumirlo solo suelta el envío correcto.
+- **Liberación por identidad de envío**: reofertas del mismo mensaje ya no dejan el slot bloqueado ni congelan la FIFO de orquestación ni la cola del composer.
+
 ## v0.61.21
 
 - **Señales de la card mini más claras**: la esquina superior solo indica que el orquestador espera resultados de delegación; el busy de un especialista va siempre al listado de hilos bajo el nombre.

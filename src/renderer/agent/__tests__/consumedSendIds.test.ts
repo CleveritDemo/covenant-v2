@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_REMEMBERED_SEND_IDS,
-  planAlreadyConsumedPreferSendSlotRelease,
   rememberConsumedSendId,
   wasSendIdConsumed,
 } from '../consumedSendIds'
@@ -41,15 +40,5 @@ describe('consumedSendIds', () => {
     const next = rememberConsumedSendId(seen, 'send-2')
     expect(seen).toEqual(['send-1'])
     expect(next).toEqual(['send-1', 'send-2'])
-  })
-
-  it('planAlreadyConsumedPreferSendSlotRelease releases once per sendId', () => {
-    const first = planAlreadyConsumedPreferSendSlotRelease([], 'send-1')
-    expect(first.shouldReleaseSlot).toBe(true)
-    expect(first.nextReleasedSendIds).toEqual(['send-1'])
-
-    const second = planAlreadyConsumedPreferSendSlotRelease(first.nextReleasedSendIds, 'send-1')
-    expect(second.shouldReleaseSlot).toBe(false)
-    expect(second.nextReleasedSendIds).toEqual(['send-1'])
   })
 })

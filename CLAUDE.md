@@ -128,7 +128,10 @@ visible queue of chips. Both hand-offs are gated: `describeOrchestrationFifoSkip
 with its own thread ignores `paneBusy`, since it runs in a lane) and `describeAgentQueueDrainBlock` (chips →
 turn). A message that looks stuck is always one of those gates — both log the reason once per cause
 (`[orchestration] FIFO retenida`, `[AgentPane] queue blocked while idle`), so read the console before
-re-deriving the state machine. Turbo is orchestrator-only (`resolveOrchestrationWorkStyle`): in linear an open
+re-deriving the state machine. The slot itself lives in `planeSendByPaneRef` and is claimed/released through
+the pure pair in `renderer/planeSendSlot.ts`: never decide "did I get the slot?" from a flag set inside a
+`setState` updater (the updater is not synchronous — that race duplicated a send into the slot *and* the FIFO
+and deadlocked every human queue), and never clear the slot without checking it still holds that `sendId`. Turbo is orchestrator-only (`resolveOrchestrationWorkStyle`): in linear an open
 wave holds human turns by design.
 
 The folder name is resolved by `projectDirName()` (`electron/projectDir.ts`), never hardcoded: `.gravity`,

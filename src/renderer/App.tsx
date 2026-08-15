@@ -45,6 +45,7 @@ import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
 import { buildPlaneThreadNodes } from './workspace/planeThreadNodes'
+import { claimPlaneSendSlot, releasePlaneSendSlot } from './planeSendSlot'
 import { markSplashUiReady, whenSplashDismissed } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
@@ -571,6 +572,23 @@ export const App: React.FC = () => {
     orchestrationJobId?: string
     delegation?: PlaneSendDelegation
   }>>({})
+  type PlaneSendSlots = typeof planeSendByPane
+  /**
+   * Espejo síncrono del buzón. El drenaje necesita saber en el acto si pudo
+   * tomar el hueco: leer un booleano puesto dentro del updater de `setState`
+   * mentía (el updater corre después) y el envío terminaba duplicado — en el
+   * buzón y de vuelta en la FIFO —, que es lo que dejaba la cola humana
+   * congelada para siempre. El ref manda; el estado es el espejo para pintar.
+   */
+  const planeSendByPaneRef = useRef<PlaneSendSlots>(planeSendByPane)
+  const updatePlaneSendByPane = useCallback((
+    updater: (prev: PlaneSendSlots) => PlaneSendSlots,
+  ): PlaneSendSlots => {
+    const next = updater(planeSendByPaneRef.current)
+    planeSendByPaneRef.current = next
+    setPlaneSendByPane(next)
+    return next
+  }, [])
   const [planeStopPaneIds, setPlaneStopPaneIds] = useState<ReadonlySet<string>>(() => new Set())
   const [planeClearPaneId, setPlaneClearPaneId] = useState<string | null>(null)
   const [planeNewThreadPaneId, setPlaneNewThreadPaneId] = useState<string | null>(null)
@@ -878,7 +896,7 @@ export const App: React.FC = () => {
       }
       return changed ? next : prev
     })
-    setPlaneSendByPane(prev => {
+    updatePlaneSendByPane(prev => {
       let changed = false
       const next = { ...prev }
       for (const paneId of paneIds) {
@@ -2841,7 +2859,7 @@ export const App: React.FC = () => {
       delete next[paneId]
       return next
     })
-    setPlaneSendByPane(prev => {
+    updatePlaneSendByPane(prev => {
       if (!(paneId in prev)) return prev
       const next = { ...prev }
       delete next[paneId]
@@ -4952,7 +4970,7 @@ export const App: React.FC = () => {
       else orchestrationFifoByPaneRef.current.delete(paneId)
     }
     // preferSend ya ofrecido: no debe consumirse tras el abort.
-    setPlaneSendByPane(prev => clearPlaneSendsForOrchestrationAbort(prev, fromPaneId))
+    updatePlaneSendByPane(prev => clearPlaneSendsForOrchestrationAbort(prev, fromPaneId))
     for (const controls of planeQueueControlsByPaneRef.current.values()) {
       controls.cancelDelegationsFrom(fromPaneId)
     }
@@ -5002,7 +5020,7 @@ export const App: React.FC = () => {
       if (next.length) orchestrationFifoByPaneRef.current.set(paneId, next)
       else orchestrationFifoByPaneRef.current.delete(paneId)
     }
-    setPlaneSendByPane(prev => clearPlaneSendsForSingleDelegationAbort(prev, id))
+    updatePlaneSendByPane(prev => clearPlaneSendsForSingleDelegationAbort(prev, id))
     for (const controls of planeQueueControlsByPaneRef.current.values()) {
       controls.cancelDelegation(id)
     }
@@ -5105,7 +5123,7 @@ export const App: React.FC = () => {
     for (const paneId of [...queues.keys()]) {
       const status = agentPlaneStatus[paneId]
       const skipReason = describeOrchestrationFifoSkip({
-        hasPreferSendSlot: Boolean(planeSendByPane[paneId]),
+        hasPreferSendSlot: Boolean(planeSendByPaneRef.current[paneId]),
         paneBusy: status?.busy === true,
         visibleQueued: status?.queuedTurns?.length ?? 0,
         maxVisibleQueued: MAX_VISIBLE_QUEUED_TURNS,
@@ -5164,7 +5182,7 @@ export const App: React.FC = () => {
         queues.delete(paneId)
         setOrchestrationFifoTick(n => n + 1)
       }
-      if (planeSendByPane[paneId]) {
+      if (planeSendByPaneRef.current[paneId]) {
         queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
         continue
       }
@@ -5173,10 +5191,10 @@ export const App: React.FC = () => {
       }
       // Sin reinserción, si el slot se ocupó en la carrera el head ya salió de la cola y se pierde.
       let placed = false
-      setPlaneSendByPane(prev => {
-        if (prev[paneId]) return prev
-        placed = true
-        return { ...prev, [paneId]: head }
+      updatePlaneSendByPane(prev => {
+        const claim = claimPlaneSendSlot(prev, paneId, head)
+        placed = claim.claimed
+        return claim.slots
       })
       if (!placed) {
         queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
@@ -5216,7 +5234,7 @@ export const App: React.FC = () => {
       visibleQueuedCount: publishedThreadId
         ? countQueuedTurnsForThread(queuedTurns, publishedThreadId)
         : queuedTurns.length,
-      planeSendOccupied: Boolean(planeSendByPane[paneId]),
+      planeSendOccupied: Boolean(planeSendByPaneRef.current[paneId]),
       isSendIdVisible: sendId => {
         const id = sendId?.trim()
         if (!id) return false
@@ -5272,10 +5290,10 @@ export const App: React.FC = () => {
         persistQueue(result.queue)
         const { head } = result
         let placed = false
-        setPlaneSendByPane(prev => {
-          if (prev[paneId]) return prev
-          placed = true
-          return { ...prev, [paneId]: head }
+        updatePlaneSendByPane(prev => {
+          const claim = claimPlaneSendSlot(prev, paneId, head)
+          placed = claim.claimed
+          return claim.slots
         })
         if (!placed) {
           queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
@@ -5320,7 +5338,7 @@ export const App: React.FC = () => {
     const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
     if (!target || !isHumanQueuedTurn(target)) return
-    setPlaneSendByPane(prev => {
+    updatePlaneSendByPane(prev => {
       const pending = prev[paneId]
       if (!pending || !isHumanQueuedTurn(pending)) return prev
       if (!shouldClearPlaneSendForRemovedQueuedTurn(target, pending.sendId)) {
@@ -5955,14 +5973,14 @@ export const App: React.FC = () => {
             setOpenContextForPane(current => (current?.paneId === paneId ? null : current))
           }}
           preferSend={planeSendByPane[paneId] ?? null}
-          onPreferSendConsumed={() => {
-            const sendId = planeSendByPane[paneId]?.sendId?.trim()
-            setPlaneSendByPane(current => {
-              if (!(paneId in current)) return current
-              const next = { ...current }
-              delete next[paneId]
-              return next
-            })
+          onPreferSendConsumed={(consumedSendId?: string) => {
+            const sendId = consumedSendId?.trim()
+              || planeSendByPaneRef.current[paneId]?.sendId?.trim()
+            // Por identidad: si mientras tanto entró otro envío al buzón, este
+            // consumo no debe tirarlo. Antes se borraba a ciegas, y para
+            // taparlo el pane soltaba una sola vez por sendId — que es lo que
+            // dejaba el buzón tomado si el mismo envío se ofrecía dos veces.
+            updatePlaneSendByPane(current => releasePlaneSendSlot(current, paneId, sendId))
             if (!sendId) return
             const fifo = humanSendFifoByPaneRef.current.get(paneId)
             if (!fifo?.length) return

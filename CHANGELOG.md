@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.7
+
+- El modal de contexto ya no invita a descartar: 'Guardar contexto' es el botón principal y 'Descartar' queda como secundario.
+- En el gestor de git la fuente monoespaciada queda solo en el diff; la ruta del repo y la rama vuelven a la tipografía de interfaz.
+
 ## v0.61.6
 
 - **Composer desbloqueado tras orquestación**: al cerrar una ola linear el campo vuelve a aceptar mensajes de inmediato; se unifica la señal de follow-ups pendientes y se elimina el bloqueo fantasma del hilo humano.

@@ -1,5 +1,8 @@
+import type { AgentCliProvider } from './agentCliProviders'
+import type { AgentCoordination } from './projectAgentCatalog'
+import { agentResultContextIdForSlug } from './projectAgentCatalog'
 import type { TabContext, TabContextKind } from './tabContext'
-import { agentMonogram } from './tabContextAppearance'
+import { agentMonogram, paletteColorForSeed } from './tabContextAppearance'
 
 /** Cubos del picker: el usuario piensa en «markdown / código / repo / resultados». */
 export type ContextGroupId = 'markdown' | 'code' | 'repo' | 'results'
@@ -34,6 +37,8 @@ export interface ContextPickerAgent {
   name?: string
   monogram?: string
   contextIds?: string[]
+  provider?: AgentCliProvider
+  coordination?: AgentCoordination
 }
 
 /** Agente que ya consume el contexto (para la pila de monogramas de la fila). */
@@ -41,6 +46,8 @@ export interface ContextUser {
   id: string
   name: string
   monogram: string
+  provider?: AgentCliProvider
+  color: string
 }
 
 /**
@@ -59,6 +66,8 @@ export function contextUsageByAgent(
       id: agent.id,
       name,
       monogram: agent.monogram?.trim().slice(0, 2).toUpperCase() || agentMonogram(name),
+      provider: agent.provider,
+      color: paletteColorForSeed(agentResultContextIdForSlug(agent.id)),
     }
     for (const contextId of agent.contextIds ?? []) {
       const list = usage.get(contextId)

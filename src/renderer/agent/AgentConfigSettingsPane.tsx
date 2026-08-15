@@ -345,7 +345,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             value={meta.coordination ?? 'none'}
             disabled={locked}
             options={[
-              { value: 'none', label: t('agentPane.coordinationNone'), icon: COORDINATION_ICON.none },
+              { value: 'none', label: t('agentPane.coordinationNone') },
               { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator'), icon: COORDINATION_ICON.orchestrator },
               { value: 'productOwner', label: t('agentPane.coordinationProductOwner'), icon: COORDINATION_ICON.productOwner },
             ]}

@@ -138,6 +138,8 @@ export async function downloadOrgWorkspaceToLocal(
   deps: OrgWorkspaceMaterializeDeps,
   options: {
     wipeLocal: boolean
+    /** Default true: si false, no lista/borra/upserta agentes. */
+    includeAgents?: boolean
     preferredAgentIds?: readonly string[]
     /** Aísla bodies en memoria por workspace org (colisión de contextId). */
     orgWorkspaceScope?: WorkspaceContextBodyScope
@@ -153,32 +155,43 @@ export async function downloadOrgWorkspaceToLocal(
     return { agentsOk: true, contextsOk: true, cancelled: true }
   }
   const scope = options.orgWorkspaceScope
+  const includeAgents = options.includeAgents !== false
 
-  options.onPhase?.('agents')
+  let agentsOk = true
+  let agentsError: string | undefined
+  let contextsOk = true
+  let contextsError: string | undefined
 
-  const [agentsResult, contextsResult] = await Promise.all([
-    deps.listRemoteAgents(),
-    deps.listRemoteContexts(),
-  ])
+  if (includeAgents) {
+    options.onPhase?.('agents')
+  }
+
+  const [agentsResult, contextsResult] = includeAgents
+    ? await Promise.all([deps.listRemoteAgents(), deps.listRemoteContexts()])
+    : [null, await deps.listRemoteContexts()]
 
   // Snapshot result assignments before wipe/upsert (machine-local, like agentResult files).
-  const localAgentsSnapshot = await deps.listLocalAgents(root)
+  let preferredAgentIds = options.preferredAgentIds
   const localResultContextIdsByAgentId = new Map<string, string[]>()
-  for (const agent of localAgentsSnapshot) {
-    const resultIds = pickLocalAgentResultContextIds(agent.contextIds)
-    if (resultIds.length > 0) {
-      localResultContextIdsByAgentId.set(agent.id, resultIds)
+  if (includeAgents) {
+    const localAgentsSnapshot = await deps.listLocalAgents(root)
+    for (const agent of localAgentsSnapshot) {
+      const resultIds = pickLocalAgentResultContextIds(agent.contextIds)
+      if (resultIds.length > 0) {
+        localResultContextIdsByAgentId.set(agent.id, resultIds)
+      }
+    }
+    if (options.wipeLocal) {
+      if (!preferredAgentIds?.length) {
+        preferredAgentIds = localAgentsSnapshot.map(agent => agent.id)
+      }
+      for (const agent of localAgentsSnapshot) {
+        await deps.deleteLocalAgent(root, agent.id)
+      }
     }
   }
 
-  let preferredAgentIds = options.preferredAgentIds
   if (options.wipeLocal) {
-    if (!preferredAgentIds?.length) {
-      preferredAgentIds = localAgentsSnapshot.map(agent => agent.id)
-    }
-    for (const agent of localAgentsSnapshot) {
-      await deps.deleteLocalAgent(root, agent.id)
-    }
     const discovered = await deps.discoverLocalContexts(root)
     if (discovered.ok) {
       for (const context of localContextsToWipeOnOrgResync(discovered.contexts)) {
@@ -191,33 +204,31 @@ export async function downloadOrgWorkspaceToLocal(
     return { agentsOk: true, contextsOk: true, cancelled: true }
   }
 
-  let agentsOk = agentsResult.ok
-  let contextsOk = contextsResult.ok
-  let agentsError: string | undefined
-  let contextsError: string | undefined
-
-  if (agentsResult.ok) {
-    const agents = projectAgentsFromWorkspaceAgents(
-      agentsResult.data,
-      preferredAgentIds,
-    )
-    for (const definition of agents) {
-      if (options.isCancelled?.()) {
-        return { agentsOk: true, contextsOk: true, cancelled: true }
-      }
-      const localResultIds = localResultContextIdsByAgentId.get(definition.id)
-      const merged = mergeRemoteAgentPreservingLocalResultContextIds(
-        definition,
-        localResultIds ? { contextIds: localResultIds } : undefined,
+  if (includeAgents && agentsResult) {
+    agentsOk = agentsResult.ok
+    if (agentsResult.ok) {
+      const agents = projectAgentsFromWorkspaceAgents(
+        agentsResult.data,
+        preferredAgentIds,
       )
-      const written = await deps.upsertLocalAgent(root, merged)
-      if (!written.ok) {
-        agentsOk = false
-        agentsError = written.error ?? 'agent upsert failed'
+      for (const definition of agents) {
+        if (options.isCancelled?.()) {
+          return { agentsOk: true, contextsOk: true, cancelled: true }
+        }
+        const localResultIds = localResultContextIdsByAgentId.get(definition.id)
+        const merged = mergeRemoteAgentPreservingLocalResultContextIds(
+          definition,
+          localResultIds ? { contextIds: localResultIds } : undefined,
+        )
+        const written = await deps.upsertLocalAgent(root, merged)
+        if (!written.ok) {
+          agentsOk = false
+          agentsError = written.error ?? 'agent upsert failed'
+        }
       }
+    } else {
+      agentsError = agentsResult.error
     }
-  } else {
-    agentsError = agentsResult.error
   }
 
   if (options.isCancelled?.()) {
@@ -225,6 +236,7 @@ export async function downloadOrgWorkspaceToLocal(
   }
 
   options.onPhase?.('contexts')
+  contextsOk = contextsResult.ok
 
   if (contextsResult.ok) {
     // Hidrata cuerpos en memoria para notes (workspaceContextBody), scoped si hay org.

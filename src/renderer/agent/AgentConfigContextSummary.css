@@ -80,6 +80,17 @@
   color: var(--text);
 }
 
+/* Solo el glifo toma el color del contexto; el nombre sigue en --text. */
+.agent-config-contexts__chip > svg {
+  flex-shrink: 0;
+  color: var(--chip-icon-color, currentColor);
+}
+
+.agent-config-contexts__chip > .agent-face {
+  flex-shrink: 0;
+  margin-left: -3px;
+}
+
 .agent-config-contexts__chip-off {
   display: inline-flex;
   align-items: center;

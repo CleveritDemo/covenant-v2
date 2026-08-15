@@ -1193,6 +1193,14 @@ const es = {
     reqUploadFailed: 'No se pudieron subir los cambios del workspace: {{error}}.',
     reqWikiFailed: 'La wiki no se sincronizó: {{error}}',
     openSettings: 'Abrir ajustes',
+    syncScopeTitle: 'Alcance de la sincronización',
+    syncScopeHint: 'Los agentes del workspace en el servidor pueden diferir de los tuyos en local.',
+    syncScopeAllTitle: 'Contextos y agentes',
+    syncScopeAllHint: 'Baja los agentes de la organización y sobrescribe los que compartan el mismo id.',
+    syncScopeContextsTitle: 'Solo contextos',
+    syncScopeContextsHint: 'Mantiene tus agentes locales tal cual; solo actualiza contextos y wiki.',
+    syncScopeConfirm: 'Sincronizar',
+    syncScopeCancel: 'Cancelar',
   },
 
   update: {

@@ -1,5 +1,7 @@
 import React from 'react'
+import { AgentFace } from './AgentFace'
 import { Icon, type IconName } from './Icon'
+import type { AgentCliProvider } from '@shared/agentCliProviders'
 import './ContextCheckOption.css'
 
 export interface ContextCheckOptionProps {
@@ -8,8 +10,12 @@ export interface ContextCheckOptionProps {
   kindLabel?: string
   /** Icono a la izquierda del nombre; sin él la fila solo muestra el check. */
   icon?: IconName
+  /** Color del icono (CSS var); sin él sigue muted / accent al check. */
+  iconColor?: string
   /** Cara custom (p. ej. AgentFace); tiene prioridad sobre `icon`. */
   face?: React.ReactNode
+  /** Badge tras el nombre (p. ej. CoordinationBadge). */
+  badge?: React.ReactNode
   checked: boolean
   onChange: () => void
   disabled?: boolean
@@ -20,7 +26,13 @@ export interface ContextCheckOptionProps {
   /** Etiqueta de aviso antes del kind (p. ej. «sin usar»). */
   flag?: string
   /** Quién más consume la opción: pila de monogramas al final de la fila. */
-  usedBy?: readonly { id: string; monogram: string; name: string }[]
+  usedBy?: readonly {
+    id: string
+    monogram: string
+    name: string
+    provider?: AgentCliProvider
+    color?: string
+  }[]
   /** Texto accesible de la pila; recibe los nombres ya unidos. */
   usedByLabel?: string
 }
@@ -30,7 +42,9 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
   name,
   kindLabel,
   icon,
+  iconColor,
   face,
+  badge,
   checked,
   onChange,
   disabled = false,
@@ -65,17 +79,37 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
       </svg>
     </span>
     {face || icon ? (
-      <span className="context-check-option__icon" aria-hidden="true">
+      <span
+        className="context-check-option__icon"
+        aria-hidden="true"
+        style={
+          iconColor
+            ? ({ '--context-check-icon-color': iconColor } as React.CSSProperties)
+            : undefined
+        }
+      >
         {face ?? (icon ? <Icon name={icon} size={14} /> : null)}
       </span>
     ) : null}
     <span className="context-check-option__name">{name}</span>
+    {badge ? <span className="context-check-option__badge">{badge}</span> : null}
     {flag ? <span className="context-check-option__flag">{flag}</span> : null}
     {kindLabel ? <span className="context-check-option__kind">{kindLabel}</span> : null}
     {usedBy && usedBy.length > 0 ? (
       <span className="context-check-option__stack" aria-label={usedByLabel}>
         {usedBy.map(user => (
-          <span key={user.id} className="context-check-option__monogram">{user.monogram}</span>
+          user.color ? (
+            <span key={user.id} className="context-check-option__face">
+              <AgentFace
+                monogram={user.monogram}
+                provider={user.provider}
+                color={user.color}
+                size="sm"
+              />
+            </span>
+          ) : (
+            <span key={user.id} className="context-check-option__monogram">{user.monogram}</span>
+          )
         ))}
       </span>
     ) : null}

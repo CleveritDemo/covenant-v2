@@ -210,6 +210,161 @@ describe('downloadOrgWorkspaceToLocal', () => {
       'iaterminal:result:fullstack',
     ])
   })
+
+  it('includeAgents false skips agents, materializes contexts and wiki, agentsOk true', async () => {
+    const listRemoteAgents = vi.fn(async () => ({
+      ok: true as const,
+      data: [{ agentId: 'qa', definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' } }],
+    }))
+    const upsertLocalAgent = vi.fn(async (_cwd: string, definition: ProjectAgentDefinition) => ({
+      ok: true as const,
+      agent: definition,
+    }))
+    const listLocalAgents = vi.fn(async () => [agent('local')])
+    const materializedContexts: string[] = []
+    const wikiReplaced: string[] = []
+    const wikiPagesReplaced = vi.fn(async () => {})
+    const deps = baseDeps({
+      listRemoteAgents,
+      listLocalAgents,
+      upsertLocalAgent,
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      materializeLocalContext: async ({ context: ctx }) => {
+        materializedContexts.push(ctx.id)
+        return { ok: true, notesContent: '' }
+      },
+      listRemoteWikiPages: async () => ({
+        ok: true,
+        data: [{
+          slug: 'overview',
+          title: 'Overview',
+          pageType: 'concept',
+          body: 'wiki body',
+          updatedAt: 1,
+          updatedBy: null,
+        }],
+      }),
+      replaceLocalWikiPages: async (_cwd, pages) => {
+        wikiReplaced.push(...pages.map(p => p.slug))
+        return { ok: true }
+      },
+      listRemoteWikiLog: async () => ({ ok: true, data: [] }),
+      replaceLocalWikiLog: async () => ({ ok: true }),
+      onWikiPagesReplaced: wikiPagesReplaced,
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, {
+      wipeLocal: false,
+      includeAgents: false,
+    })
+
+    expect(listRemoteAgents).not.toHaveBeenCalled()
+    expect(listLocalAgents).not.toHaveBeenCalled()
+    expect(upsertLocalAgent).not.toHaveBeenCalled()
+    expect(materializedContexts).toEqual(['about'])
+    expect(wikiReplaced).toEqual(['overview'])
+    expect(wikiPagesReplaced).toHaveBeenCalled()
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+    expect(result.agentsError).toBeUndefined()
+  })
+
+  it('includeAgents false + wipeLocal does not delete local agents', async () => {
+    const deleteLocalAgent = vi.fn(async () => ({ ok: true }))
+    const deletedContexts: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{ agentId: 'qa', definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' } }],
+      }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      listLocalAgents: async () => [agent('old'), agent('fe-2', { localOnly: true })],
+      deleteLocalAgent,
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [
+          context('stale', 'notes'),
+          context('iaterminal:result:qa', 'agentResult'),
+        ],
+      }),
+      deleteLocalContext: async (ctx) => {
+        deletedContexts.push(ctx.id)
+        return { ok: true }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, {
+      wipeLocal: true,
+      includeAgents: false,
+    })
+
+    expect(deleteLocalAgent).not.toHaveBeenCalled()
+    expect(deletedContexts).toEqual(['stale'])
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+  })
+
+  it('includeAgents false onPhase skips agents', async () => {
+    const phases: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{ agentId: 'qa', definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' } }],
+      }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      listRemoteWikiPages: async () => ({ ok: true, data: [] }),
+      replaceLocalWikiPages: async () => ({ ok: true }),
+    })
+
+    await downloadOrgWorkspaceToLocal('/ws', deps, {
+      wipeLocal: false,
+      includeAgents: false,
+      onPhase: phase => { phases.push(phase) },
+    })
+
+    expect(phases).toEqual(['contexts', 'wiki'])
+    expect(phases).not.toContain('agents')
+  })
+
+  it('without includeAgents still downloads and upserts agents', async () => {
+    const listRemoteAgents = vi.fn(async () => ({
+      ok: true as const,
+      data: [{ agentId: 'qa', definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' } }],
+    }))
+    const upsertedAgents: string[] = []
+    const phases: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents,
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      upsertLocalAgent: async (_cwd, definition) => {
+        upsertedAgents.push(definition.id)
+        return { ok: true, agent: definition }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, {
+      wipeLocal: false,
+      onPhase: phase => { phases.push(phase) },
+    })
+
+    expect(listRemoteAgents).toHaveBeenCalled()
+    expect(upsertedAgents).toEqual(['qa'])
+    expect(phases[0]).toBe('agents')
+    expect(result.agentsOk).toBe(true)
+    expect(result.contextsOk).toBe(true)
+  })
 })
 
 describe('uploadOrgWorkspaceFromLocal', () => {

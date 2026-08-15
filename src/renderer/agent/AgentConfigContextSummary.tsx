@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import { synthesizeTabContextFromId } from '@shared/tabContext'
-import { isAgentOwnResultContext } from '@shared/projectAgentCatalog'
+import {
+  agentResultContextIdForSlug,
+  isAgentOwnResultContext,
+} from '@shared/projectAgentCatalog'
 import {
   contextUsageByAgent,
   filterAgentContexts,
@@ -9,8 +12,22 @@ import {
   type ContextGroupId,
   type ContextPickerAgent,
 } from '@shared/agentContextPicker'
+import {
+  agentMonogram,
+  normalizeContextColor,
+  paletteColorForSeed,
+  resolveContextColor,
+} from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
-import { Button, ContextCheckOption, Icon, Input, SegmentedControl } from '../components/ui'
+import {
+  AgentFace,
+  Button,
+  ContextCheckOption,
+  CoordinationBadge,
+  Icon,
+  Input,
+  SegmentedControl,
+} from '../components/ui'
 import { contextIconName } from './tabContextKindIcons'
 import './AgentConfigContextSummary.css'
 
@@ -34,6 +51,23 @@ export interface AgentConfigContextSummaryProps {
   projectAgents?: ContextPickerAgent[]
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
+}
+
+/** Cara de results: monograma + marca CLI, teñida como en TabContextsList. */
+function resultFace(
+  context: TabContext,
+  agent: ContextPickerAgent | undefined,
+  size: 'sm' | 'md' = 'md',
+): React.ReactNode {
+  const color = normalizeContextColor(context.color) ?? paletteColorForSeed(context.id)
+  return (
+    <AgentFace
+      monogram={agent?.monogram?.trim() || agentMonogram(agent?.name?.trim() || context.name)}
+      provider={agent?.provider}
+      color={color}
+      size={size}
+    />
+  )
 }
 
 /** Picker checkbox de contextos; Gestionar = CRUD. */
@@ -94,12 +128,32 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
   const renderItem = (context: TabContext) => {
     const users = usage.get(context.id) ?? []
     const unused = users.length === 0 && !selectedContextIds.includes(context.id)
+    const isResult = context.kind === 'agentResult'
+    const agent = isResult
+      ? projectAgents.find(a => agentResultContextIdForSlug(a.id) === context.id)
+      : undefined
+    const coordination = agent?.coordination ?? 'none'
     return (
       <li key={context.id}>
         <ContextCheckOption
           appearance="panel"
           name={context.name}
-          icon={contextIconName(context)}
+          face={isResult ? resultFace(context, agent) : undefined}
+          icon={isResult ? undefined : contextIconName(context)}
+          iconColor={isResult ? undefined : resolveContextColor(context)}
+          badge={isResult ? (
+            <CoordinationBadge
+              coordination={coordination}
+              label={t(
+                coordination === 'orchestrator'
+                  ? 'agentPane.orchestratorBadge'
+                  : coordination === 'productOwner'
+                    ? 'agentPane.productOwnerBadge'
+                    : 'agentPane.specialistBadge',
+              )}
+              variant="inline"
+            />
+          ) : undefined}
           kindLabel={t(`tabContexts.kind_${context.kind}`)}
           flag={unused ? t('tabContexts.usedByNone') : undefined}
           usedBy={users}
@@ -146,21 +200,37 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
               <p className="agent-config-contexts__tray-empty">{t('tabContexts.trayEmpty')}</p>
             ) : (
               <ul className="agent-config-contexts__chips">
-                {selected.map(context => (
-                  <li key={context.id} className="agent-config-contexts__chip">
-                    <Icon name={contextIconName(context)} size={12} />
-                    {context.name}
-                    <button
-                      type="button"
-                      className="agent-config-contexts__chip-off"
-                      aria-label={t('tabContexts.trayRemove', { name: context.name })}
-                      disabled={locked}
-                      onClick={() => onToggleContext(context.id)}
+                {selected.map(context => {
+                  const isResult = context.kind === 'agentResult'
+                  const agent = isResult
+                    ? projectAgents.find(a => agentResultContextIdForSlug(a.id) === context.id)
+                    : undefined
+                  return (
+                    <li
+                      key={context.id}
+                      className="agent-config-contexts__chip"
+                      style={
+                        isResult
+                          ? undefined
+                          : ({ '--chip-icon-color': resolveContextColor(context) } as React.CSSProperties)
+                      }
                     >
-                      ×
-                    </button>
-                  </li>
-                ))}
+                      {isResult
+                        ? resultFace(context, agent, 'sm')
+                        : <Icon name={contextIconName(context)} size={12} />}
+                      {context.name}
+                      <button
+                        type="button"
+                        className="agent-config-contexts__chip-off"
+                        aria-label={t('tabContexts.trayRemove', { name: context.name })}
+                        disabled={locked}
+                        onClick={() => onToggleContext(context.id)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

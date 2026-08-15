@@ -308,6 +308,7 @@ import {
   OrgWorkspaceRequirementModal,
   type OrgWorkspaceRequirementState,
 } from './components/OrgWorkspaceRequirementModal'
+import { OrgSyncScopeModal } from './components/OrgSyncScopeModal'
 import {
   removeAgentFromLoopChains,
   planeLoopChainsForPersist,
@@ -527,16 +528,20 @@ export const App: React.FC = () => {
   const [projectAgentsByCwd, setProjectAgentsByCwd] = useState<Record<string, ProjectAgentDefinition[]>>({})
   const projectAgentsByCwdRef = useRef(projectAgentsByCwd)
   projectAgentsByCwdRef.current = projectAgentsByCwd
-  const resyncOrgWorkspaceRef = useRef<(tab: TabSession) => Promise<void>>(async () => {})
+  const resyncOrgWorkspaceRef = useRef<(
+    tab: TabSession,
+    options?: { includeAgents?: boolean },
+  ) => Promise<void>>(async () => {})
   const syncOrgWorkspaceContentRef = useRef<(
     slug: string,
     workspaceId: string,
     tabIds: string[],
-    options?: { wipeLocal?: boolean },
+    options?: { wipeLocal?: boolean; includeAgents?: boolean },
   ) => Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }>>(async () => ({
     agentsOk: false,
     contextsOk: false,
   }))
+  const [orgSyncScopeTab, setOrgSyncScopeTab] = useState<TabSession | null>(null)
   const handleAgentMetaChangeRef = useRef<(
     tabId: string,
     paneId: string,
@@ -991,6 +996,7 @@ export const App: React.FC = () => {
     tabIds: string[],
     options: {
       wipeLocal?: boolean
+      includeAgents?: boolean
       cancelGen?: number
       onPhase?: (phase: OrgWorkspaceSyncPhase) => void
     } = {},
@@ -1105,6 +1111,7 @@ export const App: React.FC = () => {
         .flatMap(tab => orderedAgentIdsFromTab(tab))
       const result = await downloadOrgWorkspaceToLocal(cwd, buildDeps(cwd), {
         wipeLocal: options.wipeLocal === true,
+        ...(options.includeAgents !== undefined ? { includeAgents: options.includeAgents } : {}),
         ...(preferredAgentIds.length ? { preferredAgentIds } : {}),
         orgWorkspaceScope: {
           orgSlug: slug,
@@ -2392,6 +2399,7 @@ export const App: React.FC = () => {
         try {
           const result = await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
             wipeLocal: false,
+            includeAgents: true,
             cancelGen: opGen,
             onPhase: reportOrgSyncPhase,
           })
@@ -2443,7 +2451,10 @@ export const App: React.FC = () => {
     setUploadingWorkspaceTabs(new Set())
   }, [])
 
-  const handleResyncOrgWorkspace = useCallback(async (tab: TabSession) => {
+  const handleResyncOrgWorkspace = useCallback(async (
+    tab: TabSession,
+    options: { includeAgents: boolean } = { includeAgents: true },
+  ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
     const covenant = getCovenantApi()
@@ -2489,6 +2500,7 @@ export const App: React.FC = () => {
       try {
         const result = await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
           wipeLocal: false,
+          includeAgents: options.includeAgents,
           cancelGen: opGen,
           onPhase: reportOrgSyncPhase,
         })
@@ -2977,6 +2989,7 @@ export const App: React.FC = () => {
         if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
           await syncOrgWorkspaceContent(orgSlug, workspaceId, [tabId], {
             wipeLocal: false,
+            includeAgents: true,
             cancelGen: opGen,
             onPhase: reportOrgSyncPhase,
           })
@@ -6780,7 +6793,7 @@ export const App: React.FC = () => {
                   )}
                   resyncWorkspaceLabel={t('tabs.resyncWorkspaceButton')}
                   resyncWorkspaceBusy={resyncingWorkspaceTabs.has(tab.id) || uploadingWorkspaceTabs.has(tab.id)}
-                  onResyncWorkspace={() => { void handleResyncOrgWorkspace(tab) }}
+                  onResyncWorkspace={() => { setOrgSyncScopeTab(tab) }}
                   canUploadWorkspace={canUploadOrgWorkspaceChanges(
                     findOrgWorkspaceCatalogEntry(
                       orgWorkspaceCatalog,
@@ -7059,6 +7072,16 @@ export const App: React.FC = () => {
         onClose={() => setOrgWorkspaceRequirement(null)}
         onCancelBusy={cancelOrgWorkspaceSyncOrUpload}
         onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <OrgSyncScopeModal
+        open={orgSyncScopeTab !== null}
+        onClose={() => setOrgSyncScopeTab(null)}
+        onConfirm={includeAgents => {
+          const tab = orgSyncScopeTab
+          setOrgSyncScopeTab(null)
+          if (tab) void handleResyncOrgWorkspace(tab, { includeAgents })
+        }}
       />
 
       <HeroConfirmOverlay

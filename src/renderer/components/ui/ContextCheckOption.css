@@ -63,12 +63,12 @@
 .context-check-option__icon {
   flex: 0 0 auto;
   display: inline-flex;
-  color: var(--text-muted);
+  color: var(--context-check-icon-color, var(--text-muted));
   transition: color 0.12s ease;
 }
 
 .context-check-option--on .context-check-option__icon {
-  color: color-mix(in srgb, var(--accent) 70%, var(--text));
+  color: var(--context-check-icon-color, color-mix(in srgb, var(--accent) 70%, var(--text)));
 }
 
 .context-check-option__name {
@@ -80,6 +80,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.context-check-option__badge {
+  flex-shrink: 0;
+  display: inline-flex;
 }
 
 .context-check-option__kind {
@@ -126,6 +131,15 @@
 }
 
 .context-check-option__monogram:first-child {
+  margin-left: 0;
+}
+
+.context-check-option__face {
+  display: inline-flex;
+  margin-left: -5px;
+}
+
+.context-check-option__face:first-child {
   margin-left: 0;
 }
 

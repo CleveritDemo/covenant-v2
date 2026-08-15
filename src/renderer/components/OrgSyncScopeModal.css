@@ -1,0 +1,28 @@
+.org-sync-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.org-sync-scope__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.org-sync-scope__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.org-sync-scope__option-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}

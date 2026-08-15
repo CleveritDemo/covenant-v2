@@ -21,6 +21,57 @@ import { describeFetchError, httpFetch } from './httpFetch'
 
 const BASE_URL = process.env.COVENANT_BACKEND_URL || 'https://forge.covenant.uno'
 
+const MAX_CONCURRENT_REQUESTS = 4
+const REQUEST_TIMEOUT_MS = 30_000
+
+let activeRequests = 0
+const requestWaiters: Array<() => void> = []
+
+async function acquireRequestSlot(): Promise<void> {
+  if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+    activeRequests += 1
+    return
+  }
+  return new Promise((resolve) => {
+    requestWaiters.push(resolve)
+  })
+}
+
+function releaseRequestSlot(): void {
+  const next = requestWaiters.shift()
+  if (next) {
+    // El slot se traspasa al waiter: no decrementar activeRequests.
+    next()
+    return
+  }
+  activeRequests -= 1
+}
+
+/**
+ * Fetch acotado para Covenant: concurrencia ≤4 y timeout 30s con abort.
+ * El slot cubre headers (request en vuelo), no la lectura del body.
+ */
+export async function covenantFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  await acquireRequestSlot()
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, REQUEST_TIMEOUT_MS)
+  try {
+    return await httpFetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (timedOut) {
+      throw new Error('Covenant no respondió en 30s')
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+    releaseRequestSlot()
+  }
+}
+
 export class CovenantApiError extends Error {
   readonly status: number
 
@@ -59,7 +110,7 @@ async function parseCovenantError(response: Response): Promise<CovenantApiError>
 export async function exchange(githubToken: string): Promise<ExchangeResponse> {
   let response: Response
   try {
-    response = await httpFetch(`${BASE_URL}/auth/exchange`, {
+    response = await covenantFetch(`${BASE_URL}/auth/exchange`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,7 +158,7 @@ async function authedFetch(
       headers['Content-Type'] = 'application/json'
     }
     try {
-      return await httpFetch(`${BASE_URL}${path}`, {
+      return await covenantFetch(`${BASE_URL}${path}`, {
         method: options.method ?? 'GET',
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -121,10 +172,23 @@ async function authedFetch(
     throw new CovenantApiError('Not signed in', 401)
   }
 
-  let response = await doFetch(cachedJwt)
+  const method = (options.method ?? 'GET').toUpperCase()
+  let response: Response
+  try {
+    response = await doFetch(cachedJwt)
+  } catch (error) {
+    if (method !== 'GET') throw error
+    await new Promise((r) => setTimeout(r, 400))
+    response = await doFetch(cachedJwt)
+  }
   if (response.status === 401) {
     if (!lastGithubToken) {
       throw await parseCovenantError(response)
+    }
+    try {
+      await response.body?.cancel()
+    } catch {
+      /* ignore */
     }
     await exchange(lastGithubToken)
     if (!cachedJwt) {

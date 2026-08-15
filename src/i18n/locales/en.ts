@@ -1191,6 +1191,14 @@ const en = {
     reqUploadFailed: 'Could not upload workspace changes: {{error}}.',
     reqWikiFailed: 'Wiki did not sync: {{error}}',
     openSettings: 'Open settings',
+    syncScopeTitle: 'Sync scope',
+    syncScopeHint: 'Workspace agents on the server may differ from yours locally.',
+    syncScopeAllTitle: 'Contexts and agents',
+    syncScopeAllHint: 'Downloads org agents and overwrites those that share the same id.',
+    syncScopeContextsTitle: 'Contexts only',
+    syncScopeContextsHint: 'Keeps your local agents as they are; only updates contexts and wiki.',
+    syncScopeConfirm: 'Sync',
+    syncScopeCancel: 'Cancel',
   },
 
   update: {

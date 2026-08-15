@@ -31,7 +31,7 @@ describe('contextGroupId', () => {
 describe('contextUsageByAgent', () => {
   const agents = [
     { id: 'maria', name: 'Maria', contextIds: ['about'] },
-    { id: 'cristian', name: 'Cristian Soto', contextIds: ['about', 'back-cm'] },
+    { id: 'cristian', name: 'Cristian Soto', contextIds: ['about', 'back-cm'], provider: 'claude' as const },
     { id: 'rodrigo', name: 'Rodrigo', monogram: 'ro', contextIds: ['back-cm'] },
   ]
 
@@ -43,6 +43,13 @@ describe('contextUsageByAgent', () => {
   it('deriva monogramas y respeta el explícito en mayúsculas', () => {
     const usage = contextUsageByAgent(agents, 'maria')
     expect(usage.get('back-cm')?.map(u => u.monogram)).toEqual(['CS', 'RO'])
+  })
+
+  it('propaga provider y color de identidad a la pila', () => {
+    const usage = contextUsageByAgent(agents, 'maria')
+    const cristian = usage.get('about')?.[0]
+    expect(cristian?.provider).toBe('claude')
+    expect(cristian?.color).toMatch(/^#/)
   })
 })
 

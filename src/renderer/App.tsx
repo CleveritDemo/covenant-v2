@@ -239,6 +239,7 @@ import {
   type AgentChatRef,
   type AgentChatScope,
 } from '../shared/agentChatPersistence'
+import './styles/app.css'
 import { pruneDelegationThreadsForJob } from './delegationThreadPrune'
 
 import {

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.25
+
+- **Estilos de la app de vuelta**: la v0.61.24 arrancaba con la ventana en negro bajo la barra de pestañas — al extraer la poda de hilos de delegación se perdió el `import './styles/app.css'` de `App.tsx`, único punto de carga de la hoja del shell.
+
 ## v0.61.24
 
 - **Stop total limpia hilos de delegación**: al parar la orquestación con el botón rojo, los carriles de subtarea en especialistas se podan con la misma lógica que al cerrar la ola.

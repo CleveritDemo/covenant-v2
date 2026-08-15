@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.1
+
+- **Aviso de tormenta de errores repetible**: si la app se recupera tras acumular fallos internos y una hora después vuelve a acumularlos, el aviso puede mostrarse de nuevo (antes solo avisaba una vez por arranque).
+
 ## v0.62.0
 
 - **Recuperación ante caída del renderer**: si el proceso de la ventana muere, la app recarga automáticamente con un tope de 3 intentos por minuto; si se rinde, muestra un aviso en vez de quedarse en negro.
@@ -12,6 +16,9 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 - **Mapa wiki sin fuga WebGL**: abrir y cerrar el grafo repetidas veces ya no agota los contextos WebGL del renderer.
 - **Cierre de terminales seguro**: el teardown de pty al cerrar paneles ya no puede abortar el proceso principal.
 - **Log de crashes con rotación**: diagnóstico persistente de caídas con muestreo de memoria y rotación de archivos.
+- **Buffers del turno CLI acotados**: stderr, stdout crudo y línea pendiente tienen tope para que un loop chain largo no engorde memoria sin límite.
+- **Dictado sin cierre de app**: un fallo al lanzar el helper de dictado queda registrado y la sesión de dictado falla sola, sin tumbar el proceso principal.
+- **Watcher del explorador contenido**: un error del watcher (carpeta borrada, renombrada, desmontada o EMFILE) se registra y se detiene ese watcher, sin matar main.
 
 ## v0.61.26
 

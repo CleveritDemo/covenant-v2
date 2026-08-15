@@ -28,6 +28,7 @@ import * as pty from 'node-pty'
 import { IPC } from '@shared/ipcChannels'
 import type { AppConfig } from '@shared/configSchema'
 import { decideRendererCrashRecovery } from '@shared/rendererCrashRecovery'
+import { noteFatalFailure, type FatalStormState } from '@shared/mainFailureStorm'
 import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '@shared/configSchema'
 import {
   DEFAULT_OVERLAY_COLOR,
@@ -2548,26 +2549,18 @@ function registerIpc(): void {
 // porque `crash-diagnostics.log` solo se escribía desde los handlers de crash
 // de procesos hijo. Con ellos, el fallo queda anotado y la app sigue viva.
 
-/** Fallos seguidos que se consideran una tormenta (la app ya no es fiable). */
-const FATAL_STORM_THRESHOLD = 10
-/** Ventana para contar esa tormenta. */
-const FATAL_STORM_WINDOW_MS = 60_000
-
-let fatalTimestamps: number[] = []
-let fatalStormReported = false
+let fatalStorm: FatalStormState = { timestamps: [], reported: false }
 
 /**
  * Registrar el fallo evita que el proceso muera, pero seguir con un main roto
  * tampoco sirve: si los errores se amontonan, se avisa una sola vez.
  */
 function noteMainProcessFailure(label: string, value: unknown): void {
-  const now = Date.now()
-  fatalTimestamps = fatalTimestamps.filter(ts => now - ts < FATAL_STORM_WINDOW_MS)
-  fatalTimestamps.push(now)
+  const storm = noteFatalFailure(fatalStorm, Date.now())
+  fatalStorm = storm.state
   flushMemorySamples(label)
   appendCrashDiagnostics(label, describeError(value))
-  if (fatalTimestamps.length < FATAL_STORM_THRESHOLD || fatalStormReported) return
-  fatalStormReported = true
+  if (!storm.shouldWarn) return
   dialog.showErrorBox(
     'Covenant Gravity',
     'Se están acumulando errores internos y la app puede comportarse de forma extraña.\n'
@@ -2588,8 +2581,9 @@ installMainProcessSafetyNet()
 // Los crashes de renderer que hemos visto (`EXC_BREAKPOINT` en un
 // ThreadPoolForegroundWorker, y un `killed`/SIGKILL de macOS) apuntan a presión
 // de memoria, pero sin histórico no se puede confirmar. Muestreamos en un
-// anillo en RAM y solo lo volcamos a disco cuando algo se cae: así queda la
-// rampa previa al crash sin engordar el log en uso normal.
+// anillo en RAM con dos salidas: (a) el anillo completo se vuelca al log solo
+// cuando hay crash (`flushMemorySamples`), y (b) además cae una muestra suelta
+// a disco cada 5 min como red para cuando la app muere sin emitir evento.
 
 const MEMORY_SAMPLE_INTERVAL_MS = 20_000
 /** 45 muestras × 20 s = 15 min de histórico antes del crash. */

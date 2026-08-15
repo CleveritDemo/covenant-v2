@@ -80,3 +80,79 @@ export function takeNextHumanSendForThread<T extends { threadId?: string }>(
   const rest = [...queue.slice(0, idx), ...queue.slice(idx + 1)]
   return { head, rest }
 }
+
+export type HumanSendFifoDrainItem = {
+  threadId?: string
+  sendId?: string
+}
+
+export type HumanSendFifoDrainInput<T extends HumanSendFifoDrainItem> = {
+  queue: readonly T[]
+  publishedThreadId?: string
+  busy: boolean
+  hasControls: boolean
+  drainInFlight: boolean
+  visibleQueuedCount: number
+  maxVisibleQueued?: number
+  planeSendOccupied: boolean
+  isSendIdVisible: (sendId: string | undefined) => boolean
+}
+
+export type HumanSendFifoDrainResult<T extends HumanSendFifoDrainItem> =
+  | { kind: 'noop' }
+  | { kind: 'skip_in_flight' }
+  | { kind: 'skip_visible_cap' }
+  | { kind: 'skip_slot_occupied' }
+  | { kind: 'queue_updated'; queue: T[] }
+  | { kind: 'skip_duplicate_visible'; queue: T[]; requestTick: true }
+  | { kind: 'prefer_send'; head: T; queue: T[] }
+  | { kind: 'busy_enqueue'; head: T; queue: T[] }
+
+function takeHeadForPublishedThread<T extends HumanSendFifoDrainItem>(
+  queue: readonly T[],
+  publishedThreadId: string | undefined,
+): { head: T | null; rest: T[] } {
+  if (publishedThreadId) {
+    return takeNextHumanSendForThread(queue, publishedThreadId)
+  }
+  const taken = takeNextHumanSend(queue)
+  return { head: taken.head ?? null, rest: taken.rest }
+}
+
+/** Un paso de drenaje FIFO humano para un pane (preferSend o enqueueHuman directo). */
+export function drainHumanSendFifoForPane<T extends HumanSendFifoDrainItem>(
+  input: HumanSendFifoDrainInput<T>,
+): HumanSendFifoDrainResult<T> {
+  const maxVisible = input.maxVisibleQueued ?? MAX_VISIBLE_QUEUED_TURNS
+  const queue = input.queue
+
+  if (input.busy && input.hasControls) {
+    if (input.drainInFlight) return { kind: 'skip_in_flight' }
+    if (input.visibleQueuedCount >= maxVisible) return { kind: 'skip_visible_cap' }
+    if (!queue.length) return { kind: 'noop' }
+
+    const { head, rest } = takeHeadForPublishedThread(queue, input.publishedThreadId)
+    if (!head) {
+      return { kind: 'queue_updated', queue: rest }
+    }
+    const nextQueue = rest
+    if (input.isSendIdVisible(head.sendId)) {
+      return { kind: 'skip_duplicate_visible', queue: nextQueue, requestTick: true }
+    }
+    return { kind: 'busy_enqueue', head, queue: nextQueue }
+  }
+
+  if (input.planeSendOccupied) return { kind: 'skip_slot_occupied' }
+  if (input.visibleQueuedCount >= maxVisible) return { kind: 'skip_visible_cap' }
+  if (!queue.length) return { kind: 'noop' }
+
+  const { head, rest } = takeHeadForPublishedThread(queue, input.publishedThreadId)
+  if (!head) {
+    return { kind: 'queue_updated', queue: rest }
+  }
+  const nextQueue = rest
+  if (input.isSendIdVisible(head.sendId)) {
+    return { kind: 'skip_duplicate_visible', queue: nextQueue, requestTick: true }
+  }
+  return { kind: 'prefer_send', head, queue: nextQueue }
+}

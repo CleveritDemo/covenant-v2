@@ -14,6 +14,36 @@ export function isSystemFollowUpsPendingForPane(
   return orchestrationFifoLength > 0 || hasPreferSendSlot
 }
 
+/**
+ * El slot preferSend cuenta como trabajo de sistema pendiente solo si lleva una
+ * delegación o un follow-up de orquestación. Un envío HUMANO en el slot es el
+ * propio turno que el pane está por consumir: contarlo bloqueaba
+ * `canStartHumanTurnNow` contra sí mismo y todo envío a un pane idle rebotaba
+ * a la cola visible en vez de despacharse directo.
+ */
+export function preferSendSlotIsSystemWork(
+  slot: { delegation?: unknown; orchestrationFollowUp?: boolean } | null | undefined,
+): boolean {
+  if (!slot) return false
+  return Boolean(slot.delegation) || slot.orchestrationFollowUp === true
+}
+
+/**
+ * Baja un flag pane-level (awaiting / delegationWork / busy) al hilo activo.
+ * Sin lista de hilos, o con datos legacy sin threadId, cae al flag del pane
+ * entero — misma regla que usa AgentPane en sus gates.
+ */
+export function threadScopedFlag(
+  paneFlag: boolean,
+  threadIds: readonly string[] | undefined,
+  activeThreadId: string,
+  legacyFallback = false,
+): boolean {
+  if (legacyFallback) return paneFlag
+  if (!threadIds?.length) return paneFlag
+  return paneFlag && threadIds.includes(activeThreadId)
+}
+
 export interface AgentQueueDrainGuard {
   loaded: boolean
   busy: boolean

@@ -4,8 +4,10 @@ import {
   canStartHumanTurnNow,
   isAgentHumanInputBlocked,
   isSystemFollowUpsPendingForPane,
+  preferSendSlotIsSystemWork,
   shouldPromoteHumanSendToVisibleQueue,
   shouldShowComposerStop,
+  threadScopedFlag,
 } from '../agentInputGuards'
 
 const idleBase = {
@@ -216,5 +218,53 @@ describe('shouldPromoteHumanSendToVisibleQueue', () => {
       delegationWorkActive: false,
       systemFollowUpsPending,
     }, 'linear')).toBe(false)
+  })
+})
+
+describe('preferSendSlotIsSystemWork', () => {
+  it('a human send in the slot does not count as pending system work', () => {
+    expect(preferSendSlotIsSystemWork({ })).toBe(false)
+    expect(preferSendSlotIsSystemWork(null)).toBe(false)
+    expect(preferSendSlotIsSystemWork(undefined)).toBe(false)
+  })
+
+  it('delegations and orchestration follow-ups do count', () => {
+    expect(preferSendSlotIsSystemWork({ delegation: { id: 'd1' } })).toBe(true)
+    expect(preferSendSlotIsSystemWork({ orchestrationFollowUp: true })).toBe(true)
+  })
+
+  it('idle pane + own human slot no longer self-blocks canStartHumanTurnNow', () => {
+    // Antes: el slot humano contaba como systemFollowUpsPending y el intake
+    // nunca podía despachar directo — todo envío a un pane idle iba a chip.
+    const systemFollowUpsPending = isSystemFollowUpsPendingForPane(
+      0,
+      preferSendSlotIsSystemWork({ text: 'hola' } as { delegation?: unknown }),
+    )
+    expect(systemFollowUpsPending).toBe(false)
+    expect(canStartHumanTurnNow({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending,
+      orchestrationWorkStyle: 'linear',
+    })).toBe(true)
+  })
+})
+
+describe('threadScopedFlag', () => {
+  it('scopes a pane flag to the active thread', () => {
+    expect(threadScopedFlag(true, ['t1', 't2'], 't1')).toBe(true)
+    expect(threadScopedFlag(true, ['t1', 't2'], 't3')).toBe(false)
+    expect(threadScopedFlag(false, ['t1'], 't1')).toBe(false)
+  })
+
+  it('falls back to the pane flag without a thread list', () => {
+    expect(threadScopedFlag(true, undefined, 't1')).toBe(true)
+    expect(threadScopedFlag(true, [], 't1')).toBe(true)
+  })
+
+  it('legacy fallback keeps the pane-level flag', () => {
+    expect(threadScopedFlag(true, ['t2'], 't1', true)).toBe(true)
+    expect(threadScopedFlag(false, ['t1'], 't1', true)).toBe(false)
   })
 })

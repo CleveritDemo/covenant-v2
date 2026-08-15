@@ -53,8 +53,10 @@ export function planPreferSendIntake(
   // Una delegación con carril propio (threadId) no compite con el turno visible:
   // arranca en su hilo aunque el pane esté busy.
   const isLaneDelegation = Boolean(delegation?.threadId?.trim())
+  // Con chips ya encolados en el hilo, un humano nuevo se forma detrás (FIFO);
+  // despachar directo lo colaría por delante de mensajes anteriores.
   const shouldEnqueue = !isLaneDelegation
-    && (ctx.busy || (isHumanTurn && !ctx.canStartHumanTurnNow))
+    && (ctx.busy || (isHumanTurn && (!ctx.canStartHumanTurnNow || ctx.queuedCount > 0)))
   if (shouldEnqueue) {
     if (ctx.queuedCount >= ctx.maxQueued) {
       return { action: 'reject', reason: 'queue_full', delegationId, orchestrationJobId }

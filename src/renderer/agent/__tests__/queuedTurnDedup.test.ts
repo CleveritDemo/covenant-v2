@@ -12,6 +12,7 @@ import { MAX_VISIBLE_QUEUED_TURNS } from '@shared/planeHumanSendFifo'
 
 interface TestTurn extends QueuedTurnWithSource {
   id: string
+  threadId?: string
 }
 
 function turn(overrides: Partial<TestTurn> & { id: string }): TestTurn {
@@ -105,10 +106,29 @@ describe('queuedTurnDedup', () => {
     const again = turn({ id: 't2', text: 'continua haciendo más test', sourceSendId: 's1' })
     const queued = appendQueuedTurnIfRoom([], first, MAX_VISIBLE_QUEUED_TURNS)
     expect(queued.outcome).toBe('enqueued')
-    const repeat = appendQueuedTurnIfRoom(queued.turns, again, MAX_VISIBLE_QUEUED_TURNS)
+    const before = queued.turns
+    const repeat = appendQueuedTurnIfRoom(before, again, MAX_VISIBLE_QUEUED_TURNS)
     expect(repeat.outcome).toBe('duplicate')
     expect(repeat.didEnqueue).toBe(false)
     expect(repeat.turns.map(item => item.id)).toEqual(['t1'])
+    expect(repeat.turns).toHaveLength(before.length)
+  })
+
+  it('pane duplicate enqueue keeps turns reference when sourceSendId already exists', () => {
+    const threadId = 't-active'
+    const existing = turn({ id: 't1', text: 'queued', sourceSendId: 's1', threadId })
+    const turns = [existing]
+    const beforeRef = turns
+    const threadTurns = turns.filter(() => true)
+    const repeat = appendQueuedTurnIfRoom(
+      threadTurns,
+      turn({ id: 't2', text: 'queued', sourceSendId: 's1', threadId }),
+      MAX_VISIBLE_QUEUED_TURNS,
+    )
+    const nextTurns = repeat.outcome === 'duplicate' ? beforeRef : [...threadTurns, ...repeat.turns]
+    expect(repeat.outcome).toBe('duplicate')
+    expect(nextTurns).toBe(beforeRef)
+    expect(nextTurns).toHaveLength(1)
   })
 
   it('appendQueuedTurnIfRoom enqueues the same text with a different sendId', () => {

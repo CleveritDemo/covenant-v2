@@ -54,26 +54,128 @@
   pointer-events: auto;
 }
 
+.plane-chat-composer__agents-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-height: var(--plane-composer-input-min-h, 40px);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.plane-chat-composer__agents-wrap[data-fade-start] .plane-chat-composer__agents {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.35) 10px,
+    rgba(0, 0, 0, 0.82) 22px,
+    #000 36px,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.35) 10px,
+    rgba(0, 0, 0, 0.82) 22px,
+    #000 36px,
+    #000 100%
+  );
+}
+
+.plane-chat-composer__agents-wrap[data-fade-end]:not([data-fade-start]) .plane-chat-composer__agents {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 36px),
+    rgba(0, 0, 0, 0.82) calc(100% - 22px),
+    rgba(0, 0, 0, 0.35) calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 36px),
+    rgba(0, 0, 0, 0.82) calc(100% - 22px),
+    rgba(0, 0, 0, 0.35) calc(100% - 10px),
+    transparent 100%
+  );
+}
+
+.plane-chat-composer__agents-wrap[data-fade-start][data-fade-end] .plane-chat-composer__agents {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.35) 10px,
+    rgba(0, 0, 0, 0.82) 22px,
+    #000 36px,
+    #000 calc(100% - 36px),
+    rgba(0, 0, 0, 0.82) calc(100% - 22px),
+    rgba(0, 0, 0, 0.35) calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.35) 10px,
+    rgba(0, 0, 0, 0.82) 22px,
+    #000 36px,
+    #000 calc(100% - 36px),
+    rgba(0, 0, 0, 0.82) calc(100% - 22px),
+    rgba(0, 0, 0, 0.35) calc(100% - 10px),
+    transparent 100%
+  );
+}
+
 .plane-chat-composer__agents {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
   min-width: 0;
-  min-height: 26px;
+  height: 100%;
+  max-height: var(--plane-composer-input-min-h, 40px);
   align-items: center;
   justify-content: safe center;
-  padding: 2px 10px 0;
+  padding: 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  transition: -webkit-mask-image 0.22s ease, mask-image 0.22s ease;
 }
 
 .plane-chat-composer__agents::-webkit-scrollbar {
   display: none;
 }
 
-.plane-chat-composer__agents > .plane-agent-badge {
+.plane-chat-composer__agent-slot {
   flex: 0 0 auto;
+  display: inline-flex;
+  scroll-snap-align: center;
+  animation: plane-chat-composer-agent-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--agent-stagger, 0) * 50ms);
+}
+
+@keyframes plane-chat-composer-agent-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.88);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+html[data-reduce-motion="true"] .plane-chat-composer__agents {
+  transition: none;
+}
+
+html[data-reduce-motion="true"] .plane-chat-composer__agent-slot {
+  animation: none;
 }
 
 .plane-chat-composer__empty {
@@ -391,6 +493,9 @@
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+  flex-direction: column;
+  gap: 5px;
+  --plane-composer-input-min-h: 40px;
 }
 
 /* Tooltip sobre campo disabled: el wrapper debe heredar el flex del field. */

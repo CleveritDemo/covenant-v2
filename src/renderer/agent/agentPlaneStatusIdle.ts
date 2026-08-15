@@ -10,6 +10,24 @@ export interface QueuedTurnPlaneItem {
   images: QueuedTurnPlaneImage[]
 }
 
+/** Igualdad de hilos activos publicados al plano (longitud + ids en orden). */
+export function runningThreadIdsPlaneStatusEqual(
+  previous: readonly string[] | undefined,
+  next: readonly string[],
+): boolean {
+  return (previous?.length ?? 0) === next.length
+    && (previous ?? []).every((id, i) => id === next[i])
+}
+
+/** Campos de gating por hilo: activeThreadId + runningThreadIds. */
+export function planeThreadGatingFieldsEqual(
+  previous: { activeThreadId?: string; runningThreadIds?: readonly string[] } | undefined,
+  next: { activeThreadId?: string; runningThreadIds: readonly string[] },
+): boolean {
+  return (previous?.activeThreadId ?? '') === (next.activeThreadId ?? '')
+    && runningThreadIdsPlaneStatusEqual(previous?.runningThreadIds, next.runningThreadIds)
+}
+
 /** Igualdad de cola publicada al plano (incluye previewUrl para thumbs async). */
 export function queuedTurnsPlaneStatusEqual(
   previous: QueuedTurnPlaneItem[] | undefined,

@@ -27,6 +27,8 @@ import { PlaneMapBackdrop } from './PlaneMapBackdrop'
 import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
+import { isMiniExpandSuppressed } from './miniExpandSuppress'
+import { resolveAgentMiniPaneIdFromPointer } from './planeMapAgentMiniHitTest'
 import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
@@ -749,6 +751,68 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const slotOrigins = renderLayout.origins
   const fadeProgressById = renderLayout.fadeProgressById
   const centerScaleById = renderLayout.centerScaleById
+
+  /**
+   * Fallback geométrico para abrir la mini de agente: con carriles de hilo
+   * creciendo/animando, la caja DOM de la card puede no coincidir con lo que se
+   * ve y el clic "sobre la mini" no cae en ningún `.pane-window`. Igual que el
+   * wheel (columnas con pointer-events none), se captura en window y se
+   * resuelve el pane por geometría.
+   */
+  const agentHitTestRef = useRef({
+    agentsInOrder,
+    terminalCount: terminalsInOrder.length,
+    agentHeights,
+    scrollOffsets,
+    fadeProgressById,
+    viewport,
+  })
+  agentHitTestRef.current = {
+    agentsInOrder,
+    terminalCount: terminalsInOrder.length,
+    agentHeights,
+    scrollOffsets,
+    fadeProgressById,
+    viewport,
+  }
+  const agentHitTestActive = agentsInOrder.length > 0
+    && !anyWindowOpen
+    && !reorderActive
+    && !stageHidden
+    && !wikiOverlay
+  useLayoutEffect(() => {
+    if (!agentHitTestActive) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return
+      if (isMiniExpandSuppressed()) return
+      const el = mapRef.current
+      if (!el) return
+      const target = event.target
+      // Solo clics que atravesaron el mapa: map/columnas/backdrop son
+      // pointer-events none, así que el target de un clic "perdido" es un
+      // ANCESTRO del mapa. Cards, chat, overlays y botones (descendientes o
+      // hermanos por encima) quedan fuera solos.
+      if (!(target instanceof Element)) return
+      if (target !== el && !target.contains(el)) return
+      const state = agentHitTestRef.current
+      const paneId = resolveAgentMiniPaneIdFromPointer({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        mapRect: el.getBoundingClientRect(),
+        viewport: state.viewport,
+        agentsInOrder: state.agentsInOrder,
+        terminalCount: state.terminalCount,
+        agentHeights: state.agentHeights,
+        scrollOffsets: state.scrollOffsets,
+        fadeProgressById: state.fadeProgressById,
+      })
+      if (!paneId) return
+      event.preventDefault()
+      onOpenChat(paneId)
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [agentHitTestActive, onOpenChat])
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
   const terminalsDom = useMemo(

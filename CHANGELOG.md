@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.9
+
+- **Cola humana sin spam ni falsos rechazos**: el cupo de `queue_full` cuenta solo el hilo destino; los avisos repetidos se deduplican por envío y el bucle `duplicate` + `queue_full` queda cortado.
+- **Linear drena al cerrar la ola**: tras la orquestación el mensaje encolado sale sin clic extra; la promoción ya no compite con el drenaje en el mismo tick y la FIFO republica al vaciarse.
+- **Minis de agente más fiables**: con carriles de hilo ocupando la card, un clic en la mini vuelve a abrir la conversación correcta vía hit-test geométrico.
+- **Composer más limpio**: la fila de agentes hace scroll horizontal con fades laterales y ya no empuja el textarea.
+
 ## v0.61.8
 
 - Las tarjetas de resultado de delegación se leen al mismo tamaño que el resto del chat y acompañan el tamaño de letra elegido en Ajustes.

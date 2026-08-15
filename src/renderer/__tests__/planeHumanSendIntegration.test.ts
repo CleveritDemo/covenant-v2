@@ -8,6 +8,7 @@ import {
   MAX_VISIBLE_QUEUED_TURNS,
   purgeFifoBySendId,
   takeNextHumanSend,
+  drainHumanSendFifoForPane,
 } from '@shared/planeHumanSendFifo'
 import {
   appendQueuedTurnIfRoom,
@@ -16,8 +17,18 @@ import {
   queuedTurnSourceSendIds,
   shouldClearPlaneSendForRemovedQueuedTurn,
 } from '../agent/queuedTurnDedup'
-import { shouldPromoteHumanSendToVisibleQueue } from '../agent/agentInputGuards'
+import {
+  canDrainAgentQueue,
+  canStartHumanTurnNow,
+  isSystemFollowUpsPendingForPane,
+  preferSendSlotIsSystemWork,
+  shouldPromoteHumanSendToVisibleQueue,
+} from '../agent/agentInputGuards'
+import { planPreferSendIntake } from '../agent/preferSendIntake'
+import { countQueuedTurnsForThread } from '../agent/countQueuedTurnsForThread'
+import { computeBusyForGate } from '../agent/AgentPane'
 import { mergeQueuedTurns } from '../agent/mergeQueuedTurns'
+import { planeThreadGatingFieldsEqual } from '../agent/agentPlaneStatusIdle'
 import { attachmentsToPendingImages, type ComposerPendingImage } from '../agent/composerImages'
 
 type PlaneSend = {
@@ -27,6 +38,7 @@ type PlaneSend = {
   focusPane?: boolean
   orchestrationFollowUp?: boolean
   extraContextIds?: string[]
+  threadId?: string
 }
 
 type VisibleQueuedTurn = HumanQueuedTurnLike & { id: string }
@@ -1305,5 +1317,352 @@ describe('plane human send FIFO integration', () => {
     planeSendByPane = await drainHumanSendFifo(queues, planeSendByPane)
     expect(planeSendByPane[paneId]?.text).toBe('second')
     expect(planeSendByPane[paneId]?.sendId).toBe('send-second')
+  })
+
+  it('status dedupe: merge does not discard update when only activeThreadId changes', () => {
+    const previous = { activeThreadId: 'thread-a', runningThreadIds: ['thread-a'] }
+    const next = { activeThreadId: 'thread-b', runningThreadIds: ['thread-a'] }
+    expect(planeThreadGatingFieldsEqual(previous, next)).toBe(false)
+    expect(planeThreadGatingFieldsEqual(previous, previous)).toBe(true)
+  })
+
+  it('takeNextHumanSendForThread: mismatched publishedThreadId leaves fifo intact', () => {
+    const queue = [{ text: 'for-t-a', threadId: 't-a', sendId: 'send-a' }]
+    const result = drainHumanSendFifoForPane({
+      queue,
+      publishedThreadId: 't-b',
+      busy: false,
+      hasControls: false,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(result.kind).toBe('queue_updated')
+    if (result.kind === 'queue_updated') {
+      expect(result.queue).toEqual(queue)
+    }
+  })
+
+  it('takeNextHumanSendForThread: matching publishedThreadId drains to prefer_send', () => {
+    const queue = [{ text: 'for-t-a', threadId: 't-a', sendId: 'send-a' }]
+    const result = drainHumanSendFifoForPane({
+      queue,
+      publishedThreadId: 't-a',
+      busy: false,
+      hasControls: false,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(result.kind).toBe('prefer_send')
+    if (result.kind === 'prefer_send') {
+      expect(result.head.text).toBe('for-t-a')
+      expect(result.queue).toEqual([])
+    }
+  })
+
+  it('drain eager: enqueue plus synchronous drain populates preferSend without waiting for effect', () => {
+    const paneId = 'agent-1'
+    const queues = new Map<string, PlaneSend[]>()
+    let planeSendByPane: Record<string, PlaneSend> = {}
+    const threadId = 't-active'
+    const sendItem: PlaneSend = {
+      text: 'eager-idle',
+      images: [],
+      sendId: 'send-eager',
+      focusPane: true,
+      threadId,
+    }
+    const { queue: nextQueue } = enqueueHumanSend([], sendItem)
+    queues.set(paneId, nextQueue)
+
+    const result = drainHumanSendFifoForPane({
+      queue: nextQueue,
+      publishedThreadId: threadId,
+      busy: false,
+      hasControls: false,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: Boolean(planeSendByPane[paneId]),
+      isSendIdVisible: () => false,
+    })
+    expect(result.kind).toBe('prefer_send')
+    if (result.kind === 'prefer_send') {
+      if (!result.queue.length) queues.delete(paneId)
+      else queues.set(paneId, result.queue)
+      planeSendByPane = { ...planeSendByPane, [paneId]: result.head }
+    }
+
+    expect(planeSendByPane[paneId]?.text).toBe('eager-idle')
+    expect(planeSendByPane[paneId]?.sendId).toBe('send-eager')
+    expect(queues.has(paneId)).toBe(false)
+  })
+
+  it('onSendChat with shouldPromote=true does not offer prefer_send in the same tick', async () => {
+    const paneId = 'agent-1'
+    const humanFifo = new Map<string, PlaneSend[]>()
+    let planeSendByPane: Record<string, PlaneSend> = {}
+    let visibleQueue: VisibleQueuedTurn[] = []
+    const enqueueHuman = vi.fn(async (item: {
+      text: string
+      images: AgentCliImageAttachment[]
+      sendId?: string
+    }) => {
+      const result = appendQueuedTurnIfRoom(
+        visibleQueue,
+        {
+          id: `q-${visibleQueue.length}`,
+          text: item.text,
+          images: [],
+          ...(item.sendId?.trim() ? { sourceSendId: item.sendId.trim() } : {}),
+        },
+        MAX_VISIBLE_QUEUED_TURNS,
+      )
+      if (result.outcome === 'enqueued') {
+        visibleQueue = result.turns
+      }
+      return result.outcome
+    })
+    const controlsByPane = new Map<string, PlaneQueueControls>([[paneId, { enqueueHuman }]])
+    const agentPlaneStatus: Record<string, VisibleQueueStatus> = {
+      [paneId]: {
+        busy: true,
+        awaitingDelegations: false,
+        delegationWorkActive: false,
+        systemFollowUpsPending: false,
+        get queuedTurns() {
+          return visibleQueue
+        },
+      },
+    }
+
+    const sendId = enqueueHumanPlaneSend(humanFifo, paneId, 'promoted-busy')
+    const outcome = await promoteHumanSendSynchronously(
+      humanFifo,
+      paneId,
+      sendId,
+      agentPlaneStatus,
+      controlsByPane,
+      'linear',
+    )
+
+    expect(outcome).toBe('enqueued')
+    expect(enqueueHuman).toHaveBeenCalledTimes(1)
+    expect(planeSendByPane[paneId]).toBeUndefined()
+    expect(visibleQueue.map(item => item.text)).toEqual(['promoted-busy'])
+
+    planeSendByPane = await drainHumanSendFifo(
+      humanFifo,
+      planeSendByPane,
+      agentPlaneStatus,
+      controlsByPane,
+    )
+    expect(planeSendByPane[paneId]).toBeUndefined()
+    expect(enqueueHuman).toHaveBeenCalledTimes(1)
+  })
+
+  it('empty orchestration fifo yields systemFollowUpsPending false after tick bump', () => {
+    const paneId = 'agent-1'
+    const queues = new Map<string, PlaneSend[]>([[
+      paneId,
+      [{ text: 'follow-up', images: [], orchestrationFollowUp: true }],
+    ]])
+    let orchestrationFifoTick = 0
+
+    const queue = queues.get(paneId)!
+    queue.shift()
+    if (!queue.length) {
+      queues.delete(paneId)
+      orchestrationFifoTick += 1
+    }
+
+    const fifoLength = queues.get(paneId)?.length ?? 0
+    expect(fifoLength).toBe(0)
+    expect(orchestrationFifoTick).toBe(1)
+    expect(isSystemFollowUpsPendingForPane(fifoLength, false)).toBe(false)
+  })
+
+  it('drains active-thread chip after linear wave when background thread fills pane cap', () => {
+    const activeThread = 't-active'
+    const backgroundThread = 't-bg'
+    const queuedTurns = [
+      ...Array.from({ length: MAX_VISIBLE_QUEUED_TURNS }, (_, i) => ({
+        id: `bg-${i}`,
+        text: `bg-${i}`,
+        images: [],
+        threadId: backgroundThread,
+      })),
+      {
+        id: 'active-1',
+        text: 'drain me',
+        images: [],
+        threadId: activeThread,
+      },
+    ]
+    const visibleQueuedTurns = queuedTurns.filter(
+      turn => turn.threadId === activeThread,
+    )
+
+    expect(visibleQueuedTurns[0]?.text).toBe('drain me')
+    expect(countQueuedTurnsForThread(queuedTurns, activeThread)).toBe(1)
+    expect(countQueuedTurnsForThread(queuedTurns, backgroundThread)).toBe(MAX_VISIBLE_QUEUED_TURNS)
+    expect(queuedTurns).toHaveLength(MAX_VISIBLE_QUEUED_TURNS + 1)
+
+    expect(canDrainAgentQueue({
+      loaded: true,
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: false,
+      headIsDelegation: false,
+      orchestrationWorkStyle: 'linear',
+    })).toBe(true)
+
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: false,
+    }, 'linear')).toBe(false)
+  })
+
+  it('busy per thread: a turn running in another thread does not block prefer_send', () => {
+    // El pane publica busy=true por un carril de fondo; el hilo activo está libre.
+    const publishedThreadId = 't-active'
+    const runningThreadIds = ['t-bg']
+    const busyForThread = computeBusyForGate(true, runningThreadIds, publishedThreadId)
+    expect(busyForThread).toBe(false)
+
+    const result = drainHumanSendFifoForPane({
+      queue: [{ text: 'go now', sendId: 's-free', threadId: publishedThreadId }],
+      publishedThreadId,
+      busy: busyForThread,
+      hasControls: true,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(result.kind).toBe('prefer_send')
+  })
+
+  it('busy per thread: the active thread running still routes to the visible queue', () => {
+    const publishedThreadId = 't-active'
+    const busyForThread = computeBusyForGate(true, ['t-active'], publishedThreadId)
+    expect(busyForThread).toBe(true)
+
+    const result = drainHumanSendFifoForPane({
+      queue: [{ text: 'wait in chips', sendId: 's-busy', threadId: publishedThreadId }],
+      publishedThreadId,
+      busy: busyForThread,
+      hasControls: true,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(result.kind).toBe('busy_enqueue')
+  })
+
+  it('idle orchestrator: a central-chat send dispatches directly, without bouncing to the chip queue', () => {
+    // Cadena completa onSendChat → drain → preferSend → intake para un
+    // orquestador idle. Antes el slot humano contaba como systemFollowUpsPending
+    // (auto-bloqueo): el intake encolaba chip y el despacho dependía de una
+    // cadena de re-renders que podía quedarse esperando un evento externo.
+    const paneId = 'orch-1'
+    const threadId = 't-orch'
+    let planeSendByPane: Record<string, PlaneSend> = {}
+    const sendItem: PlaneSend = {
+      text: 'hola orquestador',
+      images: [],
+      sendId: 'send-idle-orch',
+      threadId,
+    }
+
+    // 1. onSendChat: pane idle → shouldPromote false (no va a chip).
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: isSystemFollowUpsPendingForPane(
+        0,
+        preferSendSlotIsSystemWork(planeSendByPane[paneId]),
+      ),
+    }, 'linear')).toBe(false)
+
+    // 2. Drenaje eager: el FIFO ofrece prefer_send y ocupa el slot.
+    const drained = drainHumanSendFifoForPane({
+      queue: [sendItem],
+      publishedThreadId: threadId,
+      busy: false,
+      hasControls: true,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(drained.kind).toBe('prefer_send')
+    if (drained.kind !== 'prefer_send') return
+    planeSendByPane = { ...planeSendByPane, [paneId]: drained.head }
+
+    // 3. Intake del pane: el slot humano propio NO cuenta como trabajo de
+    //    sistema → canStartHumanTurnNow true → dispatch directo.
+    const systemFollowUpsPending = isSystemFollowUpsPendingForPane(
+      0,
+      preferSendSlotIsSystemWork(planeSendByPane[paneId]),
+    )
+    expect(systemFollowUpsPending).toBe(false)
+    const canStart = canStartHumanTurnNow({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending,
+      orchestrationWorkStyle: 'linear',
+    })
+    expect(canStart).toBe(true)
+    const plan = planPreferSendIntake(
+      { text: drained.head.text, sendId: drained.head.sendId },
+      null,
+      {
+        busy: false,
+        preferNewThread: false,
+        canStartHumanTurnNow: canStart,
+        queuedCount: 0,
+        maxQueued: MAX_VISIBLE_QUEUED_TURNS,
+        consumedSendIds: [],
+      },
+    )
+    expect(plan).toEqual({ action: 'dispatch', isHumanTurn: true })
+  })
+
+  it('a system slot (delegation/follow-up) still blocks human turns while pending', () => {
+    const followUpSlot: PlaneSend = { text: 'resultados', images: [], orchestrationFollowUp: true }
+    const followUpPending = isSystemFollowUpsPendingForPane(
+      0,
+      preferSendSlotIsSystemWork(followUpSlot),
+    )
+    expect(followUpPending).toBe(true)
+    expect(canStartHumanTurnNow({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: followUpPending,
+      orchestrationWorkStyle: 'linear',
+    })).toBe(false)
+  })
+
+  it('published queuedTurns with threadId keep the per-thread cap honest off the default thread', () => {
+    // Antes el status no publicaba threadId: con hilo activo ≠ t1 el conteo daba 0
+    // (cupo falso) o, al revés, el cupo del pane entero rechazaba queue_full falso.
+    const activeThread = 't3'
+    const published = Array.from({ length: 4 }, (_, i) => ({
+      id: `q-${i}`,
+      text: `q-${i}`,
+      threadId: activeThread,
+    }))
+    expect(countQueuedTurnsForThread(published, activeThread)).toBe(4)
+    expect(countQueuedTurnsForThread(published, 't1')).toBe(0)
   })
 })

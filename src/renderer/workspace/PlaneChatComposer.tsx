@@ -21,10 +21,9 @@ import {
 } from '../agent/composerImages'
 import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
 import { formatQueuedTurnPreviewText } from '../agent/QueuedTurnPreviewLabel'
-import { resolveComposerAgentActivityDot } from '../agent/paneWorkActive'
-import { PlaneAgentBadge } from './PlaneAgentBadge'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
+import { PlaneChatComposerAgents } from './PlaneChatComposerAgents'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
@@ -186,8 +185,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const awaitingDelegations = Boolean(selected?.awaitingDelegations)
   const delegationWorkActive = Boolean(selected?.delegationWorkActive)
   const orchestratorBusy = Boolean(selected?.orchestratorBusy)
+  // Turbo con ola abierta y orquestador libre: placeholder específico; si además
+  // está busy, manda el genérico de cola (el hilo activo sí bloquea).
   const turboAwaitingOpen = selected?.orchestrationWorkStyle === 'turbo'
     && awaitingDelegations
+    && !busy
   const canSend = Boolean(
     selected && (draft.trim() || pendingImages.length > 0),
   )
@@ -554,24 +556,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           </div>
         )}
 
-        <div className="plane-chat-composer__agents" role="listbox" aria-label={sendLabel}>
-          {agents.length === 0 ? (
-            <span className="plane-chat-composer__empty">{emptyAgentsHint}</span>
-          ) : (
-            <>
-              {agents.map(agent => (
-                <PlaneAgentBadge
-                  key={agent.paneId}
-                  name={agent.title}
-                  selected={agent.paneId === selectedAgentId}
-                  activityDot={resolveComposerAgentActivityDot(agent)}
-                  onSelect={() => onSelectAgent(agent.paneId)}
-                />
-              ))}
-            </>
-          )}
-        </div>
-
         {(pendingContexts.length > 0 || dropActive) && (
           <div
             className="plane-chat-composer__turn-contexts"
@@ -649,6 +633,15 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             handleHistoryKey(event)
           }}
           inputRef={composerInputRef}
+          fieldHeader={(
+            <PlaneChatComposerAgents
+              agents={agents}
+              selectedAgentId={selectedAgentId}
+              emptyAgentsHint={emptyAgentsHint}
+              sendLabel={sendLabel}
+              onSelectAgent={onSelectAgent}
+            />
+          )}
           leading={(
             <PlaneSketchButton
               label={t('sketch.open')}

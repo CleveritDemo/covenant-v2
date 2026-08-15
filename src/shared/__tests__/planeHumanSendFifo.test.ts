@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_HUMAN_SENDS_PER_PANE,
+  drainHumanSendFifoForPane,
   enqueueHumanSend,
   enqueueHumanSendForThread,
   purgeFifoBySendId,
@@ -98,5 +99,22 @@ describe('planeHumanSendFifo', () => {
       { text: 'd', sendId: 'keep' },
     ])
     expect(removed).toEqual([{ text: 'b', sendId: 'drop-1' }])
+  })
+
+  it('drainHumanSendFifoForPane prefers prefer_send when slot is free', () => {
+    const result = drainHumanSendFifoForPane({
+      queue: [{ text: 'go', sendId: 's1' }],
+      busy: false,
+      hasControls: false,
+      drainInFlight: false,
+      visibleQueuedCount: 0,
+      planeSendOccupied: false,
+      isSendIdVisible: () => false,
+    })
+    expect(result).toEqual({
+      kind: 'prefer_send',
+      head: { text: 'go', sendId: 's1' },
+      queue: [],
+    })
   })
 })

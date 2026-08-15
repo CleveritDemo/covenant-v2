@@ -80,6 +80,7 @@ import {
   canStartHumanTurnNow as computeCanStartHumanTurnNow,
   isAgentHumanInputBlocked,
   shouldShowComposerStop,
+  threadScopedFlag,
 } from './agentInputGuards'
 import {
   filterQueuedTurnsAfterOrchestrationAbort,
@@ -116,7 +117,9 @@ import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { appendQueuedTurnIfRoom, type AppendQueuedTurnOutcome } from './queuedTurnDedup'
+import { countQueuedTurnsForThread, resolvePreferSendTargetThreadId } from './countQueuedTurnsForThread'
 import { planPreferSendIntake, shouldReleasePreferSendSlot } from './preferSendIntake'
+import { shouldLogPreferSendQueueFull } from './preferSendQueueFullLog'
 import {
   planAlreadyConsumedPreferSendSlotRelease,
   rememberConsumedSendId,
@@ -454,6 +457,8 @@ export interface AgentPlaneStatus {
   queuedTurns: Array<{
     id: string
     text: string
+    /** Hilo dueño del turno encolado (cupo y drenaje por hilo en App). */
+    threadId?: string
     images: Array<{ id: string; previewUrl: string; name: string }>
     orchestrationFollowUp?: boolean
     sourceSendId?: string
@@ -580,20 +585,18 @@ export const AgentPane: React.FC<Props> = ({
     ),
     [queuedTurns, activeThreadIdForGate],
   )
-  const activeThreadHasDelegation = (delegationThreadIds ?? []).includes(activeThreadIdForGate)
-  let delegationWorkActiveForGate = !delegationThreadIds?.length
-    ? delegationWorkActive
-    : delegationWorkActive && activeThreadHasDelegation
-  if (delegationWorkLegacyFallback) {
-    delegationWorkActiveForGate = delegationWorkActive
-  }
-  const activeThreadHasAwaiting = (awaitingDelegationThreadIds ?? []).includes(activeThreadIdForGate)
-  let awaitingDelegationsForGate = !awaitingDelegationThreadIds?.length
-    ? awaitingDelegations
-    : awaitingDelegations && activeThreadHasAwaiting
-  if (awaitingDelegationLegacyFallback) {
-    awaitingDelegationsForGate = awaitingDelegations
-  }
+  const delegationWorkActiveForGate = threadScopedFlag(
+    delegationWorkActive,
+    delegationThreadIds,
+    activeThreadIdForGate,
+    delegationWorkLegacyFallback,
+  )
+  const awaitingDelegationsForGate = threadScopedFlag(
+    awaitingDelegations,
+    awaitingDelegationThreadIds,
+    activeThreadIdForGate,
+    awaitingDelegationLegacyFallback,
+  )
   const humanInputBlocked = isAgentHumanInputBlocked()
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
   /** Espejo en estado de `turnHadCliErrorRef`: el plano necesita republicar al cambiar. */
@@ -718,6 +721,9 @@ export const AgentPane: React.FC<Props> = ({
   const consumedSendIdsRef = useRef<string[]>([])
   const releasedPreferSendIdsRef = useRef<string[]>([])
   const loggedAlreadyConsumedSendIdsRef = useRef(new Set<string>())
+  const loggedQueueFullSendIdsRef = useRef(new Set<string>())
+  /** Un warn por (envío, motivo) al descartar en cola (duplicate/full). */
+  const loggedQueueSkipKeysRef = useRef(new Set<string>())
   const onPreferSendConsumedRef = useRef(onPreferSendConsumed)
   onPreferSendConsumedRef.current = onPreferSendConsumed
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
@@ -1331,6 +1337,8 @@ export const AgentPane: React.FC<Props> = ({
       queuedTurns: visibleQueuedTurns.map(item => ({
         id: item.id,
         text: item.text,
+        // El hilo viaja en el status: App cuenta el cupo por hilo, no por pane.
+        threadId: item.threadId ?? activeThreadIdForGate,
         images: item.images.map(image => ({
           id: image.id,
           previewUrl: publishedQueueImagePreviewUrl(image),
@@ -2532,12 +2540,21 @@ export const AgentPane: React.FC<Props> = ({
       }, MAX_VISIBLE_QUEUED_TURNS)
       outcome = result.outcome
       if (result.outcome !== 'enqueued') {
-        console.warn('[AgentPane] queued turn skipped', {
-          paneId,
-          reason: result.outcome,
-          sourceSendId: item.sourceSendId,
-          queued: threadTurns.length,
-        })
+        // Un warn por (envío, motivo): el drenador reintenta el mismo envío en
+        // cada cambio de status y sin dedupe inundaba la consola.
+        const skipKey = `${item.sourceSendId ?? id}:${result.outcome}`
+        if (!loggedQueueSkipKeysRef.current.has(skipKey)) {
+          loggedQueueSkipKeysRef.current.add(skipKey)
+          console.warn('[AgentPane] queued turn skipped', {
+            paneId,
+            reason: result.outcome,
+            sourceSendId: item.sourceSendId,
+            queued: threadTurns.length,
+          })
+        }
+        if (result.outcome === 'duplicate') {
+          return prev
+        }
       }
       return [...otherTurns, ...result.turns]
     })
@@ -2599,14 +2616,39 @@ export const AgentPane: React.FC<Props> = ({
    * encolaba otra copia del mismo mensaje.
    */
   useEffect(() => {
+    const targetThreadId = resolvePreferSendTargetThreadId(
+      preferSend?.delegation?.threadId,
+      activeThreadIdForGate,
+    )
     const plan = planPreferSendIntake(preferSend, handledPreferSendRef.current, {
       busy: busyForGate,
       preferNewThread,
       canStartHumanTurnNow,
-      queuedCount: queuedTurns.length,
+      queuedCount: countQueuedTurnsForThread(queuedTurns, targetThreadId),
       maxQueued: MAX_VISIBLE_QUEUED_TURNS,
       consumedSendIds: consumedSendIdsRef.current,
     })
+    // Diagnóstico: un humano encolado con el pane idle significa que un gate
+    // (awaiting/delegación/sistema) lo frenó — deja constancia de cuál.
+    if (
+      plan.action === 'enqueue'
+      && plan.isHumanTurn
+      && !busyForGate
+      && !canStartHumanTurnNow
+      && preferSend
+    ) {
+      const idleKey = `${preferSend.sendId?.trim() ?? ''}:idle_gated`
+      if (!loggedQueueSkipKeysRef.current.has(idleKey)) {
+        loggedQueueSkipKeysRef.current.add(idleKey)
+        console.warn('[AgentPane] human preferSend queued while pane idle', {
+          sendId: preferSend.sendId,
+          awaitingDelegations: awaitingDelegationsForGate,
+          delegationWorkActive: delegationWorkActiveForGate,
+          systemFollowUpsPending,
+          orchestrationWorkStyle,
+        })
+      }
+    }
     if (plan.action === 'skip') {
       // Sin envío, o el + tiene que crear el hilo antes de consumirlo: liberar
       // el claim. `already_handled` lo conserva (App reintenta).
@@ -2631,11 +2673,16 @@ export const AgentPane: React.FC<Props> = ({
     if (plan.action === 'reject') {
       // Cola llena: no consumir. App reintenta al drenarse.
       handledPreferSendRef.current = null
-      console.warn('[AgentPane] preferSend rejected', {
-        reason: plan.reason,
-        delegationId: plan.delegationId,
-        orchestrationJobId: plan.orchestrationJobId,
-      })
+      if (
+        plan.reason === 'queue_full'
+        && shouldLogPreferSendQueueFull(preferSend.sendId, loggedQueueFullSendIdsRef.current)
+      ) {
+        console.warn('[AgentPane] preferSend rejected', {
+          reason: plan.reason,
+          delegationId: plan.delegationId,
+          orchestrationJobId: plan.orchestrationJobId,
+        })
+      }
       return
     }
     if (plan.action === 'consume') {
@@ -2711,11 +2758,13 @@ export const AgentPane: React.FC<Props> = ({
         })
         if (outcome === 'full') {
           resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
-          console.warn('[AgentPane] preferSend rejected', {
-            reason: 'queue_full',
-            delegationId: delegation?.id,
-            orchestrationJobId,
-          })
+          if (shouldLogPreferSendQueueFull(preferSend.sendId, loggedQueueFullSendIdsRef.current)) {
+            console.warn('[AgentPane] preferSend rejected', {
+              reason: 'queue_full',
+              delegationId: delegation?.id,
+              orchestrationJobId,
+            })
+          }
           handledPreferSendRef.current = null
           return
         }
@@ -2723,6 +2772,8 @@ export const AgentPane: React.FC<Props> = ({
         // reintentar solo pintaría otra copia del mismo mensaje.
         if (outcome === 'duplicate') {
           resolvedImages.forEach(image => URL.revokeObjectURL(image.previewUrl))
+          markConsumed()
+          return
         }
         markConsumed()
         return
@@ -2738,13 +2789,18 @@ export const AgentPane: React.FC<Props> = ({
       void dispatchMessage(prompt, resolvedImages, turnOptions)
     })()
   }, [
+    activeThreadIdForGate,
+    awaitingDelegationsForGate,
     busyForGate,
     canStartHumanTurnNow,
+    delegationWorkActiveForGate,
     dispatchMessage,
     enqueueQueuedTurn,
+    orchestrationWorkStyle,
     preferNewThread,
     preferSend,
-    queuedTurns.length,
+    queuedTurns,
+    systemFollowUpsPending,
   ])
 
   const removeQueuedTurn = useCallback((id: string): void => {
@@ -2864,7 +2920,7 @@ export const AgentPane: React.FC<Props> = ({
   /** Drenaje automático: al liberarse el turno sale el siguiente FIFO. */
   const drainingRef = useRef(false)
   useEffect(() => {
-    const head = queuedTurns[0]
+    const head = visibleQueuedTurns[0]
     const headIsDelegation = Boolean(head?.delegation)
     const headIsLaneDelegation = Boolean(head?.delegation?.threadId?.trim())
     const queueReady = headIsLaneDelegation
@@ -2910,8 +2966,8 @@ export const AgentPane: React.FC<Props> = ({
     loaded,
     orchestrationWorkStyle,
     preferSend,
-    queuedTurns,
     systemFollowUpsPending,
+    visibleQueuedTurns,
   ])
 
   const appendPendingImages = useCallback((images: PendingImage[]): void => {

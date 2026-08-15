@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { countQueuedTurnsForThread } from '../countQueuedTurnsForThread'
 import { planPreferSendIntake, shouldReleasePreferSendSlot, type PreferSendIntakeContext } from '../preferSendIntake'
 import type { AgentPreferSend } from '../AgentPane'
 
@@ -21,6 +22,17 @@ describe('planPreferSendIntake', () => {
   it('dispatches a human turn when not busy and slot is free', () => {
     const p = planPreferSendIntake(preferSend(), null, ctx())
     expect(p).toEqual({ action: 'dispatch', isHumanTurn: true })
+  })
+
+  it('enqueues a human turn behind existing chips even when idle (FIFO order)', () => {
+    const p = planPreferSendIntake(preferSend(), null, ctx({ queuedCount: 2 }))
+    expect(p).toEqual({ action: 'enqueue', isHumanTurn: true })
+  })
+
+  it('a non-human follow-up still dispatches over existing chips when idle', () => {
+    const send = preferSend({ text: 'results', orchestrationFollowUp: true })
+    const p = planPreferSendIntake(send, null, ctx({ queuedCount: 2 }))
+    expect(p).toEqual({ action: 'dispatch', isHumanTurn: false })
   })
 
   it('enqueues an incoming delegation while pane is busy (no silent drop)', () => {
@@ -59,6 +71,22 @@ describe('planPreferSendIntake', () => {
       delegationId: 'd2',
       orchestrationJobId: undefined,
     })
+  })
+
+  it('enqueues when pane-wide count is at cap but target thread queue is not', () => {
+    const turns = Array.from({ length: 10 }, (_, index) => ({
+      id: `a-${index}`,
+      threadId: 't1',
+    }))
+    const send = preferSend({ text: 'human on free thread', sendId: 'send-b' })
+    const queuedCount = countQueuedTurnsForThread(turns, 't2')
+    expect(queuedCount).toBe(0)
+    const p = planPreferSendIntake(send, null, ctx({
+      busy: true,
+      queuedCount,
+      maxQueued: 10,
+    }))
+    expect(p).toEqual({ action: 'enqueue', isHumanTurn: true })
   })
 
   it('skips while preferNewThread is on', () => {

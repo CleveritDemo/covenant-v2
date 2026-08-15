@@ -71,6 +71,7 @@ import {
 } from '@shared/paneWindows'
 import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import {
+  computeBusyForGate,
   mergePaneReportedRunningThreadIds,
   type AgentPlaneStatus,
   type AgentPlaneQueueControls,
@@ -82,7 +83,10 @@ import {
   shouldClearPlaneSendForRemovedQueuedTurn,
 } from './agent/queuedTurnDedup'
 import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
-import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
+import {
+  planeThreadGatingFieldsEqual,
+  queuedTurnsPlaneStatusEqual,
+} from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds, collectTabActivityDots } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
@@ -174,16 +178,18 @@ import {
   type DelegationRuntimeRegistry,
 } from '@shared/delegationRuntimeRegistry'
 import {
+  drainHumanSendFifoForPane,
   enqueueHumanSendForThread,
   MAX_VISIBLE_QUEUED_TURNS,
   purgeFifoBySendId,
-  takeNextHumanSend,
-  takeNextHumanSendForThread,
 } from '@shared/planeHumanSendFifo'
 import {
   isSystemFollowUpsPendingForPane,
+  preferSendSlotIsSystemWork,
   shouldPromoteHumanSendToVisibleQueue,
+  threadScopedFlag,
 } from './agent/agentInputGuards'
+import { countQueuedTurnsForThread } from './agent/countQueuedTurnsForThread'
 import {
   applyDelegationLaneStop,
   clearPlaneSendsForOrchestrationAbort,
@@ -3559,6 +3565,7 @@ export const App: React.FC = () => {
         && previous.orchestrationWorkStyle === status.orchestrationWorkStyle
         && previous.turnCloseReason === status.turnCloseReason
         && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
+        && planeThreadGatingFieldsEqual(previous, status)
         && JSON.stringify(previous.runningThreadActivities ?? {})
           === JSON.stringify(status.runningThreadActivities ?? {})
         && messagesUnchanged
@@ -4983,7 +4990,9 @@ export const App: React.FC = () => {
       }
     }
 
-    if (abort.wasPending) {
+    // También para diferidas: sin resultado el job quedaba vacío sin despertar
+    // al orquestador y la delegación se perdía en silencio.
+    if (abort.wasPending || abort.wasDeferred) {
       const fromPaneIdForResult = runtimeEntry?.fromPaneId?.trim() || fromPaneId
       const orchestrationJobId = job.jobId
       if (!fromPaneIdForResult || !orchestrationJobId) {
@@ -5046,22 +5055,37 @@ export const App: React.FC = () => {
       const queue = queues.get(paneId)
       if (!queue?.length) {
         queues.delete(paneId)
+        setOrchestrationFifoTick(n => n + 1)
         continue
       }
       // Descartar subtareas de orquestadores ya abortados (sin pending).
       while (queue.length && shouldDiscardAbortedDelegationFifoHead(queue[0], pendingIds)) {
-        queue.shift()
+        const dropped = queue.shift()
+        // Aviso explícito: sin esto la subtarea se perdía en silencio.
+        console.warn('[orchestration] delegación descartada de la FIFO', {
+          reason: 'orchestrator_aborted',
+          paneId,
+          delegationId: dropped?.delegation?.id,
+          fromPaneId: dropped?.delegation?.fromPaneId,
+        })
       }
       if (!queue.length) {
         queues.delete(paneId)
+        setOrchestrationFifoTick(n => n + 1)
         continue
       }
       const head = queue.shift()
       if (!head) {
-        if (!queue.length) queues.delete(paneId)
+        if (!queue.length) {
+          queues.delete(paneId)
+          setOrchestrationFifoTick(n => n + 1)
+        }
         continue
       }
-      if (!queue.length) queues.delete(paneId)
+      if (!queue.length) {
+        queues.delete(paneId)
+        setOrchestrationFifoTick(n => n + 1)
+      }
       if (planeSendByPane[paneId]) {
         queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
         continue
@@ -5083,51 +5107,78 @@ export const App: React.FC = () => {
     }
   }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
 
-  // Drena FIFO de envíos humanos del chat central: no salta por busy/loop.
-  useEffect(() => {
+  const applyHumanSendFifoDrainForPane = useCallback((paneId: string) => {
     const queues = humanSendFifoByPaneRef.current
-    for (const paneId of [...queues.keys()]) {
-      const controls = planeQueueControlsByPaneRef.current.get(paneId)
-      if (agentPlaneStatus[paneId]?.busy === true && controls) {
-        if (humanDirectDrainInFlightRef.current.has(paneId)) continue
-        const visibleQueued = agentPlaneStatus[paneId]?.queuedTurns?.length ?? 0
-        if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
-        const queue = queues.get(paneId)
-        if (!queue?.length) {
-          queues.delete(paneId)
-          continue
-        }
-        const publishedThreadId = agentPlaneStatus[paneId]?.activeThreadId
-        const { head, rest } = publishedThreadId
-          ? takeNextHumanSendForThread(queue, publishedThreadId)
-          : (() => {
-            const taken = takeNextHumanSend(queue)
-            return { head: taken.head ?? null, rest: taken.rest }
-          })()
-        if (!head) {
-          if (!rest.length) queues.delete(paneId)
-          else queues.set(paneId, rest)
-          continue
-        }
-        if (!rest.length) queues.delete(paneId)
-        else queues.set(paneId, rest)
+    const queue = queues.get(paneId)
+    if (!queue?.length) {
+      if (queue) queues.delete(paneId)
+      return
+    }
 
-        const promotedSendId = head.sendId?.trim()
-        if (
-          promotedSendId
-          && (agentPlaneStatus[paneId]?.queuedTurns ?? []).some(turn =>
-            queuedTurnSourceSendIds(turn).includes(promotedSendId))
-        ) {
-          setHumanSendFifoTick(n => n + 1)
-          continue
-        }
+    const planeStatus = agentPlaneStatusRef.current[paneId]
+    const controls = planeQueueControlsByPaneRef.current.get(paneId)
+    const queuedTurns = planeStatus?.queuedTurns ?? []
+    // Sin activeThreadId publicado (pane sin montar / legacy): drenaje pane-level,
+    // no inventar DEFAULT_THREAD_ID — dejaría atascados envíos de otros hilos.
+    const publishedThreadId = planeStatus?.activeThreadId?.trim() || undefined
+    // busy por hilo: un turno corriendo en otro hilo no bloquea este envío.
+    const busyForThread = publishedThreadId
+      ? computeBusyForGate(
+        planeStatus?.busy === true,
+        planeStatus?.runningThreadIds ?? [],
+        publishedThreadId,
+      )
+      : planeStatus?.busy === true
+    const result = drainHumanSendFifoForPane({
+      queue,
+      ...(publishedThreadId ? { publishedThreadId } : {}),
+      busy: busyForThread,
+      hasControls: Boolean(controls),
+      drainInFlight: humanDirectDrainInFlightRef.current.has(paneId),
+      visibleQueuedCount: publishedThreadId
+        ? countQueuedTurnsForThread(queuedTurns, publishedThreadId)
+        : queuedTurns.length,
+      planeSendOccupied: Boolean(planeSendByPane[paneId]),
+      isSendIdVisible: sendId => {
+        const id = sendId?.trim()
+        if (!id) return false
+        return queuedTurns.some(turn => queuedTurnSourceSendIds(turn).includes(id))
+      },
+    })
 
+    const persistQueue = (next: typeof queue): void => {
+      if (!next.length) queues.delete(paneId)
+      else queues.set(paneId, next)
+    }
+
+    switch (result.kind) {
+      case 'noop':
+      case 'skip_in_flight':
+      case 'skip_visible_cap':
+      case 'skip_slot_occupied':
+        return
+      case 'queue_updated':
+        persistQueue(result.queue)
+        return
+      case 'skip_duplicate_visible':
+        persistQueue(result.queue)
+        setHumanSendFifoTick(n => n + 1)
+        return
+      case 'busy_enqueue': {
+        persistQueue(result.queue)
+        if (!controls) return
+        const { head } = result
         humanDirectDrainInFlightRef.current.add(paneId)
+        // El catch devuelve 'full' (reintenta) y garantiza soltar el in-flight:
+        // un rechazo dejaba el flag puesto y la FIFO no volvía a drenar nunca.
         void controls.enqueueHuman({
           text: head.text,
           images: head.images,
           sendId: head.sendId,
           ...(head.extraContextIds?.length ? { extraContextIds: head.extraContextIds } : {}),
+        }).catch((error: unknown) => {
+          console.warn('[plane] human enqueue failed', { paneId, detail: String(error) })
+          return 'full' as const
         }).then(outcome => {
           if (outcome === 'full') {
             queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
@@ -5137,53 +5188,55 @@ export const App: React.FC = () => {
             setHumanSendFifoTick(n => n + 1)
           }
         })
-        continue
+        return
       }
-      if (planeSendByPane[paneId]) continue
-      const visibleQueued = agentPlaneStatus[paneId]?.queuedTurns?.length ?? 0
-      if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
-      const queue = queues.get(paneId)
-      if (!queue?.length) {
-        queues.delete(paneId)
-        continue
+      case 'prefer_send': {
+        persistQueue(result.queue)
+        const { head } = result
+        let placed = false
+        setPlaneSendByPane(prev => {
+          if (prev[paneId]) return prev
+          placed = true
+          return { ...prev, [paneId]: head }
+        })
+        if (!placed) {
+          queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
+          setHumanSendFifoTick(n => n + 1)
+        }
+        return
       }
-      const publishedThreadId = agentPlaneStatus[paneId]?.activeThreadId
-      const { head, rest } = publishedThreadId
-        ? takeNextHumanSendForThread(queue, publishedThreadId)
-        : (() => {
-          const taken = takeNextHumanSend(queue)
-          return { head: taken.head ?? null, rest: taken.rest }
-        })()
-      if (!head) {
-        if (!rest.length) queues.delete(paneId)
-        else queues.set(paneId, rest)
-        continue
-      }
-      if (!rest.length) queues.delete(paneId)
-      else queues.set(paneId, rest)
-
-      const promotedSendId = head.sendId?.trim()
-      if (
-        promotedSendId
-        && (agentPlaneStatus[paneId]?.queuedTurns ?? []).some(turn =>
-          queuedTurnSourceSendIds(turn).includes(promotedSendId))
-      ) {
-        setHumanSendFifoTick(n => n + 1)
-        continue
-      }
-
-      let placed = false
-      setPlaneSendByPane(prev => {
-        if (prev[paneId]) return prev
-        placed = true
-        return { ...prev, [paneId]: head }
-      })
-      if (!placed) {
-        queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
-        setHumanSendFifoTick(n => n + 1)
-      }
+      default:
+        return
     }
-  }, [agentPlaneStatus, humanSendFifoTick, planeSendByPane])
+  }, [planeSendByPane])
+
+  // Drena FIFO de envíos humanos del chat central: no salta por busy/loop.
+  useEffect(() => {
+    const queues = humanSendFifoByPaneRef.current
+    for (const paneId of [...queues.keys()]) {
+      applyHumanSendFifoDrainForPane(paneId)
+    }
+  }, [agentPlaneStatus, humanSendFifoTick, planeSendByPane, applyHumanSendFifoDrainForPane])
+
+  /**
+   * Red de seguridad de las colas en tránsito: mientras el FIFO humano, el de
+   * orquestación o un slot preferSend tengan trabajo pendiente, reintenta el
+   * drenaje cada 600ms. Los drenajes normales dependen de wake-ups (status del
+   * pane, ticks, cambios de estado); si un eslabón pierde el suyo (update
+   * dedupeado, prop derivada de un ref sin re-render), el mensaje quedaba "en
+   * cola" hasta un evento externo — p. ej. minimizar/restaurar la app.
+   */
+  useEffect(() => {
+    const hasTransitWork = humanSendFifoByPaneRef.current.size > 0
+      || orchestrationFifoByPaneRef.current.size > 0
+      || Object.keys(planeSendByPane).length > 0
+    if (!hasTransitWork) return
+    const timer = window.setTimeout(() => {
+      setHumanSendFifoTick(n => n + 1)
+      setOrchestrationFifoTick(n => n + 1)
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [agentPlaneStatus, humanSendFifoTick, orchestrationFifoTick, planeSendByPane])
 
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
     const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
@@ -5753,7 +5806,7 @@ export const App: React.FC = () => {
           delegationThreadIds={delegationThreadIdsByPane.get(paneId) ?? NO_THREAD_IDS}
           systemFollowUpsPending={isSystemFollowUpsPendingForPane(
             orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0,
-            Boolean(planeSendByPane[paneId]),
+            preferSendSlotIsSystemWork(planeSendByPane[paneId]),
           )}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
@@ -6354,8 +6407,10 @@ export const App: React.FC = () => {
                   onQueueFullNoticeDismiss={() => setPlaneQueueFullNotice(null)}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
-                    const activeThreadId =
-                      agentPlaneStatusRef.current[paneId]?.activeThreadId ?? DEFAULT_THREAD_ID
+                    const binding = tab.agentByPane?.[paneId]
+                    const activeThreadId = binding
+                      ? (threadStateOf(binding).activeThreadId ?? DEFAULT_THREAD_ID)
+                      : DEFAULT_THREAD_ID
                     const sendItem = {
                       text,
                       images,
@@ -6383,14 +6438,31 @@ export const App: React.FC = () => {
                       humanSendFifoByPaneRef.current.set(paneId, nextQueue)
                       const controls = planeQueueControlsByPaneRef.current.get(paneId)
                       const planeStatus = agentPlaneStatusRef.current[paneId]
-                      const visibleQueued = planeStatus?.queuedTurns?.length ?? 0
+                      const visibleQueued = countQueuedTurnsForThread(
+                        planeStatus?.queuedTurns ?? [],
+                        activeThreadId,
+                      )
                       const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
+                      // Gates por hilo: una ola/delegación en otro hilo no debe
+                      // promover este envío a chip si su hilo está libre.
                       const shouldPromote = shouldPromoteHumanSendToVisibleQueue({
-                        busy: planeStatus?.busy === true,
-                        awaitingDelegations:
+                        busy: computeBusyForGate(
+                          planeStatus?.busy === true,
+                          planeStatus?.runningThreadIds ?? [],
+                          activeThreadId,
+                        ),
+                        awaitingDelegations: threadScopedFlag(
                           planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
-                        delegationWorkActive:
+                          awaitingDelegationThreadIdsByPane.get(paneId),
+                          activeThreadId,
+                          awaitingDelegationLegacyFallbackPaneIds.has(paneId),
+                        ),
+                        delegationWorkActive: threadScopedFlag(
                           planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
+                          delegationThreadIdsByPane.get(paneId),
+                          activeThreadId,
+                          delegationWorkLegacyFallbackPaneIds.has(paneId),
+                        ),
                         systemFollowUpsPending: isSystemFollowUpsPendingForPane(
                           orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0,
                           Boolean(planeSendByPane[paneId]),
@@ -6420,10 +6492,14 @@ export const App: React.FC = () => {
                               }
                             }
                           }
-                          setHumanSendFifoTick(n => n + 1)
+                          if (outcome === 'enqueued' || outcome === 'duplicate' || outcome === 'full') {
+                            setHumanSendFifoTick(n => n + 1)
+                          }
                         })
+                      } else {
+                        applyHumanSendFifoDrainForPane(paneId)
+                        setHumanSendFifoTick(n => n + 1)
                       }
-                      setHumanSendFifoTick(n => n + 1)
                       // Una línea por envío aceptado: si en la cola aparecen N
                       // copias, aquí se ve si el chat mandó N o si se multiplicó
                       // más abajo (el pane loguea sus propios descartes).

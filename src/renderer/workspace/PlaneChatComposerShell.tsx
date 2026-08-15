@@ -39,6 +39,8 @@ export interface PlaneChatComposerShellProps {
   inputOverlay?: React.ReactNode
   /** Junto al field (p. ej. badge de historial). */
   fieldAside?: React.ReactNode
+  /** Carril de agentes sobre el textarea, acotado al ancho del campo. */
+  fieldHeader?: React.ReactNode
   onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   /** Tras cambiar el texto: caret/mención (Jira). */
   onInputChange?: (el: HTMLTextAreaElement) => void
@@ -75,6 +77,7 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
   shellAside,
   inputOverlay,
   fieldAside,
+  fieldHeader,
   onPaste,
   onInputChange,
   onInputSelect,
@@ -91,6 +94,7 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
 
   const field = (
     <span className="plane-chat-composer__field">
+      {fieldHeader}
       <div
         className={[
           'plane-chat-composer__input-shell',

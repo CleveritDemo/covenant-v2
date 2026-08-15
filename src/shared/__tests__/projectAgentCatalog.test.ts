@@ -288,6 +288,8 @@ describe('projectAgentCatalog', () => {
       allowExpertReplicas: true,
       orchestrationWorkStyle: 'turbo',
     })
+    // Turbo es de orquestadores: en el productOwner (y en cualquier
+    // especialista) el valor se descarta al parsear.
     expect(po).toMatchObject({
       coordination: 'productOwner',
       orchestrationMaxRounds: 5,

@@ -36,6 +36,7 @@ import {
 import type { PersistedSession } from './persistence'
 import {
   loadSession,
+  sweepOrphanAgentChats,
   saveSession,
   loadAiChat,
   saveAiChat,
@@ -1686,7 +1687,24 @@ function registerIpc(): void {
     stopFileExplorerWatch(sessionId)
   })
 
-  ipcMain.handle(IPC.SESSION_LOAD, (): PersistedSession | null => loadSession())
+  // Barrido de transcripts huérfanos: solo en la primera carga del arranque.
+  // Un reload del renderer con carriles vivos tendría hilos que aún no están en
+  // el archivo de sesión, y barrer ahí les borraría el transcript.
+  let sweptOrphanChats = false
+  ipcMain.handle(IPC.SESSION_LOAD, (): PersistedSession | null => {
+    const session = loadSession()
+    if (session && !sweptOrphanChats) {
+      sweptOrphanChats = true
+      const swept = sweepOrphanAgentChats(session)
+      if (swept.deleted > 0) {
+        console.log('[persistence] transcripts huérfanos borrados', {
+          files: swept.deleted,
+          mb: Math.round((swept.bytes / 1_048_576) * 10) / 10,
+        })
+      }
+    }
+    return session
+  })
 
   ipcMain.handle(IPC.SESSION_SAVE, (_e, data: PersistedSession) => {
     saveSession(data)

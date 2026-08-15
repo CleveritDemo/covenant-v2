@@ -13,6 +13,7 @@ const {
   loadAgentChat,
   saveAgentChat,
   deleteAgentChat,
+  sweepOrphanAgentChats,
 } = await import('../persistence')
 const {
   agentChatRefFor,
@@ -205,5 +206,77 @@ describe('planAgentChatCleanupForRemovedPanes + syncTabAgentsFromCatalog', () =>
     expect(result.removedPaneIds).toEqual([])
     expect(result.tab.agentByPane?.['a-qa']).toEqual({ agentId: 'qa' })
     expect(result.changed).toBe(true)
+  })
+})
+
+describe('sweepOrphanAgentChats', () => {
+  it('borra los transcripts de hilos que ya no están en el catálogo', () => {
+    const scope = { projectFolder: '/tmp/proj' }
+    const ref = agentChatRefFor(scope, 'frontend', 'pane-1')
+    saveAgentChat(ref, 'keep-1', [entry('m1', 'vive')])
+    saveAgentChat(ref, 'orphan-1', [entry('m2', 'podado')])
+    saveAgentChat(ref, DEFAULT_THREAD_ID, [entry('m3', 'legacy')])
+
+    const session = {
+      version: 1 as const,
+      activeTabId: 'tab-1',
+      cwds: {},
+      tabs: [baseTab({
+        id: 'tab-1',
+        projectFolder: '/tmp/proj',
+        paneIds: ['pane-1'],
+        paneKinds: { 'pane-1': 'agent' },
+        agentByPane: {
+          'pane-1': {
+            agentId: 'frontend',
+            activeThreadId: 'keep-1',
+            threads: [{ id: 'keep-1', title: '', updatedAt: 1 }],
+          },
+        },
+      })],
+    }
+
+    const result = sweepOrphanAgentChats(session)
+    expect(result.deleted).toBe(1)
+    expect(result.bytes).toBeGreaterThan(0)
+    expect(loadAgentChat(ref, 'keep-1')).toHaveLength(1)
+    expect(loadAgentChat(ref, 'orphan-1')).toHaveLength(0)
+    // El hilo por defecto se conserva: puede materializarse por adopción.
+    expect(loadAgentChat(ref, DEFAULT_THREAD_ID)).toHaveLength(1)
+  })
+
+  it('une los hilos de dos panes que comparten carpeta de agente', () => {
+    const scope = { projectFolder: '/tmp/proj' }
+    const ref = agentChatRefFor(scope, 'frontend', 'pane-1')
+    saveAgentChat(ref, 'de-pane-1', [entry('m1', 'a')])
+    saveAgentChat(ref, 'de-pane-2', [entry('m2', 'b')])
+
+    const session = {
+      version: 1 as const,
+      activeTabId: 'tab-1',
+      cwds: {},
+      tabs: [baseTab({
+        id: 'tab-1',
+        projectFolder: '/tmp/proj',
+        paneIds: ['pane-1', 'pane-2'],
+        paneKinds: { 'pane-1': 'agent', 'pane-2': 'agent' },
+        agentByPane: {
+          'pane-1': {
+            agentId: 'frontend',
+            activeThreadId: 'de-pane-1',
+            threads: [{ id: 'de-pane-1', title: '', updatedAt: 1 }],
+          },
+          'pane-2': {
+            agentId: 'frontend',
+            activeThreadId: 'de-pane-2',
+            threads: [{ id: 'de-pane-2', title: '', updatedAt: 2 }],
+          },
+        },
+      })],
+    }
+
+    expect(sweepOrphanAgentChats(session).deleted).toBe(0)
+    expect(loadAgentChat(ref, 'de-pane-1')).toHaveLength(1)
+    expect(loadAgentChat(ref, 'de-pane-2')).toHaveLength(1)
   })
 })

@@ -753,14 +753,23 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
   }
 }
 
-export function agentBindingFromMeta(meta: AgentPaneMeta): AgentPaneBinding {
+/**
+ * `protectedThreadIds`: hilos con turno vivo (carriles de delegación). Sin
+ * ellos, proyectar el binding al tope de threads podía podar un carril en
+ * curso: el turno seguía corriendo en memoria pero su hilo desaparecía del
+ * catálogo, y con él su fila en la card y su transcript.
+ */
+export function agentBindingFromMeta(
+  meta: AgentPaneMeta,
+  protectedThreadIds?: ReadonlySet<string>,
+): AgentPaneBinding {
   const session = typeof meta.cliSessionId === 'string' && meta.cliSessionId.trim()
     ? meta.cliSessionId.trim()
     : undefined
   // El pane escribe (o borra) `meta.cliSessionId`; eso manda sobre el thread
   // activo, así el runtime del turno no necesita saber que existen threads.
   const state = setActiveThreadSession(
-    sanitizeThreadState(meta.threads, meta.activeThreadId),
+    sanitizeThreadState(meta.threads, meta.activeThreadId, undefined, protectedThreadIds),
     session,
   )
   return {

@@ -364,18 +364,29 @@ function liveLaneThreadIdsForPane(
   return ids
 }
 
+/**
+ * Hilos de delegación del job, por pane destino.
+ *
+ * Lee `waveItems` **y** `completedResults`: al cerrarse el último pending,
+ * `syncAwaitingFromPending` vacía `waveItems` antes de que el wake llegue a
+ * podar, así que quedarse solo con la ola dejaba los hilos de delegación vivos
+ * para siempre en el catálogo del especialista. Con el tope de 20 por pane eso
+ * termina expulsando las conversaciones humanas.
+ */
 function delegationThreadIdsByPaneFromJob(
   job: OrchestrationJob,
 ): Map<string, string[]> {
   const byPane = new Map<string, string[]>()
-  for (const item of job.waveItems) {
-    const paneId = item.toPaneId?.trim()
-    const threadId = item.toThreadId?.trim()
-    if (!paneId || !threadId) continue
+  const add = (rawPaneId?: string, rawThreadId?: string): void => {
+    const paneId = rawPaneId?.trim()
+    const threadId = rawThreadId?.trim()
+    if (!paneId || !threadId) return
     const list = byPane.get(paneId) ?? []
     if (!list.includes(threadId)) list.push(threadId)
     byPane.set(paneId, list)
   }
+  for (const item of job.waveItems) add(item.toPaneId, item.toThreadId)
+  for (const result of job.completedResults) add(result.toPaneId, result.toThreadId)
   return byPane
 }
 
@@ -5357,7 +5368,11 @@ export const App: React.FC = () => {
     // Mantener cliSessionId en vivo (local y org): sin él Cursor/Claude no
     // hacen --resume y cada turno arranca en frío. Org solo se limpia al
     // persistir (buildSessionSnapshot → stripOrgTabAgentCliSessionIds).
-    const binding = agentBindingFromMeta({ ...next, id: nextId })
+    // Carriles vivos del pane: no pueden caer en la poda del tope de threads.
+    const liveThreadIds = new Set(
+      agentPlaneStatusRef.current[paneId]?.runningThreadIds ?? [],
+    )
+    const binding = agentBindingFromMeta({ ...next, id: nextId }, liveThreadIds)
     const previousDefinition = agentDefinitionFromMeta({ ...previous, id: previousId })
     const nextWithRemappedResults: AgentPaneMeta = {
       ...next,
@@ -5445,7 +5460,7 @@ export const App: React.FC = () => {
       && JSON.stringify(previousDefinition) === JSON.stringify(definition)
 
     const revertOptimistic = (): void => {
-      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId })
+      const previousBinding = agentBindingFromMeta({ ...previous, id: previousId }, liveThreadIds)
       applyBindings(nextId, previousId, previousBinding)
       if (idChanged) {
         replaceCatalogAfterSlugChange(nextId, previousDefinition, nextId, previousId)

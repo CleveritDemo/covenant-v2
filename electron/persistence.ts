@@ -1,11 +1,22 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameSync, rmSync } from 'fs'
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  mkdirSync,
+  existsSync,
+  renameSync,
+  rmSync,
+  readdirSync,
+  statSync,
+} from 'fs'
 import { app } from 'electron'
 import type { TabSession } from '../src/shared/tabSession'
 import type { FileExplorerPersistedState } from '../src/shared/fileExplorerPersistedState'
 import type { AgentChatEntry } from '../src/shared/agentCliTypes'
 import { DEFAULT_THREAD_ID } from '../src/shared/agentThreads'
 import {
+  agentChatRefFor,
   normalizeAgentChatRef,
   type AgentChatRef,
 } from '../src/shared/agentChatPersistence'
@@ -336,6 +347,81 @@ export function saveAgentChat(
     ensureDir(agentChatKeyDir(storageKey))
     writeFileSync(agentChatFile(storageKey, threadId), JSON.stringify(entries), 'utf-8')
   } catch { /* ignore */ }
+}
+
+/**
+ * Borra transcripts de hilos que ya no existen en ningún binding de la sesión.
+ *
+ * El tope de threads por pane poda el catálogo pero deja el `.json` en disco, y
+ * los carriles de delegación de una ola grande dejan decenas por especialista
+ * (en un caso real: 32 MB en un solo agente). Corre una vez por arranque y
+ * **antes** de que el renderer cree nada: con carriles vivos, un hilo recién
+ * abierto todavía no está en el archivo de sesión y se borraría su transcript.
+ *
+ * La carpeta es por `storageKey` (agentId+scope), que dos panes pueden
+ * compartir: los hilos a conservar se unen por clave, no por pane.
+ */
+export function sweepOrphanAgentChats(
+  session: PersistedSession,
+): { deleted: number; bytes: number } {
+  const keepByKey = new Map<string, Set<string>>()
+  for (const tab of session.tabs) {
+    const folder = tab.projectFolder?.trim()
+    const slug = tab.orgWorkspace?.slug?.trim()
+    const workspaceId = tab.orgWorkspace?.workspaceId?.trim()
+    const scope = {
+      ...(folder ? { projectFolder: folder } : {}),
+      ...(slug && workspaceId ? { orgWorkspace: { slug, workspaceId } } : {}),
+    }
+    for (const [paneId, binding] of Object.entries(tab.agentByPane ?? {})) {
+      if (!binding) continue
+      let storageKey: string
+      try {
+        storageKey = agentChatRefFor(scope, binding.agentId, paneId).storageKey
+      } catch {
+        continue
+      }
+      const keep = keepByKey.get(storageKey) ?? new Set<string>()
+      // El hilo por defecto puede materializarse al adoptar un transcript
+      // plano pre-threads, así que nunca se barre.
+      keep.add(DEFAULT_THREAD_ID)
+      for (const thread of binding.threads ?? []) {
+        if (thread?.id) keep.add(thread.id)
+      }
+      if (binding.activeThreadId) keep.add(binding.activeThreadId)
+      keepByKey.set(storageKey, keep)
+    }
+  }
+
+  let deleted = 0
+  let bytes = 0
+  for (const [storageKey, keep] of keepByKey) {
+    let dir: string
+    try {
+      dir = agentChatKeyDir(storageKey)
+    } catch {
+      continue
+    }
+    if (!existsSync(dir)) continue
+    let files: string[]
+    try {
+      files = readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue
+      const threadId = file.slice(0, -'.json'.length)
+      if (keep.has(threadId)) continue
+      const path = join(dir, file)
+      try {
+        bytes += statSync(path).size
+        unlinkSync(path)
+        deleted += 1
+      } catch { /* ignore */ }
+    }
+  }
+  return { deleted, bytes }
 }
 
 /** Sin `threadId` borra el agente entero (al cerrar el pane); con él, un hilo. */

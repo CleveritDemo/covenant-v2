@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.19
+
+- **Hilos de delegación no ahogan los humanos**: al superar el tope de 20 hilos por pane, los carriles de delegación cerrados se podan antes que las conversaciones del usuario; el historial ya no lista carriles terminados.
+- **Prune de delegación al cerrar ola**: los hilos de subtarea se limpian leyendo también `completedResults`, no solo la ola activa.
+- **Carriles vivos protegidos en catálogo**: un hilo con turno en curso no desaparece del binding al proyectar el agente.
+- **Barrido de transcripts huérfanos al arrancar**: borra en disco los `.json` de hilos que ya no están en la sesión (una vez por arranque).
+
 ## v0.61.18
 
 - **Cola humana sin deadlock con preferSend**: un envío humano ofrecido ya no bloquea el drenaje de chips en cola; solo el trabajo de sistema (delegaciones y follow-ups) lo retiene.

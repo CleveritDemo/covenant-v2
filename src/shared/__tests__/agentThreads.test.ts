@@ -71,6 +71,30 @@ describe('sanitizeThreadState', () => {
     expect(state.threads.some(thread => thread.id === 't1')).toBe(false)
   })
 
+  it('expulsa hilos de delegación antes que conversaciones humanas', () => {
+    // Una ola grande llena el cupo con carriles de máquina; si la poda mira
+    // solo recencia, el usuario pierde sus propias conversaciones.
+    const human = Array.from({ length: 4 }, (_, index) => ({
+      id: `h${index}`,
+      title: `humano ${index}`,
+      updatedAt: index,
+    }))
+    const delegations = Array.from({ length: MAX_THREADS_PER_PANE }, (_, index) => ({
+      id: `d${index}`,
+      title: '',
+      updatedAt: 1_000 + index,
+      origin: 'delegation' as const,
+    }))
+    const state = sanitizeThreadState([...human, ...delegations], 'h0')
+    expect(state.threads).toHaveLength(MAX_THREADS_PER_PANE)
+    for (const thread of human) {
+      expect(state.threads.some(kept => kept.id === thread.id)).toBe(true)
+    }
+    // Los carriles más viejos son los que se van, aunque sean más recientes
+    // que cualquier hilo humano.
+    expect(state.threads.some(kept => kept.id === 'd0')).toBe(false)
+  })
+
   it('protectedIds no se podan aunque superen MAX_THREADS_PER_PANE', () => {
     const raw = Array.from({ length: MAX_THREADS_PER_PANE + 3 }, (_, index) => ({
       id: `t${index}`,
@@ -368,6 +392,18 @@ describe('thread history helpers', () => {
   it('threadHistoryCandidates excluye el activo y ordena por recencia', () => {
     const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
     expect(candidates.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'])
+  })
+
+  it('threadHistoryCandidates deja fuera los carriles de delegación cerrados', () => {
+    const withLanes = [
+      ...threads,
+      { id: 'd1', title: '', updatedAt: 900, origin: 'delegation' as const },
+      { id: 'd2', title: '', updatedAt: 901, origin: 'delegation' as const },
+    ]
+    // d2 sigue corriendo: se muestra. d1 ya terminó: no ensucia el historial.
+    const candidates = threadHistoryCandidates(withLanes, 't1', ['d2'])
+    expect(candidates.map(thread => thread.id)).toContain('d2')
+    expect(candidates.map(thread => thread.id)).not.toContain('d1')
   })
 
   it('paginateThreadHistory devuelve items y hasMore', () => {

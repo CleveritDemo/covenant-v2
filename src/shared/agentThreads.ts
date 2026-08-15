@@ -67,13 +67,24 @@ export function chipVisibleThreadIds(
   return ids
 }
 
-/** Hilos del popover: todos por recencia, sin el activo (ya está en el chip). */
+/**
+ * Hilos del popover por recencia, sin el activo (ya está en el chip).
+ *
+ * Los carriles de delegación terminados no entran: son transcripts de
+ * subtareas, sin título y sin nada que la persona haya escrito, y en una ola
+ * grande sepultaban las conversaciones reales. Los que siguen corriendo sí,
+ * que es la misma regla que usan los nodos de hilo de la card.
+ */
 export function threadHistoryCandidates(
   threads: readonly AgentThread[],
   activeThreadId?: string,
-  _runningThreadIds?: readonly string[],
+  runningThreadIds?: readonly string[],
 ): AgentThread[] {
-  const sorted = sortThreadsByRecency(threads)
+  const running = new Set(runningThreadIds ?? [])
+  const visible = threads.filter(
+    thread => isHumanThread(thread) || running.has(thread.id),
+  )
+  const sorted = sortThreadsByRecency(visible)
   const active = activeThreadId?.trim()
   if (!active) return sorted
   return sorted.filter(thread => thread.id !== active)
@@ -102,9 +113,15 @@ function prune(
   if (threads.length <= MAX_THREADS_PER_PANE) return [...threads]
   const protectedSet = new Set(protectedIds ?? [])
   protectedSet.add(activeThreadId)
+  // Los hilos de delegación se van antes que los humanos: son transcripts de
+  // subtareas (sin título, invisibles para la persona) y en una ola grande
+  // llenan el cupo en minutos. Ordenar solo por recencia expulsaba las
+  // conversaciones del usuario y dejaba veinte carriles de máquina.
+  const candidates = [...sortThreadsByRecency(threads)]
+    .filter(thread => thread.id !== activeThreadId && !protectedSet.has(thread.id))
+    .sort((a, b) => Number(isHumanThread(b)) - Number(isHumanThread(a)))
   const keep = new Set(
-    sortThreadsByRecency(threads)
-      .filter(thread => thread.id !== activeThreadId && !protectedSet.has(thread.id))
+    candidates
       .slice(0, MAX_THREADS_PER_PANE - 1)
       .map(thread => thread.id),
   )

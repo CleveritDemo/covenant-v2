@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.20
+
+- Badge de coordinación unificado en un componente del kit, reutilizado por el mini plano y la lista de contextos.
+- El selector de Coordination ahora muestra los mismos glifos que el badge.
+- La pista de rol usa layout hug y deja de estirarse a lo ancho.
+- El modal de configuración de agente mantiene alto fijo al cambiar de rail.
+
 ## v0.61.19
 
 - **Hilos de delegación no ahogan los humanos**: al superar el tope de 20 hilos por pane, los carriles de delegación cerrados se podan antes que las conversaciones del usuario; el historial ya no lista carriles terminados.

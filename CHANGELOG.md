@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.23
+
+- **Alcance de sincronización elegible**: al resincronizar un workspace organizacional se pregunta si bajar contextos y agentes o solo contextos; eligiendo solo contextos, los agentes locales quedan intactos.
+- **Simbología unificada en el picker de contextos del agente**: los iconos toman el color real de cada contexto, las filas de resultados de agente muestran cara con monograma y marca del CLI, y la pila de consumidores va teñida en vez de círculos grises.
+- **Coordinación sin glifo para "none"**: solo orquestador y product owner muestran símbolo; la opción None del selector va sin icono.
+- **HTTP de Covenant acotado**: todo el tráfico de Covenant pasa por un gate de máximo 4 llamadas concurrentes con timeout de 30s y abort, cierra el body en las respuestas 401 y reintenta una vez los GET.
+
 ## v0.61.22
 
 - **Cola humana sin interbloqueo post-orquestación**: el buzón `preferSend` ya no duplica envíos ni queda tomado para siempre; el drenaje decide en el acto si pudo colocar el mensaje y al consumirlo solo suelta el envío correcto.

@@ -145,6 +145,34 @@ describe('downloadOrgWorkspaceToLocal', () => {
     expect(materializedContexts).toEqual(['about'])
   })
 
+  it('isCancelled mid agent-upsert loop returns cancelled without remaining upserts', async () => {
+    let upsertCount = 0
+    let cancelAfterFirstUpsert = false
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [
+          { agentId: 'a', definition: { id: 'a', provider: 'cursor', permissionMode: 'auto' } },
+          { agentId: 'b', definition: { id: 'b', provider: 'cursor', permissionMode: 'auto' } },
+          { agentId: 'c', definition: { id: 'c', provider: 'cursor', permissionMode: 'auto' } },
+        ],
+      }),
+      upsertLocalAgent: async (_cwd, definition) => {
+        upsertCount += 1
+        cancelAfterFirstUpsert = true
+        return { ok: true, agent: definition }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, {
+      wipeLocal: false,
+      isCancelled: () => cancelAfterFirstUpsert,
+    })
+
+    expect(result).toEqual({ agentsOk: true, contextsOk: true, cancelled: true })
+    expect(upsertCount).toBe(1)
+  })
+
   it('wipeLocal download merges local iaterminal:result:* onto remote agents', async () => {
     const upserted: ProjectAgentDefinition[] = []
     const deps = baseDeps({

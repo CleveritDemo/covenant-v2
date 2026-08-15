@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.10
+
+- **Tab org lista al crearla**: al abrir un workspace organizacional, agentes, contextos y wiki bajan en el acto sin tener que pulsar Sincronizar.
+- **Cancelar sync de verdad**: Espacio durante la sincronización org corta la materialización y deja de mutar la tab; el overlay se cierra sin error fantasma.
+
 ## v0.61.9
 
 - **Cola humana sin spam ni falsos rechazos**: el cupo de `queue_full` cuenta solo el hilo destino; los avisos repetidos se deduplican por envío y el bucle `duplicate` + `queue_full` queda cortado.

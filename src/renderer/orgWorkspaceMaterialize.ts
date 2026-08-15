@@ -39,6 +39,7 @@ export type OrgWorkspaceMaterializeListResult = {
   agentsError?: string
   contextsError?: string
   wikiError?: string
+  cancelled?: boolean
 }
 
 /** Page normalizada para el replace local (espejo de WikiSyncPage en main). */
@@ -141,11 +142,15 @@ export async function downloadOrgWorkspaceToLocal(
     /** Aísla bodies en memoria por workspace org (colisión de contextId). */
     orgWorkspaceScope?: WorkspaceContextBodyScope
     onPhase?: (phase: OrgWorkspaceSyncPhase) => void
+    isCancelled?: () => boolean
   } = { wipeLocal: false },
 ): Promise<OrgWorkspaceMaterializeListResult> {
   const root = cwd.trim()
   if (!root) {
     return { agentsOk: false, contextsOk: false, agentsError: 'missing cwd' }
+  }
+  if (options.isCancelled?.()) {
+    return { agentsOk: true, contextsOk: true, cancelled: true }
   }
   const scope = options.orgWorkspaceScope
 
@@ -182,6 +187,10 @@ export async function downloadOrgWorkspaceToLocal(
     }
   }
 
+  if (options.isCancelled?.()) {
+    return { agentsOk: true, contextsOk: true, cancelled: true }
+  }
+
   let agentsOk = agentsResult.ok
   let contextsOk = contextsResult.ok
   let agentsError: string | undefined
@@ -193,6 +202,9 @@ export async function downloadOrgWorkspaceToLocal(
       preferredAgentIds,
     )
     for (const definition of agents) {
+      if (options.isCancelled?.()) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       const localResultIds = localResultContextIdsByAgentId.get(definition.id)
       const merged = mergeRemoteAgentPreservingLocalResultContextIds(
         definition,
@@ -208,12 +220,19 @@ export async function downloadOrgWorkspaceToLocal(
     agentsError = agentsResult.error
   }
 
+  if (options.isCancelled?.()) {
+    return { agentsOk: true, contextsOk: true, cancelled: true }
+  }
+
   options.onPhase?.('contexts')
 
   if (contextsResult.ok) {
     // Hidrata cuerpos en memoria para notes (workspaceContextBody), scoped si hay org.
     const contexts = tabContextsFromWorkspaceContexts(contextsResult.data, scope)
     for (const context of filterSyncableOrgWorkspaceContexts(contexts)) {
+      if (options.isCancelled?.()) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       const body = context.kind === 'notes'
         ? workspaceContextBody(context.id, scope)
         : undefined
@@ -235,8 +254,14 @@ export async function downloadOrgWorkspaceToLocal(
   // Fallo de PAGES → wikiError (visible); fallo de LOG → best-effort (solo warn).
   let wikiError: string | undefined
   if (deps.listRemoteWikiPages && deps.replaceLocalWikiPages) {
+    if (options.isCancelled?.()) {
+      return { agentsOk: true, contextsOk: true, cancelled: true }
+    }
     options.onPhase?.('wiki')
     try {
+      if (options.isCancelled?.()) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       const wikiResult = await deps.listRemoteWikiPages()
       if (wikiResult.ok) {
         const pages = wikiPullPagesFromRecords(wikiResult.data)

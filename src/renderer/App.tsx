@@ -224,6 +224,7 @@ import {
   stripOrgTabAgentCliSessionIds,
 } from './sessionSanitize'
 import { resolveTabExplorerSessionId } from './tabFileExplorer'
+import { appendTabToTabsRef } from './appendTabToTabsRef'
 import {
   resolveTabAgentMeta,
   syncTabAgentsFromCatalog,
@@ -956,7 +957,7 @@ export const App: React.FC = () => {
       cancelGen?: number
       onPhase?: (phase: OrgWorkspaceSyncPhase) => void
     } = {},
-  ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string }> => {
+  ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string; cancelled?: boolean }> => {
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       return { agentsOk: false, contextsOk: false }
@@ -969,6 +970,13 @@ export const App: React.FC = () => {
     )]
     if (!folders.length) {
       return { agentsOk: false, contextsOk: false }
+    }
+
+    const isCancelled = options.cancelGen !== undefined
+      ? () => options.cancelGen !== orgWorkspaceSyncUploadGenRef.current
+      : undefined
+    if (isCancelled?.()) {
+      return { agentsOk: true, contextsOk: true, cancelled: true }
     }
 
     const buildDeps = (cwd: string): OrgWorkspaceMaterializeDeps => ({
@@ -1050,6 +1058,9 @@ export const App: React.FC = () => {
     let contextsOk = true
     let wikiError: string | undefined
     for (const cwd of folders) {
+      if (isCancelled?.()) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       const preferredAgentIds = targets
         .filter(tab => (
           (tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || '') === cwd
@@ -1065,10 +1076,17 @@ export const App: React.FC = () => {
           localDir: cwd,
         },
         ...(options.onPhase ? { onPhase: options.onPhase } : {}),
+        ...(isCancelled ? { isCancelled } : {}),
       })
+      if (result.cancelled) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
       if (result.wikiError && !wikiError) wikiError = result.wikiError
+      if (isCancelled?.()) {
+        return { agentsOk: true, contextsOk: true, cancelled: true }
+      }
       const agents = await refreshProjectAgents(cwd)
       for (const tab of targets) {
         if ((tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || '') !== cwd) continue
@@ -2328,15 +2346,31 @@ export const App: React.FC = () => {
         explorerByTabRef.current = next
         return next
       })
-      setTabs(prev => [...prev, tab])
+      const nextTabs = appendTabToTabsRef(tabsRef.current, tab)
+      tabsRef.current = nextTabs
+      setTabs(nextTabs)
       setActiveTabId(tab.id)
 
       if (covenant && hasCovenantWorkspaceContentApi(covenant)) {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
-          wipeLocal: false,
-          cancelGen: opGen,
-          onPhase: reportOrgSyncPhase,
-        })
+        try {
+          const result = await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+            wipeLocal: false,
+            cancelGen: opGen,
+            onPhase: reportOrgSyncPhase,
+          })
+          if (result.cancelled || opGen !== orgWorkspaceSyncUploadGenRef.current) return
+          if (!result.agentsOk || !result.contextsOk) {
+            setOrgWorkspaceRequirement(prev => prev ?? {
+              agentUpdateError: result.wikiError ?? 'sync failed',
+            })
+          }
+        } catch (err) {
+          if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+          console.warn('[org tab sync]', org.slug, org.workspaceId, err)
+          setOrgWorkspaceRequirement(prev => prev ?? {
+            agentUpdateError: err instanceof Error ? err.message : 'sync failed',
+          })
+        }
       } else if (selection.agents.length || selection.contexts.length) {
         const cwd = res.workspaceDir
         for (const definition of selection.agents) {
@@ -2416,11 +2450,12 @@ export const App: React.FC = () => {
       if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
 
       try {
-        await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
+        const result = await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
           wipeLocal: false,
           cancelGen: opGen,
           onPhase: reportOrgSyncPhase,
         })
+        if (result.cancelled || opGen !== orgWorkspaceSyncUploadGenRef.current) return
       } catch (err) {
         if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
         console.warn('[resync agents/contexts]', org.slug, org.workspaceId, err)
@@ -3384,18 +3419,20 @@ export const App: React.FC = () => {
 
   /** Abre/cambia el chat del plano, o lo cierra si `paneId` es null. */
   const handlePlaneOpenChatAgent = useCallback((tabId: string, paneId: string | null) => {
-    setTabs(prev => {
-      const nextTabs = prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        if (paneId === null) {
-          return { ...tab, planeOpenChatAgentId: null }
-        }
-        if (tab.paneKinds?.[paneId] !== 'agent') return tab
-        return { ...tab, planeOpenChatAgentId: paneId }
-      })
-      tabsRef.current = nextTabs
-      return nextTabs
+    const apply = (list: TabSession[]): TabSession[] => list.map(tab => {
+      if (tab.id !== tabId) return tab
+      if (paneId === null) {
+        return { ...tab, planeOpenChatAgentId: null }
+      }
+      if (tab.paneKinds?.[paneId] !== 'agent') return tab
+      return { ...tab, planeOpenChatAgentId: paneId }
     })
+    // El ref se actualiza ya: quien llame justo después (p. ej. la card, que
+    // encadena handleAgentMetaChange) lee tabsRef.current, no el estado aún
+    // sin commitear. React solo evalúa el updater al instante cuando la cola
+    // está vacía, y con un agente trabajando nunca lo está.
+    tabsRef.current = apply(tabsRef.current)
+    setTabs(apply)
   }, [])
 
   const handleAssignContextToAgent = useCallback((
@@ -5323,22 +5360,25 @@ export const App: React.FC = () => {
     }
 
     const applyBindings = (fromId: string, toId: string, paneBinding: typeof binding): void => {
-      const prev = tabsRef.current
-      const base = catalogKey && fromId !== toId
-        ? remapAgentBindingsInTabs(prev, catalogKey, fromId, toId)
-        : prev
-      const nextTabs = base.map(item => {
-        if (item.id !== tabId) return item
-        return {
-          ...item,
-          agentByPane: {
-            ...(item.agentByPane ?? {}),
-            [paneId]: { ...paneBinding, agentId: toId },
-          },
-        }
-      })
-      tabsRef.current = nextTabs
-      setTabs(nextTabs)
+      // Updater, no snapshot: un setTabs por valor descartaría lo que quedó en
+      // la cola (p. ej. el planeOpenChatAgentId que la card acaba de pedir).
+      const apply = (prev: TabSession[]): TabSession[] => {
+        const base = catalogKey && fromId !== toId
+          ? remapAgentBindingsInTabs(prev, catalogKey, fromId, toId)
+          : prev
+        return base.map(item => {
+          if (item.id !== tabId) return item
+          return {
+            ...item,
+            agentByPane: {
+              ...(item.agentByPane ?? {}),
+              [paneId]: { ...paneBinding, agentId: toId },
+            },
+          }
+        })
+      }
+      tabsRef.current = apply(tabsRef.current)
+      setTabs(apply)
     }
 
     const applyResultContextRemapInUi = (fromSlug: string, toSlug: string): void => {

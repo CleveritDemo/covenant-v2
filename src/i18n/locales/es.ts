@@ -446,6 +446,7 @@ const es = {
     delegationUnconfirmedSummary: 'Sin confirmación: el especialista no devolvió resultado y la delegación se cerró por tiempo.',
     delegationPaneClosedSummary: 'El panel del especialista se cerró antes de devolver resultado.',
     orchestratorBadge: 'Orquestador',
+    specialistBadge: 'Especialista',
     productOwnerBadge: 'Product owner',
   },
 

@@ -113,6 +113,14 @@
   width: min(900px, 98vw);
 }
 
+/* Config de agente: caja fija. Cada sección del rail tiene una altura natural
+   distinta (Engine con la grilla de proveedores vs. Capabilities), y sin alto
+   definido el modal se redimensionaba en cada cambio de sección. */
+.terminal-modal-panel--xl:has(.agent-config-modal) {
+  height: min(88%, 900px);
+  max-height: min(88%, 900px);
+}
+
 /* El arranque de brainstorm es el único modal que cambia de ancho en vivo:
    al desplegar sus ajustes pasa de `lg` a `xl` para repartirlos en dos
    columnas. El salto seco se lee como si el modal se hubiera vuelto a abrir.

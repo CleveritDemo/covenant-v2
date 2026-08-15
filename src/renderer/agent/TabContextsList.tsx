@@ -16,6 +16,7 @@ import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
 import { Input } from '../components/ui/Input'
 import { AgentFace as UiAgentFace } from '../components/ui/AgentFace'
+import { CoordinationBadge } from '../components/ui/CoordinationBadge'
 import { contextIconName } from './tabContextKindIcons'
 import {
   agentMonogram,
@@ -122,14 +123,15 @@ export const TabContextsList: React.FC<Props> = ({
   const renderCoordination = (context: TabContext) => {
     const agent = agents.find(item => agentResultContextIdForSlug(item.id) === context.id)
     const coordination = agent?.coordination ?? 'none'
-    if (coordination === 'none') return null
-    const label = t(coordination === 'orchestrator'
-      ? 'agentPane.orchestratorBadge'
-      : 'agentPane.productOwnerBadge')
+    const label = t(
+      coordination === 'orchestrator'
+        ? 'agentPane.orchestratorBadge'
+        : coordination === 'productOwner'
+          ? 'agentPane.productOwnerBadge'
+          : 'agentPane.specialistBadge',
+    )
     return (
-      <span className="tab-contexts__role" aria-label={label} role="img">
-        <Icon name={coordination === 'orchestrator' ? 'git-branch' : 'folder'} size={9} />
-      </span>
+      <CoordinationBadge coordination={coordination} label={label} variant="inline" />
     )
   }
 

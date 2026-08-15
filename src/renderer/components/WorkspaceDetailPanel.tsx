@@ -91,7 +91,7 @@ function WorkspacePeopleSection({
         <div className="orgs-add-people">
           <SegmentedControl
             size="sm"
-            layout="equal"
+            layout="hug"
             label={t('organizations.peopleSection')}
             value={role}
             disabled={parentBusy}

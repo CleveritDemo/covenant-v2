@@ -6,6 +6,7 @@ import { agentCliSpec } from '@shared/agentCliProviders'
 import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
+import { CoordinationBadge } from '../components/ui/CoordinationBadge'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
 import {
@@ -158,22 +159,16 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         >
           <BrandIcon provider={provider} size={9} aria-hidden />
         </span>
-        {coordination === 'orchestrator' ? (
-          <span
-            className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
-            aria-label={t('agentPane.orchestratorBadge')}
-          >
-            <Icon name="git-branch" size={9} aria-hidden />
-          </span>
-        ) : null}
-        {coordination === 'productOwner' ? (
-          <span
-            className="plane-mini-face__provider plane-mini-face__provider--orchestrator"
-            aria-label={t('agentPane.productOwnerBadge')}
-          >
-            <Icon name="folder" size={9} aria-hidden />
-          </span>
-        ) : null}
+        <CoordinationBadge
+          coordination={coordination}
+          label={t(
+            coordination === 'orchestrator'
+              ? 'agentPane.orchestratorBadge'
+              : coordination === 'productOwner'
+                ? 'agentPane.productOwnerBadge'
+                : 'agentPane.specialistBadge',
+          )}
+        />
       </div>
       <div className="plane-mini-face__header-end">
         {onConfigure && configLabel ? (

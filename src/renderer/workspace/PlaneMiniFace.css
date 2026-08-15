@@ -119,12 +119,6 @@
   color: color-mix(in srgb, var(--brand) 88%, var(--text));
 }
 
-.plane-mini-face__provider--orchestrator {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: color-mix(in srgb, var(--accent) 80%, var(--text));
-}
-
 .plane-mini-face__header-end {
   display: inline-flex;
   align-items: center;

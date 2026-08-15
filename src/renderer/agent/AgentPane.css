@@ -1640,16 +1640,6 @@ html[data-reduce-motion="true"] {
   color: var(--text-muted);
 }
 
-.tab-contexts__role {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  padding: 1px 4px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: color-mix(in srgb, var(--accent) 70%, var(--text));
-}
-
 .tab-contexts__item-text {
   display: flex;
   flex-direction: column;

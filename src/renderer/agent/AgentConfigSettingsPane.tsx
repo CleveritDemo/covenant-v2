@@ -17,7 +17,7 @@ import {
   type OrchestrationWorkStyle,
 } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
-import { Button, ChoiceCard, ContextCheckOption, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
+import { Button, ChoiceCard, ContextCheckOption, COORDINATION_ICON, Icon, SegmentedControl, Select, SettingToggle, TextArea } from '../components/ui'
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
 import type { ContextPickerAgent } from '@shared/agentContextPicker'
 import { AgentProviderGrid } from './AgentProviderGrid'
@@ -345,9 +345,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             value={meta.coordination ?? 'none'}
             disabled={locked}
             options={[
-              { value: 'none', label: t('agentPane.coordinationNone') },
-              { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator') },
-              { value: 'productOwner', label: t('agentPane.coordinationProductOwner') },
+              { value: 'none', label: t('agentPane.coordinationNone'), icon: COORDINATION_ICON.none },
+              { value: 'orchestrator', label: t('agentPane.coordinationOrchestrator'), icon: COORDINATION_ICON.orchestrator },
+              { value: 'productOwner', label: t('agentPane.coordinationProductOwner'), icon: COORDINATION_ICON.productOwner },
             ]}
             onChange={onChangeCoordination}
           />

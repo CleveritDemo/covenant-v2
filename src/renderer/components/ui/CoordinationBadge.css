@@ -1,0 +1,22 @@
+.coordination-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.coordination-badge--chip {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.coordination-badge--inline {
+  padding: 1px 4px;
+  border-radius: 5px;
+  border: 0;
+}

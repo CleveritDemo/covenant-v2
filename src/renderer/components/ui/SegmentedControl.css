@@ -28,6 +28,19 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* La pista se ciñe al contenido cuando el contenedor es más ancho que las opciones. */
+.segmented-control--hug {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: 100%;
+}
+
+.segmented-control--hug .segmented-control__btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .segmented-control__btn {
   position: relative;
   display: inline-flex;
@@ -103,6 +116,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.segmented-control__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.segmented-control__btn--active .segmented-control__icon {
+  opacity: 1;
 }
 
 .segmented-control__dot {

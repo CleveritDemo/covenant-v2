@@ -15,6 +15,9 @@ export { BrandIcon } from './BrandIcon'
 export { AgentFace } from './AgentFace'
 export type { AgentFaceProps } from './AgentFace'
 
+export { CoordinationBadge, COORDINATION_ICON } from './CoordinationBadge'
+export type { CoordinationBadgeProps } from './CoordinationBadge'
+
 export { Button } from './Button'
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button'
 

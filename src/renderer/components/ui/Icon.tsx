@@ -39,6 +39,7 @@ export type IconName =
   | 'repeat'
   | 'pulse'
   | 'wiki-graph'
+  | 'orchestrator'
   | 'brain'
   | 'shield-off'
   | 'shield-question'
@@ -359,6 +360,18 @@ const ICONS: Record<IconName, IconRenderer> = {
       <circle cx="6" cy="17" r="2.5" />
       <circle cx="18" cy="17" r="2.5" />
       <circle cx="12" cy="7" r="2.5" />
+    </svg>
+  ),
+  /** Orquestador: nodo central que reparte a tres satélites. */
+  orchestrator: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2.4" />
+      <circle cx="12" cy="4.6" r="2.2" />
+      <circle cx="5" cy="19" r="2.2" />
+      <circle cx="19" cy="19" r="2.2" />
+      <path d="M12 9.6V6.8" />
+      <path d="m10.3 13.7-3.6 3.6" />
+      <path d="m13.7 13.7 3.6 3.6" />
     </svg>
   ),
   brain: size => (

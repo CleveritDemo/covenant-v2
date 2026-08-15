@@ -444,6 +444,7 @@ const en = {
     delegationUnconfirmedSummary: 'Unconfirmed: the specialist returned no result; the delegation was closed by timeout.',
     delegationPaneClosedSummary: 'The specialist pane was closed before returning a result.',
     orchestratorBadge: 'Orchestrator',
+    specialistBadge: 'Specialist',
     productOwnerBadge: 'Product owner',
   },
 

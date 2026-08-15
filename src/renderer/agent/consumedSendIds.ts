@@ -32,3 +32,17 @@ export function rememberConsumedSendId(
   if (next.length <= max) return next
   return next.slice(next.length - max)
 }
+
+/** Evita liberar planeSendByPane dos veces en reofertas already_consumed. */
+export function planAlreadyConsumedPreferSendSlotRelease(
+  releasedSendIds: readonly string[],
+  sendId: string,
+): { shouldReleaseSlot: boolean; nextReleasedSendIds: string[] } {
+  if (wasSendIdConsumed(releasedSendIds, sendId)) {
+    return { shouldReleaseSlot: false, nextReleasedSendIds: [...releasedSendIds] }
+  }
+  return {
+    shouldReleaseSlot: true,
+    nextReleasedSendIds: rememberConsumedSendId(releasedSendIds, sendId),
+  }
+}

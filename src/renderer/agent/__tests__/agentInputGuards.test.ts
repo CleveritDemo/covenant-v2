@@ -3,6 +3,7 @@ import {
   canDrainAgentQueue,
   canStartHumanTurnNow,
   isAgentHumanInputBlocked,
+  isSystemFollowUpsPendingForPane,
   shouldPromoteHumanSendToVisibleQueue,
   shouldShowComposerStop,
 } from '../agentInputGuards'
@@ -157,6 +158,20 @@ describe('shouldShowComposerStop', () => {
   })
 })
 
+describe('isSystemFollowUpsPendingForPane', () => {
+  it('is true when only orchestration FIFO has items', () => {
+    expect(isSystemFollowUpsPendingForPane(2, false)).toBe(true)
+  })
+
+  it('is true when only preferSend slot is occupied', () => {
+    expect(isSystemFollowUpsPendingForPane(0, true)).toBe(true)
+  })
+
+  it('is false when FIFO is empty and preferSend is free', () => {
+    expect(isSystemFollowUpsPendingForPane(0, false)).toBe(false)
+  })
+})
+
 describe('shouldPromoteHumanSendToVisibleQueue', () => {
   const idleStatus = {
     busy: false,
@@ -188,5 +203,18 @@ describe('shouldPromoteHumanSendToVisibleQueue', () => {
       ...idleStatus,
       systemFollowUpsPending: true,
     }, 'turbo')).toBe(true)
+  })
+
+  it('does not promote when idle with unified systemFollowUpsPending false (no humanTurnBlocked shortcut)', () => {
+    const fifoLength = 0
+    const hasPreferSendSlot = false
+    const systemFollowUpsPending = isSystemFollowUpsPendingForPane(fifoLength, hasPreferSendSlot)
+    expect(systemFollowUpsPending).toBe(false)
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending,
+    }, 'linear')).toBe(false)
   })
 })

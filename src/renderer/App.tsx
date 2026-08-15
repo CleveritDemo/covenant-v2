@@ -93,7 +93,6 @@ import {
   formatDelegationRoundCapFollowUp,
   buildDelegateWarningFollowUp,
   buildBatchedDelegationFollowUp,
-  shouldWakeOrchestratorOnDelegationComplete,
   isDuplicateOrchestrationQueueItem,
   orchestrationFollowUpKey,
   resolveOrchestrationMaxRounds,
@@ -119,7 +118,6 @@ import {
   decideJobForTurn,
   findJobByDelegation,
   findPendingDelegationByToPane,
-  dedupeDelegateResultsById,
   flattenAwaitingItemsFromJobs,
   isJobAwaiting,
   listJobsForPane,
@@ -138,6 +136,11 @@ import {
   laneDelegationForJob,
   type OrchestrationJob,
 } from '@shared/orchestrationJobs'
+import {
+  canWakeOrchestratorForJob,
+  clearCompletedResultsIfDelivered,
+  prepareOrchestratorWakeBatch,
+} from '@shared/orchestrationJobWake'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
 import {
   buildMergeCommitMessage,
@@ -173,10 +176,14 @@ import {
 import {
   enqueueHumanSendForThread,
   MAX_VISIBLE_QUEUED_TURNS,
+  purgeFifoBySendId,
   takeNextHumanSend,
   takeNextHumanSendForThread,
 } from '@shared/planeHumanSendFifo'
-import { shouldPromoteHumanSendToVisibleQueue } from './agent/agentInputGuards'
+import {
+  isSystemFollowUpsPendingForPane,
+  shouldPromoteHumanSendToVisibleQueue,
+} from './agent/agentInputGuards'
 import {
   applyDelegationLaneStop,
   clearPlaneSendsForOrchestrationAbort,
@@ -252,7 +259,6 @@ import {
   DEFAULT_THREAD_ID,
   pruneCompletedDelegationThreads,
   renameThread,
-  resolveCardOpenThreadId,
   resolvePreferredHumanThreadId,
   sanitizeThreadState,
   selectThreadOpened,
@@ -4433,6 +4439,71 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  const maybeWakeOrchestratorForJob = useCallback(async (
+    fromPaneId: string,
+    job: OrchestrationJob,
+  ) => {
+    if (!canWakeOrchestratorForJob(job)) return
+    applyPruneDelegationThreadsForCompletedJob(job)
+
+    const mergeBatch = job.pendingMerges.splice(0, job.pendingMerges.length)
+    const mergeOrder = planWorktreeMergeOrder(
+      mergeBatch.map(item => ({
+        delegationId: item.delegationId,
+        completedAt: item.completedAt,
+      })),
+    )
+    for (const delegationId of mergeOrder) {
+      const item = mergeBatch.find(entry => entry.delegationId === delegationId)
+      if (!item) continue
+      void finalizeDelegationWorktree(fromPaneId, item.result, item.info)
+    }
+
+    await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
+
+    const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
+    if (!shouldDeliverOrchestrationJobFollowUp(liveJobs, job)) return
+
+    const batchResults = prepareOrchestratorWakeBatch(job.completedResults)
+    if (batchResults.length === 0) return
+
+    const round = job.round || 1
+    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
+    const atCap = orchestrationRoundsAtCap(round, maxRounds)
+    const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
+    const fromMeta = tab
+      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+      : undefined
+    const workStyle = orchestrationWorkStyleForPane(fromPaneId)
+    activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
+    const batchLaneDelegation = laneDelegationForJob(job, delegationRuntimeByIdRef.current)
+    const enqueued = enqueueOrchestrationSend(fromPaneId, {
+      text: buildBatchedDelegationFollowUp(batchResults, {
+        round,
+        maxRounds,
+        continuousProductOwner: fromMeta?.coordination === 'productOwner',
+        orchestrationJobId: job.jobId,
+        workStyle,
+      }),
+      focusPane: false,
+      orchestrationFollowUp: true,
+      orchestrationJobId: job.jobId,
+      allowDelegations: !atCap,
+      ...(batchLaneDelegation ? { delegation: batchLaneDelegation } : {}),
+    })
+
+    const fifo = orchestrationFifoByPaneRef.current.get(fromPaneId) ?? []
+    clearCompletedResultsIfDelivered(job, enqueued, fifo)
+    syncAwaitingFromPending()
+  }, [
+    applyPruneDelegationThreadsForCompletedJob,
+    enqueueOrchestrationSend,
+    finalizeDelegationWorktree,
+    orchestrationMaxRoundsForPane,
+    orchestrationWorkStyleForPane,
+    syncAwaitingFromPending,
+  ])
+
   const handleOrphanDelegationResult = useCallback((
     result: DelegateResult,
     runtime: DelegationRuntimeEntry | undefined,
@@ -4475,6 +4546,12 @@ export const App: React.FC = () => {
       }
       deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
       if (toPaneId) void wakeDeferredForFreedPane(toPaneId)
+      const wakeFromPaneId = result.fromPaneId?.trim()
+      const wakeJobId = result.orchestrationJobId?.trim()
+      if (wakeFromPaneId && wakeJobId) {
+        const wakeJob = orchestrationJobsByPaneRef.current.get(wakeFromPaneId)?.get(wakeJobId)
+        if (wakeJob) void maybeWakeOrchestratorForJob(wakeFromPaneId, wakeJob)
+      }
       return
     }
     console.warn(
@@ -4490,7 +4567,13 @@ export const App: React.FC = () => {
       },
     )
     if (toPaneId) void wakeDeferredForFreedPane(toPaneId)
-  }, [wakeDeferredForFreedPane, syncAwaitingFromPending])
+    const wakeFromPaneId = result.fromPaneId?.trim()
+    const wakeJobId = result.orchestrationJobId?.trim()
+    if (wakeFromPaneId && wakeJobId) {
+      const wakeJob = orchestrationJobsByPaneRef.current.get(wakeFromPaneId)?.get(wakeJobId)
+      if (wakeJob) void maybeWakeOrchestratorForJob(wakeFromPaneId, wakeJob)
+    }
+  }, [wakeDeferredForFreedPane, syncAwaitingFromPending, maybeWakeOrchestratorForJob])
 
   const handleDelegationTurnComplete = useCallback(async (result: DelegateResult) => {
     const resolution = resolveDelegationDelivery(delegationRuntimeByIdRef.current, result)
@@ -4542,6 +4625,9 @@ export const App: React.FC = () => {
       job.pending.delete(result.id)
       syncAwaitingFromPending()
       if (duplicateToPaneId) void wakeDeferredForFreedPane(duplicateToPaneId)
+      if (shouldWakeJob(job.pending.size, job.deferred.length)) {
+        void maybeWakeOrchestratorForJob(fromPaneId, job)
+      }
       return
     }
     const completedMeta = job.pending.get(result.id)
@@ -4612,63 +4698,11 @@ export const App: React.FC = () => {
 
     const deferredLeft = job.deferred.length
     if (deferredLeft > 0) return
-    if (!shouldWakeJob(remaining, deferredLeft)) return
-    applyPruneDelegationThreadsForCompletedJob(job)
-    if (!shouldWakeOrchestratorOnDelegationComplete(remaining)) return
-
-    const mergeBatch = job.pendingMerges.splice(0, job.pendingMerges.length)
-    const mergeOrder = planWorktreeMergeOrder(
-      mergeBatch.map(item => ({
-        delegationId: item.delegationId,
-        completedAt: item.completedAt,
-      })),
-    )
-    for (const delegationId of mergeOrder) {
-      const item = mergeBatch.find(entry => entry.delegationId === delegationId)
-      if (!item) continue
-      void finalizeDelegationWorktree(fromPaneId, item.result, item.info)
-    }
-
-    await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
-
-    // Job superseded / eliminado por un turno humano nuevo: no encolar resultados viejos.
-    const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
-    if (!shouldDeliverOrchestrationJobFollowUp(liveJobs, job)) return
-
-    const batchResults = dedupeDelegateResultsById(
-      job.completedResults.splice(0, job.completedResults.length),
-    )
-    const round = job.round || 1
-    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
-    const atCap = orchestrationRoundsAtCap(round, maxRounds)
-    const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
-    const fromMeta = tab
-      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
-      : undefined
-    const workStyle = orchestrationWorkStyleForPane(fromPaneId)
-    activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
-    const batchLaneDelegation = laneDelegationForJob(job, delegationRuntimeByIdRef.current)
-    enqueueOrchestrationSend(fromPaneId, {
-      text: buildBatchedDelegationFollowUp(batchResults, {
-        round,
-        maxRounds,
-        continuousProductOwner: fromMeta?.coordination === 'productOwner',
-        orchestrationJobId: job.jobId,
-        workStyle,
-      }),
-      focusPane: false,
-      orchestrationFollowUp: true,
-      orchestrationJobId: job.jobId,
-      allowDelegations: !atCap,
-      ...(batchLaneDelegation ? { delegation: batchLaneDelegation } : {}),
-    })
+    await maybeWakeOrchestratorForJob(fromPaneId, job)
   }, [
-    applyPruneDelegationThreadsForCompletedJob,
-    enqueueOrchestrationSend,
     finalizeDelegationWorktree,
     handleOrphanDelegationResult,
-    orchestrationMaxRoundsForPane,
-    orchestrationWorkStyleForPane,
+    maybeWakeOrchestratorForJob,
     startNextDeferredForPane,
     syncAwaitingFromPending,
     wakeDeferredForFreedPane,
@@ -4949,11 +4983,8 @@ export const App: React.FC = () => {
       }
     }
 
-    deleteDelegationRuntime(delegationRuntimeByIdRef.current, id)
-
     if (abort.wasPending) {
-      const runtime = getDelegationRuntime(delegationRuntimeByIdRef.current, id)
-      const fromPaneIdForResult = runtime?.fromPaneId?.trim() || fromPaneId
+      const fromPaneIdForResult = runtimeEntry?.fromPaneId?.trim() || fromPaneId
       const orchestrationJobId = job.jobId
       if (!fromPaneIdForResult || !orchestrationJobId) {
         console.warn('[orchestration] delegation abort result omitted', {
@@ -4974,6 +5005,8 @@ export const App: React.FC = () => {
       }
     }
 
+    deleteDelegationRuntime(delegationRuntimeByIdRef.current, id)
+
     setOrchestrationFifoTick(n => n + 1)
     syncAwaitingFromPending()
 
@@ -4987,62 +5020,9 @@ export const App: React.FC = () => {
       }
     }
 
-    const remaining = job.pending.size
-    const deferredLeft = job.deferred.length
-    if (!shouldWakeJob(remaining, deferredLeft)) return
-    applyPruneDelegationThreadsForCompletedJob(job)
-    if (!shouldWakeOrchestratorOnDelegationComplete(remaining)) return
-
-    const mergeBatch = job.pendingMerges.splice(0, job.pendingMerges.length)
-    const mergeOrder = planWorktreeMergeOrder(
-      mergeBatch.map(item => ({
-        delegationId: item.delegationId,
-        completedAt: item.completedAt,
-      })),
-    )
-    for (const mergeId of mergeOrder) {
-      const item = mergeBatch.find(entry => entry.delegationId === mergeId)
-      if (!item) continue
-      void finalizeDelegationWorktree(fromPaneId, item.result, item.info)
-    }
-
-    await (mergeQueueByOrchestratorRef.current.get(fromPaneId) ?? Promise.resolve())
-
-    const liveJobs = orchestrationJobsByPaneRef.current.get(fromPaneId)
-    if (!shouldDeliverOrchestrationJobFollowUp(liveJobs, job)) return
-
-    const batchResults = dedupeDelegateResultsById(
-      job.completedResults.splice(0, job.completedResults.length),
-    )
-    if (batchResults.length === 0) return
-    const round = job.round || 1
-    const maxRounds = orchestrationMaxRoundsForPane(fromPaneId)
-    const atCap = orchestrationRoundsAtCap(round, maxRounds)
-    const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
-    const fromMeta = tab
-      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
-      : undefined
-    const workStyle = orchestrationWorkStyleForPane(fromPaneId)
-    activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
-    enqueueOrchestrationSend(fromPaneId, {
-      text: buildBatchedDelegationFollowUp(batchResults, {
-        round,
-        maxRounds,
-        continuousProductOwner: fromMeta?.coordination === 'productOwner',
-        orchestrationJobId: job.jobId,
-        workStyle,
-      }),
-      focusPane: false,
-      orchestrationFollowUp: true,
-      orchestrationJobId: job.jobId,
-      allowDelegations: !atCap,
-    })
+    await maybeWakeOrchestratorForJob(fromPaneId, job)
   }, [
-    applyPruneDelegationThreadsForCompletedJob,
-    enqueueOrchestrationSend,
-    finalizeDelegationWorktree,
-    orchestrationMaxRoundsForPane,
-    orchestrationWorkStyleForPane,
+    maybeWakeOrchestratorForJob,
     requestPlaneStop,
     startNextDeferredForPane,
     syncAwaitingFromPending,
@@ -5192,16 +5172,13 @@ export const App: React.FC = () => {
         continue
       }
 
-      let rollbackHead = false
+      let placed = false
       setPlaneSendByPane(prev => {
-        if (prev[paneId]) {
-          rollbackHead = true
-          return prev
-        }
+        if (prev[paneId]) return prev
+        placed = true
         return { ...prev, [paneId]: head }
       })
-      // Rollback fuera del updater: StrictMode puede invocar el updater dos veces con el mismo prev.
-      if (rollbackHead) {
+      if (!placed) {
         queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
         setHumanSendFifoTick(n => n + 1)
       }
@@ -5774,10 +5751,10 @@ export const App: React.FC = () => {
           orchestrationAwaiting={orchestrationAwaitingByPane.get(paneId) ?? null}
           delegationWorkActive={delegationTargetPaneIds.has(paneId)}
           delegationThreadIds={delegationThreadIdsByPane.get(paneId) ?? NO_THREAD_IDS}
-          systemFollowUpsPending={
-            orchestrationFifoTick >= 0
-            && (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
-          }
+          systemFollowUpsPending={isSystemFollowUpsPendingForPane(
+            orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0,
+            Boolean(planeSendByPane[paneId]),
+          )}
           onMetaChange={meta => handleAgentMetaChange(tab.id, paneId, meta)}
           onRequestPaneFocus={() => handleFocusPaneWindow(tab.id, paneId)}
           onClosePane={() => handleClosePane(tab.id, paneId)}
@@ -5839,12 +5816,31 @@ export const App: React.FC = () => {
           }}
           preferSend={planeSendByPane[paneId] ?? null}
           onPreferSendConsumed={() => {
+            const sendId = planeSendByPane[paneId]?.sendId?.trim()
             setPlaneSendByPane(current => {
               if (!(paneId in current)) return current
               const next = { ...current }
               delete next[paneId]
               return next
             })
+            if (!sendId) return
+            const fifo = humanSendFifoByPaneRef.current.get(paneId)
+            if (!fifo?.length) return
+            const { queue, removed } = purgeFifoBySendId(fifo, sendId)
+            for (const item of removed) {
+              for (const image of item.images) {
+                const previewUrl = (image as { previewUrl?: string }).previewUrl
+                if (previewUrl) URL.revokeObjectURL(previewUrl)
+              }
+            }
+            if (queue.length) {
+              humanSendFifoByPaneRef.current.set(paneId, queue)
+            } else {
+              humanSendFifoByPaneRef.current.delete(paneId)
+            }
+            if (removed.length) {
+              setHumanSendFifoTick(n => n + 1)
+            }
           }}
           preferStop={planeStopPaneIds.has(paneId)}
           onPreferStopConsumed={() => {
@@ -6389,23 +6385,17 @@ export const App: React.FC = () => {
                       const planeStatus = agentPlaneStatusRef.current[paneId]
                       const visibleQueued = planeStatus?.queuedTurns?.length ?? 0
                       const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
-                      const orchestrationFifoPending =
-                        (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
-                      const shouldPromote = (() => {
-                        if (planeStatus?.humanTurnBlocked !== undefined) {
-                          if (planeStatus.humanTurnBlocked) return true
-                          return planeStatus.busy === true
-                        }
-                        return shouldPromoteHumanSendToVisibleQueue({
-                          busy: planeStatus?.busy === true,
-                          awaitingDelegations:
-                            planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
-                          delegationWorkActive:
-                            planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
-                          systemFollowUpsPending:
-                            orchestrationFifoPending || Boolean(planeSendByPane[paneId]),
-                        }, workStyle)
-                      })()
+                      const shouldPromote = shouldPromoteHumanSendToVisibleQueue({
+                        busy: planeStatus?.busy === true,
+                        awaitingDelegations:
+                          planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
+                        delegationWorkActive:
+                          planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
+                        systemFollowUpsPending: isSystemFollowUpsPendingForPane(
+                          orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0,
+                          Boolean(planeSendByPane[paneId]),
+                        ),
+                      }, workStyle)
                       if (
                         shouldPromote
                         && controls
@@ -6516,9 +6506,6 @@ export const App: React.FC = () => {
                   }}
                   onOpenAgentFromCard={paneId => {
                     handlePlaneOpenChatAgent(tab.id, paneId)
-                    const runningThreadIds = [
-                      ...(runningThreadIdsByPane.get(paneId) ?? []),
-                    ]
                     const protectedIds = liveLaneThreadIdsForPane(
                       paneId,
                       orchestrationJobsByPaneRef.current,
@@ -6530,10 +6517,7 @@ export const App: React.FC = () => {
                         undefined,
                         protectedIds,
                       )
-                      const threadId = resolveCardOpenThreadId(
-                        sanitized,
-                        runningThreadIds,
-                      )
+                      const threadId = resolvePreferredHumanThreadId(sanitized)
                       return {
                         ...previous,
                         ...threadPatch(selectThreadOpened(

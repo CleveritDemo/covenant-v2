@@ -238,6 +238,7 @@ const es = {
     threadHistoryHint: 'Todas las conversaciones guardadas.',
     threadHistoryEmpty: 'No hay más conversaciones',
     threadHistoryAria: 'Historial de conversaciones',
+    threadBusyDotsAria: '{{count}} conversaciones en ejecución',
     threadRename: 'Renombrar conversación',
     loopPlaceholder: 'Escribe la interacción que el agente repetirá en cada ciclo del loop…',
     loopHint: 'Cada ciclo envía la misma interacción como un turno normal, una y otra vez.',

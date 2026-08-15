@@ -4,6 +4,7 @@ import { useT } from '@i18n/useT'
 import type { AgentThread } from '@shared/agentThreads'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneChatThreadBusyDots } from './PlaneChatThreadBusyDots'
 import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
 import './PlaneChatComposer.css'
 import './PlaneChatContextsBar.css'
@@ -91,6 +92,14 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-contexts-bar__stack">
+        <PlaneChatThreadBusyDots
+          runningThreadIds={runningThreadIds}
+          activeThreadId={activeThreadId}
+          awaitingDelegations={awaitingDelegations}
+          awaitingDelegationThreadIds={awaitingDelegationThreadIds}
+          paneCliBusy={paneCliBusy}
+          ariaLabel={t('agentPane.threadBusyDotsAria', { count: runningThreadIds.length })}
+        />
         {showThreads && activeThread ? (
           <div
             className="plane-chat-contexts-bar__chips"

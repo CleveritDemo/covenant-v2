@@ -3,6 +3,7 @@ import {
   MAX_HUMAN_SENDS_PER_PANE,
   enqueueHumanSend,
   enqueueHumanSendForThread,
+  purgeFifoBySendId,
   takeNextHumanSend,
   takeNextHumanSendForThread,
 } from '../planeHumanSendFifo'
@@ -81,5 +82,21 @@ describe('planeHumanSendFifo', () => {
     expect(dropped).toBe(false)
     expect(nextQueue).toHaveLength(MAX_HUMAN_SENDS_PER_PANE + 1)
     expect(nextQueue[MAX_HUMAN_SENDS_PER_PANE]?.text).toBe('thread-b')
+  })
+
+  it('purgeFifoBySendId removes matching sendIds and preserves order of the rest', () => {
+    const queue = [
+      { text: 'a', sendId: 'keep' },
+      { text: 'b', sendId: 'drop-1' },
+      { text: 'c', sendId: 'drop-2' },
+      { text: 'd', sendId: 'keep' },
+    ]
+    const { queue: next, removed } = purgeFifoBySendId(queue, 'drop-1')
+    expect(next).toEqual([
+      { text: 'a', sendId: 'keep' },
+      { text: 'c', sendId: 'drop-2' },
+      { text: 'd', sendId: 'keep' },
+    ])
+    expect(removed).toEqual([{ text: 'b', sendId: 'drop-1' }])
   })
 })

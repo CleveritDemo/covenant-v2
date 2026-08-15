@@ -47,6 +47,25 @@ export function takeNextHumanSend<T>(
 }
 
 /** Primer item sin threadId o con threadId igual a activeThreadId; conserva orden del resto. */
+/** Quita de la cola ítems con el mismo sendId (reoferta tras consumo). */
+export function purgeFifoBySendId<T extends { sendId?: string }>(
+  queue: readonly T[],
+  sendId: string,
+): { queue: T[]; removed: T[] } {
+  const id = sendId.trim()
+  if (!id) return { queue: [...queue], removed: [] }
+  const removed: T[] = []
+  const kept: T[] = []
+  for (const item of queue) {
+    if (item.sendId?.trim() === id) {
+      removed.push(item)
+    } else {
+      kept.push(item)
+    }
+  }
+  return { queue: kept, removed }
+}
+
 export function takeNextHumanSendForThread<T extends { threadId?: string }>(
   queue: readonly T[],
   activeThreadId: string,

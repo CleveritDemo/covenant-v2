@@ -6,6 +6,14 @@ export function isAgentHumanInputBlocked(): boolean {
   return false
 }
 
+/** FIFO de orquestación o slot preferSend ocupan el pane antes de turnos humanos. */
+export function isSystemFollowUpsPendingForPane(
+  orchestrationFifoLength: number,
+  hasPreferSendSlot: boolean,
+): boolean {
+  return orchestrationFifoLength > 0 || hasPreferSendSlot
+}
+
 export interface AgentQueueDrainGuard {
   loaded: boolean
   busy: boolean

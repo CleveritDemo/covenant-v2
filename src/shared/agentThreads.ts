@@ -215,8 +215,8 @@ export function resolvePreferredHumanThreadId(state: AgentThreadState): string {
 }
 
 /**
- * Hilo al abrir la card mini: hilo humano; si hay alguno en curso, el humano
- * más reciente entre los que corren. Clic en fila de hilo → ese id (fuera de acá).
+ * Hilo al abrir la card mini vía clic en fila de hilo en curso.
+ * Clic en el resto de la card → `resolvePreferredHumanThreadId` (App).
  */
 export function resolveCardOpenThreadId(
   state: AgentThreadState,

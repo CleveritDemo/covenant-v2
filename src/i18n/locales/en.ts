@@ -236,6 +236,7 @@ const en = {
     threadHistoryHint: 'All saved conversations.',
     threadHistoryEmpty: 'No more conversations',
     threadHistoryAria: 'Conversation history',
+    threadBusyDotsAria: '{{count}} conversations running',
     threadRename: 'Rename conversation',
     loopPlaceholder: 'Write the interaction the agent will repeat on every loop cycle…',
     loopHint: 'Each cycle sends the same interaction as a normal turn, again and again.',

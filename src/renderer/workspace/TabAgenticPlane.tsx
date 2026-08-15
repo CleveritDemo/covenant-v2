@@ -1178,7 +1178,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               }
               onQueueFullNoticeDismiss={onQueueFullNoticeDismiss}
               onSelectAgent={openChatAgent}
-              onCloseChat={closeChatAgent}
               onStop={onStopChat}
               onSend={onSendChat}
               onRemoveQueuedTurn={onRemoveQueuedTurn}

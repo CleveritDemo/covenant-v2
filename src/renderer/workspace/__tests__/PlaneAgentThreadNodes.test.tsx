@@ -72,6 +72,25 @@ describe('PlaneAgentThreadNodes', () => {
     expect(container.querySelector('.plane-agent-thread-nodes-wrap')).toBeTruthy()
   })
 
+  it('pointerdown en fila abre el hilo sin esperar al click', () => {
+    const onOpenThread = vi.fn()
+    const { container } = render(
+      <PlaneAgentThreadNodes
+        threads={[
+          { id: 't2', title: 'Fondo', running: true, active: false, activity: 'Trabajando' },
+        ]}
+        onOpenThread={onOpenThread}
+      />,
+    )
+
+    const row = container.querySelector('.plane-agent-thread-nodes__row')
+    fireEvent.pointerDown(row!, { button: 0, bubbles: true })
+    fireEvent.click(row!, { bubbles: true })
+
+    expect(onOpenThread).toHaveBeenCalledTimes(1)
+    expect(onOpenThread).toHaveBeenCalledWith('t2')
+  })
+
   it('click en fila llama onOpenThread sin propagar', () => {
     const onOpenThread = vi.fn()
     const onContainerClick = vi.fn()

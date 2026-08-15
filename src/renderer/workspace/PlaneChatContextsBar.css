@@ -10,6 +10,12 @@
   box-sizing: border-box;
 }
 
+.plane-chat-contexts-bar__stack > .plane-chat-thread-busy-dots {
+  grid-column: 1;
+  justify-self: start;
+  align-self: center;
+}
+
 .plane-chat-contexts-bar__chips {
   grid-column: 2;
   justify-self: center;

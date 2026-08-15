@@ -23,7 +23,6 @@ import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
 import { formatQueuedTurnPreviewText } from '../agent/QueuedTurnPreviewLabel'
 import { resolveComposerAgentActivityDot } from '../agent/paneWorkActive'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
-import { PlaneChatCloseButton } from './PlaneChatCloseButton'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
@@ -93,7 +92,6 @@ export interface PlaneChatComposerProps {
   queueFullNotice?: PlaneChatQueueFullNotice | null
   onQueueFullNoticeDismiss?: () => void
   onSelectAgent: (paneId: string) => void
-  onCloseChat?: () => void
   onStop: (paneId: string) => void
   onSend: (
     paneId: string,
@@ -138,7 +136,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   queueFullNotice = null,
   onQueueFullNoticeDismiss,
   onSelectAgent,
-  onCloseChat,
   onStop,
   onSend,
   onRemoveQueuedTurn,
@@ -571,12 +568,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                   onSelect={() => onSelectAgent(agent.paneId)}
                 />
               ))}
-              {selectedAgentId && onCloseChat ? (
-                <PlaneChatCloseButton
-                  label={t('tabs.planeCloseChat')}
-                  onClose={onCloseChat}
-                />
-              ) : null}
             </>
           )}
         </div>

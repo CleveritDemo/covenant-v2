@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.6
+
+- **Composer desbloqueado tras orquestación**: al cerrar una ola linear el campo vuelve a aceptar mensajes de inmediato; se unifica la señal de follow-ups pendientes y se elimina el bloqueo fantasma del hilo humano.
+- **Turbo más fiable**: abortar una delegación suelta ya no deja el orquestador colgado; el wake espera a que el follow-up esté encolado antes de cerrar el job.
+- **Cola humana sin bucles**: al liberar el slot preferSend se purga la FIFO invisible; el drenaje usa el patrón placed para no re-ofertar el mismo envío en bucle.
+- **Actividad por hilo en el chat**: dots de busy/delegating en la barra de hilos del composer; el dot de esquina de la mini solo aparece cuando no hay filas de hilos visibles.
+- **Plano más usable**: la fila de agentes hace scroll horizontal sin salto de línea; clic en otra mini con carriles busy vuelve a abrir la conversación correcta.
+
 ## v0.61.5
 
 - **Fix crash en producción**: corrige `Constructor Map requires 'new'` causado por ambigüedad TSX en `useRef<Map<string, Set<string>>>` (`delegateWarningsSeenByJobRef`).

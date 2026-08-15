@@ -31,6 +31,7 @@ export const PlaneAgentThreadNodes: React.FC<PlaneAgentThreadNodesProps> = ({
   const wrapRef = useRef<HTMLDivElement>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const prevCountRef = useRef(0)
+  const openedFromPointerRef = useRef<string | null>(null)
   const [enteringIds, setEnteringIds] = useState<Set<string>>(() => new Set())
   const [wrapHeight, setWrapHeight] = useState<number | undefined>(undefined)
 
@@ -125,11 +126,22 @@ export const PlaneAgentThreadNodes: React.FC<PlaneAgentThreadNodesProps> = ({
               <button
                 type="button"
                 className="plane-agent-thread-nodes__row"
+                data-thread-id={thread.id}
                 aria-label={[thread.title.trim() || t('tabs.planeAgentThreadUntitled'), label]
                   .filter(Boolean)
                   .join(' · ')}
+                onPointerDown={event => {
+                  if (event.button !== 0) return
+                  event.stopPropagation()
+                  openedFromPointerRef.current = thread.id
+                  onOpenThread(thread.id)
+                }}
                 onClick={event => {
                   event.stopPropagation()
+                  if (openedFromPointerRef.current === thread.id) {
+                    openedFromPointerRef.current = null
+                    return
+                  }
                   onOpenThread(thread.id)
                 }}
               >

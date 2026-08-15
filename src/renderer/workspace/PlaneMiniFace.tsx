@@ -9,7 +9,8 @@ import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
 import {
-  isPlaneMiniInteractiveTarget,
+  isPlaneMiniSmallControlTarget,
+  isPlaneMiniThreadRowTarget,
   markPlaneMiniCardOpenedFromPointer,
   openPlaneMiniCardFromPointerDown,
   shouldSkipPlaneMiniCardClick,
@@ -95,7 +96,8 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const openFromFaceClick = (event: React.MouseEvent): void => {
     if (!onOpen) return
     if (shouldSkipPlaneMiniCardClick(skipClickRef)) return
-    if (isPlaneMiniInteractiveTarget(event.target)) return
+    if (isPlaneMiniThreadRowTarget(event.target)) return
+    if (isPlaneMiniSmallControlTarget(event.target)) return
     event.stopPropagation()
     onOpen()
   }
@@ -103,7 +105,8 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const onFacePointerDown = (event: React.PointerEvent): void => {
     if (!onOpen) return
     if (event.button !== 0) return
-    if (isPlaneMiniInteractiveTarget(event.target)) return
+    if (isPlaneMiniThreadRowTarget(event.target)) return
+    if (isPlaneMiniSmallControlTarget(event.target)) return
     markPlaneMiniCardOpenedFromPointer(skipClickRef)
     openPlaneMiniCardFromPointerDown(event, onOpen)
   }

@@ -17,6 +17,8 @@ import { MAX_PANE_TITLE_LENGTH } from '@shared/tabSession'
 import { isMiniExpandSuppressed } from './miniExpandSuppress'
 import {
   isPlaneMiniInteractiveTarget,
+  isPlaneMiniSmallControlTarget,
+  isPlaneMiniThreadRowTarget,
   markPlaneMiniCardOpenedFromPointer,
   openPlaneMiniCardFromPointerDown,
   shouldSkipPlaneMiniCardClick,
@@ -659,7 +661,9 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     onExpand?.()
   }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
-  const isMiniBodyBlockedTarget = isPlaneMiniInteractiveTarget
+  const isMiniBodyBlockedTarget = useCallback((target: EventTarget | null): boolean => (
+    isPlaneMiniThreadRowTarget(target) || isPlaneMiniSmallControlTarget(target)
+  ), [])
 
   const openAgentMiniCard = useCallback((): void => {
     onFocus()

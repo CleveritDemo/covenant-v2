@@ -117,7 +117,10 @@ import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfter
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { appendQueuedTurnIfRoom, type AppendQueuedTurnOutcome } from './queuedTurnDedup'
 import { planPreferSendIntake, shouldReleasePreferSendSlot } from './preferSendIntake'
-import { rememberConsumedSendId } from './consumedSendIds'
+import {
+  planAlreadyConsumedPreferSendSlotRelease,
+  rememberConsumedSendId,
+} from './consumedSendIds'
 import {
   appendLaneText,
   endLane,
@@ -470,8 +473,6 @@ export interface AgentPlaneStatus {
   runningThreadActivities: Record<string, string>
   /** Hilo activo publicado para gating de envío humano por carril. */
   activeThreadId?: string
-  /** True cuando el hilo activo no puede arrancar turno humano ahora. */
-  humanTurnBlocked?: boolean
 }
 
 export interface AgentPlaneQueueControls {
@@ -715,6 +716,8 @@ export const AgentPane: React.FC<Props> = ({
   const handledPreferSendRef = useRef<AgentPreferSend | null>(null)
   /** Dedup por identidad de envío: sobrevive a que cambie el objeto ofrecido. */
   const consumedSendIdsRef = useRef<string[]>([])
+  const releasedPreferSendIdsRef = useRef<string[]>([])
+  const loggedAlreadyConsumedSendIdsRef = useRef(new Set<string>())
   const onPreferSendConsumedRef = useRef(onPreferSendConsumed)
   onPreferSendConsumedRef.current = onPreferSendConsumed
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
@@ -1349,7 +1352,6 @@ export const AgentPane: React.FC<Props> = ({
       runningThreadIds,
       runningThreadActivities,
       activeThreadId: activeThreadIdForGate,
-      humanTurnBlocked: !canStartHumanTurnNow,
     }
     // busy/activity: inmediato. Solo messages/snippet: throttle (~150ms).
     const controlKey = [
@@ -1375,7 +1377,6 @@ export const AgentPane: React.FC<Props> = ({
       runningThreadIds.join(','),
       Object.entries(runningThreadActivities).map(([id, text]) => `${id}:${text}`).join('|'),
       activeThreadIdForGate,
-      canStartHumanTurnNow ? '0' : '1',
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({
       controlKey,
@@ -1394,7 +1395,6 @@ export const AgentPane: React.FC<Props> = ({
     awaitingDelegationThreadIds,
     orchestrationAwaiting,
     busy,
-    canStartHumanTurnNow,
     delegationWorkActive,
     delegationThreadIds,
     diskContexts,
@@ -2641,11 +2641,21 @@ export const AgentPane: React.FC<Props> = ({
     if (plan.action === 'consume') {
       // Reoferta de un envío ya consumido: cerrar el slot sin duplicar.
       handledPreferSendRef.current = preferSend
-      console.warn('[AgentPane] preferSend duplicate', {
-        reason: plan.reason,
-        sendId: plan.sendId,
-      })
-      if (shouldReleasePreferSendSlot(plan.action)) onPreferSendConsumedRef.current?.()
+      const releasePlan = planAlreadyConsumedPreferSendSlotRelease(
+        releasedPreferSendIdsRef.current,
+        plan.sendId,
+      )
+      releasedPreferSendIdsRef.current = releasePlan.nextReleasedSendIds
+      if (!loggedAlreadyConsumedSendIdsRef.current.has(plan.sendId)) {
+        loggedAlreadyConsumedSendIdsRef.current.add(plan.sendId)
+        console.warn('[AgentPane] preferSend duplicate', {
+          reason: plan.reason,
+          sendId: plan.sendId,
+        })
+      }
+      if (releasePlan.shouldReleaseSlot && shouldReleasePreferSendSlot(plan.action)) {
+        onPreferSendConsumedRef.current?.()
+      }
       return
     }
     const prompt = preferSend.text.trim()

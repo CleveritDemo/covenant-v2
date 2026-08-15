@@ -270,7 +270,7 @@
   transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Actividad: sin glow; el indicador es PlaneBusyDot en la esquina. */
+/* Actividad delegating sin hilos listados: dot en esquina; busy vive en thread rows. */
 .plane-mini-face--has-activity-dot .plane-mini-face__glow {
   opacity: 0;
 }

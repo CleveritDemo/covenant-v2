@@ -176,6 +176,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
     paneBusy: busy,
     awaitingDelegations,
   })
+  // Busy / hilos en curso: el listado de threads ya lleva dots; sin esquina duplicada.
+  const miniCornerActivityDot = busy || showThreadNodes ? null : miniActivityDot
   const paneWindowClassName = [
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',
@@ -237,7 +239,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             seatDragEnabled={seatDragEnabled}
             monogram={monogram}
             busy={busy}
-            activityDot={miniActivityDot}
+            activityDot={miniCornerActivityDot}
             provider={provider}
             coordination={coordination}
             statusLabel={statusLabel}

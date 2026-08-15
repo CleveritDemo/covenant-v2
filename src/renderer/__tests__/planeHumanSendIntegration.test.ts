@@ -6,6 +6,7 @@ import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import {
   enqueueHumanSend,
   MAX_VISIBLE_QUEUED_TURNS,
+  purgeFifoBySendId,
   takeNextHumanSend,
 } from '@shared/planeHumanSendFifo'
 import {
@@ -96,6 +97,23 @@ function isSendIdAlreadyVisible(
   return (queuedTurns ?? []).some(turn => queuedTurnSourceSendIds(turn).includes(id))
 }
 
+function releasePlaneSendWithFifoPurge(
+  queues: Map<string, PlaneSend[]>,
+  planeSendByPane: Record<string, PlaneSend>,
+  paneId: string,
+): Record<string, PlaneSend> {
+  const sendId = planeSendByPane[paneId]?.sendId?.trim()
+  const { [paneId]: _removed, ...freed } = planeSendByPane
+  if (!sendId) return freed
+  const fifo = queues.get(paneId)
+  if (!fifo?.length) return freed
+  const { queue, removed } = purgeFifoBySendId(fifo, sendId)
+  if (queue.length) queues.set(paneId, queue)
+  else queues.delete(paneId)
+  void removed
+  return freed
+}
+
 async function drainHumanSendFifo(
   queues: Map<string, PlaneSend[]>,
   planeSendByPane: Record<string, PlaneSend>,
@@ -165,14 +183,12 @@ async function drainHumanSendFifo(
     }
 
     const prev = result
-    let rollbackHead = false
-    if (prev[paneId]) {
-      rollbackHead = true
-    } else {
+    let placed = false
+    if (!prev[paneId]) {
+      placed = true
       result = { ...prev, [paneId]: head }
     }
-    // Rollback fuera del updater: StrictMode puede invocar el updater dos veces con el mismo prev.
-    if (rollbackHead) {
+    if (!placed) {
       queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
     }
   }
@@ -1255,5 +1271,39 @@ describe('plane human send FIFO integration', () => {
 
     expect(enqueueHuman).toHaveBeenCalledTimes(1)
     expect(humanFifo.get(paneId)?.map(item => item.text)).toEqual(['overflow-sync'])
+  })
+
+  it('does not re-offer the same sendId after consume and fifo purge on release', async () => {
+    const paneId = 'agent-1'
+    const queues = new Map<string, PlaneSend[]>()
+    const sendId = 'send-consumed-once'
+    let planeSendByPane: Record<string, PlaneSend> = {}
+
+    enqueueHumanPlaneSend(queues, paneId, 'human turn', [], undefined, sendId)
+    planeSendByPane = await drainHumanSendFifo(queues, planeSendByPane)
+    expect(planeSendByPane[paneId]?.sendId).toBe(sendId)
+    expect(queues.has(paneId)).toBe(false)
+
+    planeSendByPane = releasePlaneSendWithFifoPurge(queues, planeSendByPane, paneId)
+    expect(planeSendByPane[paneId]).toBeUndefined()
+
+    planeSendByPane = await drainHumanSendFifo(queues, planeSendByPane)
+    expect(planeSendByPane[paneId]).toBeUndefined()
+    expect(queues.has(paneId)).toBe(false)
+  })
+
+  it('drains a new sendId after a prior send was consumed and purged', async () => {
+    const paneId = 'agent-1'
+    const queues = new Map<string, PlaneSend[]>()
+    let planeSendByPane: Record<string, PlaneSend> = {}
+
+    enqueueHumanPlaneSend(queues, paneId, 'first', [], undefined, 'send-first')
+    planeSendByPane = await drainHumanSendFifo(queues, planeSendByPane)
+    planeSendByPane = releasePlaneSendWithFifoPurge(queues, planeSendByPane, paneId)
+
+    enqueueHumanPlaneSend(queues, paneId, 'second', [], undefined, 'send-second')
+    planeSendByPane = await drainHumanSendFifo(queues, planeSendByPane)
+    expect(planeSendByPane[paneId]?.text).toBe('second')
+    expect(planeSendByPane[paneId]?.sendId).toBe('send-second')
   })
 })

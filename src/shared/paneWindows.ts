@@ -18,8 +18,8 @@ export const PLANE_MINI_SLOT_PAD_Y = 72
 export const PLANE_MINI_SLOT_GAP = 20
 /** Hueco inferior columna terminales (FAB izquierdo + margen). */
 export const PLANE_MINI_BOTTOM_CLEARANCE = 96
-/** Hueco inferior columna agentes (FAB derecho + margen). */
-export const PLANE_MINI_AGENT_BOTTOM_CLEARANCE = 88
+/** Hueco inferior columna agentes (FAB derecho 68px + escala mini + chrome half-out). */
+export const PLANE_MINI_AGENT_BOTTOM_CLEARANCE = 104
 /** Padding horizontal mínimo (referencia ~1280px). */
 export const PLANE_MINI_SLOT_PAD_X = 28
 /** Tope de padding exterior en pantallas muy anchas. */

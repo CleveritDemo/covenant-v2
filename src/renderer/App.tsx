@@ -5872,6 +5872,8 @@ export const App: React.FC = () => {
                 id: peerMeta.id,
                 name: peerMeta.name?.trim() || peerMeta.id,
                 coordination: peerMeta.coordination ?? 'none',
+                provider: peerMeta.provider,
+                monogram: peerMeta.monogram?.trim() || undefined,
               }
             })}
           onOrchestratorDelegations={(delegations, orchestrationJobId, warnings) => {

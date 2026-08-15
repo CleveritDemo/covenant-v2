@@ -8,6 +8,8 @@ export interface ContextCheckOptionProps {
   kindLabel?: string
   /** Icono a la izquierda del nombre; sin él la fila solo muestra el check. */
   icon?: IconName
+  /** Cara custom (p. ej. AgentFace); tiene prioridad sobre `icon`. */
+  face?: React.ReactNode
   checked: boolean
   onChange: () => void
   disabled?: boolean
@@ -28,6 +30,7 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
   name,
   kindLabel,
   icon,
+  face,
   checked,
   onChange,
   disabled = false,
@@ -61,9 +64,9 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
         <path d="M2.5 6.2 4.8 8.5 9.5 3.6" />
       </svg>
     </span>
-    {icon ? (
+    {face || icon ? (
       <span className="context-check-option__icon" aria-hidden="true">
-        <Icon name={icon} size={14} />
+        {face ?? (icon ? <Icon name={icon} size={14} /> : null)}
       </span>
     ) : null}
     <span className="context-check-option__name">{name}</span>

@@ -59,42 +59,8 @@
   color: var(--text-muted);
 }
 
-.brainstorm-closing__text {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text);
-}
-
-/* Bloque de varios puntos: lista de verdad. Aplastados en un párrafo eran
-   ilegibles justo cuando la conversación había dado más de un acuerdo. */
-.brainstorm-closing__list {
-  list-style: none;
-  margin: 2px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.brainstorm-closing__item {
-  position: relative;
-  padding-left: 14px;
-  font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text);
-}
-
-.brainstorm-closing__item::before {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 0.62em;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
+.brainstorm-closing__md {
+  min-width: 0;
 }
 
 .brainstorm-closing__ceremony {

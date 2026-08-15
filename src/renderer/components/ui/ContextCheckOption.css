@@ -61,7 +61,7 @@
 }
 
 .context-check-option__icon {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   display: inline-flex;
   color: var(--text-muted);
   transition: color 0.12s ease;

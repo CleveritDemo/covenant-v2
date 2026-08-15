@@ -10,6 +10,7 @@ import {
 } from '@shared/agileCeremonies'
 import { brainstormRoomContext } from '@shared/brainstormListing'
 import { useT } from '@i18n/useT'
+import { AiMarkdown } from '../components/AiMarkdown'
 import { Button } from '../components/ui'
 import { AI_READY_FIELD_KEY } from './ceremonyLabels'
 import './BrainstormClosingCard.css'
@@ -28,17 +29,6 @@ export interface BrainstormClosingCardProps {
 }
 
 type Feedback = { kind: 'ok' | 'error'; text: string } | null
-
-/**
- * Los puntos de un bloque, o null si es un párrafo suelto. El cierre puede
- * traer varias líneas —lista o no— desde que el turno final dejó de estar
- * limitado a 20 palabras por etiqueta.
- */
-function closingBlockItems(value: string): string[] | null {
-  const lines = value.split('\n').map(line => line.trim()).filter(Boolean)
-  if (lines.length < 2) return null
-  return lines.map(line => line.replace(/^[-*+]\s+/, ''))
-}
 
 /** Cierre de la sala: la última entrada del acta, con sus salidas. */
 export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
@@ -144,25 +134,14 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
       </header>
 
       <div className="brainstorm-closing__body">
-        {(detailOpen ? [lead, ...rest] : [lead]).filter(Boolean).map(([label, value]) => {
-          const items = closingBlockItems(value)
-          return (
-            <div key={label} className="brainstorm-closing__block">
-              <span className="brainstorm-closing__label">{label}</span>
-              {items
-                ? (
-                  <ul className="brainstorm-closing__list">
-                    {items.map((item, index) => (
-                      <li key={`${item}-${index}`} className="brainstorm-closing__item">
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )
-                : <span className="brainstorm-closing__text">{value}</span>}
+        {(detailOpen ? [lead, ...rest] : [lead]).filter(Boolean).map(([label, value]) => (
+          <div key={label} className="brainstorm-closing__block">
+            <span className="brainstorm-closing__label">{label}</span>
+            <div className="brainstorm-closing__md">
+              <AiMarkdown content={value} />
             </div>
-          )
-        })}
+          </div>
+        ))}
         {rest.length ? (
           <button
             type="button"

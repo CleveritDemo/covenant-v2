@@ -12,6 +12,9 @@ export type { IconName } from './Icon'
 
 export { BrandIcon } from './BrandIcon'
 
+export { AgentFace } from './AgentFace'
+export type { AgentFaceProps } from './AgentFace'
+
 export { Button } from './Button'
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button'
 

@@ -6,15 +6,19 @@ import {
   type AgentCoordination,
   type DelegateToPolicy,
 } from '@shared/agentOrchestration'
-import { agentMonogram } from '@shared/tabContextAppearance'
+import type { AgentCliProvider } from '@shared/agentCliProviders'
+import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
+import { agentMonogram, paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
-import { ContextCheckOption, SettingToggle } from '../components/ui'
+import { AgentFace, ContextCheckOption, SettingToggle } from '../components/ui'
 import './AgentDelegateToPolicyEditor.css'
 
 export interface DelegateToPeerAgent {
   id: string
   name: string
   coordination?: AgentCoordination
+  provider?: AgentCliProvider
+  monogram?: string
 }
 
 export interface AgentDelegateToPolicyEditorProps {
@@ -104,15 +108,18 @@ export const AgentDelegateToPolicyEditor: React.FC<AgentDelegateToPolicyEditorPr
               {specialists.map(agent => {
                 const checked = selectedIds.has(agent.id.trim().toLowerCase())
                 const label = agent.name.trim() || agent.id
-                const mono = agentMonogram(label)
                 return (
                   <ContextCheckOption
                     key={agent.id}
                     appearance="panel"
-                    icon="bot"
+                    face={(
+                      <AgentFace
+                        monogram={agent.monogram?.trim() || agentMonogram(label)}
+                        provider={agent.provider}
+                        color={paletteColorForSeed(agentResultContextIdForSlug(agent.id))}
+                      />
+                    )}
                     name={label}
-                    /* Un monograma igual al nombre (QA) solo repetiría la fila. */
-                    kindLabel={mono === label.toUpperCase() ? undefined : mono}
                     checked={checked}
                     disabled={disabled}
                     onChange={() => toggleSpecialist(agent.id, !checked)}

@@ -51,9 +51,9 @@ afterEach(cleanup)
 describe('TabContextsList', () => {
   it('pone monograma, marca del CLI y rol en la fila de results', () => {
     const { container } = renderList([resultContext], [techLead])
-    const monogram = container.querySelector('.tab-contexts__monogram')
+    const monogram = container.querySelector('.agent-face')
     expect(monogram?.textContent).toContain('TL')
-    expect(monogram?.querySelector('.tab-contexts__monogram-brand svg')).toBeTruthy()
+    expect(monogram?.querySelector('.agent-face__brand svg')).toBeTruthy()
     expect(screen.getByLabelText('agentPane.orchestratorBadge')).toBeTruthy()
   })
 
@@ -62,13 +62,13 @@ describe('TabContextsList', () => {
       [{ ...resultContext, name: 'Backend' }],
       [{ ...techLead, id: 'tl', monogram: 'BE' }],
     )
-    expect(container.querySelector('.tab-contexts__monogram')?.textContent).toContain('BE')
+    expect(container.querySelector('.agent-face')?.textContent).toContain('BE')
   })
 
   it('sin agente en el catálogo mantiene el monograma y omite marca y rol', () => {
     const { container } = renderList([resultContext], [])
-    expect(container.querySelector('.tab-contexts__monogram')?.textContent).toBe('TL')
-    expect(container.querySelector('.tab-contexts__monogram-brand')).toBeNull()
+    expect(container.querySelector('.agent-face')?.textContent).toBe('TL')
+    expect(container.querySelector('.agent-face__brand')).toBeNull()
     expect(container.querySelector('.tab-contexts__role')).toBeNull()
   })
 
@@ -76,7 +76,7 @@ describe('TabContextsList', () => {
     const { container } = renderList([notesContext], [techLead])
     expect(container.querySelector('.tab-contexts__item-icon')).toBeTruthy()
     // La cara solo va en results; los chips del filtro sí traen monograma.
-    expect(container.querySelector('.tab-contexts__item .tab-contexts__monogram')).toBeNull()
+    expect(container.querySelector('.tab-contexts__item .agent-face')).toBeNull()
   })
 
   it('marca sin usar y filtra por el agente del chip', () => {

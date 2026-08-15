@@ -104,4 +104,23 @@ describe('BrainstormClosingCard — la decisión primero', () => {
     fireEvent.click(screen.getByText('tabs.brainstormClosingLess'))
     expect(screen.queryByText('done.code holds on both forks')).toBeNull()
   })
+
+  it('renderiza backticks y negritas del cuerpo vía AiMarkdown', () => {
+    render(
+      <BrainstormClosingCard
+        roomId="r2"
+        topic="markdown"
+        cwd="/tmp/project"
+        closing={{ decision: 'Abrir `src/foo.ts` con **negrita**' }}
+        speakerLabel="frontend"
+      />,
+    )
+
+    const code = screen.getByText('src/foo.ts')
+    expect(code.tagName).toBe('CODE')
+    const strong = screen.getByText('negrita')
+    expect(strong.tagName).toBe('STRONG')
+    expect(screen.queryByText(/`src\/foo\.ts`/)).toBeNull()
+    expect(screen.queryByText(/\*\*negrita\*\*/)).toBeNull()
+  })
 })

@@ -15,7 +15,7 @@ import { useT } from '@i18n/useT'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
 import { Input } from '../components/ui/Input'
-import { BrandIcon } from '../components/ui/BrandIcon'
+import { AgentFace as UiAgentFace } from '../components/ui/AgentFace'
 import { contextIconName } from './tabContextKindIcons'
 import {
   agentMonogram,
@@ -48,16 +48,12 @@ export const AgentFace: React.FC<{
   color?: string
   small?: boolean
 }> = ({ agent, color, small = false }) => (
-  <span
-    className={`tab-contexts__monogram${small ? ' tab-contexts__monogram--sm' : ''}`}
-    style={{ '--tab-context-mono': color ?? agentFaceColor(agent) } as React.CSSProperties}
-    aria-hidden
-  >
-    {agent.monogram || agentMonogram(agent.name ?? agent.id)}
-    <span className="tab-contexts__monogram-brand">
-      <BrandIcon provider={agent.provider} size={small ? 7 : 8} />
-    </span>
-  </span>
+  <UiAgentFace
+    monogram={agent.monogram || agentMonogram(agent.name ?? agent.id)}
+    provider={agent.provider}
+    color={color ?? agentFaceColor(agent)}
+    size={small ? 'sm' : 'md'}
+  />
 )
 
 export const TabContextsList: React.FC<Props> = ({
@@ -113,13 +109,10 @@ export const TabContextsList: React.FC<Props> = ({
     const color = normalizeContextColor(context.color) ?? paletteColorForSeed(context.id)
     if (!agent) {
       return (
-        <span
-          className="tab-contexts__monogram"
-          style={{ '--tab-context-mono': color } as React.CSSProperties}
-          aria-hidden
-        >
-          {agentMonogram(context.name)}
-        </span>
+        <UiAgentFace
+          monogram={agentMonogram(context.name)}
+          color={color}
+        />
       )
     }
     return <AgentFace agent={agent} color={color} />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canDrainAgentQueue,
   canStartHumanTurnNow,
+  describeAgentQueueDrainBlock,
   isAgentHumanInputBlocked,
   isSystemFollowUpsPendingForPane,
   preferSendSlotIsSystemWork,
@@ -266,5 +267,59 @@ describe('threadScopedFlag', () => {
   it('legacy fallback keeps the pane-level flag', () => {
     expect(threadScopedFlag(true, ['t2'], 't1', true)).toBe(true)
     expect(threadScopedFlag(false, ['t1'], 't1', true)).toBe(false)
+  })
+})
+
+describe('describeAgentQueueDrainBlock', () => {
+  it('no reporta motivo cuando la cola puede drenar', () => {
+    expect(describeAgentQueueDrainBlock({ ...idleBase })).toBeNull()
+  })
+
+  it('nombra el gate que frena, en el mismo orden que el drenaje', () => {
+    expect(describeAgentQueueDrainBlock({ ...idleBase, loaded: false })).toBe('not_loaded')
+    expect(describeAgentQueueDrainBlock({ ...idleBase, busy: true })).toBe('busy')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      awaitingDelegations: true,
+    })).toBe('awaiting_delegations')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      awaitingDelegations: true,
+      orchestrationWorkStyle: 'turbo',
+      delegationWorkActive: true,
+    })).toBe('delegation_work_active')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      systemFollowUpsPending: true,
+    })).toBe('system_follow_ups_pending')
+  })
+
+  it('coincide siempre con canDrainAgentQueue', () => {
+    const flags = [false, true]
+    for (const loaded of flags) {
+      for (const busy of flags) {
+        for (const awaitingDelegations of flags) {
+          for (const delegationWorkActive of flags) {
+            for (const systemFollowUpsPending of flags) {
+              for (const headIsDelegation of flags) {
+                for (const workStyle of ['linear', 'turbo'] as const) {
+                  const state = {
+                    loaded,
+                    busy,
+                    awaitingDelegations,
+                    delegationWorkActive,
+                    systemFollowUpsPending,
+                    headIsDelegation,
+                    orchestrationWorkStyle: workStyle,
+                  }
+                  expect(canDrainAgentQueue(state))
+                    .toBe(describeAgentQueueDrainBlock(state) === null)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   })
 })

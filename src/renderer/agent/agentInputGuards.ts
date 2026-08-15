@@ -81,14 +81,36 @@ export function canStartHumanTurnNow(state: {
     && !state.systemFollowUpsPending
 }
 
+export type AgentQueueDrainBlockReason =
+  | 'not_loaded'
+  | 'busy'
+  | 'awaiting_delegations'
+  | 'delegation_work_active'
+  | 'system_follow_ups_pending'
+
+/**
+ * Qué gate frena la cola visible (null = drena). Mismo orden que
+ * `canDrainAgentQueue`, que se apoya en esta función para no divergir: cuando
+ * un chip se queda encolado con el pane idle, el motivo es lo único que
+ * distingue "la ola sigue abierta" de "hay trabajo de sistema atascado".
+ */
+export function describeAgentQueueDrainBlock(
+  state: AgentQueueDrainGuard,
+): AgentQueueDrainBlockReason | null {
+  if (!state.loaded) return 'not_loaded'
+  if (state.busy) return 'busy'
+  if (state.orchestrationWorkStyle !== 'turbo' && state.awaitingDelegations) {
+    return 'awaiting_delegations'
+  }
+  if (state.headIsDelegation !== true && state.delegationWorkActive) {
+    return 'delegation_work_active'
+  }
+  if (state.systemFollowUpsPending) return 'system_follow_ups_pending'
+  return null
+}
+
 export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
-  const delegationHoldOk = state.headIsDelegation === true || !state.delegationWorkActive
-  const awaitingOk = state.orchestrationWorkStyle === 'turbo' || !state.awaitingDelegations
-  return state.loaded
-    && !state.busy
-    && awaitingOk
-    && delegationHoldOk
-    && !state.systemFollowUpsPending
+  return describeAgentQueueDrainBlock(state) === null
 }
 
 /**

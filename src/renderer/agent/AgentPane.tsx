@@ -77,6 +77,7 @@ import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
 import {
   canDrainAgentQueue,
+  describeAgentQueueDrainBlock,
   canStartHumanTurnNow as computeCanStartHumanTurnNow,
   isAgentHumanInputBlocked,
   shouldShowComposerStop,
@@ -724,6 +725,8 @@ export const AgentPane: React.FC<Props> = ({
   const loggedQueueFullSendIdsRef = useRef(new Set<string>())
   /** Un warn por (envío, motivo) al descartar en cola (duplicate/full). */
   const loggedQueueSkipKeysRef = useRef(new Set<string>())
+  /** Un warn por (chip, gate) cuando la cola no drena con el pane idle. */
+  const loggedQueueBlockKeysRef = useRef(new Set<string>())
   const onPreferSendConsumedRef = useRef(onPreferSendConsumed)
   onPreferSendConsumedRef.current = onPreferSendConsumed
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
@@ -2923,17 +2926,41 @@ export const AgentPane: React.FC<Props> = ({
     const head = visibleQueuedTurns[0]
     const headIsDelegation = Boolean(head?.delegation)
     const headIsLaneDelegation = Boolean(head?.delegation?.threadId?.trim())
+    const drainGuard = {
+      loaded,
+      busy: busyForGate,
+      awaitingDelegations: awaitingDelegationsForGate,
+      delegationWorkActive: delegationWorkActiveForGate,
+      systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
+      headIsDelegation,
+      orchestrationWorkStyle,
+    }
     const queueReady = headIsLaneDelegation
       ? loaded && !(systemFollowUpsPending || preferSend != null)
-      : canDrainAgentQueue({
-        loaded,
-        busy: busyForGate,
-        awaitingDelegations: awaitingDelegationsForGate,
-        delegationWorkActive: delegationWorkActiveForGate,
-        systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
-        headIsDelegation,
-        orchestrationWorkStyle,
-      })
+      : canDrainAgentQueue(drainGuard)
+    // Chip parado con el pane idle: el usuario ve "en cola" sin nada corriendo.
+    // Una línea por (chip, motivo) dice qué gate lo frena — awaiting de la ola,
+    // hold de delegación o trabajo de sistema en App.
+    if (!queueReady && !busyForGate && head) {
+      const reason = headIsLaneDelegation
+        ? 'system_follow_ups_pending'
+        : describeAgentQueueDrainBlock(drainGuard)
+      const blockKey = `${head.id}:${reason}`
+      if (reason && !loggedQueueBlockKeysRef.current.has(blockKey)) {
+        loggedQueueBlockKeysRef.current.add(blockKey)
+        console.warn('[AgentPane] queue blocked while idle', {
+          paneId,
+          reason,
+          queuedTurnId: head.id,
+          orchestrationWorkStyle,
+          awaitingDelegations: awaitingDelegationsForGate,
+          delegationWorkActive: delegationWorkActiveForGate,
+          systemFollowUpsPending,
+          hasPreferSend: preferSend != null,
+          loaded,
+        })
+      }
+    }
     if (!queueReady || drainingRef.current) return
     const next = head
     if (!next) return

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.16
+
+- **Diagnóstico de cola atascada**: si un chip queda en cola con el pane idle, la consola muestra una vez por chip qué gate lo frena (ola abierta, delegación en curso o follow-ups de sistema).
+
 ## v0.61.15
 
 - **Dot en la mini sin hilos visibles**: cuando el especialista está busy pero aún no tiene carriles de hilo pintados (delegación asignada sin arrancar), la card mini vuelve a mostrar el dot de actividad en la esquina en lugar de quedar apagada.

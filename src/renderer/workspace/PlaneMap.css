@@ -130,9 +130,13 @@
   z-index: 3;
   pointer-events: none;
   overflow: visible;
+  perspective: 1200px;
+  perspective-origin: 50% 45%;
 }
 
+/* Sin perspectiva 3D con ventana expandida. */
 .plane-map--elevated .plane-map__stage {
+  perspective: none;
   isolation: isolate;
 }
 
@@ -140,7 +144,34 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  transform-style: preserve-3d;
+  transition: transform 300ms cubic-bezier(0.05, 0.9, 0.08, 1);
+  will-change: transform;
   z-index: 1;
+}
+
+.plane-map__column--terminals {
+  transform-origin: left center;
+}
+
+.plane-map__column--agents {
+  transform-origin: right center;
+}
+
+/* Ventana expandida: aplanar columnas y romper stacking context 3D. */
+.plane-map--elevated .plane-map__column {
+  transition: none;
+  transform: none !important;
+  transform-style: flat;
+  will-change: auto;
+  filter: none;
+  opacity: 1;
+  isolation: auto;
+  z-index: auto;
+}
+
+.plane-map--elevated .plane-map__column .pane-window {
+  transform-style: flat;
 }
 
 /* Minis inactivas detrás de la ventana abierta. */
@@ -169,6 +200,7 @@
 
 .plane-map__column .pane-window {
   pointer-events: auto;
+  transform-style: preserve-3d;
 }
 
 /* Terminales: sombra sutil a la izquierda (misma caja mini que agentes). */
@@ -315,8 +347,18 @@
   border-radius: inherit;
 }
 
-/* Reduce motion: sin transiciones de fade en minis. */
+/* Reduce motion: aplanar el tilt 3D (mismo tratamiento que --elevated). */
 html[data-reduce-motion="true"] {
+  .plane-map__stage {
+    perspective: none;
+  }
+
+  .plane-map__column {
+    transform: none !important;
+    transition: none;
+    will-change: auto;
+  }
+
   .pane-window--fading {
     transition: none;
   }

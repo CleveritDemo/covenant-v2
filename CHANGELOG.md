@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.26
+
+- **Tilt 3D del plano restaurado**: las columnas de terminales y agentes vuelven a inclinarse ±10° hacia el centro; se aplanan al abrir una ventana o reordenar minis. El fade y la escala por proximidad de la v0.61.0 se mantienen.
+
 ## v0.61.25
 
 - **Estilos de la app de vuelta**: la v0.61.24 arrancaba con la ventana en negro bajo la barra de pestañas — al extraer la poda de hilos de delegación se perdió el `import './styles/app.css'` de `App.tsx`, único punto de carga de la hoja del shell.

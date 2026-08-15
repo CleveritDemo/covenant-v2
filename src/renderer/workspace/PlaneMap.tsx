@@ -33,6 +33,10 @@ import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
 
+/** Columna 3D: borde hacia el centro más lejos/pequeño. */
+const COLUMN_TILT_DEG = 10
+const COLUMN_PERSPECTIVE_PX = 1200
+
 export interface PlaneMapEntity {
   paneId: string
   kind: PaneKind
@@ -824,6 +828,15 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentsInOrder],
   )
 
+  // Aplanar tilt solo al reordenar (pointer ↔ left/top) o con ventana expandida.
+  const flattenColumns = anyWindowOpen || reorderActive
+  const terminalsColumnTransform = flattenColumns
+    ? undefined
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
+  const agentsColumnTransform = flattenColumns
+    ? undefined
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-COLUMN_TILT_DEG}deg)`
+
   const renderEntity = (
     entity: PlaneMapEntity,
     column: 'terminal' | 'agent',
@@ -982,8 +995,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--terminals',
+                !flattenColumns ? 'plane-map__column--tilt' : '',
                 terminalOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
+              style={terminalsColumnTransform
+                ? { transform: terminalsColumnTransform }
+                : undefined}
             >
               {terminalsDom.map((entity, index) => renderEntity(entity, 'terminal', index))}
             </div>
@@ -993,7 +1010,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--agents',
-              ].join(' ')}
+                !flattenColumns ? 'plane-map__column--tilt' : '',
+              ].filter(Boolean).join(' ')}
+              style={agentsColumnTransform
+                ? { transform: agentsColumnTransform }
+                : undefined}
             >
               {agentsDom.map((entity, index) => renderEntity(entity, 'agent', index))}
             </div>

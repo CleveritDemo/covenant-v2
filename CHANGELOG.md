@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.11
+
+- **Partículas busy en el piso del plano**: el glow de actividad queda anclado abajo, entre la grilla y el ambiente, sin tapar minis ni composer.
+- **Quick chat sin conversación**: abrir un agente vacío ya no activa el chat flotante ni apaga la gravedad de reposo del plano.
+
 ## v0.61.10
 
 - **Tab org lista al crearla**: al abrir un workspace organizacional, agentes, contextos y wiki bajan en el acto sin tener que pulsar Sincronizar.

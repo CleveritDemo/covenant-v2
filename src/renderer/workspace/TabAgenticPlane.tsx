@@ -729,12 +729,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   }, [entities, openChatAgentId])
 
   // Agentes no expanden ventana; el chat del plano no compite con window.open.
-  const quickChatVisible = Boolean(
-    openChatAgentId
-    && quickChatStatus
-    && (quickChatStatus.busy || quickChatStatus.messages.length > 0)
-    && !terminalWindowOpen,
-  )
+  // Se monta con el agente abierto aunque no tenga conversación: PlaneQuickChat
+  // decide si hay algo que pintar y lo reporta por onShowingChange.
+  const quickChatMounted = Boolean(openChatAgentId && !terminalWindowOpen)
 
   const anyFullscreen = entities.some(
     entity => entity.window.open && entity.window.fullscreen,
@@ -984,7 +981,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         entities={entities}
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
-        chatTopFadeVisible={quickChatVisible}
+        chatTopFadeVisible={quickChatShowing}
         chatFloorGlowVisible={!anyFullscreen && !wikiMapOpen}
         chatFloorGlowWorking={composerWorking}
         tabActive={tabActive}
@@ -1139,7 +1136,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onRenameThread={title => onRenameThread(openChatAgentId, title)}
             />
           ) : null}
-          chat={quickChatVisible && openChatAgentId ? (
+          chat={quickChatMounted && openChatAgentId ? (
             <PlaneQuickChat
               key={openChatAgentId}
               messages={quickChatStatus?.messages ?? []}

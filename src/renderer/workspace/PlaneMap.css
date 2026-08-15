@@ -14,7 +14,7 @@
   z-index: calc(var(--plane-chat-stack-z, 200) + 2);
 }
 
-/* Piso: grilla + partículas al fondo del mapa, debajo del stage. */
+/* Piso: atmósfera → grilla → partículas busy → ambiente; debajo del stage. */
 .plane-map-backdrop {
   position: absolute;
   inset: 0;
@@ -40,13 +40,13 @@
   );
 }
 
-/* Partículas busy del piso, debajo del stage (sin capa de glow). */
+/* Partículas busy del piso: ancladas abajo, encima de la grilla. */
 .plane-map__floor-particles {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
   pointer-events: none;
 }

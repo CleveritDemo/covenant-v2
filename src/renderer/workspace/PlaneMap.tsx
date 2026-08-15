@@ -955,15 +955,18 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ].filter(Boolean).join(' ')}
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
-      <PlaneMapBackdrop />
-      {chatFloorGlowVisible && planeFloorAuroraActive(chatFloorGlowWorking, stageHidden) ? (
-        <div className="plane-map__floor-particles" aria-hidden="true">
-          <PlaneComposerAuroraParticles
-            active={planeFloorAuroraActive(chatFloorGlowWorking, stageHidden)}
-            tabActive={tabActive}
-          />
-        </div>
-      ) : null}
+      <PlaneMapBackdrop
+        floorParticles={
+          chatFloorGlowVisible && planeFloorAuroraActive(chatFloorGlowWorking, stageHidden) ? (
+            <div className="plane-map__floor-particles" aria-hidden="true">
+              <PlaneComposerAuroraParticles
+                active={planeFloorAuroraActive(chatFloorGlowWorking, stageHidden)}
+                tabActive={tabActive}
+              />
+            </div>
+          ) : null
+        }
+      />
       {chatTopFadeVisible ? (
         <div className="plane-map__chat-top-fade" aria-hidden="true" />
       ) : null}

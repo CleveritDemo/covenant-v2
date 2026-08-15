@@ -61,10 +61,23 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   const enteringSet = useMemo(() => new Set(enteringIds), [enteringIds])
   const materializingSet = useMemo(() => new Set(materializingIds), [materializingIds])
 
+  // Montado no es lo mismo que visible: el chat se monta con el agente abierto
+  // aunque su conversación esté vacía, y ahí no debe pintar nada ni apagar la
+  // gravedad de reposo del plano.
+  const hasContent = conversation.length > 0
+    || busy
+    || awaitingDelegations
+    || Boolean(orchestrationAwaiting)
+    || activity.trim() !== ''
+
   useEffect(() => {
+    if (!hasContent) {
+      onShowingChange?.(false)
+      return undefined
+    }
     onShowingChange?.(true)
     return () => { onShowingChange?.(false) }
-  }, [onShowingChange])
+  }, [onShowingChange, hasContent])
 
   const scrollToBottom = useCallback((): void => {
     bubblesRef.current?.scrollToEnd()
@@ -91,6 +104,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
       total: orchestrationAwaiting.total,
     })
     : t('agentPane.delegatingTitle')
+
+  if (!hasContent) return null
 
   return (
     <div

@@ -615,7 +615,7 @@ export const App: React.FC = () => {
    */
   const orchestrationJobsByPaneRef = useRef(new Map<string, Map<string, OrchestrationJob>>())
   /** Líneas de warning de delegate ya encoladas por job (dedupe L6). */
-  const delegateWarningsSeenByJobRef = useRef<Map<string, Set<string>>(new Map())
+  const delegateWarningsSeenByJobRef = useRef(new Map<string, Set<string>>())
   /** Job activo del próximo turno CLI (humano recién creado o follow-up ofrecido). */
   const activeOrchestrationJobByPaneRef = useRef(new Map<string, string>())
   const [orchestrationAwaitingByPane, setOrchestrationAwaitingByPane] = useState<

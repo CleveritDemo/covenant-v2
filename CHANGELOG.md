@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.5
+
+- **Fix crash en producción**: corrige `Constructor Map requires 'new'` causado por ambigüedad TSX en `useRef<Map<string, Set<string>>>` (`delegateWarningsSeenByJobRef`).
+
 ## v0.61.4
 
 - **Curador wiki**: cada respuesta abre páginas del mapa en modales vía `ia-terminal-wiki-view`; ya no basta con texto visible.

@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.3
+
+- **Sexto paso del onboarding sobre salas**: presenta las salas de brainstorming con un CTA que abre el alta de sala; el stepper nombra el paso actual y Omitir avisa que la guía se puede reabrir desde Ajustes.
+- **Confirmación al guardar sala como contexto**: pide nombre editable (sugerencia corta a partir del asunto), icono y color con el mismo selector del formulario de contextos, y muestra la ruta destino; antes escribía sin preguntar usando el asunto completo.
+- **Sync de workspaces org en paralelo**: las llamadas al servidor van con techo de 4 concurrentes en vez de una por una.
+- **Red de Covenant más resistente al cold start**: reintentos con espera en 502/503/504 y liberación garantizada del turno para que la app no se quede esperando indefinidamente.
+
 ## v0.62.2
 
 - **Aviso de errores internos sin repetición en la misma tanda**: mientras los fallos sigan llegando en racha, el aviso no vuelve a salir; solo puede reaparecer tras un periodo limpio sin errores.

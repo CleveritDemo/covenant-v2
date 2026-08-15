@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.1
+
+- Eliminado el envío de señales al process group (`kill(-pid)`), que podía alcanzar procesos ajenos al agente.
+- Se ignoran el propio proceso de la app y toda su cadena de ancestros al matar el árbol.
+- Antes de escalar a SIGKILL se revalida la identidad del proceso por pid + hora de arranque, para no matar un pid reciclado.
+
 ## v0.61.0
 
 - **Stop de verdad**: al detener un agente ahora también mueren los procesos que lanzó (servidores de desarrollo, apps, test runners); antes seguían corriendo solos y podían relanzar la app en bucle.

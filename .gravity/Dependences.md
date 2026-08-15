@@ -4,26 +4,33 @@
 <!-- iaterminal:auto -->
 {
   "name": "gravity",
-  "version": "0.1.0",
-  "description": "Terminal inteligente con IA, pestañas y temas",
+  "version": "0.60.1",
+  "description": "Terminal como orquestador de agentes de IA",
+  "author": "karluiz <karluiz@karluiz.com>",
   "main": "out/main/main.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "npm run build:mac-dictation && electron-vite dev",
     "build": "electron-vite build",
     "build:mac-icon": "bash scripts/generate-mac-icon.sh",
+    "build:mac-dictation": "bash scripts/build-mac-dictation.sh",
     "preview": "electron-vite preview",
-    "dist": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
-    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dmg --arm64",
-    "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build && electron-builder --mac dir --arm64",
+    "dist": "rm -rf dist && npm run build:mac-icon && npm run build:mac-dictation && npm run build && electron-builder --mac dir --arm64",
+    "dist:dmg": "rm -rf dist && npm run build:mac-icon && npm run build:mac-dictation && npm run build && electron-builder --mac dmg zip --arm64",
+    "dist:mac-release": "rm -rf dist && npm run build:mac-icon && npm run build:mac-dictation && npm run build && electron-builder --mac dmg zip --arm64 -c.mac.notarize=true",
+    "dist:dir": "rm -rf dist && npm run build:mac-icon && npm run build:mac-dictation && npm run build && electron-builder --mac dir --arm64",
     "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
+    "dist:linux": "rm -rf dist && npm run build && electron-builder --linux --x64",
+    "dist:win": "rm -rf dist && npm run build && electron-builder --win --x64",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
-    "check:ui": "node scripts/check-ui-contract.mjs",
+    "check:ui": "node scripts/check-ui-contract.mjs && node scripts/check-no-native-tooltips.mjs",
     "rebuild:native": "electron-rebuild -f -w node-pty",
-    "postinstall": "electron-rebuild -f -w node-pty"
+    "postinstall": "node node_modules/electron/install.js && electron-rebuild -f -w node-pty && npm run --silent hooks:install",
+    "hooks:install": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.2",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
@@ -34,6 +41,7 @@
     "@codemirror/lang-rust": "^6.0.2",
     "@codemirror/lang-yaml": "^6.1.3",
     "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.6",
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
@@ -43,32 +51,43 @@
     "@xterm/xterm": "^5.5.0",
     "cross-spawn": "^7.0.6",
     "dotenv": "^16.6.1",
+    "electron-updater": "^6.8.9",
     "i18next": "^26.2.0",
+    "mammoth": "^1.12.0",
     "node-pty": "^1.0.0",
     "react-i18next": "^17.0.8",
-    "typescript": "^5.9.3"
+    "three": "^0.185.1",
+    "typescript": "^5.9.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.0",
+    "@electron/rebuild": "^4.2.0",
     "@tanstack/react-virtual": "^3.14.2",
     "@testing-library/react": "^16.3.2",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.9.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^4.3.3",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "jsdom": "^26.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "vite": "^5.4.11",
+    "vite": "^6.4.3",
     "vitest": "^3.2.6"
   },
   "build": {
     "appId": "com.covenant.gravity",
     "productName": "Covenant Gravity",
+    "publish": {
+      "provider": "github",
+      "owner": "CleveritDemo",
+      "repo": "covenant-v2",
+      "releaseType": "release"
+    },
     "directories": {
       "buildResources": "build"
     },
@@ -76,32 +95,75 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Gravity necesita el micrófono para el dictado por voz (push-to-talk) en el composer de agentes.",
+        "NSSpeechRecognitionUsageDescription": "Gravity usa el reconocimiento de voz del sistema (SFSpeechRecognizer) para convertir tu dictado en texto en el composer."
+      },
+      "extraResources": [
+        {
+          "from": "native/mac-dictation/gravity-mac-dictation",
+          "to": "gravity-mac-dictation"
+        }
+      ],
+      "artifactName": "Covenant-Gravity-${version}-${arch}-mac.${ext}",
       "target": [
         {
-          "target": "dir",
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64"
           ]
         }
       ]
     },
-    "win": {
+    "linux": {
       "icon": "build/icon.png",
+      "category": "Development",
       "target": [
         {
-          "target": "portable",
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+      "artifactName": "Covenant-Gravity-${version}-${arch}.${ext}"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Covenant-Gravity-${version}-setup-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "Covenant-Gravity-${version}-setup-${arch}.${ext}"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
     },
     "dmg": {
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "Covenant-Gravity-${version}-${arch}.${ext}"
     },
     "files": [
       "out/**/*",
@@ -111,7 +173,8 @@
       "node_modules/node-pty/**/*"
     ],
     "nativeRebuilder": "sequential",
-    "npmRebuild": true
+    "npmRebuild": true,
+    "electronDist": "node_modules/electron/dist"
   }
 }
 <!-- /iaterminal:auto -->

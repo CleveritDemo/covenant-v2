@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.8
+
+- Las tarjetas de resultado de delegación se leen al mismo tamaño que el resto del chat y acompañan el tamaño de letra elegido en Ajustes.
+- Plegar un mensaje largo con 'Ver menos' ya no salta ni carga mensajes viejos de golpe: la burbuja se queda donde está.
+
 ## v0.61.7
 
 - El modal de contexto ya no invita a descartar: 'Guardar contexto' es el botón principal y 'Descartar' queda como secundario.

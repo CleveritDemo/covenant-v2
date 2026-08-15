@@ -134,9 +134,8 @@
   perspective-origin: 50% 45%;
 }
 
-/* Sin perspectiva 3D con ventana abierta o quick chat. */
-.plane-map--elevated .plane-map__stage,
-.plane-map--chat-open .plane-map__stage {
+/* Sin perspectiva 3D con ventana expandida. */
+.plane-map--elevated .plane-map__stage {
   perspective: none;
   isolation: isolate;
 }
@@ -159,9 +158,8 @@
   transform-origin: right center;
 }
 
-/* Elevated / chat abierto: aplanar columnas y romper stacking context 3D. */
-.plane-map--elevated .plane-map__column,
-.plane-map--chat-open .plane-map__column {
+/* Ventana expandida: aplanar columnas y romper stacking context 3D. */
+.plane-map--elevated .plane-map__column {
   transition: none;
   transform: none !important;
   transform-style: flat;
@@ -172,8 +170,7 @@
   z-index: auto;
 }
 
-.plane-map--elevated .plane-map__column .pane-window,
-.plane-map--chat-open .plane-map__column .pane-window {
+.plane-map--elevated .plane-map__column .pane-window {
   transform-style: flat;
 }
 

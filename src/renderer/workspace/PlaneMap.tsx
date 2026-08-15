@@ -748,8 +748,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentsInOrder],
   )
 
-  // Aplanar tilt mientras se reordena para alinear pointer ↔ left/top.
-  const flattenColumns = anyWindowOpen || reorderActive || Boolean(chatActiveAgentId)
+  // Aplanar tilt solo al reordenar (pointer ↔ left/top) o con ventana expandida.
+  const flattenColumns = anyWindowOpen || reorderActive
   const terminalsColumnTransform = flattenColumns
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`

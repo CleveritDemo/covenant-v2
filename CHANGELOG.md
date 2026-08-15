@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.60.1
+
+- **Fix mapa 3D con chat abierto**: las columnas vuelven a inclinarse al abrir conversación; el aplanado queda solo al expandir una ventana o reordenar minis.
+
 ## v0.60.0
 
 - **Barra de herramientas del plano**: explorer, git, loops, pulse, brainstorm, wiki y finder pasan a un rail vertical glass a la izquierda; carpeta, subir y resync siguen arriba.

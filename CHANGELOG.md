@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.13
+
+- **Composer alineado**: los botones de sketch y micrófono se centran contra el campo de texto, no contra el carril de agentes que va encima.
+- **Sin punto suelto en la barra de hilos**: los dots de conversaciones en segundo plano ahora van pegados al chip activo; con un solo hilo corriendo ya no queda un punto flotando en la esquina.
+
 ## v0.61.12
 
 - Las filas de especialistas del editor de delegación muestran la cara del agente: monograma con su color de identidad y la marca del CLI que usa.

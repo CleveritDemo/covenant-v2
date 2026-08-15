@@ -4,7 +4,6 @@ import { useT } from '@i18n/useT'
 import type { AgentThread } from '@shared/agentThreads'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from './PlaneBusyDot'
-import { PlaneChatThreadBusyDots } from './PlaneChatThreadBusyDots'
 import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
 import './PlaneChatComposer.css'
 import './PlaneChatContextsBar.css'
@@ -69,6 +68,21 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       awaitingDelegationThreadIds,
     )
     : null
+  // El chip activo ya pinta su dot: aquí solo van los hilos que corren en
+  // segundo plano, pegados al chip (no sueltos en la esquina de la barra).
+  const otherRunningDots = runningThreadIds
+    .filter(threadId => threadId !== activeThreadId)
+    .map(threadId => ({
+      threadId,
+      variant: resolveThreadChipActivityDot(
+        threadId,
+        activeThreadId,
+        awaitingDelegations,
+        runningThreadIds,
+        paneCliBusy,
+        awaitingDelegationThreadIds,
+      ) ?? 'busy',
+    }))
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
   const threadChipRef = useRef<HTMLButtonElement>(null)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
@@ -92,14 +106,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-contexts-bar__stack">
-        <PlaneChatThreadBusyDots
-          runningThreadIds={runningThreadIds}
-          activeThreadId={activeThreadId}
-          awaitingDelegations={awaitingDelegations}
-          awaitingDelegationThreadIds={awaitingDelegationThreadIds}
-          paneCliBusy={paneCliBusy}
-          ariaLabel={t('agentPane.threadBusyDotsAria', { count: runningThreadIds.length })}
-        />
         {showThreads && activeThread ? (
           <div
             className="plane-chat-contexts-bar__chips"
@@ -166,6 +172,19 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                 ) : null}
               </div>
             )}
+            {otherRunningDots.length > 0 ? (
+              <span
+                className="plane-chat-contexts-bar__other-dots"
+                role="status"
+                aria-label={t('agentPane.threadBusyDotsAria', {
+                  count: otherRunningDots.length,
+                })}
+              >
+                {otherRunningDots.map(dot => (
+                  <PlaneBusyDot key={dot.threadId} size="sm" variant={dot.variant} />
+                ))}
+              </span>
+            ) : null}
             <PlaneChatThreadHistoryButton
               panelId={threadPanelId}
               triggerRef={threadChipRef}

@@ -1,9 +1,0 @@
-.plane-chat-thread-busy-dots {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
-  min-height: 22px;
-  padding: 1px 0;
-  pointer-events: none;
-}

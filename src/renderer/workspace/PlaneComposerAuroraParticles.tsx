@@ -20,7 +20,7 @@ type Particle = {
 
 const COLOR_VARS = ['--accent', '--theme-cyan', '--theme-magenta', '--theme-blue'] as const
 const FIELD_HEIGHT = 160
-const MAX_PARTICLES = 42
+const MAX_PARTICLES = 55
 const SPAWN_INTERVAL_MS = 56
 /** Margen inferior para que el radio no se recorte en el borde del canvas. */
 const SPAWN_BOTTOM_MARGIN = 16

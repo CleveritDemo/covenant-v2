@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { Tooltip } from '../components/ui/Tooltip'
 import { PlaneChatSendButton, type PlaneChatSendMode } from './PlaneChatSendButton'
 import './PlaneChatComposer.css'
 
@@ -24,6 +25,8 @@ export interface PlaneChatComposerShellProps {
   sendDisabled?: boolean
   listening?: boolean
   disabled?: boolean
+  /** Tooltip sobre el campo cuando `disabled` (p. ej. hay agentes sin selección). */
+  disabledHint?: string
   recalling?: boolean
   onSendClick: () => void
   onMicStart?: () => void
@@ -63,6 +66,7 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
   sendDisabled = false,
   listening = false,
   disabled = false,
+  disabledHint,
   recalling = false,
   onSendClick,
   onMicStart,
@@ -85,47 +89,53 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
     if (el) resizeComposerTextarea(el)
   }, [value, textareaRef])
 
+  const field = (
+    <span className="plane-chat-composer__field">
+      <div
+        className={[
+          'plane-chat-composer__input-shell',
+          recalling ? 'plane-chat-composer__input-shell--recalling' : '',
+        ].filter(Boolean).join(' ')}
+      >
+        <textarea
+          ref={textareaRef as React.Ref<HTMLTextAreaElement>}
+          className={`plane-chat-composer__input${recalling ? ' plane-chat-composer__input--recalling' : ''}`}
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          aria-label={inputLabel}
+          rows={1}
+          onChange={event => {
+            onChange(event.target.value)
+            onInputChange?.(event.target)
+          }}
+          onSelect={event => onInputSelect?.(event.currentTarget)}
+          onPaste={onPaste}
+          onKeyDown={event => {
+            // Con resultados visibles, `JiraMentionPicker` intercepta
+            // ArrowUp/Down/Enter/Escape en captura y hace stopPropagation —
+            // este handler ni los ve. Sin resultados, Enter/Escape siguen.
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              onSendClick()
+              return
+            }
+            onExtraKeyDown?.(event)
+          }}
+        />
+        {inputOverlay}
+        {shellAside}
+      </div>
+      {fieldAside}
+    </span>
+  )
+
   return (
     <div className="plane-chat-composer__row" data-plane-composer-shell="">
       {leading}
-      <span className="plane-chat-composer__field">
-        <div
-          className={[
-            'plane-chat-composer__input-shell',
-            recalling ? 'plane-chat-composer__input-shell--recalling' : '',
-          ].filter(Boolean).join(' ')}
-        >
-          <textarea
-            ref={textareaRef as React.Ref<HTMLTextAreaElement>}
-            className={`plane-chat-composer__input${recalling ? ' plane-chat-composer__input--recalling' : ''}`}
-            value={value}
-            disabled={disabled}
-            placeholder={placeholder}
-            aria-label={inputLabel}
-            rows={1}
-            onChange={event => {
-              onChange(event.target.value)
-              onInputChange?.(event.target)
-            }}
-            onSelect={event => onInputSelect?.(event.currentTarget)}
-            onPaste={onPaste}
-            onKeyDown={event => {
-              // Con resultados visibles, `JiraMentionPicker` intercepta
-              // ArrowUp/Down/Enter/Escape en captura y hace stopPropagation —
-              // este handler ni los ve. Sin resultados, Enter/Escape siguen.
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                onSendClick()
-                return
-              }
-              onExtraKeyDown?.(event)
-            }}
-          />
-          {inputOverlay}
-          {shellAside}
-        </div>
-        {fieldAside}
-      </span>
+      {disabled && disabledHint ? (
+        <Tooltip content={disabledHint}>{field}</Tooltip>
+      ) : field}
       <PlaneChatSendButton
         mode={sendMode}
         label={sendLabel}

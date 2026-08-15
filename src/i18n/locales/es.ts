@@ -1014,6 +1014,7 @@ const es = {
     planeComposerContextsLabel: '{{n}} contexto(s) adjunto(s) a este turno',
     planeComposerContextRemove: 'Quitar «{{name}}» de este turno',
     planeComposerContextDropHint: 'Suelta para adjuntarlo a este turno',
+    planeComposerSelectAgent: 'Selecciona un agente para comenzar',
     planeCloseChat: 'Cerrar chat',
     planeRepoGitTitle: 'Abrir panel Git de {{name}}',
     planeReposRefresh: 'Actualizar lista de repos',

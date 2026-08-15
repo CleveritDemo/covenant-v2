@@ -1012,6 +1012,7 @@ const en = {
     planeComposerContextsLabel: '{{n}} context(s) attached to this turn',
     planeComposerContextRemove: 'Remove «{{name}}» from this turn',
     planeComposerContextDropHint: 'Drop to attach it to this turn',
+    planeComposerSelectAgent: 'Select an agent to get started',
     planeCloseChat: 'Close chat',
     planeRepoGitTitle: 'Open Git panel for {{name}}',
     planeReposRefresh: 'Refresh repo list',

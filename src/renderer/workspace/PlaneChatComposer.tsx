@@ -181,6 +181,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   draftRef.current = { text: draft, images: pendingImages, contextIds: pendingContextIds }
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
+  const noAgentSelected = agents.length > 0 && !selected
   const busy = Boolean(selected?.busy)
   const awaitingDelegations = Boolean(selected?.awaitingDelegations)
   const delegationWorkActive = Boolean(selected?.delegationWorkActive)
@@ -355,10 +356,11 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
    */
   const handleDragOver = useCallback((event: React.DragEvent): void => {
     if (!hasPlaneContextDrag(event.dataTransfer)) return
+    if (noAgentSelected) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
     setDropActive(true)
-  }, [])
+  }, [noAgentSelected])
 
   const handleDragLeave = useCallback((event: React.DragEvent): void => {
     // Solo al salir del composer entero, no al cruzar entre sus hijos.
@@ -368,6 +370,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const handleDrop = useCallback((event: React.DragEvent): void => {
     if (!hasPlaneContextDrag(event.dataTransfer)) return
+    if (noAgentSelected) return
     event.preventDefault()
     setDropActive(false)
     const id = readPlaneContextDragData(event.dataTransfer)
@@ -375,7 +378,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     setPendingContextIds(previous => (
       previous.includes(id) ? previous : [...previous, id]
     ))
-  }, [contexts])
+  }, [contexts, noAgentSelected])
 
   const submit = useCallback((overrideText?: string): void => {
     const text = (overrideText ?? draft).trim()
@@ -618,11 +621,13 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           placeholder={
             agents.length === 0
               ? emptyAgentsHint
-              : turboAwaitingOpen
-                ? t('agentPane.turboAwaitingPlaceholder')
-                : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
-                  ? t('agentPane.queuePlaceholder')
-                  : placeholder
+              : noAgentSelected
+                ? t('tabs.planeComposerSelectAgent')
+                : turboAwaitingOpen
+                  ? t('agentPane.turboAwaitingPlaceholder')
+                  : busy || awaitingDelegations || delegationWorkActive || orchestratorBusy
+                    ? t('agentPane.queuePlaceholder')
+                    : placeholder
           }
           inputLabel={sendLabel}
           sendLabel={
@@ -635,7 +640,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           sendMode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
           sendDisabled={!buttonIsStop && !micMode && !canSend}
           listening={listening}
-          disabled={agents.length === 0}
+          disabled={agents.length === 0 || noAgentSelected}
+          disabledHint={noAgentSelected ? t('tabs.planeComposerSelectAgent') : undefined}
           recalling={historyIndex !== null}
           onSendClick={handleSendClick}
           onMicStart={startDictation}
@@ -648,7 +654,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           leading={(
             <PlaneSketchButton
               label={t('sketch.open')}
-              disabled={agents.length === 0 || pendingImages.length >= MAX_PENDING_IMAGES}
+              disabled={agents.length === 0 || noAgentSelected || pendingImages.length >= MAX_PENDING_IMAGES}
               onClick={() => setSketchOpen(true)}
             />
           )}

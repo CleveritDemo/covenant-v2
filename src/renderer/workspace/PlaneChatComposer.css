@@ -381,6 +381,12 @@
   display: flex;
 }
 
+/* Tooltip sobre campo disabled: el wrapper debe heredar el flex del field. */
+.plane-chat-composer__row > .ui-tooltip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Superficie del campo: fondo/borde/blur viven aquí; el textarea queda limpio. */
 .plane-chat-composer__input-shell {
   display: flex;

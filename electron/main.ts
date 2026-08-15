@@ -2553,7 +2553,10 @@ let fatalStorm: FatalStormState = { timestamps: [], reported: false }
 
 /**
  * Registrar el fallo evita que el proceso muera, pero seguir con un main roto
- * tampoco sirve: si los errores se amontonan, se avisa una sola vez.
+ * tampoco sirve: si los errores se amontonan, se avisa una sola vez por
+ * tormenta. El aviso no se repite mientras los fallos sigan llegando dentro de
+ * la ventana; solo vuelve a poder mostrarse cuando pasa una ventana entera sin
+ * fallos. La decisión vive en noteFatalFailure (src/shared/mainFailureStorm.ts).
  */
 function noteMainProcessFailure(label: string, value: unknown): void {
   const storm = noteFatalFailure(fatalStorm, Date.now())

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.2
+
+- **Aviso de errores internos sin repetición en la misma tanda**: mientras los fallos sigan llegando en racha, el aviso no vuelve a salir; solo puede reaparecer tras un periodo limpio sin errores.
+
 ## v0.62.1
 
 - **Aviso de tormenta de errores repetible**: si la app se recupera tras acumular fallos internos y una hora después vuelve a acumularlos, el aviso puede mostrarse de nuevo (antes solo avisaba una vez por arranque).

@@ -79,4 +79,42 @@ describe('noteFatalFailure', () => {
     expect(input.timestamps).toEqual(copy)
     expect(input.reported).toBe(false)
   })
+
+  it('fallos continuos con ventana rodante no repiten el aviso', () => {
+    let state: FatalStormState = { timestamps: [], reported: false }
+    const base = 200_000
+    const gap = 1_000
+    for (let i = 0; i < FATAL_STORM_THRESHOLD; i++) {
+      const r = noteFatalFailure(state, base + i * gap)
+      state = r.state
+      if (i === FATAL_STORM_THRESHOLD - 1) expect(r.shouldWarn).toBe(true)
+    }
+    for (let j = 1; j <= 60; j++) {
+      const r = noteFatalFailure(state, base + (FATAL_STORM_THRESHOLD + j - 1) * gap)
+      state = r.state
+      expect(r.shouldWarn).toBe(false)
+      expect(r.state.reported).toBe(true)
+    }
+    expect(state.timestamps.length).toBeGreaterThanOrEqual(FATAL_STORM_THRESHOLD)
+  })
+
+  it('goteo justo por debajo de la ventana no resetea el aviso', () => {
+    let state: FatalStormState = { timestamps: [], reported: false }
+    const base = 300_000
+    const gap = 1_000
+    for (let i = 0; i < FATAL_STORM_THRESHOLD; i++) {
+      const r = noteFatalFailure(state, base + i * gap)
+      state = r.state
+      if (i === FATAL_STORM_THRESHOLD - 1) expect(r.shouldWarn).toBe(true)
+    }
+    let now = base + (FATAL_STORM_THRESHOLD - 1) * gap
+    for (let k = 0; k < 5; k++) {
+      now += FATAL_STORM_WINDOW_MS - 1
+      const r = noteFatalFailure(state, now)
+      state = r.state
+      expect(r.shouldWarn).toBe(false)
+      expect(r.state.reported).toBe(true)
+      expect(r.state.timestamps).toHaveLength(2)
+    }
+  })
 })

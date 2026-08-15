@@ -184,6 +184,7 @@ import {
   purgeFifoBySendId,
 } from '@shared/planeHumanSendFifo'
 import {
+  describeOrchestrationFifoSkip,
   isSystemFollowUpsPendingForPane,
   preferSendSlotIsSystemWork,
   shouldPromoteHumanSendToVisibleQueue,
@@ -604,6 +605,8 @@ export const App: React.FC = () => {
     orchestrationJobId?: string
     delegation?: PlaneSendDelegation
   }>>())
+  /** Un warn por (pane, motivo) mientras la FIFO de orquestación no se ofrece. */
+  const loggedOrchestrationSkipKeysRef = useRef(new Set<string>())
   const humanDirectDrainInFlightRef = useRef(new Set<string>())
   const humanSendFifoByPaneRef = useRef(new Map<string, Array<{
     text: string
@@ -5084,11 +5087,33 @@ export const App: React.FC = () => {
     const queues = orchestrationFifoByPaneRef.current
     const pendingIds = pendingOrchestratorIdsFromJobs(orchestrationJobsByPaneRef.current)
     for (const paneId of [...queues.keys()]) {
-      if (planeSendByPane[paneId]) continue
       const status = agentPlaneStatus[paneId]
-      if (status?.busy) continue
-      const visibleQueued = status?.queuedTurns?.length ?? 0
-      if (visibleQueued >= MAX_VISIBLE_QUEUED_TURNS) continue
+      const skipReason = describeOrchestrationFifoSkip({
+        hasPreferSendSlot: Boolean(planeSendByPane[paneId]),
+        paneBusy: status?.busy === true,
+        visibleQueued: status?.queuedTurns?.length ?? 0,
+        maxVisibleQueued: MAX_VISIBLE_QUEUED_TURNS,
+        headIsLaneDelegation: Boolean(
+          queues.get(paneId)?.[0]?.delegation?.threadId?.trim(),
+        ),
+      })
+      if (skipReason) {
+        // Un warn por (pane, motivo): la subtarea sigue "en curso" en Pulse
+        // mientras espera aquí, y sin esta línea no se ve quién la retiene.
+        const skipKey = `${paneId}:${skipReason}`
+        if (!loggedOrchestrationSkipKeysRef.current.has(skipKey)) {
+          loggedOrchestrationSkipKeysRef.current.add(skipKey)
+          console.warn('[orchestration] FIFO retenida', {
+            paneId,
+            reason: skipReason,
+            queued: queues.get(paneId)?.length ?? 0,
+          })
+        }
+        continue
+      }
+      loggedOrchestrationSkipKeysRef.current.delete(`${paneId}:prefer_send_slot_busy`)
+      loggedOrchestrationSkipKeysRef.current.delete(`${paneId}:pane_busy`)
+      loggedOrchestrationSkipKeysRef.current.delete(`${paneId}:visible_queue_full`)
       const queue = queues.get(paneId)
       if (!queue?.length) {
         queues.delete(paneId)

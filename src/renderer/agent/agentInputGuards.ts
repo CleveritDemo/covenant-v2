@@ -113,6 +113,39 @@ export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
   return describeAgentQueueDrainBlock(state) === null
 }
 
+export type OrchestrationFifoSkipReason =
+  | 'prefer_send_slot_busy'
+  | 'pane_busy'
+  | 'visible_queue_full'
+
+export interface OrchestrationFifoOfferState {
+  /** El pane ya tiene un envío ofrecido sin consumir (slot único). */
+  hasPreferSendSlot: boolean
+  /** Turno del hilo visible en curso. */
+  paneBusy: boolean
+  visibleQueued: number
+  maxVisibleQueued: number
+  /**
+   * La cabeza de la FIFO es una delegación con hilo propio. Esas no compiten
+   * con el turno visible —el pane las arranca en su carril aunque esté busy—,
+   * así que ni `paneBusy` ni la cola visible deben retenerlas: hacerlo
+   * serializaba las olas detrás del turno abierto del especialista y dejaba las
+   * subtareas en "en curso" sin que nadie las ejecutara.
+   */
+  headIsLaneDelegation: boolean
+}
+
+/** Por qué la FIFO de orquestación no se ofrece a este pane (null = se ofrece). */
+export function describeOrchestrationFifoSkip(
+  state: OrchestrationFifoOfferState,
+): OrchestrationFifoSkipReason | null {
+  if (state.hasPreferSendSlot) return 'prefer_send_slot_busy'
+  if (state.headIsLaneDelegation) return null
+  if (state.paneBusy) return 'pane_busy'
+  if (state.visibleQueued >= state.maxVisibleQueued) return 'visible_queue_full'
+  return null
+}
+
 /**
  * Stop rojo del composer: turno propio (busy) o target seleccionado
  * de una delegación en el plano. awaitingDelegations NO cuenta: el

@@ -3,6 +3,7 @@ import {
   canDrainAgentQueue,
   canStartHumanTurnNow,
   describeAgentQueueDrainBlock,
+  describeOrchestrationFifoSkip,
   isAgentHumanInputBlocked,
   isSystemFollowUpsPendingForPane,
   preferSendSlotIsSystemWork,
@@ -321,5 +322,46 @@ describe('describeAgentQueueDrainBlock', () => {
         }
       }
     }
+  })
+})
+
+describe('describeOrchestrationFifoSkip', () => {
+  const base = {
+    hasPreferSendSlot: false,
+    paneBusy: false,
+    visibleQueued: 0,
+    maxVisibleQueued: 10,
+    headIsLaneDelegation: false,
+  }
+
+  it('ofrece el envío a un pane idle con el slot libre', () => {
+    expect(describeOrchestrationFifoSkip({ ...base })).toBeNull()
+  })
+
+  it('respeta el slot único de preferSend, también para carriles', () => {
+    expect(describeOrchestrationFifoSkip({ ...base, hasPreferSendSlot: true }))
+      .toBe('prefer_send_slot_busy')
+    expect(describeOrchestrationFifoSkip({
+      ...base,
+      hasPreferSendSlot: true,
+      headIsLaneDelegation: true,
+    })).toBe('prefer_send_slot_busy')
+  })
+
+  it('retiene follow-ups mientras el hilo visible trabaja', () => {
+    expect(describeOrchestrationFifoSkip({ ...base, paneBusy: true })).toBe('pane_busy')
+    expect(describeOrchestrationFifoSkip({ ...base, visibleQueued: 10 }))
+      .toBe('visible_queue_full')
+  })
+
+  it('entrega la delegación con hilo propio aunque el pane esté ocupado', () => {
+    // Sin esto la subtarea se quedaba en la FIFO detrás del turno visible del
+    // especialista: Pulse la pintaba "en curso" y nunca arrancaba.
+    expect(describeOrchestrationFifoSkip({
+      ...base,
+      paneBusy: true,
+      visibleQueued: 10,
+      headIsLaneDelegation: true,
+    })).toBeNull()
   })
 })

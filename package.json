@@ -1,6 +1,6 @@
 {
   "name": "gravity",
-  "version": "0.61.16",
+  "version": "0.61.17",
   "description": "Terminal como orquestador de agentes de IA",
   "author": "karluiz <karluiz@karluiz.com>",
   "main": "out/main/main.js",

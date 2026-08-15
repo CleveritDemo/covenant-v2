@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.24
+
+- **Stop total limpia hilos de delegación**: al parar la orquestación con el botón rojo, los carriles de subtarea en especialistas se podan con la misma lógica que al cerrar la ola.
+- **Dots de hilos en segundo plano en el composer**: conversaciones corriendo fuera del chip activo aparecen a la izquierda con tooltip y clic para abrir.
+- **Abortadas incluidas al cerrar ola**: las delegaciones canceladas dejan su `toThreadId` en `completedResults` y se eliminan junto al resto cuando termina la ola.
+
 ## v0.61.23
 
 - **Alcance de sincronización elegible**: al resincronizar un workspace organizacional se pregunta si bajar contextos y agentes o solo contextos; eligiendo solo contextos, los agentes locales quedan intactos.

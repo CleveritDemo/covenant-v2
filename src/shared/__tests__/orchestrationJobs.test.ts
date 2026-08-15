@@ -8,6 +8,7 @@ import {
   abortOrchestrationJob,
   cancelDeferredDelegationsForStoppedPane,
   canReconcileIdlePending,
+  collectDelegationThreadIdsByPaneFromJob,
   createOrchestrationJob,
   decideJobForTurn,
   dedupeDelegateResultsById,
@@ -558,6 +559,37 @@ describe('decideJobForTurn', () => {
     })
     expect(decision).toEqual({ kind: 'fresh', staleJobId: 'job-missing' })
     expect(decision).not.toEqual({ kind: 'existing', jobId: 'job-missing' })
+  })
+})
+
+describe('collectDelegationThreadIdsByPaneFromJob', () => {
+  it('incluye pending, waveItems y completedResults abortados para podar al cerrar la ola', () => {
+    const job = createOrchestrationJob('orch', 'job-a')
+    job.pending.set('d-run', {
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+      toThreadId: 'thread-run',
+    })
+    job.waveItems.push({
+      delegationId: 'd-run',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-fe',
+      toThreadId: 'thread-run',
+      status: 'running',
+    })
+    job.completedResults.push({
+      id: 'd-abort',
+      status: 'aborted',
+      summary: 'cancelled',
+      fromPaneId: 'orch',
+      orchestrationJobId: 'job-a',
+      toPaneId: 'pane-be',
+      toThreadId: 'thread-abort',
+    })
+
+    const byPane = collectDelegationThreadIdsByPaneFromJob(job)
+    expect(byPane.get('pane-fe')).toEqual(['thread-run'])
+    expect(byPane.get('pane-be')).toEqual(['thread-abort'])
   })
 })
 

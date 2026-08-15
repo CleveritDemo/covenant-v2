@@ -1122,6 +1122,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
               runningThreadIds={openChatRunningThreadIds}
+              runningThreadActivities={quickChatStatus?.runningThreadActivities}
               awaitingDelegations={Boolean(quickChatStatus?.awaitingDelegations)}
               awaitingDelegationThreadIds={quickChatStatus?.awaitingDelegationThreadIds}
               paneCliBusy={Boolean(quickChatStatus?.busy)}

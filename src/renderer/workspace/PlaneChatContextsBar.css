@@ -30,15 +30,6 @@
   display: none;
 }
 
-/* Hilos corriendo en segundo plano: dots junto al chip activo. */
-.plane-chat-contexts-bar__other-dots {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 4px;
-  pointer-events: none;
-}
-
 .plane-chat-contexts-bar__chip-host {
   display: inline-flex;
   align-items: center;

@@ -231,6 +231,28 @@ export interface AbortedDelegationTarget {
 }
 
 /**
+ * Hilos de delegación del job, por pane destino.
+ * Incluye pending, waveItems y completedResults para podar tras cierre o abort.
+ */
+export function collectDelegationThreadIdsByPaneFromJob(
+  job: OrchestrationJob,
+): Map<string, string[]> {
+  const byPane = new Map<string, string[]>()
+  const add = (rawPaneId?: string, rawThreadId?: string): void => {
+    const paneId = rawPaneId?.trim()
+    const threadId = rawThreadId?.trim()
+    if (!paneId || !threadId) return
+    const list = byPane.get(paneId) ?? []
+    if (!list.includes(threadId)) list.push(threadId)
+    byPane.set(paneId, list)
+  }
+  for (const meta of job.pending.values()) add(meta.toPaneId, meta.toThreadId)
+  for (const item of job.waveItems) add(item.toPaneId, item.toThreadId)
+  for (const result of job.completedResults) add(result.toPaneId, result.toThreadId)
+  return byPane
+}
+
+/**
  * Cierra un solo job: vacía pending/deferred y devuelve destinos que quedaban vivos.
  * No toca otros jobs del mismo orquestador.
  */

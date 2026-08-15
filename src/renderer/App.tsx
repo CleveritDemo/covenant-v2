@@ -239,7 +239,7 @@ import {
   type AgentChatRef,
   type AgentChatScope,
 } from '../shared/agentChatPersistence'
-import './styles/app.css'
+import { pruneDelegationThreadsForJob } from './delegationThreadPrune'
 
 import {
   type AgentCliProvider,
@@ -267,7 +267,6 @@ import {
 } from '../shared/projectAgentCatalog'
 import {
   DEFAULT_THREAD_ID,
-  pruneCompletedDelegationThreads,
   renameThread,
   resolvePreferredHumanThreadId,
   sanitizeThreadState,
@@ -365,93 +364,6 @@ function liveLaneThreadIdsForPane(
     }
   }
   return ids
-}
-
-/**
- * Hilos de delegación del job, por pane destino.
- *
- * Lee `waveItems` **y** `completedResults`: al cerrarse el último pending,
- * `syncAwaitingFromPending` vacía `waveItems` antes de que el wake llegue a
- * podar, así que quedarse solo con la ola dejaba los hilos de delegación vivos
- * para siempre en el catálogo del especialista. Con el tope de 20 por pane eso
- * termina expulsando las conversaciones humanas.
- */
-function delegationThreadIdsByPaneFromJob(
-  job: OrchestrationJob,
-): Map<string, string[]> {
-  const byPane = new Map<string, string[]>()
-  const add = (rawPaneId?: string, rawThreadId?: string): void => {
-    const paneId = rawPaneId?.trim()
-    const threadId = rawThreadId?.trim()
-    if (!paneId || !threadId) return
-    const list = byPane.get(paneId) ?? []
-    if (!list.includes(threadId)) list.push(threadId)
-    byPane.set(paneId, list)
-  }
-  for (const item of job.waveItems) add(item.toPaneId, item.toThreadId)
-  for (const result of job.completedResults) add(result.toPaneId, result.toThreadId)
-  return byPane
-}
-
-function pruneDelegationThreadsForCompletedJob(
-  tabs: TabSession[],
-  job: OrchestrationJob,
-): { tabs: TabSession[]; chatDeletes: Array<{ ref: AgentChatRef; threadId: string }> } {
-  const byPane = delegationThreadIdsByPaneFromJob(job)
-  if (byPane.size === 0) return { tabs, chatDeletes: [] }
-
-  const chatDeletes: Array<{ ref: AgentChatRef; threadId: string }> = []
-  const now = Date.now()
-  let changed = false
-  const nextTabs = tabs.map(tab => {
-    const agentByPane = { ...(tab.agentByPane ?? {}) }
-    let tabChanged = false
-    for (const [paneId, threadIds] of byPane) {
-      if (!tab.paneIds.includes(paneId)) continue
-      const binding = agentByPane[paneId]
-      if (!binding) continue
-      const { state, deletedIds } = pruneCompletedDelegationThreads(
-        threadStateOf(binding),
-        threadIds,
-        crypto.randomUUID(),
-        now,
-      )
-      if (deletedIds.length === 0) continue
-      const patched = threadPatch(state)
-      const { cliSessionId: _legacySession, ...bindingRest } = binding
-      agentByPane[paneId] = {
-        ...bindingRest,
-        threads: patched.threads,
-        activeThreadId: patched.activeThreadId,
-        ...(patched.cliSessionId ? { cliSessionId: patched.cliSessionId } : {}),
-      }
-      tabChanged = true
-      const chatRef = agentChatRefFor(
-        {
-          ...(tab.projectFolder?.trim()
-            ? { projectFolder: tab.projectFolder.trim() }
-            : {}),
-          ...(tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace.workspaceId?.trim()
-            ? {
-                orgWorkspace: {
-                  slug: tab.orgWorkspace.slug.trim(),
-                  workspaceId: tab.orgWorkspace.workspaceId.trim(),
-                },
-              }
-            : {}),
-        },
-        binding.agentId,
-        paneId,
-      )
-      for (const deletedId of deletedIds) {
-        chatDeletes.push({ ref: chatRef, threadId: deletedId })
-      }
-    }
-    if (!tabChanged) return tab
-    changed = true
-    return { ...tab, agentByPane }
-  })
-  return { tabs: changed ? nextTabs : tabs, chatDeletes }
 }
 
 export const App: React.FC = () => {
@@ -4520,7 +4432,7 @@ export const App: React.FC = () => {
   }, [enqueueOrchestrationSend, syncAwaitingFromPending])
 
   const applyPruneDelegationThreadsForCompletedJob = useCallback((job: OrchestrationJob) => {
-    const { tabs: nextTabs, chatDeletes } = pruneDelegationThreadsForCompletedJob(
+    const { tabs: nextTabs, chatDeletes } = pruneDelegationThreadsForJob(
       tabsRef.current,
       job,
     )
@@ -4963,6 +4875,9 @@ export const App: React.FC = () => {
     const jobsMap = orchestrationJobsByPaneRef.current.get(fromPaneId)
     const abortedTargets: Array<{ toPaneId: string; toThreadId?: string }> = []
     if (jobsMap) {
+      for (const job of jobsMap.values()) {
+        applyPruneDelegationThreadsForCompletedJob(job)
+      }
       for (const jobId of [...jobsMap.keys()]) {
         const { abortedTargets: jobTargets } = abortOrchestrationJob(jobsMap, jobId)
         abortedTargets.push(...jobTargets)
@@ -5005,7 +4920,7 @@ export const App: React.FC = () => {
     }
     // QA fix: no dejar worktrees/ramas huérfanos de este orquestador al abortar.
     void cleanupWorktreesForPane(fromPaneId)
-  }, [cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending, wakeDeferredForFreedPane])
+  }, [applyPruneDelegationThreadsForCompletedJob, cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending, wakeDeferredForFreedPane])
   abortOrchestrationRunRef.current = abortOrchestrationRun
 
   /**
@@ -5082,6 +4997,9 @@ export const App: React.FC = () => {
     if (abort.wasPending || abort.wasDeferred) {
       const fromPaneIdForResult = runtimeEntry?.fromPaneId?.trim() || fromPaneId
       const orchestrationJobId = job.jobId
+      const abortedThreadId = pendingMeta?.toThreadId?.trim()
+        || runtimeEntry?.toThreadId?.trim()
+        || ''
       if (!fromPaneIdForResult || !orchestrationJobId) {
         console.warn('[orchestration] delegation abort result omitted', {
           reason: 'missing_sender',
@@ -5096,7 +5014,7 @@ export const App: React.FC = () => {
           orchestrationJobId,
           ...(abort.toAgentId ? { toAgentId: abort.toAgentId } : {}),
           ...(toPaneId ? { toPaneId } : {}),
-          ...(pendingMeta?.toThreadId ? { toThreadId: pendingMeta.toThreadId } : {}),
+          ...(abortedThreadId ? { toThreadId: abortedThreadId } : {}),
         })
       }
     }

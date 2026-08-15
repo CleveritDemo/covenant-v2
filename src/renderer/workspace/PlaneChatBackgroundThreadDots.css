@@ -1,0 +1,48 @@
+.plane-chat-background-thread-dots {
+  grid-column: 1;
+  justify-self: start;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 1px 0;
+}
+
+.plane-chat-background-thread-dots::-webkit-scrollbar {
+  display: none;
+}
+
+.plane-chat-background-thread-dots__dot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.plane-chat-background-thread-dots__dot:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.plane-chat-background-thread-dots__dot:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.plane-chat-background-thread-dots__dot:disabled {
+  cursor: default;
+  opacity: 0.72;
+}

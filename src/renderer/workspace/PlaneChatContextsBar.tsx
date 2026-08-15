@@ -4,6 +4,7 @@ import { useT } from '@i18n/useT'
 import type { AgentThread } from '@shared/agentThreads'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneChatBackgroundThreadDots } from './PlaneChatBackgroundThreadDots'
 import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
 import './PlaneChatComposer.css'
 import './PlaneChatContextsBar.css'
@@ -15,6 +16,8 @@ export interface PlaneChatContextsBarProps {
   activeThreadId?: string
   /** Hilos con turno activo: marcan la opción con punto luminoso en el panel. */
   runningThreadIds?: readonly string[]
+  /** Petición del usuario por hilo en curso (tooltip de dots de fondo). */
+  runningThreadActivities?: Readonly<Record<string, string>>
   /** Orquestador esperando especialistas: dot delegating en el chip activo. */
   awaitingDelegations?: boolean
   /** Hilos con ola abierta; si está presente, delegating solo en estos chips. */
@@ -45,6 +48,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   threads = [],
   activeThreadId = '',
   runningThreadIds = [],
+  runningThreadActivities = {},
   awaitingDelegations = false,
   awaitingDelegationThreadIds,
   paneCliBusy = false,
@@ -68,9 +72,8 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       awaitingDelegationThreadIds,
     )
     : null
-  // El chip activo ya pinta su dot: aquí solo van los hilos que corren en
-  // segundo plano, pegados al chip (no sueltos en la esquina de la barra).
-  const otherRunningDots = runningThreadIds
+  const threadTitleById = new Map(threads.map(thread => [thread.id, thread.title]))
+  const backgroundDots = runningThreadIds
     .filter(threadId => threadId !== activeThreadId)
     .map(threadId => ({
       threadId,
@@ -82,6 +85,8 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
         paneCliBusy,
         awaitingDelegationThreadIds,
       ) ?? 'busy',
+      title: threadTitleById.get(threadId) ?? '',
+      activity: runningThreadActivities[threadId] ?? '',
     }))
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
   const threadChipRef = useRef<HTMLButtonElement>(null)
@@ -106,6 +111,13 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-contexts-bar__stack">
+        {backgroundDots.length > 0 && onSelectThread ? (
+          <PlaneChatBackgroundThreadDots
+            dots={backgroundDots}
+            selectionLocked={threadSelectionLocked}
+            onSelectThread={onSelectThread}
+          />
+        ) : null}
         {showThreads && activeThread ? (
           <div
             className="plane-chat-contexts-bar__chips"
@@ -172,19 +184,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                 ) : null}
               </div>
             )}
-            {otherRunningDots.length > 0 ? (
-              <span
-                className="plane-chat-contexts-bar__other-dots"
-                role="status"
-                aria-label={t('agentPane.threadBusyDotsAria', {
-                  count: otherRunningDots.length,
-                })}
-              >
-                {otherRunningDots.map(dot => (
-                  <PlaneBusyDot key={dot.threadId} size="sm" variant={dot.variant} />
-                ))}
-              </span>
-            ) : null}
             <PlaneChatThreadHistoryButton
               panelId={threadPanelId}
               triggerRef={threadChipRef}

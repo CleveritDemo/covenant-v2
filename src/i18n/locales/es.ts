@@ -233,6 +233,8 @@ const es = {
     threadsLabel: 'Conversaciones',
     threadUntitled: 'Conversación nueva',
     threadBusyDotsAria: '{{count}} otras conversaciones en ejecución',
+    threadBackgroundDotHint: 'Clic para abrir',
+    threadBackgroundDotAria: '{{title}} · {{activity}}',
     threadNew: 'Conversación nueva',
     threadNewHint: 'Abre un hilo aparte. El actual queda guardado y se puede retomar.',
     threadHistory: 'Historial',

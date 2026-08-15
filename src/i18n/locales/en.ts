@@ -231,6 +231,8 @@ const en = {
     threadsLabel: 'Conversations',
     threadUntitled: 'New conversation',
     threadBusyDotsAria: '{{count}} other conversations running',
+    threadBackgroundDotHint: 'Click to open',
+    threadBackgroundDotAria: '{{title}} · {{activity}}',
     threadNew: 'New conversation',
     threadNewHint: 'Start a separate thread. The current one is kept and can be resumed.',
     threadHistory: 'History',

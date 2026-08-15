@@ -560,11 +560,13 @@ export const TabContextFormModal: React.FC<Props> = ({
       footer={(
         <>
           {isDirty && <small className="tab-contexts__dirty">{t('tabContexts.unsavedHint')}</small>}
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" size="sm" onClick={onClose}>
             {t('tabContexts.discard')}
           </Button>
           {draft.kind !== 'agentResult' && (
             <Button
+              variant="primary"
+              size="sm"
               disabled={saveDisabled}
               onClick={() => { void save() }}
             >

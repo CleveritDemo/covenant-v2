@@ -155,6 +155,8 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
     isLongBubbleContent(message.content)
   const collapsed = canCollapse && !expanded
   const pinBottomAfterExpandRef = useRef(false)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const collapseAnchorRef = useRef<{ rowTop: number; scrollTop: number } | null>(null)
 
   // Sin animación de zoom: liberar flags al montar (animationEnd ya no corre).
   useEffect(() => {
@@ -168,9 +170,17 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   }, [materializing, message.id, onMaterializingAnimationEnd])
 
   useLayoutEffect(() => {
+    const el = scrollRef?.current
+    const anchor = collapseAnchorRef.current
+    if (anchor) {
+      collapseAnchorRef.current = null
+      if (el && rowRef.current) {
+        el.scrollTop = anchor.scrollTop + (rowRef.current.getBoundingClientRect().top - anchor.rowTop)
+      }
+      return
+    }
     if (!pinBottomAfterExpandRef.current) return
     pinBottomAfterExpandRef.current = false
-    const el = scrollRef?.current
     if (el) scrollAiMessagesToBottom(el, true)
   }, [expanded, scrollRef])
 
@@ -179,11 +189,18 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
     if (!expanded && el && isAiMessagesNearBottom(el)) {
       pinBottomAfterExpandRef.current = true
     }
+    if (expanded && el && rowRef.current) {
+      collapseAnchorRef.current = {
+        rowTop: rowRef.current.getBoundingClientRect().top,
+        scrollTop: el.scrollTop,
+      }
+    }
     onToggleExpand(message.id)
   }
 
   return (
     <div
+      ref={rowRef}
       className={[
         'agent-pane__row',
         `agent-pane__row--${message.role}`,
@@ -325,6 +342,8 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   const loadingEarlierRef = useRef(false)
   /** Evita que el trim del jump-to-end dispare load-earlier (scrollTop≈0). */
   const jumpToEndRef = useRef(false)
+  /** Toggle de colapso en curso: no reabrir historial mientras el alto cambia. */
+  const togglingCollapseRef = useRef(false)
   const pendingScrollAdjustRef = useRef<{ prevHeight: number; prevTop: number } | null>(null)
   const mountedRef = useRef(true)
   visibleCountRef.current = visibleCount
@@ -359,7 +378,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   const visibleRows = hiddenCount > 0 ? rows.slice(hiddenCount) : rows
 
   const loadEarlierBatch = useCallback((): void => {
-    if (jumpToEndRef.current || loadingEarlierRef.current) return
+    if (jumpToEndRef.current || togglingCollapseRef.current || loadingEarlierRef.current) return
     const el = scrollRef?.current
     const hidden = rowsLengthRef.current - visibleCountRef.current
     if (!el || hidden <= 0) return
@@ -389,7 +408,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   useLayoutEffect(() => {
     const el = scrollRef?.current
     if (!el) return
-    if (jumpToEndRef.current) return
+    if (jumpToEndRef.current || togglingCollapseRef.current) return
     if (rows.length <= visibleCount) return
     if (el.scrollHeight > el.clientHeight + 1) return
     // Solo auto-rellenar si el usuario está arriba (leyendo historial), no en la cola.
@@ -402,7 +421,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     if (!el) return
 
     const onScroll = (): void => {
-      if (jumpToEndRef.current) return
+      if (jumpToEndRef.current || togglingCollapseRef.current) return
       if (el.scrollTop > LOAD_EARLIER_TOP_PX) return
       // Sin overflow, scrollTop es 0 y estamos “abajo”: no reabrir el historial.
       if (isAiMessagesNearBottom(el)) return
@@ -438,11 +457,18 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
   useImperativeHandle(ref, () => ({ scrollToEnd }), [scrollToEnd])
 
   const onToggleExpand = useCallback((id: string): void => {
+    togglingCollapseRef.current = true
     setExpandedIds(current => {
       const next = new Set(current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
+    })
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!mountedRef.current) return
+        togglingCollapseRef.current = false
+      })
     })
   }, [])
 

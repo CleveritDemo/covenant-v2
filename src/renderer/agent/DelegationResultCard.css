@@ -18,12 +18,16 @@
 }
 
 .delegation-card__agent {
-  font: 600 12px var(--font-ui);
+  font-weight: 600;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
+  font-family: var(--font-ui);
   color: var(--text);
 }
 
 .delegation-card__status {
-  font: 500 10px var(--font-mono);
+  font-weight: 500;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
+  font-family: var(--font-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -33,12 +37,14 @@
 .delegation-card--fail .delegation-card__status { color: var(--danger); }
 
 .delegation-card__meta {
-  font: 400 10.5px var(--font-mono);
+  font-weight: 400;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.8);
+  font-family: var(--font-mono);
   color: var(--text-muted);
 }
 
 .delegation-card__summary {
-  font-size: 13px;
+  font-size: var(--agent-chat-font-size, 13px);
   color: var(--text);
   /* Un SHA o una ruta no se parten a la mitad: la tabla scrollea dentro de la
      tarjeta antes que romper el token (y su fondo de código) en dos líneas. */
@@ -58,7 +64,9 @@
   padding: 8px 0 0;
   border-top: 1px solid var(--border);
   list-style: none;
-  font: 400 11.5px var(--font-mono);
+  font-weight: 400;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.88);
+  font-family: var(--font-mono);
   color: var(--text-muted);
   overflow-x: auto;
 }

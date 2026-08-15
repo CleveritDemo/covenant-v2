@@ -251,6 +251,22 @@ describe('preferSendSlotIsSystemWork', () => {
       orchestrationWorkStyle: 'linear',
     })).toBe(true)
   })
+
+  it('un slot humano tampoco frena la cola visible de un pane idle', () => {
+    // El deadlock: con la cola llena el pane rechazaba el slot humano sin
+    // consumirlo, y ese mismo slot impedía drenar los chips que la llenaban.
+    const humanSlot = { text: 'hola' } as { delegation?: unknown }
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      systemFollowUpsPending: preferSendSlotIsSystemWork(humanSlot),
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(true)
+    expect(canDrainAgentQueue({
+      ...idleBase,
+      systemFollowUpsPending: preferSendSlotIsSystemWork({ orchestrationFollowUp: true }),
+      orchestrationWorkStyle: 'turbo',
+    })).toBe(false)
+  })
 })
 
 describe('threadScopedFlag', () => {

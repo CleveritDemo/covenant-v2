@@ -741,10 +741,14 @@ export const App: React.FC = () => {
    * latido el pending envejecido no se revisaría nunca.
    */
   useEffect(() => {
-    if (awaitingDelegationPaneIds.size === 0) return
+    // También con la ola ya cerrada: un pending huérfano sin nadie awaiting
+    // mantiene `delegationWorkActive` en su target y le congela la cola humana
+    // (el chip se queda "en cola" con el pane idle). Ahí el latido es la única
+    // salida, porque ese pane tampoco vuelve a publicar estado.
+    if (awaitingDelegationPaneIds.size === 0 && delegationTargetPaneIds.size === 0) return
     const timer = window.setInterval(() => { syncAwaitingFromPending() }, 15_000)
     return () => window.clearInterval(timer)
-  }, [awaitingDelegationPaneIds, syncAwaitingFromPending])
+  }, [awaitingDelegationPaneIds, delegationTargetPaneIds, syncAwaitingFromPending])
 
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)

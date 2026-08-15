@@ -78,6 +78,7 @@ import { QueuedTurnEditModal } from './QueuedTurnEditModal'
 import {
   canDrainAgentQueue,
   describeAgentQueueDrainBlock,
+  preferSendSlotIsSystemWork,
   canStartHumanTurnNow as computeCanStartHumanTurnNow,
   isAgentHumanInputBlocked,
   shouldShowComposerStop,
@@ -2926,17 +2927,22 @@ export const AgentPane: React.FC<Props> = ({
     const head = visibleQueuedTurns[0]
     const headIsDelegation = Boolean(head?.delegation)
     const headIsLaneDelegation = Boolean(head?.delegation?.threadId?.trim())
+    // Un preferSend HUMANO no es trabajo de sistema: es un envío posterior a
+    // estos chips (App promueve en orden), y contarlo aquí frenaba la cola
+    // contra su propio siguiente mensaje — con la cola llena el pane ni lo
+    // aceptaba ni lo soltaba, y los chips se quedaban parados con el pane idle.
+    const systemWorkPending = systemFollowUpsPending || preferSendSlotIsSystemWork(preferSend)
     const drainGuard = {
       loaded,
       busy: busyForGate,
       awaitingDelegations: awaitingDelegationsForGate,
       delegationWorkActive: delegationWorkActiveForGate,
-      systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
+      systemFollowUpsPending: systemWorkPending,
       headIsDelegation,
       orchestrationWorkStyle,
     }
     const queueReady = headIsLaneDelegation
-      ? loaded && !(systemFollowUpsPending || preferSend != null)
+      ? loaded && !systemWorkPending
       : canDrainAgentQueue(drainGuard)
     // Chip parado con el pane idle: el usuario ve "en cola" sin nada corriendo.
     // Una línea por (chip, motivo) dice qué gate lo frena — awaiting de la ola,
@@ -2957,6 +2963,7 @@ export const AgentPane: React.FC<Props> = ({
           delegationWorkActive: delegationWorkActiveForGate,
           systemFollowUpsPending,
           hasPreferSend: preferSend != null,
+          preferSendIsSystemWork: preferSendSlotIsSystemWork(preferSend),
           loaded,
         })
       }

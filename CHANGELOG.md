@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.18
+
+- **Cola humana sin deadlock con preferSend**: un envío humano ofrecido ya no bloquea el drenaje de chips en cola; solo el trabajo de sistema (delegaciones y follow-ups) lo retiene.
+- **Reconcile en especialistas huérfanos**: el latido de 15s sigue activo mientras un target tenga pending huérfano aunque la ola del orquestador ya cerró, liberando colas congeladas.
+
 ## v0.61.17
 
 - **Delegaciones en carril sin bloqueo**: las subtareas con hilo propio ya no quedan retenidas detrás del turno visible del especialista; arrancan aunque el pane esté ocupado o la cola visible esté llena.

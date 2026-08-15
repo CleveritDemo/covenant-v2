@@ -2,6 +2,7 @@ import React from 'react'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
 import { Gravity } from './Gravity'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
 import './AgentDelegatingIndicator.css'
 
@@ -56,7 +57,7 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
                 ].join(' ')}
               >
                 {item.status === 'running' ? (
-                  <PlaneBusyDot size="sm" />
+                  <PlaneBusyDot size="sm" variant="delegating" />
                 ) : (
                   <span className="agent-delegating__dot" aria-hidden="true" />
                 )}

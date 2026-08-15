@@ -3,6 +3,7 @@ import type { AgentChatEntry } from '@shared/agentCliTypes'
 import {
   collectRunningThreadActivities,
   collectRunningThreadIds,
+  computeBusyForGate,
   lastUserPromptFromMessages,
   mergePaneReportedRunningThreadIds,
 } from '../AgentPane'
@@ -45,6 +46,38 @@ describe('collectRunningThreadIds', () => {
       messages: [user, assistant],
     })
     expect(collectRunningThreadIds(lanes, 'human-active', true)).toEqual(['human-active'])
+  })
+})
+
+describe('computeBusyForGate', () => {
+  it('is false when only a background thread is running', () => {
+    const lanes = startLane(new Map(), {
+      threadId: 'human-bg',
+      delegationId: '',
+      assistantId: 'a1',
+      messages: [user, assistant],
+    })
+    const running = collectRunningThreadIds(lanes, 'human-active', false)
+    expect(running).toEqual(['human-bg'])
+    expect(computeBusyForGate(false, running, 'human-active')).toBe(false)
+    expect(computeBusyForGate(true, running, 'human-active')).toBe(false)
+  })
+
+  it('is true when the active thread is running', () => {
+    expect(computeBusyForGate(true, ['human-active'], 'human-active')).toBe(true)
+    expect(computeBusyForGate(true, [], 'human-active')).toBe(true)
+    const lanes = startLane(new Map(), {
+      threadId: 'human-active',
+      delegationId: '',
+      assistantId: 'a1',
+      messages: [user, assistant],
+    })
+    const running = collectRunningThreadIds(lanes, 'human-active', true)
+    expect(computeBusyForGate(true, running, 'human-active')).toBe(true)
+  })
+
+  it('is false when pane is idle', () => {
+    expect(computeBusyForGate(false, ['human-bg'], 'human-active')).toBe(false)
   })
 })
 

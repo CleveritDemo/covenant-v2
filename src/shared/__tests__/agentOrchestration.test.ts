@@ -3,6 +3,7 @@ import {
   buildOrchestratorAgentsBlock,
   buildOrchestratorTurboWorkStyleBlock,
   buildBatchedDelegationFollowUp,
+  buildDelegateWarningFollowUp,
   coordinationCanDelegate,
   formatDelegationResultFollowUp,
   formatDelegationRoundCapFollowUp,
@@ -22,6 +23,9 @@ import {
   orchestrationFollowUpKey,
   orchestrationRoundsAtCap,
   parseDelegatePayload,
+  parseDelegatePayloadDetailed,
+  formatDelegateParseIssues,
+  MAX_DELEGATIONS_PER_TURN,
   resolveOrchestrationMaxRounds,
   sanitizeAgentCoordination,
   sanitizeDelegateRequest,
@@ -204,6 +208,62 @@ describe('parseDelegatePayload', () => {
     ])).toEqual([
       expect.objectContaining({ toAgentId: 'qa', objective: 'Go' }),
     ])
+  })
+})
+
+describe('parseDelegatePayloadDetailed', () => {
+  it('parses valid JSON without issues', () => {
+    const { delegations, issues } = parseDelegatePayloadDetailed({
+      delegations: [{ toAgentId: 'qa', objective: 'Run tests' }],
+    })
+    expect(delegations).toHaveLength(1)
+    expect(delegations[0]).toMatchObject({ toAgentId: 'qa', objective: 'Run tests' })
+    expect(issues).toEqual([])
+  })
+
+  it('reports unknown_shape for unrecognized object keys', () => {
+    const { delegations, issues } = parseDelegatePayloadDetailed({
+      foo: 'bar',
+      baz: 1,
+    })
+    expect(delegations).toEqual([])
+    expect(issues).toEqual([
+      { reason: 'unknown_shape', detail: 'foo, baz' },
+    ])
+  })
+
+  it('reports invalid_item when toAgentId is missing', () => {
+    const { delegations, issues } = parseDelegatePayloadDetailed({
+      delegations: [{ objective: 'no agent' }],
+    })
+    expect(delegations).toEqual([])
+    expect(issues).toEqual([{ reason: 'invalid_item', count: 1 }])
+  })
+
+  it('reports truncated when list exceeds MAX_DELEGATIONS_PER_TURN', () => {
+    const items = Array.from({ length: 7 }, (_, i) => ({
+      toAgentId: `agent-${i}`,
+      objective: `task ${i}`,
+    }))
+    const { delegations, issues } = parseDelegatePayloadDetailed({ delegations: items })
+    expect(delegations).toHaveLength(MAX_DELEGATIONS_PER_TURN)
+    expect(issues).toEqual([{ reason: 'truncated', count: 2 }])
+  })
+})
+
+describe('formatDelegateParseIssues', () => {
+  it('returns one English line per issue', () => {
+    const lines = formatDelegateParseIssues([
+      { reason: 'invalid_json', detail: 'Unexpected token' },
+      { reason: 'unknown_shape', detail: 'foo, bar' },
+      { reason: 'invalid_item', count: 2 },
+      { reason: 'truncated', count: 3 },
+    ])
+    expect(lines).toHaveLength(4)
+    expect(lines[0]).toContain('invalid JSON (Unexpected token)')
+    expect(lines[1]).toContain('unrecognized shape (top-level keys: foo, bar)')
+    expect(lines[2]).toContain('2 delegation item(s) were dropped')
+    expect(lines[3]).toContain(`3 delegation(s) over the ${MAX_DELEGATIONS_PER_TURN} per-turn cap`)
   })
 })
 
@@ -435,5 +495,25 @@ describe('formatDelegationRoundCapFollowUp', () => {
     const text = formatDelegationRoundCapFollowUp(3)
     expect(text).toContain('3/3')
     expect(text).toContain('Do NOT emit')
+  })
+})
+
+describe('buildDelegateWarningFollowUp', () => {
+  it('formats non-empty lines into a warning block with closing guidance', () => {
+    const text = buildDelegateWarningFollowUp([
+      'Invalid JSON in delegate fence',
+      'Delegation 6 discarded (max 5 per turn)',
+    ])
+    expect(text).toContain('## Delegation fence problem')
+    expect(text).toContain('Your last ```ia-terminal-delegate``` block was not fully dispatched:')
+    expect(text).toContain('- Invalid JSON in delegate fence')
+    expect(text).toContain('- Delegation 6 discarded (max 5 per turn)')
+    expect(text).toContain('Re-emit the affected delegations as one valid JSON block if you still need them.')
+    expect(text).toContain('Do not repeat delegations that already dispatched.')
+  })
+
+  it('returns empty string for empty or whitespace-only lines', () => {
+    expect(buildDelegateWarningFollowUp([])).toBe('')
+    expect(buildDelegateWarningFollowUp(['', '   ', '\t'])).toBe('')
   })
 })

@@ -4,6 +4,7 @@ import { useT } from '@i18n/useT'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
 import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 
 interface TabItemProps {
   tab: TabSession
@@ -13,6 +14,7 @@ interface TabItemProps {
   isDragOver: boolean
   dragOverPlace: 'before' | 'after' | null
   isBusy: boolean
+  activityDot?: PlaneActivityDotKind | null
   isEditing: boolean
   /** Si false, el título no es editable (workspace org sin permiso). */
   titleEditable?: boolean
@@ -39,6 +41,7 @@ export const TabItem: React.FC<TabItemProps> = ({
   isDragOver,
   dragOverPlace,
   isBusy,
+  activityDot = null,
   isEditing,
   titleEditable = true,
   editDraft,
@@ -125,7 +128,7 @@ export const TabItem: React.FC<TabItemProps> = ({
     >
       {isBusy ? (
         <span className="tab-busy" aria-label={t('tabs.spinnerAriaLabel')}>
-          <PlaneBusyDot />
+          <PlaneBusyDot variant={activityDot ?? 'busy'} />
         </span>
       ) : (
         <span className="tab-icon" aria-hidden="true">

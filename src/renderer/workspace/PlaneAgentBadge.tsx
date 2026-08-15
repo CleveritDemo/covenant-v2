@@ -1,20 +1,22 @@
 import React, { useRef } from 'react'
 import { PlaneBusyDot } from './PlaneBusyDot'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import './PlaneAgentBadge.css'
 import './PlaneChatActive.css'
 
 export interface PlaneAgentBadgeProps {
   name: string
   selected?: boolean
-  busy?: boolean
+  /** Dot de actividad: busy (CLI) o delegating (ola). */
+  activityDot?: PlaneActivityDotKind | null
   onSelect: () => void
 }
 
-/** Badge: selected = borde accent; busy = dot multicolor del tema. */
+/** Badge: selected = borde accent; activityDot = presencia en el plano. */
 export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
   name,
   selected = false,
-  busy = false,
+  activityDot = null,
   onSelect,
 }) => {
   const tapRef = useRef<{ x: number; y: number; pointerId: number } | null>(null)
@@ -25,7 +27,7 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
     className={[
       'plane-agent-badge',
       selected ? 'plane-agent-badge--selected plane-chat-active' : '',
-      busy ? 'plane-agent-badge--busy' : '',
+      activityDot ? 'plane-agent-badge--busy' : '',
     ].filter(Boolean).join(' ')}
     aria-label={name}
     aria-pressed={selected}
@@ -52,7 +54,9 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
     onPointerCancel={() => { tapRef.current = null }}
   >
     <span className="plane-agent-badge__name">{name}</span>
-    {busy ? <PlaneBusyDot /> : null}
+    {activityDot ? (
+      <PlaneBusyDot variant={activityDot} />
+    ) : null}
   </button>
   )
 }

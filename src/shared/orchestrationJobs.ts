@@ -7,6 +7,10 @@
 import type { DelegateRequest, DelegateResult, OrchestrationWorkStyle } from './agentOrchestration'
 import { orchestrationRoundsAtCap, resolveOrchestrationWorkStyle } from './agentOrchestration'
 import type { OrchestrationAwaitingItemInput } from './orchestrationAwaiting'
+import {
+  getDelegationRuntime,
+  type DelegationRuntimeRegistry,
+} from './delegationRuntimeRegistry'
 
 export type {
   OrchestrationWorkStyle,
@@ -63,6 +67,8 @@ export interface OrchestrationPendingMerge {
 export interface OrchestrationJob {
   jobId: string
   fromPaneId: string
+  /** Hilo del orquestador que abrió este job (linear / turbo). */
+  fromThreadId?: string
   /** Oleadas de este job (mensaje humano raíz + redelegaciones). */
   round: number
   pending: Map<string, OrchestrationJobPendingMeta>
@@ -76,6 +82,44 @@ export interface OrchestrationJob {
    * Completions tardías no deben encolar follow-up de Delegation.
    */
   superseded?: boolean
+  /**
+   * Identifica la delegación padre cuando este job lo emitió un orquestador que
+   * corre dentro de un carril (subtarea con threadId).
+   */
+  parentDelegationId?: string
+}
+
+/** Delegación de carril para encolar follow-ups al hilo del orquestador padre. */
+export type LaneDelegationForJob = {
+  id: string
+  fromPaneId: string
+  toAgentId: string
+  orchestrationJobId: string
+  threadId: string
+}
+
+/**
+ * Resuelve la delegación de carril padre para un follow-up al orquestador.
+ * Devuelve undefined si el job no corre en carril o el registry no coincide.
+ */
+export function laneDelegationForJob(
+  job: Pick<OrchestrationJob, 'parentDelegationId' | 'fromPaneId'>,
+  registry: DelegationRuntimeRegistry,
+): LaneDelegationForJob | undefined {
+  const parentId = job.parentDelegationId?.trim()
+  if (!parentId) return undefined
+  const entry = getDelegationRuntime(registry, parentId)
+  if (!entry) return undefined
+  if (entry.toPaneId !== job.fromPaneId) return undefined
+  const threadId = entry.toThreadId?.trim()
+  if (!threadId) return undefined
+  return {
+    id: entry.delegationId,
+    fromPaneId: entry.fromPaneId,
+    toAgentId: entry.toAgentId,
+    orchestrationJobId: entry.jobId,
+    threadId,
+  }
 }
 
 function newJobId(): string {
@@ -101,10 +145,13 @@ export function dedupeDelegateResultsById(
 export function createOrchestrationJob(
   fromPaneId: string,
   jobId?: string,
+  fromThreadId?: string,
 ): OrchestrationJob {
+  const trimmedThreadId = fromThreadId?.trim()
   return {
     jobId: jobId?.trim() || newJobId(),
     fromPaneId,
+    ...(trimmedThreadId ? { fromThreadId: trimmedThreadId } : {}),
     round: 0,
     pending: new Map(),
     deferred: [],
@@ -353,6 +400,60 @@ export function upsertOrchestrationWaveItem(
   job.waveItems.push(next)
 }
 
+/** Hilos del orquestador con job awaiting, agrupados por pane (sin duplicar ids). */
+export function awaitingOrchestratorThreadIdsByPane(
+  byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const [paneId, jobs] of byPane.entries()) {
+    for (const job of jobs.values()) {
+      if (!isJobAwaiting(job)) continue
+      const fromThreadId = job.fromThreadId?.trim()
+      if (!fromThreadId) continue
+      const existing = out.get(paneId)
+      if (existing) {
+        if (!existing.includes(fromThreadId)) existing.push(fromThreadId)
+      } else {
+        out.set(paneId, [fromThreadId])
+      }
+    }
+  }
+  return out
+}
+
+/** Panes con job awaiting sin fromThreadId (fallback pane-level en el gate). */
+export function orchestratorAwaitingHasLegacyByPane(
+  byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+): Set<string> {
+  const out = new Set<string>()
+  for (const [paneId, jobs] of byPane.entries()) {
+    for (const job of jobs.values()) {
+      if (isJobAwaiting(job) && !job.fromThreadId?.trim()) {
+        out.add(paneId)
+        break
+      }
+    }
+  }
+  return out
+}
+
+/** Panes especialista con pending sin toThreadId (fallback pane-level en el gate). */
+export function specialistPendingHasLegacyByPane(
+  byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+): Set<string> {
+  const out = new Set<string>()
+  for (const jobs of byPane.values()) {
+    for (const job of jobs.values()) {
+      for (const meta of job.pending.values()) {
+        if (!meta.toThreadId?.trim()) {
+          out.add(meta.toPaneId)
+        }
+      }
+    }
+  }
+  return out
+}
+
 /** Panes orquestadores con al menos un job awaiting. */
 export function awaitingOrchestratorPaneIds(
   byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
@@ -376,6 +477,29 @@ export function occupiedTargetPaneIdsAcrossAllJobs(
   for (const jobs of byPane.values()) {
     for (const paneId of occupiedPaneIdsAcrossJobs(jobs.values())) {
       out.add(paneId)
+    }
+  }
+  return out
+}
+
+/** Hilos destino ocupados por pending, agrupados por pane (sin duplicar ids). */
+export function occupiedTargetThreadIdsByPane(
+  byPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const jobs of byPane.values()) {
+    for (const job of jobs.values()) {
+      for (const meta of job.pending.values()) {
+        const toPaneId = meta.toPaneId?.trim()
+        const toThreadId = meta.toThreadId?.trim()
+        if (!toPaneId || !toThreadId) continue
+        const existing = out.get(toPaneId)
+        if (existing) {
+          if (!existing.includes(toThreadId)) existing.push(toThreadId)
+        } else {
+          out.set(toPaneId, [toThreadId])
+        }
+      }
     }
   }
   return out
@@ -492,6 +616,38 @@ export function canReconcileIdlePending(
   const startedAt = age?.startedAt
   if (typeof startedAt !== 'number' || !age) return false
   return age.nowMs - startedAt >= IDLE_PENDING_GRACE_MS
+}
+
+export interface IdleReconcileOutcome {
+  status: 'ok' | 'fail'
+  summary: string
+}
+
+/**
+ * Resultado de reconcile-idle: nunca ok si el especialista no llegó a verse busy.
+ * sawBusy false/undefined implica que el snippet del chat puede ser de otro turno.
+ */
+export function resolveIdleReconcileOutcome(input: {
+  failed: boolean
+  sawBusy: boolean | undefined
+  summary: string
+  emptyFallback: string
+  unconfirmedLabel: string
+}): IdleReconcileOutcome {
+  if (input.failed) {
+    return {
+      status: 'fail',
+      summary: input.summary.trim() || input.unconfirmedLabel,
+    }
+  }
+  if (input.sawBusy !== true) {
+    return { status: 'fail', summary: input.unconfirmedLabel }
+  }
+  const trimmed = input.summary.trim()
+  if (!trimmed || trimmed === input.emptyFallback) {
+    return { status: 'fail', summary: input.unconfirmedLabel }
+  }
+  return { status: 'ok', summary: trimmed }
 }
 
 export interface AbortOneDelegationResult {

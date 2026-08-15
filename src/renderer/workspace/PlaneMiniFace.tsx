@@ -14,6 +14,8 @@ import {
   openPlaneMiniCardFromPointerDown,
   shouldSkipPlaneMiniCardClick,
 } from './planeMiniCardOpen'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
+import { PlaneBusyDot } from './PlaneBusyDot'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -25,6 +27,8 @@ export interface PlaneMiniFaceProps {
   seatDragEnabled?: boolean
   monogram?: string
   busy?: boolean
+  /** Dot en esquina: busy o delegating (prioridad sobre glow). */
+  activityDot?: PlaneActivityDotKind | null
   provider?: AgentCliProvider
   /** Muestra chip de orquestador / product owner junto al proveedor. */
   coordination?: 'none' | 'orchestrator' | 'productOwner'
@@ -57,6 +61,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   seatDragEnabled = false,
   monogram,
   busy = false,
+  activityDot = null,
   provider = 'claude',
   coordination = 'none',
   statusLabel,
@@ -97,6 +102,8 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
 
   const onFacePointerDown = (event: React.PointerEvent): void => {
     if (!onOpen) return
+    if (event.button !== 0) return
+    if (isPlaneMiniInteractiveTarget(event.target)) return
     markPlaneMiniCardOpenedFromPointer(skipClickRef)
     openPlaneMiniCardFromPointerDown(event, onOpen)
   }
@@ -106,6 +113,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     className={[
       'plane-mini-face',
       busy ? 'plane-mini-face--busy' : '',
+      activityDot ? 'plane-mini-face--has-activity-dot' : '',
       density === 'compact' ? 'plane-mini-face--compact' : '',
       `plane-mini-face--${provider}`,
       onOpen ? 'plane-mini-face--openable' : '',
@@ -113,6 +121,9 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     onClick={onOpen ? openFromFaceClick : undefined}
     onPointerDown={onOpen ? onFacePointerDown : undefined}
   >
+    {activityDot ? (
+      <PlaneBusyDot placement="corner" variant={activityDot} />
+    ) : null}
     <div className="plane-mini-face__glow" aria-hidden="true" />
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">

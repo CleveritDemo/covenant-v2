@@ -31,16 +31,14 @@ import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
 
-/** Columna 3D: borde hacia el centro más lejos/pequeño. */
-const COLUMN_TILT_DEG = 10
-const COLUMN_PERSPECTIVE_PX = 1200
-
 export interface PlaneMapEntity {
   paneId: string
   kind: PaneKind
   title: string
   monogram?: string
   busy: boolean
+  /** Orquestador en ola de delegaciones (idle esperando especialistas). */
+  awaitingDelegations?: boolean
   /** Trabajo reservado/activo por una delegación del orquestador. */
   delegationWorkActive?: boolean
   provider?: AgentCliProvider
@@ -463,7 +461,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const anyWindowOpen = terminalOpen
   // Con la mesa abierta la card de agente es un token que se arrastra a ella:
   // el reorder por handle movería la card de verdad (y pasaría bajo la mesa).
-  const reorderEnabled = Boolean(onReorderPanes) && !anyWindowOpen && !seatDragEnabled
+  const reorderBase = Boolean(onReorderPanes) && !seatDragEnabled
+  // Terminales: sin reorder con ventana expandida (minis detrás / morph en curso).
+  const terminalReorderEnabled = reorderBase && !anyWindowOpen
+  // Agentes: el handle sigue visible aunque una terminal esté expandida.
+  const agentReorderEnabled = reorderBase
 
   const baselineLayout = useMemo(
     () => buildSlotOrigins(
@@ -480,6 +482,17 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     () => baselineLayout.maxScrollOffsets,
     [baselineLayout],
   )
+
+  const touchWheelScrolling = useCallback(() => {
+    setWheelScrolling(true)
+    if (wheelScrollingTimeoutRef.current !== null) {
+      window.clearTimeout(wheelScrollingTimeoutRef.current)
+    }
+    wheelScrollingTimeoutRef.current = window.setTimeout(() => {
+      wheelScrollingTimeoutRef.current = null
+      setWheelScrolling(false)
+    }, 150)
+  }, [])
 
   // Re-clampa offsets si el contenido o el viewport encogen.
   useLayoutEffect(() => {
@@ -527,7 +540,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   }, [onOpenChat])
 
   const terminalReorder = usePlaneColumnReorder({
-    enabled: reorderEnabled && terminalIds.length >= 2,
+    enabled: terminalReorderEnabled && terminalIds.length >= 2,
     kind: 'terminal',
     orderedIds: terminalIds,
     slots: terminalSlots,
@@ -537,7 +550,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   })
 
   const agentReorder = usePlaneColumnReorder({
-    enabled: reorderEnabled && agentIds.length >= 2,
+    enabled: agentReorderEnabled && agentIds.length >= 2,
     kind: 'agent',
     orderedIds: agentIds,
     slots: agentSlots,
@@ -621,11 +634,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       80,
       vh - PLANE_MINI_BOTTOM_CLEARANCE - PLANE_MINI_SLOT_PAD_Y,
     )
+    const delta = direction === 'down' ? step : -step
     setScrollOffsets(prev => {
       const max = column === 'terminal'
         ? maxScrollOffsets.terminal
         : maxScrollOffsets.agent
-      const delta = direction === 'down' ? step : -step
       const next = Math.min(max, Math.max(0, prev[column] + delta))
       return next === prev[column] ? prev : { ...prev, [column]: next }
     })
@@ -681,15 +694,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         : maxScrollOffsets.agent
       if (maxOffset <= 0) return
       event.preventDefault()
-      // Sin transición mientras rueda: el offset debe seguir 1:1 al wheel.
-      setWheelScrolling(true)
-      if (wheelScrollingTimeoutRef.current !== null) {
-        window.clearTimeout(wheelScrollingTimeoutRef.current)
-      }
-      wheelScrollingTimeoutRef.current = window.setTimeout(() => {
-        wheelScrollingTimeoutRef.current = null
-        setWheelScrolling(false)
-      }, 150)
+      touchWheelScrolling()
       const key = column
       setScrollOffsets(prev => {
         const next = Math.min(maxOffset, Math.max(0, prev[key] + event.deltaY))
@@ -704,7 +709,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         wheelScrollingTimeoutRef.current = null
       }
     }
-  }, [agentCount, maxScrollOffsets, reorderActive, terminalCount, viewport])
+  }, [
+    agentCount,
+    maxScrollOffsets,
+    reorderActive,
+    terminalCount,
+    touchWheelScrolling,
+    viewport,
+  ])
 
   /**
    * Durante drag: layout temporal según previewIds (hueco del dragged + resto).
@@ -748,15 +760,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentsInOrder],
   )
 
-  // Aplanar tilt solo al reordenar (pointer ↔ left/top) o con ventana expandida.
-  const flattenColumns = anyWindowOpen || reorderActive
-  const terminalsColumnTransform = flattenColumns
-    ? undefined
-    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
-  const agentsColumnTransform = flattenColumns
-    ? undefined
-    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-COLUMN_TILT_DEG}deg)`
-
   const renderEntity = (
     entity: PlaneMapEntity,
     column: 'terminal' | 'agent',
@@ -772,8 +775,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     const reserved = entity.kind !== 'agent' && entity.window.open
     const isDragging = reorder.draggingId === entity.paneId
     const dragPos = isDragging ? reorder.dragPosition : null
-    const columnEnabled = reorderEnabled && (
-      column === 'terminal' ? terminalIds.length >= 2 : agentIds.length >= 2
+    const columnEnabled = (
+      column === 'terminal'
+        ? terminalReorderEnabled && terminalIds.length >= 2
+        : agentReorderEnabled && agentIds.length >= 2
     )
 
     return (
@@ -803,6 +808,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           outOfBand={(fadeProgressById[entity.paneId] ?? 1) <= 0}
           monogram={entity.monogram}
           busy={entity.busy}
+          awaitingDelegations={entity.awaitingDelegations}
           provider={entity.provider}
           coordination={entity.coordination}
           snippet={entity.snippet}
@@ -909,12 +915,8 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--terminals',
-                !flattenColumns ? 'plane-map__column--tilt' : '',
                 terminalOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
-              style={terminalsColumnTransform
-                ? { transform: terminalsColumnTransform }
-                : undefined}
             >
               {terminalsDom.map((entity, index) => renderEntity(entity, 'terminal', index))}
             </div>
@@ -924,11 +926,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--agents',
-                !flattenColumns ? 'plane-map__column--tilt' : '',
-              ].filter(Boolean).join(' ')}
-              style={agentsColumnTransform
-                ? { transform: agentsColumnTransform }
-                : undefined}
+              ].join(' ')}
             >
               {agentsDom.map((entity, index) => renderEntity(entity, 'agent', index))}
             </div>

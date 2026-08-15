@@ -6,6 +6,15 @@ export function isPlaneMiniInteractiveTarget(target: EventTarget | null): boolea
   return Boolean((target as HTMLElement | null)?.closest?.(INTERACTIVE_SELECTOR))
 }
 
+const SMALL_CONTROL_SELECTOR = '.plane-mini-face__action, .plane-mini-face__results-drag, .plane-mini-face__drag-handle, input, select, textarea, a[href]'
+
+/** Controles pequeños del mini: config, drag, results, etc.
+ *  Los carriles de hilo (.plane-agent-thread-nodes__row) quedan fuera a propósito:
+ *  con el agente busy ocupan toda la card y deben resolverse por geometría. */
+export function isPlaneMiniSmallControlTarget(target: EventTarget | null): boolean {
+  return Boolean((target as HTMLElement | null)?.closest?.(SMALL_CONTROL_SELECTOR))
+}
+
 /**
  * Abre la mini card en pointerdown (sin esperar click sintético).
  * El cálculo de hilo en App corre después, async — no bloquea el gesto.

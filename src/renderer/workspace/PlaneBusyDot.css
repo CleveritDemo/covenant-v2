@@ -60,9 +60,56 @@
   }
 }
 
+/* Orquestador esperando especialistas: magenta/accent, pulso sin giro. */
+.plane-busy-dot--delegating {
+  background: conic-gradient(
+    from 0deg,
+    var(--theme-magenta) 0deg,
+    var(--accent) 110deg,
+    color-mix(in srgb, var(--theme-magenta) 75%, var(--accent)) 220deg,
+    var(--theme-magenta) 360deg
+  );
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--theme-magenta) 90%, transparent),
+    0 0 14px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 20px color-mix(in srgb, var(--theme-magenta) 45%, transparent);
+  animation: plane-delegating-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.plane-busy-dot--delegating.plane-busy-dot--sm {
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--theme-magenta) 85%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 48%, transparent),
+    0 0 14px color-mix(in srgb, var(--theme-magenta) 38%, transparent);
+}
+
+@keyframes plane-delegating-dot-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+    box-shadow:
+      0 0 6px color-mix(in srgb, var(--theme-magenta) 75%, transparent),
+      0 0 12px color-mix(in srgb, var(--accent) 45%, transparent),
+      0 0 18px color-mix(in srgb, var(--theme-magenta) 35%, transparent);
+  }
+  50% {
+    filter: brightness(1.55);
+    transform: scale(1.08);
+    box-shadow:
+      0 0 8px color-mix(in srgb, var(--theme-magenta) 100%, transparent),
+      0 0 16px color-mix(in srgb, var(--accent) 70%, transparent),
+      0 0 24px color-mix(in srgb, var(--theme-magenta) 55%, transparent);
+  }
+}
+
 html[data-reduce-motion="true"] {
   .plane-busy-dot {
     animation: none;
     filter: brightness(1.3);
+  }
+
+  .plane-busy-dot--delegating {
+    transform: none;
   }
 }

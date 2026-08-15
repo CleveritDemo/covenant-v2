@@ -21,6 +21,7 @@ import {
 } from '../agent/composerImages'
 import { QueuedTurnEditModal } from '../agent/QueuedTurnEditModal'
 import { formatQueuedTurnPreviewText } from '../agent/QueuedTurnPreviewLabel'
+import { resolveComposerAgentActivityDot } from '../agent/paneWorkActive'
 import { PlaneAgentBadge } from './PlaneAgentBadge'
 import { PlaneChatCloseButton } from './PlaneChatCloseButton'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
@@ -50,6 +51,8 @@ export interface PlaneChatAgentOption {
   paneId: string
   title: string
   busy: boolean
+  /** Cualquier hilo en ejecución — solo ilumina el dot del badge. */
+  workActive?: boolean
   /** El orquestador espera resultados y solo permite detener el batch. */
   awaitingDelegations?: boolean
   /** Este agente es destino de una delegación pendiente. */
@@ -188,7 +191,6 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const orchestratorBusy = Boolean(selected?.orchestratorBusy)
   const turboAwaitingOpen = selected?.orchestrationWorkStyle === 'turbo'
     && awaitingDelegations
-    && !busy
   const canSend = Boolean(
     selected && (draft.trim() || pendingImages.length > 0),
   )
@@ -244,10 +246,15 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     }
   }, [queuedTurns, editingQueuedId])
 
-  // Cola humana llena: devolver el texto descartado si el input quedó vacío.
+  // Cola humana llena: recuperar el texto del envío rechazado.
   useEffect(() => {
     if (!queueFullNotice) return
-    setDraft(current => (current.trim() ? current : queueFullNotice.text))
+    setDraft(current => {
+      const rejected = queueFullNotice.text
+      if (!current.trim()) return rejected
+      if (current.includes(rejected)) return current
+      return `${current}\n${rejected}`
+    })
   }, [queueFullNotice])
 
   useEffect(() => {
@@ -560,7 +567,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
                   key={agent.paneId}
                   name={agent.title}
                   selected={agent.paneId === selectedAgentId}
-                  busy={agent.busy}
+                  activityDot={resolveComposerAgentActivityDot(agent)}
                   onSelect={() => onSelectAgent(agent.paneId)}
                 />
               ))}

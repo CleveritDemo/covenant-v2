@@ -2,6 +2,7 @@ import React, { useId, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
 import type { AgentThread } from '@shared/agentThreads'
+import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
 import './PlaneChatComposer.css'
@@ -14,6 +15,12 @@ export interface PlaneChatContextsBarProps {
   activeThreadId?: string
   /** Hilos con turno activo: marcan la opción con punto luminoso en el panel. */
   runningThreadIds?: readonly string[]
+  /** Orquestador esperando especialistas: dot delegating en el chip activo. */
+  awaitingDelegations?: boolean
+  /** Hilos con ola abierta; si está presente, delegating solo en estos chips. */
+  awaitingDelegationThreadIds?: readonly string[]
+  /** Turno CLI vivo: oculta delegating hasta que el pane quede idle. */
+  paneCliBusy?: boolean
   /**
    * Cambiar de conversación con un loop vivo dejaría el stream escribiendo en
    * el transcript equivocado, así que se bloquea el Select.
@@ -38,6 +45,9 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   threads = [],
   activeThreadId = '',
   runningThreadIds = [],
+  awaitingDelegations = false,
+  awaitingDelegationThreadIds,
+  paneCliBusy = false,
   threadSelectionLocked = false,
   newThreadLocked = false,
   onClearConversation,
@@ -48,6 +58,16 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   const { t } = useT()
   const showThreads = threads.length > 0 && Boolean(onSelectThread)
   const activeThread = threads.find(thread => thread.id === activeThreadId)
+  const activeChipDot = activeThread
+    ? resolveThreadChipActivityDot(
+      activeThread.id,
+      activeThreadId,
+      awaitingDelegations,
+      runningThreadIds,
+      paneCliBusy,
+      awaitingDelegationThreadIds,
+    )
+    : null
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
   const threadChipRef = useRef<HTMLButtonElement>(null)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
@@ -115,8 +135,8 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                   aria-controls={threadPanelId}
                   popovertarget={threadPanelId}
                 >
-                  {runningThreadIds.includes(activeThread.id) ? (
-                    <PlaneBusyDot size="sm" />
+                  {activeChipDot ? (
+                    <PlaneBusyDot size="sm" variant={activeChipDot} />
                   ) : null}
                   <span className="plane-chat-contexts-bar__chip-label">
                     {activeThread.title || t('agentPane.threadUntitled')}
@@ -143,6 +163,9 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
               threads={threads}
               activeThreadId={activeThreadId}
               runningThreadIds={runningThreadIds}
+              awaitingDelegations={awaitingDelegations}
+              awaitingDelegationThreadIds={awaitingDelegationThreadIds}
+              paneCliBusy={paneCliBusy}
               threadSelectionLocked={threadSelectionLocked}
               onSelectThread={onSelectThread!}
             />

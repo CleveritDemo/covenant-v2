@@ -52,7 +52,7 @@
   pointer-events: auto;
 }
 
-/* Puente de hit-test: con rotateY 3D la mitad exterior a veces no recibe eventos.
+/* Puente de hit-test: la mitad exterior a veces no recibe eventos.
  * Queda casi todo fuera de la card para no tapar el expand. */
 .pane-window--mini:not(.pane-window--zooming):not(.pane-window--mini-bare)::after {
   content: '';

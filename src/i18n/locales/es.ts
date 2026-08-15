@@ -442,6 +442,8 @@ const es = {
     awaitingWaveSublabel: 'Especialistas en worktrees aislados',
     delegationEmptySummary: '(sin respuesta)',
     delegationAbortedSummary: 'Delegación cancelada',
+    delegationUnconfirmedSummary: 'Sin confirmación: el especialista no devolvió resultado y la delegación se cerró por tiempo.',
+    delegationPaneClosedSummary: 'El panel del especialista se cerró antes de devolver resultado.',
     orchestratorBadge: 'Orquestador',
     productOwnerBadge: 'Product owner',
   },

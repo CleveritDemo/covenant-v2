@@ -92,4 +92,33 @@ describe('PlaneChatContextsBar locks', () => {
     const runningOption = screen.getByRole('option', { name: 'Two' }) as HTMLButtonElement
     expect(runningOption.disabled).toBe(true)
   })
+
+  it('shows delegating dot on the active chip while awaiting and idle', () => {
+    const { container } = render(
+      <PlaneChatContextsBar
+        threads={threads}
+        activeThreadId="t-1"
+        awaitingDelegations
+        paneCliBusy={false}
+        onSelectThread={() => undefined}
+      />,
+    )
+    const chip = screen.getByRole('combobox', { name: 'One' })
+    expect(chip.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
+  })
+
+  it('hides delegating dot on the active chip while CLI is busy', () => {
+    const { container } = render(
+      <PlaneChatContextsBar
+        threads={threads}
+        activeThreadId="t-1"
+        awaitingDelegations
+        paneCliBusy
+        onSelectThread={() => undefined}
+      />,
+    )
+    expect(screen.getByRole('combobox', { name: 'One' }).querySelector('.plane-busy-dot')).toBeNull()
+    expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
+  })
 })

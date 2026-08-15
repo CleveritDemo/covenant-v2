@@ -440,6 +440,8 @@ const en = {
     awaitingWaveSublabel: 'Specialists working in isolated worktrees',
     delegationEmptySummary: '(empty response)',
     delegationAbortedSummary: 'Delegation cancelled',
+    delegationUnconfirmedSummary: 'Unconfirmed: the specialist returned no result; the delegation was closed by timeout.',
+    delegationPaneClosedSummary: 'The specialist pane was closed before returning a result.',
     orchestratorBadge: 'Orchestrator',
     productOwnerBadge: 'Product owner',
   },

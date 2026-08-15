@@ -5,6 +5,7 @@ import {
   threadHistoryCandidates,
   type AgentThread,
 } from '@shared/agentThreads'
+import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import './PlaneChatThreadHistoryButton.css'
 
@@ -18,6 +19,9 @@ export interface PlaneChatThreadHistoryButtonProps {
   threads: readonly AgentThread[]
   activeThreadId: string
   runningThreadIds: readonly string[]
+  awaitingDelegations?: boolean
+  awaitingDelegationThreadIds?: readonly string[]
+  paneCliBusy?: boolean
   threadSelectionLocked?: boolean
   onSelectThread: (threadId: string) => void
 }
@@ -53,6 +57,9 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   threads,
   activeThreadId,
   runningThreadIds,
+  awaitingDelegations = false,
+  awaitingDelegationThreadIds,
+  paneCliBusy = false,
   threadSelectionLocked = false,
   onSelectThread,
 }) => {
@@ -137,7 +144,14 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
       onScroll={handleScroll}
     >
       {items.map(thread => {
-          const isRunning = runningThreadIds.includes(thread.id)
+          const rowDot = resolveThreadChipActivityDot(
+            thread.id,
+            activeThreadId,
+            awaitingDelegations,
+            runningThreadIds,
+            paneCliBusy,
+            awaitingDelegationThreadIds,
+          )
           const title = thread.title || t('agentPane.threadUntitled')
           const switchDisabled = threadSelectionLocked
 
@@ -158,7 +172,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
                 if (!switchDisabled) pick(thread.id)
               }}
             >
-              {isRunning ? <PlaneBusyDot size="sm" /> : null}
+              {rowDot ? <PlaneBusyDot size="sm" variant={rowDot} /> : null}
               <span className="plane-chat-thread-history__label">{title}</span>
             </button>
           )

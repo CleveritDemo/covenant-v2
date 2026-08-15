@@ -1,5 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { TabSession } from '../App'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
 import { TabItem } from './TabItem'
@@ -17,6 +18,7 @@ interface Props {
   onRename: (id: string, name: string) => void
   onReorder: (dragId: string, dropId: string, place: 'before' | 'after') => void
   busyTabIds: Set<string>
+  tabActivityDots?: ReadonlyMap<string, PlaneActivityDotKind>
   /** False = no iniciar edición inline (p. ej. workspace org sin permiso). */
   canRenameTab?: (tab: TabSession) => boolean
 }
@@ -28,6 +30,7 @@ export interface TabBarHandle {
 
 export const TabBar = forwardRef<TabBarHandle, Props>(function TabBar({
   tabs, activeTabId, onSelect, onAdd, onClose, onRename, onReorder, busyTabIds,
+  tabActivityDots,
   canRenameTab,
 }, ref) {
   const { t } = useT()
@@ -90,6 +93,7 @@ export const TabBar = forwardRef<TabBarHandle, Props>(function TabBar({
                 isDragOver={dragOverId === tab.id && dragId !== tab.id}
                 dragOverPlace={dragOverId === tab.id && dragId !== tab.id ? dragOverPlace : null}
                 isBusy={busyTabIds.has(tab.id)}
+                activityDot={tabActivityDots?.get(tab.id) ?? null}
                 isEditing={editingTabId === tab.id}
                 titleEditable={titleEditable}
                 editDraft={editDraft}

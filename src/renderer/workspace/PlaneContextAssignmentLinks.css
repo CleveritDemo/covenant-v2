@@ -7,13 +7,11 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
-  /* Capa de composición: la opacidad animada no repinta el mapa detrás. */
   transform: translateZ(0);
   shape-rendering: optimizeSpeed;
-}
-
-.plane-context-assignment-links__link {
-  animation: plane-context-link-in 0.14s ease-out both;
+  --plane-context-link-opacity: 0.82;
+  --plane-context-link-halo-opacity: 0.16;
+  --plane-context-link-node-opacity: 0.9;
 }
 
 .plane-context-assignment-links__path {
@@ -22,34 +20,94 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
-  opacity: 0.82;
+  opacity: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: plane-context-link-draw 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .plane-context-assignment-links__path--halo {
   stroke-width: 4;
-  opacity: 0.16;
+  animation: plane-context-link-halo-in 0.46s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .plane-context-assignment-links__node {
-  opacity: 0.9;
+  opacity: 0;
+  transform: scale(0.35);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: plane-context-link-node-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
 }
 
-@keyframes plane-context-link-in {
+@keyframes plane-context-link-draw {
   from {
     opacity: 0;
+    stroke-dashoffset: 1;
   }
 
   to {
-    opacity: 1;
+    opacity: var(--plane-context-link-opacity);
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes plane-context-link-halo-in {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    opacity: var(--plane-context-link-halo-opacity);
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes plane-context-link-node-in {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+
+  to {
+    opacity: var(--plane-context-link-node-opacity);
+    transform: scale(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .plane-context-assignment-links__link {
+  .plane-context-assignment-links__path {
+    opacity: var(--plane-context-link-opacity);
+    stroke-dashoffset: 0;
     animation: none;
   }
 
   .plane-context-assignment-links__path--halo {
-    display: none;
+    opacity: var(--plane-context-link-halo-opacity);
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+
+  .plane-context-assignment-links__node {
+    opacity: var(--plane-context-link-node-opacity);
+    transform: none;
+    animation: none;
+  }
+}
+
+/* Plano estrecho: trazo más fino y halo suave para que el haz no tape cards ni pool. */
+@container tab-agentic-plane (max-width: 1040px) {
+  .plane-context-assignment-links {
+    --plane-context-link-opacity: 0.7;
+    --plane-context-link-halo-opacity: 0.1;
+    --plane-context-link-node-opacity: 0.82;
+  }
+
+  .plane-context-assignment-links__path {
+    stroke-width: 1;
+  }
+
+  .plane-context-assignment-links__path--halo {
+    stroke-width: 2.5;
   }
 }

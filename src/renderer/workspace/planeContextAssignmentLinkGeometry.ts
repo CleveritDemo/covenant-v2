@@ -40,8 +40,15 @@ export interface RenderedContextLink {
 
 /** Reserva mínima de corredor: nunca dibujamos un muñón sin recorrido visible. */
 export const CONTEXT_LINK_MIN_REACH = 26
+/** Por debajo de este span horizontal usamos corredor vertical (pantallas estrechas). */
+export const CONTEXT_LINK_NARROW_SPAN = 80
 /** Margen dentro de la card para que el remate no toque el borde superior/inferior. */
 const CARD_EDGE_PADDING = 10
+
+export interface ContextConnectorPathOptions {
+  laneIndex?: number
+  laneCount?: number
+}
 
 /** Aristas contexto → agente a partir de contextIds en catálogo. */
 export function buildContextAssignmentEdges(
@@ -94,6 +101,13 @@ export function contextConnectorAnchors(
     y: chipRect.top + chipRect.height / 2 - planeRect.top,
   }
 
+  const cardRightX = cardRect.right - planeRect.left
+  const availableSpan = from.x - cardRightX
+  const minReach = Math.min(
+    CONTEXT_LINK_MIN_REACH,
+    Math.max(10, availableSpan * 0.32),
+  )
+
   const rawY = iconRect
     ? iconRect.top + iconRect.height / 2
     : cardRect.top + cardRect.height / 2
@@ -102,8 +116,8 @@ export function contextConnectorAnchors(
 
   const to: PlanePoint = {
     x: Math.min(
-      cardRect.right - planeRect.left,
-      from.x - CONTEXT_LINK_MIN_REACH,
+      cardRightX,
+      from.x - minReach,
     ),
     y: clamp(rawY, minY, maxY) - planeRect.top,
   }
@@ -116,14 +130,26 @@ function round(value: number): number {
 }
 
 /**
- * Curva corta con tangentes horizontales en ambos extremos: sale del chip hacia la
- * izquierda y entra a la card desde la derecha, sin carriles ni espinas compartidas.
+ * Curva con tangentes horizontales en los extremos. En corredores estrechos enruta
+ * por un eje vertical compartido y reparte carriles cuando hay varias líneas.
  */
-export function contextConnectorPath(from: PlanePoint, to: PlanePoint): string {
+export function contextConnectorPath(
+  from: PlanePoint,
+  to: PlanePoint,
+  options?: ContextConnectorPathOptions,
+): string {
   const span = Math.abs(from.x - to.x)
+  if (span < CONTEXT_LINK_NARROW_SPAN) {
+    return contextConnectorNarrowPath(from, to, span, options)
+  }
+
+  const laneCount = options?.laneCount ?? 1
+  const laneIndex = options?.laneIndex ?? 0
   const bend = clamp(span * 0.55, 14, 56)
-  const c1x = round(from.x - bend)
-  const c2x = round(to.x + bend)
+  const laneSpread = laneCount > 1 ? clamp(span * 0.08, 2, 8) : 0
+  const laneOffset = (laneIndex - (laneCount - 1) / 2) * laneSpread
+  const c1x = round(from.x - bend + laneOffset)
+  const c2x = round(to.x + bend + laneOffset)
 
   return [
     `M ${round(from.x)} ${round(from.y)}`,
@@ -133,14 +159,40 @@ export function contextConnectorPath(from: PlanePoint, to: PlanePoint): string {
   ].join(' ')
 }
 
+function contextConnectorNarrowPath(
+  from: PlanePoint,
+  to: PlanePoint,
+  span: number,
+  options?: ContextConnectorPathOptions,
+): string {
+  const laneCount = options?.laneCount ?? 1
+  const laneIndex = options?.laneIndex ?? 0
+  const baseMidX = (from.x + to.x) / 2
+  const laneSpread = laneCount > 1 ? clamp(span * 0.14, 4, 12) : 0
+  const midX = round(baseMidX + (laneIndex - (laneCount - 1) / 2) * laneSpread)
+  const lead = round(clamp(span * 0.42, 5, 14))
+  const bendY = round((from.y + to.y) / 2)
+
+  return [
+    `M ${round(from.x)} ${round(from.y)}`,
+    `C ${round(from.x - lead)} ${round(from.y)}`,
+    `${midX} ${round(from.y)}`,
+    `${midX} ${bendY}`,
+    `C ${midX} ${round(to.y)}`,
+    `${round(to.x + lead)} ${round(to.y)}`,
+    `${round(to.x)} ${round(to.y)}`,
+  ].join(' ')
+}
+
 export function buildContextConnectorPaths(
   links: readonly MeasuredContextLink[],
 ): RenderedContextLink[] {
-  return links.map(link => ({
+  const laneCount = links.length
+  return links.map((link, laneIndex) => ({
     key: link.key,
     color: link.color,
     to: link.to,
-    d: contextConnectorPath(link.from, link.to),
+    d: contextConnectorPath(link.from, link.to, { laneIndex, laneCount }),
   }))
 }
 

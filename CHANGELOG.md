@@ -4,6 +4,16 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.3
+
+- **Envío humano por hilo**: un hilo con delegación activa ya no bloquea escribir en otro hilo del mismo agente; la cola, el cupo y los chips respetan el hilo activo.
+- **Orquestación linear y turbo más predecible**: awaiting bloquea solo el hilo que delegó en linear; en turbo los nuevos mensajes entran si el orquestador está libre; Stop en turbo cancela los jobs pendientes del pane.
+- **Delegaciones más transparentes**: fences inválidos avisan en consola y al orquestador en vez de perderse en silencio; warnings duplicados no generan follow-ups repetidos.
+- **Hilos de especialista efímeros**: al cerrar la ola de delegaciones se limpian los carriles temporales del experto (tu conversación en el orquestador no se toca).
+- **Dots de actividad más precisos**: delegating en el chip del hilo correcto; busy del composer solo mira el hilo activo, no carriles en background.
+- **Cola humana más robusta**: cierre de tab o hilo purga la FIFO invisible; cola llena devuelve el texto al composer; cupo independiente por hilo.
+- **Minis de agente con 3D**: clic en otra mini con chat abierto y carriles busy vuelve a abrir la conversación correcta.
+
 ## v0.61.2
 
 - La barra de chat del plano queda deshabilitada cuando hay agentes pero ninguno seleccionado, con el texto 'Selecciona un agente para comenzar' en el campo.

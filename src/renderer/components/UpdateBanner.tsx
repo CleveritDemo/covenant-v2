@@ -102,15 +102,6 @@ export const UpdateBanner: React.FC = () => {
     ? Math.max(0, Math.min(100, Math.round(state.percent)))
     : 0
 
-  const stageLabel =
-    state.kind === 'available'
-      ? t('update.stageAvailable')
-      : state.kind === 'downloading'
-        ? t('update.stageDownloading')
-        : state.kind === 'ready'
-          ? t('update.stageReady')
-          : null
-
   const chipAria =
     state.kind === 'downloading'
       ? t('update.downloadingAria', { version: state.version, percent })
@@ -159,8 +150,8 @@ export const UpdateBanner: React.FC = () => {
             </button>
           )}
 
-          {stageLabel && (
-            <span className="update-banner__stage">{stageLabel}</span>
+          {state.kind === 'downloading' && (
+            <span className="update-banner__stage">{t('update.stageDownloading')}</span>
           )}
 
           {state.kind === 'downloading' && (

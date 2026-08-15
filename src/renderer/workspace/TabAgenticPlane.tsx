@@ -8,6 +8,7 @@ import {
   PLANE_CHAT_BASE_WIDTH,
 } from '@shared/paneWindows'
 import type { AgentPlaneStatus } from '../agent/AgentPane'
+import { isAgentComposerBadgeActive } from '../agent/paneWorkActive'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
@@ -619,6 +620,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           title: entity.title,
           monogram: entity.monogram,
           busy: Boolean(status?.busy ?? entity.busy),
+          workActive: isAgentComposerBadgeActive(
+            status,
+            entity.busy,
+            Boolean(status?.delegationWorkActive || entity.delegationWorkActive),
+          ),
           awaitingDelegations: Boolean(status?.awaitingDelegations),
           delegationWorkActive: Boolean(status?.delegationWorkActive || entity.delegationWorkActive),
           orchestratorBusy: Boolean(status?.orchestratorBusy),
@@ -1119,6 +1125,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
               runningThreadIds={openChatRunningThreadIds}
+              awaitingDelegations={Boolean(quickChatStatus?.awaitingDelegations)}
+              awaitingDelegationThreadIds={quickChatStatus?.awaitingDelegationThreadIds}
+              paneCliBusy={Boolean(quickChatStatus?.busy)}
               // Cambiar de conversación con un turno vivo promueve el activo a fondo.
               threadSelectionLocked={false}
               newThreadLocked={Boolean(

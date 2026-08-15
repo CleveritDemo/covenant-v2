@@ -99,7 +99,8 @@ describe('contextConnectorAnchors', () => {
       rect(400, 200, 520, 160),
       null,
     )
-    expect(from.x - to.x).toBe(CONTEXT_LINK_MIN_REACH)
+    expect(from.x - to.x).toBeGreaterThanOrEqual(10)
+    expect(from.x - to.x).toBeLessThanOrEqual(CONTEXT_LINK_MIN_REACH)
   })
 
   it('acota el remate dentro del alto de la card', () => {
@@ -157,5 +158,25 @@ describe('contextConnectorPath', () => {
     expect(paths).toHaveLength(2)
     expect(paths[0]?.d).not.toBe(paths[1]?.d)
     expect(paths[0]?.to).toEqual({ x: 780, y: 120 })
+  })
+
+  it('en corredor estrecho enruta por un eje vertical en lugar de apilar curvas horizontales', () => {
+    const d = contextConnectorPath({ x: 320, y: 180 }, { x: 260, y: 420 })
+    expect(d).toContain('290 300')
+    expect(d.split('C').length).toBeGreaterThan(2)
+  })
+
+  it('reparte carriles cuando hay varias líneas en el mismo foco', () => {
+    const left = contextConnectorPath(
+      { x: 300, y: 200 },
+      { x: 240, y: 210 },
+      { laneIndex: 0, laneCount: 3 },
+    )
+    const right = contextConnectorPath(
+      { x: 300, y: 200 },
+      { x: 240, y: 210 },
+      { laneIndex: 2, laneCount: 3 },
+    )
+    expect(left).not.toBe(right)
   })
 })

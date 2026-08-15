@@ -410,15 +410,51 @@ export function sanitizeDelegateRequest(raw: unknown): DelegateRequest | null {
   }
 }
 
-/** Parsea delegaciones desde JSON del fence (objeto con delegations[] o array). */
-export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
-  if (Array.isArray(raw)) {
-    return raw
-      .map(sanitizeDelegateRequest)
-      .filter((item): item is DelegateRequest => item !== null)
-      .slice(0, MAX_DELEGATIONS_PER_TURN)
+export interface DelegateParseIssue {
+  reason: 'invalid_json' | 'unknown_shape' | 'invalid_item' | 'truncated'
+  detail?: string
+  count?: number
+}
+
+function parseDelegateListDetailed(
+  list: readonly unknown[],
+  issues: DelegateParseIssue[],
+): DelegateRequest[] {
+  let invalidCount = 0
+  const valid: DelegateRequest[] = []
+  for (const item of list) {
+    const sanitized = sanitizeDelegateRequest(item)
+    if (sanitized) {
+      valid.push(sanitized)
+    } else {
+      invalidCount += 1
+    }
   }
-  if (!raw || typeof raw !== 'object') return []
+  if (invalidCount > 0) {
+    issues.push({ reason: 'invalid_item', count: invalidCount })
+  }
+  if (valid.length > MAX_DELEGATIONS_PER_TURN) {
+    issues.push({
+      reason: 'truncated',
+      count: valid.length - MAX_DELEGATIONS_PER_TURN,
+    })
+  }
+  return valid.slice(0, MAX_DELEGATIONS_PER_TURN)
+}
+
+/** Parsea delegaciones desde JSON del fence (objeto con delegations[] o array). */
+export function parseDelegatePayloadDetailed(raw: unknown): {
+  delegations: DelegateRequest[]
+  issues: DelegateParseIssue[]
+} {
+  const issues: DelegateParseIssue[] = []
+  if (Array.isArray(raw)) {
+    return { delegations: parseDelegateListDetailed(raw, issues), issues }
+  }
+  if (!raw || typeof raw !== 'object') {
+    issues.push({ reason: 'unknown_shape' })
+    return { delegations: [], issues }
+  }
   const data = raw as Record<string, unknown>
   const list = Array.isArray(data.delegations)
     ? data.delegations
@@ -427,12 +463,31 @@ export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
       : null
   if (!list) {
     const single = sanitizeDelegateRequest(raw)
-    return single ? [single] : []
+    if (single) return { delegations: [single], issues }
+    const detail = Object.keys(data).slice(0, 5).join(', ').slice(0, 80)
+    issues.push({ reason: 'unknown_shape', detail })
+    return { delegations: [], issues }
   }
-  return list
-    .map(sanitizeDelegateRequest)
-    .filter((item): item is DelegateRequest => item !== null)
-    .slice(0, MAX_DELEGATIONS_PER_TURN)
+  return { delegations: parseDelegateListDetailed(list, issues), issues }
+}
+
+export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
+  return parseDelegatePayloadDetailed(raw).delegations
+}
+
+export function formatDelegateParseIssues(issues: readonly DelegateParseIssue[]): string[] {
+  return issues.map((issue) => {
+    switch (issue.reason) {
+      case 'invalid_json':
+        return `A ia-terminal-delegate fence was ignored: invalid JSON (${issue.detail}). Re-emit it as one valid JSON object.`
+      case 'unknown_shape':
+        return `A ia-terminal-delegate fence was ignored: unrecognized shape${issue.detail ? ` (top-level keys: ${issue.detail})` : ''}. Use {"delegations":[{"toAgentId":"…","objective":"…"}]}.`
+      case 'invalid_item':
+        return `${issue.count} delegation item(s) were dropped: missing toAgentId or objective.`
+      case 'truncated':
+        return `${issue.count} delegation(s) over the ${MAX_DELEGATIONS_PER_TURN} per-turn cap were dropped — re-emit them in the next wave.`
+    }
+  })
 }
 
 /** Bloque de agentes disponibles para el prompt del orquestador. */
@@ -658,5 +713,17 @@ export function formatDelegationRoundCapFollowUp(
     'Do NOT emit ```ia-terminal-delegate```.',
     'Reply to the user now with the best outcome from the results you already have.',
     'If something is still incomplete, say what is missing and stop.',
+  ].join('\n')
+}
+
+/** Follow-up cuando el parser de ```ia-terminal-delegate``` reporta issues sin despachar todo. */
+export function buildDelegateWarningFollowUp(lines: readonly string[]): string {
+  const trimmed = lines.map(line => line.trim()).filter(Boolean)
+  if (trimmed.length === 0) return ''
+  return [
+    '## Delegation fence problem',
+    'Your last ```ia-terminal-delegate``` block was not fully dispatched:',
+    ...trimmed.map(line => `- ${line}`),
+    'Re-emit the affected delegations as one valid JSON block if you still need them. Do not repeat delegations that already dispatched.',
   ].join('\n')
 }

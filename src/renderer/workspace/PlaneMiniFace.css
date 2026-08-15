@@ -270,8 +270,8 @@
   transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Busy: sin glow; el indicador es PlaneBusyDot en la esquina. */
-.plane-mini-face--busy .plane-mini-face__glow {
+/* Actividad: sin glow; el indicador es PlaneBusyDot en la esquina. */
+.plane-mini-face--has-activity-dot .plane-mini-face__glow {
   opacity: 0;
 }
 

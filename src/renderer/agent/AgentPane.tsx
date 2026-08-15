@@ -64,7 +64,7 @@ import { resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
 import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
-import { turnFailedAfter } from './turnFailureState'
+import { shouldMarkBusyOnCliError, turnFailedAfter } from './turnFailureState'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
@@ -101,7 +101,10 @@ import {
   peekActiveParentDelegation,
   rememberActiveParentDelegation,
 } from './activeParentDelegation'
-import { decideParentDelegationNotify } from './parentDelegationNotify'
+import {
+  decideParentDelegationNotify,
+  type ParentDelegationNotifyDecision,
+} from './parentDelegationNotify'
 import { canApplyDeferredNewThread, shouldDeferNewThread } from './newThreadIntent'
 import {
   workspaceContextBody,
@@ -113,7 +116,7 @@ import { buildAgentTurnContextPayload } from './agentTurnContextPayload'
 import { contextsToRematerializeAfterTurn } from './contextsToRematerializeAfterTurn'
 import { mergeQueuedTurns } from './mergeQueuedTurns'
 import { appendQueuedTurnIfRoom, type AppendQueuedTurnOutcome } from './queuedTurnDedup'
-import { planPreferSendIntake } from './preferSendIntake'
+import { planPreferSendIntake, shouldReleasePreferSendSlot } from './preferSendIntake'
 import { rememberConsumedSendId } from './consumedSendIds'
 import {
   appendLaneText,
@@ -173,6 +176,8 @@ interface QueuedTurn {
   sourceSendId?: string
   /** Ids fusionados tras mergeQueuedTurns. */
   sourceSendIds?: string[]
+  /** Hilo al que pertenece este turno encolado. */
+  threadId?: string
 }
 
 export interface AgentPreferSend {
@@ -251,6 +256,7 @@ interface Props {
   onOrchestratorDelegations?: (
     delegations: DelegateRequest[],
     orchestrationJobId?: string,
+    warnings?: string[],
   ) => void
   /** Stop del orquestador: cancelar subtareas pendientes originadas aquí. */
   onOrchestratorStop?: () => void
@@ -291,12 +297,20 @@ interface Props {
   onPreferNewThreadConsumed?: () => void
   /** El orquestador espera subtareas (Stop / drain; ya no bloquea teclear). */
   awaitingDelegations?: boolean
+  /** Hilos del orquestador con job awaiting (gate de envío humano por hilo). */
+  awaitingDelegationThreadIds?: readonly string[]
+  /** Job awaiting legacy sin fromThreadId: gate pane-level para awaiting. */
+  awaitingDelegationLegacyFallback?: boolean
+  /** Pending legacy sin toThreadId: gate pane-level para delegationWork. */
+  delegationWorkLegacyFallback?: boolean
   /** Estilo efectivo desde App (evita meta stale en turbo). */
   orchestrationWorkStyle?: 'linear' | 'turbo'
   /** Detalle de ola (done/total + filas) mientras awaitingDelegations. */
   orchestrationAwaiting?: OrchestrationAwaitingView | null
   /** Este pane ejecuta una subtarea pendiente para un orquestador. */
   delegationWorkActive?: boolean
+  /** Hilos de este pane con delegación pending (toThreadId). */
+  delegationThreadIds?: readonly string[]
   /** App aún tiene FIFO/preferSend de orquestación para este pane. */
   systemFollowUpsPending?: boolean
   paneReorder?: {
@@ -306,6 +320,8 @@ interface Props {
     onDragHandleEnd: () => void
   }
   registerShortcutCloseInterceptor?: (openConfirm: () => void) => () => void
+  /** Hilo borrado del catálogo: limpiar colas externas atadas a ese threadId. */
+  onThreadClosed?: (threadId: string) => void
 }
 
 /** Hilos con carril vivo o turno activo del pane; orden estable, sin duplicados. */
@@ -325,6 +341,18 @@ export function collectRunningThreadIds(
     ids.push(activeThreadId)
   }
   return ids
+}
+
+/** Busy efectivo para guards humanos: solo bloquea si el hilo activo está en curso. */
+export function computeBusyForGate(
+  busy: boolean,
+  runningThreadIds: readonly string[],
+  activeThreadId: string,
+): boolean {
+  return busy && (
+    runningThreadIds.length === 0
+    || runningThreadIds.includes(activeThreadId)
+  )
 }
 
 /** Recorta la última petición humana visible en la card mini. */
@@ -378,6 +406,22 @@ export function mergePaneReportedRunningThreadIds(
   }
 }
 
+/** Decide si borrar laneDelegationRef al cerrar un turno de carril. */
+export function resolveLaneDelegationTurnEnd(input: {
+  held: boolean
+  dispatchedNested: boolean
+  canDelegate?: boolean
+}): {
+  decision: ParentDelegationNotifyDecision
+  clearLaneDelegation: boolean
+} {
+  const decision = decideParentDelegationNotify(input)
+  return {
+    decision,
+    clearLaneDelegation: decision !== 'hold',
+  }
+}
+
 export interface AgentPlaneStatus {
   busy: boolean
   activity: string
@@ -392,6 +436,8 @@ export interface AgentPlaneStatus {
   materializingIds: string[]
   settlingId: string | null
   awaitingDelegations: boolean
+  /** Hilos con ola de delegación abierta (dot delegating por chip). */
+  awaitingDelegationThreadIds?: string[]
   orchestrationAwaiting: OrchestrationAwaitingView | null
   delegationWorkActive: boolean
   orchestratorBusy: boolean
@@ -422,6 +468,10 @@ export interface AgentPlaneStatus {
   runningThreadIds: string[]
   /** Petición del usuario por hilo busy (mini del plano). */
   runningThreadActivities: Record<string, string>
+  /** Hilo activo publicado para gating de envío humano por carril. */
+  activeThreadId?: string
+  /** True cuando el hilo activo no puede arrancar turno humano ahora. */
+  humanTurnBlocked?: boolean
 }
 
 export interface AgentPlaneQueueControls {
@@ -491,12 +541,17 @@ export const AgentPane: React.FC<Props> = ({
   preferNewThread = false,
   onPreferNewThreadConsumed,
   awaitingDelegations = false,
+  awaitingDelegationThreadIds,
+  awaitingDelegationLegacyFallback = false,
+  delegationWorkLegacyFallback = false,
   orchestrationWorkStyle: orchestrationWorkStyleProp,
   orchestrationAwaiting = null,
   delegationWorkActive = false,
+  delegationThreadIds,
   systemFollowUpsPending = false,
   paneReorder,
   registerShortcutCloseInterceptor,
+  onThreadClosed,
 }) => {
   const { t } = useT()
   const [messages, setMessages] = useState<AgentChatEntry[]>([])
@@ -517,14 +572,28 @@ export const AgentPane: React.FC<Props> = ({
   const orchestratorBusy = coordinationCanDelegate(meta.coordination) && busy
   const orchestrationWorkStyle = orchestrationWorkStyleProp
     ?? resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
+  const activeThreadIdForGate = meta.activeThreadId ?? DEFAULT_THREAD_ID
+  const visibleQueuedTurns = useMemo(
+    () => queuedTurns.filter(
+      turn => (turn.threadId ?? DEFAULT_THREAD_ID) === activeThreadIdForGate,
+    ),
+    [queuedTurns, activeThreadIdForGate],
+  )
+  const activeThreadHasDelegation = (delegationThreadIds ?? []).includes(activeThreadIdForGate)
+  let delegationWorkActiveForGate = !delegationThreadIds?.length
+    ? delegationWorkActive
+    : delegationWorkActive && activeThreadHasDelegation
+  if (delegationWorkLegacyFallback) {
+    delegationWorkActiveForGate = delegationWorkActive
+  }
+  const activeThreadHasAwaiting = (awaitingDelegationThreadIds ?? []).includes(activeThreadIdForGate)
+  let awaitingDelegationsForGate = !awaitingDelegationThreadIds?.length
+    ? awaitingDelegations
+    : awaitingDelegations && activeThreadHasAwaiting
+  if (awaitingDelegationLegacyFallback) {
+    awaitingDelegationsForGate = awaitingDelegations
+  }
   const humanInputBlocked = isAgentHumanInputBlocked()
-  const canStartHumanTurnNow = computeCanStartHumanTurnNow({
-    busy,
-    awaitingDelegations,
-    delegationWorkActive,
-    systemFollowUpsPending,
-    orchestrationWorkStyle,
-  })
   const [turnCloseReason, setTurnCloseReason] = useState<'completed' | 'aborted' | null>(null)
   /** Espejo en estado de `turnHadCliErrorRef`: el plano necesita republicar al cambiar. */
   const [lastTurnFailed, setLastTurnFailed] = useState(false)
@@ -747,7 +816,20 @@ export const AgentPane: React.FC<Props> = ({
    */
   const [pendingJiraContextIds, setPendingJiraContextIds] = useState<string[]>([])
   /** Conversación viva del pane: fija de qué archivo se lee y a cuál se escribe. */
-  const activeThreadId = meta.activeThreadId ?? DEFAULT_THREAD_ID
+  const activeThreadId = activeThreadIdForGate
+  const runningThreadIdsForGate = collectRunningThreadIds(
+    lanesRef.current,
+    activeThreadId,
+    busy,
+  )
+  const busyForGate = computeBusyForGate(busy, runningThreadIdsForGate, activeThreadIdForGate)
+  const canStartHumanTurnNow = computeCanStartHumanTurnNow({
+    busy: busyForGate,
+    awaitingDelegations: awaitingDelegationsForGate,
+    delegationWorkActive: delegationWorkActiveForGate,
+    systemFollowUpsPending,
+    orchestrationWorkStyle,
+  })
   const runKey = buildRunKey(paneId, activeThreadId)
   const prevActiveThreadIdRef = useRef(activeThreadId)
   messagesRef.current = messages
@@ -1235,12 +1317,15 @@ export const AgentPane: React.FC<Props> = ({
       materializingIds: tabActive ? [...materializingIds] : [],
       settlingId,
       awaitingDelegations,
+      ...(awaitingDelegationThreadIds?.length
+        ? { awaitingDelegationThreadIds: [...awaitingDelegationThreadIds] }
+        : {}),
       orchestrationAwaiting: orchestrationAwaiting ?? null,
       delegationWorkActive,
       orchestratorBusy,
       orchestrationWorkStyle,
       turnCloseReason,
-      queuedTurns: queuedTurns.map(item => ({
+      queuedTurns: visibleQueuedTurns.map(item => ({
         id: item.id,
         text: item.text,
         images: item.images.map(image => ({
@@ -1263,6 +1348,8 @@ export const AgentPane: React.FC<Props> = ({
         || (meta.threads?.length ?? 0) > 1,
       runningThreadIds,
       runningThreadActivities,
+      activeThreadId: activeThreadIdForGate,
+      humanTurnBlocked: !canStartHumanTurnNow,
     }
     // busy/activity: inmediato. Solo messages/snippet: throttle (~150ms).
     const controlKey = [
@@ -1278,6 +1365,7 @@ export const AgentPane: React.FC<Props> = ({
       turnCloseReason ?? '',
       lastTurnFailed ? '1' : '0',
       queuedTurns.map(item => item.id).join(','),
+      visibleQueuedTurns.map(item => item.id).join(','),
       tabActive ? String(enteringIds.size) : '0',
       tabActive ? String(materializingIds.size) : '0',
       String(pendingImages.length),
@@ -1286,6 +1374,8 @@ export const AgentPane: React.FC<Props> = ({
       (meta.contextIds ?? []).join(','),
       runningThreadIds.join(','),
       Object.entries(runningThreadActivities).map(([id, text]) => `${id}:${text}`).join('|'),
+      activeThreadIdForGate,
+      canStartHumanTurnNow ? '0' : '1',
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({
       controlKey,
@@ -1298,11 +1388,15 @@ export const AgentPane: React.FC<Props> = ({
   }, [
     activeAssistantId,
     activeThreadId,
+    activeThreadIdForGate,
     activity,
     awaitingDelegations,
+    awaitingDelegationThreadIds,
     orchestrationAwaiting,
     busy,
+    canStartHumanTurnNow,
     delegationWorkActive,
+    delegationThreadIds,
     diskContexts,
     enteringIds,
     lanesVersion,
@@ -1317,6 +1411,7 @@ export const AgentPane: React.FC<Props> = ({
     orchestratorBusy,
     pendingImages.length,
     queuedTurns,
+    visibleQueuedTurns,
     settlingId,
     tabActive,
     turnCloseReason,
@@ -1560,12 +1655,17 @@ export const AgentPane: React.FC<Props> = ({
 
     if (isLaneDelegation && laneThreadId && options.delegation) {
       registerDelegationThreadInCatalog(laneThreadId, options.delegation.id)
-      const delegationRuntime: ActiveDelegationRuntime = {
-        ...options.delegation,
-        threadId: laneThreadId,
-        awaitingNested: new Set<string>(),
+      const existingLaneDelegation = laneDelegationRef.current.get(laneThreadId)
+      if (existingLaneDelegation) {
+        existingLaneDelegation.awaitingNested.clear()
+        Object.assign(existingLaneDelegation, options.delegation, { threadId: laneThreadId })
+      } else {
+        laneDelegationRef.current.set(laneThreadId, {
+          ...options.delegation,
+          threadId: laneThreadId,
+          awaitingNested: new Set<string>(),
+        })
       }
-      laneDelegationRef.current.set(laneThreadId, delegationRuntime)
       rememberActiveParentDelegation(paneId, laneThreadId, options.delegation)
       lanesRef.current = startLane(lanesRef.current, {
         threadId: laneThreadId,
@@ -2018,7 +2118,7 @@ export const AgentPane: React.FC<Props> = ({
           ...(parent ? { parentDelegationId: parent.id } : {}),
         })
       }
-      onOrchestratorDelegationsRef.current?.(tagged, jobId)
+      onOrchestratorDelegationsRef.current?.(tagged, jobId, event.warnings ?? [])
       if (tagged.length) {
         const names = tagged
           .map(item => formatCatalogAgentDelegationLabel(
@@ -2086,7 +2186,7 @@ export const AgentPane: React.FC<Props> = ({
       activeAssistantIdRef.current = assistantId
       lastAssistantIdRef.current = assistantId
       setActiveAssistantId(assistantId)
-      setBusy(true)
+      if (shouldMarkBusyOnCliError(turnClosedRef.current)) setBusy(true)
       assistantDeltaThrottlerRef.current.flush()
       setMessages(prev => {
         const content = `${t('agentPane.errorPrefix')}: ${event.message}`
@@ -2161,14 +2261,16 @@ export const AgentPane: React.FC<Props> = ({
       : lane.messages
     void window.api.saveAgentChat(chatRef, threadId, finalMessages)
     const delegation = laneDelegationRef.current.get(threadId)
-    laneDelegationRef.current.delete(threadId)
-    lanesRef.current = endLane(lanesRef.current, threadId)
-    bumpLanes()
-    const decision = decideParentDelegationNotify({
+    const { decision, clearLaneDelegation } = resolveLaneDelegationTurnEnd({
       held: Boolean(delegation),
       dispatchedNested: (delegation?.awaitingNested.size ?? 0) > 0,
       canDelegate: coordinationCanDelegate(metaRef.current.coordination),
     })
+    if (clearLaneDelegation) {
+      laneDelegationRef.current.delete(threadId)
+    }
+    lanesRef.current = endLane(lanesRef.current, threadId)
+    bumpLanes()
     if (decision === 'notify' && delegation) {
       clearActiveParentDelegation(paneId, threadId)
       const summary = isEmpty
@@ -2210,7 +2312,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       const explicitJobId = event.orchestrationJobId?.trim() || undefined
       const jobId = resolveOrchestrationJobIdForTurn(explicitJobId, explicitJobId)
-      onOrchestratorDelegationsRef.current?.(tagged, jobId)
+      onOrchestratorDelegationsRef.current?.(tagged, jobId, event.warnings ?? [])
       return
     }
     if (event.type === 'session') return
@@ -2409,15 +2511,23 @@ export const AgentPane: React.FC<Props> = ({
   }, [refreshDiskContexts, startTurn, t])
 
   const enqueueQueuedTurn = useCallback((
-    item: Omit<QueuedTurn, 'id'>,
+    item: Omit<QueuedTurn, 'id' | 'threadId'>,
   ): AppendQueuedTurnOutcome => {
     // El id del turno se genera fuera del updater: React invoca el updater dos
     // veces en StrictMode y con crypto.randomUUID() dentro no era determinista.
     const id = crypto.randomUUID()
+    const threadId = activeThreadIdForGate
     let outcome: AppendQueuedTurnOutcome = 'full'
     setQueuedTurns(prev => {
-      const result = appendQueuedTurnIfRoom(prev, {
+      const threadTurns = prev.filter(
+        turn => (turn.threadId ?? DEFAULT_THREAD_ID) === threadId,
+      )
+      const otherTurns = prev.filter(
+        turn => (turn.threadId ?? DEFAULT_THREAD_ID) !== threadId,
+      )
+      const result = appendQueuedTurnIfRoom(threadTurns, {
         id,
+        threadId,
         ...item,
       }, MAX_VISIBLE_QUEUED_TURNS)
       outcome = result.outcome
@@ -2426,30 +2536,37 @@ export const AgentPane: React.FC<Props> = ({
           paneId,
           reason: result.outcome,
           sourceSendId: item.sourceSendId,
-          queued: prev.length,
+          queued: threadTurns.length,
         })
       }
-      return result.turns
+      return [...otherTurns, ...result.turns]
     })
     return outcome
-  }, [paneId])
+  }, [activeThreadIdForGate, paneId])
 
   const send = useCallback((overrideText?: string): void => {
     const prompt = (overrideText ?? input).trim()
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
-    if (!canStartHumanTurnNow && queuedTurns.length >= MAX_VISIBLE_QUEUED_TURNS) return
+    if (!canStartHumanTurnNow && visibleQueuedTurns.length >= MAX_VISIBLE_QUEUED_TURNS) return
     onRequestPaneFocus()
     const imagesSnapshot = pendingImages
-    setInput('')
-    setPendingImages([])
     // Encolar mientras hay trabajo/delegaciones; abort solo al iniciar turno humano.
     if (!canStartHumanTurnNow) {
-      enqueueQueuedTurn({
+      const outcome = enqueueQueuedTurn({
         text: prompt,
         images: imagesSnapshot,
       })
+      if (outcome === 'full') {
+        setInput(prompt)
+        setPendingImages(imagesSnapshot)
+        return
+      }
+      setInput('')
+      setPendingImages([])
       return
     }
+    setInput('')
+    setPendingImages([])
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
@@ -2470,7 +2587,7 @@ export const AgentPane: React.FC<Props> = ({
     onRequestPaneFocus,
     pendingImages,
     pendingJiraContextIds,
-    queuedTurns.length,
+    visibleQueuedTurns.length,
     enqueueQueuedTurn,
   ])
 
@@ -2483,7 +2600,7 @@ export const AgentPane: React.FC<Props> = ({
    */
   useEffect(() => {
     const plan = planPreferSendIntake(preferSend, handledPreferSendRef.current, {
-      busy,
+      busy: busyForGate,
       preferNewThread,
       canStartHumanTurnNow,
       queuedCount: queuedTurns.length,
@@ -2507,6 +2624,8 @@ export const AgentPane: React.FC<Props> = ({
         delegationId: plan.delegationId,
         orchestrationJobId: plan.orchestrationJobId,
       })
+      // El envío está vacío, no hay turno que arrancar, pero el hueco debe cerrarse igualmente.
+      if (shouldReleasePreferSendSlot(plan.action)) onPreferSendConsumedRef.current?.()
       return
     }
     if (plan.action === 'reject') {
@@ -2526,7 +2645,7 @@ export const AgentPane: React.FC<Props> = ({
         reason: plan.reason,
         sendId: plan.sendId,
       })
-      onPreferSendConsumedRef.current?.()
+      if (shouldReleasePreferSendSlot(plan.action)) onPreferSendConsumedRef.current?.()
       return
     }
     const prompt = preferSend.text.trim()
@@ -2609,7 +2728,7 @@ export const AgentPane: React.FC<Props> = ({
       void dispatchMessage(prompt, resolvedImages, turnOptions)
     })()
   }, [
-    busy,
+    busyForGate,
     canStartHumanTurnNow,
     dispatchMessage,
     enqueueQueuedTurn,
@@ -2634,10 +2753,17 @@ export const AgentPane: React.FC<Props> = ({
 
   const handleMergeQueuedTurns = useCallback((): void => {
     setQueuedTurns(previous => {
-      const next = mergeQueuedTurns(previous)
-      if (next === previous) return previous
+      const activeId = activeThreadIdForGate
+      const threadTurns = previous.filter(
+        turn => (turn.threadId ?? DEFAULT_THREAD_ID) === activeId,
+      )
+      const otherTurns = previous.filter(
+        turn => (turn.threadId ?? DEFAULT_THREAD_ID) !== activeId,
+      )
+      const next = mergeQueuedTurns(threadTurns)
+      if (next === threadTurns) return previous
       const keptIds = new Set(next.map(item => item.id))
-      for (const item of previous) {
+      for (const item of threadTurns) {
         if (!keptIds.has(item.id)) {
           item.images.forEach(image => URL.revokeObjectURL(image.previewUrl))
         }
@@ -2645,9 +2771,9 @@ export const AgentPane: React.FC<Props> = ({
       setEditingQueuedId(current => (
         current && !next.some(item => item.id === current) ? null : current
       ))
-      return next
+      return [...otherTurns, ...next]
     })
-  }, [])
+  }, [activeThreadIdForGate])
 
   const cancelDelegationsFrom = useCallback((fromPaneId: string): void => {
     setQueuedTurns(previous => {
@@ -2735,9 +2861,9 @@ export const AgentPane: React.FC<Props> = ({
       ? loaded && !(systemFollowUpsPending || preferSend != null)
       : canDrainAgentQueue({
         loaded,
-        busy,
-        awaitingDelegations,
-        delegationWorkActive,
+        busy: busyForGate,
+        awaitingDelegations: awaitingDelegationsForGate,
+        delegationWorkActive: delegationWorkActiveForGate,
         systemFollowUpsPending: systemFollowUpsPending || preferSend != null,
         headIsDelegation,
         orchestrationWorkStyle,
@@ -2767,9 +2893,9 @@ export const AgentPane: React.FC<Props> = ({
       drainingRef.current = false
     })
   }, [
-    awaitingDelegations,
-    busy,
-    delegationWorkActive,
+    awaitingDelegationsForGate,
+    busyForGate,
+    delegationWorkActiveForGate,
     dispatchMessage,
     loaded,
     orchestrationWorkStyle,
@@ -2995,7 +3121,8 @@ export const AgentPane: React.FC<Props> = ({
       return { ...previous, ...threadPatch(state) }
     })
     window.api.deleteAgentChat(chatRef, removedId)
-  }, [chatRef, onMetaChange, resetLiveState])
+    onThreadClosed?.(removedId)
+  }, [chatRef, onMetaChange, onThreadClosed, resetLiveState])
 
   useEffect(() => {
     if (!preferNewThread) return
@@ -3018,14 +3145,14 @@ export const AgentPane: React.FC<Props> = ({
     if (!canApplyDeferredNewThread({
       busy,
       settling: settlingId != null,
-      awaitingDelegations,
+      awaitingDelegations: awaitingDelegationsForGate,
       hasActiveDelegation: Boolean(activeDelegationRef.current),
     })) return
     pendingNewThreadRef.current = false
     commitNewThreadCatalog()
     onPreferNewThreadConsumed?.()
   }, [
-    awaitingDelegations,
+    awaitingDelegationsForGate,
     busy,
     commitNewThreadCatalog,
     onPreferNewThreadConsumed,
@@ -3202,7 +3329,7 @@ export const AgentPane: React.FC<Props> = ({
             activity={activity}
             awaitingDelegations={awaitingDelegations}
             orchestrationAwaiting={orchestrationAwaiting}
-            queuedTurns={queuedTurns}
+            queuedTurns={visibleQueuedTurns}
             nearBottom={nearBottom}
             activeAssistantId={activeAssistantId}
             enteringIds={enteringIds}
@@ -3210,7 +3337,7 @@ export const AgentPane: React.FC<Props> = ({
             settlingId={settlingId}
             onEnteringAnimationEnd={handleEnteringAnimationEnd}
             onMaterializingAnimationEnd={handleMaterializingAnimationEnd}
-            mergeableCount={queuedTurns.filter(item => !item.delegation).length}
+            mergeableCount={visibleQueuedTurns.filter(item => !item.delegation).length}
             onRemoveQueuedTurn={removeQueuedTurn}
             onEditQueuedTurn={id => setEditingQueuedId(id)}
             onMergeQueuedTurns={handleMergeQueuedTurns}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   awaitingOrchestratorPaneIds,
+  awaitingOrchestratorThreadIdsByPane,
+  orchestratorAwaitingHasLegacyByPane,
+  specialistPendingHasLegacyByPane,
   abortOneDelegationInJob,
   abortOrchestrationJob,
   cancelDeferredDelegationsForStoppedPane,
@@ -15,19 +18,23 @@ import {
   jobRoundsAtCap,
   markPendingSawBusyForPane,
   occupiedPaneIdsAcrossJobs,
+  occupiedTargetThreadIdsByPane,
   orchestratorPanesWithDeferredForPane,
   pendingOrchestratorIdsFromJobs,
   resolveOrchestrationWorkStyle,
   sanitizeOrchestrationWorkStyle,
   resolveOrchestrationJobIdForTurn,
+  resolveIdleReconcileOutcome,
   shouldAbortOnHumanTurn,
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
   supersedeOrchestrationJobsForHumanTurn,
   upsertOrchestrationWaveItem,
+  laneDelegationForJob,
   type OrchestrationJob,
 } from '../orchestrationJobs'
 import { ORCHESTRATION_UNLIMITED_ROUNDS, type DelegateResult } from '../agentOrchestration'
+import { registerDelegationRuntime } from '../delegationRuntimeRegistry'
 
 function stubResult(
   partial: Partial<DelegateResult> & Pick<DelegateResult, 'id' | 'status' | 'summary'>,
@@ -93,6 +100,12 @@ describe('createOrchestrationJob / findJobByDelegation', () => {
     expect(job.pending.size).toBe(0)
     expect(job.deferred).toEqual([])
     expect(job.hasDelegated).toBe(false)
+  })
+
+  it('persists trimmed fromThreadId when provided', () => {
+    const job = createOrchestrationJob('orch-1', 'job-fixed', '  thread-a  ')
+    expect(job.fromThreadId).toBe('thread-a')
+    expect(createOrchestrationJob('orch-1', 'job-fixed', '  ').fromThreadId).toBeUndefined()
   })
 
   it('finds job by pending, deferred, or wave item', () => {
@@ -584,5 +597,235 @@ describe('abortOrchestrationJob', () => {
     expect(jobB.superseded).toBeFalsy()
     expect(jobs.has('job-a')).toBe(true)
     expect(jobs.has('job-b')).toBe(true)
+  })
+})
+
+describe('resolveIdleReconcileOutcome', () => {
+  const emptyFallback = '(empty response)'
+  const unconfirmedLabel = 'Unconfirmed delegation'
+
+  it('returns fail with trimmed summary or unconfirmed when failed', () => {
+    expect(resolveIdleReconcileOutcome({
+      failed: true,
+      sawBusy: true,
+      summary: 'error detail',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: 'error detail' })
+
+    expect(resolveIdleReconcileOutcome({
+      failed: true,
+      sawBusy: true,
+      summary: '  ',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: unconfirmedLabel })
+  })
+
+  it('returns fail with unconfirmed when specialist never saw busy', () => {
+    expect(resolveIdleReconcileOutcome({
+      failed: false,
+      sawBusy: false,
+      summary: 'looks like a result',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: unconfirmedLabel })
+
+    expect(resolveIdleReconcileOutcome({
+      failed: false,
+      sawBusy: undefined,
+      summary: 'looks like a result',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: unconfirmedLabel })
+  })
+
+  it('returns fail with unconfirmed when summary is empty or placeholder', () => {
+    expect(resolveIdleReconcileOutcome({
+      failed: false,
+      sawBusy: true,
+      summary: '',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: unconfirmedLabel })
+
+    expect(resolveIdleReconcileOutcome({
+      failed: false,
+      sawBusy: true,
+      summary: emptyFallback,
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'fail', summary: unconfirmedLabel })
+  })
+
+  it('returns ok with trimmed summary when confirmed and substantive', () => {
+    expect(resolveIdleReconcileOutcome({
+      failed: false,
+      sawBusy: true,
+      summary: '  done  ',
+      emptyFallback,
+      unconfirmedLabel,
+    })).toEqual({ status: 'ok', summary: 'done' })
+  })
+})
+
+describe('laneDelegationForJob', () => {
+  const parentDelegationId = 'parent-del-1'
+  const fromPaneId = 'orch-pane'
+  const job = createOrchestrationJob(fromPaneId)
+  job.parentDelegationId = parentDelegationId
+
+  it('returns PlaneSendDelegation when registry entry matches orchestrator pane and thread', () => {
+    const registry = new Map()
+    registerDelegationRuntime(registry, {
+      delegationId: parentDelegationId,
+      fromPaneId: 'po-pane',
+      toPaneId: fromPaneId,
+      toAgentId: 'orchestrator',
+      toThreadId: 'lane-thread-1',
+      jobId: 'parent-job',
+    })
+    expect(laneDelegationForJob(job, registry)).toEqual({
+      id: parentDelegationId,
+      fromPaneId: 'po-pane',
+      toAgentId: 'orchestrator',
+      orchestrationJobId: 'parent-job',
+      threadId: 'lane-thread-1',
+    })
+  })
+
+  it('returns undefined without parentDelegationId on job', () => {
+    const registry = new Map()
+    registerDelegationRuntime(registry, {
+      delegationId: parentDelegationId,
+      fromPaneId: 'po-pane',
+      toPaneId: fromPaneId,
+      toAgentId: 'orchestrator',
+      toThreadId: 'lane-thread-1',
+      jobId: 'parent-job',
+    })
+    expect(laneDelegationForJob(createOrchestrationJob(fromPaneId), registry)).toBeUndefined()
+  })
+
+  it('returns undefined when registry entry is missing', () => {
+    expect(laneDelegationForJob(job, new Map())).toBeUndefined()
+  })
+
+  it('returns undefined when toPaneId does not match job.fromPaneId', () => {
+    const registry = new Map()
+    registerDelegationRuntime(registry, {
+      delegationId: parentDelegationId,
+      fromPaneId: 'po-pane',
+      toPaneId: 'other-pane',
+      toAgentId: 'orchestrator',
+      toThreadId: 'lane-thread-1',
+      jobId: 'parent-job',
+    })
+    expect(laneDelegationForJob(job, registry)).toBeUndefined()
+  })
+
+  it('returns undefined when entry has no toThreadId', () => {
+    const registry = new Map()
+    registerDelegationRuntime(registry, {
+      delegationId: parentDelegationId,
+      fromPaneId: 'po-pane',
+      toPaneId: fromPaneId,
+      toAgentId: 'orchestrator',
+      jobId: 'parent-job',
+    })
+    expect(laneDelegationForJob(job, registry)).toBeUndefined()
+  })
+})
+
+describe('awaitingOrchestratorThreadIdsByPane', () => {
+  it('groups awaiting jobs by pane thread without duplicates', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+    const jobs = new Map<string, OrchestrationJob>()
+    const jobA = createOrchestrationJob('orch-1', 'job-a', 'thread-a')
+    jobA.pending.set('d1', { toPaneId: 'pane-fe', toAgentId: 'frontend' })
+    const jobB = createOrchestrationJob('orch-1', 'job-b', 'thread-b')
+    jobB.pending.set('d2', { toPaneId: 'pane-be', toAgentId: 'backend' })
+    const jobDup = createOrchestrationJob('orch-1', 'job-dup', 'thread-a')
+    jobDup.pending.set('d3', { toPaneId: 'pane-qa', toAgentId: 'qa' })
+    jobs.set(jobA.jobId, jobA)
+    jobs.set(jobB.jobId, jobB)
+    jobs.set(jobDup.jobId, jobDup)
+    byPane.set('orch-1', jobs)
+
+    expect(awaitingOrchestratorThreadIdsByPane(byPane).get('orch-1')).toEqual(['thread-a', 'thread-b'])
+  })
+
+  it('omits awaiting jobs without fromThreadId (legacy)', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+    const jobs = new Map<string, OrchestrationJob>()
+    const legacy = jobWithPending('orch-legacy', 'd-legacy', 'pane-fe')
+    jobs.set(legacy.jobId, legacy)
+    byPane.set('orch-legacy', jobs)
+
+    expect(awaitingOrchestratorThreadIdsByPane(byPane).has('orch-legacy')).toBe(false)
+  })
+
+  it('omits jobs that are not awaiting', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+    const jobs = new Map<string, OrchestrationJob>()
+    const idle = createOrchestrationJob('orch-idle', 'job-idle', 'thread-idle')
+    jobs.set(idle.jobId, idle)
+    byPane.set('orch-idle', jobs)
+
+    expect(awaitingOrchestratorThreadIdsByPane(byPane).has('orch-idle')).toBe(false)
+  })
+})
+
+describe('occupiedTargetThreadIdsByPane', () => {
+  it('groups pending toThreadId by toPaneId without duplicates', () => {
+    const job = createOrchestrationJob('orch')
+    job.pending.set('d1', { toPaneId: 'pane-a', toAgentId: 'fe', toThreadId: 't1' })
+    job.pending.set('d2', { toPaneId: 'pane-a', toAgentId: 'fe', toThreadId: 't1' })
+    job.pending.set('d3', { toPaneId: 'pane-a', toAgentId: 'fe', toThreadId: 't2' })
+    job.pending.set('d4', { toPaneId: 'pane-b', toAgentId: 'be', toThreadId: 't3' })
+    job.pending.set('d5', { toPaneId: 'pane-c', toAgentId: 'qa' })
+    job.pending.set('d6', { toPaneId: 'pane-d', toAgentId: 'qa' })
+
+    const byPane = new Map([['orch', new Map([[job.jobId, job]])]])
+    const out = occupiedTargetThreadIdsByPane(byPane)
+
+    expect(out.get('pane-a')).toEqual(['t1', 't2'])
+    expect(out.get('pane-b')).toEqual(['t3'])
+    expect(out.has('pane-c')).toBe(false)
+    expect(out.has('pane-d')).toBe(false)
+  })
+})
+
+describe('legacy fallback pane sets', () => {
+  it('orchestratorAwaitingHasLegacyByPane flags awaiting jobs without fromThreadId', () => {
+    const byPane = new Map<string, Map<string, OrchestrationJob>>()
+    const legacyJobs = new Map<string, OrchestrationJob>()
+    legacyJobs.set('j1', jobWithPending('orch-legacy', 'd1', 'pane-fe'))
+    byPane.set('orch-legacy', legacyJobs)
+
+    const threadedJobs = new Map<string, OrchestrationJob>()
+    const threaded = createOrchestrationJob('orch-threaded', 'j2', 'thread-a')
+    threaded.pending.set('d2', { toPaneId: 'pane-fe', toAgentId: 'fe' })
+    threadedJobs.set(threaded.jobId, threaded)
+    byPane.set('orch-threaded', threadedJobs)
+
+    const legacy = orchestratorAwaitingHasLegacyByPane(byPane)
+    expect(legacy.has('orch-legacy')).toBe(true)
+    expect(legacy.has('orch-threaded')).toBe(false)
+  })
+
+  it('specialistPendingHasLegacyByPane flags pending without toThreadId', () => {
+    const job = createOrchestrationJob('orch')
+    job.pending.set('d-legacy', { toPaneId: 'spec-legacy', toAgentId: 'fe' })
+    job.pending.set('d-threaded', {
+      toPaneId: 'spec-threaded',
+      toAgentId: 'fe',
+      toThreadId: 'lane-1',
+    })
+    const byPane = new Map([['orch', new Map([[job.jobId, job]])]])
+
+    const legacy = specialistPendingHasLegacyByPane(byPane)
+    expect(legacy.has('spec-legacy')).toBe(true)
+    expect(legacy.has('spec-threaded')).toBe(false)
   })
 })

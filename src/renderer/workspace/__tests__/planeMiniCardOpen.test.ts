@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   isPlaneMiniInteractiveTarget,
+  isPlaneMiniSmallControlTarget,
   markPlaneMiniCardOpenedFromPointer,
   openPlaneMiniCardFromPointerDown,
   shouldSkipPlaneMiniCardClick,
@@ -37,5 +38,25 @@ describe('planeMiniCardOpen', () => {
     const button = document.createElement('button')
     expect(isPlaneMiniInteractiveTarget(button)).toBe(true)
     expect(isPlaneMiniInteractiveTarget(document.createElement('span'))).toBe(false)
+  })
+
+  it('isPlaneMiniSmallControlTarget excludes thread lanes but includes mini controls', () => {
+    const threadRow = document.createElement('button')
+    threadRow.className = 'plane-agent-thread-nodes__row'
+    expect(isPlaneMiniSmallControlTarget(threadRow)).toBe(false)
+
+    const action = document.createElement('button')
+    action.className = 'plane-mini-face__action'
+    expect(isPlaneMiniSmallControlTarget(action)).toBe(true)
+
+    const resultsDrag = document.createElement('button')
+    resultsDrag.className = 'plane-mini-face__results-drag'
+    expect(isPlaneMiniSmallControlTarget(resultsDrag)).toBe(true)
+
+    const dragHandle = document.createElement('button')
+    dragHandle.className = 'plane-mini-face__drag-handle'
+    expect(isPlaneMiniSmallControlTarget(dragHandle)).toBe(true)
+
+    expect(isPlaneMiniSmallControlTarget(document.createElement('span'))).toBe(false)
   })
 })

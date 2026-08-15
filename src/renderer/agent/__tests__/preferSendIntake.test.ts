@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { planPreferSendIntake, type PreferSendIntakeContext } from '../preferSendIntake'
+import { planPreferSendIntake, shouldReleasePreferSendSlot, type PreferSendIntakeContext } from '../preferSendIntake'
 import type { AgentPreferSend } from '../AgentPane'
 
 function ctx(overrides: Partial<PreferSendIntakeContext> = {}): PreferSendIntakeContext {
@@ -137,5 +137,19 @@ describe('planPreferSendIntake', () => {
       ctx({ canStartHumanTurnNow: true, busy: false }),
     )
     expect(p).toEqual({ action: 'dispatch', isHumanTurn: true })
+  })
+})
+
+describe('shouldReleasePreferSendSlot', () => {
+  it('libera el hueco en ignore y consume', () => {
+    expect(shouldReleasePreferSendSlot('ignore')).toBe(true)
+    expect(shouldReleasePreferSendSlot('consume')).toBe(true)
+  })
+
+  it('no libera en skip, reject, enqueue ni dispatch', () => {
+    expect(shouldReleasePreferSendSlot('skip')).toBe(false)
+    expect(shouldReleasePreferSendSlot('reject')).toBe(false)
+    expect(shouldReleasePreferSendSlot('enqueue')).toBe(false)
+    expect(shouldReleasePreferSendSlot('dispatch')).toBe(false)
   })
 })

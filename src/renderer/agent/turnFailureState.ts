@@ -23,3 +23,8 @@ export function turnFailedAfter(event: TurnLifecycleEvent, previous: boolean): b
       return false
   }
 }
+
+/** Un error tardío del CLI no debe remarcar busy si el turno ya se cerró (p. ej. stop). */
+export function shouldMarkBusyOnCliError(turnClosed: boolean): boolean {
+  return !turnClosed
+}

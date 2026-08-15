@@ -29,11 +29,34 @@ describe('extractAiAgentDelegates', () => {
   })
 
   it('ignores invalid JSON fences', () => {
-    const { visibleText, delegations } = extractAiAgentDelegates(
+    const { visibleText, delegations, issues } = extractAiAgentDelegates(
       'Hi\n```ia-terminal-delegate\n{bad}\n```\n',
     )
     expect(delegations).toEqual([])
     expect(visibleText).toContain('Hi')
+    expect(visibleText).not.toContain('ia-terminal-delegate')
+    expect(issues).toEqual([
+      expect.objectContaining({ reason: 'invalid_json' }),
+    ])
+  })
+
+  it('merges two valid fences up to the per-turn cap', () => {
+    const fence = (objective: string) => [
+      '```ia-terminal-delegate',
+      JSON.stringify({
+        delegations: [{ toAgentId: 'qa', objective }],
+      }),
+      '```',
+    ].join('\n')
+    const raw = ['First.', fence('task one'), 'Second.', fence('task two')].join('\n')
+    const { visibleText, delegations, issues } = extractAiAgentDelegates(raw)
+    expect(visibleText).toContain('First.')
+    expect(visibleText).toContain('Second.')
+    expect(visibleText).not.toContain('ia-terminal-delegate')
+    expect(delegations).toHaveLength(2)
+    expect(delegations[0]).toMatchObject({ objective: 'task one' })
+    expect(delegations[1]).toMatchObject({ objective: 'task two' })
+    expect(issues).toEqual([])
   })
 })
 

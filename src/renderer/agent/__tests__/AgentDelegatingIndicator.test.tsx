@@ -42,7 +42,7 @@ describe('AgentDelegatingIndicator per-row Stop', () => {
       />,
     )
     const runningRow = container.querySelector('.agent-delegating__item--running')
-    expect(runningRow?.querySelector('.plane-busy-dot')).not.toBeNull()
+    expect(runningRow?.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
     expect(runningRow?.querySelector('.agent-delegating__dot')).toBeNull()
 
     const deferredRow = container.querySelector('.agent-delegating__item--deferred')

@@ -63,3 +63,8 @@ export function planPreferSendIntake(
   }
   return { action: 'dispatch', isHumanTurn }
 }
+
+/** Cierra planeSendByPane en App: ignore y consume liberan el hueco; reject reintenta. */
+export function shouldReleasePreferSendSlot(action: PreferSendIntakePlan['action']): boolean {
+  return action === 'ignore' || action === 'consume'
+}

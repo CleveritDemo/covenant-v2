@@ -59,6 +59,7 @@ import {
   buildOrchestratorAgentsBlock,
   buildOrchestratorTurboWorkStyleBlock,
   coordinationCanDelegate,
+  formatDelegateParseIssues,
   formatDelegationResultFollowUp,
   isProductOwner,
 } from '../src/shared/agentOrchestration'
@@ -1344,16 +1345,25 @@ export function startAgentTurn(
                 recordDerivedPulse({ kind: 'result', ...pulseTags })
               }
             }
-            const { visibleText, delegations } = coordinationCanDelegate(request.coordination)
+            const { visibleText, delegations, issues = [] } = coordinationCanDelegate(request.coordination)
               ? extractAiAgentDelegates(afterResults)
-              : { visibleText: afterResults, delegations: [] }
-            if (delegations.length && request.allowDelegations !== false) {
+              : { visibleText: afterResults, delegations: [], issues: [] }
+            const warnings = formatDelegateParseIssues(issues)
+            if ((delegations.length || warnings.length) && request.allowDelegations !== false) {
               const jobId = request.orchestrationJobId?.trim()
               send(win, runKey, {
                 type: 'delegate',
                 delegations,
                 ...(jobId ? { orchestrationJobId: jobId } : {}),
+                ...(warnings.length ? { warnings } : {}),
               })
+              if (warnings.length) {
+                console.warn('[orchestration] delegate fence issues', {
+                  runKey,
+                  agentId: request.agentId,
+                  issues,
+                })
+              }
               // Un evento por delegación: el roster cuenta emitidas del
               // orquestador y recibidas del ejecutor con los mismos registros.
               for (const delegation of delegations) {

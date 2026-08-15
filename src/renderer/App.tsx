@@ -83,7 +83,7 @@ import {
 } from './agent/queuedTurnDedup'
 import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
 import { queuedTurnsPlaneStatusEqual } from './agent/agentPlaneStatusIdle'
-import { collectBusyTabIds } from './agent/paneWorkActive'
+import { collectBusyTabIds, collectTabActivityDots } from './agent/paneWorkActive'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
   listDelegationTargetsForMeta,
@@ -91,6 +91,7 @@ import {
 import {
   formatDelegationResultFollowUp,
   formatDelegationRoundCapFollowUp,
+  buildDelegateWarningFollowUp,
   buildBatchedDelegationFollowUp,
   shouldWakeOrchestratorOnDelegationComplete,
   isDuplicateOrchestrationQueueItem,
@@ -109,6 +110,7 @@ import {
 } from '@shared/delegationTurnSummary'
 import {
   awaitingOrchestratorPaneIds,
+  awaitingOrchestratorThreadIdsByPane,
   abortOneDelegationInJob,
   abortOrchestrationJob,
   cancelDeferredDelegationsForStoppedPane,
@@ -123,12 +125,17 @@ import {
   listJobsForPane,
   markPendingSawBusyForPane,
   occupiedTargetPaneIdsAcrossAllJobs,
+  occupiedTargetThreadIdsByPane,
   orchestratorPanesWithDeferredForPane,
+  orchestratorAwaitingHasLegacyByPane,
+  specialistPendingHasLegacyByPane,
   pendingOrchestratorIdsFromJobs,
+  resolveIdleReconcileOutcome,
   shouldDeliverOrchestrationJobFollowUp,
   shouldWakeJob,
   supersedeOrchestrationJobsForHumanTurn,
   upsertOrchestrationWaveItem,
+  laneDelegationForJob,
   type OrchestrationJob,
 } from '@shared/orchestrationJobs'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
@@ -164,9 +171,10 @@ import {
   type DelegationRuntimeRegistry,
 } from '@shared/delegationRuntimeRegistry'
 import {
-  enqueueHumanSend,
+  enqueueHumanSendForThread,
   MAX_VISIBLE_QUEUED_TURNS,
   takeNextHumanSend,
+  takeNextHumanSendForThread,
 } from '@shared/planeHumanSendFifo'
 import { shouldPromoteHumanSendToVisibleQueue } from './agent/agentInputGuards'
 import {
@@ -299,6 +307,7 @@ function reorderPaneIdsAfterClose(paneIds: string[], closedPaneId: string): stri
 type SessionReady = { loaded: boolean }
 
 let tabCounter = 0
+const NO_THREAD_IDS: readonly string[] = []
 /** Nueva pestaña: plano vacío (sin agente ni terminal abiertos). */
 function newTab(title: string): TabSession {
   return {
@@ -589,6 +598,7 @@ export const App: React.FC = () => {
     sendId?: string
     focusPane?: boolean
     extraContextIds?: string[]
+    threadId?: string
     orchestrationFollowUp?: boolean
     allowDelegations?: boolean
     delegation?: PlaneSendDelegation
@@ -604,6 +614,8 @@ export const App: React.FC = () => {
    * Reemplaza pending/deferred/wave/rounds/completed por-mapa plano.
    */
   const orchestrationJobsByPaneRef = useRef(new Map<string, Map<string, OrchestrationJob>>())
+  /** Líneas de warning de delegate ya encoladas por job (dedupe L6). */
+  const delegateWarningsSeenByJobRef = useRef<Map<string, Set<string>>(new Map())
   /** Job activo del próximo turno CLI (humano recién creado o follow-up ofrecido). */
   const activeOrchestrationJobByPaneRef = useRef(new Map<string, string>())
   const [orchestrationAwaitingByPane, setOrchestrationAwaitingByPane] = useState<
@@ -638,7 +650,18 @@ export const App: React.FC = () => {
   const [delegationTargetPaneIds, setDelegationTargetPaneIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
+  const [delegationThreadIdsByPane, setDelegationThreadIdsByPane] = useState<
+    ReadonlyMap<string, string[]>
+  >(() => new Map())
+  const [awaitingDelegationThreadIdsByPane, setAwaitingDelegationThreadIdsByPane] = useState<
+    ReadonlyMap<string, string[]>
+  >(() => new Map())
+  const [awaitingDelegationLegacyFallbackPaneIds, setAwaitingDelegationLegacyFallbackPaneIds] =
+    useState<ReadonlySet<string>>(() => new Set())
+  const [delegationWorkLegacyFallbackPaneIds, setDelegationWorkLegacyFallbackPaneIds] =
+    useState<ReadonlySet<string>>(() => new Set())
   /** Especialista idle con pending huérfano → completar (notify perdido / remount). */
+  const closeOrchestrationStateForPaneRef = useRef<(paneId: string) => void>(() => {})
   const reconcileIdleDelegationTargetRef = useRef<(
     paneId: string,
     summary: string,
@@ -649,6 +672,10 @@ export const App: React.FC = () => {
     const byPane = orchestrationJobsByPaneRef.current
     setAwaitingDelegationPaneIds(awaitingOrchestratorPaneIds(byPane))
     setDelegationTargetPaneIds(occupiedTargetPaneIdsAcrossAllJobs(byPane))
+    setDelegationThreadIdsByPane(occupiedTargetThreadIdsByPane(byPane))
+    setAwaitingDelegationThreadIdsByPane(awaitingOrchestratorThreadIdsByPane(byPane))
+    setAwaitingDelegationLegacyFallbackPaneIds(orchestratorAwaitingHasLegacyByPane(byPane))
+    setDelegationWorkLegacyFallbackPaneIds(specialistPendingHasLegacyByPane(byPane))
 
     const nextViews = new Map<string, OrchestrationAwaitingView>()
     for (const [fromPaneId, jobsMap] of byPane.entries()) {
@@ -1881,6 +1908,17 @@ export const App: React.FC = () => {
     [tabs, busyPanes, delegationTargetPaneIds, agentPlaneStatus],
   )
 
+  const tabActivityDots = useMemo(
+    () => collectTabActivityDots(
+      tabs,
+      busyPanes,
+      delegationTargetPaneIds,
+      awaitingDelegationPaneIds,
+      agentPlaneStatus,
+    ),
+    [tabs, busyPanes, delegationTargetPaneIds, awaitingDelegationPaneIds, agentPlaneStatus],
+  )
+
   // Discord Rich Presence: ref reasignada cada render para que el poll de 15s
   // lea siempre el estado actual sin resuscribirse.
   const presenceSnapshotRef = useRef<PresenceSnapshot>({
@@ -2517,6 +2555,40 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  function purgeHumanSendFifoForPane(paneId: string): void {
+    const pendingHumanFifo = humanSendFifoByPaneRef.current.get(paneId)
+    if (!pendingHumanFifo) return
+    for (const item of pendingHumanFifo) {
+      for (const image of item.images) {
+        const previewUrl = (image as { previewUrl?: string }).previewUrl
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
+      }
+    }
+    humanSendFifoByPaneRef.current.delete(paneId)
+  }
+
+  const handleHumanSendThreadClosed = useCallback((paneId: string, closedThreadId: string) => {
+    const fifo = humanSendFifoByPaneRef.current.get(paneId)
+    if (!fifo) return
+    const kept: typeof fifo = []
+    for (const item of fifo) {
+      if (item.threadId === closedThreadId) {
+        for (const image of item.images) {
+          const previewUrl = (image as { previewUrl?: string }).previewUrl
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+        }
+      } else {
+        kept.push(item)
+      }
+    }
+    if (kept.length) {
+      humanSendFifoByPaneRef.current.set(paneId, kept)
+    } else {
+      humanSendFifoByPaneRef.current.delete(paneId)
+    }
+    setHumanSendFifoTick(n => n + 1)
+  }, [])
+
   const handleCloseTab = useCallback((tabId: string) => {
     const victim = tabsRef.current.find(t => t.id === tabId)
     if (victim) {
@@ -2529,6 +2601,12 @@ export const App: React.FC = () => {
       })
       tabExplorerHostByTabRef.current.delete(tabId)
       const paneIds = [...victim.paneIds]
+      for (const pid of paneIds) {
+        closeOrchestrationStateForPaneRef.current(pid)
+        purgeHumanSendFifoForPane(pid)
+        humanDirectDrainInFlightRef.current.delete(pid)
+        planeQueueControlsByPaneRef.current.delete(pid)
+      }
       for (const pid of paneIds) {
         if (victim.paneKinds?.[pid] === 'agent') window.api.stopAgentTurn(pid)
         else window.api.ptyKill(pid)
@@ -2690,13 +2768,13 @@ export const App: React.FC = () => {
         ...(planeLoopChains.length ? { planeLoopChains } : { planeLoopChains: undefined }),
       })
     }))
+    closeOrchestrationStateForPaneRef.current(paneId)
     setAgentPlaneStatus(prev => {
       if (!(paneId in prev)) return prev
       const next = { ...prev }
       delete next[paneId]
       return next
     })
-    orchestrationFifoByPaneRef.current.delete(paneId)
     setPlaneSendByPane(prev => {
       if (!(paneId in prev)) return prev
       const next = { ...prev }
@@ -2705,16 +2783,7 @@ export const App: React.FC = () => {
     })
     planeQueueControlsByPaneRef.current.delete(paneId)
     humanDirectDrainInFlightRef.current.delete(paneId)
-    const pendingHumanFifo = humanSendFifoByPaneRef.current.get(paneId)
-    if (pendingHumanFifo) {
-      for (const item of pendingHumanFifo) {
-        for (const image of item.images) {
-          const previewUrl = (image as { previewUrl?: string }).previewUrl
-          if (previewUrl) URL.revokeObjectURL(previewUrl)
-        }
-      }
-      humanSendFifoByPaneRef.current.delete(paneId)
-    }
+    purgeHumanSendFifoForPane(paneId)
     // QA fix: no dejar worktrees/ramas huérfanos si se cierra el orquestador o el pane
     // especialista que estaba ejecutando una delegación en un worktree dedicado.
     void cleanupWorktreesForPane(paneId)
@@ -3580,20 +3649,20 @@ export const App: React.FC = () => {
       orchestrationJobId?: string
       delegation?: PlaneSendDelegation
     },
-  ) => {
+  ): boolean => {
     // Follow-ups de jobs superseded/missing no deben llegar a preferSend.
     if (payload.orchestrationFollowUp === true) {
       const jobId = payload.orchestrationJobId?.trim()
       if (jobId) {
         const jobsMap = orchestrationJobsByPaneRef.current.get(paneId)
         const job = jobsMap?.get(jobId)
-        if (!job || job.superseded) return
+        if (!job || job.superseded) return false
         const fifo = orchestrationFifoByPaneRef.current.get(paneId) ?? []
         if (fifo.some(
           item => item.orchestrationFollowUp === true
             && item.orchestrationJobId?.trim() === jobId,
         )) {
-          return
+          return false
         }
       }
     }
@@ -3603,7 +3672,11 @@ export const App: React.FC = () => {
       text: payload.text,
       orchestrationJobId: payload.orchestrationJobId?.trim(),
     }
-    if (queue.some(item => isDuplicateOrchestrationQueueItem(item, nextItem))) return
+    // Cada delegación tiene id propio; dos objetivos idénticos al mismo pane son
+    // trabajo distinto (parallel lanes), no un duplicado.
+    if (!payload.delegation && queue.some(item => isDuplicateOrchestrationQueueItem(item, nextItem))) {
+      return false
+    }
     // Un follow-up ya despachado no vuelve a la cola: evita reenviar el mismo texto
     // tras consumirlo. beginOrchestrationUserTurn borra la memoria del pane al
     // arrancar un turno humano del orquestador.
@@ -3611,7 +3684,7 @@ export const App: React.FC = () => {
       const key = orchestrationFollowUpKey(nextItem)
       const dispatched = dispatchedOrchestrationFollowUpsByPaneRef.current.get(paneId)
         ?? new Set<string>()
-      if (dispatched.has(key)) return
+      if (dispatched.has(key)) return false
       dispatched.add(key)
       dispatchedOrchestrationFollowUpsByPaneRef.current.set(paneId, dispatched)
     } else {
@@ -3631,6 +3704,7 @@ export const App: React.FC = () => {
     })
     orchestrationFifoByPaneRef.current.set(paneId, queue)
     setOrchestrationFifoTick(n => n + 1)
+    return true
   }, [])
 
   const orchestrationWorkStyleForPane = useCallback((paneId: string, tabId?: string) => {
@@ -3672,7 +3746,9 @@ export const App: React.FC = () => {
         requestedJobId: decision.staleJobId,
       })
     }
-    const job = createOrchestrationJob(fromPaneId)
+    const fromThreadId =
+      agentPlaneStatusRef.current[fromPaneId]?.activeThreadId?.trim() || DEFAULT_THREAD_ID
+    const job = createOrchestrationJob(fromPaneId, undefined, fromThreadId)
     jobs.set(job.jobId, job)
     activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
     return job
@@ -3694,9 +3770,12 @@ export const App: React.FC = () => {
     if (workStyle !== 'turbo') {
       jobs.clear()
     }
-    const job = createOrchestrationJob(fromPaneId)
+    const fromThreadId =
+      agentPlaneStatusRef.current[fromPaneId]?.activeThreadId?.trim() || DEFAULT_THREAD_ID
+    const job = createOrchestrationJob(fromPaneId, undefined, fromThreadId)
     jobs.set(job.jobId, job)
     activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
+    delegateWarningsSeenByJobRef.current.set(job.jobId, new Set())
   }, [getOrCreateJobsMap, orchestrationWorkStyleForPane])
 
   const orchestrationMaxRoundsForPane = useCallback((paneId: string, tabId?: string): number => {
@@ -3715,12 +3794,38 @@ export const App: React.FC = () => {
     tabId: string,
     delegations: DelegateRequest[],
     orchestrationJobId?: string,
+    warnings?: string[],
   ) => {
+    const warningLines = (warnings ?? []).map(line => line.trim()).filter(Boolean)
+    const job = warningLines.length || delegations.length
+      ? resolveActiveJob(fromPaneId, orchestrationJobId)
+      : null
+    if (warningLines.length && job) {
+      let seen = delegateWarningsSeenByJobRef.current.get(job.jobId)
+      if (!seen) {
+        seen = new Set()
+        delegateWarningsSeenByJobRef.current.set(job.jobId, seen)
+      }
+      const newLines = warningLines.filter(line => !seen.has(line))
+      for (const line of newLines) seen.add(line)
+      if (newLines.length) {
+        const text = buildDelegateWarningFollowUp(newLines)
+        if (text) {
+          enqueueOrchestrationSend(fromPaneId, {
+            text,
+            focusPane: false,
+            orchestrationFollowUp: true,
+            allowDelegations: true,
+            orchestrationJobId: job.jobId,
+          })
+        }
+      }
+    }
     if (!delegations.length) return
+    if (!job) return
     const maxRounds = orchestrationMaxRoundsForPane(fromPaneId, tabId)
     const workStyle = orchestrationWorkStyleForPane(fromPaneId, tabId)
     // Turbo: atar la ola al job del turno que emitió, no al “activo” del pane.
-    const job = resolveActiveJob(fromPaneId, orchestrationJobId)
     const previousRounds = job.round
     const nextRound = previousRounds + 1
     job.round = nextRound
@@ -3890,6 +3995,10 @@ export const App: React.FC = () => {
             deleteDelegationRuntime(delegationRuntimeByIdRef.current, delegation.id)
             const waveIdx = waveItems.findIndex(item => item.delegationId === delegation.id)
             if (waveIdx >= 0) waveItems.splice(waveIdx, 1)
+            const worktreeFailLaneDelegation = laneDelegationForJob(
+              job,
+              delegationRuntimeByIdRef.current,
+            )
             enqueueOrchestrationSend(fromPaneId, {
               text: formatDelegationResultFollowUp({
                 id: delegation.id,
@@ -3908,18 +4017,24 @@ export const App: React.FC = () => {
               orchestrationFollowUp: true,
               orchestrationJobId: job.jobId,
               allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+              ...(worktreeFailLaneDelegation ? { delegation: worktreeFailLaneDelegation } : {}),
             })
             continue
           }
         }
       }
 
+      if (!job.parentDelegationId && delegation.parentDelegationId) {
+        job.parentDelegationId = delegation.parentDelegationId
+      }
+
       const contextHint = delegation.contextIds?.length
         ? `\n\nPreferred context ids: ${delegation.contextIds.join(', ')}`
         : ''
-      enqueueOrchestrationSend(toPaneId, {
+      const queued = enqueueOrchestrationSend(toPaneId, {
         text: `${delegation.objective}${contextHint}`,
         focusPane: false,
+        orchestrationJobId: job.jobId,
         delegation: {
           id: delegation.id,
           fromPaneId,
@@ -3929,6 +4044,45 @@ export const App: React.FC = () => {
           ...(worktreePath ? { cwd: worktreePath } : {}),
         },
       })
+      if (!queued) {
+        pending.delete(delegation.id)
+        deleteDelegationRuntime(delegationRuntimeByIdRef.current, delegation.id)
+        const waveIdx = waveItems.findIndex(item => item.delegationId === delegation.id)
+        if (waveIdx >= 0) waveItems.splice(waveIdx, 1)
+        console.warn('[orchestration] delegation enqueue rejected', {
+          delegationId: delegation.id,
+          orchestrationJobId: job.jobId,
+          fromPaneId,
+          toPaneId,
+          toAgentId: routedAgentId,
+          reason: 'enqueue_rejected',
+        })
+        const enqueueRejectedLaneDelegation = laneDelegationForJob(
+          job,
+          delegationRuntimeByIdRef.current,
+        )
+        enqueueOrchestrationSend(fromPaneId, {
+          text: formatDelegationResultFollowUp({
+            id: delegation.id,
+            status: 'fail',
+            summary: `Delegation to "${routedAgentId}" was dropped before dispatch (queue rejected the send).`,
+            fromPaneId,
+            orchestrationJobId: job.jobId,
+            toAgentId: routedAgentId,
+          }, {
+            round: nextRound,
+            maxRounds,
+            batchRemaining: 0,
+            continuousProductOwner: fromMeta.coordination === 'productOwner',
+          }),
+          focusPane: false,
+          orchestrationFollowUp: true,
+          orchestrationJobId: job.jobId,
+          allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+          ...(enqueueRejectedLaneDelegation ? { delegation: enqueueRejectedLaneDelegation } : {}),
+        })
+        continue
+      }
     }
     syncAwaitingFromPending()
   }, [
@@ -4284,6 +4438,7 @@ export const App: React.FC = () => {
     runtime: DelegationRuntimeEntry | undefined,
     detail?: string,
   ) => {
+    const toPaneId = runtime?.toPaneId?.trim() || result.toPaneId?.trim()
     if (runtime) {
       markDelegationRuntimeStatus(delegationRuntimeByIdRef.current, result.id, 'orphaned')
       const worktreeInfo = worktreesByDelegationRef.current.get(result.id)
@@ -4310,7 +4465,16 @@ export const App: React.FC = () => {
           receivedJobId: result.orchestrationJobId,
         },
       )
+      // Sin esto la fila queda en running hasta que el reconcile por antigüedad la cierre.
+      const ownerJob = orchestrationJobsByPaneRef.current.get(runtime.fromPaneId)?.get(runtime.jobId)
+      if (ownerJob?.pending.has(result.id)) {
+        ownerJob.pending.delete(result.id)
+        const idx = ownerJob.waveItems.findIndex(item => item.delegationId === result.id)
+        if (idx >= 0) ownerJob.waveItems.splice(idx, 1)
+        syncAwaitingFromPending()
+      }
       deleteDelegationRuntime(delegationRuntimeByIdRef.current, result.id)
+      if (toPaneId) void wakeDeferredForFreedPane(toPaneId)
       return
     }
     console.warn(
@@ -4325,7 +4489,8 @@ export const App: React.FC = () => {
         receivedJobId: result.orchestrationJobId,
       },
     )
-  }, [])
+    if (toPaneId) void wakeDeferredForFreedPane(toPaneId)
+  }, [wakeDeferredForFreedPane, syncAwaitingFromPending])
 
   const handleDelegationTurnComplete = useCallback(async (result: DelegateResult) => {
     const resolution = resolveDelegationDelivery(delegationRuntimeByIdRef.current, result)
@@ -4348,6 +4513,18 @@ export const App: React.FC = () => {
         expectedJobId: resolution.entry.jobId,
         receivedJobId: result.orchestrationJobId,
       })
+      const mismatchId = result.id.trim()
+      if (mismatchId) {
+        for (const jobsMap of orchestrationJobsByPaneRef.current.values()) {
+          for (const ownerJob of jobsMap.values()) {
+            if (!ownerJob.pending.has(mismatchId)) continue
+            ownerJob.pending.delete(mismatchId)
+            const waveIdx = ownerJob.waveItems.findIndex(item => item.delegationId === mismatchId)
+            if (waveIdx >= 0) ownerJob.waveItems.splice(waveIdx, 1)
+          }
+        }
+        syncAwaitingFromPending()
+      }
       handleOrphanDelegationResult(result, resolution.entry, `mismatch_${resolution.reason}`)
       return
     } else {
@@ -4360,8 +4537,11 @@ export const App: React.FC = () => {
     }
     if (job.completedResults.some(r => r.id === result.id)) {
       console.warn('[orchestration] duplicate result ignored', { delegationId: result.id })
+      const duplicateMeta = job.pending.get(result.id)
+      const duplicateToPaneId = duplicateMeta?.toPaneId
       job.pending.delete(result.id)
       syncAwaitingFromPending()
+      if (duplicateToPaneId) void wakeDeferredForFreedPane(duplicateToPaneId)
       return
     }
     const completedMeta = job.pending.get(result.id)
@@ -4467,6 +4647,7 @@ export const App: React.FC = () => {
       : undefined
     const workStyle = orchestrationWorkStyleForPane(fromPaneId)
     activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
+    const batchLaneDelegation = laneDelegationForJob(job, delegationRuntimeByIdRef.current)
     enqueueOrchestrationSend(fromPaneId, {
       text: buildBatchedDelegationFollowUp(batchResults, {
         round,
@@ -4479,6 +4660,7 @@ export const App: React.FC = () => {
       orchestrationFollowUp: true,
       orchestrationJobId: job.jobId,
       allowDelegations: !atCap,
+      ...(batchLaneDelegation ? { delegation: batchLaneDelegation } : {}),
     })
   }, [
     applyPruneDelegationThreadsForCompletedJob,
@@ -4491,6 +4673,35 @@ export const App: React.FC = () => {
     syncAwaitingFromPending,
     wakeDeferredForFreedPane,
   ])
+
+  const closeOrchestrationStateForPane = useCallback((closedPaneId: string) => {
+    const paneId = closedPaneId.trim()
+    if (!paneId) return
+
+    const paneClosedSummary = t('agentPane.delegationPaneClosedSummary')
+    for (const [fromPaneId, jobsMap] of orchestrationJobsByPaneRef.current.entries()) {
+      for (const job of jobsMap.values()) {
+        for (const [delegationId, meta] of job.pending.entries()) {
+          if (meta.toPaneId !== paneId) continue
+          void handleDelegationTurnComplete({
+            id: delegationId,
+            status: 'fail',
+            summary: paneClosedSummary,
+            fromPaneId,
+            orchestrationJobId: job.jobId,
+            toAgentId: meta.toAgentId,
+            toPaneId: paneId,
+            ...(meta.toThreadId ? { toThreadId: meta.toThreadId } : {}),
+          })
+        }
+      }
+    }
+
+    orchestrationJobsByPaneRef.current.delete(paneId)
+    activeOrchestrationJobByPaneRef.current.delete(paneId)
+    orchestrationFifoByPaneRef.current.delete(paneId)
+  }, [handleDelegationTurnComplete, t])
+  closeOrchestrationStateForPaneRef.current = closeOrchestrationStateForPane
 
   reconcileIdleDelegationTargetRef.current = (paneId, summary, failed) => {
     if (reconcilingIdleDelegationPaneIdsRef.current.has(paneId)) return
@@ -4516,6 +4727,7 @@ export const App: React.FC = () => {
         })) return
         if (listJobsForPane(orchestrationJobsByPaneRef.current, paneId).some(isJobAwaiting)) return
         const emptyFallback = i18next.t('agentPane.delegationEmptySummary')
+        const unconfirmedLabel = i18next.t('agentPane.delegationUnconfirmedSummary')
         let finalSummary = summary.trim() || emptyFallback
         let resultContextId: string | undefined
         if (isDelegationSummaryPlaceholder(finalSummary) && still.toAgentId) {
@@ -4539,10 +4751,20 @@ export const App: React.FC = () => {
             }
           }
         }
+        const outcome = resolveIdleReconcileOutcome({
+          failed,
+          sawBusy: still.sawBusy,
+          summary: finalSummary,
+          emptyFallback,
+          unconfirmedLabel,
+        })
+        const attachResultContextId = outcome.status === 'fail' && still.sawBusy !== true
+          ? undefined
+          : resultContextId
         void handleDelegationTurnComplete({
           id: found.delegationId,
-          status: failed ? 'fail' : 'ok',
-          summary: finalSummary,
+          status: outcome.status,
+          summary: outcome.summary,
           fromPaneId: found.fromPaneId,
           orchestrationJobId: found.job.jobId,
           toAgentId: found.toAgentId,
@@ -4550,7 +4772,7 @@ export const App: React.FC = () => {
           ...(found.job.pending.get(found.delegationId)?.toThreadId
             ? { toThreadId: found.job.pending.get(found.delegationId)!.toThreadId }
             : {}),
-          ...(resultContextId ? { resultContextId } : {}),
+          ...(attachResultContextId ? { resultContextId: attachResultContextId } : {}),
         })
       }).finally(() => {
         reconcilingIdleDelegationPaneIdsRef.current.delete(paneId)
@@ -4646,9 +4868,16 @@ export const App: React.FC = () => {
     }
     setOrchestrationFifoTick(n => n + 1)
     syncAwaitingFromPending()
+    const freedToPaneIds = new Set<string>()
+    for (const target of abortedTargets) {
+      if (target.toPaneId) freedToPaneIds.add(target.toPaneId)
+    }
+    for (const toPaneId of freedToPaneIds) {
+      void wakeDeferredForFreedPane(toPaneId)
+    }
     // QA fix: no dejar worktrees/ramas huérfanos de este orquestador al abortar.
     void cleanupWorktreesForPane(fromPaneId)
-  }, [cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending])
+  }, [cleanupWorktreesForPane, requestPlaneStop, syncAwaitingFromPending, wakeDeferredForFreedPane])
   abortOrchestrationRunRef.current = abortOrchestrationRun
 
   /**
@@ -4860,10 +5089,17 @@ export const App: React.FC = () => {
       if (head.orchestrationJobId?.trim()) {
         activeOrchestrationJobByPaneRef.current.set(paneId, head.orchestrationJobId.trim())
       }
+      // Sin reinserción, si el slot se ocupó en la carrera el head ya salió de la cola y se pierde.
+      let placed = false
       setPlaneSendByPane(prev => {
         if (prev[paneId]) return prev
+        placed = true
         return { ...prev, [paneId]: head }
       })
+      if (!placed) {
+        queues.set(paneId, [head, ...(queues.get(paneId) ?? [])])
+        setOrchestrationFifoTick(n => n + 1)
+      }
     }
   }, [agentPlaneStatus, orchestrationFifoTick, planeSendByPane])
 
@@ -4881,7 +5117,13 @@ export const App: React.FC = () => {
           queues.delete(paneId)
           continue
         }
-        const { head, rest } = takeNextHumanSend(queue)
+        const publishedThreadId = agentPlaneStatus[paneId]?.activeThreadId
+        const { head, rest } = publishedThreadId
+          ? takeNextHumanSendForThread(queue, publishedThreadId)
+          : (() => {
+            const taken = takeNextHumanSend(queue)
+            return { head: taken.head ?? null, rest: taken.rest }
+          })()
         if (!head) {
           if (!rest.length) queues.delete(paneId)
           else queues.set(paneId, rest)
@@ -4925,7 +5167,13 @@ export const App: React.FC = () => {
         queues.delete(paneId)
         continue
       }
-      const { head, rest } = takeNextHumanSend(queue)
+      const publishedThreadId = agentPlaneStatus[paneId]?.activeThreadId
+      const { head, rest } = publishedThreadId
+        ? takeNextHumanSendForThread(queue, publishedThreadId)
+        : (() => {
+          const taken = takeNextHumanSend(queue)
+          return { head: taken.head ?? null, rest: taken.rest }
+        })()
       if (!head) {
         if (!rest.length) queues.delete(paneId)
         else queues.set(paneId, rest)
@@ -5513,9 +5761,19 @@ export const App: React.FC = () => {
           isActivePane={tab.id === activeTabId && tab.activePaneId === paneId}
           windowOpen={Boolean(tab.paneWindows?.[paneId]?.open)}
           awaitingDelegations={awaitingDelegationPaneIds.has(paneId)}
+          awaitingDelegationThreadIds={
+            awaitingDelegationThreadIdsByPane.get(paneId) ?? NO_THREAD_IDS
+          }
+          awaitingDelegationLegacyFallback={
+            awaitingDelegationLegacyFallbackPaneIds.has(paneId)
+          }
+          delegationWorkLegacyFallback={
+            delegationWorkLegacyFallbackPaneIds.has(paneId)
+          }
           orchestrationWorkStyle={orchestrationWorkStyleForPane(paneId, tab.id)}
           orchestrationAwaiting={orchestrationAwaitingByPane.get(paneId) ?? null}
           delegationWorkActive={delegationTargetPaneIds.has(paneId)}
+          delegationThreadIds={delegationThreadIdsByPane.get(paneId) ?? NO_THREAD_IDS}
           systemFollowUpsPending={
             orchestrationFifoTick >= 0
             && (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
@@ -5546,8 +5804,8 @@ export const App: React.FC = () => {
                 coordination: peerMeta.coordination ?? 'none',
               }
             })}
-          onOrchestratorDelegations={(delegations, orchestrationJobId) => {
-            handleOrchestratorDelegations(paneId, tab.id, delegations, orchestrationJobId)
+          onOrchestratorDelegations={(delegations, orchestrationJobId, warnings) => {
+            handleOrchestratorDelegations(paneId, tab.id, delegations, orchestrationJobId, warnings)
           }}
           onOrchestratorStop={() => handleOrchestratorStop(paneId)}
           onAbortDelegation={delegationId => {
@@ -5606,6 +5864,7 @@ export const App: React.FC = () => {
             setPlaneNewThreadPaneId(current => (current === paneId ? null : current))
           }}
           registerShortcutCloseInterceptor={registerClose}
+          onThreadClosed={threadId => handleHumanSendThreadClosed(paneId, threadId)}
           fontSize={config.fontSize ?? 13}
           systemSoundsEnabled={config.systemSoundsEnabled !== false}
         />
@@ -5813,6 +6072,7 @@ export const App: React.FC = () => {
         onRename={handleRenameTab}
         onReorder={handleReorderTabs}
         busyTabIds={busyTabIds}
+        tabActivityDots={tabActivityDots}
         canRenameTab={canRenameTab}
       />
 
@@ -5883,6 +6143,7 @@ export const App: React.FC = () => {
               if (kind === 'agent') {
                 const status = agentPlaneStatus[paneId]
                 const delegationWorkActive = delegationTargetPaneIds.has(paneId)
+                const awaitingDelegations = awaitingDelegationPaneIds.has(paneId)
                 const visuallyBusy = busyPanes.has(paneId) || delegationWorkActive
                 const assignedIds = meta?.contextIds ?? []
                 const assignedContexts = resolveAssignedContextChips(
@@ -5916,6 +6177,7 @@ export const App: React.FC = () => {
                   title,
                   monogram: meta?.monogram,
                   busy: visuallyBusy,
+                  awaitingDelegations,
                   provider: meta?.provider ?? 'claude',
                   coordination: (meta?.coordination === 'orchestrator'
                     || meta?.coordination === 'productOwner'
@@ -6096,6 +6358,8 @@ export const App: React.FC = () => {
                   onQueueFullNoticeDismiss={() => setPlaneQueueFullNotice(null)}
                   onOpenChatAgentChange={paneId => handlePlaneOpenChatAgent(tab.id, paneId)}
                   onSendChat={(paneId, text, images, contextIds) => {
+                    const activeThreadId =
+                      agentPlaneStatusRef.current[paneId]?.activeThreadId ?? DEFAULT_THREAD_ID
                     const sendItem = {
                       text,
                       images,
@@ -6104,9 +6368,14 @@ export const App: React.FC = () => {
                       sendId: crypto.randomUUID(),
                       focusPane: true as const,
                       ...(contextIds.length ? { extraContextIds: contextIds } : {}),
+                      threadId: activeThreadId,
                     }
                     const queue = humanSendFifoByPaneRef.current.get(paneId) ?? []
-                    const { queue: nextQueue, dropped } = enqueueHumanSend(queue, sendItem)
+                    const { queue: nextQueue, dropped } = enqueueHumanSendForThread(
+                      queue,
+                      sendItem,
+                      activeThreadId,
+                    )
                     if (dropped) {
                       console.warn('[plane] human send dropped', { paneId, reason: 'human_fifo_full' })
                       setPlaneQueueFullNotice({ paneId, text, at: Date.now() })
@@ -6122,15 +6391,21 @@ export const App: React.FC = () => {
                       const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
                       const orchestrationFifoPending =
                         (orchestrationFifoByPaneRef.current.get(paneId)?.length ?? 0) > 0
-                      const shouldPromote = shouldPromoteHumanSendToVisibleQueue({
-                        busy: planeStatus?.busy === true,
-                        awaitingDelegations:
-                          planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
-                        delegationWorkActive:
-                          planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
-                        systemFollowUpsPending:
-                          orchestrationFifoPending || Boolean(planeSendByPane[paneId]),
-                      }, workStyle)
+                      const shouldPromote = (() => {
+                        if (planeStatus?.humanTurnBlocked !== undefined) {
+                          if (planeStatus.humanTurnBlocked) return true
+                          return planeStatus.busy === true
+                        }
+                        return shouldPromoteHumanSendToVisibleQueue({
+                          busy: planeStatus?.busy === true,
+                          awaitingDelegations:
+                            planeStatus?.awaitingDelegations ?? awaitingDelegationPaneIds.has(paneId),
+                          delegationWorkActive:
+                            planeStatus?.delegationWorkActive ?? delegationTargetPaneIds.has(paneId),
+                          systemFollowUpsPending:
+                            orchestrationFifoPending || Boolean(planeSendByPane[paneId]),
+                        }, workStyle)
+                      })()
                       if (
                         shouldPromote
                         && controls
@@ -6198,6 +6473,15 @@ export const App: React.FC = () => {
                         pendingDelegation.fromPaneId,
                         pendingDelegation.delegationId,
                       )
+                      return
+                    }
+                    const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
+                    const hasAwaitingJobs = listJobsForPane(
+                      orchestrationJobsByPaneRef.current,
+                      paneId,
+                    ).some(isJobAwaiting)
+                    if (workStyle === 'turbo' && hasAwaitingJobs) {
+                      abortOrchestrationRun(paneId)
                       return
                     }
                     requestPlaneStop(paneId)

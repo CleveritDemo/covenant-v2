@@ -10,6 +10,7 @@ import {
   type PlaneAgentThreadNode,
 } from './PlaneAgentThreadNodes'
 import { PlaneMiniActions } from './PlaneMiniActions'
+import { resolvePlaneActivityDot } from '../agent/paneWorkActive'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneMiniFolderBadge } from './PlaneMiniFolderBadge'
 import { armMiniExpandSuppress } from './miniExpandSuppress'
@@ -25,6 +26,8 @@ export interface PlanePaneWindowProps {
   seatDragEnabled?: boolean
   monogram?: string
   busy?: boolean
+  /** Orquestador esperando resultados de especialistas. */
+  awaitingDelegations?: boolean
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   snippet?: string
@@ -99,6 +102,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   seatDragEnabled = false,
   monogram,
   busy = false,
+  awaitingDelegations = false,
   provider,
   coordination,
   snippet,
@@ -168,6 +172,10 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
       }
     : miniOrigin
   const effectiveFadeProgress = fadeProgress
+  const miniActivityDot = resolvePlaneActivityDot(null, {
+    paneBusy: busy,
+    awaitingDelegations,
+  })
   const paneWindowClassName = [
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',
@@ -229,6 +237,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             seatDragEnabled={seatDragEnabled}
             monogram={monogram}
             busy={busy}
+            activityDot={miniActivityDot}
             provider={provider}
             coordination={coordination}
             statusLabel={statusLabel}

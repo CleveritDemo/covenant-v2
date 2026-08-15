@@ -4,7 +4,8 @@ import {
   MAX_ORCHESTRATION_ROUNDS,
   formatOrchestrationRoundLabel,
   isOrchestrationRoundsUnlimited,
-  parseDelegatePayload,
+  parseDelegatePayloadDetailed,
+  type DelegateParseIssue,
   type DelegateRequest,
 } from '../src/shared/agentOrchestration'
 
@@ -13,20 +14,33 @@ const DELEGATE_FENCE_RE = /```ia-terminal-delegate\s*\n([\s\S]*?)\n```/g
 export function extractAiAgentDelegates(text: string): {
   visibleText: string
   delegations: DelegateRequest[]
+  issues: DelegateParseIssue[]
 } {
   const collected: DelegateRequest[] = []
+  const issues: DelegateParseIssue[] = []
   const visibleText = text.replace(DELEGATE_FENCE_RE, (_match, json: string) => {
     try {
       const value = JSON.parse(json) as unknown
-      for (const item of parseDelegatePayload(value)) {
+      const parsed = parseDelegatePayloadDetailed(value)
+      issues.push(...parsed.issues)
+      const beforeCount = collected.length
+      for (const item of parsed.delegations) {
         if (collected.length >= MAX_DELEGATIONS_PER_TURN) break
-        if (collected.some(existing => existing.id === item.id)) continue
         collected.push(item)
       }
-    } catch { /* bloque inválido: se oculta */ }
+      const restantes = parsed.delegations.length - (collected.length - beforeCount)
+      if (restantes > 0) {
+        issues.push({ reason: 'truncated', count: restantes })
+      }
+    } catch (err) {
+      issues.push({
+        reason: 'invalid_json',
+        detail: String((err as Error)?.message ?? '').slice(0, 160),
+      })
+    }
     return ''
   }).trimEnd()
-  return { visibleText, delegations: collected }
+  return { visibleText, delegations: collected, issues }
 }
 
 function formatAllowedAgentIdsLine(allowedAgentIds?: readonly string[]): string {

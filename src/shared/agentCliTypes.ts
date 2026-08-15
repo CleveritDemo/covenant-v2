@@ -120,6 +120,7 @@ export type AgentCliUiEvent =
     }>
     /** Dueño del turno en turbo; evita mezclar olas entre jobs concurrentes. */
     orchestrationJobId?: string
+    warnings?: string[]
   }
   /** Cierre ordenado del turno en el mismo canal que el stream (evita carreras con EXIT). */
   | { type: 'done'; code: number }

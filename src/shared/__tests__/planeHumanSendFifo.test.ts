@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_HUMAN_SENDS_PER_PANE,
   enqueueHumanSend,
+  enqueueHumanSendForThread,
   takeNextHumanSend,
+  takeNextHumanSendForThread,
 } from '../planeHumanSendFifo'
 
 describe('planeHumanSendFifo', () => {
@@ -36,5 +38,48 @@ describe('planeHumanSendFifo', () => {
     const { head, rest } = takeNextHumanSend([])
     expect(head).toBeUndefined()
     expect(rest).toEqual([])
+  })
+
+  it('takeNextHumanSendForThread picks first matching thread or untagged', () => {
+    const queue = [
+      { text: 'a', threadId: 't-other' },
+      { text: 'b' },
+      { text: 'c', threadId: 't-active' },
+    ]
+    const first = takeNextHumanSendForThread(queue, 't-active')
+    expect(first.head?.text).toBe('b')
+    expect(first.rest).toEqual([
+      { text: 'a', threadId: 't-other' },
+      { text: 'c', threadId: 't-active' },
+    ])
+
+    const second = takeNextHumanSendForThread(first.rest, 't-active')
+    expect(second.head?.text).toBe('c')
+    expect(second.rest).toEqual([{ text: 'a', threadId: 't-other' }])
+  })
+
+  it('takeNextHumanSendForThread returns null when no eligible item', () => {
+    const queue = [
+      { text: 'a', threadId: 't-other' },
+      { text: 'b', threadId: 't-another' },
+    ]
+    const { head, rest } = takeNextHumanSendForThread(queue, 't-active')
+    expect(head).toBeNull()
+    expect(rest).toEqual(queue)
+  })
+
+  it('enqueueHumanSendForThread allows enqueue when pane full but thread has room', () => {
+    const queue = Array.from({ length: MAX_HUMAN_SENDS_PER_PANE }, (_, i) => ({
+      text: `item-${i}`,
+      threadId: `thread-a${i}`,
+    }))
+    const { queue: nextQueue, dropped } = enqueueHumanSendForThread(
+      queue,
+      { text: 'thread-b', threadId: 'thread-b' },
+      'thread-b',
+    )
+    expect(dropped).toBe(false)
+    expect(nextQueue).toHaveLength(MAX_HUMAN_SENDS_PER_PANE + 1)
+    expect(nextQueue[MAX_HUMAN_SENDS_PER_PANE]?.text).toBe('thread-b')
   })
 })

@@ -137,9 +137,19 @@ function webGlSupported(): boolean {
   if (typeof document === 'undefined') return false
   try {
     const canvas = document.createElement('canvas')
-    return Boolean(
-      canvas.getContext('webgl2') ?? canvas.getContext('webgl'),
-    )
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+    if (!gl) return false
+    // El contexto de sonda se suelta a mano: Chromium limita los contextos
+    // WebGL vivos por renderer (~16) y al pasarse mata los más antiguos —
+    // incluido el de la escena que se está pintando. Esperar al GC no vale.
+    //
+    // En su propio try: soltarlo es best-effort y jamás debe decidir si hay
+    // soporte (un contexto sin `getExtension` — mocks, drivers raros — hacía
+    // que esta función devolviera false y la escena no montara).
+    try {
+      gl.getExtension?.('WEBGL_lose_context')?.loseContext()
+    } catch { /* da igual: lo recogerá el GC */ }
+    return true
   } catch {
     return false
   }
@@ -926,6 +936,21 @@ export function useWikiGraphScene(
     }
 
     let raf = 0
+    /**
+     * Si Chromium mata este contexto (se pasó el cupo del renderer, o el driver
+     * se reinició), seguir pintando emite llamadas GL contra un contexto muerto
+     * y el canvas queda negro. `preventDefault` deja la puerta abierta a
+     * `webglcontextrestored`; el bucle se para aquí y la escena se rehace al
+     * volver a montar la vista.
+     */
+    const onContextLost = (event: Event): void => {
+      event.preventDefault()
+      cancelAnimationFrame(raf)
+      raf = 0
+      console.warn('[wikiGraph] contexto WebGL perdido; se detiene el render')
+    }
+    canvas.addEventListener('webglcontextlost', onContextLost)
+
     let prevBeatPulse = 0
     let lastBeatFireAt = 0
     let beatNodeCursor = 0
@@ -1106,6 +1131,16 @@ export function useWikiGraphScene(
       edgeGeometry.dispose()
       edgeMaterial.dispose()
       glowTexture?.dispose()
+      canvas.removeEventListener('webglcontextlost', onContextLost)
+      // `dispose()` libera los recursos GPU, **no** el contexto: eso solo pasa
+      // cuando el GC recoge el canvas. Como este efecto se rehace al abrir el
+      // mapa y en cada refresco de datos, sin `forceContextLoss()` se acumulan
+      // contextos hasta que Chromium empieza a matar los vivos.
+      // En try propio: si fallara, `dispose()` y `canvas.remove()` no correrían
+      // y la fuga sería peor que la que esto arregla.
+      try {
+        renderer.forceContextLoss()
+      } catch { /* el GC acabará soltando el contexto */ }
       renderer.dispose()
       canvas.remove()
       callbacksRef.current.onHover(null)

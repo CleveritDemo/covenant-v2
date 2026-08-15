@@ -60,6 +60,7 @@ vi.mock('three', () => {
     setPixelRatio(): void {}
     setSize(): void {}
     render(): void {}
+    forceContextLoss(): void {}
     dispose(): void {}
   }
   class BufferGeometry {

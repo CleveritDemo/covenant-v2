@@ -995,6 +995,33 @@ export function createAgentCliParser(provider: AgentCliProvider): {
   }
 }
 
+/**
+ * Topes de los buffers de un turno. Sin ellos crecen sin límite mientras dure
+ * el proceso del CLI, y un loop chain puede tener uno vivo durante horas:
+ * `stderrBuffer` recoge además **toda** línea de stdout que no parsee como
+ * NDJSON (progreso, avisos), que es lo que más engorda en la práctica.
+ * Se conserva la cola porque es lo que se muestra al fallar el spawn.
+ */
+const MAX_STDERR_BUFFER_CHARS = 256 * 1024
+/** Salida cruda del turno: se usa como texto final de respaldo. */
+const MAX_RAW_STDOUT_CHARS = 2 * 1024 * 1024
+/**
+ * Línea de stdout sin `\n` a la vista. Una línea que pase de esto no puede ser
+ * NDJSON válido, así que se descarta entera en vez de recortarla.
+ */
+const MAX_STDOUT_PENDING_LINE_CHARS = 8 * 1024 * 1024
+
+/** Concatena conservando solo los últimos `max` caracteres. */
+export function appendCappedTail(buffer: string, chunk: string, max: number): string {
+  const next = buffer + chunk
+  return next.length <= max ? next : next.slice(next.length - max)
+}
+
+/** Descarta la línea pendiente si ya no puede ser una línea legítima. */
+export function capPendingLine(pending: string, max: number): string {
+  return pending.length > max ? '' : pending
+}
+
 export interface AgentCliSpawnHandlers {
   onEvent: (event: AgentCliUiEvent) => void
   onDone: (code: number) => void
@@ -1092,7 +1119,7 @@ export function runAgentCliSpawn(
     try {
       emit(parser.line(trimmed))
     } catch {
-      stderrBuffer += `${trimmed}\n`
+      stderrBuffer = appendCappedTail(stderrBuffer, `${trimmed}\n`, MAX_STDERR_BUFFER_CHARS)
     }
   }
 
@@ -1100,12 +1127,12 @@ export function runAgentCliSpawn(
   proc.stdout.on('data', (chunk: string) => {
     stdoutBuffer += chunk
     const lines = stdoutBuffer.split(/\r?\n/)
-    stdoutBuffer = lines.pop() ?? ''
+    stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
     lines.forEach(processLine)
   })
   proc.stderr.setEncoding('utf8')
   proc.stderr.on('data', (chunk: string) => {
-    stderrBuffer += chunk
+    stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
   })
   proc.on('error', error => {
     spawnErrnoMessage = error.message
@@ -1387,12 +1414,12 @@ export function startAgentTurn(
     const processLine = (line: string): void => {
       const trimmed = line.trim()
       if (!trimmed) return
-      rawStdout += `${trimmed}\n`
+      rawStdout = appendCappedTail(rawStdout, `${trimmed}\n`, MAX_RAW_STDOUT_CHARS)
       try {
         emit(parser.line(trimmed))
       } catch {
         // Algunos errores tempranos del CLI no usan NDJSON.
-        stderrBuffer += `${trimmed}\n`
+        stderrBuffer = appendCappedTail(stderrBuffer, `${trimmed}\n`, MAX_STDERR_BUFFER_CHARS)
       }
     }
 
@@ -1400,12 +1427,12 @@ export function startAgentTurn(
     proc.stdout.on('data', (chunk: string) => {
       stdoutBuffer += chunk
       const lines = stdoutBuffer.split(/\r?\n/)
-      stdoutBuffer = lines.pop() ?? ''
+      stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
       lines.forEach(processLine)
     })
     proc.stderr.setEncoding('utf8')
     proc.stderr.on('data', (chunk: string) => {
-      stderrBuffer += chunk
+      stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
     })
     proc.on('error', error => {
       spawnErrnoMessage = error.message

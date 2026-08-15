@@ -366,6 +366,13 @@ export const IPC = {
   APP_CONFIRM_QUIT: 'app:confirmQuit',
   /** Renderer → main: el usuario confirmó salir */
   APP_QUIT_CONFIRMED: 'app:quitConfirmed',
+  /**
+   * Renderer → main: error no capturado del renderer (ErrorBoundary raíz,
+   * `window.onerror`, `unhandledrejection`) → `crash-diagnostics.log`.
+   * Un throw en render desmonta el árbol de React y deja la ventana en negro
+   * sin dejar rastro: este canal es el único registro de ese caso.
+   */
+  APP_RENDERER_ERROR: 'app:rendererError',
   /** Renderer → main: actualiza color del titleBarOverlay (Windows) */
   WINDOW_SET_TITLEBAR_OVERLAY: 'window:setTitleBarOverlay',
   /** Renderer → main (invoke): agregado de la bitácora local de Pulse */

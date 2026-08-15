@@ -1349,6 +1349,14 @@ const es = {
       'La cola de envíos de este agente está llena (10 mensajes). Tu mensaje volvió al input.',
   },
 
+  crash: {
+    title: 'La interfaz falló',
+    lead:
+      'El detalle quedó en crash-diagnostics.log. Recargar no pierde tu sesión: la guarda el proceso principal.',
+    reload: 'Recargar la interfaz',
+    copy: 'Copiar detalle',
+  },
+
   ui: {
     decreaseFontTitle: 'Reducir tamaño de letra',
     increaseFontTitle: 'Aumentar tamaño de letra',

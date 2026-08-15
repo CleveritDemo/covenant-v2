@@ -15,6 +15,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { app, systemPreferences } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
+import { appendCrashDiagnostics } from './crashLog'
 import type { DictationPermissionResult } from '../src/shared/dictation'
 
 /** Espejo de `silencePeakThreshold` en native/mac-dictation/main.swift */
@@ -408,6 +409,24 @@ export class DictationRuntime {
     proc.stdout.on('data', (chunk: string) => this.onStdout(chunk))
     proc.stderr.on('data', (chunk: string) => {
       this.stderrBuf = `${this.stderrBuf}${chunk}`.slice(-4000)
+    })
+    // Sin este listener, un fallo de spawn (helper ausente, sin permisos de
+    // ejecución, quarantine de macOS) emite `'error'` sobre un EventEmitter sin
+    // oyente: excepción no capturada en main y la app entera se cierra al
+    // pulsar el micrófono. Con `'error'` no siempre llega `'exit'`, así que el
+    // cierre de la sesión se hace aquí también.
+    proc.on('error', error => {
+      const detail = `Dictation helper failed to spawn: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+      appendCrashDiagnostics('dictation-helper-error', { helperPath, detail })
+      if (this.proc === proc) this.proc = null
+      this.helperReady = false
+      if (this.sessionActive || this.startWaiters.length) {
+        this.failStartWaiters('start-failed', detail)
+        this.sessionActive = false
+        this.emitResultError('start-failed', detail)
+      }
     })
     proc.on('exit', (code, signal) => {
       this.proc = null

@@ -13,6 +13,7 @@ import {
 } from 'fs'
 import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
 import { projectDirName } from './projectDir'
+import { appendCrashDiagnostics, describeError } from './crashLog'
 import { openExternalHttpUrl } from './openExternalUrl'
 import {
   app,
@@ -26,6 +27,7 @@ import { config as loadDotenv } from 'dotenv'
 import * as pty from 'node-pty'
 import { IPC } from '@shared/ipcChannels'
 import type { AppConfig } from '@shared/configSchema'
+import { decideRendererCrashRecovery } from '@shared/rendererCrashRecovery'
 import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '@shared/configSchema'
 import {
   DEFAULT_OVERLAY_COLOR,
@@ -462,6 +464,14 @@ function emitGitStatusChanged(target: { sessionId?: string; path?: string } | un
 interface PtyEntry {
   proc: pty.IPty
   windowId: number
+  /**
+   * Listeners de `onData`/`onExit`. Se sueltan **antes** de `kill()`: si el
+   * callback de salida entra cuando el entorno de Node ya está en teardown,
+   * `Napi::Error::ThrowAsJavaScriptException` de pty.node lanza una excepción
+   * C++ que escapa del callback de libuv y aborta el proceso principal
+   * (SIGABRT visto en los .ips). Sin listeners no hay JS que invocar.
+   */
+  disposables: { dispose(): void }[]
 }
 
 const ptySessions = new Map<string, PtyEntry>()
@@ -472,7 +482,14 @@ function killAllPtySessions(): void {
   }
 }
 
+/**
+ * La app está saliendo: a partir de aquí el renderer puede morir por diseño y
+ * no hay que recuperarlo (ver `decideRendererCrashRecovery`).
+ */
+let quitting = false
+
 app.on('before-quit', () => {
+  quitting = true
   // No matar PTY/agentes aquí: en macOS `close` hace preventDefault y el renderer
   // aún debe guardar sesión/scrollbacks (APP_SAVE_BEFORE_CLOSE) con shells vivos.
   stopAllFileExplorerWatches()
@@ -497,6 +514,14 @@ function sendToWindow(windowId: number, channel: string, ...args: unknown[]): vo
 function killPty(sessionId: string): void {
   const entry = ptySessions.get(sessionId)
   if (entry) {
+    for (const d of entry.disposables) {
+      try {
+        d.dispose()
+      } catch {
+        /* ignore */
+      }
+    }
+    entry.disposables.length = 0
     try {
       entry.proc.kill()
     } catch {
@@ -650,6 +675,13 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.APP_VERSION, (): string => app.getVersion())
+
+  // Un throw en render desmonta el árbol de React: la ventana queda en negro
+  // con el proceso vivo, así que no hay `render-process-gone` que lo registre.
+  ipcMain.on(IPC.APP_RENDERER_ERROR, (_e, payload: unknown) => {
+    flushMemorySamples('renderer-error')
+    appendCrashDiagnostics('renderer-error', payload)
+  })
 
   ipcMain.on(IPC.WINDOW_SET_TITLEBAR_OVERLAY, (event, color, symbolColor) => {
     if (process.platform !== 'win32') return
@@ -2445,23 +2477,41 @@ function registerIpc(): void {
         proc = spawnPtyProcess(shellPath, shellArgs, home, home)
       }
       const windowId = win.id
-      ptySessions.set(sessionId, { proc, windowId })
+      const entry: PtyEntry = { proc, windowId, disposables: [] }
+      ptySessions.set(sessionId, entry)
 
-      proc.onData(data => {
-        const oscCwd = extractOsc7CwdFromChunk(data)
-        if (oscCwd && isExistingDirectory(oscCwd)) initSessionCwd(sessionId, oscCwd)
-        sendToWindow(windowId, IPC.PTY_DATA, sessionId, data)
-      })
-      proc.onExit(({ exitCode }) => {
-        // Ignorar salidas de procesos sustituidos por un pty:create posterior (evita PTY_EXIT
-        // espurio → re-spawn en bucle y "posix_spawnp failed." en el renderer).
-        const current = ptySessions.get(sessionId)
-        if (current?.proc !== proc) return
-        ptySessions.delete(sessionId)
-        // No borrar cwd aquí: el renderer puede llamar a pty:create de nuevo con el mismo
-        // sessionId y GET_SESSION_CWD para reenganchar un shell. killPty() sí limpia el cwd.
-        sendToWindow(windowId, IPC.PTY_EXIT, sessionId, exitCode)
-      })
+      // Los cuerpos van en try/catch: estos callbacks los invoca pty.node desde
+      // una ThreadSafeFunction, y una excepción que salga de aquí no la recoge
+      // nadie — termina en `std::terminate` y mata el proceso principal.
+      entry.disposables.push(proc.onData(data => {
+        try {
+          const oscCwd = extractOsc7CwdFromChunk(data)
+          if (oscCwd && isExistingDirectory(oscCwd)) initSessionCwd(sessionId, oscCwd)
+          sendToWindow(windowId, IPC.PTY_DATA, sessionId, data)
+        } catch (err) {
+          appendCrashDiagnostics('pty-on-data-error', {
+            sessionId,
+            message: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }))
+      entry.disposables.push(proc.onExit(({ exitCode }) => {
+        try {
+          // Ignorar salidas de procesos sustituidos por un pty:create posterior (evita PTY_EXIT
+          // espurio → re-spawn en bucle y "posix_spawnp failed." en el renderer).
+          const current = ptySessions.get(sessionId)
+          if (current?.proc !== proc) return
+          ptySessions.delete(sessionId)
+          // No borrar cwd aquí: el renderer puede llamar a pty:create de nuevo con el mismo
+          // sessionId y GET_SESSION_CWD para reenganchar un shell. killPty() sí limpia el cwd.
+          sendToWindow(windowId, IPC.PTY_EXIT, sessionId, exitCode)
+        } catch (err) {
+          appendCrashDiagnostics('pty-on-exit-error', {
+            sessionId,
+            message: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       sendToWindow(win.id, IPC.PTY_ERROR, sessionId, msg)
@@ -2491,13 +2541,128 @@ function registerIpc(): void {
   })
 }
 
-/** Log de diagnóstico de crashes GPU/renderer en userData (timestamp + JSON). */
-function appendCrashDiagnostics(label: string, details: unknown): void {
-  console.error(`[crash-diagnostics] ${label}`, details)
-  try {
-    const line = `${new Date().toISOString()} ${label} ${JSON.stringify(details)}\n`
-    appendFileSync(join(app.getPath('userData'), 'crash-diagnostics.log'), line, 'utf-8')
-  } catch { /* ignore */ }
+// ── Red de seguridad del proceso principal ───────────────────────────────────
+// Sin estos handlers, una excepción asíncrona en main (un `'error'` de un
+// EventEmitter sin listener, un await sin catch) mata la app **entera** al
+// instante: todas las ventanas desaparecen y no queda ni una línea de registro,
+// porque `crash-diagnostics.log` solo se escribía desde los handlers de crash
+// de procesos hijo. Con ellos, el fallo queda anotado y la app sigue viva.
+
+/** Fallos seguidos que se consideran una tormenta (la app ya no es fiable). */
+const FATAL_STORM_THRESHOLD = 10
+/** Ventana para contar esa tormenta. */
+const FATAL_STORM_WINDOW_MS = 60_000
+
+let fatalTimestamps: number[] = []
+let fatalStormReported = false
+
+/**
+ * Registrar el fallo evita que el proceso muera, pero seguir con un main roto
+ * tampoco sirve: si los errores se amontonan, se avisa una sola vez.
+ */
+function noteMainProcessFailure(label: string, value: unknown): void {
+  const now = Date.now()
+  fatalTimestamps = fatalTimestamps.filter(ts => now - ts < FATAL_STORM_WINDOW_MS)
+  fatalTimestamps.push(now)
+  flushMemorySamples(label)
+  appendCrashDiagnostics(label, describeError(value))
+  if (fatalTimestamps.length < FATAL_STORM_THRESHOLD || fatalStormReported) return
+  fatalStormReported = true
+  dialog.showErrorBox(
+    'Covenant Gravity',
+    'Se están acumulando errores internos y la app puede comportarse de forma extraña.\n'
+      + 'Conviene reiniciarla. El detalle está en crash-diagnostics.log (userData).',
+  )
+}
+
+function installMainProcessSafetyNet(): void {
+  process.on('uncaughtException', err => { noteMainProcessFailure('uncaught-exception', err) })
+  process.on('unhandledRejection', reason => { noteMainProcessFailure('unhandled-rejection', reason) })
+}
+
+// Al cargar el módulo, no en `whenReady`: el arranque (migraciones de userData,
+// lectura de config) es justo donde un fallo dejaría la app sin ventana.
+installMainProcessSafetyNet()
+
+// ── Muestreo de memoria ───────────────────────────────────────────────────────
+// Los crashes de renderer que hemos visto (`EXC_BREAKPOINT` en un
+// ThreadPoolForegroundWorker, y un `killed`/SIGKILL de macOS) apuntan a presión
+// de memoria, pero sin histórico no se puede confirmar. Muestreamos en un
+// anillo en RAM y solo lo volcamos a disco cuando algo se cae: así queda la
+// rampa previa al crash sin engordar el log en uso normal.
+
+const MEMORY_SAMPLE_INTERVAL_MS = 20_000
+/** 45 muestras × 20 s = 15 min de histórico antes del crash. */
+const MEMORY_SAMPLE_RING_SIZE = 45
+/** Además, una muestra a disco cada 5 min para cuando la app muere sin evento. */
+const MEMORY_SAMPLES_PER_DISK_WRITE = 15
+
+interface MemorySample {
+  ts: string
+  /** `workingSetSize` en MB por tipo de proceso (browser, renderer, gpu, utility). */
+  mb: Record<string, number>
+  total: number
+}
+
+const memorySamples: MemorySample[] = []
+let memorySampleCount = 0
+let memorySampleTimer: ReturnType<typeof setInterval> | null = null
+
+function sampleMemory(): MemorySample {
+  const mb: Record<string, number> = {}
+  let total = 0
+  for (const m of app.getAppMetrics()) {
+    // Varios procesos comparten `type` (renderer, utility): se agregan sumando.
+    const size = Math.round((m.memory?.workingSetSize ?? 0) / 1024)
+    mb[m.type] = (mb[m.type] ?? 0) + size
+    total += size
+  }
+  return { ts: new Date().toISOString(), mb, total }
+}
+
+/** Vuelca el anillo al log; se llama justo antes de registrar un crash. */
+function flushMemorySamples(reason: string): void {
+  if (memorySamples.length === 0) return
+  const samples = memorySamples.splice(0, memorySamples.length)
+  appendCrashDiagnostics('memory-history', { reason, samples })
+}
+
+function startMemorySampling(): void {
+  if (memorySampleTimer) return
+  memorySampleTimer = setInterval(() => {
+    let sample: MemorySample
+    try {
+      sample = sampleMemory()
+    } catch {
+      return
+    }
+    memorySamples.push(sample)
+    if (memorySamples.length > MEMORY_SAMPLE_RING_SIZE) memorySamples.shift()
+    memorySampleCount += 1
+    if (memorySampleCount % MEMORY_SAMPLES_PER_DISK_WRITE === 0) {
+      appendCrashDiagnostics('memory', sample)
+    }
+  }, MEMORY_SAMPLE_INTERVAL_MS)
+  memorySampleTimer.unref?.()
+}
+
+/**
+ * Carga la UI en la ventana. Extraído de `createWindow` porque la recuperación
+ * tras `render-process-gone` tiene que volver a cargarla: `reload()` sobre un
+ * webContents cuyo proceso ya no existe no siempre relanza nada.
+ */
+function loadRendererInto(win: BrowserWindow): void {
+  const devUrl = process.env.ELECTRON_RENDERER_URL ?? 'http://localhost:5173'
+  if (process.env.NODE_ENV === 'development' || process.env.ELECTRON_RENDERER_URL) {
+    void win.loadURL(devUrl)
+    const wantsDevTools = process.env.ELECTRON_OPEN_DEVTOOLS === '1'
+      || process.env.ELECTRON_OPEN_DEVTOOLS === 'true'
+    if (wantsDevTools && !win.webContents.isDevToolsOpened()) {
+      win.webContents.openDevTools()
+    }
+  } else {
+    void win.loadFile(rendererHtmlPath())
+  }
 }
 
 function createWindow(): BrowserWindow {
@@ -2554,12 +2719,40 @@ function createWindow(): BrowserWindow {
     win.show()
   })
 
+  // Sin esto la ventana se queda pintada con `backgroundColor` para siempre
+  // (la app "se va a negro") y solo se recupera reiniciando.
+  let reloadAttemptsMs: number[] = []
   win.webContents.on('render-process-gone', (_e, details) => {
+    const decision = decideRendererCrashRecovery({
+      reason: details.reason,
+      quitting,
+      attemptsMs: reloadAttemptsMs,
+      now: Date.now(),
+    })
+    reloadAttemptsMs = decision.attemptsMs
+    flushMemorySamples('render-process-gone')
     appendCrashDiagnostics('render-process-gone', {
       windowId: win.id,
       reason: details.reason,
       exitCode: details.exitCode,
+      action: decision.action,
+      reloadAttempts: decision.attemptsMs.length,
     })
+    if (decision.action === 'ignore' || win.isDestroyed()) return
+    if (decision.action === 'give-up') {
+      // Recargar en bucle un crash determinista deja la app parpadeando: mejor
+      // decirlo. `showErrorBox` no necesita renderer vivo.
+      dialog.showErrorBox(
+        'Covenant Gravity',
+        'La interfaz se ha cerrado varias veces seguidas y no se pudo recuperar.\n'
+          + 'Reinicia la app. El detalle está en crash-diagnostics.log (userData).',
+      )
+      return
+    }
+    // `reload()` sobre un webContents muerto no relanza el proceso: hay que
+    // volver a cargar la URL/fichero de arranque.
+    loadRendererInto(win)
+    if (!win.isVisible()) win.show()
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -2592,15 +2785,7 @@ function createWindow(): BrowserWindow {
     if (!win.isDestroyed()) win.webContents.send(IPC.SHORTCUT_CLOSE_TAB)
   })
 
-  const devUrl = process.env.ELECTRON_RENDERER_URL ?? 'http://localhost:5173'
-  if (process.env.NODE_ENV === 'development' || process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(devUrl)
-    if (process.env.ELECTRON_OPEN_DEVTOOLS === '1' || process.env.ELECTRON_OPEN_DEVTOOLS === 'true') {
-      win.webContents.openDevTools()
-    }
-  } else {
-    void win.loadFile(rendererHtmlPath())
-  }
+  loadRendererInto(win)
 
   let closingFromReady = false
   let quitConfirmed = false
@@ -2673,6 +2858,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.on('child-process-gone', (_e, details) => {
+  flushMemorySamples('child-process-gone')
   appendCrashDiagnostics('child-process-gone', details)
   if (details.type !== 'GPU') return
   // El proceso GPU se relanza solo; invalidate fuerza recomposición para
@@ -2735,6 +2921,7 @@ app.whenReady().then(() => {
   })
   registerIpc()
   registerSelfUpdate(readConfig().autoUpdatesEnabled)
+  startMemorySampling()
   createWindow()
 
   app.on('activate', () => {

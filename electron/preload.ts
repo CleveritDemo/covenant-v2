@@ -7,6 +7,7 @@ import type { McpServersListRequest, McpServersListResult } from '../src/shared/
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type { JiraIssueRef } from '../src/shared/jiraIssue'
+import type { RendererErrorReport } from '../src/shared/rendererErrorReport'
 import type {
   LspDownloadProgress,
   LspFileReadResult,
@@ -418,6 +419,15 @@ const api = {
   },
   getAppVersion(): Promise<string> {
     return ipcRenderer.invoke(IPC.APP_VERSION)
+  },
+  /**
+   * Registra en `crash-diagnostics.log` un error no capturado del renderer.
+   * `send` y no `invoke`: se llama desde `window.onerror` y desde el
+   * ErrorBoundary, donde esperar una respuesta no aporta nada y una promesa
+   * rechazada sería otro error sin capturar.
+   */
+  reportRendererError(payload: RendererErrorReport): void {
+    ipcRenderer.send(IPC.APP_RENDERER_ERROR, payload)
   },
 
   getCdRecentList(): Promise<string[]> {

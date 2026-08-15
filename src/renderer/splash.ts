@@ -90,6 +90,21 @@ export function whenSplashDismissed(): Promise<void> {
   return dismissedPromise
 }
 
+/**
+ * Oculta el splash de inmediato, sin esperar mínimo ni layout. Solo para el
+ * camino de error: si la UI reventó al arrancar, el overlay taparía el panel de
+ * error y el usuario vería la animación colgada para siempre.
+ */
+export function hideSplashNow(): void {
+  const el = splashEl()
+  if (!el) {
+    settleSplashDismissed()
+    return
+  }
+  hide(el)
+  settleSplashDismissed()
+}
+
 /** Lo funde tras el mínimo en pantalla y el layout listo; llamar al montar la app. */
 export function dismissSplash(): void {
   const el = splashEl()

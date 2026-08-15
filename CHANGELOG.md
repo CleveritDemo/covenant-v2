@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.0
+
+- **Recuperación ante caída del renderer**: si el proceso de la ventana muere, la app recarga automáticamente con un tope de 3 intentos por minuto; si se rinde, muestra un aviso en vez de quedarse en negro.
+- **ErrorBoundary raíz**: un fallo de React ya no deja la pantalla vacía — muestra el error con su stack y botones para recargar o copiar el detalle.
+- **Excepciones no capturadas en el proceso principal**: un error inesperado en main ya no cierra la app de golpe; queda contenido.
+- **Mapa wiki sin fuga WebGL**: abrir y cerrar el grafo repetidas veces ya no agota los contextos WebGL del renderer.
+- **Cierre de terminales seguro**: el teardown de pty al cerrar paneles ya no puede abortar el proceso principal.
+- **Log de crashes con rotación**: diagnóstico persistente de caídas con muestreo de memoria y rotación de archivos.
+
 ## v0.61.26
 
 - **Tilt 3D del plano restaurado**: las columnas de terminales y agentes vuelven a inclinarse ±10° hacia el centro; se aplanan al abrir una ventana o reordenar minis. El fade y la escala por proximidad de la v0.61.0 se mantienen.

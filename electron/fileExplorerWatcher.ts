@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'fs'
 import { resolve, relative, dirname } from 'path'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
+import { appendCrashDiagnostics, describeError } from './crashLog'
 
 interface WatcherEntry {
   watcher: FSWatcher
@@ -94,6 +95,15 @@ export function startFileExplorerWatch(
   } catch {
     return
   }
+
+  // `FSWatcher` es un EventEmitter: un `'error'` sin listener se relanza como
+  // excepción no capturada y **mata la app entera**. Pasa en uso normal — en
+  // macOS FSEvents emite error si el directorio observado se borra, se renombra
+  // o se desmonta, y hay un watcher por panel de terminal (EMFILE con muchos).
+  watcher.on('error', error => {
+    appendCrashDiagnostics('file-watcher-error', { sessionId, cwd, ...describeError(error) })
+    stopFileExplorerWatch(sessionId)
+  })
 
   watchers.set(sessionId, {
     watcher,

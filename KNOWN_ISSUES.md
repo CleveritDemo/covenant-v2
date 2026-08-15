@@ -208,6 +208,80 @@ El usuario puede elegir otro tema en el modal de temas.
 
 ---
 
+## 9. La app entera se queda en negro
+
+### Síntomas
+
+- La ventana se vuelve **negra por completo** (no solo el canvas del terminal como en §1) y no responde.
+- Solo se recupera **reiniciando** la app.
+
+### Causas (dos caminos distintos, mismo síntoma)
+
+| Camino | Descripción | Rastro |
+|---|---|---|
+| **El proceso renderer muere** | `render-process-gone`. En los `.ips` de macOS aparece como `EXC_BREAKPOINT` en un `ThreadPoolForegroundWorker` (CHECK/OOM de Chromium) o como `killed`/SIGKILL cuando macOS lo mata por presión de memoria. La ventana queda pintada con el `backgroundColor` de `BrowserWindow` (`#0d0d14`). | `crash-diagnostics.log` |
+| **Un throw en render de React** | React 18 **desmonta el árbol completo** ante una excepción no capturada en render o en un efecto de commit: `#root` queda vacío y solo se ve `background: var(--bg)`. El proceso sigue vivo, así que **no** hay `render-process-gone`. | solo con `APP_RENDERER_ERROR` |
+| **Contextos WebGL agotados** | Chromium limita los contextos WebGL vivos por renderer (~16) y al pasarse **mata los más antiguos**. `useWikiGraphScene` creaba uno nuevo por cada apertura del mapa wiki y por cada refresco de datos sin soltar el anterior (`dispose()` no libera el contexto, solo sus recursos). | consola: `contexto WebGL perdido` |
+
+Consecuencia asociada: al cerrarse la app tras el crash, `pty.node` podía abortar el **proceso principal** con SIGABRT
+(`Napi::Error::ThrowAsJavaScriptException` desde una ThreadSafeFunction durante el teardown del entorno de Node → excepción
+C++ fuera del callback de libuv → `std::terminate`).
+
+### Mitigaciones
+
+| Archivo | Qué hace |
+|---|---|
+| `src/shared/rendererCrashRecovery.ts` | `decideRendererCrashRecovery`: política pura de recarga — ignora `clean-exit` y todo lo que pase mientras `quitting`; recarga hasta `RENDERER_RELOAD_MAX_ATTEMPTS` (3) por ventana deslizante de 60 s; después `give-up`. |
+| `electron/main.ts` | `render-process-gone` → `loadRendererInto(win)` (no `reload()`: el proceso ya no existe) y `win.show()`; en `give-up`, `dialog.showErrorBox`. `loadRendererInto` extraído de `createWindow` para poder reusarlo. |
+| `electron/main.ts` | Muestreo de memoria en anillo (`MEMORY_SAMPLE_RING_SIZE` = 45 × 20 s ≈ 15 min) volcado al log **solo** al caerse algo (`flushMemorySamples`), más una muestra a disco cada 5 min. Rotación del log a `.1` al pasar de 1 MB. |
+| `electron/main.ts` | `PtyEntry.disposables`: `killPty` suelta los listeners de `onData`/`onExit` **antes** de `kill()`, y los cuerpos de ambos van en `try/catch` — una excepción que salga de ahí la lanza pty.node desde una TSFN y mata el proceso principal. |
+| `src/renderer/components/RootErrorBoundary.tsx` | ErrorBoundary raíz: pinta el fallo con su stack, botones de recargar y copiar, reporta por `APP_RENDERER_ERROR` y llama a `hideSplashNow()` (si no, el splash taparía el panel). |
+| `src/renderer/errorReporting.ts` | `window.onerror` + `unhandledrejection` → `APP_RENDERER_ERROR`, con tope de 50 reportes por sesión. |
+| `src/renderer/main.tsx` | Monta dentro del boundary y añade `.catch` al arranque: un fallo en `getConfig`/`initI18n` dejaba el splash eterno sin montar nada. |
+| `src/renderer/workspace/useWikiGraphScene.ts` | `renderer.forceContextLoss()` antes de `dispose()` (en `try` propio, para no saltarse el resto de la limpieza); `webGlSupported()` suelta su contexto de sonda con `WEBGL_lose_context` — **best-effort, en su propio `try`**: si eso decide el valor de retorno, la escena deja de montarse; handler `webglcontextlost` que hace `preventDefault` y para el bucle de render. |
+
+### Regresión a evitar
+
+- Recargar sin tope: un crash determinista deja la app parpadeando indefinidamente. Ese es el motivo de `give-up`.
+- Quitar el `try/catch` de los callbacks de node-pty o volver a matar el PTY sin soltar antes los listeners.
+- Dejar que el fallo al soltar el contexto de sonda de WebGL se propague a `webGlSupported()`: devuelve `false` y el mapa wiki no monta (los mocks de `three` en los tests no tienen `getExtension`).
+
+---
+
+## 10. La app se cierra de golpe (muerte del proceso principal)
+
+### Síntomas
+
+- Todas las ventanas **desaparecen** a la vez, sin aviso. No es el negro de §9: no queda ventana.
+- No hay nada en `crash-diagnostics.log`: ese log solo lo escribían los handlers de crash de procesos **hijo**.
+
+### Causa
+
+En Electron empaquetado, una excepción no capturada en el proceso principal **termina la app**. Basta un `'error'`
+emitido por un EventEmitter sin listener: en Node, un `'error'` sin oyente se relanza como excepción no capturada.
+
+| Emisor | Cuándo emite `'error'` |
+|---|---|
+| `FSWatcher` de `fileExplorerWatcher.ts` | macOS/FSEvents cuando el directorio observado se borra, se renombra o se desmonta; EMFILE con muchos paneles (hay **un watcher por panel de terminal**). |
+| Helper de dictado (`dictationRuntime.ts`) | fallo de spawn: binario ausente, sin permiso de ejecución, quarantine de macOS. Se dispara pulsando el micrófono. |
+
+### Mitigaciones
+
+| Archivo | Qué hace |
+|---|---|
+| `electron/crashLog.ts` | `appendCrashDiagnostics` / `describeError` extraídos de `main.ts` a su propio módulo, para que los puedan usar los módulos que manejan estos EventEmitters. Incluye la rotación del log a `.1`. |
+| `electron/main.ts` | `installMainProcessSafetyNet()` (`uncaughtException` + `unhandledRejection`) **al cargar el módulo**, no en `whenReady`: el arranque es justo donde un fallo dejaría la app sin ventana. Registra y sigue vivo; si se acumulan `FATAL_STORM_THRESHOLD` (10) fallos en 60 s, avisa una vez con `dialog.showErrorBox`. |
+| `electron/fileExplorerWatcher.ts` | `watcher.on('error', …)`: registra y hace `stopFileExplorerWatch(sessionId)`. |
+| `electron/dictationRuntime.ts` | `proc.on('error', …)`: registra y cierra la sesión de dictado (`failStartWaiters` + `emitResultError`), porque con `'error'` no siempre llega `'exit'`. |
+| `electron/agentCliRuntime.ts` | `appendCappedTail` / `capPendingLine`: topes para `stderrBuffer` (256 KB, conserva la cola), `rawStdout` (2 MB) y la línea pendiente de stdout (8 MB, se descarta entera porque ya no puede ser NDJSON). Sin esto crecían durante toda la vida del proceso del CLI — horas en un loop chain — y `stderrBuffer` recoge además cada línea de stdout que no parsea. |
+
+### Regresión a evitar
+
+- Añadir un `spawn` o un watcher sin listener `'error'`. La red de seguridad lo convierte en una línea de log en vez de en
+  una muerte, pero la app se queda con un watcher o un hijo en estado indefinido.
+
+---
+
 ## Cómo ampliar este documento
 
 Al cerrar un bug que sea **arquitectónico** (Electron, foco, persistencia, PTY), añadir aquí una sección corta con síntoma → causa → archivo/clase responsable de la mitigación.

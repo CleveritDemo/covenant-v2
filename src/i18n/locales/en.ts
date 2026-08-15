@@ -1347,6 +1347,14 @@ const en = {
       'This agent’s send queue is full (10 messages). Your message was returned to the input.',
   },
 
+  crash: {
+    title: 'The interface crashed',
+    lead:
+      'The details were written to crash-diagnostics.log. Reloading does not lose your session — the main process keeps it.',
+    reload: 'Reload the interface',
+    copy: 'Copy details',
+  },
+
   ui: {
     decreaseFontTitle: 'Decrease font size',
     increaseFontTitle: 'Increase font size',

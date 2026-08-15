@@ -44,6 +44,7 @@ import {
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
+import { buildPlaneThreadNodes } from './workspace/planeThreadNodes'
 import { markSplashUiReady, whenSplashDismissed } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
@@ -6326,12 +6327,16 @@ export const App: React.FC = () => {
                   delegationWorkActive,
                   contextIds: assignedIds,
                   contexts: assignedContexts,
-                  threads: threadState?.threads.map(thread => ({
-                    id: thread.id,
-                    title: thread.title,
-                    running: runningThreadIdsByPane.get(paneId)?.has(thread.id) ?? false,
-                    activity: status?.runningThreadActivities?.[thread.id] ?? '',
-                  })) ?? [],
+                  // El listado de la card se arma desde lo que corre, no desde
+                  // lo que el catálogo alcanzó a registrar: una delegación se
+                  // despacha con su threadId antes de que el pane abra el
+                  // carril, y mapear solo el catálogo dejaba esos hilos activos
+                  // sin fila (la card se quedaba con el snippet, sin señal).
+                  threads: buildPlaneThreadNodes(
+                    threadState?.threads ?? [],
+                    runningThreadIdsByPane.get(paneId),
+                    status?.runningThreadActivities,
+                  ),
                   activeThreadId: threadState?.activeThreadId,
                   window: win,
                 }

@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.21
+
+- **Señales de la card mini más claras**: la esquina superior solo indica que el orquestador espera resultados de delegación; el busy de un especialista va siempre al listado de hilos bajo el nombre.
+- **Hilos activos visibles al instante**: las filas de la card incluyen carriles que ya corren pero el catálogo aún no registró, así la mini no se queda muda entre el despacho y el arranque del turno.
+
 ## v0.61.20
 
 - Badge de coordinación unificado en un componente del kit, reutilizado por el mini plano y la lista de contextos.

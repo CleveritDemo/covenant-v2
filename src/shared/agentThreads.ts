@@ -101,9 +101,9 @@ export function paginateThreadHistory(
 
 /**
  * Tope duro de threads por pane. El activo nunca se poda.
- * ponytail: el transcript del thread podado queda huérfano en disco hasta que
- * se cierra el pane (que borra la carpeta entera). Son kilobytes de texto;
- * barrer por archivo pide un cruce disco↔sesión que hoy no paga.
+ * El transcript del thread podado queda huérfano en disco hasta el próximo
+ * arranque: `sweepOrphanAgentChats` (electron/persistence.ts) hace ese cruce
+ * disco↔sesión una vez, cuando no hay carriles vivos que confundir.
  */
 function prune(
   threads: readonly AgentThread[],

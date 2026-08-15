@@ -113,6 +113,23 @@ survive a `--resume` that fails. Five of the nine providers take a resume flag (
 - A delegated subtask runs on a fresh CLI **and does not adopt** the session it emits
   (`shouldResumeCliSessionForTurn` gates both ends) — otherwise the specialist's own conversation would be
   replaced by the orchestrator's job.
+- A delegation opens a thread of its own in the target pane (`origin: 'delegation'`, added by
+  `registerDelegationThreadInCatalog`) and it is deleted when the wave closes
+  (`pruneDelegationThreadsForCompletedJob`). That prune reads `waveItems` **and** `completedResults`:
+  `syncAwaitingFromPending` empties `waveItems` as soon as nobody is awaiting, which is before the wake runs,
+  so sourcing only the wave leaked one thread per subtask forever.
+- `MAX_THREADS_PER_PANE` is 20 and `prune()` evicts `origin: 'delegation'` threads before human ones — a big
+  wave fills the quota in minutes and recency alone threw the user's own conversations out. Live lanes are
+  never pruned: App passes the pane's published `runningThreadIds` into `agentBindingFromMeta`.
+
+**Queues.** Two FIFOs per pane in `App.tsx` (`orchestrationFifoByPaneRef` for delegations/follow-ups,
+`humanSendFifoByPaneRef` for the plane composer) feed a single `preferSend` slot, and the pane keeps its own
+visible queue of chips. Both hand-offs are gated: `describeOrchestrationFifoSkip` (App → pane; a delegation
+with its own thread ignores `paneBusy`, since it runs in a lane) and `describeAgentQueueDrainBlock` (chips →
+turn). A message that looks stuck is always one of those gates — both log the reason once per cause
+(`[orchestration] FIFO retenida`, `[AgentPane] queue blocked while idle`), so read the console before
+re-deriving the state machine. Turbo is orchestrator-only (`resolveOrchestrationWorkStyle`): in linear an open
+wave holds human turns by design.
 
 The folder name is resolved by `projectDirName()` (`electron/projectDir.ts`), never hardcoded: `.gravity`,
 unless the project still has the pre-rebrand `.iaterminal` and no `.gravity` — then it keeps using the old one.
@@ -194,6 +211,11 @@ a `/** @vitest-environment jsdom */` docblock at the top of the file. Coverage i
 
 - `node-pty` is native: `postinstall` rebuilds it for Electron. ABI errors after an Electron bump →
   `npm run rebuild:native`.
+- Orphan transcripts (`agent-chats/<key>/<threadId>.json` with no thread left in the catalog) are swept by
+  `sweepOrphanAgentChats()` on the **first** `SESSION_LOAD` of each app start — never on a later one: a
+  renderer reload with live lanes has threads that are not in `session.json` yet, and sweeping there would
+  delete a running turn's transcript. The chat folder is keyed by `agentId+scope`, which two panes can share,
+  so the threads to keep are unioned per key, not per pane.
 - User config/session live at `~/Library/Application Support/Covenant Gravity/` (`config.json`, `session.json`).
   `migrateLegacyUserData()` in `electron/main.ts` renames the pre-rebrand `ai-terminal` / `AI Terminal`
   folder on first launch.

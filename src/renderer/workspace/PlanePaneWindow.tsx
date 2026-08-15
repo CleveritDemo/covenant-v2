@@ -10,7 +10,7 @@ import {
   type PlaneAgentThreadNode,
 } from './PlaneAgentThreadNodes'
 import { PlaneMiniActions } from './PlaneMiniActions'
-import { resolvePlaneActivityDot } from '../agent/paneWorkActive'
+import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneMiniFolderBadge } from './PlaneMiniFolderBadge'
 import { armMiniExpandSuppress } from './miniExpandSuppress'
@@ -172,15 +172,16 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
       }
     : miniOrigin
   const effectiveFadeProgress = fadeProgress
-  const miniActivityDot = resolvePlaneActivityDot(null, {
-    paneBusy: busy,
-    awaitingDelegations,
-  })
-  // Solo se calla la esquina cuando el listado de hilos se pinta de verdad (ya
-  // lleva su propio dot). Con busy sin hilos en carril —delegación asignada que
-  // aún no arrancó, turno legacy sin threadId— la card quedaba sin ninguna señal
-  // mientras el chip del composer sí la pintaba.
-  const miniCornerActivityDot = showThreadNodes ? null : miniActivityDot
+  /**
+   * Reparto de señales en la card mini, y son independientes:
+   * - Esquina superior derecha: **solo** la ola del orquestador (delegaciones
+   *   enviadas, esperando resultados).
+   * - Listado bajo el nombre: **todo** hilo activo, sea turno humano o carril
+   *   de delegación. Cada fila lleva su propio dot; un busy nunca sube a la
+   *   esquina.
+   */
+  const miniCornerActivityDot: PlaneActivityDotKind | null =
+    awaitingDelegations ? 'delegating' : null
   const paneWindowClassName = [
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',

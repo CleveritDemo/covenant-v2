@@ -327,6 +327,12 @@ function migrateLegacyUserData(): void {
 
 migrateLegacyUserData()
 
+// ponytail: dev con userData propio. Compartirlo con el .app instalado hace que el
+// single-instance lock cierre una de las dos instancias. Va DESPUÉS de la migración:
+// antes, `Covenant Gravity Dev` no existiría y `migrateLegacyUserData` se llevaría
+// la carpeta `ai-terminal` para el lado de dev.
+if (!app.isPackaged) app.setPath('userData', `${app.getPath('userData')} Dev`)
+
 loadDotenv({ path: resolve(process.cwd(), '.env') })
 loadDotenv({ path: resolve(process.cwd(), '.env.local'), override: true })
 import {

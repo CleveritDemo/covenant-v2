@@ -857,6 +857,10 @@ const es = {
     brainstormClosingContextName: 'Cierre — {{topic}}',
     brainstormClosingSaved: 'Guardado como contexto «{{name}}».',
     brainstormClosingSaveError: 'No se pudo guardar el contexto.',
+    brainstormSaveContextTitle: 'Guardar como contexto',
+    brainstormSaveContextName: 'Nombre',
+    brainstormSaveContextCancel: 'Cancelar',
+    brainstormSaveContextConfirm: 'Guardar',
     brainstormUnknownParticipant: 'Participante desconocido ({{id}})',
     brainstormOrphanParticipants: 'Participantes guardados ausentes del catálogo (omitidos): {{ids}}',
     brainstormPause: 'Pausa',
@@ -1784,7 +1788,15 @@ const es = {
     next: 'Siguiente',
     back: 'Atrás',
     skip: 'Omitir',
+    skipHint: 'Puedes volver a abrir esta guía desde Ajustes.',
     finish: 'Ir al plano',
+
+    stepWelcome: 'Bienvenida',
+    stepRequirements: 'CLIs',
+    stepFolder: 'Carpeta',
+    stepTeam: 'Equipo',
+    stepBrainstorm: 'Sala de brainstorming',
+    stepFirstMessage: 'Primer mensaje',
 
     welcomeTitle: 'Gravity es tu centro de mando',
     welcomeLead:
@@ -1823,6 +1835,16 @@ const es = {
     teamCreate: 'Crear equipo',
     teamCreated: 'Equipo listo',
     teamNeedFolder: 'Elige una carpeta antes de crear el equipo',
+
+    brainstormTitle: 'Salas de brainstorming',
+    brainstormLead:
+      'Cuando no sabes qué pedir todavía, abres una sala: varios agentes debaten por turnos sobre un objetivo, tú intervienes cuando quieras y la sala cierra con un acta.',
+    brainstormObjective: 'OBJ — el objetivo de la sala es lo único obligatorio',
+    brainstormFormat: 'FMT — ideas, decisión, plan o crítica',
+    brainstormRounds: 'RONDAS — 3 por defecto, hasta 10',
+    brainstormMinutes: 'ACTA — el cierre queda guardado y puede ir a la wiki',
+    brainstormOpen: 'Abrir una sala',
+    brainstormNeedFolder: 'Elige una carpeta antes de abrir una sala',
 
     firstMessageTitle: 'Primer mensaje',
     firstMessageLead:

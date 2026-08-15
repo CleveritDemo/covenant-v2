@@ -64,6 +64,8 @@ function renderWizard(overrides: Partial<OnboardingModalProps> = {}) {
     canCreateTeam: false,
     teamCreated: false,
     onCreateTeam: vi.fn(),
+    canOpenBrainstorm: false,
+    onOpenBrainstorm: vi.fn(),
     ...overrides,
   }
   render(<OnboardingModal {...props} />)
@@ -120,8 +122,14 @@ describe('OnboardingModal steps', () => {
     expect(screen.getByRole('button', { name: /onboarding\.teamCreate/ })).toBeTruthy()
   })
 
+  it('pinta brainstorming con título y CTA', () => {
+    renderWizard({ stepIndex: 4, canOpenBrainstorm: true })
+    expect(screen.getByText('onboarding.brainstormTitle')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /onboarding\.brainstormOpen/ })).toBeTruthy()
+  })
+
   it('pinta primer mensaje', () => {
-    renderWizard({ stepIndex: 4 })
+    renderWizard({ stepIndex: 5 })
     expect(screen.getByText('onboarding.firstMessageTitle')).toBeTruthy()
     expect(screen.getByText('onboarding.firstMessageExample')).toBeTruthy()
   })
@@ -150,7 +158,7 @@ describe('OnboardingModal navigation', () => {
   })
 
   it('en el último paso el CTA primario llama onFinish', () => {
-    const props = renderWizard({ stepIndex: 4 })
+    const props = renderWizard({ stepIndex: 5 })
     fireEvent.click(screen.getByRole('button', { name: 'onboarding.finish' }))
     expect(props.onFinish).toHaveBeenCalledTimes(1)
   })
@@ -169,5 +177,41 @@ describe('OnboardingModal team CTA', () => {
     expect((btn as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(btn)
     expect(props.onCreateTeam).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('OnboardingModal brainstorm CTA', () => {
+  it('deshabilita abrir sala sin carpeta', () => {
+    renderWizard({ stepIndex: 4, canOpenBrainstorm: false })
+    const btn = screen.getByRole('button', { name: /onboarding\.brainstormOpen/ })
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('habilita abrir sala con canOpenBrainstorm', () => {
+    const props = renderWizard({ stepIndex: 4, canOpenBrainstorm: true })
+    const btn = screen.getByRole('button', { name: /onboarding\.brainstormOpen/ })
+    expect((btn as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(btn)
+    expect(props.onOpenBrainstorm).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('OnboardingModal stepper', () => {
+  it('muestra el nombre del paso actual', () => {
+    renderWizard({ stepIndex: 0 })
+    expect(screen.getByText('onboarding.stepWelcome')).toBeTruthy()
+    expect(screen.getByText('onboarding.stepOf:1,6')).toBeTruthy()
+  })
+
+  it('nombra el paso de brainstorming', () => {
+    renderWizard({ stepIndex: 4 })
+    expect(screen.getByText('onboarding.stepBrainstorm')).toBeTruthy()
+    expect(screen.getByText('onboarding.stepOf:5,6')).toBeTruthy()
+  })
+
+  it('nombra el paso de primer mensaje', () => {
+    renderWizard({ stepIndex: 5 })
+    expect(screen.getByText('onboarding.stepFirstMessage')).toBeTruthy()
+    expect(screen.getByText('onboarding.stepOf:6,6')).toBeTruthy()
   })
 })

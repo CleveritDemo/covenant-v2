@@ -28,7 +28,7 @@ describe('BrainstormClosingCard save as context', () => {
     vi.restoreAllMocks()
   })
 
-  it('writes one context per room and tells the caller to refresh', async () => {
+  it('asks for name then writes one context per room and tells the caller to refresh', async () => {
     const onContextSaved = vi.fn()
     render(
       <BrainstormClosingCard
@@ -42,13 +42,17 @@ describe('BrainstormClosingCard save as context', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'tabs.brainstormClosingSaveContext' }))
+    expect(materializeTabContext).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.brainstormSaveContextConfirm' }))
 
     await waitFor(() => {
       expect(materializeTabContext).toHaveBeenCalledTimes(1)
     })
     const request = materializeTabContext.mock.calls[0][0]
-    expect(request.context.id).toBe('iaterminal:notes:brainstorm-sala-karpathy')
-    expect(request.context.fileName).toBe('brainstorm-sala-karpathy.md')
+    expect(request.context.id).toBe('iaterminal:notes:Cargar-la-wiki')
+    expect(request.context.fileName).toBe('Cargar-la-wiki.md')
+    expect(request.context.name).toBe('Cargar la wiki')
     expect(request.cwd).toBe('/tmp/project')
     expect(request.content).toContain('fixture primero')
     await waitFor(() => {

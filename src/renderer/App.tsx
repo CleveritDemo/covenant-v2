@@ -25,7 +25,7 @@ import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
-import type { OnboardingCliRow } from './components/onboarding'
+import { ONBOARDING_STEP_COUNT, type OnboardingCliRow } from './components/onboarding'
 import { mapCliRows, shouldOpenOnboarding } from './onboardingGate'
 import { ONBOARDING_VERSION } from '@shared/onboarding'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
@@ -241,6 +241,7 @@ import {
 } from '../shared/agentChatPersistence'
 import './styles/app.css'
 import { pruneDelegationThreadsForJob } from './delegationThreadPrune'
+import { COVENANT_REQUEST_LIMIT, mapWithConcurrency } from '@shared/boundedMap'
 
 import {
   type AgentCliProvider,
@@ -1301,21 +1302,34 @@ export const App: React.FC = () => {
         canRename: boolean
       }>> = {}
       const orgAdminsApi = hasCovenantOrgAdminsApi(covenant)
-      for (const org of orgsResult.data) {
-        const slug = org.slug?.trim()
-        if (!slug) continue
-        const list = await covenant.workspacesList(slug)
-        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-        if (!list.ok) continue
-        const orgRole = org.role?.trim() ?? ''
-        let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
-        if (!isOrgAdmin && orgAdminsApi) {
-          const adminsResult = await covenant.orgAdminsList(slug)
-          if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-          if (adminsResult.ok) {
-            isOrgAdmin = adminsResult.data.some(a => sameGithubLogin(a, login))
+      type OrgListResult = Awaited<ReturnType<typeof covenant.workspacesList>>
+      const orgRows = await mapWithConcurrency(
+        orgsResult.data,
+        COVENANT_REQUEST_LIMIT,
+        async org => {
+          const slug = org.slug?.trim() ?? ''
+          if (!slug) {
+            return { slug: '', list: null as OrgListResult | null, isOrgAdmin: false }
           }
-        }
+          const list = await covenant.workspacesList(slug)
+          if (!list.ok) return { slug, list, isOrgAdmin: false }
+          const orgRole = org.role?.trim() ?? ''
+          let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
+          if (!isOrgAdmin && orgAdminsApi) {
+            const adminsResult = await covenant.orgAdminsList(slug)
+            if (adminsResult.ok) {
+              isOrgAdmin = adminsResult.data.some(a => sameGithubLogin(a, login))
+            }
+          }
+          return { slug, list, isOrgAdmin }
+        },
+      )
+      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+      for (let i = 0; i < orgRows.length; i++) {
+        const org = orgsResult.data[i]!
+        const { slug, list, isOrgAdmin } = orgRows[i]!
+        if (!slug) continue
+        if (!list || !list.ok) continue
         workspacesByOrg[slug] = list.data.map(w => {
           const workspaceAccess = {
             login,
@@ -3097,7 +3111,7 @@ export const App: React.FC = () => {
   }, [])
 
   const handleOnboardingNext = useCallback(() => {
-    setOnboardingStep(prev => Math.min(4, prev + 1))
+    setOnboardingStep(prev => Math.min(ONBOARDING_STEP_COUNT - 1, prev + 1))
   }, [])
 
   const handleOnboardingBack = useCallback(() => {
@@ -3113,6 +3127,13 @@ export const App: React.FC = () => {
     setOnboardingOpen(false)
     persistOnboardingCompleted(ONBOARDING_VERSION)
   }, [persistOnboardingCompleted])
+
+  const handleOnboardingOpenBrainstorm = useCallback(() => {
+    const tabId = activeTabIdRef.current
+    handleOnboardingCloseComplete()
+    if (!tabId) return
+    setBrainstormViewByTab(prev => ({ ...prev, [tabId]: 'setup' }))
+  }, [handleOnboardingCloseComplete])
 
   const handleOnboardingPickFolder = useCallback(() => {
     void handlePickProjectFolder(activeTabIdRef.current)
@@ -6934,6 +6955,7 @@ export const App: React.FC = () => {
         onboardingTeamCreated={onboardingTeamCreated}
         onboardingFolderPath={activeTab?.projectFolder?.trim() || null}
         onboardingCanCreateTeam={Boolean(activeTab?.projectFolder?.trim())}
+        onboardingCanOpenBrainstorm={Boolean(activeTab?.projectFolder?.trim())}
         onOnboardingNext={handleOnboardingNext}
         onOnboardingBack={handleOnboardingBack}
         onOnboardingSkip={handleOnboardingCloseComplete}
@@ -6941,6 +6963,7 @@ export const App: React.FC = () => {
         onOnboardingRecheck={() => { void refreshOnboardingClis() }}
         onOnboardingPickFolder={handleOnboardingPickFolder}
         onOnboardingCreateTeam={() => { void handleOnboardingCreateTeam() }}
+        onOnboardingOpenBrainstorm={handleOnboardingOpenBrainstorm}
         onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)

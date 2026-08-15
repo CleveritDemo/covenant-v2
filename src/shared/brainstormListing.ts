@@ -7,6 +7,7 @@
 import type { BrainstormRoom, BrainstormStatus } from './brainstormRoom'
 import { normalizeBrainstormSlug } from './brainstormCatalog'
 import type { TabContext } from './tabContext'
+import { normalizeContextFileName } from './tabContext'
 
 /** Sala + mtime de su `.json`. `updatedAt` solo lo rellena el listado. */
 export type BrainstormRoomListing = BrainstormRoom & { updatedAt?: number }
@@ -118,18 +119,63 @@ export function brainstormContextFileName(room: BrainstormRoom): string {
 }
 
 /**
+ * Nombre corto sugerido al guardar una sala como contexto: primer trozo antes
+ * de `.`/`?`/`!`/salto si ya es largo, recorte a 48 en límite de palabra.
+ */
+export function brainstormContextNameSuggestion(topic: string): string {
+  let text = topic.trim()
+  const delim = /[.?!]|[\r\n]/g
+  let match: RegExpExecArray | null
+  while ((match = delim.exec(text)) !== null) {
+    if (match.index >= 12) {
+      text = text.slice(0, match.index)
+      break
+    }
+  }
+  if (text.length > 48) {
+    const head = text.slice(0, 48)
+    const space = head.lastIndexOf(' ')
+    text = (space > 0 ? head.slice(0, space) : head).trimEnd()
+  }
+  text = text.replace(/[\s\-.?!,:;]+$/u, '').trim()
+  return text || 'Brainstorm'
+}
+
+export type BrainstormRoomContextOverrides = {
+  name?: string
+  icon?: string
+  color?: string
+}
+
+/**
  * Contexto `notes` equivalente a la sala. El id lleva el prefijo que ya usa el
  * host para notes, así el discover de `.gravity` lo reconoce sin caso especial.
+ * Sin `overrides.name` el id/fileName siguen el id de la sala (compat).
  */
-export function brainstormRoomContext(room: Pick<BrainstormRoom, 'id' | 'topic'>): TabContext {
+export function brainstormRoomContext(
+  room: Pick<BrainstormRoom, 'id' | 'topic'>,
+  overrides?: BrainstormRoomContextOverrides,
+): TabContext {
+  const nameOverride = overrides?.name?.trim()
+  if (nameOverride) {
+    const stem = normalizeContextFileName(nameOverride, 'context').replace(/\.md$/i, '')
+    return {
+      id: `iaterminal:notes:${stem}`,
+      name: nameOverride,
+      fileName: `${stem}.md`,
+      kind: 'notes',
+      icon: overrides?.icon ?? 'messages',
+      color: overrides?.color ?? '#c084fc',
+    }
+  }
   const stem = `brainstorm-${normalizeBrainstormSlug(room.id)}`
   return {
     id: `iaterminal:notes:${stem}`,
     name: room.topic,
     fileName: `${stem}.md`,
     kind: 'notes',
-    icon: 'messages',
+    icon: overrides?.icon ?? 'messages',
     // De la paleta de contextos; fuera de ella el host lo descarta al normalizar.
-    color: '#c084fc',
+    color: overrides?.color ?? '#c084fc',
   }
 }

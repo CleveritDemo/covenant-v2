@@ -9,6 +9,7 @@
 import type { CovenantResult } from '@shared/covenantTypes'
 import type { WikiGraphResult } from '@shared/wikiGraph'
 import { MAX_WIKI_LOG_SUMMARY } from '@shared/wikiDoc'
+import { COVENANT_REQUEST_LIMIT, mapWithConcurrency } from '@shared/boundedMap'
 
 export type OrgWikiSyncScope = {
   orgSlug: string
@@ -332,22 +333,38 @@ export async function syncOrgWikiPush(deps: OrgWikiPushDeps): Promise<OrgWikiPus
     })
   }
 
-  for (const [slug, page] of local) {
-    const hash = orgWikiPageHash(page)
-    if (state.pageHashes.get(slug) === hash) continue
-    const result = await deps.upsertWikiPage(slug, {
-      title: page.title,
-      pageType: page.type,
-      body: page.body,
-    })
+  const pagesToUpsert = [...local.entries()].filter(
+    ([slug, page]) => state.pageHashes.get(slug) !== orgWikiPageHash(page),
+  )
+  const upsertResults = await mapWithConcurrency(
+    pagesToUpsert,
+    COVENANT_REQUEST_LIMIT,
+    async ([slug, page]) => {
+      const hash = orgWikiPageHash(page)
+      const result = await deps.upsertWikiPage(slug, {
+        title: page.title,
+        pageType: page.type,
+        body: page.body,
+      })
+      return { slug, hash, result }
+    },
+  )
+  for (const { slug, hash, result } of upsertResults) {
     if (!result.ok) return abort(`upsert ${slug}`, result.error)
     state.pageHashes.set(slug, hash)
     upserts += 1
   }
 
-  for (const slug of [...state.pageHashes.keys()]) {
-    if (local.has(slug)) continue
-    const result = await deps.deleteWikiPage(slug)
+  const slugsToDelete = [...state.pageHashes.keys()].filter(slug => !local.has(slug))
+  const deleteResults = await mapWithConcurrency(
+    slugsToDelete,
+    COVENANT_REQUEST_LIMIT,
+    async slug => {
+      const result = await deps.deleteWikiPage(slug)
+      return { slug, result }
+    },
+  )
+  for (const { slug, result } of deleteResults) {
     if (!result.ok) return abort(`delete ${slug}`, result.error)
     state.pageHashes.delete(slug)
     deletes += 1

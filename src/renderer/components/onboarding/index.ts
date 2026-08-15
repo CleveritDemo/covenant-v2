@@ -14,6 +14,10 @@ export {
   type OnboardingStepTeamProps,
 } from './OnboardingStepTeam'
 export {
+  OnboardingStepBrainstorm,
+  type OnboardingStepBrainstormProps,
+} from './OnboardingStepBrainstorm'
+export {
   OnboardingStepFirstMessage,
   type OnboardingStepFirstMessageProps,
 } from './OnboardingStepFirstMessage'

@@ -48,21 +48,41 @@ function releaseRequestSlot(): void {
 }
 
 /**
- * Fetch acotado para Covenant: concurrencia ≤4 y timeout 30s con abort.
- * El slot cubre headers (request en vuelo), no la lectura del body.
+ * Fetch acotado para Covenant: concurrencia ≤4 y timeout 30s.
+ * No confía en que AbortSignal rechace httpFetch: Promise.race fuerza el rechazo.
+ * El slot cubre headers (request en vuelo), no la lectura del body; se libera siempre.
  */
 export async function covenantFetch(url: string, init: RequestInit = {}): Promise<Response> {
   await acquireRequestSlot()
   const controller = new AbortController()
+  const method = init.method ?? 'GET'
+  const started = Date.now()
   let timedOut = false
+  let rejectTimeout: ((error: Error) => void) | undefined
   const timer = setTimeout(() => {
     timedOut = true
     controller.abort()
+    rejectTimeout?.(new Error('Covenant no respondió en 30s'))
   }, REQUEST_TIMEOUT_MS)
+  if (typeof (timer as NodeJS.Timeout).unref === 'function') {
+    ;(timer as NodeJS.Timeout).unref()
+  }
   try {
-    return await httpFetch(url, { ...init, signal: controller.signal })
+    const response = await Promise.race([
+      httpFetch(url, { ...init, signal: controller.signal }),
+      new Promise<never>((_, reject) => {
+        rejectTimeout = reject
+      }),
+    ])
+    const ms = Date.now() - started
+    console.log('[covenant]', method, url, `${ms}ms`, response.status)
+    if (ms > 5000) {
+      console.warn('[covenant] lenta/timeout')
+    }
+    return response
   } catch (error) {
     if (timedOut) {
+      console.warn('[covenant] lenta/timeout')
       throw new Error('Covenant no respondió en 30s')
     }
     throw error
@@ -173,14 +193,32 @@ async function authedFetch(
   }
 
   const method = (options.method ?? 'GET').toUpperCase()
-  let response: Response
-  try {
-    response = await doFetch(cachedJwt)
-  } catch (error) {
-    if (method !== 'GET') throw error
-    await new Promise((r) => setTimeout(r, 400))
-    response = await doFetch(cachedJwt)
+  const maxAttempts = method === 'GET' ? 3 : 1
+  const retryDelaysMs = [400, 1200]
+  const retryableStatuses = new Set([502, 503, 504])
+
+  let response!: Response
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, retryDelaysMs[attempt - 1]!))
+    }
+    try {
+      response = await doFetch(cachedJwt)
+    } catch (error) {
+      if (attempt >= maxAttempts - 1) throw error
+      continue
+    }
+    if (retryableStatuses.has(response.status) && attempt < maxAttempts - 1) {
+      try {
+        await response.body?.cancel()
+      } catch {
+        /* ignore */
+      }
+      continue
+    }
+    break
   }
+
   if (response.status === 401) {
     if (!lastGithubToken) {
       throw await parseCovenantError(response)

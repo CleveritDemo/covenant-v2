@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BrainstormRoom, BrainstormStatus } from '../brainstormRoom'
 import {
   brainstormAge,
+  brainstormContextNameSuggestion,
   brainstormPrimaryAction,
   brainstormRoomContext,
   brainstormRoundsDone,
@@ -133,5 +134,31 @@ describe('brainstormRoomContext', () => {
     expect(context.id).toBe('iaterminal:notes:brainstorm-refinar-backlog')
     expect(context.fileName).toBe('brainstorm-refinar-backlog.md')
     expect(context.name).toBe('Refinar el backlog')
+  })
+
+  it('uses the override name for id and fileName', () => {
+    const context = brainstormRoomContext(
+      room({ id: 'sala', topic: 'Otro asunto' }),
+      { name: 'Sprint planning Q3' },
+    )
+    expect(context.id).toBe('iaterminal:notes:Sprint-planning-Q3')
+    expect(context.fileName).toBe('Sprint-planning-Q3.md')
+    expect(context.name).toBe('Sprint planning Q3')
+  })
+})
+
+describe('brainstormContextNameSuggestion', () => {
+  it('keeps the short piece before a period on a long topic', () => {
+    expect(brainstormContextNameSuggestion(
+      'Cómo repartimos el backlog del sprint. Detalle largo que no debe entrar en el nombre.',
+    )).toBe('Cómo repartimos el backlog del sprint')
+  })
+
+  it('falls back to a word-bounded trim when there is no punctuation', () => {
+    const topic = 'Planificar la migración de autenticación hacia el nuevo proveedor sin cortar'
+    const suggestion = brainstormContextNameSuggestion(topic)
+    expect(suggestion.length).toBeLessThanOrEqual(48)
+    expect(suggestion).not.toMatch(/\s$/)
+    expect(topic.startsWith(suggestion)).toBe(true)
   })
 })

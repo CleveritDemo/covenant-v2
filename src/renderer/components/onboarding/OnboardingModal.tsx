@@ -7,11 +7,13 @@ import { OnboardingStepWelcome } from './OnboardingStepWelcome'
 import { OnboardingStepRequirements } from './OnboardingStepRequirements'
 import { OnboardingStepFolder } from './OnboardingStepFolder'
 import { OnboardingStepTeam } from './OnboardingStepTeam'
+import { OnboardingStepBrainstorm } from './OnboardingStepBrainstorm'
 import { OnboardingStepFirstMessage } from './OnboardingStepFirstMessage'
 import {
   ONBOARDING_STEP_COUNT,
   type OnboardingCliRow,
 } from './onboardingTypes'
+import { Tooltip } from '../ui/Tooltip'
 import './OnboardingModal.css'
 
 export type { OnboardingCliRow }
@@ -35,6 +37,9 @@ export interface OnboardingModalProps {
   canCreateTeam: boolean
   teamCreated: boolean
   onCreateTeam: () => void
+  /** Paso brainstorm */
+  canOpenBrainstorm: boolean
+  onOpenBrainstorm: () => void
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
@@ -53,6 +58,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   canCreateTeam,
   teamCreated,
   onCreateTeam,
+  canOpenBrainstorm,
+  onOpenBrainstorm,
 }) => {
   const { t } = useT()
   const clamped = Math.min(Math.max(stepIndex, 0), ONBOARDING_STEP_COUNT - 1)
@@ -89,6 +96,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       )
       break
     case 4:
+      stepContent = (
+        <OnboardingStepBrainstorm
+          canOpenBrainstorm={canOpenBrainstorm}
+          onOpenBrainstorm={onOpenBrainstorm}
+        />
+      )
+      break
+    case 5:
       stepContent = <OnboardingStepFirstMessage onFinish={onFinish} />
       break
     default:
@@ -112,9 +127,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </Button>
           ) : null}
           <span className="onboarding__footer-spacer" />
-          <Button variant="ghost" size="sm" onClick={onSkip}>
-            {t('onboarding.skip')}
-          </Button>
+          <Tooltip content={t('onboarding.skipHint')}>
+            <span>
+              <Button variant="ghost" size="sm" onClick={onSkip}>
+                {t('onboarding.skip')}
+              </Button>
+            </span>
+          </Tooltip>
           {!isLast ? (
             <Button variant="primary" size="sm" onClick={onNext}>
               {t('onboarding.next')}

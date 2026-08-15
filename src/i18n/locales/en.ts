@@ -855,6 +855,10 @@ const en = {
     brainstormClosingContextName: 'Closing — {{topic}}',
     brainstormClosingSaved: 'Saved as context «{{name}}».',
     brainstormClosingSaveError: 'Could not save the context.',
+    brainstormSaveContextTitle: 'Save as context',
+    brainstormSaveContextName: 'Name',
+    brainstormSaveContextCancel: 'Cancel',
+    brainstormSaveContextConfirm: 'Save',
     brainstormUnknownParticipant: 'Unknown participant ({{id}})',
     brainstormOrphanParticipants: 'Saved participants missing from the catalog (skipped): {{ids}}',
     brainstormPause: 'Pause',
@@ -1782,7 +1786,15 @@ const en = {
     next: 'Next',
     back: 'Back',
     skip: 'Skip',
+    skipHint: 'You can reopen this guide from Settings.',
     finish: 'Go to the plane',
+
+    stepWelcome: 'Welcome',
+    stepRequirements: 'CLIs',
+    stepFolder: 'Folder',
+    stepTeam: 'Team',
+    stepBrainstorm: 'Brainstorming room',
+    stepFirstMessage: 'First message',
 
     welcomeTitle: 'Gravity is your command center',
     welcomeLead:
@@ -1821,6 +1833,16 @@ const en = {
     teamCreate: 'Create team',
     teamCreated: 'Team ready',
     teamNeedFolder: 'Choose a folder before creating the team',
+
+    brainstormTitle: 'Brainstorming rooms',
+    brainstormLead:
+      'When you do not know what to ask yet, open a room: several agents debate in turns around a goal, you join whenever you want, and the room closes with minutes.',
+    brainstormObjective: 'OBJ — the room goal is the only required field',
+    brainstormFormat: 'FMT — ideas, decision, plan, or critique',
+    brainstormRounds: 'ROUNDS — 3 by default, up to 10',
+    brainstormMinutes: 'MINUTES — the closing is saved and can go to the wiki',
+    brainstormOpen: 'Open a room',
+    brainstormNeedFolder: 'Choose a folder before opening a room',
 
     firstMessageTitle: 'First message',
     firstMessageLead:

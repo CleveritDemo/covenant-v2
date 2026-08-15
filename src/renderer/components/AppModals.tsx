@@ -51,6 +51,7 @@ interface Props {
   onboardingTeamCreated: boolean
   onboardingFolderPath: string | null
   onboardingCanCreateTeam: boolean
+  onboardingCanOpenBrainstorm: boolean
   onOnboardingNext: () => void
   onOnboardingBack: () => void
   onOnboardingSkip: () => void
@@ -58,6 +59,7 @@ interface Props {
   onOnboardingRecheck: () => void
   onOnboardingPickFolder: () => void
   onOnboardingCreateTeam: () => void
+  onOnboardingOpenBrainstorm: () => void
 }
 
 export const AppModals: React.FC<Props> = ({
@@ -93,6 +95,7 @@ export const AppModals: React.FC<Props> = ({
   onboardingTeamCreated,
   onboardingFolderPath,
   onboardingCanCreateTeam,
+  onboardingCanOpenBrainstorm,
   onOnboardingNext,
   onOnboardingBack,
   onOnboardingSkip,
@@ -100,6 +103,7 @@ export const AppModals: React.FC<Props> = ({
   onOnboardingRecheck,
   onOnboardingPickFolder,
   onOnboardingCreateTeam,
+  onOnboardingOpenBrainstorm,
 }) => {
   const handleThemeAudioConfigChange = useCallback((partial: ThemePickerAudioPartial) => {
     onConfigSaved(mergeWithDefaults({
@@ -173,6 +177,8 @@ export const AppModals: React.FC<Props> = ({
         canCreateTeam={onboardingCanCreateTeam}
         teamCreated={onboardingTeamCreated}
         onCreateTeam={onOnboardingCreateTeam}
+        canOpenBrainstorm={onboardingCanOpenBrainstorm}
+        onOpenBrainstorm={onOnboardingOpenBrainstorm}
       />
     </>
   )

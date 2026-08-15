@@ -7,6 +7,6 @@ export type OnboardingCliRow = {
   version: string | null
 }
 
-export const ONBOARDING_STEP_COUNT = 5
+export const ONBOARDING_STEP_COUNT = 6
 
-export type OnboardingStepIndex = 0 | 1 | 2 | 3 | 4
+export type OnboardingStepIndex = 0 | 1 | 2 | 3 | 4 | 5

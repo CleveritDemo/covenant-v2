@@ -8,11 +8,12 @@ import {
   ceremonyGateState,
   parseAiReadyGaps,
 } from '@shared/agileCeremonies'
-import { brainstormRoomContext } from '@shared/brainstormListing'
+import { brainstormContextNameSuggestion, brainstormRoomContext } from '@shared/brainstormListing'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { Button } from '../components/ui'
 import { AI_READY_FIELD_KEY } from './ceremonyLabels'
+import { BrainstormSaveContextModal } from './BrainstormSaveContextModal'
 import './BrainstormClosingCard.css'
 
 export interface BrainstormClosingCardProps {
@@ -42,6 +43,7 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
 }) => {
   const { t } = useT()
   const [feedback, setFeedback] = useState<Feedback>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
 
   const markdown = ceremonyClosing
     ? formatCeremonyClosing(topic, ceremonyClosing)
@@ -65,10 +67,13 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
       : { kind: 'error', text: result.error })
   }
 
-  const handleSaveContext = async (): Promise<void> => {
-    // Un contexto por sala (`brainstorm-<slug>.md`): reguardar el cierre lo
-    // reescribe en vez de sembrar un archivo nuevo por cada cambio de asunto.
-    const context = brainstormRoomContext({ id: roomId, topic })
+  const handleSaveConfirm = async (draft: {
+    name: string
+    icon?: string
+    color?: string
+  }): Promise<void> => {
+    setSaveOpen(false)
+    const context = brainstormRoomContext({ id: roomId, topic }, draft)
     const result = await window.api.materializeTabContext({
       context,
       cwd: cwd.trim(),
@@ -127,7 +132,7 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
           <Button variant="secondary" size="sm" onClick={() => { void handleExport() }}>
             {t('tabs.brainstormClosingExport')}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => { void handleSaveContext() }}>
+          <Button variant="secondary" size="sm" onClick={() => setSaveOpen(true)}>
             {t('tabs.brainstormClosingSaveContext')}
           </Button>
         </span>
@@ -209,6 +214,13 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
           {feedback.text}
         </p>
       ) : null}
+
+      <BrainstormSaveContextModal
+        open={saveOpen}
+        defaultName={brainstormContextNameSuggestion(topic)}
+        onCancel={() => setSaveOpen(false)}
+        onConfirm={draft => { void handleSaveConfirm(draft) }}
+      />
     </section>
   )
 }

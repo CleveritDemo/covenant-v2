@@ -10,6 +10,7 @@ import {
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   brainstormAge,
+  brainstormContextNameSuggestion,
   brainstormPrimaryAction,
   brainstormRoomContext,
   brainstormRoundsDone,
@@ -30,6 +31,7 @@ import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormModuleTabs } from './BrainstormModuleTabs'
 import { BrainstormEditRoomModal } from './BrainstormEditRoomModal'
 import { BrainstormRoomMenu, type BrainstormRoomMenuItem } from './BrainstormRoomMenu'
+import { BrainstormSaveContextModal } from './BrainstormSaveContextModal'
 import './BrainstormRoomsView.css'
 
 export interface BrainstormRoomsViewProps {
@@ -118,6 +120,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<BrainstormRoom | null>(null)
+  const [pendingContextRoom, setPendingContextRoom] = useState<BrainstormRoom | null>(null)
   const [editingRoom, setEditingRoom] = useState<BrainstormRoom | null>(null)
   const [menuFor, setMenuFor] = useState<{ room: BrainstormRoom; right: number; bottom: number } | null>(null)
   /** id → clave del texto de confirmación efímero de su acción. */
@@ -256,18 +259,30 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
     }
   }, [cwd, flashDone])
 
-  const handleToContext = useCallback(async (room: BrainstormRoom): Promise<void> => {
+  const handleToContext = useCallback((room: BrainstormRoom): void => {
+    if (!cwd.trim()) return
+    setPendingContextRoom(room)
+  }, [cwd])
+
+  const confirmToContext = useCallback(async (draft: {
+    name: string
+    icon?: string
+    color?: string
+  }): Promise<void> => {
+    const room = pendingContextRoom
+    setPendingContextRoom(null)
+    if (!room) return
     const root = cwd.trim()
     if (!root) return
     const result = await window.api.materializeTabContext({
-      context: brainstormRoomContext(room),
+      context: brainstormRoomContext(room, draft),
       cwd: root,
       content: roomContextMarkdown(room),
     })
     if (!result.ok) return
     flashDone(room.id, 'context')
     onContextSaved?.()
-  }, [cwd, flashDone, onContextSaved])
+  }, [cwd, flashDone, onContextSaved, pendingContextRoom])
 
   const confirmDelete = useCallback(async (): Promise<void> => {
     const room = pendingDelete
@@ -311,7 +326,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
       key: 'context',
       label: t('tabs.brainstormsToContext'),
       icon: 'plus' as const,
-      onSelect: () => { void handleToContext(room) },
+      onSelect: () => handleToContext(room),
     },
     {
       key: 'export',
@@ -544,7 +559,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  onClick={() => { void handleToContext(room) }}
+                                  onClick={() => handleToContext(room)}
                                 >
                                   {flash === 'context'
                                     ? t('tabs.brainstormsToContextDone')
@@ -627,6 +642,13 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
           setEditingRoom(null)
           void refresh({ silent: true })
         }}
+      />
+      <BrainstormSaveContextModal
+        open={pendingContextRoom != null}
+        active={active}
+        defaultName={brainstormContextNameSuggestion(pendingContextRoom?.topic ?? '')}
+        onCancel={() => setPendingContextRoom(null)}
+        onConfirm={draft => { void confirmToContext(draft) }}
       />
     </>
   )

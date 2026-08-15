@@ -5,6 +5,7 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
+import { normalizeContextFileName } from '@shared/tabContext'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({
@@ -31,6 +32,10 @@ vi.mock('../../components/TerminalModal', () => ({
 
 vi.mock('../../components/ConfirmTerminalModal', () => ({
   ConfirmTerminalModal: () => null,
+}))
+
+vi.mock('../../agent/TabContextAppearancePopup', () => ({
+  TabContextAppearancePopup: () => null,
 }))
 
 vi.mock('../BrainstormEditRoomModal', () => ({
@@ -203,13 +208,42 @@ describe('BrainstormRoomsView', () => {
     )
 
     await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.brainstormSaveContextConfirm' })).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.brainstormSaveContextConfirm' }))
+
+    await waitFor(() => {
       expect(materializeTabContext).toHaveBeenCalledTimes(1)
     })
     const request = materializeTabContext.mock.calls[0][0]
-    expect(request.context.id).toBe('iaterminal:notes:brainstorm-done-1')
+    expect(request.context.id).toBe(
+      `iaterminal:notes:${normalizeContextFileName('Closed room', 'context').replace(/\.md$/i, '')}`,
+    )
+    expect(request.context.name).toBe('Closed room')
     expect(request.content).toContain('fixture primero')
     await waitFor(() => {
       expect(onContextSaved).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('cancels «to context» without writing', async () => {
+    renderModal()
+    await waitFor(() => {
+      expect(screen.getByText('Closed room')).toBeTruthy()
+    })
+
+    fireEvent.click(
+      within(rowOf('Closed room')).getByRole('button', { name: 'tabs.brainstormsToContext' }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.brainstormSaveContextCancel' })).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.brainstormSaveContextCancel' }))
+
+    expect(materializeTabContext).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'tabs.brainstormSaveContextCancel' })).toBeNull()
     })
   })
 

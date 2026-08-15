@@ -446,11 +446,14 @@ describe('uploadOrgWorkspaceFromLocal', () => {
       orderedAgentIds: ['qa', 'frontend', 'backend'],
     })
     expect(result.ok).toBe(true)
-    expect(payloads.map(p => ({ id: p.id, order: p.order, contextIds: p.contextIds }))).toEqual([
-      { id: 'backend', order: 2, contextIds: ['rules'] },
-      { id: 'qa', order: 0, contextIds: ['about', 'tree'] },
-      { id: 'frontend', order: 1, contextIds: undefined },
-    ])
+    expect(payloads.map(p => ({ id: p.id, order: p.order, contextIds: p.contextIds }))).toEqual(
+      expect.arrayContaining([
+        { id: 'backend', order: 2, contextIds: ['rules'] },
+        { id: 'qa', order: 0, contextIds: ['about', 'tree'] },
+        { id: 'frontend', order: 1, contextIds: undefined },
+      ]),
+    )
+    expect(payloads).toHaveLength(3)
   })
 
   it('strips iaterminal:result:* from remote agent upsert payloads', async () => {
@@ -476,13 +479,16 @@ describe('uploadOrgWorkspaceFromLocal', () => {
 
     const result = await uploadOrgWorkspaceFromLocal('/ws', deps)
     expect(result.ok).toBe(true)
-    expect(payloads.map(p => ({ id: p.id, contextIds: p.contextIds }))).toEqual([
-      {
-        id: 'tech-lead',
-        contextIds: ['iaterminal:notes:Front-Rules', 'rules'],
-      },
-      { id: 'qa', contextIds: undefined },
-    ])
+    expect(payloads.map(p => ({ id: p.id, contextIds: p.contextIds }))).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'tech-lead',
+          contextIds: ['iaterminal:notes:Front-Rules', 'rules'],
+        },
+        { id: 'qa', contextIds: undefined },
+      ]),
+    )
+    expect(payloads).toHaveLength(2)
   })
 
   it('uses notesContent from preview for upsert payload', async () => {

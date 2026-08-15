@@ -30,6 +30,7 @@ import {
 } from '@shared/orgWorkspaceLocalSync'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
+import { COVENANT_REQUEST_LIMIT, mapWithConcurrency } from '@shared/boundedMap'
 
 export type OrgWorkspaceSyncPhase = 'repos' | 'agents' | 'contexts' | 'wiki'
 
@@ -372,42 +373,74 @@ export async function uploadOrgWorkspaceFromLocal(
     .map(item => (typeof item.contextId === 'string' ? item.contextId.trim() : ''))
     .filter(Boolean)
 
-  for (const agent of agentsToUpload) {
-    const { localOnly: _drop, ...payload } = agent
-    const forRemote = stripAgentResultContextIdsForUpload(payload as ProjectAgentDefinition)
-    const upserted = await deps.upsertRemoteAgent(agent.id, forRemote)
+  const agentUpserts = await mapWithConcurrency(
+    agentsToUpload,
+    COVENANT_REQUEST_LIMIT,
+    async agent => {
+      const { localOnly: _drop, ...payload } = agent
+      const forRemote = stripAgentResultContextIdsForUpload(payload as ProjectAgentDefinition)
+      const upserted = await deps.upsertRemoteAgent(agent.id, forRemote)
+      return { agentId: agent.id, upserted }
+    },
+  )
+  for (const { agentId, upserted } of agentUpserts) {
     if (!upserted.ok) {
-      return { ok: false, error: upserted.error || `agent upsert failed: ${agent.id}` }
+      return { ok: false, error: upserted.error || `agent upsert failed: ${agentId}` }
     }
   }
-  for (const agentId of orgWorkspaceRemoteIdsToDelete(localAgentIds, remoteAgentIds)) {
-    const deleted = await deps.deleteRemoteAgent(agentId)
+
+  const agentIdsToDelete = orgWorkspaceRemoteIdsToDelete(localAgentIds, remoteAgentIds)
+  const agentDeletes = await mapWithConcurrency(
+    agentIdsToDelete,
+    COVENANT_REQUEST_LIMIT,
+    async agentId => {
+      const deleted = await deps.deleteRemoteAgent(agentId)
+      return { agentId, deleted }
+    },
+  )
+  for (const { agentId, deleted } of agentDeletes) {
     if (!deleted.ok) {
       return { ok: false, error: deleted.error || `agent delete failed: ${agentId}` }
     }
   }
 
-  for (const context of localContexts) {
-    let notesContent: string | undefined
-    if (context.kind === 'notes') {
-      const preview = await deps.previewLocalContext({ context, cwd: root })
-      if (preview.ok && typeof preview.notesContent === 'string') {
-        notesContent = preview.notesContent
-      } else {
-        const materialized = await deps.materializeLocalContext({ context, cwd: root })
-        if (materialized.ok && typeof materialized.notesContent === 'string') {
-          notesContent = materialized.notesContent
+  const contextUpserts = await mapWithConcurrency(
+    localContexts,
+    COVENANT_REQUEST_LIMIT,
+    async context => {
+      let notesContent: string | undefined
+      if (context.kind === 'notes') {
+        const preview = await deps.previewLocalContext({ context, cwd: root })
+        if (preview.ok && typeof preview.notesContent === 'string') {
+          notesContent = preview.notesContent
+        } else {
+          const materialized = await deps.materializeLocalContext({ context, cwd: root })
+          if (materialized.ok && typeof materialized.notesContent === 'string') {
+            notesContent = materialized.notesContent
+          }
         }
       }
-    }
-    const payload = workspaceContextUpsertPayload(context, notesContent)
-    const upserted = await deps.upsertRemoteContext(context.id, payload)
+      const payload = workspaceContextUpsertPayload(context, notesContent)
+      const upserted = await deps.upsertRemoteContext(context.id, payload)
+      return { contextId: context.id, upserted }
+    },
+  )
+  for (const { contextId, upserted } of contextUpserts) {
     if (!upserted.ok) {
-      return { ok: false, error: upserted.error || `context upsert failed: ${context.id}` }
+      return { ok: false, error: upserted.error || `context upsert failed: ${contextId}` }
     }
   }
-  for (const contextId of orgWorkspaceRemoteIdsToDelete(localContextIds, remoteContextIds)) {
-    const deleted = await deps.deleteRemoteContext(contextId)
+
+  const contextIdsToDelete = orgWorkspaceRemoteIdsToDelete(localContextIds, remoteContextIds)
+  const contextDeletes = await mapWithConcurrency(
+    contextIdsToDelete,
+    COVENANT_REQUEST_LIMIT,
+    async contextId => {
+      const deleted = await deps.deleteRemoteContext(contextId)
+      return { contextId, deleted }
+    },
+  )
+  for (const { contextId, deleted } of contextDeletes) {
     if (!deleted.ok) {
       return { ok: false, error: deleted.error || `context delete failed: ${contextId}` }
     }

@@ -581,7 +581,7 @@ describe('syncOrgWikiPush', () => {
     deps.upsertWikiPage.mockResolvedValue({ ok: false, error: 'forbidden' })
     const result = await syncOrgWikiPush(deps)
     expect(result.ok).toBe(false)
-    expect(deps.upsertWikiPage).toHaveBeenCalledTimes(1)
+    expect(deps.upsertWikiPage).toHaveBeenCalledTimes(2)
     expect(deps.deleteWikiPage).not.toHaveBeenCalled()
     expect(deps.appendWikiLog).not.toHaveBeenCalled()
     expect(console.warn).toHaveBeenCalledTimes(1)

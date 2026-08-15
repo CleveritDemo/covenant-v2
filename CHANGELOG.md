@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.2
+
+- La barra de chat del plano queda deshabilitada cuando hay agentes pero ninguno seleccionado, con el texto 'Selecciona un agente para comenzar' en el campo.
+- El campo muestra ese mismo aviso como tooltip al pasar el cursor, y el botón de boceto queda desactivado en ese estado.
+- Soltar un contexto sobre el composer sin agente seleccionado ya no lo adjunta para perderlo después.
+
 ## v0.61.1
 
 - Eliminado el envío de señales al process group (`kill(-pid)`), que podía alcanzar procesos ajenos al agente.

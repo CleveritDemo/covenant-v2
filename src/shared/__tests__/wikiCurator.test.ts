@@ -52,6 +52,18 @@ describe('buildWikiCuratorPrompt', () => {
     expect(prompt.indexOf('## Visible answer')).toBeLessThan(prompt.indexOf('## Wiki page bodies'))
   })
 
+  it('exige wiki-view obligatorio en chat e init', () => {
+    const chatPrompt = buildWikiCuratorPrompt({}, 'hola')
+    expect(chatPrompt).toContain('## Map modals (mandatory)')
+    expect(chatPrompt).toContain('Every reply MUST emit exactly one')
+    expect(chatPrompt).toContain('Always open relevant wiki pages in map modals')
+
+    const initPrompt = buildWikiCuratorPrompt({}, '/init', undefined, 'init')
+    expect(initPrompt).toContain('## Map modals (mandatory)')
+    expect(initPrompt).toContain('Every reply MUST emit exactly one')
+    expect(initPrompt).toContain('Always open relevant wiki pages in map modals')
+  })
+
   it('inserta la sección Wiki health antes del mensaje cuando viene reporte', () => {
     const prompt = buildWikiCuratorPrompt({}, 'hola', '- orphan page: [[old-notes]]')
     expect(prompt).toContain('## Wiki health')

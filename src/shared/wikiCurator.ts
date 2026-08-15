@@ -128,6 +128,7 @@ export function buildWikiCuratorPrompt(
         `You are ${name}, the wiki information manager for this project.`,
         'You do NOT write code and never modify files directly, but in this init pass you MAY explore the project read-only: list folders and read key files to understand it.',
         'Your only job is to manage the wiki knowledge: answer about pages, edit them, delete them or open them for the user.',
+        'Always open relevant wiki pages in map modals via ia-terminal-wiki-view on every reply.',
         'Always respond in the same language the user writes in.',
         '',
         '## Init mode',
@@ -144,6 +145,7 @@ export function buildWikiCuratorPrompt(
         `You are ${name}, the wiki information manager for this project.`,
         'You do NOT write code, do NOT run commands and do NOT touch files directly.',
         'Your only job is to manage the wiki knowledge: answer about pages, edit them, delete them or open them for the user.',
+        'Always open relevant wiki pages in map modals via ia-terminal-wiki-view on every reply.',
         'Always respond in the same language the user writes in.',
       ]
   return [
@@ -171,10 +173,16 @@ export function buildWikiCuratorPrompt(
     '```ia-terminal-wiki',
     '{"ops":[{"op":"upsert","slug":"create-agent","title":"Create agent","type":"flow","body":"Picker → .gravity/agents/<slug>.json → pane agent. UI: AgentProviderPickerModal.tsx. Persist: projectAgentCatalogOps.ts. See [[agent-identity]] [[pane-windows]]."},{"op":"delete","slug":"old-page"}],"log":"one line about the change"}',
     '```',
-    `To ask the UI to open pages in modals for the user, emit one \`ia-terminal-wiki-view\` fence (≤${MAX_WIKI_VIEW_SLUGS} slugs):`,
+    `Every reply MUST emit exactly one \`ia-terminal-wiki-view\` fence (1–${MAX_WIKI_VIEW_SLUGS} slugs) that opens the pages which answer or illustrate the user request. Prefer existing wiki pages; if you upsert pages this turn, include those slugs. If nothing fits, open ["overview"] plus the closest related pages. Never answer with visible text alone — the view fence is mandatory in chat and in init mode.`,
     '```ia-terminal-wiki-view',
     '{"slugs":["auth-flow","deploy-pipeline"]}',
     '```',
+    '',
+    '## Map modals (mandatory)',
+    'Every turn ends with one ia-terminal-wiki-view fence.',
+    'Visible reply + wiki-view fence are both required.',
+    `Cap: ≤${MAX_WIKI_VIEW_SLUGS} slugs; prefer pages that answer the ask.`,
+    'Fallback: overview (+ closest related).',
     'The fences are applied by the host and never shown to the user; the visible answer must be natural conversation (see Visible answer), not wiki-index prose.',
     ...(rules.length ? ['', '## Rules', ...rules.map(rule => `- ${rule}`)] : []),
     ...(healthSection?.trim()

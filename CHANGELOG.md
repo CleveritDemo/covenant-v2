@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.4
+
+- **Curador wiki**: cada respuesta abre páginas del mapa en modales vía `ia-terminal-wiki-view`; ya no basta con texto visible.
+
 ## v0.61.3
 
 - **Envío humano por hilo**: un hilo con delegación activa ya no bloquea escribir en otro hilo del mismo agente; la cola, el cupo y los chips respetan el hilo activo.

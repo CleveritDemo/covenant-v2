@@ -199,6 +199,12 @@
   white-space: nowrap;
 }
 
+/*
+ * `clone`: un chip que parte de línea se dibuja entero a los dos lados. Por
+ * defecto (`slice`) el trozo de arriba se queda sin borde ni radio a la derecha
+ * y el de abajo sin ellos a la izquierda, y un `wip-pre-release-0.56.0` partido
+ * parecía un mensaje cortado a media pantalla.
+ */
 .ai-md__code {
   font-family: var(--font-mono);
   font-size: 0.88em;
@@ -207,6 +213,8 @@
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   color: color-mix(in srgb, var(--accent) 30%, var(--text));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 .ai-md strong {

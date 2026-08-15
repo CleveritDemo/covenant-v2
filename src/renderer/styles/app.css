@@ -26,8 +26,17 @@
 
 .titlebar-drag {
   flex: 1;
-  /* space for macOS traffic lights (approx 80px) */
+  padding-left: 0;
+}
+
+/* space for macOS traffic lights (approx 80px) */
+:root[data-platform="darwin"] .titlebar-drag {
   padding-left: 72px;
+}
+
+/* native caption buttons live inside our 36px bar (~138px + 8px air) */
+:root[data-platform="win32"] .titlebar {
+  padding-right: 146px;
 }
 
 .titlebar-actions {

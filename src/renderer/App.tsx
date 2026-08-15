@@ -178,6 +178,7 @@ import {
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
+import { platformId } from './platform'
 import {
   contextIdsEqual,
   resolveAssignedContextChips,
@@ -1372,8 +1373,14 @@ export const App: React.FC = () => {
   }, [sessionReady.loaded, orgWorkspaceCatalog])
 
   useEffect(() => {
+    document.documentElement.dataset.platform = platformId || 'unknown'
+  }, [])
+
+  useEffect(() => {
     if (!configReady) return
-    applyTheme(getTheme(config.themeId))
+    const theme = getTheme(config.themeId)
+    applyTheme(theme)
+    window.api?.setTitleBarOverlay?.(theme.vars['--bg'], theme.vars['--text'])
   }, [configReady, config.themeId])
 
   // Tipografía elegida en Ajustes. `applyTheme` no toca estas variables, así que

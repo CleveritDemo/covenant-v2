@@ -1196,6 +1196,12 @@ const api = {
     return subscribeLspDownloadProgress(language, cb)
   },
 
+  // ─── Window chrome ───
+  platform: process.platform as NodeJS.Platform,
+  setTitleBarOverlay(color: string, symbolColor: string): void {
+    ipcRenderer.send(IPC.WINDOW_SET_TITLEBAR_OVERLAY, color, symbolColor)
+  },
+
   // ─── Dictation (native macOS SFSpeechRecognizer) ───────────────────────────
   dictationAvailable(): Promise<{
     ok: boolean

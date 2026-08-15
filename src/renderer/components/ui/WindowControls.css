@@ -1,0 +1,158 @@
+.window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.window-controls--sm {
+  gap: 6px;
+}
+
+.window-controls__btn {
+  display: block;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, #000 28%, transparent);
+  cursor: pointer;
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  color: var(--text);
+  background: transparent;
+}
+
+.window-controls--sm .window-controls__btn {
+  width: 10px;
+  height: 10px;
+}
+
+.window-controls__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.window-controls__btn--close {
+  background: #ff5f57;
+}
+
+.window-controls__btn--min {
+  background: #febc2e;
+}
+
+.window-controls__btn--zoom {
+  background: #28c840;
+}
+
+.window-controls__btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* Windows: caption buttons a la derecha; glifos nativos vía pseudo-elementos. */
+:root[data-platform="win32"] .window-controls {
+  order: 9;
+  margin-left: auto;
+  padding-right: 0;
+  gap: 0;
+}
+
+:root[data-platform="win32"] .window-controls__btn {
+  width: 46px;
+  height: 32px;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  filter: none;
+  opacity: 1;
+  color: var(--text);
+}
+
+:root[data-platform="win32"] .window-controls--sm .window-controls__btn {
+  width: 36px;
+  height: 26px;
+}
+
+:root[data-platform="win32"] .window-controls__btn:disabled {
+  opacity: 0.45;
+}
+
+:root[data-platform="win32"] .window-controls__btn:hover:not(:disabled) {
+  filter: none;
+  background: color-mix(in srgb, var(--surface-hover) 84%, transparent);
+}
+
+:root[data-platform="win32"] .window-controls__btn--close:hover:not(:disabled) {
+  background: #c42b1c;
+  color: #fff;
+}
+
+:root[data-platform="win32"] .window-controls__btn--min::before,
+:root[data-platform="win32"] .window-controls__btn--zoom::before,
+:root[data-platform="win32"] .window-controls__btn--close::before,
+:root[data-platform="win32"] .window-controls__btn--close::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* ─ minimize */
+:root[data-platform="win32"] .window-controls__btn--min::before {
+  width: 10px;
+  height: 1px;
+  margin-left: -5px;
+  margin-top: -0.5px;
+  background: currentColor;
+}
+
+/* ☐ zoom / maximize */
+:root[data-platform="win32"] .window-controls__btn--zoom::before {
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+/* ✕ close */
+:root[data-platform="win32"] .window-controls__btn--close::before,
+:root[data-platform="win32"] .window-controls__btn--close::after {
+  width: 12px;
+  height: 1px;
+  margin-left: -6px;
+  margin-top: -0.5px;
+  background: currentColor;
+}
+
+:root[data-platform="win32"] .window-controls__btn--close::before {
+  transform: rotate(45deg);
+}
+
+:root[data-platform="win32"] .window-controls__btn--close::after {
+  transform: rotate(-45deg);
+}
+
+:root[data-platform="win32"] .window-controls--sm .window-controls__btn--min::before {
+  width: 8px;
+  margin-left: -4px;
+}
+
+:root[data-platform="win32"] .window-controls--sm .window-controls__btn--zoom::before {
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+}
+
+:root[data-platform="win32"] .window-controls--sm .window-controls__btn--close::before,
+:root[data-platform="win32"] .window-controls--sm .window-controls__btn--close::after {
+  width: 10px;
+  margin-left: -5px;
+}

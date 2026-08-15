@@ -50,3 +50,6 @@ export type { SettingToggleProps } from './SettingToggle'
 
 export { ContextCheckOption } from './ContextCheckOption'
 export type { ContextCheckOptionProps } from './ContextCheckOption'
+
+export { WindowControls } from './WindowControls'
+export type { WindowControlsProps, WindowControlsSize } from './WindowControls'

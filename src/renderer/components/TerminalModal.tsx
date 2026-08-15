@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@i18n/useT'
 import { isReduceMotionActive } from '../reduceMotion'
+import { WindowControls } from './ui/WindowControls'
 import './TerminalModal.css'
 
 export type TerminalModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
@@ -122,7 +123,7 @@ function clampPanelPosition(
 function firstFocusTarget(panel: HTMLElement): HTMLElement {
   // Preferir campos editables (Find/Settings/Commit); si no, el panel (no el 1.er botón).
   const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter(el => !el.classList.contains('terminal-modal-traffic-btn'))
+    .filter(el => !el.classList.contains('window-controls__btn'))
   const editable = nodes.find(el => {
     const tag = el.tagName
     return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT'
@@ -286,16 +287,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
     bodyLayout !== 'default' ? `terminal-modal-body--${bodyLayout}` : '',
   ].filter(Boolean).join(' ')
 
-  const closeFromTraffic = (event: React.MouseEvent | React.PointerEvent): void => {
-    if ('button' in event && event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    onClose()
-  }
-
   const onTitlebarPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (!movable || event.button !== 0) return
-    if ((event.target as HTMLElement).closest('.terminal-modal-traffic-btn')) return
+    if ((event.target as HTMLElement).closest('.window-controls__btn')) return
     const currentPosition = positionRef.current
     if (!currentPosition) return
     event.preventDefault()
@@ -434,33 +428,14 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
             className="terminal-modal-titlebar"
             onPointerDown={onTitlebarPointerDown}
           >
-            <div
-              className="terminal-modal-traffic"
-              role="group"
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--close"
-                onPointerDown={closeFromTraffic}
-                onClick={closeFromTraffic}
-                aria-label={t('ui.closeAriaLabel')}
-              />
-              <button
-                type="button"
-                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--min"
-                disabled
-                tabIndex={-1}
-                aria-hidden="true"
-              />
-              <button
-                type="button"
-                className="terminal-modal-traffic-btn terminal-modal-traffic-btn--zoom"
-                disabled
-                tabIndex={-1}
-                aria-hidden="true"
-              />
-            </div>
+            <WindowControls
+              closeLabel={t('ui.closeAriaLabel')}
+              minimizeLabel=""
+              zoomLabel=""
+              onClose={() => onClose()}
+              minimizeDisabled
+              zoomDisabled
+            />
             {!hasRichHeader && hasTitle ? (
               <h2 className="terminal-modal-title" id={titleId}>{title}</h2>
             ) : null}

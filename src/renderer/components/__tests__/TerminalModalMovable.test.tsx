@@ -128,7 +128,7 @@ describe('TerminalModal movable', () => {
       expect(plane.querySelector('.terminal-modal-root--movable')).toBeTruthy()
     })
     const closeBtn = plane.querySelector(
-      '.terminal-modal-traffic-btn--close',
+      '.window-controls__btn--close',
     ) as HTMLButtonElement
     expect(closeBtn).toBeTruthy()
     await act(async () => {

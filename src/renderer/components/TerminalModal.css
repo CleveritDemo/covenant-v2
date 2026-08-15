@@ -189,48 +189,6 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-.terminal-modal-traffic {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding-right: 4px;
-}
-
-.terminal-modal-traffic-btn {
-  display: block;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, #000 28%, transparent);
-  cursor: pointer;
-  appearance: none;
-  flex-shrink: 0;
-}
-
-.terminal-modal-traffic-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.terminal-modal-traffic-btn--close {
-  background: #ff5f57;
-}
-
-.terminal-modal-traffic-btn--min {
-  background: #febc2e;
-}
-
-.terminal-modal-traffic-btn--zoom {
-  background: #28c840;
-}
-
-.terminal-modal-traffic-btn--close:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
 .terminal-modal-title {
   margin: 0;
   flex: 1;

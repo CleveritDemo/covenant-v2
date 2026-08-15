@@ -231,24 +231,6 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
 }
 
-.pane-window--mini .pane-window__traffic {
-  gap: 6px;
-}
-
-.pane-window--mini-preview .pane-window__traffic {
-  gap: 8px;
-}
-
-.pane-window--mini .pane-window__traffic-btn {
-  width: 10px;
-  height: 10px;
-}
-
-.pane-window--mini-preview .pane-window__traffic-btn {
-  width: 12px;
-  height: 12px;
-}
-
 .pane-window--mini .pane-window__title {
   font-size: 10px;
   font-weight: 600;
@@ -393,56 +375,6 @@
 .pane-window--mini:not(.pane-window--agent-card):not(.pane-window--mini-preview):not(.pane-window--mini-bare):hover:not(.plane-chat-active) {
   border-color: color-mix(in srgb, var(--border) 48%, transparent);
   filter: brightness(1.04);
-}
-
-.pane-window__traffic {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding-right: 4px;
-}
-
-.pane-window__traffic-btn {
-  display: block;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, #000 28%, transparent);
-  cursor: pointer;
-  appearance: none;
-  flex-shrink: 0;
-}
-
-.pane-window__traffic-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.pane-window__traffic-btn--close {
-  background: #ff5f57;
-}
-
-.pane-window__traffic-btn--min {
-  background: #febc2e;
-}
-
-.pane-window__traffic-btn--zoom {
-  background: #28c840;
-}
-
-.pane-window__traffic-btn--close:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.pane-window__traffic-btn--min:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.pane-window__traffic-btn--zoom:hover:not(:disabled) {
-  filter: brightness(1.08);
 }
 
 /* Focused genérico: no pinta borde; full abierta activa usa --accent arriba. */

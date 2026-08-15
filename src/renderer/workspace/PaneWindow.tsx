@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon } from '../components/ui/Icon'
+import { WindowControls } from '../components/ui/WindowControls'
 import {
   PANE_WINDOW_MIN_HEIGHT,
   PANE_WINDOW_MIN_WIDTH,
@@ -824,44 +825,26 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
           className="pane-window__titlebar"
           onPointerDown={onTitlePointerDown}
         >
-          <div className="pane-window__traffic" role="group" aria-label={title}>
-            <button
-              type="button"
-              className="pane-window__traffic-btn pane-window__traffic-btn--close"
-              aria-label={closeLabel}
-              onClick={event => {
-                event.stopPropagation()
-                onClose()
-              }}
-              onPointerDown={event => event.stopPropagation()}
-            />
-            <button
-              type="button"
-              className="pane-window__traffic-btn pane-window__traffic-btn--min"
-              aria-label={closeLabel}
-              onClick={event => {
-                event.stopPropagation()
-                if (isMini && !zooming) return
-                onClose()
-              }}
-              onPointerDown={event => event.stopPropagation()}
-            />
-            <button
-              type="button"
-              className="pane-window__traffic-btn pane-window__traffic-btn--zoom"
-              aria-label={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
-              onClick={event => {
-                event.stopPropagation()
-                if (zooming) return
-                if (isMini) {
-                  onExpand?.()
-                } else {
-                  onToggleFullscreen?.()
-                }
-              }}
-              onPointerDown={event => event.stopPropagation()}
-            />
-          </div>
+          <WindowControls
+            size={showAsMini && !miniLivePreview ? 'sm' : 'md'}
+            groupLabel={title}
+            closeLabel={closeLabel}
+            minimizeLabel={closeLabel}
+            zoomLabel={isMini ? maximizeLabel : (isFullscreen ? restoreLabel : maximizeLabel)}
+            onClose={onClose}
+            onMinimize={() => {
+              if (isMini && !zooming) return
+              onClose()
+            }}
+            onZoom={() => {
+              if (zooming) return
+              if (isMini) {
+                onExpand?.()
+              } else {
+                onToggleFullscreen?.()
+              }
+            }}
+          />
           {onRename && !isMini && renameDraft !== null ? (
             <input
               className="pane-window__title-input"

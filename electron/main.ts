@@ -27,6 +27,12 @@ import * as pty from 'node-pty'
 import { IPC } from '@shared/ipcChannels'
 import type { AppConfig } from '@shared/configSchema'
 import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '@shared/configSchema'
+import {
+  DEFAULT_OVERLAY_COLOR,
+  DEFAULT_OVERLAY_SYMBOL,
+  TITLEBAR_OVERLAY_HEIGHT,
+  sanitizeOverlayColor,
+} from '@shared/titleBarOverlay'
 import type { PersistedSession } from './persistence'
 import {
   loadSession,
@@ -635,6 +641,21 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.APP_VERSION, (): string => app.getVersion())
+
+  ipcMain.on(IPC.WINDOW_SET_TITLEBAR_OVERLAY, (event, color, symbolColor) => {
+    if (process.platform !== 'win32') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    try {
+      win.setTitleBarOverlay({
+        color: sanitizeOverlayColor(color, DEFAULT_OVERLAY_COLOR),
+        symbolColor: sanitizeOverlayColor(symbolColor, DEFAULT_OVERLAY_SYMBOL),
+        height: TITLEBAR_OVERLAY_HEIGHT,
+      })
+    } catch {
+      /* Electron lanza si la ventana no se creó con titleBarStyle hidden */
+    }
+  })
 
   ipcMain.handle(IPC.CD_RECENT_LIST, (): string[] => readCdRecentFolders())
 
@@ -2473,6 +2494,18 @@ function createWindow(): BrowserWindow {
           trafficLightPosition: { x: 14, y: 9 },
           // Sin vibrancy: con `under-window` + canvas (xterm) en Chromium/Electron a veces
           // el lienzo deja de repintar y no se ve lo que tecleas aunque el PTY sí recibe datos.
+        }
+      : {}),
+    // TITLEBAR_OVERLAY_HEIGHT = 36 ← `--titlebar-height` en src/renderer/styles/global.css:55
+    ...(process.platform === 'win32'
+      ? {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: DEFAULT_OVERLAY_COLOR,
+            symbolColor: DEFAULT_OVERLAY_SYMBOL,
+            height: TITLEBAR_OVERLAY_HEIGHT,
+          },
+          autoHideMenuBar: true,
         }
       : {}),
     webPreferences: {

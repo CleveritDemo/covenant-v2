@@ -365,16 +365,16 @@ describe('thread history helpers', () => {
     expect([...ids].sort()).toEqual(['t1', 't2', 't3'])
   })
 
-  it('threadHistoryCandidates incluye todos los hilos ordenados por recencia', () => {
+  it('threadHistoryCandidates excluye el activo y ordena por recencia', () => {
     const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
-    expect(candidates.map(thread => thread.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6'])
+    expect(candidates.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'])
   })
 
   it('paginateThreadHistory devuelve items y hasMore', () => {
     const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
     expect(paginateThreadHistory(candidates, 5)).toEqual({
       items: candidates.slice(0, 5),
-      hasMore: true,
+      hasMore: false,
     })
     expect(paginateThreadHistory(candidates, 2)).toEqual({
       items: candidates.slice(0, 2),

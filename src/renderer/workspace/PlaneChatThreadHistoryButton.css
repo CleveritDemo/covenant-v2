@@ -2,19 +2,20 @@
   position: fixed;
   inset: auto;
   margin: 0;
-  padding: 6px;
+  padding: 0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  min-width: 200px;
-  max-width: min(340px, calc(100vw - 16px));
-  background: color-mix(in srgb, var(--surface) 96%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 12px;
-  box-shadow:
-    0 20px 48px -16px rgb(0 0 0 / 50%),
-    0 4px 12px -6px rgb(0 0 0 / 35%),
-    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+  width: max-content;
+  min-width: 0;
+  max-width: min(280px, calc(100vw - 16px));
+  background: transparent;
+  border: none;
+  box-shadow: none;
   color: var(--text);
   font-family: var(--font-ui);
 }
@@ -31,31 +32,18 @@
   outline: none;
 }
 
-.plane-chat-thread-history__header {
-  padding: 4px 8px 6px;
-  font: 600 10.5px var(--font-ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
-}
-
-.plane-chat-thread-history__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .plane-chat-thread-history__row {
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr);
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  width: 100%;
+  width: max-content;
+  min-width: 120px;
+  max-width: 260px;
   height: 22px;
   padding: 0 10px 0 8px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
   border-radius: 999px;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg));
   color: color-mix(in srgb, var(--text-muted) 88%, transparent);
   font: 400 11px var(--font-ui);
   line-height: 1;
@@ -71,42 +59,12 @@
 .plane-chat-thread-history__row:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--text-muted) 38%, transparent);
   color: color-mix(in srgb, var(--text) 72%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
+  background: color-mix(in srgb, var(--surface) 100%, var(--bg-secondary));
 }
 
 .plane-chat-thread-history__row:disabled {
   opacity: 0.45;
   cursor: default;
-}
-
-.plane-chat-thread-history__row--active {
-  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
-  color: var(--accent);
-  font-weight: 500;
-}
-
-.plane-chat-thread-history__row--active:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 68%, transparent);
-  color: color-mix(in srgb, var(--accent) 92%, var(--text));
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-}
-
-.plane-chat-thread-history__check {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  color: var(--accent);
-}
-
-.plane-chat-thread-history__body {
-  display: inline-flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
 }
 
 .plane-chat-thread-history__label {

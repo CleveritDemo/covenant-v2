@@ -992,6 +992,7 @@ const en = {
     planeContextRoleInput: 'Input',
     planeContextRoleResult: 'Agent output',
     planeContextPoolTitle: 'Contexts',
+    planeToolsRailLabel: 'Plane tools',
     planeContextPoolEmpty: 'No contexts in .gravity',
     planeContextPoolChipHint: 'Click to open · right-click for options · drag onto an agent',
     planeContextPoolAssign: 'Assign to agents',

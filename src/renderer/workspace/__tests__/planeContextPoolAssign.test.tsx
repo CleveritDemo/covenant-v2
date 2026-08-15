@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneContextPool, type PlaneContextPoolProps } from '../PlaneContextPool'
 import { PLANE_CONTEXT_DRAG_MIME } from '../planeContextDrag'
 
@@ -215,12 +215,8 @@ const bigCatalog = (assignedTo: string[] = []) => ({
 
 const poolRoot = () => document.querySelector('.plane-context-pool-shell')
 const glassBar = () => document.querySelector('.plane-context-pool')
-const barChips = () =>
-  Array.from(document.querySelectorAll('.plane-context-pool__chip:not(.plane-context-pool__chip--overflow)'))
-const overflowChips = () =>
-  Array.from(document.querySelectorAll('.plane-context-pool__chip--overflow'))
-const overflowBadge = () =>
-  document.querySelector('.plane-context-pool__overflow-badge')
+const poolChips = () =>
+  Array.from(document.querySelectorAll('.plane-context-pool__chip:not(.plane-context-pool__chip--ghost)'))
 
 describe('PlaneContextPool — shell y botones externos', () => {
   it('configure y create quedan fuera de la barra glass', () => {
@@ -256,120 +252,32 @@ describe('PlaneContextPool — shell y botones externos', () => {
   })
 })
 
-describe('PlaneContextPool — desbordamiento', () => {
-  it('corta la barra en 6 chips y muestra badge +N pasivo', () => {
+describe('PlaneContextPool — barra vertical', () => {
+  it('lista todos los contextos sin recortar ni badge +N', () => {
     setup(bigCatalog())
-    expect(barChips()).toHaveLength(6)
-    expect(overflowChips()).toHaveLength(3)
-    expect(overflowBadge()?.textContent).toBe('+3')
-    expect(document.querySelector('.plane-context-pool__more')).toBeNull()
+    expect(poolChips()).toHaveLength(9)
+    expect(document.querySelector('.plane-context-pool__overflow-badge')).toBeNull()
+    expect(screen.getByRole('button', { name: /Contexto 8/ })).toBeTruthy()
   })
 
-  it('sube a la barra los contextos en uso', () => {
+  it('sube al tope los contextos en uso', () => {
     setup(bigCatalog(['c8']))
-    expect(barChips()[0].getAttribute('aria-label')).toContain('Contexto 8')
-    expect(barChips()[0].querySelector('.plane-context-pool__chip-pin')).toBeTruthy()
+    expect(poolChips()[0].getAttribute('aria-label')).toContain('Contexto 8')
+    expect(poolChips()[0].querySelector('.plane-context-pool__chip-pin')).toBeTruthy()
   })
 
-  it('hover expande la barra con todos los chips y oculta el badge', () => {
+  it('chip abre el modal de asignación al clic sin hover previo', () => {
     setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
-    expect(document.querySelectorAll('.plane-context-pool__chip')).toHaveLength(9)
-    expect(screen.queryByTestId('plane-context-pool-overflow')).toBeNull()
-    expect(screen.queryByRole('textbox')).toBeNull()
-  })
-
-  it('clic fuera colapsa la barra expandida', () => {
-    setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
-    fireEvent.pointerDown(document.body)
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
-    expect(barChips()).toHaveLength(6)
-  })
-
-  it('clic fuera colapsa la barra aunque el modal de asignación siga abierto', () => {
-    setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    fireEvent.click(screen.getByRole('button', { name: /Contexto 8/ }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
-    fireEvent.pointerDown(document.body)
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
-    expect(screen.getByRole('dialog')).toBeTruthy()
-  })
-
-  it('chip overflow expandido abre el modal de asignación al clic', () => {
-    setup(bigCatalog())
-    fireEvent.pointerEnter(poolRoot()!)
     fireEvent.click(screen.getByRole('button', { name: /Contexto 8/ }))
     expect(screen.getByRole('dialog').textContent).toContain('Contexto 8')
-    expect(poolRoot()?.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
   })
 
-  it('pointerLeave colapsa la barra tras la gracia de cierre', async () => {
-    vi.useFakeTimers()
+  it('el fantasma de arrastre conserva el chip visible', () => {
     setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    expect(document.querySelectorAll('.plane-context-pool__chip')).toHaveLength(9)
-    fireEvent.pointerLeave(pool)
-    await act(async () => { vi.advanceTimersByTime(80) })
-    expect(barChips()).toHaveLength(6)
-    expect(overflowBadge()?.textContent).toBe('+3')
-    vi.useRealTimers()
-  })
-
-  it('puntero fuera colapsa la barra aunque un chip conserve el foco', async () => {
-    vi.useFakeTimers()
-    setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    screen.getByRole('button', { name: /Contexto 6/ }).focus()
-    fireEvent.pointerLeave(pool)
-    await act(async () => { vi.advanceTimersByTime(80) })
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(false)
-    expect(barChips()).toHaveLength(6)
-    vi.useRealTimers()
-  })
-
-  it('sin desbordamiento no hay badge +N', () => {
-    setup()
-    expect(overflowBadge()).toBeNull()
-  })
-
-  it('el contenedor del chip overflow se marca para no dejar hueco antes del +N', () => {
-    setup(bigCatalog())
-    // El gap del flex se aplica también a los ítems de ancho 0: sin marcar el
-    // contenedor, 3 chips ocultos separan el último chip del badge.
-    const items = document.querySelectorAll('.plane-context-pool__item--overflow')
-    expect(items).toHaveLength(3)
-    expect(items[0].querySelector('.plane-context-pool__chip--overflow')).toBeTruthy()
-  })
-
-  it('el fantasma de un chip overflow es visible (sin la clase que lo colapsa)', () => {
-    setup(bigCatalog())
-    fireEvent.pointerEnter(poolRoot()!)
     const chip = screen.getByRole('button', { name: /Contexto 8/ })
     const transfer = dragTransfer('c8')
     fireEvent.dragStart(chip, { dataTransfer: transfer })
     const [ghost] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
-    // Colgado del body pierde `.plane-context-pool--expanded`: con --overflow
-    // quedaría width:0 / opacity:0 y el arrastre no mostraría nada.
-    expect(ghost.classList.contains('plane-context-pool__chip--overflow')).toBe(false)
-  })
-
-  it('arrastrar chip overflow expandido no colapsa la barra', () => {
-    setup(bigCatalog())
-    const pool = poolRoot()!
-    fireEvent.pointerEnter(pool)
-    const chip = screen.getByRole('button', { name: /Contexto 8/ })
-    fireEvent.dragStart(chip, { dataTransfer: dragTransfer('c8') })
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
-    fireEvent.dragEnd(chip, { dataTransfer: dragTransfer('c8') })
-    expect(pool.classList.contains('plane-context-pool-shell--expanded')).toBe(true)
+    expect(ghost.classList.contains('plane-context-pool__chip--ghost')).toBe(true)
   })
 })

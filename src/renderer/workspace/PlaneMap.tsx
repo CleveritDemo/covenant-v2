@@ -3,6 +3,7 @@ import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSes
 import { hasNativeScrollAncestor } from './planeWheelTargets'
 import {
   computePlaneColumnWindowing,
+  centerProximityScale,
 } from '@shared/planeColumnWindowing'
 import {
   computePlaneMiniSlotCell,
@@ -17,13 +18,15 @@ import {
   PLANE_MINI_WINDOW_WIDTH,
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
+import type { TabContext } from '@shared/tabContext'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
+import type { PlaneContextPoolAgent } from './planeContextPoolLayout'
 import { PlaneColumnOverflowPill } from './PlaneColumnOverflowPill'
 import { PlaneMapBackdrop } from './PlaneMapBackdrop'
+import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
 import { usePlaneColumnReorder } from './planeColumnReorder'
 import { isReduceMotionActive } from '../reduceMotion'
-import '../agent/AgentPane.css'
 import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
@@ -67,7 +70,7 @@ export interface PlaneMapProps {
   chatActiveAgentId?: string | null
   /** Velo superior del quick-chat: debajo de paneles, encima de grilla. */
   chatTopFadeVisible?: boolean
-  /** Aurora inferior del plano (idle 30%; working a intensidad plena). */
+  /** Partículas busy del piso (sin gradiente glow). */
   chatFloorGlowVisible?: boolean
   chatFloorGlowWorking?: boolean
   /** Tab activa: oculta modales portaled del plano. */
@@ -97,6 +100,14 @@ export interface PlaneMapProps {
   onRenamePane?: (paneId: string, title: string) => void
   /** Drop de contexto del pool sobre un agente. */
   onAssignContext?: (paneId: string, contextId: string) => void
+  /** Clic en contexto del mini → editar (menú contextual). */
+  onOpenContext?: (contextId: string) => void
+  /** Elimina un contexto del catálogo. */
+  onDeleteContext?: (contextId: string) => void
+  /** Catálogo completo para preview en mini cards. */
+  contextCatalog?: TabContext[]
+  /** Agentes del plano para asignar desde preview del mini. */
+  contextPoolAgents?: PlaneContextPoolAgent[]
   /** Clic en icono results del mini → vista previa del contexto. */
   onOpenResultsPreview?: (contextId: string) => void
   /** Persiste el nuevo orden de una columna (kind). */
@@ -122,7 +133,7 @@ export interface PlaneColumnScrollOffsets {
 
 const ZERO_SCROLL_OFFSETS: PlaneColumnScrollOffsets = { terminal: 0, agent: 0 }
 
-/** Floor busy aurora only; grid/music particles stay on via `tabActive`. */
+/** Partículas busy del piso; el gradiente glow ya no se pinta. */
 export function planeFloorAuroraActive(
   working: boolean | undefined,
   stageHidden: boolean,
@@ -135,10 +146,41 @@ export interface PlaneColumnHiddenIds {
   below: string[]
 }
 
+const OVERFLOW_ARROW_SIZE = 24
+const OVERFLOW_ARROW_GAP = 8
+const AGENT_OVERFLOW_ARROW_SIZE = 18
+const AGENT_OVERFLOW_ARROW_GAP = 12
+const AGENT_OVERFLOW_ARROW_OUTWARD = 10
+
+export interface ColumnOverflowBandAnchorOptions {
+  arrowSize?: number
+  gap?: number
+  outward?: number
+}
+
+/** Anclas fijas de flechas en la banda visible de la columna (no siguen al stack). */
+export function computeColumnOverflowBandAnchors(
+  viewportHeight: number,
+  bottomClearance: number,
+  options?: ColumnOverflowBandAnchorOptions,
+): { up: number; down: number } {
+  const arrowSize = options?.arrowSize ?? OVERFLOW_ARROW_SIZE
+  const gap = options?.gap ?? OVERFLOW_ARROW_GAP
+  const outward = options?.outward ?? 0
+  const vh = viewportHeight > 0 ? viewportHeight : 640
+  const bandTop = PLANE_MINI_SLOT_PAD_Y
+  const bandBottom = Math.max(bandTop + arrowSize, vh - bottomClearance)
+  return {
+    up: Math.max(0, bandTop - gap - arrowSize - outward),
+    down: bandBottom + gap + outward,
+  }
+}
+
 interface PlaneSlotLayout {
   origins: Record<string, PaneWindowGeometry>
   visibleById: Record<string, boolean>
   fadeProgressById: Record<string, number>
+  centerScaleById: Record<string, number>
   hidden: {
     terminal: PlaneColumnHiddenIds
     agent: PlaneColumnHiddenIds
@@ -162,6 +204,7 @@ export function buildSlotOrigins(
   const origins: Record<string, PaneWindowGeometry> = {}
   const visibleById: Record<string, boolean> = {}
   const fadeProgressById: Record<string, number> = {}
+  const centerScaleById: Record<string, number> = {}
   const terminals = entities.filter(entity => entity.kind !== 'agent')
   const agents = entities.filter(entity => entity.kind === 'agent')
   const columnCount = Math.max(terminals.length, agents.length, 1)
@@ -206,6 +249,7 @@ export function buildSlotOrigins(
   for (const slot of agentWindow.slots) {
     visibleById[slot.id] = slot.visible
     fadeProgressById[slot.id] = slot.progress
+    centerScaleById[slot.id] = centerProximityScale(slot.centerProximity)
     origins[slot.id] = {
       x: agentX,
       y: slot.y,
@@ -218,6 +262,7 @@ export function buildSlotOrigins(
     origins,
     visibleById,
     fadeProgressById,
+    centerScaleById,
     hidden: {
       terminal: {
         above: terminalWindow.hiddenAbove,
@@ -298,6 +343,10 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   onDeletePane,
   onRenamePane,
   onAssignContext,
+  onOpenContext,
+  onDeleteContext,
+  contextCatalog = [],
+  contextPoolAgents = [],
   onOpenResultsPreview,
   onReorderPanes,
   onFirstLayoutReady,
@@ -542,6 +591,27 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     }
   }, [agentCount, terminalCount, viewport])
 
+  const terminalOverflowAnchors = useMemo(
+    () => computeColumnOverflowBandAnchors(
+      viewport.height > 0 ? viewport.height : 640,
+      PLANE_MINI_BOTTOM_CLEARANCE,
+    ),
+    [viewport.height],
+  )
+
+  const agentOverflowAnchors = useMemo(
+    () => computeColumnOverflowBandAnchors(
+      viewport.height > 0 ? viewport.height : 640,
+      PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+      {
+        arrowSize: AGENT_OVERFLOW_ARROW_SIZE,
+        gap: AGENT_OVERFLOW_ARROW_GAP,
+        outward: AGENT_OVERFLOW_ARROW_OUTWARD,
+      },
+    ),
+    [viewport.height],
+  )
+
   const scrollColumnBy = useCallback((
     column: 'terminal' | 'agent',
     direction: 'up' | 'down',
@@ -666,6 +736,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   )
   const slotOrigins = renderLayout.origins
   const fadeProgressById = renderLayout.fadeProgressById
+  const centerScaleById = renderLayout.centerScaleById
 
   // Orden DOM estable por paneId: si reordenamos al abrir, React remonta y cancela el morph.
   const terminalsDom = useMemo(
@@ -678,7 +749,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   )
 
   // Aplanar tilt mientras se reordena para alinear pointer ↔ left/top.
-  const flattenColumns = anyWindowOpen || reorderActive
+  const flattenColumns = anyWindowOpen || reorderActive || Boolean(chatActiveAgentId)
   const terminalsColumnTransform = flattenColumns
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
@@ -726,6 +797,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           seatDragEnabled={seatDragEnabled && !entity.localOnly}
           deferPositionMotion={deferPositionMotion}
           fadeProgress={fadeProgressById[entity.paneId] ?? 1}
+          centerScale={entity.kind === 'agent'
+            ? centerScaleById[entity.paneId] ?? 1
+            : undefined}
           outOfBand={(fadeProgressById[entity.paneId] ?? 1) <= 0}
           monogram={entity.monogram}
           busy={entity.busy}
@@ -804,6 +878,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       className={[
         'plane-map',
         anyWindowOpen ? 'plane-map--elevated' : '',
+        chatActiveAgentId ? 'plane-map--chat-open' : '',
         reorderActive ? 'plane-map--reordering' : '',
         wheelScrolling ? 'plane-map--wheel-scrolling' : '',
         stageHidden ? 'plane-map--stage-hidden' : '',
@@ -811,15 +886,13 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
       <PlaneMapBackdrop />
-      {chatFloorGlowVisible ? (
-        <div
-          className={[
-            'plane-map__floor-glow',
-            'agent-pane',
-            chatFloorGlowWorking ? 'agent-pane--working' : '',
-          ].filter(Boolean).join(' ')}
-          aria-hidden="true"
-        />
+      {chatFloorGlowVisible && planeFloorAuroraActive(chatFloorGlowWorking, stageHidden) ? (
+        <div className="plane-map__floor-particles" aria-hidden="true">
+          <PlaneComposerAuroraParticles
+            active={planeFloorAuroraActive(chatFloorGlowWorking, stageHidden)}
+            tabActive={tabActive}
+          />
+        </div>
       ) : null}
       {chatTopFadeVisible ? (
         <div className="plane-map__chat-top-fade" aria-hidden="true" />
@@ -867,50 +940,72 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         <div className="plane-map__overflow">
           {terminalsInOrder.length > 0 ? (
             <div
-              className={[
-                'plane-map__overflow-column',
-                'plane-map__overflow-column--terminals',
-              ].join(' ')}
+              className="plane-map__overflow-arrows plane-map__overflow-arrows--terminals"
               style={{
                 left: columnGeometry.padX,
                 width: columnGeometry.cellWidth,
-                bottom: PLANE_MINI_BOTTOM_CLEARANCE,
               }}
             >
-              <PlaneColumnOverflowPill
-                count={baselineLayout.hidden.terminal.above.length}
-                direction="up"
-                onClick={() => scrollColumnBy('terminal', 'up')}
-              />
-              <PlaneColumnOverflowPill
-                count={baselineLayout.hidden.terminal.below.length}
-                direction="down"
-                onClick={() => scrollColumnBy('terminal', 'down')}
-              />
+              {baselineLayout.hidden.terminal.above.length > 0 ? (
+                <div
+                  className="plane-map__overflow-arrow plane-map__overflow-arrow--up"
+                  style={{ top: terminalOverflowAnchors.up }}
+                >
+                  <PlaneColumnOverflowPill
+                    count={baselineLayout.hidden.terminal.above.length}
+                    direction="up"
+                    onClick={() => scrollColumnBy('terminal', 'up')}
+                  />
+                </div>
+              ) : null}
+              {baselineLayout.hidden.terminal.below.length > 0 ? (
+                <div
+                  className="plane-map__overflow-arrow plane-map__overflow-arrow--down"
+                  style={{ top: terminalOverflowAnchors.down }}
+                >
+                  <PlaneColumnOverflowPill
+                    count={baselineLayout.hidden.terminal.below.length}
+                    direction="down"
+                    onClick={() => scrollColumnBy('terminal', 'down')}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
           {agentsInOrder.length > 0 ? (
             <div
-              className={[
-                'plane-map__overflow-column',
-                'plane-map__overflow-column--agents',
-              ].join(' ')}
+              className="plane-map__overflow-arrows plane-map__overflow-arrows--agents"
               style={{
                 left: columnGeometry.agentX,
                 width: columnGeometry.cellWidth,
-                bottom: PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
               }}
             >
-              <PlaneColumnOverflowPill
-                count={baselineLayout.hidden.agent.above.length}
-                direction="up"
-                onClick={() => scrollColumnBy('agent', 'up')}
-              />
-              <PlaneColumnOverflowPill
-                count={baselineLayout.hidden.agent.below.length}
-                direction="down"
-                onClick={() => scrollColumnBy('agent', 'down')}
-              />
+              {baselineLayout.hidden.agent.above.length > 0 ? (
+                <div
+                  className="plane-map__overflow-arrow plane-map__overflow-arrow--up"
+                  style={{ top: agentOverflowAnchors.up }}
+                >
+                  <PlaneColumnOverflowPill
+                    count={baselineLayout.hidden.agent.above.length}
+                    direction="up"
+                    size="sm"
+                    onClick={() => scrollColumnBy('agent', 'up')}
+                  />
+                </div>
+              ) : null}
+              {baselineLayout.hidden.agent.below.length > 0 ? (
+                <div
+                  className="plane-map__overflow-arrow plane-map__overflow-arrow--down"
+                  style={{ top: agentOverflowAnchors.down }}
+                >
+                  <PlaneColumnOverflowPill
+                    count={baselineLayout.hidden.agent.below.length}
+                    direction="down"
+                    size="sm"
+                    onClick={() => scrollColumnBy('agent', 'down')}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

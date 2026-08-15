@@ -30,6 +30,8 @@ export const PLANE_CHAT_BASE_WIDTH = 640
 export const PLANE_CHAT_MAX_WIDTH = 960
 /** Holgura entre minis laterales y la columna de chat. */
 export const PLANE_CHAT_SIDE_GAP = 24
+/** Fracción hacia el chat al posicionar columnas (0 = borde, 1 = pegado al gap). */
+export const PLANE_MINI_COLUMN_CENTER_BLEND = 0.65
 
 /**
  * Ranura mini según viewport: crece en pantallas grandes y se encoge
@@ -84,7 +86,8 @@ export function computePlaneChatColumnWidth(
 
 /**
  * Padding exterior de columnas: terminales a la izquierda, agentes a la derecha.
- * Solo crece con el sobrante respecto al layout de referencia (~1280px), hasta un tope.
+ * Ancla cada columna al borde del chat con PLANE_CHAT_SIDE_GAP; en viewports
+ * estrechos conserva PLANE_MINI_SLOT_PAD_X como mínimo.
  */
 export function computePlaneMiniSlotPadX(
   viewport: { width: number; height: number },
@@ -93,22 +96,18 @@ export function computePlaneMiniSlotPadX(
   const vw = Math.max(viewport.width, 320)
   const cell = computePlaneMiniSlotCell(viewport, columnCount)
   const chat = computePlaneChatColumnWidth(viewport, columnCount)
-  const freePerSide = Math.max(
+  const snugPadX = Math.max(
     0,
     Math.floor((vw - chat - 2 * (cell.width + PLANE_CHAT_SIDE_GAP)) / 2),
   )
-
-  const refCell = computePlaneMiniSlotCell({ width: 1280, height: 800 }, 1)
-  const refFreePerSide = Math.max(
-    0,
-    Math.floor(
-      (1280 - PLANE_CHAT_BASE_WIDTH - 2 * (refCell.width + PLANE_CHAT_SIDE_GAP)) / 2,
-    ),
+  const blendedPadX = Math.round(
+    PLANE_MINI_SLOT_PAD_X
+    + PLANE_MINI_COLUMN_CENTER_BLEND * (snugPadX - PLANE_MINI_SLOT_PAD_X),
   )
-  const extra = Math.max(0, freePerSide - refFreePerSide)
+
   return Math.min(
     PLANE_MINI_SLOT_PAD_X_MAX,
-    Math.max(PLANE_MINI_SLOT_PAD_X, PLANE_MINI_SLOT_PAD_X + extra),
+    Math.max(PLANE_MINI_SLOT_PAD_X, blendedPadX),
   )
 }
 

@@ -74,6 +74,8 @@ export interface PlanePaneWindowProps {
   outOfBand?: boolean
   /** Progreso de fade/escala continuo al acercarse al borde de la banda (1 = plena). */
   fadeProgress?: number
+  /** Escala por proximidad al centro vertical de la banda (solo agentes). */
+  centerScale?: number
   dragPosition?: { x: number; y: number } | null
   onReorderPointerDown?: (event: React.PointerEvent) => void
   /** Handle de agentes: reorder inmediato (sin long-press). */
@@ -133,6 +135,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   deferPositionMotion = false,
   outOfBand = false,
   fadeProgress = 1,
+  centerScale = 1,
   dragPosition = null,
   onReorderPointerDown,
   onReorderHandlePointerDown,
@@ -169,9 +172,16 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',
   ].filter(Boolean).join(' ') || undefined
-  const paneWindowStyle = effectiveFadeProgress < 1
-    ? { ['--plane-card-progress' as string]: effectiveFadeProgress }
-    : undefined
+  const paneWindowStyle = isAgent
+    ? {
+      ...(effectiveFadeProgress < 1
+        ? { ['--plane-card-progress' as string]: effectiveFadeProgress }
+        : {}),
+      ['--plane-card-center-scale' as string]: centerScale,
+    }
+    : (effectiveFadeProgress < 1
+      ? { ['--plane-card-progress' as string]: effectiveFadeProgress }
+      : undefined)
 
   return (
     <>
@@ -243,7 +253,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
                 contexts={contexts}
-                onOpenAgent={openAgentFromCard}
                 cwd={cwd}
                 contextsRevision={contextsRevision}
               />
@@ -268,6 +277,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
         onFocus={onFocus}
         onDropContext={isAgent ? onDropContext : undefined}
         onMiniContentHeightChange={isAgent ? onMiniContentHeightChange : undefined}
+        miniContentRevision={contexts.length}
         reorderEnabled={reorderEnabled && !isExpanded}
         reorderState={isExpanded ? 'idle' : reorderState}
         reorderJiggleDelayMs={reorderJiggleDelayMs}

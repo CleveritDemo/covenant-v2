@@ -37,7 +37,7 @@
   overflow: visible;
 }
 
-/* La aurora del piso la pinta .plane-floor-glow en TabAgenticPlane. */
+/* Sin glow inferior del agent-pane en el quick chat del plano. */
 .plane-quick-chat.agent-pane::before {
   display: none;
 }
@@ -53,7 +53,7 @@
   min-height: 0;
   width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
   height: 100%;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .plane-quick-chat__frame {
@@ -65,7 +65,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .plane-quick-chat__stream {

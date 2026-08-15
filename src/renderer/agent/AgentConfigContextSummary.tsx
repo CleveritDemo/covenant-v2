@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
+import { synthesizeTabContextFromId } from '@shared/tabContext'
 import { isAgentOwnResultContext } from '@shared/projectAgentCatalog'
 import {
   contextUsageByAgent,
@@ -58,10 +59,15 @@ export const AgentConfigContextSummary: React.FC<AgentConfigContextSummaryProps>
     () => contextUsageByAgent(projectAgents, agentId),
     [projectAgents, agentId],
   )
-  const selected = useMemo(
-    () => pickable.filter(context => selectedContextIds.includes(context.id)),
-    [pickable, selectedContextIds],
-  )
+  const selected = useMemo(() => {
+    const byId = new Map(pickable.map(context => [context.id, context]))
+    const resolved: TabContext[] = []
+    for (const id of selectedContextIds) {
+      const found = byId.get(id) ?? synthesizeTabContextFromId(id)
+      if (found) resolved.push(found)
+    }
+    return resolved
+  }, [pickable, selectedContextIds])
   const groups = useMemo(() => groupAgentContexts(
     filterAgentContexts(
       pickable,

@@ -77,9 +77,9 @@ describe('paneWindows', () => {
     expect(wide).toBeGreaterThan(base)
   })
 
-  it('grows outer mini pad with leftover width on large screens', () => {
+  it('anchors mini columns between edge and chat on reference viewport', () => {
     const base = computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)
-    expect(base).toBe(PLANE_MINI_SLOT_PAD_X)
+    expect(base).toBe(72)
     const wide = computePlaneMiniSlotPadX({ width: 2560, height: 1440 }, 1)
     expect(wide).toBeGreaterThan(base)
     expect(wide).toBeLessThanOrEqual(PLANE_MINI_SLOT_PAD_X_MAX)

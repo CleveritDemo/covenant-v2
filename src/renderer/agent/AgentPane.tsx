@@ -3152,7 +3152,6 @@ export const AgentPane: React.FC<Props> = ({
       className={[
         'agent-pane',
         tabActive && isActivePane ? 'agent-pane--focused' : '',
-        busy || awaitingDelegations || delegationWorkActive ? 'agent-pane--working' : '',
       ].filter(Boolean).join(' ')}
       style={{ '--agent-chat-font-size': `${fontSize}px` } as React.CSSProperties}
       onMouseDown={onRequestPaneFocus}

@@ -1,34 +1,38 @@
 .plane-column-overflow-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   margin: 0;
-  padding: 3px 8px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 999px;
+  border-radius: calc(var(--plane-radius-sm) - 2px);
   background: color-mix(in srgb, var(--surface-raised) 88%, var(--surface));
   color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
   cursor: pointer;
   user-select: none;
+  line-height: 0;
   transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.plane-column-overflow-pill svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .plane-column-overflow-pill:hover {
   color: var(--text);
-}
-
-.plane-column-overflow-pill__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--surface) 72%, var(--surface-raised));
 }
 
 .plane-column-overflow-pill--up svg {
   transform: rotate(180deg);
+}
+
+.plane-column-overflow-pill--sm {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
 }

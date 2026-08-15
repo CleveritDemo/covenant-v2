@@ -1,0 +1,93 @@
+.plane-tools-rail-shell {
+  position: absolute;
+  top: 50%;
+  left: var(--plane-tools-rail-inset, 8px);
+  right: auto;
+  bottom: auto;
+  z-index: var(--plane-chrome-stack-z, 210);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-height: calc(100% - 32px);
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+
+.plane-tools-rail-shell--elevated {
+  z-index: 675;
+}
+
+.plane-tools-rail {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 44%, transparent);
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 28px;
+  max-height: min(70vh, 520px);
+  padding: 4px;
+  border-radius: var(--plane-top-bar-radius, 8px);
+  border: 1px solid var(--plane-top-bar-edge);
+  background: var(--plane-glass-strong);
+  box-shadow: none;
+  backdrop-filter: blur(16px) saturate(1.24);
+  -webkit-backdrop-filter: blur(16px) saturate(1.24);
+}
+
+.plane-tools-rail__tools {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 0;
+}
+
+.plane-tools-rail__tools > * {
+  flex-shrink: 0;
+}
+
+.plane-tools-rail .plane-loops-button {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  padding: 0;
+  gap: 0;
+  border: 1px solid transparent;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.plane-tools-rail .plane-loops-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--plane-border) 40%, transparent);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-tools-rail .plane-loops-button--pressed {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.plane-tools-rail .plane-brainstorm-anchor {
+  display: inline-flex;
+}
+
+.plane-tools-rail .plane-loops-button-anchor {
+  display: inline-flex;
+}
+
+.plane-tools-rail .plane-brainstorm-dock {
+  top: 0;
+  left: calc(100% + 6px);
+}

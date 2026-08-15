@@ -13,8 +13,7 @@ import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatCompose
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
-import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
-import { PlaneMap, planeFloorAuroraActive, type PlaneMapEntity } from './PlaneMap'
+import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
@@ -42,6 +41,8 @@ import {
   type PlaneContextPoolAgent,
   type PlaneContextPoolItem,
 } from './PlaneContextPool'
+import { PlaneToolsRail } from './PlaneToolsRail'
+import { PlaneContextAssignmentLinks } from './PlaneContextAssignmentLinks'
 import {
   TabFileExplorerWindow,
   type TabFileExplorerWindowHandle,
@@ -654,6 +655,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     [entities],
   )
 
+  const contextColorById = useMemo(
+    () => Object.fromEntries(tabContexts.map(ctx => [ctx.id, ctx.color])),
+    [tabContexts],
+  )
+
   const terminalCount = useMemo(
     () => entities.filter(entity => entity.kind !== 'agent').length,
     [entities],
@@ -764,8 +770,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       || quickChatStatus.delegationWorkActive
     ),
   )
-  const floorAuroraActive = planeFloorAuroraActive(composerWorking, wikiMapOpen)
-    && !anyWindowOpen
 
   return (
     <div
@@ -791,8 +795,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-top-left-bar',
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
+          '.plane-chat-dock__toolbar-host',
           '.plane-chat-dock__toolbar',
           '.plane-context-pool-shell',
+          '.plane-tools-rail-shell',
           '[role="dialog"]',
           'button',
           'a',
@@ -834,6 +840,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onClick={() => setPendingWorkspaceAction('resync')}
             />
           ) : null}
+        </div>
+      )}
+      {!anyFullscreen && (
+        <PlaneToolsRail
+          ariaLabel={t('tabs.planeToolsRailLabel')}
+          elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen}
+        >
           {canToggleExplorer ? (
             <PlaneExplorerButton
               label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
@@ -868,12 +881,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           />
           {onBrainstormViewChange ? (
             <span className="plane-brainstorm-anchor">
-              {/*
-                Toggle con el contrato del mapa de wiki: pulsa y la sala ocupa el
-                plano, vuelve a pulsar y se va la vista —no la sala, que sigue
-                corriendo en main. Sin ninguna sala entra directo al alta; con
-                varias abre la lista, porque hay que elegir a cuál volver.
-              */}
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
                 pressed={brainstormOverlayOpen || brainstormDockOpen}
@@ -889,7 +896,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                     onBrainstormDockOpenChange?.(false)
                     return
                   }
-                  // Con más de una sala viva hay que elegir a cuál volver.
                   if (liveBrainstormRooms.length > 1) {
                     closeOtherPlaneOverlays('brainstorm')
                     onBrainstormDockOpenChange?.(true)
@@ -953,7 +959,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onReveal={onRevealProjectFolder}
             />
           ) : null}
-        </div>
+        </PlaneToolsRail>
       )}
       <PlaneLoopsSection
         open={loopsOpen && !anyFullscreen && tabActive}
@@ -1028,6 +1034,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onDeletePane={onDeletePane}
         onRenamePane={onRenamePane}
         onAssignContext={onAssignContext}
+        onOpenContext={onOpenContext}
+        onDeleteContext={onDeleteContext}
+        contextCatalog={contextCatalog}
+        contextPoolAgents={contextPoolAgents}
         onOpenResultsPreview={onOpenResultsPreview}
         onReorderPanes={onReorderPanes}
         reorderAriaLabel={reorderAriaLabel}
@@ -1070,28 +1080,35 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {/* La esquina de arriba a la derecha se la queda el chrome del overlay:
           el pool se retira mientras el mapa o una sala ocupan el plano. */}
       {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
-        <PlaneContextPool
-          title={contextPoolTitle}
-          configureLabel={contextPoolConfigureLabel}
-          createLabel={contextPoolCreateLabel}
-          chipActionHint={contextPoolChipHint}
-          assignLabel={contextPoolAssignLabel}
-          assignEmptyHint={contextPoolAssignEmptyHint}
-          assignedCountLabel={contextPoolAssignedCountLabel}
-          editLabel={contextPoolEditLabel}
-          deleteLabel={contextPoolDeleteLabel}
-          deleteConfirmMessage={contextPoolDeleteConfirmMessage}
-          deleteConfirmDetail={contextPoolDeleteConfirmDetail}
-          contexts={tabContexts}
-          contextCatalog={contextCatalog}
-          cwd={projectFolder}
-          agents={contextPoolAgents}
-          onConfigure={onConfigureContexts}
-          onCreate={onCreateContext}
-          onOpenContext={onOpenContext}
-          onDeleteContext={onDeleteContext}
-          onToggleAssign={onToggleAgentContext}
-        />
+        <>
+          <PlaneContextPool
+            title={contextPoolTitle}
+            configureLabel={contextPoolConfigureLabel}
+            createLabel={contextPoolCreateLabel}
+            chipActionHint={contextPoolChipHint}
+            assignLabel={contextPoolAssignLabel}
+            assignEmptyHint={contextPoolAssignEmptyHint}
+            assignedCountLabel={contextPoolAssignedCountLabel}
+            editLabel={contextPoolEditLabel}
+            deleteLabel={contextPoolDeleteLabel}
+            deleteConfirmMessage={contextPoolDeleteConfirmMessage}
+            deleteConfirmDetail={contextPoolDeleteConfirmDetail}
+            contexts={tabContexts}
+            contextCatalog={contextCatalog}
+            cwd={projectFolder}
+            agents={contextPoolAgents}
+            onConfigure={onConfigureContexts}
+            onCreate={onCreateContext}
+            onOpenContext={onOpenContext}
+            onDeleteContext={onDeleteContext}
+            onToggleAssign={onToggleAgentContext}
+          />
+          <PlaneContextAssignmentLinks
+            planeRef={planeRef}
+            agents={contextPoolAgents}
+            colorByContextId={contextColorById}
+          />
+        </>
       )}
 
       {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
@@ -1168,18 +1185,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           )}
         />
       )}
-
-      {!anyFullscreen && !wikiMapOpen ? (
-        <div
-          className={[
-            'plane-floor-aurora',
-            floorAuroraActive ? 'plane-floor-aurora--active' : '',
-          ].filter(Boolean).join(' ')}
-          aria-hidden="true"
-        >
-          <PlaneComposerAuroraParticles active={floorAuroraActive} tabActive={tabActive} />
-        </div>
-      ) : null}
 
       {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
         <PlaneFabStack

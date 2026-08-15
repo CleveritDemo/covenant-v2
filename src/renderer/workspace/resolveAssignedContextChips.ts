@@ -1,4 +1,4 @@
-import type { TabContext } from '@shared/tabContext'
+import { synthesizeTabContextFromId, type TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { agentMonogram, resolveContextColor } from '@shared/tabContextAppearance'
@@ -29,14 +29,7 @@ export function resolveTabContextById(
   if (!id) return null
   const found = discovered.find(context => context.id === id)
   if (found) return found
-  if (!id.startsWith('iaterminal:result:')) return null
-  const stem = id.slice('iaterminal:result:'.length).trim() || 'agent'
-  return {
-    id,
-    name: stem,
-    fileName: `results/${stem}.md`,
-    kind: 'agentResult',
-  }
+  return synthesizeTabContextFromId(id)
 }
 
 /** Chip de contexto asignado; sintetiza agentResult si el catálogo del tab aún no lo tiene. */

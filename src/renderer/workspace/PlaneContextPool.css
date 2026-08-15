@@ -1,102 +1,39 @@
 .plane-context-pool-shell {
-  --plane-context-pool-expand-duration: 0.22s;
-  --plane-context-pool-collapse-duration: 0.26s;
-  --plane-context-pool-expand-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --plane-context-pool-collapse-ease: cubic-bezier(0.4, 0, 0.9, 1);
   position: absolute;
-  top: var(--plane-top-bar-inset, 16px);
-  right: var(--plane-top-bar-inset, 16px);
+  top: 50%;
+  right: var(--plane-context-pool-inset, 8px);
   left: auto;
   bottom: auto;
-  /* Stack de chrome del plano (igual que .plane-top-left-bar): sobre mapa elevado (60) y FABs (70); bajo overlays modales. */
   z-index: var(--plane-chrome-stack-z, 210);
-  max-width: calc(100% - 28px);
   box-sizing: border-box;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: var(--plane-top-bar-height, 26px);
   width: max-content;
-  transform: none;
-  transition: gap var(--plane-context-pool-collapse-duration) var(--plane-context-pool-collapse-ease);
-  /* El mapa padre usa pointer-events: none; el pool debe recibir clics. */
+  max-height: calc(100% - 32px);
+  transform: translateY(-50%);
   pointer-events: auto;
 }
 
-.plane-context-pool-shell--expanded {
-  gap: 8px;
-  transition-duration: var(--plane-context-pool-expand-duration);
-  transition-timing-function: var(--plane-context-pool-expand-ease);
-}
-
 .plane-context-pool {
-  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
-  --plane-context-pool-expand-duration: 0.14s;
-  --plane-context-pool-collapse-duration: 0.22s;
-  --plane-context-pool-expand-ease: cubic-bezier(0, 0, 0.2, 1);
-  --plane-context-pool-collapse-ease: cubic-bezier(0.4, 0, 1, 1);
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 44%, transparent);
   position: relative;
   box-sizing: border-box;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   gap: 2px;
-  height: var(--plane-top-bar-height, 26px);
-  max-width: min(640px, 100%);
-  padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
+  width: 28px;
+  max-height: min(70vh, 520px);
+  padding: 4px;
   border-radius: var(--plane-top-bar-radius, 8px);
   border: 1px solid var(--plane-top-bar-edge);
   background: var(--plane-glass-strong);
   box-shadow: none;
-  backdrop-filter: blur(8px) saturate(1.08);
-  -webkit-backdrop-filter: blur(8px) saturate(1.08);
-  transform: scale(0.985);
-  transform-origin: right center;
-  transition:
-    max-width var(--plane-context-pool-collapse-duration) var(--plane-context-pool-collapse-ease),
-    border-color 0.16s var(--plane-context-pool-collapse-ease),
-    box-shadow 0.18s var(--plane-context-pool-collapse-ease),
-    transform var(--plane-context-pool-collapse-duration) var(--plane-context-pool-collapse-ease);
-}
-
-.plane-context-pool::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  filter: blur(12px);
-  box-shadow:
-    0 0 24px color-mix(in srgb, var(--accent) 10%, transparent),
-    0 0 40px color-mix(in srgb, var(--accent) 4%, transparent);
-  transition: opacity 0.16s var(--plane-context-pool-collapse-ease);
-}
-
-.plane-context-pool--expanded,
-.plane-context-pool-shell--expanded .plane-context-pool {
-  max-width: min(960px, 100%);
-  border-color: color-mix(in srgb, var(--plane-border) 44%, transparent);
-  background: var(--plane-glass-strong);
   backdrop-filter: blur(16px) saturate(1.24);
   -webkit-backdrop-filter: blur(16px) saturate(1.24);
-  transform: scale(1);
-  box-shadow:
-    0 6px 24px color-mix(in srgb, var(--shadow, #000) 12%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
-  transition:
-    max-width var(--plane-context-pool-expand-duration) var(--plane-context-pool-expand-ease),
-    border-color var(--plane-context-pool-expand-duration) var(--plane-context-pool-expand-ease),
-    box-shadow var(--plane-context-pool-expand-duration) var(--plane-context-pool-expand-ease),
-    transform var(--plane-context-pool-expand-duration) var(--plane-context-pool-expand-ease);
-}
-
-.plane-context-pool--expanded::after,
-.plane-context-pool-shell--expanded .plane-context-pool::after {
-  opacity: 0.85;
-  transition-duration: var(--plane-context-pool-expand-duration);
-  transition-timing-function: var(--plane-context-pool-expand-ease);
 }
 
 .plane-context-pool__configure,
@@ -128,23 +65,16 @@
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   flex-wrap: nowrap;
   align-items: center;
   gap: 2px;
-  min-width: 0;
-  height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  width: 100%;
+  min-height: 0;
+  max-height: min(70vh, 480px);
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
-  opacity: 0.92;
-  transition: opacity 0.14s var(--plane-context-pool-collapse-ease);
-}
-
-.plane-context-pool--expanded .plane-context-pool__icons,
-.plane-context-pool-shell--expanded .plane-context-pool__icons {
-  opacity: 1;
-  transition-duration: var(--plane-context-pool-expand-duration);
-  transition-timing-function: var(--plane-context-pool-expand-ease);
 }
 
 .plane-context-pool__icons::-webkit-scrollbar {
@@ -155,7 +85,6 @@
   flex-shrink: 0;
 }
 
-/* Chip: solo ícono. El nombre y el conteo van en tooltip/modal. */
 .plane-context-pool__chip {
   position: relative;
   display: inline-flex;
@@ -188,81 +117,6 @@
   cursor: grabbing;
 }
 
-/* Overflow chips ocultos hasta hover o foco en la barra. */
-.plane-context-pool__chip--overflow {
-  width: 0;
-  opacity: 0;
-  margin: 0;
-  padding: 0;
-  border-width: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transform: translateX(3px);
-  filter: blur(2px);
-  transform-origin: center;
-  transition:
-    width var(--plane-context-pool-collapse-duration) var(--plane-context-pool-collapse-ease),
-    opacity 0.12s var(--plane-context-pool-collapse-ease),
-    margin var(--plane-context-pool-collapse-duration) var(--plane-context-pool-collapse-ease),
-    border-width 0.12s ease,
-    transform 0.12s var(--plane-context-pool-collapse-ease),
-    filter 0.1s var(--plane-context-pool-collapse-ease);
-  transition-delay: 0ms;
-}
-
-.plane-context-pool--expanded .plane-context-pool__chip--overflow,
-.plane-context-pool-shell--expanded .plane-context-pool__chip--overflow {
-  width: 20px;
-  opacity: 1;
-  margin: 0;
-  padding: 0;
-  border-width: 1px;
-  pointer-events: auto;
-  transform: translateX(0);
-  filter: blur(0);
-  transition-duration:
-    var(--plane-context-pool-expand-duration),
-    var(--plane-context-pool-expand-duration),
-    var(--plane-context-pool-expand-duration),
-    0.1s,
-    var(--plane-context-pool-expand-duration),
-    0.1s;
-  transition-timing-function:
-    var(--plane-context-pool-expand-ease),
-    var(--plane-context-pool-expand-ease),
-    var(--plane-context-pool-expand-ease),
-    ease,
-    var(--plane-context-pool-expand-ease),
-    var(--plane-context-pool-expand-ease);
-  transition-delay:
-    var(--plane-context-pool-chip-stagger, 0ms),
-    var(--plane-context-pool-chip-stagger, 0ms),
-    var(--plane-context-pool-chip-stagger, 0ms),
-    var(--plane-context-pool-chip-stagger, 0ms),
-    var(--plane-context-pool-chip-stagger, 0ms),
-    var(--plane-context-pool-chip-stagger, 0ms);
-}
-
-/*
- * El `gap` del flex separa también a los ítems de ancho 0: con la barra
- * colapsada, cada chip oculto dejaba 2px de hueco delante del badge +N. El
- * margen negativo lo cancela y se transiciona igual que el chip al expandir.
- */
-.plane-context-pool__icons > .plane-context-pool__item--overflow {
-  margin-inline-start: -2px;
-  transition: margin 0.3s var(--plane-context-pool-collapse-ease);
-  transition-delay: 0ms;
-}
-
-.plane-context-pool--expanded .plane-context-pool__item--overflow,
-.plane-context-pool-shell--expanded .plane-context-pool__item--overflow {
-  margin-inline-start: 0;
-  transition-duration: var(--plane-context-pool-expand-duration);
-  transition-timing-function: var(--plane-context-pool-expand-ease);
-  transition-delay: 0ms;
-}
-
-/* Clon que se arrastra: opaco y con radio propio, ya sin el glass de la barra. */
 .plane-context-pool__chip--ghost {
   position: fixed;
   top: -1000px;
@@ -281,7 +135,6 @@
   flex-shrink: 0;
 }
 
-/* Punto de "en uso": el chip asignado a algún agente se distingue del que nadie usa. */
 .plane-context-pool__chip-pin {
   position: absolute;
   top: 1px;
@@ -291,71 +144,4 @@
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--plane-glass-strong) 90%, transparent);
-}
-
-/* Indicador pasivo +N cuando hay overflow y la barra está colapsada. */
-.plane-context-pool__overflow-badge {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  height: 20px;
-  max-width: 3rem;
-  margin-left: 2px;
-  padding: 0 5px;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  pointer-events: none;
-  opacity: 1;
-  transform: translateX(0);
-  filter: blur(0);
-  overflow: hidden;
-  white-space: nowrap;
-  transition:
-    opacity 0.12s var(--plane-context-pool-expand-ease),
-    transform 0.12s var(--plane-context-pool-expand-ease),
-    filter 0.1s var(--plane-context-pool-expand-ease),
-    max-width var(--plane-context-pool-expand-duration) var(--plane-context-pool-expand-ease),
-    margin-left 0.12s var(--plane-context-pool-expand-ease),
-    padding 0.12s var(--plane-context-pool-expand-ease);
-}
-
-.plane-context-pool--expanded .plane-context-pool__overflow-badge,
-.plane-context-pool-shell--expanded .plane-context-pool__overflow-badge {
-  opacity: 0;
-  transform: translateX(3px);
-  filter: blur(3px);
-  max-width: 0;
-  margin-left: 0;
-  padding-inline: 0;
-  transition-timing-function: var(--plane-context-pool-collapse-ease);
-  transition-duration: 0.1s, 0.1s, 0.08s, 0.12s, 0.1s, 0.1s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .plane-context-pool-shell,
-  .plane-context-pool,
-  .plane-context-pool::after,
-  .plane-context-pool__icons,
-  .plane-context-pool__chip--overflow,
-  .plane-context-pool__icons > .plane-context-pool__item--overflow,
-  .plane-context-pool__overflow-badge {
-    transition-duration: 0.01ms !important;
-    transition-delay: 0ms !important;
-    transform: none !important;
-    filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .plane-context-pool::after {
-    opacity: 0 !important;
-  }
 }

@@ -14,6 +14,7 @@ import {
   resolveTurnContexts,
   suggestSymbolsIdentity,
   isProjectRelativePath,
+  synthesizeTabContextFromId,
 } from '../tabContext'
 import type { TabContext } from '../tabContext'
 
@@ -38,6 +39,33 @@ describe('canonical context identity', () => {
     )
     expect(canonicalContextFileName('folderTree')).toBe('folders.md')
     expect(canonicalContextFileName('deps', { name: 'Runtime deps' })).toBe('Runtime-deps.md')
+  })
+
+  it('synthesizes tab contexts from assigned ids before discover catches up', () => {
+    expect(synthesizeTabContextFromId('iaterminal:notes:Front-Rules')).toMatchObject({
+      id: 'iaterminal:notes:Front-Rules',
+      name: 'Front Rules',
+      kind: 'notes',
+    })
+    expect(synthesizeTabContextFromId('iaterminal:result:frontend')).toMatchObject({
+      id: 'iaterminal:result:frontend',
+      name: 'frontend',
+      kind: 'agentResult',
+    })
+    expect(synthesizeTabContextFromId('rules')).toMatchObject({
+      id: 'rules',
+      name: 'rules',
+      kind: 'notes',
+    })
+    expect(synthesizeTabContextFromId('iaterminal:wiki')).toMatchObject({
+      id: 'iaterminal:wiki',
+      kind: 'wiki',
+    })
+    expect(synthesizeTabContextFromId('iaterminal:folderTree')).toMatchObject({
+      id: 'iaterminal:folderTree',
+      kind: 'folderTree',
+      name: 'folders',
+    })
   })
 
   it('dedupes the same stem, not the same kind alone', () => {

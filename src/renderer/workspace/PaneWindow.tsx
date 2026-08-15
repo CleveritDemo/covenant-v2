@@ -14,6 +14,12 @@ import {
 } from '@shared/paneWindows'
 import { MAX_PANE_TITLE_LENGTH } from '@shared/tabSession'
 import { isMiniExpandSuppressed } from './miniExpandSuppress'
+import {
+  isPlaneMiniInteractiveTarget,
+  markPlaneMiniCardOpenedFromPointer,
+  openPlaneMiniCardFromPointerDown,
+  shouldSkipPlaneMiniCardClick,
+} from './planeMiniCardOpen'
 import { PlaneBusyDot } from './PlaneBusyDot'
 import {
   hasPlaneContextDrag,
@@ -260,6 +266,8 @@ export interface PaneWindowProps {
   paneId?: string
   /** Altura real del mini agente (contenido) para apilar en el plano. */
   onMiniContentHeightChange?: (paneId: string, height: number) => void
+  /** Sube cuando cambia el contenido mini (p. ej. cantidad de contextos). */
+  miniContentRevision?: number
   /** Long-press / DnD de reorden en el plano (minis). */
   /**
    * Mesa de brainstorm abierta: la card mini de agente es un token arrastrable.
@@ -314,6 +322,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   onDropContext,
   paneId,
   onMiniContentHeightChange,
+  miniContentRevision = 0,
   reorderEnabled = false,
   reorderState = 'idle',
   reorderJiggleDelayMs = 0,
@@ -337,6 +346,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   const [zoomMode, setZoomMode] = useState<'idle' | 'expand' | 'collapse'>('idle')
   const [zoomPrep, setZoomPrep] = useState(false)
   const [layoutOverride, setLayoutOverride] = useState<LayoutBox | null>(null)
+  const agentCardSkipClickRef = useRef(false)
 
   const sizeW = geometry.width
   const sizeH = geometry.height
@@ -427,7 +437,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     const observer = new ResizeObserver(entries => report(entries[0]))
     observer.observe(el)
     return () => observer.disconnect()
-  }, [showAsMini, miniAgentCard, onMiniContentHeightChange, paneId])
+  }, [showAsMini, miniAgentCard, onMiniContentHeightChange, paneId, miniContentRevision])
 
   const stageEase = `${PANE_ZOOM_MS}ms cubic-bezier(0.05, 0.9, 0.08, 1)`
   // Terminales live: nunca animar width/height (el fit intermedio hace saltar el texto).
@@ -648,18 +658,21 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     onExpand?.()
   }, [isMini, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
 
+  const isMiniBodyBlockedTarget = isPlaneMiniInteractiveTarget
+
+  const openAgentMiniCard = useCallback((): void => {
+    onFocus()
+    onExpand?.()
+  }, [onExpand, onFocus])
+
   const onBodyPointerDown = useCallback((event: React.PointerEvent) => {
     if (!isMini || event.button !== 0) return
     if (isMiniExpandSuppressed()) return
-    if ((event.target as HTMLElement | null)?.closest?.('button, a, input, select, textarea, [role="button"]')) {
-      return
-    }
-    // Agentes mini: clic abre chat; reorder solo vía handle.
+    if (isMiniBodyBlockedTarget(event.target)) return
+    // Agentes mini: pointerdown inmediato (touch y ratón); sin esperar click sintético.
     if (miniAgentCard) {
-      // Con la mesa abierta la card se arrastra: ni preventDefault ni abrir chat.
-        event.preventDefault()
-      onFocus()
-      onExpand?.()
+      markPlaneMiniCardOpenedFromPointer(agentCardSkipClickRef)
+      openPlaneMiniCardFromPointerDown(event, openAgentMiniCard)
       return
     }
     if (reorderEnabled && onReorderPointerDown) {
@@ -670,7 +683,15 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     event.preventDefault()
     onFocus()
     onExpand?.()
-  }, [isMini, miniAgentCard, onExpand, onFocus, onReorderPointerDown, reorderEnabled])
+  }, [isMini, miniAgentCard, onExpand, onFocus, onReorderPointerDown, reorderEnabled, openAgentMiniCard])
+
+  const onBodyClick = useCallback((event: React.MouseEvent) => {
+    if (!isMini || isMiniExpandSuppressed()) return
+    if (isMiniBodyBlockedTarget(event.target)) return
+    if (!miniAgentCard) return
+    if (shouldSkipPlaneMiniCardClick(agentCardSkipClickRef)) return
+    openAgentMiniCard()
+  }, [isMini, miniAgentCard, openAgentMiniCard])
 
   const onContextDragOver = useCallback((event: React.DragEvent) => {
     if (!onDropContext || !hasPlaneContextDrag(event.dataTransfer)) return
@@ -713,6 +734,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
   return (
     <div
       ref={rootRef}
+      data-pane-id={paneId}
       className={[
         'pane-window',
         showAsMini ? 'pane-window--mini' : 'pane-window--full',
@@ -903,6 +925,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
         <div
           className="pane-window__body"
           onPointerDown={showAsMini ? onBodyPointerDown : undefined}
+          onClick={showAsMini && miniAgentCard ? onBodyClick : undefined}
         >
           {showAsMini && !miniLivePreview && miniFace}
           <div

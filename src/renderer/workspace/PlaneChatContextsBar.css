@@ -1,26 +1,25 @@
 .plane-chat-contexts-bar__stack {
   --plane-chat-contexts-bar-expand-duration: 0.2s;
   --plane-chat-contexts-bar-expand-ease: cubic-bezier(0, 0, 0.2, 1);
-  position: relative;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
   width: 100%;
   min-width: 0;
   min-height: 26px;
-  padding-right: 78px;
   box-sizing: border-box;
 }
 
 .plane-chat-contexts-bar__chips {
+  grid-column: 2;
+  justify-self: center;
   display: flex;
   flex: 0 1 auto;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-width: 0;
-  max-width: 100%;
+  max-width: min(100%, 220px);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -31,11 +30,26 @@
   display: none;
 }
 
+.plane-chat-contexts-bar__chip-host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  max-width: 176px;
+  transition:
+    gap var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease);
+}
+
+.plane-chat-contexts-bar__chip-host:hover,
+.plane-chat-contexts-bar__chip-host:focus-within {
+  gap: 4px;
+}
+
 .plane-chat-contexts-bar__chip {
   display: inline-flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: 0;
+  gap: 5px;
   min-width: 0;
   max-width: 176px;
   height: 22px;
@@ -49,14 +63,19 @@
     border-color 0.14s ease,
     color 0.14s ease,
     background 0.14s ease,
-    padding-right var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
-    gap var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease);
+    padding-right var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease);
 }
 
-.plane-chat-contexts-bar__chip:not(.plane-chat-contexts-bar__chip--editing):hover,
-.plane-chat-contexts-bar__chip:not(.plane-chat-contexts-bar__chip--editing):focus-within {
+.plane-chat-contexts-bar__chip--openable {
+  cursor: pointer;
+  font: 500 11px var(--font-ui);
+  line-height: 1;
+  text-align: left;
+}
+
+.plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip--openable,
+.plane-chat-contexts-bar__chip-host:focus-within .plane-chat-contexts-bar__chip--openable {
   padding-right: 4px;
-  gap: 4px;
 }
 
 .plane-chat-contexts-bar__chip:hover {
@@ -109,27 +128,6 @@
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }
 
-.plane-chat-contexts-bar__chip-tab {
-  display: inline-flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: 400 11px var(--font-ui);
-  line-height: 1;
-  cursor: pointer;
-  text-align: left;
-}
-
-.plane-chat-contexts-bar__chip-tab:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
 .plane-chat-contexts-bar__chip-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -163,8 +161,8 @@
     background 0.12s ease;
 }
 
-.plane-chat-contexts-bar__chip:hover .plane-chat-contexts-bar__chip-edit,
-.plane-chat-contexts-bar__chip:focus-within .plane-chat-contexts-bar__chip-edit {
+.plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip-edit,
+.plane-chat-contexts-bar__chip-host:focus-within .plane-chat-contexts-bar__chip-edit {
   width: 16px;
   max-width: 16px;
   opacity: 0.55;
@@ -183,14 +181,12 @@
 }
 
 .plane-chat-contexts-bar__actions {
-  position: absolute;
-  top: 50%;
-  right: 0;
+  grid-column: 3;
+  justify-self: end;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 2px;
-  transform: translateY(-50%);
 }
 
 @media (prefers-reduced-motion: reduce) {

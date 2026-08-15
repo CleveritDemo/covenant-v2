@@ -9,7 +9,7 @@ import {
   PLANE_MINI_SLOT_GAP,
   PLANE_MINI_SLOT_PAD_Y,
 } from '@shared/paneWindows'
-import { buildSlotOrigins, type PlaneMapEntity } from '../PlaneMap'
+import { buildSlotOrigins, computeColumnOverflowBandAnchors, type PlaneMapEntity } from '../PlaneMap'
 
 const VIEWPORT = { width: 1280, height: 800 }
 
@@ -127,5 +127,51 @@ describe('buildSlotOrigins virtual scroll', () => {
     expect(implicit.origins.a2.y).toBe(
       PLANE_MINI_SLOT_PAD_Y + agentLift + AGENT_HEIGHTS.a1 + PLANE_MINI_SLOT_GAP,
     )
+  })
+
+  it('anchors overflow arrows to the fixed visible band, not the stack', () => {
+    const anchors = computeColumnOverflowBandAnchors(
+      VIEWPORT.height,
+      PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+    )
+    expect(anchors.up).toBe(PLANE_MINI_SLOT_PAD_Y - 8 - 24)
+    expect(anchors.down).toBe(
+      VIEWPORT.height - PLANE_MINI_AGENT_BOTTOM_CLEARANCE + 8,
+    )
+
+    const manyAgents = Array.from({ length: 6 }, (_, index) => (
+      makeEntity(`a${index}`, 'agent')
+    ))
+    const heights = Object.fromEntries(
+      manyAgents.map(entity => [entity.paneId, 130]),
+    )
+    const scrolled = buildSlotOrigins(manyAgents, VIEWPORT, heights, {
+      terminal: 0,
+      agent: 200,
+    })
+    expect(scrolled.hidden.agent.above.length).toBeGreaterThan(0)
+    const scrolledAnchors = computeColumnOverflowBandAnchors(
+      VIEWPORT.height,
+      PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+    )
+    expect(scrolledAnchors).toEqual(anchors)
+  })
+
+  it('anchors agent overflow arrows smaller and farther from the visible band', () => {
+    const terminalAnchors = computeColumnOverflowBandAnchors(
+      VIEWPORT.height,
+      PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+    )
+    const agentAnchors = computeColumnOverflowBandAnchors(
+      VIEWPORT.height,
+      PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+      {
+        arrowSize: 18,
+        gap: 12,
+        outward: 10,
+      },
+    )
+    expect(agentAnchors.up).toBeLessThan(terminalAnchors.up)
+    expect(agentAnchors.down).toBeGreaterThan(terminalAnchors.down)
   })
 })

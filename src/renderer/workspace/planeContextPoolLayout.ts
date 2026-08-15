@@ -31,6 +31,16 @@ export function assignedPaneIdsByContext(
   return byContext
 }
 
+/** Catálogo completo ordenado por uso (asignados primero), siempre visible en la barra. */
+export function listPoolContexts<T extends { id: string }>(
+  contexts: readonly T[],
+  assignedCount: (contextId: string) => number,
+): T[] {
+  return [...contexts].sort(
+    (left, right) => assignedCount(right.id) - assignedCount(left.id),
+  )
+}
+
 /** Chips que caben en la barra colapsada; el resto se expande al hover. */
 export const POOL_VISIBLE_CAP = 6
 

@@ -1,51 +1,58 @@
+/* Grilla de contextos en mini del agente: dos filas (inputs / results), sin labels. */
+.plane-agent-context-nodes-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.plane-agent-context-nodes-stack--decorative {
+  pointer-events: none;
+}
+
+.plane-agent-context-nodes--results:not(:first-child) {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--plane-border) 26%, transparent);
+}
+
 .plane-agent-context-nodes {
-  --plane-context-icon-size: 18px;
-  --plane-context-col-gap: 6px;
+  --plane-context-col-gap: 5px;
+  --plane-context-row-gap: 3px;
+
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--plane-context-icon-size));
-  column-gap: var(--plane-context-col-gap);
-  row-gap: 4px;
-  justify-content: start;
-  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(var(--plane-context-icon-size), 1fr));
+  gap: var(--plane-context-row-gap) var(--plane-context-col-gap);
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
-  min-height: 0;
-  max-height: none;
-  overflow: visible;
+}
+
+.plane-agent-context-nodes--inputs {
+  --plane-context-icon-size: 14px;
+}
+
+.plane-agent-context-nodes--results {
+  --plane-context-icon-size: 18px;
+  --plane-context-col-gap: 4px;
+  --plane-context-row-gap: 0;
 }
 
 .plane-agent-context-nodes__item {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--plane-context-icon-size);
-  height: var(--plane-context-icon-size);
   min-width: 0;
-  line-height: 1;
+  list-style: none;
 }
 
 .plane-agent-context-nodes__item > .ui-tooltip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--plane-context-icon-size);
-  height: var(--plane-context-icon-size);
-  min-width: 0;
-}
-
-.plane-agent-context-nodes__item .plane-context-card {
-  flex-shrink: 0;
-}
-
-.plane-agent-context-nodes__item .plane-context-card__jira-wrap {
-  width: var(--plane-context-icon-size);
-  height: var(--plane-context-icon-size);
-  align-items: center;
-  justify-content: center;
-}
-
-.plane-agent-context-nodes__item .plane-context-card__jira-wrap > .ui-tooltip {
-  width: var(--plane-context-icon-size);
-  height: var(--plane-context-icon-size);
 }

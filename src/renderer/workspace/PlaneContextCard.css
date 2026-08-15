@@ -24,6 +24,38 @@
   background: color-mix(in srgb, var(--surface) 42%, transparent);
 }
 
+.plane-context-card--compact {
+  width: 14px;
+  height: 14px;
+}
+
+.plane-context-card--compact.plane-context-card--input {
+  border-radius: 3px;
+}
+
+.plane-context-card--result-plain {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.plane-context-card--compact .plane-context-card__monogram {
+  font-size: 6px;
+}
+
+.plane-context-card--decorative {
+  cursor: inherit;
+  pointer-events: none;
+}
+
+.plane-context-card--decorative:hover {
+  transform: none;
+}
+
+.plane-context-card__jira-wrap--decorative {
+  pointer-events: none;
+}
+
 .plane-context-card:hover {
   transform: translateY(-1px) scale(1.08);
 }

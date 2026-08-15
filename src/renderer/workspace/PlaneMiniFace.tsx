@@ -8,6 +8,12 @@ import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
+import {
+  isPlaneMiniInteractiveTarget,
+  markPlaneMiniCardOpenedFromPointer,
+  openPlaneMiniCardFromPointerDown,
+  shouldSkipPlaneMiniCardClick,
+} from './planeMiniCardOpen'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -79,16 +85,20 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const showResultsDrag = Boolean(resultsId)
   const resultsTitle = resultsDragLabel || resultsId
   const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
+  const skipClickRef = useRef(false)
 
-  const openFromFace = (event: React.PointerEvent): void => {
-    if (event.button !== 0 || !onOpen) return
-    if ((event.target as HTMLElement | null)?.closest?.(
-      'button, a, input, select, textarea, [role="button"]',
-    )) {
-      return
-    }
+  const openFromFaceClick = (event: React.MouseEvent): void => {
+    if (!onOpen) return
+    if (shouldSkipPlaneMiniCardClick(skipClickRef)) return
+    if (isPlaneMiniInteractiveTarget(event.target)) return
     event.stopPropagation()
     onOpen()
+  }
+
+  const onFacePointerDown = (event: React.PointerEvent): void => {
+    if (!onOpen) return
+    markPlaneMiniCardOpenedFromPointer(skipClickRef)
+    openPlaneMiniCardFromPointerDown(event, onOpen)
   }
 
   return (
@@ -100,7 +110,8 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       `plane-mini-face--${provider}`,
       onOpen ? 'plane-mini-face--openable' : '',
     ].filter(Boolean).join(' ')}
-    onPointerDown={onOpen ? openFromFace : undefined}
+    onClick={onOpen ? openFromFaceClick : undefined}
+    onPointerDown={onOpen ? onFacePointerDown : undefined}
   >
     <div className="plane-mini-face__glow" aria-hidden="true" />
     <div className="plane-mini-face__header">
@@ -211,7 +222,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     {showResultsDrag ? (
       <button
         type="button"
-        className="plane-mini-face__action plane-mini-face__results-drag"
+        className="plane-mini-face__results-drag"
         aria-label={resultsTitle}
         draggable
         onClick={event => {
@@ -240,7 +251,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           }, 50)
         }}
       >
-        <Icon name="files" size={12} />
+        <Icon name="files" size={9} aria-hidden />
       </button>
     ) : null}
   </div>

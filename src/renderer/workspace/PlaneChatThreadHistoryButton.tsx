@@ -1,5 +1,4 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Button, Icon, Tooltip } from '../components/ui'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   paginateThreadHistory,
@@ -13,6 +12,9 @@ const HISTORY_PAGE_SIZE = 5
 const SCROLL_LOAD_THRESHOLD = 8
 
 export interface PlaneChatThreadHistoryButtonProps {
+  panelId: string
+  /** Ancla de posición del popover (chip del thread activo). */
+  triggerRef: React.RefObject<HTMLElement | null>
   threads: readonly AgentThread[]
   activeThreadId: string
   runningThreadIds: readonly string[]
@@ -38,8 +40,16 @@ function panelPlacement(trigger: DOMRect): {
   return { top: trigger.bottom + GAP, bottom: 'auto', maxHeight: Math.min(below, 320) }
 }
 
+function centeredPanelLeft(trigger: DOMRect, panelWidth: number): number {
+  const inset = 8
+  const ideal = trigger.left + (trigger.width - panelWidth) / 2
+  return Math.max(inset, Math.min(ideal, window.innerWidth - panelWidth - inset))
+}
+
 /** Popover paginado con todas las conversaciones del agente. */
 export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButtonProps> = ({
+  panelId,
+  triggerRef,
   threads,
   activeThreadId,
   runningThreadIds,
@@ -47,10 +57,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   onSelectThread,
 }) => {
   const { t } = useT()
-  const panelId = `thread-history-panel-${useId().replace(/:/g, '')}`
-  const triggerRef = useRef<HTMLSpanElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(false)
   const [visibleLimit, setVisibleLimit] = useState(HISTORY_PAGE_SIZE)
   const [box, setBox] = useState<React.CSSProperties>({})
 
@@ -69,28 +76,30 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     if (!panel) return
     const onToggle = (event: Event): void => {
       const nowOpen = (event as ToggleEvent).newState === 'open'
-      setOpen(nowOpen)
       if (nowOpen) {
         setVisibleLimit(HISTORY_PAGE_SIZE)
-        const trigger = triggerRef.current?.getBoundingClientRect()
-        if (trigger) {
+        const syncPosition = (): void => {
+          const trigger = triggerRef.current?.getBoundingClientRect()
+          const panelEl = panelRef.current
+          if (!trigger || !panelEl) return
           const { top, bottom, maxHeight } = panelPlacement(trigger)
+          const panelWidth = panelEl.getBoundingClientRect().width
           setBox({
             top,
             bottom,
-            left: 'auto',
-            right: window.innerWidth - trigger.right,
+            left: centeredPanelLeft(trigger, panelWidth),
+            right: 'auto',
             maxHeight,
           })
         }
+        requestAnimationFrame(syncPosition)
       }
     }
     panel.addEventListener('toggle', onToggle)
     return () => panel.removeEventListener('toggle', onToggle)
-  }, [])
+  }, [triggerRef])
 
   const close = (): void => {
-    setOpen(false)
     const panel = panelRef.current
     if (!panel) return
     try {
@@ -116,73 +125,44 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   if (threads.length === 0) return null
 
   return (
-    <>
-      <span ref={triggerRef}>
-        <Tooltip content={t('agentPane.threadHistory')} hint={t('agentPane.threadHistoryHint')}>
-          <Button
-            variant="icon"
-            size="sm"
-            aria-label={t('agentPane.threadHistoryAria')}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            popovertarget={panelId}
-          >
-            <Icon name="history" size={13} />
-          </Button>
-        </Tooltip>
-      </span>
+    <div
+      ref={panelRef}
+      id={panelId}
+      popover="auto"
+      className="plane-chat-thread-history__panel"
+      style={box}
+      role="listbox"
+      tabIndex={-1}
+      aria-label={t('agentPane.threadHistoryAria')}
+      onScroll={handleScroll}
+    >
+      {items.map(thread => {
+          const isRunning = runningThreadIds.includes(thread.id)
+          const title = thread.title || t('agentPane.threadUntitled')
+          const switchDisabled = threadSelectionLocked
 
-      <div
-        ref={panelRef}
-        id={panelId}
-        popover="auto"
-        className="plane-chat-thread-history__panel"
-        style={box}
-        role="listbox"
-        tabIndex={-1}
-        aria-label={t('agentPane.threadHistoryAria')}
-        onScroll={handleScroll}
-      >
-        <div className="plane-chat-thread-history__header">{t('agentPane.threadHistory')}</div>
-        <div className="plane-chat-thread-history__list">
-          {items.map(thread => {
-            const isActive = thread.id === activeThreadId
-            const isRunning = runningThreadIds.includes(thread.id)
-            const title = thread.title || t('agentPane.threadUntitled')
-            const switchDisabled = threadSelectionLocked && !isActive
-
-            return (
-              <button
-                key={thread.id}
-                type="button"
-                role="option"
-                aria-selected={isActive}
-                className={[
-                  'plane-chat-thread-history__row',
-                  isActive ? 'plane-chat-thread-history__row--active' : '',
-                ].filter(Boolean).join(' ')}
-                disabled={switchDisabled}
-                onPointerDown={event => {
-                  event.preventDefault()
-                }}
-                onClick={event => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  if (!switchDisabled && !isActive) pick(thread.id)
-                }}
-              >
-                <span className="plane-chat-thread-history__check" aria-hidden>
-                  {isActive ? <Icon name="check" size={11} /> : null}
-                </span>
-                <span className="plane-chat-thread-history__body">
-                  {isRunning ? <PlaneBusyDot size="sm" /> : null}
-                  <span className="plane-chat-thread-history__label">{title}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </>
+          return (
+            <button
+              key={thread.id}
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="plane-chat-thread-history__row"
+              disabled={switchDisabled}
+              onPointerDown={event => {
+                event.preventDefault()
+              }}
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+                if (!switchDisabled) pick(thread.id)
+              }}
+            >
+              {isRunning ? <PlaneBusyDot size="sm" /> : null}
+              <span className="plane-chat-thread-history__label">{title}</span>
+            </button>
+          )
+        })}
+    </div>
   )
 }

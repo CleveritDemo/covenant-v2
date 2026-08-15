@@ -4,7 +4,7 @@ import {
   PLANE_MINI_SLOT_GAP,
   PLANE_MINI_SLOT_PAD_Y,
 } from '@shared/paneWindows'
-import { computePlaneColumnWindowing } from '@shared/planeColumnWindowing'
+import { computePlaneColumnWindowing, centerProximityScale } from '@shared/planeColumnWindowing'
 
 const VIEWPORT_HEIGHT = 800
 
@@ -220,5 +220,23 @@ describe('computePlaneColumnWindowing', () => {
     })
 
     expect(defaultResult.slots[0].progress).toBeGreaterThan(tightResult.slots[0].progress)
+  })
+
+  it('gives higher centerProximity to cards closer to the vertical band center', () => {
+    const result = computePlaneColumnWindowing({
+      items: [
+        { id: 'top', height: 100 },
+        { id: 'mid', height: 100 },
+        { id: 'bot', height: 100 },
+      ],
+      viewportHeight: VIEWPORT_HEIGHT,
+      scrollOffset: 0,
+    })
+
+    const [top, mid, bot] = result.slots
+    expect(bot.centerProximity).toBeGreaterThan(mid.centerProximity)
+    expect(mid.centerProximity).toBeGreaterThan(top.centerProximity)
+    expect(centerProximityScale(bot.centerProximity)).toBeGreaterThan(1)
+    expect(centerProximityScale(top.centerProximity)).toBeLessThan(centerProximityScale(bot.centerProximity))
   })
 })

@@ -9,6 +9,11 @@
   pointer-events: none;
 }
 
+/* Quick chat sin ventana expandida: minis sobre dock (199) y composer (201). */
+.plane-map--chat-open:not(.plane-map--elevated) {
+  z-index: calc(var(--plane-chat-stack-z, 200) + 2);
+}
+
 /* Piso: grilla + partículas al fondo del mapa, debajo del stage. */
 .plane-map-backdrop {
   position: absolute;
@@ -35,13 +40,20 @@
   );
 }
 
-/* Aurora del piso: ancho completo, debajo del stage y del composer. */
-.plane-map__floor-glow {
+/* Partículas busy del piso, debajo del stage (sin capa de glow). */
+.plane-map__floor-particles {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2;
+  width: 100%;
   pointer-events: none;
-  background: transparent;
+}
+
+.plane-map__floor-particles .plane-composer-aurora-particles {
+  height: 200px;
+  width: 100%;
 }
 
 /* Ventana abierta: por encima del composer (200) y FABs (70); debajo del chrome (210). */
@@ -122,8 +134,9 @@
   perspective-origin: 50% 45%;
 }
 
-/* Sin perspectiva 3D mientras hay ventana: el morph debe respetar z-index 2D. */
-.plane-map--elevated .plane-map__stage {
+/* Sin perspectiva 3D con ventana abierta o quick chat. */
+.plane-map--elevated .plane-map__stage,
+.plane-map--chat-open .plane-map__stage {
   perspective: none;
   isolation: isolate;
 }
@@ -146,9 +159,9 @@
   transform-origin: right center;
 }
 
-/* Elevated: aplanar al instante y romper stacking context de la columna.
-   will-change:transform crea SC aunque transform sea none. */
-.plane-map--elevated .plane-map__column {
+/* Elevated / chat abierto: aplanar columnas y romper stacking context 3D. */
+.plane-map--elevated .plane-map__column,
+.plane-map--chat-open .plane-map__column {
   transition: none;
   transform: none !important;
   transform-style: flat;
@@ -159,7 +172,8 @@
   z-index: auto;
 }
 
-.plane-map--elevated .plane-map__column .pane-window {
+.plane-map--elevated .plane-map__column .pane-window,
+.plane-map--chat-open .plane-map__column .pane-window {
   transform-style: flat;
 }
 
@@ -242,10 +256,17 @@
 }
 
 /* Agentes al salir de banda: se achican y deslizan hacia la derecha. */
+.plane-map__column--agents .pane-window--agent-card.pane-window--mini:not(.pane-window--zooming):not(.pane-window--zooming-prep) {
+  transform: scale(var(--plane-card-center-scale, 1));
+  transform-origin: center right;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .plane-map__column--agents .pane-window--agent-card.pane-window--fading {
   transform:
     translateX(calc((1 - var(--plane-card-progress, 1)) * 14px))
-    scale(calc(0.9 + var(--plane-card-progress, 1) * 0.1));
+    scale(calc(var(--plane-card-center-scale, 1) * (0.9 + var(--plane-card-progress, 1) * 0.1)));
   transform-origin: center right;
   transition:
     opacity 0.2s cubic-bezier(0, 0, 0.2, 1),
@@ -256,22 +277,61 @@
   transition: none;
 }
 
-.plane-map__overflow-column {
+.plane-map--wheel-scrolling .plane-map__column--agents .pane-window--agent-card.pane-window--mini {
+  transition: none;
+}
+
+.plane-map__overflow-arrows {
   position: absolute;
-  top: 46px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
+  top: 0;
+  bottom: 0;
   pointer-events: none;
 }
 
-.plane-map__overflow-column .plane-column-overflow-pill {
-  pointer-events: auto;
+.plane-map__overflow-arrow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.plane-map__overflow-column--agents {
-  align-items: flex-end;
+.plane-map__overflow-arrow--up {
+  animation: plane-overflow-arrow-in-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.plane-map__overflow-arrow--down {
+  animation: plane-overflow-arrow-in-down 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes plane-overflow-arrow-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes plane-overflow-arrow-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.plane-map__overflow-arrow .ui-tooltip,
+.plane-map__overflow-arrow .plane-column-overflow-pill {
+  pointer-events: auto;
 }
 
 .pane-window__shell {
@@ -303,6 +363,15 @@ html[data-reduce-motion="true"] {
 
   .plane-map__column--agents .pane-window--agent-card.pane-window--fading {
     transform: none;
+  }
+
+  .plane-map__column--agents .pane-window--agent-card.pane-window--mini {
+    transform: none;
+  }
+
+  .plane-map__overflow-arrow--up,
+  .plane-map__overflow-arrow--down {
+    animation: none;
   }
 }
 

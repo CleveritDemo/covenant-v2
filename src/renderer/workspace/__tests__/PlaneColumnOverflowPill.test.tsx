@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { PlaneColumnOverflowPill } from '../PlaneColumnOverflowPill'
 
 vi.mock('@i18n/useT', () => ({
@@ -27,9 +27,10 @@ describe('PlaneColumnOverflowPill', () => {
       <PlaneColumnOverflowPill count={3} direction="down" onClick={onClick} />,
     )
 
-    const button = container.querySelector('.plane-column-overflow-pill--down')
+    const button = container.querySelector('.plane-column-overflow-pill--down') as HTMLButtonElement
     expect(button).toBeTruthy()
-    expect(screen.getByText('tabs.planeColumnOverflowHidden')).toBeTruthy()
+    expect(button.getAttribute('aria-label')).toBe('tabs.planeColumnOverflowHidden')
+    expect(container.querySelector('.plane-column-overflow-pill__label')).toBeNull()
 
     fireEvent.click(button!, { bubbles: true })
 

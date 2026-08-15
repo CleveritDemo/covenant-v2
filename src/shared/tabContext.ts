@@ -300,6 +300,75 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
   }
 }
 
+function humanizeContextStem(stem: string): string {
+  return stem.replace(/[-_]/g, ' ').trim() || stem
+}
+
+/**
+ * Chip / lista cuando el id está asignado pero aún no apareció en discover.
+ * Cubre ids canónicos `iaterminal:*` y stems legacy cortos (`rules`, etc.).
+ */
+export function synthesizeTabContextFromId(contextId: string): TabContext | null {
+  const trimmed = contextId.trim()
+  if (!trimmed) return null
+
+  if (!trimmed.startsWith('iaterminal:')) {
+    return {
+      id: trimmed,
+      name: trimmed,
+      fileName: normalizeContextFileName(trimmed),
+      kind: 'notes',
+    }
+  }
+
+  const body = trimmed.slice('iaterminal:'.length)
+  const colon = body.indexOf(':')
+  const kindSegment = colon === -1 ? body : body.slice(0, colon)
+  const stem = colon === -1 ? '' : body.slice(colon + 1)
+
+  if (kindSegment === 'result') {
+    const agentId = stem.trim() || 'agent'
+    return {
+      id: trimmed,
+      name: agentId,
+      fileName: canonicalContextFileName('agentResult', { agentId }),
+      kind: 'agentResult',
+    }
+  }
+
+  if (!(ALL_CONTEXT_KINDS as readonly string[]).includes(kindSegment)) return null
+  const kind = kindSegment as TabContextKind
+
+  if (kind === 'jira') {
+    const issueKey = stem.trim().toUpperCase() || 'ISSUE'
+    return {
+      id: trimmed,
+      name: issueKey,
+      fileName: canonicalContextFileName('jira', { issueKey }),
+      kind: 'jira',
+      issueKey,
+    }
+  }
+
+  if (isCreatableContextKind(kind)) {
+    const trimmedStem = stem.trim()
+    const name = trimmedStem ? humanizeContextStem(trimmedStem) : canonicalContextName(kind)
+    return {
+      id: trimmed,
+      name,
+      fileName: canonicalContextFileName(kind, trimmedStem ? { fileStem: trimmedStem } : {}),
+      kind,
+    }
+  }
+
+  return {
+    id: trimmed,
+    name: stem.trim() ? humanizeContextStem(stem) : canonicalContextName(kind),
+    fileName: canonicalContextFileName(kind, stem.trim() ? { fileStem: stem } : {}),
+    kind,
+  }
+}
+
 /** ¿El id ya es canónico para su kind? (ids cortos legacy → false, se migran). */
 export function isCanonicalContextId(context: Pick<TabContext, 'id' | 'kind' | 'rootPath' | 'fileName' | 'name'>): boolean {
   if (context.kind === 'agentResult') {

@@ -28,7 +28,8 @@ vi.mock('../../agent/composerImages', async importOriginal => {
     }),
     // jsdom no encodea imágenes: el adjunto llega resuelto pero con demora,
     // igual que en la app (optimize + base64 tardan frames).
-    pendingImagesToAttachments: async () => {
+    pendingImagesToAttachments: async images => {
+      if (images.length === 0) return []
       await new Promise(resolve => setTimeout(resolve, 5))
       return [{ name: 'a.png', mimeType: 'image/png', base64: 'eA==' }]
     },

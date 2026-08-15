@@ -17,7 +17,7 @@ describe('resolveAssignedContextChips', () => {
       new Map([['iaterminal:result:fullstack', 2]]),
       kind => kind,
     )
-    expect(chips).toHaveLength(2)
+    expect(chips).toHaveLength(3)
     expect(chips[0]).toMatchObject({
       id: 'iaterminal:folderTree',
       name: 'Folders',
@@ -30,6 +30,12 @@ describe('resolveAssignedContextChips', () => {
       kind: 'agentResult',
       shared: true,
       monogram: 'FU',
+    })
+    expect(chips[2]).toMatchObject({
+      id: 'iaterminal:notes:x',
+      name: 'x',
+      kind: 'notes',
+      shared: false,
     })
   })
 

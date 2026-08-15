@@ -86,11 +86,13 @@ export const PlaneChatDock: React.FC<PlaneChatDockProps> = ({ chat, composer, to
   return (
     <>
       <div ref={dockRef} className="plane-chat-dock">
-        {toolbar ? (
-          <div className="plane-chat-dock__toolbar">{toolbar}</div>
-        ) : null}
         <div className="plane-chat-dock__chat">{chat}</div>
       </div>
+      {toolbar ? (
+        <div className="plane-chat-dock__toolbar-host">
+          <div className="plane-chat-dock__toolbar">{toolbar}</div>
+        </div>
+      ) : null}
       <div ref={shellRef} className="plane-chat-dock__composer-shell">{composer}</div>
     </>
   )

@@ -67,13 +67,16 @@ export function chipVisibleThreadIds(
   return ids
 }
 
-/** Todos los hilos del agente, ordenados por recencia (popover de historial). */
+/** Hilos del popover: todos por recencia, sin el activo (ya está en el chip). */
 export function threadHistoryCandidates(
   threads: readonly AgentThread[],
-  _activeThreadId?: string,
+  activeThreadId?: string,
   _runningThreadIds?: readonly string[],
 ): AgentThread[] {
-  return sortThreadsByRecency(threads)
+  const sorted = sortThreadsByRecency(threads)
+  const active = activeThreadId?.trim()
+  if (!active) return sorted
+  return sorted.filter(thread => thread.id !== active)
 }
 
 export function paginateThreadHistory(

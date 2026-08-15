@@ -1,6 +1,6 @@
 /*
- * Partículas busy del piso del plano. En el tab viven en .plane-floor-aurora
- * (ancho completo); en brainstorm, en .brainstorm-overlay__floor.
+ * Partículas busy del piso del plano. En el tab viven en .plane-map__floor-particles;
+ * en brainstorm, en .brainstorm-overlay__floor.
  */
 .plane-composer-aurora-particles {
   position: absolute;
@@ -32,11 +32,11 @@ html[data-reduce-motion="true"] .plane-composer-aurora-particles {
   display: none;
 }
 
-html[data-reduce-motion="true"] .plane-floor-aurora {
-  transition: none;
+html[data-reduce-motion="true"] .plane-map__floor-particles .plane-composer-aurora-particles {
+  display: none;
 }
 
-.plane-floor-aurora .plane-composer-aurora-particles,
+.plane-map__floor-particles .plane-composer-aurora-particles,
 .brainstorm-overlay__floor .plane-composer-aurora-particles {
   height: 200px;
   width: 100%;

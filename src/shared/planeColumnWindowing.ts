@@ -26,12 +26,34 @@ function smoothFadeProgress(linearRatio: number): number {
   return t * t * (3 - 2 * t)
 }
 
+/** Escala máxima extra para la card de agente en el centro de la banda. */
+export const PLANE_AGENT_CENTER_SCALE_BOOST = 0.06
+
+export function centerProximityScale(proximity: number): number {
+  const t = Math.min(1, Math.max(0, proximity))
+  return Math.round((1 + t * PLANE_AGENT_CENTER_SCALE_BOOST) * 1000) / 1000
+}
+
+function computeCenterProximity(
+  cardCenterY: number,
+  bandTop: number,
+  bandBottom: number,
+): number {
+  const bandCenter = (bandTop + bandBottom) / 2
+  const halfBand = Math.max(1, (bandBottom - bandTop) / 2)
+  const distance = Math.abs(cardCenterY - bandCenter)
+  const linear = 1 - Math.min(1, distance / halfBand)
+  return Math.round(smoothFadeProgress(linear) * 1000) / 1000
+}
+
 export interface PlaneColumnSlotY {
   id: string
   y: number
   height: number
   visible: boolean
   progress: number
+  /** 1 en el centro vertical de la banda visible; 0 en los bordes. */
+  centerProximity: number
 }
 
 export interface PlaneColumnWindowingResult {
@@ -86,8 +108,9 @@ export function computePlaneColumnWindowing(
     const overshoot = Math.max(overshootTop, overshootBottom)
     const linearProgress = Math.min(1, Math.max(0, 1 - overshoot / Math.max(1, fadeZone)))
     const progress = Math.round(smoothFadeProgress(linearProgress) * 1000) / 1000
+    const centerProximity = computeCenterProximity(y + height / 2, bandTop, bandBottom)
 
-    slots.push({ id: items[i].id, y, height, visible, progress })
+    slots.push({ id: items[i].id, y, height, visible, progress, centerProximity })
 
     if (progress === 0) {
       if (y + height < bandTop) {

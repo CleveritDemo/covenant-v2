@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assignedPaneIdsByContext,
+  listPoolContexts,
   splitPoolContexts,
   POOL_VISIBLE_CAP,
   type PlaneContextPoolAgent,
@@ -28,6 +29,18 @@ describe('assignedPaneIdsByContext', () => {
 
   it('devuelve un mapa vacío sin agentes', () => {
     expect(assignedPaneIdsByContext([])).toEqual({})
+  })
+})
+
+describe('listPoolContexts', () => {
+  const ids = (contexts: readonly { id: string }[]): string[] => contexts.map(c => c.id)
+  const catalog = (...names: string[]): { id: string }[] => names.map(id => ({ id }))
+  const none = (): number => 0
+
+  it('ordena por uso y conserva el catálogo completo', () => {
+    const all = catalog('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
+    const assigned = (id: string): number => (id === 'h' ? 2 : id === 'g' ? 1 : 0)
+    expect(ids(listPoolContexts(all, assigned))).toEqual(['h', 'g', 'a', 'b', 'c', 'd', 'e', 'f'])
   })
 })
 

@@ -303,6 +303,7 @@
   min-height: 0;
   height: auto;
   overflow: visible;
+  touch-action: manipulation;
 }
 
 .pane-window--agent-card.pane-window--mini .pane-window__frame {
@@ -314,10 +315,11 @@
   overflow: visible;
 }
 
-.pane-window--agent-card.pane-window--mini .pane-window__shell {
+.plane-window--agent-card.pane-window--mini .pane-window__shell {
   flex: 0 0 auto;
   height: auto;
   min-height: 0;
+  overflow: visible;
 }
 
 /* El live-host del AgentPane no debe tapar la mini face ni robar clics. */

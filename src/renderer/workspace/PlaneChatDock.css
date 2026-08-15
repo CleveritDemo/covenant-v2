@@ -7,28 +7,45 @@
   --plane-chat-toolbar-clearance: 38px;
   position: absolute;
   inset: 0;
-  /* Por encima del chat (200); debajo del mapa elevado con ventana (205). */
-  z-index: var(--plane-chat-stack-z, 200);
+  /* Scroll del chat bajo minis elevadas (201); toolbar va en __toolbar-host (chrome). */
+  z-index: calc(var(--plane-chat-stack-z, 200) - 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  min-height: 0;
+}
+
+.plane-chat-dock__chat {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* visible: permite ver la escala de entrada del chat. */
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Hilos / limpiar: chrome 210, sobre mapa chat-open (201) y el fade superior. */
+.plane-chat-dock__toolbar-host {
+  position: absolute;
+  inset: 0;
+  z-index: var(--plane-chrome-stack-z, 210);
   display: grid;
   grid-template-areas: 'stack';
   pointer-events: none;
   min-height: 0;
 }
 
-.plane-chat-dock__toolbar,
-.plane-chat-dock__chat {
-  grid-area: stack;
-  min-width: 0;
-  min-height: 0;
-}
-
 .plane-chat-dock__toolbar {
+  grid-area: stack;
   position: relative;
   align-self: start;
   justify-self: center;
   width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
-  /* Por encima del velo del scroll y del mapa. */
-  z-index: 8;
   display: flex;
   justify-content: center;
   padding: 10px 0 0;
@@ -38,15 +55,6 @@
 
 .plane-chat-dock__toolbar > * {
   pointer-events: auto;
-}
-
-.plane-chat-dock__chat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* visible: permite ver la escala de entrada del chat. */
-  overflow: visible;
-  pointer-events: none;
 }
 
 .plane-chat-dock__composer-shell {

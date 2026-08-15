@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.60.0
+
+- **Barra de herramientas del plano**: explorer, git, loops, pulse, brainstorm, wiki y finder pasan a un rail vertical glass a la izquierda; carpeta, subir y resync siguen arriba.
+- **Pool de contextos renovado**: columna vertical en el margen derecho, cards con escala por proximidad al centro, chevrons de overflow fijos y líneas curvas que muestran qué contexto va a cada agente.
+- **Historial de hilos más limpio**: un solo chip activo con combobox; el resto de conversaciones viven en el panel desplegable hacia la izquierda.
+- **Mapa del plano más usable**: minis clicables con chat abierto, perspectiva 3D restaurada y chrome del dock por encima del blur.
+- **Config de agente**: chips de contexto en la mini son solo visuales; la fila de results se separa visualmente de los inputs normales.
+
 ## v0.59.0
 
 - **Loops en main, sin ocupar el chat**: las cadenas corren headless con transcript propio en la vista Loops; brainstorm y loops ya no compiten con el hueco del panel ni marcan busy al agente del plano.

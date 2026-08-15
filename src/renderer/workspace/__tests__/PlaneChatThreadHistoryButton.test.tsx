@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import React from 'react'
+import React, { useId, useRef } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneChatThreadHistoryButton } from '../PlaneChatThreadHistoryButton'
@@ -51,6 +51,36 @@ function makeThreads(count: number): AgentThread[] {
   }))
 }
 
+function HistoryHarness({
+  threads,
+  activeThreadId,
+  runningThreadIds,
+  onSelectThread,
+}: {
+  threads: AgentThread[]
+  activeThreadId: string
+  runningThreadIds: readonly string[]
+  onSelectThread: (threadId: string) => void
+}): React.ReactElement {
+  const panelId = useId().replace(/:/g, '')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button ref={triggerRef} type="button" popovertarget={panelId}>
+        Open
+      </button>
+      <PlaneChatThreadHistoryButton
+        panelId={panelId}
+        triggerRef={triggerRef}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        runningThreadIds={runningThreadIds}
+        onSelectThread={onSelectThread}
+      />
+    </>
+  )
+}
+
 function openHistoryPanel(): HTMLElement {
   const panel = screen.getByRole('listbox', { hidden: true })
   act(() => {
@@ -63,9 +93,9 @@ function openHistoryPanel(): HTMLElement {
 }
 
 describe('PlaneChatThreadHistoryButton', () => {
-  it('con 6 hilos lista todos ordenados por recencia (paginado)', () => {
+  it('con 6 hilos lista el resto por recencia sin el activo (paginado)', () => {
     render(
-      <PlaneChatThreadHistoryButton
+      <HistoryHarness
         threads={makeThreads(6)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
@@ -75,16 +105,16 @@ describe('PlaneChatThreadHistoryButton', () => {
     const panel = openHistoryPanel()
     const options = panel.querySelectorAll('[role="option"]')
     expect(options).toHaveLength(5)
-    expect(panel.textContent).toContain('Thread 1')
+    expect(panel.textContent).not.toContain('Thread 1')
     expect(panel.textContent).toContain('Thread 2')
     expect(panel.textContent).toContain('Thread 3')
-    expect(options[0]?.getAttribute('aria-selected')).toBe('true')
-    expect(options[0]?.className).toContain('plane-chat-thread-history__row--active')
+    expect(options[0]?.getAttribute('aria-selected')).toBe('false')
+    expect(panel.textContent).not.toContain('agentPane.threadHistory')
   })
 
   it('scroll al fondo carga la página 2 (+5)', () => {
     render(
-      <PlaneChatThreadHistoryButton
+      <HistoryHarness
         threads={makeThreads(12)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
@@ -105,7 +135,7 @@ describe('PlaneChatThreadHistoryButton', () => {
   it('click en fila llama onSelectThread y cierra', () => {
     const onSelectThread = vi.fn()
     render(
-      <PlaneChatThreadHistoryButton
+      <HistoryHarness
         threads={makeThreads(6)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
@@ -120,27 +150,15 @@ describe('PlaneChatThreadHistoryButton', () => {
     expect(panel.hasAttribute('data-open')).toBe(false)
   })
 
-  it('sin hilos no monta el botón', () => {
+  it('sin hilos no monta el panel', () => {
     render(
-      <PlaneChatThreadHistoryButton
+      <HistoryHarness
         threads={[]}
         activeThreadId=""
         runningThreadIds={[]}
         onSelectThread={() => undefined}
       />,
     )
-    expect(screen.queryByRole('button', { name: 'agentPane.threadHistoryAria' })).toBeNull()
-  })
-
-  it('con solo hilos en chips sigue mostrando el botón', () => {
-    render(
-      <PlaneChatThreadHistoryButton
-        threads={makeThreads(2)}
-        activeThreadId="t-1"
-        runningThreadIds={['t-2']}
-        onSelectThread={() => undefined}
-      />,
-    )
-    expect(screen.getByRole('button', { name: 'agentPane.threadHistoryAria' })).toBeTruthy()
+    expect(screen.queryByRole('listbox', { hidden: true })).toBeNull()
   })
 })

@@ -176,8 +176,11 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
     paneBusy: busy,
     awaitingDelegations,
   })
-  // Busy / hilos en curso: el listado de threads ya lleva dots; sin esquina duplicada.
-  const miniCornerActivityDot = busy || showThreadNodes ? null : miniActivityDot
+  // Solo se calla la esquina cuando el listado de hilos se pinta de verdad (ya
+  // lleva su propio dot). Con busy sin hilos en carril —delegación asignada que
+  // aún no arrancó, turno legacy sin threadId— la card quedaba sin ninguna señal
+  // mientras el chip del composer sí la pintaba.
+  const miniCornerActivityDot = showThreadNodes ? null : miniActivityDot
   const paneWindowClassName = [
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',

@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.61.15
+
+- **Dot en la mini sin hilos visibles**: cuando el especialista está busy pero aún no tiene carriles de hilo pintados (delegación asignada sin arrancar), la card mini vuelve a mostrar el dot de actividad en la esquina en lugar de quedar apagada.
+
 ## v0.61.14
 
 - **Más densidad en partículas busy**: el tope de partículas del piso del plano sube un 30% para un glow de actividad más visible.

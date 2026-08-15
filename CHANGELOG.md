@@ -9,6 +9,7 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 - **Stop de verdad**: al detener un agente ahora también mueren los procesos que lanzó (servidores de desarrollo, apps, test runners); antes seguían corriendo solos y podían relanzar la app en bucle.
 - **Cierre limpio**: al salir de Covenant Gravity ya no quedan CLIs de agente huérfanos en segundo plano.
 - **Chrome nativo en Windows**: la ventana usa los botones de sistema de Windows y la barra propia deja de reservar el hueco de los semáforos de macOS; los controles de las mini-ventanas y los modales se unifican y se pintan a la derecha bajo Windows.
+- **Código en línea sin cortes**: un chip de código que cambia de línea a mitad de una respuesta ya no aparece partido; ahora los dos trozos conservan borde y esquinas.
 
 ## v0.60.1
 

@@ -104,6 +104,7 @@ import {
   stopAgentRunsForPane,
   stopAgentRunsForWindow,
   stopAllAgentRuns,
+  killAllAgentRunsNow,
   clearAgentContextDeliveryForSession,
   clearAgentContextDeliveryState,
   getContextDeliveryMetrics,
@@ -473,6 +474,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   clearPresence()
   stopAllAgentRuns()
+  killAllAgentRunsNow()
   stopAllBrainstormRooms()
   stopAllLoopChainRuns()
   stopAllLspServers()

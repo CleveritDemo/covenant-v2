@@ -1,5 +1,6 @@
 import crossSpawn from 'cross-spawn'
-import type { ChildProcessWithoutNullStreams } from 'child_process'
+import type { ChildProcess, ChildProcessWithoutNullStreams } from 'child_process'
+import { killProcessTree, killProcessTreeNow } from './processTree'
 import { mkdirSync, mkdtempSync, statSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, extname, join, resolve } from 'path'
@@ -97,8 +98,17 @@ interface AgentRun {
 }
 
 const agentRuns = new Map<string, AgentRun>()
+/** Procs vivos tras spawn; se limpia en 'exit'. Para killAllAgentRunsNow al salir. */
+const liveAgentProcs = new Set<ChildProcess>()
 const turnCleanupByPane = new Map<string, () => void>()
 let nextAgentRunGeneration = 1
+
+function trackAgentProc(proc: ChildProcess): void {
+  liveAgentProcs.add(proc)
+  proc.on('exit', () => {
+    liveAgentProcs.delete(proc)
+  })
+}
 
 export function registerTurnCleanup(paneId: string, cleanup: () => void): void {
   turnCleanupByPane.get(paneId)?.()
@@ -1035,15 +1045,17 @@ export function runAgentCliSpawn(
       env: { ...process.env, ...otelEnvFromConfig(config) },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: process.platform !== 'win32',
     }) as ChildProcessWithoutNullStreams
   } catch (error) {
     failBeforeSpawn(error instanceof Error ? error.message : String(error))
     return
   }
+  trackAgentProc(proc)
 
   const reserved = agentRuns.get(runKey)
   if (!reserved || reserved.generation !== generation) {
-    try { proc.kill('SIGTERM') } catch { /* already exited */ }
+    killProcessTree(proc)
     return
   }
   agentRuns.set(runKey, { proc, windowId: -1, generation })
@@ -1205,16 +1217,18 @@ export function startAgentTurn(
         env: { ...process.env, ...otelEnvFromConfig(config) },
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
+        detached: process.platform !== 'win32',
       }) as ChildProcessWithoutNullStreams
     } catch (error) {
       failBeforeSpawn(error instanceof Error ? error.message : String(error))
       return
     }
+    trackAgentProc(proc)
 
     const reserved = agentRuns.get(runKey)
     if (!reserved || reserved.generation !== generation) {
       // El usuario paró (o se reemplazó el turno) mientras spawneábamos.
-      try { proc.kill('SIGTERM') } catch { /* already exited */ }
+      killProcessTree(proc)
       runTurnCleanup(request.paneId)
       return
     }
@@ -1516,7 +1530,7 @@ export function stopAgentRun(runKey: string, options: StopAgentRunOptions = {}):
   if (!run) return
   runTurnCleanup(parseRunKey(runKey).paneId)
   agentRuns.delete(runKey)
-  try { run.proc?.kill('SIGTERM') } catch { /* already exited */ }
+  if (run.proc) killProcessTree(run.proc)
   if (options.notify && options.win && !options.win.isDestroyed()) {
     finishAgentTurn(options.win, runKey, 130)
   }
@@ -1551,6 +1565,16 @@ export function stopAgentRunsForWindow(windowId: number): void {
 export function stopAllAgentRuns(): void {
   for (const runKey of [...agentRuns.keys()]) {
     stopAgentRun(runKey)
+  }
+}
+
+/**
+ * Pase inmediato de SIGKILL al grupo para procs que aún vivan tras stopAllAgentRuns.
+ * El timer de escalate de killProcessTree no corre a tiempo en will-quit.
+ */
+export function killAllAgentRunsNow(): void {
+  for (const proc of [...liveAgentProcs]) {
+    killProcessTreeNow(proc)
   }
 }
 

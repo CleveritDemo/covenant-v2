@@ -3,8 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  computePlaneMiniSlotCell,
-  computePlaneMiniSlotPadX,
+  computePlaneMiniColumnLayout,
 } from '@shared/paneWindows'
 import { buildSlotOrigins, type PlaneMapEntity } from '../PlaneMap'
 import { resolveAgentMiniPaneIdFromPointer } from '../planeMapAgentMiniHitTest'
@@ -37,10 +36,8 @@ function mapRect(): DOMRect {
 
 function agentBandCenterX(terminalCount: number, agentCount: number): number {
   const columnCount = Math.max(terminalCount, agentCount, 1)
-  const cell = computePlaneMiniSlotCell(VIEWPORT, columnCount)
-  const padX = computePlaneMiniSlotPadX(VIEWPORT, columnCount)
-  const agentX = Math.max(padX, VIEWPORT.width - padX - cell.width)
-  return agentX + cell.width / 2
+  const layout = computePlaneMiniColumnLayout(VIEWPORT, columnCount)
+  return layout.agentX + layout.cell.width / 2
 }
 
 describe('resolveAgentMiniPaneIdFromPointer', () => {
@@ -68,11 +65,10 @@ describe('resolveAgentMiniPaneIdFromPointer', () => {
     const layout = buildSlotOrigins(agents, VIEWPORT, heights)
     const origin = layout.origins.a1
     const columnCount = 1
-    const cell = computePlaneMiniSlotCell(VIEWPORT, columnCount)
-    const padX = computePlaneMiniSlotPadX(VIEWPORT, columnCount)
+    const columnLayout = computePlaneMiniColumnLayout(VIEWPORT, columnCount)
 
     const paneId = resolveAgentMiniPaneIdFromPointer({
-      clientX: padX + cell.width / 2,
+      clientX: columnLayout.terminalX + columnLayout.cell.width / 2,
       clientY: origin.y + 60,
       mapRect: mapRect(),
       viewport: VIEWPORT,

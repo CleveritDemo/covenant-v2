@@ -6,6 +6,8 @@ import {
   clampPlaneColumnScroll,
   collapseAllPaneWindows,
   computePlaneChatColumnWidth,
+  computePlaneColumnTiltDeg,
+  computePlaneMiniColumnLayout,
   computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
   computePlaneAgentContextIconsPerRow,
@@ -18,12 +20,15 @@ import {
   PANE_WINDOW_VIEWPORT_RATIO,
   PLANE_CHAT_BASE_WIDTH,
   PLANE_CHAT_MAX_WIDTH,
+  PLANE_CHAT_MIN_WIDTH,
+  PLANE_CHAT_SIDE_GAP,
+  PLANE_COLUMN_TILT_BREAKPOINT,
+  PLANE_CONTEXT_POOL_RESERVE,
   PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_MAX_WIDTH,
-  PLANE_MINI_SLOT_PAD_X,
-  PLANE_MINI_SLOT_PAD_X_MAX,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
+  PLANE_TOOLS_RAIL_RESERVE,
   readPlaneMiniAgentLayoutHeight,
   sanitizePaneWindowState,
 } from '../paneWindows'
@@ -77,12 +82,37 @@ describe('paneWindows', () => {
     expect(wide).toBeGreaterThan(base)
   })
 
-  it('anchors mini columns between edge and chat on reference viewport', () => {
-    const base = computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)
-    expect(base).toBe(72)
-    const wide = computePlaneMiniSlotPadX({ width: 2560, height: 1440 }, 1)
-    expect(wide).toBeGreaterThan(base)
-    expect(wide).toBeLessThanOrEqual(PLANE_MINI_SLOT_PAD_X_MAX)
+  it('anchors mini columns to chat gap on reference viewport', () => {
+    const layout = computePlaneMiniColumnLayout({ width: 1280, height: 800 }, 1)
+    expect(layout.chatWidth).toBe(PLANE_CHAT_BASE_WIDTH)
+    expect(layout.terminalX).toBe(96)
+    expect(computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)).toBe(96)
+    const wide = computePlaneMiniColumnLayout({ width: 2560, height: 1440 }, 1)
+    expect(wide.terminalX).toBeGreaterThan(layout.terminalX)
+    expect(wide.chatWidth).toBe(PLANE_CHAT_MAX_WIDTH)
+  })
+
+  it('shrinks chat below base width on narrow viewports', () => {
+    const narrow = computePlaneChatColumnWidth({ width: 1024, height: 800 }, 1)
+    expect(narrow).toBeLessThan(PLANE_CHAT_BASE_WIDTH)
+    expect(narrow).toBeGreaterThanOrEqual(PLANE_CHAT_MIN_WIDTH)
+  })
+
+  it('keeps minis outside chat and chrome reserves on narrow viewports', () => {
+  const vw = 1024
+  const layout = computePlaneMiniColumnLayout({ width: vw, height: 800 }, 1)
+  const cell = layout.cell
+  const chatRight = layout.chatLeft + layout.chatWidth
+  expect(layout.terminalX).toBeGreaterThanOrEqual(PLANE_TOOLS_RAIL_RESERVE)
+  expect(layout.terminalX + cell.width + PLANE_CHAT_SIDE_GAP).toBeLessThanOrEqual(layout.chatLeft)
+  expect(layout.agentX).toBeGreaterThanOrEqual(chatRight + PLANE_CHAT_SIDE_GAP)
+  expect(layout.agentX + cell.width + PLANE_CONTEXT_POOL_RESERVE).toBeLessThanOrEqual(vw)
+  })
+
+  it('disables column tilt below breakpoint', () => {
+    expect(computePlaneColumnTiltDeg(PLANE_COLUMN_TILT_BREAKPOINT)).toBe(0)
+    expect(computePlaneColumnTiltDeg(PLANE_COLUMN_TILT_BREAKPOINT - 1)).toBe(0)
+    expect(computePlaneColumnTiltDeg(PLANE_COLUMN_TILT_BREAKPOINT + 1)).toBe(10)
   })
 
   it('sanitize keeps open/fullscreen/zIndex and drops legacy geometry', () => {

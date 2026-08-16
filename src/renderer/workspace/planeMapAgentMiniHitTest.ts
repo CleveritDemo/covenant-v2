@@ -1,6 +1,5 @@
 import {
-  computePlaneMiniSlotCell,
-  computePlaneMiniSlotPadX,
+  computePlaneMiniColumnLayout,
 } from '@shared/paneWindows'
 import { buildSlotOrigins, type PlaneColumnScrollOffsets, type PlaneMapEntity } from './PlaneMap'
 
@@ -81,9 +80,9 @@ export function resolveAgentMiniPaneIdFromPointer(
 
   const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
   const columnCount = Math.max(terminalCount, agentsInOrder.length, 1)
-  const cell = computePlaneMiniSlotCell(vp, columnCount)
-  const padX = computePlaneMiniSlotPadX(vp, columnCount)
-  const agentX = Math.max(padX, vp.width - padX - cell.width)
+  const columnLayout = computePlaneMiniColumnLayout(vp, columnCount)
+  const agentX = columnLayout.agentX
+  const cell = columnLayout.cell
   const tolerance = Math.max(24, Math.round(cell.width / 2))
 
   if (localX < agentX - tolerance || localX > agentX + cell.width + tolerance) {

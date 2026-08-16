@@ -6,8 +6,8 @@ import {
   centerProximityScale,
 } from '@shared/planeColumnWindowing'
 import {
-  computePlaneMiniSlotCell,
-  computePlaneMiniSlotPadX,
+  computePlaneMiniColumnLayout,
+  computePlaneColumnTiltDeg,
   computeStandardPaneWindowGeometry,
   estimatePlaneAgentMiniHeight,
   PLANE_MINI_BOTTOM_CLEARANCE,
@@ -34,8 +34,7 @@ import './PlaneMap.css'
 
 export type { PlaneAgentContextChip as PlaneMapAgentContextChip }
 
-/** Columna 3D: borde hacia el centro más lejos/pequeño. */
-const COLUMN_TILT_DEG = 10
+/** Perspectiva 3D de columnas laterales (tilt en `computePlaneColumnTiltDeg`). */
 const COLUMN_PERSPECTIVE_PX = 1200
 
 export interface PlaneMapEntity {
@@ -214,9 +213,10 @@ export function buildSlotOrigins(
   const terminals = entities.filter(entity => entity.kind !== 'agent')
   const agents = entities.filter(entity => entity.kind === 'agent')
   const columnCount = Math.max(terminals.length, agents.length, 1)
-  const cell = computePlaneMiniSlotCell(viewport, columnCount)
-  const padX = computePlaneMiniSlotPadX(viewport, columnCount)
-  const agentX = Math.max(padX, vw - padX - cell.width)
+  const columnLayout = computePlaneMiniColumnLayout(viewport, columnCount)
+  const cell = columnLayout.cell
+  const terminalX = columnLayout.terminalX
+  const agentX = columnLayout.agentX
 
   const terminalWindow = computePlaneColumnWindowing({
     items: terminals.map(entity => ({
@@ -230,7 +230,7 @@ export function buildSlotOrigins(
     visibleById[slot.id] = slot.visible
     fadeProgressById[slot.id] = slot.progress
     origins[slot.id] = {
-      x: padX,
+      x: terminalX,
       y: slot.y,
       width: cell.width,
       height: slot.height,
@@ -603,12 +603,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   const columnGeometry = useMemo(() => {
     const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
     const columnCount = Math.max(terminalCount, agentCount, 1)
-    const cell = computePlaneMiniSlotCell(vp, columnCount)
-    const padX = computePlaneMiniSlotPadX(vp, columnCount)
+    const layout = computePlaneMiniColumnLayout(vp, columnCount)
     return {
-      padX,
-      agentX: Math.max(padX, vp.width - padX - cell.width),
-      cellWidth: cell.width,
+      padX: layout.terminalX,
+      agentX: layout.agentX,
+      cellWidth: layout.cell.width,
     }
   }, [agentCount, terminalCount, viewport])
 
@@ -660,10 +659,11 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     if (maxScrollOffsets.terminal <= 0 && maxScrollOffsets.agent <= 0) return
     const vp = viewport.width > 0 ? viewport : { width: 960, height: 640 }
     const columnCount = Math.max(terminalCount, agentCount, 1)
-    const cell = computePlaneMiniSlotCell(vp, columnCount)
-    const padX = computePlaneMiniSlotPadX(vp, columnCount)
-    const agentX = Math.max(padX, vp.width - padX - cell.width)
-    const tolerance = Math.max(24, Math.round(cell.width / 2))
+    const layout = computePlaneMiniColumnLayout(vp, columnCount)
+    const padX = layout.terminalX
+    const agentX = layout.agentX
+    const cellWidth = layout.cell.width
+    const tolerance = Math.max(24, Math.round(cellWidth / 2))
 
     const onWheel = (event: WheelEvent): void => {
       if (event.ctrlKey) return
@@ -691,9 +691,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ) return
       const x = event.clientX - rect.left
       let column: 'terminal' | 'agent' | null = null
-      if (x >= padX - tolerance && x <= padX + cell.width + tolerance) {
+      if (x >= padX - tolerance && x <= padX + cellWidth + tolerance) {
         column = 'terminal'
-      } else if (x >= agentX - tolerance && x <= agentX + cell.width + tolerance) {
+      } else if (x >= agentX - tolerance && x <= agentX + cellWidth + tolerance) {
         column = 'agent'
       }
       if (!column) return
@@ -832,12 +832,13 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
 
   // Aplanar tilt solo al reordenar (pointer ↔ left/top) o con ventana expandida.
   const flattenColumns = anyWindowOpen || reorderActive
-  const terminalsColumnTransform = flattenColumns
+  const columnTiltDeg = flattenColumns ? 0 : computePlaneColumnTiltDeg(viewport.width)
+  const terminalsColumnTransform = columnTiltDeg === 0
     ? undefined
-    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${COLUMN_TILT_DEG}deg)`
-  const agentsColumnTransform = flattenColumns
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${columnTiltDeg}deg)`
+  const agentsColumnTransform = columnTiltDeg === 0
     ? undefined
-    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-COLUMN_TILT_DEG}deg)`
+    : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-columnTiltDeg}deg)`
 
   const renderEntity = (
     entity: PlaneMapEntity,

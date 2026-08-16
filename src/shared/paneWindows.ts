@@ -12,6 +12,8 @@ export const PLANE_MINI_WINDOW_HEIGHT = 130
 /** Tope al crecer en pantallas muy anchas/altas (ancho contenido a propósito). */
 export const PLANE_MINI_MAX_WIDTH = 230
 export const PLANE_MINI_MAX_HEIGHT = 300
+/** Ancho mínimo de mini cuando el viewport no alcanza el tamaño base. */
+export const PLANE_MINI_MIN_WIDTH = 148
 
 /** Padding superior / gap / hueco inferior (composer) para empaquetar la columna. */
 export const PLANE_MINI_SLOT_PAD_Y = 72
@@ -34,6 +36,41 @@ export const PLANE_CHAT_SIDE_GAP = 24
 export const PLANE_MINI_COLUMN_CENTER_BLEND = 0.65
 
 /**
+ * Reserva izquierda para tools rail (`TabAgenticPlane.css`: inset 8 + rail ~36 + holgura).
+ * Alineado con `--plane-tools-rail-inset` + ancho de `.plane-tools-rail`.
+ */
+export const PLANE_TOOLS_RAIL_RESERVE = 52
+/**
+ * Reserva derecha para context pool (`PlaneContextPool.css`: inset 8 + rail ~36 + holgura).
+ */
+export const PLANE_CONTEXT_POOL_RESERVE = 52
+/** Ancho mínimo legible de la columna de chat en viewports estrechos. */
+export const PLANE_CHAT_MIN_WIDTH = 320
+/** Sin tilt 3D en columnas por debajo de este ancho (alineado con @container 1040px). */
+export const PLANE_COLUMN_TILT_BREAKPOINT = 1040
+/** Tilt 3D de columnas laterales en viewports anchos. */
+export const PLANE_COLUMN_TILT_DEG = 10
+
+export interface PlaneMiniColumnLayout {
+  chatWidth: number
+  chatLeft: number
+  terminalX: number
+  agentX: number
+  cell: { width: number; height: number }
+}
+
+function planeMiniSidesReserve(cellWidth: number): number {
+  return (
+    PLANE_TOOLS_RAIL_RESERVE
+    + cellWidth
+    + PLANE_CHAT_SIDE_GAP
+    + PLANE_CONTEXT_POOL_RESERVE
+    + cellWidth
+    + PLANE_CHAT_SIDE_GAP
+  )
+}
+
+/**
  * Ranura mini según viewport: crece en pantallas grandes y se encoge
  * si la columna tiene muchos ítems (sin bajar del tamaño base).
  */
@@ -47,9 +84,20 @@ export function computePlaneMiniSlotCell(
 
   // Ancho: crece más lento que el viewport (0.4× el exceso) para no verse demasiado ancho.
   const widthScale = 1 + Math.max(0, vw / 1280 - 1) * 0.4
-  const width = Math.round(Math.min(
+  const widthFromScale = Math.round(Math.min(
     PLANE_MINI_MAX_WIDTH,
     Math.max(PLANE_MINI_WINDOW_WIDTH, PLANE_MINI_WINDOW_WIDTH * widthScale),
+  ))
+  const sidesFixed = (
+    PLANE_TOOLS_RAIL_RESERVE
+    + PLANE_CONTEXT_POOL_RESERVE
+    + 2 * PLANE_CHAT_SIDE_GAP
+    + PLANE_CHAT_MIN_WIDTH
+  )
+  const maxCellFromViewport = Math.floor((vw - sidesFixed) / 2)
+  const width = Math.round(Math.min(
+    widthFromScale,
+    Math.max(PLANE_MINI_MIN_WIDTH, maxCellFromViewport),
   ))
 
   const heightFromScale = Math.round(Math.min(
@@ -73,42 +121,67 @@ export function computePlaneChatColumnWidth(
   viewport: { width: number; height: number },
   columnCount = 1,
 ): number {
-  const vw = Math.max(viewport.width, 320)
-  const side = computePlaneMiniSlotCell(viewport, columnCount)
-  const sidesReserve = 2 * (PLANE_MINI_SLOT_PAD_X + side.width + PLANE_CHAT_SIDE_GAP)
-  const available = Math.max(PLANE_CHAT_BASE_WIDTH, vw - sidesReserve)
-  const scaled = Math.round(PLANE_CHAT_BASE_WIDTH * (vw / 1280))
-  return Math.round(Math.min(
-    PLANE_CHAT_MAX_WIDTH,
-    Math.max(PLANE_CHAT_BASE_WIDTH, Math.min(scaled, available)),
-  ))
+  return computePlaneMiniColumnLayout(viewport, columnCount).chatWidth
 }
 
 /**
- * Padding exterior de columnas: terminales a la izquierda, agentes a la derecha.
- * Ancla cada columna al borde del chat con PLANE_CHAT_SIDE_GAP; en viewports
- * estrechos conserva PLANE_MINI_SLOT_PAD_X como mínimo.
+ * Layout horizontal del plano: chat centrado y minis ancladas al gap lateral del chat,
+ * con reserva para tools rail y context pool.
+ */
+export function computePlaneMiniColumnLayout(
+  viewport: { width: number; height: number },
+  columnCount = 1,
+): PlaneMiniColumnLayout {
+  const vw = Math.max(viewport.width, 320)
+  const n = Math.max(1, Math.floor(columnCount))
+  const cell = computePlaneMiniSlotCell(viewport, n)
+  const sidesReserve = planeMiniSidesReserve(cell.width)
+  const available = Math.max(0, vw - sidesReserve)
+  const scaled = Math.round(PLANE_CHAT_BASE_WIDTH * (vw / 1280))
+  const target = Math.min(PLANE_CHAT_MAX_WIDTH, scaled)
+  const chatWidth = available < PLANE_CHAT_MIN_WIDTH
+    ? Math.round(available)
+    : Math.round(Math.min(
+      PLANE_CHAT_MAX_WIDTH,
+      Math.max(PLANE_CHAT_MIN_WIDTH, Math.min(target, available)),
+    ))
+  const chatLeft = Math.floor((vw - chatWidth) / 2)
+  const chatRight = chatLeft + chatWidth
+  const miniBand = cell.width + PLANE_CHAT_SIDE_GAP
+
+  const terminalX = Math.max(
+    PLANE_TOOLS_RAIL_RESERVE,
+    chatLeft - miniBand,
+  )
+  const agentX = Math.min(
+    vw - PLANE_CONTEXT_POOL_RESERVE - cell.width,
+    chatRight + PLANE_CHAT_SIDE_GAP,
+  )
+
+  return {
+    chatWidth,
+    chatLeft,
+    terminalX,
+    agentX,
+    cell,
+  }
+}
+
+/**
+ * X de la columna de terminales (compat: antes era padding simétrico blended).
  */
 export function computePlaneMiniSlotPadX(
   viewport: { width: number; height: number },
   columnCount = 1,
 ): number {
-  const vw = Math.max(viewport.width, 320)
-  const cell = computePlaneMiniSlotCell(viewport, columnCount)
-  const chat = computePlaneChatColumnWidth(viewport, columnCount)
-  const snugPadX = Math.max(
-    0,
-    Math.floor((vw - chat - 2 * (cell.width + PLANE_CHAT_SIDE_GAP)) / 2),
-  )
-  const blendedPadX = Math.round(
-    PLANE_MINI_SLOT_PAD_X
-    + PLANE_MINI_COLUMN_CENTER_BLEND * (snugPadX - PLANE_MINI_SLOT_PAD_X),
-  )
+  return computePlaneMiniColumnLayout(viewport, columnCount).terminalX
+}
 
-  return Math.min(
-    PLANE_MINI_SLOT_PAD_X_MAX,
-    Math.max(PLANE_MINI_SLOT_PAD_X, blendedPadX),
-  )
+/** Tilt 3D de columnas; 0 en viewports estrechos para evitar solapamiento visual. */
+export function computePlaneColumnTiltDeg(viewportWidth: number): number {
+  const vw = Math.max(viewportWidth, 320)
+  if (vw <= PLANE_COLUMN_TILT_BREAKPOINT) return 0
+  return PLANE_COLUMN_TILT_DEG
 }
 
 /**

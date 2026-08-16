@@ -44,6 +44,7 @@ beforeAll(() => {
 
 const startWikiCuratorTurn = vi.fn()
 const stopWikiCuratorTurn = vi.fn()
+const isWikiCuratorTurnActive = vi.fn()
 let wikiCuratorEventHandler: ((event: unknown) => void) | undefined
 const onWikiCuratorEvent = vi.fn((_cwd: string, cb: (event: unknown) => void) => {
   wikiCuratorEventHandler = cb
@@ -63,6 +64,8 @@ beforeEach(() => {
   wikiCuratorEventHandler = undefined
   startWikiCuratorTurn.mockReset()
   stopWikiCuratorTurn.mockReset()
+  isWikiCuratorTurnActive.mockReset()
+  isWikiCuratorTurnActive.mockResolvedValue(false)
   onWikiCuratorEvent.mockReset()
   onWikiCuratorEvent.mockImplementation((_cwd, cb) => {
     wikiCuratorEventHandler = cb
@@ -88,6 +91,7 @@ beforeEach(() => {
     onWikiCuratorEvent,
     startWikiCuratorTurn,
     stopWikiCuratorTurn,
+    isWikiCuratorTurnActive,
     getWikiCuratorConfig,
     setWikiCuratorConfig,
     listAgentCliModels,
@@ -455,6 +459,60 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
 
     fireEvent.mouseLeave(wrap)
     expect(scrollTop).toBe(1200)
+  })
+
+  it('adopta turno activo en main al montar: Stop y onThinkingChange(true)', async () => {
+    isWikiCuratorTurnActive.mockResolvedValue(true)
+    const onThinkingChange = vi.fn()
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+        onThinkingChange={onThinkingChange}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(isWikiCuratorTurnActive).toHaveBeenCalledWith(CWD)
+      expect(screen.getByLabelText('tabs.wikiCuratorStop')).toBeTruthy()
+      expect(onThinkingChange).toHaveBeenCalledWith(true)
+    })
+  })
+
+  it('sin turno activo en main al montar queda en reposo y no notifica true', async () => {
+    isWikiCuratorTurnActive.mockResolvedValue(false)
+    const onThinkingChange = vi.fn()
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+        onThinkingChange={onThinkingChange}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(isWikiCuratorTurnActive).toHaveBeenCalledWith(CWD)
+    })
+    expect(screen.getByLabelText('agentPane.dictationHold')).toBeTruthy()
+    expect(onThinkingChange).not.toHaveBeenCalledWith(true)
+  })
+
+  it('rechazo de isWikiCuratorTurnActive no rompe el composer', async () => {
+    isWikiCuratorTurnActive.mockRejectedValue(new Error('ipc fail'))
+    render(
+      <WikiCuratorComposer
+        cwd={CWD}
+        onViewSlugs={vi.fn()}
+        onWikiChanged={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(isWikiCuratorTurnActive).toHaveBeenCalledWith(CWD)
+    })
+    expect(screen.getByLabelText('agentPane.dictationHold')).toBeTruthy()
   })
 
   it('clear borra historial y la key de localStorage', async () => {

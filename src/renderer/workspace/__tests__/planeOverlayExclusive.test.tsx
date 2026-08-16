@@ -57,6 +57,7 @@ beforeEach(() => {
     onWikiCuratorEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),
     startWikiCuratorTurn: vi.fn(),
     stopWikiCuratorTurn: vi.fn(),
+    isWikiCuratorTurnActive: vi.fn(async () => false),
     getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
     setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
   }

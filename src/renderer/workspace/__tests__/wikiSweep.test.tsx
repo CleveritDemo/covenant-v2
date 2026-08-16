@@ -154,6 +154,7 @@ beforeEach(() => {
     onWikiCuratorEvent,
     startWikiCuratorTurn,
     stopWikiCuratorTurn: vi.fn(),
+    isWikiCuratorTurnActive: vi.fn(async () => false),
     getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
     setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
     listAgentCliModels: vi.fn(async () => ({ models: [], source: 'fallback' as const })),

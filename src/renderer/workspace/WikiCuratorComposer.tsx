@@ -208,6 +208,19 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     })
   }, [cwd])
 
+  // Main es la verdad del turno activo: al cerrar el mapa el estado local `thinking`
+  // se pierde; sin esta adopción un turno colgado deja el barrido bloqueado sin Stop visible.
+  useEffect(() => {
+    const key = cwd.trim()
+    if (!key) return
+    let cancelled = false
+    void window.api.isWikiCuratorTurnActive(key).then(active => {
+      if (cancelled || !active) return
+      setThinking(true)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [cwd])
+
   const loadModelsForProvider = (provider: AgentCliProvider, cancelled?: () => boolean): void => {
     setModels(modelsForProvider(provider))
     void window.api.listAgentCliModels(provider).then(result => {

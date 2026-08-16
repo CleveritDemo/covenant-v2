@@ -17,7 +17,7 @@ export interface PlaneChatBackgroundThreadDotsProps {
   onSelectThread: (threadId: string) => void
 }
 
-/** Hilos en segundo plano: dots en el extremo izquierdo de la barra del composer. */
+/** Hilos en segundo plano: dots junto al chip activo en la barra del composer. */
 export const PlaneChatBackgroundThreadDots: React.FC<PlaneChatBackgroundThreadDotsProps> = ({
   dots,
   selectionLocked = false,

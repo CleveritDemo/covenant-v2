@@ -34,7 +34,7 @@ describe('PlaneChatContextsBar: dots de hilos en segundo plano', () => {
     expect(backgroundDotsGroup()).toBeNull()
   })
 
-  it('un hilo de fondo corriendo: un dot al extremo izquierdo', () => {
+  it('un hilo de fondo corriendo: un dot pegado al chip activo', () => {
     render(
       <PlaneChatContextsBar
         threads={threads}
@@ -47,7 +47,8 @@ describe('PlaneChatContextsBar: dots de hilos en segundo plano', () => {
     const dots = backgroundDotsGroup()
     expect(dots).not.toBeNull()
     expect(dots!.querySelectorAll('.plane-busy-dot')).toHaveLength(1)
-    expect(dots!.closest('.plane-chat-background-thread-dots')).not.toBeNull()
+    expect(dots!.closest('.plane-chat-contexts-bar__center')).not.toBeNull()
+    expect(dots!.nextElementSibling?.classList.contains('plane-chat-contexts-bar__chips')).toBe(true)
   })
 
   it('clic en dot de fondo cambia de conversación', () => {

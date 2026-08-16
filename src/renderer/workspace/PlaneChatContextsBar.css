@@ -10,9 +10,17 @@
   box-sizing: border-box;
 }
 
-.plane-chat-contexts-bar__chips {
+.plane-chat-contexts-bar__center {
   grid-column: 2;
   justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(100%, 280px);
+}
+
+.plane-chat-contexts-bar__chips {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
@@ -28,6 +36,13 @@
 
 .plane-chat-contexts-bar__chips::-webkit-scrollbar {
   display: none;
+}
+
+.plane-chat-contexts-bar__thread-dropdown {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 176px;
 }
 
 .plane-chat-contexts-bar__chip-host {
@@ -91,10 +106,15 @@
   font-weight: 500;
 }
 
-.plane-chat-contexts-bar__chip--active:hover {
+.plane-chat-contexts-bar__chip--active:hover,
+.plane-chat-contexts-bar__chip--menu-open {
   border-color: color-mix(in srgb, var(--accent) 68%, transparent);
   color: color-mix(in srgb, var(--accent) 92%, var(--text));
   background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.plane-chat-contexts-bar__chip--menu-open {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .plane-chat-contexts-bar__chip--editing {

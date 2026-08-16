@@ -1,6 +1,4 @@
 .plane-chat-background-thread-dots {
-  grid-column: 1;
-  justify-self: start;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;

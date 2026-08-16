@@ -83,6 +83,8 @@ export interface AgentCliStartRequest {
   orchestrationRound?: number
   /** Tope de oleadas por pedido del usuario. */
   orchestrationMaxRounds?: number
+  /** Tope de delegaciones por turno del orquestador (0 = sin tope). */
+  maxDelegationsPerTurn?: number
   /** Especialistas del plano visibles para el orquestador. */
   orchestrationAgents?: OrchestrationAgentRef[]
   /**

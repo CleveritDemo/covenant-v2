@@ -811,6 +811,7 @@ export function composePrompt(
             allowDelegations,
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
+            maxDelegationsPerTurn: request.maxDelegationsPerTurn,
             allowedAgentIds,
             allowParallelLanes,
           })
@@ -818,6 +819,7 @@ export function composePrompt(
             allowDelegations,
             round: request.orchestrationRound,
             maxRounds: request.orchestrationMaxRounds,
+            maxDelegationsPerTurn: request.maxDelegationsPerTurn,
             allowedAgentIds,
             allowParallelLanes,
             workStyle,
@@ -1375,7 +1377,7 @@ export function startAgentTurn(
               }
             }
             const { visibleText, delegations, issues = [] } = coordinationCanDelegate(request.coordination)
-              ? extractAiAgentDelegates(afterResults)
+              ? extractAiAgentDelegates(afterResults, request.maxDelegationsPerTurn)
               : { visibleText: afterResults, delegations: [], issues: [] }
             const warnings = formatDelegateParseIssues(issues)
             if ((delegations.length || warnings.length) && request.allowDelegations !== false) {

@@ -26,9 +26,13 @@ import {
   parseDelegatePayloadDetailed,
   formatDelegateParseIssues,
   MAX_DELEGATIONS_PER_TURN,
+  DELEGATIONS_PER_TURN_CAP,
+  DELEGATIONS_UNLIMITED,
+  isDelegationsUnlimited,
   resolveOrchestrationMaxRounds,
   sanitizeAgentCoordination,
   sanitizeDelegateRequest,
+  sanitizeMaxDelegationsPerTurn,
   sanitizeOrchestrationMaxRounds,
   shouldWakeOrchestratorOnDelegationComplete,
   DELEGATE_OBJECTIVE_MAX_LENGTH,
@@ -57,6 +61,20 @@ describe('sanitizeOrchestrationMaxRounds', () => {
     expect(resolveOrchestrationMaxRounds(7)).toBe(7)
     expect(isOrchestrationRoundsUnlimited(0)).toBe(true)
     expect(isOrchestrationRoundsUnlimited(3)).toBe(false)
+  })
+})
+
+describe('sanitizeMaxDelegationsPerTurn', () => {
+  it('defaults, clamps, truncates, and keeps unlimited sentinel 0', () => {
+    expect(sanitizeMaxDelegationsPerTurn(undefined)).toBe(MAX_DELEGATIONS_PER_TURN)
+    expect(sanitizeMaxDelegationsPerTurn('')).toBe(MAX_DELEGATIONS_PER_TURN)
+    expect(sanitizeMaxDelegationsPerTurn(0)).toBe(DELEGATIONS_UNLIMITED)
+    expect(sanitizeMaxDelegationsPerTurn('0')).toBe(DELEGATIONS_UNLIMITED)
+    expect(sanitizeMaxDelegationsPerTurn(-2)).toBe(MAX_DELEGATIONS_PER_TURN)
+    expect(sanitizeMaxDelegationsPerTurn(99)).toBe(DELEGATIONS_PER_TURN_CAP)
+    expect(sanitizeMaxDelegationsPerTurn(4.9)).toBe(4)
+    expect(isDelegationsUnlimited(0)).toBe(true)
+    expect(isDelegationsUnlimited(5)).toBe(false)
   })
 })
 
@@ -247,7 +265,27 @@ describe('parseDelegatePayloadDetailed', () => {
     }))
     const { delegations, issues } = parseDelegatePayloadDetailed({ delegations: items })
     expect(delegations).toHaveLength(MAX_DELEGATIONS_PER_TURN)
-    expect(issues).toEqual([{ reason: 'truncated', count: 2 }])
+    expect(issues).toEqual([{ reason: 'truncated', count: 2, cap: MAX_DELEGATIONS_PER_TURN }])
+  })
+
+  it('truncates with custom cap 2', () => {
+    const items = Array.from({ length: 4 }, (_, i) => ({
+      toAgentId: `agent-${i}`,
+      objective: `task ${i}`,
+    }))
+    const { delegations, issues } = parseDelegatePayloadDetailed({ delegations: items }, 2)
+    expect(delegations).toHaveLength(2)
+    expect(issues).toEqual([{ reason: 'truncated', count: 2, cap: 2 }])
+  })
+
+  it('does not truncate when cap is unlimited (0)', () => {
+    const items = Array.from({ length: 12 }, (_, i) => ({
+      toAgentId: `agent-${i}`,
+      objective: `task ${i}`,
+    }))
+    const { delegations, issues } = parseDelegatePayloadDetailed({ delegations: items }, 0)
+    expect(delegations).toHaveLength(12)
+    expect(issues).toEqual([])
   })
 })
 
@@ -257,13 +295,13 @@ describe('formatDelegateParseIssues', () => {
       { reason: 'invalid_json', detail: 'Unexpected token' },
       { reason: 'unknown_shape', detail: 'foo, bar' },
       { reason: 'invalid_item', count: 2 },
-      { reason: 'truncated', count: 3 },
+      { reason: 'truncated', count: 3, cap: 7 },
     ])
     expect(lines).toHaveLength(4)
     expect(lines[0]).toContain('invalid JSON (Unexpected token)')
     expect(lines[1]).toContain('unrecognized shape (top-level keys: foo, bar)')
     expect(lines[2]).toContain('2 delegation item(s) were dropped')
-    expect(lines[3]).toContain(`3 delegation(s) over the ${MAX_DELEGATIONS_PER_TURN} per-turn cap`)
+    expect(lines[3]).toContain('3 delegation(s) over the 7 per-turn cap')
   })
 })
 

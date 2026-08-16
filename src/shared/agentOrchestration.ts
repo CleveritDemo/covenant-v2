@@ -5,7 +5,12 @@ export type AgentCoordination = 'none' | 'orchestrator' | 'productOwner'
 /** Solo orchestrator. Omitido / 'linear' = espera ola; turbo = jobs humanos en paralelo. */
 export type OrchestrationWorkStyle = 'linear' | 'turbo'
 
+/** default, override por agente */
 export const MAX_DELEGATIONS_PER_TURN = 5
+/** Tope configurable en UI/catálogo. */
+export const DELEGATIONS_PER_TURN_CAP = 20
+/** Sentinel: sin tope por turno (persistir como maxDelegationsPerTurn: 0). */
+export const DELEGATIONS_UNLIMITED = 0
 /** Oleadas de delegación por pedido del usuario (default / omitido en catálogo). */
 export const MAX_ORCHESTRATION_ROUNDS = 3
 /** Tope configurable en UI/catálogo. */
@@ -27,6 +32,23 @@ export function orchestrationRoundsAtCap(round: number, maxRounds: number): bool
 export function formatOrchestrationRoundLabel(round: number, maxRounds: number): string {
   if (isOrchestrationRoundsUnlimited(maxRounds)) return `${round}/∞`
   return `${round}/${maxRounds}`
+}
+
+export function isDelegationsUnlimited(n: number): boolean {
+  return n === DELEGATIONS_UNLIMITED
+}
+
+export function sanitizeMaxDelegationsPerTurn(raw: unknown): number {
+  const n = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+      ? Number(raw)
+      : NaN
+  if (!Number.isFinite(n)) return MAX_DELEGATIONS_PER_TURN
+  const int = Math.trunc(n)
+  if (int === DELEGATIONS_UNLIMITED) return DELEGATIONS_UNLIMITED
+  if (int < 1) return MAX_DELEGATIONS_PER_TURN
+  return Math.min(DELEGATIONS_PER_TURN_CAP, int)
 }
 
 export function sanitizeOrchestrationMaxRounds(raw: unknown): number {
@@ -414,11 +436,14 @@ export interface DelegateParseIssue {
   reason: 'invalid_json' | 'unknown_shape' | 'invalid_item' | 'truncated'
   detail?: string
   count?: number
+  /** Cap efectivo usado al truncar (solo reason truncated). */
+  cap?: number
 }
 
 function parseDelegateListDetailed(
   list: readonly unknown[],
   issues: DelegateParseIssue[],
+  maxPerTurn?: number,
 ): DelegateRequest[] {
   let invalidCount = 0
   const valid: DelegateRequest[] = []
@@ -433,23 +458,29 @@ function parseDelegateListDetailed(
   if (invalidCount > 0) {
     issues.push({ reason: 'invalid_item', count: invalidCount })
   }
-  if (valid.length > MAX_DELEGATIONS_PER_TURN) {
+  const cap = sanitizeMaxDelegationsPerTurn(maxPerTurn ?? MAX_DELEGATIONS_PER_TURN)
+  if (isDelegationsUnlimited(cap)) return valid
+  if (valid.length > cap) {
     issues.push({
       reason: 'truncated',
-      count: valid.length - MAX_DELEGATIONS_PER_TURN,
+      count: valid.length - cap,
+      cap,
     })
   }
-  return valid.slice(0, MAX_DELEGATIONS_PER_TURN)
+  return valid.slice(0, cap)
 }
 
 /** Parsea delegaciones desde JSON del fence (objeto con delegations[] o array). */
-export function parseDelegatePayloadDetailed(raw: unknown): {
+export function parseDelegatePayloadDetailed(
+  raw: unknown,
+  maxPerTurn?: number,
+): {
   delegations: DelegateRequest[]
   issues: DelegateParseIssue[]
 } {
   const issues: DelegateParseIssue[] = []
   if (Array.isArray(raw)) {
-    return { delegations: parseDelegateListDetailed(raw, issues), issues }
+    return { delegations: parseDelegateListDetailed(raw, issues, maxPerTurn), issues }
   }
   if (!raw || typeof raw !== 'object') {
     issues.push({ reason: 'unknown_shape' })
@@ -468,7 +499,7 @@ export function parseDelegatePayloadDetailed(raw: unknown): {
     issues.push({ reason: 'unknown_shape', detail })
     return { delegations: [], issues }
   }
-  return { delegations: parseDelegateListDetailed(list, issues), issues }
+  return { delegations: parseDelegateListDetailed(list, issues, maxPerTurn), issues }
 }
 
 export function parseDelegatePayload(raw: unknown): DelegateRequest[] {
@@ -485,7 +516,7 @@ export function formatDelegateParseIssues(issues: readonly DelegateParseIssue[])
       case 'invalid_item':
         return `${issue.count} delegation item(s) were dropped: missing toAgentId or objective.`
       case 'truncated':
-        return `${issue.count} delegation(s) over the ${MAX_DELEGATIONS_PER_TURN} per-turn cap were dropped — re-emit them in the next wave.`
+        return `${issue.count} delegation(s) over the ${issue.cap ?? MAX_DELEGATIONS_PER_TURN} per-turn cap were dropped — re-emit them in the next wave.`
     }
   })
 }

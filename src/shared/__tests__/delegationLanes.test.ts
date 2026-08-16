@@ -3,47 +3,40 @@ import { MAX_LANES_PER_PANE, resolveDelegationLane } from '../delegationLanes'
 import type { OrchestrationAgentRef } from '../agentOrchestration'
 
 const targets: OrchestrationAgentRef[] = [
-  { agentId: 'frontend', paneId: 'pane-fe', name: 'Frontend' },
-  { agentId: 'backend', paneId: 'pane-be', name: 'Backend' },
+  { agentId: 'frontend', paneId: 'pane-frontend', name: 'Frontend' },
 ]
 
 describe('resolveDelegationLane', () => {
-  it('resuelve id exacto con carril libre', () => {
-    const decision = resolveDelegationLane({
+  it('returns lane when the agent exists', () => {
+    expect(resolveDelegationLane({
       toAgentId: 'frontend',
       targets,
       activeLanesByPane: new Map(),
+    })).toEqual({
+      kind: 'lane',
+      paneId: 'pane-frontend',
+      agentId: 'frontend',
     })
-    expect(decision).toEqual({ kind: 'lane', paneId: 'pane-fe', agentId: 'frontend' })
   })
 
-  it('frontend#2 y frontend-2 apuntan al mismo pane base', () => {
-    const lanes = new Map<string, number>()
-    for (const toAgentId of ['frontend#2', 'frontend-2']) {
-      const decision = resolveDelegationLane({
-        toAgentId,
-        targets,
-        activeLanesByPane: lanes,
-      })
-      expect(decision).toEqual({ kind: 'lane', paneId: 'pane-fe', agentId: 'frontend' })
-    }
-  })
-
-  it('cap alcanzado → defer', () => {
-    const decision = resolveDelegationLane({
+  it('returns lane even when activeLanesByPane marks 50 active lanes on that pane (never defer)', () => {
+    expect(resolveDelegationLane({
       toAgentId: 'frontend',
       targets,
-      activeLanesByPane: new Map([['pane-fe', MAX_LANES_PER_PANE]]),
+      activeLanesByPane: new Map([['pane-frontend', 50]]),
+    })).toEqual({
+      kind: 'lane',
+      paneId: 'pane-frontend',
+      agentId: 'frontend',
     })
-    expect(decision).toEqual({ kind: 'defer', paneId: 'pane-fe', agentId: 'frontend' })
+    expect(MAX_LANES_PER_PANE).toBe(Number.POSITIVE_INFINITY)
   })
 
-  it('id inexistente → fail', () => {
-    const decision = resolveDelegationLane({
-      toAgentId: 'qa',
+  it('returns fail with reason not_found when agentId is not in targets', () => {
+    expect(resolveDelegationLane({
+      toAgentId: 'missing',
       targets,
       activeLanesByPane: new Map(),
-    })
-    expect(decision).toEqual({ kind: 'fail', reason: 'not_found' })
+    })).toEqual({ kind: 'fail', reason: 'not_found' })
   })
 })

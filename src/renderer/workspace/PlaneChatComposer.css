@@ -501,8 +501,9 @@ html[data-reduce-motion="true"] .plane-chat-composer__agent-slot {
   --plane-composer-input-min-h: 40px;
 }
 
-/* Tooltip sobre campo disabled: el wrapper debe heredar el flex del field. */
-.plane-chat-composer__row > .ui-tooltip {
+/* Tooltip sobre campo disabled: el wrapper debe heredar el flex del field.
+   Solo cuando envuelve el field — en el curador hay otro tooltip en `leading`. */
+.plane-chat-composer__row > .ui-tooltip:has(.plane-chat-composer__field) {
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -743,6 +744,7 @@ html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
   right: auto;
   bottom: auto;
   z-index: auto;
+  align-items: stretch;
   width: 100%;
   padding: 0;
   pointer-events: auto;

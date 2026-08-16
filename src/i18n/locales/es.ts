@@ -433,6 +433,8 @@ const es = {
     orchestrationMaxRoundsLabel: 'Oleadas de delegación',
     orchestrationMaxRoundsHint: 'Máximo de oleadas de delegación por pedido del usuario para este coordinador. «Sin límite» no aplica tope del host.',
     orchestrationMaxRoundsUnlimited: 'Sin límite',
+    maxDelegationsPerTurnHint: 'Máximo de delegaciones que este coordinador puede emitir en un turno. «Sin límite» no aplica tope.',
+    maxDelegationsPerTurnLabel: 'Delegaciones por turno',
     delegationViaOrchestrator: 'vía orquestador',
     delegationDispatched: 'Delegado a: {{agents}}',
     awaitingDelegationsPlaceholder: 'Esperando resultados de las delegaciones…',

@@ -313,6 +313,44 @@ describe('projectAgentCatalog', () => {
     expect(specialist?.orchestrationWorkStyle).toBeUndefined()
   })
 
+  it('persists maxDelegationsPerTurn only for coordinators when non-default', () => {
+    const orch = parseProjectAgentDefinition({
+      id: 'boss',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      maxDelegationsPerTurn: 2,
+    })
+    expect(orch?.maxDelegationsPerTurn).toBe(2)
+    expect(cloneProjectAgentDefinition(orch!).maxDelegationsPerTurn).toBe(2)
+
+    const defaultCap = parseProjectAgentDefinition({
+      id: 'boss-default',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      maxDelegationsPerTurn: 5,
+    })
+    expect(defaultCap?.maxDelegationsPerTurn).toBeUndefined()
+
+    const unlimited = parseProjectAgentDefinition({
+      id: 'boss-unlimited',
+      provider: 'claude',
+      permissionMode: 'auto',
+      coordination: 'orchestrator',
+      maxDelegationsPerTurn: 0,
+    })
+    expect(unlimited?.maxDelegationsPerTurn).toBe(0)
+
+    const specialist = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      maxDelegationsPerTurn: 2,
+    })
+    expect(specialist?.maxDelegationsPerTurn).toBeUndefined()
+  })
+
   it('keeps empty rule drafts so the editor can add slots', () => {
     const parsed = parseProjectAgentDefinition({
       id: 'draft',

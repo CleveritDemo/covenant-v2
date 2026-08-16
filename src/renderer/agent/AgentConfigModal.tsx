@@ -69,6 +69,7 @@ export interface AgentConfigModalProps {
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
+  onMaxDelegationsPerTurnChange: (maxDelegationsPerTurn: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
@@ -102,6 +103,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeCoordination,
   onAcceptDelegationsChange,
   onOrchestrationMaxRoundsChange,
+  onMaxDelegationsPerTurnChange,
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
@@ -239,7 +241,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const savedSnapshot = JSON.stringify([
     meta.id, meta.name, meta.role, meta.ceremonyRoles, meta.objective, meta.rules,
     meta.provider, meta.model, meta.permissionMode,
-    meta.coordination, meta.orchestrationMaxRounds, meta.orchestrationWorkStyle, meta.delegateTo,
+    meta.coordination, meta.orchestrationMaxRounds, meta.maxDelegationsPerTurn,
+    meta.orchestrationWorkStyle, meta.delegateTo,
     meta.acceptDelegations,
     selectedContextIds,
   ])
@@ -458,6 +461,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onChangeCoordination={onChangeCoordination}
                 onAcceptDelegationsChange={onAcceptDelegationsChange}
                 onOrchestrationMaxRoundsChange={onOrchestrationMaxRoundsChange}
+                onMaxDelegationsPerTurnChange={onMaxDelegationsPerTurnChange}
                 onOrchestrationWorkStyleChange={onOrchestrationWorkStyleChange}
                 onChangeDelegateTo={onChangeDelegateTo}
                 onChangeProvider={onChangeProvider}

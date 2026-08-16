@@ -80,6 +80,7 @@ function renderModal(
       onChangeCoordination={() => {}}
       onAcceptDelegationsChange={() => {}}
       onOrchestrationMaxRoundsChange={() => {}}
+      onMaxDelegationsPerTurnChange={() => {}}
       onOrchestrationWorkStyleChange={() => {}}
       onChangeDelegateTo={() => {}}
       onChangeProvider={() => {}}
@@ -286,6 +287,7 @@ describe('AgentConfigModal', () => {
         onChangeCoordination={() => {}}
         onAcceptDelegationsChange={() => {}}
         onOrchestrationMaxRoundsChange={() => {}}
+        onMaxDelegationsPerTurnChange={() => {}}
         onOrchestrationWorkStyleChange={() => {}}
         onChangeDelegateTo={() => {}}
         onChangeProvider={() => {}}

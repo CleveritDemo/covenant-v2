@@ -1,5 +1,5 @@
 /**
- * Resuelve alias `agentId#2` al experto base (delegationLanes) y decide
+ * Resuelve alias `agentId#2` al experto base y decide
  * quién finaliza un worktree tras delegación (App).
  */
 

@@ -431,6 +431,8 @@ const en = {
     orchestrationMaxRoundsLabel: 'Delegation waves',
     orchestrationMaxRoundsHint: 'Maximum delegation waves per user request for this coordinator. “Unlimited” means no host wave cap.',
     orchestrationMaxRoundsUnlimited: 'Unlimited',
+    maxDelegationsPerTurnHint: 'Maximum delegations this coordinator can emit in one turn. “Unlimited” means no cap.',
+    maxDelegationsPerTurnLabel: 'Delegations per turn',
     delegationViaOrchestrator: 'via orchestrator',
     delegationDispatched: 'Delegated to: {{agents}}',
     awaitingDelegationsPlaceholder: 'Waiting for delegation results…',

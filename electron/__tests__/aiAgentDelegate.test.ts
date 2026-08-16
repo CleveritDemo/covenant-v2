@@ -58,6 +58,21 @@ describe('extractAiAgentDelegates', () => {
     expect(delegations[1]).toMatchObject({ objective: 'task two' })
     expect(issues).toEqual([])
   })
+
+  it('keeps a sixth delegation when per-turn cap is unlimited', () => {
+    const delegations = Array.from({ length: 6 }, (_, i) => ({
+      toAgentId: 'qa',
+      objective: `task ${i + 1}`,
+    }))
+    const raw = [
+      '```ia-terminal-delegate',
+      JSON.stringify({ delegations }),
+      '```',
+    ].join('\n')
+    const { delegations: parsed, issues } = extractAiAgentDelegates(raw, 0)
+    expect(parsed).toHaveLength(6)
+    expect(issues).toEqual([])
+  })
 })
 
 describe('buildAiAgentDelegateInstruction', () => {
@@ -119,6 +134,17 @@ describe('buildAiAgentDelegateInstruction', () => {
     expect(text).toContain('job-abc')
     expect(text).toContain('Parallel lanes')
     expect(text).toContain('per job/user message')
+  })
+
+  it('prints configured per-turn delegation cap in rules', () => {
+    const text = buildAiAgentDelegateInstruction({ maxDelegationsPerTurn: 2 })
+    expect(text).toContain('max 2 delegations per turn')
+  })
+
+  it('prints unlimited per-turn delegation wording when cap is 0', () => {
+    const text = buildAiAgentDelegateInstruction({ maxDelegationsPerTurn: 0 })
+    expect(text).toContain('no per-turn delegation cap')
+    expect(text).not.toContain('max 0 delegations per turn')
   })
 })
 

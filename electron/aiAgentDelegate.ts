@@ -1,36 +1,41 @@
 import {
   DELEGATE_OBJECTIVE_MAX_LENGTH,
-  MAX_DELEGATIONS_PER_TURN,
   MAX_ORCHESTRATION_ROUNDS,
   formatOrchestrationRoundLabel,
+  isDelegationsUnlimited,
   isOrchestrationRoundsUnlimited,
   parseDelegatePayloadDetailed,
+  sanitizeMaxDelegationsPerTurn,
   type DelegateParseIssue,
   type DelegateRequest,
 } from '../src/shared/agentOrchestration'
 
 const DELEGATE_FENCE_RE = /```ia-terminal-delegate\s*\n([\s\S]*?)\n```/g
 
-export function extractAiAgentDelegates(text: string): {
+export function extractAiAgentDelegates(
+  text: string,
+  maxDelegationsPerTurn?: number,
+): {
   visibleText: string
   delegations: DelegateRequest[]
   issues: DelegateParseIssue[]
 } {
+  const cap = sanitizeMaxDelegationsPerTurn(maxDelegationsPerTurn)
   const collected: DelegateRequest[] = []
   const issues: DelegateParseIssue[] = []
   const visibleText = text.replace(DELEGATE_FENCE_RE, (_match, json: string) => {
     try {
       const value = JSON.parse(json) as unknown
-      const parsed = parseDelegatePayloadDetailed(value)
+      const parsed = parseDelegatePayloadDetailed(value, cap)
       issues.push(...parsed.issues)
       const beforeCount = collected.length
       for (const item of parsed.delegations) {
-        if (collected.length >= MAX_DELEGATIONS_PER_TURN) break
+        if (!isDelegationsUnlimited(cap) && collected.length >= cap) break
         collected.push(item)
       }
       const restantes = parsed.delegations.length - (collected.length - beforeCount)
       if (restantes > 0) {
-        issues.push({ reason: 'truncated', count: restantes })
+        issues.push({ reason: 'truncated', count: restantes, cap })
       }
     } catch (err) {
       issues.push({
@@ -73,10 +78,27 @@ function orchestrationWaveCapLine(options?: {
     : `At most ${maxRounds} delegation waves per user request (host-enforced).`
 }
 
+function delegationsPerTurnRuleLine(maxDelegationsPerTurn?: number): string {
+  const cap = sanitizeMaxDelegationsPerTurn(maxDelegationsPerTurn)
+  const capPhrase = isDelegationsUnlimited(cap)
+    ? 'no per-turn delegation cap'
+    : `max ${cap} delegations per turn`
+  return `Rules: use toAgentId only from Available agents; objective must be concrete (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); ${capPhrase}; optional contextIds array of context ids to prefer.`
+}
+
+function productOwnerDelegationsPerTurnRuleLine(maxDelegationsPerTurn?: number): string {
+  const cap = sanitizeMaxDelegationsPerTurn(maxDelegationsPerTurn)
+  const capPhrase = isDelegationsUnlimited(cap)
+    ? 'no per-turn delegation cap'
+    : `max ${cap} delegations per turn`
+  return `Rules: use toAgentId only from Available agents; objective must be a concrete slice toward the user request (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); ${capPhrase}; optional contextIds array of context ids to prefer.`
+}
+
 export function buildAiAgentDelegateInstruction(options?: {
   allowDelegations?: boolean
   round?: number
   maxRounds?: number
+  maxDelegationsPerTurn?: number
   allowedAgentIds?: readonly string[]
   allowParallelLanes?: boolean
   /** @deprecated */
@@ -138,7 +160,7 @@ export function buildAiAgentDelegateInstruction(options?: {
     '```',
     'Front-load the objective: first line is a one-sentence imperative the specialist can act on without reading the rest.',
     'Objective style: FIRST LINE = imperative TL;DR (verb + goal + expected result), self-contained; below that you may add long detail (files, numbered tasks, acceptance criteria) within the objective length cap.',
-    `Rules: use toAgentId only from Available agents; objective must be concrete (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
+    delegationsPerTurnRuleLine(options?.maxDelegationsPerTurn),
   ].join('\n')
 }
 
@@ -146,6 +168,7 @@ export function buildAiAgentProductOwnerInstruction(options?: {
   allowDelegations?: boolean
   round?: number
   maxRounds?: number
+  maxDelegationsPerTurn?: number
   allowedAgentIds?: readonly string[]
   allowParallelLanes?: boolean
   /** @deprecated */
@@ -197,6 +220,6 @@ export function buildAiAgentProductOwnerInstruction(options?: {
     '```',
     'Front-load the objective: first line is a one-sentence imperative the specialist can act on without reading the rest.',
     'Objective style: FIRST LINE = imperative TL;DR (verb + goal + expected result), self-contained; below that you may add long detail (files, numbered tasks, acceptance criteria) within the objective length cap.',
-    `Rules: use toAgentId only from Available agents; objective must be a concrete slice toward the user request (max ${DELEGATE_OBJECTIVE_MAX_LENGTH} chars); max ${MAX_DELEGATIONS_PER_TURN} delegations per turn; optional contextIds array of context ids to prefer.`,
+    productOwnerDelegationsPerTurnRuleLine(options?.maxDelegationsPerTurn),
   ].join('\n')
 }

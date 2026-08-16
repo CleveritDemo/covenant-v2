@@ -1,7 +1,8 @@
 import type { OrchestrationAgentRef } from './agentOrchestration'
 import { parseExpertReplicaRequest } from './delegationTargets'
 
-export const MAX_LANES_PER_PANE = 3
+/** Sin tope: un especialista acepta delegaciones simultáneas ilimitadas. */
+export const MAX_LANES_PER_PANE = Number.POSITIVE_INFINITY
 
 export type DelegationLaneDecision =
   | { kind: 'lane'; paneId: string; agentId: string }
@@ -18,8 +19,8 @@ function findTargetByAgentId(
 }
 
 /**
- * Resuelve el pane destino y si hay carril libre (sin spawn de réplicas).
- * Función pura: el host cuenta carriles activos por pane.
+ * Resuelve el pane destino. Nunca difiere: el tope de carriles es ilimitado.
+ * Se conserva la variante `defer` en el tipo porque App.tsx la contempla.
  */
 export function resolveDelegationLane(input: {
   toAgentId: string
@@ -30,14 +31,9 @@ export function resolveDelegationLane(input: {
   const parsed = parseExpertReplicaRequest(input.toAgentId)
   if (!parsed.requestedId) return { kind: 'fail', reason: 'not_found' }
 
-  const cap = input.maxLanesPerPane ?? MAX_LANES_PER_PANE
   const exact = findTargetByAgentId(input.targets, parsed.requestedId)
   const match = exact ?? findTargetByAgentId(input.targets, parsed.baseId)
   if (!match) return { kind: 'fail', reason: 'not_found' }
 
-  const { paneId, agentId } = match
-  if ((input.activeLanesByPane.get(paneId) ?? 0) >= cap) {
-    return { kind: 'defer', paneId, agentId }
-  }
-  return { kind: 'lane', paneId, agentId }
+  return { kind: 'lane', paneId: match.paneId, agentId: match.agentId }
 }

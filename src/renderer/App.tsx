@@ -163,14 +163,14 @@ import {
   shouldFinalizeWorktreeFromOrchestrator,
 } from '@shared/delegationTargets'
 import {
+  MAX_LANES_PER_PANE,
+  resolveDelegationLane,
+} from '@shared/delegationLanes'
+import {
   buildOrchestrationAwaitingView,
   orchestrationAwaitingSignature,
   type OrchestrationAwaitingView,
 } from '@shared/orchestrationAwaiting'
-import {
-  MAX_LANES_PER_PANE,
-  resolveDelegationLane,
-} from '@shared/delegationLanes'
 import {
   attachDelegationWorktree,
   deleteDelegationRuntime,

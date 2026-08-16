@@ -15,9 +15,11 @@ import {
 } from './agileCeremonies'
 import {
   sanitizeAgentCoordination,
+  sanitizeMaxDelegationsPerTurn,
   sanitizeOrchestrationMaxRounds,
   sanitizeOrchestrationWorkStyle,
   persistableDelegateTo,
+  MAX_DELEGATIONS_PER_TURN,
   MAX_ORCHESTRATION_ROUNDS,
   type AgentCoordination,
   type DelegateToPolicy,
@@ -85,6 +87,8 @@ export interface ProjectAgentDefinition {
   acceptDelegations?: boolean
   /** Tope de oleadas de delegación (solo orquestador; default 3, omitido si default). */
   orchestrationMaxRounds?: number
+  /** Tope de delegaciones por turno (solo orchestrator|productOwner; default 5, omitido si default). */
+  maxDelegationsPerTurn?: number
   /**
    * Solo orchestrator: linear (default, omitido) | turbo (fuerza réplicas y cola durante awaiting).
    * Al salir de orchestrator se descarta.
@@ -537,6 +541,8 @@ export function parseProjectAgentDefinition(
     def.coordination = coordination
     const maxRounds = sanitizeOrchestrationMaxRounds(data.orchestrationMaxRounds)
     if (maxRounds !== MAX_ORCHESTRATION_ROUNDS) def.orchestrationMaxRounds = maxRounds
+    const maxPerTurn = sanitizeMaxDelegationsPerTurn(data.maxDelegationsPerTurn)
+    if (maxPerTurn !== MAX_DELEGATIONS_PER_TURN) def.maxDelegationsPerTurn = maxPerTurn
     if (data.delegateTo !== undefined) {
       const delegateTo = persistableDelegateTo(coordination, data.delegateTo)
       if (delegateTo) def.delegateTo = delegateTo
@@ -591,6 +597,11 @@ export function cloneProjectAgentDefinition(
       && typeof source.orchestrationMaxRounds === 'number'
       && source.orchestrationMaxRounds !== MAX_ORCHESTRATION_ROUNDS
       ? { orchestrationMaxRounds: sanitizeOrchestrationMaxRounds(source.orchestrationMaxRounds) }
+      : {}),
+    ...((source.coordination === 'orchestrator' || source.coordination === 'productOwner')
+      && typeof source.maxDelegationsPerTurn === 'number'
+      && source.maxDelegationsPerTurn !== MAX_DELEGATIONS_PER_TURN
+      ? { maxDelegationsPerTurn: sanitizeMaxDelegationsPerTurn(source.maxDelegationsPerTurn) }
       : {}),
     ...(source.coordination === 'orchestrator'
       && sanitizeOrchestrationWorkStyle(source.orchestrationWorkStyle) === 'turbo'
@@ -733,6 +744,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     coordination: meta.coordination,
     acceptDelegations: meta.acceptDelegations,
     orchestrationMaxRounds: meta.orchestrationMaxRounds,
+    maxDelegationsPerTurn: meta.maxDelegationsPerTurn,
     orchestrationWorkStyle: meta.orchestrationWorkStyle,
     delegateTo: meta.delegateTo,
     nativeSkills: meta.nativeSkills,

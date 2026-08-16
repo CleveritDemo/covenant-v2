@@ -50,10 +50,12 @@ import type {
   OrchestrationAgentRef,
 } from '@shared/agentOrchestration'
 import {
+  MAX_DELEGATIONS_PER_TURN,
   MAX_ORCHESTRATION_ROUNDS,
   coordinationCanDelegate,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
+  sanitizeMaxDelegationsPerTurn,
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import { useT } from '@i18n/useT'
@@ -415,6 +417,24 @@ export function mergePaneReportedRunningThreadIds(
   }
 }
 
+/** Persistencia de maxDelegationsPerTurn: omite la clave si vuelve al default. */
+export function applyMaxDelegationsPerTurnMetaChange(
+  previous: AgentPaneMeta,
+  n: number,
+): AgentPaneMeta {
+  const maxDelegationsPerTurn = sanitizeMaxDelegationsPerTurn(n)
+  if (maxDelegationsPerTurn === MAX_DELEGATIONS_PER_TURN) {
+    const { maxDelegationsPerTurn: _drop, ...rest } = previous
+    return rest
+  }
+  return { ...previous, maxDelegationsPerTurn }
+}
+
+/** Valor efectivo de maxDelegationsPerTurn para el request del turno orquestador. */
+export function resolveTurnMaxDelegationsPerTurn(meta: AgentPaneMeta): number {
+  return sanitizeMaxDelegationsPerTurn(meta.maxDelegationsPerTurn)
+}
+
 /** Decide si borrar laneDelegationRef al cerrar un turno de carril. */
 export function resolveLaneDelegationTurnEnd(input: {
   held: boolean
@@ -743,6 +763,12 @@ export const AgentPane: React.FC<Props> = ({
   onPreferSendConsumedRef.current = onPreferSendConsumed
   const onRequestPaneFocusRef = useRef(onRequestPaneFocus)
   onRequestPaneFocusRef.current = onRequestPaneFocus
+  // Por ref: App pasa un arrow inline, así que su identidad cambia en cada
+  // render. Con la prop en las deps del efecto de abajo, cada render durante un
+  // turno vivo emitía busy=false (cleanup) + busy=true, y ese falso true→false
+  // disparaba un push completo de wiki por render (~8/s → OOM del renderer).
+  const onBusyChangeRef = useRef(onBusyChange)
+  onBusyChangeRef.current = onBusyChange
   /**
    * Delegación abre un hilo nuevo en el mismo tick que el turno: no recargar
    * el chat ni tumbar busy/messages del stream que acaba de arrancar.
@@ -1262,9 +1288,9 @@ export const AgentPane: React.FC<Props> = ({
   }, [settlingId])
 
   useEffect(() => {
-    onBusyChange?.(busy)
-    return () => onBusyChange?.(false)
-  }, [busy, onBusyChange])
+    onBusyChangeRef.current?.(busy)
+    return () => onBusyChangeRef.current?.(false)
+  }, [busy])
 
   useEffect(() => {
     if (!preferOpenConfig) return
@@ -1954,6 +1980,7 @@ export const AgentPane: React.FC<Props> = ({
               : roundInfo
                 ? { orchestrationMaxRounds: roundInfo.maxRounds }
                 : {}),
+            maxDelegationsPerTurn: resolveTurnMaxDelegationsPerTurn(currentMeta),
           }
         : {}),
       ...(!isLaneDelegation && resumeCliSession && currentMeta.cliSessionId
@@ -3547,6 +3574,7 @@ export const AgentPane: React.FC<Props> = ({
             const {
               coordination: _drop,
               orchestrationMaxRounds: _rounds,
+              maxDelegationsPerTurn: _perTurn,
               orchestrationWorkStyle: _style,
               delegateTo: _dt,
               // Descarta allowExpertReplicas legacy del JSON en disco; no afecta runtime.
@@ -3575,6 +3603,9 @@ export const AgentPane: React.FC<Props> = ({
             }
             return { ...previous, orchestrationMaxRounds: maxRounds }
           })
+        }}
+        onMaxDelegationsPerTurnChange={n => {
+          onMetaChange(previous => applyMaxDelegationsPerTurnMetaChange(previous, n))
         }}
         onOrchestrationWorkStyleChange={workStyle => {
           onMetaChange(previous => {

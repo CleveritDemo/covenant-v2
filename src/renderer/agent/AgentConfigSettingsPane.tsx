@@ -8,10 +8,12 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
 import { modelsForProvider } from '@shared/agentCliModels'
 import {
+  DELEGATIONS_PER_TURN_CAP,
   ORCHESTRATION_MAX_ROUNDS_CAP,
   coordinationCanDelegate,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
+  sanitizeMaxDelegationsPerTurn,
   type AgentCoordination,
   type DelegateToPolicy,
   type OrchestrationWorkStyle,
@@ -59,6 +61,7 @@ export interface AgentConfigSettingsPaneProps {
   onChangeCoordination: (coordination: AgentCoordination) => void
   onAcceptDelegationsChange: (accept: boolean) => void
   onOrchestrationMaxRoundsChange: (maxRounds: number) => void
+  onMaxDelegationsPerTurnChange: (maxDelegations: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
@@ -117,6 +120,14 @@ const MAX_ROUNDS_OPTIONS = [
   ),
 ]
 
+const MAX_DELEGATIONS_PER_TURN_OPTIONS = [
+  0,
+  ...Array.from(
+    { length: DELEGATIONS_PER_TURN_CAP },
+    (_, index) => index + 1,
+  ),
+]
+
 export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = ({
   section,
   meta,
@@ -134,6 +145,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onChangeCoordination,
   onAcceptDelegationsChange,
   onOrchestrationMaxRoundsChange,
+  onMaxDelegationsPerTurnChange,
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
@@ -185,6 +197,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   const selectedModel = meta.model?.trim() ?? ''
   const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
   const maxRounds = resolveOrchestrationMaxRounds(meta.orchestrationMaxRounds)
+  const maxDelegationsPerTurn = sanitizeMaxDelegationsPerTurn(meta.maxDelegationsPerTurn)
   const workStyle = resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
 
   if (section === 'engine') {
@@ -370,6 +383,22 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
                 }))}
               />
               <p className="agent-config-settings__hint">{t('agentPane.orchestrationMaxRoundsHint')}</p>
+            </label>
+            <label className="agent-config-settings__field">
+              <span className="agent-config-settings__label">{t('agentPane.maxDelegationsPerTurnLabel')}</span>
+              <Select
+                value={String(maxDelegationsPerTurn)}
+                disabled={locked}
+                title={t('agentPane.maxDelegationsPerTurnHint')}
+                onChange={value => onMaxDelegationsPerTurnChange(Number(value))}
+                options={MAX_DELEGATIONS_PER_TURN_OPTIONS.map(value => ({
+                  value: String(value),
+                  label: value === 0
+                    ? t('agentPane.orchestrationMaxRoundsUnlimited')
+                    : String(value),
+                }))}
+              />
+              <p className="agent-config-settings__hint">{t('agentPane.maxDelegationsPerTurnHint')}</p>
             </label>
             {meta.coordination === 'productOwner' ? (
               <div className="agent-config-settings__field">

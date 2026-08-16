@@ -53,6 +53,7 @@ import {
 import {
   buildAiAgentDelegateInstruction,
   buildAiAgentProductOwnerInstruction,
+  delegateDispatchSignature,
   extractAiAgentDelegates,
 } from './aiAgentDelegate'
 import {
@@ -1192,6 +1193,10 @@ export function startAgentTurn(
   let changelogPersisted = false
   /** Mismo patrón que changelogPersisted: el round 2 de need-sections re-emite assistant_final. */
   let wikiIngestPersisted = false
+  /** Un turno puede emitir varios assistant_final (assistant + result, need-sections); no re-despachar el mismo fence. */
+  const dispatchedDelegateSignatures = new Set<string>()
+  let delegateWarningsSent = false
+  let delegateRepeatWarned = false
   const contextDelivery = planContextDelivery(request, projectCwd)
   const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
   let contextDeliveryCommitted = false
@@ -1381,28 +1386,48 @@ export function startAgentTurn(
               : { visibleText: afterResults, delegations: [], issues: [] }
             const warnings = formatDelegateParseIssues(issues)
             if ((delegations.length || warnings.length) && request.allowDelegations !== false) {
-              const jobId = request.orchestrationJobId?.trim()
-              send(win, runKey, {
-                type: 'delegate',
-                delegations,
-                ...(jobId ? { orchestrationJobId: jobId } : {}),
-                ...(warnings.length ? { warnings } : {}),
-              })
-              if (warnings.length) {
-                console.warn('[orchestration] delegate fence issues', {
-                  runKey,
-                  agentId: request.agentId,
-                  issues,
-                })
+              const signature = delegateDispatchSignature(delegations)
+              const alreadyDispatched = delegations.length > 0 && dispatchedDelegateSignatures.has(signature)
+              let freshDelegations = delegations
+              if (delegations.length > 0 && !alreadyDispatched) {
+                dispatchedDelegateSignatures.add(signature)
+              } else if (alreadyDispatched) {
+                freshDelegations = []
+                if (!delegateRepeatWarned) {
+                  delegateRepeatWarned = true
+                  console.warn('[orchestration] delegate fence repetido, no se re-despacha', {
+                    runKey,
+                    agentId: request.agentId,
+                    count: delegations.length,
+                  })
+                }
               }
-              // Un evento por delegación: el roster cuenta emitidas del
-              // orquestador y recibidas del ejecutor con los mismos registros.
-              for (const delegation of delegations) {
-                recordDerivedPulse({
-                  kind: 'delegate',
-                  ...pulseTags,
-                  ...(delegation.toAgentId?.trim() ? { toAgentId: delegation.toAgentId.trim() } : {}),
+              const sendWarnings = warnings.length > 0 && !delegateWarningsSent
+              if (freshDelegations.length > 0 || sendWarnings) {
+                const jobId = request.orchestrationJobId?.trim()
+                send(win, runKey, {
+                  type: 'delegate',
+                  delegations: freshDelegations,
+                  ...(jobId ? { orchestrationJobId: jobId } : {}),
+                  ...(sendWarnings ? { warnings } : {}),
                 })
+                if (sendWarnings) {
+                  delegateWarningsSent = true
+                  console.warn('[orchestration] delegate fence issues', {
+                    runKey,
+                    agentId: request.agentId,
+                    issues,
+                  })
+                }
+                // Un evento por delegación: el roster cuenta emitidas del
+                // orquestador y recibidas del ejecutor con los mismos registros.
+                for (const delegation of freshDelegations) {
+                  recordDerivedPulse({
+                    kind: 'delegate',
+                    ...pulseTags,
+                    ...(delegation.toAgentId?.trim() ? { toAgentId: delegation.toAgentId.trim() } : {}),
+                  })
+                }
               }
             }
             if (visibleText.trim()) sawAssistantText = true

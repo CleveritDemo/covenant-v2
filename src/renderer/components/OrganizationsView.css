@@ -1,0 +1,65 @@
+/*
+ * Organizations a nivel app (no del plano). Misma barra/cuerpo que Pulse;
+ * position:fixed porque monta fuera de `.tab-agentic-plane`.
+ */
+.organizations-view {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr);
+  background: var(--bg);
+  font-family: var(--font-ui);
+  color: var(--text);
+}
+
+.organizations-view__bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: var(--plane-top-bar-inset, 14px) var(--plane-top-bar-inset, 14px) 0 14px;
+}
+
+.organizations-view__title {
+  margin: 0;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  height: var(--plane-top-bar-height, 26px);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.organizations-view__icon {
+  width: var(--plane-top-bar-height, 26px);
+  height: var(--plane-top-bar-height, 26px);
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.organizations-view__icon:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.organizations-view__body {
+  overflow-y: auto;
+  padding: 8px 24px 32px;
+}
+
+.organizations-view__body > * {
+  max-width: 1180px;
+  margin: 0 auto;
+}

@@ -2,6 +2,10 @@ import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import {
+  sanitizeOrchestratorPath,
+  type OrchestratorPath,
+} from './onboarding'
+import {
   sanitizeWikiCuratorConfig,
   type WikiCuratorConfig,
 } from './wikiCurator'
@@ -129,6 +133,8 @@ export interface AppConfig {
    * `''` = el usuario nunca completó el wizard.
    */
   onboardingCompletedVersion: string
+  /** Perfil de orquestador elegido en el wizard (`''` = aún no eligió). */
+  orchestratorPath: OrchestratorPath | ''
   /**
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
@@ -191,6 +197,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   autoUpdatesEnabled: true,
   agentCliCommands: {},
   onboardingCompletedVersion: '',
+  orchestratorPath: '',
   wikiCurator: {},
   otelEndpoint: '',
   otelProtocol: 'http/protobuf',
@@ -267,6 +274,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   )
     ? sanitizeOnboardingCompletedVersion(partial.onboardingCompletedVersion)
     : CONFIG_DEFAULTS.onboardingCompletedVersion
+  const orchestratorPath = Object.prototype.hasOwnProperty.call(partial, 'orchestratorPath')
+    ? sanitizeOrchestratorPath(partial.orchestratorPath)
+    : CONFIG_DEFAULTS.orchestratorPath
   const rawRecord = partial as Record<string, unknown>
   const catalogKeyPresent = Object.prototype.hasOwnProperty.call(
     rawRecord,
@@ -295,6 +305,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     agentCliCommands,
     defaultWorkspacesDir,
     onboardingCompletedVersion,
+    orchestratorPath,
     wikiCurator,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
@@ -355,6 +366,9 @@ export function validateConfig(config: AppConfig): string[] {
     errors.push('onboardingCompletedVersion debe ser un string')
   } else if (sanitizeOnboardingCompletedVersion(config.onboardingCompletedVersion) !== config.onboardingCompletedVersion) {
     errors.push('onboardingCompletedVersion inválida')
+  }
+  if (sanitizeOrchestratorPath(config.orchestratorPath) !== config.orchestratorPath) {
+    errors.push('orchestratorPath inválido')
   }
   if (
     config.orgWorkspaceCatalogCache != null

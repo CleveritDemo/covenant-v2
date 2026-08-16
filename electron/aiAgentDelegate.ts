@@ -48,6 +48,11 @@ export function extractAiAgentDelegates(
   return { visibleText, delegations: collected, issues }
 }
 
+/** Firma estable para dedupe de despacho; omite `id` (se regenera en cada parseo). */
+export function delegateDispatchSignature(delegations: readonly DelegateRequest[]): string {
+  return JSON.stringify(delegations.map(d => [d.toAgentId ?? '', d.objective ?? '', [...(d.contextIds ?? [])]]))
+}
+
 function formatAllowedAgentIdsLine(allowedAgentIds?: readonly string[]): string {
   const ids = (allowedAgentIds ?? []).map(id => id.trim()).filter(Boolean)
   if (!ids.length) {

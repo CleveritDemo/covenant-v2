@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAiAgentDelegateInstruction,
   buildAiAgentProductOwnerInstruction,
+  delegateDispatchSignature,
   extractAiAgentDelegates,
 } from '../aiAgentDelegate'
 
@@ -72,6 +73,45 @@ describe('extractAiAgentDelegates', () => {
     const { delegations: parsed, issues } = extractAiAgentDelegates(raw, 0)
     expect(parsed).toHaveLength(6)
     expect(issues).toEqual([])
+  })
+})
+
+describe('delegateDispatchSignature', () => {
+  const fence = (delegations: Array<{ toAgentId: string; objective: string; contextIds?: string[] }>) => [
+    '```ia-terminal-delegate',
+    JSON.stringify({ delegations }),
+    '```',
+  ].join('\n')
+
+  it('same text extracted twice yields the same signature (ids may differ)', () => {
+    const raw = fence([{ toAgentId: 'qa', objective: 'Run the suite', contextIds: ['ctx-a'] }])
+    const a = extractAiAgentDelegates(raw)
+    const b = extractAiAgentDelegates(raw)
+    expect(a.delegations[0]?.id).not.toEqual(b.delegations[0]?.id)
+    expect(delegateDispatchSignature(a.delegations)).toBe(delegateDispatchSignature(b.delegations))
+  })
+
+  it('changing objective changes the signature', () => {
+    const a = extractAiAgentDelegates(fence([{ toAgentId: 'qa', objective: 'task one' }]))
+    const b = extractAiAgentDelegates(fence([{ toAgentId: 'qa', objective: 'task two' }]))
+    expect(delegateDispatchSignature(a.delegations)).not.toBe(delegateDispatchSignature(b.delegations))
+  })
+
+  it('two identical entries differ from a single entry (parallel lanes)', () => {
+    const one = extractAiAgentDelegates(fence([
+      { toAgentId: 'frontend', objective: 'Ship slice A' },
+    ]))
+    const two = extractAiAgentDelegates(fence([
+      { toAgentId: 'frontend', objective: 'Ship slice A' },
+      { toAgentId: 'frontend', objective: 'Ship slice A' },
+    ]))
+    expect(delegateDispatchSignature(two.delegations)).not.toBe(
+      delegateDispatchSignature(one.delegations),
+    )
+  })
+
+  it('empty list has a stable signature', () => {
+    expect(delegateDispatchSignature([])).toBe('[]')
   })
 })
 

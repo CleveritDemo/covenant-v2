@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '../configSchema'
+import { sanitizeOrchestratorPath } from '../onboarding'
 
 describe('onboardingCompletedVersion', () => {
   it('default es string vacío', () => {
@@ -22,5 +23,30 @@ describe('onboardingCompletedVersion', () => {
   it('validateConfig acepta el default y un valor corto', () => {
     expect(validateConfig(mergeWithDefaults({}))).toEqual([])
     expect(validateConfig(mergeWithDefaults({ onboardingCompletedVersion: '1' }))).toEqual([])
+  })
+})
+
+describe('orchestratorPath', () => {
+  it('default es string vacío', () => {
+    expect(CONFIG_DEFAULTS.orchestratorPath).toBe('')
+    expect(mergeWithDefaults({}).orchestratorPath).toBe('')
+  })
+
+  it('merge conserva business y engineer', () => {
+    expect(mergeWithDefaults({ orchestratorPath: 'business' }).orchestratorPath).toBe('business')
+    expect(mergeWithDefaults({ orchestratorPath: 'engineer' }).orchestratorPath).toBe('engineer')
+  })
+
+  it('merge convierte basura a vacío', () => {
+    expect(mergeWithDefaults({ orchestratorPath: 'admin' as never }).orchestratorPath).toBe('')
+    expect(mergeWithDefaults({ orchestratorPath: 1 as never }).orchestratorPath).toBe('')
+    expect(sanitizeOrchestratorPath(null)).toBe('')
+    expect(sanitizeOrchestratorPath(undefined)).toBe('')
+  })
+
+  it('config vieja sin la clave sigue válida tras el merge', () => {
+    const merged = mergeWithDefaults({ onboardingCompletedVersion: '1' })
+    expect(merged.orchestratorPath).toBe('')
+    expect(validateConfig(merged)).toEqual([])
   })
 })

@@ -196,6 +196,12 @@ const es = {
     imagePreviewOpen: 'Ver {{name}} en grande',
     removeImage: 'Quitar imagen',
     imagesAttached: '{{n}} imagen(es) adjunta(s)',
+    pastedTextBadge: 'PEGADO',
+    pastedTextTitle: 'Contenido pegado',
+    pastedTextLines: '{{n}} líneas',
+    pastedTextFormatHint: 'El formato puede ser inconsistente con la fuente',
+    pastedTextAttached: '{{n}} texto(s) pegado(s)',
+    removePastedText: 'Quitar texto pegado',
     imageOnlyMessage: '(imagen adjunta)',
     queuePlaceholder: 'Escribe y presiona Enter para encolar…',
     historyPosition: 'Mensaje recuperado {{n}} de {{total}}',
@@ -650,6 +656,7 @@ const es = {
     brainstormButton: 'Brainstorm',
     brainstormNeedFolder: 'Elige la carpeta del proyecto antes de iniciar un brainstorm.',
     brainstormEmptyCatalog: 'Aún no hay agentes en este proyecto. Crea agentes en el plano primero.',
+    brainstormCreateAgent: 'Crear agente',
     brainstormStartTitle: 'Nueva sala',
     brainstormGoalLabel: '¿Qué quieres resolver?',
     brainstormStartNeedTwo: 'Elige al menos dos participantes.',
@@ -1073,6 +1080,7 @@ const es = {
 
   organizations: {
     title: 'Organizaciones',
+    closeView: 'Cerrar organizaciones',
     authSection: 'Cuenta',
     orgsSection: 'Organizaciones',
     membersSection: 'Miembros',
@@ -1818,6 +1826,12 @@ const es = {
       'Tú dices qué y por qué. Los agentes hacen el cómo. Tú mandas; ellos ejecutan.',
     welcomeChainLabel: 'La cadena',
     welcomeChain: 'querer → decir → encargar → coordinar → ejecutar → ajustar',
+    pathTitle: 'Elegí tu camino',
+    pathBusiness: 'Business AI Orchestrator',
+    pathBusinessHint: 'Menos fricción técnica; el equipo se arma alrededor del negocio.',
+    pathEngineer: 'Engineer AI Orchestrator',
+    pathEngineerHint: 'Incluye CLIs y el flujo técnico completo de Gravity.',
+    stepAccount: 'Cuenta',
 
     requirementsTitle: 'CLIs de agentes',
     requirementsLead:
@@ -1867,6 +1881,19 @@ const es = {
     firstMessageExampleLabel: 'Prueba algo así',
     firstMessageExample:
       'Explora este repo y propone el cambio más pequeño que mejore el camino de onboarding.',
+
+    accountTitle: 'Tu cuenta Covenant',
+    accountLead:
+      'Inicia sesión para cargar un workspace de organización, o sigue sin cuenta y configura un proyecto local.',
+    accountLoading: 'Consultando tu cuenta…',
+    accountSignIn: 'Iniciar sesión',
+    accountSkip: 'Seguir sin cuenta',
+    accountContinue: 'Continuar',
+    accountNoOrgs: 'No tienes organizaciones todavía.',
+    accountLoadWorkspace: 'Cargar workspace de organización',
+    accountMoreOrgs: 'y {{n}} más',
+    accountError: 'No se pudo consultar la cuenta. Puedes reintentar o seguir sin cuenta.',
+    accountUnavailable: 'La cuenta Covenant no está disponible en este entorno.',
   },
 } satisfies AppTranslations
 

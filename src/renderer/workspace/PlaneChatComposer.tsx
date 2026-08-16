@@ -27,6 +27,7 @@ import { PlaneChatComposerAgents } from './PlaneChatComposerAgents'
 import { PlaneChatQueueEditButton } from './PlaneChatQueueEditButton'
 import { PlaneChatRemoveChipButton } from './PlaneChatRemoveChipButton'
 import { PendingImageThumb } from '../components/PendingImageThumb'
+import { PastedTextAttachment } from '../components/PastedTextAttachment'
 import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneQueueFullNotice } from './PlaneQueueFullNotice'
@@ -36,6 +37,13 @@ import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { shouldShowComposerStop } from '../agent/agentInputGuards'
 import { recallStep, rememberComposerEntry } from '@shared/composerHistory'
+import {
+  MAX_PENDING_PASTED_TEXTS,
+  composeTextWithPastes,
+  createPastedText,
+  shouldCapturePastedText,
+  type ComposerPastedText,
+} from '@shared/composerPastedText'
 import './PlaneChatComposer.css'
 
 /** Lo que el composer guarda por hilo al cambiar de conversación. */
@@ -43,6 +51,7 @@ interface ComposerDraft {
   text: string
   images: ComposerPendingImage[]
   contextIds: string[]
+  pastes: ComposerPastedText[]
 }
 
 /** Clave de borrador en memoria: un entry por par pane + hilo activo. */
@@ -162,6 +171,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
+  const [pendingPastes, setPendingPastes] = useState<ComposerPastedText[]>([])
   const [dictationError, setDictationError] = useState('')
   /**
    * Contextos adjuntos a ESTE turno. No tocan el catálogo del agente: se envían
@@ -183,12 +193,22 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const stashRef = useRef('')
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   /**
-   * Borradores por hilo (texto + imágenes + contextos del turno): cambiar de
-   * conversación y volver no debe perder lo preparado. Solo en memoria.
+   * Borradores por hilo (texto + imágenes + contextos + pastes del turno):
+   * cambiar de conversación y volver no debe perder lo preparado. Solo en memoria.
    */
   const draftsRef = useRef<Record<string, ComposerDraft>>({})
-  const draftRef = useRef<ComposerDraft>({ text: draft, images: pendingImages, contextIds: pendingContextIds })
-  draftRef.current = { text: draft, images: pendingImages, contextIds: pendingContextIds }
+  const draftRef = useRef<ComposerDraft>({
+    text: draft,
+    images: pendingImages,
+    contextIds: pendingContextIds,
+    pastes: pendingPastes,
+  })
+  draftRef.current = {
+    text: draft,
+    images: pendingImages,
+    contextIds: pendingContextIds,
+    pastes: pendingPastes,
+  }
 
   const selected = agents.find(agent => agent.paneId === selectedAgentId) ?? null
   const noAgentSelected = agents.length > 0 && !selected
@@ -202,7 +222,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     && awaitingDelegations
     && !busy
   const canSend = Boolean(
-    selected && (draft.trim() || pendingImages.length > 0),
+    selected && (draft.trim() || pendingImages.length > 0 || pendingPastes.length > 0),
   )
   const showStop = Boolean(selected && shouldShowComposerStop({
     busy,
@@ -230,6 +250,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     setDraft(saved?.text ?? '')
     setPendingImages(saved?.images ?? [])
     setPendingContextIds(saved?.contextIds ?? [])
+    setPendingPastes(saved?.pastes ?? [])
     setEditingQueuedId(null)
     setSketchOpen(false)
     mention.close()
@@ -332,18 +353,31 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
 
   const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = imagesFromClipboard(event.clipboardData)
-    if (!files.length) return
+    if (files.length) {
+      event.preventDefault()
+      const jobs = files.map((file, index) =>
+        materializeClipboardImage(
+          file,
+          `paste-${index + 1}${extensionForMime(file.type || 'image/png')}`,
+        ),
+      )
+      void Promise.all(jobs).then(results => {
+        appendPendingImages(results.filter((image): image is ComposerPendingImage => image != null))
+      })
+      return
+    }
+    const text = event.clipboardData.getData('text/plain')
+    if (!shouldCapturePastedText(text)) return
     event.preventDefault()
-    const jobs = files.map((file, index) =>
-      materializeClipboardImage(
-        file,
-        `paste-${index + 1}${extensionForMime(file.type || 'image/png')}`,
-      ),
-    )
-    void Promise.all(jobs).then(results => {
-      appendPendingImages(results.filter((image): image is ComposerPendingImage => image != null))
+    setPendingPastes(previous => {
+      if (previous.length >= MAX_PENDING_PASTED_TEXTS) return previous
+      return [...previous, createPastedText(text)]
     })
   }, [appendPendingImages])
+
+  const removePendingPaste = useCallback((id: string): void => {
+    setPendingPastes(previous => previous.filter(paste => paste.id !== id))
+  }, [])
 
   const handleSketchAttach = useCallback((blob: Blob): void => {
     void pendingImageFromBlob(blob, `sketch-${Date.now()}.png`).then(image => {
@@ -394,24 +428,27 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   }, [contexts, noAgentSelected])
 
   const submit = useCallback((overrideText?: string): void => {
-    const text = (overrideText ?? draft).trim()
-    if (!selected || (!text && pendingImages.length === 0)) return
+    const typed = (overrideText ?? draft).trim()
+    if (!selected || (!typed && pendingImages.length === 0 && pendingPastes.length === 0)) return
     const imagesSnapshot = pendingImages
+    const pastesSnapshot = pendingPastes
     const contextIdsSnapshot = pendingContextIds
-    historyRef.current = rememberComposerEntry(historyRef.current, text)
+    const composed = composeTextWithPastes(typed, pastesSnapshot)
+    historyRef.current = rememberComposerEntry(historyRef.current, typed)
     stashRef.current = ''
     setHistoryIndex(null)
     setDraft('')
     setPendingImages([])
+    setPendingPastes([])
     setPendingContextIds([])
     const draftKey = composerDraftStorageKey(selected.paneId, activeThreadId)
     if (draftKey) {
-      draftsRef.current[draftKey] = { text: '', images: [], contextIds: [] }
+      draftsRef.current[draftKey] = { text: '', images: [], contextIds: [], pastes: [] }
     }
     mention.close()
     void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
-      onSend(selected.paneId, text, attachments, contextIdsSnapshot)
+      onSend(selected.paneId, composed, attachments, contextIdsSnapshot)
     })
   }, [
     activeThreadId,
@@ -419,6 +456,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     onSend,
     pendingContextIds,
     pendingImages,
+    pendingPastes,
     selected,
   ])
 
@@ -495,7 +533,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     selected
     && !buttonIsStop
     && !draft.trim()
-    && pendingImages.length === 0,
+    && pendingImages.length === 0
+    && pendingPastes.length === 0,
   )
 
   const composerWorking = Boolean(busy || awaitingDelegations || delegationWorkActive)
@@ -599,6 +638,21 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
             ) : null}
           </div>
         )}
+
+        {pendingPastes.length > 0 ? (
+          <div
+            className="plane-chat-composer__pastes"
+            aria-label={t('agentPane.pastedTextAttached', { n: pendingPastes.length })}
+          >
+            {pendingPastes.map(paste => (
+              <PastedTextAttachment
+                key={paste.id}
+                paste={paste}
+                onRemove={() => removePendingPaste(paste.id)}
+              />
+            ))}
+          </div>
+        ) : null}
 
         {queueFullNotice ? <PlaneQueueFullNotice /> : null}
 

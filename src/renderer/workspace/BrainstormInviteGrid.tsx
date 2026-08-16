@@ -8,13 +8,15 @@ import { agentMonogram, paletteColorForSeed } from '@shared/tabContextAppearance
 import { candidateCeremonyRoles } from '@shared/agileCeremonies'
 import { useT } from '@i18n/useT'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
-import { ChoiceCard } from '../components/ui'
+import { Button, ChoiceCard, Icon } from '../components/ui'
 import './BrainstormInviteGrid.css'
 
 export interface BrainstormInviteGridProps {
   agents: ProjectAgentDefinition[]
   selectedIds: readonly string[]
   onToggle: (agentId: string) => void
+  /** Abre el flujo de alta de agente ya existente en App. */
+  onCreateAgent?: () => void
 }
 
 /** Rejilla de invitados: el orden de selección es el orden en que hablan. */
@@ -22,13 +24,23 @@ export const BrainstormInviteGrid: React.FC<BrainstormInviteGridProps> = ({
   agents,
   selectedIds,
   onToggle,
+  onCreateAgent,
 }) => {
   const { t } = useT()
   const invitableAgents = useMemo(() => filterBrainstormInvitableAgents(agents), [agents])
   const selected = useMemo(() => new Set(selectedIds), [selectedIds])
 
   if (invitableAgents.length === 0) {
-    return <p className="brainstorm-invite__hint">{t('tabs.brainstormEmptyCatalog')}</p>
+    return (
+      <>
+        <p className="brainstorm-invite__hint">{t('tabs.brainstormEmptyCatalog')}</p>
+        {onCreateAgent ? (
+          <Button variant="primary" size="sm" onClick={onCreateAgent}>
+            {t('tabs.brainstormCreateAgent')}
+          </Button>
+        ) : null}
+      </>
+    )
   }
 
   return (
@@ -77,6 +89,17 @@ export const BrainstormInviteGrid: React.FC<BrainstormInviteGridProps> = ({
           </ChoiceCard>
         )
       })}
+      {onCreateAgent ? (
+        <div className="brainstorm-invite__create">
+          <ChoiceCard
+            role="listitem"
+            onClick={onCreateAgent}
+            icon={<Icon name="plus" size={14} />}
+          >
+            {t('tabs.brainstormCreateAgent')}
+          </ChoiceCard>
+        </div>
+      ) : null}
     </div>
   )
 }

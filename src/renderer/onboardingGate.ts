@@ -16,3 +16,8 @@ export function mapCliRows(statuses: OnboardingCliStatus[]): OnboardingCliRow[] 
     version: status.version,
   }))
 }
+
+/** True solo si hay filas y ninguna está instalada (congela forma de pasos en App). */
+export function clisAllMissing(rows: OnboardingCliRow[]): boolean {
+  return rows.length > 0 && rows.every(row => !row.installed)
+}

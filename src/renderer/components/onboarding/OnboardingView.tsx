@@ -1,26 +1,29 @@
 import React from 'react'
 import { useT } from '@i18n/useT'
-import { TerminalModal } from '../TerminalModal'
+import type { OrchestratorPath } from '@shared/onboarding'
+import type { OnboardingStepId } from '@shared/onboardingSteps'
+import { GravityHeroCanvas } from '../GravityHeroCanvas'
 import { Button } from '../ui/Button'
+import { Tooltip } from '../ui/Tooltip'
 import { OnboardingStepper } from './OnboardingStepper'
 import { OnboardingStepWelcome } from './OnboardingStepWelcome'
+import { OnboardingStepAccount } from './OnboardingStepAccount'
 import { OnboardingStepRequirements } from './OnboardingStepRequirements'
 import { OnboardingStepFolder } from './OnboardingStepFolder'
 import { OnboardingStepTeam } from './OnboardingStepTeam'
 import { OnboardingStepBrainstorm } from './OnboardingStepBrainstorm'
 import { OnboardingStepFirstMessage } from './OnboardingStepFirstMessage'
-import {
-  ONBOARDING_STEP_COUNT,
-  type OnboardingCliRow,
-} from './onboardingTypes'
-import { Tooltip } from '../ui/Tooltip'
-import './OnboardingModal.css'
+import type { OnboardingCliRow } from './onboardingTypes'
+import './OnboardingView.css'
 
 export type { OnboardingCliRow }
 
-export interface OnboardingModalProps {
+export interface OnboardingViewProps {
   open: boolean
   stepIndex: number
+  steps: OnboardingStepId[]
+  path: OrchestratorPath | ''
+  onSelectPath: (path: OrchestratorPath) => void
   onNext: () => void
   onBack: () => void
   onSkip: () => void
@@ -40,11 +43,16 @@ export interface OnboardingModalProps {
   /** Paso brainstorm */
   canOpenBrainstorm: boolean
   onOpenBrainstorm: () => void
+  /** Hay orgs: cerrar el wizard y abrir el picker de workspaces org. */
+  onLoadOrgWorkspace: () => void
 }
 
-export const OnboardingModal: React.FC<OnboardingModalProps> = ({
+export const OnboardingView: React.FC<OnboardingViewProps> = ({
   open,
   stepIndex,
+  steps,
+  path,
+  onSelectPath,
   onNext,
   onBack,
   onSkip,
@@ -60,18 +68,29 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   onCreateTeam,
   canOpenBrainstorm,
   onOpenBrainstorm,
+  onLoadOrgWorkspace,
 }) => {
   const { t } = useT()
-  const clamped = Math.min(Math.max(stepIndex, 0), ONBOARDING_STEP_COUNT - 1)
+  const lastIndex = Math.max(0, steps.length - 1)
+  const clamped = Math.min(Math.max(stepIndex, 0), lastIndex)
   const isFirst = clamped === 0
-  const isLast = clamped === ONBOARDING_STEP_COUNT - 1
+  const isLast = clamped === lastIndex
+  const stepId = steps[clamped]
 
   let stepContent: React.ReactNode = null
-  switch (clamped) {
-    case 0:
-      stepContent = <OnboardingStepWelcome />
+  switch (stepId) {
+    case 'welcome':
+      stepContent = <OnboardingStepWelcome path={path} onSelectPath={onSelectPath} />
       break
-    case 1:
+    case 'account':
+      stepContent = (
+        <OnboardingStepAccount
+          onSkipAccount={onNext}
+          onLoadOrgWorkspace={onLoadOrgWorkspace}
+        />
+      )
+      break
+    case 'requirements':
       stepContent = (
         <OnboardingStepRequirements
           rows={cliRows}
@@ -81,12 +100,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         />
       )
       break
-    case 2:
+    case 'folder':
       stepContent = (
         <OnboardingStepFolder folderPath={folderPath} onPickFolder={onPickFolder} />
       )
       break
-    case 3:
+    case 'team':
       stepContent = (
         <OnboardingStepTeam
           canCreateTeam={canCreateTeam}
@@ -95,7 +114,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         />
       )
       break
-    case 4:
+    case 'brainstorm':
       stepContent = (
         <OnboardingStepBrainstorm
           canOpenBrainstorm={canOpenBrainstorm}
@@ -103,24 +122,31 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         />
       )
       break
-    case 5:
+    case 'firstMessage':
       stepContent = <OnboardingStepFirstMessage onFinish={onFinish} />
       break
     default:
       stepContent = null
   }
 
+  if (!open) return null
+
   return (
-    <TerminalModal
-      open={open}
-      onClose={onSkip}
-      title={t('onboarding.title')}
-      titleId="onboarding-modal-title"
-      size="md"
-      bodyLayout="spacious"
-      closeOnEscape
-      footer={(
-        <>
+    <GravityHeroCanvas
+      zIndex={940}
+      role="dialog"
+      aria-modal
+      aria-labelledby="onboarding-title"
+    >
+      <div className="onboarding-view__panel">
+        <h2 className="onboarding-view__title" id="onboarding-title">
+          {t('onboarding.title')}
+        </h2>
+        <div className="onboarding">
+          <OnboardingStepper steps={steps} stepIndex={clamped} />
+          {stepContent}
+        </div>
+        <div className="onboarding-view__footer" data-testid="onboarding-footer">
           {!isFirst ? (
             <Button variant="ghost" size="sm" onClick={onBack}>
               {t('onboarding.back')}
@@ -134,18 +160,18 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </Button>
             </span>
           </Tooltip>
-          {!isLast ? (
-            <Button variant="primary" size="sm" onClick={onNext}>
+          {!isLast && stepId !== 'account' ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onNext}
+              disabled={path === ''}
+            >
               {t('onboarding.next')}
             </Button>
           ) : null}
-        </>
-      )}
-    >
-      <div className="onboarding">
-        <OnboardingStepper stepIndex={clamped} />
-        {stepContent}
+        </div>
       </div>
-    </TerminalModal>
+    </GravityHeroCanvas>
   )
 }

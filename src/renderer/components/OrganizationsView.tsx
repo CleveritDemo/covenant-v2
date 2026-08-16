@@ -12,7 +12,6 @@ import {
   type CovenantOrg,
   type CovenantWorkspace,
 } from '../covenantApi'
-import { TerminalModal } from './TerminalModal'
 import { ConfirmTerminalModal } from './ConfirmTerminalModal'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -22,8 +21,10 @@ import { Tooltip } from './ui/Tooltip'
 import { SectionStatus } from './OrgSectionStatus'
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel'
 import { OrgSettingsPanel } from './OrgSettingsPanel'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import './SettingsModal.css'
 import './OrganizationsModal.css'
+import './OrganizationsView.css'
 import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
 import { workspacePeopleRows } from '../../shared/orgPeople'
 
@@ -388,7 +389,7 @@ function WorkspacesColumn({
   )
 }
 
-export const OrganizationsModal: React.FC<Props> = ({
+export const OrganizationsView: React.FC<Props> = ({
   open = true,
   onClose,
   onOrgWorkspacesMutated,
@@ -396,6 +397,15 @@ export const OrganizationsModal: React.FC<Props> = ({
   const { t } = useT()
   const covenant = useMemo(() => getCovenantApi(), [])
   const available = covenant != null
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   const [auth, setAuth] = useState<CovenantAuthStatus | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
@@ -1067,78 +1077,87 @@ export const OrganizationsModal: React.FC<Props> = ({
 
   return (
     <>
-      <TerminalModal
-        open={open}
-        onClose={onClose}
-        title={t('organizations.title')}
-        size="xxl"
-        zIndex={720}
-        bodyLayout="flush"
-        closeOnBackdrop
-        footer={
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-        }
+      {open ? (
+      <div
+        className="organizations-view"
+        role="region"
+        aria-label={t('organizations.title')}
+        style={{ zIndex: APP_OVERLAY_MODAL_Z }}
       >
-        {!available ? (
-          <p className="orgs-disabled">{t('organizations.unavailable')}</p>
-        ) : !signedIn ? (
-          <SignInPanel
-            status={auth}
-            loading={authLoading || orgsLoading}
-            error={authError}
-            busy={authBusy}
-            onSignIn={() => void handleSignIn()}
-          />
-        ) : (
-          <div className="orgs-shell">
-            <OrgsColumn
-              orgs={orgs}
-              selectedSlug={detailSlug ?? activeSlug}
-              loading={orgsLoading}
-              error={orgsError ?? authError}
-              busy={orgsBusy}
-              composing={composing === 'org'}
-              createName={createName}
+        <header className="organizations-view__bar">
+          <span className="organizations-view__title">{t('organizations.title')}</span>
+          <Tooltip content={t('organizations.closeView')}>
+            <button
+              type="button"
+              className="organizations-view__icon"
+              aria-label={t('organizations.closeView')}
+              onClick={onClose}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </Tooltip>
+        </header>
+        <div className="organizations-view__body">
+          {!available ? (
+            <p className="orgs-disabled">{t('organizations.unavailable')}</p>
+          ) : !signedIn ? (
+            <SignInPanel
               status={auth}
-              authBusy={authBusy}
-              onCreateNameChange={setCreateName}
-              onComposeToggle={() => toggleCompose('org')}
-              onSelectOrg={openOrg}
-              onCreate={() => void handleCreateOrg()}
-              onSignOut={() => void handleSignOut()}
+              loading={authLoading || orgsLoading}
+              error={authError}
+              busy={authBusy}
+              onSignIn={() => void handleSignIn()}
             />
-            {detailOrg ? (
-              <WorkspacesColumn
-                org={detailOrg}
-                workspaces={workspaces}
-                selectedWorkspaceId={selectedWorkspaceId}
-                settingsOpen={settingsOpen}
-                loading={workspacesLoading}
-                error={workspacesAvailable ? workspacesError : null}
-                busy={workspacesBusy}
-                canCreate={isOrgAdmin && workspacesAvailable}
-                composing={composing === 'workspace'}
-                nameDraft={workspaceName}
-                onNameDraftChange={setWorkspaceName}
-                onComposeToggle={() => toggleCompose('workspace')}
-                onCreate={() => void handleCreateWorkspace()}
-                onSelect={id => {
-                  setSelectedWorkspaceId(id)
-                  setDetailView('workspace')
-                  setComposing(null)
-                }}
-                onOpenSettings={() => {
-                  setLeaveError(null)
-                  setDetailView(prev => (prev === 'settings' ? 'workspace' : 'settings'))
-                }}
+          ) : (
+            <div className="orgs-shell">
+              <OrgsColumn
+                orgs={orgs}
+                selectedSlug={detailSlug ?? activeSlug}
+                loading={orgsLoading}
+                error={orgsError ?? authError}
+                busy={orgsBusy}
+                composing={composing === 'org'}
+                createName={createName}
+                status={auth}
+                authBusy={authBusy}
+                onCreateNameChange={setCreateName}
+                onComposeToggle={() => toggleCompose('org')}
+                onSelectOrg={openOrg}
+                onCreate={() => void handleCreateOrg()}
+                onSignOut={() => void handleSignOut()}
               />
-            ) : null}
-            {renderDetail()}
-          </div>
-        )}
-      </TerminalModal>
+              {detailOrg ? (
+                <WorkspacesColumn
+                  org={detailOrg}
+                  workspaces={workspaces}
+                  selectedWorkspaceId={selectedWorkspaceId}
+                  settingsOpen={settingsOpen}
+                  loading={workspacesLoading}
+                  error={workspacesAvailable ? workspacesError : null}
+                  busy={workspacesBusy}
+                  canCreate={isOrgAdmin && workspacesAvailable}
+                  composing={composing === 'workspace'}
+                  nameDraft={workspaceName}
+                  onNameDraftChange={setWorkspaceName}
+                  onComposeToggle={() => toggleCompose('workspace')}
+                  onCreate={() => void handleCreateWorkspace()}
+                  onSelect={id => {
+                    setSelectedWorkspaceId(id)
+                    setDetailView('workspace')
+                    setComposing(null)
+                  }}
+                  onOpenSettings={() => {
+                    setLeaveError(null)
+                    setDetailView(prev => (prev === 'settings' ? 'workspace' : 'settings'))
+                  }}
+                />
+              ) : null}
+              {renderDetail()}
+            </div>
+          )}
+        </div>
+      </div>
+      ) : null}
 
       <ConfirmTerminalModal
         open={leaveOpen}

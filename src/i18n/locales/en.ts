@@ -194,6 +194,12 @@ const en = {
     imagePreviewOpen: 'View {{name}} larger',
     removeImage: 'Remove image',
     imagesAttached: '{{n}} attached image(s)',
+    pastedTextBadge: 'PASTED',
+    pastedTextTitle: 'Pasted content',
+    pastedTextLines: '{{n}} lines',
+    pastedTextFormatHint: 'Formatting may be inconsistent with the source',
+    pastedTextAttached: '{{n}} pasted text attachment(s)',
+    removePastedText: 'Remove pasted text',
     imageOnlyMessage: '(attached image)',
     queuePlaceholder: 'Type and press Enter to queue…',
     historyPosition: 'Recalled message {{n}} of {{total}}',
@@ -648,6 +654,7 @@ const en = {
     brainstormButton: 'Brainstorm',
     brainstormNeedFolder: 'Choose the project folder before starting a brainstorm.',
     brainstormEmptyCatalog: 'No agents in this project yet. Create agents on the plane first.',
+    brainstormCreateAgent: 'Create agent',
     brainstormStartTitle: 'New room',
     brainstormGoalLabel: 'What do you want to settle?',
     brainstormStartNeedTwo: 'Pick at least two participants.',
@@ -1071,6 +1078,7 @@ const en = {
 
   organizations: {
     title: 'Organizations',
+    closeView: 'Close organizations',
     authSection: 'Account',
     orgsSection: 'Organizations',
     membersSection: 'Members',
@@ -1816,6 +1824,12 @@ const en = {
       'You say what and why. Agents handle how. You stay in control; they execute.',
     welcomeChainLabel: 'The chain',
     welcomeChain: 'want → say → assign → coordinate → execute → adjust',
+    pathTitle: 'Choose your path',
+    pathBusiness: 'Business AI Orchestrator',
+    pathBusinessHint: 'Less technical friction; the team forms around the business.',
+    pathEngineer: 'Engineer AI Orchestrator',
+    pathEngineerHint: 'Includes CLIs and Gravity’s full technical flow.',
+    stepAccount: 'Account',
 
     requirementsTitle: 'Agent CLIs',
     requirementsLead:
@@ -1865,6 +1879,19 @@ const en = {
     firstMessageExampleLabel: 'Try something like',
     firstMessageExample:
       'Explore this repo and propose the smallest change that improves the onboarding path.',
+
+    accountTitle: 'Your Covenant account',
+    accountLead:
+      'Sign in to load an organization workspace, or continue without an account and set up a local project.',
+    accountLoading: 'Checking your account…',
+    accountSignIn: 'Sign in',
+    accountSkip: 'Continue without an account',
+    accountContinue: 'Continue',
+    accountNoOrgs: 'You do not have any organizations yet.',
+    accountLoadWorkspace: 'Load organization workspace',
+    accountMoreOrgs: 'and {{n}} more',
+    accountError: 'Could not check your account. You can try again or continue without an account.',
+    accountUnavailable: 'Covenant account is not available in this environment.',
   },
 }
 

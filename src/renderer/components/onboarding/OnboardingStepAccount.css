@@ -1,0 +1,62 @@
+/*
+ * Paso de cuenta Covenant en onboarding.
+ * BEM: onboarding-account — sin className/style sobre el kit.
+ */
+.onboarding-account {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.onboarding-account__unavailable {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.onboarding-account__signed-in {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboarding-account__user {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.onboarding-account__orgs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-account__org {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.onboarding-account__more,
+.onboarding-account__empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.onboarding-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

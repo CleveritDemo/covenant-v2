@@ -4,7 +4,7 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { OrganizationsModal } from '../OrganizationsModal'
+import { OrganizationsView } from '../OrganizationsView'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({
@@ -66,9 +66,17 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-describe('OrganizationsModal — shell de tres columnas', () => {
+describe('OrganizationsView — shell de tres columnas', () => {
+  it('usa el shell fullscreen (region), no TerminalModal', async () => {
+    render(<OrganizationsView onClose={() => {}} />)
+
+    expect(screen.getByRole('region', { name: 'organizations.title' })).toBeTruthy()
+    expect(document.querySelector('.organizations-view')).toBeTruthy()
+    expect(document.querySelector('.terminal-modal-root')).toBeNull()
+  })
+
   it('abre la primera org y muestra rail, workspaces y la invitación a elegir uno', async () => {
-    render(<OrganizationsModal onClose={() => {}} />)
+    render(<OrganizationsView onClose={() => {}} />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /rodrigoanti/ })).toBeTruthy()
@@ -80,7 +88,7 @@ describe('OrganizationsModal — shell de tres columnas', () => {
   })
 
   it('seleccionar un workspace abre People y Repos en la tercera columna', async () => {
-    render(<OrganizationsModal onClose={() => {}} />)
+    render(<OrganizationsView onClose={() => {}} />)
 
     fireEvent.click(await screen.findByText('covenant'))
 
@@ -98,7 +106,7 @@ describe('OrganizationsModal — shell de tres columnas', () => {
   })
 
   it('los ajustes de la org fusionan members y admins en una tabla con rol', async () => {
-    render(<OrganizationsModal onClose={() => {}} />)
+    render(<OrganizationsView onClose={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
 
@@ -114,7 +122,7 @@ describe('OrganizationsModal — shell de tres columnas', () => {
 
   it('cambiar el rol a member llama a orgAdminRemove', async () => {
     covenant.orgAdminRemove.mockImplementation(() => ok(null))
-    render(<OrganizationsModal onClose={() => {}} />)
+    render(<OrganizationsView onClose={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
     fireEvent.click(await screen.findByRole('button', { name: 'organizations.roleFor:karluiz' }))
@@ -126,13 +134,21 @@ describe('OrganizationsModal — shell de tres columnas', () => {
     })
   })
 
-  it('sin sesión el modal es solo el panel de sign in', async () => {
+  it('sin sesión la vista es solo el panel de sign in', async () => {
     covenant.status.mockImplementation(() => ok({ signedIn: false }))
-    render(<OrganizationsModal onClose={() => {}} />)
+    render(<OrganizationsView onClose={() => {}} />)
 
     await waitFor(() => {
       expect(screen.getByText('organizations.signInPrompt')).toBeTruthy()
     })
     expect(screen.queryByText('organizations.orgRailHeading')).toBeNull()
+  })
+
+  it('Escape llama onClose', () => {
+    const onClose = vi.fn()
+    render(<OrganizationsView onClose={onClose} />)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

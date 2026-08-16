@@ -1,9 +1,11 @@
 import React, { useCallback, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
+import type { ComposerPastedText } from '@shared/composerPastedText'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { PendingImageThumb } from '../components/PendingImageThumb'
+import { PastedTextAttachment } from '../components/PastedTextAttachment'
 import { AgentPaneSendButton } from './AgentPaneSendButton'
 
 export interface AgentPanePendingImage {
@@ -14,6 +16,7 @@ export interface AgentPanePendingImage {
 
 export interface AgentPaneFooterProps {
   pendingImages: AgentPanePendingImage[]
+  pastedTexts?: ComposerPastedText[]
   composerDisabled: boolean
   busy: boolean
   awaitingDelegations: boolean
@@ -39,6 +42,7 @@ export interface AgentPaneFooterProps {
    */
   mentionPicker?: React.ReactNode
   onRemovePendingImage: (id: string) => void
+  onRemovePastedText?: (id: string) => void
   onSendClick: () => void
   /** Envía texto dictado (mismo path que send). */
   onDictateSend: (text: string) => void
@@ -48,6 +52,7 @@ export interface AgentPaneFooterProps {
 
 export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   pendingImages,
+  pastedTexts = [],
   composerDisabled,
   busy,
   awaitingDelegations,
@@ -63,6 +68,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   onComposerCaret,
   mentionPicker,
   onRemovePendingImage,
+  onRemovePastedText,
   onSendClick,
   onDictateSend,
   systemSoundsEnabled = true,
@@ -71,7 +77,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   const [dictationError, setDictationError] = useState('')
   const sendMode = showStop
     ? 'stop'
-    : (!input.trim() && pendingImages.length === 0 ? 'mic' : 'send')
+    : (!input.trim() && pendingImages.length === 0 && pastedTexts.length === 0 ? 'mic' : 'send')
   const sendLabel = showStop
     ? t('agentPane.stop')
     : sendMode === 'mic'
@@ -119,6 +125,20 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
         level={level}
         text={interim.trim() || t('agentPane.dictationLive')}
       />
+      {pastedTexts.length > 0 && (
+        <div
+          className="agent-pane__pastes"
+          aria-label={t('agentPane.pastedTextAttached', { n: pastedTexts.length })}
+        >
+          {pastedTexts.map(paste => (
+            <PastedTextAttachment
+              key={paste.id}
+              paste={paste}
+              onRemove={onRemovePastedText ? () => onRemovePastedText(paste.id) : undefined}
+            />
+          ))}
+        </div>
+      )}
       {pendingImages.length > 0 && (
         <div className="agent-pane__attachments" aria-label={t('agentPane.imagesAttached', { n: pendingImages.length })}>
           {pendingImages.map(image => (

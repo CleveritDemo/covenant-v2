@@ -25,9 +25,10 @@ import { TabContextsModal } from './agent/TabContextsModal'
 import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
-import { ONBOARDING_STEP_COUNT, type OnboardingCliRow } from './components/onboarding'
-import { mapCliRows, shouldOpenOnboarding } from './onboardingGate'
-import { ONBOARDING_VERSION } from '@shared/onboarding'
+import { type OnboardingCliRow } from './components/onboarding'
+import { clisAllMissing, mapCliRows, shouldOpenOnboarding } from './onboardingGate'
+import { ONBOARDING_VERSION, type OrchestratorPath } from '@shared/onboarding'
+import { onboardingStepsForPath } from '@shared/onboardingSteps'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
@@ -403,10 +404,12 @@ export const App: React.FC = () => {
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
   const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
+  const [onboardingClisMissing, setOnboardingClisMissing] = useState(false)
   const [onboardingCliLoading, setOnboardingCliLoading] = useState(false)
   const [onboardingCliError, setOnboardingCliError] = useState(false)
   const [onboardingTeamCreated, setOnboardingTeamCreated] = useState(false)
   const onboardingAutoOpenedRef = useRef(false)
+  const onboardingClisMissingLockedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   /** Tabs org cuyo resync manual está en curso. */
@@ -3224,23 +3227,42 @@ export const App: React.FC = () => {
   const refreshOnboardingClis = useCallback(async () => {
     setOnboardingCliLoading(true)
     setOnboardingCliError(false)
+    let rows: OnboardingCliRow[] = []
     try {
       const result = await window.api.detectOnboardingClis()
-      setOnboardingClis(mapCliRows(result))
+      rows = mapCliRows(result)
+      setOnboardingClis(rows)
     } catch {
+      rows = []
       setOnboardingClis([])
       setOnboardingCliError(true)
     } finally {
       setOnboardingCliLoading(false)
+      if (!onboardingClisMissingLockedRef.current) {
+        onboardingClisMissingLockedRef.current = true
+        setOnboardingClisMissing(clisAllMissing(rows))
+      }
     }
   }, [])
 
+  const onboardingSteps = useMemo(
+    () => onboardingStepsForPath(config.orchestratorPath, {
+      clisMissing: onboardingClisMissing,
+    }),
+    [config.orchestratorPath, onboardingClisMissing],
+  )
+
   const handleOnboardingNext = useCallback(() => {
-    setOnboardingStep(prev => Math.min(ONBOARDING_STEP_COUNT - 1, prev + 1))
-  }, [])
+    setOnboardingStep(prev => Math.min(onboardingSteps.length - 1, prev + 1))
+  }, [onboardingSteps.length])
 
   const handleOnboardingBack = useCallback(() => {
     setOnboardingStep(prev => Math.max(0, prev - 1))
+  }, [])
+
+  const handleOnboardingSelectPath = useCallback((next: OrchestratorPath) => {
+    void window.api.setConfig({ orchestratorPath: next })
+    setConfig(prev => ({ ...prev, orchestratorPath: next }))
   }, [])
 
   const persistOnboardingCompleted = useCallback((version: string) => {
@@ -3260,6 +3282,12 @@ export const App: React.FC = () => {
     setBrainstormViewByTab(prev => ({ ...prev, [tabId]: 'setup' }))
   }, [handleOnboardingCloseComplete])
 
+  const handleOnboardingLoadOrgWorkspace = useCallback(() => {
+    handleOnboardingCloseComplete()
+    handleOrgWorkspacesMutated()
+    setOrgWorkspacePickerOpen(true)
+  }, [handleOnboardingCloseComplete, handleOrgWorkspacesMutated])
+
   const handleOnboardingPickFolder = useCallback(() => {
     void handlePickProjectFolder(activeTabIdRef.current)
   }, [handlePickProjectFolder])
@@ -3278,6 +3306,7 @@ export const App: React.FC = () => {
     setOnboardingStep(0)
     setOnboardingTeamCreated(false)
     setOnboardingOpen(true)
+    onboardingClisMissingLockedRef.current = false
     void refreshOnboardingClis()
     persistOnboardingCompleted('')
   }, [persistOnboardingCompleted, refreshOnboardingClis])
@@ -3288,6 +3317,7 @@ export const App: React.FC = () => {
     if (!shouldOpenOnboarding(config.onboardingCompletedVersion, ready)) return
     if (onboardingAutoOpenedRef.current) return
     onboardingAutoOpenedRef.current = true
+    onboardingClisMissingLockedRef.current = false
     void refreshOnboardingClis()
     let cancelled = false
     void whenSplashDismissed().then(() => {
@@ -6232,6 +6262,7 @@ export const App: React.FC = () => {
           savedRoomsCount={brainstormSavedCountByTab[tab.id] ?? 0}
           onClose={() => setView(null)}
           onOpenRooms={() => setView('rooms')}
+          onCreateAgent={() => requestAddAgent(tab.id, undefined)}
           onStarted={room => {
             setBrainstormRoomsByTab(prev => ({
               ...prev,
@@ -7086,6 +7117,8 @@ export const App: React.FC = () => {
         onReplayOnboarding={handleReplayOnboarding}
         onboardingOpen={onboardingOpen}
         onboardingStep={onboardingStep}
+        onboardingSteps={onboardingSteps}
+        onboardingPath={config.orchestratorPath}
         onboardingClis={onboardingClis}
         onboardingCliLoading={onboardingCliLoading}
         onboardingCliError={onboardingCliError}
@@ -7101,6 +7134,8 @@ export const App: React.FC = () => {
         onOnboardingPickFolder={handleOnboardingPickFolder}
         onOnboardingCreateTeam={() => { void handleOnboardingCreateTeam() }}
         onOnboardingOpenBrainstorm={handleOnboardingOpenBrainstorm}
+        onOnboardingLoadOrgWorkspace={handleOnboardingLoadOrgWorkspace}
+        onOnboardingSelectPath={handleOnboardingSelectPath}
         onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)

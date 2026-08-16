@@ -6,7 +6,3 @@ export type OnboardingCliRow = {
   installed: boolean
   version: string | null
 }
-
-export const ONBOARDING_STEP_COUNT = 6
-
-export type OnboardingStepIndex = 0 | 1 | 2 | 3 | 4 | 5

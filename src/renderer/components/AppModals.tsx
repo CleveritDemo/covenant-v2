@@ -8,14 +8,16 @@ import {
 } from '../agent/AgentProviderPickerModal'
 import { AgentCreateNameModal } from '../agent/AgentCreateNameModal'
 import { SettingsModal } from './SettingsModal'
-import { OrganizationsModal } from './OrganizationsModal'
+import { OrganizationsView } from './OrganizationsView'
 import {
   OrgWorkspaceTabPickerModal,
   type OrgWorkspaceSelection,
 } from './OrgWorkspaceTabPickerModal'
 import { ThemePickerModal } from './ThemePickerModal'
 import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
-import { OnboardingModal, type OnboardingCliRow } from './onboarding'
+import type { OrchestratorPath } from '@shared/onboarding'
+import type { OnboardingStepId } from '@shared/onboardingSteps'
+import { OnboardingView, type OnboardingCliRow } from './onboarding'
 
 interface Props {
   config: AppConfig
@@ -45,6 +47,8 @@ interface Props {
   onReplayOnboarding?: () => void
   onboardingOpen: boolean
   onboardingStep: number
+  onboardingSteps: OnboardingStepId[]
+  onboardingPath: OrchestratorPath | ''
   onboardingClis: OnboardingCliRow[]
   onboardingCliLoading: boolean
   onboardingCliError: boolean
@@ -60,6 +64,8 @@ interface Props {
   onOnboardingPickFolder: () => void
   onOnboardingCreateTeam: () => void
   onOnboardingOpenBrainstorm: () => void
+  onOnboardingLoadOrgWorkspace: () => void
+  onOnboardingSelectPath: (path: OrchestratorPath) => void
 }
 
 export const AppModals: React.FC<Props> = ({
@@ -89,6 +95,8 @@ export const AppModals: React.FC<Props> = ({
   onReplayOnboarding,
   onboardingOpen,
   onboardingStep,
+  onboardingSteps,
+  onboardingPath,
   onboardingClis,
   onboardingCliLoading,
   onboardingCliError,
@@ -104,6 +112,8 @@ export const AppModals: React.FC<Props> = ({
   onOnboardingPickFolder,
   onOnboardingCreateTeam,
   onOnboardingOpenBrainstorm,
+  onOnboardingLoadOrgWorkspace,
+  onOnboardingSelectPath,
 }) => {
   const handleThemeAudioConfigChange = useCallback((partial: ThemePickerAudioPartial) => {
     onConfigSaved(mergeWithDefaults({
@@ -139,7 +149,7 @@ export const AppModals: React.FC<Props> = ({
       )}
 
       {orgModalOpen && (
-        <OrganizationsModal
+        <OrganizationsView
           onClose={onCloseOrganizations}
           onOrgWorkspacesMutated={onOrgWorkspacesMutated}
         />
@@ -161,9 +171,12 @@ export const AppModals: React.FC<Props> = ({
         onClose={onCloseThemePicker}
       />
 
-      <OnboardingModal
+      <OnboardingView
         open={onboardingOpen}
         stepIndex={onboardingStep}
+        steps={onboardingSteps}
+        path={onboardingPath}
+        onSelectPath={onOnboardingSelectPath}
         onNext={onOnboardingNext}
         onBack={onOnboardingBack}
         onSkip={onOnboardingSkip}
@@ -179,6 +192,7 @@ export const AppModals: React.FC<Props> = ({
         onCreateTeam={onOnboardingCreateTeam}
         canOpenBrainstorm={onboardingCanOpenBrainstorm}
         onOpenBrainstorm={onOnboardingOpenBrainstorm}
+        onLoadOrgWorkspace={onOnboardingLoadOrgWorkspace}
       />
     </>
   )

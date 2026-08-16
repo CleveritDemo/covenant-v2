@@ -349,6 +349,14 @@ html[data-reduce-motion="true"] .plane-chat-composer__agent-slot {
   padding: 2px 10px 0;
 }
 
+.plane-chat-composer__pastes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px 0;
+}
+
 /* El chip lleva el color del contexto solo en el ícono: con nombre + tipo + ✕ ya
    hay bastante que leer, y teñir todo el chip pelearía con el glass del dock. */
 .plane-chat-composer__context {

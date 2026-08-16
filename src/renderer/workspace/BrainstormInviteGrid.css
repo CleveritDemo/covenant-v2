@@ -101,3 +101,19 @@
   color: var(--text-muted);
   line-height: 1.2;
 }
+
+/* Alta de agente: no es seleccionable; borde punteado para no confundirla con un asiento. */
+.brainstorm-invite__create {
+  min-width: 0;
+}
+
+.brainstorm-invite__create .choice-card {
+  width: 100%;
+  min-width: 0;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.brainstorm-invite__create .choice-card:hover:not(:disabled) {
+  color: var(--text);
+}

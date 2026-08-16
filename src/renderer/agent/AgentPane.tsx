@@ -103,6 +103,13 @@ import {
   type ComposerPendingImage,
 } from './composerImages'
 import {
+  MAX_PENDING_PASTED_TEXTS,
+  composeTextWithPastes,
+  createPastedText,
+  shouldCapturePastedText,
+  type ComposerPastedText,
+} from '@shared/composerPastedText'
+import {
   clearActiveParentDelegation,
   peekActiveParentDelegation,
   rememberActiveParentDelegation,
@@ -592,6 +599,7 @@ export const AgentPane: React.FC<Props> = ({
   const [messages, setMessages] = useState<AgentChatEntry[]>([])
   const [input, setInput] = useState('')
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const [pendingPastes, setPendingPastes] = useState<ComposerPastedText[]>([])
   const [queuedTurns, setQueuedTurns] = useState<QueuedTurn[]>([])
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const editingQueuedText = editingQueuedId
@@ -2637,7 +2645,9 @@ export const AgentPane: React.FC<Props> = ({
   }, [activeThreadIdForGate, paneId])
 
   const send = useCallback((overrideText?: string): void => {
-    const prompt = (overrideText ?? input).trim()
+    const typed = (overrideText ?? input).trim()
+    const pastesSnapshot = pendingPastes
+    const prompt = composeTextWithPastes(typed, pastesSnapshot)
     if ((!prompt && pendingImages.length === 0) || humanInputBlocked) return
     if (!canStartHumanTurnNow && visibleQueuedTurns.length >= MAX_VISIBLE_QUEUED_TURNS) return
     onRequestPaneFocus()
@@ -2649,16 +2659,19 @@ export const AgentPane: React.FC<Props> = ({
         images: imagesSnapshot,
       })
       if (outcome === 'full') {
-        setInput(prompt)
+        setInput(typed)
         setPendingImages(imagesSnapshot)
+        setPendingPastes(pastesSnapshot)
         return
       }
       setInput('')
       setPendingImages([])
+      setPendingPastes([])
       return
     }
     setInput('')
     setPendingImages([])
+    setPendingPastes([])
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestrationUserTurnRef.current?.()
     }
@@ -2678,6 +2691,7 @@ export const AgentPane: React.FC<Props> = ({
     input,
     onRequestPaneFocus,
     pendingImages,
+    pendingPastes,
     pendingJiraContextIds,
     visibleQueuedTurns.length,
     enqueueQueuedTurn,
@@ -3100,20 +3114,33 @@ export const AgentPane: React.FC<Props> = ({
 
   const handleComposerPaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = imagesFromClipboard(event.clipboardData)
-    if (!files.length) return
+    if (files.length) {
+      event.preventDefault()
+      // arrayBuffer() debe arrancar en el mismo tick del paste; si no, Chromium
+      // suelta los bytes del clipboard y la miniatura queda vacía.
+      const jobs = files.map((file, index) =>
+        materializeClipboardImage(
+          file,
+          `paste-${index + 1}${extensionForMime(file.type || 'image/png')}`,
+        ),
+      )
+      void Promise.all(jobs).then(results => {
+        appendPendingImages(results.filter((image): image is PendingImage => image != null))
+      })
+      return
+    }
+    const text = event.clipboardData.getData('text/plain')
+    if (!shouldCapturePastedText(text)) return
     event.preventDefault()
-    // arrayBuffer() debe arrancar en el mismo tick del paste; si no, Chromium
-    // suelta los bytes del clipboard y la miniatura queda vacía.
-    const jobs = files.map((file, index) =>
-      materializeClipboardImage(
-        file,
-        `paste-${index + 1}${extensionForMime(file.type || 'image/png')}`,
-      ),
-    )
-    void Promise.all(jobs).then(results => {
-      appendPendingImages(results.filter((image): image is PendingImage => image != null))
+    setPendingPastes(previous => {
+      if (previous.length >= MAX_PENDING_PASTED_TEXTS) return previous
+      return [...previous, createPastedText(text)]
     })
   }, [appendPendingImages])
+
+  const removePendingPaste = useCallback((id: string): void => {
+    setPendingPastes(previous => previous.filter(paste => paste.id !== id))
+  }, [])
 
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
@@ -3228,6 +3255,7 @@ export const AgentPane: React.FC<Props> = ({
       previous.forEach(image => URL.revokeObjectURL(image.previewUrl))
       return []
     })
+    setPendingPastes([])
     setQueuedTurns(previous => {
       previous.forEach(item =>
         item.images.forEach(image => URL.revokeObjectURL(image.previewUrl)))
@@ -3425,7 +3453,9 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [])
 
-  const hasComposerPayload = Boolean(input.trim() || pendingImages.length > 0)
+  const hasComposerPayload = Boolean(
+    input.trim() || pendingImages.length > 0 || pendingPastes.length > 0,
+  )
   const buttonIsStop = showStop && !hasComposerPayload
 
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -3520,6 +3550,7 @@ export const AgentPane: React.FC<Props> = ({
 
           <AgentPaneFooter
             pendingImages={pendingImages}
+            pastedTexts={pendingPastes}
             composerDisabled={composerDisabled}
             busy={busy}
             awaitingDelegations={awaitingDelegations}
@@ -3535,6 +3566,7 @@ export const AgentPane: React.FC<Props> = ({
             onComposerCaret={jiraMention.handleChange}
             mentionPicker={jiraMention.picker}
             onRemovePendingImage={removePendingImage}
+            onRemovePastedText={removePendingPaste}
             onSendClick={handleSendClick}
             onDictateSend={handleDictateSend}
             systemSoundsEnabled={systemSoundsEnabled}

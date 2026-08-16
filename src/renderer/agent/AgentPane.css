@@ -955,6 +955,14 @@ html[data-reduce-motion="true"] {
   padding: 6px 10px 0;
 }
 
+.agent-pane__pastes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px 0;
+}
+
 
 .agent-pane__composer textarea {
   flex: 1;

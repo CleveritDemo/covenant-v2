@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.63.0
+
+- **Wiki: barrido completo en cinco pases**: el botón «Curar wiki» recorre la wiki entera con snapshot previo, overlay de progreso por pase y errores visibles tanto por pase como de barrido; el curador manual y el barrido se excluyen mutuamente en ambos sentidos, y al reabrir el mapa la UI adopta el lock real de main.
+- **Diagnóstico: memoria real del renderer**: las vitales del renderer leen heap de JS y nodos del DOM con `performance.memory` cuando está disponible, en lugar de estimaciones fijas.
+- **Agente: menos trabajo por delta de carril**: los deltas de streaming en carriles en segundo plano se agrupan con throttle para no repintar en cada token.
+- **Plano: dots de hilos en segundo plano**: conversaciones activas fuera del chip actual aparecen como dots a la izquierda; al pasar el ratón se abre un selector para cambiar de hilo.
+- **Plano: chip Lineal/Turbo en la mini del orquestador**: las minis del orquestador muestran si el modo de trabajo es lineal o turbo, con acento solo en turbo.
+
 ## v0.62.5
 
 - **Wiki: rutas absolutas y cierre de turno**: el prompt del agente apunta a la ruta absoluta de las páginas wiki para que delegaciones en worktree puedan abrirlas, y cierra cada turno con una decisión explícita de si hay conocimiento durable que guardar.

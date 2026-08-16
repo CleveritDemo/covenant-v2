@@ -373,6 +373,12 @@ export const IPC = {
    * sin dejar rastro: este canal es el único registro de ese caso.
    */
   APP_RENDERER_ERROR: 'app:rendererError',
+  /**
+   * Renderer → main: heap de JS, nodos del DOM y estado de la app, cada 20 s.
+   * Main solo ve `workingSetSize`, que ante un OOM no dice si creció el heap,
+   * el DOM o algo nativo. Se adjunta a cada muestra de `memory-history`.
+   */
+  APP_RENDERER_VITALS: 'app:rendererVitals',
   /** Renderer → main: actualiza color del titleBarOverlay (Windows) */
   WINDOW_SET_TITLEBAR_OVERLAY: 'window:setTitleBarOverlay',
   /** Renderer → main (invoke): agregado de la bitácora local de Pulse */

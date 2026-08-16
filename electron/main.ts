@@ -28,6 +28,7 @@ import * as pty from 'node-pty'
 import { IPC } from '@shared/ipcChannels'
 import type { AppConfig } from '@shared/configSchema'
 import { decideRendererCrashRecovery } from '@shared/rendererCrashRecovery'
+import { shouldAlertOnHeap, type RendererVitals } from '@shared/rendererVitals'
 import { noteFatalFailure, type FatalStormState } from '@shared/mainFailureStorm'
 import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '@shared/configSchema'
 import {
@@ -682,6 +683,15 @@ function registerIpc(): void {
   ipcMain.on(IPC.APP_RENDERER_ERROR, (_e, payload: unknown) => {
     flushMemorySamples('renderer-error')
     appendCrashDiagnostics('renderer-error', payload)
+  })
+
+  ipcMain.on(IPC.APP_RENDERER_VITALS, (_e, payload: RendererVitals) => {
+    lastRendererVitals = { ...payload, at: new Date().toISOString() }
+    // Con el heap cerca del límite hay que dejar rastro ya: si el proceso muere
+    // sin `render-process-gone` (OOM del sistema, SIGKILL) el anillo se pierde.
+    if (shouldAlertOnHeap(payload)) {
+      appendCrashDiagnostics('renderer-heap-alert', payload)
+    }
   })
 
   ipcMain.on(IPC.WINDOW_SET_TITLEBAR_OVERLAY, (event, color, symbolColor) => {
@@ -2599,11 +2609,24 @@ interface MemorySample {
   /** `workingSetSize` en MB por tipo de proceso (browser, renderer, gpu, utility). */
   mb: Record<string, number>
   total: number
+  /**
+   * Última muestra publicada por el renderer (heap, DOM, estado). Lleva `at`
+   * propio: si el renderer se congela deja de publicar, y sin esa marca el
+   * mismo heap repetido en cada punto se leería como "estable" en vez de como
+   * "no hay dato nuevo desde hace rato".
+   */
+  vitals?: RendererVitals & { at: string }
 }
 
 const memorySamples: MemorySample[] = []
 let memorySampleCount = 0
 let memorySampleTimer: ReturnType<typeof setInterval> | null = null
+/**
+ * Se guarda la última en vez de escribirla al llegar: así cada punto del
+ * histórico lleva el heap y el estado de la app junto a su RSS, y la serie se
+ * lee de una sola pasada.
+ */
+let lastRendererVitals: (RendererVitals & { at: string }) | null = null
 
 function sampleMemory(): MemorySample {
   const mb: Record<string, number> = {}
@@ -2614,7 +2637,12 @@ function sampleMemory(): MemorySample {
     mb[m.type] = (mb[m.type] ?? 0) + size
     total += size
   }
-  return { ts: new Date().toISOString(), mb, total }
+  return {
+    ts: new Date().toISOString(),
+    mb,
+    total,
+    ...(lastRendererVitals ? { vitals: lastRendererVitals } : {}),
+  }
 }
 
 /** Vuelca el anillo al log; se llama justo antes de registrar un crash. */

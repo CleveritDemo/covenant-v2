@@ -8,6 +8,7 @@ import type { PersistedSession, ChatEntry } from './persistence'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type { JiraIssueRef } from '../src/shared/jiraIssue'
 import type { RendererErrorReport } from '../src/shared/rendererErrorReport'
+import type { RendererVitals } from '../src/shared/rendererVitals'
 import type {
   LspDownloadProgress,
   LspFileReadResult,
@@ -428,6 +429,11 @@ const api = {
    */
   reportRendererError(payload: RendererErrorReport): void {
     ipcRenderer.send(IPC.APP_RENDERER_ERROR, payload)
+  },
+
+  /** `send` y no `invoke`: es telemetría periódica, nadie espera respuesta. */
+  reportRendererVitals(payload: RendererVitals): void {
+    ipcRenderer.send(IPC.APP_RENDERER_VITALS, payload)
   },
 
   getCdRecentList(): Promise<string[]> {

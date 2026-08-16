@@ -5,10 +5,12 @@ import { describeThrownValue } from '@shared/rendererErrorReport'
 import { App } from './App'
 import { RootErrorBoundary } from './components/RootErrorBoundary'
 import { installRendererErrorReporting, reportRendererError } from './errorReporting'
+import { installRendererVitals } from './rendererVitals'
 import { dismissSplash, hideSplashNow } from './splash'
 import './styles/global.css'
 
 installRendererErrorReporting()
+installRendererVitals()
 
 function BootFailure({ message }: { message: string }): React.ReactElement {
   // Reusa el panel del boundary lanzando dentro de él: un único sitio con el

@@ -4470,9 +4470,16 @@ export const App: React.FC = () => {
   }, [enqueueOrchestrationSend, syncAwaitingFromPending])
 
   const applyPruneDelegationThreadsForCompletedJob = useCallback((job: OrchestrationJob) => {
+    // Los carriles que los panes reportan vivos quedan fuera de la poda: el
+    // hilo y su transcripto siguen en uso hasta que el turno cierre.
+    const running = new Map<string, Set<string>>()
+    mergePaneReportedRunningThreadIds(running, agentPlaneStatusRef.current)
     const { tabs: nextTabs, chatDeletes } = pruneDelegationThreadsForJob(
       tabsRef.current,
       job,
+      undefined,
+      undefined,
+      running,
     )
     if (nextTabs !== tabsRef.current) {
       tabsRef.current = nextTabs

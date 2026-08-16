@@ -15,12 +15,47 @@ export interface DelegationThreadChatDelete {
   threadId: string
 }
 
+/**
+ * Hilos con un turno todavía en vuelo, por pane. Podar uno le borraría el hilo
+ * y el transcripto a un carril vivo.
+ */
+export type RunningThreadIdsByPane = ReadonlyMap<string, ReadonlySet<string>>
+
+/** Saca de la lista a podar los hilos que el pane reporta como vivos. */
+function withoutRunningThreads(
+  byPane: ReadonlyMap<string, readonly string[]>,
+  running: RunningThreadIdsByPane | undefined,
+): ReadonlyMap<string, readonly string[]> {
+  if (!running || running.size === 0) return byPane
+  const filtered = new Map<string, readonly string[]>()
+  for (const [paneId, threadIds] of byPane) {
+    const live = running.get(paneId)
+    if (!live || live.size === 0) {
+      filtered.set(paneId, threadIds)
+      continue
+    }
+    const keep = threadIds.filter(threadId => !live.has(threadId))
+    if (keep.length > 0) filtered.set(paneId, keep)
+  }
+  return filtered
+}
+
+/**
+ * `running` es un seguro, no el mecanismo: hoy todos los caminos que emiten un
+ * resultado cierran el carril (`endLane`) antes de emitirlo, así que al podar ya
+ * no queda nada vivo. Pero esta poda escribe los bindings directo, sin pasar por
+ * la protección de carriles de `agentBindingFromMeta`, y ese orden no lo obliga
+ * nadie: si algún día un resultado se emite antes de cerrar el carril, sin este
+ * filtro se le borraría el hilo a un turno en curso.
+ */
 export function pruneDelegationThreadsByPane(
   tabs: TabSession[],
-  byPane: ReadonlyMap<string, readonly string[]>,
+  byPaneInput: ReadonlyMap<string, readonly string[]>,
   now = Date.now(),
   createId: () => string = () => crypto.randomUUID(),
+  running?: RunningThreadIdsByPane,
 ): { tabs: TabSession[]; chatDeletes: DelegationThreadChatDelete[] } {
+  const byPane = withoutRunningThreads(byPaneInput, running)
   if (byPane.size === 0) return { tabs, chatDeletes: [] }
 
   const chatDeletes: DelegationThreadChatDelete[] = []
@@ -81,12 +116,14 @@ export function pruneDelegationThreadsForJob(
   job: OrchestrationJob,
   now = Date.now(),
   createId: () => string = () => crypto.randomUUID(),
+  running?: RunningThreadIdsByPane,
 ): { tabs: TabSession[]; chatDeletes: DelegationThreadChatDelete[] } {
   return pruneDelegationThreadsByPane(
     tabs,
     collectDelegationThreadIdsByPaneFromJob(job),
     now,
     createId,
+    running,
   )
 }
 

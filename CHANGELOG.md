@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.5
+
+- **Wiki: rutas absolutas y cierre de turno**: el prompt del agente apunta a la ruta absoluta de las páginas wiki para que delegaciones en worktree puedan abrirlas, y cierra cada turno con una decisión explícita de si hay conocimiento durable que guardar.
+- **Diagnóstico: vitales del renderer en el log de crashes**: el renderer reporta heap de JS, nodos del DOM y estado de la app cada 20 s; se adjunta a cada muestra de memoria del log de crashes.
+- **Plano: snippet del usuario y menos serialización**: la mini-card muestra un fragmento del último mensaje del usuario, y se quitaron dos serializaciones del camino caliente del streaming.
+
 ## v0.62.4
 
 - **Partículas de carga detrás del composer**: al abrir el chat en el plano, el efecto aurora vuelve a quedar bajo el composer en lugar de taparlo.

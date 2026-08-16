@@ -4,6 +4,17 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.67.0
+
+- **Onboarding a pantalla completa con perfil**: el wizard elige business o engineer y arma pasos variables; el stepper nombra el paso actual.
+- **Onboarding: paso Cuenta**: CTA al picker de organizaciones; con sesión iniciada el avance del paso dice Continuar y no hay doble Next.
+- **Onboarding: Escape ya no completa la guía**: cerrar con Escape deja de marcar el onboarding como hecho para siempre.
+- **Onboarding: lista de pasos congelada**: la forma de pasos se fija en la primera detección de CLIs; un recheck actualiza filas sin sacar «requirements» del array.
+- **Organizations a pantalla completa**: la gestión de orgs deja el modal y monta como vista fullscreen de la app.
+- **Composer: texto pegado largo como tarjeta**: pegar bloques grandes crea un adjunto PASTED en el plano y en el panel de agente, sin inflar el textarea; el borrador del plano sigue siendo por hilo.
+- **Salas: CTA Crear agente en el setup**: el arranque de brainstorming reutiliza el flujo de alta de agentes del workspace.
+- **Orquestación: un turno no re-despacha la misma delegación**: si un turno emite varios `assistant_final` con el mismo fence, las delegaciones solo se envían una vez.
+
 ## v0.66.0
 
 - **Org: barra de progreso al publicar más clara**: sin caja alrededor; la pista, el porcentaje y cancelar entran y salen con animación suave (incluye fade-out al terminar o cancelar).

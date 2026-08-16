@@ -167,17 +167,19 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
 
   it('deja la barra superior izquierda por encima del overlay y separa el chrome de wiki a la derecha', () => {
     render(<TabAgenticPlane {...baseProps} />)
-    const topLeftBar = document.querySelector('.plane-top-left-bar') as HTMLElement | null
-    expect(topLeftBar).not.toBeNull()
-    expect(topLeftBar!.classList.contains('plane-top-left-bar--over-wiki')).toBe(false)
+    const topLeftChrome = document.querySelector('.plane-top-left-chrome') as HTMLElement | null
+    expect(topLeftChrome).not.toBeNull()
+    expect(topLeftChrome!.classList.contains('plane-top-left-chrome--over-wiki')).toBe(false)
 
     fireEvent.click(wikiButton())
     const view = wikiView()
     expect(view).not.toBeNull()
-    const barAfterOpen = document.querySelector('.plane-top-left-bar') as HTMLElement | null
+    const chromeAfterOpen = document.querySelector('.plane-top-left-chrome') as HTMLElement | null
+    expect(chromeAfterOpen).not.toBeNull()
+    // Con el mapa abierto el chrome sube a --over-wiki (675) por encima del overlay.
+    expect(chromeAfterOpen!.classList.contains('plane-top-left-chrome--over-wiki')).toBe(true)
+    const barAfterOpen = chromeAfterOpen!.querySelector('.plane-top-left-bar') as HTMLElement | null
     expect(barAfterOpen).not.toBeNull()
-    // Con el mapa abierto la barra sube a --over-wiki (675) por encima del overlay.
-    expect(barAfterOpen!.classList.contains('plane-top-left-bar--over-wiki')).toBe(true)
     // El chrome propio de wiki queda agrupado en un solo header y no ocupa
     // la esquina superior izquierda; título + leyenda + cerrar viven juntos.
     const wikiBar = view!.querySelector('.wiki-graph-view__bar') as HTMLElement | null
@@ -186,10 +188,10 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(wikiBar!.querySelector('.wiki-graph-view__legend')).toBeTruthy()
     expect(wikiBar!.querySelector('.wiki-graph-view__close')).toBeTruthy()
     // La barra izquierda queda fuera del overlay wiki (hermanos en tab-agentic-plane).
-    expect(view!.contains(barAfterOpen)).toBe(false)
+    expect(view!.contains(chromeAfterOpen)).toBe(false)
 
     fireEvent.click(wikiButton())
-    const barAfterClose = document.querySelector('.plane-top-left-bar') as HTMLElement | null
-    expect(barAfterClose!.classList.contains('plane-top-left-bar--over-wiki')).toBe(false)
+    const chromeAfterClose = document.querySelector('.plane-top-left-chrome') as HTMLElement | null
+    expect(chromeAfterClose!.classList.contains('plane-top-left-chrome--over-wiki')).toBe(false)
   })
 })

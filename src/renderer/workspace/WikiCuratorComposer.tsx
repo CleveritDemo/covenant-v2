@@ -18,7 +18,7 @@ import {
 import { stripAgentControlFences } from '../components/ai/assistantBodySegments'
 import { DictationListeningOverlay } from '../components/DictationListeningOverlay'
 import { PendingImageThumb } from '../components/PendingImageThumb'
-import { Button, Icon, Input, Select, Spinner, TextArea, Tooltip } from '../components/ui'
+import { Button, Icon, Select, Spinner, Tooltip } from '../components/ui'
 import {
   extensionForMime,
   imagesFromClipboard,
@@ -59,8 +59,8 @@ const IMAGE_ONLY_USER_TEXT = '(imagen adjunta)'
 /**
  * Composer flotante del curador de la wiki dentro del mapa 3D.
  * Reutiliza PlaneChatComposerShell (textarea + send/stop/mic + thumbs) sin
- * badges/listbox de agentes. Historial, config popover e IPC del curador viven aquí.
- * Escape con foco dentro solo hace blur/cierra el popover — nunca cierra el mapa.
+ * badges/listbox de agentes. Historial e IPC del curador viven aquí.
+ * Escape con foco dentro solo hace blur — nunca cierra el mapa.
  */
 export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   cwd,
@@ -86,10 +86,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   const [errorText, setErrorText] = useState('')
   const [thinking, setThinking] = useState(false)
   const [history, setHistory] = useState<WikiCuratorHistoryEntry[]>([])
-  const [configOpen, setConfigOpen] = useState(false)
   const [config, setConfig] = useState<WikiCuratorConfig>({})
-  const [nameDraft, setNameDraft] = useState('')
-  const [rulesDraft, setRulesDraft] = useState('')
   const [models, setModels] = useState<AgentModelOption[]>(() => (
     modelsForProvider(DEFAULT_CURATOR_PROVIDER)
   ))
@@ -236,19 +233,11 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     void window.api.getWikiCuratorConfig(key).then(result => {
       if (cancelled || !result.ok) return
       setConfig(result.config)
-      setNameDraft(result.config.name ?? '')
-      setRulesDraft((result.config.rules ?? []).join('\n'))
       const provider = result.config.provider ?? DEFAULT_CURATOR_PROVIDER
       loadModelsForProvider(provider, () => cancelled)
     }).catch(() => undefined)
     return () => { cancelled = true }
   }, [cwd])
-
-  useEffect(() => {
-    if (!configOpen) return
-    setNameDraft(config.name ?? '')
-    setRulesDraft((config.rules ?? []).join('\n'))
-  }, [configOpen, config.name, config.rules])
 
   const persistConfig = (next: WikiCuratorConfig): void => {
     setConfig(next)
@@ -391,11 +380,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     if (event.key !== 'Escape') return
     event.preventDefault()
     event.stopPropagation()
-    if (configOpen) {
-      setConfigOpen(false)
-      inputRef.current?.focus()
-      return
-    }
     const active = document.activeElement
     if (active instanceof HTMLElement && rootRef.current?.contains(active)) {
       active.blur()
@@ -437,65 +421,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       aria-label={t('tabs.wikiCuratorName')}
       onKeyDown={handleKeyDown}
     >
-      {configOpen ? (
-        <div
-          className="wiki-curator-composer__config"
-          role="dialog"
-          aria-label={t('tabs.wikiCuratorConfigTitle')}
-        >
-          <header className="wiki-curator-composer__config-head">
-            <h3 className="wiki-curator-composer__config-title">
-              {t('tabs.wikiCuratorConfigTitle')}
-            </h3>
-            <Button
-              variant="icon"
-              size="xs"
-              aria-label={t('tabs.wikiCuratorConfigClose')}
-              onClick={() => setConfigOpen(false)}
-            >
-              <Icon name="close" size={11} aria-hidden />
-            </Button>
-          </header>
-          <label className="wiki-curator-composer__config-field">
-            <span className="wiki-curator-composer__config-label">
-              {t('tabs.wikiCuratorConfigNameLabel')}
-            </span>
-            <Input
-              size="sm"
-              value={nameDraft}
-              maxLength={40}
-              onChange={event => setNameDraft(event.target.value)}
-              onBlur={() => {
-                const name = nameDraft.trim()
-                persistConfig({ ...config, name: name || undefined })
-              }}
-            />
-          </label>
-          <label className="wiki-curator-composer__config-field">
-            <span className="wiki-curator-composer__config-label">
-              {t('tabs.wikiCuratorConfigRulesLabel')}
-            </span>
-            <TextArea
-              size="sm"
-              rows={3}
-              spellCheck={false}
-              value={rulesDraft}
-              onChange={event => setRulesDraft(event.target.value)}
-              onBlur={() => {
-                const rules = rulesDraft
-                  .split('\n')
-                  .map(line => line.trim())
-                  .filter(Boolean)
-                persistConfig({ ...config, rules: rules.length ? rules : undefined })
-              }}
-            />
-            <span className="wiki-curator-composer__config-hint">
-              {t('tabs.wikiCuratorConfigRulesHint')}
-            </span>
-          </label>
-        </div>
-      ) : null}
-
       {showHistoryPanel ? (
         <div
           ref={historyWrapRef}
@@ -570,35 +495,6 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
             level={level}
             text={interim.trim() || t('agentPane.dictationLive')}
           />
-          <div className="wiki-curator-composer__quick-config">
-            <Select
-              variant="badge"
-              size="sm"
-              value={selectedProvider}
-              aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
-              onChange={changeProvider}
-              options={AGENT_CLI_PROVIDER_IDS.map(id => ({
-                value: id,
-                label: agentCliSpec(id).label,
-              }))}
-            />
-            <Select
-              variant="badge"
-              size="sm"
-              value={selectedModel}
-              aria-label={t('tabs.wikiCuratorConfigModelLabel')}
-              onChange={value => persistConfig({ ...config, model: value || undefined })}
-              options={[
-                { value: '', label: t('tabs.wikiCuratorConfigModelDefault') },
-                ...models.map(option => ({
-                  value: option.id,
-                  label: option.label,
-                  hint: option.label === option.id ? undefined : option.id,
-                })),
-                ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
-              ]}
-            />
-          </div>
           <PlaneChatComposerShell
             value={draft}
             onChange={setDraft}
@@ -620,27 +516,43 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
             onMicStop={stopDictation}
             onPaste={handlePaste}
             inputRef={inputRef}
-            leading={(
-              <>
-                <PlaneSketchButton
-                  label={t('sketch.open')}
-                  disabled={disabled || thinking || pendingImages.length >= MAX_PENDING_IMAGES}
-                  onClick={() => setSketchOpen(true)}
+            fieldHeader={(
+              <div className="wiki-curator-composer__quick-config">
+                <Select
+                  variant="badge"
+                  size="sm"
+                  value={selectedProvider}
+                  aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
+                  onChange={changeProvider}
+                  options={AGENT_CLI_PROVIDER_IDS.map(id => ({
+                    value: id,
+                    label: agentCliSpec(id).label,
+                  }))}
                 />
-                <Tooltip content={t('tabs.wikiCuratorConfigOpen')}>
-                  <Button
-                    variant="icon"
-                    size="sm"
-                    pressed={configOpen}
-                    aria-label={t('tabs.wikiCuratorConfigOpen')}
-                    aria-expanded={configOpen}
-                    aria-haspopup="dialog"
-                    onClick={() => setConfigOpen(open => !open)}
-                  >
-                    <Icon name="settings" size={14} aria-hidden />
-                  </Button>
-                </Tooltip>
-              </>
+                <Select
+                  variant="badge"
+                  size="sm"
+                  value={selectedModel}
+                  aria-label={t('tabs.wikiCuratorConfigModelLabel')}
+                  onChange={value => persistConfig({ ...config, model: value || undefined })}
+                  options={[
+                    { value: '', label: t('tabs.wikiCuratorConfigModelDefault') },
+                    ...models.map(option => ({
+                      value: option.id,
+                      label: option.label,
+                      hint: option.label === option.id ? undefined : option.id,
+                    })),
+                    ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
+                  ]}
+                />
+              </div>
+            )}
+            leading={(
+              <PlaneSketchButton
+                label={t('sketch.open')}
+                disabled={disabled || thinking || pendingImages.length >= MAX_PENDING_IMAGES}
+                onClick={() => setSketchOpen(true)}
+              />
             )}
             shellAside={pendingImages.length > 0 ? (
               <div

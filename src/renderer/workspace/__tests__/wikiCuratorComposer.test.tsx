@@ -100,10 +100,6 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-function openConfigPanel(): void {
-  fireEvent.click(screen.getByLabelText('tabs.wikiCuratorConfigOpen'))
-}
-
 function pickSelectOption(ariaLabel: string, optionLabel: string): void {
   const trigger = screen.getByRole('button', { name: ariaLabel })
   fireEvent.click(trigger)
@@ -137,6 +133,11 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     expect(document.querySelector('.plane-chat-composer--embedded')).toBeTruthy()
     expect(document.querySelector('.plane-chat-composer__agents')).toBeNull()
     expect(document.querySelector('.wiki-curator-composer__quick-config')).toBeTruthy()
+    expect(
+      document.querySelector('.plane-chat-composer__field')?.contains(
+        document.querySelector('.wiki-curator-composer__quick-config'),
+      ),
+    ).toBe(true)
     expect(screen.getByLabelText('tabs.wikiCuratorInputLabel')).toBeTruthy()
     // Vacío → mic push-to-talk (misma fila que el composer del plano).
     expect(screen.getByLabelText('agentPane.dictationHold')).toBeTruthy()
@@ -221,26 +222,6 @@ describe('WikiCuratorComposer reutiliza el shell del composer', () => {
     })
     expect(screen.getByRole('option', { name: /Composer 2\.5/, hidden: true })).toBeTruthy()
     expect(screen.getByRole('option', { name: 'tabs.wikiCuratorConfigModelDefault', hidden: true })).toBeTruthy()
-  })
-
-  it('el popover de config solo muestra nombre y reglas', async () => {
-    render(
-      <WikiCuratorComposer
-        cwd={CWD}
-        onViewSlugs={vi.fn()}
-        onWikiChanged={vi.fn()}
-      />,
-    )
-
-    openConfigPanel()
-
-    await waitFor(() => {
-      expect(screen.getByText('tabs.wikiCuratorConfigNameLabel')).toBeTruthy()
-      expect(screen.getByText('tabs.wikiCuratorConfigRulesLabel')).toBeTruthy()
-    })
-
-    const dialog = screen.getByRole('dialog', { name: 'tabs.wikiCuratorConfigTitle' })
-    expect(dialog.querySelectorAll('[popover]')).toHaveLength(0)
   })
 
   it('el historial vive en history-wrap (expansión hover/focus-within vía CSS)', async () => {

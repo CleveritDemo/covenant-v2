@@ -1,7 +1,6 @@
 /*
- * Contenedor del curador de la wiki: posición en el mapa 3D, historial de
- * conversación y popover de config. El dock (textarea, mic, thumbs, send/stop)
- * reutiliza PlaneChatComposerShell (clases en PlaneChatComposer.css).
+ * Contenedor del curador de la wiki: posición en el mapa 3D e historial de
+ * conversación. El dock reutiliza PlaneChatComposerShell (PlaneChatComposer.css).
  */
 .wiki-curator-composer {
   position: absolute;
@@ -96,7 +95,7 @@
   font-size: 12px;
 }
 
-/* CLI y modelo como pills del plano, encima del shell (misma fila que agent badges). */
+/* CLI y modelo como pills del plano, alineados al ancho del campo (como agent badges). */
 .wiki-curator-composer__quick-config {
   display: flex;
   flex-wrap: wrap;
@@ -104,53 +103,7 @@
   justify-content: center;
   gap: 6px;
   min-height: 26px;
-  padding: 2px 10px 0;
-}
-
-/* Popover de configuración (nombre y reglas). */
-.wiki-curator-composer__config {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--plane-border) 40%, transparent);
-  border-radius: 12px;
-  background: var(--plane-glass-strong);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--bg) 45%, transparent);
-  animation: wiki-curator-bubble-in 0.14s ease-out;
-}
-
-.wiki-curator-composer__config-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.wiki-curator-composer__config-title {
-  margin: 0;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.wiki-curator-composer__config-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.wiki-curator-composer__config-label {
-  color: var(--text-muted);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.wiki-curator-composer__config-hint {
-  color: var(--text-muted);
-  font-size: 10.5px;
+  padding: 0 2px;
 }
 
 .wiki-curator-composer__sweep-blocked {
@@ -171,12 +124,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wiki-curator-composer__history,
-  .wiki-curator-composer__config {
-    animation: none;
-  }
-
   .wiki-curator-composer__history {
+    animation: none;
     transition: none;
   }
 }

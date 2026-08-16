@@ -99,6 +99,22 @@ export function paginateThreadHistory(
   return { items, hasMore: candidates.length > safeLimit }
 }
 
+/** Popover: carriles de delegación primero; conversaciones humanas después. */
+export function splitThreadHistoryCandidates(
+  threads: readonly AgentThread[],
+  activeThreadId?: string,
+  runningThreadIds?: readonly string[],
+): { delegations: AgentThread[]; humans: AgentThread[] } {
+  const candidates = threadHistoryCandidates(threads, activeThreadId, runningThreadIds)
+  const delegations: AgentThread[] = []
+  const humans: AgentThread[] = []
+  for (const thread of candidates) {
+    if (thread.origin === 'delegation') delegations.push(thread)
+    else humans.push(thread)
+  }
+  return { delegations, humans }
+}
+
 /**
  * Tope duro de threads por pane. El activo nunca se poda.
  * El transcript del thread podado queda huérfano en disco hasta el próximo

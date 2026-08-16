@@ -87,6 +87,13 @@ describe('planeStatusUserSnippet', () => {
     ])).toBe('')
     expect(planeStatusUserSnippet([])).toBe('')
   })
+
+  it('ignora follow-ups de delegación del host', () => {
+    expect(planeStatusUserSnippet([
+      { id: 'u1', role: 'user', content: '## Delegation result id: d1\nok' },
+      { id: 'u0', role: 'user', content: 'petición real' },
+    ])).toBe('petición real')
+  })
 })
 
 describe('runningThreadActivitiesEqual', () => {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  angularStepsForAspect,
+  verticalFovForAspect,
+} from '../planeSpacetimeGridScene'
+import {
   drawSphericalGrid,
-  PLANE_GRID_FOV_FALLOFF_MIN,
+  PLANE_GRID_CELL_SIZE_PX,
+  planeGridFocalPx,
   projectSphereGridPoint,
 } from '../planeSphericalGridDraw'
 
@@ -62,11 +67,28 @@ describe('drawSphericalGrid', () => {
     } as unknown as CanvasRenderingContext2D
 
     drawSphericalGrid(ctx, 640, 480, {
-      cellSizePx: 68,
+      cellSizePx: PLANE_GRID_CELL_SIZE_PX,
       lineColor: 'rgb(78, 73, 64)',
       lineAlpha: 0.063,
     })
 
-    expect(alphas[0]).toBeCloseTo(0.063 * PLANE_GRID_FOV_FALLOFF_MIN, 5)
+    const drawn = alphas.slice(0, -1)
+    expect(drawn.length).toBeGreaterThan(0)
+    for (const alpha of drawn) {
+      expect(alpha).toBeCloseTo(0.063, 2)
+    }
+  })
+})
+
+describe('plane grid density parity', () => {
+  it('el paso angular 2D coincide con WebGL en varios aspectos', () => {
+    const cellSize = PLANE_GRID_CELL_SIZE_PX
+    for (const [width, height] of [[1920, 1080], [800, 600], [1600, 900]]) {
+      const aspect = width / height
+      const vFov = verticalFovForAspect(aspect)
+      const step3d = angularStepsForAspect(cellSize, height, vFov).stepLat
+      const step2d = cellSize / planeGridFocalPx(width, height)
+      expect(step2d).toBeCloseTo(step3d, 6)
+    }
   })
 })

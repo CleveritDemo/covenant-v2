@@ -60,8 +60,8 @@
   /* Plano 2D — capa HUD/cristal (derivada del tema; applyTheme ajusta glow) */
   --plane-radius: 14px;
   --plane-radius-sm: 10px;
-  --plane-grid-size: 68px;
-  --plane-grid-opacity: 0.352;
+  --plane-grid-size: 56.667px;
+  --plane-grid-opacity: 0.595;
   --plane-grid-warmth: 0.42;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
   --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 84%, var(--surface));

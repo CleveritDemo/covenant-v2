@@ -17,6 +17,18 @@ const threads = [
   { id: 't-2', title: 'Two', updatedAt: 1_700_000_100_000, createdAt: 1_700_000_100_000 },
 ]
 
+function chipsRegion(container: HTMLElement): HTMLElement {
+  const region = container.querySelector('.plane-chat-contexts-bar__chips')
+  expect(region).not.toBeNull()
+  return region as HTMLElement
+}
+
+function activeChipRegion(container: HTMLElement): HTMLElement {
+  const region = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chips-active')
+  expect(region).not.toBeNull()
+  return region as HTMLElement
+}
+
 describe('PlaneChatContextsBar locks', () => {
   it('newThreadLocked=true deshabilita el "+"', () => {
     const onNewThread = vi.fn()
@@ -39,7 +51,7 @@ describe('PlaneChatContextsBar locks', () => {
   it('threadSelectionLocked=true bloquea otros chips pero + queda habilitado', () => {
     const onNewThread = vi.fn()
     const onSelectThread = vi.fn()
-    render(
+    const { container } = render(
       <PlaneChatContextsBar
         threads={threads}
         activeThreadId="t-1"
@@ -50,7 +62,9 @@ describe('PlaneChatContextsBar locks', () => {
         onNewThread={onNewThread}
       />,
     )
-    const runningOption = screen.getByRole('option', { name: 'Two' }) as HTMLButtonElement
+    const runningOption = chipsRegion(container).querySelector(
+      '.plane-chat-contexts-bar__chip--running',
+    ) as HTMLButtonElement
     expect(runningOption.disabled).toBe(true)
     fireEvent.click(runningOption)
     expect(onSelectThread).not.toHaveBeenCalled()
@@ -62,7 +76,7 @@ describe('PlaneChatContextsBar locks', () => {
 
   it('muestra chip activo y hilos corriendo; permite cambiar si no hay lock', () => {
     const onSelectThread = vi.fn()
-    render(
+    const { container } = render(
       <PlaneChatContextsBar
         threads={threads}
         activeThreadId="t-1"
@@ -71,14 +85,14 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={onSelectThread}
       />,
     )
-    expect(screen.getByLabelText('One')).toBeTruthy()
-    expect(screen.getByRole('option', { name: 'Two' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('option', { name: 'Two' }))
+    const chips = chipsRegion(container)
+    expect(chips.querySelector('.plane-chat-contexts-bar__chip-host--active')).not.toBeNull()
+    fireEvent.click(chips.querySelector('.plane-chat-contexts-bar__chip--running') as HTMLButtonElement)
     expect(onSelectThread).toHaveBeenCalledWith('t-2')
   })
 
   it('threadSelectionLocked deshabilita chips ajenos aunque haya hilos corriendo', () => {
-    render(
+    const { container } = render(
       <PlaneChatContextsBar
         threads={threads}
         activeThreadId="t-1"
@@ -87,7 +101,9 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={() => undefined}
       />,
     )
-    const runningOption = screen.getByRole('option', { name: 'Two' }) as HTMLButtonElement
+    const runningOption = chipsRegion(container).querySelector(
+      '.plane-chat-contexts-bar__chip--running',
+    ) as HTMLButtonElement
     expect(runningOption.disabled).toBe(true)
   })
 
@@ -101,9 +117,10 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={() => undefined}
       />,
     )
-    const chip = screen.getByLabelText('One')
-    expect(chip.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
-    expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
+    const active = activeChipRegion(container)
+    const activeHost = active.querySelector('.plane-chat-contexts-bar__chip-host--active')
+    expect(activeHost?.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(activeHost?.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
   })
 
   it('hides delegating dot on the active chip while CLI is busy', () => {
@@ -116,7 +133,9 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={() => undefined}
       />,
     )
-    expect(screen.getByLabelText('One').querySelector('.plane-busy-dot')).toBeNull()
-    expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
+    const active = activeChipRegion(container)
+    const activeHost = active.querySelector('.plane-chat-contexts-bar__chip-host--active')
+    expect(activeHost?.querySelector('.plane-busy-dot')).toBeNull()
+    expect(activeHost?.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
   })
 })

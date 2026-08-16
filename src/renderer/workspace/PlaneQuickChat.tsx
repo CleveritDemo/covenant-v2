@@ -109,14 +109,15 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   if (!hasContent) return null
 
   return (
-    <div
-      className="plane-quick-chat agent-pane"
-      aria-live="polite"
-      style={{
-        '--agent-chat-font-size': `${fontSize}px`,
-      } as React.CSSProperties}
-    >
+    <div className="plane-quick-chat-shell" aria-live="polite">
+      {/* Fuera de .agent-pane (isolation) para que el fade superior cubra el ancho del plano. */}
       <div className="plane-quick-chat__top-fade" aria-hidden="true" />
+      <div
+        className="plane-quick-chat agent-pane"
+        style={{
+          '--agent-chat-font-size': `${fontSize}px`,
+        } as React.CSSProperties}
+      >
       <div className="plane-quick-chat__enter">
         <div className="plane-quick-chat__frame">
           <div className="plane-quick-chat__stream agent-pane__messages-wrap">
@@ -191,6 +192,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

@@ -16,6 +16,7 @@ import {
   setActiveThreadSession,
   sortThreadsByRecency,
   stripThreadSessions,
+  splitThreadHistoryCandidates,
   threadHistoryCandidates,
   threadPatch,
   threadTitleFrom,
@@ -416,5 +417,15 @@ describe('thread history helpers', () => {
       items: candidates.slice(0, 2),
       hasMore: true,
     })
+  })
+
+  it('splitThreadHistoryCandidates pone delegaciones antes que humanos', () => {
+    const withLanes = [
+      ...threads,
+      { id: 'd2', title: '', updatedAt: 901, origin: 'delegation' as const },
+    ]
+    const { delegations, humans } = splitThreadHistoryCandidates(withLanes, 't1', ['d2', 't2'])
+    expect(delegations.map(thread => thread.id)).toEqual(['d2'])
+    expect(humans.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'])
   })
 })

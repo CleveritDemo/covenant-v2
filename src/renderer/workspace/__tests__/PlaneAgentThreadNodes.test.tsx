@@ -27,6 +27,29 @@ describe('PlaneAgentThreadNodes', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('lista fila agregada de delegación con dot delegating', () => {
+    const { container } = render(
+      <PlaneAgentThreadNodes
+        threads={[
+          {
+            id: 'delegation:wave',
+            title: 'Delegando…',
+            running: true,
+            active: false,
+            activity: 'Esperando 1/3',
+            kind: 'delegation',
+            dotVariant: 'delegating',
+          },
+        ]}
+        onOpenThread={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(screen.getByText('Delegando… · Esperando 1/3')).toBeTruthy()
+    expect(container.querySelectorAll('.plane-agent-thread-nodes__row')).toHaveLength(1)
+  })
+
   it('lista hilos activos con dot y petición del usuario', () => {
     const { container } = render(
       <PlaneAgentThreadNodes

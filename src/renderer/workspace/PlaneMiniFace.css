@@ -407,7 +407,7 @@
   transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Actividad delegating sin hilos listados: dot en esquina; busy vive en thread rows. */
+/* Busy/delegating en filas de hilo o popover de historial; sin dot en esquina. */
 .plane-mini-face--has-activity-dot .plane-mini-face__glow {
   opacity: 0;
 }

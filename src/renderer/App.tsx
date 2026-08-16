@@ -46,7 +46,11 @@ import {
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
 import { TabAgenticPlane } from './workspace/TabAgenticPlane'
-import { buildPlaneThreadNodes } from './workspace/planeThreadNodes'
+import {
+  buildDelegationMiniNodes,
+  buildPlaneThreadNodes,
+  mergePlaneMiniThreadRows,
+} from './workspace/planeThreadNodes'
 import { claimPlaneSendSlot, releasePlaneSendSlot } from './planeSendSlot'
 import { markSplashUiReady, whenSplashDismissed } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
@@ -6456,6 +6460,7 @@ export const App: React.FC = () => {
                     : undefined,
                   snippet: userPromptSnippet
                     || (delegationWorkActive ? t('agentPane.awaitingStatusRunning') : '')
+                    || (awaitingDelegations ? t('agentPane.delegatingTitle') : '')
                     || '',
                   agentId: meta?.id,
                   localOnly: meta?.localOnly === true,
@@ -6467,11 +6472,30 @@ export const App: React.FC = () => {
                   // despacha con su threadId antes de que el pane abra el
                   // carril, y mapear solo el catálogo dejaba esos hilos activos
                   // sin fila (la card se quedaba con el snippet, sin señal).
-                  threads: buildPlaneThreadNodes(
-                    threadState?.threads ?? [],
-                    runningThreadIdsByPane.get(paneId),
-                    status?.runningThreadActivities,
-                  ),
+                  threads: mergePlaneMiniThreadRows(
+                    buildDelegationMiniNodes(
+                      orchestrationAwaitingByPane.get(paneId),
+                      {
+                        delegatingTitle: t('agentPane.delegatingTitle'),
+                        waveProgress: (done, total) => t('agentPane.awaitingWaveProgress', {
+                          done,
+                          total,
+                        }),
+                      },
+                    ),
+                    buildPlaneThreadNodes(
+                      threadState?.threads ?? [],
+                      runningThreadIdsByPane.get(paneId),
+                      status?.runningThreadActivities,
+                    ),
+                  ).map(node => ({
+                    id: node.id,
+                    title: node.title,
+                    running: node.running,
+                    activity: node.activity,
+                    kind: node.kind,
+                    dotVariant: node.dotVariant,
+                  })),
                   activeThreadId: threadState?.activeThreadId,
                   window: win,
                 }
@@ -6866,6 +6890,11 @@ export const App: React.FC = () => {
                   }}
                   openChatThreads={openChatThreadState?.threads ?? []}
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
+                  openChatOrchestrationAwaiting={
+                    tab.planeOpenChatAgentId
+                      ? orchestrationAwaitingByPane.get(tab.planeOpenChatAgentId) ?? null
+                      : null
+                  }
                   agentStatuses={agentPlaneStatus}
                   projectAgents={projectAgentsByCwd[agentCatalogKey] ?? []}
                   chatFontSize={config.fontSize ?? 13}

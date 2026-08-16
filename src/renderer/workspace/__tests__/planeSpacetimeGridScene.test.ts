@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  maxFovHalfAngleRad,
-  sphereGridFovFalloff,
-  sphereGridFovFalloffFromAngles,
-} from '../planeSphericalGridDraw'
-import {
   angularStepsForAspect,
   interiorSphereLineWarmth,
   sphereCameraLookTarget,
@@ -101,29 +96,5 @@ describe('interiorSphereLineWarmth', () => {
     const front = interiorSphereLineWarmth(0, 0, 50)
     const back = interiorSphereLineWarmth(0, 0, -50)
     expect(front).toBeGreaterThan(back)
-  })
-})
-
-describe('sphereGridFovFalloff', () => {
-  it('vale 1 en el centro del FOV (+Z)', () => {
-    expect(sphereGridFovFalloff(0, 0, 1, maxFovHalfAngleRad(110, 1))).toBe(1)
-  })
-
-  it('cae a 50% en el borde del cono visual', () => {
-    const maxAngle = maxFovHalfAngleRad(110, 16 / 9)
-    const edge = sphereGridFovFalloff(
-      Math.sin(maxAngle),
-      0,
-      Math.cos(maxAngle),
-      maxAngle,
-    )
-    expect(edge).toBeCloseTo(0.5, 5)
-  })
-
-  it('interpola desde el ecuador frontal en ángulos', () => {
-    const maxAngle = maxFovHalfAngleRad(110, 1)
-    const mid = sphereGridFovFalloffFromAngles(0, maxAngle * 0.5, maxAngle)
-    expect(mid).toBeGreaterThan(0.5)
-    expect(mid).toBeLessThan(1)
   })
 })

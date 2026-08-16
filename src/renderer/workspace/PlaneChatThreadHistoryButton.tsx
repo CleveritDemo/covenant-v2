@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import {
   paginateThreadHistory,
-  threadHistoryCandidates,
+  splitThreadHistoryCandidates,
   type AgentThread,
 } from '@shared/agentThreads'
-import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
+import { resolveThreadChipActivityDot, type PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './PlaneChatThreadHistoryButton.css'
 
@@ -33,10 +34,16 @@ export interface PlaneChatThreadHistoryButtonProps {
   runningThreadIds: readonly string[]
   awaitingDelegations?: boolean
   awaitingDelegationThreadIds?: readonly string[]
+  /** Ola del orquestador: filas de delegación antes del historial humano. */
+  orchestrationAwaiting?: OrchestrationAwaitingView | null
+  /** Petición del usuario por hilo en curso (carril de delegación). */
+  runningThreadActivities?: Readonly<Record<string, string>>
   paneCliBusy?: boolean
   threadSelectionLocked?: boolean
   onSelectThread: (threadId: string) => void
   onOpenChange?: (open: boolean) => void
+  /** Desde acciones derechas: el panel se desplaza hacia el centro del plano. */
+  panelAlign?: 'trigger-center' | 'toward-center'
 }
 
 function panelPlacement(trigger: DOMRect): {
@@ -63,6 +70,16 @@ function centeredPanelLeft(trigger: DOMRect, panelWidth: number): number {
   return Math.max(inset, Math.min(ideal, window.innerWidth - panelWidth - inset))
 }
 
+/** Panel anclado al trigger lateral derecho; crece hacia el centro del plano. */
+function panelLeftTowardCenter(trigger: DOMRect, panelWidth: number): number {
+  const inset = 8
+  const gap = 6
+  const ideal = trigger.left + trigger.width / 2 - panelWidth
+  const anchoredLeft = trigger.left - panelWidth - gap
+  const left = ideal <= anchoredLeft ? ideal : anchoredLeft
+  return Math.max(inset, Math.min(left, window.innerWidth - panelWidth - inset))
+}
+
 /** Popover paginado con todas las conversaciones del agente. */
 export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButtonProps> = ({
   panelId,
@@ -73,10 +90,13 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   runningThreadIds,
   awaitingDelegations = false,
   awaitingDelegationThreadIds,
+  orchestrationAwaiting = null,
+  runningThreadActivities = {},
   paneCliBusy = false,
   threadSelectionLocked = false,
   onSelectThread,
   onOpenChange,
+  panelAlign = 'trigger-center',
 }) => {
   const { t } = useT()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -88,15 +108,19 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   const closeAnimTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const isOpenRef = useRef(false)
 
-  const candidates = useMemo(
-    () => threadHistoryCandidates(threads, activeThreadId, runningThreadIds),
+  const { delegations, humans } = useMemo(
+    () => splitThreadHistoryCandidates(threads, activeThreadId, runningThreadIds),
     [threads, activeThreadId, runningThreadIds],
   )
 
-  const { items, hasMore } = useMemo(
-    () => paginateThreadHistory(candidates, visibleLimit),
-    [candidates, visibleLimit],
+  const orchestrationItems = orchestrationAwaiting?.items ?? []
+
+  const { items: humanItems, hasMore } = useMemo(
+    () => paginateThreadHistory(humans, visibleLimit),
+    [humans, visibleLimit],
   )
+
+  const rowCount = orchestrationItems.length + delegations.length + humanItems.length
 
   const syncPanelPosition = useCallback((): void => {
     const trigger = triggerRef.current?.getBoundingClientRect()
@@ -105,15 +129,18 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     const { top, bottom, maxHeight } = panelPlacement(trigger)
     const measuredWidth = panelEl.getBoundingClientRect().width
     const layoutWidth = Math.max(measuredWidth, trigger.width)
+    const panelLeft = panelAlign === 'toward-center'
+      ? panelLeftTowardCenter(trigger, layoutWidth)
+      : centeredPanelLeft(trigger, layoutWidth)
     setBox({
       top,
       bottom,
-      left: centeredPanelLeft(trigger, layoutWidth),
+      left: panelLeft,
       right: 'auto',
       minWidth: trigger.width,
       maxHeight,
     })
-  }, [triggerRef])
+  }, [panelAlign, triggerRef])
 
   const syncPanelPositionAfterLayout = useCallback((): void => {
     requestAnimationFrame(() => {
@@ -244,7 +271,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   useEffect(() => {
     if (!isOpenRef.current) return
     syncPanelPositionAfterLayout()
-  }, [items.length, syncPanelPositionAfterLayout])
+  }, [rowCount, syncPanelPositionAfterLayout])
 
   const close = (): void => {
     cancelScheduledOpen()
@@ -265,7 +292,47 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     }
   }
 
-  if (threads.length === 0) return null
+  if (threads.length === 0 && orchestrationItems.length === 0) return null
+
+  const renderThreadRow = (thread: AgentThread): React.ReactNode => {
+    const rowDot: PlaneActivityDotKind | null = thread.origin === 'delegation'
+      ? 'delegating'
+      : resolveThreadChipActivityDot(
+        thread.id,
+        activeThreadId,
+        awaitingDelegations,
+        runningThreadIds,
+        paneCliBusy,
+        awaitingDelegationThreadIds,
+      )
+    const activity = runningThreadActivities[thread.id]?.trim()
+    const title = thread.origin === 'delegation'
+      ? (activity || t('agentPane.awaitingStatusRunning'))
+      : (thread.title || t('agentPane.threadUntitled'))
+    const switchDisabled = threadSelectionLocked
+
+    return (
+      <button
+        key={thread.id}
+        type="button"
+        role="option"
+        aria-selected={false}
+        className="plane-chat-thread-history__row"
+        disabled={switchDisabled}
+        onPointerDown={event => {
+          event.preventDefault()
+        }}
+        onClick={event => {
+          event.preventDefault()
+          event.stopPropagation()
+          if (!switchDisabled) pick(thread.id)
+        }}
+      >
+        {rowDot ? <PlaneBusyDot size="sm" variant={rowDot} /> : null}
+        <span className="plane-chat-thread-history__label">{title}</span>
+      </button>
+    )
+  }
 
   return (
     <>
@@ -276,6 +343,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
       popover="manual"
       className={[
         'plane-chat-thread-history__panel',
+        panelAlign === 'toward-center' ? 'plane-chat-thread-history__panel--align-center' : '',
         closing ? 'plane-chat-thread-history__panel--closing' : '',
       ].filter(Boolean).join(' ')}
       style={box}
@@ -289,40 +357,40 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
         className="plane-chat-thread-history__list"
         onScroll={handleScroll}
       >
-      {items.map(thread => {
-          const rowDot = resolveThreadChipActivityDot(
-            thread.id,
-            activeThreadId,
-            awaitingDelegations,
-            runningThreadIds,
-            paneCliBusy,
-            awaitingDelegationThreadIds,
-          )
-          const title = thread.title || t('agentPane.threadUntitled')
-          const switchDisabled = threadSelectionLocked
-
-          return (
-            <button
-              key={thread.id}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className="plane-chat-thread-history__row"
-              disabled={switchDisabled}
-              onPointerDown={event => {
-                event.preventDefault()
-              }}
-              onClick={event => {
-                event.preventDefault()
-                event.stopPropagation()
-                if (!switchDisabled) pick(thread.id)
-              }}
+      {orchestrationItems.map(item => (
+          <div
+            key={item.delegationId}
+            className="plane-chat-thread-history__row plane-chat-thread-history__row--static"
+            role="presentation"
+          >
+            <PlaneBusyDot
+              size="sm"
+              variant={
+                item.status === 'done'
+                  ? 'done'
+                  : item.status === 'deferred'
+                    ? 'deferred'
+                    : 'delegating'
+              }
+            />
+            <span className="plane-chat-thread-history__label">{item.agentLabel}</span>
+          </div>
+        ))}
+        {awaitingDelegations
+          && orchestrationItems.length === 0
+          && delegations.length === 0 ? (
+            <div
+              className="plane-chat-thread-history__row plane-chat-thread-history__row--static"
+              role="presentation"
             >
-              {rowDot ? <PlaneBusyDot size="sm" variant={rowDot} /> : null}
-              <span className="plane-chat-thread-history__label">{title}</span>
-            </button>
-          )
-        })}
+              <PlaneBusyDot size="sm" variant="delegating" />
+              <span className="plane-chat-thread-history__label">
+                {t('agentPane.delegatingTitle')}
+              </span>
+            </div>
+          ) : null}
+        {delegations.map(renderThreadRow)}
+        {humanItems.map(renderThreadRow)}
       </div>
     </div>
     </>

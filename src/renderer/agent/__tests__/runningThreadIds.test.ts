@@ -126,6 +126,34 @@ describe('collectRunningThreadActivities', () => {
       msgs,
     )).toEqual({ 'human-active': 'Revisa los tests' })
   })
+
+  it('sustituye follow-ups de delegación con etiqueta humana en la mini', () => {
+    const msgs: AgentChatEntry[] = [
+      { id: 'u1', role: 'user', content: '## Delegation result id: d-740\nstatus: ok' },
+      { id: 'a1', role: 'assistant', content: 'Procesando…' },
+    ]
+    expect(collectRunningThreadActivities(
+      new Map(),
+      ['human-active'],
+      'human-active',
+      msgs,
+      { delegationResultsLabel: 'Obteniendo resultados…' },
+    )).toEqual({ 'human-active': 'Obteniendo resultados…' })
+  })
+
+  it('prefiere la petición humana real si hay resultado de delegación más reciente', () => {
+    const msgs: AgentChatEntry[] = [
+      { id: 'u0', role: 'user', content: 'Arregla el header' },
+      { id: 'u1', role: 'user', content: '## Delegation result id: d-740\nstatus: ok' },
+    ]
+    expect(collectRunningThreadActivities(
+      new Map(),
+      ['human-active'],
+      'human-active',
+      msgs,
+      { delegationResultsLabel: 'Obteniendo resultados…' },
+    )).toEqual({ 'human-active': 'Arregla el header' })
+  })
 })
 
 describe('mergePaneReportedRunningThreadIds', () => {

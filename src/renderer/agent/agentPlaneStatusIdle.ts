@@ -1,4 +1,5 @@
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
 
 export interface QueuedTurnPlaneImage {
   previewUrl: string
@@ -62,7 +63,7 @@ export function planeStatusUserSnippet(
     const entry = messages[i]
     if (!entry || entry.role !== 'user') continue
     const text = entry.content.trim()
-    if (!text) continue
+    if (!text || looksLikeDelegationResultFollowUp(text)) continue
     return text.length > 120 ? `${text.slice(0, 117)}…` : text
   }
   return ''

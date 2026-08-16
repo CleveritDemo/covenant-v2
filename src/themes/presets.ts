@@ -2049,49 +2049,61 @@ function planeGridContrastRatio(
 const PLANE_GRID_OPACITY_BASE = 0.25
 const PLANE_GRID_OPACITY_MIN = 0.02
 const PLANE_GRID_OPACITY_MAX = 1
-/** Referencia única de contraste: Interstellar manda para claros y oscuros. */
-const PLANE_GRID_REFERENCE_THEME_ID = 'interstellar'
-/** Los temas claros piden un plus: sobre fondo casi blanco la línea se lee menos. */
-const PLANE_GRID_LIGHT_CONTRAST_BOOST = 1.2
-/** Ajuste fino de notoriedad por apariencia (1 = neutro). */
-const PLANE_GRID_DARK_NOTORIETY_SCALE = 1.1
-const PLANE_GRID_LIGHT_NOTORIETY_SCALE = 0.64
+/** Ancla de contraste por apariencia: oscuros y claros se calibran por separado. */
+const PLANE_GRID_REFERENCE_ID = {
+  dark: 'interstellar',
+  light: 'interstellarLight',
+} as const
+/** Ajuste fino de notoriedad por apariencia (1 = neutro). Cada escala solo toca su familia. */
+const PLANE_GRID_DARK_NOTORIETY_SCALE = 2.417
+/** Calibrado para Interstellar Light ≈0.390 con ancla propia (0.25×0.95). */
+const PLANE_GRID_LIGHT_NOTORIETY_SCALE = 1.642
 
-/** Opacidad ancla de Interstellar: base × glow del chrome, sin escala global. */
-export function referencePlaneGridOpacity(theme: AppTheme = getTheme(PLANE_GRID_REFERENCE_THEME_ID)): number {
+function planeGridReferenceThemeId(light: boolean): string {
+  return PLANE_GRID_REFERENCE_ID[light ? 'light' : 'dark']
+}
+
+function planeGridNotorietyScale(light: boolean): number {
+  return light ? PLANE_GRID_LIGHT_NOTORIETY_SCALE : PLANE_GRID_DARK_NOTORIETY_SCALE
+}
+
+function planeGridAnchorOpacity(theme: AppTheme, light: boolean): number {
+  return referencePlaneGridOpacity(theme) * planeGridNotorietyScale(light)
+}
+
+/** Opacidad ancla del tema de referencia: base × glow del chrome, sin escala de notoriedad. */
+export function referencePlaneGridOpacity(
+  theme: AppTheme = getTheme(planeGridReferenceThemeId(false)),
+): number {
   return Number((PLANE_GRID_OPACITY_BASE * getThemeChromeProfile(theme).glowMultiplier).toFixed(3))
 }
 
-/** Salto de contraste objetivo: el de Interstellar a opacidad ancla, con ajuste por apariencia. */
+/** Contraste objetivo = el del ancla de la misma apariencia a su opacidad calibrada. */
 export function planeGridTargetContrast(light = false): number {
-  const refTheme = getTheme(PLANE_GRID_REFERENCE_THEME_ID)
-  const refOpacity = referencePlaneGridOpacity(refTheme)
+  const refTheme = getTheme(planeGridReferenceThemeId(light))
+  const refOpacity = planeGridAnchorOpacity(refTheme, light)
   const refRatio = planeGridContrastRatio(
     refTheme.vars['--bg'] ?? '#030508',
     refTheme.vars['--border'] ?? '#222a3c',
     refTheme.vars['--accent'] ?? '#d4a84b',
     refOpacity,
   )
-  if (refRatio == null) return 1
-  const appearanceBoost = light ? PLANE_GRID_LIGHT_CONTRAST_BOOST : 1
-  const jump = (refRatio - 1) * appearanceBoost
-  const notoriety = light ? PLANE_GRID_LIGHT_NOTORIETY_SCALE : PLANE_GRID_DARK_NOTORIETY_SCALE
-  return 1 + jump * notoriety
+  return refRatio ?? 1
 }
 
 /**
- * Opacidad de la rejilla del plano calibrada al contraste perceptual de Interstellar.
- * La escala global se aplica al **salto de contraste**, no a la opacidad: sobre fondo
- * claro la misma opacidad rinde mucho menos contraste, y escalar la opacidad dejaba
- * los temas light casi invisibles.
+ * Opacidad de la rejilla del plano calibrada al contraste perceptual del ancla de su apariencia.
+ * La escala de notoriedad se aplica al **salto de contraste**, no a la opacidad en bruto.
  */
 export function computePlaneGridOpacity(theme: AppTheme): number {
-  if (theme.id === PLANE_GRID_REFERENCE_THEME_ID) {
-    return Number((referencePlaneGridOpacity(theme) * PLANE_GRID_DARK_NOTORIETY_SCALE).toFixed(3))
+  const light = isLightTheme(theme)
+  const refId = planeGridReferenceThemeId(light)
+  if (theme.id === refId) {
+    return Number(planeGridAnchorOpacity(theme, light).toFixed(3))
   }
 
-  const refTheme = getTheme(PLANE_GRID_REFERENCE_THEME_ID)
-  const target = planeGridTargetContrast(isLightTheme(theme))
+  const refTheme = getTheme(refId)
+  const target = planeGridTargetContrast(light)
 
   let best = referencePlaneGridOpacity(refTheme)
   let bestDelta = Number.POSITIVE_INFINITY

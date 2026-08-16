@@ -57,9 +57,24 @@ const rows = (container: HTMLElement): number =>
   container.querySelectorAll('.plane-agent-thread-nodes__row').length
 
 describe('PlanePaneWindow — señales de la card mini', () => {
-  it('la esquina es solo para la ola del orquestador', () => {
-    const container = renderCard({ awaitingDelegations: true })
-    expect(corners(container)).toBe(1)
+  it('delegaciones en ola van al listado con dot delegating, no a la esquina', () => {
+    const container = renderCard({
+      awaitingDelegations: true,
+      threadNodes: [{
+        id: 'delegation:wave',
+        title: 'agentPane.delegatingTitle',
+        running: true,
+        active: false,
+        activity: 'Esperando 0/2',
+        kind: 'delegation',
+        dotVariant: 'delegating',
+      }],
+      onOpenThread: () => undefined,
+    })
+    expect(corners(container)).toBe(0)
+    expect(rows(container)).toBe(1)
+    expect(container.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(container.querySelector('.plane-mini-face__status')).toBeNull()
   })
 
   it('un turno en curso va al listado, nunca a la esquina', () => {
@@ -72,29 +87,52 @@ describe('PlanePaneWindow — señales de la card mini', () => {
     expect(corners(container)).toBe(0)
   })
 
-  it('lista humano y carriles de delegación juntos', () => {
+  it('lista delegaciones y carriles busy juntos', () => {
     const container = renderCard({
       busy: true,
+      awaitingDelegations: true,
       threadNodes: [
+        {
+          id: 'delegation:wave',
+          title: 'Delegando…',
+          running: true,
+          active: false,
+          activity: 'Esperando 1/2',
+          kind: 'delegation',
+          dotVariant: 'delegating',
+        },
         { id: 't1', title: '', running: true, active: true, activity: 'humano' },
         { id: 'lane-1', title: '', running: true, active: false, activity: 'subtarea' },
         { id: 'viejo', title: '', running: false, active: false },
       ],
       onOpenThread: () => undefined,
     })
-    expect(rows(container)).toBe(2)
+    expect(rows(container)).toBe(3)
     expect(corners(container)).toBe(0)
+    const delegating = container.querySelectorAll('.plane-busy-dot--delegating')
+    expect(delegating.length).toBeGreaterThanOrEqual(1)
   })
 
   it('el orquestador puede esperar su ola y correr su propio turno a la vez', () => {
     const container = renderCard({
       busy: true,
       awaitingDelegations: true,
-      threadNodes: [{ id: 't1', title: '', running: true, active: true }],
+      threadNodes: [
+        {
+          id: 'delegation:wave',
+          title: 'Delegando…',
+          running: true,
+          active: false,
+          activity: '1/2',
+          kind: 'delegation',
+          dotVariant: 'delegating',
+        },
+        { id: 't1', title: '', running: true, active: true },
+      ],
       onOpenThread: () => undefined,
     })
-    expect(corners(container)).toBe(1)
-    expect(rows(container)).toBe(1)
+    expect(corners(container)).toBe(0)
+    expect(rows(container)).toBe(2)
   })
 
   it('en reposo la card no pinta nada', () => {

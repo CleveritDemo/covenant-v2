@@ -953,7 +953,9 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           threadNodes={entity.kind === 'agent' && entity.threads
             ? entity.threads.map(thread => ({
               ...thread,
-              active: thread.id === entity.activeThreadId,
+              active: thread.kind === 'delegation'
+                ? false
+                : thread.id === entity.activeThreadId,
             }))
             : undefined}
           onOpenThread={entity.kind === 'agent' && onOpenThread

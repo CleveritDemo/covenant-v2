@@ -28,6 +28,10 @@
   transform-origin: top center;
 }
 
+.plane-chat-thread-history__panel--align-center {
+  transform-origin: top right;
+}
+
 .plane-chat-thread-history__list {
   display: flex;
   flex-direction: column;
@@ -163,6 +167,11 @@
 .plane-chat-thread-history__row:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.plane-chat-thread-history__row--static {
+  cursor: default;
+  pointer-events: none;
 }
 
 .plane-chat-thread-history__label {

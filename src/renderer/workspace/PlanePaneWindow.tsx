@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import type { PaneWindowGeometry } from '@shared/paneWindows'
 import type { OrchestrationWorkStyle } from '@shared/agentOrchestration'
@@ -11,7 +11,6 @@ import {
   type PlaneAgentThreadNode,
 } from './PlaneAgentThreadNodes'
 import { PlaneMiniActions } from './PlaneMiniActions'
-import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneMiniFolderBadge } from './PlaneMiniFolderBadge'
 import { armMiniExpandSuppress } from './miniExpandSuppress'
@@ -159,11 +158,16 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   // Agente nunca expande PaneWindow (clic → onOpenChat); solo terminales usan open.
   const isExpanded = !isAgent && window.open
   const display = isExpanded ? 'full' : 'mini'
+  const trimmedSnippet = snippet?.trim() || ''
+  const hasRunningMiniRows = threadNodes.some(thread => thread.running)
   const statusLabel = busy
-    ? (snippet?.trim() || idleLabel)
-    : idleLabel
+    ? (trimmedSnippet || idleLabel)
+    : awaitingDelegations && !hasRunningMiniRows
+      ? (trimmedSnippet || t('agentPane.delegatingTitle'))
+      : idleLabel
+  const miniFaceBusy = busy || awaitingDelegations || hasRunningMiniRows
   const showThreadNodes = isAgent
-    && threadNodes.some(thread => thread.running)
+    && hasRunningMiniRows
     && Boolean(onOpenThread)
   const openAgentFromCard = onOpenChat
   const origin = dragPosition && !isExpanded
@@ -175,16 +179,6 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
       }
     : miniOrigin
   const effectiveFadeProgress = fadeProgress
-  /**
-   * Reparto de señales en la card mini, y son independientes:
-   * - Esquina superior derecha: **solo** la ola del orquestador (delegaciones
-   *   enviadas, esperando resultados).
-   * - Listado bajo el nombre: **todo** hilo activo, sea turno humano o carril
-   *   de delegación. Cada fila lleva su propio dot; un busy nunca sube a la
-   *   esquina.
-   */
-  const miniCornerActivityDot: PlaneActivityDotKind | null =
-    awaitingDelegations ? 'delegating' : null
   const paneWindowClassName = [
     effectiveFadeProgress <= 0 || outOfBand ? 'pane-window--out-of-band' : '',
     effectiveFadeProgress < 1 ? 'pane-window--fading' : '',
@@ -245,8 +239,8 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             name={title}
             seatDragEnabled={seatDragEnabled}
             monogram={monogram}
-            busy={busy}
-            activityDot={miniCornerActivityDot}
+            busy={miniFaceBusy}
+            activityDot={null}
             provider={provider}
             coordination={coordination}
             orchestrationWorkStyle={orchestrationWorkStyle}

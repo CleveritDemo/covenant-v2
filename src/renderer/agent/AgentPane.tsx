@@ -58,6 +58,7 @@ import {
   sanitizeMaxDelegationsPerTurn,
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
+import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -373,7 +374,7 @@ export function computeBusyForGate(
   )
 }
 
-/** Recorta la última petición humana visible en la card mini. */
+/** Recorta la última petición humana visible en la card mini (sin follow-ups de delegación). */
 export function lastUserPromptFromMessages(
   messages: readonly AgentChatEntry[],
   maxLen = 120,
@@ -382,10 +383,27 @@ export function lastUserPromptFromMessages(
     const entry = messages[i]
     if (!entry || entry.role !== 'user') continue
     const text = entry.content.trim()
-    if (!text) continue
+    if (!text || looksLikeDelegationResultFollowUp(text)) continue
     return text.length > maxLen ? `${text.slice(0, maxLen - 3)}…` : text
   }
   return ''
+}
+
+function threadMessagesContainDelegationResultUser(
+  messages: readonly AgentChatEntry[],
+): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const entry = messages[i]
+    if (entry?.role === 'user' && looksLikeDelegationResultFollowUp(entry.content)) {
+      return true
+    }
+  }
+  return false
+}
+
+export interface CollectRunningThreadActivitiesOptions {
+  /** Mini card: sustituye el boilerplate `## Delegation result` del host. */
+  delegationResultsLabel?: string
 }
 
 /** Petición del usuario por hilo en curso (sin actividad de stream del CLI). */
@@ -394,13 +412,21 @@ export function collectRunningThreadActivities(
   runningThreadIds: readonly string[],
   activeThreadId: string,
   activeThreadMessages: readonly AgentChatEntry[],
+  options?: CollectRunningThreadActivitiesOptions,
 ): Record<string, string> {
   const out: Record<string, string> = {}
   for (const threadId of runningThreadIds) {
     const lane = getLane(lanes, threadId)
     const source = lane?.messages ?? (threadId === activeThreadId ? activeThreadMessages : [])
     const prompt = lastUserPromptFromMessages(source)
-    if (prompt) out[threadId] = prompt
+    if (prompt) {
+      out[threadId] = prompt
+    } else if (
+      options?.delegationResultsLabel
+      && threadMessagesContainDelegationResultUser(source)
+    ) {
+      out[threadId] = options.delegationResultsLabel
+    }
   }
   return out
 }
@@ -1366,6 +1392,7 @@ export const AgentPane: React.FC<Props> = ({
       runningThreadIds,
       activeThreadId,
       messages,
+      { delegationResultsLabel: t('agentPane.obtainingDelegationResults') },
     )
     const status: AgentPlaneStatus = {
       busy,

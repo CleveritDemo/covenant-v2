@@ -10,6 +10,7 @@ import {
 import type { AgentPlaneStatus } from '../agent/AgentPane'
 import { isAgentComposerBadgeActive } from '../agent/paneWorkActive'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
@@ -180,6 +181,8 @@ export interface TabAgenticPlaneProps {
   /** Conversaciones del agente con el chat abierto. */
   openChatThreads?: readonly AgentThread[]
   openChatActiveThreadId?: string
+  /** Ola del orquestador para el chat abierto (fuente App, no throttle del pane). */
+  openChatOrchestrationAwaiting?: OrchestrationAwaitingView | null
   /** Agente cuyo chat está abierto en el plano (`null` = ninguno). Persistido en la sesión. */
   openChatAgentId: string | null
   /** paneId con creación de conversación pendiente (queda "+" bloqueado hasta aplicar). */
@@ -375,6 +378,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onRenameThread,
   openChatThreads = [],
   openChatActiveThreadId = '',
+  openChatOrchestrationAwaiting = null,
   openChatAgentId,
   newThreadPendingPaneId = null,
   queueFullNotice = null,
@@ -829,17 +833,23 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     ? agentStatuses[openChatAgentId] ?? null
     : null
 
+  const quickChatOrchestrationAwaiting = openChatOrchestrationAwaiting
+    ?? quickChatStatus?.orchestrationAwaiting
+    ?? null
+
   const terminalWindowOpen = entities.some(
     entity => entity.kind !== 'agent' && entity.window.open,
   )
 
   const openChatRunningThreadIds = useMemo(() => {
     if (!openChatAgentId) return []
+    const fromStatus = quickChatStatus?.runningThreadIds
+    if (fromStatus && fromStatus.length > 0) return fromStatus
     const entity = entities.find(
       candidate => candidate.paneId === openChatAgentId && candidate.kind === 'agent',
     )
     return entity?.threads?.filter(thread => thread.running).map(thread => thread.id) ?? []
-  }, [entities, openChatAgentId])
+  }, [entities, openChatAgentId, quickChatStatus?.runningThreadIds])
 
   // Agentes no expanden ventana; el chat del plano no compite con window.open.
   // Se monta con el agente abierto aunque no tenga conversación: PlaneQuickChat
@@ -1269,6 +1279,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               runningThreadActivities={quickChatStatus?.runningThreadActivities}
               awaitingDelegations={Boolean(quickChatStatus?.awaitingDelegations)}
               awaitingDelegationThreadIds={quickChatStatus?.awaitingDelegationThreadIds}
+              orchestrationAwaiting={quickChatOrchestrationAwaiting}
               paneCliBusy={Boolean(quickChatStatus?.busy)}
               // Cambiar de conversación con un turno vivo promueve el activo a fondo.
               threadSelectionLocked={false}
@@ -1288,7 +1299,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               busy={Boolean(quickChatStatus?.busy)}
               activity={quickChatStatus?.activity ?? ''}
               awaitingDelegations={Boolean(quickChatStatus?.awaitingDelegations)}
-              orchestrationAwaiting={quickChatStatus?.orchestrationAwaiting ?? null}
+              orchestrationAwaiting={quickChatOrchestrationAwaiting}
               activeAssistantId={quickChatStatus?.activeAssistantId ?? null}
               enteringIds={quickChatStatus?.enteringIds}
               materializingIds={quickChatStatus?.materializingIds}

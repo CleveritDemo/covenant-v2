@@ -25,8 +25,8 @@
   --plane-chat-last-bubble-gap: 56px;
   --plane-chat-toolbar-clearance: 38px;
   --plane-chat-toolbar-pad-top: 10px;
-  --plane-chat-top-fade-min: 200px;
-  --plane-chat-top-fade-extra: 148px;
+  --plane-chat-top-fade-min: 50px;
+  --plane-chat-top-fade-extra: 37px;
   --plane-chat-messages-gap: 8px;
   --plane-chat-messages-pad-x: 14px;
   --plane-contexts-bar-min-height: 26px;
@@ -320,8 +320,8 @@
     --plane-chat-last-bubble-gap: 48px;
     --plane-chat-toolbar-clearance: 34px;
     --plane-chat-toolbar-pad-top: 8px;
-    --plane-chat-top-fade-min: 176px;
-    --plane-chat-top-fade-extra: 124px;
+    --plane-chat-top-fade-min: 44px;
+    --plane-chat-top-fade-extra: 31px;
     --plane-chat-messages-gap: 7px;
     --plane-chat-messages-pad-x: 12px;
     --plane-contexts-bar-min-height: 24px;
@@ -356,8 +356,8 @@
     --plane-chat-last-bubble-gap: 42px;
     --plane-chat-toolbar-clearance: 30px;
     --plane-chat-toolbar-pad-top: 7px;
-    --plane-chat-top-fade-min: 156px;
-    --plane-chat-top-fade-extra: 104px;
+    --plane-chat-top-fade-min: 39px;
+    --plane-chat-top-fade-extra: 26px;
     --plane-chat-messages-gap: 6px;
     --plane-chat-messages-pad-x: 10px;
     --plane-contexts-bar-min-height: 22px;
@@ -392,8 +392,8 @@
     --plane-chat-last-bubble-gap: 36px;
     --plane-chat-toolbar-clearance: 28px;
     --plane-chat-toolbar-pad-top: 6px;
-    --plane-chat-top-fade-min: 138px;
-    --plane-chat-top-fade-extra: 88px;
+    --plane-chat-top-fade-min: 35px;
+    --plane-chat-top-fade-extra: 22px;
     --plane-chat-messages-gap: 5px;
     --plane-chat-messages-pad-x: 8px;
     --plane-contexts-bar-min-height: 20px;

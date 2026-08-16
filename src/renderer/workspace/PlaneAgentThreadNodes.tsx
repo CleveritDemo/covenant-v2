@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
-import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
+import { PlaneBusyDot, type PlaneBusyDotVariant } from '../components/ui/PlaneBusyDot'
+import type { PlaneMiniRowKind } from './planeThreadNodes'
 import './PlaneAgentThreadNodes.css'
 
 export interface PlaneAgentThreadNode {
@@ -10,6 +11,8 @@ export interface PlaneAgentThreadNode {
   active: boolean
   /** Petición del usuario por hilo busy (card mini / selector). */
   activity?: string
+  kind?: PlaneMiniRowKind
+  dotVariant?: PlaneBusyDotVariant
 }
 
 export interface PlaneAgentThreadNodesProps {
@@ -114,6 +117,19 @@ export const PlaneAgentThreadNodes: React.FC<PlaneAgentThreadNodesProps> = ({
       >
         {runningThreads.map(thread => {
           const label = thread.activity?.trim() || t('agentPane.awaitingStatusRunning')
+          const isDelegation = thread.kind === 'delegation'
+          const rowText = isDelegation
+            ? [thread.title.trim(), label].filter(Boolean).join(' · ')
+            : label
+          const dotVariant = thread.dotVariant ?? 'busy'
+          const rowLabel = [thread.title.trim() || t('tabs.planeAgentThreadUntitled'), label]
+            .filter(Boolean)
+            .join(' · ')
+          const rowClass = [
+            'plane-agent-thread-nodes__row',
+            isDelegation ? 'plane-agent-thread-nodes__row--delegation' : '',
+          ].filter(Boolean).join(' ')
+
           return (
             <li
               key={thread.id}
@@ -123,31 +139,40 @@ export const PlaneAgentThreadNodes: React.FC<PlaneAgentThreadNodesProps> = ({
               ].filter(Boolean).join(' ')}
               role="listitem"
             >
-              <button
-                type="button"
-                className="plane-agent-thread-nodes__row"
-                data-thread-id={thread.id}
-                aria-label={[thread.title.trim() || t('tabs.planeAgentThreadUntitled'), label]
-                  .filter(Boolean)
-                  .join(' · ')}
-                onPointerDown={event => {
-                  if (event.button !== 0) return
-                  event.stopPropagation()
-                  openedFromPointerRef.current = thread.id
-                  onOpenThread(thread.id)
-                }}
-                onClick={event => {
-                  event.stopPropagation()
-                  if (openedFromPointerRef.current === thread.id) {
-                    openedFromPointerRef.current = null
-                    return
-                  }
-                  onOpenThread(thread.id)
-                }}
-              >
-                <PlaneBusyDot size="sm" />
-                <span className="plane-agent-thread-nodes__row-text">{label}</span>
-              </button>
+              {isDelegation ? (
+                <div
+                  className={rowClass}
+                  data-delegation-id={thread.id}
+                  aria-label={rowLabel}
+                >
+                  <PlaneBusyDot size="sm" variant={dotVariant} />
+                  <span className="plane-agent-thread-nodes__row-text">{rowText}</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={rowClass}
+                  data-thread-id={thread.id}
+                  aria-label={rowLabel}
+                  onPointerDown={event => {
+                    if (event.button !== 0) return
+                    event.stopPropagation()
+                    openedFromPointerRef.current = thread.id
+                    onOpenThread(thread.id)
+                  }}
+                  onClick={event => {
+                    event.stopPropagation()
+                    if (openedFromPointerRef.current === thread.id) {
+                      openedFromPointerRef.current = null
+                      return
+                    }
+                    onOpenThread(thread.id)
+                  }}
+                >
+                  <PlaneBusyDot size="sm" variant={dotVariant} />
+                  <span className="plane-agent-thread-nodes__row-text">{rowText}</span>
+                </button>
+              )}
             </li>
           )
         })}

@@ -1,12 +1,15 @@
 import * as THREE from 'three'
 import { PLANE_GRID_LINE_ALPHA } from '@themes/presets'
 import {
-  maxFovHalfAngleRad,
   PLANE_GRID_HORIZONTAL_FOV_DEG,
+  PLANE_GRID_CELL_SIZE_PX,
+  PLANE_GRID_MIN_ANGULAR_STEP,
   readPlaneGridLineColor,
   resolveCssColor,
-  sphereGridFovFalloff,
+  verticalFovForAspect,
 } from './planeSphericalGridDraw'
+
+export { verticalFovForAspect } from './planeSphericalGridDraw'
 
 export type SpacetimeGridConfig = {
   cellSize: number
@@ -25,7 +28,7 @@ export type PlaneSpacetimeGridRuntime = {
 
 const SPHERE_RADIUS = 68
 const MAX_HORIZONTAL_FOV_DEG = PLANE_GRID_HORIZONTAL_FOV_DEG
-const MIN_ANGULAR_STEP = 0.035
+const MIN_ANGULAR_STEP = PLANE_GRID_MIN_ANGULAR_STEP
 /** Observador en el centro; mira por el ecuador frontal (+Z), alineado con planeSphericalGridDraw. */
 const SPHERE_CENTER = new THREE.Vector3(0, 0, 0)
 const CAMERA_LOOK_TARGET = new THREE.Vector3(0, 0, 1)
@@ -83,8 +86,8 @@ export function interiorSphereLineWarmth(
 export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): SpacetimeGridConfig {
   const style = getComputedStyle(el)
   const root = document.documentElement
-  const cellSize = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || 68
-  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.352
+  const cellSize = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
+  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.595
   const warmth = Number.parseFloat(style.getPropertyValue('--plane-grid-warmth')) || 0.42
   return {
     cellSize,
@@ -98,15 +101,6 @@ export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): Spac
 /** Alfa final del material: la rejilla y el alfa que CSS aplica a `--plane-grid-line`. */
 export function sphereMaterialOpacity(gridOpacity: number): number {
   return gridOpacity * PLANE_GRID_LINE_ALPHA
-}
-
-export function verticalFovForAspect(
-  aspect: number,
-  maxHorizontalFovDeg = MAX_HORIZONTAL_FOV_DEG,
-): number {
-  const hFovRad = (maxHorizontalFovDeg * Math.PI) / 180
-  const vFovRad = 2 * Math.atan(Math.tan(hFovRad / 2) / Math.max(aspect, 0.01))
-  return (vFovRad * 180) / Math.PI
 }
 
 /**
@@ -139,7 +133,6 @@ function syncSphereCamera(camera: THREE.PerspectiveCamera, width: number, height
 type SegmentWriter = {
   positions: number[]
   colors: number[]
-  alphas: number[]
 }
 
 function writeSegment(
@@ -153,7 +146,6 @@ function writeSegment(
   lineColor: THREE.Color,
   accentColor: THREE.Color,
   warmthMax: number,
-  maxAngleRad: number,
 ): void {
   const mix = new THREE.Color()
   const w1 = interiorSphereLineWarmth(x1, y1, z1, warmthMax)
@@ -161,10 +153,8 @@ function writeSegment(
   mix.copy(lineColor).lerp(accentColor, w1)
   writer.positions.push(x1, y1, z1, x2, y2, z2)
   writer.colors.push(mix.r, mix.g, mix.b)
-  writer.alphas.push(sphereGridFovFalloff(x1, y1, z1, maxAngleRad))
   mix.copy(lineColor).lerp(accentColor, w2)
   writer.colors.push(mix.r, mix.g, mix.b)
-  writer.alphas.push(sphereGridFovFalloff(x2, y2, z2, maxAngleRad))
 }
 
 function buildInteriorSphereGrid(
@@ -174,12 +164,11 @@ function buildInteriorSphereGrid(
   lineColor: THREE.Color,
   accentColor: THREE.Color,
   warmthMax: number,
-): { positions: Float32Array; colors: Float32Array; alphas: Float32Array; vertexCount: number } {
+): { positions: Float32Array; colors: Float32Array; vertexCount: number } {
   const aspect = width / Math.max(height, 1)
   const verticalFovDeg = verticalFovForAspect(aspect)
   const { stepLat, stepLon } = angularStepsForAspect(cellSize, height, verticalFovDeg)
-  const maxAngleRad = maxFovHalfAngleRad(MAX_HORIZONTAL_FOV_DEG, aspect)
-  const writer: SegmentWriter = { positions: [], colors: [], alphas: [] }
+  const writer: SegmentWriter = { positions: [], colors: [] }
   const curveSegments = 80
   const latMax = Math.PI / 2 - POLE_EPSILON
 
@@ -189,7 +178,7 @@ function buildInteriorSphereGrid(
       const u = -latMax + (2 * latMax * i) / curveSegments
       const point = sphereInteriorPoint(u, v, SPHERE_RADIUS)
       if (prev) {
-        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax, maxAngleRad)
+        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax)
       }
       prev = point
     }
@@ -202,7 +191,7 @@ function buildInteriorSphereGrid(
       const v = (-Math.PI + (2 * Math.PI * i) / curveSegments)
       const point = sphereInteriorPoint(u, v, SPHERE_RADIUS)
       if (prev) {
-        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax, maxAngleRad)
+        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax)
       }
       prev = point
     }
@@ -219,7 +208,6 @@ function buildInteriorSphereGrid(
   return {
     positions: new Float32Array(writer.positions),
     colors: new Float32Array(writer.colors),
-    alphas: new Float32Array(writer.alphas),
     vertexCount,
   }
 }
@@ -238,7 +226,6 @@ function replaceGridGeometry(
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(built.positions, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(built.colors, 3))
-  geometry.setAttribute('alpha', new THREE.BufferAttribute(built.alphas, 1))
   grid.geometry = geometry
   return built.vertexCount
 }
@@ -275,21 +262,17 @@ export function mountPlaneSpacetimeGrid(
     },
     vertexShader: `
       attribute vec3 color;
-      attribute float alpha;
       varying vec3 vColor;
-      varying float vAlpha;
       void main() {
         vColor = color;
-        vAlpha = alpha;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       uniform float opacity;
       varying vec3 vColor;
-      varying float vAlpha;
       void main() {
-        gl_FragColor = vec4(vColor, vAlpha * opacity);
+        gl_FragColor = vec4(vColor, opacity);
       }
     `,
     transparent: true,

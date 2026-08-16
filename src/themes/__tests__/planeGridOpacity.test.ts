@@ -101,7 +101,11 @@ function themeGridContrast(theme: AppTheme): number {
 
 describe('computePlaneGridOpacity', () => {
   it('mantiene la opacidad de referencia en Interstellar', () => {
-    expect(computePlaneGridOpacity(getTheme('interstellar'))).toBe(0.352)
+    expect(computePlaneGridOpacity(getTheme('interstellar'))).toBe(0.773)
+  })
+
+  it('mantiene la opacidad de referencia en Interstellar Light', () => {
+    expect(computePlaneGridOpacity(getTheme('interstellarLight'))).toBe(0.389)
   })
 
   it('alinea el contraste de los temas oscuros al de Interstellar', () => {
@@ -125,10 +129,15 @@ describe('computePlaneGridOpacity', () => {
     }
   })
 
-  it('sube la opacidad en temas claros respecto al oscuro de referencia', () => {
-    const dark = computePlaneGridOpacity(getTheme('interstellar'))
-    const light = computePlaneGridOpacity(getTheme('interstellarLight'))
-    expect(light).toBeGreaterThan(dark)
+  it('temas claros calibran a un contraste más bajo que el ancla oscura', () => {
+    const darkContrast = themeGridContrast(getTheme('interstellar'))
+    const lightContrast = themeGridContrast(getTheme('interstellarLight'))
+    expect(lightContrast).toBeLessThan(darkContrast)
+  })
+
+  it('cada apariencia usa su propio ancla de contraste', () => {
+    expect(planeGridTargetContrast(false)).toBeCloseTo(themeGridContrast(getTheme('interstellar')), 2)
+    expect(planeGridTargetContrast(true)).toBeCloseTo(themeGridContrast(getTheme('interstellarLight')), 2)
   })
 })
 

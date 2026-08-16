@@ -153,6 +153,28 @@ describe('PlaneChatThreadHistoryButton', () => {
     expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
   })
 
+  it('delegaciones van antes que conversaciones humanas', () => {
+    const threads: AgentThread[] = [
+      { id: 't-1', title: 'Human active', updatedAt: 10 },
+      { id: 't-2', title: 'Human two', updatedAt: 8 },
+      { id: 'd-1', title: '', updatedAt: 9, origin: 'delegation' },
+    ]
+    render(
+      <HistoryHarness
+        threads={threads}
+        activeThreadId="t-1"
+        runningThreadIds={['d-1', 't-2']}
+        onSelectThread={() => undefined}
+      />,
+    )
+    const panel = openHistoryPanel()
+    const options = panel.querySelectorAll('[role="option"]')
+    expect(options).toHaveLength(2)
+    expect(options[0]?.textContent).toContain('agentPane.awaitingStatusRunning')
+    expect(options[0]?.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(options[1]?.textContent).toContain('Human two')
+  })
+
   it('sin hilos no monta el panel', () => {
     render(
       <HistoryHarness

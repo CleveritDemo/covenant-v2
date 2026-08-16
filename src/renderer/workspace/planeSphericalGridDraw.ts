@@ -18,46 +18,25 @@ export type SphereGridPoint = {
 
 /** FOV horizontal de la esfera WebGL y del fallback 2D (grados). */
 export const PLANE_GRID_HORIZONTAL_FOV_DEG = 110
-/** Opacidad mínima en el borde del FOV (centro = 1). */
-export const PLANE_GRID_FOV_FALLOFF_MIN = 0.5
+/** Tamaño de celda en pantalla (px); densidad 3D/2D y CSS plana elevada. */
+export const PLANE_GRID_CELL_SIZE_PX = Number((68 / 1.2).toFixed(3))
+/** Paso angular mínimo compartido entre WebGL y canvas 2D. */
+export const PLANE_GRID_MIN_ANGULAR_STEP = 0.035
 
-/** Semiangulo del cono visual hasta la esquina del frustum. */
-export function maxFovHalfAngleRad(horizontalFovDeg: number, aspect: number): number {
-  const hHalfRad = (horizontalFovDeg * Math.PI) / 180 / 2
-  const vHalfRad = Math.atan(Math.tan(hHalfRad) / Math.max(aspect, 0.01))
-  return Math.atan(Math.hypot(Math.tan(hHalfRad), Math.tan(vHalfRad)))
+export function verticalFovForAspect(
+  aspect: number,
+  maxHorizontalFovDeg = PLANE_GRID_HORIZONTAL_FOV_DEG,
+): number {
+  const hFovRad = (maxHorizontalFovDeg * Math.PI) / 180
+  const vFovRad = 2 * Math.atan(Math.tan(hFovRad / 2) / Math.max(aspect, 0.01))
+  return (vFovRad * 180) / Math.PI
 }
 
-/** Opacidad relativa por distancia angular desde el centro del FOV (+Z). */
-export function sphereGridFovFalloff(
-  x: number,
-  y: number,
-  z: number,
-  maxAngleRad: number,
-  minOpacity = PLANE_GRID_FOV_FALLOFF_MIN,
-): number {
-  const len = Math.hypot(x, y, z)
-  if (len <= 0) return 1
-  const cosAngle = Math.max(-1, Math.min(1, z / len))
-  const angle = Math.acos(cosAngle)
-  const t = Math.min(1, angle / Math.max(maxAngleRad, 0.001))
-  return 1 - t * (1 - minOpacity)
-}
-
-export function sphereGridFovFalloffFromAngles(
-  u: number,
-  v: number,
-  maxAngleRad: number,
-  minOpacity = PLANE_GRID_FOV_FALLOFF_MIN,
-): number {
-  const cosU = Math.cos(u)
-  return sphereGridFovFalloff(
-    cosU * Math.sin(v),
-    Math.sin(u),
-    cosU * Math.cos(v),
-    maxAngleRad,
-    minOpacity,
-  )
+/** Distancia focal en px del viewport esférico (misma fórmula que WebGL). */
+export function planeGridFocalPx(width: number, height: number): number {
+  const aspect = width / Math.max(height, 1)
+  const vFovRad = (verticalFovForAspect(aspect) * Math.PI) / 180
+  return Math.max(height, 1) / 2 / Math.tan(vFovRad / 2)
 }
 
 /** Proyección pinhole desde el centro de la esfera hacia el hemisferio frontal. */
@@ -85,19 +64,16 @@ function snapLineCoord(value: number): number {
   return Math.round(value) + 0.5
 }
 
-function strokePolylineWithFalloff(
+function strokePolyline(
   ctx: CanvasRenderingContext2D,
   points: ReadonlyArray<SphereGridPoint | null>,
-  alphas: ReadonlyArray<number | null>,
   baseAlpha: number,
 ): void {
+  ctx.globalAlpha = baseAlpha
   for (let i = 0; i < points.length - 1; i += 1) {
     const p0 = points[i]
     const p1 = points[i + 1]
-    const a0 = alphas[i]
-    const a1 = alphas[i + 1]
-    if (!p0 || !p1 || a0 == null || a1 == null) continue
-    ctx.globalAlpha = baseAlpha * (a0 + a1) / 2
+    if (!p0 || !p1) continue
     ctx.beginPath()
     ctx.moveTo(snapLineCoord(p0.x), snapLineCoord(p0.y))
     ctx.lineTo(snapLineCoord(p1.x), snapLineCoord(p1.y))
@@ -116,17 +92,17 @@ export function drawSphericalGrid(
     cellSizePx,
     lineColor,
     lineAlpha = 1,
-    fovScale = 1.72,
+    fovScale: fovScaleOverride,
     uMax = Math.PI * 0.47,
   } = options
 
   if (width <= 0 || height <= 0) return
 
-  const scale = Math.min(width, height) * fovScale * 0.5
-  const step = Math.max(cellSizePx / scale, 0.04)
+  const focalPx = planeGridFocalPx(width, height)
+  const fovScale = fovScaleOverride ?? focalPx / (Math.min(width, height) * 0.5)
+  const step = Math.max(cellSizePx / focalPx, PLANE_GRID_MIN_ANGULAR_STEP)
   const segments = 96
   const frontMax = Math.min(uMax, Math.PI * 0.48)
-  const maxAngleRad = maxFovHalfAngleRad(PLANE_GRID_HORIZONTAL_FOV_DEG, width / Math.max(height, 1))
 
   ctx.clearRect(0, 0, width, height)
   ctx.strokeStyle = lineColor
@@ -136,27 +112,21 @@ export function drawSphericalGrid(
 
   for (let u = -frontMax; u <= frontMax + step * 0.5; u += step) {
     const row: Array<SphereGridPoint | null> = []
-    const rowAlpha: Array<number | null> = []
     for (let i = 0; i <= segments; i += 1) {
       const v = -frontMax + (2 * frontMax * i) / segments
-      const point = projectSphereGridPoint(u, v, width, height, fovScale)
-      row.push(point)
-      rowAlpha.push(point ? sphereGridFovFalloffFromAngles(u, v, maxAngleRad) : null)
+      row.push(projectSphereGridPoint(u, v, width, height, fovScale))
     }
-    strokePolylineWithFalloff(ctx, row, rowAlpha, lineAlpha)
+    strokePolyline(ctx, row, lineAlpha)
   }
 
   for (let v = -Math.PI + step * 0.5; v <= Math.PI - step * 0.5; v += step) {
     if (Math.cos(v) <= 0.02) continue
     const col: Array<SphereGridPoint | null> = []
-    const colAlpha: Array<number | null> = []
     for (let i = 0; i <= segments; i += 1) {
       const u = -frontMax + (2 * frontMax * i) / segments
-      const point = projectSphereGridPoint(u, v, width, height, fovScale)
-      col.push(point)
-      colAlpha.push(point ? sphereGridFovFalloffFromAngles(u, v, maxAngleRad) : null)
+      col.push(projectSphereGridPoint(u, v, width, height, fovScale))
     }
-    strokePolylineWithFalloff(ctx, col, colAlpha, lineAlpha)
+    strokePolyline(ctx, col, lineAlpha)
   }
 
   ctx.globalAlpha = 1
@@ -209,8 +179,8 @@ export function readPlaneGridLineColor(root: HTMLElement): string {
 export function readSphericalGridTheme(el: HTMLElement): SphericalGridOptions {
   const style = getComputedStyle(el)
   const root = document.documentElement
-  const size = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || 68
-  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.352
+  const size = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
+  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.595
   return {
     cellSizePx: size,
     lineColor: readPlaneGridLineColor(root),

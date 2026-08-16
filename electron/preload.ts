@@ -1289,8 +1289,11 @@ const api = {
     ipcRenderer.on(IPC.DICTATION_PARTIAL, listener)
     return () => ipcRenderer.removeListener(IPC.DICTATION_PARTIAL, listener)
   },
-  onDictationLevel(cb: (peak: number) => void): () => void {
-    const listener = (_e: Electron.IpcRendererEvent, peak: number): void => cb(peak)
+  onDictationLevel(cb: (payload: { peak: number; bands: number[] }) => void): () => void {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      payload: { peak: number; bands: number[] },
+    ): void => cb(payload)
     ipcRenderer.on(IPC.DICTATION_LEVEL, listener)
     return () => ipcRenderer.removeListener(IPC.DICTATION_LEVEL, listener)
   },

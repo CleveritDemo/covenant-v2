@@ -23,7 +23,7 @@ import {
   openPlaneMiniCardFromPointerDown,
   shouldSkipPlaneMiniCardClick,
 } from './planeMiniCardOpen'
-import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import {
   hasPlaneContextDrag,
   readPlaneContextDragData,
@@ -782,6 +782,14 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
           : null),
         ...(stageTransition && reorderState !== 'dragging' ? { transition: stageTransition } : null),
         ...(agentParkedShadow ? { boxShadow: agentParkedShadow } : null),
+        ...(showAsMini && miniAgentCard
+          ? {
+            ['--pane-mini-agent-slot-width' as string]: `${miniW}px`,
+            ['--pane-layout-left' as string]: typeof layout.left === 'number'
+              ? `${layout.left}px`
+              : String(layout.left),
+          }
+          : null),
         ...styleProp,
       }}
       onMouseDown={event => {

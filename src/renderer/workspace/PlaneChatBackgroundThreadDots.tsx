@@ -1,7 +1,7 @@
 import React from 'react'
 import { Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
-import { PlaneBusyDot, type PlaneBusyDotVariant } from './PlaneBusyDot'
+import { PlaneBusyDot, type PlaneBusyDotVariant } from '../components/ui/PlaneBusyDot'
 import './PlaneChatBackgroundThreadDots.css'
 
 export interface PlaneChatBackgroundThreadDot {

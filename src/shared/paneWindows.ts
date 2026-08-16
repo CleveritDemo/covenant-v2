@@ -148,13 +148,14 @@ export function computePlaneMiniColumnLayout(
   const chatLeft = Math.floor((vw - chatWidth) / 2)
   const chatRight = chatLeft + chatWidth
   const miniBand = cell.width + PLANE_CHAT_SIDE_GAP
+  const agentSlotWidth = Math.max(cell.width, PLANE_MINI_AGENT_WIDTH)
 
   const terminalX = Math.max(
     PLANE_TOOLS_RAIL_RESERVE,
     chatLeft - miniBand,
   )
   const agentX = Math.min(
-    vw - PLANE_CONTEXT_POOL_RESERVE - cell.width,
+    vw - PLANE_CONTEXT_POOL_RESERVE - agentSlotWidth,
     chatRight + PLANE_CHAT_SIDE_GAP,
   )
 
@@ -206,8 +207,8 @@ export const PLANE_MINI_AGENT_BASE_HEIGHT = 84
 export const PLANE_MINI_AGENT_CONTEXT_ICON_SIZE = 18
 /** Gap horizontal entre íconos en la grilla. */
 export const PLANE_MINI_AGENT_CONTEXT_COL_GAP = 6
-/** Padding horizontal de `.plane-mini-face` (10px izq + 44px der). */
-export const PLANE_MINI_AGENT_FACE_PAD_X = 54
+/** Padding horizontal de `.plane-mini-face` (10px izq + 10px der). */
+export const PLANE_MINI_AGENT_FACE_PAD_X = 20
 /** Altura de cada fila de contexto (ícono 18px). */
 export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = PLANE_MINI_AGENT_CONTEXT_ICON_SIZE
 /** .plane-mini-face__nodes margin-top. */

@@ -1,142 +1,112 @@
-/* Overlay de dictado: velo suave + ondas; sin marco tipo card. */
+/* Dictado: scrim sobre el chat + interim grande. Blur directo en el host (Electron). */
 
 .dictation-listening-overlay {
+  --dictation-level: 0;
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px);
+  inset: 0;
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: min(100%, 22rem);
-  max-width: calc(100% - 16px);
-  padding: 14px 16px 12px;
-  border: none;
-  border-radius: 0;
-  background:
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      color-mix(in srgb, var(--bg, var(--surface)) 55%, transparent) 28%,
-      color-mix(in srgb, var(--bg, var(--surface)) 82%, transparent) 100%
-    );
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transform: translateX(-50%);
-  pointer-events: none;
-  animation: dictation-overlay-in 220ms ease-out both;
-}
-
-.dictation-listening-overlay__wave {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2.5px;
-  width: 100%;
-  height: 36px;
+  padding: 24px;
+  pointer-events: none;
+  animation: dictation-overlay-in 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.dictation-listening-overlay__bar {
-  flex: 1 1 0;
-  max-width: 4px;
-  min-width: 2px;
-  height: calc(var(--dictation-bar-h, 0.2) * 100%);
-  max-height: 100%;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 72%, var(--text-muted));
-  transform-origin: center;
-  opacity: 0.78;
+.dictation-listening-overlay--chat-dock {
+  padding-bottom: calc(var(--plane-composer-clearance, 112px) + 12px);
 }
 
-.dictation-listening-overlay--idle .dictation-listening-overlay__bar {
-  animation: dictation-bar-idle 1.15s ease-in-out infinite;
-  animation-delay: calc(var(--dictation-bar-i, 0) * 38ms);
+.dictation-listening-overlay--embedded {
+  border-radius: inherit;
 }
 
-.dictation-listening-overlay--live .dictation-listening-overlay__bar {
-  transition: height 70ms linear;
-  animation: dictation-bar-live 900ms ease-in-out infinite;
-  animation-delay: calc(var(--dictation-bar-i, 0) * 22ms);
+/* Blur fiable: filter en contenido del host; el overlay queda nítido encima. */
+.dictation-listening-host--active > *:not(.dictation-listening-overlay) {
+  filter: blur(calc(22px + var(--dictation-level, 0) * 10px)) saturate(1.04);
+  transition: filter 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.dictation-listening-overlay__text {
-  margin: 0;
-  max-width: 100%;
-  color: var(--text);
-  font-family: var(--font-ui, inherit);
-  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: center;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+.dictation-listening-overlay__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse at 50% 38%,
+      color-mix(in srgb, var(--bg) calc(38% + var(--dictation-level) * 10%), transparent) 0%,
+      color-mix(in srgb, var(--bg) calc(52% + var(--dictation-level) * 10%), transparent) 52%,
+      color-mix(in srgb, var(--bg) calc(64% + var(--dictation-level) * 8%), transparent) 100%
+    );
+  backdrop-filter: blur(10px) saturate(1.06);
+  -webkit-backdrop-filter: blur(10px) saturate(1.06);
+  animation: dictation-scrim-in 820ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dictation-listening-overlay--live .dictation-interim {
+  animation:
+    dictation-interim-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both,
+    dictation-interim-glow 2.6s ease-in-out 720ms infinite;
 }
 
 @keyframes dictation-overlay-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(6px);
   }
+
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
 }
 
-@keyframes dictation-bar-idle {
-  0%,
-  100% {
-    transform: scaleY(0.35);
-    opacity: 0.45;
+@keyframes dictation-scrim-in {
+  0% {
+    opacity: 0;
   }
-  50% {
-    transform: scaleY(0.95);
-    opacity: 0.9;
-  }
-}
 
-@keyframes dictation-bar-live {
-  0%,
   100% {
-    opacity: 0.65;
-  }
-  50% {
     opacity: 1;
   }
 }
 
-html[data-reduce-motion="true"] {
-  .dictation-listening-overlay {
-    animation: none;
+@keyframes dictation-interim-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
   }
 
-  .dictation-listening-overlay__bar {
-    animation: none !important;
-    transition: none;
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dictation-interim-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 2px 16px color-mix(in srgb, var(--accent) calc(16% + var(--dictation-level) * 14%), transparent));
   }
 
-  .dictation-listening-overlay--idle .dictation-listening-overlay__bar {
-    transform: scaleY(0.55);
-    opacity: 0.7;
+  50% {
+    filter: drop-shadow(0 4px 28px color-mix(in srgb, var(--theme-cyan) calc(24% + var(--dictation-level) * 28%), transparent));
   }
+}
+
+html[data-reduce-motion="true"] .dictation-listening-overlay,
+html[data-reduce-motion="true"] .dictation-listening-overlay__scrim,
+html[data-reduce-motion="true"] .dictation-interim,
+html[data-reduce-motion="true"] .dictation-listening-host--active > *:not(.dictation-listening-overlay) {
+  animation: none;
+  transition: none;
+  filter: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dictation-listening-overlay {
+  .dictation-listening-overlay,
+  .dictation-listening-overlay__scrim,
+  .dictation-interim,
+  .dictation-listening-host--active > *:not(.dictation-listening-overlay) {
     animation: none;
-  }
-
-  .dictation-listening-overlay__bar {
-    animation: none !important;
     transition: none;
-  }
-
-  .dictation-listening-overlay--idle .dictation-listening-overlay__bar {
-    transform: scaleY(0.55);
-    opacity: 0.7;
+    filter: none;
   }
 }

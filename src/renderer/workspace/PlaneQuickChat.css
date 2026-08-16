@@ -132,11 +132,6 @@
   background: transparent;
 }
 
-.plane-quick-chat .agent-pane__activity-dot {
-  background: var(--agent-beam);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--agent-beam) 65%, transparent);
-}
-
 /* Burbujas: tipografía del plano; caja surface solo con prop solid. */
 .plane-quick-chat .agent-pane__bubble {
   padding: 7px 11px;

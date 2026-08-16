@@ -5,6 +5,10 @@ import {
   isIgnorableDictationError,
   type DictationUiErrorKind,
 } from '../shared/dictation'
+import {
+  emptyDictationBands,
+  normalizeDictationLevelPayload,
+} from '../shared/dictationSpectrum'
 import { playVoiceMessageSound } from './uiSounds'
 
 export type { DictationUiErrorKind }
@@ -24,12 +28,6 @@ function hasNativeDictationApi(): boolean {
 /** true si hay bridge IPC de dictado nativo (Electron); no usa Web Speech. */
 export function isPushToTalkSpeechSupported(): boolean {
   return hasNativeDictationApi()
-}
-
-function clampLevel(value: unknown): number {
-  const n = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(n)) return 0
-  return Math.min(1, Math.max(0, n))
 }
 
 export interface UsePushToTalkSpeechOptions {
@@ -53,6 +51,8 @@ export interface UsePushToTalkSpeechResult {
   interim: string
   /** Nivel de mic 0–1 (onDictationLevel); 0 si el backend no emite. */
   level: number
+  /** Bandas espectrales 0–1; vacío si el backend no emite. */
+  bands: number[]
   start: () => void
   stop: () => void
 }
@@ -74,6 +74,7 @@ export function usePushToTalkSpeech(
   const [supported, setSupported] = useState(() => hasNativeDictationApi())
   const [interim, setInterim] = useState('')
   const [level, setLevel] = useState(0)
+  const [bands, setBands] = useState<number[]>(() => emptyDictationBands())
   const wantListenRef = useRef(false)
   const startingRef = useRef(false)
   const onTranscriptRef = useRef(onTranscript)
@@ -97,6 +98,7 @@ export function usePushToTalkSpeech(
     setListening(false)
     setInterim('')
     setLevel(0)
+    setBands(emptyDictationBands())
   }, [])
 
   const deliverStopResult = useCallback((stopResult: {
@@ -144,7 +146,10 @@ export function usePushToTalkSpeech(
     })
     const offLevel = api.onDictationLevel?.(value => {
       if (!wantListenRef.current && !startingRef.current) return
-      setLevel(clampLevel(value))
+      const payload = normalizeDictationLevelPayload(value)
+      if (!payload) return
+      setLevel(payload.peak)
+      setBands(payload.bands)
     })
     const offError = api.onDictationError?.(err => {
       if (!wantListenRef.current && !startingRef.current) return
@@ -176,6 +181,7 @@ export function usePushToTalkSpeech(
     startingRef.current = true
     setInterim('')
     setLevel(0)
+    setBands(emptyDictationBands())
     void window.api.dictationRequestPermission().then(permission => {
       if (!wantListenRef.current) {
         startingRef.current = false
@@ -225,5 +231,5 @@ export function usePushToTalkSpeech(
     })
   }, [clearLive, deliverStopResult, reportError])
 
-  return { supported, listening, interim, level, start, stop }
+  return { supported, listening, interim, level, bands, start, stop }
 }

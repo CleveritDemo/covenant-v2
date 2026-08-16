@@ -6,7 +6,7 @@ import {
   type AgentThread,
 } from '@shared/agentThreads'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
-import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './PlaneChatThreadHistoryButton.css'
 
 const HISTORY_PAGE_SIZE = 5

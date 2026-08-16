@@ -1,0 +1,175 @@
+/* Interim dictado: streaming tipo IA — palabras, shimmer, caret. */
+
+.dictation-interim {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  max-width: min(32rem, calc(100% - 32px));
+  text-align: center;
+  animation: dictation-interim-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.dictation-interim__aura {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: min(120%, 28rem);
+  height: 140%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      color-mix(in srgb, var(--accent) 24%, transparent) 0%,
+      color-mix(in srgb, var(--theme-cyan) 14%, transparent) 42%,
+      transparent 72%
+    );
+  opacity: calc(0.28 + var(--dictation-level, 0) * 0.32);
+  filter: blur(18px);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.dictation-interim__stream {
+  display: inline;
+  font-family: var(--font-ui, inherit);
+  font-size: clamp(1.35rem, 3.4vw, 2.15rem);
+  font-weight: 700;
+  line-height: 1.34;
+  letter-spacing: 0.018em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.dictation-interim__space {
+  white-space: pre-wrap;
+}
+
+.dictation-interim__word {
+  display: inline-block;
+  background: linear-gradient(
+    118deg,
+    var(--text) 0%,
+    color-mix(in srgb, var(--text) 70%, var(--theme-cyan)) 34%,
+    color-mix(in srgb, var(--accent) 82%, var(--theme-magenta)) 68%,
+    color-mix(in srgb, var(--theme-cyan) 75%, #ffffff) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 10px color-mix(in srgb, var(--accent) 18%, transparent));
+  animation:
+    dictation-word-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    dictation-word-shimmer 3.2s linear calc(var(--word-i, 0) * 0.04s) infinite;
+}
+
+.dictation-interim__caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.92em;
+  margin-left: 0.14em;
+  vertical-align: baseline;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-cyan) 88%, #ffffff),
+    var(--accent)
+  );
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--theme-cyan) 35%, transparent);
+  animation: dictation-interim-caret 1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+
+.dictation-interim--waiting .dictation-interim__stream {
+  font-weight: 600;
+  font-size: clamp(1.15rem, 2.8vw, 1.65rem);
+  color: color-mix(in srgb, var(--text) 72%, var(--text-muted));
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  opacity: 0.72;
+  animation: dictation-interim-wait 2.4s ease-in-out infinite;
+}
+
+.dictation-interim--waiting .dictation-interim__word {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: inherit;
+  filter: none;
+  animation: dictation-interim-wait 2.4s ease-in-out infinite;
+}
+
+.dictation-interim--streaming {
+  opacity: calc(0.88 + var(--dictation-level, 0) * 0.12);
+  transform: scale(calc(0.985 + var(--dictation-level, 0) * 0.04));
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+@keyframes dictation-word-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+    filter: blur(5px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes dictation-word-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+@keyframes dictation-interim-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  60%,
+  85% {
+    opacity: 0.12;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes dictation-interim-wait {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+
+  50% {
+    opacity: 0.88;
+  }
+}
+
+html[data-reduce-motion="true"] .dictation-interim__word,
+html[data-reduce-motion="true"] .dictation-interim__caret,
+html[data-reduce-motion="true"] .dictation-interim--waiting .dictation-interim__stream {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dictation-interim__word,
+  .dictation-interim__caret,
+  .dictation-interim--waiting .dictation-interim__stream {
+    animation: none;
+  }
+}

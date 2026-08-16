@@ -1,5 +1,8 @@
 import React, { useCallback } from 'react'
 import { Icon } from '../components/ui/Icon'
+import { DictationMicSpectrum } from '../components/DictationMicSpectrum'
+import { dictationMicButtonStyle } from '../components/dictationMicButton'
+import '../components/DictationMicButton.css'
 import './AgentPane.css'
 
 export type AgentPaneSendMode = 'send' | 'stop' | 'mic'
@@ -9,6 +12,8 @@ export interface AgentPaneSendButtonProps {
   label: string
   disabled?: boolean
   listening?: boolean
+  level?: number
+  bands?: number[]
   onClick: () => void
   onMicStart?: () => void
   onMicStop?: () => void
@@ -20,11 +25,14 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
   label,
   disabled = false,
   listening = false,
+  level = 0,
+  bands = [],
   onClick,
   onMicStart,
   onMicStop,
 }) => {
   const isMic = mode === 'mic'
+  const showSpectrum = isMic && listening
 
   const endMic = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
     if (!isMic) return
@@ -52,6 +60,7 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
       disabled={disabled}
       aria-label={label}
       aria-pressed={isMic ? listening : undefined}
+      style={isMic && listening ? dictationMicButtonStyle(level, bands) : undefined}
       onClick={event => {
         if (isMic) {
           event.preventDefault()
@@ -73,7 +82,12 @@ export const AgentPaneSendButton: React.FC<AgentPaneSendButtonProps> = ({
       }}
       onMouseDown={event => event.stopPropagation()}
     >
-      <Icon name={iconName} size={14} />
+      {showSpectrum ? <DictationMicSpectrum bands={bands} level={level} /> : null}
+      {!showSpectrum ? (
+        <span className="dictation-mic-btn__icon">
+          <Icon name={iconName} size={14} />
+        </span>
+      ) : null}
     </button>
   )
 }

@@ -1,25 +1,31 @@
 .orchestration-work-style-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.01em;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 999px;
 }
 
-.orchestration-work-style-badge--linear {
+.orchestration-work-style-badge--linear:not(.orchestration-work-style-badge--inline) {
   color: color-mix(in srgb, var(--text-muted) 78%, var(--text));
   background: color-mix(in srgb, var(--text-muted) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
 }
 
-.orchestration-work-style-badge--turbo {
+.orchestration-work-style-badge--turbo:not(.orchestration-work-style-badge--inline) {
   color: color-mix(in srgb, var(--accent) 85%, var(--text));
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.orchestration-work-style-badge--inline {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }

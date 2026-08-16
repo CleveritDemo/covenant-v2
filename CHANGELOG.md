@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.68.0
+
+- **Plano: rail de controles en minis de agente**: arrastrar, ajustes y cerrar aparecen fuera de la card al hover, con fondo glass y botones transparentes.
+- **Plano: líneas pool→agente más legibles**: curvas más directas, carriles agrupados por destino parecido y aparición animada más suave.
+- **Plano: minis con íconos de orquestación sin cápsula**: CLI, coordinación y modo lineal/turbo en la mini son íconos inline sin fondo.
+- **Actividad: dots con destello y estela**: PlaneBusyDot pasa al kit compartido; el stream usa AgentActivityDot con tono por contexto.
+- **Dictado: mic con onda en vivo**: botón dedicado, espectro de una línea e interim visible mientras hablas.
+
 ## v0.67.0
 
 - **Onboarding a pantalla completa con perfil**: el wizard elige business o engineer y arma pasos variables; el stepper nombra el paso actual.

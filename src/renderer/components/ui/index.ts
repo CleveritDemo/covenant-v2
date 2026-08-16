@@ -59,3 +59,11 @@ export type { ContextCheckOptionProps } from './ContextCheckOption'
 
 export { WindowControls } from './WindowControls'
 export type { WindowControlsProps, WindowControlsSize } from './WindowControls'
+
+export { PlaneBusyDot } from './PlaneBusyDot'
+export type {
+  PlaneBusyDotProps,
+  PlaneBusyDotPlacement,
+  PlaneBusyDotSize,
+  PlaneBusyDotVariant,
+} from './PlaneBusyDot'

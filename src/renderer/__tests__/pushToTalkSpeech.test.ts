@@ -189,10 +189,10 @@ describe('usePushToTalkSpeech', () => {
     expect(result.current.interim).toBe('hola parcial')
   })
 
-  it('updates level from onDictationLevel and clears on stop', async () => {
-    let levelCb: ((level: number) => void) | null = null
+  it('updates level and bands from onDictationLevel and clears on stop', async () => {
+    let levelCb: ((payload: { peak: number; bands: number[] }) => void) | null = null
     const api = installDictationApi({
-      onDictationLevel: vi.fn((cb: (level: number) => void) => {
+      onDictationLevel: vi.fn((cb: (payload: { peak: number; bands: number[] }) => void) => {
         levelCb = cb
         return () => {
           levelCb = null
@@ -213,9 +213,13 @@ describe('usePushToTalkSpeech', () => {
     })
 
     act(() => {
-      levelCb?.(0.64)
+      levelCb?.({
+        peak: 0.64,
+        bands: [0.5, 0.4, 0.3, 0.2, 0.1, 0, 0, 0, 0, 0, 0, 0],
+      })
     })
     expect(result.current.level).toBeCloseTo(0.64)
+    expect(result.current.bands[0]).toBeCloseTo(0.5)
 
     act(() => {
       result.current.stop()
@@ -223,6 +227,7 @@ describe('usePushToTalkSpeech', () => {
     await waitFor(() => {
       expect(result.current.listening).toBe(false)
       expect(result.current.level).toBe(0)
+      expect(result.current.bands.every(value => value === 0)).toBe(true)
     })
   })
 

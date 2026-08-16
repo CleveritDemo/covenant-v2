@@ -24,6 +24,10 @@ export interface PlaneChatComposerShellProps {
   sendMode: PlaneChatSendMode
   sendDisabled?: boolean
   listening?: boolean
+  /** Nivel de mic 0–1 mientras escucha. */
+  level?: number
+  /** Bandas espectrales 0–1 para barras del botón mic. */
+  bands?: number[]
   disabled?: boolean
   /** Tooltip sobre el campo cuando `disabled` (p. ej. hay agentes sin selección). */
   disabledHint?: string
@@ -67,6 +71,8 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
   sendMode,
   sendDisabled = false,
   listening = false,
+  level = 0,
+  bands = [],
   disabled = false,
   disabledHint,
   recalling = false,
@@ -144,6 +150,8 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
         mode={sendMode}
         label={sendLabel}
         listening={listening}
+        level={level}
+        bands={bands}
         disabled={sendDisabled}
         onClick={onSendClick}
         onMicStart={onMicStart}

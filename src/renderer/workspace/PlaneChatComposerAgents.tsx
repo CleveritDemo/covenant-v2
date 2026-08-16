@@ -13,8 +13,7 @@ export interface PlaneChatComposerAgentsProps {
 }
 
 /**
- * Carril horizontal de agentes del composer: scroll suave y fades laterales
- * solo cuando hay contenido oculto.
+ * Carril horizontal de agentes del composer: scroll suave y fades laterales.
  */
 export const PlaneChatComposerAgents: React.FC<PlaneChatComposerAgentsProps> = ({
   agents,
@@ -30,8 +29,8 @@ export const PlaneChatComposerAgents: React.FC<PlaneChatComposerAgentsProps> = (
   const syncFade = useCallback((): void => {
     const el = listRef.current
     if (!el) return
-    const overflow = el.scrollWidth - el.clientWidth > 1
-    if (!overflow) {
+    const hasOverflow = el.scrollWidth - el.clientWidth > 1
+    if (!hasOverflow) {
       setFadeStart(false)
       setFadeEnd(false)
       return

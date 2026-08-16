@@ -350,7 +350,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   }, [t])
 
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
-  const { listening, interim, level, start: startDictation, stop: stopDictation } =
+  const { listening, interim, level, bands, start: startDictation, stop: stopDictation } =
     usePushToTalkSpeech({
       lang: speechLang,
       systemSoundsEnabled,
@@ -487,13 +487,17 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
           'plane-chat-composer',
           'plane-chat-composer--embedded',
           thinking ? 'plane-chat-composer--working' : '',
+          listening ? 'plane-chat-composer--dictating' : '',
         ].filter(Boolean).join(' ')}
       >
         <div className="plane-chat-composer__body">
           <DictationListeningOverlay
             active={listening}
             level={level}
+            scope="embedded"
+            portalRootRef={rootRef}
             text={interim.trim() || t('agentPane.dictationLive')}
+            streaming={Boolean(interim.trim())}
           />
           <PlaneChatComposerShell
             value={draft}
@@ -510,6 +514,8 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
             sendMode={thinking ? 'stop' : micMode ? 'mic' : 'send'}
             sendDisabled={disabled || (!thinking && !micMode && !canSend)}
             listening={listening}
+            level={level}
+            bands={bands}
             disabled={disabled}
             onSendClick={handleSendClick}
             onMicStart={startDictation}

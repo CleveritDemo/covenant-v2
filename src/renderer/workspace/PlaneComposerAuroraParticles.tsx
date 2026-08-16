@@ -1,5 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { isReduceMotionActive } from '../reduceMotion'
+import {
+  drawAuroraParticle,
+  readAuroraThemeColors,
+  type AuroraParticle,
+} from '../components/auroraParticlesCore'
 import './PlaneComposerAuroraParticles.css'
 
 type PlaneComposerAuroraParticlesProps = {
@@ -7,25 +12,11 @@ type PlaneComposerAuroraParticlesProps = {
   tabActive?: boolean
 }
 
-type Particle = {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  life: number
-  maxLife: number
-  size: number
-  color: string
-}
-
-const COLOR_VARS = ['--accent', '--theme-cyan', '--theme-magenta', '--theme-blue'] as const
 const FIELD_HEIGHT = 160
 const MAX_PARTICLES = 55
 const SPAWN_INTERVAL_MS = 56
 /** Margen inferior para que el radio no se recorte en el borde del canvas. */
 const SPAWN_BOTTOM_MARGIN = 16
-/** Pico de opacidad: legible bajo el glass suave, sin competir con el texto. */
-const ALPHA_PEAK = 0.9
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => isReduceMotionActive())
@@ -50,17 +41,7 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-function readThemeColors(el: Element): string[] {
-  const styles = getComputedStyle(el)
-  const colors: string[] = []
-  for (const name of COLOR_VARS) {
-    const value = styles.getPropertyValue(name).trim()
-    if (value) colors.push(value)
-  }
-  return colors.length > 0 ? colors : ['rgba(120, 180, 255, 0.7)']
-}
-
-function spawnParticle(width: number, height: number, colors: string[]): Particle {
+function spawnParticle(width: number, height: number, colors: string[]): AuroraParticle {
   const maxLife = 2.2 + Math.random() * 1.8
   return {
     x: Math.random() * width,
@@ -72,26 +53,6 @@ function spawnParticle(width: number, height: number, colors: string[]): Particl
     size: 2.4 + Math.random() * 3.8,
     color: colors[Math.floor(Math.random() * colors.length)]!,
   }
-}
-
-function drawParticle(
-  ctx: CanvasRenderingContext2D,
-  p: Particle,
-): void {
-  const t = 1 - p.life / p.maxLife
-  const fade = Math.sin(Math.min(1, p.life / p.maxLife) * Math.PI)
-  const alpha = Math.max(0, fade * ALPHA_PEAK * (1 - t * 0.18))
-  if (alpha < 0.02) return
-
-  const radius = p.size * (1 - t * 0.45)
-  if (radius < 0.2) return
-
-  // Punto sólido, sin halo ni bloom.
-  ctx.globalAlpha = alpha
-  ctx.fillStyle = p.color
-  ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(0.7, radius * 0.55), 0, Math.PI * 2)
-  ctx.fill()
 }
 
 /** Partículas que suben desde el piso del plano (solo working + motion). */
@@ -120,8 +81,8 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
     let running = true
     let lastTs = 0
     let spawnAcc = 0
-    const particles: Particle[] = []
-    let colors = readThemeColors(canvas)
+    const particles: AuroraParticle[] = []
+    let colors = readAuroraThemeColors(canvas)
 
     const resize = (): void => {
       const cssWidth = canvas.clientWidth
@@ -132,7 +93,7 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
       canvas.width = Math.floor(w * dpr)
       canvas.height = Math.floor(h * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      colors = readThemeColors(canvas)
+      colors = readAuroraThemeColors(canvas)
     }
 
     resize()
@@ -173,7 +134,7 @@ export const PlaneComposerAuroraParticles: React.FC<PlaneComposerAuroraParticles
           particles.splice(i, 1)
           continue
         }
-        drawParticle(ctx, p)
+        drawAuroraParticle(ctx, p)
       }
 
       rafId = requestAnimationFrame(tick)

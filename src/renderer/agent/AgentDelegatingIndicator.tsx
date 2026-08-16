@@ -3,7 +3,7 @@ import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
 import { Gravity } from './Gravity'
 import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
-import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './AgentDelegatingIndicator.css'
 
 export interface AgentDelegatingListItem {
@@ -59,7 +59,10 @@ export const AgentDelegatingIndicator: React.FC<AgentDelegatingIndicatorProps> =
                 {item.status === 'running' ? (
                   <PlaneBusyDot size="sm" variant="delegating" />
                 ) : (
-                  <span className="agent-delegating__dot" aria-hidden="true" />
+                  <PlaneBusyDot
+                    size="sm"
+                    variant={item.status === 'done' ? 'done' : 'deferred'}
+                  />
                 )}
                 <span className="agent-delegating__agent">{item.label}</span>
                 <span className="agent-delegating__status">{item.statusLabel}</span>

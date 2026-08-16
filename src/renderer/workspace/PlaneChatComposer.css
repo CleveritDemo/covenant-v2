@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 0 var(--plane-composer-bottom-pad, 18px);
+  padding: 0 0 var(--plane-composer-bottom-pad, 8px);
   pointer-events: none;
   overflow: visible;
 }
@@ -58,8 +58,12 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  max-height: var(--plane-composer-input-min-h, 40px);
-  overflow: hidden;
+  max-height: calc(
+    var(--plane-composer-agents-rail-height, 28px)
+    + var(--plane-composer-agents-rail-pad-block, 3px) * 2
+  );
+  overflow-x: clip;
+  overflow-y: visible;
   flex: 0 0 auto;
 }
 
@@ -129,15 +133,16 @@
 .plane-chat-composer__agents {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  height: 100%;
-  max-height: var(--plane-composer-input-min-h, 40px);
+  min-height: var(--plane-composer-agents-rail-height, 28px);
   align-items: center;
   justify-content: safe center;
-  padding: 0 2px;
+  padding: var(--plane-composer-agents-rail-pad-block, 3px)
+    var(--plane-composer-agents-rail-pad-inline, 14px);
+  scroll-padding-inline: var(--plane-composer-agents-rail-pad-inline, 14px);
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
@@ -176,6 +181,12 @@ html[data-reduce-motion="true"] .plane-chat-composer__agents {
 
 html[data-reduce-motion="true"] .plane-chat-composer__agent-slot {
   animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-chat-composer__agent-slot {
+    animation: none;
+  }
 }
 
 .plane-chat-composer__empty {
@@ -492,7 +503,7 @@ html[data-reduce-motion="true"] .plane-chat-composer__agent-slot {
   align-items: flex-end;
   gap: var(--plane-composer-row-gap, 8px);
   margin: 0;
-  padding: 4px var(--plane-composer-row-pad-inline, 10px) var(--plane-composer-row-pad-block-end, 10px);
+  padding: 4px var(--plane-composer-row-pad-inline, 10px) var(--plane-composer-row-pad-block-end, 2px);
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -633,6 +644,7 @@ html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
 }
 
 .plane-chat-composer__send {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -679,9 +691,7 @@ html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
 }
 
 .plane-chat-composer__send--listening {
-  transform: scale(1.08);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--plane-composer-accent) 35%, transparent),
-    0 2px 12px color-mix(in srgb, var(--plane-composer-accent) 40%, transparent);
+  transform: scale(calc(1.02 + var(--dictation-level, 0) * 0.05));
 }
 
 .plane-chat-composer__dictation-error {
@@ -710,7 +720,7 @@ html[data-reduce-motion="true"] .plane-chat-composer__input--swap {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  padding-top: 6px;
+  padding-top: var(--plane-composer-repos-pad-top, 0);
 }
 
 .plane-chat-composer__repo-chip {

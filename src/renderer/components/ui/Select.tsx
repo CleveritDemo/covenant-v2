@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
-import { PlaneBusyDot } from '../../workspace/PlaneBusyDot'
+import { PlaneBusyDot } from './PlaneBusyDot'
 import { Icon } from './Icon'
 import './Select.css'
 

@@ -6,6 +6,7 @@ import {
   contextConnectorPath,
   focusedContextEdges,
   renderedContextLinksEqual,
+  resolveConnectorLanes,
   CONTEXT_LINK_MIN_REACH,
   type PlaneRect,
 } from '../planeContextAssignmentLinkGeometry'
@@ -141,13 +142,10 @@ describe('renderedContextLinksEqual', () => {
 })
 
 describe('contextConnectorPath', () => {
-  it('es una curva única con tangentes horizontales, sin espinas ni tramos rectos', () => {
+  it('usa curva suave con tangentes horizontales y poco arco', () => {
     const d = contextConnectorPath({ x: 900, y: 310 }, { x: 780, y: 400 })
-    expect(d.startsWith('M 900 310')).toBe(true)
+    expect(d).toBe('M 900 310 C 868 310 812 400 780 400')
     expect(d).toContain('C ')
-    expect(d.endsWith('780 400')).toBe(true)
-    expect(d).not.toContain('H ')
-    expect(d).not.toContain('V ')
   })
 
   it('cada conexión traza su propia curva entre sus dos anclajes', () => {
@@ -160,10 +158,9 @@ describe('contextConnectorPath', () => {
     expect(paths[0]?.to).toEqual({ x: 780, y: 120 })
   })
 
-  it('en corredor estrecho enruta por un eje vertical en lugar de apilar curvas horizontales', () => {
+  it('en corredor estrecho curva por eje vertical con menos giro', () => {
     const d = contextConnectorPath({ x: 320, y: 180 }, { x: 260, y: 420 })
-    expect(d).toContain('290 300')
-    expect(d.split('C').length).toBeGreaterThan(2)
+    expect(d).toBe('M 320 180 C 310 180 290 180 290 300 C 290 420 270 420 260 420')
   })
 
   it('reparte carriles cuando hay varias líneas en el mismo foco', () => {
@@ -178,5 +175,27 @@ describe('contextConnectorPath', () => {
       { laneIndex: 2, laneCount: 3 },
     )
     expect(left).not.toBe(right)
+  })
+
+  it('resolveConnectorLanes agrupa solo destinos con Y parecida', () => {
+    const links = [
+      { key: 'a:1', from: { x: 300, y: 100 }, to: { x: 240, y: 110 }, color: '#f0a' },
+      { key: 'b:1', from: { x: 300, y: 115 }, to: { x: 240, y: 118 }, color: '#0aa' },
+      { key: 'c:1', from: { x: 300, y: 400 }, to: { x: 240, y: 410 }, color: '#00f' },
+    ]
+    expect(resolveConnectorLanes(links)).toEqual([
+      { laneIndex: 0, laneCount: 2 },
+      { laneIndex: 1, laneCount: 2 },
+      { laneIndex: 0, laneCount: 1 },
+    ])
+  })
+
+  it('destinos lejanos no abanicán carriles entre sí', () => {
+    const paths = buildContextConnectorPaths([
+      { key: 'a:1', from: { x: 900, y: 100 }, to: { x: 780, y: 120 }, color: '#f0a' },
+      { key: 'b:1', from: { x: 900, y: 500 }, to: { x: 780, y: 520 }, color: '#0aa' },
+    ])
+    expect(paths[0]?.d).toBe('M 900 100 C 868 100 812 120 780 120')
+    expect(paths[1]?.d).toBe('M 900 500 C 868 500 812 520 780 520')
   })
 })

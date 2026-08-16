@@ -127,25 +127,16 @@
   outline-offset: 1px;
 }
 
-.agent-delegating__dot {
-  flex-shrink: 0;
-  width: 5px;
-  height: 5px;
-  margin-bottom: 0.1em;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
-}
-
 .agent-delegating__item--running {
   align-items: center;
 }
 
-/* En cola: aceptada pero sin arrancar. Punto quieto y apagado — el pulso es
-   la señal de que hay alguien trabajando, y acá no lo hay. */
-.agent-delegating__item--deferred .agent-delegating__dot {
-  background: color-mix(in srgb, var(--text-muted) 70%, transparent);
+.agent-delegating__item .plane-busy-dot {
+  margin-bottom: 0.1em;
 }
 
+/* En cola: aceptada pero sin arrancar. Punto quieto y apagado — el pulso es
+   la señal de que hay alguien trabajando, y acá no lo hay. */
 .agent-delegating__item--deferred .agent-delegating__status {
   color: var(--text-muted);
   font-style: italic;
@@ -153,10 +144,6 @@
 
 .agent-delegating__item--done {
   opacity: 0.78;
-}
-
-.agent-delegating__item--done .agent-delegating__dot {
-  background: color-mix(in srgb, var(--success, #3dd68c) 75%, var(--text-muted));
 }
 
 .agent-delegating__item--done .agent-delegating__status {

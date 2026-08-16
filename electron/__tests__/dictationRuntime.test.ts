@@ -46,6 +46,14 @@ describe('parseDictationHelperLine', () => {
     expect(parseDictationHelperLine('{"type":"level","peak":0.12}')).toEqual({
       type: 'level',
       peak: 0.12,
+      bands: Array.from({ length: 12 }, () => 0),
+    })
+    expect(parseDictationHelperLine(
+      '{"type":"level","peak":0.12,"bands":[0.1,0.2,0.05,0,0,0,0,0,0,0,0,0]}',
+    )).toEqual({
+      type: 'level',
+      peak: 0.12,
+      bands: [0.1, 0.2, 0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     })
     expect(parseDictationHelperLine('{"type":"level"}')).toBeNull()
   })
@@ -277,8 +285,8 @@ describe('DictationRuntime', () => {
       const line = chunk.trim()
       if (line.startsWith('START')) {
         stdout.emit('data', `${JSON.stringify({ type: 'started' })}\n`)
-        stdout.emit('data', `${JSON.stringify({ type: 'level', peak: 0.11 })}\n`)
-        stdout.emit('data', `${JSON.stringify({ type: 'level', peak: 0.28 })}\n`)
+        stdout.emit('data', `${JSON.stringify({ type: 'level', peak: 0.11, bands: [0.1, 0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] })}\n`)
+        stdout.emit('data', `${JSON.stringify({ type: 'level', peak: 0.28, bands: [0.2, 0.15, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0] })}\n`)
       } else if (line === 'STOP') {
         stdout.emit('data', `${JSON.stringify({ type: 'final', text: 'ok', peak: 0.28 })}\n`)
         stdout.emit('data', `${JSON.stringify({ type: 'stopped' })}\n`)
@@ -294,8 +302,14 @@ describe('DictationRuntime', () => {
       emit,
     })
     await runtime.start('es-ES')
-    expect(emit).toHaveBeenCalledWith(IPC.DICTATION_LEVEL, 0.11)
-    expect(emit).toHaveBeenCalledWith(IPC.DICTATION_LEVEL, 0.28)
+    expect(emit).toHaveBeenCalledWith(IPC.DICTATION_LEVEL, {
+      peak: 0.11,
+      bands: [0.1, 0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    })
+    expect(emit).toHaveBeenCalledWith(IPC.DICTATION_LEVEL, {
+      peak: 0.28,
+      bands: [0.2, 0.15, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    })
     await runtime.stop()
     runtime.dispose()
   })

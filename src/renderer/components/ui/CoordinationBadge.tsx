@@ -7,10 +7,11 @@ export interface CoordinationBadgeProps {
   coordination: AgentCoordination
   label: string
   variant?: 'chip' | 'inline'
+  iconSize?: number
 }
 
 export const COORDINATION_ICON: Record<Exclude<AgentCoordination, 'none'>, IconName> = {
-  orchestrator: 'orchestrator',
+  orchestrator: 'users',
   productOwner: 'flag',
 }
 
@@ -19,6 +20,7 @@ export const CoordinationBadge: React.FC<CoordinationBadgeProps> = ({
   coordination,
   label,
   variant = 'chip',
+  iconSize = 9,
 }) => {
   if (coordination === 'none') return null
   return (
@@ -27,7 +29,7 @@ export const CoordinationBadge: React.FC<CoordinationBadgeProps> = ({
       aria-label={label}
       role="img"
     >
-      <Icon name={COORDINATION_ICON[coordination]} size={9} aria-hidden />
+      <Icon name={COORDINATION_ICON[coordination]} size={iconSize} aria-hidden />
     </span>
   )
 }

@@ -45,6 +45,9 @@ export const CONTEXT_LINK_NARROW_SPAN = 80
 /** Margen dentro de la card para que el remate no toque el borde superior/inferior. */
 const CARD_EDGE_PADDING = 10
 
+/** Destinos dentro de este ΔY comparten carril y van casi pegados. */
+export const CONTEXT_LINK_SIMILAR_DEST_Y = 22
+
 export interface ContextConnectorPathOptions {
   laneIndex?: number
   laneCount?: number
@@ -130,8 +133,8 @@ function round(value: number): number {
 }
 
 /**
- * Curva con tangentes horizontales en los extremos. En corredores estrechos enruta
- * por un eje vertical compartido y reparte carriles cuando hay varias líneas.
+ * Curva suave con tangentes horizontales; menos curvatura que la original (bend ~28% del span).
+ * En corredores estrechos enruta por eje vertical con curvas más contenidas.
  */
 export function contextConnectorPath(
   from: PlanePoint,
@@ -145,8 +148,8 @@ export function contextConnectorPath(
 
   const laneCount = options?.laneCount ?? 1
   const laneIndex = options?.laneIndex ?? 0
-  const bend = clamp(span * 0.55, 14, 56)
-  const laneSpread = laneCount > 1 ? clamp(span * 0.08, 2, 8) : 0
+  const bend = clamp(span * 0.28, 10, 32)
+  const laneSpread = laneCount > 1 ? clamp(span * 0.015, 0.5, 2.5) : 0
   const laneOffset = (laneIndex - (laneCount - 1) / 2) * laneSpread
   const c1x = round(from.x - bend + laneOffset)
   const c2x = round(to.x + bend + laneOffset)
@@ -168,9 +171,9 @@ function contextConnectorNarrowPath(
   const laneCount = options?.laneCount ?? 1
   const laneIndex = options?.laneIndex ?? 0
   const baseMidX = (from.x + to.x) / 2
-  const laneSpread = laneCount > 1 ? clamp(span * 0.14, 4, 12) : 0
+  const laneSpread = laneCount > 1 ? clamp(span * 0.025, 0.5, 2.5) : 0
   const midX = round(baseMidX + (laneIndex - (laneCount - 1) / 2) * laneSpread)
-  const lead = round(clamp(span * 0.42, 5, 14))
+  const lead = round(clamp(span * 0.22, 4, 10))
   const bendY = round((from.y + to.y) / 2)
 
   return [
@@ -184,15 +187,32 @@ function contextConnectorNarrowPath(
   ].join(' ')
 }
 
+/** Carriles solo entre líneas con destino Y parecido; el resto va sola sin abanico. */
+export function resolveConnectorLanes(
+  links: readonly MeasuredContextLink[],
+): ContextConnectorPathOptions[] {
+  return links.map(link => {
+    const peers = links.filter(
+      other => Math.abs(other.to.y - link.to.y) <= CONTEXT_LINK_SIMILAR_DEST_Y,
+    )
+    const laneCount = peers.length
+    const sorted = [...peers].sort(
+      (a, b) => a.from.y - b.from.y || a.to.y - b.to.y || a.key.localeCompare(b.key),
+    )
+    const laneIndex = Math.max(0, sorted.findIndex(peer => peer.key === link.key))
+    return { laneIndex, laneCount }
+  })
+}
+
 export function buildContextConnectorPaths(
   links: readonly MeasuredContextLink[],
 ): RenderedContextLink[] {
-  const laneCount = links.length
-  return links.map((link, laneIndex) => ({
+  const lanes = resolveConnectorLanes(links)
+  return links.map((link, index) => ({
     key: link.key,
     color: link.color,
     to: link.to,
-    d: contextConnectorPath(link.from, link.to, { laneIndex, laneCount }),
+    d: contextConnectorPath(link.from, link.to, lanes[index]),
   }))
 }
 

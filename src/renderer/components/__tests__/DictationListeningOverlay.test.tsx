@@ -3,32 +3,68 @@
  */
 import React from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render } from '@testing-library/react'
 import { DictationListeningOverlay } from '../DictationListeningOverlay'
 
 afterEach(cleanup)
 
 describe('DictationListeningOverlay', () => {
   it('renders nothing when inactive', () => {
-    const { container } = render(
+    render(
       <DictationListeningOverlay active={false} level={0.5} text="hola" />,
     )
-    expect(container.querySelector('.dictation-listening-overlay')).toBeNull()
+    expect(document.querySelector('.dictation-listening-overlay')).toBeNull()
   })
 
-  it('shows waveform and live text while active', () => {
-    const { container } = render(
-      <DictationListeningOverlay active level={0.4} text="streaming…" />,
+  it('shows scrim and streaming interim with caret when active with portal root', () => {
+    const root = document.createElement('div')
+    document.body.appendChild(root)
+    render(
+      <DictationListeningOverlay
+        active
+        level={0.4}
+        text="hola mundo"
+        streaming
+        scope="embedded"
+        portalRoot={root}
+      />,
     )
-    expect(screen.getByText('streaming…')).toBeTruthy()
-    expect(container.querySelectorAll('.dictation-listening-overlay__bar').length).toBeGreaterThan(8)
-    expect(container.querySelector('.dictation-listening-overlay--live')).toBeTruthy()
+    expect(root.querySelector('.dictation-interim__word')?.textContent).toBe('hola')
+    expect(root.querySelectorAll('.dictation-interim__word')[1]?.textContent).toBe('mundo')
+    expect(root.querySelector('.dictation-listening-overlay__scrim')).toBeTruthy()
+    expect(root.querySelector('.dictation-interim__caret')).toBeTruthy()
+    expect(root.querySelector('.dictation-listening-overlay__canvas')).toBeNull()
+    document.body.removeChild(root)
   })
 
-  it('uses idle pulse class when level is near zero', () => {
-    const { container } = render(
-      <DictationListeningOverlay active level={0} text="Te escucho…" />,
+  it('omits caret in waiting placeholder mode', () => {
+    const root = document.createElement('div')
+    document.body.appendChild(root)
+    render(
+      <DictationListeningOverlay
+        active
+        text="Te escucho…"
+        scope="chat-dock"
+        portalRoot={root}
+      />,
     )
-    expect(container.querySelector('.dictation-listening-overlay--idle')).toBeTruthy()
+    expect(root.querySelector('.dictation-interim--waiting')).toBeTruthy()
+    expect(root.querySelector('.dictation-interim__caret')).toBeNull()
+    document.body.removeChild(root)
+  })
+
+  it('uses chat-dock scope class', () => {
+    const root = document.createElement('div')
+    document.body.appendChild(root)
+    render(
+      <DictationListeningOverlay
+        active
+        text="Te escucho…"
+        scope="chat-dock"
+        portalRoot={root}
+      />,
+    )
+    expect(root.querySelector('.dictation-listening-overlay--chat-dock')).toBeTruthy()
+    document.body.removeChild(root)
   })
 })

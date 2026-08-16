@@ -17,6 +17,11 @@ import { app, systemPreferences } from 'electron'
 import { IPC } from '../src/shared/ipcChannels'
 import { appendCrashDiagnostics } from './crashLog'
 import type { DictationPermissionResult } from '../src/shared/dictation'
+import {
+  emptyDictationBands,
+  normalizeDictationBands,
+  type DictationLevelPayload,
+} from '../src/shared/dictationSpectrum'
 
 /** Espejo de `silencePeakThreshold` en native/mac-dictation/main.swift */
 export const DICTATION_SILENCE_PEAK_THRESHOLD = 0.008
@@ -57,7 +62,7 @@ export type DictationHelperEvent =
   | { type: 'ready' }
   | { type: 'started' }
   | { type: 'partial'; text: string }
-  | { type: 'level'; peak: number }
+  | { type: 'level'; peak: number; bands: number[] }
   | { type: 'final'; text: string; peak?: number }
   | { type: 'stopped' }
   | { type: 'error'; code: string; message: string; peak?: number }
@@ -83,7 +88,11 @@ export function parseDictationHelperLine(raw: string): DictationHelperEvent | nu
         }
       case 'level':
         if (peak === undefined) return null
-        return { type: 'level', peak }
+        return {
+          type: 'level',
+          peak,
+          bands: normalizeDictationBands(data.bands),
+        }
       case 'final':
         return {
           type,
@@ -478,7 +487,10 @@ export class DictationRuntime {
         this.emit(IPC.DICTATION_PARTIAL, event.text)
         break
       case 'level':
-        this.emit(IPC.DICTATION_LEVEL, event.peak)
+        this.emit(IPC.DICTATION_LEVEL, {
+          peak: event.peak,
+          bands: event.bands.length > 0 ? event.bands : emptyDictationBands(),
+        } satisfies DictationLevelPayload)
         break
       case 'final': {
         if (event.peak !== undefined) this.lastPeak = event.peak

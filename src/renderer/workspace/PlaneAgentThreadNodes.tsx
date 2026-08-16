@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
-import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './PlaneAgentThreadNodes.css'
 
 export interface PlaneAgentThreadNode {

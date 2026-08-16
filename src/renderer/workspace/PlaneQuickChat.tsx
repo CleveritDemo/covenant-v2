@@ -5,6 +5,7 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
+import { AgentActivityDot } from '../agent/AgentActivityDot'
 import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
@@ -170,7 +171,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     activityText === '' ? 'agent-pane__activity--idle' : '',
                   ].filter(Boolean).join(' ')}
                 >
-                  <span className="agent-pane__activity-dot" aria-hidden="true" />
+                  <AgentActivityDot tone="beam" />
                   <span className="agent-pane__activity-text" key={activityText || 'idle'}>
                     {activityText === '' ? '\u00A0' : activityText}
                   </span>

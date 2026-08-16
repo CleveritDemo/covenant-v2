@@ -268,6 +268,13 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
                 : undefined
             }
             onOpenResultsPreview={onOpenResultsPreview}
+            configLabel={configLabel}
+            deleteLabel={deleteLabel}
+            onConfigure={onOpenConfig}
+            onDelete={() => {
+              armMiniExpandSuppress()
+              setConfirmDeleteOpen(true)
+            }}
           >
             {contexts.length > 0 ? (
               <PlaneAgentContextNodes
@@ -278,18 +285,17 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             ) : null}
           </PlaneMiniFace>
         ) : undefined}
-        miniActions={(
+        miniActions={!isAgent ? (
           <PlaneMiniActions
-            showConfig={isAgent}
+            showConfig={false}
             configLabel={configLabel}
             deleteLabel={deleteLabel}
-            onConfigure={isAgent ? onOpenConfig : undefined}
             onDelete={() => {
               armMiniExpandSuppress()
               setConfirmDeleteOpen(true)
             }}
           />
-        )}
+        ) : undefined}
         onExpand={isAgent ? openAgentFromCard : onExpand}
         onToggleFullscreen={onToggleFullscreen}
         onClose={onClose}

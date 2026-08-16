@@ -106,7 +106,7 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
   }, [t])
 
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
-  const { listening, interim, level, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
+  const { listening, interim, level, bands, start: startDictation, stop: stopDictation } = usePushToTalkSpeech({
     lang: speechLang,
     systemSoundsEnabled,
     onTranscript: onDictateSend,
@@ -123,7 +123,9 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
       <DictationListeningOverlay
         active={listening}
         level={level}
+        scope="messages"
         text={interim.trim() || t('agentPane.dictationLive')}
+        streaming={Boolean(interim.trim())}
       />
       {pastedTexts.length > 0 && (
         <div
@@ -174,6 +176,8 @@ export const AgentPaneFooter: React.FC<AgentPaneFooterProps> = ({
           mode={sendMode}
           label={sendMode === 'mic' ? micLabel : sendLabel}
           listening={listening}
+          level={level}
+          bands={bands}
           disabled={composerDisabled && !showStop}
           onClick={onSendClick}
           onMicStart={startDictation}

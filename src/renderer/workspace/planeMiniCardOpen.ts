@@ -8,7 +8,7 @@ export function isPlaneMiniInteractiveTarget(target: EventTarget | null): boolea
 
 const THREAD_ROW_SELECTOR = '.plane-agent-thread-nodes__row'
 
-const SMALL_CONTROL_SELECTOR = '.plane-mini-face__action, .plane-mini-face__results-drag, .plane-mini-face__drag-handle, input, select, textarea, a[href]'
+const SMALL_CONTROL_SELECTOR = '.plane-mini-face__action, .plane-mini-face__controls-btn, .plane-mini-face__controls-rail, .plane-mini-face__results-drag, .plane-mini-face__drag-handle, .plane-mini-actions__btn, .pane-window__mini-corner, input, select, textarea, a[href]'
 
 /** Fila de hilo activo en la mini card (abre ese hilo, no la card entera). */
 export function isPlaneMiniThreadRowTarget(target: EventTarget | null): boolean {

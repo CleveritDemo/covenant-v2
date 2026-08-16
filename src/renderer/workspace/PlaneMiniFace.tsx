@@ -19,7 +19,7 @@ import {
   shouldSkipPlaneMiniCardClick,
 } from './planeMiniCardOpen'
 import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
-import { PlaneBusyDot } from './PlaneBusyDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -98,6 +98,10 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const resultsTitle = resultsDragLabel || resultsId
   const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
   const skipClickRef = useRef(false)
+  const showIntegratedActions = Boolean(
+    (onConfigure && configLabel) || (onDelete && deleteLabel),
+  )
+  const showControlsRail = showReorder || showIntegratedActions
 
   const openFromFaceClick = (event: React.MouseEvent): void => {
     if (!onOpen) return
@@ -117,7 +121,67 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     openPlaneMiniCardFromPointerDown(event, onOpen)
   }
 
-  return (
+  const controlsRail = showControlsRail ? (
+    <div className="plane-mini-face__controls-rail">
+      {showReorder ? (
+        <button
+          type="button"
+          className="plane-mini-face__controls-btn plane-mini-face__drag-handle"
+          aria-label={reorderLabel}
+          onClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onPointerDown={event => {
+            event.stopPropagation()
+            onReorderPointerDown?.(event)
+          }}
+        >
+          <Icon name="drag-handle" size={13} />
+        </button>
+      ) : null}
+      {onConfigure && configLabel ? (
+        <button
+          type="button"
+          className="plane-mini-face__controls-btn"
+          aria-label={configLabel}
+          onClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            onConfigure()
+          }}
+          onPointerDown={event => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onPointerUp={event => event.stopPropagation()}
+        >
+          <Icon name="settings" size={13} />
+        </button>
+      ) : null}
+      {onDelete && deleteLabel ? (
+        <button
+          type="button"
+          className="plane-mini-face__controls-btn plane-mini-face__controls-btn--danger"
+          aria-label={deleteLabel}
+          onClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            onDelete()
+          }}
+          onPointerDown={event => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onPointerUp={event => event.stopPropagation()}
+        >
+          <Icon name="trash" size={13} />
+        </button>
+      ) : null}
+    </div>
+  ) : null
+
+  const face = (
   <div
     className={[
       'plane-mini-face',
@@ -134,96 +198,48 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       <PlaneBusyDot placement="corner" variant={activityDot} />
     ) : null}
     <div className="plane-mini-face__glow" aria-hidden="true" />
+    <div className="plane-mini-face__main">
     <div className="plane-mini-face__header">
       <div className="plane-mini-face__identity">
-        {showReorder ? (
-          <button
-            type="button"
-            className="plane-mini-face__action plane-mini-face__drag-handle"
-            aria-label={reorderLabel}
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onPointerDown={event => {
-              event.stopPropagation()
-              onReorderPointerDown?.(event)
-            }}
-          >
-            <Icon name="drag-handle" size={11} />
-          </button>
-        ) : null}
         <span className="plane-mini-face__monogram" aria-hidden>
           {displayMonogram}
         </span>
         <span className="plane-mini-face__name">{name}</span>
-        <span
-          className="plane-mini-face__provider"
-          style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
-          aria-label={agentCliSpec(provider).label}
-        >
-          <BrandIcon provider={provider} size={9} aria-hidden />
-        </span>
-        <CoordinationBadge
-          coordination={coordination}
-          label={t(
-            coordination === 'orchestrator'
-              ? 'agentPane.orchestratorBadge'
-              : coordination === 'productOwner'
-                ? 'agentPane.productOwnerBadge'
-                : 'agentPane.specialistBadge',
-          )}
-        />
-        {coordination === 'orchestrator' && orchestrationWorkStyle ? (
-          <OrchestrationWorkStyleBadge
-            workStyle={orchestrationWorkStyle}
+      </div>
+      <div className="plane-mini-face__header-aside">
+        <div className="plane-mini-face__meta-badges">
+          <span
+            className="plane-mini-face__provider"
+            style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
+            aria-label={agentCliSpec(provider).label}
+          >
+            <BrandIcon provider={provider} size={11} aria-hidden />
+          </span>
+          <CoordinationBadge
+            coordination={coordination}
+            variant="inline"
+            iconSize={11}
             label={t(
-              orchestrationWorkStyle === 'turbo'
-                ? 'agentPane.orchestrationWorkStyleTurbo'
-                : 'agentPane.orchestrationWorkStyleLinear',
+              coordination === 'orchestrator'
+                ? 'agentPane.orchestratorBadge'
+                : coordination === 'productOwner'
+                  ? 'agentPane.productOwnerBadge'
+                  : 'agentPane.specialistBadge',
             )}
           />
-        ) : null}
-      </div>
-      <div className="plane-mini-face__header-end">
-        {onConfigure && configLabel ? (
-          <button
-            type="button"
-            className="plane-mini-face__action"
-            aria-label={configLabel}
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-              onConfigure()
-            }}
-            onPointerDown={event => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onPointerUp={event => event.stopPropagation()}
-          >
-            <Icon name="settings" size={11} />
-          </button>
-        ) : null}
-        {onDelete && deleteLabel ? (
-          <button
-            type="button"
-            className="plane-mini-face__action plane-mini-face__action--danger"
-            aria-label={deleteLabel}
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-              onDelete()
-            }}
-            onPointerDown={event => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onPointerUp={event => event.stopPropagation()}
-          >
-            <Icon name="trash" size={11} />
-          </button>
-        ) : null}
+          {coordination === 'orchestrator' && orchestrationWorkStyle ? (
+            <OrchestrationWorkStyleBadge
+              workStyle={orchestrationWorkStyle}
+              variant="inline"
+              iconSize={11}
+              label={t(
+                orchestrationWorkStyle === 'turbo'
+                  ? 'agentPane.orchestrationWorkStyleTurbo'
+                  : 'agentPane.orchestrationWorkStyleLinear',
+              )}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
     <div
@@ -243,6 +259,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         {children}
       </div>
     ) : null}
+    </div>
     {showResultsDrag ? (
       <button
         type="button"
@@ -279,5 +296,14 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </button>
     ) : null}
   </div>
+  )
+
+  if (!showControlsRail) return face
+
+  return (
+    <div className="plane-mini-face-wrap">
+      {face}
+      {controlsRail}
+    </div>
   )
 }

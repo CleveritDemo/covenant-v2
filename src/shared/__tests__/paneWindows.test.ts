@@ -25,6 +25,7 @@ import {
   PLANE_COLUMN_TILT_BREAKPOINT,
   PLANE_CONTEXT_POOL_RESERVE,
   PLANE_MINI_BOTTOM_CLEARANCE,
+  PLANE_MINI_AGENT_WIDTH,
   PLANE_MINI_MAX_WIDTH,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
@@ -105,8 +106,7 @@ describe('paneWindows', () => {
   const chatRight = layout.chatLeft + layout.chatWidth
   expect(layout.terminalX).toBeGreaterThanOrEqual(PLANE_TOOLS_RAIL_RESERVE)
   expect(layout.terminalX + cell.width + PLANE_CHAT_SIDE_GAP).toBeLessThanOrEqual(layout.chatLeft)
-  expect(layout.agentX).toBeGreaterThanOrEqual(chatRight + PLANE_CHAT_SIDE_GAP)
-  expect(layout.agentX + cell.width + PLANE_CONTEXT_POOL_RESERVE).toBeLessThanOrEqual(vw)
+  expect(layout.agentX + PLANE_MINI_AGENT_WIDTH + PLANE_CONTEXT_POOL_RESERVE).toBeLessThanOrEqual(vw)
   })
 
   it('disables column tilt below breakpoint', () => {
@@ -183,8 +183,9 @@ describe('paneWindows', () => {
   })
 
   it('computes context icons per row from mini cell width', () => {
-    expect(computePlaneAgentContextIconsPerRow(PLANE_MINI_WINDOW_WIDTH)).toBe(6)
-    expect(computePlaneAgentContextIconsPerRow(128)).toBe(3)
+    expect(computePlaneAgentContextIconsPerRow(PLANE_MINI_AGENT_WIDTH)).toBe(7)
+    expect(computePlaneAgentContextIconsPerRow(PLANE_MINI_WINDOW_WIDTH)).toBe(7)
+    expect(computePlaneAgentContextIconsPerRow(128)).toBe(4)
     expect(computePlaneAgentContextIconsPerRow(40)).toBe(1)
   })
 

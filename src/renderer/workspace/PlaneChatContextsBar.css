@@ -64,11 +64,12 @@
   display: inline-flex;
   flex: 0 1 auto;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   min-width: 0;
   max-width: 176px;
-  height: 22px;
-  padding: 0 10px 0 8px;
+  min-height: 22px;
+  padding: 4px 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
   border-radius: 999px;
   background: transparent;
@@ -84,8 +85,8 @@
 .plane-chat-contexts-bar__chip--openable {
   cursor: pointer;
   font: 500 11px var(--font-ui);
-  line-height: 1;
-  text-align: left;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip--openable,
@@ -100,21 +101,21 @@
 }
 
 .plane-chat-contexts-bar__chip--active {
-  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border-color: color-mix(in srgb, var(--text-muted) 42%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   font-weight: 500;
 }
 
 .plane-chat-contexts-bar__chip--active:hover,
 .plane-chat-contexts-bar__chip--menu-open {
-  border-color: color-mix(in srgb, var(--accent) 68%, transparent);
-  color: color-mix(in srgb, var(--accent) 92%, var(--text));
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--text-muted) 52%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
 }
 
 .plane-chat-contexts-bar__chip--menu-open {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-muted) 22%, transparent);
 }
 
 .plane-chat-contexts-bar__chip--editing {
@@ -153,6 +154,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  line-height: 1.15;
 }
 
 .plane-chat-contexts-bar__chip-edit {

@@ -12,6 +12,7 @@ import {
   estimatePlaneAgentMiniHeight,
   PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+  PLANE_MINI_AGENT_WIDTH,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_Y,
   PLANE_MINI_WINDOW_HEIGHT,
@@ -244,7 +245,7 @@ export function buildSlotOrigins(
         id: entity.paneId,
         height: measured && measured > 0
           ? measured
-          : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0, cell.width),
+          : estimatePlaneAgentMiniHeight(entity.contexts?.length ?? 0, PLANE_MINI_AGENT_WIDTH),
       }
     }),
     viewportHeight: viewport.height,
@@ -259,7 +260,7 @@ export function buildSlotOrigins(
     origins[slot.id] = {
       x: agentX,
       y: slot.y,
-      width: cell.width,
+      width: PLANE_MINI_AGENT_WIDTH,
       height: slot.height,
     }
   }

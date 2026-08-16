@@ -2,57 +2,152 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--plane-agent-badge-gap, 7px);
-  max-width: 168px;
+  gap: var(--plane-agent-badge-gap, 5px);
+  max-width: var(--plane-agent-badge-max-width, 132px);
   margin: 0;
-  padding: var(--plane-agent-badge-pad-block, 6px) var(--plane-agent-badge-pad-inline, 12px);
+  padding: var(--plane-agent-badge-pad-block, 3px) var(--plane-agent-badge-pad-inline, 8px);
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--plane-border));
-  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--surface));
-  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--plane-border));
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
   font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  font-size: var(--plane-agent-badge-font-size, 10px);
+  font-weight: var(--plane-agent-badge-font-weight, 550);
+  line-height: 1.15;
+  letter-spacing: -0.008em;
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
+  overflow: visible;
   transition:
-    border-color 0.14s ease,
-    color 0.14s ease,
-    background 0.14s ease;
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    gap 0.56s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html[data-reduce-motion="true"] {
   .plane-agent-badge {
-    background: color-mix(in srgb, var(--bg-secondary) 92%, var(--surface));
+    background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+    transition:
+      border-color 0.14s ease,
+      color 0.14s ease,
+      background 0.14s ease,
+      box-shadow 0.14s ease;
+  }
+
+  .plane-agent-badge__dot-wrap {
+    transition: none;
+  }
+
+  .plane-agent-badge__dot-wrap > .plane-busy-dot {
+    animation: none;
   }
 }
 
-.plane-agent-badge:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent));
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--plane-border));
+.plane-agent-badge:hover:not(.plane-agent-badge--selected) {
+  color: color-mix(in srgb, var(--text) 84%, var(--text-muted));
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--plane-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 4px 14px color-mix(in srgb, var(--accent) 14%, transparent);
+  transform: translateY(-1px);
 }
 
-.plane-agent-badge.plane-chat-active,
-.plane-agent-badge.plane-chat-active:hover {
+.plane-agent-badge--selected,
+.plane-agent-badge--selected.plane-chat-active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 30%, var(--bg-secondary));
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
-.plane-agent-badge--selected {
+.plane-agent-badge--selected:hover,
+.plane-agent-badge--selected.plane-chat-active:hover {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent) 34%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--accent) 38%, var(--bg-secondary));
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent),
+    0 6px 18px color-mix(in srgb, var(--accent) 24%, transparent);
+  transform: translateY(-1px);
 }
 
 .plane-agent-badge--selected .plane-agent-badge__name {
-  font-weight: 650;
+  font-weight: 600;
 }
 
-/* Espacio horizontal nombre↔dot cuando busy (dot en flujo inline). */
+.plane-agent-badge:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, white);
+  outline-offset: 2px;
+}
+
+/* Pill respira al abrir/cerrar slot del dot. */
 .plane-agent-badge--busy {
-  gap: calc(var(--plane-agent-badge-gap, 7px) + 2px);
+  gap: calc(var(--plane-agent-badge-gap, 7px) + 3px);
+  padding-block: calc(var(--plane-agent-badge-pad-block, 3px) + 1px);
+  padding-inline-end: calc(var(--plane-agent-badge-pad-inline, 8px) + 1px);
+}
+
+.plane-agent-badge__dot-wrap {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  overflow: visible;
+  align-items: center;
+  justify-items: end;
+  transition: grid-template-columns 0.56s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plane-agent-badge--busy .plane-agent-badge__dot-wrap {
+  grid-template-columns: 1fr;
+}
+
+.plane-agent-badge__dot-wrap > .plane-busy-dot {
+  min-width: 0;
+  overflow: visible;
+}
+
+.plane-agent-badge--busy:not(.plane-agent-badge--dot-exiting) .plane-agent-badge__dot-wrap > .plane-busy-dot {
+  animation: plane-agent-badge-dot-in 0.62s cubic-bezier(0.34, 1.45, 0.64, 1) 0.05s both;
+}
+
+.plane-agent-badge--dot-exiting .plane-agent-badge__dot-wrap > .plane-busy-dot {
+  animation: plane-agent-badge-dot-out 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes plane-agent-badge-dot-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.15) rotate(-48deg);
+    filter: blur(5px) brightness(2.2);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.18) rotate(10deg);
+    filter: blur(0) brightness(1.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes plane-agent-badge-dot-out {
+  0% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: blur(0) brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.12) rotate(36deg);
+    filter: blur(6px) brightness(2);
+  }
 }
 
 .plane-agent-badge__name {
@@ -60,4 +155,30 @@ html[data-reduce-motion="true"] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+html[data-reduce-motion="true"] .plane-agent-badge:hover {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-agent-badge {
+    transition:
+      border-color 0.14s ease,
+      color 0.14s ease,
+      background 0.14s ease,
+      box-shadow 0.14s ease;
+  }
+
+  .plane-agent-badge__dot-wrap {
+    transition: none;
+  }
+
+  .plane-agent-badge__dot-wrap > .plane-busy-dot {
+    animation: none;
+  }
+
+  .plane-agent-badge:hover {
+    transform: none;
+  }
 }

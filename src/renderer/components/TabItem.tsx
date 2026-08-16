@@ -3,7 +3,7 @@ import type { TabSession } from '../App'
 import { useT } from '@i18n/useT'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
-import { PlaneBusyDot } from '../workspace/PlaneBusyDot'
+import { PlaneBusyDot } from './ui/PlaneBusyDot'
 import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 
 interface TabItemProps {

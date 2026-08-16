@@ -9,9 +9,10 @@
   width: 100%;
   min-height: 82px;
   height: auto;
-  padding: 8px 44px 8px 10px;
+  padding: 8px 10px;
   box-sizing: border-box;
-  overflow: visible;
+  overflow: hidden;
+  border-radius: inherit;
   user-select: none;
   isolation: isolate;
   background:
@@ -51,6 +52,114 @@
   transition: opacity 0.28s ease, background 0.28s ease;
 }
 
+.plane-mini-face-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  border-radius: inherit;
+}
+
+.plane-mini-face-wrap > .plane-mini-face__controls-rail {
+  position: absolute;
+  top: 0;
+  right: -29px;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 28px;
+  padding-block: 3px;
+  border: none;
+  background: color-mix(in srgb, var(--surface) 46%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent);
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  box-sizing: border-box;
+  border-radius: calc(var(--plane-radius-sm) - 2px);
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.2s ease;
+}
+
+.pane-window--agent-card.pane-window--mini:hover .plane-mini-face__controls-rail,
+.pane-window--agent-card.pane-window--mini:focus-within .plane-mini-face__controls-rail,
+.plane-mini-face__controls-rail:focus-within {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--surface) 54%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 22%, transparent);
+}
+
+.plane-mini-face__controls-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: calc(var(--plane-radius-sm) - 3px);
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--text-muted) 28%, var(--text));
+  transition: color 0.12s, background 0.12s, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pane-window--agent-card.pane-window--mini:hover .plane-mini-face__controls-rail .plane-mini-face__controls-btn,
+.pane-window--agent-card.pane-window--mini:focus-within .plane-mini-face__controls-rail .plane-mini-face__controls-btn {
+  transform: scale(1);
+  color: var(--text);
+  background: transparent;
+}
+
+.plane-mini-face__controls-rail .plane-mini-face__controls-btn {
+  transform: scale(0.92);
+}
+
+.plane-mini-face__controls-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.plane-mini-face__controls-btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.plane-mini-face__controls-btn--danger {
+  color: color-mix(in srgb, var(--danger) 72%, var(--text));
+  background: transparent;
+}
+
+.plane-mini-face__controls-btn--danger:hover {
+  color: color-mix(in srgb, var(--danger) 92%, var(--text));
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.plane-mini-face__controls-btn.plane-mini-face__drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.plane-mini-face__controls-btn.plane-mini-face__drag-handle:active {
+  cursor: grabbing;
+}
+
+.plane-mini-face__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .plane-mini-face__header,
 .plane-mini-face__body,
 .plane-mini-face__nodes {
@@ -59,10 +168,11 @@
 }
 
 .plane-mini-face__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
   margin-bottom: 6px;
 }
 
@@ -71,7 +181,6 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 /* El tag de instancia pertenece al nombre: pegado a él, sin robarle ancho. */
@@ -80,17 +189,53 @@
   margin-right: -3px;
 }
 
+.plane-mini-face__header-aside {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.plane-mini-face__meta-badges {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 0;
+}
+
+.plane-mini-face__meta-badges .coordination-badge--inline,
+.plane-mini-face__meta-badges .orchestration-work-style-badge--inline {
+  padding: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--accent) 82%, var(--text));
+}
+
+.plane-mini-face__meta-badges .orchestration-work-style-badge--linear.orchestration-work-style-badge--inline {
+  color: color-mix(in srgb, var(--text-muted) 35%, var(--text));
+}
+
+.plane-mini-face__meta-badges .orchestration-work-style-badge--turbo.orchestration-work-style-badge--inline {
+  color: color-mix(in srgb, var(--accent) 88%, var(--text));
+}
+
 .plane-mini-face__provider {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: auto;
+  height: auto;
   padding: 0;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  background: color-mix(in srgb, var(--surface) 35%, transparent);
+  border: none;
+  border-radius: 0;
+  background: none;
   color: color-mix(in srgb, var(--text-muted) 55%, var(--text));
 }
 
@@ -114,8 +259,6 @@
 /* El color de marca lo inyecta PlaneMiniFace desde el registro de proveedores. */
 .plane-mini-face__provider {
   --brand: var(--plane-mini-face-brand, var(--accent));
-  border-color: color-mix(in srgb, var(--brand) 48%, transparent);
-  background: color-mix(in srgb, var(--brand) 16%, transparent);
   color: color-mix(in srgb, var(--brand) 88%, var(--text));
 }
 
@@ -278,6 +421,17 @@
 
 .plane-mini-face--compact .plane-mini-face__header {
   margin-bottom: 3px;
+  gap: 6px;
+}
+
+.plane-mini-face--compact .plane-mini-face__controls-btn {
+  width: 20px;
+  height: 20px;
+}
+
+.plane-mini-face--compact .plane-mini-face__controls-rail {
+  gap: 3px;
+  padding-block: 2px;
 }
 
 .plane-mini-face--compact .plane-mini-face__body {
@@ -301,5 +455,20 @@
 }
 
 html[data-reduce-motion="true"] {
-  /* Sin animaciones propias en la face; el borde del pane puede seguir lento. */
+  .plane-mini-face__controls-rail {
+    transition: opacity 0.01s;
+    transform: none;
+  }
+
+  .pane-window--agent-card.pane-window--mini:hover .plane-mini-face__controls-rail,
+  .pane-window--agent-card.pane-window--mini:focus-within .plane-mini-face__controls-rail,
+  .plane-mini-face__controls-rail:focus-within {
+    transform: none;
+  }
+
+  .plane-mini-face__controls-rail .plane-mini-face__controls-btn,
+  .pane-window--agent-card.pane-window--mini:hover .plane-mini-face__controls-rail .plane-mini-face__controls-btn,
+  .pane-window--agent-card.pane-window--mini:focus-within .plane-mini-face__controls-rail .plane-mini-face__controls-btn {
+    transform: none;
+  }
 }

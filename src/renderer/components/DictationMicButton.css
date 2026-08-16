@@ -1,0 +1,63 @@
+/* Forma de onda del botón mic — blanco como el ícono mic (#fff en send). */
+
+.dictation-mic-btn__wave {
+  position: absolute;
+  inset: 7px 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dictation-mic-btn__wave-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: #fff;
+}
+
+.dictation-mic-btn__wave-line {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: calc(0.82 + var(--dictation-level, 0) * 0.18);
+}
+
+.dictation-mic-btn__icon {
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+}
+
+.plane-chat-composer__send--mic.plane-chat-composer__send--listening {
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 calc(1px + var(--dictation-level, 0) * 2px)
+      color-mix(in srgb, var(--plane-composer-accent, var(--accent)) calc(22% + var(--dictation-level, 0) * 28%), transparent),
+    0 2px 12px
+      color-mix(in srgb, var(--plane-composer-accent, var(--accent)) calc(26% + var(--dictation-level, 0) * 18%), transparent);
+}
+
+.agent-pane__send--mic.agent-pane__send--listening {
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 calc(1px + var(--dictation-level, 0) * 2px)
+      color-mix(in srgb, var(--accent) calc(22% + var(--dictation-level, 0) * 28%), transparent),
+    0 2px 12px
+      color-mix(in srgb, var(--accent) calc(26% + var(--dictation-level, 0) * 18%), transparent);
+}
+
+html[data-reduce-motion="true"] .dictation-mic-btn__wave-line {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dictation-mic-btn__wave-line {
+    transition: none;
+  }
+}

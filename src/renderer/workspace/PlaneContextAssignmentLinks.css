@@ -23,26 +23,30 @@
   opacity: 0;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: plane-context-link-draw 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: plane-context-link-draw 0.36s cubic-bezier(0.22, 0.84, 0.28, 1) forwards;
 }
 
 .plane-context-assignment-links__path--halo {
   stroke-width: 4;
-  animation: plane-context-link-halo-in 0.46s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: plane-context-link-halo-in 0.4s cubic-bezier(0.22, 0.84, 0.28, 1) forwards;
 }
 
 .plane-context-assignment-links__node {
   opacity: 0;
-  transform: scale(0.35);
+  transform: scale(0.55);
   transform-box: fill-box;
   transform-origin: center;
-  animation: plane-context-link-node-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+  animation: plane-context-link-node-in 0.28s cubic-bezier(0.22, 0.84, 0.28, 1) 0.22s forwards;
 }
 
 @keyframes plane-context-link-draw {
   from {
     opacity: 0;
     stroke-dashoffset: 1;
+  }
+
+  40% {
+    opacity: calc(var(--plane-context-link-opacity) * 0.4);
   }
 
   to {
@@ -57,6 +61,10 @@
     stroke-dashoffset: 1;
   }
 
+  45% {
+    opacity: calc(var(--plane-context-link-halo-opacity) * 0.35);
+  }
+
   to {
     opacity: var(--plane-context-link-halo-opacity);
     stroke-dashoffset: 0;
@@ -66,7 +74,12 @@
 @keyframes plane-context-link-node-in {
   from {
     opacity: 0;
-    transform: scale(0.35);
+    transform: scale(0.55);
+  }
+
+  55% {
+    opacity: calc(var(--plane-context-link-node-opacity) * 0.72);
+    transform: scale(0.92);
   }
 
   to {

@@ -25,8 +25,6 @@ export interface PlaneContextAssignmentLinksProps {
 const POOL_CHIP_SELECTOR = '[data-context-pool-chip]'
 const AGENT_CARD_SELECTOR = '[data-pane-id].pane-window--agent-card'
 const NO_FOCUS: ContextLinkFocus = { contextId: null, paneId: null }
-/** Espera antes de dibujar conectores al pasar el puntero (evita flashes al cruzar el plano). */
-export const CONTEXT_LINK_HOVER_DELAY_MS = 300
 
 function focusFromEventTarget(target: EventTarget | null): ContextLinkFocus {
   if (!(target instanceof Element)) return NO_FOCUS
@@ -108,49 +106,20 @@ export const PlaneContextAssignmentLinks: React.FC<PlaneContextAssignmentLinksPr
   const [shownFocus, setShownFocus] = useState<ContextLinkFocus>(NO_FOCUS)
   const [links, setLinks] = useState<RenderedContextLink[]>([])
   const measureRafRef = useRef(0)
-  const hoverTimerRef = useRef<number | null>(null)
-  const pendingFocusRef = useRef<ContextLinkFocus>(NO_FOCUS)
 
   useEffect(() => {
     const plane = planeRef.current
     if (hidden || !plane) {
-      pendingFocusRef.current = NO_FOCUS
-      if (hoverTimerRef.current !== null) {
-        window.clearTimeout(hoverTimerRef.current)
-        hoverTimerRef.current = null
-      }
       setShownFocus(NO_FOCUS)
       return
     }
 
-    const clearHoverTimer = (): void => {
-      if (hoverTimerRef.current !== null) {
-        window.clearTimeout(hoverTimerRef.current)
-        hoverTimerRef.current = null
-      }
-    }
-
     const showNow = (next: ContextLinkFocus): void => {
-      clearHoverTimer()
-      pendingFocusRef.current = next
       setShownFocus(prev => (sameFocus(prev, next) ? prev : next))
     }
 
-    const schedulePointerFocus = (next: ContextLinkFocus): void => {
-      pendingFocusRef.current = next
-      clearHoverTimer()
-      if (!next.contextId && !next.paneId) {
-        setShownFocus(NO_FOCUS)
-        return
-      }
-      hoverTimerRef.current = window.setTimeout(() => {
-        hoverTimerRef.current = null
-        setShownFocus(pendingFocusRef.current)
-      }, CONTEXT_LINK_HOVER_DELAY_MS)
-    }
-
     const onPointerOver = (ev: PointerEvent): void => {
-      schedulePointerFocus(focusFromEventTarget(ev.target))
+      showNow(focusFromEventTarget(ev.target))
     }
     const onFocusIn = (ev: FocusEvent): void => {
       const next = focusFromEventTarget(ev.target)
@@ -166,7 +135,6 @@ export const PlaneContextAssignmentLinks: React.FC<PlaneContextAssignmentLinksPr
       plane.removeEventListener('pointerover', onPointerOver)
       plane.removeEventListener('pointerleave', onLeave)
       plane.removeEventListener('focusin', onFocusIn)
-      clearHoverTimer()
     }
   }, [planeRef, hidden])
 

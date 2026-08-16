@@ -15,17 +15,22 @@ let silencePeakThreshold: Float = 0.008
 /// Intervalo mínimo entre eventos `level` (~25/s, bajo el tope de ~40/s).
 let levelEmitIntervalSec: CFAbsoluteTime = 0.04
 
+private let spectrumBandCount = 12
+private let spectrumTargetHz: [Float] = [
+  100, 150, 220, 330, 500, 750, 1100, 1700, 2500, 3800, 5500, 8000,
+]
+
 enum OutEvent: Encodable {
   case ready
   case started
   case partial(text: String)
-  case level(peak: Float)
+  case level(peak: Float, bands: [Float])
   case finalText(text: String, peak: Float)
   case stopped
   case error(code: String, message: String)
 
   enum CodingKeys: String, CodingKey {
-    case type, text, code, message, peak
+    case type, text, code, message, peak, bands
   }
 
   func encode(to encoder: Encoder) throws {
@@ -38,9 +43,10 @@ enum OutEvent: Encodable {
     case .partial(let text):
       try c.encode("partial", forKey: .type)
       try c.encode(text, forKey: .text)
-    case .level(let peak):
+    case .level(let peak, let bands):
       try c.encode("level", forKey: .type)
       try c.encode(peak, forKey: .peak)
+      try c.encode(bands, forKey: .bands)
     case .finalText(let text, let peak):
       try c.encode("final", forKey: .type)
       try c.encode(text, forKey: .text)
@@ -94,6 +100,47 @@ func isSilentPeak(_ peak: Float, threshold: Float = silencePeakThreshold) -> Boo
   !peak.isFinite || peak < threshold
 }
 
+func goertzelMagnitude(
+  samples: UnsafePointer<Float>,
+  count: Int,
+  sampleRate: Float,
+  targetHz: Float
+) -> Float {
+  guard count > 0, sampleRate > 0, targetHz > 0 else { return 0 }
+  let k = Int(0.5 + (Float(count) * targetHz / sampleRate))
+  let omega = (2.0 * Float.pi * Float(k)) / Float(count)
+  let coeff = 2.0 * cos(omega)
+  var s0: Float = 0
+  var s1: Float = 0
+  var s2: Float = 0
+  for i in 0..<count {
+    s0 = samples[i] + coeff * s1 - s2
+    s2 = s1
+    s1 = s0
+  }
+  let power = s1 * s1 + s2 * s2 - coeff * s1 * s2
+  return sqrt(max(0, power)) / Float(count)
+}
+
+func spectrumBands(from buffer: AVAudioPCMBuffer) -> [Float] {
+  let frames = Int(buffer.frameLength)
+  guard frames >= 32, let channelData = buffer.floatChannelData else {
+    return [Float](repeating: 0, count: spectrumBandCount)
+  }
+  let count = min(frames, 1024)
+  let rate = Float(buffer.format.sampleRate)
+  let samples = channelData[0]
+  return spectrumTargetHz.map { hz in
+    let magnitude = goertzelMagnitude(
+      samples: samples,
+      count: count,
+      sampleRate: rate,
+      targetHz: hz
+    )
+    return min(1, max(0, magnitude * 42))
+  }
+}
+
 enum DictationStartError: String {
   case alreadyRunning = "already-running"
   case permissionDenied = "permission-denied"
@@ -112,6 +159,7 @@ final class DictationEngine: NSObject {
   private var sessionPeak: Float = 0
   /// Max pico desde el último `level` emitido (ventana para waveform).
   private var levelWindowPeak: Float = 0
+  private var levelWindowBands = [Float](repeating: 0, count: spectrumBandCount)
   private var lastLevelEmitAt: CFAbsoluteTime = 0
   private var running = false
   private var awaitingFinal = false
@@ -234,6 +282,7 @@ final class DictationEngine: NSObject {
     bestTranscript = ""
     sessionPeak = 0
     levelWindowPeak = 0
+    levelWindowBands = [Float](repeating: 0, count: spectrumBandCount)
     lastLevelEmitAt = 0
     awaitingFinal = false
     stopCompletion = nil
@@ -279,19 +328,28 @@ final class DictationEngine: NSObject {
       input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
         guard let self else { return }
         let peak = peakAbsoluteFromBuffer(buffer)
+        let bands = spectrumBands(from: buffer)
         self.lock.lock()
         if peak > self.sessionPeak { self.sessionPeak = peak }
         if peak > self.levelWindowPeak { self.levelWindowPeak = peak }
+        for index in 0..<spectrumBandCount {
+          if bands[index] > self.levelWindowBands[index] {
+            self.levelWindowBands[index] = bands[index]
+          }
+        }
         var emitPeak: Float?
+        var emitBands: [Float]?
         let now = CFAbsoluteTimeGetCurrent()
         if self.running && (self.lastLevelEmitAt == 0 || now - self.lastLevelEmitAt >= levelEmitIntervalSec) {
           self.lastLevelEmitAt = now
           emitPeak = self.levelWindowPeak
+          emitBands = self.levelWindowBands
           self.levelWindowPeak = 0
+          self.levelWindowBands = [Float](repeating: 0, count: spectrumBandCount)
         }
         self.lock.unlock()
-        if let emitPeak {
-          emit(.level(peak: emitPeak))
+        if let emitPeak, let emitBands {
+          emit(.level(peak: emitPeak, bands: emitBands))
         }
         self.request?.append(buffer)
       }

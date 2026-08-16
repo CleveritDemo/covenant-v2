@@ -29,6 +29,7 @@
   background: var(--plane-glass-strong);
   color: var(--text-muted);
   cursor: pointer;
+  cursor: pointer;
   box-shadow:
     var(--plane-shadow-soft),
     0 4px 12px color-mix(in srgb, #000 18%, transparent);

@@ -265,15 +265,13 @@
   display: flex;
   flex-direction: column;
   transition:
-    left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    top 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.16s,
     box-shadow 0.16s,
     filter 0.16s;
 }
 
-.pane-window--agent-card.pane-window--mini:hover {
+.pane-window--agent-card.pane-window--mini:hover,
+.pane-window--agent-card.pane-window--mini:focus-within {
   border-color: color-mix(in srgb, var(--border) 48%, transparent);
   box-shadow: none;
 }
@@ -297,7 +295,7 @@
   overflow: visible;
 }
 
-.plane-window--agent-card.pane-window--mini .pane-window__shell {
+.pane-window--agent-card.pane-window--mini .pane-window__shell {
   flex: 0 0 auto;
   height: auto;
   min-height: 0;
@@ -309,9 +307,15 @@
   pointer-events: none;
 }
 
+.pane-window--agent-card.pane-window--mini .plane-mini-face-wrap {
+  border-radius: inherit;
+}
+
 .pane-window--agent-card.pane-window--mini .plane-mini-face {
   position: relative;
   z-index: 2;
+  border-radius: inherit;
+  overflow: hidden;
 }
 
 .pane-window--agent-card.pane-window--busy.pane-window--mini {

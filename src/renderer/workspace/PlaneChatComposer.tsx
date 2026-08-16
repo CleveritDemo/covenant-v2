@@ -474,7 +474,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   }, [t])
 
   const speechLang = i18n.language?.toLowerCase().startsWith('es') ? 'es-ES' : 'en-US'
-  const { listening, interim, level, start: startDictation, stop: stopDictation } =
+  const { listening, interim, level, bands, start: startDictation, stop: stopDictation } =
     usePushToTalkSpeech({
       lang: speechLang,
       systemSoundsEnabled,
@@ -546,6 +546,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         composerWorking
           ? 'plane-chat-composer--working'
           : '',
+        listening ? 'plane-chat-composer--dictating' : '',
         dropActive ? 'plane-chat-composer--drop' : '',
       ].filter(Boolean).join(' ')}
       onDragOver={handleDragOver}
@@ -557,7 +558,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         <DictationListeningOverlay
           active={listening}
           level={level}
+          scope="chat-dock"
           text={interim.trim() || t('agentPane.dictationLive')}
+          streaming={Boolean(interim.trim())}
         />
         {queuedTurns.length > 0 && (
           <div className="plane-chat-composer__pending-row">
@@ -688,6 +691,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
           sendMode={buttonIsStop ? 'stop' : micMode ? 'mic' : 'send'}
           sendDisabled={!buttonIsStop && !micMode && !canSend}
           listening={listening}
+          level={level}
+          bands={bands}
           disabled={agents.length === 0 || noAgentSelected}
           disabledHint={noAgentSelected ? t('tabs.planeComposerSelectAgent') : undefined}
           recalling={historyIndex !== null}

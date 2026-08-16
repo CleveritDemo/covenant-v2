@@ -7,6 +7,8 @@ import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
 import { CoordinationBadge } from '../components/ui/CoordinationBadge'
+import { OrchestrationWorkStyleBadge } from '../components/ui/OrchestrationWorkStyleBadge'
+import type { OrchestrationWorkStyle } from '@shared/agentOrchestration'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
 import {
@@ -34,6 +36,8 @@ export interface PlaneMiniFaceProps {
   provider?: AgentCliProvider
   /** Muestra chip de orquestador / product owner junto al proveedor. */
   coordination?: 'none' | 'orchestrator' | 'productOwner'
+  /** Solo orquestadores: lineal o turbo. */
+  orchestrationWorkStyle?: OrchestrationWorkStyle
   statusLabel: string
   /** Reemplaza la cápsula de estado (p. ej. hilos activos en lugar de «En espera»). */
   statusSlot?: React.ReactNode
@@ -66,6 +70,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   activityDot = null,
   provider = 'claude',
   coordination = 'none',
+  orchestrationWorkStyle,
   statusLabel,
   statusSlot,
   density = 'default',
@@ -169,6 +174,16 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
                 : 'agentPane.specialistBadge',
           )}
         />
+        {coordination === 'orchestrator' && orchestrationWorkStyle ? (
+          <OrchestrationWorkStyleBadge
+            workStyle={orchestrationWorkStyle}
+            label={t(
+              orchestrationWorkStyle === 'turbo'
+                ? 'agentPane.orchestrationWorkStyleTurbo'
+                : 'agentPane.orchestrationWorkStyleLinear',
+            )}
+          />
+        ) : null}
       </div>
       <div className="plane-mini-face__header-end">
         {onConfigure && configLabel ? (

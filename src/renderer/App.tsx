@@ -6301,6 +6301,9 @@ export const App: React.FC = () => {
                     || meta?.coordination === 'productOwner'
                     ? meta.coordination
                     : 'none') as 'none' | 'orchestrator' | 'productOwner',
+                  orchestrationWorkStyle: meta?.coordination === 'orchestrator'
+                    ? (status?.orchestrationWorkStyle === 'turbo' ? 'turbo' : 'linear')
+                    : undefined,
                   snippet: userPromptSnippet
                     || (delegationWorkActive ? t('agentPane.awaitingStatusRunning') : '')
                     || '',

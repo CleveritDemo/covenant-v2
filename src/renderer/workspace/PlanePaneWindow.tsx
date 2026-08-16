@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import type { AgentCliProvider, PaneKind, PaneWindowState } from '@shared/tabSession'
 import type { PaneWindowGeometry } from '@shared/paneWindows'
+import type { OrchestrationWorkStyle } from '@shared/agentOrchestration'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { PaneWindow } from './PaneWindow'
@@ -30,6 +31,7 @@ export interface PlanePaneWindowProps {
   awaitingDelegations?: boolean
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator' | 'productOwner'
+  orchestrationWorkStyle?: OrchestrationWorkStyle
   snippet?: string
   idleLabel: string
   window: PaneWindowState
@@ -105,6 +107,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   awaitingDelegations = false,
   provider,
   coordination,
+  orchestrationWorkStyle,
   snippet,
   idleLabel,
   window,
@@ -246,6 +249,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             activityDot={miniCornerActivityDot}
             provider={provider}
             coordination={coordination}
+            orchestrationWorkStyle={orchestrationWorkStyle}
             statusLabel={statusLabel}
             onOpen={openAgentFromCard}
             statusSlot={showThreadNodes ? (

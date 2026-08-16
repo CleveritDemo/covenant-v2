@@ -19,6 +19,7 @@ import {
   type PaneWindowGeometry,
 } from '@shared/paneWindows'
 import type { TabContext } from '@shared/tabContext'
+import type { OrchestrationWorkStyle } from '@shared/agentOrchestration'
 import type { PaneReorderKind } from '../arrayReorder'
 import { PlanePaneWindow, type PlaneAgentContextChip } from './PlanePaneWindow'
 import type { PlaneContextPoolAgent } from './planeContextPoolLayout'
@@ -49,6 +50,7 @@ export interface PlaneMapEntity {
   delegationWorkActive?: boolean
   provider?: AgentCliProvider
   coordination?: 'none' | 'orchestrator' | 'productOwner'
+  orchestrationWorkStyle?: OrchestrationWorkStyle
   snippet?: string
   /** Slug del agente en catálogo (drag de results). */
   agentId?: string
@@ -888,6 +890,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           awaitingDelegations={entity.awaitingDelegations}
           provider={entity.provider}
           coordination={entity.coordination}
+          orchestrationWorkStyle={entity.orchestrationWorkStyle}
           snippet={entity.snippet}
           idleLabel={idleAgentLabel}
           window={entity.window}

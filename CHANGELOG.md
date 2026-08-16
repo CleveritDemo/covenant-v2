@@ -4,6 +4,18 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.69.0
+
+- **Plano: fondo de esfera de rejilla**: el plano se ve desde el centro de una esfera de líneas, con giro diagonal lento, apertura de 110° y atenuación hacia las esquinas; con reduce motion se dibuja estática en 2D.
+- **Temas: grilla con el mismo contraste en todos**: cada tema iguala el contraste de línea y resplandor de Interstellar; los claros quedan un 20% más transparentes y el color se resuelve a rgb() para que WebGL no lo pinte blanco.
+- **Plano: velo superior a ancho completo**: el desvanecido sobre el stream cubre todo el plano en vez de la columna del chat, es más alto y difumina más; con reduce motion no aplica blur.
+- **Plano: columnas sin pisarse**: la columna de terminales queda siempre por encima de la de agentes y, al expandir una terminal, solo esa columna pierde el 3D; las minis se centran en su banda lateral en vez de pegarse al chat.
+- **Plano: historial de hilos desde el chip**: el chip del hilo activo deja de ser botón; el desplegable se abre al pasar por el chip completo (incluido renombrar) y se alinea a su ancho.
+- **Plano: crear agente o terminal con ayuda en el tooltip**: los botones de las esquinas nombran la acción y explican qué consigues; con la carpeta sin elegir, el motivo del bloqueo va al tooltip.
+- **Ventana expandida sin borde de acento**: enfocar una ventana a pantalla completa ya no pinta el borde con el color de acento.
+- **Temas: selector más compacto**: el modal es más pequeño, con preview fijo a la izquierda y una grilla densa de temas a la derecha.
+- **Composer: pegar texto largo sin crypto**: la tarjeta de texto pegado ya no depende de crypto.randomUUID y funciona en entornos que no lo exponen.
+
 ## v0.68.0
 
 - **Plano: rail de controles en minis de agente**: arrastrar, ajustes y cerrar aparecen fuera de la card al hover, con fondo glass y botones transparentes.

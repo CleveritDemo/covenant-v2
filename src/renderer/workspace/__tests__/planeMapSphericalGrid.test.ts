@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { drawSphericalGrid, projectSphereGridPoint } from '../planeSphericalGridDraw'
+import {
+  drawSphericalGrid,
+  PLANE_GRID_FOV_FALLOFF_MIN,
+  projectSphereGridPoint,
+} from '../planeSphericalGridDraw'
 
 describe('projectSphereGridPoint', () => {
   it('centra el polo frontal', () => {
@@ -63,6 +67,6 @@ describe('drawSphericalGrid', () => {
       lineAlpha: 0.063,
     })
 
-    expect(alphas[0]).toBeCloseTo(0.063, 5)
+    expect(alphas[0]).toBeCloseTo(0.063 * PLANE_GRID_FOV_FALLOFF_MIN, 5)
   })
 })

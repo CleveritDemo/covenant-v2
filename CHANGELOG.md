@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.63.1
+
+- **Orquestación: hilos con turno vivo al cerrar la ola**: al cerrar una ola ya no se borra el hilo ni el transcripto de un carril de delegación que sigue con turno en curso.
+- **Plano: minis sin solapamiento en ventanas estrechas**: las minis dejan de tapar el chat, el rail de tools y el pool de contextos; el tilt 3D se apaga en ventanas de ≤1040px.
+
 ## v0.63.0
 
 - **Wiki: barrido completo en cinco pases**: el botón «Curar wiki» recorre la wiki entera con snapshot previo, overlay de progreso por pase y errores visibles tanto por pase como de barrido; el curador manual y el barrido se excluyen mutuamente en ambos sentidos, y al reabrir el mapa la UI adopta el lock real de main.

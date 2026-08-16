@@ -9,7 +9,7 @@ interface ThemeChipProps {
   onHover: () => void
 }
 
-/** Card de tema: círculos de paleta + nombre; el color se lee sin depender del texto. */
+/** Fila compacta: paleta en línea + nombre truncado. */
 export const ThemeChip: React.FC<ThemeChipProps> = ({
   theme,
   isActive,
@@ -52,7 +52,7 @@ export const ThemeChip: React.FC<ThemeChipProps> = ({
       <span className="theme-picker-chip-name">{theme.name}</span>
       {isActive && (
         <span className="theme-picker-chip-check" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
             <path
               d="M2.5 6.2L4.8 8.5L9.5 3.5"
               stroke="currentColor"

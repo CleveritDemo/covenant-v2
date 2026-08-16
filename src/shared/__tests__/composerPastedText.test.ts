@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   PASTED_TEXT_MIN_CHARS,
   PASTED_TEXT_MIN_LINES,
@@ -31,6 +31,9 @@ describe('shouldCapturePastedText', () => {
 
 describe('createPastedText', () => {
   it('arma id, conteos y byteSize', () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    })
     const text = 'hola\nmundo'
     const paste = createPastedText(text)
     expect(paste.id).toMatch(
@@ -66,6 +69,9 @@ describe('pastedTextPreview', () => {
 
 describe('composeTextWithPastes', () => {
   it('une typed y pastes con doble salto, descartando vacíos', () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: () => 'bbbbbbbb-cccc-dddd-eeee-ffff-gggggggggggg',
+    })
     const pastes: ComposerPastedText[] = [
       createPastedText('uno'),
       createPastedText(''),

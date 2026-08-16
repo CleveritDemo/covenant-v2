@@ -89,8 +89,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       activity: runningThreadActivities[threadId] ?? '',
     }))
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
-  const threadChipRef = useRef<HTMLButtonElement>(null)
-  const threadDropdownRef = useRef<HTMLDivElement>(null)
+  const threadChipRef = useRef<HTMLSpanElement>(null)
   const [threadPanelOpen, setThreadPanelOpen] = useState(false)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
@@ -150,25 +149,32 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                 />
               </div>
             ) : (
-              <div
-                ref={threadDropdownRef}
-                className="plane-chat-contexts-bar__thread-dropdown"
-              >
-                <div className="plane-chat-contexts-bar__chip-host">
-                  <button
-                    ref={threadChipRef}
-                    type="button"
-                    role="combobox"
+              <div className="plane-chat-contexts-bar__thread-dropdown">
+                <PlaneChatThreadHistoryButton
+                  panelId={threadPanelId}
+                  triggerRef={threadChipRef}
+                  threads={threads}
+                  activeThreadId={activeThreadId}
+                  runningThreadIds={runningThreadIds}
+                  awaitingDelegations={awaitingDelegations}
+                  awaitingDelegationThreadIds={awaitingDelegationThreadIds}
+                  paneCliBusy={paneCliBusy}
+                  threadSelectionLocked={threadSelectionLocked}
+                  onSelectThread={onSelectThread!}
+                  onOpenChange={setThreadPanelOpen}
+                  anchor={hoverProps => (
+                <div
+                  ref={threadChipRef}
+                  className="plane-chat-contexts-bar__chip-host"
+                  {...hoverProps}
+                >
+                  <span
                     className={[
                       'plane-chat-contexts-bar__chip',
                       'plane-chat-contexts-bar__chip--active',
-                      'plane-chat-contexts-bar__chip--openable',
                       threadPanelOpen ? 'plane-chat-contexts-bar__chip--menu-open' : '',
                     ].filter(Boolean).join(' ')}
                     aria-label={activeThread.title || t('agentPane.threadUntitled')}
-                    aria-expanded={threadPanelOpen}
-                    aria-haspopup="listbox"
-                    aria-controls={threadPanelId}
                   >
                     {activeChipDot ? (
                       <PlaneBusyDot size="sm" variant={activeChipDot} />
@@ -176,7 +182,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                     <span className="plane-chat-contexts-bar__chip-label">
                       {activeThread.title || t('agentPane.threadUntitled')}
                     </span>
-                  </button>
+                  </span>
                   {onRenameThread ? (
                     <button
                       type="button"
@@ -191,19 +197,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                     </button>
                   ) : null}
                 </div>
-                <PlaneChatThreadHistoryButton
-                  panelId={threadPanelId}
-                  triggerRef={threadChipRef}
-                  hoverAnchorRef={threadDropdownRef}
-                  threads={threads}
-                  activeThreadId={activeThreadId}
-                  runningThreadIds={runningThreadIds}
-                  awaitingDelegations={awaitingDelegations}
-                  awaitingDelegationThreadIds={awaitingDelegationThreadIds}
-                  paneCliBusy={paneCliBusy}
-                  threadSelectionLocked={threadSelectionLocked}
-                  onSelectThread={onSelectThread!}
-                  onOpenChange={setThreadPanelOpen}
+                  )}
                 />
               </div>
             )}

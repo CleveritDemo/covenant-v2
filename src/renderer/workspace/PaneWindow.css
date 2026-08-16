@@ -163,7 +163,7 @@
   position: absolute;
   min-width: 320px;
   min-height: 200px;
-  /* Borde neutro tenue en reposo; accent al enfocar. */
+  /* Borde neutro tenue en reposo; sin accent al enfocar full. */
   border-color: color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: var(--plane-radius-sm);
   box-shadow:
@@ -172,11 +172,11 @@
 }
 
 .pane-window--full.pane-window--focused {
-  border-color: var(--accent);
+  /* Sin borde accent al expandir/enfocar terminal; mismo neutro que reposo. */
+  border-color: color-mix(in srgb, var(--border) 32%, transparent);
   box-shadow:
     var(--plane-shadow),
-    0 0 0 0.5px color-mix(in srgb, #000 18%, transparent),
-    inset 0 0.5px 0 color-mix(in srgb, #fff 10%, transparent);
+    inset 0 0 0 1px var(--plane-highlight);
 }
 
 .pane-window--fullscreen {
@@ -381,7 +381,7 @@
   filter: brightness(1.04);
 }
 
-/* Focused genérico: no pinta borde; full abierta activa usa --accent arriba. */
+/* Focused genérico: no pinta borde accent en full. */
 .pane-window--focused {
   box-shadow:
     var(--plane-shadow),

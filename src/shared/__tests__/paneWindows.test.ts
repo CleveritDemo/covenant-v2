@@ -83,14 +83,18 @@ describe('paneWindows', () => {
     expect(wide).toBeGreaterThan(base)
   })
 
-  it('anchors mini columns to chat gap on reference viewport', () => {
+  it('centers mini columns in side bands on reference viewport', () => {
     const layout = computePlaneMiniColumnLayout({ width: 1280, height: 800 }, 1)
     expect(layout.chatWidth).toBe(PLANE_CHAT_BASE_WIDTH)
-    expect(layout.terminalX).toBe(96)
-    expect(computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)).toBe(96)
+    expect(layout.terminalX).toBe(74)
+    expect(computePlaneMiniSlotPadX({ width: 1280, height: 800 }, 1)).toBe(74)
     const wide = computePlaneMiniColumnLayout({ width: 2560, height: 1440 }, 1)
     expect(wide.terminalX).toBeGreaterThan(layout.terminalX)
     expect(wide.chatWidth).toBe(PLANE_CHAT_MAX_WIDTH)
+    const leftBandCenter = (
+      PLANE_TOOLS_RAIL_RESERVE + (wide.chatLeft - PLANE_CHAT_SIDE_GAP)
+    ) / 2
+    expect(wide.terminalX).toBe(Math.round(leftBandCenter - wide.cell.width / 2))
   })
 
   it('shrinks chat below base width on narrow viewports', () => {

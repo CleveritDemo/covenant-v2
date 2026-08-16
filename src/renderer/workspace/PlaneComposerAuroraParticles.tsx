@@ -13,7 +13,7 @@ type PlaneComposerAuroraParticlesProps = {
 }
 
 const FIELD_HEIGHT = 160
-const MAX_PARTICLES = 55
+const MAX_PARTICLES = 72
 const SPAWN_INTERVAL_MS = 56
 /** Margen inferior para que el radio no se recorte en el borde del canvas. */
 const SPAWN_BOTTOM_MARGIN = 16

@@ -1,5 +1,6 @@
 import React from 'react'
 import { PlaneMapGridParticles } from './PlaneMapGridParticles'
+import { PlaneMapSphericalGrid } from './PlaneMapSphericalGrid'
 import './PlaneMap.css'
 
 type PlaneMapBackdropProps = {
@@ -12,7 +13,7 @@ export const PlaneMapBackdrop: React.FC<PlaneMapBackdropProps> = ({
 }) => (
   <div className="plane-map-backdrop" aria-hidden="true">
     <div className="plane-map__atmosphere" />
-    <div className="plane-map__grid" />
+    <PlaneMapSphericalGrid />
     {floorParticles}
     <PlaneMapGridParticles />
   </div>

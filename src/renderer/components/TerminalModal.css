@@ -160,9 +160,10 @@
   max-height: min(88%, 900px);
 }
 
-.terminal-modal-panel--theme-picker.terminal-modal-panel--xl {
-  width: min(1080px, 98vw);
-  max-height: min(92%, 920px);
+.terminal-modal-panel--theme-picker.terminal-modal-panel--lg {
+  width: min(680px, 96vw);
+  height: min(72vh, 520px);
+  max-height: min(72vh, 520px);
 }
 
 @media (max-height: 520px) {

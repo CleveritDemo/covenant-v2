@@ -1,7 +1,7 @@
 /*
  * Activo mini / chat: borde sólido accent del tema.
  * Ortogonal al PlaneBusyDot multicolor.
- * Terminales: accent solo en full abierta (.pane-window--focused); mini no.
+ * Terminales full: borde neutro (sin accent en focus); mini activa sin borde accent.
  */
 .plane-chat-active {
   border-color: var(--accent);

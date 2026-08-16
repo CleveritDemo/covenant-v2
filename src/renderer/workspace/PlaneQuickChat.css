@@ -29,7 +29,7 @@
   overflow: visible !important;
 }
 
-/* Velo superior: lo pinta PlaneMap (.plane-map__chat-top-fade) bajo los paneles. */
+/* Velo superior a ancho de plano: .plane-quick-chat__top-fade (no la columna del chat). */
 
 /* Evita el radial superior del .agent-pane heredado. */
 .plane-quick-chat.agent-pane {
@@ -40,6 +40,34 @@
 /* Sin glow inferior del agent-pane en el quick chat del plano. */
 .plane-quick-chat.agent-pane::before {
   display: none;
+}
+
+.plane-quick-chat__top-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: max(
+    var(--plane-chat-top-fade-min, 200px),
+    calc(var(--plane-chat-toolbar-clearance, 38px) + var(--plane-chat-top-fade-extra, 148px))
+  );
+  z-index: 2;
+  pointer-events: none;
+  background: transparent;
+  backdrop-filter: blur(48px) saturate(1.05);
+  -webkit-backdrop-filter: blur(48px) saturate(1.05);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    rgb(0 0 0 / 72%) 58%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    rgb(0 0 0 / 72%) 58%,
+    transparent 100%
+  );
 }
 
 .plane-quick-chat__enter {
@@ -99,7 +127,12 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
-  --agent-messages-edge-fade: max(52px, calc(var(--plane-chat-toolbar-clearance, 38px) + 14px));
+  --agent-messages-edge-fade: max(64px, calc(var(--plane-chat-toolbar-clearance, 38px) + 22px));
+}
+
+/* El velo superior vive en .plane-quick-chat__top-fade (ancho del plano, no de la columna). */
+.plane-quick-chat__stream.agent-pane__messages-wrap::before {
+  display: none;
 }
 
 .plane-quick-chat .agent-pane__messages {
@@ -164,6 +197,11 @@
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-reduce-motion="true"] .plane-quick-chat__top-fade {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }

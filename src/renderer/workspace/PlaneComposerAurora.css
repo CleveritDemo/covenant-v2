@@ -50,19 +50,27 @@
   background-size: 200% 100%;
   background-position: 0% 50%;
   animation: none;
+  filter: brightness(0.88);
   box-shadow:
-    0 0 8px color-mix(in srgb, var(--accent) 28%, transparent),
-    0 0 18px color-mix(in srgb, var(--theme-cyan) 14%, transparent);
-  transition: height 0.35s cubic-bezier(0.4, 0, 0.6, 1);
+    0 0 6px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 0 14px color-mix(in srgb, var(--theme-cyan) 10%, transparent);
+  transition:
+    height 0.35s cubic-bezier(0.4, 0, 0.6, 1),
+    filter 0.35s ease,
+    box-shadow 0.35s ease;
 }
 
 .plane-chat-composer--working .plane-composer-aurora__line {
   height: 2.5px;
-  animation: plane-composer-ribbon-flow 7s linear infinite;
+  animation:
+    plane-composer-ribbon-flow 7s linear infinite,
+    plane-composer-ribbon-glow 1.7s ease-in-out infinite;
   box-shadow:
-    0 0 12px color-mix(in srgb, var(--accent) 36%, transparent),
-    0 0 28px color-mix(in srgb, var(--theme-cyan) 18%, transparent);
-  will-change: background-position;
+    0 0 10px color-mix(in srgb, var(--accent) 52%, transparent),
+    0 0 24px color-mix(in srgb, var(--theme-cyan) 30%, transparent),
+    0 0 38px color-mix(in srgb, var(--theme-magenta) 16%, transparent);
+  filter: brightness(1.15);
+  will-change: background-position, filter, box-shadow;
 }
 
 @keyframes plane-composer-ribbon-flow {
@@ -70,10 +78,33 @@
   to { background-position: 100% 50%; }
 }
 
+@keyframes plane-composer-ribbon-glow {
+  0%,
+  100% {
+    filter: brightness(1.1);
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--accent) 48%, transparent),
+      0 0 22px color-mix(in srgb, var(--theme-cyan) 26%, transparent),
+      0 0 34px color-mix(in srgb, var(--theme-magenta) 14%, transparent);
+  }
+  50% {
+    filter: brightness(1.38);
+    box-shadow:
+      0 0 14px color-mix(in srgb, var(--accent) 78%, transparent),
+      0 0 32px color-mix(in srgb, var(--theme-cyan) 48%, transparent),
+      0 0 50px color-mix(in srgb, var(--theme-magenta) 30%, transparent);
+  }
+}
+
 html[data-reduce-motion="true"] {
   .plane-chat-composer--working .plane-composer-aurora__line {
     animation: none;
     background-position: 35% 50%;
+    filter: brightness(1.22);
+    box-shadow:
+      0 0 12px color-mix(in srgb, var(--accent) 58%, transparent),
+      0 0 28px color-mix(in srgb, var(--theme-cyan) 34%, transparent),
+      0 0 42px color-mix(in srgb, var(--theme-magenta) 20%, transparent);
     will-change: auto;
   }
 }

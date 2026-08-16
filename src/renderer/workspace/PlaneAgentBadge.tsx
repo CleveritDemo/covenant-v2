@@ -80,11 +80,13 @@ export const PlaneAgentBadge: React.FC<PlaneAgentBadgeProps> = ({
     onPointerCancel={() => { tapRef.current = null }}
   >
     <span className="plane-agent-badge__name">{name}</span>
-    <span className="plane-agent-badge__dot-wrap" aria-hidden={!dotExpanded}>
-      {mountedDot ? (
-        <PlaneBusyDot variant={mountedDot} size="sm" />
-      ) : null}
-    </span>
+    {dotExpanded ? (
+      <span className="plane-agent-badge__dot-wrap" aria-hidden={!mountedDot}>
+        {mountedDot ? (
+          <PlaneBusyDot variant={mountedDot} size="sm" />
+        ) : null}
+      </span>
+    ) : null}
   </button>
   )
 }

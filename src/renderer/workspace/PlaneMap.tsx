@@ -74,8 +74,6 @@ export interface PlaneMapProps {
   activePaneId: string
   /** Agente con chat abierto en el plano (selección estática, no busy). */
   chatActiveAgentId?: string | null
-  /** Velo superior del quick-chat: debajo de paneles, encima de grilla. */
-  chatTopFadeVisible?: boolean
   /** Partículas busy del piso (sin gradiente glow). */
   chatFloorGlowVisible?: boolean
   chatFloorGlowWorking?: boolean
@@ -327,7 +325,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   entities,
   activePaneId,
   chatActiveAgentId = null,
-  chatTopFadeVisible = false,
   chatFloorGlowVisible = false,
   chatFloorGlowWorking = false,
   tabActive = true,
@@ -573,6 +570,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     || Boolean(terminalReorder.draggingId)
     || Boolean(agentReorder.draggingId)
     || terminalReorder.gestureActive
+    || agentReorder.gestureActive
+
+  const terminalReorderActive = terminalReorder.editing
+    || Boolean(terminalReorder.draggingId)
+    || terminalReorder.gestureActive
+
+  const agentReorderActive = agentReorder.editing
+    || Boolean(agentReorder.draggingId)
     || agentReorder.gestureActive
 
   // Click en el vacío cancela el modo edición.
@@ -831,13 +836,14 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     [agentsInOrder],
   )
 
-  // Aplanar tilt solo al reordenar (pointer ↔ left/top) o con ventana expandida.
-  const flattenColumns = anyWindowOpen || reorderActive
-  const columnTiltDeg = flattenColumns ? 0 : computePlaneColumnTiltDeg(viewport.width)
-  const terminalsColumnTransform = columnTiltDeg === 0
+  // Tilt 3D por columna: terminal expandida no afecta agentes; reorder solo su columna.
+  const flattenTerminalColumn = terminalOpen || terminalReorderActive
+  const flattenAgentColumn = agentReorderActive
+  const columnTiltDeg = computePlaneColumnTiltDeg(viewport.width)
+  const terminalsColumnTransform = flattenTerminalColumn || columnTiltDeg === 0
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${columnTiltDeg}deg)`
-  const agentsColumnTransform = columnTiltDeg === 0
+  const agentsColumnTransform = flattenAgentColumn || columnTiltDeg === 0
     ? undefined
     : `perspective(${COLUMN_PERSPECTIVE_PX}px) rotateY(${-columnTiltDeg}deg)`
 
@@ -965,7 +971,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       ref={mapRef}
       className={[
         'plane-map',
-        anyWindowOpen ? 'plane-map--elevated' : '',
+        terminalOpen ? 'plane-map--terminal-open' : '',
         chatActiveAgentId ? 'plane-map--chat-open' : '',
         reorderActive ? 'plane-map--reordering' : '',
         wheelScrolling ? 'plane-map--wheel-scrolling' : '',
@@ -985,9 +991,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
           ) : null
         }
       />
-      {chatTopFadeVisible ? (
-        <div className="plane-map__chat-top-fade" aria-hidden="true" />
-      ) : null}
       {wikiOverlay ? (
         <div className="plane-map__wiki-overlay">{wikiOverlay}</div>
       ) : null}
@@ -1000,7 +1003,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--terminals',
-                !flattenColumns ? 'plane-map__column--tilt' : '',
+                !flattenTerminalColumn ? 'plane-map__column--tilt' : '',
                 terminalOpen ? 'plane-map__column--front' : '',
               ].filter(Boolean).join(' ')}
               style={terminalsColumnTransform
@@ -1015,7 +1018,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
               className={[
                 'plane-map__column',
                 'plane-map__column--agents',
-                !flattenColumns ? 'plane-map__column--tilt' : '',
+                !flattenAgentColumn ? 'plane-map__column--tilt' : '',
               ].filter(Boolean).join(' ')}
               style={agentsColumnTransform
                 ? { transform: agentsColumnTransform }

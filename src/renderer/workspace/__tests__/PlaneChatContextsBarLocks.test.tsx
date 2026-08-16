@@ -50,9 +50,7 @@ describe('PlaneChatContextsBar locks', () => {
         onNewThread={onNewThread}
       />,
     )
-    const activeChip = screen.getByRole('combobox', { name: 'One' }) as HTMLButtonElement
     const runningOption = screen.getByRole('option', { name: 'Two' }) as HTMLButtonElement
-    expect(activeChip.disabled).toBe(false)
     expect(runningOption.disabled).toBe(true)
     fireEvent.click(runningOption)
     expect(onSelectThread).not.toHaveBeenCalled()
@@ -73,7 +71,7 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={onSelectThread}
       />,
     )
-    expect(screen.getByRole('combobox', { name: 'One' })).toBeTruthy()
+    expect(screen.getByLabelText('One')).toBeTruthy()
     expect(screen.getByRole('option', { name: 'Two' })).toBeTruthy()
     fireEvent.click(screen.getByRole('option', { name: 'Two' }))
     expect(onSelectThread).toHaveBeenCalledWith('t-2')
@@ -103,7 +101,7 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={() => undefined}
       />,
     )
-    const chip = screen.getByRole('combobox', { name: 'One' })
+    const chip = screen.getByLabelText('One')
     expect(chip.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
     expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
   })
@@ -118,7 +116,7 @@ describe('PlaneChatContextsBar locks', () => {
         onSelectThread={() => undefined}
       />,
     )
-    expect(screen.getByRole('combobox', { name: 'One' }).querySelector('.plane-busy-dot')).toBeNull()
+    expect(screen.getByLabelText('One').querySelector('.plane-busy-dot')).toBeNull()
     expect(container.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
   })
 })

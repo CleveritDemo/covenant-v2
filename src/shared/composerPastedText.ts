@@ -19,9 +19,15 @@ export function shouldCapturePastedText(text: string): boolean {
   return lineCountOf(text) >= PASTED_TEXT_MIN_LINES
 }
 
+function newPastedTextId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.()
+  if (uuid) return uuid
+  return `paste-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export function createPastedText(text: string): ComposerPastedText {
   return {
-    id: crypto.randomUUID(),
+    id: newPastedTextId(),
     text,
     charCount: text.length,
     lineCount: lineCountOf(text),

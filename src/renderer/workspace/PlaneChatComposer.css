@@ -158,6 +158,7 @@
 .plane-chat-composer__agent-slot {
   flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
   scroll-snap-align: center;
   animation: plane-chat-composer-agent-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--agent-stagger, 0) * 50ms);

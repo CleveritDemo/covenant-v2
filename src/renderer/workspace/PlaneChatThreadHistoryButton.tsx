@@ -13,14 +13,21 @@ const HISTORY_PAGE_SIZE = 5
 const SCROLL_LOAD_THRESHOLD = 8
 const HOVER_OPEN_DELAY_MS = 90
 const HOVER_CLOSE_DELAY_MS = 160
-const PANEL_CLOSE_ANIM_MS = 200
+const PANEL_CLOSE_ANIM_MS = 180
+
+export interface PlaneChatThreadHistoryAnchorProps {
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+  onFocusCapture: () => void
+  onBlurCapture: (event: React.FocusEvent<HTMLElement>) => void
+}
 
 export interface PlaneChatThreadHistoryButtonProps {
   panelId: string
   /** Ancla de posición del popover (chip del thread activo). */
   triggerRef: React.RefObject<HTMLElement | null>
-  /** Zona de hover que incluye chip + lápiz; mantiene el panel abierto al cruzar el gap. */
-  hoverAnchorRef?: React.RefObject<HTMLElement | null>
+  /** Zona hover/focus del chip activo (render prop). */
+  anchor: (props: PlaneChatThreadHistoryAnchorProps) => React.ReactNode
   threads: readonly AgentThread[]
   activeThreadId: string
   runningThreadIds: readonly string[]
@@ -37,7 +44,7 @@ function panelPlacement(trigger: DOMRect): {
   bottom: number | 'auto'
   maxHeight: number
 } {
-  const GAP = 4
+  const GAP = 3
   const below = window.innerHeight - trigger.bottom - GAP * 2
   const above = trigger.top - GAP * 2
   if (below < 180 && above > below) {
@@ -60,7 +67,7 @@ function centeredPanelLeft(trigger: DOMRect, panelWidth: number): number {
 export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButtonProps> = ({
   panelId,
   triggerRef,
-  hoverAnchorRef,
+  anchor,
   threads,
   activeThreadId,
   runningThreadIds,
@@ -96,19 +103,29 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     const panelEl = panelRef.current
     if (!trigger || !panelEl) return
     const { top, bottom, maxHeight } = panelPlacement(trigger)
-    const panelWidth = panelEl.getBoundingClientRect().width
+    const measuredWidth = panelEl.getBoundingClientRect().width
+    const layoutWidth = Math.max(measuredWidth, trigger.width)
     setBox({
       top,
       bottom,
-      left: centeredPanelLeft(trigger, panelWidth),
+      left: centeredPanelLeft(trigger, layoutWidth),
       right: 'auto',
+      minWidth: trigger.width,
       maxHeight,
     })
   }, [triggerRef])
 
+  const syncPanelPositionAfterLayout = useCallback((): void => {
+    requestAnimationFrame(() => {
+      syncPanelPosition()
+      requestAnimationFrame(syncPanelPosition)
+    })
+  }, [syncPanelPosition])
+
   const openPanel = useCallback((): void => {
     const panel = panelRef.current
     if (!panel || isOpenRef.current) return
+    panel.classList.add('plane-chat-thread-history__panel--open')
     try {
       if (typeof panel.showPopover === 'function') panel.showPopover()
     } catch {
@@ -118,14 +135,15 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     setClosing(false)
     onOpenChange?.(true)
     setVisibleLimit(HISTORY_PAGE_SIZE)
-    requestAnimationFrame(syncPanelPosition)
-  }, [onOpenChange, syncPanelPosition])
+    requestAnimationFrame(syncPanelPositionAfterLayout)
+  }, [onOpenChange, syncPanelPositionAfterLayout])
 
   const closePanel = useCallback((animated = true): void => {
     const panel = panelRef.current
     if (!panel || !isOpenRef.current) return
 
     const finishClose = (): void => {
+      panel.classList.remove('plane-chat-thread-history__panel--open')
       try {
         if (typeof panel.hidePopover === 'function') panel.hidePopover()
       } catch {
@@ -191,53 +209,42 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
       const nowOpen = (event as ToggleEvent).newState === 'open'
       isOpenRef.current = nowOpen
       onOpenChange?.(nowOpen)
-      if (!nowOpen) {
-        setClosing(false)
+      if (nowOpen) {
+        panel.classList.add('plane-chat-thread-history__panel--open')
+        setVisibleLimit(HISTORY_PAGE_SIZE)
+        requestAnimationFrame(syncPanelPositionAfterLayout)
         return
       }
-      setVisibleLimit(HISTORY_PAGE_SIZE)
-      requestAnimationFrame(syncPanelPosition)
+      panel.classList.remove('plane-chat-thread-history__panel--open')
+      setClosing(false)
     }
     panel.addEventListener('toggle', onToggle)
     return () => panel.removeEventListener('toggle', onToggle)
-  }, [onOpenChange, syncPanelPosition])
+  }, [onOpenChange, syncPanelPositionAfterLayout])
 
-  useEffect(() => {
-    const anchor = hoverAnchorRef?.current ?? triggerRef.current
-    if (!anchor) return
+  const onBlurCapture = useCallback((event: React.FocusEvent<HTMLElement>): void => {
+    const panel = panelRef.current
+    const next = event.relatedTarget
+    if (next instanceof Node && panel?.contains(next)) return
+    scheduleClose()
+  }, [scheduleClose])
 
-    const onEnter = (): void => {
-      scheduleOpen()
-    }
-    const onLeave = (): void => {
-      scheduleClose()
-    }
-    const onFocusIn = (): void => {
-      scheduleOpen()
-    }
-    const onFocusOut = (event: FocusEvent): void => {
-      const next = event.relatedTarget
-      const panel = panelRef.current
-      if (next instanceof Node && panel?.contains(next)) return
-      scheduleClose()
-    }
-
-    anchor.addEventListener('mouseenter', onEnter)
-    anchor.addEventListener('mouseleave', onLeave)
-    anchor.addEventListener('focusin', onFocusIn)
-    anchor.addEventListener('focusout', onFocusOut)
-    return () => {
-      anchor.removeEventListener('mouseenter', onEnter)
-      anchor.removeEventListener('mouseleave', onLeave)
-      anchor.removeEventListener('focusin', onFocusIn)
-      anchor.removeEventListener('focusout', onFocusOut)
-    }
-  }, [hoverAnchorRef, scheduleClose, scheduleOpen, triggerRef])
+  const anchorProps = useMemo<PlaneChatThreadHistoryAnchorProps>(() => ({
+    onMouseEnter: scheduleOpen,
+    onMouseLeave: scheduleClose,
+    onFocusCapture: scheduleOpen,
+    onBlurCapture,
+  }), [onBlurCapture, scheduleClose, scheduleOpen])
 
   useEffect(() => () => {
     cancelScheduledOpen()
     cancelScheduledClose()
   }, [cancelScheduledClose, cancelScheduledOpen])
+
+  useEffect(() => {
+    if (!isOpenRef.current) return
+    syncPanelPositionAfterLayout()
+  }, [items.length, syncPanelPositionAfterLayout])
 
   const close = (): void => {
     cancelScheduledOpen()
@@ -261,6 +268,8 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   if (threads.length === 0) return null
 
   return (
+    <>
+      {anchor(anchorProps)}
     <div
       ref={panelRef}
       id={panelId}
@@ -275,8 +284,11 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
       aria-label={t('agentPane.threadHistoryAria')}
       onMouseEnter={cancelScheduledClose}
       onMouseLeave={scheduleClose}
-      onScroll={handleScroll}
     >
+      <div
+        className="plane-chat-thread-history__list"
+        onScroll={handleScroll}
+      >
       {items.map(thread => {
           const rowDot = resolveThreadChipActivityDot(
             thread.id,
@@ -311,6 +323,8 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
             </button>
           )
         })}
+      </div>
     </div>
+    </>
   )
 }

@@ -5,8 +5,8 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
-import { AgentActivityDot } from './AgentActivityDot'
 import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
 import { Gravity } from './Gravity'
 import { QueuedTurnPreviewLabel } from './QueuedTurnPreviewLabel'
@@ -139,7 +139,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
               activity === '' ? 'agent-pane__activity--idle' : '',
             ].filter(Boolean).join(' ')}
           >
-            <AgentActivityDot />
+            <PlaneBusyDot size="sm" />
             <span className="agent-pane__activity-text" key={activity}>
               {activity === '' ? '\u00A0' : activity}
             </span>

@@ -24,10 +24,12 @@ beforeAll(() => {
   }
 
   proto.showPopover = function showPopover(this: HTMLElement) {
+    this.classList.add('plane-chat-thread-history__panel--open')
     this.setAttribute('data-open', '')
     dispatchToggle(this, 'open')
   }
   proto.hidePopover = function hidePopover(this: HTMLElement) {
+    this.classList.remove('plane-chat-thread-history__panel--open')
     this.removeAttribute('data-open')
     dispatchToggle(this, 'closed')
   }
@@ -65,19 +67,19 @@ function HistoryHarness({
   const panelId = useId().replace(/:/g, '')
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
-    <>
-      <button ref={triggerRef} type="button" popovertarget={panelId}>
-        Open
-      </button>
-      <PlaneChatThreadHistoryButton
-        panelId={panelId}
-        triggerRef={triggerRef}
-        threads={threads}
-        activeThreadId={activeThreadId}
-        runningThreadIds={runningThreadIds}
-        onSelectThread={onSelectThread}
-      />
-    </>
+    <PlaneChatThreadHistoryButton
+      panelId={panelId}
+      triggerRef={triggerRef}
+      threads={threads}
+      activeThreadId={activeThreadId}
+      runningThreadIds={runningThreadIds}
+      onSelectThread={onSelectThread}
+      anchor={hoverProps => (
+        <button ref={triggerRef} type="button" {...hoverProps}>
+          Open
+        </button>
+      )}
+    />
   )
 }
 
@@ -122,13 +124,14 @@ describe('PlaneChatThreadHistoryButton', () => {
       />,
     )
     const panel = openHistoryPanel()
-    Object.defineProperty(panel, 'scrollTop', { value: 12, writable: true, configurable: true })
-    Object.defineProperty(panel, 'clientHeight', { value: 100, writable: true, configurable: true })
-    Object.defineProperty(panel, 'scrollHeight', { value: 120, writable: true, configurable: true })
+    const list = panel.querySelector('.plane-chat-thread-history__list') as HTMLElement
+    Object.defineProperty(list, 'scrollTop', { value: 12, writable: true, configurable: true })
+    Object.defineProperty(list, 'clientHeight', { value: 100, writable: true, configurable: true })
+    Object.defineProperty(list, 'scrollHeight', { value: 120, writable: true, configurable: true })
 
     expect(panel.querySelectorAll('[role="option"]')).toHaveLength(5)
 
-    fireEvent.scroll(panel, { target: panel })
+    fireEvent.scroll(list, { target: list })
     expect(panel.querySelectorAll('[role="option"]')).toHaveLength(10)
   })
 
@@ -147,7 +150,7 @@ describe('PlaneChatThreadHistoryButton', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Thread 3' }))
 
     expect(onSelectThread).toHaveBeenCalledWith('t-3')
-    expect(panel.hasAttribute('data-open')).toBe(false)
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
   })
 
   it('sin hilos no monta el panel', () => {

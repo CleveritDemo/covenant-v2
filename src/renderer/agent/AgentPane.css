@@ -270,7 +270,7 @@ html[data-reduce-motion="true"] {
   isolation: isolate;
 }
 
-/* Velos superior e inferior: el chat se desvanece con blur al salir del viewport. */
+/* Velos superior e inferior al salir del viewport. */
 .agent-pane__messages-wrap::before,
 .agent-pane__messages-wrap::after {
   content: '';
@@ -280,20 +280,25 @@ html[data-reduce-motion="true"] {
   z-index: 2;
   height: var(--agent-messages-edge-fade);
   pointer-events: none;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 
 .agent-pane__messages-wrap::before {
   top: 0;
-  background: linear-gradient(
+  background: transparent;
+  backdrop-filter: blur(28px) saturate(1.06);
+  -webkit-backdrop-filter: blur(28px) saturate(1.06);
+  -webkit-mask-image: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--bg) 96%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 68%, transparent) 48%,
+    #000 0%,
+    rgb(0 0 0 / 78%) 38%,
     transparent 100%
   );
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    rgb(0 0 0 / 78%) 38%,
+    transparent 100%
+  );
 }
 
 .agent-pane__messages-wrap::after {

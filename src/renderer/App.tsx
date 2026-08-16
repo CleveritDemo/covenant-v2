@@ -6548,16 +6548,12 @@ export const App: React.FC = () => {
                         }
                       : undefined
                   }
-                  agentFabTitle={
-                    canCreatePane
-                      ? t('tabs.fabAgent')
-                      : t('agentPane.projectFolderRequired')
-                  }
-                  terminalFabTitle={
-                    canCreatePane
-                      ? t('tabs.fabTerminal')
-                      : t('agentPane.projectFolderRequired')
-                  }
+                  /* La etiqueta siempre nombra la acción; el motivo de bloqueo
+                     va al tooltip, no dentro de la píldora. */
+                  agentFabTitle={t('tabs.fabAgent')}
+                  terminalFabTitle={t('tabs.fabTerminal')}
+                  agentFabHint={t('tabs.fabAgentHint')}
+                  terminalFabHint={t('tabs.fabTerminalHint')}
                   agentFabDisabledTitle={t('agentPane.projectFolderRequired')}
                   terminalFabDisabledTitle={t('agentPane.projectFolderRequired')}
                   idleAgentLabel={t('tabs.planeIdleAgent')}

@@ -108,7 +108,7 @@ export const ThemePickerModal: React.FC<Props> = ({
       onClose={onClose}
       title={t('themePicker.title')}
       titleId="theme-picker-title"
-      size="xl"
+      size="lg"
       panelVariant="theme-picker"
       zIndex={660}
       bodyLayout="flush"
@@ -120,50 +120,48 @@ export const ThemePickerModal: React.FC<Props> = ({
       }
     >
       <div className="theme-picker-scroll">
-        <div className="theme-picker-preview-wrap">
-          <ThemePreview theme={focusedTheme} currentThemeId={currentThemeId} />
-        </div>
-        <ThemePickerAudioControls
-          musicEnabled={musicEnabled}
-          onAudioConfigChange={onAudioConfigChange}
-        />
-        <div className="theme-picker-spacer" aria-hidden="true" />
-        <div className="theme-picker-sticky-stack">
-          <div className="theme-picker-rail-label theme-picker-rail-label--path">
-            {t('themePicker.previewLabel')}
-          </div>
-          <Input
-            type="search"
-            size="md"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            placeholder={t('themePicker.filterPlaceholder')}
-            aria-label={t('themePicker.filterAriaLabel')}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-          />
-          <div className="theme-picker-theme-grid" role="listbox" aria-label={t('themePicker.listAriaLabel')}>
-            {filteredThemes.length === 0 && (
-              <div className="theme-picker-empty" role="status">
-                {t('themePicker.emptyState', { filter: filter.trim() })}
-              </div>
-            )}
-            {groupedThemes.map(group => (
-              <React.Fragment key={group.key}>
-                <div className="theme-picker-grid-section-title">{group.title}</div>
-                {group.themes.map(theme => (
-                  <ThemeChip
-                    key={theme.id}
-                    theme={theme}
-                    isActive={theme.id === currentThemeId}
-                    isFocused={theme.id === focusedId}
-                    onSelect={() => applyThemeId(theme.id)}
-                    onHover={() => setFocusedId(theme.id)}
-                  />
-                ))}
-              </React.Fragment>
-            ))}
+        <div className="theme-picker-layout">
+          <aside className="theme-picker-aside">
+            <ThemePreview theme={focusedTheme} currentThemeId={currentThemeId} />
+            <ThemePickerAudioControls
+              musicEnabled={musicEnabled}
+              onAudioConfigChange={onAudioConfigChange}
+            />
+          </aside>
+          <div className="theme-picker-main">
+            <Input
+              type="search"
+              size="sm"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder={t('themePicker.filterPlaceholder')}
+              aria-label={t('themePicker.filterAriaLabel')}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+            />
+            <div className="theme-picker-theme-grid" role="listbox" aria-label={t('themePicker.listAriaLabel')}>
+              {filteredThemes.length === 0 && (
+                <div className="theme-picker-empty" role="status">
+                  {t('themePicker.emptyState', { filter: filter.trim() })}
+                </div>
+              )}
+              {groupedThemes.map(group => (
+                <React.Fragment key={group.key}>
+                  <div className="theme-picker-grid-section-title">{group.title}</div>
+                  {group.themes.map(theme => (
+                    <ThemeChip
+                      key={theme.id}
+                      theme={theme}
+                      isActive={theme.id === currentThemeId}
+                      isFocused={theme.id === focusedId}
+                      onSelect={() => applyThemeId(theme.id)}
+                      onHover={() => setFocusedId(theme.id)}
+                    />
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>

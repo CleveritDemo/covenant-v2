@@ -5,7 +5,7 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
-import { AgentActivityDot } from '../agent/AgentActivityDot'
+import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
@@ -116,6 +116,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
         '--agent-chat-font-size': `${fontSize}px`,
       } as React.CSSProperties}
     >
+      <div className="plane-quick-chat__top-fade" aria-hidden="true" />
       <div className="plane-quick-chat__enter">
         <div className="plane-quick-chat__frame">
           <div className="plane-quick-chat__stream agent-pane__messages-wrap">
@@ -171,7 +172,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                     activityText === '' ? 'agent-pane__activity--idle' : '',
                   ].filter(Boolean).join(' ')}
                 >
-                  <AgentActivityDot tone="beam" />
+                  <PlaneBusyDot size="sm" />
                   <span className="agent-pane__activity-text" key={activityText || 'idle'}>
                     {activityText === '' ? '\u00A0' : activityText}
                   </span>

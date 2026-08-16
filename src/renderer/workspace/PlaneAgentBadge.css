@@ -2,10 +2,13 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--plane-agent-badge-gap, 5px);
   max-width: var(--plane-agent-badge-max-width, 132px);
   margin: 0;
-  padding: var(--plane-agent-badge-pad-block, 3px) var(--plane-agent-badge-pad-inline, 8px);
+  box-sizing: border-box;
+  padding-inline: var(--plane-agent-badge-pad-inline, 8px);
+  padding-block: var(--plane-agent-badge-pad-block, 3px);
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--plane-border));
   background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
@@ -13,7 +16,7 @@
   font-family: var(--font-ui);
   font-size: var(--plane-agent-badge-font-size, 10px);
   font-weight: var(--plane-agent-badge-font-weight, 550);
-  line-height: 1.15;
+  line-height: 1;
   letter-spacing: -0.008em;
   cursor: pointer;
   touch-action: manipulation;
@@ -40,7 +43,12 @@ html[data-reduce-motion="true"] {
   }
 
   .plane-agent-badge__dot-wrap {
+    animation: none;
     transition: none;
+  }
+
+  .plane-agent-badge--dot-exiting .plane-agent-badge__dot-wrap {
+    animation: none;
   }
 
   .plane-agent-badge__dot-wrap > .plane-busy-dot {
@@ -89,25 +97,55 @@ html[data-reduce-motion="true"] {
 /* Pill respira al abrir/cerrar slot del dot. */
 .plane-agent-badge--busy {
   gap: calc(var(--plane-agent-badge-gap, 7px) + 3px);
-  padding-block: calc(var(--plane-agent-badge-pad-block, 3px) + 1px);
   padding-inline-end: calc(var(--plane-agent-badge-pad-inline, 8px) + 1px);
 }
 
 .plane-agent-badge__dot-wrap {
-  display: inline-grid;
-  grid-template-columns: 0fr;
-  overflow: visible;
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  justify-items: end;
-  transition: grid-template-columns 0.56s cubic-bezier(0.22, 1, 0.36, 1);
+  justify-content: center;
+  width: 7px;
+  min-width: 0;
+  overflow: visible;
+  line-height: 0;
+  animation: plane-agent-badge-dot-slot-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.plane-agent-badge--busy .plane-agent-badge__dot-wrap {
-  grid-template-columns: 1fr;
+.plane-agent-badge--dot-exiting .plane-agent-badge__dot-wrap {
+  animation: plane-agent-badge-dot-slot-out 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes plane-agent-badge-dot-slot-in {
+  from {
+    width: 0;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  to {
+    width: 7px;
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes plane-agent-badge-dot-slot-out {
+  from {
+    width: 7px;
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    width: 0;
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 
 .plane-agent-badge__dot-wrap > .plane-busy-dot {
-  min-width: 0;
+  flex-shrink: 0;
   overflow: visible;
 }
 
@@ -151,7 +189,10 @@ html[data-reduce-motion="true"] {
 }
 
 .plane-agent-badge__name {
+  display: flex;
+  align-items: center;
   min-width: 0;
+  line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -171,7 +212,12 @@ html[data-reduce-motion="true"] .plane-agent-badge:hover {
   }
 
   .plane-agent-badge__dot-wrap {
+    animation: none;
     transition: none;
+  }
+
+  .plane-agent-badge--dot-exiting .plane-agent-badge__dot-wrap {
+    animation: none;
   }
 
   .plane-agent-badge__dot-wrap > .plane-busy-dot {

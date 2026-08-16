@@ -16,24 +16,6 @@
   pointer-events: none;
 }
 
-/* Velo superior del quick-chat: debajo del stage (paneles), encima del fondo. */
-.plane-map__chat-top-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: max(var(--plane-chat-top-fade-min, 152px), calc(var(--plane-chat-toolbar-clearance, 38px) + var(--plane-chat-top-fade-extra, 108px)));
-  z-index: 16;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg) 96%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 72%, transparent) 36%,
-    color-mix(in srgb, var(--bg) 38%, transparent) 66%,
-    transparent 100%
-  );
-}
-
 /* Partículas busy del piso: ancladas abajo, encima de la grilla. */
 .plane-map__floor-particles {
   position: absolute;
@@ -51,13 +33,13 @@
 }
 
 /* Stage sobre backdrop (16) y dock/composer (199/201); chat-open y elevado suben abajo. */
-.plane-map--chat-open:not(.plane-map--elevated) .plane-map__stage,
-.plane-map--chat-open:not(.plane-map--elevated) .plane-map__overflow {
+.plane-map--chat-open:not(.plane-map--terminal-open) .plane-map__stage,
+.plane-map--chat-open:not(.plane-map--terminal-open) .plane-map__overflow {
   z-index: calc(var(--plane-chat-stack-z, 200) + 2);
 }
 
-.plane-map--elevated .plane-map__stage,
-.plane-map--elevated .plane-map__overflow {
+.plane-map--terminal-open .plane-map__stage,
+.plane-map--terminal-open .plane-map__overflow {
   z-index: var(--plane-elevated-map-z, 205);
 }
 
@@ -83,6 +65,26 @@
     linear-gradient(var(--plane-grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--plane-grid-line) 1px, transparent 1px);
   background-size: var(--plane-grid-size) var(--plane-grid-size);
+}
+
+/* WebGL 3D: interior de esfera; opacidad solo en el material WebGL.
+   Con ventana expandida el canvas se oculta, así que la opacidad vuelve al contenedor. */
+.plane-map:not(.plane-map--terminal-open) .plane-map__grid--spherical.plane-map__grid--canvas-ready {
+  background-image: none;
+  opacity: 1;
+}
+
+/* Plana: solo con ventana expandida, donde no hay canvas.
+   Con reduce-motion la esfera se pinta estática en canvas 2D. */
+.plane-map--terminal-open .plane-map__grid--spherical {
+  background-image:
+    linear-gradient(var(--plane-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--plane-grid-line) 1px, transparent 1px);
+  background-size: var(--plane-grid-size) var(--plane-grid-size);
+}
+
+.plane-map--terminal-open .plane-map__grid-canvas {
+  display: none;
 }
 
 .plane-map__empty {
@@ -134,10 +136,35 @@
   perspective-origin: 50% 45%;
 }
 
-/* Sin perspectiva 3D con ventana expandida. */
-.plane-map--elevated .plane-map__stage {
-  perspective: none;
+/* Terminal expandida: aplanar solo su columna; agentes siguen con perspectiva en el stage. */
+.plane-map--terminal-open .plane-map__column--terminals {
+  transition: none;
+  transform: none !important;
+  transform-style: flat;
+  will-change: auto;
+  filter: none;
+  opacity: 1;
   isolation: isolate;
+  z-index: 2;
+}
+
+.plane-map--terminal-open .plane-map__column--terminals .pane-window {
+  transform-style: flat;
+}
+
+/* Minis de terminal inactivas detrás de la ventana abierta. */
+.plane-map--terminal-open .plane-map__column--terminals .pane-window--mini:not(.pane-window--zooming) {
+  z-index: 1 !important;
+  filter: none !important;
+}
+
+.plane-map--terminal-open .plane-map__column--terminals .pane-window--full:not(.pane-window--zooming-collapse),
+.plane-map--terminal-open .plane-map__column--terminals .pane-window--zooming-expand {
+  z-index: 140 !important;
+}
+
+.plane-map--terminal-open .plane-map__column--terminals .pane-window--zooming-collapse {
+  z-index: 100 !important;
 }
 
 .plane-map__column {
@@ -151,51 +178,22 @@
 }
 
 .plane-map__column--terminals {
+  z-index: 2;
   transform-origin: left center;
 }
 
 .plane-map__column--agents {
+  z-index: 1;
   transform-origin: right center;
 }
 
-/* Ventana expandida: aplanar columnas y romper stacking context 3D. */
-.plane-map--elevated .plane-map__column {
-  transition: none;
-  transform: none !important;
-  transform-style: flat;
-  will-change: auto;
-  filter: none;
-  opacity: 1;
-  isolation: auto;
-  z-index: auto;
-}
-
-.plane-map--elevated .plane-map__column .pane-window {
-  transform-style: flat;
-}
-
-/* Minis inactivas detrás de la ventana abierta. */
-.plane-map--elevated .pane-window--mini:not(.pane-window--zooming) {
-  z-index: 1 !important;
-  filter: none !important;
-}
-
-.plane-map--elevated .pane-window--full:not(.pane-window--zooming-collapse),
-.plane-map--elevated .pane-window--zooming-expand {
-  z-index: 140 !important;
-}
-
-.plane-map--elevated .pane-window--zooming-collapse {
-  z-index: 100 !important;
-}
-
-/* Columna con ventana abierta: marca semántica (z-index lo llevan los panes). */
+/* Marca semántica cuando hay terminal expandida (z-index por columna arriba). */
 .plane-map__column--front {
-  z-index: 8;
+  z-index: 2;
 }
 
-.plane-map--elevated .plane-map__column--front {
-  z-index: auto;
+.plane-map--terminal-open .plane-map__column--front {
+  z-index: 2;
 }
 
 .plane-map__column .pane-window {

@@ -89,6 +89,10 @@ export interface TabAgenticPlaneProps {
   tabActive?: boolean
   agentFabTitle: string
   terminalFabTitle: string
+  /** Pista del tooltip del FAB de agente: qué consigue al crearlo. */
+  agentFabHint?: string
+  /** Pista del tooltip del FAB de terminal. */
+  terminalFabHint?: string
   /** Motivo cuando el FAB de agente queda disabled por falta de cwd. */
   agentFabDisabledTitle?: string
   /** Motivo cuando el FAB de terminal queda disabled por falta de cwd. */
@@ -311,6 +315,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   tabActive = true,
   agentFabTitle,
   terminalFabTitle,
+  agentFabHint,
+  terminalFabHint,
   agentFabDisabledTitle,
   terminalFabDisabledTitle,
   idleAgentLabel,
@@ -1105,7 +1111,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         entities={entities}
         activePaneId={activePaneId}
         chatActiveAgentId={openChatAgentId}
-        chatTopFadeVisible={quickChatShowing}
         chatFloorGlowVisible={!anyFullscreen && !wikiMapOpen}
         chatFloorGlowWorking={composerWorking}
         tabActive={tabActive}

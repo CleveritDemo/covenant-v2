@@ -32,8 +32,6 @@ export const PLANE_CHAT_BASE_WIDTH = 640
 export const PLANE_CHAT_MAX_WIDTH = 960
 /** Holgura entre minis laterales y la columna de chat. */
 export const PLANE_CHAT_SIDE_GAP = 24
-/** Fracción hacia el chat al posicionar columnas (0 = borde, 1 = pegado al gap). */
-export const PLANE_MINI_COLUMN_CENTER_BLEND = 0.65
 
 /**
  * Reserva izquierda para tools rail (`TabAgenticPlane.css`: inset 8 + rail ~36 + holgura).
@@ -125,8 +123,8 @@ export function computePlaneChatColumnWidth(
 }
 
 /**
- * Layout horizontal del plano: chat centrado y minis ancladas al gap lateral del chat,
- * con reserva para tools rail y context pool.
+ * Layout horizontal del plano: chat centrado y minis centradas en la banda lateral
+ * (tools rail / context pool), sin acercarse al centro en viewports anchos.
  */
 export function computePlaneMiniColumnLayout(
   viewport: { width: number; height: number },
@@ -147,16 +145,24 @@ export function computePlaneMiniColumnLayout(
     ))
   const chatLeft = Math.floor((vw - chatWidth) / 2)
   const chatRight = chatLeft + chatWidth
-  const miniBand = cell.width + PLANE_CHAT_SIDE_GAP
   const agentSlotWidth = Math.max(cell.width, PLANE_MINI_AGENT_WIDTH)
 
+  const leftBandStart = PLANE_TOOLS_RAIL_RESERVE
+  const leftBandEnd = chatLeft - PLANE_CHAT_SIDE_GAP
+  const leftBandCenter = (leftBandStart + leftBandEnd) / 2
+  const terminalXIdeal = Math.round(leftBandCenter - cell.width / 2)
   const terminalX = Math.max(
-    PLANE_TOOLS_RAIL_RESERVE,
-    chatLeft - miniBand,
+    leftBandStart,
+    Math.min(terminalXIdeal, leftBandEnd - cell.width),
   )
-  const agentX = Math.min(
-    vw - PLANE_CONTEXT_POOL_RESERVE - agentSlotWidth,
-    chatRight + PLANE_CHAT_SIDE_GAP,
+
+  const rightBandStart = chatRight + PLANE_CHAT_SIDE_GAP
+  const rightBandEnd = vw - PLANE_CONTEXT_POOL_RESERVE
+  const rightBandCenter = (rightBandStart + rightBandEnd) / 2
+  const agentXIdeal = Math.round(rightBandCenter - agentSlotWidth / 2)
+  const agentX = Math.max(
+    rightBandStart,
+    Math.min(agentXIdeal, rightBandEnd - agentSlotWidth),
   )
 
   return {

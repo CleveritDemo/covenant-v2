@@ -894,6 +894,13 @@ const es = {
     wikiSweepPassCoverage: 'Cobertura',
     wikiSweepPassShape: 'Forma',
     wikiSweepPassClosing: 'Cierre',
+    wikiSweepSnapshotTitle: 'Copia de la wiki',
+    wikiSweepSnapshotHint:
+      'Esta carpeta es la única forma de deshacer lo que el barrido borró. Copia su contenido sobre .gravity/wiki para restaurar.',
+    wikiSweepSnapshotCopy: 'Copiar ruta',
+    wikiSweepSnapshotCopied: 'Copiada',
+    wikiSweepErrorsTitle: 'Errores parciales',
+    wikiSweepSummaryClose: 'Cerrar',
     wikiCuratorName: 'Curador de la wiki',
     wikiCuratorInputLabel: 'Mensaje para el curador de la wiki',
     wikiCuratorPlaceholder: 'Pídele algo al curador de la wiki…',

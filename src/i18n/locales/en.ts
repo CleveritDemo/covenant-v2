@@ -892,6 +892,13 @@ const en = {
     wikiSweepPassCoverage: 'Coverage',
     wikiSweepPassShape: 'Shape',
     wikiSweepPassClosing: 'Closing',
+    wikiSweepSnapshotTitle: 'Wiki backup',
+    wikiSweepSnapshotHint:
+      'This folder is the only way to undo deletions from the sweep. Copy it over .gravity/wiki to restore.',
+    wikiSweepSnapshotCopy: 'Copy path',
+    wikiSweepSnapshotCopied: 'Copied',
+    wikiSweepErrorsTitle: 'Partial errors',
+    wikiSweepSummaryClose: 'Close',
     wikiCuratorName: 'Wiki curator',
     wikiCuratorInputLabel: 'Message for the wiki curator',
     wikiCuratorPlaceholder: 'Ask the wiki curator…',

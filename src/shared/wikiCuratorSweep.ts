@@ -39,7 +39,7 @@ export function wikiSweepPassLabelKey(
 export type WikiSweepEvent =
   | { type: 'pass_start'; pass: WikiSweepPass; index: number; total: number }
   | { type: 'delta'; pass: WikiSweepPass; text: string }
-  | { type: 'pass_done'; pass: WikiSweepPass; opsApplied: number }
+  | { type: 'pass_done'; pass: WikiSweepPass; opsApplied: number; errors: string[] }
   | { type: 'error'; message: string }
   | { type: 'done'; totalOps: number; snapshotPath: string | null; stopped: boolean }
 

@@ -70,6 +70,19 @@ const baseGraphProps = {
   active: true,
 }
 
+const baseSweep = {
+  running: false,
+  pass: null as const,
+  index: 0,
+  total: 5,
+  opsApplied: 0,
+  errors: [] as string[],
+  snapshotPath: null as string | null,
+  onStart: vi.fn(),
+  onStop: vi.fn(),
+  onDismissSummary: vi.fn(),
+}
+
 const planeBaseProps = {
   emptyTitle: '',
   emptyHint: '',
@@ -167,15 +180,7 @@ describe('WikiGraphView barrido de wiki', () => {
       <WikiGraphView
         {...baseGraphProps}
         data={null}
-        sweep={{
-          running: false,
-          pass: null,
-          index: 0,
-          total: 5,
-          opsApplied: 0,
-          onStart: vi.fn(),
-          onStop: vi.fn(),
-        }}
+        sweep={baseSweep}
       />,
     )
 
@@ -200,13 +205,11 @@ describe('WikiGraphView barrido de wiki', () => {
           edges: [],
         }}
         sweep={{
+          ...baseSweep,
           running: true,
           pass: 'health',
           index: 1,
-          total: 5,
           opsApplied: 3,
-          onStart: vi.fn(),
-          onStop: vi.fn(),
         }}
       />,
     )
@@ -220,6 +223,126 @@ describe('WikiGraphView barrido de wiki', () => {
     expect(screen.getByText('tabs.wikiSweepProgress:1/5')).toBeTruthy()
     expect(screen.getByText('3')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'tabs.wikiSweepStop' })).toBeTruthy()
+  })
+
+  it('acumula y muestra errores parciales del barrido en el overlay', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          running: true,
+          pass: 'truth',
+          index: 2,
+          errors: ['fallo ingest 1', 'fallo ingest 2'],
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.getByText('fallo ingest 1')).toBeTruthy()
+    expect(screen.getByText('fallo ingest 2')).toBeTruthy()
+    expect(screen.getByText('tabs.wikiSweepErrorsTitle')).toBeTruthy()
+  })
+
+  it('muestra resumen con snapshot y no desaparece solo', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          snapshotPath: '/tmp/wiki-snapshot',
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.getByText('tabs.wikiSweepSnapshotTitle')).toBeTruthy()
+    expect(screen.getByText('/tmp/wiki-snapshot')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(screen.getByText('/tmp/wiki-snapshot')).toBeTruthy()
+  })
+
+  it('el botón cerrar oculta el resumen del snapshot', () => {
+    const onDismissSummary = vi.fn()
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          snapshotPath: '/tmp/wiki-snapshot',
+          onDismissSummary,
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiSweepSummaryClose' }))
+    expect(onDismissSummary).toHaveBeenCalledOnce()
+  })
+
+  it('no muestra resumen si no hay snapshotPath', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={baseSweep}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.queryByText('tabs.wikiSweepSnapshotTitle')).toBeNull()
   })
 })
 
@@ -289,5 +412,69 @@ describe('TabAgenticPlane barrido (eventos IPC)', () => {
       expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toHaveProperty('disabled', false)
     })
     expect(screen.getByLabelText('tabs.wikiCuratorInputLabel')).toHaveProperty('disabled', false)
+    expect(screen.getByText('tabs.wikiSweepSnapshotTitle')).toBeTruthy()
+    expect(screen.getByText('/tmp/snap')).toBeTruthy()
+  })
+
+  it('acumula errores de varios pass_done y los muestra en overlay', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'pass_start',
+        pass: 'health',
+        index: 1,
+        total: 5,
+      })
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'pass_done',
+        pass: 'health',
+        opsApplied: 1,
+        errors: ['error pase 1'],
+      })
+      wikiSweepEventHandler?.({
+        type: 'pass_start',
+        pass: 'truth',
+        index: 2,
+        total: 5,
+      })
+      wikiSweepEventHandler?.({
+        type: 'pass_done',
+        pass: 'truth',
+        opsApplied: 2,
+        errors: ['error pase 2'],
+      })
+    })
+
+    expect(screen.getByText('error pase 1')).toBeTruthy()
+    expect(screen.getByText('error pase 2')).toBeTruthy()
+  })
+
+  it('done sin snapshotPath no muestra resumen', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'done',
+        totalOps: 0,
+        snapshotPath: null,
+        stopped: false,
+      })
+    })
+
+    expect(screen.queryByText('tabs.wikiSweepSnapshotTitle')).toBeNull()
   })
 })

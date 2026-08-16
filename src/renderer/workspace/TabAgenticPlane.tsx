@@ -485,6 +485,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const [sweepIndex, setSweepIndex] = useState(0)
   const [sweepTotal, setSweepTotal] = useState(WIKI_SWEEP_TOTAL)
   const [sweepOpsApplied, setSweepOpsApplied] = useState(0)
+  const [sweepErrors, setSweepErrors] = useState<string[]>([])
+  const [sweepSnapshotPath, setSweepSnapshotPath] = useState<string | null>(null)
 
   const getWikiModalBounds = useCallback((): { width: number; height: number } => {
     const el = planeRef.current
@@ -607,6 +609,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       setSweepIndex(0)
       setSweepTotal(WIKI_SWEEP_TOTAL)
       setSweepOpsApplied(0)
+      setSweepErrors([])
+      setSweepSnapshotPath(null)
     }
   }, [wikiMapOpen])
 
@@ -623,6 +627,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       }
       if (event.type === 'pass_done') {
         setSweepOpsApplied(previous => previous + event.opsApplied)
+        const passErrors = event.errors ?? []
+        if (passErrors.length > 0) {
+          setSweepErrors(previous => previous.concat(passErrors))
+        }
         setWikiGraphSoftToken(token => token + 1)
         return
       }
@@ -633,6 +641,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         setSweepIndex(0)
         setSweepTotal(WIKI_SWEEP_TOTAL)
         setSweepOpsApplied(0)
+        if (event.snapshotPath) {
+          setSweepSnapshotPath(event.snapshotPath)
+        }
         setWikiGraphRefreshToken(token => token + 1)
         onWikiMutated?.(cwd)
       }
@@ -643,11 +654,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     const cwd = projectFolder.trim()
     if (!cwd) return
     setSweepOpsApplied(0)
+    setSweepErrors([])
+    setSweepSnapshotPath(null)
     setSweepPass(null)
     setSweepIndex(0)
     setSweepTotal(WIKI_SWEEP_TOTAL)
     window.api.startWikiSweep(cwd)
   }, [projectFolder])
+
+  const handleWikiSweepSummaryDismiss = useCallback((): void => {
+    setSweepSnapshotPath(null)
+    setSweepErrors([])
+  }, [])
 
   const handleWikiSweepStop = useCallback((): void => {
     const cwd = projectFolder.trim()
@@ -1081,8 +1099,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               index: sweepIndex,
               total: sweepTotal,
               opsApplied: sweepOpsApplied,
+              errors: sweepErrors,
+              snapshotPath: sweepSnapshotPath,
               onStart: handleWikiSweepStart,
               onStop: handleWikiSweepStop,
+              onDismissSummary: handleWikiSweepSummaryDismiss,
             }}
             curator={projectFolder.trim() ? (
               <WikiCuratorComposer

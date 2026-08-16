@@ -46,8 +46,11 @@ export interface WikiGraphViewProps {
     index: number
     total: number
     opsApplied: number
+    errors: string[]
+    snapshotPath: string | null
     onStart: () => void
     onStop: () => void
+    onDismissSummary: () => void
   }
 }
 
@@ -99,6 +102,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   const [mapEntering, setMapEntering] = useState(true)
   const [creatingWiki, setCreatingWiki] = useState(false)
   const [createWikiFailed, setCreateWikiFailed] = useState(false)
+  const [snapshotCopied, setSnapshotCopied] = useState(false)
   const awaitingCreateLoadRef = useRef(false)
   const graphData = data ?? EMPTY_GRAPH
 
@@ -111,6 +115,22 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
         : 'ready'
 
   const showLoadingOverlay = phase === 'loading' || creatingWiki || Boolean(sweep?.running)
+
+  useEffect(() => {
+    setSnapshotCopied(false)
+  }, [sweep?.snapshotPath])
+
+  const handleCopySnapshotPath = useCallback((): void => {
+    const path = sweep?.snapshotPath?.trim()
+    if (!path) return
+    void navigator.clipboard.writeText(path).then(
+      () => {
+        setSnapshotCopied(true)
+        window.setTimeout(() => setSnapshotCopied(false), 1500)
+      },
+      () => {},
+    )
+  }, [sweep?.snapshotPath])
 
   const handleNodeScreenPositions = useCallback(
     (positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>) => {
@@ -231,6 +251,18 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
                 {t('tabs.wikiSweepProgress', { index: sweep.index, total: sweep.total })}
               </p>
               <p className="wiki-graph-view__loading-ops">{sweep.opsApplied}</p>
+              {sweep.errors.length > 0 ? (
+                <div className="wiki-graph-view__loading-errors">
+                  <p className="wiki-graph-view__loading-errors-title">
+                    {t('tabs.wikiSweepErrorsTitle')}
+                  </p>
+                  <ul className="wiki-graph-view__loading-errors-list">
+                    {sweep.errors.map((message, index) => (
+                      <li key={`${index}-${message}`}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -331,6 +363,46 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
               </button>
             </Tooltip>
           </header>
+          {sweep?.snapshotPath ? (
+            <div className="wiki-graph-view__summary" role="status">
+              <div className="wiki-graph-view__summary-header">
+                <h3 className="wiki-graph-view__summary-title">
+                  {t('tabs.wikiSweepSnapshotTitle')}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={sweep.onDismissSummary}
+                  aria-label={t('tabs.wikiSweepSummaryClose')}
+                >
+                  {t('tabs.wikiSweepSummaryClose')}
+                </Button>
+              </div>
+              <p className="wiki-graph-view__summary-hint">
+                {t('tabs.wikiSweepSnapshotHint')}
+              </p>
+              <code className="wiki-graph-view__summary-path">{sweep.snapshotPath}</code>
+              <div className="wiki-graph-view__summary-actions">
+                <Button variant="secondary" size="xs" onClick={handleCopySnapshotPath}>
+                  {snapshotCopied
+                    ? t('tabs.wikiSweepSnapshotCopied')
+                    : t('tabs.wikiSweepSnapshotCopy')}
+                </Button>
+              </div>
+              {sweep.errors.length > 0 ? (
+                <div className="wiki-graph-view__summary-errors">
+                  <p className="wiki-graph-view__summary-errors-title">
+                    {t('tabs.wikiSweepErrorsTitle')}
+                  </p>
+                  <ul className="wiki-graph-view__summary-errors-list">
+                    {sweep.errors.map((message, index) => (
+                      <li key={`${index}-${message}`}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {curator}
           {hover && hoverNode ? (
             <div

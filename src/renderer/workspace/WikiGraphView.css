@@ -238,6 +238,112 @@ html[data-reduce-motion="true"] .wiki-graph-view__canvas--entering {
   font-variant-numeric: tabular-nums;
 }
 
+.wiki-graph-view__loading-errors {
+  margin-top: 8px;
+  max-width: min(360px, 90%);
+  text-align: left;
+}
+
+.wiki-graph-view__loading-errors-title {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wiki-graph-view__loading-errors-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.wiki-graph-view__loading-errors-list li + li {
+  margin-top: 2px;
+}
+
+.wiki-graph-view__summary {
+  position: absolute;
+  top: calc(var(--plane-top-bar-inset, 14px) + var(--plane-top-bar-height, 26px) + 8px);
+  right: var(--plane-top-bar-inset, 14px);
+  z-index: 310;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(420px, calc(100% - 28px));
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  font-family: var(--font-ui);
+  pointer-events: auto;
+}
+
+.wiki-graph-view__summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wiki-graph-view__summary-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-graph-view__summary-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.wiki-graph-view__summary-path {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--plane-glass) 40%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.wiki-graph-view__summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wiki-graph-view__summary-errors {
+  margin-top: 2px;
+}
+
+.wiki-graph-view__summary-errors-title {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wiki-graph-view__summary-errors-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.wiki-graph-view__summary-errors-list li + li {
+  margin-top: 2px;
+}
+
 .wiki-graph-view__sweep {
   pointer-events: auto;
 }

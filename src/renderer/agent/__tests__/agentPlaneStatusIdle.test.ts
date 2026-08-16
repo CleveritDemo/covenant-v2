@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import type { AgentPlaneStatus } from '../AgentPane'
-import { resolvePlaneStatusMessages } from '../agentPlaneStatusIdle'
+import {
+  planeStatusUserSnippet,
+  resolvePlaneStatusMessages,
+  runningThreadActivitiesEqual,
+} from '../agentPlaneStatusIdle'
 import { createPlaneStatusThrottler } from '../planeStatusThrottle'
 
 const sampleMessages: AgentChatEntry[] = [
@@ -15,6 +19,7 @@ function minimalStatus(messages: AgentChatEntry[]): AgentPlaneStatus {
     busy: false,
     activity: '',
     lastSnippet: messages.at(-1)?.content ?? '',
+    lastUserSnippet: '',
     lastTurnFailed: false,
     contexts: [],
     messages,
@@ -44,6 +49,68 @@ describe('resolvePlaneStatusMessages', () => {
       sampleMessages[0],
       sampleMessages[1],
     ])
+  })
+})
+
+describe('planeStatusUserSnippet', () => {
+  it('takes the last user message, ignoring assistant turns', () => {
+    expect(planeStatusUserSnippet([
+      { id: 'u1', role: 'user', content: 'primera' },
+      { id: 'u2', role: 'user', content: 'segunda' },
+      { id: 'a1', role: 'assistant', content: 'respuesta' },
+    ])).toBe('segunda')
+  })
+
+  it('skips blank user messages', () => {
+    expect(planeStatusUserSnippet([
+      { id: 'u1', role: 'user', content: 'real' },
+      { id: 'u2', role: 'user', content: '   ' },
+    ])).toBe('real')
+  })
+
+  it('truncates at 120 chars with an ellipsis', () => {
+    const snippet = planeStatusUserSnippet([
+      { id: 'u1', role: 'user', content: 'x'.repeat(200) },
+    ])
+    expect(snippet).toHaveLength(118)
+    expect(snippet.endsWith('…')).toBe(true)
+  })
+
+  it('leaves a 120-char message untouched', () => {
+    const exact = 'y'.repeat(120)
+    expect(planeStatusUserSnippet([{ id: 'u1', role: 'user', content: exact }])).toBe(exact)
+  })
+
+  it('returns empty when there is no user message', () => {
+    expect(planeStatusUserSnippet([
+      { id: 'a1', role: 'assistant', content: 'solo asistente' },
+    ])).toBe('')
+    expect(planeStatusUserSnippet([])).toBe('')
+  })
+})
+
+describe('runningThreadActivitiesEqual', () => {
+  it('treats undefined and empty as equal', () => {
+    expect(runningThreadActivitiesEqual(undefined, {})).toBe(true)
+    expect(runningThreadActivitiesEqual({}, undefined)).toBe(true)
+  })
+
+  it('compares values per thread', () => {
+    expect(runningThreadActivitiesEqual({ t1: 'Read' }, { t1: 'Read' })).toBe(true)
+    expect(runningThreadActivitiesEqual({ t1: 'Read' }, { t1: 'Edit' })).toBe(false)
+  })
+
+  it('detects added and removed threads', () => {
+    expect(runningThreadActivitiesEqual({ t1: 'Read' }, { t1: 'Read', t2: 'Edit' })).toBe(false)
+    expect(runningThreadActivitiesEqual({ t1: 'Read', t2: 'Edit' }, { t1: 'Read' })).toBe(false)
+  })
+
+  it('ignores key order, a donde el JSON.stringify anterior sí era sensible', () => {
+    expect(runningThreadActivitiesEqual({ a: '1', b: '2' }, { b: '2', a: '1' })).toBe(true)
+  })
+
+  it('no confunde claves distintas con el mismo número de entradas', () => {
+    expect(runningThreadActivitiesEqual({ t1: 'Read' }, { t2: 'Read' })).toBe(false)
   })
 })
 

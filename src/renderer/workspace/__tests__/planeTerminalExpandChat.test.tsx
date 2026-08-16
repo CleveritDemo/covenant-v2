@@ -79,6 +79,7 @@ const chatStatus = (): AgentPlaneStatus => ({
   busy: false,
   activity: '',
   lastSnippet: '',
+  lastUserSnippet: '',
   lastTurnFailed: false,
   contexts: [],
   messages: [{ id: 'm1', role: 'user', content: 'hi' }],

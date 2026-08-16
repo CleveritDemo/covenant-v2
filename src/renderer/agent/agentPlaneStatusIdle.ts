@@ -53,3 +53,33 @@ export function resolvePlaneStatusMessages(
   if (!tabActive) return []
   return messages.filter(entry => entry.role === 'user' || entry.role === 'assistant')
 }
+
+/** Último prompt del usuario, recortado a 120, para el snippet de la mini-card. */
+export function planeStatusUserSnippet(
+  messages: readonly AgentChatEntry[],
+): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const entry = messages[i]
+    if (!entry || entry.role !== 'user') continue
+    const text = entry.content.trim()
+    if (!text) continue
+    return text.length > 120 ? `${text.slice(0, 117)}…` : text
+  }
+  return ''
+}
+
+/**
+ * Igualdad de las actividades por hilo publicadas al plano. Sustituye a un par
+ * de `JSON.stringify` por publicación: serializar para comparar asignaba en el
+ * camino caliente del streaming.
+ */
+export function runningThreadActivitiesEqual(
+  previous: Readonly<Record<string, string>> | undefined,
+  next: Readonly<Record<string, string>> | undefined,
+): boolean {
+  const a = previous ?? {}
+  const b = next ?? {}
+  const keysA = Object.keys(a)
+  if (keysA.length !== Object.keys(b).length) return false
+  return keysA.every(key => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
+}

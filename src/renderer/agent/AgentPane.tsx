@@ -60,7 +60,7 @@ import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
-import { resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
+import { planeStatusUserSnippet, resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
 import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
@@ -433,6 +433,12 @@ export interface AgentPlaneStatus {
   busy: boolean
   activity: string
   lastSnippet: string
+  /**
+   * Último prompt del usuario, ya recortado, para el snippet de la mini-card.
+   * Se calcula aquí y no en el render de App: escanear la transcripción por
+   * pane en cada pasada era coste en el camino caliente del plano.
+   */
+  lastUserSnippet: string
   /** El último turno cerró con error de CLI: `lastSnippet` es el texto del fallo. */
   lastTurnFailed: boolean
   contexts: Array<{ id: string; name: string; kind: string }>
@@ -1305,6 +1311,10 @@ export const AgentPane: React.FC<Props> = ({
       lastSnippet = text.length > 120 ? `${text.slice(0, 117)}…` : text
       break
     }
+    // Mismo origen que antes usaba App (la lista ya publicada, vacía si el tab
+    // no está activo), para que el snippet de la card no cambie de valor.
+    const planeMessages = resolvePlaneStatusMessages(tabActive, messages)
+    const lastUserSnippet = planeStatusUserSnippet(planeMessages)
     const runningThreadIds = collectRunningThreadIds(
       lanesRef.current,
       activeThreadId,
@@ -1320,9 +1330,10 @@ export const AgentPane: React.FC<Props> = ({
       busy,
       activity,
       lastSnippet,
+      lastUserSnippet,
       lastTurnFailed,
       contexts,
-      messages: resolvePlaneStatusMessages(tabActive, messages),
+      messages: planeMessages,
       activeAssistantId: busy ? activeAssistantId : null,
       enteringIds: tabActive ? [...enteringIds] : [],
       materializingIds: tabActive ? [...materializingIds] : [],
@@ -1363,10 +1374,17 @@ export const AgentPane: React.FC<Props> = ({
       runningThreadActivities,
       activeThreadId: activeThreadIdForGate,
     }
-    // busy/activity: inmediato. Solo messages/snippet: throttle (~150ms).
+    // El controlKey es la señal de "publica YA": solo lo que otro componente
+    // necesita sin latencia (busy, cola, gating de hilos). Lo puramente
+    // descriptivo va por el throttle trailing.
+    //
+    // `activity` y `runningThreadActivities` estaban aquí y eran la causa del
+    // OOM del renderer: cambian en cada `tool started` de cada agente, así que
+    // el controlKey cambiaba constantemente, el throttle no llegaba a aplicar
+    // nunca y cada evento del CLI republicaba el status → re-render del plano
+    // entero. Son textos de indicador: 500 ms de retraso no los afecta.
     const controlKey = [
       busy ? '1' : '0',
-      activity,
       busy ? (activeAssistantId ?? '') : '',
       settlingId ?? '',
       awaitingDelegations ? '1' : '0',
@@ -1385,7 +1403,6 @@ export const AgentPane: React.FC<Props> = ({
       String(meta.threads?.length ?? 0),
       (meta.contextIds ?? []).join(','),
       runningThreadIds.join(','),
-      Object.entries(runningThreadActivities).map(([id, text]) => `${id}:${text}`).join('|'),
       activeThreadIdForGate,
     ].join('\0')
     planeStatusThrottlerRef.current.schedule({

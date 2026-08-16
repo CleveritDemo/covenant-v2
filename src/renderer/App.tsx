@@ -88,8 +88,10 @@ import { mergeQueuedTurns } from './agent/mergeQueuedTurns'
 import {
   planeThreadGatingFieldsEqual,
   queuedTurnsPlaneStatusEqual,
+  runningThreadActivitiesEqual,
 } from './agent/agentPlaneStatusIdle'
 import { collectBusyTabIds, collectTabActivityDots } from './agent/paneWorkActive'
+import { collectRendererVitalsStats, setRendererVitalsStatsProvider } from './rendererVitals'
 import type { TerminalRef } from './terminal/TerminalPane'
 import {
   listDelegationTargetsForMeta,
@@ -719,6 +721,17 @@ export const App: React.FC = () => {
   tabsRef.current = tabs
   activeTabIdRef.current = activeTabId
   tabContextsByTabRef.current = tabContextsByTab
+
+  // Contadores para `crash-diagnostics.log`: lee de refs cuando el muestreo lo
+  // pide (cada 20 s), no en cada render.
+  useEffect(() => {
+    setRendererVitalsStatsProvider(() => collectRendererVitalsStats(
+      tabsRef.current,
+      busyPanesRef.current,
+      agentPlaneStatusRef.current,
+    ))
+    return () => setRendererVitalsStatsProvider(null)
+  }, [])
 
   // Guardar sesión con debounce al cambiar tabs / activeTabId
   const saveSessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -3587,8 +3600,11 @@ export const App: React.FC = () => {
         && previous.turnCloseReason === status.turnCloseReason
         && queuedTurnsPlaneStatusEqual(previous.queuedTurns, status.queuedTurns)
         && planeThreadGatingFieldsEqual(previous, status)
-        && JSON.stringify(previous.runningThreadActivities ?? {})
-          === JSON.stringify(status.runningThreadActivities ?? {})
+        && runningThreadActivitiesEqual(
+          previous.runningThreadActivities,
+          status.runningThreadActivities,
+        )
+        && previous.lastUserSnippet === status.lastUserSnippet
         && messagesUnchanged
         && previous.contexts.length === status.contexts.length
         && previous.contexts.every((ctx, i) =>
@@ -6268,15 +6284,10 @@ export const App: React.FC = () => {
                     ? status?.runningThreadActivities?.[activeId]?.trim()
                     : ''
                   if (fromRunning) return fromRunning
-                  const msgs = status?.messages ?? []
-                  for (let i = msgs.length - 1; i >= 0; i--) {
-                    const entry = msgs[i]
-                    if (!entry || entry.role !== 'user') continue
-                    const text = entry.content.trim()
-                    if (!text) continue
-                    return text.length > 120 ? `${text.slice(0, 117)}…` : text
-                  }
-                  return ''
+                  // Lo calcula el pane al publicar (`lastUserSnippet`): antes se
+                  // escaneaba la transcripción entera aquí, por pane y en cada
+                  // render del plano.
+                  return status?.lastUserSnippet ?? ''
                 })()
                 return {
                   paneId,

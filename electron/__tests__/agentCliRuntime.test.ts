@@ -619,6 +619,45 @@ describe('composePrompt identity', () => {
     expect(plan).toContain('## Plan delivery')
     expect(plan).toContain('full plan content')
   })
+
+  it('termina con instrucción de wiki ingest cuando el proyecto tiene wiki', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-wiki-ingest-'))
+    try {
+      mkdirSync(join(cwd, PROJECT_DIR, 'wiki', 'pages'), { recursive: true })
+      writeFileSync(
+        join(cwd, PROJECT_DIR, 'wiki', 'index.md'),
+        '# Wiki index\n',
+        'utf8',
+      )
+
+      const prompt = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'hola',
+          projectCwd: cwd,
+        }),
+        cwd,
+        [],
+        '',
+      )
+      expect(prompt).toContain('## Wiki ingest decision')
+      expect(prompt.indexOf('## Wiki ingest decision')).toBeGreaterThan(prompt.indexOf('## User request'))
+      expect(prompt.trimEnd().endsWith('```')).toBe(true)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('omite instrucción de wiki ingest cuando el proyecto no tiene wiki', () => {
+    const prompt = composePrompt(
+      request({ provider: 'claude', permissionMode: 'auto', prompt: 'hola' }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(prompt).not.toContain('## Wiki ingest decision')
+  })
 })
 
 describe('agent CLI event normalization', () => {

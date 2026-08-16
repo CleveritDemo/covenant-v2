@@ -81,6 +81,7 @@ import {
 import { pauseFileExplorerWatchesForCwd } from './fileExplorerWatcher'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { hasWiki } from './wikiStore'
+import { buildWikiIngestInstruction } from '../src/shared/wikiDoc'
 import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
 import {
@@ -849,6 +850,7 @@ export function composePrompt(
     ...(request.emitChangelog !== false ? [buildAiChangelogInstruction()] : []),
     ...(resultsInstruction ? ['', resultsInstruction] : []),
     ...(planDeliveryInstruction ? ['', planDeliveryInstruction] : []),
+    ...(hasWiki(resultsCwd) ? ['', buildWikiIngestInstruction()] : []),
   ].join('\n')
 }
 

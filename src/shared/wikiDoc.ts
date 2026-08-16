@@ -47,6 +47,26 @@ export function buildWikiWritingGuidance(): string {
   ].join('\n')
 }
 
+/** Instrucción imperativa de ingest wiki al cierre del prompt del agente (no curador). */
+export function buildWikiIngestInstruction(): string {
+  return [
+    '## Wiki ingest decision',
+    'Close every turn by checking whether it produced durable knowledge for the project wiki.',
+    'Append the ia-terminal-wiki block when any of these happened:',
+    '- you confirmed how something actually works after reading code (a flow, a contract, a constraint);',
+    '- you found an existing wiki page wrong, stale or incomplete;',
+    '- a decision was made that constrains future work;',
+    '- you learned where a feature lives (feature → which files to open).',
+    'One or two pages is a good turn — do not force more.',
+    'Before upserting an existing slug, read that page first: upsert replaces the whole page body, it never merges.',
+    'If none of those happened, append the block with an empty ops array and no log field.',
+    'Page types, body rules and caps are described in the Project wiki section above.',
+    '```ia-terminal-wiki',
+    '{"ops":[{"op":"upsert","slug":"delegation-lanes","title":"Delegation lanes","type":"concept","body":"Short body with real paths and [[links]]."}],"log":"one line about the change"}',
+    '```',
+  ].join('\n')
+}
+
 const WIKI_INDEX_EXCERPT_MAX = 120
 
 /**

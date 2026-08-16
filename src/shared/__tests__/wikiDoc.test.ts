@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildWikiIndex,
   buildWikiPromptIndex,
+  buildWikiIngestInstruction,
   buildWikiWritingGuidance,
   composeWikiPage,
   extractWikiIngest,
@@ -251,7 +252,23 @@ describe('extractWikiIngest', () => {
   })
 })
 
+describe('buildWikiIngestInstruction', () => {
+  it('incluye la instrucción imperativa de ingest wiki', () => {
+    const text = buildWikiIngestInstruction()
+    expect(text).toContain('Close every turn by checking')
+    expect(text).toContain('empty ops array and no log field')
+    expect(text).toContain('upsert replaces the whole page body')
+    expect(text).toContain('do not force more')
+    expect(text).toContain('```ia-terminal-wiki')
+  })
+})
+
 describe('buildWikiWritingGuidance', () => {
+  it('conserva la política del curador sin cambios', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('Only durable project knowledge. If nothing durable changed, skip.')
+  })
+
   it('incluye política, jobs y anti-ejemplos', () => {
     const text = buildWikiWritingGuidance()
     expect(text).toContain('index for agents')

@@ -1,0 +1,58 @@
+.plane-workspace-upload-progress {
+  --plane-upload-progress-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: var(--plane-top-bar-height, 26px);
+  padding: 0 4px 0 8px;
+  border-radius: var(--plane-top-bar-radius, 8px);
+  border: 1px solid var(--plane-upload-progress-edge);
+  background: var(--plane-glass-strong);
+  flex-shrink: 0;
+}
+
+.plane-workspace-upload-progress__track {
+  position: relative;
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  overflow: hidden;
+}
+
+.plane-workspace-upload-progress__fill {
+  width: var(--plane-upload-progress-percent, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 82%, var(--text) 18%);
+  transition: width 120ms ease-out;
+}
+
+.plane-workspace-upload-progress__percent {
+  min-width: 2.25rem;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.plane-workspace-upload-progress__cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.plane-workspace-upload-progress__cancel:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}

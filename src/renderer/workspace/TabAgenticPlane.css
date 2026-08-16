@@ -48,12 +48,38 @@
   background: var(--bg);
 }
 
-.plane-top-left-bar {
-  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+.plane-top-left-chrome {
   position: absolute;
   top: var(--plane-top-bar-inset, 16px);
   left: var(--plane-top-bar-inset, 16px);
   z-index: var(--plane-chrome-stack-z, 210);
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: min(85vw, calc(100% - 28px));
+  pointer-events: none;
+}
+
+.plane-top-left-chrome > * {
+  pointer-events: auto;
+}
+
+/* Con el mapa de wiki abierto (.wiki-graph-view a z=APP_OVERLAY_MODAL_Z=670),
+   la barra debe seguir clickeable por encima del overlay del mapa, pero
+   quedarse por debajo del modal de nodo (APP_OVERLAY_MODAL_Z+10=680+). */
+.plane-top-left-chrome--over-wiki {
+  z-index: 675;
+}
+
+.plane-top-left-bar {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+  position: static;
+  top: auto;
+  left: auto;
+  z-index: auto;
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;
@@ -75,13 +101,6 @@
 
 .plane-top-left-bar::-webkit-scrollbar {
   display: none;
-}
-
-/* Con el mapa de wiki abierto (.wiki-graph-view a z=APP_OVERLAY_MODAL_Z=670),
-   la barra debe seguir clickeable por encima del overlay del mapa, pero
-   quedarse por debajo del modal de nodo (APP_OVERLAY_MODAL_Z+10=680+). */
-.plane-top-left-bar--over-wiki {
-  z-index: 675;
 }
 
 .plane-top-left-bar .plane-project-folder {

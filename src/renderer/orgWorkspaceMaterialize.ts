@@ -329,6 +329,12 @@ export type OrgWorkspaceUploadResult = {
   error?: string
 }
 
+export type OrgWorkspaceUploadOptions = {
+  orderedAgentIds?: readonly string[]
+  /** 0–85: el caller reserva 86–100 para wiki u otras fases posteriores. */
+  onProgress?: (percent: number) => void
+}
+
 /**
  * Lee disco local → upsert syncables → borra remotos ausentes.
  * No toca agentResult ni agentes localOnly.
@@ -338,7 +344,7 @@ export type OrgWorkspaceUploadResult = {
 export async function uploadOrgWorkspaceFromLocal(
   cwd: string,
   deps: OrgWorkspaceMaterializeDeps,
-  options: { orderedAgentIds?: readonly string[] } = {},
+  options: OrgWorkspaceUploadOptions = {},
 ): Promise<OrgWorkspaceUploadResult> {
   const root = cwd.trim()
   if (!root) return { ok: false, error: 'missing cwd' }
@@ -373,6 +379,23 @@ export async function uploadOrgWorkspaceFromLocal(
     .map(item => (typeof item.contextId === 'string' ? item.contextId.trim() : ''))
     .filter(Boolean)
 
+  const agentIdsToDelete = orgWorkspaceRemoteIdsToDelete(localAgentIds, remoteAgentIds)
+  const contextIdsToDelete = orgWorkspaceRemoteIdsToDelete(localContextIds, remoteContextIds)
+  const totalSteps = 1 + agentsToUpload.length + agentIdsToDelete.length
+    + localContexts.length + contextIdsToDelete.length
+  let completedSteps = 0
+  const reportProgress = (): void => {
+    if (!options.onProgress) return
+    if (totalSteps <= 0) {
+      options.onProgress(85)
+      return
+    }
+    const percent = Math.round((completedSteps / totalSteps) * 85)
+    options.onProgress(Math.min(85, Math.max(0, percent)))
+  }
+  completedSteps = 1
+  reportProgress()
+
   const agentUpserts = await mapWithConcurrency(
     agentsToUpload,
     COVENANT_REQUEST_LIMIT,
@@ -380,6 +403,8 @@ export async function uploadOrgWorkspaceFromLocal(
       const { localOnly: _drop, ...payload } = agent
       const forRemote = stripAgentResultContextIdsForUpload(payload as ProjectAgentDefinition)
       const upserted = await deps.upsertRemoteAgent(agent.id, forRemote)
+      completedSteps += 1
+      reportProgress()
       return { agentId: agent.id, upserted }
     },
   )
@@ -389,12 +414,13 @@ export async function uploadOrgWorkspaceFromLocal(
     }
   }
 
-  const agentIdsToDelete = orgWorkspaceRemoteIdsToDelete(localAgentIds, remoteAgentIds)
   const agentDeletes = await mapWithConcurrency(
     agentIdsToDelete,
     COVENANT_REQUEST_LIMIT,
     async agentId => {
       const deleted = await deps.deleteRemoteAgent(agentId)
+      completedSteps += 1
+      reportProgress()
       return { agentId, deleted }
     },
   )
@@ -422,6 +448,8 @@ export async function uploadOrgWorkspaceFromLocal(
       }
       const payload = workspaceContextUpsertPayload(context, notesContent)
       const upserted = await deps.upsertRemoteContext(context.id, payload)
+      completedSteps += 1
+      reportProgress()
       return { contextId: context.id, upserted }
     },
   )
@@ -431,12 +459,13 @@ export async function uploadOrgWorkspaceFromLocal(
     }
   }
 
-  const contextIdsToDelete = orgWorkspaceRemoteIdsToDelete(localContextIds, remoteContextIds)
   const contextDeletes = await mapWithConcurrency(
     contextIdsToDelete,
     COVENANT_REQUEST_LIMIT,
     async contextId => {
       const deleted = await deps.deleteRemoteContext(contextId)
+      completedSteps += 1
+      reportProgress()
       return { contextId, deleted }
     },
   )

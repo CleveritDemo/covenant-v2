@@ -411,6 +411,9 @@ export const App: React.FC = () => {
   /** Tabs org cuyo resync manual está en curso. */
   const [resyncingWorkspaceTabs, setResyncingWorkspaceTabs] = useState<Set<string>>(() => new Set())
   const [uploadingWorkspaceTabs, setUploadingWorkspaceTabs] = useState<Set<string>>(() => new Set())
+  const [workspaceUploadProgressByTab, setWorkspaceUploadProgressByTab] = useState<
+    Record<string, number>
+  >({})
   /** Snapshot Cmd+T: null = aún no hidratado / sin sesión. */
   const [orgWorkspaceCatalog, setOrgWorkspaceCatalog] = useState<OrgWorkspaceCatalog | null>(null)
   const orgWorkspaceCatalogRef = useRef<OrgWorkspaceCatalog | null>(null)
@@ -423,6 +426,18 @@ export const App: React.FC = () => {
     setOrgWorkspaceRequirement(prev => (
       prev?.syncing ? { ...prev, syncPhase: phase } : prev
     ))
+  }, [])
+  const reportWorkspaceUploadProgress = useCallback((tabId: string, percent: number) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(percent)))
+    setWorkspaceUploadProgressByTab(prev => ({ ...prev, [tabId]: clamped }))
+  }, [])
+  const clearWorkspaceUploadProgress = useCallback((tabId: string) => {
+    setWorkspaceUploadProgressByTab(prev => {
+      if (!(tabId in prev)) return prev
+      const next = { ...prev }
+      delete next[tabId]
+      return next
+    })
   }, [])
   /** Invalida sync/upload en curso al cancelar con Espacio. */
   const orgWorkspaceSyncUploadGenRef = useRef(0)
@@ -2384,11 +2399,12 @@ export const App: React.FC = () => {
   const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
     orgWorkspaceSyncUploadGenRef.current += 1
     setOrgWorkspaceRequirement(prev => {
-      if (!prev?.syncing && !prev?.uploading) return prev
+      if (!prev?.syncing) return prev
       return null
     })
     setResyncingWorkspaceTabs(new Set())
     setUploadingWorkspaceTabs(new Set())
+    setWorkspaceUploadProgressByTab({})
   }, [])
 
   const handleResyncOrgWorkspace = useCallback(async (
@@ -2490,8 +2506,8 @@ export const App: React.FC = () => {
       next.add(tab.id)
       return next
     })
+    reportWorkspaceUploadProgress(tab.id, 0)
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
-    setOrgWorkspaceRequirement({ uploading: true })
     try {
       const deps: OrgWorkspaceMaterializeDeps = {
         listRemoteAgents: () => retryCovenantResult(
@@ -2550,6 +2566,7 @@ export const App: React.FC = () => {
       const orderedAgentIds = orderedAgentIdsFromTab(tab)
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
+        onProgress: percent => reportWorkspaceUploadProgress(tab.id, percent),
       })
       if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       if (!result.ok) {
@@ -2557,6 +2574,7 @@ export const App: React.FC = () => {
         return
       }
       if (hasCovenantWikiApi(covenant)) {
+        reportWorkspaceUploadProgress(tab.id, 90)
         const wikiPush = await pushOrgWikiForScope(org.slug, org.workspaceId, cwd)
         if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
         if (!wikiPush.ok) {
@@ -2564,6 +2582,7 @@ export const App: React.FC = () => {
           return
         }
       }
+      reportWorkspaceUploadProgress(tab.id, 100)
       setOrgWorkspaceRequirement(null)
     } catch (err) {
       if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
@@ -2571,16 +2590,14 @@ export const App: React.FC = () => {
         uploadError: err instanceof Error ? err.message : 'upload failed',
       })
     } finally {
-      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
-        setOrgWorkspaceRequirement(prev => (prev?.uploading ? null : prev))
-      }
+      clearWorkspaceUploadProgress(tab.id)
       setUploadingWorkspaceTabs(prev => {
         const next = new Set(prev)
         next.delete(tab.id)
         return next
       })
     }
-  }, [pushOrgWikiForScope])
+  }, [clearWorkspaceUploadProgress, pushOrgWikiForScope, reportWorkspaceUploadProgress])
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -6764,6 +6781,12 @@ export const App: React.FC = () => {
                   )}
                   uploadWorkspaceLabel={t('tabs.uploadWorkspaceButton')}
                   uploadWorkspaceBusy={uploadingWorkspaceTabs.has(tab.id) || resyncingWorkspaceTabs.has(tab.id)}
+                  uploadWorkspaceProgress={
+                    uploadingWorkspaceTabs.has(tab.id)
+                      ? (workspaceUploadProgressByTab[tab.id] ?? 0)
+                      : null
+                  }
+                  onCancelUploadWorkspace={cancelOrgWorkspaceSyncOrUpload}
                   onUploadWorkspace={() => { void handleUploadOrgWorkspace(tab) }}
                   loopsOpen={Boolean(planeLoopsOpenByTab[tab.id])}
                   onLoopsOpenChange={open => {

@@ -456,6 +456,23 @@ describe('uploadOrgWorkspaceFromLocal', () => {
     expect(payloads).toHaveLength(3)
   })
 
+  it('reports upload progress through onProgress', async () => {
+    const progress: number[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({ ok: true, data: [] }),
+      listRemoteContexts: async () => ({ ok: true, data: [] }),
+      listLocalAgents: async () => [agent('qa')],
+      upsertRemoteAgent: async id => ({ ok: true, data: { agentId: id, definition: {} } }),
+    })
+
+    const result = await uploadOrgWorkspaceFromLocal('/ws', deps, {
+      onProgress: percent => progress.push(percent),
+    })
+    expect(result.ok).toBe(true)
+    expect(progress.length).toBeGreaterThan(0)
+    expect(progress[progress.length - 1]).toBe(85)
+  })
+
   it('strips iaterminal:result:* from remote agent upsert payloads', async () => {
     const payloads: ProjectAgentDefinition[] = []
     const deps = baseDeps({

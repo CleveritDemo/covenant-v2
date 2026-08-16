@@ -974,6 +974,8 @@ const es = {
     uploadWorkspaceButton: 'Publicar cambios',
     uploadWorkspaceConfirmMessage: '¿Publicar tus cambios al workspace?',
     uploadWorkspaceConfirmDetail: 'Esto publicará los agentes, contextos y wiki locales en el workspace de la organización.',
+    uploadWorkspaceCancel: 'Cancelar publicación',
+    uploadWorkspaceProgressAria: 'Publicando cambios: {{percent}}%',
     loopsTitle: 'Loops',
     loopsSubtitle: 'Cada cadena recorre a sus agentes en orden y vuelve a empezar tras la espera.',
     loopsEmptyTitle: 'Sin agentes',

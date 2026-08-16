@@ -169,7 +169,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   cloning = false,
   syncing = false,
   syncPhase,
-  uploading = false,
+  uploading: _uploading = false,
   agentDeleteError,
   agentUpdateError,
   workspaceRenameError,
@@ -181,12 +181,10 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [ssoOpenFailedUrl, setSsoOpenFailedUrl] = useState<string | null>(null)
-  const busy = cloning || syncing || uploading
-  const statusLabel = uploading
-    ? t('organizations.reqUploading')
-    : syncing
-      ? syncingPhaseLabel(syncPhase, t)
-      : t('organizations.reqCloning')
+  const busy = cloning || syncing
+  const statusLabel = syncing
+    ? syncingPhaseLabel(syncPhase, t)
+    : t('organizations.reqCloning')
   const legacyCloneRaw = !cloneFailure && cloneError?.trim() ? cloneError.trim() : null
   const agentErr = agentDeleteError?.trim()
     ? t('organizations.reqAgentDeleteFailed', { error: agentDeleteError.trim() })
@@ -223,7 +221,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     })
   }
 
-  const cancelableBusy = syncing || uploading
+  const cancelableBusy = syncing
 
   if (busy) {
     return (

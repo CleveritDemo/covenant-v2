@@ -21,6 +21,7 @@ import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
+import { PlaneWorkspaceUploadProgress } from './PlaneWorkspaceUploadProgress'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneBrainstormDock } from './PlaneBrainstormDock'
 import type { BrainstormLiveSummary } from './brainstormLiveState'
@@ -215,6 +216,8 @@ export interface TabAgenticPlaneProps {
   onUploadWorkspace?: () => void
   uploadWorkspaceLabel?: string
   uploadWorkspaceBusy?: boolean
+  uploadWorkspaceProgress?: number | null
+  onCancelUploadWorkspace?: () => void
   canUploadWorkspace?: boolean
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
@@ -395,6 +398,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onUploadWorkspace,
   uploadWorkspaceLabel = '',
   uploadWorkspaceBusy = false,
+  uploadWorkspaceProgress = null,
+  onCancelUploadWorkspace,
   canUploadWorkspace = false,
   loopsOpen,
   onLoopsOpenChange,
@@ -882,6 +887,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           '.plane-fab-stack',
           '.plane-fab',
           '.plane-project-folder',
+          '.plane-top-left-chrome',
           '.plane-top-left-bar',
           '.plane-chat-composer',
           '.plane-chat-dock__composer-shell',
@@ -905,29 +911,41 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           encima: es lo único que permite moverse y no se puede tapar. */}
       {!anyFullscreen && (
         <div
-          className={`plane-top-left-bar${
-            wikiMapOpen || brainstormOverlayOpen || pulseOpen ? ' plane-top-left-bar--over-wiki' : ''
+          className={`plane-top-left-chrome${
+            wikiMapOpen || brainstormOverlayOpen || pulseOpen ? ' plane-top-left-chrome--over-wiki' : ''
           }`}
         >
-          <PlaneProjectFolder
-            folderPath={projectFolder}
-            selectLabel={projectFolderSelectLabel}
-            changeLabel={projectFolderChangeLabel}
-            emptyHint={projectFolderEmptyHint}
-            onSelect={onSelectProjectFolder}
-          />
-          {canUploadWorkspace && onUploadWorkspace ? (
-            <PlaneUploadButton
-              label={uploadWorkspaceLabel || ''}
-              busy={Boolean(uploadWorkspaceBusy)}
-              onClick={() => setPendingWorkspaceAction('upload')}
+          <div className="plane-top-left-bar">
+            <PlaneProjectFolder
+              folderPath={projectFolder}
+              selectLabel={projectFolderSelectLabel}
+              changeLabel={projectFolderChangeLabel}
+              emptyHint={projectFolderEmptyHint}
+              onSelect={onSelectProjectFolder}
             />
-          ) : null}
-          {canResyncWorkspace && onResyncWorkspace ? (
-            <PlaneResyncButton
-              label={resyncWorkspaceLabel || ''}
-              busy={Boolean(resyncWorkspaceBusy)}
-              onClick={() => setPendingWorkspaceAction('resync')}
+            {canUploadWorkspace && onUploadWorkspace ? (
+              <PlaneUploadButton
+                label={uploadWorkspaceLabel || ''}
+                busy={Boolean(uploadWorkspaceBusy)}
+                onClick={() => setPendingWorkspaceAction('upload')}
+              />
+            ) : null}
+            {canResyncWorkspace && onResyncWorkspace ? (
+              <PlaneResyncButton
+                label={resyncWorkspaceLabel || ''}
+                busy={Boolean(resyncWorkspaceBusy)}
+                onClick={() => setPendingWorkspaceAction('resync')}
+              />
+            ) : null}
+          </div>
+          {uploadWorkspaceProgress != null && onCancelUploadWorkspace ? (
+            <PlaneWorkspaceUploadProgress
+              percent={uploadWorkspaceProgress}
+              ariaLabel={t('tabs.uploadWorkspaceProgressAria', {
+                percent: Math.min(100, Math.max(0, Math.round(uploadWorkspaceProgress))),
+              })}
+              cancelLabel={t('tabs.uploadWorkspaceCancel')}
+              onCancel={onCancelUploadWorkspace}
             />
           ) : null}
         </div>

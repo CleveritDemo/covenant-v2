@@ -21,7 +21,7 @@ import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
-import { PlaneWorkspaceUploadProgress } from './PlaneWorkspaceUploadProgress'
+import { PlaneWorkspaceUploadProgressSlot } from './PlaneWorkspaceUploadProgress'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneBrainstormDock } from './PlaneBrainstormDock'
 import type { BrainstormLiveSummary } from './brainstormLiveState'
@@ -959,12 +959,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               ) : null}
             </div>
           ) : null}
-          {uploadWorkspaceProgress != null && onCancelUploadWorkspace ? (
-            <PlaneWorkspaceUploadProgress
-              percent={uploadWorkspaceProgress}
-              ariaLabel={t('tabs.uploadWorkspaceProgressAria', {
-                percent: Math.min(100, Math.max(0, Math.round(uploadWorkspaceProgress))),
-              })}
+          {onCancelUploadWorkspace ? (
+            <PlaneWorkspaceUploadProgressSlot
+              progress={uploadWorkspaceProgress ?? null}
+              getAriaLabel={percent => t('tabs.uploadWorkspaceProgressAria', { percent })}
               cancelLabel={t('tabs.uploadWorkspaceCancel')}
               onCancel={onCancelUploadWorkspace}
             />

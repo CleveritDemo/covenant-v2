@@ -4,6 +4,10 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.66.0
+
+- **Org: barra de progreso al publicar más clara**: sin caja alrededor; la pista, el porcentaje y cancelar entran y salen con animación suave (incluye fade-out al terminar o cancelar).
+
 ## v0.65.0
 
 - **Org: sincronizar visible tras publicar**: sync y publicar van en un chip aparte de la carpeta del proyecto; al terminar la publicación el chrome no deja el botón de sincronizar fuera del viewport.

@@ -41,7 +41,7 @@ const threads = [
 ]
 
 describe('PlaneChatContextsBar thread history hover', () => {
-  it('hover en el chip abre el panel de otros hilos', () => {
+  it('hover en el icono de historial abre el panel de otros hilos', () => {
     vi.useFakeTimers()
     render(
       <PlaneChatContextsBar
@@ -52,10 +52,10 @@ describe('PlaneChatContextsBar thread history hover', () => {
       />,
     )
 
-    const chipHost = screen.getByLabelText('One').closest('.plane-chat-contexts-bar__chip-host')
-    expect(chipHost).toBeTruthy()
+    const historyHost = document.querySelector('.plane-chat-contexts-bar__history-host')
+    expect(historyHost).toBeTruthy()
 
-    fireEvent.mouseEnter(chipHost!)
+    fireEvent.mouseEnter(historyHost!)
     act(() => {
       vi.advanceTimersByTime(100)
     })

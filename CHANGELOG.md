@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.65.0
+
+- **Org: sincronizar visible tras publicar**: sync y publicar van en un chip aparte de la carpeta del proyecto; al terminar la publicación el chrome no deja el botón de sincronizar fuera del viewport.
+- **Org: publicar alineado con permisos de manager**: workspace-admin ve Publicar al abrir el tab; el catálogo refresca `canRename` si la caché no trae permisos.
+- **Org: alcance de sincronización más claro**: el modal de sync nombra wiki en ambas opciones (completa vs contextos+wiki).
+
 ## v0.64.0
 
 - **Orquestación: tope de delegaciones por turno configurable**: cada coordinador puede limitar cuántas delegaciones emite en un solo turno desde la ficha del agente; «Sin límite» deja el parser sin tope.

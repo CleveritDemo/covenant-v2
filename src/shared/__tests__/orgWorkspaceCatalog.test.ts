@@ -3,6 +3,7 @@ import {
   buildOrgWorkspaceCatalog,
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
+  canUploadOrgWorkspaceFromCatalog,
   catalogForLogin,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
@@ -251,6 +252,24 @@ describe('syncTabTitlesFromOrgWorkspaceCatalog', () => {
       orgWorkspace: { slug: 'acme', workspaceId: 'w1' },
     }]
     expect(syncTabTitlesFromOrgWorkspaceCatalog(tabs, catalog)).toBeNull()
+  })
+})
+
+describe('canUploadOrgWorkspaceFromCatalog', () => {
+  const cat = {
+    login: 'alice',
+    fetchedAt: 1,
+    entries: [
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true },
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w2', name: 'Beta', canRename: false },
+    ],
+  }
+
+  it('true solo cuando canRename del catálogo es true', () => {
+    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w1')).toBe(true)
+    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w2')).toBe(false)
+    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w3')).toBe(false)
+    expect(canUploadOrgWorkspaceFromCatalog(null, 'acme', 'w1')).toBe(false)
   })
 })
 

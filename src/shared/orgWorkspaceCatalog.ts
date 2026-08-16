@@ -186,6 +186,16 @@ export function findOrgWorkspaceCatalogEntry(
   return catalog.entries.find(e => e.slug === s && e.workspaceId === id)
 }
 
+/** ¿Puede publicar cambios? Deriva de `canRename` del catálogo (manager/admin). */
+export function canUploadOrgWorkspaceFromCatalog(
+  catalog: OrgWorkspaceCatalog | null | undefined,
+  slug: string,
+  workspaceId: string,
+): boolean {
+  const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
+  return entry?.canRename === true
+}
+
 /**
  * Alinea títulos de tabs org con el nombre canónico del catálogo.
  * Devuelve `null` si no hay cambios.

@@ -461,6 +461,21 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // estado se queda acá en vez de engordar las props de App.tsx.
   const [pulseOpen, setPulseOpen] = useState(false)
   const [pendingWorkspaceAction, setPendingWorkspaceAction] = useState<PendingWorkspaceAction | null>(null)
+  const topLeftChromeRef = useRef<HTMLDivElement>(null)
+  const prevUploadProgressRef = useRef<number | null>(uploadWorkspaceProgress ?? null)
+
+  // Tras publicar, la barra de carpeta puede quedar scrolleada y ocultar sync fuera del chip.
+  useLayoutEffect(() => {
+    const prev = prevUploadProgressRef.current
+    const next = uploadWorkspaceProgress ?? null
+    prevUploadProgressRef.current = next
+    if (prev != null && next == null) {
+      const chrome = topLeftChromeRef.current
+      if (chrome) chrome.scrollLeft = 0
+      const bar = chrome?.querySelector('.plane-top-left-bar')
+      if (bar instanceof HTMLElement) bar.scrollLeft = 0
+    }
+  }, [uploadWorkspaceProgress])
   // Mapa de wiki: estado local (sin nada del padre), patrón brainstormViewClose:
   // abrir tapa el plano entero, cerrar restaura todo tal cual estaba.
   const [wikiMapOpen, setWikiMapOpen] = useState(false)
@@ -911,6 +926,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           encima: es lo único que permite moverse y no se puede tapar. */}
       {!anyFullscreen && (
         <div
+          ref={topLeftChromeRef}
           className={`plane-top-left-chrome${
             wikiMapOpen || brainstormOverlayOpen || pulseOpen ? ' plane-top-left-chrome--over-wiki' : ''
           }`}
@@ -923,21 +939,26 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               emptyHint={projectFolderEmptyHint}
               onSelect={onSelectProjectFolder}
             />
-            {canUploadWorkspace && onUploadWorkspace ? (
-              <PlaneUploadButton
-                label={uploadWorkspaceLabel || ''}
-                busy={Boolean(uploadWorkspaceBusy)}
-                onClick={() => setPendingWorkspaceAction('upload')}
-              />
-            ) : null}
-            {canResyncWorkspace && onResyncWorkspace ? (
-              <PlaneResyncButton
-                label={resyncWorkspaceLabel || ''}
-                busy={Boolean(resyncWorkspaceBusy)}
-                onClick={() => setPendingWorkspaceAction('resync')}
-              />
-            ) : null}
           </div>
+          {(canResyncWorkspace && onResyncWorkspace)
+            || (canUploadWorkspace && onUploadWorkspace) ? (
+            <div className="plane-top-left-workspace-actions">
+              {canResyncWorkspace && onResyncWorkspace ? (
+                <PlaneResyncButton
+                  label={resyncWorkspaceLabel || ''}
+                  busy={Boolean(resyncWorkspaceBusy)}
+                  onClick={() => setPendingWorkspaceAction('resync')}
+                />
+              ) : null}
+              {canUploadWorkspace && onUploadWorkspace ? (
+                <PlaneUploadButton
+                  label={uploadWorkspaceLabel || ''}
+                  busy={Boolean(uploadWorkspaceBusy)}
+                  onClick={() => setPendingWorkspaceAction('upload')}
+                />
+              ) : null}
+            </div>
+          ) : null}
           {uploadWorkspaceProgress != null && onCancelUploadWorkspace ? (
             <PlaneWorkspaceUploadProgress
               percent={uploadWorkspaceProgress}

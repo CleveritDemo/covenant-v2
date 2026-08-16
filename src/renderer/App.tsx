@@ -33,6 +33,7 @@ import {
   buildOrgWorkspaceCatalog,
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
+  canUploadOrgWorkspaceFromCatalog,
   catalogForLogin,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
@@ -1428,6 +1429,28 @@ export const App: React.FC = () => {
     setTabs(synced)
   }, [sessionReady.loaded, orgWorkspaceCatalog])
 
+  // Tab org sin `canRename` en catálogo: refrescar permisos (admin recién promovido, caché vieja).
+  const orgCatalogPermissionRefreshRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!sessionReady.loaded || !activeTabId) return
+    const tab = tabsRef.current.find(item => item.id === activeTabId)
+    const slug = tab?.orgWorkspace?.slug?.trim() ?? ''
+    const workspaceId = tab?.orgWorkspace?.workspaceId?.trim() ?? ''
+    if (!slug || !workspaceId) {
+      orgCatalogPermissionRefreshRef.current = null
+      return
+    }
+    const entry = findOrgWorkspaceCatalogEntry(orgWorkspaceCatalog, slug, workspaceId)
+    if (entry && typeof entry.canRename === 'boolean') {
+      orgCatalogPermissionRefreshRef.current = null
+      return
+    }
+    const key = `${slug}/${workspaceId}`
+    if (orgCatalogPermissionRefreshRef.current === key) return
+    orgCatalogPermissionRefreshRef.current = key
+    void loadOrgWorkspaceCatalog(true)
+  }, [activeTabId, sessionReady.loaded, orgWorkspaceCatalog, loadOrgWorkspaceCatalog])
+
   useEffect(() => {
     document.documentElement.dataset.platform = platformId || 'unknown'
   }, [])
@@ -2326,6 +2349,19 @@ export const App: React.FC = () => {
     }
 
     const org = selection.orgWorkspace
+    if (org.canPublish !== undefined) {
+      const patched = patchOrgWorkspaceCatalogName(
+        orgWorkspaceCatalogRef.current,
+        org.slug,
+        org.workspaceId,
+        org.name?.trim() ?? '',
+        org.canPublish,
+      )
+      if (patched) {
+        applyOrgWorkspaceCatalog(patched)
+        void persistOrgWorkspaceCatalogCache(patched)
+      }
+    }
     const cfg = await window.api.getConfig()
     const missingFolder = !cfg.defaultWorkspacesDir?.trim()
     const missingToken = !cfg.githubToken?.trim()
@@ -2440,7 +2476,16 @@ export const App: React.FC = () => {
         setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
       }
     }
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [
+    applyOrgWorkspaceCatalog,
+    persistOrgWorkspaceCatalogCache,
+    refreshAndSyncProjectAgents,
+    rememberProjectAgent,
+    reportOrgSyncPhase,
+    syncOrgWorkspaceContent,
+    syncTabWithProjectAgents,
+    t,
+  ])
 
   const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
     orgWorkspaceSyncUploadGenRef.current += 1
@@ -6822,12 +6867,10 @@ export const App: React.FC = () => {
                   resyncWorkspaceLabel={t('tabs.resyncWorkspaceButton')}
                   resyncWorkspaceBusy={resyncingWorkspaceTabs.has(tab.id) || uploadingWorkspaceTabs.has(tab.id)}
                   onResyncWorkspace={() => { setOrgSyncScopeTab(tab) }}
-                  canUploadWorkspace={canUploadOrgWorkspaceChanges(
-                    findOrgWorkspaceCatalogEntry(
-                      orgWorkspaceCatalog,
-                      tab.orgWorkspace?.slug?.trim() ?? '',
-                      tab.orgWorkspace?.workspaceId?.trim() ?? '',
-                    )?.canRename,
+                  canUploadWorkspace={canUploadOrgWorkspaceFromCatalog(
+                    orgWorkspaceCatalog,
+                    tab.orgWorkspace?.slug?.trim() ?? '',
+                    tab.orgWorkspace?.workspaceId?.trim() ?? '',
                   )}
                   uploadWorkspaceLabel={t('tabs.uploadWorkspaceButton')}
                   uploadWorkspaceBusy={uploadingWorkspaceTabs.has(tab.id) || resyncingWorkspaceTabs.has(tab.id)}

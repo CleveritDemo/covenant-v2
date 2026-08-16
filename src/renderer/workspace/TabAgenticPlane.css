@@ -60,7 +60,14 @@
   flex-wrap: nowrap;
   gap: 6px;
   max-width: min(85vw, calc(100% - 28px));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   pointer-events: none;
+}
+
+.plane-top-left-chrome::-webkit-scrollbar {
+  display: none;
 }
 
 .plane-top-left-chrome > * {
@@ -72,6 +79,52 @@
    quedarse por debajo del modal de nodo (APP_OVERLAY_MODAL_Z+10=680+). */
 .plane-top-left-chrome--over-wiki {
   z-index: 675;
+}
+
+.plane-top-left-chrome .plane-top-left-bar,
+.plane-top-left-chrome .plane-top-left-workspace-actions,
+.plane-top-left-chrome .plane-workspace-upload-progress {
+  flex-shrink: 0;
+}
+
+.plane-top-left-workspace-actions {
+  --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  height: var(--plane-top-bar-height, 26px);
+  padding: 0 4px;
+  border-radius: var(--plane-top-bar-radius, 8px);
+  border: 1px solid var(--plane-top-bar-edge);
+  background: var(--plane-glass-strong);
+  pointer-events: auto;
+}
+
+.plane-top-left-workspace-actions .plane-loops-button {
+  flex-shrink: 0;
+  height: 20px;
+  width: 20px;
+  min-width: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  backdrop-filter: none;
+}
+
+.plane-top-left-workspace-actions .plane-loops-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
+}
+
+.plane-top-left-workspace-actions .plane-loops-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .plane-top-left-bar {

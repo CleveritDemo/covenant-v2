@@ -20,6 +20,7 @@ import {
 import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
 import {
   canAccessOrgWorkspace,
+  canRenameOrgWorkspace,
   matchesWorkspaceQuery,
   sameGithubLogin,
 } from '../../shared/orgWorkspaceCatalog'
@@ -31,7 +32,7 @@ const PERSONAL_VALUE = ''
 
 export interface OrgWorkspaceSelection {
   /** Ausente = pestaña personal. */
-  orgWorkspace?: { slug: string; workspaceId: string; name: string }
+  orgWorkspace?: { slug: string; workspaceId: string; name: string; canPublish?: boolean }
   agents: ProjectAgentDefinition[]
   contexts: TabContext[]
   catalogKey: string
@@ -44,6 +45,7 @@ interface WorkspaceOption {
   label: string
   name: string
   orgName: string
+  canPublish: boolean
 }
 
 interface Props {
@@ -79,6 +81,7 @@ function optionsFromCatalog(entries: OrgWorkspaceCatalogEntry[]): WorkspaceOptio
     name: entry.name,
     orgName: entry.orgName || entry.slug,
     label: `${entry.orgName || entry.slug} · ${entry.name}`,
+    canPublish: entry.canRename === true,
   }))
 }
 
@@ -149,6 +152,13 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
             name,
             orgName: org.name || slug,
             label: `${org.name || slug} · ${name}`,
+            canPublish: canRenameOrgWorkspace({
+              login,
+              orgRole,
+              isOrgAdmin,
+              createdBy: workspace.createdBy,
+              admins: workspace.admins,
+            }),
           })
         }
       }
@@ -196,6 +206,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
           slug: decoded.slug,
           workspaceId: decoded.workspaceId,
           name: option.name,
+          canPublish: option.canPublish,
         },
         agents: [],
         contexts: [],
@@ -223,6 +234,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
         slug: decoded.slug,
         workspaceId: decoded.workspaceId,
         name: option.name,
+        canPublish: option.canPublish,
       },
       agents: projectAgentsFromWorkspaceAgents(agentsResult.data),
       contexts: tabContextsFromWorkspaceContexts(contextsResult.data, {

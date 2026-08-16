@@ -4,6 +4,16 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.69.0
+
+- **Onboarding: fondo de gravedad**: la guía abre sobre un campo de materia que cae hacia el panel. Sale la masa central y la atención queda en el contenido; con «reducir movimiento» el fondo se queda quieto.
+- **Onboarding: entra en pantallas bajas**: el panel ya no crece más que la ventana. El contenido del paso scrollea por dentro y los botones de abajo quedan siempre a la vista.
+- **Onboarding: el paso de cuenta se entiende**: el texto reconoce si ya iniciaste sesión, tus organizaciones se muestran como etiquetas y el botón principal avisa que cierra la guía y abre el selector de workspaces.
+- **Onboarding: navegación siempre abajo**: avanzar, volver y saltar viven en el pie en todos los pasos.
+- **Onboarding: la guía se reabre una vez** para que veas estos cambios.
+- **Plano: el nombre de la carpeta ya no se corta**: el chip del proyecto muestra el nombre completo, o termina en puntos suspensivos, en vez de cortarse a mitad de letra.
+- **Tooltips: las rutas largas ya no se desbordan**: el texto envuelve dentro del globo y este se acomoda mejor contra el borde de la ventana.
+
 ## v0.68.0
 
 - **Plano: rail de controles en minis de agente**: arrastrar, ajustes y cerrar aparecen fuera de la card al hover, con fondo glass y botones transparentes.

@@ -327,12 +327,15 @@ export async function downloadOrgWorkspaceToLocal(
 export type OrgWorkspaceUploadResult = {
   ok: boolean
   error?: string
+  cancelled?: boolean
 }
 
 export type OrgWorkspaceUploadOptions = {
   orderedAgentIds?: readonly string[]
   /** 0–85: el caller reserva 86–100 para wiki u otras fases posteriores. */
   onProgress?: (percent: number) => void
+  /** Si devuelve true, corta sin más mutaciones remotas. */
+  shouldCancel?: () => boolean
 }
 
 /**
@@ -348,6 +351,11 @@ export async function uploadOrgWorkspaceFromLocal(
 ): Promise<OrgWorkspaceUploadResult> {
   const root = cwd.trim()
   if (!root) return { ok: false, error: 'missing cwd' }
+
+  const isCancelled = () => options.shouldCancel?.() === true
+  const cancelledResult = (): OrgWorkspaceUploadResult => (
+    { ok: false, cancelled: true, error: 'cancelled' }
+  )
 
   const [agentsResult, contextsResult] = await Promise.all([
     deps.listRemoteAgents(),
@@ -396,10 +404,13 @@ export async function uploadOrgWorkspaceFromLocal(
   completedSteps = 1
   reportProgress()
 
+  if (isCancelled()) return cancelledResult()
+
   const agentUpserts = await mapWithConcurrency(
     agentsToUpload,
     COVENANT_REQUEST_LIMIT,
     async agent => {
+      if (isCancelled()) return { agentId: agent.id, cancelled: true as const }
       const { localOnly: _drop, ...payload } = agent
       const forRemote = stripAgentResultContextIdsForUpload(payload as ProjectAgentDefinition)
       const upserted = await deps.upsertRemoteAgent(agent.id, forRemote)
@@ -408,27 +419,40 @@ export async function uploadOrgWorkspaceFromLocal(
       return { agentId: agent.id, upserted }
     },
   )
-  for (const { agentId, upserted } of agentUpserts) {
+  for (const item of agentUpserts) {
+    if ('cancelled' in item && item.cancelled) return cancelledResult()
+    const { agentId, upserted } = item as {
+      agentId: string
+      upserted: Awaited<ReturnType<OrgWorkspaceMaterializeDeps['upsertRemoteAgent']>>
+    }
     if (!upserted.ok) {
       return { ok: false, error: upserted.error || `agent upsert failed: ${agentId}` }
     }
   }
+  if (isCancelled()) return cancelledResult()
 
   const agentDeletes = await mapWithConcurrency(
     agentIdsToDelete,
     COVENANT_REQUEST_LIMIT,
     async agentId => {
+      if (isCancelled()) return { agentId, cancelled: true as const }
       const deleted = await deps.deleteRemoteAgent(agentId)
       completedSteps += 1
       reportProgress()
       return { agentId, deleted }
     },
   )
-  for (const { agentId, deleted } of agentDeletes) {
+  for (const item of agentDeletes) {
+    if ('cancelled' in item && item.cancelled) return cancelledResult()
+    const { agentId, deleted } = item as {
+      agentId: string
+      deleted: Awaited<ReturnType<OrgWorkspaceMaterializeDeps['deleteRemoteAgent']>>
+    }
     if (!deleted.ok) {
       return { ok: false, error: deleted.error || `agent delete failed: ${agentId}` }
     }
   }
+  if (isCancelled()) return cancelledResult()
 
   const contextUpserts = await mapWithConcurrency(
     localContexts,
@@ -446,6 +470,7 @@ export async function uploadOrgWorkspaceFromLocal(
           }
         }
       }
+      if (isCancelled()) return { contextId: context.id, cancelled: true as const }
       const payload = workspaceContextUpsertPayload(context, notesContent)
       const upserted = await deps.upsertRemoteContext(context.id, payload)
       completedSteps += 1
@@ -453,23 +478,35 @@ export async function uploadOrgWorkspaceFromLocal(
       return { contextId: context.id, upserted }
     },
   )
-  for (const { contextId, upserted } of contextUpserts) {
+  for (const item of contextUpserts) {
+    if ('cancelled' in item && item.cancelled) return cancelledResult()
+    const { contextId, upserted } = item as {
+      contextId: string
+      upserted: Awaited<ReturnType<OrgWorkspaceMaterializeDeps['upsertRemoteContext']>>
+    }
     if (!upserted.ok) {
       return { ok: false, error: upserted.error || `context upsert failed: ${contextId}` }
     }
   }
+  if (isCancelled()) return cancelledResult()
 
   const contextDeletes = await mapWithConcurrency(
     contextIdsToDelete,
     COVENANT_REQUEST_LIMIT,
     async contextId => {
+      if (isCancelled()) return { contextId, cancelled: true as const }
       const deleted = await deps.deleteRemoteContext(contextId)
       completedSteps += 1
       reportProgress()
       return { contextId, deleted }
     },
   )
-  for (const { contextId, deleted } of contextDeletes) {
+  for (const item of contextDeletes) {
+    if ('cancelled' in item && item.cancelled) return cancelledResult()
+    const { contextId, deleted } = item as {
+      contextId: string
+      deleted: Awaited<ReturnType<OrgWorkspaceMaterializeDeps['deleteRemoteContext']>>
+    }
     if (!deleted.ok) {
       return { ok: false, error: deleted.error || `context delete failed: ${contextId}` }
     }

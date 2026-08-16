@@ -8,7 +8,7 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 - **Orquestación: tope de delegaciones por turno configurable**: cada coordinador puede limitar cuántas delegaciones emite en un solo turno desde la ficha del agente; «Sin límite» deja el parser sin tope.
 - **Delegación: carriles ilimitados hacia un especialista**: un mismo especialista puede recibir delegaciones paralelas en carriles distintos sin tope de recepción en la ficha.
-- **Org: barra de progreso al publicar cambios**: al publicar al workspace organizacional, la titlebar muestra progreso inline (0–85 % materialización, 90–100 % wiki) con cancelación.
+- **Org: barra de progreso al publicar cambios**: al publicar al workspace organizacional, la titlebar muestra progreso inline (0–85 % materialización, 90–100 % wiki); cancelar detiene de verdad la publicación.
 - **Wiki: curador sin configuración de personalidad**: el composer del mapa wiki deja el engranaje de nombre y reglas; CLI y modelo siguen en la barra principal.
 
 ## v0.63.1

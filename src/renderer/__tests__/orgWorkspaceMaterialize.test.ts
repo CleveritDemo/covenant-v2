@@ -528,6 +528,84 @@ describe('uploadOrgWorkspaceFromLocal', () => {
     expect(preview).toHaveBeenCalled()
     expect(capturedBody).toBe('from preview')
   })
+
+  it('shouldCancel after first agent upsert stops further remote mutations', async () => {
+    const upsertedAgents: string[] = []
+    const deletedAgents: string[] = []
+    const upsertedContexts: string[] = []
+    const deletedContexts: string[] = []
+    let cancelAfterFirstUpsert = false
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({ ok: true, data: [] }),
+      listRemoteContexts: async () => ({ ok: true, data: [] }),
+      listLocalAgents: async () => [agent('a'), agent('b'), agent('c')],
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [context('about', 'notes')],
+      }),
+      upsertRemoteAgent: async id => {
+        upsertedAgents.push(id)
+        cancelAfterFirstUpsert = true
+        return { ok: true, data: { agentId: id, definition: {} } }
+      },
+      deleteRemoteAgent: async id => {
+        deletedAgents.push(id)
+        return { ok: true, data: undefined }
+      },
+      upsertRemoteContext: async id => {
+        upsertedContexts.push(id)
+        return { ok: true, data: { contextId: id, kind: 'notes', name: id, body: '' } }
+      },
+      deleteRemoteContext: async id => {
+        deletedContexts.push(id)
+        return { ok: true, data: undefined }
+      },
+    })
+
+    const result = await uploadOrgWorkspaceFromLocal('/ws', deps, {
+      shouldCancel: () => cancelAfterFirstUpsert,
+    })
+
+    expect(result).toEqual({ ok: false, cancelled: true, error: 'cancelled' })
+    expect(upsertedAgents).toEqual(['a'])
+    expect(deletedAgents).toEqual([])
+    expect(upsertedContexts).toEqual([])
+    expect(deletedContexts).toEqual([])
+  })
+
+  it('without shouldCancel keeps upload behavior and progress unchanged', async () => {
+    const progress: number[] = []
+    const upsertedAgents: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{ agentId: 'gone', definition: {} }],
+      }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'old-notes', kind: 'notes', name: 'Old', body: '' }],
+      }),
+      listLocalAgents: async () => [agent('qa')],
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [context('about', 'notes')],
+      }),
+      upsertRemoteAgent: async id => {
+        upsertedAgents.push(id)
+        return { ok: true, data: { agentId: id, definition: {} } }
+      },
+    })
+
+    const result = await uploadOrgWorkspaceFromLocal('/ws', deps, {
+      onProgress: percent => progress.push(percent),
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(result.cancelled).toBeUndefined()
+    expect(upsertedAgents).toEqual(['qa'])
+    expect(progress.length).toBeGreaterThan(0)
+    expect(progress[progress.length - 1]).toBe(85)
+  })
 })
 
 describe('downloadOrgWorkspaceToLocal order', () => {

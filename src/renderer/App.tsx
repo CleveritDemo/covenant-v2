@@ -2613,7 +2613,9 @@ export const App: React.FC = () => {
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
         onProgress: percent => reportWorkspaceUploadProgress(tab.id, percent),
+        shouldCancel: () => opGen !== orgWorkspaceSyncUploadGenRef.current,
       })
+      if (result.cancelled) return
       if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       if (!result.ok) {
         setOrgWorkspaceRequirement({ uploadError: result.error ?? 'upload failed' })
@@ -2636,12 +2638,14 @@ export const App: React.FC = () => {
         uploadError: err instanceof Error ? err.message : 'upload failed',
       })
     } finally {
-      clearWorkspaceUploadProgress(tab.id)
-      setUploadingWorkspaceTabs(prev => {
-        const next = new Set(prev)
-        next.delete(tab.id)
-        return next
-      })
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        clearWorkspaceUploadProgress(tab.id)
+        setUploadingWorkspaceTabs(prev => {
+          const next = new Set(prev)
+          next.delete(tab.id)
+          return next
+        })
+      }
     }
   }, [clearWorkspaceUploadProgress, pushOrgWikiForScope, reportWorkspaceUploadProgress])
 

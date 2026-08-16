@@ -8,7 +8,7 @@ import type { PersistedSession, ChatEntry } from './persistence'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type { JiraIssueRef } from '../src/shared/jiraIssue'
 import type { RendererErrorReport } from '../src/shared/rendererErrorReport'
-import type { RendererVitals } from '../src/shared/rendererVitals'
+import type { ProcessMemoryReading, RendererVitals } from '../src/shared/rendererVitals'
 import type {
   LspDownloadProgress,
   LspFileReadResult,
@@ -379,6 +379,10 @@ const api = {
   stopWikiCuratorTurn(cwd: string): void {
     ipcRenderer.send(IPC.WIKI_CURATOR_STOP, cwd)
   },
+  /** Devuelve si main tiene un turno del curador manual activo para este cwd. */
+  isWikiCuratorTurnActive(cwd: string): Promise<boolean> {
+    return ipcRenderer.invoke(IPC.WIKI_CURATOR_IS_ACTIVE, cwd)
+  },
   onWikiCuratorEvent(cwd: string, cb: (event: WikiCuratorEvent) => void): () => void {
     return subscribeWikiCuratorEvent(cwd, cb)
   },
@@ -445,6 +449,32 @@ const api = {
   /** `send` y no `invoke`: es telemetría periódica, nadie espera respuesta. */
   reportRendererVitals(payload: RendererVitals): void {
     ipcRenderer.send(IPC.APP_RENDERER_VITALS, payload)
+  },
+
+  /**
+   * Memoria real del renderer, leída desde el `process` de Electron.
+   *
+   * Vive en el preload porque el mundo del renderer no tiene `process`, y no en
+   * main porque `getAppMetrics()` solo ve el residente del proceso: el reparto
+   * entre heap de V8 y PartitionAlloc de Blink solo se ve desde dentro. No usa
+   * `performance.memory` justamente para no heredar su cuantización.
+   */
+  readProcessMemory(): ProcessMemoryReading | null {
+    try {
+      const heap = process.getHeapStatistics()
+      const blink = process.getBlinkMemoryInfo?.()
+      return {
+        heapUsedKb: heap.usedHeapSize,
+        heapTotalKb: heap.totalHeapSize,
+        heapLimitKb: heap.heapSizeLimit,
+        ...(typeof blink?.allocated === 'number' ? { blinkAllocatedKb: blink.allocated } : {}),
+        ...(typeof blink?.total === 'number' ? { blinkTotalKb: blink.total } : {}),
+      }
+    } catch {
+      // Una API que cambie de forma entre versiones de Electron no puede tumbar
+      // el muestreo: sin lectura, el sampler cae a `performance.memory`.
+      return null
+    }
   },
 
   getCdRecentList(): Promise<string[]> {

@@ -164,6 +164,7 @@ import {
   stopWikiCuratorTurn,
   type WikiCuratorStartConfig,
 } from './wikiCurator'
+import { isWikiCuratorActive } from './wikiCuratorActive'
 import { startWikiSweep, stopWikiSweep } from './wikiCuratorSweep'
 import { buildWikiGraphData } from '../src/shared/wikiGraph'
 import { pulseSnapshot, recordPulseEvent } from './pulseStore'
@@ -2213,6 +2214,10 @@ function registerIpc(): void {
     try {
       stopWikiCuratorTurn(cwd, win ?? undefined)
     } catch { /* stop best-effort */ }
+  })
+  ipcMain.handle(IPC.WIKI_CURATOR_IS_ACTIVE, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string') return false
+    return isWikiCuratorActive(cwd)
   })
   ipcMain.on(IPC.WIKI_SWEEP_START, (event, cwd: unknown) => {
     if (typeof cwd !== 'string' || !cwd.trim()) return

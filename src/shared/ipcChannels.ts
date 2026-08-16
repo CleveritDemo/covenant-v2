@@ -90,6 +90,8 @@ export const IPC = {
   WIKI_CURATOR_START: 'wikiCurator:start',
   /** Renderer → main: cancelar el turno activo del curador de un cwd. */
   WIKI_CURATOR_STOP: 'wikiCurator:stop',
+  /** Renderer → main (invoke): consulta si hay turno del curador activo para un cwd. */
+  WIKI_CURATOR_IS_ACTIVE: 'wikiCurator:isActive',
   /** Main → renderer: eventos del curador (delta|final|view|applied|error|done). */
   WIKI_CURATOR_EVENT: 'wikiCurator:event',
   /** Renderer → main (invoke): lee `.gravity/wiki/curator.json` sanitizado. */

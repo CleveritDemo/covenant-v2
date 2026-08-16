@@ -164,6 +164,7 @@ import {
   stopWikiCuratorTurn,
   type WikiCuratorStartConfig,
 } from './wikiCurator'
+import { startWikiSweep, stopWikiSweep } from './wikiCuratorSweep'
 import { buildWikiGraphData } from '../src/shared/wikiGraph'
 import { pulseSnapshot, recordPulseEvent } from './pulseStore'
 import { clearPresence, setPresence } from './discordPresence'
@@ -2211,6 +2212,47 @@ function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     try {
       stopWikiCuratorTurn(cwd, win ?? undefined)
+    } catch { /* stop best-effort */ }
+  })
+  ipcMain.on(IPC.WIKI_SWEEP_START, (event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    try {
+      const result = startWikiSweep(win, cwd.trim(), readConfig(), app.getPath('home'))
+      if (!result.ok && !win.isDestroyed()) {
+        win.webContents.send(IPC.WIKI_SWEEP_EVENT, cwd.trim(), {
+          type: 'error',
+          message: result.error,
+        })
+        win.webContents.send(IPC.WIKI_SWEEP_EVENT, cwd.trim(), {
+          type: 'done',
+          totalOps: 0,
+          snapshotPath: null,
+          stopped: false,
+        })
+      }
+    } catch (error) {
+      const trimmed = cwd.trim()
+      if (!win.isDestroyed()) {
+        win.webContents.send(IPC.WIKI_SWEEP_EVENT, trimmed, {
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        })
+        win.webContents.send(IPC.WIKI_SWEEP_EVENT, trimmed, {
+          type: 'done',
+          totalOps: 0,
+          snapshotPath: null,
+          stopped: false,
+        })
+      }
+    }
+  })
+  ipcMain.on(IPC.WIKI_SWEEP_STOP, (event, cwd: unknown) => {
+    if (typeof cwd !== 'string') return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    try {
+      stopWikiSweep(cwd, win ?? undefined)
     } catch { /* stop best-effort */ }
   })
   ipcMain.handle(IPC.WIKI_CURATOR_CONFIG_GET, (_event, cwd: unknown) => {

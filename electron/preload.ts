@@ -89,7 +89,6 @@ import type {
 import type { WikiGraphResult } from '../src/shared/wikiGraph'
 import type { WikiCuratorConfig, WikiCuratorEvent } from '../src/shared/wikiCurator'
 import type { WikiSweepEvent } from '../src/shared/wikiCuratorSweep'
-import type { WikiSweepEvent } from '../src/shared/wikiCuratorSweep'
 import type { UpdateState } from '../src/shared/updateState'
 import type { DictationPermissionResult } from '../src/shared/dictation'
 import type {

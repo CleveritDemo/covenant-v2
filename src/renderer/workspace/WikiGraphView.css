@@ -201,9 +201,45 @@ html[data-reduce-motion="true"] .wiki-graph-view__canvas--entering {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   pointer-events: none;
+}
+
+.wiki-graph-view__loading-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: min(320px, 90%);
+  text-align: center;
+  font-family: var(--font-ui);
+}
+
+.wiki-graph-view__loading-pass {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wiki-graph-view__loading-progress {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.wiki-graph-view__loading-ops {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wiki-graph-view__sweep {
+  pointer-events: auto;
 }
 
 /* Error de IPC al cargar el grafo. */

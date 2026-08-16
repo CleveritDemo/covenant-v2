@@ -34,6 +34,10 @@ import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
 import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
 import { WikiCuratorComposer } from './WikiCuratorComposer'
 import type { WikiGraphData } from './wikiGraph'
+import {
+  WIKI_SWEEP_TOTAL,
+  type WikiSweepPass,
+} from '@shared/wikiCuratorSweep'
 import { PlaneLoopsSection, type PlaneLoopsAgent } from './PlaneLoopsSection'
 import { useLoopChainLiveState } from './useLoopChainLiveState'
 import { PlaneQuickChat } from './PlaneQuickChat'
@@ -476,6 +480,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
   // Tras bootstrap wiki desde el CTA: auto-/init del curador.
   const [wikiBootstrapInitToken, setWikiBootstrapInitToken] = useState(0)
+  const [sweepRunning, setSweepRunning] = useState(false)
+  const [sweepPass, setSweepPass] = useState<WikiSweepPass | null>(null)
+  const [sweepIndex, setSweepIndex] = useState(0)
+  const [sweepTotal, setSweepTotal] = useState(WIKI_SWEEP_TOTAL)
+  const [sweepOpsApplied, setSweepOpsApplied] = useState(0)
 
   const getWikiModalBounds = useCallback((): { width: number; height: number } => {
     const el = planeRef.current
@@ -590,6 +599,61 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     })
     return () => { cancelled = true }
   }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
+
+  useEffect(() => {
+    if (!wikiMapOpen) {
+      setSweepRunning(false)
+      setSweepPass(null)
+      setSweepIndex(0)
+      setSweepTotal(WIKI_SWEEP_TOTAL)
+      setSweepOpsApplied(0)
+    }
+  }, [wikiMapOpen])
+
+  useEffect(() => {
+    const cwd = projectFolder.trim()
+    if (!cwd || !wikiMapOpen) return
+    return window.api.onWikiSweepEvent(cwd, event => {
+      if (event.type === 'pass_start') {
+        setSweepRunning(true)
+        setSweepPass(event.pass)
+        setSweepIndex(event.index)
+        setSweepTotal(event.total)
+        return
+      }
+      if (event.type === 'pass_done') {
+        setSweepOpsApplied(previous => previous + event.opsApplied)
+        setWikiGraphSoftToken(token => token + 1)
+        return
+      }
+      if (event.type === 'error') return
+      if (event.type === 'done') {
+        setSweepRunning(false)
+        setSweepPass(null)
+        setSweepIndex(0)
+        setSweepTotal(WIKI_SWEEP_TOTAL)
+        setSweepOpsApplied(0)
+        setWikiGraphRefreshToken(token => token + 1)
+        onWikiMutated?.(cwd)
+      }
+    })
+  }, [projectFolder, wikiMapOpen, onWikiMutated])
+
+  const handleWikiSweepStart = useCallback((): void => {
+    const cwd = projectFolder.trim()
+    if (!cwd) return
+    setSweepOpsApplied(0)
+    setSweepPass(null)
+    setSweepIndex(0)
+    setSweepTotal(WIKI_SWEEP_TOTAL)
+    window.api.startWikiSweep(cwd)
+  }, [projectFolder])
+
+  const handleWikiSweepStop = useCallback((): void => {
+    const cwd = projectFolder.trim()
+    if (!cwd) return
+    window.api.stopWikiSweep(cwd)
+  }, [projectFolder])
 
   useLayoutEffect(() => {
     const el = planeRef.current
@@ -1011,11 +1075,21 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               if (cwd) onWikiMutated?.(cwd)
               setWikiBootstrapInitToken(token => token + 1)
             }}
+            sweep={{
+              running: sweepRunning,
+              pass: sweepPass,
+              index: sweepIndex,
+              total: sweepTotal,
+              opsApplied: sweepOpsApplied,
+              onStart: handleWikiSweepStart,
+              onStop: handleWikiSweepStop,
+            }}
             curator={projectFolder.trim() ? (
               <WikiCuratorComposer
                 cwd={projectFolder.trim()}
                 systemSoundsEnabled={systemSoundsEnabled}
                 bootstrapInitToken={wikiBootstrapInitToken}
+                disabled={sweepRunning}
                 onViewSlugs={slugs => openWikiNodeModals(slugs)}
                 onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
               />

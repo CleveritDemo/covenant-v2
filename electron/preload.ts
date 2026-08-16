@@ -88,6 +88,8 @@ import type {
 } from '../src/shared/tabContext'
 import type { WikiGraphResult } from '../src/shared/wikiGraph'
 import type { WikiCuratorConfig, WikiCuratorEvent } from '../src/shared/wikiCurator'
+import type { WikiSweepEvent } from '../src/shared/wikiCuratorSweep'
+import type { WikiSweepEvent } from '../src/shared/wikiCuratorSweep'
 import type { UpdateState } from '../src/shared/updateState'
 import type { DictationPermissionResult } from '../src/shared/dictation'
 import type {
@@ -135,6 +137,7 @@ const subscribeAgentCliExit = createPtyChannelMux<[code: number]>(IPC.AGENT_CLI_
 const subscribeBrainstormEvent = createPtyChannelMux<[event: BrainstormEvent]>(IPC.BRAINSTORM_EVENT)
 const subscribeLoopChainEvent = createPtyChannelMux<[event: LoopChainEvent]>(IPC.LOOP_CHAIN_EVENT)
 const subscribeWikiCuratorEvent = createPtyChannelMux<[event: WikiCuratorEvent]>(IPC.WIKI_CURATOR_EVENT)
+const subscribeWikiSweepEvent = createPtyChannelMux<[event: WikiSweepEvent]>(IPC.WIKI_SWEEP_EVENT)
 const subscribeFileExplorerFsChanged = createPtyChannelMux<[dirs: string[]]>(IPC.FILE_EXPLORER_FS_CHANGED)
 const subscribeGitStatusChanged = createPtyChannelMux<[]>(IPC.GIT_STATUS_CHANGED)
 // Los tres canales LSP se multiplexan igual que los de PTY: el primer argumento
@@ -379,6 +382,15 @@ const api = {
   },
   onWikiCuratorEvent(cwd: string, cb: (event: WikiCuratorEvent) => void): () => void {
     return subscribeWikiCuratorEvent(cwd, cb)
+  },
+  startWikiSweep(cwd: string): void {
+    ipcRenderer.send(IPC.WIKI_SWEEP_START, cwd)
+  },
+  stopWikiSweep(cwd: string): void {
+    ipcRenderer.send(IPC.WIKI_SWEEP_STOP, cwd)
+  },
+  onWikiSweepEvent(cwd: string, cb: (event: WikiSweepEvent) => void): () => void {
+    return subscribeWikiSweepEvent(cwd, cb)
   },
   getWikiCuratorConfig(cwd: string): Promise<
     { ok: true; config: WikiCuratorConfig } | { ok: false; error: string }

@@ -45,6 +45,8 @@ export interface WikiCuratorComposerProps {
   systemSoundsEnabled?: boolean
   /** Incrementar tras bootstrap wiki dispara /init automático (guard thinking). */
   bootstrapInitToken?: number
+  /** Barrido de wiki en curso: bloquea envío manual al curador. */
+  disabled?: boolean
 }
 
 /** CLI por defecto del curador cuando AppConfig no trae provider. */
@@ -64,6 +66,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   onWikiChanged,
   systemSoundsEnabled = true,
   bootstrapInitToken = 0,
+  disabled = false,
 }) => {
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -282,7 +285,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     const message = (overrideText ?? draft).trim()
     const key = cwd.trim()
     const imagesSnapshot = pendingImages
-    if ((!message && imagesSnapshot.length === 0) || !key || thinking) return
+    if ((!message && imagesSnapshot.length === 0) || !key || thinking || disabled) return
     const userText = message || IMAGE_ONLY_USER_TEXT
     appendHistoryEntry({ role: 'user', text: userText })
     rawReplyRef.current = ''
@@ -299,7 +302,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
         ...(attachments.length ? { images: attachments } : {}),
       })
     })
-  }, [appendHistoryEntry, cwd, draft, pendingImages, thinking])
+  }, [appendHistoryEntry, cwd, disabled, draft, pendingImages, thinking])
 
   const sendRef = useRef(send)
   sendRef.current = send
@@ -346,7 +349,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
     })
 
   const canSend = Boolean(draft.trim() || pendingImages.length > 0)
-  const micMode = Boolean(!thinking && !draft.trim() && pendingImages.length === 0)
+  const micMode = Boolean(!thinking && !disabled && !draft.trim() && pendingImages.length === 0)
 
   const handleSendClick = (): void => {
     if (thinking) {
@@ -583,9 +586,9 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
                   : t('tabs.wikiCuratorSend')
             }
             sendMode={thinking ? 'stop' : micMode ? 'mic' : 'send'}
-            sendDisabled={!thinking && !micMode && !canSend}
+            sendDisabled={disabled || (!thinking && !micMode && !canSend)}
             listening={listening}
-            disabled={false}
+            disabled={disabled}
             onSendClick={handleSendClick}
             onMicStart={startDictation}
             onMicStop={stopDictation}
@@ -595,7 +598,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
               <>
                 <PlaneSketchButton
                   label={t('sketch.open')}
-                  disabled={thinking || pendingImages.length >= MAX_PENDING_IMAGES}
+                  disabled={disabled || thinking || pendingImages.length >= MAX_PENDING_IMAGES}
                   onClick={() => setSketchOpen(true)}
                 />
                 <Tooltip content={t('tabs.wikiCuratorConfigOpen')}>
@@ -632,6 +635,11 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
           {!listening && dictationError ? (
             <p className="plane-chat-composer__dictation-error" role="status">
               {dictationError}
+            </p>
+          ) : null}
+          {disabled ? (
+            <p className="wiki-curator-composer__sweep-blocked" role="status">
+              {t('tabs.wikiSweepBlocked')}
             </p>
           ) : null}
         </div>

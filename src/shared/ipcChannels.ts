@@ -96,6 +96,12 @@ export const IPC = {
   WIKI_CURATOR_CONFIG_GET: 'wikiCurator:configGet',
   /** Renderer → main (invoke): escribe la config sanitizada del curador. */
   WIKI_CURATOR_CONFIG_SET: 'wikiCurator:configSet',
+  /** Renderer → main: barrido completo de la wiki (cinco pases secuenciales). */
+  WIKI_SWEEP_START: 'wikiSweep:start',
+  /** Renderer → main: detener el barrido activo de un cwd. */
+  WIKI_SWEEP_STOP: 'wikiSweep:stop',
+  /** Main → renderer: eventos del barrido (pass_start|delta|pass_done|error|done). */
+  WIKI_SWEEP_EVENT: 'wikiSweep:event',
   /** Renderer → main: revela el .md del contexto en el Finder. */
   TAB_CONTEXT_REVEAL: 'tabContext:reveal',
   /** Renderer → main: crea .gravity/results/<slug>.md si no existe. */

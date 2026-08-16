@@ -11,6 +11,7 @@ import {
   type WikiGraphHover,
   type WikiGraphNodeScreenPosition,
 } from './useWikiGraphScene'
+import { wikiSweepPassLabelKey, type WikiSweepPass } from '@shared/wikiCuratorSweep'
 import { getMostRecentlyUpdatedWikiSlugs, type WikiGraphData, type WikiGraphNodeType } from './wikiGraph'
 import './WikiGraphView.css'
 
@@ -38,6 +39,16 @@ export interface WikiGraphViewProps {
    * `wikiMapOpen` sin auto-cerrar al cambiar de workspace.
    */
   active?: boolean
+  /** Barrido secuencial de la wiki (cinco pases del curador). */
+  sweep?: {
+    running: boolean
+    pass: WikiSweepPass | null
+    index: number
+    total: number
+    opsApplied: number
+    onStart: () => void
+    onStop: () => void
+  }
 }
 
 const EMPTY_GRAPH: WikiGraphData = { nodes: [], edges: [] }
@@ -77,6 +88,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   onNodeScreenPositions,
   curator,
   active = true,
+  sweep,
 }) => {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -98,7 +110,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
         ? 'empty'
         : 'ready'
 
-  const showLoadingOverlay = phase === 'loading' || creatingWiki
+  const showLoadingOverlay = phase === 'loading' || creatingWiki || Boolean(sweep?.running)
 
   const handleNodeScreenPositions = useCallback(
     (positions: ReadonlyMap<string, WikiGraphNodeScreenPosition>) => {
@@ -200,8 +212,27 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       {showLoadingOverlay ? (
         <div className="wiki-graph-view__loading" role="status">
           <Spinner
-            aria-label={creatingWiki ? t('tabs.wikiMapCreating') : t('tabs.wikiMapLoading')}
+            aria-label={
+              sweep?.running
+                ? (sweep.pass ? t(wikiSweepPassLabelKey(sweep.pass)) : t('tabs.wikiSweepStart'))
+                : creatingWiki
+                  ? t('tabs.wikiMapCreating')
+                  : t('tabs.wikiMapLoading')
+            }
           />
+          {sweep?.running ? (
+            <div className="wiki-graph-view__loading-detail">
+              {sweep.pass ? (
+                <p className="wiki-graph-view__loading-pass">
+                  {t(wikiSweepPassLabelKey(sweep.pass))}
+                </p>
+              ) : null}
+              <p className="wiki-graph-view__loading-progress">
+                {t('tabs.wikiSweepProgress', { index: sweep.index, total: sweep.total })}
+              </p>
+              <p className="wiki-graph-view__loading-ops">{sweep.opsApplied}</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {phase === 'error' ? (
@@ -271,6 +302,24 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
                 </li>
               ))}
             </ul>
+            {sweep ? (
+              <div className="wiki-graph-view__sweep">
+                {sweep.running ? (
+                  <Button variant="secondary" size="sm" onClick={sweep.onStop}>
+                    {t('tabs.wikiSweepStop')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={phase !== 'ready'}
+                    onClick={sweep.onStart}
+                  >
+                    {t('tabs.wikiSweepStart')}
+                  </Button>
+                )}
+              </div>
+            ) : null}
             <Tooltip content={t('tabs.wikiMapClose')}>
               <button
                 type="button"

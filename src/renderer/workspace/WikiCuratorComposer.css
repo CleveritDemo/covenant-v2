@@ -153,6 +153,12 @@
   font-size: 10.5px;
 }
 
+.wiki-curator-composer__sweep-blocked {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 @keyframes wiki-curator-bubble-in {
   from {
     opacity: 0;

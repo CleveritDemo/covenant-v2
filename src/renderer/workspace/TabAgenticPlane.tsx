@@ -480,6 +480,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const [wikiGraphSoftToken, setWikiGraphSoftToken] = useState(0)
   // Tras bootstrap wiki desde el CTA: auto-/init del curador.
   const [wikiBootstrapInitToken, setWikiBootstrapInitToken] = useState(0)
+  const [curatorThinking, setCuratorThinking] = useState(false)
   const [sweepRunning, setSweepRunning] = useState(false)
   const [sweepPass, setSweepPass] = useState<WikiSweepPass | null>(null)
   const [sweepIndex, setSweepIndex] = useState(0)
@@ -662,6 +663,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     setSweepPass(null)
     setSweepIndex(0)
     setSweepTotal(WIKI_SWEEP_TOTAL)
+    setSweepRunning(true)
     window.api.startWikiSweep(cwd)
   }, [projectFolder])
 
@@ -1104,6 +1106,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               opsApplied: sweepOpsApplied,
               errors: sweepErrors,
               snapshotPath: sweepSnapshotPath,
+              curatorBusy: curatorThinking,
               onStart: handleWikiSweepStart,
               onStop: handleWikiSweepStop,
               onDismissSummary: handleWikiSweepSummaryDismiss,
@@ -1114,6 +1117,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                 systemSoundsEnabled={systemSoundsEnabled}
                 bootstrapInitToken={wikiBootstrapInitToken}
                 disabled={sweepRunning}
+                onThinkingChange={setCuratorThinking}
                 onViewSlugs={slugs => openWikiNodeModals(slugs)}
                 onWikiChanged={() => setWikiGraphSoftToken(token => token + 1)}
               />

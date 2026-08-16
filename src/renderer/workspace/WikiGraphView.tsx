@@ -48,6 +48,7 @@ export interface WikiGraphViewProps {
     opsApplied: number
     errors: string[]
     snapshotPath: string | null
+    curatorBusy: boolean
     onStart: () => void
     onStop: () => void
     onDismissSummary: () => void
@@ -341,14 +342,18 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
                     {t('tabs.wikiSweepStop')}
                   </Button>
                 ) : (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={phase !== 'ready'}
-                    onClick={sweep.onStart}
+                  <Tooltip
+                    content={sweep.curatorBusy ? t('tabs.wikiSweepCuratorBusy') : ''}
                   >
-                    {t('tabs.wikiSweepStart')}
-                  </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={phase !== 'ready' || sweep.curatorBusy}
+                      onClick={sweep.onStart}
+                    >
+                      {t('tabs.wikiSweepStart')}
+                    </Button>
+                  </Tooltip>
                 )}
               </div>
             ) : null}

@@ -47,6 +47,8 @@ export interface WikiCuratorComposerProps {
   bootstrapInitToken?: number
   /** Barrido de wiki en curso: bloquea envío manual al curador. */
   disabled?: boolean
+  /** Notifica al padre cuando el curador entra o sale del estado «pensando». */
+  onThinkingChange?: (thinking: boolean) => void
 }
 
 /** CLI por defecto del curador cuando AppConfig no trae provider. */
@@ -67,6 +69,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   systemSoundsEnabled = true,
   bootstrapInitToken = 0,
   disabled = false,
+  onThinkingChange,
 }) => {
   const { t, i18n } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -156,6 +159,16 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       setHistory([])
     }
   }, [cwd])
+
+  useEffect(() => {
+    onThinkingChange?.(thinking)
+  }, [thinking, onThinkingChange])
+
+  useEffect(() => {
+    return () => {
+      onThinkingChange?.(false)
+    }
+  }, [onThinkingChange])
 
   useEffect(() => {
     const key = cwd.trim()

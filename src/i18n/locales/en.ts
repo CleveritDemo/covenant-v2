@@ -886,6 +886,7 @@ const en = {
     wikiSweepStart: 'Curate wiki',
     wikiSweepStop: 'Stop sweep',
     wikiSweepBlocked: 'The wiki sweep is running. Wait for it to finish.',
+    wikiSweepCuratorBusy: 'The curator is thinking. Wait for it to finish before running a sweep.',
     wikiSweepProgress: 'Pass {{index}} of {{total}}',
     wikiSweepPassHealth: 'Health',
     wikiSweepPassTruth: 'Truth',

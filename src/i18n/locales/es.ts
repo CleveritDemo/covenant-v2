@@ -888,6 +888,7 @@ const es = {
     wikiSweepStart: 'Curar wiki',
     wikiSweepStop: 'Detener barrido',
     wikiSweepBlocked: 'El barrido de la wiki está en curso. Espera a que termine.',
+    wikiSweepCuratorBusy: 'El curador está pensando. Espera a que termine antes de barrer la wiki.',
     wikiSweepProgress: 'Pase {{index}} de {{total}}',
     wikiSweepPassHealth: 'Salud',
     wikiSweepPassTruth: 'Verdad',

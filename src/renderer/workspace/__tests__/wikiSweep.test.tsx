@@ -78,6 +78,7 @@ const baseSweep = {
   opsApplied: 0,
   errors: [] as string[],
   snapshotPath: null as string | null,
+  curatorBusy: false,
   onStart: vi.fn(),
   onStop: vi.fn(),
   onDismissSummary: vi.fn(),
@@ -189,6 +190,57 @@ describe('WikiGraphView barrido de wiki', () => {
     })
 
     expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toHaveProperty('disabled', true)
+  })
+
+  it('deshabilita Curar wiki si el curador está pensando', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          curatorBusy: true,
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toHaveProperty('disabled', true)
+  })
+
+  it('habilita Curar wiki con grafo ready y curador libre', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={baseSweep}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toHaveProperty('disabled', false)
   })
 
   it('muestra pase y progreso en el overlay al correr el barrido', () => {
@@ -403,6 +455,36 @@ describe('WikiGraphView barrido de wiki', () => {
     })
 
     expect(screen.queryByText('tabs.wikiSweepSnapshotTitle')).toBeNull()
+  })
+})
+
+describe('TabAgenticPlane barrido (arranque optimista)', () => {
+  it('muestra progreso tras Start sin pass_start; done de rechazo rehabilita Start', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiSweepStart' }))
+
+    expect(startWikiSweep).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'tabs.wikiSweepStop' })).toBeTruthy()
+    expect(screen.getByText('tabs.wikiSweepProgress:0/5')).toBeTruthy()
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'done',
+        totalOps: 0,
+        snapshotPath: null,
+        stopped: false,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toHaveProperty('disabled', false)
+    })
   })
 })
 

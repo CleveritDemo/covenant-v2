@@ -2132,15 +2132,16 @@ function wikiSubstrateFingerprint(cwd: string): string {
 }
 
 function buildWikiSubstrateBlock(cwd: string): string {
-  const projectDir = projectDirName(cwd)
+  const pagesDir = join(wikiRootPath(cwd), PAGES_DIR)
   const index = buildWikiPromptIndex(readWikiPages(cwd))
   const logTail = readWikiLogTail(cwd, 5)
   return [
     '## Project wiki',
     'Consult this index FIRST: before exploring the repository on your own, check whether a page below already answers your question and read that page instead of searching the codebase.',
     'The index below is your navigation map.',
-    `To read a page, open \`${projectDir}/wiki/pages/<slug>.md\` with the file read tool.`,
-    `To search wiki content, grep in \`${projectDir}/wiki/pages/\`.`,
+    `To read a page, open \`${pagesDir}/<slug>.md\` with the file read tool.`,
+    `To search wiki content, grep in \`${pagesDir}\`.`,
+    'These are absolute paths: the wiki lives in the project folder, not in your current working directory, which may be an isolated git worktree. Do not resolve them relative to your cwd.',
     '',
     index || '(empty)',
     '',

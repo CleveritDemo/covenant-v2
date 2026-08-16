@@ -1713,6 +1713,38 @@ export class Widget {
       }
     })
 
+    it('Project wiki emite ruta absoluta a pages bajo .gravity, no relativa', () => {
+      const cwd = tempCwd()
+      seedWiki(cwd)
+      const pagesDir = join(cwd, PROJECT_DIR, 'wiki', 'pages')
+      const delivery = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
+      expect(delivery.prompt).toContain(pagesDir)
+      expect(delivery.prompt).not.toContain('`.gravity/wiki/pages/')
+    })
+
+    it('Project wiki con wiki legacy .iaterminal emite ruta absoluta a pages', () => {
+      const cwd = tempCwd()
+      mkdirSync(join(cwd, '.iaterminal', 'wiki', 'pages'), { recursive: true })
+      writeFileSync(
+        join(cwd, '.iaterminal', 'wiki', 'index.md'),
+        '# Wiki index\n\n- [[auth]] — Auth (concept)\n',
+        'utf8',
+      )
+      writeFileSync(
+        join(cwd, '.iaterminal', 'wiki', 'log.md'),
+        '# Wiki log\n- `2026-08-13T00:00:00.000Z` — seeded\n',
+        'utf8',
+      )
+      writeFileSync(
+        join(cwd, '.iaterminal', 'wiki', 'pages', 'auth.md'),
+        '# Auth\n<!-- iaterminal:wiki-page {"type":"concept"} -->\n\nCuerpo de auth.\n',
+        'utf8',
+      )
+      const pagesDir = join(cwd, '.iaterminal', 'wiki', 'pages')
+      const delivery = buildContextPromptDelivery([], cwd, { forceFullRefresh: true })
+      expect(delivery.prompt).toContain(pagesDir)
+    })
+
     it('sin wiki en disco no hay Project wiki ni Wiki ingest en delivery', () => {
       const cwd = tempCwd()
       const tree = applyCanonicalContextIdentity({

@@ -1803,19 +1803,30 @@ export const App: React.FC = () => {
   const paneBusyForWikiPushRef = useRef(new Map<string, boolean>())
 
   /**
+   * Un push en vuelo por scope + una única pasada de cola. `syncOrgWikiPush`
+   * lee el grafo entero y va detrás de la cola HTTP de covenant (4 en paralelo,
+   * timeout 30s): sin este colapso, un disparador que repita rápido apila
+   * llamadas suspendidas y cada una deja el grafo pinchado en el heap.
+   */
+  const wikiPushInFlightRef = useRef(
+    new Map<string, Promise<{ ok: true } | { ok: false; error: string }>>(),
+  )
+  const wikiPushTrailingRef = useRef(new Set<string>())
+  const pushOrgWikiForScopeRef = useRef<
+    (orgSlug: string, workspaceId: string, cwd: string) =>
+      Promise<{ ok: true } | { ok: false; error: string }>
+  >(async () => ({ ok: true }))
+
+  /**
    * Push org de la wiki para un scope (post-turno, upload, curador, CTA mapa).
    * Seed en frío con listRemotePages/listRemoteLog para propagar deletes y
    * líneas de log locales faltantes tras reinicio.
    */
-  const pushOrgWikiForScope = useCallback(async (
-    orgSlug: string,
-    workspaceId: string,
-    cwd: string,
+  const runOrgWikiPush = useCallback(async (
+    slug: string,
+    ws: string,
+    root: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    const slug = orgSlug.trim()
-    const ws = workspaceId.trim()
-    const root = cwd.trim()
-    if (!slug || !ws || !root) return { ok: true }
     const covenant = getCovenantApi()
     if (!covenant || !hasCovenantWikiApi(covenant)) return { ok: true }
     try {
@@ -1838,6 +1849,41 @@ export const App: React.FC = () => {
       return { ok: false, error: message }
     }
   }, [])
+
+  const pushOrgWikiForScope = useCallback(async (
+    orgSlug: string,
+    workspaceId: string,
+    cwd: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const slug = orgSlug.trim()
+    const ws = workspaceId.trim()
+    const root = cwd.trim()
+    if (!slug || !ws || !root) return { ok: true }
+    const key = `${slug} ${ws} ${root}`
+
+    const inFlight = wikiPushInFlightRef.current.get(key)
+    if (inFlight) {
+      // Colapsa: basta una pasada más al terminar la actual para recoger los
+      // cambios que llegaron mientras corría.
+      wikiPushTrailingRef.current.add(key)
+      return inFlight
+    }
+
+    const run = (async () => {
+      try {
+        return await runOrgWikiPush(slug, ws, root)
+      } finally {
+        wikiPushInFlightRef.current.delete(key)
+        if (wikiPushTrailingRef.current.delete(key)) {
+          void pushOrgWikiForScopeRef.current(slug, ws, root)
+        }
+      }
+    })()
+    wikiPushInFlightRef.current.set(key, run)
+    return run
+  }, [runOrgWikiPush])
+
+  pushOrgWikiForScopeRef.current = pushOrgWikiForScope
 
   /** Push org de la wiki tras el turno: resuelve tab/pane y delega al helper. */
   const pushOrgWikiAfterTurn = useCallback((paneId: string) => {

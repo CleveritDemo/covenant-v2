@@ -12,6 +12,18 @@ export interface GravityHeroCanvasProps {
   gravitySize?: GravitySize
   /** Entrada breve; splash de arranque usa CSS propio. */
   enter?: GravityHeroCanvasEnter
+  /**
+   * Ajuste de la masa Gravity por altura de viewport.
+   * - `fixed` (default): tamaño hero constante.
+   * - `shrink`: la masa cede altura en viewports bajos.
+   */
+  heroFit?: 'fixed' | 'shrink'
+  /**
+   * Si es `false`, no monta la masa `<Gravity>`.
+   * Útil cuando el consumidor aporta su propio campo (p. ej. onboarding).
+   * Default `true`.
+   */
+  showMass?: boolean
   /** Publica --gravity-hero-canvas-z. */
   zIndex?: number
   role?: React.AriaRole
@@ -35,6 +47,8 @@ export const GravityHeroCanvas = forwardRef<HTMLDivElement, GravityHeroCanvasPro
       brandLabel = 'COVENANT GRAVITY',
       gravitySize = 'hero',
       enter = 'none',
+      heroFit = 'fixed',
+      showMass = true,
       zIndex,
       role,
       tabIndex,
@@ -49,6 +63,7 @@ export const GravityHeroCanvas = forwardRef<HTMLDivElement, GravityHeroCanvasPro
     const className = [
       'gravity-hero-canvas',
       enter === 'fade' ? 'gravity-hero-canvas--enter-fade' : '',
+      heroFit === 'shrink' ? 'gravity-hero-canvas--shrink' : '',
     ].filter(Boolean).join(' ')
 
     const style: React.CSSProperties | undefined = typeof zIndex === 'number'
@@ -68,7 +83,7 @@ export const GravityHeroCanvas = forwardRef<HTMLDivElement, GravityHeroCanvasPro
         aria-describedby={ariaDescribedby}
         aria-label={ariaLabel}
       >
-        <Gravity size={gravitySize} />
+        {showMass ? <Gravity size={gravitySize} /> : null}
         {brand ? <p className="gravity-hero-canvas__brand">{brandLabel}</p> : null}
         {children}
       </div>

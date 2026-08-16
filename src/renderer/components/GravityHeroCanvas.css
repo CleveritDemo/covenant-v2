@@ -76,3 +76,38 @@ html[data-reduce-motion="true"] .gravity-hero-canvas--enter-fade {
 #splash.gravity-hero-canvas.is-hidden {
   display: none;
 }
+
+/* Onboarding / overlays: la masa cede altura en viewports bajos. */
+@media (max-height: 900px) {
+  .gravity-hero-canvas--shrink {
+    gap: 18px;
+    padding: 20px 24px;
+  }
+
+  .gravity-hero-canvas--shrink .gravity--hero {
+    --gravity-size: 172px;
+    --gravity-core: 34px;
+    --gravity-orbit: 70px;
+    --gravity-particle: 8px;
+  }
+}
+
+@media (max-height: 760px) {
+  .gravity-hero-canvas--shrink {
+    gap: 12px;
+    padding: 14px 20px;
+  }
+
+  .gravity-hero-canvas--shrink .gravity--hero {
+    --gravity-size: 112px;
+    --gravity-core: 22px;
+    --gravity-orbit: 46px;
+    --gravity-particle: 5.5px;
+  }
+}
+
+@media (max-height: 640px) {
+  .gravity-hero-canvas--shrink .gravity--hero {
+    display: none;
+  }
+}

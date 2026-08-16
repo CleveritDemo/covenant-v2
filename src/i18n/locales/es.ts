@@ -1885,12 +1885,17 @@ const es = {
     accountTitle: 'Tu cuenta Covenant',
     accountLead:
       'Inicia sesión para cargar un workspace de organización, o sigue sin cuenta y configura un proyecto local.',
+    accountLeadSignedIn:
+      'Tu sesión está iniciada. Carga un workspace de tu organización, o continúa y configura un proyecto local.',
     accountLoading: 'Consultando tu cuenta…',
     accountSignIn: 'Iniciar sesión',
     accountSkip: 'Seguir sin cuenta',
-    accountContinue: 'Continuar',
+    accountContinue: 'Continuar sin organización',
+    accountSignedInAs: 'Sesión iniciada como',
+    accountOrgsLabel: 'Tus organizaciones',
     accountNoOrgs: 'No tienes organizaciones todavía.',
     accountLoadWorkspace: 'Cargar workspace de organización',
+    accountLoadWorkspaceHint: 'Cierra la configuración y abre el selector de workspaces.',
     accountMoreOrgs: 'y {{n}} más',
     accountError: 'No se pudo consultar la cuenta. Puedes reintentar o seguir sin cuenta.',
     accountUnavailable: 'La cuenta Covenant no está disponible en este entorno.',

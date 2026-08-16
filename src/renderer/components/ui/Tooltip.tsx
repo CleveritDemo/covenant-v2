@@ -48,6 +48,8 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, hint, children }) => 
 
       const rect = anchor.getBoundingClientRect()
       const bubbleRect = bubble.getBoundingClientRect()
+      // La tinta puede exceder la caja cuando el hint no envuelve aún (ruta sin espacios).
+      const bubbleWidth = Math.max(bubbleRect.width, bubble.scrollWidth)
       const margin = 10
       const gap = 10
 
@@ -59,14 +61,14 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, hint, children }) => 
       }
 
       const center = rect.left + rect.width / 2
-      const minLeft = margin + bubbleRect.width / 2
-      const maxLeft = window.innerWidth - margin - bubbleRect.width / 2
+      const minLeft = margin + bubbleWidth / 2
+      const maxLeft = window.innerWidth - margin - bubbleWidth / 2
       const left = clamp(center, minLeft, maxLeft)
       // La burbuja se recorta contra el borde, la flecha sigue apuntando al ancla.
       const arrow = clamp(
-        center - (left - bubbleRect.width / 2),
+        center - (left - bubbleWidth / 2),
         ARROW_INSET,
-        bubbleRect.width - ARROW_INSET,
+        bubbleWidth - ARROW_INSET,
       )
       setPos({ left, top, side, arrow })
     }

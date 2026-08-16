@@ -3,6 +3,8 @@
  * Una idea por paso; pie con una sola acción primaria.
  */
 .onboarding-view__panel {
+  position: relative;
+  z-index: 1;
   width: min(720px, 100%);
   max-width: 720px;
   display: flex;
@@ -16,8 +18,10 @@
   background: var(--plane-glass-strong, color-mix(in srgb, var(--bg) 72%, transparent));
   backdrop-filter: blur(18px) saturate(1.15);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  box-shadow: 0 18px 48px color-mix(in srgb, #000 35%, transparent);
+  box-shadow: 0 24px 64px color-mix(in srgb, #000 48%, transparent);
   overflow-x: hidden;
+  overflow-y: hidden;
+  max-height: 100%;
   min-height: 0;
 }
 
@@ -27,6 +31,7 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   color: var(--text);
+  flex: none;
 }
 
 .onboarding-view__footer {
@@ -34,6 +39,9 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex: none;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
 }
 
 .onboarding {
@@ -49,6 +57,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex: none;
 }
 
 .onboarding__step-labels {
@@ -106,7 +115,11 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 220px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .onboarding__title {
@@ -328,4 +341,38 @@
   gap: 8px;
   font-size: 12.5px;
   color: var(--text-muted);
+}
+
+@media (max-height: 900px) {
+  .onboarding-view__panel {
+    padding: 16px 18px 12px;
+    gap: 12px;
+  }
+
+  .onboarding {
+    gap: 12px;
+  }
+
+  .onboarding__body {
+    gap: 10px;
+  }
+
+  .onboarding__title {
+    font-size: 16px;
+  }
+}
+
+@media (max-height: 760px) {
+  .onboarding__chain,
+  .onboarding__example {
+    padding: 9px 12px;
+  }
+
+  .onboarding__lead {
+    font-size: 13px;
+  }
+
+  .onboarding__cli-row {
+    padding: 7px 10px;
+  }
 }

@@ -146,7 +146,9 @@
   gap: 2px;
   height: var(--plane-top-bar-height, 26px);
   width: max-content;
-  max-width: min(72vw, calc(100% - 28px));
+  /* calc(100% - N) se resolvía contra .plane-top-left-chrome (inline-flex sin ancho). */
+  max-width: 72vw;
+  min-width: 0;
   padding: 0 4px 0 var(--plane-top-bar-pad-x, 8px);
   border-radius: var(--plane-top-bar-radius, 8px);
   border: 1px solid var(--plane-top-bar-edge);
@@ -166,8 +168,9 @@
   top: auto;
   left: auto;
   flex: 0 1 auto;
+  min-width: 0;
   height: 100%;
-  max-width: min(200px, 42vw);
+  max-width: min(240px, 42vw);
   border: none;
   background: transparent;
   backdrop-filter: none;

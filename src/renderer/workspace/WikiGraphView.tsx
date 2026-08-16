@@ -363,11 +363,13 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
               </button>
             </Tooltip>
           </header>
-          {sweep?.snapshotPath ? (
+          {sweep && !sweep.running && (sweep.snapshotPath || sweep.errors.length > 0) ? (
             <div className="wiki-graph-view__summary" role="status">
               <div className="wiki-graph-view__summary-header">
                 <h3 className="wiki-graph-view__summary-title">
-                  {t('tabs.wikiSweepSnapshotTitle')}
+                  {sweep.snapshotPath
+                    ? t('tabs.wikiSweepSnapshotTitle')
+                    : t('tabs.wikiSweepErrorsTitle')}
                 </h3>
                 <Button
                   variant="ghost"
@@ -378,17 +380,21 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
                   {t('tabs.wikiSweepSummaryClose')}
                 </Button>
               </div>
-              <p className="wiki-graph-view__summary-hint">
-                {t('tabs.wikiSweepSnapshotHint')}
-              </p>
-              <code className="wiki-graph-view__summary-path">{sweep.snapshotPath}</code>
-              <div className="wiki-graph-view__summary-actions">
-                <Button variant="secondary" size="xs" onClick={handleCopySnapshotPath}>
-                  {snapshotCopied
-                    ? t('tabs.wikiSweepSnapshotCopied')
-                    : t('tabs.wikiSweepSnapshotCopy')}
-                </Button>
-              </div>
+              {sweep.snapshotPath ? (
+                <>
+                  <p className="wiki-graph-view__summary-hint">
+                    {t('tabs.wikiSweepSnapshotHint')}
+                  </p>
+                  <code className="wiki-graph-view__summary-path">{sweep.snapshotPath}</code>
+                  <div className="wiki-graph-view__summary-actions">
+                    <Button variant="secondary" size="xs" onClick={handleCopySnapshotPath}>
+                      {snapshotCopied
+                        ? t('tabs.wikiSweepSnapshotCopied')
+                        : t('tabs.wikiSweepSnapshotCopy')}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
               {sweep.errors.length > 0 ? (
                 <div className="wiki-graph-view__summary-errors">
                   <p className="wiki-graph-view__summary-errors-title">

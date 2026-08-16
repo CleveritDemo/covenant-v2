@@ -634,7 +634,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         setWikiGraphSoftToken(token => token + 1)
         return
       }
-      if (event.type === 'error') return
+      if (event.type === 'error') {
+        setSweepErrors(previous => previous.concat(event.message))
+        return
+      }
       if (event.type === 'done') {
         setSweepRunning(false)
         setSweepPass(null)

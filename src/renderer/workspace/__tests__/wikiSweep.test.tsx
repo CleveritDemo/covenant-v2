@@ -321,6 +321,66 @@ describe('WikiGraphView barrido de wiki', () => {
     expect(onDismissSummary).toHaveBeenCalledOnce()
   })
 
+  it('muestra panel post-barrido solo con errores, sin ruta ni copiar', () => {
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          errors: ['fallo snapshot'],
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    expect(screen.getByRole('heading', { level: 3, name: 'tabs.wikiSweepErrorsTitle' })).toBeTruthy()
+    expect(screen.getByText('fallo snapshot')).toBeTruthy()
+    expect(screen.queryByText('tabs.wikiSweepSnapshotHint')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'tabs.wikiSweepSnapshotCopy' })).toBeNull()
+  })
+
+  it('onDismissSummary oculta el panel de errores sin snapshot', () => {
+    const onDismissSummary = vi.fn()
+    render(
+      <WikiGraphView
+        {...baseGraphProps}
+        data={{
+          nodes: [{
+            slug: 'overview',
+            title: 'Overview',
+            type: 'concept',
+            updatedAt: 1,
+          }],
+          edges: [],
+        }}
+        sweep={{
+          ...baseSweep,
+          errors: ['fallo snapshot'],
+          onDismissSummary,
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(2400)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiSweepSummaryClose' }))
+    expect(onDismissSummary).toHaveBeenCalledOnce()
+  })
+
   it('no muestra resumen si no hay snapshotPath', () => {
     render(
       <WikiGraphView
@@ -456,6 +516,96 @@ describe('TabAgenticPlane barrido (eventos IPC)', () => {
 
     expect(screen.getByText('error pase 1')).toBeTruthy()
     expect(screen.getByText('error pase 2')).toBeTruthy()
+  })
+
+  it('error durante el barrido aparece en el overlay de progreso', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'pass_start',
+        pass: 'health',
+        index: 1,
+        total: 5,
+      })
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'error',
+        message: 'boom',
+      })
+    })
+
+    expect(screen.getByText('boom')).toBeTruthy()
+    expect(screen.getByText('tabs.wikiSweepErrorsTitle')).toBeTruthy()
+  })
+
+  it('error seguido de done muestra panel post-barrido sin ruta ni copiar', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'pass_start',
+        pass: 'health',
+        index: 1,
+        total: 5,
+      })
+      wikiSweepEventHandler?.({
+        type: 'error',
+        message: 'boom',
+      })
+      wikiSweepEventHandler?.({
+        type: 'done',
+        totalOps: 0,
+        snapshotPath: null,
+        stopped: false,
+      })
+    })
+
+    expect(screen.getByText('boom')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'tabs.wikiSweepErrorsTitle' })).toBeTruthy()
+    expect(screen.queryByText('tabs.wikiSweepSnapshotHint')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'tabs.wikiSweepSnapshotCopy' })).toBeNull()
+  })
+
+  it('onDismissSummary limpia el panel post-barrido con errores', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapButton' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'tabs.wikiSweepStart' })).toBeTruthy()
+    })
+
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'error',
+        message: 'boom',
+      })
+      wikiSweepEventHandler?.({
+        type: 'done',
+        totalOps: 0,
+        snapshotPath: null,
+        stopped: false,
+      })
+    })
+
+    expect(screen.getByText('boom')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiSweepSummaryClose' }))
+
+    expect(screen.queryByText('boom')).toBeNull()
+    expect(screen.queryByRole('heading', { level: 3, name: 'tabs.wikiSweepErrorsTitle' })).toBeNull()
   })
 
   it('done sin snapshotPath no muestra resumen', async () => {

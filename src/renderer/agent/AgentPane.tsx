@@ -62,6 +62,7 @@ import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
 import { planeStatusUserSnippet, resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
 import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
+import { createLaneDeltaThrottler } from './laneDeltaThrottle'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { shouldMarkBusyOnCliError, turnFailedAfter } from './turnFailureState'
@@ -127,6 +128,7 @@ import {
 } from './consumedSendIds'
 import {
   appendLaneText,
+  busyLaneKey as busyLaneKeyOf,
   endLane,
   getLane,
   setLaneActivity,
@@ -647,6 +649,8 @@ export const AgentPane: React.FC<Props> = ({
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
   const applyLaneCliEventRef = useRef<(threadId: string, event: AgentCliUiEvent) => void>(() => undefined)
+  /** Indirección: el throttler se crea antes de que exista `commitLanes`. */
+  const applyLaneDeltaRef = useRef<(threadId: string, text: string) => void>(() => undefined)
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
   const liveSettleTimerRef = useRef<number | null>(null)
   const chatSaveScheduleRef = useRef(createAgentChatSaveSchedule())
@@ -660,6 +664,9 @@ export const AgentPane: React.FC<Props> = ({
       messagesRef.current = next
       return next
     })
+  }))
+  const laneDeltaThrottlerRef = useRef(createLaneDeltaThrottler((threadId, text) => {
+    applyLaneDeltaRef.current(threadId, text)
   }))
   const tabActivePrevRef = useRef(tabActive)
   const messagesRef = useRef(messages)
@@ -1543,6 +1550,11 @@ export const AgentPane: React.FC<Props> = ({
     setLanesVersion(version => version + 1)
   }, [])
 
+  // Se recalcula con cada bump (son ≤20 carriles), pero el string solo cambia
+  // cuando un carril arranca o termina, que es lo que miran las deps del
+  // effect de suscripción.
+  const busyLaneKey = useMemo(() => busyLaneKeyOf(lanesRef.current), [lanesVersion])
+
   const syncVisibleFromLane = useCallback((lane: LaneState): void => {
     setMessages(lane.messages)
     setBusy(lane.busy)
@@ -2269,8 +2281,15 @@ export const AgentPane: React.FC<Props> = ({
     }
   }, [bumpLanes, syncVisibleFromLane])
 
+  applyLaneDeltaRef.current = (threadId: string, text: string): void => {
+    commitLanes(appendLaneText(lanesRef.current, threadId, text), threadId)
+  }
+
   const completeLaneTurn = useCallback((threadId: string): void => {
     if (laneCompletingRef.current.has(threadId)) return
+    // El cierre lee el último mensaje del carril: un delta pendiente tiene que
+    // estar aplicado antes, o el transcripto se guarda sin su último trozo.
+    laneDeltaThrottlerRef.current.flush(threadId)
     const lane = getLane(lanesRef.current, threadId)
     if (!lane?.busy) return
     laneCompletingRef.current.add(threadId)
@@ -2323,6 +2342,11 @@ export const AgentPane: React.FC<Props> = ({
   const applyLaneCliEvent = useCallback((threadId: string, event: AgentCliUiEvent): void => {
     const lane = getLane(lanesRef.current, threadId)
     if (!lane?.busy) return
+    // Cualquier evento que no sea delta reescribe o cierra el mensaje en curso:
+    // los deltas acumulados se aplican antes para no llegar después y pisarlo.
+    if (event.type !== 'assistant_delta') {
+      laneDeltaThrottlerRef.current.flush(threadId)
+    }
     if (event.type === 'done') {
       completeLaneTurn(threadId)
       return
@@ -2403,7 +2427,7 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'assistant_delta') {
-      commitLanes(appendLaneText(lanesRef.current, threadId, event.text), threadId)
+      laneDeltaThrottlerRef.current.append(threadId, event.text)
     }
   }, [commitLanes, completeLaneTurn, patchLaneState, t])
 
@@ -2451,10 +2475,15 @@ export const AgentPane: React.FC<Props> = ({
     return () => {
       for (const cleanup of cleanups) cleanup()
     }
-  }, [lanesVersion, paneId])
+    // Depende de qué carriles están vivos, no de `lanesVersion`: esa sube con
+    // cada delta, y con ella este effect desuscribía y volvía a suscribir los
+    // listeners IPC de todos los carriles por cada token de la respuesta.
+  }, [busyLaneKey, paneId])
 
   useEffect(() => {
+    const laneDeltas = laneDeltaThrottlerRef.current
     return () => {
+      laneDeltas.dispose()
       for (const threadId of lanesRef.current.keys()) {
         const lane = getLane(lanesRef.current, threadId)
         if (lane?.busy) {

@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useT } from '@i18n/useT'
 import type { OrchestratorPath } from '@shared/onboarding'
 import type { OnboardingStepId } from '@shared/onboardingSteps'
 import { GravityHeroCanvas } from '../GravityHeroCanvas'
 import { Button } from '../ui/Button'
 import { Tooltip } from '../ui/Tooltip'
+import { OnboardingGravityField } from './OnboardingGravityField'
 import { OnboardingStepper } from './OnboardingStepper'
 import { OnboardingStepWelcome } from './OnboardingStepWelcome'
 import { OnboardingStepAccount } from './OnboardingStepAccount'
@@ -71,6 +72,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({
   onLoadOrgWorkspace,
 }) => {
   const { t } = useT()
+  const [accountSignedIn, setAccountSignedIn] = useState(false)
   const lastIndex = Math.max(0, steps.length - 1)
   const clamped = Math.min(Math.max(stepIndex, 0), lastIndex)
   const isFirst = clamped === 0
@@ -85,7 +87,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({
     case 'account':
       stepContent = (
         <OnboardingStepAccount
-          onSkipAccount={onNext}
+          onSignedInChange={setAccountSignedIn}
           onLoadOrgWorkspace={onLoadOrgWorkspace}
         />
       )
@@ -131,13 +133,21 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({
 
   if (!open) return null
 
+  const advanceLabel =
+    stepId === 'account'
+      ? t(accountSignedIn ? 'onboarding.accountContinue' : 'onboarding.accountSkip')
+      : t('onboarding.next')
+
   return (
     <GravityHeroCanvas
+      heroFit="shrink"
+      showMass={false}
       zIndex={940}
       role="dialog"
       aria-modal
       aria-labelledby="onboarding-title"
     >
+      <OnboardingGravityField />
       <div className="onboarding-view__panel">
         <h2 className="onboarding-view__title" id="onboarding-title">
           {t('onboarding.title')}
@@ -160,14 +170,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({
               </Button>
             </span>
           </Tooltip>
-          {!isLast && stepId !== 'account' ? (
+          {!isLast ? (
             <Button
-              variant="primary"
+              variant={stepId === 'account' ? 'secondary' : 'primary'}
               size="sm"
               onClick={onNext}
-              disabled={path === ''}
+              disabled={stepId === 'welcome' && path === ''}
             >
-              {t('onboarding.next')}
+              {advanceLabel}
             </Button>
           ) : null}
         </div>

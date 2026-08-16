@@ -1887,12 +1887,17 @@ const en = {
     accountTitle: 'Your Covenant account',
     accountLead:
       'Sign in to load an organization workspace, or continue without an account and set up a local project.',
+    accountLeadSignedIn:
+      'You are signed in. Load one of your organization workspaces, or continue and set up a local project.',
     accountLoading: 'Checking your account…',
     accountSignIn: 'Sign in',
     accountSkip: 'Continue without an account',
-    accountContinue: 'Continue',
+    accountContinue: 'Continue without an organization',
+    accountSignedInAs: 'Signed in as',
+    accountOrgsLabel: 'Your organizations',
     accountNoOrgs: 'You do not have any organizations yet.',
     accountLoadWorkspace: 'Load organization workspace',
+    accountLoadWorkspaceHint: 'Closes setup and opens the workspace picker.',
     accountMoreOrgs: 'and {{n}} more',
     accountError: 'Could not check your account. You can try again or continue without an account.',
     accountUnavailable: 'Covenant account is not available in this environment.',

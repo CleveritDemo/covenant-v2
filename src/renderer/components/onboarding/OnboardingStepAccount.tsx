@@ -10,8 +10,8 @@ import { Button } from '../ui/Button'
 import './OnboardingStepAccount.css'
 
 export interface OnboardingStepAccountProps {
-  /** Seguir sin cuenta: el wizard continúa igual. */
-  onSkipAccount: () => void
+  /** El pie del wizard necesita el estado de sesión para elegir la etiqueta de su botón. */
+  onSignedInChange?: (signedIn: boolean) => void
   /** Hay orgs: cerrar el wizard y abrir el picker de workspaces org. */
   onLoadOrgWorkspace: () => void
 }
@@ -19,7 +19,7 @@ export interface OnboardingStepAccountProps {
 const ORG_PREVIEW_LIMIT = 5
 
 export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
-  onSkipAccount,
+  onSignedInChange,
   onLoadOrgWorkspace,
 }) => {
   const { t } = useT()
@@ -114,11 +114,9 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
   const extraOrgCount = Math.max(0, orgs.length - ORG_PREVIEW_LIMIT)
   const errorLabel = hasError ? t('onboarding.accountError') : null
 
-  const skipButton = (
-    <Button variant="ghost" size="sm" onClick={onSkipAccount}>
-      {t(signedIn ? 'onboarding.accountContinue' : 'onboarding.accountSkip')}
-    </Button>
-  )
+  useEffect(() => {
+    onSignedInChange?.(covenant ? signedIn : false)
+  }, [signedIn, covenant, onSignedInChange])
 
   if (!covenant) {
     return (
@@ -126,7 +124,6 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
         <p className="onboarding-account__unavailable" role="status" id="onboarding-account-title">
           {t('onboarding.accountUnavailable')}
         </p>
-        <div className="onboarding__actions onboarding-account__actions">{skipButton}</div>
       </section>
     )
   }
@@ -136,7 +133,9 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
       <h3 className="onboarding__title" id="onboarding-account-title">
         {t('onboarding.accountTitle')}
       </h3>
-      <p className="onboarding__lead">{t('onboarding.accountLead')}</p>
+      <p className="onboarding__lead">
+        {t(signedIn ? 'onboarding.accountLeadSignedIn' : 'onboarding.accountLead')}
+      </p>
 
       <SectionStatus
         loading={loading}
@@ -155,13 +154,17 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
       {!loading && signedIn ? (
         <div className="onboarding-account__signed-in">
           {name || login ? (
-            <p className="onboarding-account__user" role="status">
-              {name && login && name !== login ? `${name} (@${login})` : name || login}
-            </p>
+            <>
+              <p className="onboarding-account__label">{t('onboarding.accountSignedInAs')}</p>
+              <p className="onboarding-account__user" role="status">
+                {name && login && name !== login ? `${name} (@${login})` : name || login}
+              </p>
+            </>
           ) : null}
 
           {orgs.length > 0 ? (
             <>
+              <p className="onboarding-account__label">{t('onboarding.accountOrgsLabel')}</p>
               <ul className="onboarding-account__orgs">
                 {previewOrgs.map(org => (
                   <li key={org.slug} className="onboarding-account__org">
@@ -179,6 +182,7 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
                   {t('onboarding.accountLoadWorkspace')}
                 </Button>
               </div>
+              <p className="onboarding-account__cta-hint">{t('onboarding.accountLoadWorkspaceHint')}</p>
             </>
           ) : hasError ? null : (
             <p className="onboarding-account__empty" role="status">
@@ -187,8 +191,6 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
           )}
         </div>
       ) : null}
-
-      <div className="onboarding__actions onboarding-account__actions">{skipButton}</div>
     </section>
   )
 }

@@ -52,9 +52,7 @@ describe('OnboardingStepAccount', () => {
     })
     getCovenantApi.mockReturnValue(api)
 
-    render(
-      <OnboardingStepAccount onSkipAccount={vi.fn()} onLoadOrgWorkspace={vi.fn()} />,
-    )
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
 
     expect(await screen.findByRole('button', { name: 'onboarding.accountSignIn' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'onboarding.accountLoadWorkspace' })).toBeNull()
@@ -73,9 +71,7 @@ describe('OnboardingStepAccount', () => {
     })
     getCovenantApi.mockReturnValue(api)
 
-    render(
-      <OnboardingStepAccount onSkipAccount={vi.fn()} onLoadOrgWorkspace={onLoadOrgWorkspace} />,
-    )
+    render(<OnboardingStepAccount onLoadOrgWorkspace={onLoadOrgWorkspace} />)
 
     expect(await screen.findByText('Acme Corp')).toBeTruthy()
     expect(screen.getByText('Beta Labs')).toBeTruthy()
@@ -92,34 +88,30 @@ describe('OnboardingStepAccount', () => {
     })
     getCovenantApi.mockReturnValue(api)
 
-    render(
-      <OnboardingStepAccount onSkipAccount={vi.fn()} onLoadOrgWorkspace={vi.fn()} />,
-    )
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
 
     expect(await screen.findByText('onboarding.accountNoOrgs')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'onboarding.accountLoadWorkspace' })).toBeNull()
   })
 
-  it('el botón de seguir sin cuenta llama onSkipAccount', async () => {
-    const onSkipAccount = vi.fn()
+  it('no renderiza botón de avanzar/saltar dentro del paso', async () => {
     const api = mockApi({
       status: vi.fn(() => ok({ signedIn: false })),
     })
     getCovenantApi.mockReturnValue(api)
 
-    render(
-      <OnboardingStepAccount onSkipAccount={onSkipAccount} onLoadOrgWorkspace={vi.fn()} />,
-    )
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'onboarding.accountSkip' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'onboarding.accountSignIn' })).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'onboarding.accountSkip' }))
-    expect(onSkipAccount).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'onboarding.accountSkip' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'onboarding.accountContinue' })).toBeNull()
   })
 
-  it('con sesión el botón de avance muestra accountContinue', async () => {
+  it('con sesión llama onSignedInChange(true)', async () => {
+    const onSignedInChange = vi.fn()
     const api = mockApi({
       status: vi.fn(() => ok({ signedIn: true, login: 'gigi' })),
       orgsList: vi.fn(() => ok([])),
@@ -127,10 +119,50 @@ describe('OnboardingStepAccount', () => {
     getCovenantApi.mockReturnValue(api)
 
     render(
-      <OnboardingStepAccount onSkipAccount={vi.fn()} onLoadOrgWorkspace={vi.fn()} />,
+      <OnboardingStepAccount
+        onSignedInChange={onSignedInChange}
+        onLoadOrgWorkspace={vi.fn()}
+      />,
     )
 
-    expect(await screen.findByRole('button', { name: 'onboarding.accountContinue' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'onboarding.accountSkip' })).toBeNull()
+    await waitFor(() => {
+      expect(onSignedInChange).toHaveBeenCalledWith(true)
+    })
+  })
+
+  it('con sesión muestra el lead signed-in y no el lead desconectado', async () => {
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: true, login: 'gigi', name: 'Gigi' })),
+      orgsList: vi.fn(() =>
+        ok([
+          { slug: 'acme', name: 'Acme Corp' },
+          { slug: 'beta', name: 'Beta Labs' },
+        ]),
+      ),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+
+    expect(await screen.findByText('onboarding.accountLeadSignedIn')).toBeTruthy()
+    expect(screen.queryByText('onboarding.accountLead')).toBeNull()
+  })
+
+  it('con sesión muestra las etiquetas de usuario y organizaciones', async () => {
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: true, login: 'gigi', name: 'Gigi' })),
+      orgsList: vi.fn(() =>
+        ok([
+          { slug: 'acme', name: 'Acme Corp' },
+          { slug: 'beta', name: 'Beta Labs' },
+        ]),
+      ),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+
+    expect(await screen.findByText('onboarding.accountSignedInAs')).toBeTruthy()
+    expect(screen.getByText('onboarding.accountOrgsLabel')).toBeTruthy()
   })
 })

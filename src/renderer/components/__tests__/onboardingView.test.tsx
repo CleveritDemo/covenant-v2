@@ -22,9 +22,15 @@ vi.mock('@i18n/useT', () => ({
 vi.mock('../GravityHeroCanvas', () => ({
   GravityHeroCanvas: ({
     children,
+    heroFit,
   }: {
     children: React.ReactNode
-  }) => <div data-testid="onboarding-shell">{children}</div>,
+    heroFit?: 'fixed' | 'shrink'
+  }) => (
+    <div data-testid="onboarding-shell" data-hero-fit={heroFit ?? 'fixed'}>
+      {children}
+    </div>
+  ),
 }))
 
 const getCovenantApi = vi.fn<() => CovenantApi | undefined>()
@@ -118,6 +124,11 @@ function renderWizard(overrides: Partial<OnboardingViewProps> = {}) {
 }
 
 describe('OnboardingView steps', () => {
+  it('pasa heroFit=shrink al lienzo Gravity', () => {
+    renderWizard({ stepIndex: 0 })
+    expect(screen.getByTestId('onboarding-shell').getAttribute('data-hero-fit')).toBe('shrink')
+  })
+
   it('pinta bienvenida y selector de path', () => {
     renderWizard({ stepIndex: 0 })
     expect(screen.getByText('onboarding.welcomeTitle')).toBeTruthy()
@@ -199,11 +210,24 @@ describe('OnboardingView navigation', () => {
     expect(props.onNext).toHaveBeenCalledTimes(1)
   })
 
-  it('sin path deshabilita Next', () => {
+  it('sin path deshabilita Next solo en welcome', () => {
     renderWizard({ stepIndex: 0, path: '' })
     const footer = screen.getByTestId('onboarding-footer')
     const next = within(footer).getByRole('button', { name: 'onboarding.next' }) as HTMLButtonElement
     expect(next.disabled).toBe(true)
+  })
+
+  it('en account el avance no se deshabilita aunque path esté vacío', () => {
+    renderWizard({
+      stepIndex: 1,
+      steps: ['welcome', 'account', 'requirements'],
+      path: '',
+    })
+    const footer = screen.getByTestId('onboarding-footer')
+    const advance = within(footer).getByRole('button', {
+      name: 'onboarding.accountSkip',
+    }) as HTMLButtonElement
+    expect(advance.disabled).toBe(false)
   })
 
   it('elige path dispara onSelectPath', () => {
@@ -232,10 +256,15 @@ describe('OnboardingView navigation', () => {
     expect(props.onSkip).not.toHaveBeenCalled()
   })
 
-  it('en el paso account el footer no muestra Next', () => {
-    renderWizard({ stepIndex: 1 })
+  it('en el paso account el footer muestra avance y llama onNext', () => {
+    const props = renderWizard({
+      stepIndex: 1,
+      steps: ['welcome', 'account', 'requirements'],
+    })
     const footer = screen.getByTestId('onboarding-footer')
-    expect(within(footer).queryByRole('button', { name: 'onboarding.next' })).toBeNull()
+    const advance = within(footer).getByRole('button', { name: 'onboarding.accountSkip' })
+    fireEvent.click(advance)
+    expect(props.onNext).toHaveBeenCalledTimes(1)
   })
 
   it('en el último paso el CTA primario llama onFinish', () => {

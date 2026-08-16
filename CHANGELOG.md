@@ -4,17 +4,31 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
-## v0.69.0
+## v0.70.0
 
 - **Plano: fondo de esfera de rejilla**: el plano se ve desde el centro de una esfera de líneas, con giro diagonal lento, apertura de 110° y atenuación hacia las esquinas; con reduce motion se dibuja estática en 2D.
 - **Temas: grilla con el mismo contraste en todos**: cada tema iguala el contraste de línea y resplandor de Interstellar; los claros quedan un 20% más transparentes y el color se resuelve a rgb() para que WebGL no lo pinte blanco.
-- **Plano: velo superior a ancho completo**: el desvanecido sobre el stream cubre todo el plano en vez de la columna del chat, es más alto y difumina más; con reduce motion no aplica blur.
+- **Plano: velo superior más amplio y sin desenfoque**: la banda de disolución sobre el chat cubre todo el ancho del plano y vuelve a ser un degradado del fondo, sin blur.
 - **Plano: columnas sin pisarse**: la columna de terminales queda siempre por encima de la de agentes y, al expandir una terminal, solo esa columna pierde el 3D; las minis se centran en su banda lateral en vez de pegarse al chat.
-- **Plano: historial de hilos desde el chip**: el chip del hilo activo deja de ser botón; el desplegable se abre al pasar por el chip completo (incluido renombrar) y se alinea a su ancho.
+- **Plano: una sola fila de ola en la mini del orquestador**: al delegar, la card muestra «Delegando…» con el progreso de la ola en vez de una fila por especialista; el detalle sigue en el historial y en el stream.
+- **Plano: la mini muestra tu última petición**: el snippet ignora el mensaje interno con el que vuelve un resultado de delegación, así que ya no aparece un identificador crudo en la card.
+- **Plano: la barra de chips no tapa las acciones**: el hilo activo queda a la izquierda, los demás scrollean en horizontal, historial, nuevo y limpiar quedan fijos a la derecha y todo se alinea con el texto del chat.
+- **Plano: los carriles de delegación se nombran como tales**: los chips de delegación llevan su propia etiqueta en vez de heredar el texto de actividad, y el estado sigue en el punto y en el tooltip.
+- **Plano: historial de hilos desde el icono**: el desplegable se abre al pasar por el botón de historial, queda centrado bajo él y lista primero los carriles de delegación y después tus conversaciones.
 - **Plano: crear agente o terminal con ayuda en el tooltip**: los botones de las esquinas nombran la acción y explican qué consigues; con la carpeta sin elegir, el motivo del bloqueo va al tooltip.
 - **Ventana expandida sin borde de acento**: enfocar una ventana a pantalla completa ya no pinta el borde con el color de acento.
 - **Temas: selector más compacto**: el modal es más pequeño, con preview fijo a la izquierda y una grilla densa de temas a la derecha.
 - **Composer: pegar texto largo sin crypto**: la tarjeta de texto pegado ya no depende de crypto.randomUUID y funciona en entornos que no lo exponen.
+
+## v0.69.0
+
+- **Onboarding: fondo de gravedad**: la guía abre sobre un campo de materia que cae hacia el panel. Sale la masa central y la atención queda en el contenido; con «reducir movimiento» el fondo se queda quieto.
+- **Onboarding: entra en pantallas bajas**: el panel ya no crece más que la ventana. El contenido del paso scrollea por dentro y los botones de abajo quedan siempre a la vista.
+- **Onboarding: el paso de cuenta se entiende**: el texto reconoce si ya iniciaste sesión, tus organizaciones se muestran como etiquetas y el botón principal avisa que cierra la guía y abre el selector de workspaces.
+- **Onboarding: navegación siempre abajo**: avanzar, volver y saltar viven en el pie en todos los pasos.
+- **Onboarding: la guía se reabre una vez** para que veas estos cambios.
+- **Plano: el nombre de la carpeta ya no se corta**: el chip del proyecto muestra el nombre completo, o termina en puntos suspensivos, en vez de cortarse a mitad de letra.
+- **Tooltips: las rutas largas ya no se desbordan**: el texto envuelve dentro del globo y este se acomoda mejor contra el borde de la ventana.
 
 ## v0.68.0
 

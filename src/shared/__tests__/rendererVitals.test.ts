@@ -31,6 +31,54 @@ describe('buildRendererVitals', () => {
     expect(vitals.heapTotalMb).toBe(3072)
     expect(vitals.heapLimitMb).toBe(4096)
     expect(vitals.heapPct).toBe(50)
+    expect(vitals.heapSource).toBe('performance')
+  })
+
+  it('prefiere la lectura del proceso y la marca como tal', () => {
+    const vitals = buildRendererVitals({
+      processMemory: {
+        heapUsedKb: 2048 * 1024,
+        heapTotalKb: 2560 * 1024,
+        heapLimitKb: 4096 * 1024,
+        blinkAllocatedKb: 512 * 1024,
+        blinkTotalKb: 768 * 1024,
+      },
+      heap: {
+        usedJSHeapSize: 17 * MB,
+        totalJSHeapSize: 22 * MB,
+        jsHeapSizeLimit: 3586 * MB,
+      },
+      domNodes: 3_000,
+      stats,
+    })
+    expect(vitals.heapSource).toBe('process')
+    expect(vitals.heapUsedMb).toBe(2048)
+    expect(vitals.heapTotalMb).toBe(2560)
+    expect(vitals.heapLimitMb).toBe(4096)
+    expect(vitals.heapPct).toBe(50)
+    expect(vitals.blinkUsedMb).toBe(512)
+    expect(vitals.blinkTotalMb).toBe(768)
+  })
+
+  it('omite los campos de Blink si esa API no dio nada', () => {
+    const vitals = buildRendererVitals({
+      processMemory: { heapUsedKb: 1024, heapTotalKb: 2048, heapLimitKb: 4096 },
+      domNodes: 0,
+      stats,
+    })
+    expect(vitals.blinkUsedMb).toBeUndefined()
+    expect(vitals.blinkTotalMb).toBeUndefined()
+    expect(vitals.heapSource).toBe('process')
+  })
+
+  it('no produce NaN con un límite en 0 en la lectura del proceso', () => {
+    const vitals = buildRendererVitals({
+      processMemory: { heapUsedKb: 1024, heapTotalKb: 1024, heapLimitKb: 0 },
+      domNodes: 0,
+      stats,
+    })
+    expect(vitals.heapPct).toBeUndefined()
+    expect(vitals.heapLimitMb).toBe(0)
   })
 
   it('conserva los contadores de estado y los nodos del DOM', () => {

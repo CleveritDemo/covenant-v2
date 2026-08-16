@@ -9,6 +9,7 @@
 import {
   buildRendererVitals,
   type JsHeapReading,
+  type ProcessMemoryReading,
   type RendererVitalsStats,
 } from '@shared/rendererVitals'
 import type { TabSession } from '@shared/tabSession'
@@ -65,7 +66,23 @@ export function setRendererVitalsStatsProvider(
   statsProvider = provider
 }
 
-/** `performance.memory` es de Chromium y no está en los tipos del DOM. */
+/**
+ * Heap de V8 y PartitionAlloc por el preload. Es la lectura buena: la del
+ * `process` de Electron no está cuantizada ni cacheada.
+ */
+function readProcessMemory(): ProcessMemoryReading | null {
+  try {
+    return window.api.readProcessMemory?.() ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Respaldo si el preload no expone la lectura del proceso (build viejo).
+ * `performance.memory` es de Chromium y no está en los tipos del DOM; además
+ * viene cuantizado y cacheado, así que solo sirve como último recurso.
+ */
 function readHeap(): JsHeapReading | null {
   const memory = (performance as Performance & { memory?: JsHeapReading }).memory
   if (!memory || typeof memory.jsHeapSizeLimit !== 'number') return null
@@ -89,8 +106,10 @@ function readStats(): RendererVitalsStats {
 /** Toma y envía una muestra. Nunca lanza. */
 export function sampleAndReportVitals(): void {
   try {
+    const processMemory = readProcessMemory()
     const vitals = buildRendererVitals({
-      heap: readHeap(),
+      processMemory,
+      heap: processMemory ? null : readHeap(),
       domNodes: document.getElementsByTagName('*').length,
       stats: readStats(),
     })

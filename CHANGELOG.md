@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.64.0
+
+- **Orquestación: tope de delegaciones por turno configurable**: cada coordinador puede limitar cuántas delegaciones emite en un solo turno desde la ficha del agente; «Sin límite» deja el parser sin tope.
+- **Delegación: carriles ilimitados hacia un especialista**: un mismo especialista puede recibir delegaciones paralelas en carriles distintos sin tope de recepción en la ficha.
+- **Org: barra de progreso al publicar cambios**: al publicar al workspace organizacional, la titlebar muestra progreso inline (0–85 % materialización, 90–100 % wiki) con cancelación.
+- **Wiki: curador sin configuración de personalidad**: el composer del mapa wiki deja el engranaje de nombre y reglas; CLI y modelo siguen en la barra principal.
+
 ## v0.63.1
 
 - **Orquestación: hilos con turno vivo al cerrar la ola**: al cerrar una ola ya no se borra el hilo ni el transcripto de un carril de delegación que sigue con turno en curso.

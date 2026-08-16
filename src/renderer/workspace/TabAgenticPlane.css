@@ -1,11 +1,38 @@
 .tab-agentic-plane {
+  /* Referencia ~1280px; @container más abajo compacta en viewports estrechos. */
   --plane-top-bar-inset: 14px;
   --plane-context-pool-inset: 8px;
   --plane-tools-rail-inset: 8px;
   --plane-top-bar-height: 26px;
   --plane-top-bar-radius: 8px;
   --plane-top-bar-pad-x: 8px;
+  --plane-fab-inset: 20px;
+  --plane-fab-gap: 10px;
+  --plane-fab-size: 48px;
+  --plane-chat-side-inset: 48px;
+  --plane-composer-side-inset: 72px;
+  --plane-composer-bottom-pad: 18px;
+  --plane-chat-body-gap: 6px;
+  --plane-composer-row-gap: 8px;
+  --plane-composer-row-pad-block-end: 10px;
+  --plane-composer-row-pad-inline: 10px;
+  --plane-composer-field-gap: 5px;
+  --plane-composer-input-min-h: 40px;
+  --plane-composer-input-pad-block: 10px;
+  --plane-composer-input-pad-inline: 14px;
+  --plane-composer-input-radius: 14px;
+  --plane-composer-send-size: 38px;
+  --plane-chat-last-bubble-gap: 56px;
   --plane-chat-toolbar-clearance: 38px;
+  --plane-chat-toolbar-pad-top: 10px;
+  --plane-chat-top-fade-min: 152px;
+  --plane-chat-top-fade-extra: 108px;
+  --plane-chat-messages-gap: 8px;
+  --plane-chat-messages-pad-x: 14px;
+  --plane-contexts-bar-min-height: 26px;
+  --plane-agent-badge-pad-block: 6px;
+  --plane-agent-badge-pad-inline: 12px;
+  --plane-agent-badge-gap: 7px;
   container-type: inline-size;
   container-name: tab-agentic-plane;
   position: relative;
@@ -107,21 +134,21 @@
 
 .plane-fab-stack {
   position: absolute;
-  bottom: 20px;
+  bottom: var(--plane-fab-inset, 20px);
   /* Chrome del plano: por encima de minis (mapa chat-open 202, elevado 205). */
   z-index: var(--plane-chrome-stack-z, 210);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--plane-fab-gap, 10px);
 }
 
 .plane-fab-stack--right {
-  right: 20px;
+  right: var(--plane-fab-inset, 20px);
   align-items: flex-end;
 }
 
 .plane-fab-stack--left {
-  left: 20px;
+  left: var(--plane-fab-inset, 20px);
   align-items: flex-start;
 }
 
@@ -129,8 +156,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: var(--plane-fab-size, 48px);
+  height: var(--plane-fab-size, 48px);
   padding: 0;
   border: 1px solid var(--plane-border);
   border-radius: 50%;
@@ -190,5 +217,105 @@
 :root[data-theme-appearance='light'] .plane-fab--bootstrap,
 :root[data-theme-appearance='light'] .plane-fab--terminal {
   color: #f7f7fc;
+}
+
+/* Plano estrecho: compactar holguras para mantener proporción visual ~1280px. */
+@container tab-agentic-plane (max-width: 1040px) {
+  .tab-agentic-plane {
+    --plane-top-bar-inset: 12px;
+    --plane-fab-inset: 16px;
+    --plane-fab-gap: 8px;
+    --plane-fab-size: 44px;
+    --plane-chat-side-inset: 36px;
+    --plane-composer-side-inset: 56px;
+    --plane-composer-bottom-pad: 14px;
+    --plane-chat-body-gap: 5px;
+    --plane-composer-row-gap: 7px;
+    --plane-composer-row-pad-block-end: 8px;
+    --plane-composer-row-pad-inline: 8px;
+    --plane-composer-field-gap: 4px;
+    --plane-composer-input-min-h: 38px;
+    --plane-composer-input-pad-block: 8px;
+    --plane-composer-input-pad-inline: 12px;
+    --plane-composer-input-radius: 12px;
+    --plane-composer-send-size: 36px;
+    --plane-chat-last-bubble-gap: 48px;
+    --plane-chat-toolbar-clearance: 34px;
+    --plane-chat-toolbar-pad-top: 8px;
+    --plane-chat-top-fade-min: 132px;
+    --plane-chat-top-fade-extra: 92px;
+    --plane-chat-messages-gap: 7px;
+    --plane-chat-messages-pad-x: 12px;
+    --plane-contexts-bar-min-height: 24px;
+    --plane-agent-badge-pad-block: 5px;
+    --plane-agent-badge-pad-inline: 10px;
+    --plane-agent-badge-gap: 6px;
+  }
+}
+
+@container tab-agentic-plane (max-width: 860px) {
+  .tab-agentic-plane {
+    --plane-top-bar-inset: 10px;
+    --plane-top-bar-height: 24px;
+    --plane-fab-inset: 14px;
+    --plane-fab-gap: 7px;
+    --plane-fab-size: 42px;
+    --plane-chat-side-inset: 28px;
+    --plane-composer-side-inset: 40px;
+    --plane-composer-bottom-pad: 12px;
+    --plane-chat-body-gap: 4px;
+    --plane-composer-row-gap: 6px;
+    --plane-composer-row-pad-block-end: 7px;
+    --plane-composer-row-pad-inline: 7px;
+    --plane-composer-input-min-h: 36px;
+    --plane-composer-input-pad-block: 7px;
+    --plane-composer-input-pad-inline: 10px;
+    --plane-composer-input-radius: 11px;
+    --plane-composer-send-size: 34px;
+    --plane-chat-last-bubble-gap: 42px;
+    --plane-chat-toolbar-clearance: 30px;
+    --plane-chat-toolbar-pad-top: 7px;
+    --plane-chat-top-fade-min: 118px;
+    --plane-chat-top-fade-extra: 78px;
+    --plane-chat-messages-gap: 6px;
+    --plane-chat-messages-pad-x: 10px;
+    --plane-contexts-bar-min-height: 22px;
+    --plane-agent-badge-pad-block: 4px;
+    --plane-agent-badge-pad-inline: 9px;
+    --plane-agent-badge-gap: 5px;
+  }
+}
+
+@container tab-agentic-plane (max-width: 720px) {
+  .tab-agentic-plane {
+    --plane-top-bar-inset: 8px;
+    --plane-top-bar-height: 22px;
+    --plane-top-bar-pad-x: 6px;
+    --plane-fab-inset: 12px;
+    --plane-fab-gap: 6px;
+    --plane-fab-size: 40px;
+    --plane-chat-side-inset: 20px;
+    --plane-composer-side-inset: 28px;
+    --plane-composer-bottom-pad: 10px;
+    --plane-composer-row-gap: 5px;
+    --plane-composer-row-pad-block-end: 6px;
+    --plane-composer-row-pad-inline: 6px;
+    --plane-composer-input-min-h: 34px;
+    --plane-composer-input-pad-block: 6px;
+    --plane-composer-input-pad-inline: 8px;
+    --plane-composer-input-radius: 10px;
+    --plane-composer-send-size: 32px;
+    --plane-chat-last-bubble-gap: 36px;
+    --plane-chat-toolbar-clearance: 28px;
+    --plane-chat-toolbar-pad-top: 6px;
+    --plane-chat-top-fade-min: 104px;
+    --plane-chat-top-fade-extra: 64px;
+    --plane-chat-messages-gap: 5px;
+    --plane-chat-messages-pad-x: 8px;
+    --plane-contexts-bar-min-height: 20px;
+    --plane-agent-badge-pad-block: 3px;
+    --plane-agent-badge-pad-inline: 8px;
+    --plane-agent-badge-gap: 4px;
+  }
 }
 

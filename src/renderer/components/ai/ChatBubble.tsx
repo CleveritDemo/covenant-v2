@@ -11,7 +11,7 @@ export interface ChatBubbleProps {
   landing?: boolean
   gravity?: boolean
   materialize?: boolean
-  /** Caja surface: tipografía chica (delegación); stream normal sin solid. */
+  /** Caja surface: delegación y bloques de código del asistente. */
   solid?: boolean
   width?: ChatBubbleWidth
 }

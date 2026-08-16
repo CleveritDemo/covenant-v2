@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.62.4
+
+- **Partículas de carga detrás del composer**: al abrir el chat en el plano, el efecto aurora vuelve a quedar bajo el composer en lugar de taparlo.
+- **Borrador del composer por conversación**: cada hilo guarda su propio texto al cambiar de agente o de conversación; al enviar se limpia solo ese hilo.
+- **Plano más compacto en ventanas estrechas**: el composer, el dock y los minis se ajustan en densidad cuando el panel se estrecha.
+- **Bloques de código legibles en respuestas**: los fragmentos de código del agente van en caja surface con resaltado de sintaxis (JS, TS, Python, JSON, bash, etc.).
+
 ## v0.62.3
 
 - **Sexto paso del onboarding sobre salas**: presenta las salas de brainstorming con un CTA que abre el alta de sala; el stepper nombra el paso actual y Omitir avisa que la guía se puede reabrir desde Ajustes.

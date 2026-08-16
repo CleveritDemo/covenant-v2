@@ -309,15 +309,39 @@
 
 .ai-code-pre {
   font-family: var(--font-mono);
-  font-size: 0.9375em;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.88);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text);
   margin: 0;
   padding: 5px 8px 6px;
-  background: color-mix(in srgb, var(--surface) 38%, var(--ai-panel-base));
+  background: color-mix(in srgb, var(--surface) 22%, var(--ai-panel-base));
 }
+
+.ai-code-pre__code {
+  font: inherit;
+  color: inherit;
+}
+
+/* Tokens de resaltado (Lezer + shell). */
+.ai-tok-keyword { color: color-mix(in srgb, var(--accent) 55%, var(--text)); font-weight: 600; }
+.ai-tok-string { color: var(--ok, #3ecf8e); }
+.ai-tok-number { color: color-mix(in srgb, var(--theme-yellow, #e6c84a) 85%, var(--text)); }
+.ai-tok-bool { color: color-mix(in srgb, var(--theme-magenta, #c678dd) 80%, var(--text)); }
+.ai-tok-comment { color: var(--text-muted); font-style: italic; }
+.ai-tok-fn { color: color-mix(in srgb, var(--theme-cyan, #56b6c2) 80%, var(--text)); }
+.ai-tok-type { color: color-mix(in srgb, var(--theme-yellow, #e6c84a) 75%, var(--text)); }
+.ai-tok-prop { color: color-mix(in srgb, var(--theme-cyan, #56b6c2) 70%, var(--text)); }
+.ai-tok-var { color: color-mix(in srgb, var(--accent) 35%, var(--text)); }
+.ai-tok-def { color: color-mix(in srgb, var(--accent) 45%, var(--text)); font-weight: 600; }
+.ai-tok-op { color: var(--text-muted); }
+.ai-tok-punct { color: var(--text-muted); }
+.ai-tok-meta { color: var(--text-muted); }
+.ai-tok-regexp { color: color-mix(in srgb, var(--danger, #e5484d) 75%, var(--text)); }
+.ai-tok-link { color: var(--accent); text-decoration: underline; }
+.ai-tok-heading { color: var(--accent); font-weight: 650; }
+.ai-tok-invalid { color: var(--danger, #e5484d); }
 
 .ai-insert-btn {
   display: flex;

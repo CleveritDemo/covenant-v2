@@ -6,7 +6,7 @@
   align-items: center;
   width: 100%;
   min-width: 0;
-  min-height: 26px;
+  min-height: var(--plane-contexts-bar-min-height, 26px);
   box-sizing: border-box;
 }
 

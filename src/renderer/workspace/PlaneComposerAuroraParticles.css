@@ -1,6 +1,6 @@
 /*
- * Partículas busy del piso del plano. En el tab viven en .plane-map__floor-particles;
- * en brainstorm, en .brainstorm-overlay__floor.
+ * Partículas busy del piso del plano. En el tab viven en .plane-map__floor-particles
+ * (backdrop z=16, encima de grilla); en brainstorm, en .brainstorm-overlay__floor.
  */
 .plane-composer-aurora-particles {
   position: absolute;

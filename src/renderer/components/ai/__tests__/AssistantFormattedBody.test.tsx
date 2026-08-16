@@ -46,6 +46,16 @@ describe('AssistantFormattedBody delegate fences', () => {
     expect(screen.queryByText('Armando delegación…')).toBeNull()
   })
 
+  it('envuelve bloques de código en ChatBubble solid con resaltado', () => {
+    const body = ['Texto previo.', '```typescript', 'const ready = true', '```'].join('\n')
+    render(<AssistantFormattedBody content={body} live={false} />)
+    expect(screen.getByText('Texto previo.')).toBeTruthy()
+    const solid = document.querySelectorAll('.chat-bubble--solid')
+    expect(solid.length).toBe(1)
+    expect(document.querySelector('.chat-bubble--solid .ai-code-block')).not.toBeNull()
+    expect(document.querySelector('.chat-bubble--solid .ai-tok-keyword')).not.toBeNull()
+  })
+
   it('hides ia-terminal-results even while live; delegate shows placeholder', () => {
     const mixed = [
       'Hi',

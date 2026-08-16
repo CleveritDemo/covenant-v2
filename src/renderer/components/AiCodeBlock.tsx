@@ -1,13 +1,7 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { buildAiCodeHighlightPieces } from './aiCodeHighlight'
+import { isShellAiCodeLang, normalizeAiCodeLang } from './aiCodeLang'
 import './AiMarkdown.css'
-
-const SHELL_LANGS = new Set([
-  'bash', 'sh', 'zsh', 'shell', 'console', 'terminal', 'fish', 'ksh', 'csh',
-])
-
-function isShellLang(lang: string): boolean {
-  return SHELL_LANGS.has(lang.trim().toLowerCase())
-}
 
 interface AiCodeBlockProps {
   lang: string
@@ -15,6 +9,11 @@ interface AiCodeBlockProps {
   isStreaming: boolean
   isLastSegment: boolean
   onInsert: (cmd: string) => void
+}
+
+function displayLangLabel(lang: string): string {
+  const normalized = normalizeAiCodeLang(lang)
+  return normalized || 'text'
 }
 
 export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
@@ -25,6 +24,10 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
   onInsert,
 }) => {
   const [copied, setCopied] = useState(false)
+  const pieces = useMemo(
+    () => buildAiCodeHighlightPieces(content, lang),
+    [content, lang],
+  )
 
   function handleCopy(): void {
     void navigator.clipboard.writeText(content).then(() => {
@@ -36,7 +39,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
   return (
     <div className="ai-code-block">
       <div className="ai-code-chrome" aria-hidden="true">
-        <span className="ai-code-lang">{lang.trim() || 'text'}</span>
+        <span className="ai-code-lang">{displayLangLabel(lang)}</span>
         {!isStreaming && (
           <button
             type="button"
@@ -49,10 +52,22 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
         )}
       </div>
       <pre className="ai-code-pre">
-        {content}
-        {isStreaming && isLastSegment && <span className="ai-cursor">▌</span>}
+        <code className="ai-code-pre__code">
+          {pieces.map((piece, index) => (
+            piece.className
+              ? (
+                  <span key={index} className={piece.className}>
+                    {piece.text}
+                  </span>
+                )
+              : (
+                  <React.Fragment key={index}>{piece.text}</React.Fragment>
+                )
+          ))}
+        </code>
+        {isStreaming && isLastSegment ? <span className="ai-cursor">▌</span> : null}
       </pre>
-      {!isStreaming && isShellLang(lang) && (
+      {!isStreaming && isShellAiCodeLang(lang) ? (
         <button
           type="button"
           className="ai-insert-btn"
@@ -61,7 +76,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
         >
           ↵ poner en terminal
         </button>
-      )}
+      ) : null}
     </div>
   )
 }

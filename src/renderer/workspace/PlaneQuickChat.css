@@ -51,7 +51,7 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
+  width: min(var(--plane-chat-column-width, 640px), calc(100% - var(--plane-chat-side-inset, 48px)));
   height: 100%;
   pointer-events: none;
 }
@@ -103,9 +103,9 @@
 }
 
 .plane-quick-chat .agent-pane__messages {
-  padding-left: 14px;
-  padding-right: 14px;
-  gap: 8px;
+  padding-left: var(--plane-chat-messages-pad-x, 14px);
+  padding-right: var(--plane-chat-messages-pad-x, 14px);
+  gap: var(--plane-chat-messages-gap, 8px);
 }
 
 .plane-quick-chat .agent-pane__scroll-bottom {

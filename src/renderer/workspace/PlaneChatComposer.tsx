@@ -38,11 +38,20 @@ import { shouldShowComposerStop } from '../agent/agentInputGuards'
 import { recallStep, rememberComposerEntry } from '@shared/composerHistory'
 import './PlaneChatComposer.css'
 
-/** Lo que el composer guarda por agente al cambiar de chip. */
+/** Lo que el composer guarda por hilo al cambiar de conversación. */
 interface ComposerDraft {
   text: string
   images: ComposerPendingImage[]
   contextIds: string[]
+}
+
+/** Clave de borrador en memoria: un entry por par pane + hilo activo. */
+export function composerDraftStorageKey(
+  paneId: string | null | undefined,
+  threadId?: string | null,
+): string | null {
+  if (!paneId) return null
+  return `${paneId}:${threadId ?? ''}`
 }
 
 export interface PlaneChatAgentOption {
@@ -82,6 +91,8 @@ export interface PlaneChatComposerProps {
   /** Catálogo del pool: resuelve el id que llega en el drop a nombre/ícono. */
   contexts?: PlaneContextPoolItem[]
   selectedAgentId: string | null
+  /** Hilo activo del chat: cada conversación conserva su borrador aparte. */
+  activeThreadId?: string | null
   placeholder: string
   emptyAgentsHint: string
   sendLabel: string
@@ -127,6 +138,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   agents,
   contexts = [],
   selectedAgentId,
+  activeThreadId = '',
   placeholder,
   emptyAgentsHint,
   sendLabel,
@@ -171,9 +183,8 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const stashRef = useRef('')
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   /**
-   * Borradores por agente (texto + imágenes + contextos del turno): cambiar de
-   * chip y volver no debe perder lo preparado. Solo en memoria; si hace falta
-   * que sobreviva al reinicio, va a session.json.
+   * Borradores por hilo (texto + imágenes + contextos del turno): cambiar de
+   * conversación y volver no debe perder lo preparado. Solo en memoria.
    */
   const draftsRef = useRef<Record<string, ComposerDraft>>({})
   const draftRef = useRef<ComposerDraft>({ text: draft, images: pendingImages, contextIds: pendingContextIds })
@@ -212,10 +223,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     }
   }, [])
 
-  // Al cambiar o salir del chat, el input recupera el borrador de ESE agente.
+  // Al cambiar agente o hilo, el input recupera el borrador de ESA conversación.
   useEffect(() => {
-    const agentId = selectedAgentId
-    const saved = agentId ? draftsRef.current[agentId] : undefined
+    const key = composerDraftStorageKey(selectedAgentId, activeThreadId)
+    const saved = key ? draftsRef.current[key] : undefined
     setDraft(saved?.text ?? '')
     setPendingImages(saved?.images ?? [])
     setPendingContextIds(saved?.contextIds ?? [])
@@ -229,14 +240,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     if (el) {
       el.style.height = 'auto'
     }
-    // El cleanup corre antes del próximo efecto: guarda con el id que salía.
     return () => {
-      if (agentId) draftsRef.current[agentId] = draftRef.current
+      if (key) draftsRef.current[key] = draftRef.current
     }
-    // ponytail: los borradores de un agente eliminado quedan hasta desmontar el
-    // plane (unos strings y sus objectURL); purgar contra `agents` obligaría a
-    // meter la lista en las deps y el efecto se comería el borrador en cada cambio.
-  }, [selectedAgentId])
+  }, [selectedAgentId, activeThreadId])
 
   // Si el turno editado ya no está en la cola (p. ej. tras merge), cerrar el modal.
   useEffect(() => {
@@ -397,12 +404,17 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     setDraft('')
     setPendingImages([])
     setPendingContextIds([])
+    const draftKey = composerDraftStorageKey(selected.paneId, activeThreadId)
+    if (draftKey) {
+      draftsRef.current[draftKey] = { text: '', images: [], contextIds: [] }
+    }
     mention.close()
     void pendingImagesToAttachments(imagesSnapshot).then(attachments => {
       imagesSnapshot.forEach(image => URL.revokeObjectURL(image.previewUrl))
       onSend(selected.paneId, text, attachments, contextIdsSnapshot)
     })
   }, [
+    activeThreadId,
     draft,
     onSend,
     pendingContextIds,

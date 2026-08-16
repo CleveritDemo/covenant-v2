@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../AiMarkdown'
 import { AiCodeBlock } from '../AiCodeBlock'
+import { ChatBubble } from './ChatBubble'
 import { DelegationAssemblingPlaceholder } from './DelegationAssemblingPlaceholder'
 import {
   findAssistantBodyLiveStart,
@@ -71,14 +72,15 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
             )
           }
           return (
-            <AiCodeBlock
-              key={index}
-              lang={segment.lang}
-              content={segment.content}
-              isStreaming={live}
-              isLastSegment={index === segments.length - 1}
-              onInsert={() => undefined}
-            />
+            <ChatBubble key={index} variant="assistant" solid>
+              <AiCodeBlock
+                lang={segment.lang}
+                content={segment.content}
+                isStreaming={live}
+                isLastSegment={index === segments.length - 1}
+                onInsert={() => undefined}
+              />
+            </ChatBubble>
           )
         }
         return (

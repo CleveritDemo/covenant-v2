@@ -15,6 +15,23 @@
   font-size: 1em;
 }
 
+/* Bloques de código con surface sólida (AssistantFormattedBody). */
+.chat-bubble--solid:has(.ai-code-block) {
+  padding: 8px 10px;
+}
+
+.chat-bubble--solid .ai-code-block {
+  margin: 0;
+  border: none;
+  border-radius: calc(var(--agent-radius, var(--radius)) - 4px);
+}
+
+.agent-pane__stream > .chat-bubble--solid {
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0;
+}
+
 .chat-bubble .ai-md > :first-child {
   margin-top: 0;
 }

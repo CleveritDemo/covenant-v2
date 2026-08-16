@@ -4,21 +4,15 @@
   inset: 0;
   /* visible: la perspectiva 3D de las columnas no debe recortarse */
   overflow: visible;
-  /* Sobre el fade del chat (dock 14); bajo composer/FABs/pool. */
-  z-index: 16;
+  /* Sin z-index propio: backdrop y stage compiten en la pila del tab. */
   pointer-events: none;
 }
 
-/* Quick chat sin ventana expandida: minis sobre dock (199) y composer (201). */
-.plane-map--chat-open:not(.plane-map--elevated) {
-  z-index: calc(var(--plane-chat-stack-z, 200) + 2);
-}
-
-/* Piso: atmósfera → grilla → partículas busy → ambiente; debajo del stage. */
+/* Piso: atmósfera → grilla → partículas busy; bajo composer (201) y stage (17/202). */
 .plane-map-backdrop {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 16;
   pointer-events: none;
 }
 
@@ -28,8 +22,8 @@
   left: 0;
   right: 0;
   top: 0;
-  height: max(152px, calc(var(--plane-chat-toolbar-clearance, 38px) + 108px));
-  z-index: 2;
+  height: max(var(--plane-chat-top-fade-min, 152px), calc(var(--plane-chat-toolbar-clearance, 38px) + var(--plane-chat-top-fade-extra, 108px)));
+  z-index: 16;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
@@ -56,8 +50,14 @@
   width: 100%;
 }
 
-/* Ventana abierta: por encima del composer (200) y FABs (70); debajo del chrome (210). */
-.plane-map--elevated {
+/* Stage sobre backdrop (16) y dock/composer (199/201); chat-open y elevado suben abajo. */
+.plane-map--chat-open:not(.plane-map--elevated) .plane-map__stage,
+.plane-map--chat-open:not(.plane-map--elevated) .plane-map__overflow {
+  z-index: calc(var(--plane-chat-stack-z, 200) + 2);
+}
+
+.plane-map--elevated .plane-map__stage,
+.plane-map--elevated .plane-map__overflow {
   z-index: var(--plane-elevated-map-z, 205);
 }
 
@@ -96,7 +96,7 @@
   padding: 24px;
   text-align: center;
   pointer-events: none;
-  z-index: 2;
+  z-index: 17;
 }
 
 .plane-map__empty strong {
@@ -127,7 +127,7 @@
 .plane-map__stage {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 17;
   pointer-events: none;
   overflow: visible;
   perspective: 1200px;
@@ -243,7 +243,7 @@
 .plane-map__overflow {
   position: absolute;
   inset: 0;
-  z-index: 12;
+  z-index: 17;
   pointer-events: none;
 }
 
@@ -383,7 +383,7 @@ html[data-reduce-motion="true"] {
 .plane-map__wiki-overlay {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 16;
   overflow: hidden;
   pointer-events: auto;
 }

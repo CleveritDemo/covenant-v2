@@ -45,10 +45,10 @@
   position: relative;
   align-self: start;
   justify-self: center;
-  width: min(var(--plane-chat-column-width, 640px), calc(100% - 48px));
+  width: min(var(--plane-chat-column-width, 640px), calc(100% - var(--plane-chat-side-inset, 48px)));
   display: flex;
   justify-content: center;
-  padding: 10px 0 0;
+  padding: var(--plane-chat-toolbar-pad-top, 10px) 0 0;
   pointer-events: none;
   background: transparent;
 }

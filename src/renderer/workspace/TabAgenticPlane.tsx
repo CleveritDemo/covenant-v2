@@ -1164,6 +1164,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               agents={agents}
               contexts={tabContexts}
               selectedAgentId={openChatAgentId}
+              activeThreadId={openChatActiveThreadId}
               placeholder={chatPlaceholder}
               emptyAgentsHint={chatEmptyAgents}
               sendLabel={chatSendLabel}

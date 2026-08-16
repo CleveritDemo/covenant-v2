@@ -1,15 +1,15 @@
 /** z-index for body-portaled overlays (Git panel, file explorer). Above pane windows (≥140). */
 export const APP_OVERLAY_MODAL_Z = 670
 
-/** Chat del plano (dock + composer): encima de minis del mapa (16), debajo de ventana abierta (205). */
+/** Chat del plano (dock + composer): encima del backdrop (16), debajo de stage chat-open (202). */
 export const PLANE_CHAT_STACK_Z = 200
 
-/** Mapa con ventana abierta: encima del chat/composer (200), debajo del chrome (210). */
+/** Stage con ventana abierta: por encima del composer (200), debajo del chrome (210). */
 export const PLANE_ELEVATED_MAP_Z = 205
 
 /**
  * Barras del plano (top-left, pool de contextos): encima del chat (200), debajo de badges wiki (300).
- * Jerarquía: mapa 16 → chat 200 → mapa elevado 205 → chrome 210 → badges 300 → curador 400 → modales 670.
+ * Jerarquía: backdrop 16 → chat 200 → stage chat-open 202 → stage elevado 205 → chrome 210 → badges 300 → curador 400 → modales 670.
  */
 export const PLANE_CHROME_STACK_Z = 210
 

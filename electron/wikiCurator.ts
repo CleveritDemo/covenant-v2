@@ -32,6 +32,11 @@ import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { ensureWiki, wikiRootPath } from './wikiStore'
 import { buildWikiHealthSection } from './wikiHealth'
 import { isWikiSweepRunning } from './wikiCuratorSweep'
+import {
+  clearWikiCuratorActive,
+  clearWikiCuratorActiveForTests,
+  markWikiCuratorActive,
+} from './wikiCuratorActive'
 
 export { buildWikiHealthSection } from './wikiHealth'
 
@@ -204,6 +209,7 @@ export function startWikiCuratorTurn(
   const paneId = wikiCuratorPaneId(cwd)
   const generation = nextCuratorGeneration++
   curatorGenerations.set(cwd, generation)
+  markWikiCuratorActive(cwd)
   // El turno nuevo cancela al previo (runAgentCliSpawn también lo hace; esto
   // cubre runners inyectados y deja el estado consistente al instante).
   stopAgentRunsForPane(paneId)
@@ -265,6 +271,7 @@ export function startWikiCuratorTurn(
     onDone: code => {
       if (isStale()) return
       curatorGenerations.delete(cwd)
+      clearWikiCuratorActive(cwd)
       if (code !== 0 && !finalText.trim()) {
         emitCurator(win, cwd, {
           type: 'error',
@@ -300,6 +307,7 @@ export function stopWikiCuratorTurn(cwd: string, win?: BrowserWindow): void {
   if (!trimmed) return
   if (!curatorGenerations.has(trimmed)) return
   curatorGenerations.delete(trimmed)
+  clearWikiCuratorActive(trimmed)
   stopAgentRunsForPane(wikiCuratorPaneId(trimmed))
   if (win) emitCurator(win, trimmed, { type: 'done' })
 }
@@ -308,4 +316,5 @@ export function stopWikiCuratorTurn(cwd: string, win?: BrowserWindow): void {
 export function clearWikiCuratorForTests(): void {
   curatorGenerations.clear()
   curatorSessions.clear()
+  clearWikiCuratorActiveForTests()
 }

@@ -11,9 +11,11 @@ import {
   applyWikiCuratorConfigToApp,
   maybeMigrateWikiCuratorFromProject,
   startWikiCuratorTurn,
+  stopWikiCuratorTurn,
   writeWikiCuratorConfig,
   type WikiCuratorRunner,
 } from '../wikiCurator'
+import { isWikiCuratorActive } from '../wikiCuratorActive'
 
 function fakeWindow(): import('electron').BrowserWindow {
   return {
@@ -317,6 +319,64 @@ describe('startWikiCuratorTurn provider', () => {
     expect(requests[0]!.prompt).toContain('## Init mode')
     expect(requests[0]!.contexts.some(c => c.kind === 'wiki')).toBe(true)
     expect(requests[0]!.contexts.some(c => c.kind === 'folderTree')).toBe(true)
+  })
+})
+
+describe('wikiCurator active registry', () => {
+  const dirs: string[] = []
+
+  beforeEach(() => {
+    clearWikiCuratorForTests()
+  })
+
+  afterEach(() => {
+    clearWikiCuratorForTests()
+    for (const dir of dirs.splice(0)) {
+      try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
+    }
+  })
+
+  it('marca y desmarca el registro al terminar el turno', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-active-done-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const runner: WikiCuratorRunner = (_request, _config, _home, handlers) => {
+      queueMicrotask(() => handlers.onDone(0))
+    }
+
+    expect(isWikiCuratorActive(cwd)).toBe(false)
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(isWikiCuratorActive(cwd)).toBe(true)
+
+    await vi.waitFor(() => expect(isWikiCuratorActive(cwd)).toBe(false), { timeout: 3000 })
+  })
+
+  it('desmarca el registro al parar el turno', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-active-stop-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const runner: WikiCuratorRunner = () => { /* bloqueado */ }
+    const win = fakeWindow()
+
+    expect(startWikiCuratorTurn(
+      win,
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+    expect(isWikiCuratorActive(cwd)).toBe(true)
+
+    stopWikiCuratorTurn(cwd, win)
+    expect(isWikiCuratorActive(cwd)).toBe(false)
   })
 })
 

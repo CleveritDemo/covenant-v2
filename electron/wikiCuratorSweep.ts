@@ -26,6 +26,7 @@ import {
   sanitizeWikiCuratorConfig,
 } from '../src/shared/wikiCurator'
 import { type WikiCuratorRunner } from './wikiCurator'
+import { isWikiCuratorActive } from './wikiCuratorActive'
 
 const CURATOR_AGENT_ID = 'wiki-curator'
 const SNAPSHOTS_DIR = '.snapshots'
@@ -279,6 +280,12 @@ export function isWikiSweepRunning(cwd: string): boolean {
   return trimmed ? sweepRuns.has(trimmed) : false
 }
 
+export function isWikiSweepBlocked(cwd: string): boolean {
+  const trimmed = typeof cwd === 'string' ? cwd.trim() : ''
+  if (!trimmed) return false
+  return isWikiSweepRunning(trimmed) || isWikiCuratorActive(trimmed)
+}
+
 export function startWikiSweep(
   win: BrowserWindow,
   cwd: string,
@@ -290,6 +297,9 @@ export function startWikiSweep(
   if (!trimmed) return { ok: false, error: 'cwd inválido' }
   if (isWikiSweepRunning(trimmed)) {
     return { ok: false, error: 'Ya hay un barrido de wiki en curso para este proyecto.' }
+  }
+  if (isWikiCuratorActive(trimmed)) {
+    return { ok: false, error: 'Hay un turno del curador en curso.' }
   }
 
   const generation = nextSweepGeneration++

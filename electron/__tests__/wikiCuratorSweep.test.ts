@@ -14,11 +14,17 @@ import {
 } from '../wikiCurator'
 import {
   clearWikiSweepForTests,
+  isWikiSweepBlocked,
   isWikiSweepRunning,
   startWikiSweep,
   stopWikiSweep,
   wikiSweepPaneId,
 } from '../wikiCuratorSweep'
+import {
+  clearWikiCuratorActiveForTests,
+  isWikiCuratorActive,
+  markWikiCuratorActive,
+} from '../wikiCuratorActive'
 import * as wikiHealth from '../wikiHealth'
 import * as wikiIngest from '../wikiIngest'
 
@@ -36,11 +42,13 @@ describe('wikiCuratorSweep runner', () => {
   beforeEach(() => {
     clearWikiSweepForTests()
     clearWikiCuratorForTests()
+    clearWikiCuratorActiveForTests()
   })
 
   afterEach(() => {
     clearWikiSweepForTests()
     clearWikiCuratorForTests()
+    clearWikiCuratorActiveForTests()
     for (const dir of dirs.splice(0)) {
       try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
     }
@@ -280,6 +288,95 @@ describe('wikiCuratorSweep runner', () => {
     })
     stopWikiSweep(cwd, win)
   })
+
+  it('rechaza start con curador manual activo y no crea snapshot ni pases', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-sweep-curator-guard-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const requests: AgentCliStartRequest[] = []
+    const runner: WikiCuratorRunner = (request, _config, _home, handlers) => {
+      requests.push(request)
+      queueMicrotask(() => handlers.onDone(0))
+    }
+
+    const win = fakeWindow()
+    const appConfig = { agentCliCommands: {} } as AppConfig
+    markWikiCuratorActive(cwd)
+    expect(isWikiCuratorActive(cwd)).toBe(true)
+
+    const result = startWikiSweep(win, cwd, appConfig, '/home', { runner })
+    expect(result).toEqual({ ok: false, error: 'Hay un turno del curador en curso.' })
+    expect(isWikiSweepRunning(cwd)).toBe(false)
+    expect(requests).toHaveLength(0)
+
+    const snapshotsRoot = join(projectDirPath(cwd), 'wiki', '.snapshots')
+    expect(existsSync(snapshotsRoot)).toBe(false)
+  })
+
+  it('tras limpiar curador activo el barrido arranca sin problema', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-sweep-curator-clear-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    const win = fakeWindow()
+    const runner: WikiCuratorRunner = (_request, _config, _home, handlers) => {
+      queueMicrotask(() => handlers.onDone(0))
+    }
+    const appConfig = { agentCliCommands: {} } as AppConfig
+
+    markWikiCuratorActive(cwd)
+    expect(startWikiSweep(win, cwd, appConfig, '/home', { runner })).toEqual({
+      ok: false,
+      error: 'Hay un turno del curador en curso.',
+    })
+
+    clearWikiCuratorActiveForTests()
+    expect(isWikiCuratorActive(cwd)).toBe(false)
+    expect(startWikiSweep(win, cwd, appConfig, '/home', { runner })).toEqual({ ok: true })
+
+    await vi.waitFor(() => expect(isWikiSweepRunning(cwd)).toBe(false), { timeout: 3000 })
+  })
+
+  it('el guard de curador activo es por cwd', async () => {
+    const cwdA = mkdtempSync(join(tmpdir(), 'ia-wiki-sweep-guard-a-'))
+    const cwdB = mkdtempSync(join(tmpdir(), 'ia-wiki-sweep-guard-b-'))
+    dirs.push(cwdA, cwdB)
+    expect(ensureWikiWithSeed(cwdA).ok).toBe(true)
+    expect(ensureWikiWithSeed(cwdB).ok).toBe(true)
+
+    const win = fakeWindow()
+    const runner: WikiCuratorRunner = (_request, _config, _home, handlers) => {
+      queueMicrotask(() => handlers.onDone(0))
+    }
+    const appConfig = { agentCliCommands: {} } as AppConfig
+
+    markWikiCuratorActive(cwdA)
+    expect(startWikiSweep(win, cwdA, appConfig, '/home', { runner })).toEqual({
+      ok: false,
+      error: 'Hay un turno del curador en curso.',
+    })
+    expect(startWikiSweep(win, cwdB, appConfig, '/home', { runner })).toEqual({ ok: true })
+
+    await vi.waitFor(() => expect(isWikiSweepRunning(cwdB)).toBe(false), { timeout: 3000 })
+  })
+
+  it('isWikiSweepBlocked es true con barrido o curador activo', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-sweep-blocked-'))
+    dirs.push(cwd)
+    expect(ensureWikiWithSeed(cwd).ok).toBe(true)
+
+    expect(isWikiSweepBlocked(cwd)).toBe(false)
+
+    markWikiCuratorActive(cwd)
+    expect(isWikiSweepBlocked(cwd)).toBe(true)
+    clearWikiCuratorActiveForTests()
+
+    const runner: WikiCuratorRunner = () => { /* bloqueado */ }
+    expect(startWikiSweep(fakeWindow(), cwd, { agentCliCommands: {} } as AppConfig, '/home', { runner })).toEqual({ ok: true })
+    expect(isWikiSweepBlocked(cwd)).toBe(true)
+    stopWikiSweep(cwd)
+  })
 })
 
 describe('startWikiCuratorTurn vs sweep', () => {
@@ -288,11 +385,13 @@ describe('startWikiCuratorTurn vs sweep', () => {
   beforeEach(() => {
     clearWikiSweepForTests()
     clearWikiCuratorForTests()
+    clearWikiCuratorActiveForTests()
   })
 
   afterEach(() => {
     clearWikiSweepForTests()
     clearWikiCuratorForTests()
+    clearWikiCuratorActiveForTests()
     for (const dir of dirs.splice(0)) {
       try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
     }

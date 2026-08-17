@@ -4,6 +4,13 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.74.0
+
+- **Salas con las fichas del plano**: los asientos y el catálogo de agentes miden lo mismo que las minis del plano y se inclinan igual; el acta queda más angosta y el sitio que suelta va a los agentes y al riel de contextos.
+- **El haz de contextos también en la sala**: al pasar por un contexto del riel o por una ficha se dibuja la línea que los une, como en el plano.
+- **Arrastrar un contexto a un agente de la sala**: soltar un contexto del riel sobre una ficha se lo asigna, en salas guardadas, en el alta y en la sala viva. Solo suma: quitarlo sigue estando en el menú del chip.
+- **El plano, un módulo más del riel**: tiene su propio botón, que queda marcado mientras estás en el plano y te devuelve a él desde la wiki, una sala o Pulse.
+
 ## v0.73.0
 
 - **El fondo del plano se enciende cuando los agentes trabajan**: la esfera de grilla sube su resplandor, opacidad y velocidad de giro, y las estrellas brillan más, con intensidad según cuántos agentes están activos (1→40%, 2→70%, 3+→100%). Encendido suave en ~1.5s y apagado gradual en ~4s al terminar el último; con reduce-motion el fondo queda estático.

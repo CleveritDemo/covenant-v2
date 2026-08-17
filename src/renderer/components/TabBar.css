@@ -292,6 +292,11 @@
 
 /* ── Close button ──────────────────────────────── */
 
+/* El wrap del kit es el flex item; el cierre sigue 18×18 y no se encoge. */
+.tab > .ui-tooltip:has(> .tab-close) {
+  flex-shrink: 0;
+}
+
 .tab-close {
   flex-shrink: 0;
   display: flex;

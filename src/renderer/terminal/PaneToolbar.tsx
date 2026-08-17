@@ -212,18 +212,20 @@ export const PaneToolbarButton: React.FC<PaneToolbarButtonProps> = ({
   onPointerDown,
   onClick,
 }) => (
-  <button
-    type="button"
-    tabIndex={-1}
-    className={[
-      `pane-toolbar-btn pane-toolbar-btn--${variant} terminal-chrome-btn`,
-      active ? 'pane-toolbar-btn--active' : '',
-      className ?? '',
-    ].filter(Boolean).join(' ')}
-    aria-label={ariaLabel ?? title}
-    onMouseDown={onPointerDown}
-    onClick={onClick}
-  >
-    <Icon name={icon} size={9} />
-  </button>
+  <Tooltip content={title}>
+    <button
+      type="button"
+      tabIndex={-1}
+      className={[
+        `pane-toolbar-btn pane-toolbar-btn--${variant} terminal-chrome-btn`,
+        active ? 'pane-toolbar-btn--active' : '',
+        className ?? '',
+      ].filter(Boolean).join(' ')}
+      aria-label={ariaLabel ?? title}
+      onMouseDown={onPointerDown}
+      onClick={onClick}
+    >
+      <Icon name={icon} size={9} />
+    </button>
+  </Tooltip>
 )

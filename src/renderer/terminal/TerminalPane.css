@@ -112,6 +112,11 @@ html[data-reduce-motion="true"] {
   margin-left: auto;
 }
 
+.pane-toolbar__group > .ui-tooltip {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
 .pane-toolbar__trail {
   flex: 1;
   min-width: 0;

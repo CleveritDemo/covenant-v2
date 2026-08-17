@@ -219,11 +219,14 @@ interface TabCloseButtonProps {
 }
 
 const TabCloseButton: React.FC<TabCloseButtonProps> = ({ title, onClose }) => (
-  <span
-    className="tab-close"
-    role="button"
-    onClick={e => { e.stopPropagation(); onClose() }}
-  >
-    <Icon name="close" size={10} />
-  </span>
+  <Tooltip content={title}>
+    <span
+      className="tab-close"
+      role="button"
+      aria-label={title}
+      onClick={e => { e.stopPropagation(); onClose() }}
+    >
+      <Icon name="close" size={10} />
+    </span>
+  </Tooltip>
 )

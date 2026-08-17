@@ -2049,6 +2049,10 @@ html[data-reduce-motion="true"] {
   gap: 8px;
 }
 
+.tab-contexts__icon-grid > .ui-tooltip {
+  flex: 0 0 auto;
+}
+
 .tab-contexts__icon-swatch {
   display: inline-flex;
   align-items: center;

@@ -40,6 +40,7 @@ const renderList = (contexts: TabContext[], agents: ProjectAgentDefinition[]) =>
     agents={agents}
     selectedId={null}
     onNew={() => {}}
+    onNewFile={() => {}}
     onSelect={() => {}}
     onEdit={() => {}}
     onDelete={() => {}}

@@ -19,7 +19,6 @@ import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
-import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
 import { PlanePromoteButton } from './PlanePromoteButton'
@@ -1030,45 +1029,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ariaLabel={t('tabs.planeToolsRailLabel')}
           elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen}
         >
-          {/* El plano primero: es el módulo por defecto y el sitio al que se
-              vuelve, así que se lee antes que sus herramientas. */}
+          {/* El plano primero; luego las salas de brainstorm; después el resto de herramientas. */}
           <PlaneWorkspaceButton
             label={t('tabs.planeWorkspaceButton')}
             hint={t('tabs.planeWorkspaceButtonHint')}
             pressed={!wikiMapOpen && !brainstormOverlayOpen && !pulseOpen}
             onClick={() => closeOtherPlaneOverlays('none')}
-          />
-          {canToggleExplorer ? (
-            <PlaneExplorerButton
-              label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
-              pressed={Boolean(explorerState?.open)}
-              onClick={() => onToggleExplorer?.()}
-            />
-          ) : null}
-          {canOpenGitPanel && onGitButtonClick ? (
-            <PlaneGitButton
-              label={gitButtonLabel}
-              disabled={gitButtonDisabled}
-              disabledTitle={gitButtonDisabledTitle}
-              pressed={gitPickerOpen}
-              onClick={() => onGitButtonClick()}
-            />
-          ) : null}
-          <PlaneLoopsButton
-            label={loopsButtonLabel}
-            pressed={loopsOpen}
-            liveCount={liveLoopCount}
-            livePulse={liveLoopPulse}
-            onClick={() => onLoopsOpenChange(!loopsOpen)}
-          />
-          <PlanePulseButton
-            label={t('pulse.button')}
-            pressed={pulseOpen}
-            onClick={() => {
-              if (pulseOpen) { setPulseOpen(false); return }
-              closeOtherPlaneOverlays('pulse')
-              setPulseOpen(true)
-            }}
           />
           {onBrainstormViewChange ? (
             <span className="plane-brainstorm-anchor">
@@ -1134,6 +1100,33 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               ) : null}
             </span>
           ) : null}
+          {canToggleExplorer ? (
+            <PlaneExplorerButton
+              label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
+              pressed={Boolean(explorerState?.open)}
+              onClick={() => onToggleExplorer?.()}
+            />
+          ) : null}
+          {canOpenGitPanel && onGitButtonClick ? (
+            <PlaneGitButton
+              label={gitButtonLabel}
+              disabled={gitButtonDisabled}
+              disabledTitle={gitButtonDisabledTitle}
+              pressed={gitPickerOpen}
+              onClick={() => onGitButtonClick()}
+            />
+          ) : null}
+          {/* Loops oculto temporalmente del rail; se retomará. PlaneLoopsSection sigue montada;
+              reponer el botón aquí (PlaneLoopsButton con loopsOpen/onLoopsOpenChange). */}
+          <PlanePulseButton
+            label={t('pulse.button')}
+            pressed={pulseOpen}
+            onClick={() => {
+              if (pulseOpen) { setPulseOpen(false); return }
+              closeOtherPlaneOverlays('pulse')
+              setPulseOpen(true)
+            }}
+          />
           <PlaneWikiMapButton
             label={t('tabs.wikiMapButton')}
             pressed={wikiMapOpen}

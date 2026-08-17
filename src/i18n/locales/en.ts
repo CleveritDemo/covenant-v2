@@ -479,6 +479,8 @@ const en = {
     pickerSelected: '{{n}} selected',
     pickerAria: 'Active contexts: {{label}}',
     new: 'New context',
+    newFile: 'Add file…',
+    fileAlreadyAdded: '“{{name}}” is already listed as a file context.',
     manage: 'Manage context',
     empty: 'No Markdown contexts found in .gravity yet.',
     name: 'Name',

@@ -95,6 +95,12 @@ beforeEach(() => {
     getWikiCuratorConfig,
     setWikiCuratorConfig,
     listAgentCliModels,
+    resolveAgentCli: vi.fn(async (provider: string) => ({
+      provider,
+      command: provider,
+      path: `/usr/local/bin/${provider}`,
+      version: null,
+    })),
   }
 })
 

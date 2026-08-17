@@ -1315,6 +1315,15 @@ html[data-reduce-motion="true"] {
 /* Sin altura propia: el panel --xxl ya fija la del modal y .tab-contexts
    (flex:1, min-height:0) la ocupa entera. */
 
+.tab-contexts__list-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tab-contexts__list-actions .btn {
+  flex: 1;
+}
+
 .tab-contexts__list {
   display: flex;
   flex-direction: column;

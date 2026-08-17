@@ -481,6 +481,8 @@ const es = {
     pickerSelected: '{{n}} seleccionados',
     pickerAria: 'Contextos activos: {{label}}',
     new: 'Nuevo contexto',
+    newFile: 'Agregar archivo…',
+    fileAlreadyAdded: '«{{name}}» ya está en la lista como contexto de archivo.',
     manage: 'Administrar contextos',
     empty: 'Todavía no hay contextos Markdown en .gravity.',
     name: 'Nombre',

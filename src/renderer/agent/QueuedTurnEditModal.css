@@ -1,3 +1,10 @@
+.queued-turn-edit__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
 .queued-turn-edit {
   display: flex;
   flex-direction: column;

@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { useT } from '@i18n/useT'
 import {
-  AGENT_CLI_PROVIDER_IDS,
   agentCliSpec,
   isAgentCliProvider,
   type AgentCliProvider,
 } from '@shared/agentCliProviders'
+import { pickableProviderIds } from '@shared/agentCliPickList'
 import { modelsForProvider, type AgentModelOption } from '@shared/agentCliModels'
 import { WIKI_CURATOR_INIT_COMMAND, type WikiCuratorConfig } from '@shared/wikiCurator'
 import {
@@ -28,6 +28,7 @@ import {
   pendingImagesToAttachments,
   type ComposerPendingImage,
 } from '../agent/composerImages'
+import { useAgentCliStatuses } from '../agent/useAgentCliStatuses'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
 import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneSketchButton } from './PlaneSketchButton'
@@ -100,6 +101,15 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   onWikiChangedRef.current = onWikiChanged
 
   const selectedProvider: AgentCliProvider = config.provider ?? DEFAULT_CURATOR_PROVIDER
+  const cliStatuses = useAgentCliStatuses(true)
+  const providerOptions = useMemo(
+    () => pickableProviderIds(cliStatuses, selectedProvider).map(id => ({
+      value: id,
+      label: agentCliSpec(id).label,
+      ...(cliStatuses[id] && cliStatuses[id]?.path == null ? { hint: t('agentPane.providerMissing') } : {}),
+    })),
+    [cliStatuses, selectedProvider, t],
+  )
 
   const persistHistory = useCallback((entries: WikiCuratorHistoryEntry[]): void => {
     const key = cwd.trim()
@@ -530,10 +540,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
                   value={selectedProvider}
                   aria-label={t('tabs.wikiCuratorConfigProviderLabel')}
                   onChange={changeProvider}
-                  options={AGENT_CLI_PROVIDER_IDS.map(id => ({
-                    value: id,
-                    label: agentCliSpec(id).label,
-                  }))}
+                  options={providerOptions}
                 />
                 <Select
                   variant="badge"

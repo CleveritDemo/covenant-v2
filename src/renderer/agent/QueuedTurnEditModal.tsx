@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui/Button'
+import { PendingImageThumb } from '../components/PendingImageThumb'
 import './QueuedTurnEditModal.css'
 
 export interface QueuedTurnEditModalProps {
   open: boolean
   initialText: string
+  images?: Array<{ id: string; previewUrl: string; name: string }>
   onSave: (text: string) => void
   onClose: () => void
 }
@@ -15,6 +17,7 @@ export interface QueuedTurnEditModalProps {
 export const QueuedTurnEditModal: React.FC<QueuedTurnEditModalProps> = ({
   open,
   initialText,
+  images = [],
   onSave,
   onClose,
 }) => {
@@ -26,7 +29,7 @@ export const QueuedTurnEditModal: React.FC<QueuedTurnEditModalProps> = ({
   }, [open, initialText])
 
   const trimmed = draft.trim()
-  const canSave = trimmed.length > 0 || initialText.trim().length === 0
+  const canSave = trimmed.length > 0 || images.length > 0 || initialText.trim().length === 0
 
   return (
     <TerminalModal
@@ -54,23 +57,39 @@ export const QueuedTurnEditModal: React.FC<QueuedTurnEditModalProps> = ({
         </>
       )}
     >
-      <label className="queued-turn-edit">
-        <span className="queued-turn-edit__label">{t('agentPane.queueEditLabel')}</span>
-        <textarea
-          className="queued-turn-edit__input"
-          value={draft}
-          rows={6}
-          autoFocus
-          onChange={event => setDraft(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canSave) {
-              event.preventDefault()
-              onSave(draft.trim())
-              onClose()
-            }
-          }}
-        />
-      </label>
+      <>
+        {images.length > 0 ? (
+          <div
+            className="queued-turn-edit__images"
+            aria-label={t('agentPane.imagesAttached', { n: images.length })}
+          >
+            {images.map(image => (
+              <PendingImageThumb
+                key={image.id}
+                src={image.previewUrl}
+                name={image.name}
+              />
+            ))}
+          </div>
+        ) : null}
+        <label className="queued-turn-edit">
+          <span className="queued-turn-edit__label">{t('agentPane.queueEditLabel')}</span>
+          <textarea
+            className="queued-turn-edit__input"
+            value={draft}
+            rows={6}
+            autoFocus
+            onChange={event => setDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canSave) {
+                event.preventDefault()
+                onSave(draft.trim())
+                onClose()
+              }
+            }}
+          />
+        </label>
+      </>
     </TerminalModal>
   )
 }

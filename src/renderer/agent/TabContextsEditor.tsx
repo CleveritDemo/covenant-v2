@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
+import { singleFileContextName } from '@shared/contextFromFile'
 import {
   canonicalContextFileName,
+  canonicalContextName,
   normalizeContextFileName,
   CREATABLE_CONTEXT_KINDS,
   HOST_CONTEXT_KINDS,
@@ -224,9 +226,29 @@ export const TabContextsEditor: React.FC<Props> = ({
               rootPath={draft.rootPath}
               paths={draft.paths ?? []}
               onError={onActionError}
-              onAdd={added => onUpdate({
-                paths: [...(draft.paths ?? []).map(path => path.trim()).filter(Boolean), ...added],
-              })}
+              onAdd={added => {
+                const existingPaths = (draft.paths ?? []).map(path => path.trim()).filter(Boolean)
+                const autoName = canonicalContextName('files', { rootPath: draft.rootPath }).trim()
+                const isAutoName = !draft.name.trim() || draft.name.trim() === autoName
+                if (
+                  draft.kind === 'files'
+                  && existingPaths.length === 0
+                  && added.length === 1
+                  && isAutoName
+                ) {
+                  const route = added[0].trim()
+                  const name = singleFileContextName(route)
+                  onUpdate({
+                    paths: [...existingPaths, ...added],
+                    name,
+                    fileName: normalizeContextFileName(name),
+                  })
+                  return
+                }
+                onUpdate({
+                  paths: [...existingPaths, ...added],
+                })
+              }}
             />
             <TextArea
               rows={5}

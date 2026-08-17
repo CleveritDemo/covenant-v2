@@ -240,6 +240,9 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
+  const editingQueuedImages = editingQueuedId
+    ? (queuedTurns.find(item => item.id === editingQueuedId)?.images ?? [])
+    : []
 
   // Al desmontar se van los objectURL: los del chat abierto y los guardados.
   useEffect(() => {
@@ -810,6 +813,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       <QueuedTurnEditModal
         open={Boolean(editingQueuedId)}
         initialText={editingQueuedText}
+        images={editingQueuedImages}
         onClose={() => setEditingQueuedId(null)}
         onSave={text => {
           if (editingQueuedId && selectedAgentId) {

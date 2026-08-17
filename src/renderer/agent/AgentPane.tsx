@@ -634,6 +634,9 @@ export const AgentPane: React.FC<Props> = ({
   const editingQueuedText = editingQueuedId
     ? (queuedTurns.find(item => item.id === editingQueuedId)?.text ?? '')
     : ''
+  const editingQueuedImages = editingQueuedId
+    ? (queuedTurns.find(item => item.id === editingQueuedId)?.images ?? [])
+    : []
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [activity, setActivity] = useState('')
@@ -3738,6 +3741,7 @@ export const AgentPane: React.FC<Props> = ({
       <QueuedTurnEditModal
         open={Boolean(editingQueuedId) && tabActive}
         initialText={editingQueuedText}
+        images={editingQueuedImages}
         onClose={() => setEditingQueuedId(null)}
         onSave={text => {
           if (editingQueuedId) updateQueuedTurn(editingQueuedId, text)

@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.80.0
+
+- Agregar un archivo del repo como contexto ahora es un paso: «Agregar archivo…» en el listado abre el diálogo nativo y crea el contexto ya nombrado con el archivo.
+- En el formulario de contextos, elegir el primer archivo nombra el contexto solo si el nombre seguía en automático.
+- El desplegable de CLI del curador de la wiki lista solo los harnesses instalados en el PATH.
+- Al editar un mensaje en cola se ven sus imágenes adjuntas, y Guardar sigue activo aunque borres el texto.
+- El rail del plano pone Brainstorming rooms en segundo lugar; Loops queda oculto temporalmente.
+
 ## v0.79.0
 
 - **Contextos**: ahora se puede elegir un archivo que ya está en el repositorio, con buscador por nombre o con el diálogo nativo del sistema; se guarda la ruta relativa, sin copiar el archivo. «Importar archivos…» sigue siendo el camino para archivos de fuera del proyecto, que sí se copian a la carpeta del proyecto.

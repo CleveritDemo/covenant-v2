@@ -24,11 +24,11 @@ import type { TabContext } from '@shared/tabContext'
 import type { AgentCliProvider } from '@shared/tabSession'
 import type { AgentCoordination } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
-import { NO_CONTEXT_USAGE, resolveAssignedContextChips } from './resolveAssignedContextChips'
+import { NO_CONTEXT_USAGE, resolveAssignedContextChips, resolveTabContextById } from './resolveAssignedContextChips'
 import type { PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { isReduceMotionActive } from '../reduceMotion'
-import { Button, Tooltip } from '../components/ui'
-import { Icon } from '../components/ui/Icon'
+import { Button, Icon, Tooltip, type IconName } from '../components/ui'
+import { contextIconName } from '../agent/tabContextKindIcons'
 import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormLiveSeatCard } from './BrainstormSeatCard'
 import { useBrainstormContextDrop } from './brainstormContextDrop'
@@ -411,10 +411,30 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     const contextIds = hotWorkingSet?.contextIds ?? room.contextIds ?? []
     const filePaths = hotWorkingSet?.filePaths ?? room.filePaths ?? []
     return [
-      ...contextIds.map(id => ({ key: id, ...brainstormContextLabel(id) })),
-      ...filePaths.map(path => ({ key: path, tag: 'file', label: path })),
+      ...contextIds.map(id => {
+        // El id canónico de una issue va en minúsculas a propósito, así que
+        // derivar el texto del id pintaba «ct 122». El nombre resuelto —del
+        // catálogo o sintetizado— ya trae la clave como se escribe.
+        const resolved = resolveTabContextById(id, contexts)
+        const fallback = brainstormContextLabel(id)
+        if (!resolved) {
+          return { key: id, icon: 'note' as IconName, label: fallback.label, hint: fallback.tag }
+        }
+        return {
+          key: id,
+          icon: contextIconName(resolved),
+          label: resolved.name?.trim() || fallback.label,
+          hint: t(`tabContexts.kind_${resolved.kind}`),
+        }
+      }),
+      ...filePaths.map(path => ({
+        key: path,
+        icon: 'files' as IconName,
+        label: path,
+        hint: t('tabContexts.kind_files'),
+      })),
     ]
-  }, [hotWorkingSet, room.contextIds, room.filePaths])
+  }, [hotWorkingSet, room.contextIds, room.filePaths, contexts, t])
 
   const showPause = canPauseBrainstorm(live.status)
   const showPlay = canResumeBrainstorm(live.status)
@@ -735,9 +755,11 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 {t('tabs.brainstormWorkingSetLabel')}
               </span>
               {workingSetLabels.map(item => (
-                <Tooltip key={item.key} content={item.label} hint={item.tag}>
+                <Tooltip key={item.key} content={item.label} hint={item.hint}>
                   <span className="brainstorm-room-view__ws-chip">
-                    <span className="brainstorm-room-view__ws-tag">{item.tag}</span>
+                    <span className="brainstorm-room-view__ws-icon">
+                      <Icon name={item.icon} size={12} />
+                    </span>
                     <span className="brainstorm-room-view__ws-name">{item.label}</span>
                   </span>
                 </Tooltip>

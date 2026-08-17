@@ -980,6 +980,19 @@ export const TerminalPane: React.FC<Props> = ({
     }
     fitScheduler.runNow()
 
+    // El efecto de foco por `isActivePane` corre antes de que exista el xterm y
+    // sus deps no vuelven a cambiar, así que un pane recién creado se quedaba
+    // sin foco y el Enter iba al FAB que lo abrió. Solo tomamos el foco si
+    // nadie lo tiene: si el usuario está escribiendo en el composer, en un modal
+    // o en otra terminal, no se lo quitamos.
+    if (tabActiveRef.current && isActivePaneRef.current) {
+      const active = document.activeElement
+      const freeToFocus = !active
+        || active === document.body
+        || (active instanceof HTMLElement && active.classList.contains('plane-fab'))
+      if (freeToFocus) term.focus()
+    }
+
     const dScroll = term.onScroll(syncScrollDownBtnVisibility)
 
     let scrollbackHydrated = false

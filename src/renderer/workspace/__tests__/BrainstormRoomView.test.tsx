@@ -685,3 +685,27 @@ describe('BrainstormRoomView — situarse al final, no viajar hasta él', () => 
     expect(scrolls[scrolls.length - 1]?.behavior).toBe('smooth')
   })
 })
+
+describe('chips del Working Set', () => {
+  // El id canónico de jira va en minúsculas; derivar el texto del id pintaba
+  // «ct 122». El chip debe resolver/sintetizar y mostrar CT-122 + icono.
+  it('muestra el nombre e icono del contexto, no el stem del id', () => {
+    render(
+      <BrainstormRoomView
+        open
+        room={{
+          ...room,
+          contextIds: ['iaterminal:jira:ct-122'],
+        }}
+        cwd="/tmp/project"
+        agents={[{ id: 'atlas', name: 'Atlas' }, { id: 'forge', name: 'Forge' }]}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('CT-122')).toBeTruthy()
+    expect(screen.queryByText('ct 122')).toBeNull()
+    expect(document.querySelector('.brainstorm-room-view__ws-icon')).not.toBeNull()
+    expect(document.querySelector('.brainstorm-room-view__ws-tag')).toBeNull()
+  })
+})

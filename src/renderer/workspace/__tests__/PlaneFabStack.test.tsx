@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { PlaneFabStack } from '../PlaneFabStack'
 
 afterEach(cleanup)
@@ -30,5 +30,29 @@ describe('PlaneFabStack', () => {
     for (const stack of stacks) {
       expect(stack.classList.contains('plane-fab-stack--elevated')).toBe(true)
     }
+  })
+
+  it('el click con puntero en el FAB de terminal suelta el foco', () => {
+    const onAddTerminal = vi.fn()
+    const { container } = render(
+      <PlaneFabStack {...baseProps} onAddTerminal={onAddTerminal} />,
+    )
+    const btn = container.querySelector('.plane-fab--terminal') as HTMLButtonElement
+    btn.focus()
+    fireEvent.click(btn, { detail: 1 })
+    expect(onAddTerminal).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).not.toBe(btn)
+  })
+
+  it('el disparo por teclado conserva el foco en el FAB', () => {
+    const onAddTerminal = vi.fn()
+    const { container } = render(
+      <PlaneFabStack {...baseProps} onAddTerminal={onAddTerminal} />,
+    )
+    const btn = container.querySelector('.plane-fab--terminal') as HTMLButtonElement
+    btn.focus()
+    fireEvent.click(btn, { detail: 0 })
+    expect(onAddTerminal).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(btn)
   })
 })

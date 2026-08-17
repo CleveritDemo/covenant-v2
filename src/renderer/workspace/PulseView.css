@@ -54,9 +54,15 @@
   background: var(--surface-hover);
 }
 
+/*
+ * Canalón izquierdo para el riel de herramientas, que no se retira con Pulse
+ * (solo con fullscreen) y flotaba sobre las tarjetas: 28px del riel + 8 de su
+ * inset + holgura, la misma medida que reserva la sala. A la derecha no hace
+ * falta —el pool de contextos sí se oculta con Pulse.
+ */
 .pulse-view__body {
   overflow-y: auto;
-  padding: 8px 24px 32px;
+  padding: 8px 24px 32px 44px;
 }
 
 .pulse-view__body > * {

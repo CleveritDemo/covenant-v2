@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.79.0
+
+- **Contextos**: ahora se puede elegir un archivo que ya está en el repositorio, con buscador por nombre o con el diálogo nativo del sistema; se guarda la ruta relativa, sin copiar el archivo. «Importar archivos…» sigue siendo el camino para archivos de fuera del proyecto, que sí se copian a la carpeta del proyecto.
+- **Contextos**: el marcador de rutas de «File contents» ya no promete un escaneo automático que no existía.
+- **Agentes**: nueva plantilla «Ingeniero de seguridad» al crear un agente, y pegar varias líneas en las reglas ahora crea una regla por línea (quita viñetas y numeración, y avisa si no entran por el tope de 20).
+
 ## v0.78.7
 
 - **Los errores de Jira dicen qué pasa**: conectar o sincronizar ya no muestra solo «Jira 403». Ahora explica si el API token tiene scopes que no cubren el endpoint, si la cuenta no tiene acceso al producto Jira en ese sitio o si el sitio tiene allowlist de IP, e incluye el detalle que manda Atlassian.

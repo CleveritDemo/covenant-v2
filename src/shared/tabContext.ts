@@ -37,6 +37,17 @@ export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
 
+export const CONTEXT_SUBDIR = 'context'
+
+/** Stem de identidad: recorta `context/` / `results/` / `jira/` y `.md`. Nunca aplana `/`. */
+export function contextFileStem(fileName?: string | null): string {
+  return (fileName ?? '')
+    .replace(/\\/g, '/')
+    .replace(/^(context|results|jira)\//i, '')
+    .replace(/\.md$/i, '')
+    .trim()
+}
+
 export function normalizeContextFileName(value: string | null | undefined, fallback = 'context'): string {
   const stem = (value ?? '')
     .trim()
@@ -141,7 +152,7 @@ export function canonicalContextId(
     // case-sensitive distinto cada vez que el name esté presente. El id
     // canónico siempre se deriva de la clave en minúsculas, con fileStem/name
     // como red de seguridad para contextos sin issueKey explícito todavía.
-    const fromFileStem = (options.fileStem ?? '').trim().replace(/^jira\//i, '')
+    const fromFileStem = contextFileStem(options.fileStem)
     const issueKey = (
       (options.issueKey ?? '').trim()
       || (options.name ?? '').trim()
@@ -168,13 +179,13 @@ export function canonicalContextFileName(
     const issueKey = (options.issueKey ?? '').trim().toUpperCase()
     return `jira/${normalizeContextFileName(issueKey, 'issue')}`
   }
-  if (isCreatableContextKind(kind)) {
-    return normalizeContextFileName(
+  const base = isCreatableContextKind(kind)
+    ? normalizeContextFileName(
       creatableContextStem(kind, options),
       defaultCreatableStem(kind, options),
     )
-  }
-  return normalizeContextFileName(kind)
+    : normalizeContextFileName(kind)
+  return `${CONTEXT_SUBDIR}/${base}`
 }
 
 /** Nombre visible por defecto del kind. */
@@ -220,7 +231,7 @@ export function canonicalContextName(
 export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id' | 'issueKey'>): string | null {
   if (context.kind === 'agentResult') {
     const agentId = context.id.replace(/^iaterminal:result:/, '')
-      || context.fileName.replace(/^results\//, '').replace(/\.md$/i, '')
+      || contextFileStem(context.fileName)
     return JSON.stringify({ kind: 'agentResult', agentId })
   }
   if (context.kind === 'jira') {
@@ -232,7 +243,7 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
     // colar dos contextos apuntando al mismo `.md`.
     const rawIssueKey = context.issueKey?.trim()
       || (context.id.startsWith('iaterminal:jira:') ? context.id.slice('iaterminal:jira:'.length) : '')
-      || context.fileName.replace(/^jira\//, '').replace(/\.md$/i, '')
+      || contextFileStem(context.fileName)
     // `normalizeContextFileName` sanea igual que `contextFilePath`
     // (electron/tabContextBuild.ts): un `issueKey` con espacios/símbolos —
     // solo alcanzable editando la metadata a mano — no debe dedupear en una
@@ -243,7 +254,7 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
   if (!isCreatableContextKind(context.kind)) return null
   const stem = creatableContextStem(context.kind, {
     rootPath: context.rootPath,
-    fileStem: context.fileName?.replace(/\.md$/i, ''),
+    fileStem: contextFileStem(context.fileName),
     name: context.name,
   })
   return JSON.stringify({ kind: context.kind, stem })
@@ -252,11 +263,11 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
 /** Rellena id/fileName/name canónicos; fileName creatable siempre deriva del name. */
 export function applyCanonicalContextIdentity(context: TabContext): TabContext {
   const rootPath = context.rootPath
-  const fileStem = context.fileName?.replace(/\.md$/i, '')
+  const fileStem = contextFileStem(context.fileName)
   const agentId = context.kind === 'agentResult'
     ? (context.id.startsWith('iaterminal:result:')
         ? context.id.slice('iaterminal:result:'.length)
-        : (context.fileName?.replace(/^results\//, '').replace(/\.md$/i, '') || undefined))
+        : (contextFileStem(context.fileName) || undefined))
     : undefined
   // Name vacío → stem desde fileStem/default (no desde el display name canónico).
   const identityName = context.name.trim() || undefined
@@ -269,7 +280,7 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
         || (context.id.startsWith('iaterminal:jira:')
               ? context.id.slice('iaterminal:jira:'.length)
               : undefined)
-        || context.fileName?.replace(/^jira\//, '').replace(/\.md$/i, '')
+        || contextFileStem(context.fileName)
         || undefined)
     : undefined
   const id = canonicalContextId(context.kind, {
@@ -373,18 +384,14 @@ export function synthesizeTabContextFromId(contextId: string): TabContext | null
 export function isCanonicalContextId(context: Pick<TabContext, 'id' | 'kind' | 'rootPath' | 'fileName' | 'name'>): boolean {
   if (context.kind === 'agentResult') {
     // agentId = stem de results/<agentId>.md (no el display name ni un id suelto).
-    const stem = (context.fileName ?? '')
-      .replace(/\\/g, '/')
-      .replace(/^results\//i, '')
-      .replace(/\.md$/i, '')
-      .trim()
+    const stem = contextFileStem(context.fileName)
     const agentId = stem || undefined
     if (!agentId) return false
     return context.id === canonicalContextId('agentResult', { agentId })
   }
   const expected = canonicalContextId(context.kind, {
     rootPath: context.rootPath,
-    fileStem: context.fileName?.replace(/\.md$/i, ''),
+    fileStem: contextFileStem(context.fileName),
     name: context.name,
   })
   return context.id === expected

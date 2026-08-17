@@ -16,8 +16,10 @@ import {
   normalizeAnnotation,
   normalizeContextFileName,
   ALL_CONTEXT_KINDS,
+  CONTEXT_SUBDIR,
   collectAutoAnnotationKeys,
   applyCanonicalContextIdentity,
+  contextFileStem,
   isCanonicalContextId,
 } from '../src/shared/tabContext'
 import { jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
@@ -561,7 +563,22 @@ function contextFilePath(context: TabContext, cwd: string): string {
     // sola `issueKeyFor` en `src/shared/jiraIssue.ts` (ver su comentario).
     return join(dir, 'jira', normalizeContextFileName(issueKeyFor(context), 'issue'))
   }
-  return join(dir, normalizeContextFileName(context.fileName || context.name, context.id))
+  return join(
+    dir,
+    CONTEXT_SUBDIR,
+    normalizeContextFileName(contextFileStem(context.fileName) || context.name, context.id),
+  )
+}
+
+function displayContextRelFile(context: TabContext, cwd: string): string {
+  const raw = (context.fileName || context.name).replace(/\\/g, '/')
+  if (raw.includes('/')) return `${projectDirName(cwd)}/${raw}`
+  const folder = context.kind === 'agentResult'
+    ? 'results'
+    : context.kind === 'jira'
+      ? 'jira'
+      : CONTEXT_SUBDIR
+  return `${projectDirName(cwd)}/${folder}/${normalizeContextFileName(contextFileStem(raw) || raw, context.id)}`
 }
 
 function writeTextIfChanged(filePath: string, content: string): void {
@@ -676,7 +693,10 @@ function serializeContextMetadata(context: TabContext): string {
           (context.issueKey || context.fileName || context.name).replace(/^jira[/\\]/i, ''),
           'issue',
         )}`)
-      : normalizeContextFileName(context.fileName || context.name, context.id)
+      : `${CONTEXT_SUBDIR}/${normalizeContextFileName(
+        contextFileStem(context.fileName) || context.name,
+        context.id,
+      )}`
   const metadata = JSON.stringify({
     version: 1,
     id: context.id,
@@ -807,6 +827,29 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
   }
 }
 
+function migrateLooseContextFiles(cwd: string): { migrated: boolean } {
+  const dir = projectDirPath(cwd)
+  if (!existsSync(dir)) return { migrated: false }
+  let migrated = false
+  try {
+    const destDir = join(dir, CONTEXT_SUBDIR)
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || extname(entry.name).toLowerCase() !== '.md') continue
+      const src = join(dir, entry.name)
+      const dest = join(destDir, entry.name)
+      try {
+        if (existsSync(dest)) continue
+        mkdirSync(destDir, { recursive: true })
+        renameSync(src, dest)
+        migrated = true
+      } catch { /* un archivo suelto no debe tumbar el discover */ }
+    }
+  } catch {
+    return { migrated: false }
+  }
+  return { migrated }
+}
+
 /** Descubre Markdown con metadata de kinds controlados por el host. */
 export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
   try {
@@ -816,8 +859,9 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
     if (!existsSync(dir)) return { ok: true, contexts: [] }
 
     const legacyResults = migrateLegacyAgentResults(cwd)
+    const looseMigration = migrateLooseContextFiles(cwd)
     const idRemap: Record<string, string> = { ...legacyResults.idRemap }
-    let contextsMigrated = legacyResults.migrated
+    let contextsMigrated = legacyResults.migrated || looseMigration.migrated
 
     const contexts: TabContext[] = []
     const seenIds = new Set<string>()
@@ -905,6 +949,18 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
       contexts.push(diskContext)
     }
 
+    const contextDir = join(dir, CONTEXT_SUBDIR)
+    if (existsSync(contextDir) && statSync(contextDir).isDirectory()) {
+      for (const entry of readdirSync(contextDir, { withFileTypes: true })
+        .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        ingestFile(
+          join(contextDir, entry.name),
+          `${CONTEXT_SUBDIR}/${normalizeContextFileName(entry.name)}`,
+        )
+      }
+    }
+
     for (const entry of readdirSync(dir, { withFileTypes: true })
       .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
       .sort((a, b) => a.name.localeCompare(b.name))) {
@@ -912,12 +968,17 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
     }
 
     // La wiki se descubre por presencia en disco (no es creatable): el mirror
-    // `.gravity/wiki.md` lo escribe la materialización normal.
+    // `.gravity/context/wiki.md` lo escribe la materialización normal.
     if (hasWiki(base)) {
       const wikiId = 'iaterminal:wiki'
       if (!seenIds.has(wikiId)) {
         seenIds.add(wikiId)
-        contexts.push({ id: wikiId, name: 'Wiki', fileName: 'wiki.md', kind: 'wiki' })
+        contexts.push({
+          id: wikiId,
+          name: 'Wiki',
+          fileName: `${CONTEXT_SUBDIR}/wiki.md`,
+          kind: 'wiki',
+        })
       }
     }
 
@@ -993,10 +1054,15 @@ export function deleteTabContext(
 ): { ok: boolean; error?: string } {
   try {
     const normalized = applyCanonicalContextIdentity(context)
+    const dir = projectDirPath(cwd)
     const candidates = new Set<string>([contextFilePath(normalized, cwd)])
     const diskName = (context.fileName ?? '').trim()
     if (diskName) {
       candidates.add(contextFilePath({ ...normalized, fileName: diskName }, cwd))
+    }
+    if (normalized.kind !== 'agentResult' && normalized.kind !== 'jira') {
+      const stem = contextFileStem(diskName || normalized.fileName) || normalized.name
+      candidates.add(join(dir, normalizeContextFileName(stem, normalized.id)))
     }
     for (const filePath of candidates) {
       if (existsSync(filePath)) unlinkSync(filePath)
@@ -1057,7 +1123,7 @@ export function reconcileNotesWithAuto(auto: string, notes: string): string {
  */
 function skillSourcePath(context: TabContext, root: string): string {
   const stem = context.id.replace(/^iaterminal:skill:/, '')
-    || context.fileName.replace(/\.md$/i, '')
+    || contextFileStem(context.fileName)
   return projectDirPath(root, 'skills', stem, 'SKILL.md')
 }
 
@@ -1149,12 +1215,18 @@ export function materializeTabContext(
       const previousName = (options.previousFileName ?? '').trim()
         || (
           (context.fileName ?? '').trim()
-          && normalizeContextFileName(context.fileName, 'changelog') !== normalized.fileName
+          && normalizeContextFileName(
+            contextFileStem(context.fileName) || context.fileName,
+            'changelog',
+          ) !== normalizeContextFileName(
+            contextFileStem(normalized.fileName) || normalized.fileName,
+            'changelog',
+          )
             ? context.fileName.trim()
             : ''
         )
       const previousFilePath = previousName
-        ? projectDirPath(cwd, normalizeContextFileName(previousName, 'changelog'))
+        ? contextFilePath({ ...normalized, fileName: previousName }, cwd)
         : ''
       const entriesSource = previousFilePath && existsSync(previousFilePath)
         ? previousFilePath
@@ -1306,19 +1378,25 @@ export function materializeTabContext(
       if (conflict) {
         return { ok: false, content: '', error: conflict }
       }
-      mkdirSync(projectDirPath(cwd), { recursive: true })
+      mkdirSync(projectDirPath(cwd, CONTEXT_SUBDIR), { recursive: true })
       writeTextIfChanged(filePath, content)
       const previousName = (options.previousFileName ?? '').trim()
         || (
           (context.fileName ?? '').trim()
-          && normalizeContextFileName(context.fileName, contextToWrite.id) !== contextToWrite.fileName
+          && normalizeContextFileName(
+            contextFileStem(context.fileName) || context.fileName,
+            contextToWrite.id,
+          ) !== normalizeContextFileName(
+            contextFileStem(contextToWrite.fileName) || contextToWrite.fileName,
+            contextToWrite.id,
+          )
             ? context.fileName.trim()
             : ''
         )
       if (previousName) {
-        const previousFilePath = projectDirPath(
+        const previousFilePath = contextFilePath(
+          { ...contextToWrite, fileName: previousName },
           cwd,
-          normalizeContextFileName(previousName, contextToWrite.id),
         )
         removeSupersededContextFile(
           previousFilePath,
@@ -1524,7 +1602,7 @@ export function buildContextSectionCatalog(
     id: context.id,
     name: context.name,
     kind: context.kind,
-    file: `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
+    file: displayContextRelFile(context, cwd),
     sections: sections.map(({ key, label, chars }) => ({ key, label, chars })),
   }))
 }
@@ -1866,7 +1944,7 @@ export function buildContextPromptDelivery(
       id: context.id,
       name: context.name,
       kind: context.kind,
-      file: `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`,
+      file: displayContextRelFile(context, cwd),
       sections: sections.map(({ key, label, chars }) => ({ key, label, chars })),
     }))
     const compact = compactSectionCatalog(catalog)
@@ -2172,7 +2250,7 @@ export function buildAssignedContexts(
   const sections = contexts.map(context => {
     const result = materializeTabContext(context, cwd, { write: true })
     const body = result.ok ? result.content : `(error: ${result.error})`
-    const relFile = `${projectDirName(cwd)}/${normalizeContextFileName(context.fileName || context.name, context.id)}`
+    const relFile = displayContextRelFile(context, cwd)
     return `### ${context.name} [${context.kind}]\nid: ${context.id}\nfile: ${relFile}\n\n${body}`
   })
   let out = '## Assigned tab contexts\n'

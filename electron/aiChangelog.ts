@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
-import { extname, join, resolve } from 'path'
-import { normalizeContextFileName } from '../src/shared/tabContext'
+import { dirname, extname, join } from 'path'
+import { CONTEXT_SUBDIR, contextFileStem, normalizeContextFileName } from '../src/shared/tabContext'
 import { projectDirPath } from './projectDir'
 
 export const DEFAULT_CHANGELOG_FILE = 'changelog.md'
@@ -77,26 +77,35 @@ export function resolveAiChangelogPath(
   preferredFileName?: string,
 ): string {
   const directory = projectDirPath(cwd)
+  const contextDir = join(directory, CONTEXT_SUBDIR)
   if (preferredFileName?.trim()) {
-    return join(directory, normalizeContextFileName(preferredFileName, 'changelog'))
+    const rel = preferredFileName.trim().replace(/\\/g, '/')
+    const base = normalizeContextFileName(contextFileStem(preferredFileName), 'changelog')
+    if (/^context\//i.test(rel)) return join(contextDir, base)
+    const inContext = join(contextDir, base)
+    const inRoot = join(directory, base)
+    if (existsSync(inContext)) return inContext
+    if (existsSync(inRoot)) return inRoot
+    return inContext
   }
-  try {
-    if (existsSync(directory)) {
-      for (const entry of readdirSync(directory, { withFileTypes: true })
+  for (const folder of [contextDir, directory]) {
+    try {
+      if (!existsSync(folder)) continue
+      for (const entry of readdirSync(folder, { withFileTypes: true })
         .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
         .sort((a, b) => a.name.localeCompare(b.name))) {
-        const raw = readFileSync(join(directory, entry.name), 'utf8')
+        const raw = readFileSync(join(folder, entry.name), 'utf8')
         const meta = raw.match(CONTEXT_META_LINE_RE)?.[1]
         if (meta) {
           try {
             const value = JSON.parse(meta) as Record<string, unknown>
-            if (value.kind === 'changelog') return join(directory, entry.name)
+            if (value.kind === 'changelog') return join(folder, entry.name)
           } catch { /* ignore */ }
         }
       }
-    }
-  } catch { /* ignore */ }
-  return join(directory, DEFAULT_CHANGELOG_FILE)
+    } catch { /* ignore */ }
+  }
+  return join(contextDir, DEFAULT_CHANGELOG_FILE)
 }
 
 function parseEntries(raw: string): AiChangelogEntry[] {
@@ -157,7 +166,7 @@ export function ensureAiChangelog(
   options: { name?: string; fileName?: string; metadataLine?: string } = {},
 ): string {
   const filePath = resolveAiChangelogPath(cwd, options.fileName)
-  mkdirSync(projectDirPath(cwd), { recursive: true })
+  mkdirSync(dirname(filePath), { recursive: true })
   if (!existsSync(filePath)) {
     try {
       writeFileSync(
@@ -184,15 +193,15 @@ export function writeAiChangelogDocument(
     entries?: AiChangelogEntry[]
   },
 ): string {
-  const directory = projectDirPath(cwd)
   const filePath = resolveAiChangelogPath(cwd, options.fileName)
-  const temporaryPath = join(directory, `.${normalizeContextFileName(options.fileName || DEFAULT_CHANGELOG_FILE)}.tmp`)
+  const destDir = dirname(filePath)
+  const temporaryPath = join(destDir, `.${normalizeContextFileName(contextFileStem(options.fileName) || DEFAULT_CHANGELOG_FILE)}.tmp`)
   const content = formatAiChangelogDocument({
     name: options.name,
     metadataLine: options.metadataLine,
     entries: options.entries ?? readAiChangelog(cwd, options.fileName),
   })
-  mkdirSync(directory, { recursive: true })
+  mkdirSync(destDir, { recursive: true })
   writeFileSync(temporaryPath, content, 'utf8')
   renameSync(temporaryPath, filePath)
   return filePath

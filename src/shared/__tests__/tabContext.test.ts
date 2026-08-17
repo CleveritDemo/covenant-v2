@@ -3,7 +3,9 @@ import {
   applyCanonicalContextIdentity,
   canonicalContextFileName,
   canonicalContextId,
+  CONTEXT_SUBDIR,
   contextDefinitionKey,
+  contextFileStem,
   defaultAssignedContextIds,
   extractTabContextUpdates,
   filterTabContextUpdatesByChangedPaths,
@@ -37,8 +39,35 @@ describe('canonical context identity', () => {
     expect(canonicalContextFileName('agentResult', { agentId: 'fullstack' })).toBe(
       'results/fullstack.md',
     )
-    expect(canonicalContextFileName('folderTree')).toBe('folders.md')
-    expect(canonicalContextFileName('deps', { name: 'Runtime deps' })).toBe('Runtime-deps.md')
+    expect(canonicalContextFileName('folderTree')).toBe(`${CONTEXT_SUBDIR}/folders.md`)
+    expect(canonicalContextFileName('deps', { name: 'Runtime deps' })).toBe(`${CONTEXT_SUBDIR}/Runtime-deps.md`)
+  })
+
+  it('strips context/ results/ jira/ prefixes from the identity stem', () => {
+    expect(contextFileStem('context/front-rules.md')).toBe('front-rules')
+    expect(contextFileStem('CONTEXT\\Front-Rules.MD')).toBe('Front-Rules')
+    expect(contextFileStem('results/fullstack.md')).toBe('fullstack')
+    expect(contextFileStem('jira/GRAV-412.md')).toBe('GRAV-412')
+    expect(contextFileStem('front-rules.md')).toBe('front-rules')
+    expect(contextFileStem(null)).toBe('')
+  })
+
+  it('keeps the same id when a notes file moves under context/', () => {
+    const loose = applyCanonicalContextIdentity({
+      id: 'x',
+      name: '',
+      fileName: 'front-rules.md',
+      kind: 'notes',
+    })
+    const nested = applyCanonicalContextIdentity({
+      id: 'x',
+      name: '',
+      fileName: 'context/front-rules.md',
+      kind: 'notes',
+    })
+    expect(nested.id).toBe(loose.id)
+    expect(nested.id).toBe('iaterminal:notes:front-rules')
+    expect(nested.fileName).toBe('context/front-rules.md')
   })
 
   it('synthesizes tab contexts from assigned ids before discover catches up', () => {
@@ -100,7 +129,7 @@ describe('canonical context identity', () => {
       kind: 'deps',
     })
     expect(applied.id).toBe('iaterminal:deps:Runtime-deps')
-    expect(applied.fileName).toBe('Runtime-deps.md')
+    expect(applied.fileName).toBe('context/Runtime-deps.md')
     expect(isCanonicalContextId({
       id: 'iaterminal:deps',
       kind: 'deps',

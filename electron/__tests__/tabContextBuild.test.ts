@@ -187,7 +187,7 @@ describe('tab context builders', () => {
     expect(result.contexts).toEqual([{
       id: 'iaterminal:notes:Legacy',
       name: 'Legacy',
-      fileName: 'legacy-notes.md',
+      fileName: 'context/legacy-notes.md',
       kind: 'notes',
     }])
   })
@@ -201,7 +201,7 @@ describe('tab context builders', () => {
     expect(context).toEqual({
       id: 'iaterminal:changelog:AI-Changelog',
       name: 'AI Changelog',
-      fileName: 'changelog.md',
+      fileName: 'context/changelog.md',
       kind: 'changelog',
     })
     expect(materializeTabContext(context, cwd, { write: true }).content)
@@ -209,6 +209,8 @@ describe('tab context builders', () => {
     expect(deleteTabContext(context, cwd).ok).toBe(true)
     expect(existsSync(join(cwd, PROJECT_DIR, 'changelog.md'))).toBe(false)
     expect(existsSync(join(cwd, PROJECT_DIR, 'AI-Changelog.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'changelog.md'))).toBe(false)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'AI-Changelog.md'))).toBe(false)
   })
 
   it('creates the changelog only when its context is explicitly saved', () => {
@@ -380,7 +382,7 @@ describe('tab context builders', () => {
       readFileSync(join(cwd, PROJECT_DIR, 'agents', 'qa.json'), 'utf8'),
     ) as { contextIds: string[] }
     expect(agent.contextIds).toEqual(['iaterminal:folderTree:folders', 'iaterminal:deps:Dependencies'])
-    expect(readFileSync(join(cwd, PROJECT_DIR, 'folders.md'), 'utf8')).not.toContain('legacyIds')
+    expect(readFileSync(join(cwd, PROJECT_DIR, 'context', 'folders.md'), 'utf8')).not.toContain('legacyIds')
   })
 
   it('prunes orphan results and agent contextIds not in discover catalog', () => {
@@ -425,7 +427,7 @@ describe('tab context builders', () => {
     expect(result.ok).toBe(true)
     expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'designer.md'))).toBe(false)
     expect(existsSync(join(cwd, PROJECT_DIR, 'results', 'qa.md'))).toBe(true)
-    expect(readFileSync(join(cwd, PROJECT_DIR, 'folders.md'), 'utf8')).not.toContain('legacyIds')
+    expect(readFileSync(join(cwd, PROJECT_DIR, 'context', 'folders.md'), 'utf8')).not.toContain('legacyIds')
     const agent = JSON.parse(
       readFileSync(join(cwd, PROJECT_DIR, 'agents', 'qa.json'), 'utf8'),
     ) as { contextIds?: string[] }
@@ -586,8 +588,8 @@ describe('tab context builders', () => {
     expect(first.ok).toBe(true)
     expect(second.ok).toBe(true)
     expect(first.filePath).not.toBe(second.filePath)
-    expect(existsSync(join(cwd, PROJECT_DIR, 'folders.md'))).toBe(true)
-    expect(existsSync(join(cwd, PROJECT_DIR, 'Other-label.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'folders.md'))).toBe(true)
+    expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'Other-label.md'))).toBe(true)
     expect(discoverTabContexts(cwd).contexts.filter(item => item.kind === 'folderTree')).toHaveLength(2)
   })
 
@@ -772,7 +774,7 @@ export class App {
       /<!-- iaterminal:auto -->([\s\S]*?)<!-- \/iaterminal:auto -->/,
     )?.[1].trim() ?? ''
     const duplicated = initial.content.replace('(no annotations yet)', auto)
-    writeFileSync(join(cwd, PROJECT_DIR, 'tree.md'), duplicated, 'utf8')
+    writeFileSync(join(cwd, PROJECT_DIR, 'context', 'tree.md'), duplicated, 'utf8')
 
     const refreshed = materializeTabContext(context, cwd, { write: true })
 
@@ -1247,9 +1249,9 @@ export class Widget {
       fileName: 'About.md',
       kind: 'notes' as const,
     }
-    const aboutPath = join(cwd, PROJECT_DIR, 'About.md')
+    const aboutPath = join(cwd, PROJECT_DIR, 'context', 'About.md')
     // Stub vacío previo (o ausente): no debe crecer/actualizarse con el body org.
-    mkdirSync(join(cwd, PROJECT_DIR), { recursive: true })
+    mkdirSync(join(cwd, PROJECT_DIR, 'context'), { recursive: true })
     writeFileSync(aboutPath, '# stub\n', 'utf8')
     const before = readFileSync(aboutPath, 'utf8')
 
@@ -1275,7 +1277,7 @@ export class Widget {
       fileName: 'About.md',
       kind: 'notes' as const,
     }
-    const aboutPath = join(cwd, PROJECT_DIR, 'About.md')
+    const aboutPath = join(cwd, PROJECT_DIR, 'context', 'About.md')
     clearTabContextMaterializationCache(cwd)
     const delivery = buildContextPromptDelivery([notes], cwd, {
       forceFullRefresh: true,
@@ -1580,8 +1582,7 @@ export class Widget {
     mkdirSync(join(cwd, PROJECT_DIR, 'skills', 'afp-zero'), { recursive: true })
     writeFileSync(join(cwd, PROJECT_DIR, 'skills', 'afp-zero', 'SKILL.md'), '## Uno\ncuerpo')
 
-    // discoverTabContexts escanea `.gravity/*.md`, no subcarpetas: instalar una
-    // skill no la asigna a nadie. Solo contextIds lo hace.
+    // discoverTabContexts no lista skills/: instalar una skill no la asigna.
     const found = discoverTabContexts(cwd)
     expect(found.contexts.some(context => context.kind === 'skill')).toBe(false)
   })
@@ -1590,7 +1591,7 @@ export class Widget {
     const wikiContext: TabContext = {
       id: 'iaterminal:wiki',
       name: 'Wiki',
-      fileName: 'wiki.md',
+      fileName: 'context/wiki.md',
       kind: 'wiki',
     }
 
@@ -1649,7 +1650,7 @@ export class Widget {
       expect(result.content).toContain('Cuerpo de auth.')
       expect(result.content).toContain('## Log')
       expect(result.content).toContain('seeded')
-      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(true)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'wiki.md'))).toBe(true)
       expect(sectionsForContext(wikiContext, result).map(section => section.key))
         .toEqual(['index', 'auth', 'log'])
     })
@@ -1837,12 +1838,12 @@ export class Widget {
       const cwd = tempCwd()
       seedWiki(cwd)
       materializeTabContext(wikiContext, cwd, { write: true })
-      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(true)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'wiki.md'))).toBe(true)
 
       const deleted = deleteTabContext(wikiContext, cwd)
 
       expect(deleted.ok).toBe(true)
-      expect(existsSync(join(cwd, PROJECT_DIR, 'wiki.md'))).toBe(false)
+      expect(existsSync(join(cwd, PROJECT_DIR, 'context', 'wiki.md'))).toBe(false)
       expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'index.md'))).toBe(true)
       expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'log.md'))).toBe(true)
       expect(existsSync(join(cwd, PROJECT_DIR, 'wiki', 'pages', 'auth.md'))).toBe(true)

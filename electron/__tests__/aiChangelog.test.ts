@@ -55,7 +55,7 @@ describe('AI changelog', () => {
     expect(entries[0].path).toBe('src/largo.ts')
     expect(entries[1].description).toBe('Cambio más reciente')
     expect(entries.at(-1)?.description).toBe('Anterior 6')
-    expect(readFileSync(join(cwd, PROJECT_DIR, 'changelog.md'), 'utf8'))
+    expect(readFileSync(join(cwd, PROJECT_DIR, 'context', 'changelog.md'), 'utf8'))
       .toContain('# AI Changelog')
   })
 

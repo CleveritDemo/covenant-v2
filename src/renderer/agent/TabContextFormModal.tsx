@@ -5,7 +5,9 @@ import {
   canonicalContextFileName,
   canonicalContextId,
   canonicalContextName,
+  CONTEXT_SUBDIR,
   contextDefinitionKey,
+  contextFileStem,
   CREATABLE_CONTEXT_KINDS,
   normalizeContextFileName,
 } from '@shared/tabContext'
@@ -289,14 +291,17 @@ export const TabContextFormModal: React.FC<Props> = ({
     const excludeId = editExcludeId()
     const others = contexts.filter(item => item.id !== excludeId)
     const fileName = normalizeContextFileName(
-      draft.name || draft.fileName,
+      contextFileStem(draft.name || draft.fileName) || draft.name || draft.fileName,
       draft.kind === 'changelog' ? 'changelog' : 'context',
     )
     if (others.some(item => comparable(item.name ?? '') === comparable(draft.name ?? ''))) {
       return t('tabContexts.nameDuplicate')
     }
     if (others.some(item =>
-      normalizeContextFileName(item.fileName || item.name, item.id).toLowerCase() === fileName.toLowerCase()
+      normalizeContextFileName(
+        contextFileStem(item.fileName || item.name) || item.name,
+        item.id,
+      ).toLowerCase() === fileName.toLowerCase()
     )) {
       return t('tabContexts.fileNameDuplicate')
     }
@@ -324,14 +329,17 @@ export const TabContextFormModal: React.FC<Props> = ({
       : current.id
     const others = contextsRef.current.filter(item => item.id !== excludeId)
     const fileName = normalizeContextFileName(
-      current.name || current.fileName,
+      contextFileStem(current.name || current.fileName) || current.name || current.fileName,
       current.kind === 'changelog' ? 'changelog' : 'context',
     )
     if (others.some(item => comparable(item.name ?? '') === comparable(current.name ?? ''))) {
       return t('tabContexts.nameDuplicate')
     }
     if (others.some(item =>
-      normalizeContextFileName(item.fileName || item.name, item.id).toLowerCase() === fileName.toLowerCase()
+      normalizeContextFileName(
+        contextFileStem(item.fileName || item.name) || item.name,
+        item.id,
+      ).toLowerCase() === fileName.toLowerCase()
     )) {
       return t('tabContexts.fileNameDuplicate')
     }
@@ -473,7 +481,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       setPreview({
         status: 'success',
         content: result.content,
-        filePath: result.filePath ?? `${PROJECT_DIR}/${normalizeContextFileName(draft.fileName || draft.name, draft.id)}`,
+        filePath: result.filePath ?? `${PROJECT_DIR}/${CONTEXT_SUBDIR}/${normalizeContextFileName(contextFileStem(draft.fileName || draft.name) || draft.name, draft.id)}`,
       })
     } catch (error) {
       if (stale()) return

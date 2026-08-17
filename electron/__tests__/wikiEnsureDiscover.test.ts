@@ -28,6 +28,6 @@ describe('ensure wiki then discover', () => {
     const after = discoverTabContexts(cwd)
     expect(after.ok).toBe(true)
     const wiki = after.contexts.find(context => context.kind === 'wiki')
-    expect(wiki).toMatchObject({ id: 'iaterminal:wiki', name: 'Wiki', fileName: 'wiki.md' })
+    expect(wiki).toMatchObject({ id: 'iaterminal:wiki', name: 'Wiki', fileName: 'context/wiki.md' })
   })
 })

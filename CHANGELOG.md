@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.77.0
+
+- **Grok ya es uno de los agentes disponibles**: aparece en la ventana de agente nuevo y en Ajustes junto a los demás CLIs. Necesita el comando `grok` instalado; en modo Plan todavía puede escribir, porque su CLI no ofrece un modo de solo lectura.
+- **El botón «poner en terminal» de los bloques de código ya funciona**: al pulsarlo el comando entra en la terminal de la pestaña sin ejecutarse, listo para que lo revises y pulses Enter. Si la pestaña no tenía terminal abierta, se abre una.
+- **El explorador ya no saca archivos de su carpeta por un roce del ratón**: soltar sobre el propio archivo, sobre uno vecino o sobre la carpeta que ya lo contiene no mueve nada, y los arrastres de menos de 12 píxeles se ignoran.
+
 ## v0.76.0
 
 - **Publicar un workspace personal en una organización**: hay un botón nuevo en la barra del plano cuando la pestaña tiene carpeta y aún no pertenece a una org. Eliges organización, nombre y qué repos se registran; la carpeta local se queda donde está.

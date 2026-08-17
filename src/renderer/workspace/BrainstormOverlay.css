@@ -200,9 +200,7 @@
   50% { opacity: 1; transform: scale(1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brainstorm-overlay__chip-dot { animation: none; opacity: 0.9; }
-}
+:root[data-reduce-motion='true'] .brainstorm-overlay__chip-dot { animation: none; opacity: 0.9; }
 
 /*
  * Columnas de minis: izquierda las cosas de la sala, derecha las personas —
@@ -465,9 +463,7 @@
 }
 
 @keyframes brainstorm-seat-blink { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .brainstorm-seat__caret { animation: none; }
-}
+:root[data-reduce-motion='true'] .brainstorm-seat__caret { animation: none; }
 
 /*
  * Niveles: cuántas líneas se permite la cola del turno según la ranura. La

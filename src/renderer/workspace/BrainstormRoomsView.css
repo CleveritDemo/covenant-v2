@@ -277,9 +277,7 @@
   50% { opacity: 1; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brainstorm-rooms__row--run .brainstorm-rooms__dot { animation: none; }
-}
+:root[data-reduce-motion='true'] .brainstorm-rooms__row--run .brainstorm-rooms__dot { animation: none; }
 
 /* El texto no intercepta el clic: la fila entera es el gesto de abrir. */
 .brainstorm-rooms__main {
@@ -379,9 +377,7 @@
   opacity: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brainstorm-rooms__actions { transition: none; }
-}
+:root[data-reduce-motion='true'] .brainstorm-rooms__actions { transition: none; }
 
 .brainstorm-rooms__empty {
   display: flex;

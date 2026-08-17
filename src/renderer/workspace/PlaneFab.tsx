@@ -13,7 +13,7 @@ export interface PlaneFabProps {
 }
 
 const FAB_ICONS: Record<PlaneFabKind, IconName> = {
-  agent: 'sparkles',
+  agent: 'bot',
   terminal: 'terminal',
   bootstrap: 'users',
 }

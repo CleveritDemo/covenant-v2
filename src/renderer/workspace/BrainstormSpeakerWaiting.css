@@ -93,9 +93,7 @@
   60% { box-shadow: 0 0 0 5px transparent; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brainstorm-wait__step--now .brainstorm-wait__dot { animation: none; }
-}
+:root[data-reduce-motion='true'] .brainstorm-wait__step--now .brainstorm-wait__dot { animation: none; }
 
 .brainstorm-wait__detail {
   display: block;

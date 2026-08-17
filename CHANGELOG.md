@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.78.1
+
+- **Las etiquetas al pasar el ratón ya no se quedan pegadas**: al cambiar de aplicación o de ventana desaparecen solas, sin necesidad de volver y hacer clic.
+- **Más botones te dicen qué hacen**: los de la barra de la terminal (git, explorador, carpeta y cerrar), la × de las pestañas, el botón para editar un mensaje en cola y los iconos de contexto ahora muestran su etiqueta al pasar por encima.
+- **La burbuja de ayuda se ve más sobria** y aparece bien colocada también en el play de la barra de título, donde antes no salía.
+
 ## v0.78.0
 
 - **El fondo del plano sigue al ratón sin trabar la interfaz**: el parallax mueve la grilla con un desplazamiento ligero; la esfera ya no se redibuja en cada movimiento del mouse.

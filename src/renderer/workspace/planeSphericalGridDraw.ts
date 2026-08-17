@@ -19,7 +19,7 @@ export type SphereGridPoint = {
 /** FOV horizontal de la esfera WebGL y del fallback 2D (grados). */
 export const PLANE_GRID_HORIZONTAL_FOV_DEG = 110
 /** Tamaño de celda en pantalla (px); densidad 3D/2D y CSS plana elevada. */
-export const PLANE_GRID_CELL_SIZE_PX = Number((68 / 1.2).toFixed(3))
+export const PLANE_GRID_CELL_SIZE_PX = Number((68 / 1.6).toFixed(3))
 /** Paso angular mínimo compartido entre WebGL y canvas 2D. */
 export const PLANE_GRID_MIN_ANGULAR_STEP = 0.035
 

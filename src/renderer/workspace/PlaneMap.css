@@ -67,24 +67,10 @@
   background-size: var(--plane-grid-size) var(--plane-grid-size);
 }
 
-/* WebGL 3D: interior de esfera; opacidad solo en el material WebGL.
-   Con ventana expandida el canvas se oculta, así que la opacidad vuelve al contenedor. */
-.plane-map:not(.plane-map--terminal-open) .plane-map__grid--spherical.plane-map__grid--canvas-ready {
+/* WebGL/esfera 2D: opacidad solo en el canvas; el contenedor no duplica la rejilla CSS. */
+.plane-map__grid--spherical.plane-map__grid--canvas-ready {
   background-image: none;
   opacity: 1;
-}
-
-/* Plana: solo con ventana expandida, donde no hay canvas.
-   Con reduce-motion la esfera se pinta estática en canvas 2D. */
-.plane-map--terminal-open .plane-map__grid--spherical {
-  background-image:
-    linear-gradient(var(--plane-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--plane-grid-line) 1px, transparent 1px);
-  background-size: var(--plane-grid-size) var(--plane-grid-size);
-}
-
-.plane-map--terminal-open .plane-map__grid-canvas {
-  display: none;
 }
 
 .plane-map__empty {

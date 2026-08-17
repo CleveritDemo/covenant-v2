@@ -71,7 +71,11 @@ export function sphereInteriorPoint(
   ]
 }
 
-/** Resplandor simétrico hacia el hemisferio frontal (+Z) desde el centro. */
+/**
+ * Resplandor hacia la dirección de la cámara (+Z mundo desde el centro).
+ * En WebGL se evalúa en el vertex shader con `modelMatrix` para que el brillo
+ * quede fijo en el FOV aunque la rejilla gire.
+ */
 export function interiorSphereLineWarmth(
   x: number,
   y: number,
@@ -82,6 +86,29 @@ export function interiorSphereLineWarmth(
   const forward = Math.max(0, z * inv)
   return forward ** 1.15 * warmthMax
 }
+
+const SPHERE_GRID_VERTEX_SHADER = `
+  uniform vec3 lineColor;
+  uniform vec3 accentColor;
+  uniform float warmthMax;
+  varying vec3 vColor;
+  void main() {
+    vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+    float invLen = inversesqrt(dot(worldPos, worldPos));
+    float forward = max(0.0, worldPos.z * invLen);
+    float warmth = pow(forward, 1.15) * warmthMax;
+    vColor = mix(lineColor, accentColor, warmth);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const SPHERE_GRID_FRAGMENT_SHADER = `
+  uniform float opacity;
+  varying vec3 vColor;
+  void main() {
+    gl_FragColor = vec4(vColor, opacity);
+  }
+`
 
 export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): SpacetimeGridConfig {
   const style = getComputedStyle(el)
@@ -132,7 +159,6 @@ function syncSphereCamera(camera: THREE.PerspectiveCamera, width: number, height
 
 type SegmentWriter = {
   positions: number[]
-  colors: number[]
 }
 
 function writeSegment(
@@ -143,32 +169,19 @@ function writeSegment(
   x2: number,
   y2: number,
   z2: number,
-  lineColor: THREE.Color,
-  accentColor: THREE.Color,
-  warmthMax: number,
 ): void {
-  const mix = new THREE.Color()
-  const w1 = interiorSphereLineWarmth(x1, y1, z1, warmthMax)
-  const w2 = interiorSphereLineWarmth(x2, y2, z2, warmthMax)
-  mix.copy(lineColor).lerp(accentColor, w1)
   writer.positions.push(x1, y1, z1, x2, y2, z2)
-  writer.colors.push(mix.r, mix.g, mix.b)
-  mix.copy(lineColor).lerp(accentColor, w2)
-  writer.colors.push(mix.r, mix.g, mix.b)
 }
 
 function buildInteriorSphereGrid(
   width: number,
   height: number,
   cellSize: number,
-  lineColor: THREE.Color,
-  accentColor: THREE.Color,
-  warmthMax: number,
-): { positions: Float32Array; colors: Float32Array; vertexCount: number } {
+): { positions: Float32Array; vertexCount: number } {
   const aspect = width / Math.max(height, 1)
   const verticalFovDeg = verticalFovForAspect(aspect)
   const { stepLat, stepLon } = angularStepsForAspect(cellSize, height, verticalFovDeg)
-  const writer: SegmentWriter = { positions: [], colors: [] }
+  const writer: SegmentWriter = { positions: [] }
   const curveSegments = 80
   const latMax = Math.PI / 2 - POLE_EPSILON
 
@@ -178,7 +191,7 @@ function buildInteriorSphereGrid(
       const u = -latMax + (2 * latMax * i) / curveSegments
       const point = sphereInteriorPoint(u, v, SPHERE_RADIUS)
       if (prev) {
-        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax)
+        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2])
       }
       prev = point
     }
@@ -191,7 +204,7 @@ function buildInteriorSphereGrid(
       const v = (-Math.PI + (2 * Math.PI * i) / curveSegments)
       const point = sphereInteriorPoint(u, v, SPHERE_RADIUS)
       if (prev) {
-        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2], lineColor, accentColor, warmthMax)
+        writeSegment(writer, prev[0], prev[1], prev[2], point[0], point[1], point[2])
       }
       prev = point
     }
@@ -207,7 +220,6 @@ function buildInteriorSphereGrid(
   const vertexCount = writer.positions.length / 3
   return {
     positions: new Float32Array(writer.positions),
-    colors: new Float32Array(writer.colors),
     vertexCount,
   }
 }
@@ -216,16 +228,12 @@ function replaceGridGeometry(
   grid: THREE.LineSegments,
   width: number,
   height: number,
-  lineColor: THREE.Color,
-  accentColor: THREE.Color,
   cellSize: number,
-  warmthMax: number,
 ): number {
-  const built = buildInteriorSphereGrid(width, height, cellSize, lineColor, accentColor, warmthMax)
+  const built = buildInteriorSphereGrid(width, height, cellSize)
   grid.geometry.dispose()
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(built.positions, 3))
-  geometry.setAttribute('color', new THREE.BufferAttribute(built.colors, 3))
   grid.geometry = geometry
   return built.vertexCount
 }
@@ -259,36 +267,25 @@ export function mountPlaneSpacetimeGrid(
   const material = new THREE.ShaderMaterial({
     uniforms: {
       opacity: { value: sphereMaterialOpacity(activeConfig.opacity) },
+      lineColor: { value: activeConfig.lineColor.clone() },
+      accentColor: { value: accentColor.clone() },
+      warmthMax: { value: activeConfig.warmth },
     },
-    vertexShader: `
-      attribute vec3 color;
-      varying vec3 vColor;
-      void main() {
-        vColor = color;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float opacity;
-      varying vec3 vColor;
-      void main() {
-        gl_FragColor = vec4(vColor, opacity);
-      }
-    `,
+    vertexShader: SPHERE_GRID_VERTEX_SHADER,
+    fragmentShader: SPHERE_GRID_FRAGMENT_SHADER,
     transparent: true,
     depthWrite: false,
   })
 
+  const syncGridMaterialColors = (config: SpacetimeGridConfig): void => {
+    material.uniforms.lineColor!.value.copy(config.lineColor)
+    material.uniforms.accentColor!.value.copy(accentColor)
+    material.uniforms.warmthMax!.value = config.warmth
+    material.uniforms.opacity!.value = sphereMaterialOpacity(config.opacity)
+  }
+
   const grid = new THREE.LineSegments(new THREE.BufferGeometry(), material)
-  replaceGridGeometry(
-    grid,
-    width,
-    height,
-    activeConfig.lineColor,
-    accentColor,
-    activeConfig.cellSize,
-    activeConfig.warmth,
-  )
+  replaceGridGeometry(grid, width, height, activeConfig.cellSize)
   scene.add(grid)
 
   const rotationQuat = new THREE.Quaternion()
@@ -311,30 +308,14 @@ export function mountPlaneSpacetimeGrid(
       if (nextWidth !== layoutWidth || nextHeight !== layoutHeight) {
         layoutWidth = nextWidth
         layoutHeight = nextHeight
-        replaceGridGeometry(
-          grid,
-          nextWidth,
-          nextHeight,
-          activeConfig.lineColor,
-          accentColor,
-          activeConfig.cellSize,
-          activeConfig.warmth,
-        )
+        replaceGridGeometry(grid, nextWidth, nextHeight, activeConfig.cellSize)
       }
     },
     updateConfig(next: SpacetimeGridConfig): void {
       activeConfig = next
       accentColor.set(resolveCssColor(document.documentElement, '--accent', '#d4a84b'))
-      material.uniforms.opacity!.value = sphereMaterialOpacity(next.opacity)
-      replaceGridGeometry(
-        grid,
-        layoutWidth,
-        layoutHeight,
-        next.lineColor,
-        accentColor,
-        next.cellSize,
-        next.warmth,
-      )
+      syncGridMaterialColors(next)
+      replaceGridGeometry(grid, layoutWidth, layoutHeight, next.cellSize)
     },
     render,
     dispose(): void {

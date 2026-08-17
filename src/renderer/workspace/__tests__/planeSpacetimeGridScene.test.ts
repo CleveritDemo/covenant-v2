@@ -97,4 +97,19 @@ describe('interiorSphereLineWarmth', () => {
     const back = interiorSphereLineWarmth(0, 0, -50)
     expect(front).toBeGreaterThan(back)
   })
+
+  it('sigue +Z mundo tras rotar la geometría en Y (como el vertex shader)', () => {
+    const rotateY = (x: number, y: number, z: number, angle: number): [number, number, number] => {
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      return [x * cos + z * sin, y, -x * sin + z * cos]
+    }
+    const angle = Math.PI / 2
+    const [wx, wy, wz] = rotateY(0, 0, 50, angle)
+    const warmthAfterRotation = interiorSphereLineWarmth(wx, wy, wz)
+    const warmthAtCameraCenter = interiorSphereLineWarmth(0, 0, 50)
+    const [cx, cy, cz] = rotateY(-50, 0, 0, angle)
+    expect(interiorSphereLineWarmth(cx, cy, cz)).toBeCloseTo(warmthAtCameraCenter, 5)
+    expect(warmthAfterRotation).toBeLessThan(warmthAtCameraCenter)
+  })
 })

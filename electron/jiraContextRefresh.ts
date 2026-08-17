@@ -182,7 +182,7 @@ export async function refreshStaleJiraContexts(
       // es indistinguible de una issue sin contenido.
       const issueKey = issueKeyFor(context)
       if (issueKey) failures.set(`${config.site}:${issueKey}`, now)
-      console.warn('[jira] no se pudo refrescar el snapshot:', error)
+      console.warn('[jira] no se pudo refrescar el snapshot de', issueKey, '·', error instanceof Error ? error.message : String(error))
     }
   }
 

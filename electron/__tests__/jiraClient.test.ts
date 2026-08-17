@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearJiraCache, jiraGetIssue, jiraMyself, jiraSearch } from '../jiraClient'
+import { clearJiraCache, JiraApiError, jiraGetIssue, jiraMyself, jiraSearch } from '../jiraClient'
 
 const cred = { site: 'https://x.atlassian.net', email: 'a@b.c', apiToken: 'tok' }
 
@@ -86,6 +86,49 @@ describe('jiraMyself', () => {
   it('una red caída devuelve error, no rechaza la promesa', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ENOTFOUND') }))
     await expect(jiraMyself(cred)).resolves.toMatchObject({ ok: false })
+  })
+})
+
+describe('JiraApiError', () => {
+  const guide403 =
+    'la credencial se aceptó pero el acceso está denegado. Causas típicas: el API token tiene scopes y no cubre este endpoint, la cuenta no tiene acceso al producto Jira en este sitio, o el sitio tiene allowlist de IP.'
+
+  it('un 403 con errorMessages lanza JiraApiError con status, guía y detalle', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        ({
+          ok: false,
+          status: 403,
+          text: async () => '{"errorMessages":["You do not have the permission to see the specified issue."]}',
+          headers: new Headers(),
+        }) as unknown as Response,
+      ),
+    )
+    const err = await jiraSearch(cred, 'key = GRAV-1', 1).catch(e => e)
+    expect(err).toBeInstanceOf(JiraApiError)
+    expect(err.status).toBe(403)
+    expect(err.message).toContain(guide403)
+    expect(err.message).toContain('You do not have the permission to see the specified issue.')
+  })
+
+  it('un 403 con body no-JSON lanza JiraApiError con status 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        ({
+          ok: false,
+          status: 403,
+          text: async () => '<html>forbidden</html>',
+          headers: new Headers(),
+        }) as unknown as Response,
+      ),
+    )
+    const err = await jiraSearch(cred, 'key = GRAV-1', 1).catch(e => e)
+    expect(err).toBeInstanceOf(JiraApiError)
+    expect(err.status).toBe(403)
+    expect(err.message).toContain(guide403)
+    expect(err.message).toContain('<html>forbidden</html>')
   })
 })
 

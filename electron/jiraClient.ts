@@ -8,9 +8,29 @@
  */
 
 import { describeFetchError, httpFetch } from './httpFetch'
+import { describeJiraFailure } from '../src/shared/jiraError'
 import { adfToText } from '../src/shared/jiraIssueDoc'
 import type { JiraComment, JiraIssueRef, JiraIssueSnapshot } from '../src/shared/jiraIssue'
 import type { JiraCredentials } from './jiraConfig'
+
+export class JiraApiError extends Error {
+  readonly status: number
+  readonly detail: string
+  readonly headers: Record<string, string>
+
+  constructor(
+    message: string,
+    status: number,
+    detail: string,
+    headers: Record<string, string>,
+  ) {
+    super(message)
+    this.name = 'JiraApiError'
+    this.status = status
+    this.detail = detail
+    this.headers = headers
+  }
+}
 
 const TIMEOUT_MS = 10_000
 /** Seis agentes con la misma issue en un turno son un GET, no seis. */
@@ -38,7 +58,46 @@ async function getJson(cred: JiraCredentials, path: string): Promise<unknown> {
     headers: authHeaders(cred),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
-  if (!response.ok) throw new Error(`Jira ${response.status}`)
+  if (!response.ok) {
+    let text = ''
+    try {
+      text = await response.text()
+    } catch {
+      text = ''
+    }
+    let detail = ''
+    try {
+      const parsed: unknown = JSON.parse(text)
+      if (parsed && typeof parsed === 'object') {
+        const body = parsed as Record<string, unknown>
+        if (Array.isArray(body.errorMessages) && body.errorMessages.length) {
+          detail = body.errorMessages.join(' · ')
+        } else if (body.message) {
+          detail = String(body.message)
+        } else if (body.error) {
+          detail = String(body.error)
+        }
+      }
+    } catch {
+      detail = text.slice(0, 300)
+    }
+    const headers: Record<string, string> = {}
+    for (const name of [
+      'x-seraph-loginreason',
+      'x-authentication-denied-reason',
+      'www-authenticate',
+      'retry-after',
+    ] as const) {
+      const value = response.headers?.get?.(name)
+      if (value) headers[name] = value
+    }
+    throw new JiraApiError(
+      describeJiraFailure(response.status, detail, headers),
+      response.status,
+      detail,
+      headers,
+    )
+  }
   return response.json()
 }
 

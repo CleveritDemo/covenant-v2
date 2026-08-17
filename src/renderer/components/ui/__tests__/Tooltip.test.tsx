@@ -62,4 +62,41 @@ describe('Tooltip', () => {
     const tip = screen.getByRole('tooltip')
     expect(tip.textContent).toBe('foldersClic para editar')
   })
+
+  it('abre con hijo absolute (wrap que colapsa en titlebar music)', () => {
+    render(
+      <div style={{ position: 'relative', width: 40, height: 24 }}>
+        <Tooltip content="Play">
+          <button type="button" style={{ position: 'absolute', inset: 0 }}>
+            go
+          </button>
+        </Tooltip>
+      </div>,
+    )
+
+    hover(screen.getByText('go'), 400)
+    expect(screen.getByRole('tooltip').textContent).toBe('Play')
+  })
+
+  it('se cierra al perder el foco de la ventana', () => {
+    render(<Tooltip content="Play"><button>a</button></Tooltip>)
+    hover(screen.getByText('a'), 400)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('cancela el open pendiente si blur llega antes del delay', () => {
+    render(<Tooltip content="Play"><button>a</button></Tooltip>)
+    fireEvent.mouseEnter(screen.getByText('a'))
+    act(() => { vi.advanceTimersByTime(200) })
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    act(() => { vi.advanceTimersByTime(400) })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
 })

@@ -33,10 +33,34 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, hint, children }) => 
   const anchorRef = useRef<HTMLSpanElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
   const timerRef = useRef<number | undefined>(undefined)
+  const visibleRef = useRef(false)
   const [visible, setVisible] = useState(false)
   const [pos, setPos] = useState<TooltipPosition>({ left: 0, top: 0, side: 'top', arrow: 0 })
 
+  visibleRef.current = visible
+
+  const dismiss = (): void => {
+    window.clearTimeout(timerRef.current)
+    timerRef.current = undefined
+    if (visibleRef.current) warmUntil = Date.now() + WARM_MS
+    setVisible(false)
+  }
+
   useEffect(() => () => window.clearTimeout(timerRef.current), [])
+
+  // Al cambiar de ventana no hay mouseleave: cancelar timer y ocultar.
+  useEffect(() => {
+    const onBlur = (): void => dismiss()
+    const onVisibility = (): void => {
+      if (document.visibilityState !== 'visible') dismiss()
+    }
+    window.addEventListener('blur', onBlur)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('blur', onBlur)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     if (!visible) return
@@ -46,12 +70,20 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, hint, children }) => 
       const bubble = bubbleRef.current
       if (!anchor || !bubble) return
 
-      const rect = anchor.getBoundingClientRect()
+      // Si el hijo es absolute (p. ej. play de la titlebar), el wrap colapsa a 0×0.
+      // Preferimos la caja del primer hijo cuando aporta tamaño real.
+      const child = anchor.firstElementChild as HTMLElement | null
+      const childRect = child?.getBoundingClientRect()
+      const wrapRect = anchor.getBoundingClientRect()
+      const rect = childRect && childRect.width * childRect.height > wrapRect.width * wrapRect.height
+        ? childRect
+        : wrapRect
+
       const bubbleRect = bubble.getBoundingClientRect()
       // La tinta puede exceder la caja cuando el hint no envuelve aún (ruta sin espacios).
       const bubbleWidth = Math.max(bubbleRect.width, bubble.scrollWidth)
       const margin = 10
-      const gap = 10
+      const gap = 8
 
       let side: TooltipPosition['side'] = 'top'
       let top = rect.top - gap
@@ -93,9 +125,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, hint, children }) => 
   }
 
   const close = (): void => {
-    window.clearTimeout(timerRef.current)
-    if (visible) warmUntil = Date.now() + WARM_MS
-    setVisible(false)
+    dismiss()
   }
 
   return (

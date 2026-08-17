@@ -16,6 +16,16 @@
   flex-shrink: 0;
 }
 
+/* El Tooltip wrap debe llenar la onda: el botón es absolute y si no, el ancla colapsa. */
+.titlebar-music-wave > .ui-tooltip {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: auto;
+  height: auto;
+}
+
 .titlebar-music-btn {
   position: absolute;
   inset: 0;

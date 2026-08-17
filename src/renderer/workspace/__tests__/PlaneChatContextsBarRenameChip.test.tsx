@@ -2,6 +2,9 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneChatContextsBar } from '../PlaneChatContextsBar'
@@ -38,6 +41,11 @@ afterEach(cleanup)
 const threads = [
   { id: 't-1', title: 'Uno', updatedAt: 2, createdAt: 1 },
 ]
+
+const cssPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../PlaneChatContextsBar.css',
+)
 
 describe('PlaneChatContextsBar rename chip 176px', () => {
   it('click en el lápiz abre el input con el título actual', () => {
@@ -96,5 +104,41 @@ describe('PlaneChatContextsBar rename chip 176px', () => {
     expect(onRenameThread).toHaveBeenCalledOnce()
     expect(onRenameThread).toHaveBeenCalledWith('Dos')
     expect(screen.queryByRole('textbox', { name: 'agentPane.threadRename' })).toBeNull()
+  })
+})
+
+describe('PlaneChatContextsBar active chip host no-shrink', () => {
+  it('chip-host declara flex 0 0 auto y tope 176px', () => {
+    const css = readFileSync(cssPath, 'utf8')
+    const hostBlock = css.match(/\.plane-chat-contexts-bar__chip-host\s*\{[^}]+\}/)?.[0] ?? ''
+
+    expect(hostBlock).toMatch(/flex:\s*0\s+0\s+auto/)
+    expect(hostBlock).toMatch(/max-width:\s*176px/)
+  })
+
+  it('con la fila llena el título del hilo activo sigue en el DOM junto al lápiz', () => {
+    const crowdedThreads = [
+      {
+        id: 't-active',
+        title: 'Un titulo bastante largo para el chip activo',
+        updatedAt: 4,
+        createdAt: 1,
+      },
+      { id: 't-2', title: 'Dos', updatedAt: 3, createdAt: 1 },
+      { id: 't-3', title: 'Tres', updatedAt: 2, createdAt: 1 },
+      { id: 't-4', title: 'Cuatro', updatedAt: 1, createdAt: 1 },
+    ]
+
+    render(
+      <PlaneChatContextsBar
+        threads={crowdedThreads}
+        activeThreadId="t-active"
+        onSelectThread={vi.fn()}
+        onRenameThread={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Un titulo bastante largo para el chip activo')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'agentPane.threadRename' })).toBeTruthy()
   })
 })

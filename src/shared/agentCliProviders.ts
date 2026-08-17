@@ -311,17 +311,19 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#6E7681',
     command: 'grok',
     stream: 'text',
-    // ponytail: `grok -p <prompt> -m <model> -d <dir>` está en la doc del CLI,
-    // pero no pude correr `grok --help` en vivo (no está instalado en esta
-    // máquina). No documenta flag de auto-aprobación ni de plan, así que
-    // `mode` no se mapea: en Plan el CLI escribe igual. Tampoco expone
-    // salida estructurada ni resume de sesión, de ahí `stream: 'text'` y que
-    // no se pase `sessionId`. Sin `capabilities`: falla cerrado.
-    args: ({ prompt, cwd, model }) => [
+    // Flags verificados contra `grok --help` (grok 1.0.4, máquina de Rodrigo):
+    // `-p`, `-m`, `--always-approve`, `--permission-mode`, `-r/--resume`,
+    // `--output-format`. No se pasa `-d`: ese flag no está en el `--help` y el
+    // spawn ya fija el directorio como cwd del proceso.
+    // `mode === 'plan'` NO se mapea: `--permission-mode plan` es compat Claude y
+    // no está verificado que bloquee escrituras en `grok -p`; mapearlo pintaría
+    // un gate que no existe. Sigue en `stream: 'text'` — el CLI sí tiene
+    // `--output-format streaming-messages-json` + `--resume`, pero pasar a
+    // `stream: 'claude'` exige un spawn real que confirme el esquema.
+    args: ({ prompt, mode, model }) => [
       '-p',
       prompt,
-      '-d',
-      cwd,
+      ...(mode === 'auto' ? ['--always-approve'] : []),
       ...withModel('-m', model),
     ],
   },

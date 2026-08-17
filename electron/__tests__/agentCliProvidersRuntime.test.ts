@@ -100,26 +100,43 @@ describe('commandAndArgs con el registro de proveedores', () => {
     expect(args[args.indexOf('--agent') + 1]).toBe('plan')
   })
 
-  it('grok: -p/-d/-m; mode y sessionId no cambian los args', () => {
-    const expected = ['-p', 'hola', '-d', '/tmp/x', '-m', 'grok-4-latest']
-    for (const permissionMode of ['plan', 'auto'] as const) {
-      const { args } = commandAndArgs(
-        request({
-          provider: 'grok',
-          permissionMode,
-          prompt: 'hola',
-          cwd: '/tmp/x',
-          model: 'grok-4-latest',
-          cliSessionId: 'abc',
-        }),
-        config,
-        '/tmp/x',
-        'hola',
-        'abc',
-        testHome,
-      )
-      expect(args, permissionMode).toEqual(expected)
-      expect(args, permissionMode).not.toContain('abc')
+  it('grok: -p/-m; auto suma --always-approve, plan no cambia args y sessionId se ignora', () => {
+    const plan = commandAndArgs(
+      request({
+        provider: 'grok',
+        permissionMode: 'plan',
+        prompt: 'hola',
+        cwd: '/tmp/x',
+        model: 'grok-4-latest',
+        cliSessionId: 'abc',
+      }),
+      config,
+      '/tmp/x',
+      'hola',
+      'abc',
+      testHome,
+    )
+    const auto = commandAndArgs(
+      request({
+        provider: 'grok',
+        permissionMode: 'auto',
+        prompt: 'hola',
+        cwd: '/tmp/x',
+        model: 'grok-4-latest',
+        cliSessionId: 'abc',
+      }),
+      config,
+      '/tmp/x',
+      'hola',
+      'abc',
+      testHome,
+    )
+    expect(plan.args).toEqual(['-p', 'hola', '-m', 'grok-4-latest'])
+    expect(auto.args).toEqual(['-p', 'hola', '--always-approve', '-m', 'grok-4-latest'])
+    for (const args of [plan.args, auto.args]) {
+      expect(args).not.toContain('-d')
+      expect(args).not.toContain('--resume')
+      expect(args).not.toContain('abc')
     }
   })
 })

@@ -47,7 +47,7 @@ describe('BrainstormStartModal — CTA crear agente', () => {
     expect(onCreateAgent).toHaveBeenCalledTimes(1)
   })
 
-  it('con catálogo el CTA va al final de la lista y llama onCreateAgent', () => {
+  it('con catálogo NO hay CTA en la columna: el alta va por el FAB del plano', () => {
     const onCreateAgent = vi.fn()
     render(
       <BrainstormStartModal
@@ -61,11 +61,7 @@ describe('BrainstormStartModal — CTA crear agente', () => {
     )
     const right = document.querySelector('.brainstorm-overlay__col--right') as HTMLElement
     const seats = right.querySelectorAll('.brainstorm-seat--invite')
-    const create = right.querySelector('.brainstorm-invite__create')
     expect(seats).toHaveLength(agents.length)
-    expect(create).not.toBeNull()
-    expect(right.lastElementChild).toBe(create)
-    fireEvent.click(screen.getByText('tabs.brainstormCreateAgent'))
-    expect(onCreateAgent).toHaveBeenCalledTimes(1)
+    expect(right.querySelector('.brainstorm-invite__create')).toBeNull()
   })
 })

@@ -24,7 +24,7 @@ import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
 import type { JiraIssueRef } from '@shared/jiraIssue'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
 import { useJiraMention } from './useJiraMention'
-import { Button, ChoiceCard, Icon, TextArea } from '../components/ui'
+import { Button, TextArea } from '../components/ui'
 import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormModuleTabs } from './BrainstormModuleTabs'
 import { BrainstormInviteSeatCard } from './BrainstormSeatCard'
@@ -284,46 +284,34 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
               ) : null}
             </>
           ) : (
-            <>
-              {invitableAgents.map(agent => {
-                const at = safeParticipantIds.indexOf(agent.id)
-                return (
-                  <BrainstormInviteSeatCard
-                    key={agent.id}
-                    agentId={agent.id}
-                    name={brainstormCatalogAgentLabel(agent)}
-                    role={roleLabelOf(agent)}
-                    monogram={agent.monogram?.trim()
-                      || agentMonogram(brainstormCatalogAgentLabel(agent))}
-                    order={at >= 0 ? at + 1 : null}
-                    provider={agent.provider}
-                    coordination={agent.coordination}
-                    /* Sin uso compartido: aquí no hay panes que compartan contexto,
-                       así que ninguno se marca como tal. */
-                    contexts={resolveAssignedContextChips(
-                      agent.contextIds ?? [],
-                      contexts,
-                      NO_CONTEXT_USAGE,
-                      kind => t(`tabContexts.kind_${kind}`),
-                    )}
-                    alsoInRooms={agentsInLiveRooms[agent.id] ?? []}
-                    contextDrop={handlersFor(agent.id)}
-                    contextDropActive={dropAgentId === agent.id}
-                    onToggle={() => toggleAgent(agent.id)}
-                  />
-                )
-              })}
-              {onCreateAgent ? (
-                <div className="brainstorm-invite__create">
-                  <ChoiceCard
-                    onClick={onCreateAgent}
-                    icon={<Icon name="plus" size={14} />}
-                  >
-                    {t('tabs.brainstormCreateAgent')}
-                  </ChoiceCard>
-                </div>
-              ) : null}
-            </>
+            invitableAgents.map(agent => {
+              const at = safeParticipantIds.indexOf(agent.id)
+              return (
+                <BrainstormInviteSeatCard
+                  key={agent.id}
+                  agentId={agent.id}
+                  name={brainstormCatalogAgentLabel(agent)}
+                  role={roleLabelOf(agent)}
+                  monogram={agent.monogram?.trim()
+                    || agentMonogram(brainstormCatalogAgentLabel(agent))}
+                  order={at >= 0 ? at + 1 : null}
+                  provider={agent.provider}
+                  coordination={agent.coordination}
+                  /* Sin uso compartido: aquí no hay panes que compartan contexto,
+                     así que ninguno se marca como tal. */
+                  contexts={resolveAssignedContextChips(
+                    agent.contextIds ?? [],
+                    contexts,
+                    NO_CONTEXT_USAGE,
+                    kind => t(`tabContexts.kind_${kind}`),
+                  )}
+                  alsoInRooms={agentsInLiveRooms[agent.id] ?? []}
+                  contextDrop={handlersFor(agent.id)}
+                  contextDropActive={dropAgentId === agent.id}
+                  onToggle={() => toggleAgent(agent.id)}
+                />
+              )
+            })
           )}
         </>
       )}

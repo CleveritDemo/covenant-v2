@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.78.5
+
+- **Renombrar una conversación ya se ve**: el chip del hilo activo mantiene su ancho y muestra el campo con el título seleccionado; antes se aplastaba a un círculo con el lápiz medio fuera y no dejaba escribir.
+- **`.gravity` ordenado**: los contextos del proyecto pasan a vivir en `.gravity/context/`. La app mueve solos los `.md` que estaban sueltos la primera vez que abre el workspace, sin cambiar identidades: los agentes siguen apuntando a los mismos contextos.
+- **Referencia viva a archivos del repo**: los contextos «File contents» y «Spreadsheet» pueden guardar solo el puntero al archivo. El agente lee siempre la versión actual del repo y el `.md` deja de duplicar el contenido en cada turno.
+
 ## v0.78.4
 
 - **Minis de agente más limpias**: «Standing by», hilos y delegaciones ya no van en cajas; los contextos quedan pegados al fondo de la card.

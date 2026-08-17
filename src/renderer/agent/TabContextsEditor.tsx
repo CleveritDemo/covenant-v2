@@ -18,6 +18,7 @@ import { JiraMentionPicker } from '../workspace/JiraMentionPicker'
 import { KIND_ICONS } from './tabContextKindIcons'
 import { TabContextAppearancePopup } from './TabContextAppearancePopup'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
+import { TabContextFilePicker } from './TabContextFilePicker'
 import { TabContextKindCard } from './TabContextKindCard'
 import { TabContextRootPathField } from './TabContextRootPathField'
 
@@ -218,12 +219,23 @@ export const TabContextsEditor: React.FC<Props> = ({
                 {t('tabContexts.importFiles')}
               </Button>
             </span>
+            <TabContextFilePicker
+              cwd={projectCwd}
+              rootPath={draft.rootPath}
+              paths={draft.paths ?? []}
+              onError={onActionError}
+              onAdd={added => onUpdate({
+                paths: [...(draft.paths ?? []).map(path => path.trim()).filter(Boolean), ...added],
+              })}
+            />
             <TextArea
               rows={5}
               value={(draft.paths ?? []).join('\n')}
               placeholder={t(draft.kind === 'spreadsheet'
                 ? 'tabContexts.pathsPlaceholderSpreadsheet'
-                : 'tabContexts.pathsPlaceholder')}
+                : draft.kind === 'files'
+                  ? 'tabContexts.pathsPlaceholderFiles'
+                  : 'tabContexts.pathsPlaceholder')}
               onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
             />
           </label>

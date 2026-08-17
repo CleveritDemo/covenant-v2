@@ -53,6 +53,14 @@
   opacity: 0.85;
 }
 
+.agent-rules-editor__notice {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .agent-rules-editor__empty {
   margin: 0;
   padding: 12px;

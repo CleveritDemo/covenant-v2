@@ -73,6 +73,17 @@ export const AGENT_IDENTITY_TEMPLATES = [
       'agentPane.templateFrontendRule3',
     ],
   },
+  {
+    id: 'securityEngineer',
+    labelKey: 'agentPane.templateSecurityLabel',
+    roleKey: 'agentPane.templateSecurityRole',
+    objectiveKey: 'agentPane.templateSecurityObjective',
+    ruleKeys: [
+      'agentPane.templateSecurityRule1',
+      'agentPane.templateSecurityRule2',
+      'agentPane.templateSecurityRule3',
+    ],
+  },
 ] as const
 
 export type AgentIdentityTemplate = (typeof AGENT_IDENTITY_TEMPLATES)[number]

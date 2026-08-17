@@ -510,6 +510,16 @@ const api = {
   > {
     return ipcRenderer.invoke(IPC.CONTEXT_IMPORT_FILES, options)
   },
+  selectProjectFiles(options: {
+    cwd: string
+    rootPath?: string
+    title?: string
+  }): Promise<
+    | { ok: true; paths: string[] }
+    | { ok: false; cancelled?: boolean; error?: string }
+  > {
+    return ipcRenderer.invoke(IPC.SELECT_PROJECT_FILES, options)
+  },
   selectDirectory(options?: {
     title?: string
     defaultPath?: string

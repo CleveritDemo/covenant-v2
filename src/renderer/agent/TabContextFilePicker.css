@@ -1,0 +1,66 @@
+.tab-context-file-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tab-context-file-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tab-context-file-picker__search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tab-context-file-picker__menu {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--surface);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.tab-context-file-picker__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-context-file-picker__menu li:first-child .tab-context-file-picker__option {
+  border-top: 0;
+}
+
+.tab-context-file-picker__option--active {
+  background: var(--surface-hover);
+}
+
+.tab-context-file-picker__empty {
+  margin: 0;
+  padding: 4px 2px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}

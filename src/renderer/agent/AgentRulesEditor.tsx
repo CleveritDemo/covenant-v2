@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { AGENT_RULE_MAX_LENGTH, AGENT_RULES_MAX_COUNT } from '@shared/agentIdentity'
+import { applyPastedRules, splitPastedRules } from '@shared/agentRulesPaste'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { Toggle } from '../components/ui/Toggle'
@@ -31,6 +32,7 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
 }) => {
   const { t } = useT()
   const canAdd = rules.length < AGENT_RULES_MAX_COUNT
+  const [dropped, setDropped] = useState(0)
 
   const updateAt = (index: number, value: string): void => {
     if (disabled) return
@@ -51,6 +53,7 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
 
   const removeAt = (index: number): void => {
     if (disabled) return
+    setDropped(0)
     onChange(
       rules.filter((_, i) => i !== index),
       rulesEnabled.filter((_, i) => i !== index),
@@ -73,13 +76,39 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
 
   const addRule = (): void => {
     if (!canAdd || disabled) return
+    setDropped(0)
     onChange([...rules, ''], [...rulesEnabled, true])
+  }
+
+  const pasteAt = (index: number, event: React.ClipboardEvent<HTMLInputElement>): void => {
+    if (disabled) return
+    setDropped(0)
+    const text = event.clipboardData.getData('text')
+    const lines = splitPastedRules(text)
+    if (lines.length < 2) return
+    event.preventDefault()
+    const target = event.currentTarget
+    const value = target.value
+    const before = value.slice(0, target.selectionStart ?? value.length)
+    const after = value.slice(target.selectionEnd ?? value.length)
+    const next = applyPastedRules({
+      rules,
+      rulesEnabled,
+      index,
+      before,
+      after,
+      lines,
+    })
+    onChange(next.rules, next.rulesEnabled)
+    onCommit?.()
+    setDropped(next.dropped)
   }
 
   return (
     <div className="agent-rules-editor">
       <p className="agent-rules-editor__hint">{t('agentPane.rulesHint')}</p>
       <p className="agent-rules-editor__hint agent-rules-editor__hint--sub">{t('agentPane.rulesDisabledHint')}</p>
+      <p className="agent-rules-editor__hint agent-rules-editor__hint--sub">{t('agentPane.rulesPasteHint')}</p>
 
       {rules.length === 0 ? (
         <p className="agent-rules-editor__empty">{t('agentPane.rulesEmpty')}</p>
@@ -114,6 +143,7 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
                 placeholder={t('agentPane.rulesPlaceholder')}
                 aria-label={t('agentPane.rulesItemLabel', { n: index + 1 })}
                 onChange={event => updateAt(index, event.target.value)}
+                onPaste={event => pasteAt(index, event)}
                 onBlur={() => onCommit?.()}
               />
               <button
@@ -148,6 +178,12 @@ export const AgentRulesEditor: React.FC<AgentRulesEditorProps> = ({
           })}
         </ul>
       )}
+
+      {dropped > 0 ? (
+        <p className="agent-rules-editor__notice">
+          {t('agentPane.rulesPasteTruncated', { n: dropped, max: AGENT_RULES_MAX_COUNT })}
+        </p>
+      ) : null}
 
       <button
         type="button"

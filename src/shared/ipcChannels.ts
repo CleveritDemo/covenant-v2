@@ -136,6 +136,7 @@ export const IPC = {
   /** Renderer → main (invoke): diálogo nativo para elegir carpeta de proyecto */
   SELECT_DIRECTORY: 'shell:selectDirectory',
   CONTEXT_IMPORT_FILES: 'tabContext:importFiles',
+  SELECT_PROJECT_FILES: 'tabContext:selectProjectFiles',
   /** Renderer → main (invoke): abrir URL externa (http(s)) */
   OPEN_EXTERNAL_URL: 'shell:openExternalUrl',
   /** Renderer → main: listado del cwd de la sesión + package.json (contexto IA) */

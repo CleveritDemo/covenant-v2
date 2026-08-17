@@ -13,6 +13,7 @@ import {
 } from 'fs'
 import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
 import { projectDirName } from './projectDir'
+import { relativeProjectFilePaths } from './contextFilePick'
 import { appendCrashDiagnostics, describeError } from './crashLog'
 import { openExternalHttpUrl } from './openExternalUrl'
 import {
@@ -874,6 +875,47 @@ function registerIpc(): void {
       return paths.length > 0
         ? { ok: true as const, paths }
         : { ok: false as const, error: 'nothing copied' }
+    } catch (error) {
+      return { ok: false as const, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC.SELECT_PROJECT_FILES, async (event, raw: unknown) => {
+    const options = (raw ?? {}) as { cwd?: unknown; rootPath?: unknown; title?: unknown }
+    const cwdRaw = typeof options.cwd === 'string' ? options.cwd.trim() : ''
+    if (!cwdRaw) return { ok: false as const, error: 'missing cwd' }
+    const cwd = resolve(cwdRaw)
+
+    const requested = typeof options.rootPath === 'string' ? options.rootPath.trim() : ''
+    const candidate = resolve(cwd, requested || '.')
+    const relToCwd = relative(cwd, candidate)
+    const root = relToCwd === '' || (!relToCwd.startsWith('..') && !isAbsolute(relToCwd))
+      ? candidate
+      : cwd
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const dialogOpts: Electron.OpenDialogOptions = {
+      title: typeof options.title === 'string' && options.title.trim()
+        ? options.title.trim()
+        : undefined,
+      defaultPath: root,
+      properties: ['openFile', 'multiSelections'],
+    }
+    const picked = win
+      ? await dialog.showOpenDialog(win, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts)
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false as const, cancelled: true }
+    }
+
+    try {
+      const files: string[] = []
+      for (const source of picked.filePaths) {
+        if (!statSync(source).isFile()) continue
+        files.push(source)
+      }
+      if (files.length === 0) return { ok: false as const, error: 'nothing picked' }
+      return relativeProjectFilePaths(root, files)
     } catch (error) {
       return { ok: false as const, error: (error as Error).message }
     }

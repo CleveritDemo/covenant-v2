@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.78.7
+
+- **Los errores de Jira dicen qué pasa**: conectar o sincronizar ya no muestra solo «Jira 403». Ahora explica si el API token tiene scopes que no cubren el endpoint, si la cuenta no tiene acceso al producto Jira en ese sitio o si el sitio tiene allowlist de IP, e incluye el detalle que manda Atlassian.
+- **Ajustes > Jira deja de decir «Connected» cuando no lo está**: si el último chequeo falló, la línea de estado avisa que la credencial está guardada pero no se pudo verificar, en vez de seguir en verde al lado del error.
+- **El login de GitHub explica el rechazo**: en vez de «unauthorized» a secas, dice de dónde tomó el token la app (Ajustes, la variable `GITHUB_TOKEN` o el keychain de git) y qué hacer para arreglarlo. El paso de cuenta del onboarding también muestra el motivo real en lugar de un mensaje genérico.
+
 ## v0.78.6
 
 - **Chips de conversación más cortos**: en la barra del chat se ven hasta 15 caracteres y «...»; el título completo sigue en tooltip y accesibilidad.

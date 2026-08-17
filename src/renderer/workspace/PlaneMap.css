@@ -60,10 +60,10 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: var(--plane-grid-opacity);
+  opacity: var(--plane-grid-line-opacity);
   background-image:
-    linear-gradient(var(--plane-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--plane-grid-line) 1px, transparent 1px);
+    linear-gradient(var(--plane-grid-line-rgb) 1px, transparent 1px),
+    linear-gradient(90deg, var(--plane-grid-line-rgb) 1px, transparent 1px);
   background-size: var(--plane-grid-size) var(--plane-grid-size);
 }
 

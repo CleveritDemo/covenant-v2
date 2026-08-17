@@ -269,6 +269,19 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   }, [cancelScheduledClose, cancelScheduledOpen])
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || !isOpenRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      cancelScheduledOpen()
+      cancelScheduledClose()
+      closePanel(false)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [cancelScheduledClose, cancelScheduledOpen, closePanel])
+
+  useEffect(() => {
     if (!isOpenRef.current) return
     syncPanelPositionAfterLayout()
   }, [rowCount, syncPanelPositionAfterLayout])

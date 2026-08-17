@@ -81,6 +81,15 @@ function strokePolyline(
   }
 }
 
+/** Latitud máxima dibujada (ratio×π): deja convergencia polar fuera del FOV interior. */
+export const PLANE_GRID_LATITUDE_MAX_RATIO = 0.47
+
+export function sphereGridLatitudeMax(
+  ratio = PLANE_GRID_LATITUDE_MAX_RATIO,
+): number {
+  return Math.PI * ratio
+}
+
 /** Dibuja la rejilla interior de esfera sobre un canvas 2D (coordenadas CSS px). */
 export function drawSphericalGrid(
   ctx: CanvasRenderingContext2D,
@@ -93,7 +102,7 @@ export function drawSphericalGrid(
     lineColor,
     lineAlpha = 1,
     fovScale: fovScaleOverride,
-    uMax = Math.PI * 0.47,
+    uMax = sphereGridLatitudeMax(),
   } = options
 
   if (width <= 0 || height <= 0) return
@@ -102,7 +111,8 @@ export function drawSphericalGrid(
   const fovScale = fovScaleOverride ?? focalPx / (Math.min(width, height) * 0.5)
   const step = Math.max(cellSizePx / focalPx, PLANE_GRID_MIN_ANGULAR_STEP)
   const segments = 96
-  const frontMax = Math.min(uMax, Math.PI * 0.48)
+  const latMax = Math.min(uMax, Math.PI * 0.48)
+  const poleEpsilon = 0.02
 
   ctx.clearRect(0, 0, width, height)
   ctx.strokeStyle = lineColor
@@ -110,20 +120,20 @@ export function drawSphericalGrid(
   ctx.lineJoin = 'round'
   ctx.lineCap = 'butt'
 
-  for (let u = -frontMax; u <= frontMax + step * 0.5; u += step) {
+  for (let u = -latMax; u <= latMax + step * 0.5; u += step) {
+    if (Math.abs(Math.cos(u)) <= poleEpsilon) continue
     const row: Array<SphereGridPoint | null> = []
     for (let i = 0; i <= segments; i += 1) {
-      const v = -frontMax + (2 * frontMax * i) / segments
+      const v = -Math.PI + (2 * Math.PI * i) / segments
       row.push(projectSphereGridPoint(u, v, width, height, fovScale))
     }
     strokePolyline(ctx, row, lineAlpha)
   }
 
-  for (let v = -Math.PI + step * 0.5; v <= Math.PI - step * 0.5; v += step) {
-    if (Math.cos(v) <= 0.02) continue
+  for (let v = -Math.PI; v < Math.PI - step * 0.25; v += step) {
     const col: Array<SphereGridPoint | null> = []
     for (let i = 0; i <= segments; i += 1) {
-      const u = -frontMax + (2 * frontMax * i) / segments
+      const u = -latMax + (2 * latMax * i) / segments
       col.push(projectSphereGridPoint(u, v, width, height, fovScale))
     }
     strokePolyline(ctx, col, lineAlpha)
@@ -180,10 +190,11 @@ export function readSphericalGridTheme(el: HTMLElement): SphericalGridOptions {
   const style = getComputedStyle(el)
   const root = document.documentElement
   const size = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
-  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.595
+  const gridOpacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.619
+  const lineOpacity = Number.parseFloat(style.getPropertyValue('--plane-grid-line-opacity'))
   return {
     cellSizePx: size,
     lineColor: readPlaneGridLineColor(root),
-    lineAlpha: opacity * PLANE_GRID_LINE_ALPHA,
+    lineAlpha: Number.isFinite(lineOpacity) ? lineOpacity : gridOpacity * PLANE_GRID_LINE_ALPHA,
   }
 }

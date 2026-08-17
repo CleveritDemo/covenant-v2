@@ -61,7 +61,8 @@
   --plane-radius: 14px;
   --plane-radius-sm: 10px;
   --plane-grid-size: 42.5px;
-  --plane-grid-opacity: 0.595;
+  --plane-grid-opacity: 0.619;
+  --plane-grid-line-opacity: 0.452;
   --plane-grid-warmth: 0.42;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
   --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 84%, var(--surface));

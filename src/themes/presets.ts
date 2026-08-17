@@ -2020,6 +2020,11 @@ function lerpRgb(
  */
 export const PLANE_GRID_LINE_ALPHA = 0.73
 
+/** Opacidad compuesta (rejilla × alfa de línea): canvas 2D, WebGL y fallback CSS. */
+export function computePlaneGridCompositeOpacity(gridOpacity: number): number {
+  return gridOpacity * PLANE_GRID_LINE_ALPHA
+}
+
 /** `rgb(...)` de la línea de rejilla, ya mezclada: WebGL no sabe leer color-mix. */
 export function computePlaneGridLineRgb(theme: AppTheme): string {
   const borderRgb = parseHexAccent(theme.vars['--border'] ?? '#222a3c') ?? [34, 42, 60]
@@ -2055,9 +2060,9 @@ const PLANE_GRID_REFERENCE_ID = {
   light: 'interstellarLight',
 } as const
 /** Ajuste fino de notoriedad por apariencia (1 = neutro). Cada escala solo toca su familia. */
-const PLANE_GRID_DARK_NOTORIETY_SCALE = 2.417
-/** Calibrado para Interstellar Light ≈0.390 con ancla propia (0.25×0.95). */
-const PLANE_GRID_LIGHT_NOTORIETY_SCALE = 1.642
+const PLANE_GRID_DARK_NOTORIETY_SCALE = 1.934
+/** Calibrado para Interstellar Light ≈0.249 con ancla propia (0.25×0.95). */
+const PLANE_GRID_LIGHT_NOTORIETY_SCALE = 1.051
 
 function planeGridReferenceThemeId(light: boolean): string {
   return PLANE_GRID_REFERENCE_ID[light ? 'light' : 'dark']
@@ -2263,7 +2268,12 @@ export function applyTheme(theme: AppTheme): void {
     root.style.setProperty('--accent-border-strong', rgba(accentRgb, scaledAlpha(0.52, glow, 0.68)))
 
     // Plano HUD: rejilla con contraste fijo (referencia Interstellar); glow solo en atmósfera
-    root.style.setProperty('--plane-grid-opacity', String(computePlaneGridOpacity(theme)))
+    const planeGridOpacity = computePlaneGridOpacity(theme)
+    root.style.setProperty('--plane-grid-opacity', String(planeGridOpacity))
+    root.style.setProperty(
+      '--plane-grid-line-opacity',
+      String(computePlaneGridCompositeOpacity(planeGridOpacity)),
+    )
     root.style.setProperty('--plane-grid-warmth', String(computePlaneGridWarmth(theme)))
     root.style.setProperty('--plane-grid-line-rgb', computePlaneGridLineRgb(theme))
     root.style.setProperty('--plane-atmosphere-a', rgba(accentRgb, scaledAlpha(0.16, glow, 0.36)))

@@ -1,11 +1,12 @@
 import * as THREE from 'three'
-import { PLANE_GRID_LINE_ALPHA } from '@themes/presets'
+import { computePlaneGridCompositeOpacity } from '@themes/presets'
 import {
   PLANE_GRID_HORIZONTAL_FOV_DEG,
   PLANE_GRID_CELL_SIZE_PX,
   PLANE_GRID_MIN_ANGULAR_STEP,
   readPlaneGridLineColor,
   resolveCssColor,
+  sphereGridLatitudeMax,
   verticalFovForAspect,
 } from './planeSphericalGridDraw'
 
@@ -32,7 +33,7 @@ const MIN_ANGULAR_STEP = PLANE_GRID_MIN_ANGULAR_STEP
 /** Observador en el centro; mira por el ecuador frontal (+Z), alineado con planeSphericalGridDraw. */
 const SPHERE_CENTER = new THREE.Vector3(0, 0, 0)
 const CAMERA_LOOK_TARGET = new THREE.Vector3(0, 0, 1)
-/** Giro en Y (vertical): mantiene polos arriba/abajo del FOV. */
+/** Observador en el centro de la esfera; solo rota la rejilla, polos fuera del arco dibujado. */
 const SPHERE_ROTATION_AXIS = new THREE.Vector3(0, 1, 0)
 const SPHERE_Y_ROTATION_ARC_DEG = 45
 const SPHERE_Y_ROTATION_PERIOD_S = 33
@@ -114,7 +115,7 @@ export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): Spac
   const style = getComputedStyle(el)
   const root = document.documentElement
   const cellSize = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
-  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.595
+  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.619
   const warmth = Number.parseFloat(style.getPropertyValue('--plane-grid-warmth')) || 0.42
   return {
     cellSize,
@@ -127,7 +128,7 @@ export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): Spac
 
 /** Alfa final del material: la rejilla y el alfa que CSS aplica a `--plane-grid-line`. */
 export function sphereMaterialOpacity(gridOpacity: number): number {
-  return gridOpacity * PLANE_GRID_LINE_ALPHA
+  return computePlaneGridCompositeOpacity(gridOpacity)
 }
 
 /**
@@ -183,7 +184,7 @@ function buildInteriorSphereGrid(
   const { stepLat, stepLon } = angularStepsForAspect(cellSize, height, verticalFovDeg)
   const writer: SegmentWriter = { positions: [] }
   const curveSegments = 80
-  const latMax = Math.PI / 2 - POLE_EPSILON
+  const latMax = sphereGridLatitudeMax()
 
   const traceMeridian = (v: number): void => {
     let prev: [number, number, number] | null = null

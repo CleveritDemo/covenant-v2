@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.71.0
+
+- **Plano: grilla más densa y discreta**: celdas a 42.5px; notoriedad bajada un 20% en oscuros y otros 20% solo en temas claros (Interstellar Light ≈0.249).
+- **Plano: rejilla 3D alineada con 2D**: canvas reduce-motion y fallback CSS usan la misma opacidad compuesta (`--plane-grid-line-opacity`), color rgb del tema y geometría esférica (paralelos completos, latMax 0.47π).
+- **Plano: warmth fijo en el FOV**: el resplandor de color queda anclado al centro de la vista aunque la esfera gire; la terminal expandida ya no cambia a grilla plana.
+- **Plano: chat sin velo sólido**: el scroll del quick chat se desvanece arriba y abajo hacia la grilla, sin banda opaca de fondo.
+- **Plano: historial cierra con Escape**: el popover de hilos se cierra con la tecla Escape.
+
 ## v0.70.0
 
 - **Plano: fondo de esfera de rejilla**: el plano se ve desde el centro de una esfera de líneas, con giro diagonal lento, apertura de 110° y atenuación hacia las esquinas; con reduce motion se dibuja estática en 2D.

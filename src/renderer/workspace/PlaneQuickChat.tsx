@@ -110,8 +110,6 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
 
   return (
     <div className="plane-quick-chat-shell" aria-live="polite">
-      {/* Fuera de .agent-pane (isolation) para que el fade superior cubra el ancho del plano. */}
-      <div className="plane-quick-chat__top-fade" aria-hidden="true" />
       <div
         className="plane-quick-chat agent-pane"
         style={{

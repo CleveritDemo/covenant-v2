@@ -186,4 +186,21 @@ describe('PlaneChatThreadHistoryButton', () => {
     )
     expect(screen.queryByRole('listbox', { hidden: true })).toBeNull()
   })
+
+  it('Escape cierra el panel abierto', () => {
+    render(
+      <HistoryHarness
+        threads={makeThreads(6)}
+        activeThreadId="t-1"
+        runningThreadIds={['t-2']}
+        onSelectThread={() => undefined}
+      />,
+    )
+    const panel = openHistoryPanel()
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(true)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
+  })
 })

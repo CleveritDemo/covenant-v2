@@ -8,6 +8,7 @@ import {
   PLANE_GRID_CELL_SIZE_PX,
   planeGridFocalPx,
   projectSphereGridPoint,
+  sphereGridLatitudeMax,
 } from '../planeSphericalGridDraw'
 
 describe('projectSphereGridPoint', () => {
@@ -90,5 +91,11 @@ describe('plane grid density parity', () => {
       const step2d = cellSize / planeGridFocalPx(width, height)
       expect(step2d).toBeCloseTo(step3d, 6)
     }
+  })
+})
+
+describe('sphereGridLatitudeMax', () => {
+  it('recorta antes del polo para vista interior desde el centro', () => {
+    expect(sphereGridLatitudeMax()).toBeLessThan(Math.PI / 2)
   })
 })

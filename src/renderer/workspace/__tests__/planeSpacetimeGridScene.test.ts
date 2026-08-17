@@ -77,7 +77,7 @@ describe('sphereYRotationSpeedRadPerSec', () => {
 })
 
 describe('sphereRotationAxis', () => {
-  it('gira en Y vertical para mantener polos arriba/abajo', () => {
+  it('gira en Y vertical: cámara en el centro, solo la rejilla rota', () => {
     const [x, y, z] = sphereRotationAxis()
     expect(Math.abs(y)).toBeCloseTo(1, 5)
     expect(Math.abs(x)).toBeLessThan(0.01)

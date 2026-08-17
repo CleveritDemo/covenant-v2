@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.76.0
+
+- **Publicar un workspace personal en una organización**: hay un botón nuevo en la barra del plano cuando la pestaña tiene carpeta y aún no pertenece a una org. Eliges organización, nombre y qué repos se registran; la carpeta local se queda donde está.
+- **El historial del chat con flecha arriba sobrevive al reinicio**: al cambiar de conversación o reiniciar la app, las flechas recuperan lo que escribiste de la conversación guardada.
+
 ## v0.75.0
 
 - **Organizaciones ocupa toda la ventana**: las tres columnas llegan hasta abajo en vez de cortarse a media pantalla, y una lista larga scrollea dentro de su columna en lugar de estirar la vista.

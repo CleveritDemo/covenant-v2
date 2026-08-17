@@ -484,3 +484,24 @@ export function stripThreadSessions(threads: readonly AgentThread[]): AgentThrea
     return rest
   })
 }
+
+export function delegationThreadIdsForDelegationIds(
+  state: AgentThreadState,
+  delegationIds: readonly string[],
+): string[] {
+  const idSet = new Set(
+    delegationIds.map(id => id.trim()).filter(Boolean),
+  )
+  if (idSet.size === 0) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const thread of state.threads) {
+    if (thread.origin !== 'delegation') continue
+    const delegationId = thread.delegationId?.trim()
+    if (!delegationId || !idSet.has(delegationId)) continue
+    if (seen.has(thread.id)) continue
+    seen.add(thread.id)
+    out.push(thread.id)
+  }
+  return out
+}

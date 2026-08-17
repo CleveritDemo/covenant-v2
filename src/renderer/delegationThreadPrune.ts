@@ -4,7 +4,11 @@
 
 import type { AgentChatRef } from '@shared/agentChatPersistence'
 import { agentChatRefFor } from '@shared/agentChatPersistence'
-import { pruneCompletedDelegationThreads, threadPatch } from '@shared/agentThreads'
+import {
+  delegationThreadIdsForDelegationIds,
+  pruneCompletedDelegationThreads,
+  threadPatch,
+} from '@shared/agentThreads'
 import type { OrchestrationJob } from '@shared/orchestrationJobs'
 import { collectDelegationThreadIdsByPaneFromJob } from '@shared/orchestrationJobs'
 import { threadStateOf } from '@shared/projectAgentCatalog'
@@ -111,6 +115,38 @@ export function pruneDelegationThreadsByPane(
   return { tabs: changed ? nextTabs : tabs, chatDeletes }
 }
 
+function delegationIdsAndPanesFromJob(job: OrchestrationJob): {
+  delegationIds: string[]
+  paneIds: Set<string>
+} {
+  const delegationIds: string[] = []
+  const seenDelegationIds = new Set<string>()
+  const paneIds = new Set<string>()
+  const addDelegationId = (raw?: string): void => {
+    const id = raw?.trim()
+    if (!id || seenDelegationIds.has(id)) return
+    seenDelegationIds.add(id)
+    delegationIds.push(id)
+  }
+  const addPaneId = (raw?: string): void => {
+    const paneId = raw?.trim()
+    if (paneId) paneIds.add(paneId)
+  }
+  for (const [delegationId, meta] of job.pending) {
+    addDelegationId(delegationId)
+    addPaneId(meta.toPaneId)
+  }
+  for (const item of job.waveItems) {
+    addDelegationId(item.delegationId)
+    addPaneId(item.toPaneId)
+  }
+  for (const result of job.completedResults) {
+    addDelegationId(result.id)
+    addPaneId(result.toPaneId)
+  }
+  return { delegationIds, paneIds }
+}
+
 export function pruneDelegationThreadsForJob(
   tabs: TabSession[],
   job: OrchestrationJob,
@@ -118,9 +154,27 @@ export function pruneDelegationThreadsForJob(
   createId: () => string = () => crypto.randomUUID(),
   running?: RunningThreadIdsByPane,
 ): { tabs: TabSession[]; chatDeletes: DelegationThreadChatDelete[] } {
+  const base = collectDelegationThreadIdsByPaneFromJob(job)
+  const { delegationIds, paneIds } = delegationIdsAndPanesFromJob(job)
+  const extra = new Map<string, string[]>()
+  for (const tab of tabs) {
+    for (const [paneId, binding] of Object.entries(tab.agentByPane ?? {})) {
+      if (!paneIds.has(paneId)) continue
+      const threadIds = delegationThreadIdsForDelegationIds(
+        threadStateOf(binding),
+        delegationIds,
+      )
+      if (threadIds.length === 0) continue
+      const list = extra.get(paneId) ?? []
+      for (const threadId of threadIds) {
+        if (!list.includes(threadId)) list.push(threadId)
+      }
+      extra.set(paneId, list)
+    }
+  }
   return pruneDelegationThreadsByPane(
     tabs,
-    collectDelegationThreadIdsByPaneFromJob(job),
+    mergeDelegationThreadIdsByPane([base, extra]),
     now,
     createId,
     running,

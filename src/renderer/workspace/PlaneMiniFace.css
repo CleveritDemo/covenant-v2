@@ -160,6 +160,7 @@
   flex-direction: column;
   gap: var(--plane-mini-face-section-gap);
   min-width: 0;
+  min-height: 0;
   flex: 1 1 auto;
 }
 
@@ -356,21 +357,6 @@
   width: 100%;
 }
 
-/* Cápsula del estado: superficie sutil theme-aware. */
-.plane-mini-face__status-surface {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
-  outline: none;
-  box-shadow: none;
-}
-
 .plane-mini-face__name {
   flex: 0 1 auto;
   min-width: 0;
@@ -404,6 +390,7 @@
   flex-shrink: 0;
   width: 100%;
   min-height: 0;
+  margin-top: auto;
   gap: var(--plane-mini-face-section-gap);
   transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -430,7 +417,7 @@
 }
 
 .plane-mini-face--compact .plane-mini-face__nodes {
-  margin-top: calc(var(--plane-mini-face-section-gap) - 3px);
+  margin-top: auto;
 }
 
 .plane-mini-face--compact .plane-mini-face__controls-btn {
@@ -453,10 +440,6 @@
 
 .plane-mini-face--compact .plane-mini-face__monogram {
   font-size: 10.5px;
-}
-
-.plane-mini-face--compact .plane-mini-face__status-surface {
-  padding: 1px 6px;
 }
 
 .plane-mini-face--compact .plane-mini-face__status {

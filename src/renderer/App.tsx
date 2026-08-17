@@ -150,6 +150,8 @@ import {
   supersedeOrchestrationJobsForHumanTurn,
   upsertOrchestrationWaveItem,
   laneDelegationForJob,
+  findTrackedDelegationThreadId,
+  delegationDispatchKey,
   type OrchestrationJob,
 } from '@shared/orchestrationJobs'
 import {
@@ -625,6 +627,8 @@ export const App: React.FC = () => {
   const orchestrationJobsByPaneRef = useRef(new Map<string, Map<string, OrchestrationJob>>())
   /** Líneas de warning de delegate ya encoladas por job (dedupe L6). */
   const delegateWarningsSeenByJobRef = useRef(new Map<string, Set<string>>())
+  /** Claves de despacho ya minteadas por job (idempotencia ante delegate duplicado). */
+  const delegateDispatchKeysByJobRef = useRef(new Map<string, Map<string, string>>())
   /** Job activo del próximo turno CLI (humano recién creado o follow-up ofrecido). */
   const activeOrchestrationJobByPaneRef = useRef(new Map<string, string>())
   const [orchestrationAwaitingByPane, setOrchestrationAwaitingByPane] = useState<
@@ -4271,6 +4275,9 @@ export const App: React.FC = () => {
     }
     const jobs = getOrCreateJobsMap(fromPaneId)
     if (workStyle !== 'turbo') {
+      for (const jobId of jobs.keys()) {
+        delegateDispatchKeysByJobRef.current.delete(jobId)
+      }
       jobs.clear()
     }
     const fromThreadId =
@@ -4279,6 +4286,7 @@ export const App: React.FC = () => {
     jobs.set(job.jobId, job)
     activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
     delegateWarningsSeenByJobRef.current.set(job.jobId, new Set())
+    delegateDispatchKeysByJobRef.current.set(job.jobId, new Map())
   }, [getOrCreateJobsMap, orchestrationWorkStyleForPane])
 
   const orchestrationMaxRoundsForPane = useCallback((paneId: string, tabId?: string): number => {
@@ -4411,6 +4419,46 @@ export const App: React.FC = () => {
           status: 'deferred',
         })
         continue
+      }
+
+      const trackedThreadId = findTrackedDelegationThreadId(job, delegation.id)
+      if (trackedThreadId) {
+        console.warn('[orchestration] delegación duplicada ignorada', {
+          delegationId: delegation.id,
+          orchestrationJobId: job.jobId,
+          toAgentId: decision.agentId,
+          reason: 'duplicate_delegation_id',
+          existingThreadId: trackedThreadId,
+        })
+        continue
+      }
+
+      const dispatchKey = delegationDispatchKey({
+        toAgentId: decision.agentId,
+        objective: delegation.objective,
+        contextIds: delegation.contextIds,
+      })
+      if (dispatchKey) {
+        let keysByJob = delegateDispatchKeysByJobRef.current.get(job.jobId)
+        if (!keysByJob) {
+          keysByJob = new Map()
+          delegateDispatchKeysByJobRef.current.set(job.jobId, keysByJob)
+        }
+        const existingDelegationId = keysByJob.get(dispatchKey)
+        if (existingDelegationId) {
+          const existingThreadId = findTrackedDelegationThreadId(job, existingDelegationId)
+          if (existingThreadId) {
+            console.warn('[orchestration] delegación duplicada ignorada', {
+              delegationId: delegation.id,
+              orchestrationJobId: job.jobId,
+              toAgentId: decision.agentId,
+              reason: 'duplicate_delegation_signature',
+              existingThreadId,
+            })
+            continue
+          }
+        }
+        keysByJob.set(dispatchKey, delegation.id)
       }
 
       const threadId = crypto.randomUUID()
@@ -5235,6 +5283,12 @@ export const App: React.FC = () => {
       }
     }
 
+    const closedJobs = orchestrationJobsByPaneRef.current.get(paneId)
+    if (closedJobs) {
+      for (const jobId of closedJobs.keys()) {
+        delegateDispatchKeysByJobRef.current.delete(jobId)
+      }
+    }
     orchestrationJobsByPaneRef.current.delete(paneId)
     activeOrchestrationJobByPaneRef.current.delete(paneId)
     orchestrationFifoByPaneRef.current.delete(paneId)
@@ -5377,6 +5431,7 @@ export const App: React.FC = () => {
         applyPruneDelegationThreadsForCompletedJob(job)
       }
       for (const jobId of [...jobsMap.keys()]) {
+        delegateDispatchKeysByJobRef.current.delete(jobId)
         const { abortedTargets: jobTargets } = abortOrchestrationJob(jobsMap, jobId)
         abortedTargets.push(...jobTargets)
       }

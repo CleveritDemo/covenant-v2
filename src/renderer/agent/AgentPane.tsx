@@ -66,6 +66,7 @@ import { createAgentChatSaveSchedule } from './agentChatSaveSchedule'
 import { planeStatusUserSnippet, resolvePlaneStatusMessages } from './agentPlaneStatusIdle'
 import { createAssistantDeltaThrottler } from './assistantDeltaThrottle'
 import { createLaneDeltaThrottler } from './laneDeltaThrottle'
+import { shouldBridgeVisibleLaneEvent } from './laneEventRouting'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { shouldMarkBusyOnCliError, turnFailedAfter } from './turnFailureState'
@@ -705,6 +706,7 @@ export const AgentPane: React.FC<Props> = ({
   const pendingCliEventsRef = useRef<AgentCliUiEvent[]>([])
   const applyCliEventRef = useRef<(event: AgentCliUiEvent) => void>(() => undefined)
   const applyLaneCliEventRef = useRef<(threadId: string, event: AgentCliUiEvent) => void>(() => undefined)
+  const subscribedLaneThreadsRef = useRef<Set<string>>(new Set())
   /** Indirección: el throttler se crea antes de que exista `commitLanes`. */
   const applyLaneDeltaRef = useRef<(threadId: string, text: string) => void>(() => undefined)
   const completeTurnRef = useRef<(expectedGen?: number) => void>(() => undefined)
@@ -2184,7 +2186,14 @@ export const AgentPane: React.FC<Props> = ({
     }
     const visibleThreadId = metaRef.current.activeThreadId ?? DEFAULT_THREAD_ID
     const liveLane = getLane(lanesRef.current, visibleThreadId)
-    if (liveLane?.busy) {
+    const laneRouting = shouldBridgeVisibleLaneEvent({
+      laneBusy: liveLane?.busy ?? false,
+      laneHasOwnSubscription: subscribedLaneThreadsRef.current.has(visibleThreadId),
+    })
+    // Puente: solo mientras el carril no tiene listener propio (ventana entre startLane y el effect).
+    // Con listener activo, reenviar desde applyCliEvent duplicaba cada evento CLI.
+    if (laneRouting === 'skip') return
+    if (laneRouting === 'bridge') {
       applyLaneCliEventRef.current(visibleThreadId, event)
       return
     }
@@ -2527,8 +2536,11 @@ export const AgentPane: React.FC<Props> = ({
 
   useEffect(() => {
     const cleanups: Array<() => void> = []
+    const subscribedIds: string[] = []
     for (const [threadId, lane] of lanesRef.current.entries()) {
       if (!lane.busy) continue
+      subscribedLaneThreadsRef.current.add(threadId)
+      subscribedIds.push(threadId)
       const laneRunKey = buildRunKey(paneId, threadId)
       cleanups.push(window.api.onAgentCliEvent(laneRunKey, event => {
         applyLaneCliEventRef.current(threadId, event)
@@ -2540,6 +2552,9 @@ export const AgentPane: React.FC<Props> = ({
       }))
     }
     return () => {
+      for (const id of subscribedIds) {
+        subscribedLaneThreadsRef.current.delete(id)
+      }
       for (const cleanup of cleanups) cleanup()
     }
     // Depende de qué carriles están vivos, no de `lanesVersion`: esa sube con

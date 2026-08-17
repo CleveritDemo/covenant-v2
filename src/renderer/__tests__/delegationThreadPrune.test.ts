@@ -149,4 +149,136 @@ describe('pruneDelegationThreadsForJob', () => {
 
     expect(chatDeletes.map(item => item.threadId)).toEqual(['del-thread'])
   })
+
+  it('poda hilos huérfanos con el mismo delegationId aunque el job solo referencie el toThreadId actual', () => {
+    const orphanThreadId = 'del-orphan'
+    const currentThreadId = 'del-current'
+    const tab = {
+      id: 'tab-1',
+      title: 'Tab',
+      paneIds: ['pane-fe'],
+      agentByPane: {
+        'pane-fe': {
+          agentId: 'frontend',
+          threads: sanitizeThreadState(
+            [
+              { id: 'human-1', title: 'main', updatedAt: 100, origin: 'human' },
+              {
+                id: orphanThreadId,
+                title: 'deleg orphan',
+                updatedAt: 50,
+                origin: 'delegation',
+                delegationId: 'd-1',
+              },
+              {
+                id: currentThreadId,
+                title: 'deleg current',
+                updatedAt: 60,
+                origin: 'delegation',
+                delegationId: 'd-1',
+              },
+            ],
+            'human-1',
+          ).threads,
+          activeThreadId: 'human-1',
+        },
+      },
+    } satisfies TabSession
+    const job = createOrchestrationJob('orch', 'job-a')
+    job.pending.set('d-1', {
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+      toThreadId: currentThreadId,
+    })
+    job.waveItems.push({
+      delegationId: 'd-1',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-fe',
+      toThreadId: currentThreadId,
+      status: 'running',
+    })
+    job.completedResults.push({
+      id: 'd-1',
+      status: 'complete',
+      summary: 'done',
+      fromPaneId: 'orch',
+      orchestrationJobId: 'job-a',
+      toPaneId: 'pane-fe',
+      toThreadId: currentThreadId,
+    })
+
+    const { tabs: nextTabs, chatDeletes } = pruneDelegationThreadsForJob(
+      [tab],
+      job,
+      200,
+      () => 'fallback',
+    )
+
+    expect(chatDeletes.map(item => item.threadId).sort()).toEqual(
+      [orphanThreadId, currentThreadId].sort(),
+    )
+    const binding = nextTabs[0]?.agentByPane?.['pane-fe']
+    expect(binding?.threads?.map(thread => thread.id)).toEqual(['human-1'])
+  })
+
+  it('no poda el hilo huérfano duplicado si su carril sigue vivo', () => {
+    const orphanThreadId = 'del-orphan'
+    const currentThreadId = 'del-current'
+    const tab = {
+      id: 'tab-1',
+      title: 'Tab',
+      paneIds: ['pane-fe'],
+      agentByPane: {
+        'pane-fe': {
+          agentId: 'frontend',
+          threads: sanitizeThreadState(
+            [
+              { id: 'human-1', title: 'main', updatedAt: 100, origin: 'human' },
+              {
+                id: orphanThreadId,
+                title: 'deleg orphan',
+                updatedAt: 50,
+                origin: 'delegation',
+                delegationId: 'd-1',
+              },
+              {
+                id: currentThreadId,
+                title: 'deleg current',
+                updatedAt: 60,
+                origin: 'delegation',
+                delegationId: 'd-1',
+              },
+            ],
+            'human-1',
+          ).threads,
+          activeThreadId: 'human-1',
+        },
+      },
+    } satisfies TabSession
+    const job = createOrchestrationJob('orch', 'job-a')
+    job.pending.set('d-1', {
+      toPaneId: 'pane-fe',
+      toAgentId: 'frontend',
+      toThreadId: currentThreadId,
+    })
+    job.waveItems.push({
+      delegationId: 'd-1',
+      toAgentId: 'frontend',
+      toPaneId: 'pane-fe',
+      toThreadId: currentThreadId,
+      status: 'running',
+    })
+
+    const { tabs: nextTabs, chatDeletes } = pruneDelegationThreadsForJob(
+      [tab],
+      job,
+      200,
+      () => 'fallback',
+      new Map([['pane-fe', new Set([orphanThreadId])]]),
+    )
+
+    expect(chatDeletes.map(item => item.threadId)).toEqual([currentThreadId])
+    const binding = nextTabs[0]?.agentByPane?.['pane-fe']
+    expect(binding?.threads?.map(thread => thread.id)).toEqual(['human-1', orphanThreadId])
+  })
 })

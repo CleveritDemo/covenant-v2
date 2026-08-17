@@ -780,3 +780,42 @@ export function cancelDeferredDelegationsForStoppedPane(
   }
   return cancelled
 }
+
+/** Primer toThreadId rastreado para una delegación dentro del job (pending → wave → completed). */
+export function findTrackedDelegationThreadId(
+  job: OrchestrationJob,
+  delegationId: string,
+): string | undefined {
+  const id = delegationId.trim()
+  if (!id) return undefined
+
+  const fromPending = job.pending.get(id)?.toThreadId?.trim()
+  if (fromPending) return fromPending
+
+  const fromWave = job.waveItems.find(item => item.delegationId === id)?.toThreadId?.trim()
+  if (fromWave) return fromWave
+
+  const fromCompleted = job.completedResults.find(result => result.id === id)?.toThreadId?.trim()
+  if (fromCompleted) return fromCompleted
+
+  return undefined
+}
+
+/** Clave estable para deduplicar despachos con el mismo destino + objetivo + contextos. */
+export function delegationDispatchKey(input: {
+  toAgentId?: string
+  objective?: string
+  contextIds?: readonly string[]
+}): string {
+  const toAgentId = input.toAgentId?.trim().toLowerCase() ?? ''
+  const objective = (input.objective ?? '').replace(/\s+/g, ' ').trim()
+  if (!toAgentId || !objective) return ''
+
+  const contextIds = [...new Set(
+    (input.contextIds ?? [])
+      .map(contextId => contextId.trim())
+      .filter(Boolean),
+  )].sort()
+
+  return [toAgentId, objective, contextIds.join('\u0001')].join('\u0000')
+}

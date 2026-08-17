@@ -256,9 +256,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       ].filter(Boolean).join(' ')}
     >
       {statusSlot ?? (
-        <div className="plane-mini-face__status-surface">
-          <span className="plane-mini-face__status">{statusLabel}</span>
-        </div>
+        <span className="plane-mini-face__status">{statusLabel}</span>
       )}
     </div>
     {children ? (

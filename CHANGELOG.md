@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.78.4
+
+- **Minis de agente más limpias**: «Standing by», hilos y delegaciones ya no van en cajas; los contextos quedan pegados al fondo de la card.
+- **Delegaciones sin hilos duplicados**: una delegación ya no abre dos conversaciones iguales en el especialista; al cerrar la ola también se limpian los huérfanos por id de delegación.
+
 ## v0.78.3
 
 - **Conversaciones sin nombre ya se entienden**: el chip activo muestra «Conversación nueva» en cursiva y puedes renombrarla con el lápiz sin depender del hover.

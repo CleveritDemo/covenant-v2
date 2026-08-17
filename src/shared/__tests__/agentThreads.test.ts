@@ -5,6 +5,7 @@ import {
   MAX_RECENT_CHIP_THREADS,
   barChipThreads,
   chipVisibleThreadIds,
+  delegationThreadIdsForDelegationIds,
   deleteThread,
   newThread,
   paginateThreadHistory,
@@ -480,5 +481,34 @@ describe('thread history helpers', () => {
     const { delegations, humans } = splitThreadHistoryCandidates(withLanes, 't1', ['d2', 't2'])
     expect(delegations.map(thread => thread.id)).toEqual([])
     expect(humans.map(thread => thread.id)).toEqual(['t6', 't7'])
+  })
+})
+
+describe('delegationThreadIdsForDelegationIds', () => {
+  const state = sanitizeThreadState(
+    [
+      { id: 'human-1', title: 'main', updatedAt: 100, origin: 'human', delegationId: 'd-1' },
+      { id: 'del-1', title: '', updatedAt: 50, origin: 'delegation', delegationId: 'd-1' },
+      { id: 'del-2', title: '', updatedAt: 60, origin: 'delegation', delegationId: 'd-2' },
+      { id: 'del-3', title: '', updatedAt: 70, origin: 'delegation' },
+    ],
+    'human-1',
+  )
+
+  it('incluye hilos delegation cuyo delegationId coincide', () => {
+    expect(delegationThreadIdsForDelegationIds(state, ['d-1'])).toEqual(['del-1'])
+  })
+
+  it('excluye hilos humanos aunque compartan delegationId', () => {
+    expect(delegationThreadIdsForDelegationIds(state, ['d-1', 'd-2'])).toEqual(['del-1', 'del-2'])
+    expect(delegationThreadIdsForDelegationIds(state, ['d-1'])).not.toContain('human-1')
+  })
+
+  it('excluye hilos delegation sin delegationId', () => {
+    expect(delegationThreadIdsForDelegationIds(state, ['d-1', 'd-2'])).not.toContain('del-3')
+  })
+
+  it('no duplica ids de entrada repetidos', () => {
+    expect(delegationThreadIdsForDelegationIds(state, ['d-1', ' d-1 ', ''])).toEqual(['del-1'])
   })
 })

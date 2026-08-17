@@ -4,6 +4,7 @@ import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import {
   paginateThreadHistory,
   splitThreadHistoryCandidates,
+  threadDisplayTitleOr,
   type AgentThread,
 } from '@shared/agentThreads'
 import { resolveThreadChipActivityDot, type PlaneActivityDotKind } from '../agent/paneWorkActive'
@@ -321,7 +322,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     const activity = runningThreadActivities[thread.id]?.trim()
     const title = thread.origin === 'delegation'
       ? (activity || t('agentPane.awaitingStatusRunning'))
-      : (thread.title || t('agentPane.threadUntitled'))
+      : threadDisplayTitleOr(thread.title, t('agentPane.threadUntitled'))
     const switchDisabled = threadSelectionLocked
 
     return (

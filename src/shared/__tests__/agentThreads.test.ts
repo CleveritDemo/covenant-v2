@@ -24,6 +24,8 @@ import {
   threadHistoryCandidates,
   threadPatch,
   threadTitleFrom,
+  threadTitleHasVisibleText,
+  threadDisplayTitleOr,
   touchActiveThread,
 } from '../agentThreads'
 
@@ -32,6 +34,21 @@ describe('threadTitleFrom', () => {
     expect(threadTitleFrom('  hola\n  como   estas? ')).toBe('hola como estas?')
     expect(threadTitleFrom('x'.repeat(80))).toHaveLength(48)
     expect(threadTitleFrom('x'.repeat(80)).endsWith('…')).toBe(true)
+  })
+})
+
+describe('threadDisplayTitleOr', () => {
+  it('usa el fallback con título vacío o solo espacios invisibles', () => {
+    expect(threadDisplayTitleOr('', 'Sin título')).toBe('Sin título')
+    expect(threadDisplayTitleOr('   ', 'Sin título')).toBe('Sin título')
+    expect(threadDisplayTitleOr('\u200B', 'Sin título')).toBe('Sin título')
+    expect(threadDisplayTitleOr('  Mi hilo  ', 'Sin título')).toBe('Mi hilo')
+  })
+
+  it('threadTitleHasVisibleText ignora espacios y zero-width', () => {
+    expect(threadTitleHasVisibleText('')).toBe(false)
+    expect(threadTitleHasVisibleText('\u200B')).toBe(false)
+    expect(threadTitleHasVisibleText('a')).toBe(true)
   })
 })
 

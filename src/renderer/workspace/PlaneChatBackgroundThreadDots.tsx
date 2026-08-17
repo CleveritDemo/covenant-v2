@@ -1,6 +1,7 @@
 import React from 'react'
 import { Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
+import { threadDisplayTitleOr } from '@shared/agentThreads'
 import { PlaneBusyDot, type PlaneBusyDotVariant } from '../components/ui/PlaneBusyDot'
 import './PlaneChatBackgroundThreadDots.css'
 
@@ -34,7 +35,7 @@ export const PlaneChatBackgroundThreadDots: React.FC<PlaneChatBackgroundThreadDo
       aria-label={t('agentPane.threadBusyDotsAria', { count: dots.length })}
     >
       {dots.map(dot => {
-        const title = dot.title.trim() || t('agentPane.threadUntitled')
+        const title = threadDisplayTitleOr(dot.title, t('agentPane.threadUntitled'))
         const activity = dot.activity.trim()
           || (dot.variant === 'delegating'
             ? t('agentPane.delegatingTitle')

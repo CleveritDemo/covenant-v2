@@ -4,6 +4,12 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+
+## v0.78.3
+
+- **Conversaciones sin nombre ya se entienden**: el chip activo muestra «Conversación nueva» en cursiva y puedes renombrarla con el lápiz sin depender del hover.
+- **La grilla del plano se suaviza en el centro**: menos opacidad base y un fade radial (50% en el centro del viewport, 100% en los bordes) para que el foco quede en los agentes.
+
 ## v0.78.2
 
 - Abrir una terminal y apretar Enter ya no abre una segunda: el botón redondo suelta el foco al pulsarlo y la terminal nueva lo toma, así que lo que escribes va al shell.

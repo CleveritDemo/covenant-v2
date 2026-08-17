@@ -2026,8 +2026,8 @@ function planeGridContrastRatio(
   return contrastRatio(blended, bgLum)
 }
 
-/** Base de opacidad; −20% vs 0.075 (más transparente en dark y light). */
-const PLANE_GRID_OPACITY_BASE = 0.06
+/** Base de opacidad; −36% vs 0.075 (dos pasos −20%: 0.075→0.06→0.048). */
+const PLANE_GRID_OPACITY_BASE = 0.048
 const PLANE_GRID_OPACITY_MIN = 0.02
 const PLANE_GRID_OPACITY_MAX = 1
 /** Ancla de contraste por apariencia: oscuros y claros se calibran por separado. */

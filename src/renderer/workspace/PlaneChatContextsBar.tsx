@@ -1,7 +1,7 @@
 import React, { useId, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
-import { barChipThreads, type AgentThread } from '@shared/agentThreads'
+import { barChipThreads, threadDisplayTitleOr, threadTitleHasVisibleText, type AgentThread } from '@shared/agentThreads'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
@@ -53,7 +53,14 @@ function threadChipTitle(
   if (thread.origin === 'delegation') {
     return t('agentPane.threadDelegationTitle')
   }
-  return thread.title.trim() || t('agentPane.threadUntitled')
+  return threadDisplayTitleOr(thread.title, t('agentPane.threadUntitled'))
+}
+
+function threadChipShowsPlaceholder(
+  thread: AgentThread,
+): boolean {
+  if (thread.origin === 'delegation') return false
+  return !threadTitleHasVisibleText(thread.title.trim())
 }
 
 /** Controles encima del chat (conversaciones). */
@@ -162,7 +169,14 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
           {chipDot ? (
             <PlaneBusyDot size="sm" variant={chipDot} />
           ) : null}
-          <span className="plane-chat-contexts-bar__chip-label">
+          <span
+            className={[
+              'plane-chat-contexts-bar__chip-label',
+              threadChipShowsPlaceholder(thread)
+                ? 'plane-chat-contexts-bar__chip-label--placeholder'
+                : '',
+            ].filter(Boolean).join(' ')}
+          >
             {title}
           </span>
         </span>
@@ -229,7 +243,14 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
             {chipDot ? (
               <PlaneBusyDot size="sm" variant={chipDot} />
             ) : null}
-            <span className="plane-chat-contexts-bar__chip-label">
+            <span
+              className={[
+                'plane-chat-contexts-bar__chip-label',
+                threadChipShowsPlaceholder(thread)
+                  ? 'plane-chat-contexts-bar__chip-label--placeholder'
+                  : '',
+              ].filter(Boolean).join(' ')}
+            >
               {title}
             </span>
           </button>

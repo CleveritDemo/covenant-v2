@@ -49,6 +49,20 @@ export function threadTitleFrom(text: string): string {
   return `${flat.slice(0, THREAD_TITLE_MAX - 1).trimEnd()}…`
 }
 
+/** Espacios y caracteres de ancho cero que dejan el título visualmente vacío. */
+const INVISIBLE_THREAD_TITLE_RE = /[\s\u200B-\u200D\uFEFF]/g
+
+export function threadTitleHasVisibleText(title: string): boolean {
+  return title.replace(INVISIBLE_THREAD_TITLE_RE, '').length > 0
+}
+
+/** Título visible en UI o etiqueta de respaldo cuando el hilo no tiene nombre útil. */
+export function threadDisplayTitleOr(title: string, fallback: string): string {
+  const raw = title.trim()
+  if (!threadTitleHasVisibleText(raw)) return fallback
+  return raw
+}
+
 export function activeThreadOf(state: AgentThreadState): AgentThread | undefined {
   return state.threads.find(thread => thread.id === state.activeThreadId)
 }

@@ -49,11 +49,11 @@ function themeGridContrast(theme: AppTheme): number {
 
 describe('computePlaneGridOpacity', () => {
   it('mantiene la opacidad de referencia en Interstellar', () => {
-    expect(computePlaneGridOpacity(getTheme('interstellar'))).toBe(0.074)
+    expect(computePlaneGridOpacity(getTheme('interstellar'))).toBe(0.059)
   })
 
   it('mantiene la opacidad de referencia en Interstellar Light', () => {
-    expect(computePlaneGridOpacity(getTheme('interstellarLight'))).toBe(0.06)
+    expect(computePlaneGridOpacity(getTheme('interstellarLight'))).toBe(0.048)
   })
 
   it('alinea el contraste de los temas oscuros al de Interstellar', () => {

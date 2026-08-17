@@ -51,6 +51,8 @@
 }
 
 .plane-chat-contexts-bar__chip-host--active {
+  gap: 4px;
+  padding: 0 6px 0 10px;
   border-color: var(--accent-border-strong);
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   box-shadow:
@@ -267,6 +269,16 @@
   line-height: 1;
 }
 
+.plane-chat-contexts-bar__chip-label--placeholder {
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.plane-chat-contexts-bar__chip-host--active .plane-chat-contexts-bar__chip-label--placeholder {
+  color: color-mix(in srgb, var(--accent) 42%, var(--text-muted));
+}
+
 .plane-chat-contexts-bar__chip-edit {
   display: inline-flex;
   flex: 0 0 auto;
@@ -295,8 +307,16 @@
     color 0.12s ease;
 }
 
+.plane-chat-contexts-bar__chip-host--active .plane-chat-contexts-bar__chip-edit {
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  pointer-events: auto;
+}
+
 .plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip-edit,
-.plane-chat-contexts-bar__chip-host:focus-within .plane-chat-contexts-bar__chip-edit {
+.plane-chat-contexts-bar__chip-host:focus-within .plane-chat-contexts-bar__chip-edit,
+.plane-chat-contexts-bar__chip-host--active .plane-chat-contexts-bar__chip-edit:focus-visible {
   width: 16px;
   min-width: 16px;
   max-width: 16px;

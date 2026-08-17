@@ -160,6 +160,27 @@ export function projectSphereGridPoint(
   }
 }
 
+/** Opacidad mínima en el centro del viewport (50% de la base en los bordes). */
+export const PLANE_GRID_CENTER_OPACITY_RATIO = 0.5
+
+/**
+ * Factor 0.5..1 según distancia al centro del viewport (bordes = 1, centro = 0.5).
+ */
+export function planeGridRadialOpacityFactor(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): number {
+  const cx = width / 2
+  const cy = height / 2
+  const maxDist = Math.hypot(cx, cy)
+  if (maxDist < 1e-6) return PLANE_GRID_CENTER_OPACITY_RATIO
+  const dist = Math.hypot(x - cx, y - cy)
+  const t = Math.min(1, dist / maxDist)
+  return PLANE_GRID_CENTER_OPACITY_RATIO + (1 - PLANE_GRID_CENTER_OPACITY_RATIO) * t
+}
+
 function snapLineCoord(value: number): number {
   return Math.round(value) + 0.5
 }
@@ -168,12 +189,16 @@ function strokePolyline(
   ctx: CanvasRenderingContext2D,
   points: ReadonlyArray<SphereGridPoint | null>,
   baseAlpha: number,
+  width: number,
+  height: number,
 ): void {
-  ctx.globalAlpha = baseAlpha
   for (let i = 0; i < points.length - 1; i += 1) {
     const p0 = points[i]
     const p1 = points[i + 1]
     if (!p0 || !p1) continue
+    const midX = (p0.x + p1.x) / 2
+    const midY = (p0.y + p1.y) / 2
+    ctx.globalAlpha = baseAlpha * planeGridRadialOpacityFactor(midX, midY, width, height)
     ctx.beginPath()
     ctx.moveTo(snapLineCoord(p0.x), snapLineCoord(p0.y))
     ctx.lineTo(snapLineCoord(p1.x), snapLineCoord(p1.y))
@@ -217,7 +242,7 @@ export function drawSphericalGrid(
       const v = -Math.PI + (2 * Math.PI * i) / segments
       row.push(projectSphereGridPoint(u, v, width, height, look))
     }
-    strokePolyline(ctx, row, lineAlpha)
+    strokePolyline(ctx, row, lineAlpha, width, height)
   }
 
   for (let v = -Math.PI; v < Math.PI - step * 0.25; v += step) {
@@ -226,7 +251,7 @@ export function drawSphericalGrid(
       const u = -latMax + (2 * latMax * i) / segments
       col.push(projectSphereGridPoint(u, v, width, height, look))
     }
-    strokePolyline(ctx, col, lineAlpha)
+    strokePolyline(ctx, col, lineAlpha, width, height)
   }
 
   ctx.globalAlpha = 1

@@ -8,6 +8,7 @@ import {
   drawSphericalGrid,
   planeGridFocalPx,
   planeGridPointerLerpAlpha,
+  planeGridRadialOpacityFactor,
   projectSphereGridPoint,
   sphereGridLatitudeMax,
   spherePointerLookTarget,
@@ -51,6 +52,14 @@ describe('planeGridPointerLerpAlpha', () => {
     expect(slow).toBeLessThan(fast)
     expect(slow).toBeGreaterThan(0)
     expect(slow).toBeLessThan(0.1)
+  })
+})
+
+describe('planeGridRadialOpacityFactor', () => {
+  it('centro = 50%, esquina = 100%', () => {
+    expect(planeGridRadialOpacityFactor(400, 300, 800, 600)).toBe(0.5)
+    expect(planeGridRadialOpacityFactor(800, 600, 800, 600)).toBe(1)
+    expect(planeGridRadialOpacityFactor(0, 0, 800, 600)).toBe(1)
   })
 })
 

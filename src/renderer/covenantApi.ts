@@ -46,6 +46,10 @@ export interface CovenantAuthStatus {
   githubId?: string | number
 }
 
+export type CovenantSignInResult =
+  | { ok: true; data: CovenantAuthStatus }
+  | { ok: false; error: string; source?: 'settings' | 'env' | 'keychain' | 'none' }
+
 export interface CovenantOrg {
   slug: string
   name: string
@@ -67,7 +71,7 @@ export interface CovenantDefault {
 
 export interface CovenantApi {
   status(): Promise<CovenantResult<CovenantAuthStatus>>
-  signIn(): Promise<CovenantResult<CovenantAuthStatus>>
+  signIn(): Promise<CovenantSignInResult>
   signOut(): Promise<CovenantResult<unknown>>
   orgsList(): Promise<CovenantResult<CovenantOrg[]>>
   orgCreate(slug: string, name: string): Promise<CovenantResult<CovenantOrg>>

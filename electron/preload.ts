@@ -41,6 +41,7 @@ import type {
   GitHubRunJobsResult,
   GitHubTokenCheck,
 } from '../src/shared/githubActionsTypes'
+import type { GithubTokenSource } from './githubToken'
 import type {
   CovenantDefault,
   CovenantMember,
@@ -685,7 +686,9 @@ const api = {
     status(): Promise<CovenantResult<CovenantStatus>> {
       return ipcRenderer.invoke(IPC.COVENANT_STATUS)
     },
-    signIn(): Promise<CovenantResult<CovenantStatus>> {
+    signIn(): Promise<
+      { ok: true; data: CovenantStatus } | { ok: false; error: string; source?: GithubTokenSource }
+    > {
       return ipcRenderer.invoke(IPC.COVENANT_SIGN_IN)
     },
     signOut(): Promise<CovenantResult<CovenantStatus>> {

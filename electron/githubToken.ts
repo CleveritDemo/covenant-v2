@@ -79,16 +79,27 @@ export async function readGithubTokenFromGitCredential(): Promise<string | null>
   return token || null
 }
 
+export type GithubTokenSource = 'settings' | 'env' | 'keychain' | 'none'
+
 /**
  * Token efectivo para la API de GitHub.
  * Prioridad: config.json → GITHUB_TOKEN (env/.env) → credential helper de git.
  */
-export async function resolveGithubToken(config: AppConfig): Promise<string | null> {
+export async function resolveGithubTokenWithSource(
+  config: AppConfig,
+): Promise<{ token: string | null; source: GithubTokenSource }> {
   const fromConfig = config.githubToken?.trim()
-  if (fromConfig) return fromConfig
+  if (fromConfig) return { token: fromConfig, source: 'settings' }
 
   const fromEnv = process.env.GITHUB_TOKEN?.trim()
-  if (fromEnv) return fromEnv
+  if (fromEnv) return { token: fromEnv, source: 'env' }
 
-  return readGithubTokenFromGitCredential()
+  const fromKeychain = await readGithubTokenFromGitCredential()
+  if (fromKeychain) return { token: fromKeychain, source: 'keychain' }
+
+  return { token: null, source: 'none' }
+}
+
+export async function resolveGithubToken(config: AppConfig): Promise<string | null> {
+  return (await resolveGithubTokenWithSource(config)).token
 }

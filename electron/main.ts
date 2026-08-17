@@ -208,7 +208,8 @@ import {
 import { githubActionsListForSession, githubRunJobsForSession } from './githubActionsOps'
 import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
-import { resolveGithubToken } from './githubToken'
+import { resolveGithubToken, resolveGithubTokenWithSource } from './githubToken'
+import { describeCovenantSignInError } from '../src/shared/covenantAuthError'
 import {
   cloneOrgWorkspace,
   type OrgWorkspaceCloneRepo,
@@ -1167,12 +1168,16 @@ function registerIpc(): void {
   ipcMain.handle(IPC.COVENANT_STATUS, async () => covenantInvoke(() => covenantStatus()))
 
   ipcMain.handle(IPC.COVENANT_SIGN_IN, async () => {
-    const token = await resolveGithubToken(readConfig())
-    if (!token) return { ok: false as const, error: 'no-github-token' }
-    return covenantInvoke(async () => {
+    const { token, source } = await resolveGithubTokenWithSource(readConfig())
+    if (!token) return { ok: false as const, error: 'no-github-token', source: 'none' as const }
+    const result = await covenantInvoke(async () => {
       await covenantExchange(token)
       return covenantStatus()
     })
+    if (!result.ok) {
+      return { ...result, error: describeCovenantSignInError(result.error, source), source }
+    }
+    return result
   })
 
   ipcMain.handle(IPC.COVENANT_SIGN_OUT, async () =>

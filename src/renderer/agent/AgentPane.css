@@ -20,8 +20,8 @@
   font-family: var(--agent-font);
   color: var(--text);
   background:
-    radial-gradient(circle at 15% -10%, color-mix(in srgb, var(--accent) 9%, transparent) 0%, transparent 45%),
-    color-mix(in srgb, var(--bg) 96%, var(--bg-secondary));
+    radial-gradient(circle at 15% -10%, var(--pane-canvas-glow) 0%, transparent 45%),
+    var(--pane-canvas);
   position: relative;
   /* Propio contexto de apilamiento para capas internas del panel. */
   isolation: isolate;

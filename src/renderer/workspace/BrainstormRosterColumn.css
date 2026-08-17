@@ -1,0 +1,27 @@
+.brainstorm-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brainstorm-roster__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Solo borde/radio/sombra: .plane-mini-face ya pinta fondo opaco encima. */
+.brainstorm-roster__item {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
+  border-radius: var(--plane-radius-sm);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.brainstorm-roster__hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin: 0;
+}

@@ -943,6 +943,7 @@ const es = {
     brainstormFinishHint: 'La suelta del plano. El acta queda guardada y se reabre desde «Salas guardadas».',
     brainstormsSaved: 'Salas guardadas',
     brainstormsSavedCount: 'Salas guardadas · {{count}}',
+    brainstormsRosterTitle: 'Agentes',
     brainstormsOpen: 'Abrir',
     brainstormsResume: 'Reanudar',
     brainstormsLive: 'En vivo',

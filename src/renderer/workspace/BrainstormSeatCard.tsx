@@ -121,7 +121,6 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
         monogram={monogram}
         provider={provider}
         coordination={coordination}
-        density="compact"
         statusLabel={seated
           ? t('tabs.brainstormSeatTurn', { order: String(order) })
           : t('tabs.brainstormSeatFree')}
@@ -202,7 +201,6 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
           provider={provider}
           coordination={coordination}
           busy={state === 'speaking'}
-          density="compact"
           statusLabel={`${stateLabel} · ${turnsDone}/${rounds}`}
         >
           {role ? <span className="brainstorm-seat__role">{role}</span> : null}

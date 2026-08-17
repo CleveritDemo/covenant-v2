@@ -31,6 +31,14 @@ beforeAll(() => {
       }
     } as unknown as typeof PointerEvent
   }
+  // jsdom no trae ResizeObserver; PlaneMapSphericalGrid (piso de sala) lo usa al montar.
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    globalThis.ResizeObserver = class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+  }
   if (typeof HTMLElement !== 'undefined') {
     // jsdom no implementa scrollIntoView; los listbox lo usan al moverse con flechas.
     HTMLElement.prototype.scrollIntoView = function scrollIntoView() { /* no-op */ }

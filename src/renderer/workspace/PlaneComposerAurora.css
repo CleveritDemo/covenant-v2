@@ -15,7 +15,8 @@
   transition: opacity 0.35s ease;
 }
 
-.plane-chat-composer--working .plane-composer-aurora {
+.plane-chat-composer--working .plane-composer-aurora,
+.plane-composer-aurora--working {
   opacity: 1;
 }
 
@@ -60,7 +61,8 @@
     box-shadow 0.35s ease;
 }
 
-.plane-chat-composer--working .plane-composer-aurora__line {
+.plane-chat-composer--working .plane-composer-aurora__line,
+.plane-composer-aurora--working .plane-composer-aurora__line {
   height: 2.5px;
   animation:
     plane-composer-ribbon-flow 7s linear infinite,
@@ -97,7 +99,8 @@
 }
 
 html[data-reduce-motion="true"] {
-  .plane-chat-composer--working .plane-composer-aurora__line {
+  .plane-chat-composer--working .plane-composer-aurora__line,
+  .plane-composer-aurora--working .plane-composer-aurora__line {
     animation: none;
     background-position: 35% 50%;
     filter: brightness(1.22);

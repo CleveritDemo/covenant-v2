@@ -4,8 +4,7 @@
   flex-direction: column;
   gap: 7px;
   padding: 10px 16px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  background: color-mix(in srgb, var(--bg) 70%, var(--bg-secondary));
+  background: transparent;
 }
 
 .brainstorm-human-composer__row {
@@ -17,6 +16,11 @@
 .brainstorm-human-composer .textarea {
   flex: 1 1 auto;
   min-width: 0;
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--plane-composer-input-radius, 14px);
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
 }
 
 .brainstorm-human-composer__meta {

@@ -6251,6 +6251,7 @@ export const App: React.FC = () => {
           active={activeTabId === tab.id}
           cwd={tab.projectFolder ?? ''}
           agents={projectAgentsByCwd[catalogKey] ?? []}
+          contexts={tabContextsByTab[tab.id] ?? []}
           onClose={() => setView(null)}
           onCreate={() => setView('setup')}
           onOpenRoom={openSavedRoom}

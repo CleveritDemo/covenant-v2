@@ -19,6 +19,10 @@ export interface PlaneFabStackProps {
   showBootstrapAgents?: boolean
   canBootstrapAgents?: boolean
   onBootstrapAgents?: () => void
+  /** Sube el stack cuando hay un overlay del plano abierto. */
+  elevated?: boolean
+  /** Permite ocultar el FAB de terminal. */
+  showTerminal?: boolean
 }
 
 export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
@@ -35,34 +39,41 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   showBootstrapAgents = false,
   canBootstrapAgents = false,
   onBootstrapAgents,
-}) => (
-  <>
-    <div className="plane-fab-stack plane-fab-stack--left">
-      <PlaneFab
-        kind="terminal"
-        label={terminalTitle}
-        disabled={!canAddTerminal}
-        disabledTitle={terminalDisabledTitle}
-        onClick={onAddTerminal}
-      />
-    </div>
-    <div className="plane-fab-stack plane-fab-stack--right">
-      {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
-        <PlaneFab
-          kind="bootstrap"
-          label={bootstrapAgentsTitle}
-          disabled={!canBootstrapAgents}
-          disabledTitle={bootstrapAgentsDisabledTitle}
-          onClick={onBootstrapAgents}
-        />
+  elevated = false,
+  showTerminal = true,
+}) => {
+  const elevatedClass = elevated ? 'plane-fab-stack--elevated' : ''
+  return (
+    <>
+      {showTerminal ? (
+        <div className={['plane-fab-stack', 'plane-fab-stack--left', elevatedClass].filter(Boolean).join(' ')}>
+          <PlaneFab
+            kind="terminal"
+            label={terminalTitle}
+            disabled={!canAddTerminal}
+            disabledTitle={terminalDisabledTitle}
+            onClick={onAddTerminal}
+          />
+        </div>
       ) : null}
-      <PlaneFab
-        kind="agent"
-        label={agentTitle}
-        disabled={!canAddAgent}
-        disabledTitle={agentDisabledTitle}
-        onClick={onAddAgent}
-      />
-    </div>
-  </>
-)
+      <div className={['plane-fab-stack', 'plane-fab-stack--right', elevatedClass].filter(Boolean).join(' ')}>
+        {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
+          <PlaneFab
+            kind="bootstrap"
+            label={bootstrapAgentsTitle}
+            disabled={!canBootstrapAgents}
+            disabledTitle={bootstrapAgentsDisabledTitle}
+            onClick={onBootstrapAgents}
+          />
+        ) : null}
+        <PlaneFab
+          kind="agent"
+          label={agentTitle}
+          disabled={!canAddAgent}
+          disabledTitle={agentDisabledTitle}
+          onClick={onAddAgent}
+        />
+      </div>
+    </>
+  )
+}

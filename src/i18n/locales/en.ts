@@ -941,6 +941,7 @@ const en = {
     brainstormFinishHint: 'Lets it go from the plane. The transcript stays saved and reopens from Saved rooms.',
     brainstormsSaved: 'Saved rooms',
     brainstormsSavedCount: 'Saved rooms · {{count}}',
+    brainstormsRosterTitle: 'Agents',
     brainstormsOpen: 'Open',
     brainstormsResume: 'Resume',
     brainstormsLive: 'Live',

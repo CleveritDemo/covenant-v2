@@ -66,6 +66,9 @@
   --plane-grid-warmth: 0.42;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
   --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 84%, var(--surface));
+  /* Lienzo de un pane: mismo fondo en el chat de agente y en la sala. */
+  --pane-canvas: color-mix(in srgb, var(--bg) 96%, var(--bg-secondary));
+  --pane-canvas-glow: color-mix(in srgb, var(--accent) 9%, transparent);
   --plane-node-bg: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
   --plane-node-solid: color-mix(in srgb, var(--bg) 42%, var(--bg-secondary));
   --plane-border: color-mix(in srgb, var(--border) 38%, var(--accent-border-soft));

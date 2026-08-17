@@ -67,6 +67,8 @@ export interface PlaneContextPoolProps {
   onDeleteContext?: (contextId: string) => void
   /** Asigna/desasigna un contexto a un agente. */
   onToggleAssign: (paneId: string, contextId: string) => void
+  /** Sube el z-index cuando un overlay del plano está abierto. */
+  elevated?: boolean
 }
 
 export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
@@ -90,6 +92,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   onOpenContext,
   onDeleteContext,
   onToggleAssign,
+  elevated = false,
 }) => {
   const { t } = useT()
   const dragOccurredRef = useRef(false)
@@ -293,6 +296,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
       className={[
         'plane-context-pool-shell',
         draggingChip ? 'plane-context-pool-shell--dragging' : '',
+        elevated ? 'plane-context-pool-shell--elevated' : '',
       ].filter(Boolean).join(' ')}
       role="toolbar"
       aria-label={title}

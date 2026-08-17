@@ -17,6 +17,11 @@
   pointer-events: auto;
 }
 
+/* 675 queda por encima del overlay de la sala (APP_OVERLAY_MODAL_Z = 670). */
+.plane-context-pool-shell--elevated {
+  z-index: 675;
+}
+
 .plane-context-pool {
   --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 44%, transparent);
   position: relative;

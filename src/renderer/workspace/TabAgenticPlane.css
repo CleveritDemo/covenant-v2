@@ -232,6 +232,9 @@
   align-items: flex-start;
 }
 
+/* 675 queda por encima del overlay de la sala (APP_OVERLAY_MODAL_Z = 670), igual que el pool y el riel. */
+.plane-fab-stack--elevated { z-index: 675; }
+
 .plane-fab {
   display: inline-flex;
   align-items: center;

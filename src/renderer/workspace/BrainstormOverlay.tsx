@@ -7,7 +7,9 @@ import {
 } from '@shared/brainstormSeatCell'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneComposerAuroraParticles } from './PlaneComposerAuroraParticles'
+import { PlaneMapSphericalGrid } from './PlaneMapSphericalGrid'
 import './BrainstormOverlay.css'
 
 export interface BrainstormOverlayProps {
@@ -121,9 +123,13 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
       } as React.CSSProperties}
       data-seat-tier={tier}
     >
+      {/* La sala reusa el piso del plano — rejilla debajo, partículas encima. */}
       <div className="brainstorm-overlay__floor" aria-hidden="true">
+        <PlaneMapSphericalGrid />
         <PlaneComposerAuroraParticles active={busy} tabActive={active} />
       </div>
+      {/* La cinta es del suelo de la sala, como en el plano es del plano y no del composer. */}
+      <PlaneComposerAurora working={busy} />
 
       <header className="brainstorm-overlay__bar">
         {chrome}

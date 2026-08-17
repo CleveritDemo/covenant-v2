@@ -8,6 +8,7 @@ import {
   resolveBrainstormParticipantDisplay,
 } from '@shared/brainstormRoom'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import type { TabContext } from '@shared/tabContext'
 import {
   brainstormAge,
   brainstormContextNameSuggestion,
@@ -28,6 +29,7 @@ import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { BrainstormOverlay } from './BrainstormOverlay'
+import { BrainstormRosterColumn } from './BrainstormRosterColumn'
 import { BrainstormModuleTabs } from './BrainstormModuleTabs'
 import { BrainstormEditRoomModal } from './BrainstormEditRoomModal'
 import { BrainstormRoomMenu, type BrainstormRoomMenuItem } from './BrainstormRoomMenu'
@@ -40,6 +42,8 @@ export interface BrainstormRoomsViewProps {
   cwd: string
   /** Catálogo del proyecto: monogramas de la fila y reinvitar en salas `idle`. */
   agents?: ProjectAgentDefinition[]
+  /** Catálogo de contextos del tab: chips en el roster (PlaneMiniFace). */
+  contexts?: readonly TabContext[]
   onClose: () => void
   onCreate: () => void
   onOpenRoom: (room: BrainstormRoom) => void
@@ -109,6 +113,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
   active = true,
   cwd,
   agents = [],
+  contexts = [],
   onClose,
   onCreate,
   onOpenRoom,
@@ -453,6 +458,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
             </section>
           </>
         )}
+        right={<BrainstormRosterColumn agents={agents} contexts={contexts} cwd={cwd} />}
       >
         <div className="brainstorm-rooms">
         {rooms.length > 0 ? (

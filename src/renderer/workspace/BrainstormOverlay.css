@@ -17,15 +17,18 @@
     minmax(0, 1fr)
     minmax(0, var(--brainstorm-col-w));
   grid-template-rows: var(--brainstorm-nav-gutter) minmax(0, 1fr);
-  background: var(--bg);
+  background: var(--pane-canvas);
   font-family: var(--font-ui);
   color: var(--text);
+  /* Canalón ambos rieles del plano: 28px + inset 8px + holgura; elevated no pisa columnas. */
+  padding-inline: var(--brainstorm-rail-gutter);
 
   /* Medidas del plano de codificación (src/shared/paneWindows.ts). */
   --brainstorm-col-w: 216px;
   --brainstorm-col-gap: 20px;
   --brainstorm-nav-gutter: 48px;
   --brainstorm-chat-w: 800px;
+  --brainstorm-rail-gutter: 44px;
 
   container-type: inline-size;
   container-name: brainstorm-room;
@@ -38,7 +41,7 @@
   pointer-events: none;
   background: radial-gradient(
     120% 80% at 50% -10%,
-    color-mix(in srgb, var(--accent) 9%, transparent) 0%,
+    var(--pane-canvas-glow) 0%,
     transparent 60%
   );
 }
@@ -313,9 +316,10 @@
 }
 
 /*
- * Tarjeta de asiento. La caja solo aporta borde, radio y el color del agente:
- * dentro va la mini del plano (`PlaneMiniFace`), que trae su propio relleno y su
- * propio degradado —por eso aquí no hay padding ni gap.
+ * Tarjeta de asiento. El marco exterior es el mismo que la mini de agente del
+ * plano (`.pane-window--agent-card.pane-window--mini`): borde, glass y sin sombra.
+ * Dentro va `PlaneMiniFace` con su relleno y degradado —por eso aquí no hay
+ * padding ni gap. Lo propio de la sala es el tinte por `--brainstorm-seat-color`.
  *
  * `--brainstorm-seat-cell` —la ranura de las minis del plano— entra como TOPE,
  * no como alto fijo: las minis de código son previews de terminal que llenan su
@@ -333,14 +337,14 @@
   flex-direction: column;
   overflow: hidden;
   text-align: left;
-  border: 1px solid var(--border);
-  border-radius: var(--plane-radius-sm, 10px);
-  background: var(--surface);
-  box-shadow: var(--plane-mini-card-shadow);
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
+  border-radius: var(--plane-radius-sm);
+  background: var(--plane-glass-strong);
+  box-shadow: none;
   color: var(--text);
   font-family: var(--font-ui);
   cursor: pointer;
-  transition: transform 140ms ease, border-color 140ms ease;
+  transition: border-color 0.16s, box-shadow 0.16s, filter 0.16s;
 }
 
 /*
@@ -352,8 +356,7 @@
  */
 
 .brainstorm-seat:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--brainstorm-seat-color) 55%, var(--border));
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
 }
 
 .brainstorm-seat:focus-visible {
@@ -361,6 +364,7 @@
   outline-offset: 2px;
 }
 
+/* Sentado/hablando: misma base glass del reposo; solo tinte + borde del agente. */
 .brainstorm-seat--seated,
 .brainstorm-seat--speaking {
   border-color: color-mix(in srgb, var(--brainstorm-seat-color) 62%, transparent);
@@ -369,10 +373,8 @@
       color-mix(in srgb, var(--brainstorm-seat-color) 7%, transparent),
       color-mix(in srgb, var(--brainstorm-seat-color) 7%, transparent)
     ),
-    var(--surface);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--brainstorm-seat-color) 22%, transparent),
-    var(--plane-mini-card-shadow);
+    var(--plane-glass-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brainstorm-seat-color) 22%, transparent);
 }
 
 /* Esperando turno: sigue legible, pero no compite con quien habla. */
@@ -493,7 +495,9 @@
   min-height: 0;
   border: 1px solid color-mix(in srgb, var(--brainstorm-seat-color) 45%, var(--border));
   border-radius: var(--plane-radius, 13px);
-  background: var(--surface);
+  background:
+    radial-gradient(circle at 15% -10%, var(--pane-canvas-glow) 0%, transparent 45%),
+    var(--pane-canvas);
   box-shadow: var(--plane-shadow);
   overflow: hidden;
 }

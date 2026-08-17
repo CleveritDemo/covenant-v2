@@ -1,7 +1,8 @@
-/* APP_OVERLAY_MODAL_Z (670) - 1: bajo modales, sobre el plano. */
+/* Por encima del chrome elevated del plano (675) y de la sala (APP_OVERLAY_MODAL_Z=670);
+   sigue bajo modales APP_OVERLAY_MODAL_Z+10. */
 .plane-context-chip-menu {
   position: fixed;
-  z-index: 669;
+  z-index: 676;
   min-width: 148px;
   padding: 3px;
   display: flex;

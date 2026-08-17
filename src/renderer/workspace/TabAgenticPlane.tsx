@@ -1234,38 +1234,40 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {/* La esquina de arriba a la derecha se la queda el chrome del overlay:
-          el pool se retira mientras el mapa o una sala ocupan el plano. */}
+      {/* El pool no se retira con la sala: solo con mapa de wiki, Pulse y
+          fullscreen; en la sala sube a 675 por elevated. Las líneas de
+          asignación sí se ocultan con la sala (apuntan a minis tapadas). */}
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
+        <PlaneContextPool
+          title={contextPoolTitle}
+          configureLabel={contextPoolConfigureLabel}
+          createLabel={contextPoolCreateLabel}
+          chipActionHint={contextPoolChipHint}
+          assignLabel={contextPoolAssignLabel}
+          assignEmptyHint={contextPoolAssignEmptyHint}
+          assignedCountLabel={contextPoolAssignedCountLabel}
+          editLabel={contextPoolEditLabel}
+          deleteLabel={contextPoolDeleteLabel}
+          deleteConfirmMessage={contextPoolDeleteConfirmMessage}
+          deleteConfirmDetail={contextPoolDeleteConfirmDetail}
+          contexts={tabContexts}
+          contextCatalog={contextCatalog}
+          cwd={projectFolder}
+          agents={contextPoolAgents}
+          onConfigure={onConfigureContexts}
+          onCreate={onCreateContext}
+          onOpenContext={onOpenContext}
+          onDeleteContext={onDeleteContext}
+          onToggleAssign={onToggleAgentContext}
+          elevated={brainstormOverlayOpen}
+        />
+      )}
       {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
-        <>
-          <PlaneContextPool
-            title={contextPoolTitle}
-            configureLabel={contextPoolConfigureLabel}
-            createLabel={contextPoolCreateLabel}
-            chipActionHint={contextPoolChipHint}
-            assignLabel={contextPoolAssignLabel}
-            assignEmptyHint={contextPoolAssignEmptyHint}
-            assignedCountLabel={contextPoolAssignedCountLabel}
-            editLabel={contextPoolEditLabel}
-            deleteLabel={contextPoolDeleteLabel}
-            deleteConfirmMessage={contextPoolDeleteConfirmMessage}
-            deleteConfirmDetail={contextPoolDeleteConfirmDetail}
-            contexts={tabContexts}
-            contextCatalog={contextCatalog}
-            cwd={projectFolder}
-            agents={contextPoolAgents}
-            onConfigure={onConfigureContexts}
-            onCreate={onCreateContext}
-            onOpenContext={onOpenContext}
-            onDeleteContext={onDeleteContext}
-            onToggleAssign={onToggleAgentContext}
-          />
-          <PlaneContextAssignmentLinks
-            planeRef={planeRef}
-            agents={contextPoolAgents}
-            colorByContextId={contextColorById}
-          />
-        </>
+        <PlaneContextAssignmentLinks
+          planeRef={planeRef}
+          agents={contextPoolAgents}
+          colorByContextId={contextColorById}
+        />
       )}
 
       {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
@@ -1348,7 +1350,9 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
+      {/* Con la sala abierta solo queda el alta de agente, elevada — abrir una
+          terminal desde dentro de una sala no tiene sentido. */}
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1364,6 +1368,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           showBootstrapAgents={showBootstrapAgents && entities.length > 0}
           canBootstrapAgents={canBootstrapAgents}
           onBootstrapAgents={onBootstrapAgents}
+          elevated={brainstormOverlayOpen}
+          showTerminal={!brainstormOverlayOpen}
         />
       )}
 

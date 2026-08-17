@@ -228,9 +228,10 @@
 .plane-chat-contexts-bar__chip--editing {
   display: inline-flex;
   align-items: center;
-  width: max-content;
+  width: 176px;
+  max-width: 176px;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: none;
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
@@ -240,11 +241,14 @@
 }
 
 .plane-chat-contexts-bar__chip--editing .input {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   padding: 0;
   font-size: 11px;
   line-height: 1.2;
   color: inherit;
+  caret-color: var(--accent);
   background: transparent;
   border: none;
   border-radius: 0;

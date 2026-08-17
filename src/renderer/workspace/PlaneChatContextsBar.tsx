@@ -139,6 +139,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
             value={draftTitle}
             aria-label={t('agentPane.threadRename')}
             placeholder={t('agentPane.threadUntitled')}
+            onFocus={event => event.currentTarget.select()}
             onChange={event => setDraftTitle(event.target.value)}
             onBlur={commitRename}
             onKeyDown={event => {
